@@ -108,6 +108,12 @@ bender in its figure 4.1 is for annealed tube only. The asterisk on the table's 
 has no footnote in the HTML (not read). So hard copper larger than 3/4 in has no listed bend: it
 changes direction with fittings.
 
+*Note of 2026-11-02 (refutation pass):* Table 4.1 re-read at the same address; every radius above
+is as the page gives it. Two things the reading left out: the chapter's text calls the table a
+guide to typical bend radii while the table heads its column "Minimum Bend Radius", and neither
+says whether the radius is measured to the tube's centreline or to the inside of the bend. A real
+lever bender for soft copper bends 1/2 in nominal tube at exactly the table's 2 1/4 in (finding 51).
+
 **2. Copper tube supports (the same handbook, "General Considerations").** Source:
 https://copper.org/markets-and-applications/building-construction/strengthening-plumbing-systems/copper-tube-handbook/copper-tube-handbook-web-version/3-design-and-installation-data/general-considerations/.
 Date: as finding 1. Numbers only: drawn tube horizontally about every 8 ft (2.44 m) at 1 in and
@@ -136,6 +142,19 @@ Chapter 4 reprints, "with permission of the publishers", the 2024 IRC's Table P2
 horizontal, 10 ft vertical) and the 2024 UPC's 312.9 (a No. 18 gauge steel plate where plastic or
 copper pipe is within 1 in of a framing member's edge).
 
+*Note of 2026-11-02 (refutation pass):* Chapter 9 re-read; the numbers above stand. Details it
+adds: the free bend radius is measured at the mid-point of the bend; the against-the-coil example
+is 1/2 in tubing at 3 times 3.8 in, 11.4 in; Table 9.2's holes are 1/4 in larger than the tubing's
+OUTSIDE diameter (a difference in diameter, so about 1/8 in all round), 7/8 in for 1/2 in tubing;
+PEX comes in coils of 100, 300, 500 ft or more. Chapter 3 of the same guide,
+https://www.plasticpipe.org/common/Uploaded%20files/Technical/PEX%20Plumbing%20Design%20Installation%20Guide%20Third%20Edition_Ch3.pdf,
+gives the tubing's dimensions (numbers only). Table 3.1, average outside diameter and wall from
+ASTM F876 and the inside diameter calculated from them, inches: 3/8 in 0.500, 0.075, 0.350; 1/2 in
+0.625, 0.075, 0.475; 3/4 in 0.875, 0.102, 0.671; 1 in 1.125, 0.132, 0.862. The chapter says PEX for
+plumbing is copper tube size (an outside diameter 1/8 in larger than the nominal size, as copper
+tube's), and that iron pipe size products match the outside diameter of steel pipe of the same
+nominal size.
+
 **4. Rigid PVC and CPVC (Charlotte Pipe, Plastics Technical and Installation Manual, TM-PL).**
 Source (the maker's manual on a distributor's server):
 https://webassets.hajoca.com/ownerguides/611942/61194212498.pdf. Date: "Updated July 7, 2021"; a
@@ -146,6 +165,19 @@ to heat-bend CPVC. Page 47: horizontal support spacing for PVC Schedule 40 by te
 not used); the page notes that most codes cap ABS and PVC at 4 ft for every size, CPVC at 3 ft up
 to 1 in and 4 ft above. Page 49: the maker's coiled CPVC (CTS) bends to 18 in at 1/2 and 3/4 in and
 24 in at 1 in.
+
+*Note of 2026-11-02 (refutation pass):* Correction: the coiled CPVC radii are on page 50, not 49
+(the section "Permissible Bending Deflections for FlowGuard Gold Pipe", which the contents list at
+page 50 and which follows page 49's footer); the numbers stand, and they are for the maker's
+FlowGuard Gold coiled pipe. The same section lets straight CTS CPVC be deflected a limited amount
+by length (a table not recorded here). Page 52 re-read: an external heat source used to bend ABS,
+CPVC or PVC may damage pipe and fittings, and changes in direction are made with fittings. Not
+recorded before, the manual's dimension tables (numbers only): PVC Schedule 40 plain-end pipe
+(ASTM D 1785, page 21) and PVC Schedule 40 DWV pipe (ASTM D 2665, page 16), average outside
+diameter 1/2 in 0.840, 3/4 in 1.050, 1 in 1.315, 1 1/2 in 1.900, 2 in 2.375, 3 in 3.500, 4 in 4.500
+in, in 10 and 20 ft lengths; CPVC copper tube size pipe, SDR 11 (ASTM D 2846, page 28), average
+outside diameter 1/2 in .625, 3/4 in .875, 1 in 1.125, straight lengths of 10 and 20 ft, coils of
+150 ft (1/2 in) and 100 ft (3/4 and 1 in).
 
 **5. Steel pipe aboard a ship (46 CFR 56.80-5 and 56.80-15).** Source: the eCFR API, Title 46, Part
 56, current as of 2026-10-28,
@@ -166,6 +198,12 @@ size, -4 (1/4 in bore) 2 in (50 mm), -6 2 1/2 in (65 mm), -8 (1/2 in) 3 1/2 in (
 SAE 100R1 radius. The radius is the tightest arc before the hose's life is greatly reduced, measured
 to the inside of the bend; tighter risks kinking. A garden or water hose was not researched (see
 "What is still unknown").
+
+*Note of 2026-11-02 (refutation pass):* Page A-10 re-read in the same copy; the radii stand
+(451TC/ST, SAE 100R17, 3000 psi constant working pressure in every size). The page also gives each
+size's outside diameter, not recorded before: -4 0.52 in (13 mm), -6 0.68 in (17), -8 0.80 in (20),
+-10 0.94 in (24), -12 1.10 in (28), -16 1.40 in (35), -20 1.85 in (47). The tech bulletin's copy
+(crossco.com) refused a scripted request this time and was not re-read.
 
 **7. Corrugated stainless steel gas tubing (Omega Flex, TracPipe CounterStrike Design and
 Installation Guide, FGP-001 12/16).** Source (the maker's guide on a third-party host):
@@ -213,6 +251,12 @@ spaced not over 1.5 m 5 feet apart at valves". Supports within 1 ft of the joint
 direction; spacing otherwise per MSS SP-58 (not read, finding 44); plastic pipe's spacing chosen
 for 120 F (PVC) and 180 F (CPVC); vertical supports at each floor, at most 15 ft apart and 8 ft
 from a riser's ends.
+
+*Note of 2026-11-02 (refutation pass):* Re-read (3.1, paragraphs i and j). The riser rule's two
+units disagree, as finding 9's table does: "nor more than 2 m 8 feet from end of risers" (2 m is
+not 8 ft, 2.44 m). Not recorded before: changes in direction are made with fittings, except that
+pipe 4 in and smaller may be bent with a pipe bender into wide sweeps, whose centre-line radius
+"must be not less than six diameters of the pipe."
 
 **11. Hanger spacing and protection in a model plumbing code (International Plumbing Code, 2009
 edition, as posted by Public.Resource.Org).** Source:
@@ -300,6 +344,16 @@ them from the sheets' tables ("Min Bending Radius" against "Approx. OD", inches)
 every row near 4 times the diameter (the thickness of a flat cable). Whether that equals the NEC's
 multiple is not known (finding 42).
 
+*Note of 2026-11-02 (refutation pass):* Both sheets re-read at the same addresses and revisions;
+every radius and diameter above is as their tables give it. It does NOT equal the NEC's multiple:
+the 2014 NEC asks at least 5 times the diameter of NM cable, to the inner edge of the bend (finding
+45), so the sheet's NM-B radii are tighter than the code allows. Not recorded before (numbers
+only): both sheets state a 600 volt rating; NM-B's 14 to 10 AWG conductors are solid and 8 to 2 AWG
+stranded; DC resistance at 25 C, ohms per 1000 ft: NM-B 14 AWG 2.631, 12 AWG 1.662, 10 AWG 1.04,
+8 AWG 0.653, 2 AWG 0.162; THHN 8 AWG 0.653, 4 AWG 0.258, 4/0 0.051, 500 kcmil 0.021. The NM-B
+sheet limits the cable's ampacity to a 60 C conductor's, as the NEC does, and lists 15 A (14 AWG),
+20 (12), 30 (10), 40 (8), 55 (6), 70 (4) and 95 (2), from the 2023 NEC's Table 310.16.
+
 **20. Data cable (UFGS 27 10 00, Building Telecommunications Cabling System; and Panduit).**
 Source: https://www.wbdg.org/FFC/DOD/UFGS/UFGS%2027%2010%2000.pdf. Date: "UFGS-27 10 00 (May 2025)".
 A DoD contract specification, not law, and not the TIA table it parallels. Quotations: for UTP,
@@ -312,6 +366,11 @@ https://res.cloudinary.com/sonepar-fr/raw/upload/s--_XUcoVDH--/v1/documents/156/
 diameter; conduit bends at least 6 times the conduit's diameter; no more than two 90-degree bends
 between pull boxes; pull at most 25 lbf; for separation from power it refers to the NEC and gives no
 distance.
+
+*Note of 2026-11-02 (refutation pass):* UFGS 27 10 00 re-read; the quotations stand. Not recorded
+before: the specification sets the same pulling limit as Panduit, "Do not exceed 110 N 25 lbs pull
+tension for four pair copper cables", and its J-hook paragraph (finding 18) is bracketed guide
+text, used only where UFC 3-580-01 permits non-continuous supports (never on Navy projects).
 
 **21. Fibre cable (Corning eCatalog).** Sources:
 https://ecatalog.corning.com/optical-communications/US/en/Fiber-Optic-Cables/Indoor/Indoor-Riser-Cables/MIC%C2%AE-Tight-Buffered-Cable%2C-Riser/p/008K81-31130-24
@@ -331,6 +390,11 @@ armoured or sheathed 6D, laminate-tape screened 8D, sector conductors 8D, minera
 kV and up: single core 12D, three-core 9D; 3.21, a conduit's bend at least the cable's and at least
 twice the pipe's diameter over 63 mm; space factor 0.4 at most.
 
+*Note of 2026-11-02 (refutation pass):* IEEE 45.8 re-read. Correction: Table 13's last row, at
+7D, is armoured cable with a braid shield, not armoured cable in general. Not recorded before: both
+tables' column heading is "Minimum internal radius of bend", a radius to the inside of the bend,
+not to the centreline; and 6.9 applies Table 12's radii during installation.
+
 **23. Aircraft wire bundles (FAA AC 43.13-1B, 11-117).** Source as finding 16. Quotation: bundle
 bends "must not be less than 10 times the outside diameter of their largest wire"; 6 times at a
 breakout.
@@ -342,6 +406,10 @@ Copyrighted: numbers only. "Centerline Bend Radius (Inch)": 1/2 in EMT (51603) 4
 (51604) 5.5; 1 in (51605) 7.375. The benders are marked for 10, 22.5, 30, 45 and 60 degrees; the
 angle setter stops at 10, 22.5, 30 and 45. (A retailer's figures for another maker were seen and not
 used.)
+
+*Note of 2026-11-02 (refutation pass):* All three pages re-read; the radii stand. The pages' own
+"Marking" field lists 10, 22, 30, 45 and 60 degrees, and their feature text 22.5. The 2014 NEC's
+minimum for an EMT bend made with such a bender is smaller than each (finding 45).
 
 **25. Liquidtight flexible metal conduit (Electri-Flex, Liquatite Type LA).** Source:
 https://www.electriflex.com/products/type-la/ (page metadata dateModified 2026-09-09). Copyrighted:
@@ -399,6 +467,15 @@ separation of 6 inches or more whenever possible", and otherwise "A minimum of 2
 maintained", or 1/2 in where the wire is positively clamped; never run parallel to such a line.
 11-125: 1/2 in from movable controls.
 
+*Note of 2026-11-02 (refutation pass):* Correction: 11-126 does not forbid parallel runs outright.
+The no-parallel rule is the fallback for when 6 in with the wiring above cannot be had: "When such
+an arrangement is not practicable", wiring is routed "so that it does not run parallel to the fluid
+lines." The 2 in minimum then holds, or 1/2 in where the wiring is positively clamped, or
+none where it must connect directly to the fluid-carrying equipment. The lines named are those
+carrying oxygen, oil, fuel, hydraulic fluid or alcohol. 11-118 (finding 16) re-read: the 1/2 in sag
+is the normal limit, and may be exceeded where the bundle cannot touch a surface that would abrade
+it.
+
 **33. Separation aboard ships and spacecraft (IEEE 45.8; SSP 30242F).** IEEE 45.8 (copyrighted,
 numbers only): cables carrying high-amplitude pulses 610 mm (24 in) from other services (6.4.1 k);
 propulsion power cables 610 mm from ship-service, control and signal cables (6.4.3); keep cables away
@@ -442,6 +519,12 @@ sweep turns vertical to horizontal at 3 in or larger or on a 2 in or smaller fix
 sixteenth, eighth and sixth bends, long sweeps, wyes and combination wye and eighth bends may turn in
 all three directions.
 
+*Note of 2026-11-02 (refutation pass):* Table 706.3 re-read in the same copy. What the reading left
+out: the short sweep's horizontal-to-horizontal cell carries the same footnote as the quarter bend's
+(a: only on a 2 in or smaller fixture drain), so a short sweep turns horizontal to horizontal only
+there; both fittings turn horizontal to vertical without limit; and the sanitary tee's
+horizontal-to-vertical mark carries footnote c, the limits on double sanitary tees in 706.3.
+
 ### Through walls, decks and studs
 
 **39. Penetrations of bulkheads and decks aboard ships (46 CFR 56.50-1(a), (b)).** Source as finding
@@ -450,12 +533,23 @@ decks, "the integrity of the structure must be maintained"; no lead or other met
 or less where fire would impair the penetration; openings reinforced. (b): a pipe through the
 collision bulkhead is welded on both sides, with a valve worked from above the bulkhead deck.
 
+*Note of 2026-11-02 (refutation pass):* Re-read. The 1,700 F figure is a definition with its own
+condition: metallic materials melting at 1,700 F or less "are considered heat sensitive and if
+used must be suitably insulated." The collision bulkhead's valve is fitted inside
+the forepeak tank, adjacent to the bulkhead.
+
 **40. Cable through bulkheads and fire stops aboard ships (46 CFR 111.60-2; IEEE 45.8; IEC
 60092-352).** Source: the eCFR API, Title 46, section 111.60 (88 FR 16363-4, Mar. 16, 2023).
 Quotation, 111.60-2, for specialty cable that fails the flame test: fire stops "At least every 7
 meters (21.5 feet) vertically", at most two deck heights, every 15 m (46 ft) horizontally and at each
 A or B class boundary. IEEE 45.8 6.5.1 (numbers only): a bulkhead 6 mm or thicker may omit the
 bushing if the hole's edges are rounded. IEC 60092-352 3.20: watertight glands or transits.
+
+*Note of 2026-11-02 (refutation pass):* 111.60-2 re-read. Not recorded before: such specialty cable
+must also "Be installed physically separate from all other cable" (paragraph (a)), and fire stops
+go also where the cable enters equipment and in a cableway with an A-60 fire rating. IEEE 45.8's
+bushing paragraph is for non-watertight, non-fire-rated bulkheads; IEC 60092-352 3.20 asks glands
+or bushings in holes through non-watertight bulkheads with no thickness exemption.
 
 **41. Through studs and framing.** 24 CFR 3280.808(e) (source as finding 13): cable may pass
 through the centre of the wide side of 2 by 4 studs, with steel plates or a tube of at least No. 16
@@ -475,6 +569,12 @@ were not read. Public.Resource.Org's incorporated-by-reference folder
 (https://law.resource.org/pub/us/cfr/ibr/inc/nfpa/) holds other NFPA documents but no NFPA 70. Federal
 law incorporates particular editions: 46 CFR 110.10-1 the 2017 edition, 24 CFR 3280.4 the 2014
 edition. No state or city publication of the NEC's text was found.
+
+*Note of 2026-11-02 (refutation pass):* The 2014 edition, the one 24 CFR 3280.4 incorporates, IS
+publicly readable: Public.Resource.Org posted it on the Internet Archive, and it was read on
+2026-11-02 without an account (finding 45). Every section this finding lists as unread is recorded
+there in its 2014 numbering. Which edition binds a given place still varies, and later editions may
+differ.
 
 **43. The current plumbing codes: not read (negative).** The ICC's reader
 (https://codes.iccsafe.org/content/IPC2024P1/chapter-7-sanitary-drainage) answered scripted requests
@@ -607,3 +707,158 @@ refused with a 403); ASME B31.1 and B31.9; BS 7671 and IEC 60364.
 This reading is not legal or engineering advice. Nobody who wrote it is a lawyer, an electrician, a
 plumber or a building official, and anyone installing a real pipe or cable must follow the edition
 of the code their own authority has adopted, read in full.
+
+## Findings added on 2 November 2026 (the refutation pass)
+
+**Research date: 2 November 2026.** An adversarial pass over the data rows these findings feed
+(`data/piping/*.ron`) re-read the sources above for every row it doubted (corrections and
+additions are the dated notes under findings 1, 3, 4, 6, 10, 19, 20, 22, 24, 32, 38, 39, 40 and 42)
+and looked for sources for the numbers the rows had marked as the project's own. What it found is
+below, in the same format and under the same copyright rules as findings 1 to 44.
+
+**45. The National Electrical Code, 2014 edition, as Public.Resource.Org posted it (NFPA 70).**
+Source: https://archive.org/details/gov.law.nfpa.nec.2014 (the scanned book, its OCR text
+`nfpa.nec.2014_djvu.txt`, and its page images where the OCR lost a table's cells); posted on
+2018-09-01 by Public.Resource.Org, which states it is not affiliated with the NFPA. Date: "2014
+Edition", the edition 24 CFR 3280.4 incorporates by reference ("approved August 21, 2013"), so in a
+manufactured home these numbers are law (finding 46); elsewhere the edition a jurisdiction adopted
+governs, and later editions may differ. Read without an account; the files are a public download.
+Copyrighted by the NFPA: numbers only.
+- 334.24: a bend in NM cable has an inner-edge radius of at least 5 times the cable's diameter,
+  during or after installation. The section does not say which dimension of a flat cable counts.
+- 334.30: NM cable supported and secured at intervals of at most 1.4 m (4 1/2 ft) and within 300 mm
+  (12 in) of every outlet box, junction box, cabinet or fitting; flat cable is not stapled on edge.
+  334.80: its ampacity is no more than a 60 C conductor's.
+- 358.24 and Chapter 9 Table 2 (page 70-756): an EMT field bend's radius, to the tubing's
+  centreline, is at least the table's column for one-shot and full-shoe benders: trade size 1/2
+  (metric designator 16) 101.6 mm (4 in), 3/4 (21) 114.3 mm (4 1/2 in), 1 (27) 146.05 mm (5 3/4 in);
+  the column for other bends gives 4, 5 and 6 in.
+- 358.26: at most the equivalent of four quarter bends, 360 degrees in all, between pull points.
+- 358.30(A): EMT fastened at least every 3 m (10 ft), and within 900 mm (3 ft) of each outlet box,
+  junction box, device box, cabinet, conduit body or other termination; 1.5 m (5 ft) for unbroken
+  lengths where the structure does not allow 900 mm.
+- Chapter 9 Table 1: a conduit's fill, one conductor 53 percent, two 31, more than two 40.
+- 110.26(E)(1)(a): the space the width and depth of a panelboard, from the floor to 1.8 m (6 ft)
+  above it or to the structural ceiling if lower, is dedicated to the electrical installation, with
+  no piping, ducts, leak protection apparatus or other foreign equipment in it.
+- 800.133(A)(2): communications wires and cables at least 50 mm (2 in) from conductors of light,
+  power, Class 1, non-power-limited fire alarm and medium-power broadband circuits; Exception No. 1
+  lifts it where all those conductors are in a raceway or in metal-sheathed, metal-clad,
+  nonmetallic-sheathed, Type AC or Type UF cable, or where all the communications conductors are in
+  a raceway.
+- 300.4(A)(1): a cable or raceway through a bored hole whose edge is less than 32 mm (1 1/4 in) from
+  the wood's nearest edge is protected by a steel plate or bushing at least 1.6 mm (1/16 in) thick;
+  Exception No. 1: not for rigid metal, intermediate metal or rigid nonmetallic conduit, or EMT.
+  300.4 as a whole is protection against physical damage; its subsections (A) to (H) cover wood
+  members, metal framing, spaces behind panels, runs parallel to framing members, roof decking,
+  shallow grooves, insulated fittings and structural joints. None of them puts power above or below
+  other services, which the old `data/routing_rules.ron` header cited it for (findings' "What it
+  means": that citation is now refuted, not merely unverified).
+- 240.4(D): overcurrent protection at most 15 A for 14 AWG copper, 20 A for 12 AWG, 30 A for 10 AWG.
+- Table 310.15(B)(16) (page 70-161), copper, the 60, 75 and 90 C columns: 14 AWG 15, 20, 25 A;
+  12 AWG 20, 25, 30; 10 AWG 30, 35, 40; 8 AWG 40, 50, 55; 6 AWG 55, 65, 75; 4 AWG 70, 85, 95; 2 AWG
+  95, 115, 130.
+- Table 400.4 (page 70-266): hard service cord Types SO, SOW, SOO and SOOW, 600 V, 18 to 2 AWG, two
+  or more conductors.
+- Table 400.5(A)(1) (page 70-269), thermoset cords including SOOW, column A (three current-carrying
+  conductors) then column B (two): 14 AWG 15, 18 A; 12 AWG 20, 25; 10 AWG 25, 30; 8 AWG 35, 40;
+  6 AWG 45, 55; 4 AWG 60, 70; 2 AWG 80, 95.
+
+**46. The NEC is law in a manufactured home, and the plumbing materials 24 CFR 3280 names (24 CFR
+3280.801, 3280.604, 3280.808(e), 3280.804(f)).** Sources: the eCFR API, Title 24, Part 3280,
+Subparts A, G and I, current as of 2026-10-29,
+https://www.ecfr.gov/api/versioner/v1/full/2026-10-29/title-24.xml?part=3280&subpart=I (and
+`subpart=A`, `subpart=G`); 3280.801 last amended at 89 FR 75756, Sept. 16, 2024. Quotations,
+3280.801(a): "This subpart I incorporates by reference NFPA 70", the 2014 edition per 3280.4(dd)(5);
+3280.801(b): "Wherever the requirements of these standards differ from NFPA 70, these standards
+apply." So in a manufactured home the NEC's wiring rules (finding 45) bind where 24 CFR is silent,
+and 24 CFR's own numbers win where they differ (its 1 1/2 in and No. 16 MSG stud plates over the
+NEC's 1 1/4 in and 1/16 in). 3280.808(e) re-read: the protection is steel plates on each side of
+the cable, or a tube, "with not less than No. 16 MSG wall thickness". 3280.804(f) re-read: the
+panelboard's 30 by 30 in working space extends from the floor to the top of the panelboard.
+3280.604(c) lists, among the standards plumbing materials conform to, ASTM B88 (seamless copper
+water tube), ASTM D2846 (CPVC hot- and cold-water distribution), ASTM F876 and F877 (PEX), and for
+PVC only drain, waste and vent pipe (ASTM D2665); 3280.604(a) lets an item no listed standard
+covers be used if it is listed, so the list is not exhaustive.
+
+**47. Copper's resistance by wire gauge (National Bureau of Standards Handbook 100, Copper Wire
+Tables).** Source: https://nvlpubs.nist.gov/nistpubs/Legacy/hb/nbshandbook100.pdf. Date: "Issued
+February 21, 1966"; a US government publication. Quotation, its Table 11's title: "Wire table,
+standard annealed copper". Ohms per kilometre at 20 C, solid round wire: 14 AWG 8.28; 12 AWG 5.21;
+10 AWG 3.277; 8 AWG 2.061; 6 AWG 1.297; 4 AWG 0.8152; 2 AWG 0.5128; 4/0 (0000) 0.1608. The same
+table gives 25, 50, 75, 100 and 200 C columns (14 AWG at 25 C, 8.44). A stranded conductor and a
+cable's lay add a little: compare the Southwire sheets' figures at 25 C (finding 19's note).
+
+**48. Copper tube's dimensions, weight and lengths (Copper Development Association, The Copper
+Tube Handbook, Tables 14.1 and 14.2b).** Sources:
+https://copper.org/resource-library/copper-tube-handbook-table-14-2b/ (Dimensions and Physical
+Characteristics of Copper Tube: Type L) and
+https://copper.org/resource-library/copper-tube-handbook-table-14-1/ (Types, Standards,
+Applications, Tempers, Lengths). Date: no edition shown; the pages carry "Copyright © 2026".
+Copyrighted: numbers only. Table 14.2b, Type L, nominal outside diameter, inside diameter and wall
+in inches, then weight of tube in pounds per foot: 1/4 in 0.375, 0.315, 0.030, 0.126; 3/8 in 0.500,
+0.430, 0.035, 0.198; 1/2 in 0.625, 0.545, 0.040, 0.285; 3/4 in 0.875, 0.785, 0.045, 0.455; 1 in
+1.125, 1.025, 0.050, 0.655; 1 1/4 in 1.375, 1.265, 0.055, 0.884. Table 14.1, Type L (blue, ASTM
+B 88): straight lengths 20 ft, drawn or annealed, from 1/4 to 10 in; annealed coils of 60 and 100 ft
+from 1/4 to 1 in, 60 ft at 1 1/4 and 1 1/2 in, 40 or 45 ft at 2 in. (Table 14.7, the fittings'
+equivalent lengths, still extracts with its cells run together and is not recorded.)
+
+**49. A Category 6 cable's diameter (Southwire, data sheet SPEC 13152, Category 6 CMP-LP).** Source:
+https://cabletechsupport.southwire.com/tile/31/spec/13152/?country=US. Date: revision 1.000.131,
+"Updated On: April 22, 2025". Copyrighted: numbers only. A four-pair, 23 AWG, unshielded twisted
+pair plenum cable with a PVC jacket: approximate outside diameter 0.213 in (5.41 mm), jacket 18 mil
+(0.46 mm); DC resistance under 9.38 ohms per 100 m. One maker's one cable; riser and shielded
+constructions differ.
+
+**50. EMT and steel pipe dimensions (Wheatland Tube submittal sheets).** Sources: the steel EMT
+sheet, https://www.wheatland.com/wp-content/uploads/2019/03/10-and-20-Steel-EMT-Submittal-Sheet.pdf
+(made to ANSI C80.3 and listed to UL 797, the sheet says), and the ASTM A53 Type F Grade A sheet,
+https://www.wheatland.com/wp-content/uploads/2015/11/ASTM-A53-Type-F-Grade-A-Submittal-Data-Sheet-010715.pdf.
+Date: neither prints one (the upload paths say March 2019 and November 2015). Copyrighted: numbers
+only. EMT, trade size, outside diameter, inside diameter (marked as information, not a UL 797
+requirement), weight per 100 ft: 1/2 0.706 in (17.93 mm), 0.622 in, 30 lb; 3/4 0.922 in (23.42 mm),
+0.824 in, 46 lb; 1 1.163 in (29.54 mm), 1.049 in, 67 lb; sold in 10 and 20 ft lengths. A53 pipe,
+outside diameter by nominal size: 1/2 in .840, 3/4 in 1.050, 1 in 1.315, 2 in 2.375, 4 in 4.500;
+its cold bend test for 2 in and under bends the pipe 90 degrees round a mandrel 12 times its
+outside diameter.
+
+**51. A plumber's lever bender for soft copper (RIDGID, 300 Series Plumbing Benders).** Source:
+https://www.ridgid.com/us/en/300-series-plumbing-benders. Date: none shown. Copyrighted: numbers
+only. The benders are made for K and L soft copper tube, to 180 degrees at most. Model 310/316M
+(catalog 36962), tube 5/8 in actual outside diameter (1/2 in nominal water tube), bend radius
+2 1/4 in; model 312 (36972), 3/4 in, 2 7/8 in. The first bends at exactly CDA Table 4.1's annealed
+radius for 1/2 in (finding 1). RIDGID's 600 Series catalog sheet R-11-E (effective February 1,
+2012; https://cdn2.ridgid.com/resources/media?key=3b8c2729-155b-4b00-bc9a-f1b6c9e2fb13&languageCode=en&type=document)
+lists lever benders for hard tubing (stainless steel, steel, titanium) at 15/16 in for 3/8 in and
+1 1/2 in for 1/2 in outside diameter; it does not name copper water tube, so it is not used for the
+drawn copper rows.
+
+**52. What No. 16 gauge steel is in inches (49 CFR 180.407; 15 U.S.C. 206).** Sources: the eCFR
+API, Title 49, section 180.407, current as of 2026-10-29,
+https://www.ecfr.gov/api/versioner/v1/full/2026-10-29/title-49.xml?part=180&section=180.407; and
+15 U.S.C. 206 (Act of Mar. 3, 1893), read at https://www.law.cornell.edu/uscode/text/15/206.
+180.407(i)(5) Table I, for steel cargo tanks, lists gauge 16 at a nominal decimal equivalent of
+0.0598 in (1.52 mm), under the heading "Minimum manufactured thickness (US gauge or inches)". The
+1893 statute established "the only standard gauge for sheet and plate iron and steel" by weight per
+square foot, and its own decimal for No. 16 is 1/16 in, .0625 (1.5875 mm), at 2.5 lb a square foot.
+So the steel trade's and the federal cargo tank rule's No. 16 is 0.0598 in, and the 1893 table's is
+1/16 in. Neither text uses the name "Manufacturers' Standard Gauge" that 24 CFR 3280.808(e) does.
+
+**53. What this pass could not settle (negative).**
+- **A ship's drain slope.** The marine standards are ISO 15749-1 and ISO 15749-2:2004 (drainage
+  systems on ships and marine structures; part 2, drain piping for gravity systems), sold, e.g.
+  https://knowledge.bsigroup.com/products/ships-and-marine-technology-drainage-systems-on-ships-and-marine-structures-sanitary-drainage-drain-piping-for-gravity-system;
+  not read. The eCFR's search found no "inch per foot" anywhere in Title 46 (it finds 3280.610 in
+  Title 24 with the same query).
+- **A fitting elbow's centreline radius.** Mueller's wrought copper catalog
+  (https://fwwebbimage.fwwebb.com/ProductInfo/muellerellcat2.pdf) shows two 90-degree patterns,
+  long radius and close rough, but its scanned numbers did not extract legibly; NIBCO's CAD
+  catalog page for its 607 elbow (nibco.navbeta.traceparts.com) gives no dimensions; ASME B16.22
+  is sold. No elbow radius was read, for copper or for threaded or solvent-weld fittings.
+- **A rubber water hose's bend radius.** Parker's industrial hose pages (ph.parker.com,
+  promo.parker.com) refused scripted requests. Seen and not used: retailer listings give Parker's
+  GST II general purpose air and water hose 5 to 6 in at 1/2 to 3/4 in bore; Seal Fast's own-label
+  sheets give its 5/8 in rubber garden hose no radius ("n/a") and its 1 in water suction hose (with
+  a wire helix) 5 in.
+- **Not re-read:** Corning's eCatalog pages (finding 21), the IEC 60092-352 tables (finding 22;
+  clauses 3.19 and 3.20 were re-read and stand), 46 CFR 143.575 (finding 14).

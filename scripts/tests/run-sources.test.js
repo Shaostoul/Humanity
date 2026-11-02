@@ -70,9 +70,10 @@ test('the reader keeps enum payloads, Some, negative numbers and escaped quotes'
 test('the findings documents define their findings as numbered bold paragraphs', () => {
   const routing = findingNumbers(fs.readFileSync(path.join(ROOT, 'docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md'), 'utf8'));
   const doors = findingNumbers(fs.readFileSync(path.join(ROOT, 'docs/reference/findings/2026-11-01-manual-door-releases.md'), 'utf8'));
-  assert.strictEqual(routing.size, 44);
+  // 44 from the 2026-11-01 research, R45 to R53 from the 2026-11-02 refutation pass.
+  assert.strictEqual(routing.size, 53);
   assert.strictEqual(doors.size, 19);
-  assert.ok(routing.has(13) && !routing.has(45));
+  assert.ok(routing.has(13) && routing.has(53) && !routing.has(54));
 });
 
 test('the shipped catalogs pass', () => {

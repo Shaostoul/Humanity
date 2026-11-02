@@ -7,7 +7,7 @@
 //
 // UNITS as data/piping/run_rules.ron: lengths in METRES, angles in DEGREES; a radius or a mesh
 // size may instead be a multiple of the run's outside diameter (TimesOd). SOURCES as there: R1 to
-// R44, D1 to D19, or Ours("why").
+// R53, D1 to D19, or Ours("why").
 //
 // FIELD REFERENCE
 //   id            unique; a drain_turn rule names its fitting by this id
@@ -36,7 +36,8 @@
             angles_deg: [90.0],
             centreline: TimesOd(1.0),
             mesh: (body: 1.3, length: 1.6),
-            source: [Ours("the standard 90-degree elbow the CDA handbook's friction table lists (named in the routing finding's unknowns; its numbers were not recorded); the centreline radius of about one outside diameter is ours, since ASME B16.22's dimensions are sold and were not read, like R44's standards; the mesh body is the 1.3 collar the game draws today (data/routing_rules.ron collar_mult)")],
+            source: [R(53), Ours("the standard 90-degree elbow the CDA handbook's friction table lists (named in the routing finding's unknowns; its numbers were not recorded); the centreline radius of about one outside diameter is ours: ASME B16.22's dimensions are sold, and no maker's dimension sheet could be read (R53); the mesh body is the 1.3 collar the game draws today (data/routing_rules.ron collar_mult)")],
+            note: "Wrought copper 90-degree elbows come in more than one pattern (Mueller's catalog names a long radius and a close rough elbow, R53); this row is one generic elbow until a maker's dimensions are read.",
         ),
         (
             id: "copper_elbow_45",
@@ -46,7 +47,7 @@
             angles_deg: [45.0],
             centreline: TimesOd(1.0),
             mesh: (body: 1.3, length: 1.2),
-            source: [Ours("as copper_elbow_90: the standard 45-degree elbow, its radius and mesh ours")],
+            source: [R(53), Ours("as copper_elbow_90: the standard 45-degree elbow, its radius and mesh ours; no maker's dimensions could be read (R53)")],
             note: "Two 45s with a short straight between them make an offset (design 6.2).",
         ),
         (
@@ -102,7 +103,7 @@
             angles_deg: [90.0],
             centreline: TimesOd(1.0),
             mesh: (body: 1.4, length: 1.6),
-            source: [R(4), Ours("rigid PVC and CPVC change direction with fittings (R4); the radius and mesh are ours, the fittings' dimensions not read")],
+            source: [R(4), R(53), Ours("rigid PVC and CPVC change direction with fittings (R4); the radius and mesh are ours, no maker's fitting dimensions having been read (R53)")],
         ),
         (
             id: "pressure_elbow_45",

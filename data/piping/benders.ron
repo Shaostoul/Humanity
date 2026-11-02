@@ -27,6 +27,7 @@
             marks_deg: [10.0, 22.5, 30.0, 45.0, 60.0],
             stops_deg: [10.0, 22.5, 30.0, 45.0],
             source: [R(24)],
+            note: "Re-read 2026-11-02 (R24's note); above the 2014 NEC's 4 in minimum for 1/2 in EMT (R45), which the size row carries.",
         ),
         (
             id: "klein_emt_3_4",
@@ -59,8 +60,8 @@
                 (size: "copper_l_annealed_1_1_4", clr_m: 0.2286, as_read: "9 in"),
             ],
             marks_deg: [],
-            source: [R(1), Ours("no maker's lever bender was read: this one bends each size at CDA Table 4.1's annealed minimum, and its degree scale was not recorded")],
-            note: "The CDA handbook's lever bender (its figure 4.1) is for annealed tube only.",
+            source: [R(1), R(51), Ours("one size is a real tool's: RIDGID's 310 plumbing bender, made for soft K and L tube, bends 1/2 in at 2 1/4 in (R51); no maker's lever bender was read for the other sizes, which bend at CDA Table 4.1's annealed minimum, and the degree scale was not recorded")],
+            note: "The CDA handbook's lever bender (its figure 4.1) is for annealed tube only; its forming wheel carries degree marks.",
         ),
         (
             id: "copper_hand_drawn",
@@ -72,7 +73,7 @@
                 (size: "copper_threequarter", clr_m: 0.0762, as_read: "3 in"),
             ],
             marks_deg: [],
-            source: [R(1), Ours("no maker's bender was read: this one bends each size at CDA Table 4.1's drawn minimum, and its marks were not recorded")],
+            source: [R(1), R(51), Ours("no maker's bender for drawn copper water tube was read (RIDGID's hard-tubing 600 Series names stainless, steel and titanium, not copper: R51): this one bends each size at CDA Table 4.1's drawn minimum, and its marks were not recorded")],
             note: "Drawn (hard) tube may be bent too, with the correct hand bender (the CDA handbook); its table has no drawn row above 3/4 in, so larger hard tube has no bender here and turns with fittings.",
         ),
     ],

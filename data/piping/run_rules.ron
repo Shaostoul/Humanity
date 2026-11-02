@@ -12,8 +12,9 @@
 // DN15 is 1/2 inch). Where the source is imperial, `as_read` keeps its own words and units, so a
 // reader can match the row to the finding.
 //
-// SOURCES. Every row names where its numbers come from: R1 to R44 are the findings of
-// docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md, D1 to D19 those of
+// SOURCES. Every row names where its numbers come from: R1 to R53 are the findings of
+// docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md (R45 to R53 and the dated
+// notes under earlier findings are the 2026-11-02 refutation pass), D1 to D19 those of
 // 2026-11-01-manual-door-releases.md, and Ours("why") marks a number the project chose, with its
 // reason. A test (src/ship/run_rules.rs) reads the findings documents' numbered paragraphs and
 // fails on a row with no source and on one naming a finding that does not exist.
@@ -57,6 +58,12 @@
 //     source     [R(n), D(n), Ours("why")], one or more
 //     note       anything a reader needs to apply it
 //
+// RADII, INSIDE OR CENTRELINE. The sources measure a minimum bend radius differently: to the
+// tubing's centreline (the NEC's EMT table, the Klein benders), to the INSIDE of the bend (the
+// NEC's NM cable rule, IEEE 45.8's cable tables, Parker's hose), at the bend's mid-point (PEX), or
+// unsaid (the CDA's copper table). Each row's note says which where its source does; the fields do
+// not yet carry it (a question for rung 8, which compares them with a centreline curvature).
+//
 // WHAT IS NOT HERE, AND WHY. No rule keeps a cable a set distance from a water pipe: no source read
 // gives one (R35), so the game does not invent one and present it as code. The rules that keep
 // water off electricity are the keep-outs over panels and switchboards, the vertical order, and
@@ -66,8 +73,8 @@
         (
             id: "dwelling_us",
             name: "A home, United States",
-            draws_on: "A home's own wiring and plumbing: 24 CFR 3280 (the federal manufactured home standard, public law) where it has a number; the DoD's UFGS for metal pipe, conduit and data cabling; the makers' radii; OSHA's workplace rules where they are the public mirror of a National Electrical Code rule nobody here has read (R42).",
-            source: [R(8), R(9), R(13), R(42)],
+            draws_on: "A home's own wiring and plumbing: 24 CFR 3280 (the federal manufactured home standard, public law) where it has a number, and the 2014 National Electrical Code it incorporates by reference (3280.801, R46; read in R45) where it does not; the DoD's UFGS for metal pipe, conduit and data cabling; the makers' radii; OSHA's workplace rules where they mirror the NEC's.",
+            source: [R(8), R(9), R(13), R(45), R(46)],
         ),
         (
             id: "ship_us",
@@ -98,7 +105,7 @@
             standing: Guidance,
             as_read: "CDA Table 4.1, by size and temper: annealed 3/4 in at 1/4 to 9 in at 1 1/4; drawn 1 3/4 in at 3/8 to 3 in at 3/4",
             source: [R(1), R(5)],
-            note: "The radii are the size rows' own (data/piping/pipe_materials.ron), from the Copper Development Association's handbook, an industry handbook rather than law. Aboard a ship 46 CFR 56.80-5 sets no radius (R5): the bender decides, and these are the bender's numbers.",
+            note: "The radii are the size rows' own (data/piping/pipe_materials.ron), from the Copper Development Association's handbook, an industry handbook rather than law. Aboard a ship 46 CFR 56.80-5 sets no radius (R5): the bender decides, and these are the bender's numbers. The handbook's text calls them typical radii, and does not say whether they are to the centreline or the inside of the bend (R1's note of 2026-11-02); RIDGID's soft-copper lever bender bends 1/2 in tube at exactly the annealed 2 1/4 in (R51). Not applied here: UFGS 22 00 00 asks a bent water pipe's centre-line radius be at least six pipe diameters on DoD projects (R10's note), larger than every radius in the table.",
         ),
         (
             id: "bend_pex",
@@ -108,7 +115,7 @@
             standing: Guidance,
             as_read: "no tighter than six times the outside diameter; three times that against the coil for certain PEX (3.8 in at 1/2 in)",
             source: [R(3)],
-            note: "The PPI's design guide; the PEX maker's own figure, where it differs, overrides it (the guide says so). The size rows carry Table 9.1's absolute radii too.",
+            note: "The PPI's design guide; the PEX maker's own figure, where it differs, overrides it (the guide says so). The radius is measured at the mid-point of the bend (R3's note of 2026-11-02). The size rows carry Table 9.1's absolute radii too.",
         ),
         (
             id: "bend_cpvc_coil",
@@ -146,8 +153,18 @@
             profiles: ["dwelling_us"],
             standing: Maker,
             as_read: "Southwire SPEC 10028: 0.7 in at 14/2 to 3.5 in at 2/3 (about 4 times the diameter, or a flat cable's thickness)",
-            source: [R(19), R(42)],
-            note: "The MAKER's figure, not the code's: the National Electrical Code's multiple for NM cable (334.24) was not read (R42). The editor must not call it code.",
+            source: [R(19)],
+            note: "The MAKER's figure, and tighter than the code allows: the 2014 National Electrical Code asks at least 5 times the diameter (334.24, R45), bend_nm_b_code, which governs where both apply. The editor must not call this row code.",
+        ),
+        (
+            id: "bend_nm_b_code",
+            kind: bend_radius(installed: TimesOd(5.0)),
+            applies: (materials: ["nm_b"]),
+            profiles: ["dwelling_us"],
+            standing: Law,
+            as_read: "the radius of the inner edge of any bend, during or after installation, at least 5 times the diameter of the cable (NEC 2014 334.24)",
+            source: [R(45), R(46)],
+            note: "Law in a manufactured home, which 24 CFR 3280.801 makes follow the 2014 NEC (R46). The radius is to the INNER edge of the bend, so the centreline radius is half a cable thickness more. For a flat cable the NEC does not say which dimension counts: this row takes od_m, the thickness the cable bends across, as the size rows do. Southwire's own radii (bend_nm_b_makers) are about 4 times, tighter than this.",
         ),
         (
             id: "bend_thhn_makers",
@@ -156,7 +173,8 @@
             profiles: ["dwelling_us"],
             standing: Maker,
             as_read: "Southwire SPEC 10000: 0.9 in at 8 AWG to 3.6 in at 500 kcmil",
-            source: [R(19), R(42)],
+            source: [R(19)],
+            note: "The maker's figure; no code radius for THHN was read. THHN is pulled through a raceway, whose own minimum bend (bend_emt_by_bender) is far wider.",
         ),
         (
             id: "bend_utp",
@@ -196,16 +214,17 @@
             standing: Maker,
             as_read: "conduit bends at least 6 times the conduit's diameter (Panduit PN390B)",
             source: [R(20)],
+            note: "Panduit does not say which diameter, and TIA-569, which it follows, was not read (R44); this row takes the outside one, the strict reading. Read so, 3/4 in EMT (0.922 in) needs 5.53 in, a hair over the Klein bender's 5.5 in; read as the inside diameter (0.824 in, R50) it needs 4.94 in.",
         ),
         (
             id: "bend_emt_by_bender",
             kind: bend_radius(installed: SizeRow(Bender)),
             applies: (materials: ["emt"]),
             profiles: ["dwelling_us"],
-            standing: Maker,
-            as_read: "Klein bender centreline radius 4 5/8 in (1/2 in EMT), 5 1/2 in (3/4), 7 3/8 in (1)",
-            source: [R(24), R(26), R(42)],
-            note: "A hand bender's radius (data/piping/benders.ron); conduit changes direction with symmetrical bends or cast-metal fittings (UFGS 26 20 00, R26). The NEC's minimum radius table (Chapter 9 Table 2) was not read (R42).",
+            standing: Law,
+            as_read: "a field bend's radius to the centreline at least Chapter 9 Table 2's column for one-shot and full-shoe benders: 4 in (1/2 in EMT), 4 1/2 in (3/4), 5 3/4 in (1) (NEC 2014 358.24); the Klein benders bend at 4 5/8, 5 1/2 and 7 3/8 in (R24)",
+            source: [R(45), R(46), R(24), R(26)],
+            note: "The size rows carry the NEC's minimum as their Bender radius; a bender row (data/piping/benders.ron) bends at its own radius, never under it (the benders test). Law in a manufactured home through 24 CFR 3280.801 (R46). Conduit changes direction with symmetrical bends or cast-metal fittings (UFGS 26 20 00, R26).",
         ),
         (
             id: "bend_ship_cable_unarmoured_small",
@@ -215,6 +234,7 @@
             standing: Standard,
             as_read: "IEEE 45.8 Table 12, cable to 2 kV: unarmoured under 25 mm, 4D",
             source: [R(22)],
+            note: "IEEE 45.8's radii, in this row and the ship rows below, are the minimum INTERNAL radius, to the inside of the bend, and Table 12's apply during installation (R22's note of 2026-11-02).",
         ),
         (
             id: "bend_ship_cable_unarmoured_large",
@@ -273,11 +293,22 @@
         (
             id: "bend_ship_mv_armoured",
             kind: bend_radius(installed: TimesOd(7.0)),
-            applies: (forms: [Cable], tags: ["armour"], volts: (2000.0, 35000.0)),
+            applies: (forms: [Cable], tags: ["armour", "braid_shield"], volts: (2000.0, 35000.0)),
             profiles: ["ship_us"],
             standing: Standard,
-            as_read: "IEEE 45.8 Table 13: armoured, 7D",
+            as_read: "IEEE 45.8 Table 13: armoured cable with a braid shield, 7D",
             source: [R(22)],
+            note: "Corrected 2026-11-02: the table's row is armoured cable WITH A BRAID SHIELD (R22's note), not armoured cable in general; it matched the armour tag alone until then. Its braid-armoured twin is bend_ship_mv_braid_armoured. Table 13 lists no other armoured construction.",
+        ),
+        (
+            id: "bend_ship_mv_braid_armoured",
+            kind: bend_radius(installed: TimesOd(7.0)),
+            applies: (forms: [Cable], tags: ["braid_armour", "braid_shield"], volts: (2000.0, 35000.0)),
+            profiles: ["ship_us"],
+            standing: Standard,
+            as_read: "IEEE 45.8 Table 13: armoured cable with a braid shield, 7D",
+            source: [R(22)],
+            note: "The same row of Table 13 as bend_ship_mv_armoured, for braid armour (the catalog tags braid armour apart from other armour).",
         ),
         (
             id: "bend_spacecraft_coax",
@@ -324,7 +355,7 @@
             applies: (materials: ["pvc_sch40", "cpvc"]),
             profiles: ["dwelling_us", "ship_us", "spacecraft"],
             standing: Maker,
-            as_read: "change direction with fittings; heat bending may damage the pipe; do not heat-bend CPVC (Charlotte Pipe TM-PL pp. 52)",
+            as_read: "change direction with fittings; heat bending may damage the pipe; do not heat-bend CPVC (Charlotte Pipe TM-PL p. 52)",
             source: [R(4)],
         ),
         (
@@ -347,7 +378,7 @@
             standing: Law,
             as_read: "secured in place at intervals not exceeding 4 1/2 feet (24 CFR 3280.808(d))",
             source: [R(13)],
-            note: "And within 12 in of every cabinet, box or fitting: support_near_box_nm. OSHA's 1.37 m (4.5 ft) for open wiring on insulators at work (R15) is the same number for another kind of wiring.",
+            note: "And within 12 in of every cabinet, box or fitting: support_near_box_nm. The 2014 NEC's 334.30 gives the same, 1.4 m (4 1/2 ft) and 300 mm (12 in), by staples, cable ties, straps or hangers, and flat cable is not stapled on edge (R45). OSHA's 1.37 m (4.5 ft) for open wiring on insulators at work (R15) is the same number for another kind of wiring.",
         ),
         (
             id: "support_plastic_water",
@@ -355,7 +386,7 @@
             applies: (materials: ["pex", "cpvc", "cpvc_coil", "pvc_sch40"], contents: [Water, HotWater]),
             profiles: ["dwelling_us"],
             standing: Law,
-            as_read: "plastic water piping every 3 ft; vertical at each storey (24 CFR 3280.608)",
+            as_read: "horizontal plastic water piping must be supported at intervals not to exceed 3 feet; vertical water piping at each story height (24 CFR 3280.608(b))",
             source: [R(8)],
             note: "Unless the incorporated standards or the pipe's maker say otherwise (3280.608); where a maker or guide row in the profile is tighter (PEX's 32 in), the tighter one governs.",
         ),
@@ -469,6 +500,7 @@
             standing: Specification,
             as_read: "UFGS 23 05 15: steel 2 1/2 to 3 1/2 in, 12 ft",
             source: [R(9), R(10)],
+            note: "Vertically, UFGS 23 05 15 lets carbon-steel risers of 2 1/2 in and larger go 20 ft between supports; UFGS 22 00 00's 15 ft for vertical plumbing pipe is the stricter, and every steel and copper row here uses it.",
         ),
         (
             id: "support_steel_dn100_150",
@@ -520,10 +552,10 @@
             kind: support_spacing(horizontal_m: 3.048, vertical_m: 3.048, every_storey: true),
             applies: (materials: ["emt"]),
             profiles: ["dwelling_us"],
-            standing: Specification,
-            as_read: "exposed risers clamped at each floor and every 3050 mm (10 ft) at most (UFGS 26 20 00); horizontal 10 ft",
-            source: [R(31), R(42), Ours("the horizontal 3.05 m is the NEC's 358.30 as the trade quotes it (and as data/routing_rules.ron's header cited it); that section was not read (R42), so the horizontal number is ours until it is")],
-            note: "Plastic cable ties are not acceptable supports for a raceway (UFGS 26 20 00).",
+            standing: Law,
+            as_read: "securely fastened in place at least every 3 m (10 ft) (NEC 2014 358.30(A)); exposed risers clamped at each floor and every 3050 mm (10 ft) at most (UFGS 26 20 00)",
+            source: [R(45), R(46), R(31)],
+            note: "Law in a manufactured home through 24 CFR 3280.801 (R46); the horizontal 3 m was the project's own number until the 2014 NEC was read (2026-11-02). And within 900 mm of each box or termination: support_near_box_emt. Plastic cable ties are not acceptable supports for a raceway (UFGS 26 20 00).",
         ),
         (
             id: "support_data_cable",
@@ -533,7 +565,7 @@
             standing: Specification,
             as_read: "J-hooks on 1.2 to 1.5 m (4 to 5 ft) centres (UFGS 27 10 00); 5 ft at most (Panduit)",
             source: [R(18)],
-            note: "At most 20 cables of 6.4 mm on one J-hook: the anchor row's holds_max.",
+            note: "At most 20 cables of 6.4 mm on one J-hook: the anchor row's holds_max. The UFGS paragraph is bracketed guide text, used only where its projects permit non-continuous supports (R20's note of 2026-11-02).",
         ),
         (
             id: "support_ship_cable",
@@ -590,7 +622,7 @@
             standing: Guidance,
             as_read: "clamps should be spaced at intervals not exceeding 24 inches; no more than 1/2 in of sag between supports (FAA AC 43.13-1B 11-146, 11-118)",
             source: [R(16), R(17)],
-            note: "NASA-STD-8739.4A gives no number for clamping a harness to structure (R17), so the FAA's aircraft guidance is the analogue.",
+            note: "NASA-STD-8739.4A gives no number for clamping a harness to structure (R17), so the FAA's aircraft guidance is the analogue. The 1/2 in sag is the normal limit; the FAA lets it be exceeded where the bundle cannot touch a surface that would abrade it (R32's note of 2026-11-02).",
         ),
 
         // ── support_near: a support close to a bend, a valve, a box, an end ───────────────────
@@ -624,12 +656,13 @@
         ),
         (
             id: "support_near_riser_end",
-            kind: support_near(near: RiserEnd, within_m: 2.4384),
+            kind: support_near(near: RiserEnd, within_m: 2.0),
             applies: (forms: [Pipe]),
             profiles: ["dwelling_us", "ship_us"],
             standing: Specification,
-            as_read: "vertical supports 8 ft from a riser's ends (UFGS 22 00 00)",
+            as_read: "nor more than 2 m 8 feet from end of risers (UFGS 22 00 00)",
             source: [R(10)],
+            note: "Corrected 2026-11-02 from 2.44 m: the specification's two units disagree (2 m is not 8 ft, R10's note), and, as support_copper_dn32_50 does with finding 9's DN50 copper, the smaller is used.",
         ),
         (
             id: "support_near_box_nm",
@@ -637,20 +670,30 @@
             applies: (materials: ["nm_b"]),
             profiles: ["dwelling_us"],
             standing: Law,
-            as_read: "within 12 inches of every cabinet, box or fitting (24 CFR 3280.808(d))",
+            as_read: "within 12 inches from every cabinet, box or fitting (24 CFR 3280.808(d))",
             source: [R(13)],
+        ),
+        (
+            id: "support_near_box_emt",
+            kind: support_near(near: Box, within_m: 0.9),
+            applies: (materials: ["emt"]),
+            profiles: ["dwelling_us"],
+            standing: Law,
+            as_read: "within 900 mm (3 ft) of each outlet box, junction box, device box, cabinet, conduit body or other tubing termination (NEC 2014 358.30(A))",
+            source: [R(45), R(46)],
+            note: "Law in a manufactured home through 24 CFR 3280.801 (R46). Unbroken lengths may go to 1.5 m (5 ft) where the structure does not allow fastening within 900 mm (358.30(A), Exception No. 1).",
         ),
 
         // ── separation: clearance between two groups of runs, or a run and equipment ───────────
         (
             id: "separation_comms_power",
-            kind: separation(from: Runs((contents: [Electricity])), min_m: 0.0508),
+            kind: separation(from: Runs((contents: [Electricity], materials: ["power_cord", "superconductor_cable"])), min_m: 0.0508),
             applies: (contents: [Data]),
             profiles: ["dwelling_us"],
-            standing: Guidance,
-            as_read: "Indoor communications wires and cables shall be separated at least 50.8 mm (2 in.) from power conductors (29 CFR 1910.308(e)(2)(iv))",
-            source: [R(27), R(42)],
-            note: "OSHA's rule for workplaces, the public mirror of the NEC's communications rule (800.133, not read, R42); used for a home as the closest public rule. A special and equally protective method (a barrier) lifts it.",
+            standing: Law,
+            as_read: "at least 50 mm (2 in.) from conductors of light, power, Class 1 and non-power-limited fire alarm circuits, unless all of those are in a raceway or in nonmetallic-sheathed, metal-clad, Type AC or Type UF cable (NEC 2014 800.133(A)(2) and its Exception No. 1); OSHA: \"Indoor communications wires and cables shall be separated at least 50.8 mm (2 in.)\" (29 CFR 1910.308(e)(2)(iv))",
+            source: [R(45), R(46), R(27)],
+            note: "Law in a manufactured home through 24 CFR 3280.801 (R46); OSHA's workplace rule says the same. Corrected 2026-11-02: until then this row held data 2 in from ALL power runs, but the NEC's Exception No. 1 exempts power conductors in a raceway or in NM, AC, UF or metal-clad cable, so `from` names only the catalog's power runs outside those: a flexible cord and the superconductor. NM-B is exempt; THHN is building wire pulled through a raceway (EMT), so it is exempt there. A special and equally protective method (a barrier) also lifts it (OSHA).",
         ),
         (
             id: "separation_comms_power_parallel",
@@ -695,9 +738,9 @@
             applies: (contents: [Electricity, Data]),
             profiles: ["ship_us", "spacecraft"],
             standing: Guidance,
-            as_read: "a minimum separation of 6 inches or more whenever possible; A minimum of 2 inches must be maintained; 1/2 in where positively clamped; never parallel (FAA AC 43.13-1B 11-126)",
+            as_read: "a minimum separation of 6 inches or more whenever possible; When such an arrangement is not practicable, not parallel, and A minimum of 2 inches must be maintained; 1/2 in where positively clamped (FAA AC 43.13-1B 11-126)",
             source: [R(32)],
-            note: "Aircraft guidance, used aboard a ship and in a spacecraft as the closest public rule (the findings' judgement call). Air stands in for oxygen lines: Utility has no separate oxygen yet. The 'above' half is vertical_order_wiring_above_flammable.",
+            note: "Aircraft guidance, used aboard a ship and in a spacecraft as the closest public rule (the findings' judgement call). Air stands in for oxygen lines: Utility has no separate oxygen yet. The 'above' half is vertical_order_wiring_above_flammable. Corrected 2026-11-02 (R32's note): the FAA forbids a parallel run only where the 6 in cannot be kept, so no_parallel holds only closer than preferred_m; rung 8 must read it so, or it would flag a run 6 in above a fuel line that the FAA allows.",
         ),
 
         // ── keep_out: a volume a content may not enter ─────────────────────────────────────────
@@ -706,10 +749,10 @@
             kind: keep_out(equipment: ["electrical_panel"], zone: Above(height_m: 1.83)),
             applies: (forms: [Pipe]),
             profiles: ["dwelling_us"],
-            standing: Guidance,
-            as_read: "the space from the floor to 6.0 ft (1.83 m) above a panelboard is dedicated; equipment foreign to the electrical installation may not be located in this area (29 CFR 1910.303(g)(1)(vii)(A)(1))",
-            source: [R(28), R(42)],
-            note: "OSHA's workplace rule, the public mirror of the NEC's 110.26(E) (not read, R42), used for a home as the closest public rule. Above that space foreign systems are kept out unless protected against condensation, leaks or breaks.",
+            standing: Law,
+            as_read: "the space the panel's width and depth, from the floor to 1.8 m (6 ft) above it or to the structural ceiling if lower, is dedicated to the electrical installation, with no piping, ducts or other foreign equipment (NEC 2014 110.26(E)(1)(a)); OSHA: \"equipment foreign to the electrical installation may not be located in this area\" (29 CFR 1910.303(g)(1)(vii)(A)(1))",
+            source: [R(45), R(46), R(28)],
+            note: "Law in a manufactured home through 24 CFR 3280.801 (R46); OSHA's workplace rule says the same, at 1.83 m (6.0 ft). Suspended ceilings with removable panels are allowed in the zone (NEC). Above it OSHA keeps foreign systems out unless protected against condensation, leaks or breaks.",
         ),
         (
             id: "keep_out_panel_working_space",
@@ -719,7 +762,7 @@
             standing: Law,
             as_read: "a clear working space at least 30 in wide and 30 in in front of the panelboard (24 CFR 3280.804(f))",
             source: [R(13)],
-            note: "OSHA's workplace equivalent is the equipment's width or 30 in, 3 ft deep at 0 to 150 V, with 6.5 ft of headroom (R28).",
+            note: "The space extends from the floor to the top of the panelboard (3280.804(f), R46's re-reading). In a manufactured home this 24 CFR rule governs where the NEC's differs (3280.801(b)). OSHA's workplace equivalent is the equipment's width or 30 in, 3 ft deep at 0 to 150 V, with 6.5 ft of headroom (R28).",
         ),
         (
             id: "keep_out_over_switchboard",
@@ -740,7 +783,7 @@
             profiles: ["dwelling_us", "ship_us"],
             standing: Ours,
             as_read: "nothing foreign over a panel (OSHA); no piping over switchboards (46 CFR); wiring above fluid lines (FAA)",
-            source: [R(28), R(29), R(32), Ours("the order AMONG the fluid lines is the old data/routing_rules.ron lanes (v0.434): air and fuel above water, nutrient below it, waste lowest because a drain falls by gravity; no source read orders them, and that file's \"NEC 300.4\" for power above wet lines was never read (R42), so findings 28, 29 and 32 replace it")],
+            source: [R(28), R(29), R(32), R(45), Ours("the order AMONG the fluid lines is the old data/routing_rules.ron lanes (v0.434): air and fuel above water, nutrient below it, waste lowest because a drain falls by gravity; no source read orders them. That file's \"NEC 300.4\" for power above wet lines is refuted: 300.4 is protection against physical damage (bored holes, plates, framing), with nothing on order (R45), so findings 28, 29 and 32 replace it")],
             note: "Power above water is the drip reasoning every one of the sources shares: water must not land on electricity. data/routing_rules.ron keeps its lanes until the auto-router (rung 9) reads this row instead.",
         ),
         (
@@ -781,6 +824,16 @@
             as_read: "redundant systems are not routed in the same bundle (NASA-STD-8739.4A 7.2.7)",
             source: [R(17)],
         ),
+        (
+            id: "no_shared_bundle_specialty_cable",
+            kind: no_shared(what: Bundle, with: Runs((forms: [Cable]))),
+            applies: (forms: [Cable], tags: ["flame_test_failed"]),
+            profiles: ["ship_us"],
+            standing: Law,
+            as_read: "Be installed physically separate from all other cable (46 CFR 111.60-2(a))",
+            source: [R(40)],
+            note: "Added 2026-11-02 (R40's note): specialty cable that fails the flame test is kept apart from all other cable, as well as fire-stopped (penetration_cable_fire_stops). Physically separate is wider than not sharing a bundle; a bundle is the nearest the rule kinds can say until rung 8 measures it.",
+        ),
 
         // ── slope: a drain falls toward its outlet ─────────────────────────────────────────────
         (
@@ -800,7 +853,7 @@
             profiles: ["ship_us"],
             standing: Guidance,
             as_read: "IPC 2009 Table 704.1: 2 1/2 in or smaller, 1/4 in per foot",
-            source: [R(37), Ours("no ship drain slope was read; the 2009 IPC's table (a superseded model code for buildings) is the closest public rule, and a rolling ship may need more")],
+            source: [R(37), R(53), Ours("no ship drain slope was read: the marine standards, ISO 15749-1 and -2, are sold and 46 CFR has none (R53); the 2009 IPC's table (a superseded model code for buildings) is the closest public rule, and a rolling ship may need more")],
         ),
         (
             id: "slope_drain_ship_dn80_150",
@@ -856,8 +909,9 @@
             applies: (contents: [Waste]),
             profiles: ["dwelling_us", "ship_us"],
             standing: Guidance,
-            as_read: "a short sweep turns vertical to horizontal at 3 in or larger or on a 2 in or smaller fixture drain (IPC 2009 Table 706.3)",
-            source: [R(38), Ours("the short sweep's horizontal-to-horizontal limit is not in the finding; the quarter bend's limit is used, the cautious reading until the table is read again")],
+            as_read: "a short sweep turns vertical to horizontal at 3 in or larger or on a 2 in or smaller fixture drain, and horizontal to horizontal only on a 2 in or smaller fixture drain (IPC 2009 Table 706.3)",
+            source: [R(38)],
+            note: "The horizontal-to-horizontal limit was the project's cautious guess until the table was re-read on 2026-11-02; the table gives it the quarter bend's footnote, the same limit (R38's note).",
         ),
         (
             id: "drain_turn_any_direction",
@@ -921,9 +975,9 @@
             applies: (forms: [Cable]),
             profiles: ["dwelling_us"],
             standing: Law,
-            as_read: "through the centre of the wide side of 2 by 4 studs; steel plates or a tube of at least No. 16 MSG where it would be less than 1 1/2 in from a stud's face (24 CFR 3280.808(e))",
-            source: [R(41), Ours("the plate's thickness is our conversion of No. 16 Manufacturers' Standard Gauge to 0.0598 in (1.52 mm); the finding gives the gauge only")],
-            note: "No. 16 MSG is 0.0598 in (1.52 mm); the older US Standard Gauge's 16 is 1/16 in, 1.59 mm.",
+            as_read: "through the centre of the wide side of 2 by 4 studs; where it would be less than 1 1/2 in from a stud's face, steel plates on each side of the cable, or a tube, \"with not less than No. 16 MSG wall thickness\" (24 CFR 3280.808(e))",
+            source: [R(41), R(46), R(52)],
+            note: "No. 16 gauge steel is 0.0598 in (1.52 mm), the decimal 49 CFR 180.407 gives it (R52); the 1893 statutory gauge's own decimal for No. 16 is 1/16 in (1.59 mm). The 2014 NEC's own rule (300.4(A)(1): within 1 1/4 in, plates 1/16 in thick, R45) is looser; in a manufactured home 24 CFR's governs (3280.801(b), R46).",
         ),
         (
             id: "penetration_stud_plate_pipe",
@@ -943,6 +997,7 @@
             standing: Guidance,
             as_read: "holes through wood 1/4 in larger than the tube (PPI guide)",
             source: [R(3), R(41)],
+            note: "1/4 in larger in DIAMETER than the tubing's outside diameter (Table 9.2: a 7/8 in hole for 1/2 in tubing, R3's note of 2026-11-02), so about 1/8 in all round: clearance_m here is the difference in diameter, not the gap on each side.",
         ),
         (
             id: "penetration_interior_wall_sleeve",
@@ -961,6 +1016,7 @@
             standing: Law,
             as_read: "the integrity of the structure must be maintained; no lead or other metal melting at 1,700 F or less where fire would impair the penetration; openings reinforced (46 CFR 56.50-1(a))",
             source: [R(39)],
+            note: "Such metal is defined as heat sensitive, and where it is used it must be suitably insulated (R39's note of 2026-11-02): the check is for heat-sensitive metal without insulation.",
         ),
         (
             id: "penetration_collision_bulkhead",
@@ -988,6 +1044,7 @@
             standing: Standard,
             as_read: "a bulkhead 6 mm or thicker may omit the bushing if the hole's edges are rounded (IEEE 45.8 6.5.1)",
             source: [R(40)],
+            note: "IEEE 45.8's paragraph is for non-watertight, non-fire-rated bulkheads; IEC 60092-352 3.20 asks a gland or bushing in such holes with no thickness exemption (R40's note of 2026-11-02).",
         ),
         (
             id: "penetration_cable_fire_stops",
@@ -1012,21 +1069,23 @@
         ),
         (
             id: "pull_limit_utp_tension",
-            kind: pull_limit(max_tension_n: 111.2),
+            kind: pull_limit(max_tension_n: 110.0),
             applies: (tags: ["twisted_pair"]),
             profiles: ["dwelling_us"],
-            standing: Maker,
-            as_read: "pull at most 25 lbf (Panduit PN390B)",
+            standing: Specification,
+            as_read: "Do not exceed 110 N 25 lbs pull tension for four pair copper cables (UFGS 27 10 00); pull at most 25 lbf (Panduit PN390B)",
             source: [R(20)],
+            note: "The UFGS sentence was not in finding 20 until its note of 2026-11-02. 25 lbf is 111.2 N; the specification's own metric 110 N is used, the smaller, as the support rows do where its units disagree.",
         ),
         (
             id: "pull_limit_power_conduit",
             kind: pull_limit(max_bend_deg: 360.0),
             applies: (forms: [Raceway], contents: [Electricity]),
             profiles: ["dwelling_us"],
-            standing: Ours,
-            as_read: "360 degrees of bends between pull points (the NEC's 358.26 as the trade quotes it)",
-            source: [R(42), Ours("the NEC's limit as the trade commonly quotes it; 358.26 was not read (R42), so the number is ours until someone with an NFPA account reads it")],
+            standing: Law,
+            as_read: "not more than the equivalent of four quarter bends (360 degrees total) between pull points (NEC 2014 358.26)",
+            source: [R(45), R(46)],
+            note: "Read 2026-11-02 (R45): the trade's quoted 360 degrees stands. 358.26 is EMT's, the catalog's only power raceway; Law in a manufactured home through 24 CFR 3280.801 (R46).",
         ),
 
         // ── fill: how full a conduit or tray may be ────────────────────────────────────────────
@@ -1044,9 +1103,10 @@
             kind: fill(max: 0.40, two_cables: 0.31, one_cable: 0.53),
             applies: (forms: [Raceway]),
             profiles: ["dwelling_us"],
-            standing: Guidance,
-            as_read: "0.40, 0.31, 0.53 (IEEE 45.8 6.6)",
-            source: [R(22), R(42), Ours("the NEC's Chapter 9 Table 1 was not read (R42); IEEE 45.8's numbers for a ship are the closest public rule for a home's conduit")],
+            standing: Law,
+            as_read: "one conductor 53 percent, two 31, over two 40 (NEC 2014 Chapter 9 Table 1)",
+            source: [R(45), R(46), R(22)],
+            note: "Read 2026-11-02 (R45): the same numbers as IEEE 45.8's for a ship (R22), which stood in for them until then. Law in a manufactured home through 24 CFR 3280.801 (R46).",
         ),
 
         // ── allowed_material: which materials may carry a content ──────────────────────────────
@@ -1066,9 +1126,9 @@
             applies: (),
             profiles: ["dwelling_us"],
             standing: Guidance,
-            as_read: "plastic water piping is supported every 3 ft (24 CFR 3280.608); PEX and CPVC are made for hot and cold water distribution",
-            source: [R(8), R(3), R(4)],
-            note: "A home on the Real side follows its own code: 24 CFR 3280 provides for plastic water piping (R8), and the PEX guide (R3) and CPVC manual (R4) are for drinking water. 3280.604's list of material standards itself was not read.",
+            as_read: "24 CFR 3280.604(c) lists ASTM B88 seamless copper water tube, ASTM D2846 CPVC and ASTM F876 and F877 PEX hot- and cold-water systems, and PVC only as drain, waste and vent pipe (D2665)",
+            source: [R(46), R(8), R(3), R(4)],
+            note: "A home on the Real side follows its own code: 24 CFR 3280 provides for plastic water piping (R8), names copper tube, CPVC and PEX standards for water (3280.604, R46), and the PEX guide (R3) and CPVC manual (R4) are for drinking water. 3280.604(a) also lets a listed item no standard covers be used, so the list is not exclusive: the row stays Guidance.",
         ),
     ],
 )
