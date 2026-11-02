@@ -23,6 +23,11 @@
 //! for it, so it cannot be left on or switched off by a forgotten flag. Every 0.x version shows it,
 //! and so does a pre-release of 1.0 (`1.0.0-rc.1`); a version it cannot read shows it too.
 //!
+//! MUTED FOR A WHILE (2026-11-02, [`mute`]): the person can hide it for this session, one day or
+//! one week, from its Mute or from Settings > Notifications > Muted. A mute ends at its time, at the
+//! next launch for this session's, and with every new version; the title screen and the warning's
+//! own Library page show the bar whatever the mute. Muted, it takes no room ([`height`] is 0).
+//!
 //! THE WORDS are the dated finding's (`docs/reference/findings/2026-10-30-wip-warning-and-
 //! liability.md`): what the software is, what not to rely on it for, and that it comes as is with
 //! no warranty, which is what the licence says. Its link opens the Library's page about it
@@ -31,9 +36,10 @@
 //! before the person has an identity. The website draws the same strip from the same keys
 //! (`web/shared/shell.js`, `#hos-wip-strip`).
 //!
-//! COST: one panel holding three labels, laid out each frame the app already draws; it reads no
-//! file, keeps nothing between frames (but, while the setup's details window is open, that it
-//! is), and never asks for a repaint, so an idle app stays idle.
+//! COST: one panel holding four labels, laid out each frame the app already draws; it reads no
+//! file (the mute's choices are read once for the run, when its menu first opens), keeps nothing
+//! between frames (but, while the setup's details window or the mute's menu is open, that it is),
+//! and never asks for a repaint, so an idle app stays idle.
 //! Colours are theme tokens (`warning_bg`, `warning`, `text_primary`, `text_muted`; their contrast
 //! is checked in scripts/tests/contrast.test.js).
 
@@ -43,6 +49,9 @@ use humanity_core::i18n::{t, t_marked, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Hint};
 use crate::gui::{GuiPage, GuiState, VERSION};
+
+pub mod mute;
+pub use mute::WipMute;
 
 /// The Library document the warning's link opens (`docs/user/rights/unfinished_software.md`; the
 /// slug is its file name, `scripts/build-library.js` `slugOf`). A test checks the shipped Library has it.
@@ -57,7 +66,7 @@ fn height_key() -> egui::Id {
 }
 
 /// How tall the bottom strip is on this frame, in points: 0 when it did not draw (the
-/// first-person world, a 1.0 build) or has not drawn yet this frame.
+/// first-person world, a 1.0 build, a mute in force) or has not drawn yet this frame.
 ///
 /// For a window or area anchored to the bottom of the screen (2026-10-30): egui anchors to the
 /// whole screen (`screen_rect`), not to the room the bottom panels leave, so such a window adds
@@ -114,11 +123,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 /// [`draw`] with the version given, so a snapshot can pin it (the main menu's snapshot pins its
 /// version the same way; unpinned, the picture would change with every release).
 pub(crate) fn draw_for_version(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, version: &str) {
+    draw_at(ctx, theme, state, version, mute::now_secs());
+}
+
+/// [`draw_for_version`] at a given time, `now` in seconds since 1970, so a test can stand on either
+/// side of a mute's end.
+pub(crate) fn draw_at(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, version: &str, now: i64) {
     if !shown_on(state.active_page) {
         return;
     }
-    if wip_shown(version) {
-        draw_warning(ctx, theme, state, version);
+    // A mute hides it, except on the title screen and on its own page (mute::always_here).
+    let muted = mute::muted(state.wip_mute.as_ref(), version, now) && !mute::always_here(state);
+    if wip_shown(version) && !muted {
+        draw_warning(ctx, theme, state, version, now);
     }
     if details_window_open(ctx) {
         if in_first_run_setup(state) {
@@ -131,9 +148,9 @@ pub(crate) fn draw_for_version(ctx: &egui::Context, theme: &Theme, state: &mut G
 }
 
 /// The warning: one line on a dark amber ground across the whole width, its words on the left, What
-/// this means and the version on the right. On a narrow window the words wrap onto a second line
-/// rather than being cut off, since a warning cut short says less than it should.
-fn draw_warning(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, version: &str) {
+/// this means, Mute and the version on the right. On a narrow window the words wrap onto a second
+/// line rather than being cut off, since a warning cut short says less than it should.
+fn draw_warning(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, version: &str, now: i64) {
     let size = theme.font_size_small;
     let panel = egui::TopBottomPanel::bottom(WARNING_PANEL)
         .frame(egui::Frame::NONE.fill(theme.warning_bg()).inner_margin(egui::Margin::symmetric(8, 3)))
@@ -146,6 +163,12 @@ fn draw_warning(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, versio
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.label(RichText::new(tf("wip.version", &[("version", &version)])).size(size).color(theme.text_muted()));
                 ui.add_space(theme.spacing_md);
+                // Not during the first-run setup: a person who has just arrived is still setting up,
+                // and the setup's screen shows the bar whatever the mute.
+                if !in_first_run_setup(state) {
+                    mute::draw_control(ui, theme, state, version, now, size);
+                    ui.add_space(theme.spacing_md);
+                }
                 let more_hint = if in_first_run_setup(state) { "wip.more_setup_hint" } else { "wip.more_hint" };
                 let more = ui
                     .add(egui::Label::new(RichText::new(t("wip.more")).size(size).color(theme.warning()).underline()).sense(Sense::click()))

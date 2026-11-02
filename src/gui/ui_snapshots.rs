@@ -2953,6 +2953,63 @@ fn snapshot_wip_details_setup() {
     crate::gui::pages::main_menu::set_version_for_snapshot(None);
 }
 
+/// A mute of the snapshot's version, for the snapshots below: this session's, so no date is in the
+/// picture (a day's would print tomorrow's date, a new picture every day).
+fn wip_session_mute(version: &str) -> Option<crate::gui::bottom_strip::WipMute> {
+    Some(crate::gui::bottom_strip::WipMute { until: None, version: version.into() })
+}
+
+/// The warning muted (2026-11-02, docs/design/app-bottom-strip.md section 3.5): the same page as
+/// `wip_strip`, the bar gone and its room given back to the page.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_strip_muted() {
+    render_page_png("wip_strip_muted", 1280, 720, |ctx, theme, state| {
+        state.wip_mute = wip_session_mute("0.0.0-snapshot");
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Humanity);
+    });
+}
+
+/// The bar's Mute, open: its choices (this session, one day, one week) in a menu above the bar.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_mute_menu() {
+    render_page_png("wip_mute_menu", 1280, 720, |ctx, theme, state| {
+        state.onboarding_complete = true;
+        crate::gui::bottom_strip::mute::open_menu_for_snapshot(ctx);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Humanity);
+    });
+}
+
+/// The title screen while muted: it shows the bar anyway (the operator, 2026-11-02: "It should stay
+/// on the title. I think it helps keep it honest."), its Mute reading Muted, the menu open on until
+/// when and Show it again.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_strip_title_muted() {
+    crate::gui::pages::main_menu::set_version_for_snapshot(Some("0.0.0-snapshot"));
+    render_page_png("wip_strip_title_muted", 1280, 720, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::MainMenu;
+        state.onboarding_complete = true;
+        state.wip_mute = wip_session_mute("0.0.0-snapshot");
+        crate::gui::bottom_strip::mute::open_menu_for_snapshot(ctx);
+        crate::gui::bottom_strip::draw_for_version(ctx, theme, state, "0.0.0-snapshot");
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+    crate::gui::pages::main_menu::set_version_for_snapshot(None);
+}
+
+/// Settings > Notifications with the warning muted: at the end of its Muted card, the warning's row
+/// says until when, with Show it again (the whole page, as `notification_settings` draws it).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_mute_settings() {
+    render_page_png("wip_mute_settings", 960, 2000, |ctx, theme, state| {
+        state.wip_mute = wip_session_mute(crate::gui::VERSION);
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_notifications_content);
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_nav_bar_wrapped() {

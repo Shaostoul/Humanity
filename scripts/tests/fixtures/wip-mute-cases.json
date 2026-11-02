@@ -1,0 +1,20 @@
+{
+  "_comment": "When a mute hides the unfinished-software warning (docs/design/app-bottom-strip.md, section 3.5). Read by BOTH apps' tests, so the desktop rule (src/gui/bottom_strip/mute.rs `muted`) and the website's (web/shared/shell.js `hosWipMuted`) are held to one list. `mute` is the record as kept (config.json `wip_mute` on the desktop, `hos_wip_mute` in the browser): `until` in seconds since 1970, absent for a mute of this session only, and `version`, the version it was muted on. A mute holds only on its own version and only before its time; anything unreadable shows the warning. `now` is seconds since 1970. The title screen and the warning's own page are not cases here: they show the bar whatever the mute (each app's own test).",
+  "version": "0.1547.0",
+  "cases": [
+    { "why": "nothing muted", "mute": null, "now": 1800000000, "muted": false },
+    { "why": "this session, this version", "mute": { "version": "0.1547.0" }, "now": 1800000000, "muted": true },
+    { "why": "this session, but a new version started", "mute": { "version": "0.1546.2" }, "now": 1800000000, "muted": false },
+    { "why": "one day, an hour in", "mute": { "until": 1800082800, "version": "0.1547.0" }, "now": 1800003600, "muted": true },
+    { "why": "one day, the second before it ends", "mute": { "until": 1800086400, "version": "0.1547.0" }, "now": 1800086399, "muted": true },
+    { "why": "one day, at its time", "mute": { "until": 1800086400, "version": "0.1547.0" }, "now": 1800086400, "muted": false },
+    { "why": "one week, long over", "mute": { "until": 1800604800, "version": "0.1547.0" }, "now": 1801000000, "muted": false },
+    { "why": "one week, but a new version started", "mute": { "until": 1800604800, "version": "0.1546.2" }, "now": 1800003600, "muted": false },
+    { "why": "the same number written another way is another version", "mute": { "until": 1800604800, "version": "v0.1547.0" }, "now": 1800003600, "muted": false },
+    { "why": "no version: unreadable", "mute": { "until": 1800604800 }, "now": 1800003600, "muted": false },
+    { "why": "an empty version: unreadable", "mute": { "until": 1800604800, "version": "" }, "now": 1800003600, "muted": false },
+    { "why": "an until that is not a number: unreadable", "mute": { "until": "tomorrow", "version": "0.1547.0" }, "now": 1800003600, "muted": false },
+    { "why": "a record that is not an object", "mute": "muted", "now": 1800003600, "muted": false },
+    { "why": "a list is not a record either", "mute": [1800604800, "0.1547.0"], "now": 1800003600, "muted": false }
+  ]
+}

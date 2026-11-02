@@ -1278,6 +1278,71 @@ function renderAllowList() {
   }
 }
 
+/** The unfinished-software warning bar's row (2026-11-02, the desktop's Settings > Notifications >
+ *  Muted row, gui/bottom_strip/mute.rs settings_row): muted until when with Show it again, or Mute
+ *  with the bar's own choices. Through shell.js's window.hosWipMute, which keeps the mute and hides
+ *  or shows the bar at once; nothing on 1.0, where there is no warning. */
+function renderWipMuteRow() {
+  var box = document.getElementById('wip-mute-row');
+  var api = window.hosWipMute;
+  if (!box) return;
+  box.innerHTML = '';
+  if (!api) return;
+  var row = document.createElement('div');
+  row.className = 'setting-row';
+  var label = document.createElement('div');
+  label.className = 'setting-label';
+  var strong = document.createElement('strong');
+  strong.textContent = notifT('wip.settings_label');
+  label.appendChild(strong);
+  var mute = api.inForce();
+  var status = document.createElement('span');
+  status.textContent = mute ? api.words(mute) : notifT('wip.settings_showing');
+  label.appendChild(status);
+  var about = document.createElement('span');
+  about.textContent = notifT('wip.settings_web_hint');
+  label.appendChild(about);
+  row.appendChild(label);
+  if (mute) {
+    var again = document.createElement('button');
+    again.type = 'button';
+    again.className = 'btn btn-secondary';
+    again.id = 'wip-show-again';
+    again.textContent = notifT('wip.show_again');
+    if (window.i18n) window.i18n.hint(again, 'wip.show_again_hint');
+    again.addEventListener('click', function () { api.showAgain(); });
+    row.appendChild(again);
+    box.appendChild(row);
+    return;
+  }
+  var sel = document.createElement('select');
+  sel.className = 'setting-select';
+  sel.id = 'wip-mute-select';
+  sel.setAttribute('aria-label', notifT('wip.mute'));
+  if (window.i18n) window.i18n.hint(sel, 'wip.mute_hint');
+  row.appendChild(sel);
+  var none = document.createElement('option');
+  none.value = '';
+  none.textContent = notifT('wip.mute');
+  sel.appendChild(none);
+  box.appendChild(row);
+  api.lengths().then(function (rows) {
+    rows.forEach(function (c) {
+      var o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = notifT(c.label);
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function () {
+      var pick = rows.filter(function (c) { return c.id === sel.value; })[0];
+      if (pick) api.choose(pick);
+    });
+  });
+}
+renderWipMuteRow();
+// The bar's own Mute (or another tab) muted or unmuted it: show it here too.
+window.addEventListener('hos-wip-mute', renderWipMuteRow);
+
 if (typeof fetch === 'function') {
   fetch('/data/notifications/notifications.json', { cache: 'no-cache' })
     .then(function (r) { return r.ok ? r.json() : null; })

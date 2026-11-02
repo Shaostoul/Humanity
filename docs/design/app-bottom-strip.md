@@ -1,9 +1,10 @@
 # The bottom of the app screen: an unfinished-software warning, a chat footer, an Overview page
 
 **Status (2026-10-30):** planned whole; **rung 1 built** (the warning, both apps, its Library
-page). The chat footer and the Overview page wait for the work now changing Home, Quests, Tasks
-and the chat's notifications to merge (section 6). Decisions for the operator are in section 7;
-nothing here is decided for him except where his own words say so.
+page); **its mute built 2026-11-02** (section 3.5, from his answer to decision 1). The chat footer
+and the Overview page wait for the work now changing Home, Quests, Tasks and the chat's
+notifications to merge (section 6). Decisions for the operator are in section 7; nothing here is
+decided for him except where his own words say so.
 
 ## 0. The operator's words (2026-10-30)
 
@@ -92,7 +93,9 @@ and the Library; he is weighing an Overview page instead, or as well (section 5.
   does not draw, both are the whole screen.
 - **Budget, all layers:** nothing per frame when idle. Each layer lays out a few labels on frames
   the app already draws, reads no file, keeps no cache, and never asks for a repaint. The website
-  builds static DOM once; its only listener is a resize watch on the strip.
+  builds static DOM once; it watches the strip's size and, for the mute (3.5), listens for a click
+  on Mute, the address changing and the mute changing in another tab, with one timer for a mute's
+  end.
 
 ## 3. The unfinished-software warning (rung 1, BUILT)
 
@@ -131,6 +134,24 @@ what not to rely on it for, what "as is, with no warranty" means with CC0's own 
 "to the extent the law allows" sentence and its honest limit, when the warning goes (1.0), how the
 project is built, how to report a problem, and the emergency line.
 
+**Grown into the in-depth page, 2026-11-02** (the operator, answering decision 1: "probably a link
+to some doc in the library going into depth about the whole in development thing and why the
+warning bar exists and everything else you think we should include"). The bar already linked a
+Library document, so that document became the in-depth one rather than a second document beside
+it with half the same words and a second link crowding a one-line bar. Its outline now: what
+unfinished means here; what can go wrong (things break; saves and settings whose format can change
+before 1.0; a server's world that may be reset; a server that may go away, with what goes with it);
+what stays yours all the same (the account is a key on the person's own device, backed by the
+recovery phrase; direct messages sealed, with the algorithm names from
+`docs/reference/cryptography.md`; room messages NOT sealed; "these describe how it is built, they
+are not promises"); what is not promised (as is, CC0's words, the "to the extent the law allows"
+sentence, what not to rely on, the emergency line); why the warning is there (honesty, the
+finding); muting it (where, how long, what it does and does not do); when it goes away; how to
+report a problem; the roadmap and the road to 1.0. It stays inside the finding's limits: no word
+claims the app or anyone in it is safe. Library markdown renders no `[[term]]` marks in either app,
+so the page explains each word where it first uses it, and the glossary gained the two terms it
+lacked (`public domain`, `aes-256-gcm`) for the Dictionary and the desktop reader's word lookup.
+
 ### 3.3 Look and behaviour
 
 - One line, the full width, on `warning_bg` (a new theme token: dark amber, pale amber on the
@@ -143,9 +164,10 @@ project is built, how to report a problem, and the emergency line.
   (website), one rule held to one list of versions by both apps' tests
   (`scripts/tests/fixtures/wip-versions.json`): every 0.x shows it, every pre-release of 1.0 shows
   it (`1.0.0-rc.1`), a version neither can read shows it, a release (`1.0.0`, `1.0.0+build`) hides
-  it. No setting can leave it on or switch it off. A test fails on the day the version reaches 1.0
+  it. No setting can leave it on or switch it off for good: a mute (3.5) chosen in the app hides
+  it for a week at most, and never past a new version. A test fails on the day the version reaches 1.0
   (`the_running_version_shows_the_warning_until_one_point_oh`), so removing the warning is a decision.
-- **Not dismissible in rung 1** (decision 7.1 proposes keeping it so).
+- **Muted for a while, never dismissed** (2026-11-02, section 3.5).
 - Accessibility: the website's strip is a `role="note"` region with a label (`wip.label`); its
   link is reachable by keyboard and carries its hint; the desktop link has its hint by key.
 
@@ -159,6 +181,46 @@ project is built, how to report a problem, and the emergency line.
 | Details | the Library, `unfinished-software` | `/library#unfinished-software` |
 | Tests | `bottom_strip.rs` tests (version list, on every page and never in the world, the panel takes room, the link's page ships) | `scripts/tests/wip-strip-web.test.js` (7 tests, each seen red on a broken copy of web/), `contrast.test.js` (4 new pairs) |
 | Pictures | `tests/snapshots/wip_strip.png`, `wip_strip_narrow.png`, `wip_strip_title.png`, `wip_details.png` | |
+| The mute (3.5) | `src/gui/bottom_strip/mute.rs`, its tests `mute_tests.rs`; config.json `wip_mute`; the Settings row in `pages/settings/notifications.rs` | `shell.js` (`hosWipMuted`, `window.hosWipMute`), `pages/settings-app.js` `renderWipMuteRow`, `pages/library-app.js` (`hos-library-doc`); `scripts/tests/wip-mute-web.test.js` (8), `wip-strip-room-web.test.js` (the muted height) |
+| Its choices and rule | `data/gui/wip_mute.json` (both read it); `scripts/tests/fixtures/wip-mute-cases.json` (both tests run it) | the same |
+| Its pictures | `tests/snapshots/wip_strip_muted.png`, `wip_mute_menu.png`, `wip_strip_title_muted.png`, `wip_mute_settings.png` | |
+
+### 3.5 The mute (BUILT 2026-11-02)
+
+The operator's answer to decision 1 (section 7, his words exactly there): a mute for this session,
+one day or one week, and a link to an in-depth Library page (3.2). The orchestrator's additions,
+built as proposed and his to overrule: a mute ends early when a new version starts, it is kept on
+this device only, and the title screen shows the bar whatever the mute (his answer 2).
+
+- **The control.** Mute, beside What this means, opens a menu above the bar with the choices of
+  `data/gui/wip_mute.json` (both apps read it; each choice is `session` or a number of `seconds`,
+  with its words and hint by key; a choice that is neither, or both, is refused). Not offered
+  during the desktop's first-run setup, which shows the bar anyway.
+- **Muted, it takes no room.** Desktop: the panel is not added, so `height` is 0 and `room_above`
+  is the whole screen. Website: the strip is `hidden` and `--hos-wip-h` is 0px, so every rule
+  standing on it stands on the window's bottom (the room test holds this, red first with the old
+  measuring).
+- **When it ends**, one rule (`mute::muted`, `hosWipMuted`) held to one list of cases by both
+  apps' tests: at its time; at the next launch for a session mute (the desktop never writes one to
+  config.json, `mute::kept`; the website keeps it in sessionStorage, so a new tab shows the bar);
+  and with a new version, whatever its length. A record either app cannot read is no mute.
+- **Where it does not apply** (`mute::always_here`, the website's `alwaysHere`): the title screen
+  (the website's mirror: the front page) and the warning's own Library page. There a mute in force
+  reads Muted, and its menu says until when, with Show it again. The website's Library opens a
+  document with pushState, which fires no event, so it announces `hos-library-doc` for the bar to
+  follow the reader onto and off its page.
+- **Kept on this device only**: desktop config.json `wip_mute` {`until`, `version`}, read leniently
+  (a damaged record is no mute and never makes the whole file fail to load); website localStorage
+  `hos_wip_mute` (a day or a week) and sessionStorage `hos_wip_mute` (this session), every read and
+  write in try/catch, so a blocked storage just means the bar shows. It is a setting the person
+  chose, not a cache (CLAUDE.md's no-caches rule). Never sent to a server.
+- **Settings > Notifications > Muted** (both apps, beside the other mutes): "Unfinished-software
+  warning", then muted until when with Show it again, or Showing on every page with Mute and the
+  same choices (GUI-first: whatever the bar does, Settings can do and undo).
+- **Budget:** a comparison per frame; the choices are read when a menu opens (the desktop once for
+  the run, the website each time it opens); the website sets one timer for a mute's end.
+- **A hand-edited config.json** can hold a longer mute than the app offers; it still ends with the
+  next version, and Settings still shows it with Show it again.
 
 ## 4. The chat footer (rungs 2 and 3, NOT BUILT)
 
@@ -305,7 +367,7 @@ Files rung 1 deliberately did not touch, because other work is changing them now
   lengths (this session, one day, one week), and a Library document behind a link in the bar. The
   orchestrator's additions, his to overrule: a mute ends early when a new version starts (the
   unfinished state is per version), it is kept on this device only, and the title screen shows the
-  bar whatever the mute (answer 2).
+  bar whatever the mute (answer 2). **Built 2026-11-02** (section 3.5; the in-depth page, 3.2).
 - **2, the title screen:** "It should stay on the title. I think it helps keep it honest."
 - **3, a lawyer reading the wording:** "Whenever we get the money for it."
 - **4, the chat footer:** "Let's do desktop only for now."

@@ -1085,6 +1085,10 @@
       <div class="settings-group">
         <div class="settings-group-title" data-i18n="notifications.muted_heading">Muted</div>
         <div id="notif-muted-list"></div>
+        <!-- The unfinished-software warning bar (2026-11-02, the desktop's gui/bottom_strip/mute.rs
+             settings_row): muted until when, with Show it again, or Mute. Drawn by settings-app.js
+             (renderWipMuteRow) through web/shared/shell.js's window.hosWipMute; absent on 1.0. -->
+        <div id="wip-mute-row"></div>
         <p class="section-desc" data-i18n="notifications.muted_web_note">Mutes and room levels are kept in this browser only.</p>
       </div>
     </section>

@@ -727,6 +727,17 @@
     .hos-wip-strip .hos-wip-more { color: var(--warning); text-decoration: underline; white-space: nowrap; }
     .hos-wip-strip .hos-wip-more:hover { color: var(--text-strong); }
     .hos-wip-strip .hos-wip-version { color: var(--text-muted); white-space: nowrap; }
+    /* Muted (2026-11-02): gone, and --hos-wip-h is 0px, so nothing stands over a gap. */
+    .hos-wip-strip[hidden] { display: none; }
+    /* Mute: reads like the link beside it; its menu opens above the strip. */
+    .hos-wip-strip .hos-wip-mute-wrap { position: relative; white-space: nowrap; }
+    .hos-wip-strip .hos-wip-mute { font: inherit; color: var(--warning); text-decoration: underline; background: none; border: 0; padding: 0; cursor: pointer; }
+    .hos-wip-strip .hos-wip-mute:hover { color: var(--text-strong); }
+    .hos-wip-strip .hos-wip-menu { position: absolute; right: 0; bottom: calc(100% + 6px); min-width: 14em; display: flex; flex-direction: column; gap: 2px; padding: var(--space-sm, 6px); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+    .hos-wip-strip .hos-wip-menu[hidden] { display: none; }
+    .hos-wip-strip .hos-wip-menu-item { font: inherit; text-align: left; color: var(--text); background: none; border: 0; border-radius: var(--radius); padding: 4px 8px; cursor: pointer; }
+    .hos-wip-strip .hos-wip-menu-item:hover, .hos-wip-strip .hos-wip-menu-item:focus-visible { background: var(--bg-hover); }
+    .hos-wip-strip .hos-wip-menu-note { color: var(--text-muted); padding: 4px 8px; white-space: normal; }
     /* Keeps the end of the page, and the chat's message box, clear of the fixed strip. */
     .hos-wip-spacer { display: block; flex: 0 0 auto; height: var(--hos-wip-h, 0px); }
 
@@ -1129,9 +1140,10 @@
     var btn = document.getElementById('hos-navmode-btn');
     if (btn) {
       btn.addEventListener('click', function() {
-        var cur = localStorage.getItem('humanity_navmode') || 'both';
+        var cur = 'both';
+        try { cur = localStorage.getItem('humanity_navmode') || 'both'; } catch (e) { /* storage blocked */ }
         var next = MODES[(MODES.indexOf(cur) + 1) % MODES.length];
-        localStorage.setItem('humanity_navmode', next);
+        try { localStorage.setItem('humanity_navmode', next); } catch (e) { /* storage blocked: this page only */ }
         applyMode(next);
       });
     }
@@ -1141,7 +1153,11 @@
     } else {
       window.addEventListener('resize', syncSpacer);
     }
-    applyMode(localStorage.getItem('humanity_navmode') || 'both');
+    // A blocked storage (a private window, site data turned off) throws here; it must not stop the
+    // rest of the shell, the unfinished-software warning included (2026-11-02).
+    var savedMode = 'both';
+    try { savedMode = localStorage.getItem('humanity_navmode') || 'both'; } catch (e) { /* the default */ }
+    applyMode(savedMode);
     // One more sync after layout/fonts settle.
     setTimeout(syncSpacer, 60);
   })();
@@ -1763,11 +1779,12 @@
         ft.classList.remove('collapsed');
         btn.textContent = '▼'; // arrow down = "collapse footer"
       }
-      localStorage.setItem('footer_collapsed', String(collapsed));
+      try { localStorage.setItem('footer_collapsed', String(collapsed)); } catch (e) { /* storage blocked */ }
     }
 
     // Default: start collapsed so it doesn't cover content; user can expand
-    var saved = localStorage.getItem('footer_collapsed');
+    var saved = null;
+    try { saved = localStorage.getItem('footer_collapsed'); } catch (e) { /* storage blocked: the default */ }
     setCollapsed(saved === null ? true : saved === 'true');
 
     btn.addEventListener('click', function () {
@@ -2177,8 +2194,11 @@
 
     function checkUpdate() {
       // Use cached result if fresh enough.
-      var cached = localStorage.getItem(CACHE_KEY);
-      var cachedTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0', 10);
+      var cached = null, cachedTs = 0;
+      try {
+        cached = localStorage.getItem(CACHE_KEY);
+        cachedTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0', 10);
+      } catch (e) { /* storage blocked: ask again */ }
       if (cached && (Date.now() - cachedTs) < CHECK_INTERVAL) {
         if (compareVersions(CURRENT_VERSION, cached) < 0) markUpdateReady(cached);
         return;
@@ -2188,8 +2208,10 @@
         .then(function(r) { return r.json(); })
         .then(function(d) {
           if (d && d.tag_name) {
-            localStorage.setItem(CACHE_KEY, d.tag_name);
-            localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+            try {
+              localStorage.setItem(CACHE_KEY, d.tag_name);
+              localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+            } catch (e) { /* storage blocked */ }
             if (compareVersions(CURRENT_VERSION, d.tag_name) < 0) {
               markUpdateReady(d.tag_name);
             }
@@ -2272,6 +2294,17 @@
   // any other script finishes (another language replaces it through i18n.js). The footer sits on
   // top of it through --hos-wip-h, and a spacer at the end of the page keeps the page's last line,
   // and the chat's message box, clear of it. Nothing runs after it is built but a resize watch.
+  //
+  // MUTED FOR A WHILE (2026-11-02, the desktop's gui/bottom_strip/mute.rs mirrored; the operator:
+  // "mute for this session, one day, one week"): its Mute offers the choices of
+  // data/gui/wip_mute.json, fetched when the menu opens. A mute holds only on the version it was
+  // made on and before its time (hosWipMuted, the app's rule, both run on
+  // scripts/tests/fixtures/wip-mute-cases.json). This session's is kept in sessionStorage (gone when
+  // the tab closes), a day's or a week's in localStorage under hos_wip_mute, every read and write in
+  // try/catch, so a blocked storage just means the bar shows. Muted, the strip is hidden and
+  // --hos-wip-h is 0px, so nothing standing on it is left over a gap. The front page and the
+  // warning's own Library page show it whatever the mute (the desktop's title screen and its page).
+  // window.hosWipMute is how Settings > Notifications > Muted reads and changes it.
   function hosWipShown(version) {
     var v = String(version == null ? '' : version).trim().replace(/^v+/, '').split('+')[0];
     var dash = v.indexOf('-');
@@ -2283,6 +2316,19 @@
     return Number(major) < 1 || preRelease;
   }
   window.hosWipShown = hosWipShown;
+  // Does this kept mute hide the warning on `version` at `now` (seconds since 1970)? Only on the
+  // version it was made on, and only before its whole-second `until` (a session's has none). A
+  // record it cannot read is no mute.
+  function hosWipMuted(mute, version, now) {
+    if (!mute || typeof mute !== 'object' || Array.isArray(mute)) return false;
+    if (typeof mute.version !== 'string' || mute.version === '' || mute.version !== String(version)) return false;
+    if (mute.until === undefined || mute.until === null) return true;
+    return Number.isInteger(mute.until) && now < mute.until;
+  }
+  window.hosWipMuted = hosWipMuted;
+  var WIP_MUTE_KEY = 'hos_wip_mute';
+  // The warning's own page in the Library (the link below goes there; the desktop's DETAILS_SLUG).
+  var WIP_DETAILS_SLUG = 'unfinished-software';
   (function wipStrip() {
     var version = window.__HOS_WEB_VERSION || '';
     if (!hosWipShown(version) || document.getElementById('hos-wip-strip')) return;
@@ -2291,7 +2337,11 @@
       '<div id="hos-wip-strip" class="hos-wip-strip" role="note" data-i18n-aria-label="wip.label" aria-label="Unfinished software warning">' +
         '<span class="hos-wip-sign" aria-hidden="true">\u26A0</span>' +
         '<span class="hos-wip-line" data-i18n="wip.line">Unfinished software: it can be wrong, break, or lose your work. Do not rely on it for health, safety, food or water. It comes as is, with no <span data-term="warranty">warranty</span>.</span>' +
-        '<a class="hos-wip-more" href="/library#unfinished-software" data-i18n="wip.more" data-i18n-tip="wip.more_hint" data-tip-desc="Opens a page in the Library about what unfinished means here, what the software does not promise, and how to report a problem.">What this means</a>' +
+        '<a class="hos-wip-more" href="/library#unfinished-software" data-i18n="wip.more" data-i18n-tip="wip.more_hint" data-tip-desc="Opens a page in the Library about what unfinished means here, why this bar is here, what the software does not promise, and how to report a problem.">What this means</a>' +
+        '<span class="hos-wip-mute-wrap">' +
+          '<button type="button" class="hos-wip-mute" aria-haspopup="menu" aria-expanded="false" aria-controls="hos-wip-menu" data-i18n="wip.mute" data-i18n-tip="wip.mute_hint" data-tip-desc="Hides this bar for a while: for this session, one day or one week. It comes back on its own when the time is up, and with every new version.">Mute</button>' +
+          '<span id="hos-wip-menu" class="hos-wip-menu" role="menu" hidden></span>' +
+        '</span>' +
         '<span class="hos-wip-version"></span>' +
       '</div>';
     var strip = holder.firstChild;
@@ -2306,12 +2356,178 @@
     window.addEventListener('languagechange', showVersion);
     document.body.appendChild(strip);
 
-    // The footer and the spacer follow the strip's real height (two lines on a narrow window).
+    // The footer and the spacer follow the strip's real height (two lines on a narrow window), and
+    // none at all while it is muted, so nothing is left standing on a stale height.
     function syncHeight() {
-      var h = Math.ceil(strip.getBoundingClientRect().height);
+      var h = strip.hidden ? 0 : Math.ceil(strip.getBoundingClientRect().height);
       document.documentElement.style.setProperty('--hos-wip-h', h + 'px');
     }
-    syncHeight();
+
+    // ── Its mute ──
+    var muteBtn = strip.querySelector('.hos-wip-mute');
+    var menu = strip.querySelector('.hos-wip-menu');
+    var expiry = 0;
+    function word(key, vars) {
+      return (window.i18n && typeof window.i18n.t === 'function') ? window.i18n.t(key, vars) : key;
+    }
+    function wipEsc(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function stored(store) {
+      try {
+        var raw = window[store].getItem(WIP_MUTE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    }
+    function keep(store, value) {
+      try {
+        if (value === null) window[store].removeItem(WIP_MUTE_KEY);
+        else window[store].setItem(WIP_MUTE_KEY, JSON.stringify(value));
+      } catch (e) { /* storage blocked: nothing is kept, so the bar shows */ }
+    }
+    // The mute in force, or null: this tab's session mute, else a day's or a week's. A record in
+    // the lasting store without a time is not taken (the desktop's `kept`), so a session mute can
+    // never outlive the tab.
+    function inForce(now) {
+      var s = stored('sessionStorage');
+      if (s && typeof s === 'object' && !Array.isArray(s)) s = { version: s.version };
+      if (hosWipMuted(s, version, now)) return s;
+      var l = stored('localStorage');
+      if (l && typeof l === 'object' && (l.until === undefined || l.until === null)) l = null;
+      return hosWipMuted(l, version, now) ? l : null;
+    }
+    // The front page and the warning's own Library page show the bar whatever the mute.
+    function alwaysHere() {
+      var p = String(location.pathname || '/').replace(/\/+$/, '');
+      if (p === '' || /^\/index(\.html)?$/.test(p) || /\/pages\/index\.html$/.test(p)) return true;
+      if (!/(^|\/)library(\.html)?$/.test(p)) return false;
+      return String(location.hash || '').replace(/^#/, '').split('/')[0] === WIP_DETAILS_SLUG;
+    }
+    function mutedWords(mute) {
+      if (!mute) return '';
+      if (!Number.isInteger(mute.until)) return word('wip.muted_session');
+      var d = new Date(mute.until * 1000);
+      var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      var time = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      return word('wip.muted_until', { time: time });
+    }
+    // The choices, from the data file the desktop reads (each time the menu opens: nothing kept).
+    // A file with a choice that is neither this session nor a time above zero offers none.
+    function lengths() {
+      if (typeof fetch !== 'function') return Promise.resolve([]);
+      return fetch('/data/gui/wip_mute.json', { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          var rows = j && Array.isArray(j.mute_for) ? j.mute_for : [];
+          var good = rows.every(function (c) {
+            var timed = Number.isInteger(c && c.seconds) && c.seconds > 0;
+            return c && typeof c.id === 'string' && typeof c.label === 'string' && typeof c.hint === 'string' && (c.session === true) !== timed;
+          });
+          return good ? rows : [];
+        })
+        .catch(function () { return []; });
+    }
+    // Show or hide the strip for the mute in force and this page, and say so on its Mute.
+    function applyMute() {
+      var now = Math.floor(Date.now() / 1000);
+      var mute = inForce(now);
+      strip.hidden = !!mute && !alwaysHere();
+      var key = mute ? 'wip.muted' : 'wip.mute';
+      var hint = mute ? 'wip.muted_hint' : 'wip.mute_hint';
+      muteBtn.setAttribute('data-i18n', key);
+      muteBtn.setAttribute('data-i18n-tip', hint);
+      if (window.i18n && typeof window.i18n.t === 'function') {
+        muteBtn.textContent = word(key);
+        muteBtn.setAttribute('data-tip-desc', word(hint));
+      }
+      syncHeight();
+      clearTimeout(expiry);
+      if (mute && Number.isInteger(mute.until)) expiry = setTimeout(applyMute, Math.min((mute.until - now) * 1000 + 500, 2147483647));
+      if (strip.hidden) closeMenu();
+      try { window.dispatchEvent(new Event('hos-wip-mute')); } catch (e) { /* an old browser: Settings reads it on its own */ }
+    }
+    function choose(row) {
+      if (!row) return;
+      var now = Math.floor(Date.now() / 1000);
+      if (row.session === true) {
+        keep('sessionStorage', { version: version });
+        keep('localStorage', null);
+      } else if (Number.isInteger(row.seconds) && row.seconds > 0) {
+        keep('localStorage', { until: now + row.seconds, version: version });
+        keep('sessionStorage', null);
+      }
+      applyMute();
+    }
+    function showAgain() {
+      keep('sessionStorage', null);
+      keep('localStorage', null);
+      applyMute();
+    }
+    function closeMenu() {
+      if (menu.hidden) return;
+      menu.hidden = true;
+      menu.innerHTML = '';
+      muteBtn.setAttribute('aria-expanded', 'false');
+    }
+    function openMenu() {
+      lengths().then(function (rows) {
+        var mute = inForce(Math.floor(Date.now() / 1000));
+        var html = '';
+        if (mute) {
+          html += '<span class="hos-wip-menu-note">' + wipEsc(mutedWords(mute)) + '</span>' +
+            '<button type="button" role="menuitem" class="hos-wip-menu-item" data-wip-again="1" data-i18n-tip="wip.show_again_hint" data-tip-desc="' + wipEsc(word('wip.show_again_hint')) + '">' + wipEsc(word('wip.show_again')) + '</button>';
+        }
+        rows.forEach(function (c) {
+          html += '<button type="button" role="menuitem" class="hos-wip-menu-item" data-wip-choice="' + wipEsc(c.id) + '"' +
+            (c.session === true ? ' data-wip-session="1"' : ' data-wip-seconds="' + c.seconds + '"') +
+            ' data-i18n-tip="' + wipEsc(c.hint) + '" data-tip-desc="' + wipEsc(word(c.hint)) + '">' + wipEsc(word(c.label)) + '</button>';
+        });
+        if (!rows.length) html += '<span class="hos-wip-menu-note">' + wipEsc(word('wip.mute_unavailable')) + '</span>';
+        menu.innerHTML = html;
+        menu.hidden = false;
+        // It opens leftward from Mute; on a narrow window, where the strip wraps and Mute sits near
+        // the left edge, that would run off the screen, so it opens rightward there instead.
+        menu.style.left = '';
+        menu.style.right = '';
+        if (menu.getBoundingClientRect().left < 8) {
+          menu.style.right = 'auto';
+          menu.style.left = '0';
+        }
+        muteBtn.setAttribute('aria-expanded', 'true');
+        var first = menu.querySelector('button');
+        if (first && typeof first.focus === 'function') first.focus();
+      });
+    }
+    muteBtn.addEventListener('click', function () {
+      if (menu.hidden) openMenu();
+      else closeMenu();
+    });
+    menu.addEventListener('click', function (e) {
+      var item = e.target && e.target.closest ? e.target.closest('[data-wip-choice], [data-wip-again]') : null;
+      if (!item) return;
+      if (item.hasAttribute('data-wip-again')) showAgain();
+      else choose({ session: item.hasAttribute('data-wip-session'), seconds: parseInt(item.getAttribute('data-wip-seconds'), 10) });
+      closeMenu();
+      if (!strip.hidden && typeof muteBtn.focus === 'function') muteBtn.focus();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !menu.hidden) {
+        closeMenu();
+        if (typeof muteBtn.focus === 'function') muteBtn.focus();
+      }
+    });
+    document.addEventListener('click', function (e) {
+      if (!menu.hidden && e.target && !strip.contains(e.target)) closeMenu();
+    });
+    // Another tab muted or unmuted it, the Library opened another document, or the words arrived.
+    window.addEventListener('storage', function (e) { if (!e || e.key === null || e.key === WIP_MUTE_KEY) applyMute(); });
+    window.addEventListener('hashchange', applyMute);
+    window.addEventListener('popstate', applyMute);
+    window.addEventListener('hos-library-doc', applyMute);
+    window.addEventListener('languagechange', applyMute);
+    window.hosWipMute = { inForce: function () { return inForce(Math.floor(Date.now() / 1000)); }, words: mutedWords, lengths: lengths, choose: choose, showAgain: showAgain };
+
+    applyMute();
     if (window.ResizeObserver) new ResizeObserver(syncHeight).observe(strip);
     else window.addEventListener('resize', syncHeight);
 

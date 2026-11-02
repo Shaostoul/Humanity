@@ -1427,6 +1427,12 @@
       "category": "platform",
       "definition": "A legal tool that places a work in the public domain worldwide by waiving every copyright claim the author holds. HumanityOS uses it, which is why the project can never be fenced off or sold back to you."
     },
+    "public domain": {
+      "term": "Public Domain",
+      "category": "platform",
+      "definition": "Belonging to everyone. Nobody holds the rights to a work in the public domain, so anyone may use, copy, change and share it, for any purpose, without asking. HumanityOS is placed there with CC0.",
+      "link": "https://en.wikipedia.org/wiki/Public_domain"
+    },
     "warranty": {
       "term": "Warranty",
       "category": "platform",
@@ -2432,6 +2438,12 @@
       "term": "Kyber768 (ML-KEM-768)",
       "category": "crypto",
       "definition": "The algorithm HumanityOS uses to agree a secret key with someone so a private message can be encrypted for them alone. It is a published post-quantum standard, and your key is derived from your recovery phrase."
+    },
+    "aes-256-gcm": {
+      "term": "AES-256-GCM",
+      "category": "crypto",
+      "definition": "The method HumanityOS uses to seal the words of a private message, an encrypted file and your saved key, with a secret key: without that key they cannot be read, and any change made to them is noticed. It is a long-established published standard.",
+      "link": "https://en.wikipedia.org/wiki/Galois/Counter_Mode"
     },
     "e2ee": {
       "term": "End-to-End Encryption (E2EE)",

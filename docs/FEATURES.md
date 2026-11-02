@@ -1349,12 +1349,22 @@ glossary term), What this means opening the Library's `unfinished-software` page
 (`docs/user/rights/unfinished_software.md`), and the version. Shown on every page and the title screen,
 never in the first-person world or on in-world screens; decided by the version alone (every 0.x and
 every pre-release of 1.0), one rule held to one list by both apps' tests
-(`scripts/tests/fixtures/wip-versions.json`). Not dismissible. Words from the dated finding
+(`scripts/tests/fixtures/wip-versions.json`). Words from the dated finding
 `docs/reference/findings/2026-10-30-wip-warning-and-liability.md`; colour the `warning_bg` token.
+**Mute (2026-11-02):** for this session, one day or one week (`data/gui/wip_mute.json`, both apps),
+from the bar's Mute or Settings > Notifications > Muted (until when, Show it again). Muted, the bar
+takes no room; a mute ends at its time, at the next launch for a session's (the website: the tab),
+and with a new version (one rule, `scripts/tests/fixtures/wip-mute-cases.json`); kept on the device
+only (config.json `wip_mute`; the browser's localStorage/sessionStorage `hos_wip_mute`). The title
+screen (website: the front page) and the warning's own Library page show it whatever the mute.
 - Native: `src/gui/bottom_strip.rs` (called by `src/lib.rs` before the page; the chat footer is planned
-  above it), snapshots `wip_strip`, `wip_strip_narrow`, `wip_strip_title`, `wip_details`
-- Web: `web/shared/shell.js` (`wipStrip`, `.hos-wip-strip`; the footer stands on it through
-  `--hos-wip-h`, a spacer ends the page), `scripts/tests/wip-strip-web.test.js`
+  above it), `src/gui/bottom_strip/mute.rs` (the mute, its menu, the Settings row; tests in
+  `mute_tests.rs`), snapshots `wip_strip`, `wip_strip_narrow`, `wip_strip_title`, `wip_details`,
+  `wip_strip_muted`, `wip_mute_menu`, `wip_strip_title_muted`, `wip_mute_settings`
+- Web: `web/shared/shell.js` (`wipStrip`, `.hos-wip-strip`, `hosWipMuted`, `window.hosWipMute`; the
+  footer stands on it through `--hos-wip-h`, a spacer ends the page), `web/pages/settings-app.js`
+  (`renderWipMuteRow`), `scripts/tests/wip-strip-web.test.js`, `wip-mute-web.test.js`,
+  `wip-strip-room-web.test.js`
 
 ### Real/Sim Toggle
 Global context switch between real-life tools and simulation mode. Stored in localStorage.

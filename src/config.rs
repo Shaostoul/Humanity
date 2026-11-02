@@ -308,6 +308,11 @@ pub struct AppConfig {
     /// whether the 24 words are on paper. Absent = not started.
     #[serde(default)]
     pub first_minutes: crate::gui::first_minutes::FirstMinutes,
+    /// The unfinished-software warning muted for a day or a week (2026-11-02,
+    /// gui/bottom_strip/mute.rs): `until` (seconds since 1970) and the `version` it was muted on,
+    /// which a new version ends. A mute of this session is never written here. Absent = not muted.
+    #[serde(default, deserialize_with = "crate::gui::bottom_strip::mute::read_kept", skip_serializing_if = "Option::is_none")]
+    pub wip_mute: Option<crate::gui::bottom_strip::WipMute>,
     // Settings
     #[serde(default = "default_fov")]
     pub fov: f32,
@@ -1521,6 +1526,7 @@ impl AppConfig {
             concept_tour_seen: state.concept_tour_seen,
             controls_hint_shown: state.controls_hint_shown,
             first_minutes: state.first_minutes.clone(),
+            wip_mute: crate::gui::bottom_strip::mute::kept(state.wip_mute.as_ref()),
             fov: state.settings.fov,
             mouse_sensitivity: state.settings.mouse_sensitivity,
             invert_y: state.settings.invert_y,
@@ -1719,6 +1725,7 @@ impl AppConfig {
         state.concept_tour_seen = self.concept_tour_seen;
         state.controls_hint_shown = self.controls_hint_shown;
         state.first_minutes = self.first_minutes.clone();
+        state.wip_mute = crate::gui::bottom_strip::mute::kept(self.wip_mute.as_ref());
         state.settings.fov = self.fov;
         // Guard against a non-positive saved value (a 0.0 would freeze the camera look).
         state.settings.mouse_sensitivity = if self.mouse_sensitivity > 0.0 {

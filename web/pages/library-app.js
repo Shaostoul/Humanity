@@ -104,6 +104,12 @@
     if (at < 0) return { slug: frag, anchor: null };
     return { slug: frag.slice(0, at), anchor: frag.slice(at + 1) };
   }
+  /* The address changed without a hashchange (pushState and replaceState fire none): say so, so the
+     unfinished-software warning (web/shared/shell.js) can show itself on its own page while muted,
+     and step aside again on the next document. */
+  function announceDoc() {
+    try { window.dispatchEvent(new Event('hos-library-doc')); } catch (e) { /* an old browser */ }
+  }
   function openHashDoc() {
     // Two reserved fragments that are VIEWS rather than documents, matching
     // the native resolver, so a link can point at the map or at the words
@@ -866,6 +872,7 @@
     } else if (history.replaceState) {
       history.replaceState(null, '', hash);
     }
+    announceDoc();
     renderRail();
 
     var el = contentEl();
@@ -940,6 +947,7 @@
   function openCurriculum(keepPosition) {
     current = 'curriculum';
     if (history.replaceState) history.replaceState(null, '', '#curriculum');
+    announceDoc();
     renderRail();
     renderCurriculum(keepPosition);
     if (!keepPosition) revealReader();

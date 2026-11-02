@@ -1,0 +1,8 @@
+{
+  "_comment": "How long the unfinished-software warning bar can be muted for (docs/design/app-bottom-strip.md, section 3.5; the operator, 2026-11-02: 'mute for this session, one day, one week'). Read by the desktop app (src/gui/bottom_strip/mute.rs) and the website (web/shared/shell.js), in this order, as the choices of the bar's Mute and of Settings > Notifications > Muted. Each choice is either `session` (until the app is closed; never written to config.json or to the browser's lasting storage, so the next launch shows the bar) or `seconds` (that long from the moment it is chosen). Every mute also ends when a new version starts, and the title screen and the warning's own Library page show the bar whatever the mute. `label` and `hint` are keys in data/i18n/en.json.",
+  "mute_for": [
+    { "id": "session", "session": true, "label": "wip.mute_session", "hint": "wip.mute_session_hint" },
+    { "id": "day", "seconds": 86400, "label": "wip.mute_day", "hint": "wip.mute_day_hint" },
+    { "id": "week", "seconds": 604800, "label": "wip.mute_week", "hint": "wip.mute_week_hint" }
+  ]
+}

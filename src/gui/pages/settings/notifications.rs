@@ -9,7 +9,9 @@
 //! - **What notifies you** (the person's own switches, kept on their server, `notification_prefs`):
 //!   direct messages, mentions, task updates, and quiet hours by the hour. A change goes to EVERY
 //!   server this device is signed in to ([`send_synced`]), so each one's Web Push agrees.
-//! - **Muted**: Mute everything, and every server and room muted, each with Unmute.
+//! - **Muted**: Mute everything, and every server and room muted, each with Unmute; and the
+//!   unfinished-software warning bar, muted until when with Show it again, or Mute
+//!   (gui/bottom_strip/mute.rs `settings_row`).
 //!
 //! Every word is a key in `data/i18n/en.json`; every control carries its plain-language hint.
 
@@ -398,6 +400,9 @@ fn draw_muted(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, now: i64) 
         });
     }
     draw_room_levels(ui, theme, state);
+    // The unfinished-software warning bar, muted from its own Mute or from here (2026-11-02).
+    ui.separator();
+    crate::gui::bottom_strip::mute::settings_row(ui, theme, state);
 }
 
 /// The words of a room level: its label, by the data file's `levels`.

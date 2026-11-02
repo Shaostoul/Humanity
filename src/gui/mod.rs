@@ -785,6 +785,9 @@ pub struct GuiState {
     pub controls_hint_shown: bool,
     /// Where the person is in the first-five-minutes tour (AppConfig `first_minutes`).
     pub first_minutes: first_minutes::FirstMinutes,
+    /// The unfinished-software warning muted for a while (gui/bottom_strip/mute.rs; AppConfig
+    /// `wip_mute` keeps one with a time, never one for this session).
+    pub wip_mute: Option<bottom_strip::WipMute>,
     /// Default page to load after onboarding (Chat by default).
     pub default_page: GuiPage,
 
@@ -3286,6 +3289,7 @@ impl Default for GuiState {
             concept_tour_seen: false,
             controls_hint_shown: false,
             first_minutes: first_minutes::FirstMinutes::default(),
+            wip_mute: None,
             default_page: GuiPage::Humanity,
 
             // Task board defaults

@@ -186,6 +186,29 @@ test('every page box as tall as the window leaves the warning its room', () => {
   assert.deepStrictEqual(wrong, [], 'these make the page scroll by the warning\'s height: subtract var(--hos-wip-h, 0px) in the calc()');
 });
 
+// Muted (2026-11-02, the mute: scripts/tests/wip-mute-web.test.js), the strip is hidden, and the
+// height every rule above stands on must go to 0px with it: a rule left on the strip's old height
+// would float over a gap where the strip was. Every rule found above reads --hos-wip-h (the first
+// test), so this holds them all: the shell sets it to 0px while muted, at load and the moment a
+// mute is chosen, and back to the strip's height when it shows again. Red first, 2026-11-02, with
+// syncHeight measuring the hidden strip as before: "--hos-wip-h stayed at 27px".
+test('muted, the strip gives every rule standing on it no height, and takes it back when it shows', () => {
+  const H = require('./wip-shell-harness.js');
+  const NOW = 1800000000;
+  const atLoad = H.loadShell({ nowSecs: NOW, local: { hos_wip_mute: { until: NOW + 86400, version: '0.1547.0' } } });
+  assert.strictEqual(atLoad.strip.hidden, true, 'a day\'s mute hides the strip');
+  assert.strictEqual(atLoad.rootStyle['--hos-wip-h'], '0px', '--hos-wip-h stayed at the hidden strip\'s height at load');
+  const live = H.loadShell({ nowSecs: NOW });
+  assert.strictEqual(live.rootStyle['--hos-wip-h'], '27px', 'shown, the rules stand on the strip');
+  live.ctx.hosWipMute.choose({ id: 'week', seconds: 604800 });
+  assert.strictEqual(live.strip.hidden, true);
+  assert.strictEqual(live.rootStyle['--hos-wip-h'], '0px', '--hos-wip-h stayed at 27px when a mute was chosen');
+  live.ctx.hosWipMute.showAgain();
+  assert.strictEqual(live.rootStyle['--hos-wip-h'], '27px', 'shown again, the rules stand on it again');
+  // The spacer at the end of the page is one of them: its height is the variable, so it is 0 too.
+  assert.match(fs.readFileSync(path.join(WEB, 'shared', 'shell.js'), 'utf8'), /\.hos-wip-spacer \{[^}]*height: var\(--hos-wip-h, 0px\);/);
+});
+
 test('the scan still finds the footer, which stands on the strip', () => {
   // The control: a rule known to be bottom-anchored is found and passes for the right reason.
   const footer = scan().filter((r) => r.selector === '.site-footer');

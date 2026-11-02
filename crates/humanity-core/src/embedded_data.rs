@@ -94,6 +94,9 @@ pub const MEDIA_INGEST_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROO
 /// The kinds of notice, mute lengths and sounds (docs/design/notifications.md). Ungated though only
 /// the desktop app reads it, because EMBEDDED_KEYS (which every build checks) lists it.
 pub const NOTIFICATIONS_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/notifications/notifications.json"));
+/// How long the unfinished-software warning can be muted for (docs/design/app-bottom-strip.md,
+/// section 3.5). Ungated though only the desktop app reads it, as NOTIFICATIONS_JSON is.
+pub const WIP_MUTE_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/gui/wip_mute.json"));
 
 // ── Solar system body definitions (RON) ─────────────────────────────
 pub const SOLAR_BODY_EARTH_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/solar_system/earth.ron"));
@@ -368,6 +371,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "planets/tooltips.json" => Some(PLANET_TOOLTIPS_JSON),
         "media/ingest.json" => Some(MEDIA_INGEST_JSON),
         "notifications/notifications.json" => Some(NOTIFICATIONS_JSON),
+        "gui/wip_mute.json" => Some(WIP_MUTE_JSON),
         "external/catalog.json" => Some(EXTERNAL_CATALOG_JSON),
         "cities.json" => Some(CITIES_JSON),
         "coastlines.json" => Some(COASTLINES_JSON),
@@ -786,6 +790,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "governance/proposal_types.ron",
     "ship/household.ron",
     "notifications/notifications.json",
+    "gui/wip_mute.json",
 ];
 
 #[cfg(test)]
