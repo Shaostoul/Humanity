@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
-  "current_focus": "2026-11-01 evening: merged today: the spline routing plan (PRIORITIES 15, docs only) and notifications rung 3 (3edb4d00e). In flight: the warnings agent (0 warnings native and relay, the ratchet, 27 commits) is merging main into its branch to resolve the BUG-221 overlap with rung 3 and bring rung 3's code to 0 warnings; then I merge it. Next: crate split rung 1 (core test-support feature and one way to name the repo root first). Stutter next steps: PRIORITIES 12. Waiting on the operator: the spline plan's three questions (design section 19), the bottom-strip plan decisions, the landing page, the quest-chain design review, BUG-217. The batch since v0.1547.0 is unreleased.",
+  "current_focus": "2026-11-01 night: merged and pushed today: the spline routing plan (docs), notifications rung 3 (3edb4d00e), Rust warnings to zero (dde580edd, CI green). Merged tonight too: BUG-222 (387b7dd88, lib tests beside the operator's GPU game). In flight: crate split rung 1 (agent, own worktree; told to merge main for src/test_gpu.rs and the new lib-tests.js). Next after them: the spline routing build (PRIORITIES 15). Stutter next steps: PRIORITIES 12. Waiting on the operator: the spline plan's three questions (design section 19), whether members may add board tasks (BUG-221 made it mods and admins), the bottom-strip plan, the landing page, the quest-chain review, BUG-217. The batch since v0.1547.0 is unreleased.",
   "open_questions_for_human": [
     {
       "date": "2026-08-25",
@@ -835,6 +835,21 @@
       "date": "2026-11-01",
       "decision": "Notifications rung 3 merged (3edb4d00e): task, call and game-event notices, the always-allow list, a sound per kind; BUG-221 (the raw task_* handlers checked no role) fixed.",
       "why": "Operator 2026-10-30 \"let's get it made\"; the call rule is his 2026-11-01 decision (calls wait through quiet hours unless the person is on the always-allow list). The agent chose that the list also lets the listed people's DMs and contact requests through (\"always allow\" names a person). BUG-221 changes who may write the board: only moderators and admins create, edit or move tasks, verified members and up comment (matching the typed handlers' rules). Game events are local only. The warnings agent found BUG-221 independently; it is merging main into its branch to resolve the overlap."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "Rust warnings to zero merged and pushed (dde580edd, squash of the warnings agent; d88adcd76 journal with it): native and relay 0, held by scripts/warnings-ratchet.js in just verify and CI. CI green on the full SHA, the relay count 0 on Linux.",
+      "why": "Operator 2026-10-31 \"Sounds like we have a reasonable path forward\" (PRIORITIES 14). Verified on main first: ratchets 0/0, lib tests 5,364 (run again by hand after the first run froze beside helldivers2.exe, BUG-222), verify-relay 3,155, lints, rig-tests, doc links, release build, verify-runtime 3/3 with no game running. Its worktree target freed (20 GB)."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "BUG-222: the full lib tests froze silently for two hours beside the operator's GPU game. Fixed in this session at his request (\"Do this task here\"), 387b7dd88: src/test_gpu.rs may_use() asked by every test that opens a GPU device, lib-tests.js names the tests that stood down and records the pass without them (the next run on the tree, game closed, runs just those), a 15-minute silence stops a run naming the tests in flight, tests/gpu_test_gate_lint.rs.",
+      "why": "libtest joins a finished test thread before printing its result and prints its 60 s warnings from the same loop, so a thread that cannot exit silences everything (read in the 1.99.1 source, reproduced with tiny_suite.rs hangs_silently_when_asked). The stop was at renderer::scene_target's device tests; the driver as the cause is inferred, not dumped."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "Crate split rung 1 dispatched (general-purpose agent, its own worktree, brief in the scratchpad orch-split1-brief.txt): test-support feature for the core's test helpers, one way to name the repo root, then the workspace with humanity-core and humanity-protocol, every source-walking tool updated with each lint proven red on a moved file, CLAUDE.md Architecture rewritten, build times measured.",
+      "why": "PRIORITIES 10's next rung, waiting only on the warnings merge (both touch most files). It needs main merged before its final gates: src/test_gpu.rs joins the core's test helpers, and scripts/lib-tests.js changes under it."
     }
   ],
   "active_scopes_to_avoid": [
