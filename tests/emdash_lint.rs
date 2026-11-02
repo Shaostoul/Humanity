@@ -76,6 +76,56 @@ fn no_emdash_in_gui_strings() {
     }
 }
 
+/// Keys whose words must keep U+2014 because they quote someone exactly (a statute, a licence, a
+/// person's own words), each with its reason. JSON has no comments, so the `emdash-exempt` line
+/// hatch cannot reach the word files; name the leaf key here instead. Empty on 2026-11-02.
+const EXEMPT_KEYS: &[(&str, &str)] = &[];
+
+/// The words people read live in `data/i18n/*.json` since the one-word-source mandate
+/// (2026-10-22): native reads them with `t("page.key")`, the website with `i18n.t()`. A scan of
+/// `src/gui/` string literals alone stopped seeing most of the app's words, and on 2026-11-02 an em
+/// dash put in `wip.mute_hint` passed this lint. This scans every word file, the literal character
+/// and its JSON escape both.
+#[test]
+fn no_emdash_in_the_word_files() {
+    let root = project_root();
+    let dir = root.join("data").join("i18n");
+    let mut files: Vec<PathBuf> = fs::read_dir(&dir)
+        .expect("data/i18n holds the word files")
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .collect();
+    files.sort();
+    assert!(!files.is_empty(), "no word files found in {}", dir.display());
+    let mut violations: Vec<String> = Vec::new();
+    for file in &files {
+        let content = fs::read_to_string(file).unwrap_or_default();
+        for (i, line) in content.lines().enumerate() {
+            if !(line.contains(EM_DASH) || line.contains("\\u2014")) {
+                continue;
+            }
+            let leaf = line.trim_start();
+            if EXEMPT_KEYS.iter().any(|(key, _)| leaf.starts_with(&format!("\"{key}\""))) {
+                continue;
+            }
+            violations.push(format!(
+                "  {}:{}\n    {}",
+                file.strip_prefix(&root).unwrap_or(file).display(),
+                i + 1,
+                line.trim()
+            ));
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "\n\n[FAIL] Found {} em-dash(es) in the word files (data/i18n). Replace each with a comma, a\n\
+         colon, a full stop or a rewrite; a quotation that must keep one names its key in\n\
+         EXEMPT_KEYS with the reason.\n\nOffending lines:\n{}\n",
+        violations.len(),
+        violations.join("\n")
+    );
+}
+
 /// Scan `content` and return the 1-based line numbers where a U+2014 appears
 /// INSIDE a string literal (not in a `//` line comment or a `/* */` block
 /// comment). A lightweight state machine, good enough for GUI label code (it

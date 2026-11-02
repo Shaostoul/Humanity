@@ -496,9 +496,15 @@ mod tests {
     /// in a hand-edited row is caught. Seen passing only with the attribute in place.
     #[test]
     fn a_misspelt_field_does_not_parse() {
+        // Each misspelling is checked to have been MADE before its parse is judged: on 2026-11-02 the
+        // refutation pass added a source to the row this test matched by its full text, the
+        // replacement silently stopped happening, and the test went on asserting about an
+        // unchanged file. The anchors are now field names only, not a row's contents.
         let text = SHIPPED_RUN_MATERIALS.replacen("bend_radii:", "bend_radius:", 1);
+        assert_ne!(text, SHIPPED_RUN_MATERIALS, "the catalog has a bend_radii field to misspell");
         assert!(RunMaterials::parse(&text).is_err());
-        let text = SHIPPED_RUN_MATERIALS.replacen("source: [R(1), Ours(", "sorce: [R(1), Ours(", 1);
+        let text = SHIPPED_RUN_MATERIALS.replacen("source: [", "sorce: [", 1);
+        assert_ne!(text, SHIPPED_RUN_MATERIALS, "the catalog has a source field to misspell");
         assert!(RunMaterials::parse(&text).is_err(), "a row whose source is misspelt has no source");
     }
 
