@@ -895,6 +895,16 @@
       "date": "2026-11-02",
       "decision": "Front door design and prototype merged (159636251; docs/design/front-door.md, web/prototypes/front-door/, never served). BUG-223 fixed (06ce44527): the chat wizard said messages are encrypted; channel posts are public to anyone (GET /api/messages checks no key). Open for the operator: members-only channel reading by default, robots.txt for /api/, and the front door's own decisions (adopt it, column width, the chat slice and its consent rules, the seven Start-here answers, the cold-reader test only he can run).",
       "why": "A false privacy promise to every new person is work now (the 2026-10-09 rule). The other session's web chat store fix (claude/zealous-raman-7aba0c) now becomes BUG-224 when it merges, BUG-223 being taken."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Warning-bar mute merged (d695b1a31): this session / one day / one week, ending at its time, at the next launch for a session, on a new version; the title and the warning's own Library page always show it; Settings > Notifications > Muted; docs/user/rights/unfinished_software.md grown into the in-depth page. Two hollow checks fixed first (5018f9c08): run_materials' misspelt-field test (failing on main since 97caed5b7, its anchor text gone) and the em-dash lint, which saw only src/gui literals and now scans data/i18n too.",
+      "why": "Lesson: validate-data selects tests by NAME, so a data change's check on main is not its tests: after a data merge, run the tests of the crate that loads it (lib-tests --crate) too. Overrulable calls the agent made: no second Library page (the bar's existing page grew), the website's session mute is per tab, the row lives under Notifications."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Front door: no chat on the front page (\"That's fair. We can just exclude the chat on front page.\"); a signed release's update card gets its own dressing (his request: \"when I sign its widget dressing is slightly different from the normal update ones\"); the front door agent resumed for both plus screenshots at 2560x1440. His display is a 65-inch TV at 2560x1440, 120 fps (memory MEMORY.md Machine); the Characters agent told to size for it.",
+      "why": "His screenshots arrive downscaled to 2000x1125, so layouts measured on them were 0.78 of real. The signed-card idea is his own; nothing elsewhere may tell him a release needs signing."
     }
   ],
   "active_scopes_to_avoid": [
