@@ -7090,3 +7090,12 @@ he noticed the "2+ hour task".
 - **Lesson.** A long-running task is not a live one: check its log's last write before believing
   it. And libtest's 60-second warning is not a hang detector: it cannot fire for a test that has
   finished but whose thread cannot exit.
+
+## BUG-223: the chat's first-time wizard told new people their messages are encrypted; channel posts are public (FIXED 2026-11-02, found 2026-11-02)
+
+**Found by** the front door design agent (2026-11-02), asking who can read #general before a read-only slice of it went on the front page (docs/design/front-door.md). Not operator-reported.
+- **The claim.** web/chat/chat-onboarding.js, "What this means for you": "Nobody reads your messages, they're encrypted." True of direct messages (sealed sender), false for channel posts.
+- **What is true.** The relay keeps channel posts as plain text and `GET /api/messages?channel=<name>` (src/relay/api.rs `get_messages`) checks no key or signature: anyone on the internet can read any channel's posts, with each poster's public key, display name, words and exact time, limited only by the per-address rate limit. No channel can be members-only today.
+- **FIXED (06ce44527).** The line says what is true, from the word source (`onboarding.wizard_messages_privacy`): direct messages are sealed so only the two people can read them; channel posts are public, readable by anyone, even without signing up. The file's word budget dropped 92 -> 91.
+- **Open, the operator's decision:** whether channel reading becomes members-only by default with an admin able to mark a channel public (the safe default; front-door.md recommends it as its own piece of work), and a robots.txt keeping search engines off `/api/` (the live site has none).
+- **Lesson.** A promise in an onboarding screen is a security claim: check it against the code the way docs/reference/cryptography.md is checked.
