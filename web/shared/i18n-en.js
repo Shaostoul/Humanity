@@ -2223,7 +2223,8 @@ window.HOS_I18N_EN = {
     "go": "Go",
     "go_hint": "Opens the page this step is about.",
     "close_hint": "Closes this window and goes back to the guides.",
-    "load_failed": "Could not load quests ({{error}}). Try refreshing, or start with the Chat."
+    "load_failed": "Could not load quests ({{error}}). Try refreshing, or start with the Chat.",
+    "wizard_messages_privacy": "Your direct messages are sealed: only you and the person you write to can read them. Posts in a channel are public: anyone can read them, even without signing up."
   },
   "home": {
     "title": "Home",
