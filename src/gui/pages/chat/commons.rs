@@ -28,9 +28,6 @@ pub(crate) struct CommonsRoom {
     pub name: String,
     /// How many of my signed-in servers carry it.
     pub carriers: usize,
-    /// Whether the ACTIVE connection is one of the carriers (send path:
-    /// active if possible, else a background carrier).
-    pub active_carries: bool,
     /// Any carrier holds unread activity in this room.
     pub unread: bool,
     /// The signed-in carriers' urls, for the at-a-glance identity-color dots on the room row
@@ -245,7 +242,7 @@ pub(crate) fn commons_rooms(state: &GuiState) -> Vec<CommonsRoom> {
                     carrier_urls.push(conn.url.clone());
                 }
             }
-            Some(CommonsRoom { carriers: c.signed_in, active_carries: c.active && connected, unread, carrier_urls, name })
+            Some(CommonsRoom { carriers: c.signed_in, unread, carrier_urls, name })
         })
         .collect()
 }
@@ -392,7 +389,7 @@ mod tests {
         assert_eq!(rooms.len(), 1, "only the room BOTH servers federate qualifies");
         assert_eq!(rooms[0].name, "general");
         assert_eq!(rooms[0].carriers, 2);
-        assert!(!rooms[0].active_carries, "active connection is offline");
+        assert_eq!(commons_route(&state, "general").0, false, "active connection is offline, so a send goes by a background carrier");
         assert!(rooms[0].unread, "unread on ANY carrier lights the room");
     }
 

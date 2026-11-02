@@ -297,7 +297,7 @@ fn paint_spectrum(painter: &egui::Painter, theme: &Theme, rect: Rect, levels: &[
 fn paint_waveform(painter: &egui::Painter, theme: &Theme, rect: Rect, a: &Analysis, played: f32) {
     let mid = rect.center().y;
     let half = rect.height() / 2.0;
-    painter.line_segment([egui::pos2(rect.left(), mid), egui::pos2(rect.right(), mid)], egui::Stroke::new(1.0, theme.border()));
+    painter.line_segment([egui::pos2(rect.left(), mid), egui::pos2(rect.right(), mid)], egui::Stroke::new(1.0_f32, theme.border()));
     if a.peaks.is_empty() {
         return;
     }
@@ -319,7 +319,7 @@ fn paint_waveform(painter: &egui::Painter, theme: &Theme, rect: Rect, a: &Analys
     }
     painter.add(egui::Shape::mesh(mesh));
     let x = rect.left() + played * rect.width();
-    painter.line_segment([egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())], egui::Stroke::new(2.0, theme.text_primary()));
+    painter.line_segment([egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())], egui::Stroke::new(2.0_f32, theme.text_primary()));
 }
 
 #[cfg(test)]

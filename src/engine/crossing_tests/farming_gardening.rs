@@ -18,7 +18,7 @@ fn time_away_grows_the_garden_only_with_offline_progression_on() {
     use crate::ecs::components::CropInstance;
 
     let run = |offline_on: bool| -> usize {
-        let mut data = make_store();
+        let data = make_store();
         let (growth_seconds, stages): (f64, Vec<&str>) = {
             let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
             let def = reg.get("tomato").unwrap();

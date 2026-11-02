@@ -62,7 +62,7 @@ pub fn show(ui: &mut Ui, theme: &Theme, id_salt: impl std::hash::Hash, columns: 
             }
         });
         let y = ui.cursor().min.y;
-        ui.painter().hline(ui.cursor().min.x..=ui.cursor().min.x + total, y, Stroke::new(1.0, theme.border()));
+        ui.painter().hline(ui.cursor().min.x..=ui.cursor().min.x + total, y, Stroke::new(1.0_f32, theme.border()));
         ui.add_space(theme.spacing_xs);
         let saved_y = ui.spacing().item_spacing.y;
         ui.spacing_mut().item_spacing.y = 0.0;

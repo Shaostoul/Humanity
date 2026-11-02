@@ -177,7 +177,7 @@ impl System for CombatSystem {
         }
 
         // ── Trigger death: insert Dead, roll loot into the loot_drops channel ──
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for (entity, source_name, source_is_player, killing_type) in deaths_to_handle {
             let is_player = world.get::<&crate::ecs::components::Controllable>(entity).is_ok();
             let cause = match &source_name {
@@ -223,9 +223,9 @@ impl System for CombatSystem {
                 .map(|table| {
                     table.entries.iter()
                         .filter_map(|(item, chance, min, max)| {
-                            if rng.gen::<f32>() < *chance {
+                            if rng.random::<f32>() < *chance {
                                 let count = if max > min {
-                                    rng.gen_range(*min..=*max)
+                                    rng.random_range(*min..=*max)
                                 } else {
                                     *min
                                 };

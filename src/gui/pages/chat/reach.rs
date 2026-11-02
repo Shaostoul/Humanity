@@ -15,7 +15,7 @@ pub(super) fn draw_refusal_notice(ui: &mut egui::Ui, theme: &Theme, state: &mut 
     let mut send = false;
     Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, theme.warning()))
+        .stroke(Stroke::new(1.0_f32, theme.warning()))
         .inner_margin(egui::Margin::symmetric(12, 8))
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());

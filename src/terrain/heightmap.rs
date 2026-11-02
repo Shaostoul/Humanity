@@ -4,7 +4,7 @@
 //! hills, and micro detail. Also classifies biomes based on latitude, elevation,
 //! and moisture.
 
-use noise::{NoiseFn, Perlin, Seedable};
+use noise::{NoiseFn, Perlin};
 use serde::{Deserialize, Serialize};
 
 /// Biome classification based on latitude, elevation, and moisture.
@@ -32,8 +32,6 @@ pub enum Biome {
 ///
 /// All generation is deterministic given the same seed.
 pub struct TerrainGenerator {
-    /// Master seed for all noise layers.
-    seed: u64,
     /// Fraction of max height treated as sea level (0.0-1.0, default 0.4).
     sea_level: f32,
     /// Maximum terrain height in meters (default 8848.0 for Earth-like).
@@ -54,7 +52,6 @@ impl TerrainGenerator {
     pub fn new(seed: u64, sea_level: f32, mountain_scale: f32, roughness: f32) -> Self {
         let base_seed = seed as u32;
         Self {
-            seed,
             sea_level: sea_level.clamp(0.0, 1.0),
             mountain_scale: mountain_scale.max(1.0),
             roughness: roughness.clamp(0.0, 1.0),

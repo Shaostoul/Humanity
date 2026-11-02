@@ -2,7 +2,7 @@
 //! toolbar with bold/italic markers, word count, auto-save indicator,
 //! delete with confirmation.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke};
 use crate::gui::{GuiNote, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -45,7 +45,7 @@ fn draw_page(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("notes_sidebar")
         .default_width(220.0)
         .resizable(true)
-        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(8.0))
+        .frame(Frame::NONE.fill(theme.bg_sidebar()).inner_margin(8.0))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new(t("notes.title"))
@@ -106,14 +106,14 @@ fn draw_page(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let is_selected = state.notes_selected == Some(note.id);
                         let fill = if is_selected { theme.bg_card() } else { Color32::TRANSPARENT };
                         let stroke = if is_selected {
-                            Stroke::new(1.0, theme.accent())
+                            Stroke::new(1.0_f32, theme.accent())
                         } else {
                             Stroke::NONE
                         };
 
-                        let frame = egui::Frame::none()
+                        let frame = egui::Frame::NONE
                             .fill(fill)
-                            .rounding(Rounding::same(4))
+                            .corner_radius(CornerRadius::same(4))
                             .stroke(stroke)
                             .inner_margin(8.0);
 
@@ -166,7 +166,7 @@ fn draw_page(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // Main editor panel
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             if let Some(sel_id) = state.notes_selected {
                 if let Some(note) = state.notes.iter_mut().find(|n| n.id == sel_id) {

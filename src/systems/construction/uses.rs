@@ -35,7 +35,9 @@
 //! (BUG-102).
 
 use super::site::{in_frame, PlanetSite};
-use super::{doorway, placement, BlueprintRegistry, Construction, DoorOpen, Structure};
+use super::{doorway, BlueprintRegistry, Construction, DoorOpen, Structure};
+#[cfg(test)]
+use super::placement;
 use crate::ship::sight::ReachBlockers;
 use crate::ecs::components::Transform;
 use glam::Vec3;

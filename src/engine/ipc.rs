@@ -382,7 +382,7 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
 
     // Collect the spawn list first (no world borrow while iterating data).
     let mut to_spawn: Vec<crate::ecs::components::CropInstance> = Vec::new();
-    let mut stagger = |list: &mut Vec<crate::ecs::components::CropInstance>,
+    let stagger = |list: &mut Vec<crate::ecs::components::CropInstance>,
                        plant_id: &str,
                        grow_id: &str,
                        slot: u32,

@@ -39,7 +39,7 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use egui::{Frame, RichText, Rounding, Stroke};
+use egui::{Frame, RichText, CornerRadius, Stroke};
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -840,10 +840,10 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut LocalNode) {
     let starting = n.status == NodeStatus::Starting;
 
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, theme.border()))
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.spacing_md)
         .show(ui, |ui| {
             // form_row is the app-wide label/control pair, so these line up with
@@ -1029,10 +1029,10 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
         .as_ref()
         .map(|ip| format!("http://{ip}:{}", n.running_port));
 
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, theme.border()))
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.spacing_md)
         .show(ui, |ui| {
             let row = |ui: &mut egui::Ui, label: &str, value: &str, copyable: bool| {

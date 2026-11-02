@@ -182,6 +182,8 @@ pub(crate) fn ended(world: &hecs::World) -> Ended {
 
 /// `ended`, its crops in (area, plant) order instead of entity order, for two worlds whose crops
 /// were spawned in different orders (a save and its load; each plant grows once per area here).
+// For save_load_farm_tests.rs, which only the native build has.
+#[cfg(feature = "native")]
 pub(crate) fn ended_by_place(world: &hecs::World) -> Ended {
     let (mut crops, memory) = ended(world);
     crops.sort_by(|a, b| (&a.area, &a.plant).cmp(&(&b.area, &b.plant)));

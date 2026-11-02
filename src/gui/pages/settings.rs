@@ -3,7 +3,7 @@
 //! Categories: Account, Appearance, Notifications, Wallet, Audio,
 //! Graphics, Controls, Privacy, Data, Updates.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use crate::gui::{GuiState, SettingsCategory, WalletNetwork, VERSION};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -101,7 +101,7 @@ fn styled_slider(
             let cy = rect.center().y;
             let t = if (max - min).abs() < f32::EPSILON { 0.5 } else { (*value - min) / (max - min) };
             let tx = rect.left() + t * rect.width();
-            let tr = Rounding::same((style.track_h / 2.0) as u8);
+            let tr = CornerRadius::same((style.track_h / 2.0) as u8);
             painter.rect_filled(
                 egui::Rect::from_min_max(egui::pos2(rect.left(), cy - style.track_h / 2.0), egui::pos2(rect.right(), cy + style.track_h / 2.0)),
                 tr, style.track_color,
@@ -147,10 +147,10 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
         .default_width(180.0)
         .min_width(140.0)
         .max_width(240.0)
-        .frame(Frame::none()
+        .frame(Frame::NONE
             .fill(theme.bg_sidebar())
             .inner_margin(egui::Margin::symmetric(8, 12))
-            .stroke(Stroke::new(1.0, theme.border())))
+            .stroke(Stroke::new(1.0_f32, theme.border())))
         .show(ctx, |ui| {
             ui.label(RichText::new("Settings").size(theme.font_size_heading).color(theme.text_primary()));
             ui.add_space(theme.spacing_md);
@@ -192,7 +192,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                 )
                 .fill(bg)
                 .stroke(stroke)
-                .rounding(Rounding::same(4))
+                .corner_radius(CornerRadius::same(4))
                 .min_size(Vec2::new(ui.available_width(), 28.0));
 
                 if ui.add(btn).clicked() {
@@ -203,7 +203,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
 
     // Right content area: all sections in one infinite scroll
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ScrollArea::vertical()
                 .id_salt("settings_scroll")
@@ -263,10 +263,10 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                         let tint = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 12);
                         let edge = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 110);
                         let mut heading_rect = egui::Rect::NOTHING;
-                        Frame::none()
+                        Frame::NONE
                             .fill(tint)
-                            .rounding(Rounding::same(theme.border_radius as u8))
-                            .stroke(Stroke::new(1.0, edge))
+                            .corner_radius(CornerRadius::same(theme.border_radius as u8))
+                            .stroke(Stroke::new(1.0_f32, edge))
                             .inner_margin(theme.card_padding)
                             .show(ui, |ui| {
                                 let hr = ui.label(
@@ -809,11 +809,11 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 // single most dangerous string in the app), derived from the token
                 // via alpha rather than a hardcoded brown.
                 let w = theme.warning();
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(Color32::from_rgba_unmultiplied(w.r(), w.g(), w.b(), 40))
-                    .rounding(Rounding::same(4))
+                    .corner_radius(CornerRadius::same(4))
                     .inner_margin(8.0)
-                    .stroke(Stroke::new(1.0, theme.warning()))
+                    .stroke(Stroke::new(1.0_f32, theme.warning()))
                     .show(ui, |ui| {
                         // MONOSPACE, and this is a safety requirement rather
                         // than a style choice. These 24 words are the one
@@ -1141,7 +1141,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         ui.add_space(theme.spacing_xs);
 
         // Mode 3: Quick PIN
-        let mut sel_pin = current == AutoUnlockMode::KeychainPin;
+        let sel_pin = current == AutoUnlockMode::KeychainPin;
         let resp_pin = ui.add_enabled(
             !key_locked,
             egui::RadioButton::new(sel_pin, "Quick PIN (4-12 digits)"),
@@ -1224,9 +1224,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         let mut swap_up_idx: Option<usize> = None;
 
         for (i, addr) in state.donate_addresses.iter_mut().enumerate() {
-            let frame = egui::Frame::none()
+            let frame = egui::Frame::NONE
                 .fill(theme.bg_secondary())
-                .rounding(egui::Rounding::same(4))
+                .corner_radius(egui::CornerRadius::same(4))
                 .inner_margin(8.0);
 
             frame.show(ui, |ui| {
@@ -1449,11 +1449,11 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     let card_padding = theme.card_padding;
     let label_color = theme.text_secondary();
 
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(card_bg)
-        .rounding(Rounding::same(card_radius as u8))
+        .corner_radius(CornerRadius::same(card_radius as u8))
         .inner_margin(card_padding)
-        .stroke(Stroke::new(1.0, card_border))
+        .stroke(Stroke::new(1.0_f32, card_border))
         .show(ui, |ui| {
             ui.label(
                 RichText::new(
@@ -1790,11 +1790,11 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     let text_muted = theme.text_muted();
 
     let frame = || {
-        egui::Frame::none()
+        egui::Frame::NONE
             .fill(card_bg)
-            .rounding(Rounding::same(card_radius as u8))
+            .corner_radius(CornerRadius::same(card_radius as u8))
             .inner_margin(card_padding)
-            .stroke(Stroke::new(1.0, card_border))
+            .stroke(Stroke::new(1.0_f32, card_border))
     };
 
     // Snapshot the editable token values into locals so we can pass
@@ -2077,11 +2077,11 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
         ui.add_space(spacing_sm);
 
         let make_card = |ui: &mut egui::Ui, title: &str, content: &mut dyn FnMut(&mut egui::Ui)| {
-            egui::Frame::none()
+            egui::Frame::NONE
                 .fill(card_bg)
-                .rounding(Rounding::same(card_radius as u8))
+                .corner_radius(CornerRadius::same(card_radius as u8))
                 .inner_margin(card_padding)
-                .stroke(Stroke::new(1.0, card_border))
+                .stroke(Stroke::new(1.0_f32, card_border))
                 .show(ui, |ui| {
                     ui.label(RichText::new(title).strong().color(text_color));
                     ui.add_space(4.0);
@@ -2201,11 +2201,11 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
         // ── RIGHT COLUMN: live preview ──
         let ui = &mut cols[1];
 
-        egui::Frame::none()
+        egui::Frame::NONE
             .fill(theme.bg_panel())
-            .rounding(Rounding::same(4))
+            .corner_radius(CornerRadius::same(4))
             .inner_margin(8.0)
-            .stroke(Stroke::new(1.0, theme.border()))
+            .stroke(Stroke::new(1.0_f32, theme.border()))
             .show(ui, |ui| {
                 ui.label(RichText::new("Live Preview").size(heading_sz).color(text_color));
                 ui.add_space(spacing_sm);
@@ -2224,7 +2224,6 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     true,
                     preview_row_bg,
                     false,
-                    0.0,
                     0.0, // pill_width = 0 → preview keeps inline timestamp
                     &[], // no mention highlighting in the theme preview
                 &[], // no markdown/link spans in the theme preview
@@ -2242,7 +2241,6 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     false,
                     preview_row_bg_alt,
                     false,
-                    0.0,
                     0.0, // pill_width = 0
                     &[], // no mention highlighting in the theme preview
                 &[], // no markdown/link spans in the theme preview
@@ -2387,8 +2385,8 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
     ui.horizontal(|ui| {
         for (label, col) in [("idle", ch_idle), ("attack", ch_attack)] {
             let (rect, _) = ui.allocate_exact_size(Vec2::splat(44.0), egui::Sense::hover());
-            ui.painter().rect_filled(rect, egui::Rounding::same(6), theme.bg_card());
-            ui.painter().rect_stroke(rect, egui::Rounding::same(6), Stroke::new(2.5, col), egui::epaint::StrokeKind::Inside);
+            ui.painter().rect_filled(rect, egui::CornerRadius::same(6), theme.bg_card());
+            ui.painter().rect_stroke(rect, egui::CornerRadius::same(6), Stroke::new(2.5_f32, col), egui::epaint::StrokeKind::Inside);
             ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, label, egui::FontId::proportional(theme.font_size_small), theme.text_muted());
             ui.add_space(theme.spacing_xs);
         }
@@ -2608,7 +2606,7 @@ pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
                 let fill = if is_sel { theme.accent() } else { Color32::TRANSPARENT };
                 let btn = egui::Button::new(RichText::new(n.label()).color(text_color).size(theme.font_size_body))
                     .fill(fill)
-                    .rounding(Rounding::same(4));
+                    .corner_radius(CornerRadius::same(4));
                 if ui.add(btn).clicked() && !is_sel {
                     state.wallet_network = n;
                 }
@@ -2797,8 +2795,8 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             let col = crate::gui::pages::escape_menu::channeling_color(theme, time, false, theme.accent());
             ui.painter().rect_stroke(
                 btn.response.rect.expand(2.0),
-                egui::Rounding::same(theme.border_radius as u8),
-                egui::Stroke::new(2.0, col),
+                egui::CornerRadius::same(theme.border_radius as u8),
+                egui::Stroke::new(2.0_f32, col),
                 egui::StrokeKind::Outside,
             );
             ui.ctx().request_repaint();
@@ -2814,11 +2812,11 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             egui::vec2(ui.available_width().min(280.0), 10.0),
             egui::Sense::hover(),
         );
-        ui.painter().rect_filled(rect, egui::Rounding::same(2), theme.bg_card());
+        ui.painter().rect_filled(rect, egui::CornerRadius::same(2), theme.bg_card());
         if lvl > 0.001 {
             let fill = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * lvl, rect.height()));
             let col = if lvl > 0.7 { theme.danger() } else { theme.success() };
-            ui.painter().rect_filled(fill, egui::Rounding::same(2), col);
+            ui.painter().rect_filled(fill, egui::CornerRadius::same(2), col);
         }
         let status = crate::net::voice::mic_status();
         if !status.is_empty() {
@@ -4085,9 +4083,9 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // name both sides and let the user move the key or keep it.
         if let Some((c_action, c_secondary, c_key, c_holder)) = state.keybind_conflict.clone() {
             ui.add_space(theme.spacing_xs);
-            egui::Frame::none()
+            egui::Frame::NONE
                 .fill(theme.bg_tertiary())
-                .rounding(Rounding::same(4))
+                .corner_radius(CornerRadius::same(4))
                 .inner_margin(Vec2::new(10.0, 8.0))
                 .show(ui, |ui| {
                     ui.label(
@@ -4163,7 +4161,7 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                                     .strong(),
                             )
                             .fill(fill)
-                            .rounding(Rounding::same(3));
+                            .corner_radius(CornerRadius::same(3));
                             let resp = ui.add(btn);
                             // Only a real POINTER click toggles the cell. egui
                             // also reports clicked() when Space/Enter activates
@@ -4231,9 +4229,9 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             .spacing([24.0, theme.row_gap])
             .show(ui, |ui| {
                 for (keys, what) in kb::FIXED_BINDS {
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(theme.bg_tertiary())
-                        .rounding(Rounding::same(3))
+                        .corner_radius(CornerRadius::same(3))
                         .inner_margin(Vec2::new(8.0, 2.0))
                         .show(ui, |ui| {
                             ui.label(
@@ -5012,9 +5010,9 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 ui.add_space(theme.spacing_md);
                 ui.label(RichText::new("Release Notes").color(theme.text_secondary()).strong());
                 ui.add_space(theme.spacing_xs);
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(theme.bg_sidebar_dark())
-                    .rounding(Rounding::same(4))
+                    .corner_radius(CornerRadius::same(4))
                     .inner_margin(8.0)
                     .show(ui, |ui| {
                         ui.label(RichText::new(release_notes).color(theme.text_muted()).size(theme.font_size_small));

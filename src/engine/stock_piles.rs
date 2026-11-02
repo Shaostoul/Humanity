@@ -225,7 +225,7 @@ pub fn in_storage_room(places: &[crate::gui::Place], path: &str, rooms: &[String
 /// Hand-made goods the backpack could not take (BUG-147, the
 /// `crafting::home_store::HAND_MADE_TO_STORAGE` channel) are filed the same
 /// way, keeping the grade the crafter gave them.
-pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
+pub(crate) fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
     let made: Vec<(String, u32)> = state
         .data_store
         .get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
@@ -276,7 +276,7 @@ pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
 ///
 /// KNOWN GAP: a chest built on a planet is aged by the home's air too; what the planet's
 /// own air does to it is not modelled per chest yet.
-pub fn age_home_storage(state: &mut crate::engine::state::EngineState) {
+pub(crate) fn age_home_storage(state: &mut crate::engine::state::EngineState) {
     use std::sync::Mutex;
     let key = crate::systems::food::STORAGE_AGING_KEY;
     if state.data_store.get::<Mutex<f64>>(key).is_none() {
@@ -302,7 +302,7 @@ pub fn age_home_storage(state: &mut crate::engine::state::EngineState) {
 /// planet is left out: it is the player's, but what it holds is on that
 /// planet, not in the home. Returns the snapshot, for
 /// [`take_consumed_home_stock`] after the tick.
-pub fn publish_home_stock(state: &mut crate::engine::state::EngineState) -> std::collections::HashMap<String, u32> {
+pub(crate) fn publish_home_stock(state: &mut crate::engine::state::EngineState) -> std::collections::HashMap<String, u32> {
     let stock = publish_stock(&state.game_world.world, &mut state.data_store, &state.gui_state.placed_items);
     state.gui_state.home_stock = stock.clone();
     stock
@@ -324,7 +324,7 @@ pub(crate) fn publish_stock(
 /// After the tick: what the systems drew from home storage (the drop in the
 /// "home_stock" map from `before`) comes out of the placed containers, so the
 /// two layers agree. First-found first; emptied stacks disappear.
-pub fn take_consumed_home_stock(
+pub(crate) fn take_consumed_home_stock(
     state: &mut crate::engine::state::EngineState,
     before: &std::collections::HashMap<String, u32>,
 ) {
@@ -464,7 +464,7 @@ fn home_storage_slots(state: &crate::engine::state::EngineState, count: u32) -> 
 }
 
 /// Push the crates and tank level bars into this frame's render list.
-pub fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &mut Vec<RenderObject>) {
+pub(crate) fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &mut Vec<RenderObject>) {
     use crate::renderer::mesh::Mesh;
     if state.stock_pile_mesh.is_none() {
         let unit_box = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));

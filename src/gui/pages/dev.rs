@@ -60,7 +60,7 @@ fn species() -> &'static Vec<SpeciesRow> {
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(RichText::new("Dev").size(theme.font_size_title).color(theme.text_primary()));
             ui.label(

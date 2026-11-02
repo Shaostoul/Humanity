@@ -113,7 +113,7 @@ fn draw(ctx: &egui::Context, theme: &Theme, state: &GuiState, scroll: f32, force
     take_tiles();
     let output = ctx.run(input, |ctx| {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
             .show(ctx, |ui| {
                 let out = egui::ScrollArea::vertical().vertical_scroll_offset(scroll).show(ui, |ui| {
                     let t0 = std::time::Instant::now();

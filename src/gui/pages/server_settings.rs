@@ -91,7 +91,7 @@ const CHANNEL_COL_WIDTHS: [f32; 7] = [
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
+        .frame(egui::Frame::NONE.fill(theme.bg_primary()).inner_margin(0.0))
         .show(ctx, |ui| {
             ScrollArea::vertical()
                 .auto_shrink([false, false])

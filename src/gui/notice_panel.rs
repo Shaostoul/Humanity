@@ -80,7 +80,7 @@ fn draw_panel(ctx: &Context, theme: &Theme, state: &mut GuiState, anchor: egui::
         .pivot(egui::Align2::RIGHT_TOP)
         .fixed_pos(egui::pos2(anchor.right(), anchor.bottom() + 4.0))
         .show(ctx, |ui| {
-            egui::Frame::popup(ui.style()).fill(theme.bg_card()).stroke(egui::Stroke::new(1.0, theme.border())).show(ui, |ui| {
+            egui::Frame::popup(ui.style()).fill(theme.bg_card()).stroke(egui::Stroke::new(1.0_f32, theme.border())).show(ui, |ui| {
                 ui.set_width(PANEL_WIDTH);
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(t("notifications.panel_heading")).size(theme.font_size_body).color(theme.text_primary()).strong());
@@ -136,7 +136,7 @@ fn entry_row(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, file: &n::data:
     let server = server_label(state, &e.server);
     let resp = ui
         .push_id(("notice_entry", i), |ui| {
-            egui::Frame::none().inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
+            egui::Frame::NONE.inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.label(RichText::new(&title).size(theme.font_size_body).color(theme.text_primary()));
                 if show == n::Show::NameAndText {
@@ -154,7 +154,7 @@ fn entry_row(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, file: &n::data:
         .response;
     let resp = ui.interact(resp.rect, egui::Id::new(("notice_entry_click", i)), egui::Sense::click()).hint("notifications.entry_hint");
     if resp.hovered() {
-        ui.painter().rect_stroke(resp.rect, egui::Rounding::same(theme.border_radius as u8), egui::Stroke::new(1.0, theme.accent()), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(resp.rect, egui::CornerRadius::same(theme.border_radius as u8), egui::Stroke::new(1.0_f32, theme.accent()), egui::StrokeKind::Inside);
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
     resp.clicked()

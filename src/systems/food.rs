@@ -632,6 +632,7 @@ impl FoodSystem {
 
     /// The Hydration points one drink of `item_id` puts back (2026-10-20):
     /// `water_points`, for a drink only. None when it is not a drink.
+    #[cfg(test)]
     pub(crate) fn drink_points(&self, item_id: &str) -> Option<f32> {
         self.profile_for(item_id).filter(|p| p.category == "beverage")?;
         self.water_points(item_id)

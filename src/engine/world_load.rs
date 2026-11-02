@@ -13,7 +13,6 @@ use crate::engine::state::EngineState;
 use crate::renderer::mesh::Mesh;
 use crate::ship::starts::HomeContent;
 use crate::systems::inventory::ItemRegistry;
-use crate::terrain::planet::PlanetDef;
 
 /// Place a blockman avatar standing on a podium at `base` (the podium floor position),
 /// built from the player's `Appearance` (v0.440). A rudimentary humanoid from boxes +
@@ -43,7 +42,7 @@ pub(crate) fn place_avatar(
     let torso_base = leg_base + leg_h;
     let head_cy = torso_base + torso_h + head_r;
     // Helper: push a box part at base + (x,y,z).
-    let mut push_box = |st: &mut EngineState, w: f32, h: f32, d: f32, c: [f32; 4], x: f32, y: f32, z: f32| {
+    let push_box = |st: &mut EngineState, w: f32, h: f32, d: f32, c: [f32; 4], x: f32, y: f32, z: f32| {
         let mi = st.renderer.add_mesh(Mesh::box_xyz(&st.renderer.device, w, h, d));
         let mat = st.renderer.add_material_typed(c, 0.1, 0.75, 0.0);
         st.placeholder_objects.push((mi, mat, base + Vec3::new(x, y, z)));

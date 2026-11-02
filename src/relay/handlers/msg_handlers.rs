@@ -4,15 +4,14 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Instant;
 
 use rand::Rng;
 
 use crate::relay::relay::*;
+// The handler test modules below reach it through `use super::*`.
+#[cfg(test)]
 use crate::relay::storage::Storage;
 use crate::relay::handlers::broadcast::*;
-use crate::relay::handlers::utils::*;
-use crate::relay::handlers::friend_passes::friend_pass;
 use crate::relay::handlers::reach::{self, DM_KNOCKS_PER_DAY};
 use crate::relay::handlers::dm_rate;
 use crate::relay::handlers::dm_answer::{answer_dm_put, answered_ref, DmPutRefusal};
@@ -2107,7 +2106,8 @@ pub async fn handle_federation_hello(
                         channels: fed_channels,
                     };
                     let _ = state.db.update_federated_server_status(&server_id, "online");
-                    tracing::info!("Federation: accepted hello from {} ({})", name, crate::relay::handlers::federation::key_in_log(&server_id));
+                    // The version is the peer's own word, outside what it signs: for the log only.
+                    tracing::info!("Federation: accepted hello from {} ({}, says it runs {})", name, crate::relay::handlers::federation::key_in_log(&server_id), version);
                     return Some(welcome);
                 } else {
                     tracing::warn!("Federation: invalid signature from {}", server_id);
@@ -3654,7 +3654,7 @@ pub async fn handle_game_interact(
         .filter(|arr| !arr.is_empty())
         .map(|arr| {
             use rand::Rng;
-            let idx = rand::thread_rng().gen_range(0..arr.len());
+            let idx = rand::rng().random_range(0..arr.len());
             arr[idx].as_str().unwrap_or("").to_string()
         })
         .filter(|s| !s.is_empty());
@@ -4257,6 +4257,11 @@ mod dm_mailbox_tests {
 #[cfg(test)]
 #[path = "msg_handlers_reach_tests.rs"]
 mod reach_tests;
+
+/// The raw task messages keep their typed twins' role rules (BUG-221, 2026-11-01).
+#[cfg(test)]
+#[path = "msg_handlers_task_rules_tests.rs"]
+mod task_rules_tests;
 
 /// Friendship passes v2 at every contact path, and their withdrawal (2026-10-09,
 /// docs/design/blocking-and-safe-mode.md 10b).

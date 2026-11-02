@@ -210,7 +210,7 @@ impl Viewer {
 
         // The words show only where nothing draws over them.
         let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, egui::Rounding::same(theme.border_radius as u8), theme.bg_card());
+        painter.rect_filled(rect, egui::CornerRadius::same(theme.border_radius as u8), theme.bg_card());
         painter.text(rect.center(), egui::Align2::CENTER_CENTER, NO_GRAPHICS, egui::FontId::proportional(theme.font_size_small), theme.text_muted());
         let ppp = ui.ctx().pixels_per_point();
         let px = [(rect.width() * ppp).round().max(1.0) as u32, (rect.height() * ppp).round().max(1.0) as u32];

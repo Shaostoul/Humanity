@@ -4,7 +4,6 @@
 //! Also the precision anchors, the body's environment snapshot, the Planet Tuner readout and the
 //! F6 location bookmarks.
 use glam::Vec3;
-use std::time::Instant;
 use crate::engine::state::EngineState;
 use crate::terrain::planet::PlanetDef;
 

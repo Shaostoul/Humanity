@@ -152,7 +152,7 @@ pub(crate) fn group_count(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     let galley = ui.painter().layout_no_wrap(n.to_string(), egui::FontId::proportional(theme.font_size_small), theme.danger());
     let size = galley.size() + egui::vec2(8.0, 2.0);
     let rect = egui::Rect::from_min_size(egui::pos2(name.right() + theme.spacing_xs, name.center().y - size.y / 2.0), size);
-    ui.painter().rect_stroke(rect, egui::CornerRadius::same(3), egui::Stroke::new(1.0, theme.danger()), egui::StrokeKind::Inside);
+    ui.painter().rect_stroke(rect, egui::CornerRadius::same(3), egui::Stroke::new(1.0_f32, theme.danger()), egui::StrokeKind::Inside);
     ui.painter().galley(rect.center() - galley.size() / 2.0, galley, theme.danger());
     // Interacted after the row, so a click here opens Safety rather than the group.
     let resp = ui.interact(rect, egui::Id::new(("group_report_count", group_id)), egui::Sense::click()).on_hover_text(gr::count_title(n));

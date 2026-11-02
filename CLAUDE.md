@@ -58,7 +58,8 @@ For the session the operator talks to directly (it orients, dispatches, merges, 
 - **change the renderer, a shader, a pipeline, a bind group, or planet-scale math**:
   `docs/ai/renderer.md`.
 - **compile, run tests or lints, or wonder why a build is waiting**: `docs/ai/builds.md` (the
-  build slot, the test-run policy, the lint cache, what the rigs wait for, the disk guard).
+  build slot, the test-run policy, the lint cache, what the rigs wait for, the disk guard, the
+  warnings ratchet: zero Rust warnings, held by `just verify` and CI).
 - **boot the game** (a rig, `just launch-bg`, a relay run by hand, a screenshot of the running 3D
   game): `docs/ai/game-boots.md`; which check fits a change: the `game-checks` skill.
 - **drive or inspect the running game, or run rigs and lib tests, as tools**: `docs/ai/mcp.md`
@@ -358,7 +359,7 @@ just brief            # ONE-SHOT ORIENT (top-level sessions run it first)
 just lanes            # who owns what (several sessions share this checkout)
 just mine <paths>     # stage ONLY your files
 just ship "message"   # commit what YOU staged + push (the push deploys)
-just verify           # native + relay checks, lib tests, relay test build, the lints: before pushing Rust
+just verify           # native + relay checks (warnings counted, budget 0), lib tests, the lints: before pushing Rust
 just lints            # the std-only lints on their own
 just test-lib [filter]  # the lib tests (a bare `cargo test --lib` fails on Windows: LNK1318 below)
 just build-slot-status  # who is compiling, who waits for memory (the build slot, below)

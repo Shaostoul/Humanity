@@ -116,7 +116,7 @@ pub fn code(ui: &mut Ui, theme: &Theme, id_salt: &str, side: f32, draw: impl FnO
         ui.label(RichText::new(COVERS_ITSELF).size(theme.font_size_small).color(theme.text_muted()));
     } else {
         let (rect, _) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::hover());
-        ui.painter().rect_filled(rect, egui::Rounding::same(theme.border_radius as u8), theme.bg_tertiary());
+        ui.painter().rect_filled(rect, egui::CornerRadius::same(theme.border_radius as u8), theme.bg_tertiary());
         ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, CODE_HIDDEN, egui::FontId::proportional(theme.font_size_small), theme.text_muted());
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(CODE_WARNING).size(theme.font_size_small).color(theme.warning()));

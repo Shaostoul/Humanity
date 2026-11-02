@@ -48,8 +48,6 @@ pub struct BloomPass {
     /// Half-resolution dimensions
     half_width: u32,
     half_height: u32,
-    /// Surface format for compatibility
-    scene_format: wgpu::TextureFormat,
 }
 
 impl BloomPass {
@@ -162,7 +160,6 @@ impl BloomPass {
             bind_group_layout, composite_bind_group_layout,
             threshold_pipeline, blur_h_pipeline, blur_v_pipeline, composite_pipeline,
             half_width, half_height,
-            scene_format,
         }
     }
 

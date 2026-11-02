@@ -25,7 +25,7 @@ async fn reached(gate: &files::hold::Gate) {
 fn publish(r: &Rig, name: &str) {
     let s = r.db().get_server_settings().unwrap();
     let body = files::PublishBody { key: "ann".into(), filename: name.into(), ..Default::default() };
-    files::publish_core(r.db(), &s, &[], r.folders(), &body).expect("published");
+    assert_eq!(files::publish_core(r.db(), &s, &[], r.folders(), &body).expect("published").0["item"]["filename"], name);
 }
 
 /// R4-2. A CANCEL MEANS NOTHING STAYS, EVEN WHEN IT RACES THE FINISH: Ann cancels while the last

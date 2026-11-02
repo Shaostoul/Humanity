@@ -381,7 +381,7 @@ pub fn file_picker_modal(
         .frame(
             egui::Frame::NONE
                 .fill(theme.bg_card())
-                .stroke(egui::Stroke::new(1.0, theme.border()))
+                .stroke(egui::Stroke::new(1.0_f32, theme.border()))
                 .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
                 .inner_margin(theme.card_padding)
                 .shadow(egui::epaint::Shadow { offset: [0, 4], blur: 12, spread: 0, color: egui::Color32::from_black_alpha(64) }),

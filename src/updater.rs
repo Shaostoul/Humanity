@@ -329,7 +329,6 @@ impl Updater {
             }
         };
 
-        let current = format!("v{}", self.current_version);
         let target_clean = target.trim_start_matches('v');
         if !is_newer(target_clean, &self.current_version) {
             self.state = UpdateState::UpToDate;

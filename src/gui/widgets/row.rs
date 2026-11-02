@@ -16,7 +16,7 @@
 //! All sizing and fonts come from `Theme` so changes in theme.ron restyle
 //! the whole chat at once.
 
-use egui::{Color32, Rect, Rounding, Sense, Stroke, Vec2};
+use egui::{Color32, Rect, CornerRadius, Sense, Stroke, Vec2};
 use egui::epaint::StrokeKind;
 use crate::gui::theme::Theme;
 
@@ -61,7 +61,6 @@ pub fn message_row(
     show_header: bool,
     bg_color: Color32,
     channeling: bool,
-    ctx_time: f64,
     pill_width: f32,
     // Char ranges within `content` to render as clickable @mention
     // highlights (accent color). Each is `(char_start, char_len)`
@@ -248,7 +247,7 @@ pub fn message_row(
     }
 
     let painter = ui.painter();
-    painter.rect_filled(full_rect, Rounding::same(4), bg_color);
+    painter.rect_filled(full_rect, CornerRadius::same(4), bg_color);
 
     let hx = full_rect.min.x;
     let hy = full_rect.min.y;
@@ -419,12 +418,12 @@ pub fn append_formatted(
             color,
             italics: m & M_ITALIC != 0,
             underline: if m & M_LINK != 0 {
-                Stroke::new(1.0, theme.accent())
+                Stroke::new(1.0_f32, theme.accent())
             } else {
                 Stroke::NONE
             },
             strikethrough: if m & M_STRIKE != 0 {
-                Stroke::new(1.0, text_color)
+                Stroke::new(1.0_f32, text_color)
             } else {
                 Stroke::NONE
             },

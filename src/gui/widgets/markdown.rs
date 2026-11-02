@@ -464,10 +464,10 @@ fn render_markdown_impl(
                 i += 1;
             }
             i += 1; // step past the closing fence (or off the end, if unclosed)
-            Frame::none()
+            Frame::NONE
                 .fill(theme.bg_card())
-                .rounding(egui::Rounding::same(theme.border_radius as u8))
-                .stroke(egui::Stroke::new(1.0, theme.border()))
+                .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
+                .stroke(egui::Stroke::new(1.0_f32, theme.border()))
                 .inner_margin(egui::Margin::symmetric(10, 8))
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());

@@ -15,6 +15,7 @@ pub mod ron_edit;
 use std::collections::HashMap;
 use std::any::Any;
 use std::path::PathBuf;
+#[cfg(feature = "native")]
 use serde::de::DeserializeOwned;
 
 use crate::embedded_data;
@@ -102,6 +103,7 @@ pub struct AssetManager {
     /// Cached parsed data, keyed by relative path from data_dir.
     cache: HashMap<String, Box<dyn Any + Send + Sync>>,
     /// Cached mesh indices from loaded GLTF models, keyed by relative path.
+    #[cfg(feature = "native")]
     mesh_cache: HashMap<String, usize>,
 }
 
@@ -112,6 +114,7 @@ impl AssetManager {
         Self {
             data_dir,
             cache: HashMap::new(),
+            #[cfg(feature = "native")]
             mesh_cache: HashMap::new(),
         }
     }
@@ -651,6 +654,8 @@ impl AssetManager {
 
     // ── Private embedded parse helpers ──────────────────────────────
 
+    // The four embedded fallbacks serve only the native loaders above.
+    #[cfg(feature = "native")]
     fn parse_embedded_csv<T: DeserializeOwned>(path: &str) -> Result<Vec<T>, String> {
         let text = embedded_data::get_embedded(path)
             .ok_or_else(|| format!("No embedded fallback for {path}"))?;
@@ -660,6 +665,7 @@ impl AssetManager {
         crate::data_parse::parse_csv(text.as_bytes())
     }
 
+    #[cfg(feature = "native")]
     fn parse_embedded_toml<T: DeserializeOwned>(path: &str) -> Result<T, String> {
         let text = embedded_data::get_embedded(path)
             .ok_or_else(|| format!("No embedded fallback for {path}"))?;
@@ -669,6 +675,7 @@ impl AssetManager {
         crate::data_parse::parse_toml(text.as_bytes())
     }
 
+    #[cfg(feature = "native")]
     fn parse_embedded_ron<T: DeserializeOwned>(path: &str) -> Result<T, String> {
         let text = embedded_data::get_embedded(path)
             .ok_or_else(|| format!("No embedded fallback for {path}"))?;
@@ -678,6 +685,7 @@ impl AssetManager {
         crate::data_parse::parse_ron(text.as_bytes())
     }
 
+    #[cfg(feature = "native")]
     fn parse_embedded_json<T: DeserializeOwned>(path: &str) -> Result<T, String> {
         let text = embedded_data::get_embedded(path)
             .ok_or_else(|| format!("No embedded fallback for {path}"))?;

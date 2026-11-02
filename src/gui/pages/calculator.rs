@@ -1,7 +1,7 @@
 //! Calculator page — full calculator with expression display, result line,
 //! button grid with scientific functions, history panel, keyboard input.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -38,7 +38,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     });
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new(t("calculator.title"))
@@ -130,7 +130,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             .color(text_color),
                                     )
                                     .fill(fill)
-                                    .rounding(Rounding::same(6))
+                                    .corner_radius(CornerRadius::same(6))
                                     .min_size(btn_size),
                                 )
                                 .hint(key_hint(label));
@@ -167,9 +167,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .max_height(350.0)
                                 .show(ui, |ui| {
                                     for entry in state.calc_history.iter().rev() {
-                                        let frame = egui::Frame::none()
+                                        let frame = egui::Frame::NONE
                                             .fill(Color32::TRANSPARENT)
-                                            .rounding(Rounding::same(4))
+                                            .corner_radius(CornerRadius::same(4))
                                             .inner_margin(4.0);
                                         frame.show(ui, |ui| {
                                             let resp = ui.label(
@@ -191,8 +191,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             if resp.hovered() {
                                                 ui.painter().rect_stroke(
                                                     resp.rect,
-                                                    Rounding::same(4),
-                                                    Stroke::new(1.0, theme.accent()),
+                                                    CornerRadius::same(4),
+                                                    Stroke::new(1.0_f32, theme.accent()),
                                                     egui::StrokeKind::Outside,
                                                 );
                                             }

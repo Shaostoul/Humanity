@@ -200,7 +200,7 @@ fn write_fields(body_id: &str, fields: &[(&str, String)]) -> Result<usize, Strin
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Planet Tuner")
@@ -490,7 +490,7 @@ fn draw_editors(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     );
 
     widgets::subsection_header(ui, theme, accent, "Surface palette", "");
-    let mut color_row = |ui: &mut egui::Ui, label: &str, c: &mut [f32; 4]| {
+    let color_row = |ui: &mut egui::Ui, label: &str, c: &mut [f32; 4]| {
         widgets::settings_row(ui, theme, label, |ui| {
             // Copy-then-accept-on-change, same reason as the atmosphere
             // color: the widget's internal conversion drifts untouched

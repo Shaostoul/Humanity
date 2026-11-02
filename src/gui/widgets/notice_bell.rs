@@ -43,7 +43,7 @@ pub fn notice_bell(ui: &mut Ui, theme: &Theme, size: f32, unseen: usize, open: b
         (theme.bg_secondary(), theme.text_muted())
     };
     let p = ui.painter();
-    p.rect(rect, egui::Rounding::same(theme.border_radius as u8), fill, Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+    p.rect(rect, egui::CornerRadius::same(theme.border_radius as u8), fill, Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
     crate::gui::widgets::icons::paint_bell(p, rect.shrink(size * 0.22), ink);
     if let Some(text) = count_text(unseen) {
         paint_count(ui, theme, rect, &text);
@@ -59,7 +59,7 @@ fn paint_count(ui: &Ui, theme: &Theme, bell: Rect, text: &str) {
     let h = galley.size().y.max(11.0);
     let w = (galley.size().x + 6.0).max(h);
     let pill = Rect::from_center_size(egui::pos2(bell.right() - w * 0.25, bell.top() + h * 0.25), Vec2::new(w, h));
-    ui.painter().rect_filled(pill, egui::Rounding::same((h * 0.5) as u8), fill);
+    ui.painter().rect_filled(pill, egui::CornerRadius::same((h * 0.5) as u8), fill);
     ui.painter().galley(pill.center() - galley.size() * 0.5, galley, Theme::ink_on(fill));
 }
 

@@ -506,6 +506,8 @@ pub(crate) mod tests {
         /// ship coordinates.
         pub(crate) origin: Vec3,
         /// The homestead's storeys, in its own heights.
+        // Read only by the native-only tests that walk the storeys.
+        #[cfg_attr(not(feature = "native"), allow(dead_code))]
         pub(crate) storeys: Vec<crate::ship::home_structure::Storey>,
         pub(crate) machines: Vec<Placed>,
         pub(crate) ship: ShipStructure,

@@ -34,7 +34,8 @@ fn a_long_notice_wraps_inside_the_window() {
     let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 360.0));
     for _ in 0..3 {
         let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
-        ctx.run(input, |ctx| crate::gui::widgets::draw_toasts(ctx, &theme, &mut state));
+        // The frame's shapes are not what this test reads (its state and egui's memory are).
+        let _ = ctx.run(input, |ctx| crate::gui::widgets::draw_toasts(ctx, &theme, &mut state));
     }
     let rects: Vec<egui::Rect> = (0..2)
         .map(|i| ctx.memory(|m| m.area_rect(egui::Id::new(("hos_toast", i)))).expect("the toast was laid out"))

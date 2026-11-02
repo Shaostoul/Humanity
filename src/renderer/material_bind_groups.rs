@@ -31,7 +31,6 @@
 //! `renderer` - so no visibility widened.
 
 use super::{AlbedoBindGroup, Renderer};
-use wgpu::util::DeviceExt;
 
 impl Renderer {
     /// The general form (v0.1089): any number of MIP LEVELS, biggest first,

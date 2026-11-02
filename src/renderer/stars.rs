@@ -1297,15 +1297,19 @@ const HALO_MAX_FULL_DEG: f32 = 1.2;
 /// Diffraction-cross amplitude relative to the gaussian peak (per streak).
 /// 15% keeps the cross a subtle photographic accent - taste, not physics
 /// (real spikes come from telescope spider vanes, not eyes or this "lens").
+#[cfg(test)]
 const HALO_CROSS_AMP: f32 = 0.15;
 /// Gaussian sharpness k in exp(-k r^2) over the corner coordinate. 5.5
 /// puts the visual half-width at ~35% of the quad and leaves only 0.4% of
 /// the peak at the edge BEFORE the edge-subtraction zeroes it exactly.
+#[cfg(test)]
 const HALO_GAUSS_K: f32 = 5.5;
 /// Cross streak shape: gaussian exponents ACROSS the streak (narrow) and
 /// ALONG it (long). 60/2.5 give a thin spike about 1/5 the halo's width
 /// that fades out before the window clips it.
+#[cfg(test)]
 const HALO_CROSS_NARROW: f32 = 60.0;
+#[cfg(test)]
 const HALO_CROSS_LONG: f32 = 2.5;
 
 /// Per-vertex data for the halo pass: 40 bytes, plain f32 attributes. Only
@@ -1355,6 +1359,7 @@ fn halo_half_extent(mag: f32) -> f32 {
 /// change all three together. The pole fallback keeps the cross product
 /// well-conditioned within ~8 degrees of the celestial poles (Polaris!).
 /// Both outputs are unit and perpendicular to `dir` by construction.
+#[cfg(test)]
 fn halo_tangent_frame(dir: [f32; 3]) -> ([f32; 3], [f32; 3]) {
     let up: [f32; 3] = if dir[2].abs() > 0.99 { [1.0, 0.0, 0.0] } else { [0.0, 0.0, 1.0] };
     // cross(up, dir)
@@ -1381,6 +1386,7 @@ fn halo_tangent_frame(dir: [f32; 3]) -> ([f32; 3], [f32; 3]) {
 /// center, exactly 0.0 at and beyond the inscribed circle r = 1 (no square
 /// edge can show against space), monotonically decreasing outward, and a
 /// subtle 4-fold cross along the quad axes.
+#[cfg(test)]
 fn halo_falloff(cx: f32, cy: f32) -> f32 {
     let r2 = cx * cx + cy * cy;
     // Edge-subtracted gaussian disk: g(0) = 1, g(r=1) = 0.

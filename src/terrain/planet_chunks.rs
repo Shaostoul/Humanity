@@ -94,8 +94,9 @@ pub use super::grass::*;
 /// The drawn-ground sampler, promoted out of `grass` in v0.1097 when the tree
 /// harvest below became its second client. `grass` re-exports it too, so the
 /// glob above would resolve `DrawnPatchSurface` on its own; this names the
-/// real home so a reader of `near_tree_instances` can find it.
-use super::drawn_surface::DrawnPatchSurface;
+/// real home so a reader of `near_tree_instances` can find it. Public, as the glob's copy is, so
+/// the private name does not hide the re-export (`hidden_glob_reexports`).
+pub use super::drawn_surface::DrawnPatchSurface;
 
 /// Tessellation of one patch edge: 16 segments -> a triangular grid of
 /// (16+1)(16+2)/2 = 153 unique sample points and 16^2 = 256 grid triangles.
@@ -1232,7 +1233,7 @@ pub fn select_patches_sticky(
 
     // Visibility check shared by roots and children. Returns None when
     // culled (and counts why).
-    let mut visible = |corners: &[DVec3; 3],
+    let visible = |corners: &[DVec3; 3],
                        band: &RadialBand,
                        stats: &mut SelectStats|
      -> Option<PatchBounds> {
@@ -1976,7 +1977,7 @@ pub fn build_patch_mesh_at_density(
         // (Bit 18, the grass-card mark, has no writer any more - see the
         // WIRING note on `near_grass_instances` about removing it.)
         let marking_trees = std::cell::Cell::new(false);
-        let mut emit_card = |base: glam::Vec3,
+        let emit_card = |base: glam::Vec3,
                              up: glam::Vec3,
                              side: glam::Vec3,
                              w: f32,
@@ -2050,7 +2051,7 @@ pub fn build_patch_mesh_at_density(
         // lands on the ground. `v01` now spans the FRAME rather than the tree,
         // which is what the baked pixels actually occupy.
         let fp_table = crate::terrain::tree_registry::card_footprint_table();
-        let mut emit_sprite_card = |base: glam::Vec3,
+        let emit_sprite_card = |base: glam::Vec3,
                                     up: glam::Vec3,
                                     side: glam::Vec3,
                                     h: f32,
@@ -3789,12 +3790,6 @@ pub(crate) mod tests {
         // Losing a single required node must collapse the cover, which is
         // exactly why eviction of one caused the flicker. Pick a mid-depth
         // one (a root would trivially collapse; mid-depth shows the class).
-        let victim = sel
-            .required
-            .iter()
-            .find(|r| r.depth >= 2)
-            .copied()
-            .unwrap_or(sel.required[0]);
         // The victim must have DRAWN descendants for the collapse to be
         // observable (a leaf-budget-saturated count can mask it, so assert
         // the structure, not the count).

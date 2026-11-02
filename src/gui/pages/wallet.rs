@@ -6,7 +6,7 @@
 //! enough, stacked on a narrow window — so the page uses the horizontal space
 //! instead of hugging the left edge.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use crate::gui::{GuiState, WalletNetwork, WalletTransaction};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -18,7 +18,7 @@ const TWO_COL_MIN: f32 = 820.0;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
@@ -40,7 +40,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let resp = ui.add(
                             egui::Button::new(text)
                                 .fill(fill)
-                                .rounding(Rounding::same(4)),
+                                .corner_radius(CornerRadius::same(4)),
                         ).hint("wallet.network_hint");
                         if resp.clicked() {
                             state.wallet_network = *net;
@@ -149,14 +149,14 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .monospace(),
             );
             if with_hint(ui, "wallet.copy_hint", |ui| widgets::secondary_button(ui, theme, t("wallet.copy"))) {
-                ui.output_mut(|o| o.copied_text = state.wallet_address.clone());
+                ui.ctx().copy_text(state.wallet_address.clone());
             }
         });
         ui.add_space(theme.spacing_xs);
         // QR placeholder
         let (qr_rect, _) = ui.allocate_exact_size(Vec2::new(100.0, 100.0), egui::Sense::hover());
-        ui.painter().rect_filled(qr_rect, Rounding::same(4), Color32::from_rgb(30, 30, 38)); // theme-exempt: QR-code placeholder fill until real QR rendering
-        ui.painter().rect_stroke(qr_rect, Rounding::same(4), Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
+        ui.painter().rect_filled(qr_rect, CornerRadius::same(4), Color32::from_rgb(30, 30, 38)); // theme-exempt: QR-code placeholder fill until real QR rendering
+        ui.painter().rect_stroke(qr_rect, CornerRadius::same(4), Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Outside);
         ui.painter().text(
             qr_rect.center(),
             egui::Align2::CENTER_CENTER,

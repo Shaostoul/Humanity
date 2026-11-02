@@ -293,7 +293,6 @@ fn doors(h: &HomeDesign) -> Vec<(usize, String, Option<Side>, Option<Side>)> {
 #[test]
 fn every_door_and_window_is_on_its_wall_and_every_door_joins_two_rooms() {
     let h = home();
-    let storeys = h.body.storeys();
     for (i, w) in h.body.walls.iter().enumerate() {
         let len = wall_len(w);
         let mut spans: Vec<(f32, f32)> = Vec::new();

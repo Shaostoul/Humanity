@@ -5,7 +5,7 @@
 //! a close button, and a "Download" button that writes the raw bytes to
 //! the `downloads/` folder next to the executable.
 
-use egui::{Align2, Color32, Context, Frame, RichText, Rounding, Sense, Stroke, Vec2};
+use egui::{Align2, Color32, Context, Frame, RichText, CornerRadius, Sense, Stroke, Vec2};
 
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
@@ -25,7 +25,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .fixed_pos(screen.min)
         .show(ctx, |ui| {
             let (_, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
-            ui.painter().rect_filled(screen, Rounding::ZERO, Color32::from_rgba_unmultiplied(0, 0, 0, 230)); // theme-exempt: full-screen image lightbox always dims to near-black so the photo pops, regardless of theme
+            ui.painter().rect_filled(screen, CornerRadius::ZERO, Color32::from_rgba_unmultiplied(0, 0, 0, 230)); // theme-exempt: full-screen image lightbox always dims to near-black so the photo pops, regardless of theme
             if resp.clicked() {
                 should_close = true;
             }
@@ -39,11 +39,11 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
         .frame(
-            Frame::none()
+            Frame::NONE
                 .fill(theme.bg_card())
-                .rounding(Rounding::same(theme.border_radius_lg as u8))
+                .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
                 .inner_margin(theme.card_padding)
-                .stroke(Stroke::new(1.0, theme.border())),
+                .stroke(Stroke::new(1.0_f32, theme.border())),
         )
         .show(ctx, |ui| {
             ui.set_max_width(screen.width() * 0.9);
@@ -139,8 +139,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         RichText::new("Close").size(theme.font_size_body).color(theme.text_primary()),
                     )
                     .fill(Color32::TRANSPARENT)
-                    .stroke(Stroke::new(1.0, theme.border()))
-                    .rounding(Rounding::same(theme.border_radius as u8));
+                    .stroke(Stroke::new(1.0_f32, theme.border()))
+                    .corner_radius(CornerRadius::same(theme.border_radius as u8));
                     if ui.add(close_btn).clicked() {
                         should_close = true;
                     }
@@ -151,7 +151,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_on_accent()),
                     )
                     .fill(theme.accent())
-                    .rounding(Rounding::same(theme.border_radius as u8));
+                    .corner_radius(CornerRadius::same(theme.border_radius as u8));
                     if ui.add(dl_btn).clicked() {
                         let dest = default_downloads_dir().join(filename_from_url(&url));
                         state.image_cache.download(&url, dest);
@@ -170,8 +170,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         RichText::new("Copy URL").size(theme.font_size_body).color(theme.text_primary()),
                     )
                     .fill(Color32::TRANSPARENT)
-                    .stroke(Stroke::new(1.0, theme.border()))
-                    .rounding(Rounding::same(theme.border_radius as u8));
+                    .stroke(Stroke::new(1.0_f32, theme.border()))
+                    .corner_radius(CornerRadius::same(theme.border_radius as u8));
                     if ui.add(copy_btn).clicked() {
                         ui.ctx().copy_text(url.clone());
                     }

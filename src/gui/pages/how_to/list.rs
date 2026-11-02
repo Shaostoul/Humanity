@@ -102,7 +102,7 @@ pub fn draw(ui: &mut Ui, theme: &Theme, state: &mut GuiState, lib: &Library) {
         };
         let frame = egui::Frame::NONE
             .fill(if selected { theme.bg_secondary() } else { theme.bg_card() })
-            .stroke(egui::Stroke::new(1.0, if selected { theme.accent() } else { theme.border() }))
+            .stroke(egui::Stroke::new(1.0_f32, if selected { theme.accent() } else { theme.border() }))
             .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
             .inner_margin(egui::Margin::same(theme.spacing_sm as i8));
         let resp = frame

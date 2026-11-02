@@ -56,6 +56,7 @@ pub(crate) const HANDLERS: &[(&str, Handler)] = &[
 ];
 
 /// The names the registry has a handler for.
+#[cfg(test)]
 pub(crate) fn handled() -> Vec<&'static str> {
     HANDLERS.iter().map(|(n, _)| *n).collect()
 }

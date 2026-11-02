@@ -10,7 +10,7 @@ use super::{difficulty_word, hazard_badge, item_name, review_words, steps, time_
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
-use crate::how_to::library::{Library, Loaded};
+use crate::how_to::library::Library;
 use crate::how_to::model::{Need, Reality, WrittenBy};
 use crate::how_to::runs::Outcome;
 use crate::how_to::view::{self as rules, View};
@@ -83,7 +83,7 @@ pub fn draw(ui: &mut Ui, theme: &Theme, state: &mut GuiState, lib: &Library) {
     if !h.stop_and_call.is_empty() {
         ui.add_space(theme.spacing_sm);
         egui::Frame::NONE
-            .stroke(egui::Stroke::new(2.0, theme.danger()))
+            .stroke(egui::Stroke::new(2.0_f32, theme.danger()))
             .fill(theme.bg_secondary())
             .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
             .inner_margin(egui::Margin::same(theme.spacing_sm as i8))
@@ -201,7 +201,7 @@ pub fn draw(ui: &mut Ui, theme: &Theme, state: &mut GuiState, lib: &Library) {
         for p in &h.problems {
             let lit = pointed.contains(&p.id);
             egui::Frame::NONE
-                .stroke(egui::Stroke::new(if lit { 2.0 } else { 1.0 }, if lit { theme.warning() } else { theme.border() }))
+                .stroke(egui::Stroke::new(if lit { 2.0 } else { 1.0_f32 }, if lit { theme.warning() } else { theme.border() }))
                 .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
                 .inner_margin(egui::Margin::same(theme.spacing_sm as i8))
                 .show(ui, |ui| {

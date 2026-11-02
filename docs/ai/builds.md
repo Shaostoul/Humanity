@@ -81,19 +81,38 @@ the checkout's path) into `target\lint-cache\`, runs four at a time, and runs EV
 one no longer hides the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm after
 (2026-10-23). The list in the Justfile is still the authority.
 
-## Warnings are hidden on this machine (found 2026-10-31)
+## The warnings ratchet (2026-11-01)
 
-The Windows user environment sets `RUSTFLAGS=-Awarnings` (User scope; nothing in the repo, the
-journal or the memory records who set it or why), so every cargo command in every checkout prints
-no rustc warnings, and a report that says "0 warnings" proves nothing. With it unset, main had
-1,064 warning lines natively and 262 for the relay on 2026-10-31 (the crate split backlog agent's
-count). CI does not set it. To see what a change adds: run the same `cargo check
---message-format short` with `RUSTFLAGS` unset for main's tree and for yours, each in its own
-`CARGO_TARGET_DIR` in the scratchpad (a `RUSTFLAGS` change rebuilds everything, so never in a
-shared `target/`), keep the `src...: warning` lines without their line and column numbers, and
-compare the two lists by count. Delete the scratch targets after. The plan (PRIORITIES TIER 0,
-"Rust warnings to zero"): the operator removes the variable, the warnings are cleaned to zero, and
-a ratchet in `just verify` and CI keeps them there; this section goes when that lands.
+Our crate has **zero** rustc warnings, natively and in the relay build, and a change that adds one
+fails `just verify` and CI. `scripts/warnings-ratchet.js native` (the first line of `just verify`)
+and `scripts/warnings-ratchet.js relay` (`just verify-relay-compiles`, and CI's relay step) run
+`cargo check --lib --bins --tests` for that feature set with `--message-format=json` added (not
+part of cargo's fingerprint, so nothing rebuilds), count the warnings in OUR crate only (each one
+once: the library and its test build repeat them; vendor/ and other path packages are printed but
+not counted), and compare with `scripts/warnings-budget.json` (0 and 0). Over the budget fails and
+lists the kinds; under it asks for the budget to come down. A warning is fixed, never budgeted.
+
+**It refuses to count through hidden warnings.** Before cargo runs it reads every place cargo takes
+rustc flags from (RUSTFLAGS, CARGO_ENCODED_RUSTFLAGS, CARGO_BUILD_RUSTFLAGS, any
+CARGO_TARGET_<triple>_RUSTFLAGS, `rustflags` in every `.cargo/config(.toml)` from the checkout up and
+in CARGO_HOME) and the crate roots and Cargo.toml for a crate-wide allow; a lint allow (`-A...`,
+`--allow`) or `--cap-lints` in any of them fails the run, saying the count cannot be read and how to
+fix it. Why: until 2026-11-01 this PC's Windows user environment set `RUSTFLAGS=-Awarnings` (User
+scope; nobody recorded who set it or why), so every cargo command printed no warnings, every
+"0 warnings" report proved nothing, and 1,071 native and 258 relay warnings piled up (counted
+2026-11-01 on 817b0396d). The operator removed it on 2026-11-01. If it, or anything like it, comes
+back, `just verify` says so instead of passing. For one command: `RUSTFLAGS= just verify` in bash.
+
+Its own checks: `scripts/tests/warnings-ratchet.test.js` (in `just rig-tests` and in CI). Seen red on
+purpose when it landed: an unused import in a relay file failed both `just verify`'s native count
+and CI's relay command, run locally.
+
+What it costs: `just verify`'s first line used to check the library and the binary only; it now
+checks the test targets too, which is where most of the thrown-away results were. After a one-file
+touch, measured 2026-11-01 on a busy machine (the operator's game and another agent's builds
+running): 55 s for the old `cargo check --features native`, 85 s for the new line. The release
+build is not counted (it is not part of `just verify`); it printed one warning, in the vendored
+rav1d, fixed the same day with upstream's own line.
 
 ## Rigs wait for memory, not for "no builds"
 

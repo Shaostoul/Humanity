@@ -173,6 +173,7 @@ impl Card {
     }
 
     /// Whether it is a video.
+    #[cfg(test)]
     pub(crate) fn is_video(&self) -> bool {
         matches!(self.ext().as_str(), "mp4" | "webm" | "mov" | "m4v" | "mkv")
     }
@@ -298,8 +299,8 @@ pub(crate) fn draw_card(ui: &mut egui::Ui, theme: &Theme, cache: &ImageCache, ca
             ui.set_min_width(ui.available_width());
             Frame::NONE
                 .fill(theme.bg_card())
-                .stroke(Stroke::new(1.0, theme.border()))
-                .rounding(Rounding::same(4))
+                .stroke(Stroke::new(1.0_f32, theme.border()))
+                .corner_radius(CornerRadius::same(4))
                 .inner_margin(egui::Margin::symmetric(8, 6))
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(theme.spacing_sm, theme.spacing_xs);

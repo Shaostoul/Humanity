@@ -16,7 +16,8 @@ crates.io 1.1.0 package on 2026-09-27.
 assembly under `src/arm/`, `src/x86/` and `src/ext/` (we build with
 `default-features = false`, so the `asm` feature and its `build.rs` path are
 off), and the upstream CI files. Everything that builds is byte-for-byte the
-published crate except the one patch below. About 2.1 MB instead of 11 MB.
+published crate except the patch below and upstream's own warning fixes after
+it. About 2.1 MB instead of 11 MB.
 
 **The patch (one function, `src/cdef.rs` `padding`, marked "HumanityOS
 patch").** When CDEF pads a block, it copied the two rows above and below the
@@ -48,6 +49,21 @@ hash `bc2eee527943655c` in both builds).
 **Upstream.** rav1d's `main` still had the same code on 2026-09-27 (checked
 `src/cdef.rs` at `main`, and the repository's issues: no report of it). Not yet
 reported; a report is a public post, which is the operator's call.
+
+**Upstream's own warning fixes, taken 2026-11-01.** The five warnings this copy
+printed in every build of ours (cargo shows a path dependency's warnings) were
+already fixed on rav1d's `main` (commit `2e7216c`, 2026-10-27, checked file by
+file), so this copy takes upstream's exact lines rather than an allow of ours:
+the elided lifetime written `'_` in `cdf_write` (`src/cdf.rs`), `with_offset`
+and `lf_offsets` (`include/dav1d/picture.rs`); `PartialEq, Eq` gone from the
+`Fn` newtype in `wrap_fn_ptr!` (`src/wrap_fn_ptr.rs`: comparing function
+pointers means nothing, since one function can have several addresses and two
+can share one, and nothing here compared them); the never-built struct
+`Rav1dFrameContextTaskThreadPendingTasks` deleted (`src/internal.rs`; upstream
+has no such struct); and `Bounds::overlaps` compiled only where its one caller
+is, `#[cfg(any(debug_assertions, test))]` (`src/disjoint_mut.rs`: the overlap
+checker is a debug-build check, so a release build warned that it was never
+used). None changes what the decoder does.
 
 **Going back to crates.io.** When a rav1d release borrows only `x_start..x_end`
 in `padding` (or fixes the overlap another way): delete `vendor/rav1d/`, delete

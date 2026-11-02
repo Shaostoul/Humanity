@@ -735,7 +735,7 @@ fn forest_litter_layer(size: u32, tile_m: f32) -> (Vec<[f32; 3]>, Vec<[f32; 3]>,
     let twig_col = [0.045f32, 0.032, 0.020];
 
     let mut prims: Vec<Litter> = Vec::with_capacity(30_000);
-    let mut push = |rng: &mut Rng,
+    let push = |rng: &mut Rng,
                     prims: &mut Vec<Litter>,
                     len_m: (f32, f32),
                     wid_ratio: (f32, f32),
@@ -1129,7 +1129,7 @@ pub fn upload(device: &wgpu::Device, queue: &wgpu::Queue, baked_ground: BakedGro
         view_formats: &[],
     });
 
-    let mut write = |layer: u32, mips: &[Vec<u8>]| {
+    let write = |layer: u32, mips: &[Vec<u8>]| {
         let (mut w, mut h) = (size, size);
         for (mip, data) in mips.iter().enumerate().take(mip_count as usize) {
             queue.write_texture(

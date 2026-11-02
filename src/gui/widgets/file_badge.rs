@@ -76,7 +76,7 @@ pub fn paint(painter: &egui::Painter, theme: &Theme, t: &FileType, at: Pos2) -> 
     let laid = lay_out(painter, theme, t);
     let rect = Rect::from_min_size(at, laid.size);
     let color = level_color(theme, t.level);
-    let border = if t.disguised { 2.0 } else { 1.0 };
+    let border = if t.disguised { 2.0 } else { 1.0_f32 };
     painter.rect(rect, rect.height() / 2.0, color.gamma_multiply(0.15), Stroke::new(border, color), egui::StrokeKind::Inside);
     let icon_rect = Rect::from_min_size(Pos2::new(rect.left() + PAD, rect.center().y - laid.icon / 2.0), Vec2::splat(laid.icon));
     paint_icon(painter, icon_rect, &t.icon, color);

@@ -3,7 +3,7 @@
 //! as the fallback when the catalog file is missing.
 //! Moved out of `gui/pages/cosmos.rs` in Maps increment 0 (2026-10-20).
 
-use egui::{Align2, Color32, Pos2, Rect, RichText, Rounding, Stroke, Vec2};
+use egui::{Align2, Color32, Pos2, Rect, RichText, CornerRadius, Stroke, Vec2};
 use std::sync::OnceLock;
 
 use crate::gui::theme::Theme;
@@ -155,7 +155,7 @@ fn nearby_stars() -> &'static [NearbyStar] {
 pub(super) fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let (rect, response, center, zoom) = allocate_canvas(ui, state);
     let paint = ui.painter_at(rect);
-    paint.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(5, 5, 12));  // theme-exempt: deep-space backdrop
+    paint.rect_filled(rect, CornerRadius::ZERO, Color32::from_rgb(5, 5, 12));  // theme-exempt: deep-space backdrop
 
     let catalog = map_stars();
     // Base scale: 50 ly of radius fills the canvas at zoom 1; the zoom clamp
@@ -181,7 +181,7 @@ pub(super) fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut G
     for &ring_ly in &RINGS_LY {
         let r = (ring_ly * scale) as f32;
         if r > 12.0 && r < rect.width().max(rect.height()) {
-            paint.circle_stroke(center, r, Stroke::new(0.5, Color32::from_rgb(25, 25, 40)));  // theme-exempt: distance-ring — faint backdrop
+            paint.circle_stroke(center, r, Stroke::new(0.5_f32, Color32::from_rgb(25, 25, 40)));  // theme-exempt: distance-ring — faint backdrop
             rings.push((r, format!("{} ly", ring_ly as i64)));
         }
     }

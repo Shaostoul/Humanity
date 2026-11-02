@@ -37,7 +37,7 @@ pub fn toggle(ui: &mut Ui, theme: &Theme, open: bool) -> bool {
         let fill = if resp.hovered() || open { theme.bg_secondary() } else { theme.bg_panel() };
         let edge = if resp.hovered() { theme.accent() } else { theme.border() };
         ui.painter().rect_filled(rect, corners, fill);
-        ui.painter().rect_stroke(rect, corners, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(rect, corners, Stroke::new(1.0_f32, edge), egui::StrokeKind::Inside);
         let mark_rect = Rect::from_min_size(egui::pos2(rect.left() + pad.x, rect.center().y - mark / 2.0), Vec2::splat(mark));
         if open {
             icons::paint_triangle_down(ui.painter(), mark_rect, text_colour);
@@ -58,7 +58,7 @@ pub fn panel<R>(ui: &mut Ui, theme: &Theme, add: impl FnOnce(&mut Ui) -> R) -> R
     ui.add_space(theme.spacing_xs);
     let r = egui::Frame::NONE
         .fill(theme.bg_secondary())
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .corner_radius(egui::CornerRadius::same(theme.border_radius.round().clamp(0.0, 255.0) as u8))
         .inner_margin(egui::Margin::same(theme.spacing_md.round().clamp(0.0, 127.0) as i8))
         .show(ui, |ui| {

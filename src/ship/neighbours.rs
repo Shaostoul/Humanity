@@ -76,6 +76,8 @@ pub struct NeighbourView {
     /// The neighbours' shells and corridor tubes, ready to append (`draw_into`).
     meshes: HomesteadMeshes,
     /// How many shells were baked for it: one per (design, door), however many plots use it.
+    // Read only by the tests that prove one bake per (design, door).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) shells_baked: usize,
 }
 

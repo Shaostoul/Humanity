@@ -189,7 +189,7 @@ fn toggle_button(ui: &mut egui::Ui, theme: &Theme, label: &str, on: bool, help: 
     ui.add(
         egui::Button::new(RichText::new(label).size(theme.font_size_small).color(colour))
             .fill(theme.bg_card())
-            .stroke(Stroke::new(0.8, if on { theme.info() } else { theme.border() })),
+            .stroke(Stroke::new(0.8_f32, if on { theme.info() } else { theme.border() })),
     )
     .on_hover_text(help)
 }
@@ -244,7 +244,7 @@ pub(super) fn draw_reference_orbits(
         for p in &pts {
             let s = proj.project(*p).map(|(s, _)| s);
             if let (Some(a), Some(b)) = (prev, s) {
-                paint.line_segment([a, b], Stroke::new(0.7, colour));
+                paint.line_segment([a, b], Stroke::new(0.7_f32, colour));
             }
             if let (Some(hp), Some(b)) = (hover_pos, s) {
                 nearest = nearest.min((hp - b).length());
@@ -255,7 +255,7 @@ pub(super) fn draw_reference_orbits(
             prev = s;
         }
         if let (Some(a), Some(b)) = (prev, first) {
-            paint.line_segment([a, b], Stroke::new(0.7, colour));
+            paint.line_segment([a, b], Stroke::new(0.7_f32, colour));
         }
         if nearest < 6.0 {
             hovered = Some((ring.name.clone(), ring.about.clone()));
@@ -394,8 +394,8 @@ pub(super) fn draw_lagrange(
                 continue;
             }
             let k = 4.0;
-            paint.line_segment([s + Vec2::new(-k, -k), s + Vec2::new(k, k)], Stroke::new(1.0, colour));
-            paint.line_segment([s + Vec2::new(-k, k), s + Vec2::new(k, -k)], Stroke::new(1.0, colour));
+            paint.line_segment([s + Vec2::new(-k, -k), s + Vec2::new(k, k)], Stroke::new(1.0_f32, colour));
+            paint.line_segment([s + Vec2::new(-k, k), s + Vec2::new(k, -k)], Stroke::new(1.0_f32, colour));
             // The cross itself keeps names off it (its own name comes later).
             placer.reserve_exact(Rect::from_center_size(s, Vec2::splat(2.0 * k)));
             if spread > 50.0 {

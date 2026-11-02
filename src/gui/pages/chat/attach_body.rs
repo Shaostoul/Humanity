@@ -12,7 +12,6 @@
 //!
 //! Takes `use super::*` like the page's other children.
 
-use super::*;
 use std::io::Read;
 
 /// A file's bytes, or where to read them on the worker.

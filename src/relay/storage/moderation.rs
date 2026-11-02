@@ -628,7 +628,6 @@ mod tests {
     #[test]
     fn a_stranger_cannot_invent_a_space_and_moderate_this_server() {
         let db = db();
-        let space = db.server_did().unwrap();
         let attacker_seed = [42u8; 32];
         let attacker = key_of(&attacker_seed);
         let victim = key_of(&[2u8; 32]);

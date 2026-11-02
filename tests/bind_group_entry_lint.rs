@@ -572,7 +572,6 @@ struct Site {
 struct FnInfo {
     name: String,
     open: usize,
-    close: usize,
     params: Vec<(String, String)>,
     has_self: bool,
     impl_type: Option<String>,
@@ -639,7 +638,7 @@ fn enclosing_fn(src: &Src, off: usize) -> Option<FnInfo> {
             .unwrap_or((p.clone(), String::new()));
         params.push((n, t));
     }
-    Some(FnInfo { name: s(b, (sp.ns, sp.ne)), open: sp.bo, close: sp.bc, params, has_self, impl_type: enclosing_impl(src, sp.at) })
+    Some(FnInfo { name: s(b, (sp.ns, sp.ne)), open: sp.bo, params, has_self, impl_type: enclosing_impl(src, sp.at) })
 }
 
 

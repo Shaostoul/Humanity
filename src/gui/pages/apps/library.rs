@@ -129,7 +129,7 @@ fn chip(ui: &mut Ui, theme: &Theme, label: &str, on: bool, colour: Option<(Color
     };
     let button = egui::Button::new(RichText::new(label).size(theme.font_size_small).color(text))
         .fill(fill)
-        .stroke(Stroke::new(1.0, stroke))
+        .stroke(Stroke::new(1.0_f32, stroke))
         .corner_radius(egui::CornerRadius::same(theme.pill_radius.round().clamp(0.0, 255.0) as u8));
     ui.add(button).on_hover_text(tip).clicked()
 }
@@ -219,7 +219,7 @@ fn band(ui: &mut Ui, theme: &Theme, section: Section, count: usize, right: impl 
     ui.add_space(theme.spacing_sm);
     egui::Frame::NONE
         .fill(fill)
-        .stroke(Stroke::new(1.0, edge))
+        .stroke(Stroke::new(1.0_f32, edge))
         .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
         .inner_margin(egui::Margin::symmetric(theme.spacing_md as i8, theme.spacing_xs as i8))
         .show(ui, |ui| {
@@ -908,7 +908,7 @@ fn installed_mark(ui: &Ui, theme: &Theme, cover: Rect) {
     let corners = egui::CornerRadius::same(theme.pill_radius.round().clamp(0.0, 255.0) as u8);
     ui.painter().rect_filled(rect, corners, theme.success().gamma_multiply(0.9));
     ui.painter().galley(rect.center() - galley.size() / 2.0, galley, theme.text_on_accent());
-    ui.painter().rect_stroke(rect, corners, Stroke::new(1.0, theme.success()), egui::StrokeKind::Inside);
+    ui.painter().rect_stroke(rect, corners, Stroke::new(1.0_f32, theme.success()), egui::StrokeKind::Inside);
 }
 
 /// The main button: Launch when installed (or, installed with nothing to start, the few words that

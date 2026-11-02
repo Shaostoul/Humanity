@@ -4653,7 +4653,7 @@ pub(crate) mod gardening_tests {
     /// second in the sun.
     #[test]
     fn an_outdoor_crop_grows_by_day_and_not_at_night() {
-        let mut data = make_store();
+        let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         world.spawn((crate::ecs::components::Irrigator,)); // watered, so only light differs
@@ -4695,7 +4695,7 @@ pub(crate) mod gardening_tests {
     /// counted its lit 72 s as dark.
     #[test]
     fn a_natural_day_grows_a_crop_exactly_one_day() {
-        let mut data = make_store();
+        let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         world.spawn((crate::ecs::components::Irrigator,));
@@ -4721,7 +4721,7 @@ pub(crate) mod gardening_tests {
     #[test]
     fn an_indoor_crop_grows_at_night_only_under_a_powered_grow_light() {
         let night_growth = |light: Option<bool>| -> (f64, f64) {
-            let mut data = make_store();
+            let data = make_store();
             let mut sys = FarmingSystem::new();
             let mut world = hecs::World::new();
             world.spawn((crate::ecs::components::Irrigator,));
@@ -4747,7 +4747,7 @@ pub(crate) mod gardening_tests {
         assert!(lit_field.abs() < 1e-6, "a grow light does not reach an outdoor field, age {lit_field}");
 
         // By day, no grow light needed.
-        let mut data = make_store();
+        let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         world.spawn((crate::ecs::components::Irrigator,));
@@ -4794,7 +4794,7 @@ pub(crate) mod gardening_tests {
     #[test]
     fn darkness_pauses_a_crop_but_does_it_no_harm() {
         let night = |lit: bool| -> CropInstance {
-            let mut data = make_store();
+            let data = make_store();
             let mut sys = FarmingSystem::new();
             let mut world = hecs::World::new();
             world.spawn((crate::ecs::components::Irrigator,));
@@ -4828,7 +4828,7 @@ pub(crate) mod gardening_tests {
     /// the night, where a green crop beside it would be paused.
     #[test]
     fn mushrooms_grow_in_the_dark() {
-        let mut data = make_store();
+        let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
         world.spawn((crate::ecs::components::Irrigator,));

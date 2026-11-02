@@ -1,7 +1,7 @@
 //! Crafting page — full crafting interface with sidebar categories, recipe list,
 //! detail panel, and craft queue with progress bars.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke};
 use crate::gui::{GuiState, GuiRecipe};
 use crate::i18n::{t, tf};
 use crate::gui::theme::Theme;
@@ -109,7 +109,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("craft_categories")
         .default_width(160.0)
         .resizable(false)
-        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(theme.panel_margin))
+        .frame(Frame::NONE.fill(theme.bg_sidebar()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new(t("crafting.categories"))
@@ -227,7 +227,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .default_width(480.0)
         .min_width(300.0)
         .resizable(true)
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical()
                 .id_salt("craft_detail")
@@ -256,7 +256,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::TopBottomPanel::bottom("craft_queue")
         .resizable(false)
         .min_height(72.0)
-        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_sidebar()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new(t("crafting.craft_queue"))
@@ -302,7 +302,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // ── Center: recipe list (fills the remaining space) ──
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new(t("crafting.title"))
@@ -375,10 +375,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             {
                                 continue;
                             }
-                            let frame = egui::Frame::none()
+                            let frame = egui::Frame::NONE
                                 .fill(Color32::TRANSPARENT)
-                                .rounding(Rounding::same(3))
-                                .stroke(Stroke::new(1.0, theme.border()))
+                                .corner_radius(CornerRadius::same(3))
+                                .stroke(Stroke::new(1.0_f32, theme.border()))
                                 .inner_margin(6.0);
                             frame.show(ui, |ui| {
                                 ui.set_width(ui.available_width());
@@ -514,14 +514,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let is_selected = state.craft_selected == Some(*idx);
                         let fill = if is_selected { theme.bg_card() } else { Color32::TRANSPARENT };
                         let stroke = if is_selected {
-                            Stroke::new(1.0, theme.accent())
+                            Stroke::new(1.0_f32, theme.accent())
                         } else {
                             Stroke::NONE
                         };
 
-                        let frame = egui::Frame::none()
+                        let frame = egui::Frame::NONE
                             .fill(fill)
-                            .rounding(Rounding::same(3))
+                            .corner_radius(CornerRadius::same(3))
                             .stroke(stroke)
                             .inner_margin(egui::Margin::symmetric(4, 3));
 

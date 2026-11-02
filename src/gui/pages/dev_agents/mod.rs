@@ -130,6 +130,7 @@ pub(crate) fn ago(now: i64, then: i64) -> String {
 }
 
 /// Every key the panel uses (the test checks each one is in en.json).
+#[cfg(test)]
 pub(crate) const KEYS: &[&str] = &[
     "title", "intro", "no_checkout", "checkout", "waiting", "absent", "unreadable", "just_now", "ago_s", "ago_m",
     "ago_h", "ago_d", "worktrees", "worktrees_hint", "main_checkout", "detached", "uncommitted", "clean",
@@ -326,7 +327,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, _state: &mut GuiState) {
     let report = refresh(ctx);
     let now = read::now_unix();
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| draw_report(ui, theme, &report, now));
         });

@@ -154,7 +154,7 @@ pub const SUN_SHADOW_EXTENT_M: f32 = 1500.0;
 /// `renderer::vsync_present_mode` path still resolves.
 pub use surface::{pending_mode_change, vsync_present_mode};
 
-use camera::{Camera, CameraUniforms};
+use camera::Camera;
 use glam::{Mat4, Quat, Vec3};
 use mesh::Mesh;
 // The cost store every pass records into (the core's; children see it through `use super::*`).
@@ -975,24 +975,11 @@ pub struct Renderer {
 /// The DXC pair beside the running exe (dxcompiler.dll, dxil.dll), when both
 /// are there: the DX12 backend then compiles shaders with DXC, otherwise with
 /// FXC (see `new_native`).
-#[cfg(target_os = "windows")]
+#[cfg(any(feature = "native", feature = "wasm"))]
 fn dxc_dlls_beside_exe() -> Option<(std::path::PathBuf, std::path::PathBuf)> {
     let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
     let (dxc, dxil) = (dir.join("dxcompiler.dll"), dir.join("dxil.dll"));
     (dxc.exists() && dxil.exists()).then_some((dxc, dxil))
-}
-
-/// Whether DX12 shaders compile with FXC in this process: Windows with no DXC
-/// pair beside the exe. Never on other platforms, which do not use DX12.
-fn dx12_uses_fxc() -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        dxc_dlls_beside_exe().is_none()
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        false
-    }
 }
 
 impl Renderer {
@@ -1100,6 +1087,7 @@ impl Renderer {
     /// the ground textures are baked on background threads that overlap the
     /// device request and the shader compiles. False on wasm, which has no
     /// threads and generates both inline where they are needed.
+    #[cfg(any(feature = "native", feature = "wasm"))]
     async fn init(
         instance: wgpu::Instance,
         surface: wgpu::Surface<'static>,
@@ -1354,7 +1342,9 @@ impl Renderer {
             &shader,
             &batch_shader,
             background_bakes,
-            dx12_uses_fxc(),
+            // Whether DX12 shaders compile with FXC: Windows with no DXC pair beside
+            // the exe. Never on other platforms, which do not use DX12.
+            cfg!(target_os = "windows") && dxc_dlls_beside_exe().is_none(),
         );
         log::info!("[BootPhase]   pipeline_new: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
@@ -1390,7 +1380,7 @@ impl Renderer {
         // Camera uniform buffer
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Uniform Buffer"),
-            contents: bytemuck::bytes_of(&CameraUniforms {
+            contents: bytemuck::bytes_of(&camera::CameraUniforms {
                 view_proj: Mat4::IDENTITY.to_cols_array_2d(),
                 view_pos: [0.0; 4],
                 light_positions: [[0.0; 4]; 8],

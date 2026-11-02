@@ -123,7 +123,8 @@ impl System for EcologySystem {
         let mut disease_updates: Vec<(hecs::Entity, Disease, f32)> = Vec::new();
         let mut diseases_to_remove: Vec<hecs::Entity> = Vec::new();
 
-        for (entity, (disease, health)) in world.query_mut::<(&Disease, &Health)>() {
+        // `Health` in the query keeps it to creatures that have one; the damage is applied below.
+        for (entity, (disease, _health)) in world.query_mut::<(&Disease, &Health)>() {
             let mut disease = disease.clone();
             let mut health_delta: f32 = 0.0;
 

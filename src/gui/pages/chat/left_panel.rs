@@ -771,8 +771,8 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             let rgb = crate::gui::widgets::row::rgb_from_time(p2p_ctx_time);
                             ui.painter().rect_stroke(
                                 cog_rect.shrink(1.0),
-                                Rounding::same(3),
-                                Stroke::new(1.0, rgb),
+                                CornerRadius::same(3),
+                                Stroke::new(1.0_f32, rgb),
                                 egui::StrokeKind::Outside,
                             );
                             ui.ctx().request_repaint();
@@ -1068,7 +1068,6 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     let spec = ServerRowSpec {
                         name: server.name.clone(),
                         url: server.url.clone(),
-                        id: server.id.clone(),
                         is_current,
                         link_up: bg_online || (is_current && connected),
                         online_count: None,
@@ -1234,7 +1233,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     egui::pos2(ui.max_rect().min.x, y),
                                     egui::pos2(ui.max_rect().max.x, y),
                                 ],
-                                egui::Stroke::new(2.0, theme.accent()),
+                                egui::Stroke::new(2.0_f32, theme.accent()),
                             );
                         }
                         if released {
@@ -1269,8 +1268,6 @@ struct ServerRowSpec {
     name: String,
     /// The row's identity for actions + the identity-color chip.
     url: String,
-    /// Saved-entry id ("" when the active server isn't saved).
-    id: String,
     is_current: bool,
     link_up: bool,
     /// Active server: online user count shown after the name.
@@ -1509,7 +1506,7 @@ fn draw_server_row(
                 egui::pos2(grip_rect.left() + 2.0, y),
                 egui::pos2(grip_rect.right() - 2.0, y),
             ],
-            egui::Stroke::new(1.5, grip_color),
+            egui::Stroke::new(1.5_f32, grip_color),
         );
     }
     if grip.hovered() {
@@ -1596,7 +1593,6 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     let spec = ServerRowSpec {
                         name: svr_name.clone(),
                         url: state.server_url.clone(),
-                        id: String::new(),
                         is_current: true,
                         link_up: true,
                         online_count: Some(online_count),
@@ -1694,7 +1690,6 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     let mut voice_user_click: Option<(String, String)> = None;
                     let my_voice_key = state.profile_public_key.clone();
 
-                    let ctx_time = ui.ctx().input(|i| i.time);
                     for (idx, ch) in channels.iter().enumerate() {
                         // Field test 4 (final call after trying both ways):
                         // bridged rooms live ONLY in COMMONS, and #local is
@@ -1716,10 +1711,6 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             theme.server_row_bg()
                         };
 
-                        // Check if the edit modal is open for THIS channel (for RGB border on cog)
-                        let edit_modal_for_this = state.show_channel_edit_modal
-                            && state.edit_channel_id == ch.id;
-
                         // Single click target for the whole row; check click position
                         // to distinguish voice/gear/channel clicks without overlapping interact().
                         let row_w = ui.available_width();
@@ -1729,7 +1720,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         );
 
                         let mut voice_icon_rect = egui::Rect::NOTHING;
-                        let mut gear_icon_rect = egui::Rect::NOTHING;
+                        let gear_icon_rect = egui::Rect::NOTHING;
 
                         if ui.is_rect_visible(row_rect) {
                             let hover = response.hovered();

@@ -5,7 +5,7 @@
 //! - Startup with encrypted key (Unlock): user must enter passphrase
 //! - Changing passphrase (Change): user enters old + new passphrase
 
-use egui::{Align2, Frame, RichText, Rounding, Stroke, Vec2};
+use egui::{Align2, Frame, RichText, CornerRadius, Stroke, Vec2};
 use crate::gui::{GuiState, PassphraseMode};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -28,8 +28,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .fixed_size(Vec2::new(400.0, 0.0))
         .frame(Frame::window(&ctx.style())
             .fill(theme.bg_card())
-            .rounding(Rounding::same(8))
-            .stroke(Stroke::new(1.0, theme.accent()))
+            .corner_radius(CornerRadius::same(8))
+            .stroke(Stroke::new(1.0_f32, theme.accent()))
             .inner_margin(20.0))
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {

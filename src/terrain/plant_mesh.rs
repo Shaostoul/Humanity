@@ -342,6 +342,8 @@ pub(crate) enum Organ {
     /// filter patch. The bark branch used to take these, and its fissure
     /// cells, tens of centimetres wide, put a whole 5 cm cap inside or
     /// outside one crack, so single caps drew at 0.4 of their colour.
+    // Built by engine/fungus_mesh.rs, which only the native build has.
+    #[cfg_attr(not(feature = "native"), allow(dead_code))]
     Plain,
 }
 

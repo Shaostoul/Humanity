@@ -5,7 +5,9 @@
 
 #[cfg(feature = "native")]
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
+#[cfg(feature = "native")]
 use std::collections::HashMap;
+#[cfg(feature = "native")]
 use std::path::PathBuf;
 
 /// Runs PURE shader functions on the CPU (naga IR), so a lockstep test can
@@ -281,6 +283,7 @@ pub fn pbr_parts_mtime(shaders_dir: &std::path::Path) -> Option<std::time::Syste
 
 /// Loads and caches WGSL shader modules, recompiling on file change (native only).
 pub struct ShaderLoader {
+    #[cfg(feature = "native")]
     shaders: HashMap<PathBuf, wgpu::ShaderModule>,
     #[cfg(feature = "native")]
     _watcher: Option<RecommendedWatcher>,
@@ -457,6 +460,7 @@ impl ShaderLoader {
         let (_tx, rx) = std::sync::mpsc::channel();
 
         Self {
+            #[cfg(feature = "native")]
             shaders: HashMap::new(),
             #[cfg(feature = "native")]
             _watcher: None,

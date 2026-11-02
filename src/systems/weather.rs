@@ -319,7 +319,7 @@ impl WeatherSystem {
 
     /// Pick a new weather condition based on the current season.
     fn pick_condition(&mut self, season: Season) -> WeatherCondition {
-        let roll: f32 = self.rng.gen();
+        let roll: f32 = self.rng.random();
         match season {
             Season::Spring => {
                 // Mostly clear/cloudy, occasional rain
@@ -393,39 +393,39 @@ impl WeatherSystem {
         let base_temp = body_environment::body_baseline_temp_c(&self.env, season);
 
         // Add some random variance to temperature (+/- 5 degrees)
-        let temp_variance: f32 = self.rng.gen_range(-5.0..5.0);
+        let temp_variance: f32 = self.rng.random_range(-5.0..5.0);
 
         match condition {
             WeatherCondition::Clear => {
                 self.target_intensity = 0.0;
                 self.target_visibility = 1.0;
                 self.target_temp_dev = temp_variance + 3.0; // Clear = slightly warmer
-                self.target_humidity = 0.3 + self.rng.gen_range(0.0..0.1);
-                self.target_wind_speed = self.rng.gen_range(0.5..3.0);
+                self.target_humidity = 0.3 + self.rng.random_range(0.0..0.1);
+                self.target_wind_speed = self.rng.random_range(0.5..3.0);
             }
             WeatherCondition::Cloudy => {
-                self.target_intensity = self.rng.gen_range(0.2..0.5);
+                self.target_intensity = self.rng.random_range(0.2..0.5);
                 self.target_visibility = 0.8;
                 self.target_temp_dev = temp_variance;
-                self.target_humidity = 0.5 + self.rng.gen_range(0.0..0.2);
-                self.target_wind_speed = self.rng.gen_range(2.0..6.0);
+                self.target_humidity = 0.5 + self.rng.random_range(0.0..0.2);
+                self.target_wind_speed = self.rng.random_range(2.0..6.0);
             }
             WeatherCondition::Rain => {
-                self.target_intensity = self.rng.gen_range(0.4..0.8);
+                self.target_intensity = self.rng.random_range(0.4..0.8);
                 self.target_visibility = 0.6;
                 self.target_temp_dev = temp_variance - 3.0; // Rain cools
-                self.target_humidity = 0.8 + self.rng.gen_range(0.0..0.2);
-                self.target_wind_speed = self.rng.gen_range(3.0..8.0);
+                self.target_humidity = 0.8 + self.rng.random_range(0.0..0.2);
+                self.target_wind_speed = self.rng.random_range(3.0..8.0);
             }
             WeatherCondition::Storm => {
-                self.target_intensity = self.rng.gen_range(0.8..1.0);
+                self.target_intensity = self.rng.random_range(0.8..1.0);
                 self.target_visibility = 0.4;
                 self.target_temp_dev = temp_variance - 5.0;
-                self.target_humidity = 0.9 + self.rng.gen_range(0.0..0.1);
-                self.target_wind_speed = self.rng.gen_range(10.0..20.0);
+                self.target_humidity = 0.9 + self.rng.random_range(0.0..0.1);
+                self.target_wind_speed = self.rng.random_range(10.0..20.0);
             }
             WeatherCondition::Snow => {
-                self.target_intensity = self.rng.gen_range(0.3..0.7);
+                self.target_intensity = self.rng.random_range(0.3..0.7);
                 self.target_visibility = 0.5;
                 // Must be freezing at the reference: the deviation that puts
                 // the reference at or below 0 C. That is the Snow SYSTEM's cold
@@ -433,22 +433,22 @@ impl WeatherSystem {
                 // where it falls (systems::precipitation), so a Snow roll over
                 // the tropics still rains there.
                 self.target_temp_dev = (base_temp + temp_variance).min(0.0) - base_temp;
-                self.target_humidity = 0.7 + self.rng.gen_range(0.0..0.2);
-                self.target_wind_speed = self.rng.gen_range(2.0..7.0);
+                self.target_humidity = 0.7 + self.rng.random_range(0.0..0.2);
+                self.target_wind_speed = self.rng.random_range(2.0..7.0);
             }
             WeatherCondition::Fog => {
-                self.target_intensity = self.rng.gen_range(0.5..0.9);
+                self.target_intensity = self.rng.random_range(0.5..0.9);
                 self.target_visibility = 0.2;
                 self.target_temp_dev = temp_variance - 1.0;
-                self.target_humidity = 0.9 + self.rng.gen_range(0.0..0.1);
-                self.target_wind_speed = self.rng.gen_range(0.0..2.0);
+                self.target_humidity = 0.9 + self.rng.random_range(0.0..0.1);
+                self.target_wind_speed = self.rng.random_range(0.0..2.0);
             }
             WeatherCondition::Sandstorm => {
-                self.target_intensity = self.rng.gen_range(0.6..1.0);
+                self.target_intensity = self.rng.random_range(0.6..1.0);
                 self.target_visibility = 0.3;
                 self.target_temp_dev = temp_variance + 5.0; // Hot
-                self.target_humidity = 0.1 + self.rng.gen_range(0.0..0.1);
-                self.target_wind_speed = self.rng.gen_range(12.0..25.0);
+                self.target_humidity = 0.1 + self.rng.random_range(0.0..0.1);
+                self.target_wind_speed = self.rng.random_range(12.0..25.0);
             }
         }
 
@@ -482,7 +482,7 @@ impl WeatherSystem {
         self.compute_targets(new_condition, season);
 
         // Randomize wind direction on weather change
-        let angle: f32 = self.rng.gen_range(0.0..std::f32::consts::TAU);
+        let angle: f32 = self.rng.random_range(0.0..std::f32::consts::TAU);
         self.weather.wind_direction = Vec3::new(angle.cos(), 0.0, angle.sin()).normalize();
     }
 }
@@ -586,7 +586,7 @@ impl System for WeatherSystem {
                 self.begin_transition(new_condition, season, TRANSITION_DURATION);
             }
             // Schedule next change
-            self.next_change_timer = self.rng.gen_range(MIN_CHANGE_INTERVAL..MAX_CHANGE_INTERVAL);
+            self.next_change_timer = self.rng.random_range(MIN_CHANGE_INTERVAL..MAX_CHANGE_INTERVAL);
         }
 
         // Process smooth transition
@@ -641,7 +641,7 @@ impl System for WeatherSystem {
             self.event_roll_timer -= game_dt;
             if self.event_roll_timer <= 0.0 {
                 self.event_roll_timer = EVENT_ROLL_INTERVAL_S;
-                if self.rng.gen::<f32>() < EVENT_FIRE_CHANCE {
+                if self.rng.random::<f32>() < EVENT_FIRE_CHANCE {
                     if let Some(reg) = data
                         .get::<crate::systems::weather_events::WeatherEventRegistry>(
                             "weather_event_registry",
@@ -654,7 +654,7 @@ impl System for WeatherSystem {
                             self.weather.temperature,
                             self.weather.wind_speed,
                         );
-                        let roll: f32 = self.rng.gen();
+                        let roll: f32 = self.rng.random();
                         if let Some(ev) =
                             crate::systems::weather_events::weighted_pick(&elig, roll)
                         {
@@ -662,7 +662,7 @@ impl System for WeatherSystem {
                             self.weather.event_name = ev.name.clone();
                             self.weather.event_remaining_s = self
                                 .rng
-                                .gen_range(ev.duration_s.min..=ev.duration_s.max);
+                                .random_range(ev.duration_s.min..=ev.duration_s.max);
                             use crate::systems::weather_events::WindProfile as WP;
                             self.active_gust_mps = match ev.wind_profile {
                                 WP::Front { gust_mps, .. } => gust_mps,

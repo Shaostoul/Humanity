@@ -262,7 +262,7 @@ fn ring(ui: &Ui, rect: Rect, fill: Color32, border: Color32) {
     let c = rect.center();
     let r = rect.width() * 0.5;
     painter.circle_filled(c, r, fill);
-    painter.circle_stroke(c, r, Stroke::new(1.0, border));
+    painter.circle_stroke(c, r, Stroke::new(1.0_f32, border));
     painter.circle_filled(c, r * HOLE_FRAC, ui.style().visuals.panel_fill);
 }
 

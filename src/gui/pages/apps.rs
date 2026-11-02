@@ -450,7 +450,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // The details first, so the parts take the room that is left.
     let mut acts = detail::panel(ctx, theme, state);
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().id_salt("apps_page").auto_shrink([false, false]).show(ui, |ui| {
                 acts.extend(draw_head(ui, theme, state));

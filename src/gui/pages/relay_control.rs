@@ -15,7 +15,7 @@
 //! This elevates the Server Settings ops panels into a top-level, multi-relay
 //! surface. See docs/design/in-app-ops.md "Relay Control Center".
 
-use egui::{Align, Color32, Frame, Layout, RichText, Rounding, Stroke, Vec2};
+use egui::{Align, Color32, Frame, Layout, RichText, CornerRadius, Stroke, Vec2};
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -224,7 +224,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .resizable(false)
         .min_width(190.0)
         .max_width(230.0)
-        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(12.0))
+        .frame(Frame::NONE.fill(theme.bg_sidebar()).inner_margin(12.0))
         .show(ctx, |ui| {
             // "Servers" is the user-facing word everywhere (the chat rail
             // header, the add dialog); "relay" stays internal jargon.
@@ -244,9 +244,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             for r in &relays {
                 let is_sel = selected.as_deref() == Some(r.url.as_str());
                 let bg = if is_sel { theme.bg_tertiary() } else { Color32::TRANSPARENT };
-                let resp = Frame::none()
+                let resp = Frame::NONE
                     .fill(bg)
-                    .rounding(Rounding::same(theme.border_radius as u8))
+                    .corner_radius(CornerRadius::same(theme.border_radius as u8))
                     .inner_margin(theme.spacing_sm)
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
@@ -307,9 +307,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 let running = host_node::running_local_url().is_some();
                 let is_sel = selected.as_deref() == Some(LOCAL_NODE_SEL);
                 let bg = if is_sel { theme.bg_tertiary() } else { Color32::TRANSPARENT };
-                let resp = Frame::none()
+                let resp = Frame::NONE
                     .fill(bg)
-                    .rounding(Rounding::same(theme.border_radius as u8))
+                    .corner_radius(CornerRadius::same(theme.border_radius as u8))
                     .inner_margin(theme.spacing_sm)
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
@@ -339,7 +339,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // ── Detail: header + tabs for the selected relay ──
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             let sel_url = state.relay_cc_selected.clone().unwrap_or_default();
             if sel_url.is_empty() {
@@ -459,7 +459,7 @@ fn draw_health_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sel_u
             .num_columns(2)
             .spacing([theme.spacing_xl, theme.spacing_xs])
             .show(ui, |ui| {
-                let mut row = |ui: &mut egui::Ui, label: &str, value: String, color: Color32| {
+                let row = |ui: &mut egui::Ui, label: &str, value: String, color: Color32| {
                     ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_secondary()));
                     ui.label(RichText::new(value).size(theme.font_size_body).color(color));
                     ui.end_row();
@@ -655,9 +655,9 @@ fn draw_console_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             });
         });
         ui.add_space(theme.spacing_xs);
-        Frame::none()
+        Frame::NONE
             .fill(theme.bg_secondary())
-            .rounding(Rounding::same(theme.border_radius as u8))
+            .corner_radius(CornerRadius::same(theme.border_radius as u8))
             .inner_margin(theme.spacing_sm)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
@@ -757,10 +757,10 @@ fn draw_config_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ("Federation", "Add, trust, and defederate peer relays."),
     ];
     for (title, desc) in items {
-        Frame::none()
+        Frame::NONE
             .fill(theme.bg_card())
-            .stroke(Stroke::new(1.0, theme.border()))
-            .rounding(Rounding::same(theme.border_radius as u8))
+            .stroke(Stroke::new(1.0_f32, theme.border()))
+            .corner_radius(CornerRadius::same(theme.border_radius as u8))
             .inner_margin(theme.spacing_md)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {

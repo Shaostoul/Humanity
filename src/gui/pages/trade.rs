@@ -40,7 +40,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiItemSlot, GuiState, GuiTrade, GuiTradeItem};
 use crate::systems::inventory::{Inventory, TradeSettlements, TransferOp};
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Vec2};
 
 /// Colour for a relay trade status string.
 fn status_color(theme: &Theme, status: &str) -> Color32 {
@@ -666,7 +666,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let my_key = state.profile_public_key.clone();
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
@@ -820,16 +820,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         for (id, partner, status, init_n, recv_n, i_started) in &rows {
                             let selected = ts.selected.as_deref() == Some(id.as_str());
                             let fill = if selected { theme.bg_card() } else { Color32::TRANSPARENT };
-                            egui::Frame::none()
+                            egui::Frame::NONE
                                 .fill(fill)
-                                .rounding(Rounding::same(theme.border_radius as u8))
+                                .corner_radius(CornerRadius::same(theme.border_radius as u8))
                                 .inner_margin(8.0)
                                 .show(ui, |ui| {
                                     let resp = ui.horizontal(|ui| {
                                         ui.label(RichText::new(partner).color(theme.text_primary()));
-                                        egui::Frame::none()
+                                        egui::Frame::NONE
                                             .fill(status_color(theme, status))
-                                            .rounding(Rounding::same(3))
+                                            .corner_radius(CornerRadius::same(3))
                                             .inner_margin(Vec2::new(6.0, 2.0))
                                             .show(ui, |ui| {
                                                 ui.label(

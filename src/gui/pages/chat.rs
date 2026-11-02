@@ -7,8 +7,8 @@
 use super::chat_text::{bulletize_list_lines, draw_code_blocks, extract_code_blocks};
 /// The HUD feed reads a message through the same parser (chat_text.rs).
 pub(crate) use super::chat_text::one_line_formatted;
-use egui::{Align, Color32, Frame, Layout, RichText, Rounding, ScrollArea, Stroke, Vec2};
-use crate::gui::{ChatMessage, ChatUser, GuiState};
+use egui::{Align, Color32, Frame, Layout, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
+use crate::gui::{ChatMessage, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -25,12 +25,12 @@ use crate::gui::widgets;
 /// signed-object traffic. See `chat/p2p_groups.rs`.
 mod p2p_groups;
 pub(crate) use p2p_groups::{
-    broadcast_group_obj, drain_p2p_loaders, ensure_group_mesh, handle_p2p_group_obj,
+    drain_p2p_loaders, handle_p2p_group_obj,
     invite_to_group, join_group_with_ticket, leave_p2p_group, refresh_p2p_groups,
     spawn_group_load, spawn_groups_list_refresh,
 };
 use p2p_groups::{
-    apply_group_load, disband_p2p_group, mint_and_copy_p2p_invite, send_p2p_group_message,
+    disband_p2p_group, mint_and_copy_p2p_invite, send_p2p_group_message,
 };
 
 /// The left rail: DMs, Groups, Commons, Servers and the expanded server's
@@ -77,7 +77,6 @@ pub(crate) use voice_room::{leave_all_voice, set_voice_room, voice_wanted, LeftV
 pub(crate) mod attach_send;
 /// A sent file's bytes kept to one copy: read on the worker, encrypted in place, streamed (round 3).
 mod attach_body;
-pub(crate) use attach_send::upload_file_blocking;
 pub(crate) use attach_send::note_upload_limit; // the server tells each person their own upload limit (2026-10-10)
 pub(crate) use attach_send::{room_limit_here, upload_token_here, UploadLimits, NOT_SIGNED_IN_YET};
 /// The attach step: what is hidden in a file, the switch, Send anyway (2026-10-11). See `chat/attach_step.rs`.
@@ -370,7 +369,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     Frame::NONE
         .fill(theme.bg_sidebar_dark())
         .inner_margin(egui::Margin::symmetric(16, 10))
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 // Force the horizontal layout (and therefore the Frame
@@ -556,7 +555,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Vec2::new(available.width(), available.height() - input_height),
     );
 
-    ui.allocate_ui_at_rect(messages_rect, |ui| {
+    ui.allocate_new_ui(egui::UiBuilder::new().max_rect(messages_rect), |ui| {
         ScrollArea::vertical()
             .id_salt("chat_messages_scroll")
             .stick_to_bottom(true)
@@ -692,7 +691,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let mut sender_parity = false; // toggles each time sender changes
                 let bg_even = theme.bg_primary();
                 let bg_odd = theme.row_stripe();
-                let ctx_time = ui.ctx().input(|i| i.time);
 
                 // Reactions clicked during render — applied after the loop ends
                 // so we don't try to send WS messages while iterating &state.
@@ -826,13 +824,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         .unwrap_or(false);
 
                     let need_text_row = show_header || !display_text.trim().is_empty();
-                    // Track row hover + row rect + pill rect so the expanded
+                    // Track the pill rect so the expanded
                     // pill popup (rendered later) can anchor to the right
                     // place. The popup is an egui::Area, doesn't allocate
                     // layout space — hovering a message no longer shifts
                     // every message below.
-                    let mut row_was_hovered = false;
-                    let mut row_rect_opt: Option<egui::Rect> = None;
                     let mut pill_rect_for_msg: egui::Rect = egui::Rect::NOTHING;
                     // Þ icon rect (within the pill); reaction popup hover
                     // is now gated on the cursor being over THIS rect or
@@ -935,7 +931,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             show_header,
                             row_bg,
                             channeling,
-                            ctx_time,
                             pill_width,
                             &mention_ranges,
                             &format_spans,
@@ -956,8 +951,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 ui.ctx().open_url(egui::OpenUrl::new_tab(url));
                             }
                         }
-                        row_was_hovered = row_resp.response.hovered();
-                        row_rect_opt = Some(row_resp.response.rect);
                         pill_rect_for_msg = row_resp.pill_rect;
                         if let Some(ref a) = row_resp.deferred_avatar {
                             deferred_avatars.push(a.clone());
@@ -1207,10 +1200,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     .order(egui::Order::Foreground)
                                     .interactable(false)
                                     .show(ui.ctx(), |ui| {
-                                        Frame::none()
+                                        Frame::NONE
                                             .fill(theme.bg_card())
-                                            .stroke(Stroke::new(1.0, theme.border()))
-                                            .rounding(Rounding::same(8))
+                                            .stroke(Stroke::new(1.0_f32, theme.border()))
+                                            .corner_radius(CornerRadius::same(8))
                                             .inner_margin(egui::Margin::symmetric(8, 4))
                                             .shadow(egui::epaint::Shadow {
                                                 offset: [1, 2],
@@ -1248,10 +1241,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 .order(egui::Order::Foreground)
                                 .interactable(true)
                                 .show(ui.ctx(), |ui| {
-                                    Frame::none()
+                                    Frame::NONE
                                         .fill(theme.bg_card())
-                                        .stroke(Stroke::new(1.0, theme.border()))
-                                        .rounding(Rounding::same(8))
+                                        .stroke(Stroke::new(1.0_f32, theme.border()))
+                                        .corner_radius(CornerRadius::same(8))
                                         .inner_margin(4.0)
                                         .shadow(egui::epaint::Shadow {
                                             offset: [1, 2],
@@ -1270,14 +1263,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                 if ui.add(
                                                     egui::Button::new(RichText::new("↩").size(theme.font_size_body).color(chan))
                                                         .min_size(Vec2::new(26.0, 22.0))
-                                                        .rounding(Rounding::same(4))
+                                                        .corner_radius(CornerRadius::same(4))
                                                 ).on_hover_text("Reply").clicked() {
                                                     pending_reply = Some(reply::context_for(msg, &state.chat_active_channel, target_ts));
                                                 }
                                                 if !is_private_channel(&msg.channel) && ui.add(
                                                     egui::Button::new(RichText::new("Pin").size(theme.font_size_small).color(chan))
                                                         .min_size(Vec2::new(34.0, 22.0))
-                                                        .rounding(Rounding::same(4))
+                                                        .corner_radius(CornerRadius::same(4))
                                                 ).on_hover_text("Pin message").clicked() {
                                                     pending_pins.push((msg.sender_key.clone(), msg.sender_name.clone(), msg.content.clone(), target_ts));
                                                 }
@@ -1285,7 +1278,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                     if ui.add(
                                                         egui::Button::new(RichText::new("Edit").size(theme.font_size_small).color(chan))
                                                             .min_size(Vec2::new(38.0, 22.0))
-                                                            .rounding(Rounding::same(4))
+                                                            .corner_radius(CornerRadius::same(4))
                                                     ).on_hover_text("Edit message").clicked() {
                                                         pending_edit = Some((target_ts, msg.content.clone()));
                                                     }
@@ -1307,7 +1300,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                     if ui.add(
                                                         egui::Button::new(RichText::new(&clean).size(theme.font_size_body))
                                                             .min_size(Vec2::new(26.0, 22.0))
-                                                            .rounding(Rounding::same(4))
+                                                            .corner_radius(CornerRadius::same(4))
                                                     ).clicked() {
                                                         pending_reactions.push((target_from.clone(), target_ts, clean.clone()));
                                                     }
@@ -1317,7 +1310,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                 let inf_resp = ui.add(
                                                     egui::Button::new(RichText::new("∞").size(theme.font_size_body).color(chan))
                                                         .min_size(Vec2::new(26.0, 22.0))
-                                                        .rounding(Rounding::same(4))
+                                                        .corner_radius(CornerRadius::same(4))
                                                 ).on_hover_text("All reactions");
                                                 let inf_popup_id = egui::Id::new(("react_inf_popup", target_ts));
                                                 if inf_resp.clicked() {
@@ -1406,8 +1399,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                         // Faint border
                                         ui.painter().rect_stroke(
                                             img_rect,
-                                            Rounding::same(3),
-                                            Stroke::new(1.0, theme.border()),
+                                            CornerRadius::same(3),
+                                            Stroke::new(1.0_f32, theme.border()),
                                             egui::StrokeKind::Inside,
                                         );
                                     }
@@ -1618,7 +1611,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // The bar's top and bottom padding (see the frame below), also added to its drawn height.
     let bar_pad_v = theme.spacing_xs.round().clamp(0.0, 40.0);
-    let input_bar = ui.allocate_ui_at_rect(input_rect, |ui| {
+    let input_bar = ui.allocate_new_ui(egui::UiBuilder::new().max_rect(input_rect), |ui| {
         Frame::NONE
             .fill(theme.bg_sidebar_dark())
             // Top and bottom padding from the theme's smallest spacing (Settings > Widgets,
@@ -1696,8 +1689,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // The message text field is a raised input surface -> the
                     // tertiary/extreme-bg token (what egui uses for text edits).
                     .fill(theme.bg_tertiary())
-                    .rounding(Rounding::same(theme.border_radius_lg as u8))
-                    .stroke(Stroke::new(1.0, theme.border()))
+                    .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
+                    .stroke(Stroke::new(1.0_f32, theme.border()))
                     .inner_margin(egui::Margin::symmetric(12, 8))
                     .show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -2153,13 +2146,13 @@ pub(crate) fn hold_to_confirm_button(
     // possible - the operator found the old full-width fill bar "a bit much" and
     // the ring more pleasant. The whole row is still the hold target.
     if resp.hovered() || holding {
-        ui.painter().rect_filled(rect, Rounding::same(4), theme.bg_card());
+        ui.painter().rect_filled(rect, CornerRadius::same(4), theme.bg_card());
     }
     let ring_r = 10.0;
     let ring_c = egui::pos2(rect.left() + 6.0 + ring_r, rect.center().y);
     // Faint full-circle track.
     ui.painter()
-        .circle_stroke(ring_c, ring_r, Stroke::new(3.0, theme.border()));
+        .circle_stroke(ring_c, ring_r, Stroke::new(3.0_f32, theme.border()));
     // Progress arc from 12 o'clock, clockwise, in a fast-cycling RGB colour.
     if progress > 0.0 {
         let now = ui.input(|i| i.time);
@@ -2176,7 +2169,7 @@ pub(crate) fn hold_to_confirm_button(
             ));
         }
         ui.painter()
-            .add(egui::Shape::line(pts, Stroke::new(3.0, col)));
+            .add(egui::Shape::line(pts, Stroke::new(3.0_f32, col)));
     }
     // Label to the right of the ring.
     let label = if holding { held } else { idle };
@@ -3176,12 +3169,6 @@ fn draw_panel_lock_button(ui: &mut egui::Ui, theme: &Theme, locked: bool) -> boo
     resp.on_hover_text(tooltip).clicked()
 }
 
-/// Draw a collapsible section header with a tinted background.
-/// Returns true if the header was clicked (toggle).
-fn tinted_section_header(ui: &mut egui::Ui, theme: &Theme, label: &str, collapsed: bool, bg: Color32) -> bool {
-    tinted_section_header_with_buttons(ui, theme, label, collapsed, bg, |_| {})
-}
-
 /// Draw a tinted section header with optional right-aligned buttons.
 /// The `add_buttons` closure receives the UI in right-to-left layout for adding icon buttons.
 /// Returns true if the collapse arrow area was clicked (toggle collapse).
@@ -3587,15 +3574,6 @@ pub(crate) fn server_display_name(url: &str) -> String {
     }
 }
 
-/// Truncate a string to max chars, adding "..." if truncated.
-fn truncate_str(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max])
-    }
-}
-
 // ─────────────────────────────── Shared Helpers ──────────────────────────
 
 /// Measure the exact width the timestamp pill needs. Used by chat.rs to
@@ -3704,7 +3682,7 @@ fn paint_timestamp_pill(
     painter.rect_stroke(
         rect,
         theme.pill_radius,
-        Stroke::new(1.0, theme.border()),
+        Stroke::new(1.0_f32, theme.border()),
         egui::StrokeKind::Inside,
     );
 
@@ -3804,7 +3782,7 @@ fn paint_timestamp_pill(
             } else {
                 Color32::TRANSPARENT
             };
-            painter.rect_filled(badge_rect, Rounding::same(7), badge_bg);
+            painter.rect_filled(badge_rect, CornerRadius::same(7), badge_bg);
             painter.galley(
                 egui::pos2(badge_rect.left() + 2.0, cy - label_galley.size().y / 2.0),
                 label_galley,
@@ -3926,8 +3904,8 @@ pub fn derive_ws_url(url: &str) -> String {
 /// Generate a random 64-char hex string to use as a placeholder public key.
 pub fn generate_random_hex_key() -> String {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
-    let bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+    let mut rng = rand::rng();
+    let bytes: Vec<u8> = (0..32).map(|_| rng.random()).collect();
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 

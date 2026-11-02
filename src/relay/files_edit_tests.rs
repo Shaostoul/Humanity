@@ -89,6 +89,13 @@ fn add(db: &Storage, d: &Dirs, key: &str, item: &FilesItem, file: &str, role: &s
     files_add_core(db, d.folders(), &b)
 }
 
+/// Whether a successful add's answer holds stored file `name`, among its item's files or as its
+/// cover: what every add must answer.
+fn holds(answer: &serde_json::Value, name: &str) -> bool {
+    let item = &answer["item"];
+    item["files"].as_array().is_some_and(|fs| fs.iter().any(|f| f["filename"] == name)) || item["cover"]["filename"] == name
+}
+
 /// `key` takes file `file` (stored as `name`) off `item`, through the route's core.
 fn take_off(db: &Storage, d: &Dirs, key: &str, item: &FilesItem, file: i64, name: &str) -> Answer {
     let b = FileRemoveBody { key: key.into(), id: item.id, filename: item.upload_filename.clone(), file, file_name: name.into(), ..Default::default() };
@@ -183,7 +190,8 @@ async fn the_uploader_edits_an_item_and_the_signature_covers_the_edit_as_sent() 
     );
     let ts = now_ms() + 1;
     let purpose = edit_purpose(item.id, cc);
-    edit_signed(&state, &body(cc, ts, &ann.sign(&purpose, ts))).await.map_err(|e| (e.0.as_u16(), e.1)).expect("Ann changes her licence");
+    let changed = edit_signed(&state, &body(cc, ts, &ann.sign(&purpose, ts))).await.map_err(|e| (e.0.as_u16(), e.1)).expect("Ann changes her licence").0;
+    assert_eq!((changed["item"]["title"].as_str(), changed["item"]["licence"].as_str()), (Some("Dusk at the lake"), Some("cc_by_4")));
     let log = state.db.media_licence_log(item.id).unwrap();
     let last = log.last().expect("the choice is kept");
     assert_eq!((last.licence.as_str(), last.project_use, last.set_by.as_str()), ("cc_by_4", true, ann.key.as_str()));
@@ -218,7 +226,7 @@ fn an_admin_edits_the_words_but_not_the_licence() {
     let offered = offered();
     let edit = |key: &str, title: &str, licence: &str, game: bool| edit_core(db, &[], &offered, &edit_of(key, &item, title, licence, game), &signed(key));
 
-    edit("ann", "Staff", "cc_by_4", false).expect("the uploader picks CC BY 4.0");
+    assert_eq!(edit("ann", "Staff", "cc_by_4", false).expect("the uploader picks CC BY 4.0").0["item"]["licence"], "cc_by_4");
     let answer = edit("root", "Fire staff, tidied by an admin", "cc_by_4", false).expect("an admin edits the words").0;
     assert_eq!(answer["item"]["title"], "Fire staff, tidied by an admin");
 
@@ -272,7 +280,7 @@ fn a_cc_licence_is_refused_while_its_warning_is_missing() {
     assert_eq!(words(edit(&with_warning, "Dusk", "cc_by_sa_4", true)), (StatusCode::BAD_REQUEST, NOT_FOR_GAME.to_string()));
     assert_eq!(words(edit(&with_warning, "Dusk", "made_up", false)).1, NOT_OFFERED);
 
-    edit(&with_warning, "Dusk", "cc_by_4", true).expect("with its warning, CC BY 4.0 and the game tick go");
+    assert_eq!(edit(&with_warning, "Dusk", "cc_by_4", true).expect("with its warning, CC BY 4.0 and the game tick go").0["item"]["licence"], "cc_by_4");
     let kept = edit(&quiet, "Dusk, renamed", "cc_by_4", true).expect("an item keeps a licence the server stops offering").0;
     assert_eq!((kept["item"]["title"].as_str(), kept["item"]["licence"].as_str()), (Some("Dusk, renamed"), Some("cc_by_4")));
     assert_eq!(words(edit(&quiet, "Dusk", "cc0_1", true)).1, NOT_OFFERED, "but a change is checked");
@@ -343,8 +351,8 @@ async fn members_only_moves_every_file_and_public_brings_them_back() {
     let item = published(db, &d, "ann", "1_staff.glb", "public");
     waiting(db, &d, "ann", "2_textures.zip", b"T");
     waiting(db, &d, "ann", "3_cover.png", b"C");
-    add(db, &d, "ann", &item, "2_textures.zip", "file").unwrap();
-    add(db, &d, "ann", &item, "3_cover.png", "cover").unwrap();
+    assert!(holds(&add(db, &d, "ann", &item, "2_textures.zip", "file").unwrap().0, "2_textures.zip"));
+    assert!(holds(&add(db, &d, "ann", &item, "3_cover.png", "cover").unwrap().0, "3_cover.png"));
     let all = ["1_staff.glb", "2_textures.zip", "3_cover.png"];
 
     let shut = visibility_core(db, d.folders(), item.id, "ann", "members").expect("members only").0;
@@ -354,7 +362,7 @@ async fn members_only_moves_every_file_and_public_brings_them_back() {
     }
     assert!(shut["item"]["cover"]["url"].as_str().is_some_and(|u| u.starts_with("/api/files/file/")), "{shut}");
 
-    visibility_core(db, d.folders(), item.id, "ann", "public").expect("public again");
+    assert_eq!(visibility_core(db, d.folders(), item.id, "ann", "public").expect("public again").0["item"]["visibility"], "public");
     for name in all {
         assert_eq!((name, d.spot(name), public_status(&d, name).await), (name, Some(Spot::Public), 200));
     }
@@ -417,7 +425,7 @@ fn an_item_holds_at_most_twenty_files() {
     for i in 1..ITEM_FILES_MAX {
         let file = format!("f{i}.bin");
         waiting(db, &d, "ann", &file, b"x");
-        add(db, &d, "ann", &item, &file, "file").unwrap_or_else(|e| panic!("added file {i}: {e:?}"));
+        assert!(holds(&add(db, &d, "ann", &item, &file, "file").unwrap_or_else(|e| panic!("added file {i}: {e:?}")).0, &file));
     }
     assert_eq!(db.media_item(item.id).unwrap().unwrap().file_count, ITEM_FILES_MAX);
 
@@ -428,7 +436,7 @@ fn an_item_holds_at_most_twenty_files() {
     }
     assert_eq!(d.spot("one_too_many.bin"), Some(Spot::Waiting), "it stays waiting");
     waiting(db, &d, "ann", "cover.png", b"x");
-    add(db, &d, "ann", &item, "cover.png", "cover").expect("a cover is not counted");
+    assert!(holds(&add(db, &d, "ann", &item, "cover.png", "cover").expect("a cover is not counted").0, "cover.png"));
 }
 
 /// REMOVE A FILE, BUT NEVER THE FIRST: file 0 is the item itself and is refused with the words
@@ -453,7 +461,7 @@ async fn remove_a_file_but_never_the_first() {
     let item = published(db, &d, &ann.key, "1_staff.glb", "public");
     for (file, role) in [("2_a.zip", "file"), ("3_b.zip", "file"), ("4_cover.png", "cover")] {
         waiting(db, &d, &ann.key, file, b"x");
-        add(db, &d, &ann.key, &item, file, role).unwrap();
+        assert!(holds(&add(db, &d, &ann.key, &item, file, role).unwrap().0, file));
     }
     let item = db.media_item(item.id).unwrap().unwrap();
     let (a, b, cover) = (item.files[0].file, item.files[1].file, item.cover.clone().unwrap().file);
@@ -505,12 +513,12 @@ fn removing_an_item_deletes_its_added_files_and_cover() {
     let item = published(db, &d, "ann", "1_staff.glb", "public");
     for (file, role) in [("2_textures.zip", "file"), ("3_notes.txt", "file"), ("4_cover.png", "cover")] {
         waiting(db, &d, "ann", file, b"x");
-        add(db, &d, "ann", &item, file, role).unwrap();
+        assert!(holds(&add(db, &d, "ann", &item, file, role).unwrap().0, file));
     }
-    edit_core(db, &[], &offered(), &edit_of("ann", &item, "Staff", "cc_by_4", false), &signed("ann")).unwrap();
+    assert_eq!(edit_core(db, &[], &offered(), &edit_of("ann", &item, "Staff", "cc_by_4", false), &signed("ann")).unwrap().0["item"]["licence"], "cc_by_4");
     assert_eq!(db.media_licence_log(item.id).unwrap().len(), 1, "test setup: a licence choice");
 
-    remove_core(db, d.folders(), &RemoveTarget::Item(item.id), "ann").expect("removed");
+    assert_eq!(remove_core(db, d.folders(), &RemoveTarget::Item(item.id), "ann").expect("removed").0["removed"], item.id);
     for name in ["1_staff.glb", "2_textures.zip", "3_notes.txt", "4_cover.png"] {
         assert_eq!((name, d.spot(name)), (name, None), "{name} is deleted with its item");
     }
@@ -525,7 +533,7 @@ fn removing_an_item_deletes_its_added_files_and_cover() {
     let chat = publish_core(db, &s, &[], d.folders(), &PublishBody { key: "ann".into(), filename: "5_chat.png".into(), ..Default::default() }).unwrap().0;
     let chat = db.media_item(chat["item"]["id"].as_i64().unwrap()).unwrap().unwrap();
     waiting(db, &d, "ann", "6_extra.zip", b"x");
-    add(db, &d, "ann", &chat, "6_extra.zip", "file").unwrap();
+    assert!(holds(&add(db, &d, "ann", &chat, "6_extra.zip", "file").unwrap().0, "6_extra.zip"));
     let answer = remove_core(db, d.folders(), &RemoveTarget::Item(chat.id), "ann").unwrap().0;
     assert_eq!(answer["file_kept"], true);
     assert_eq!((d.spot("5_chat.png"), d.spot("6_extra.zip")), (Some(Spot::Public), None));
@@ -637,7 +645,7 @@ fn a_file_is_renamed_and_keeps_its_own_ending() {
     db.set_role("root", "admin").unwrap();
     let item = published(db, &d, "ann", "1_cap.blend", "public");
     waiting(db, &d, "ann", "2_textures.zip", b"x");
-    add(db, &d, "ann", &item, "2_textures.zip", "file").expect("added");
+    assert!(holds(&add(db, &d, "ann", &item, "2_textures.zip", "file").expect("added").0, "2_textures.zip"));
     let file_no = db.media_item(item.id).unwrap().unwrap().files[0].file;
 
     let r = rename(db, "ann", &item, file_no, "2_textures.zip", "Wick textures").expect("renamed").0;
@@ -645,7 +653,7 @@ fn a_file_is_renamed_and_keeps_its_own_ending() {
     assert_eq!(shown, Some(serde_json::json!("Wick textures.zip")), "its ending put back");
     let r = rename(db, "ann", &item, 0, "1_cap.blend", "Dragon egg cap.png").expect("the item's own file renamed").0;
     assert_eq!(r["item"]["original_name"], "Dragon egg cap.png.blend", "a Blender file named like a picture stays a Blender file");
-    rename(db, "root", &item, 0, "1_cap.blend", "Cap").expect("an admin may rename");
+    assert_eq!(rename(db, "root", &item, 0, "1_cap.blend", "Cap").expect("an admin may rename").0["item"]["original_name"], "Cap.blend");
     assert_eq!(words(rename(db, "bob", &item, 0, "1_cap.blend", "Mine")).0, StatusCode::FORBIDDEN, "someone else may not");
     for (bad, why) in [("   ", "A file needs a name."), ("a/b", "A file's name cannot hold a slash or a hidden character."), ("photo\u{202E}gnp", "A file's name cannot hold a slash or a hidden character."), (".blend", "A file needs a name before its ending.")] {
         assert_eq!(words(rename(db, "ann", &item, 0, "1_cap.blend", bad)), (StatusCode::BAD_REQUEST, why.to_string()), "{bad:?}");
@@ -674,7 +682,7 @@ fn a_picture_already_on_the_item_becomes_its_cover() {
     let item = published(db, &d, "ann", "1_cap.blend", "public");
     for file in ["2_cap.stl", "3_photo.png", "4_side.jpg"] {
         waiting(db, &d, "ann", file, b"x");
-        add(db, &d, "ann", &item, file, "file").expect("added");
+        assert!(holds(&add(db, &d, "ann", &item, file, "file").expect("added").0, file));
     }
     let no = |name: &str| db.media_item(item.id).unwrap().unwrap().files.iter().chain(db.media_item(item.id).unwrap().unwrap().cover.iter()).find(|f| f.filename == name).map(|f| f.file).unwrap();
     let r = cover(db, "ann", &item, no("3_photo.png"), "3_photo.png").expect("the PNG is the cover").0;
@@ -708,7 +716,7 @@ async fn a_renames_signature_holds_its_name_and_a_covers_its_file() {
     let item = published(&state.db, &d, &ann.key, "1_cap.blend", "public");
     for file in ["2_a.png", "3_b.png"] {
         waiting(&state.db, &d, &ann.key, file, b"x");
-        add(&state.db, &d, &ann.key, &item, file, "file").expect("added");
+        assert!(holds(&add(&state.db, &d, &ann.key, &item, file, "file").expect("added").0, file));
     }
     let files = state.db.media_item(item.id).unwrap().unwrap().files;
     let (a, b) = (files[0].file, files[1].file);

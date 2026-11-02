@@ -9,6 +9,10 @@
 //! B (2026-10-31): it was in engine/editor_storeys.rs and `SlabDraw` on the page, so the page
 //! reached up into the engine for every name and edit.
 
+// Everything here but `CutAway` serves the build editor, which only the native build has; the
+// relay build compiles this module for `CutAway` alone (ship/levels.rs `level_meshes`).
+#![cfg_attr(not(feature = "native"), allow(dead_code))]
+
 use glam::Vec3;
 
 use crate::ship::home_structure::{

@@ -10,7 +10,7 @@
 //!     (`group_invite_v1` + base64-of-JSON, matching `encodeInviteTicket`),
 //!   - join via a ticket (parse it + `group_join_v1`).
 //!
-//! HTTP is the existing blocking-ureq pattern (see `upload_file_blocking`).
+//! HTTP is the existing blocking-ureq pattern (see `attach_send::upload_flagged`).
 //! Promote to a background tokio task if it ever feels janky in the UI.
 
 use base64::Engine;
@@ -18,7 +18,7 @@ use base64::engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD as B64URL
 
 use crate::net::dm_pq::DmPqKeypair;
 use crate::net::group_e2ee::{
-    self, build_group_epoch_key_v1, build_group_msg_v1, open_epoch_key, open_group_msg,
+    build_group_epoch_key_v1, build_group_msg_v1, open_epoch_key, open_group_msg,
     parse_group_epoch_key_payload, parse_group_msg_epoch, payload_shares_history,
     random_epoch_key, GroupMemberKey,
 };

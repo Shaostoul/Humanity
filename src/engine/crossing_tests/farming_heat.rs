@@ -45,7 +45,7 @@ use crate::systems::farming::*;
 #[cfg(feature = "native")]
 #[test]
 fn the_time_away_charges_each_machine_the_day_it_drew() {
-    use crate::machines::{MachineHome, MachineInstance};
+    use crate::machines::MachineInstance;
     use crate::machines::day_energy;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let tent = crate::systems::grow_machines::load_grow_media(&root.join("data"))

@@ -347,7 +347,7 @@ fn draw_steps(
 fn thin_bar(ui: &mut egui::Ui, theme: &Theme, done: usize, total: usize) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 4.0), egui::Sense::hover());
     if ui.is_rect_visible(rect) {
-        let r = egui::Rounding::same(2);
+        let r = egui::CornerRadius::same(2);
         // The track in the card's border colour, so an empty bar still shows
         // (bg_tertiary vanished against the hollow card).
         ui.painter().rect_filled(rect, r, theme.border());
@@ -511,7 +511,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 egui::SidePanel::right("task_detail_panel")
                     .min_width(280.0)
                     .max_width(360.0)
-                    .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(12.0))
+                    .frame(Frame::NONE.fill(theme.bg_sidebar()).inner_margin(12.0))
                     .show(ctx, |ui| {
                         ScrollArea::vertical().show(ui, |ui| {
                             ui.horizontal(|ui| {
@@ -670,7 +670,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {

@@ -37,7 +37,7 @@ use crate::systems::farming::*;
 #[test]
 fn a_room_resized_changes_its_fans_day_on_the_meter() {
     use crate::ecs::components::{PowerCircuit, PowerGenerator};
-    use crate::machines::{DaySource, MachineHome, MachineInstance, MachinePower, MeterBasis};
+    use crate::machines::{DaySource, MachineInstance, MachinePower, MeterBasis};
     let mut data = store(0.5, 1.0, 0.0);
     data.insert(units::PLOT_AREA_KEY, HashMap::from([("bed_a".to_string(), 1.0_f32)]));
     crate::machines::day_energy::register(&mut data);

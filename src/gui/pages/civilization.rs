@@ -12,7 +12,7 @@ use crate::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiCivStats, GuiState};
-use egui::{Frame, RichText, ScrollArea, Vec2};
+use egui::{RichText, Vec2};
 
 /// Background fetch of the aggregated stats (public endpoint; same
 /// worker-thread + mpsc pattern as the Guilds page).

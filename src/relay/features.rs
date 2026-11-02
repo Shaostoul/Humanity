@@ -943,7 +943,6 @@ mod tests {
         let (mut first, key) = bind_socket(&state, port, seed, Some("TwoTabs"), 1).await;
         let (mut second, _) = bind_socket(&state, port, seed, Some("TwoTabs"), 2).await;
 
-        use futures::SinkExt;
         second.close(None).await.ok();
         assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "the closed socket left the live set");
         {
@@ -989,7 +988,6 @@ mod tests {
         assert_ne!(older_token, newer_token, "each socket has its own");
         assert_eq!(tokens_of(key.clone()).await.len(), 2, "both are good while both are open");
 
-        use futures::SinkExt;
         older.close(None).await.ok();
         assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await);
         let gone = wait_until(|| async { !state.upload_tokens.read().await.contains_key(&older_token) }).await;
@@ -1089,7 +1087,6 @@ mod tests {
         let (mut tab, _) = bind_socket(&state, port, seed, Some("GameAndTab"), 2).await;
         join_game(&state, &mut game, &key, game_conn).await;
 
-        use futures::SinkExt;
         game.close(None).await.ok();
         assert!(
             wait_until(|| async { game_departed(&state, &key).await }).await,
@@ -1119,7 +1116,6 @@ mod tests {
         let (mut tab, _) = bind_socket(&state, port, seed, Some("GameKeeps"), 2).await;
         join_game(&state, &mut game, &key, game_conn).await;
 
-        use futures::SinkExt;
         tab.close(None).await.ok();
         // The teardown runs the seat departures before it leaves the live set,
         // so once the count drops, whatever it was going to do is done.
@@ -1189,7 +1185,6 @@ mod tests {
         let (mut dropper, dropper_key) = bind_socket(&state, port, [46u8; 32], Some("Dropper"), 1).await;
         let dropper_conn = only_conn(&state, &dropper_key).await;
         join_game(&state, &mut dropper, &dropper_key, dropper_conn).await;
-        use futures::SinkExt;
         dropper.close(None).await.ok();
         // The teardown runs the seat departures before it leaves the live set,
         // so once the count drops, whatever it was going to do is done.
@@ -1251,7 +1246,6 @@ mod tests {
         assert!(state.live_conns.read().await.game_seat.get(&target_key).is_none(), "the game seat is given up");
         assert_eq!(live_count(&state, &target_key).await, 1, "their chat socket stays open");
 
-        use futures::SinkExt;
         admin.close(None).await.ok();
         target.close(None).await.ok();
     }
@@ -1381,7 +1375,6 @@ mod tests {
         assert_eq!(state.game_world.read().await.time_scale, 24.0, "and the clock is unchanged");
         assert_eq!(state.db.get_server_settings().unwrap().world_time_scale, 24.0);
 
-        use futures::SinkExt;
         admin.close(None).await.ok();
         player.close(None).await.ok();
     }
@@ -1416,7 +1409,6 @@ mod tests {
             "the join put the person in voice on the caller's socket"
         );
 
-        use futures::SinkExt;
         tab.close(None).await.ok();
         assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "the tab left");
         assert!(in_voice(key.clone()).await, "a tab closing does not end the call");
@@ -1454,7 +1446,6 @@ mod tests {
             "the nameless socket now owns the registration, under the person's name"
         );
 
-        use futures::SinkExt;
         chat.close(None).await.ok();
         assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "the named socket left");
         assert_eq!(
@@ -1480,7 +1471,6 @@ mod tests {
     async fn a_nameless_sign_in_after_a_rename_keeps_the_new_name() {
         let (state, port) = spawn_relay("renamed", Features::all_enabled()).await;
         let seed = [47u8; 32];
-        use futures::SinkExt;
         let (mut old, key) = bind_socket(&state, port, seed, Some("Aold"), 1).await;
         old.close(None).await.ok();
         assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await, "Aold left");
@@ -1646,7 +1636,6 @@ mod tests {
         );
         assert_eq!(times_listed(&state, &key).await, 1, "listed once, not twice");
 
-        use futures::SinkExt;
         a.close(None).await.ok();
         assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "A's close was handled");
         assert_eq!(times_listed(&state, &key).await, 1, "still in the room after A's close");
@@ -1684,7 +1673,6 @@ mod tests {
             wait_until(|| async { state.live_conns.read().await.voice_seat.get(&key) == Some(&b_conn) }).await,
             "B holds the seat"
         );
-        use futures::SinkExt;
         a.close(None).await.ok();
         assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "A's close was handled");
 
@@ -2593,7 +2581,6 @@ mod tests {
         assert_eq!(state.db.get_server_settings().unwrap().fleet_supply_mode, "stocked", "and it is saved");
         assert_eq!(state.db.fleet_ledger_of(&key, 50).unwrap().2.len(), 3, "the ledger is untouched");
 
-        use futures::SinkExt;
         sock.close(None).await.ok();
         other.close(None).await.ok();
         admin.close(None).await.ok();
@@ -2950,7 +2937,6 @@ mod tests {
         let second = w["player_id"].clone();
 
         // The socket drops; a new one joins inside the grace: the same entity.
-        use futures::SinkExt;
         a.close(None).await.ok();
         assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await, "the socket closed");
         assert!(state.game_world.read().await.find_player_entity(&key).is_some(), "held for the grace");
@@ -4015,7 +4001,6 @@ mod tests {
         let answer = next_frame_with(&mut sock, settings_frame).await.expect("reach_set is answered with every feature off");
         assert_eq!(answer["settings"]["message"], "anyone", "{answer}");
         assert_eq!(state.db.reach_audience_of(&key, "message").as_deref(), Some("anyone"), "and saved");
-        use futures::SinkExt;
         sock.close(None).await.ok();
     }
 
@@ -4053,7 +4038,6 @@ mod tests {
         assert_eq!(answer["missing"], serde_json::json!([nobody]), "{answer}");
         let seen = frames_until_quiet(&mut owner, 700).await;
         assert!(!seen.iter().any(|v| v["type"] == "key_cards"), "the card's owner was sent the asker's answer: {seen:?}");
-        use futures::SinkExt;
         owner.close(None).await.ok();
         asker.close(None).await.ok();
     }
@@ -4149,7 +4133,6 @@ mod tests {
         .ok()
         .flatten();
         assert!(leaked.is_none(), "the reported person was sent the reports list or the receipt: {leaked:?}");
-        use futures::SinkExt;
         for mut s in [reporter, admin, reported] {
             s.close(None).await.ok();
         }
@@ -4430,7 +4413,7 @@ mod tests {
         let (state, port, server) = relay_on(&path).await;
         let clock = limit_clock(&state);
         let (mut ann, ann_key, _) = joiner(&state, port, 46, "PermitAnn").await;
-        let (mut cy, cy_key, _) = joiner(&state, port, 47, "PermitCy").await;
+        let (cy, cy_key, _) = joiner(&state, port, 47, "PermitCy").await;
         let (mut bo, bo_key, bo_plot) = joiner(&state, port, 48, "PermitBo").await;
         assert_eq!(bo_plot.as_deref(), Some("p3"), "Ann p1, Cy p2, Bo p3");
         let here = state.db.server_did().expect("the relay's own did:hum");

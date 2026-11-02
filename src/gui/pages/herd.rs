@@ -126,7 +126,7 @@ fn animal_card(ui: &mut Ui, theme: &Theme, row: &HerdRow) {
     if !row.feed.is_empty() || !row.water.is_empty() {
         ui.add_space(theme.spacing_xs);
         let y = ui.cursor().min.y;
-        ui.painter().hline(ui.max_rect().x_range(), y, egui::Stroke::new(1.0, theme.border()));
+        ui.painter().hline(ui.max_rect().x_range(), y, egui::Stroke::new(1.0_f32, theme.border()));
         ui.add_space(theme.spacing_xs);
     }
     if !row.feed.is_empty() {

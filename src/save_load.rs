@@ -23,10 +23,14 @@
 //! offline catch-up are `resume_home` below.
 
 use crate::ecs::components::Controllable;
-use crate::persistence::live_save::{self, active_home, active_home_path, release_restore_hold, restored_save_waiting, ActiveHome};
+use crate::persistence::live_save::{self, active_home, active_home_path, release_restore_hold, restored_save_waiting};
+// The save-slot tests below reach these through `use super::*`.
+#[cfg(test)]
+use crate::persistence::live_save::ActiveHome;
 use crate::persistence::{self, WorldSave};
 use crate::systems::inventory::Inventory;
 use crate::systems::skills::{PlayerSkills, SkillProgress};
+#[cfg(test)]
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -1077,7 +1081,7 @@ pub fn take_pending_load(gui: &mut crate::gui::GuiState) -> Option<WorldSave> {
 /// stands on, the clock and the time away (`resume_home`), the home's storage and the notice
 /// (`after_resume`); then in-flight crafts are dropped (the world rewound), the editing copies of
 /// the look follow, and the character snaps aboard next frame.
-pub fn apply_onto_running_world(state: &mut crate::engine::state::EngineState, save: &WorldSave) {
+pub(crate) fn apply_onto_running_world(state: &mut crate::engine::state::EngineState, save: &WorldSave) {
     let progress = applies_progress(save, state.gui_state.settings.fresh_world_each_launch);
     put_save_on_world(&mut state.game_world.world, &mut state.data_store, &mut state.gui_state, &state.data_dir, save, progress);
     if progress {

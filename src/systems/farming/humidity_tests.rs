@@ -844,7 +844,7 @@ fn a_tent_starts_from_its_rooms_air_and_saves_like_a_room() {
 /// humidifier for only one of the seven racks).
 #[test]
 fn the_shipped_homes_keep_every_racks_tent_in_range() {
-    use crate::machines::{MachineHome, MachinePower};
+    use crate::machines::MachinePower;
     let settle = |file: &str, powered: bool| -> (Vec<f64>, f64, f64, f64, usize, bool) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let home = crate::systems::grow_machines::load_home(&root.join("data").join("machines").join(file)).expect("home parses");

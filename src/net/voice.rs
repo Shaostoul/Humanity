@@ -263,7 +263,7 @@ pub fn list_output_devices() -> Vec<String> {
 fn device_names(input: bool) -> Vec<String> {
     let host = cpal::default_host();
     let iter = if input { host.input_devices() } else { host.output_devices() };
-    iter.map(|ds| ds.filter_map(|d| d.name().ok()).collect())
+    iter.map(|ds| ds.filter_map(|d| d.description().ok().map(|desc| desc.name().to_string())).collect())
         .unwrap_or_default()
 }
 
@@ -274,7 +274,7 @@ fn find_device(name: &str, input: bool) -> Option<cpal::Device> {
         let iter = if input { host.input_devices() } else { host.output_devices() };
         if let Ok(devs) = iter {
             for d in devs {
-                if d.name().map(|n| n == name).unwrap_or(false) {
+                if d.description().map(|desc| desc.name() == name).unwrap_or(false) {
                     return Some(d);
                 }
             }

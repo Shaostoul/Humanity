@@ -12,7 +12,7 @@
 //!
 //! The website has no world, so it has no twin.
 
-use egui::{Color32, FontId, Painter, Pos2, Rect, Rounding, Stroke, Vec2};
+use egui::{Color32, FontId, Painter, Pos2, Rect, CornerRadius, Stroke, Vec2};
 
 use crate::gui::theme::Theme;
 use crate::notifications::clicks::Banner;
@@ -37,8 +37,8 @@ pub fn paint(painter: &Painter, theme: &Theme, screen: Rect, banner: &Banner, op
     let text_h = title.size().y + body.as_ref().map_or(0.0, |b| b.size().y + 2.0);
     let height = text_h.max(bell) + pad * 2.0;
     let rect = Rect::from_min_size(Pos2::new(screen.center().x - width * 0.5, screen.top() + TOP), Vec2::new(width, height));
-    let round = Rounding::same(theme.border_radius as u8);
-    painter.rect(rect, round, fade(theme.bg_card()), Stroke::new(1.0, fade(theme.accent())), egui::StrokeKind::Inside);
+    let round = CornerRadius::same(theme.border_radius as u8);
+    painter.rect(rect, round, fade(theme.bg_card()), Stroke::new(1.0_f32, fade(theme.accent())), egui::StrokeKind::Inside);
     let bell_rect = Rect::from_min_size(Pos2::new(rect.left() + pad, rect.center().y - bell * 0.5), Vec2::splat(bell));
     crate::gui::widgets::icons::paint_bell(painter, bell_rect, fade(theme.accent()));
     let x = bell_rect.right() + pad;

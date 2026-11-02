@@ -11,7 +11,7 @@
 //!       `widgets::help_modal::draw(ctx, theme, &gui_state.help_registry,
 //!                                  &mut gui_state.active_help_topic);`
 
-use egui::{Align2, Context, Frame, RichText, Rounding, Sense, Stroke, Ui, Vec2};
+use egui::{Align2, Context, Frame, RichText, CornerRadius, Sense, Stroke, Ui, Vec2};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -151,7 +151,7 @@ pub fn help_button(
         } else {
             (theme.border(), theme.text_muted())
         };
-        painter.circle_stroke(rect.center(), 8.0, Stroke::new(1.0, stroke_color));
+        painter.circle_stroke(rect.center(), 8.0, Stroke::new(1.0_f32, stroke_color));
         painter.text(
             rect.center(),
             Align2::CENTER_CENTER,
@@ -200,7 +200,7 @@ pub fn draw(
         .fixed_pos(screen.min)
         .show(ctx, |ui| {
             let (_, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
-            ui.painter().rect_filled(screen, Rounding::ZERO, bg_modal);
+            ui.painter().rect_filled(screen, CornerRadius::ZERO, bg_modal);
             if resp.clicked() {
                 should_close = true;
             }
@@ -216,11 +216,11 @@ pub fn draw(
         .fixed_size(Vec2::new(modal_w, 0.0))
         .title_bar(true)
         .frame(
-            Frame::none()
+            Frame::NONE
                 .fill(theme.bg_card())
-                .rounding(Rounding::same(theme.border_radius_lg as u8))
+                .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
                 .inner_margin(theme.card_padding)
-                .stroke(Stroke::new(1.0, theme.border())),
+                .stroke(Stroke::new(1.0_f32, theme.border())),
         )
         .show(ctx, |ui| {
             // Body paragraphs
@@ -248,7 +248,7 @@ pub fn draw(
                                 .size(theme.font_size_body),
                         )
                         .fill(theme.accent())
-                        .rounding(Rounding::same(theme.border_radius as u8));
+                        .corner_radius(CornerRadius::same(theme.border_radius as u8));
                         if ui.add(btn).clicked() {
                             should_close = true;
                         }

@@ -98,7 +98,7 @@ fn draw_frame_graph(ui: &mut egui::Ui, theme: &Theme, times: &[f32]) {
     painter.hline(
         rect.left()..=rect.right(),
         y60,
-        egui::Stroke::new(1.0, theme.text_muted()),
+        egui::Stroke::new(1.0_f32, theme.text_muted()),
     );
     if times.is_empty() {
         return;

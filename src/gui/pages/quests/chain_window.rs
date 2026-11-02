@@ -137,9 +137,9 @@ fn quest_frame(theme: &Theme, focus: bool) -> Frame {
     } else {
         (Color32::TRANSPARENT, Color32::TRANSPARENT)
     };
-    Frame::none()
+    Frame::NONE
         .fill(fill)
-        .stroke(Stroke::new(1.0, edge))
+        .stroke(Stroke::new(1.0_f32, edge))
         .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
 }
@@ -232,7 +232,7 @@ fn step_row(ui: &mut egui::Ui, theme: &Theme, s: &ChainStep) {
                 painter.circle_filled(mark.center(), STEP_MARK / 2.0 - 1.0, theme.accent());
             }
             StepState::Ahead => {
-                painter.circle_stroke(mark.center(), STEP_MARK / 2.0 - 1.0, Stroke::new(1.0, theme.text_muted()));
+                painter.circle_stroke(mark.center(), STEP_MARK / 2.0 - 1.0, Stroke::new(1.0_f32, theme.text_muted()));
             }
         }
         ui.add_space(theme.spacing_sm);

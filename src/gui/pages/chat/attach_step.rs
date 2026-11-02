@@ -53,7 +53,8 @@ impl Looking {
         Looking { rx: Some(rx), look: None }
     }
 
-    /// An answer already known (the tests, and a file looked at elsewhere).
+    /// An answer already known (the tests).
+    #[cfg(test)]
     pub(crate) fn known(look: Result<Look, String>) -> Self {
         Looking { rx: None, look: Some(look) }
     }

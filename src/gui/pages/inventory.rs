@@ -1,13 +1,11 @@
 //! Inventory grid with item slots, equipment section, weight tracking,
 //! item detail panel, and quick actions.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use crate::gui::{GardenArea, GuiAsteroid, GuiDrone, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::cell::RefCell;
-
-const COLS: usize = 8;
 
 // Equipment slot definitions are loaded from `data/inventory/equipment_slots.json`
 // into `GuiState.equipment_slots` at startup (see `lib.rs`). The equipped Vec is
@@ -73,7 +71,7 @@ fn manifest_bar(ui: &mut egui::Ui, theme: &Theme, draft: &[(String, u32)], cap: 
     let w = ui.available_width().max(80.0);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, 12.0), egui::Sense::hover());
     let painter = ui.painter();
-    painter.rect_filled(rect, egui::Rounding::same(2), theme.border());
+    painter.rect_filled(rect, egui::CornerRadius::same(2), theme.border());
     let palette = [
         theme.accent(),
         theme.warning(),
@@ -85,7 +83,7 @@ fn manifest_bar(ui: &mut egui::Ui, theme: &Theme, draft: &[(String, u32)], cap: 
     for (i, (_ore, units)) in draft.iter().enumerate() {
         let seg_w = (*units as f32 / capf) * w;
         let seg = egui::Rect::from_min_size(egui::pos2(x, rect.top()), egui::vec2(seg_w, 12.0));
-        painter.rect_filled(seg, egui::Rounding::same(2), palette[i % palette.len()]);
+        painter.rect_filled(seg, egui::CornerRadius::same(2), palette[i % palette.len()]);
         x += seg_w;
     }
 }
@@ -94,10 +92,10 @@ fn manifest_bar(ui: &mut egui::Ui, theme: &Theme, draft: &[(String, u32)], cap: 
 /// chunky rounded colour-by-level bar. A grid of these reads at a glance and uses
 /// the page width, replacing the old thin name/value/bar text rows.
 fn vital_tile(ui: &mut egui::Ui, theme: &Theme, name: &str, value: &str, frac: f32, color: Color32) {
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius_lg as u8))
-        .stroke(Stroke::new(1.0, theme.border()))
+        .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .inner_margin(Vec2::new(10.0, 8.0))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -111,7 +109,7 @@ fn vital_tile(ui: &mut egui::Ui, theme: &Theme, name: &str, value: &str, frac: f
             ui.add_space(theme.spacing_xs);
             let w = ui.available_width();
             let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 8.0), egui::Sense::hover());
-            let r = Rounding::same(4);
+            let r = CornerRadius::same(4);
             ui.painter().rect_filled(rect, r, theme.bg_secondary());
             let fill_w = w * frac.clamp(0.0, 1.0);
             if fill_w > 0.0 {
@@ -129,10 +127,10 @@ fn vital_tile(ui: &mut egui::Ui, theme: &Theme, name: &str, value: &str, frac: f
 /// food output. A grid of these is the at-a-glance "whole garden" overview. The whole
 /// tile is clickable (returns true) to open its per-medium edit modal.
 fn garden_area_tile(ui: &mut egui::Ui, theme: &Theme, a: &GardenArea) -> bool {
-    let inner = Frame::none()
+    let inner = Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius_lg as u8))
-        .stroke(Stroke::new(1.0, theme.border()))
+        .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .inner_margin(Vec2::new(10.0, 8.0))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -485,13 +483,13 @@ fn item_tile(
 ) -> egui::Response {
     let glyph = name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default();
     let stroke = if selected {
-        Stroke::new(2.0, theme.accent())
+        Stroke::new(2.0_f32, theme.accent())
     } else {
-        Stroke::new(1.0, theme.border())
+        Stroke::new(1.0_f32, theme.border())
     };
-    let inner = Frame::none()
+    let inner = Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius_lg as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
         .stroke(stroke)
         .inner_margin(Vec2::new(6.0, 6.0))
         .show(ui, |ui| {
@@ -677,8 +675,8 @@ fn draw_container(
         if row.dnd_hover_payload::<InvDragPayload>().is_some() {
             ui.painter().rect_stroke(
                 row.rect.expand(2.0),
-                egui::Rounding::same(theme.border_radius as u8),
-                Stroke::new(2.0, theme.accent()),
+                egui::CornerRadius::same(theme.border_radius as u8),
+                Stroke::new(2.0_f32, theme.accent()),
                 egui::StrokeKind::Outside,
             );
         }
@@ -885,9 +883,9 @@ fn draw_item_card(
             );
             if let Some(d) = &details {
                 // Category badge.
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(category_color(&d.category))
-                    .rounding(Rounding::same(3))
+                    .corner_radius(CornerRadius::same(3))
                     .inner_margin(Vec2::new(6.0, 2.0))
                     .show(ui, |ui| {
                         ui.label(
@@ -1002,10 +1000,10 @@ fn asteroid_card(ui: &mut egui::Ui, theme: &Theme, ast: &GuiAsteroid) -> bool {
         .filter(|(_, q)| *q >= 1.0)
         .map(|(id, q)| format!("{} {:.0}", ore_short(id), q))
         .collect();
-    let inner = Frame::none()
+    let inner = Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius_lg as u8))
-        .stroke(Stroke::new(1.0, theme.border()))
+        .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .inner_margin(Vec2::new(10.0, 8.0))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -1435,8 +1433,8 @@ fn draw_mining_map(ui: &mut egui::Ui, theme: &Theme, asteroids: &[GuiAsteroid], 
     let w = ui.available_width().min(560.0);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(w, h), egui::Sense::hover());
     let painter = ui.painter();
-    painter.rect_filled(rect, Rounding::same(6), theme.bg_card());
-    painter.rect_stroke(rect, Rounding::same(6), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+    painter.rect_filled(rect, CornerRadius::same(6), theme.bg_card());
+    painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
     let center = rect.center();
     let max_d = asteroids.iter().map(|a| a.distance).fold(1.0f32, f32::max);
     let margin = 48.0;
@@ -1448,7 +1446,7 @@ fn draw_mining_map(ui: &mut egui::Ui, theme: &Theme, asteroids: &[GuiAsteroid], 
     // going off to mine).
     for d in drones {
         if let Some(ta) = asteroids.iter().find(|a| a.id == d.target) {
-            painter.line_segment([center, proj(ta.position)], Stroke::new(1.5, theme.accent()));
+            painter.line_segment([center, proj(ta.position)], Stroke::new(1.5_f32, theme.accent()));
         }
     }
     // Asteroids (labels to the right of their dot).
@@ -2169,9 +2167,9 @@ pub(crate) fn draw_garden_section(
                                 };
                                 let selected = sel == Some(s);
                                 let stroke = if selected {
-                                    Stroke::new(2.0, theme.accent())
+                                    Stroke::new(2.0_f32, theme.accent())
                                 } else {
-                                    Stroke::new(1.0, theme.border())
+                                    Stroke::new(1.0_f32, theme.border())
                                 };
                                 let swatch = widgets::swatch_color(if plant_id.is_empty() {
                                     &name
@@ -2183,9 +2181,9 @@ pub(crate) fn draw_garden_section(
                                     .next()
                                     .map(|c| c.to_uppercase().to_string())
                                     .unwrap_or_default();
-                                let inner = Frame::none()
+                                let inner = Frame::NONE
                                     .fill(theme.bg_card())
-                                    .rounding(Rounding::same(theme.border_radius_lg as u8))
+                                    .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
                                     .stroke(stroke)
                                     .inner_margin(Vec2::new(5.0, 5.0))
                                     .show(ui, |ui| {
@@ -2285,7 +2283,7 @@ pub(crate) fn draw_garden_section(
                                         egui::Grid::new(("slot_card", gi, s))
                                             .spacing([10.0, 2.0])
                                             .show(ui, |ui| {
-                                                let mut stat =
+                                                let stat =
                                                     |ui: &mut egui::Ui,
                                                      k: &str,
                                                      v: String| {
@@ -2627,7 +2625,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     //    widgets aligned, the status bars capped at theme.status_bar_width. The
     //    detail block shows only when something is selected. ──
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
         ScrollArea::vertical().show(ui, |ui| {
             ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
@@ -2853,9 +2851,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         } else {
                             format!("{} ({:.0}s)", name, remaining)
                         };
-                        egui::Frame::none()
+                        egui::Frame::NONE
                             .fill(theme.bg_secondary())
-                            .rounding(Rounding::same(3))
+                            .corner_radius(CornerRadius::same(3))
                             .inner_margin(Vec2::new(6.0, 2.0))
                             .show(ui, |ui| {
                                 ui.label(
@@ -2919,12 +2917,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             );
                             let fill = theme.bg_secondary();
                             let stroke = if worn.is_some() {
-                                Stroke::new(1.5, theme.accent())
+                                Stroke::new(1.5_f32, theme.accent())
                             } else {
-                                Stroke::new(1.0, theme.border())
+                                Stroke::new(1.0_f32, theme.border())
                             };
-                            ui.painter().rect_filled(rect, Rounding::same(4), fill);
-                            ui.painter().rect_stroke(rect, Rounding::same(4), stroke, egui::StrokeKind::Outside);
+                            ui.painter().rect_filled(rect, CornerRadius::same(4), fill);
+                            ui.painter().rect_stroke(rect, CornerRadius::same(4), stroke, egui::StrokeKind::Outside);
 
                             if let Some(item_id) = &worn {
                                 let display = lookup_item_details(item_id)

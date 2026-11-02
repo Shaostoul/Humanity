@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::{Health, Transform};
+use crate::ecs::components::Health;
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 

@@ -44,6 +44,7 @@
 //! actually exempts something. That is the same note, moved one line, and it is
 //! the last colour literal either file had.
 
+#[cfg(test)]
 use super::*;
 
 // The Garden panel's types (crops, pests, soil pH, pollination), in

@@ -24,7 +24,7 @@ use ml_dsa::{
 use ml_kem::{
     DecapsulationKey, EncapsulationKey, MlKem768,
     array::Array,
-    kem::{Decapsulate, Encapsulate, FromSeed, Key, KeyExport, KeyInit, TryKeyInit},
+    kem::{Decapsulate, Encapsulate, FromSeed, Key, KeyExport},
 };
 
 use crate::relay::core::error::{Error, Result};

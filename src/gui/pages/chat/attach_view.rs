@@ -150,6 +150,7 @@ pub(crate) fn plan(state: &GuiState, msg: &ChatMessage, att: &DmAttachment) -> P
 /// Fetch the ciphertext at `url` with `fetch` (capped at what a picture shown in place may be)
 /// and decrypt it in memory with the marker's key and nonce: the in-place picture. Any failure is
 /// an error; the caller shows `CANNOT_OPEN`, never the error.
+#[cfg(test)]
 pub(crate) fn open<F>(url: &str, k: &str, n: &str, fetch: F) -> Result<Vec<u8>, String>
 where
     F: FnOnce(&str, usize) -> Result<Vec<u8>, String>,
@@ -284,8 +285,8 @@ pub(super) fn draw_ask_box(ui: &mut egui::Ui, theme: &Theme, row_bg: Color32, in
     );
     let hovered = resp.hovered();
     let fill = if hovered { theme.bg_tertiary() } else { row_bg };
-    ui.painter().rect_filled(box_rect, Rounding::same(4), fill);
-    ui.painter().rect_stroke(box_rect, Rounding::same(4), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+    ui.painter().rect_filled(box_rect, CornerRadius::same(4), fill);
+    ui.painter().rect_stroke(box_rect, CornerRadius::same(4), Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
     // Clipped to the box, so a long name cannot spill over the chat.
     let painter = ui.painter_at(box_rect.shrink(1.0));
     let line_h = theme.font_size_small + 4.0;
@@ -400,7 +401,7 @@ fn draw_file(
                     let mut mesh = egui::Mesh::with_texture(tex.id());
                     mesh.add_rect_with_uv(img_rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
                     ui.painter().add(egui::Shape::mesh(mesh));
-                    ui.painter().rect_stroke(img_rect, Rounding::same(3), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+                    ui.painter().rect_stroke(img_rect, CornerRadius::same(3), Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
                 }
                 if resp.hovered() {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -439,8 +440,8 @@ fn draw_file_card(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, att:
             ui.set_min_width(ui.available_width());
             Frame::NONE
                 .fill(theme.bg_card())
-                .stroke(Stroke::new(1.0, theme.border()))
-                .rounding(Rounding::same(4))
+                .stroke(Stroke::new(1.0_f32, theme.border()))
+                .corner_radius(CornerRadius::same(4))
                 .inner_margin(egui::Margin::symmetric(8, 6))
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(theme.spacing_sm, theme.spacing_xs);

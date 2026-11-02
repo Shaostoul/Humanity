@@ -218,6 +218,7 @@ pub(crate) struct Upload {
 /// nothing sent, when it is over the size cap or its NAME holds the person's own recovery
 /// phrase (step F's guard: the name travels inside the marker, where the guard on the message
 /// text cannot read it, so it is checked here).
+#[cfg(test)]
 pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -> Option<AttachJob> {
     job_for(state, filename, Body::Bytes(bytes))
 }
@@ -534,25 +535,12 @@ pub(super) fn drain(ctx: &egui::Context, state: &mut GuiState) {
     }
 }
 
-/// Blocking multipart upload of any file to `<server_url>/api/upload?token=<this connection's token>`
-/// (v0.708; `share=true` adds `&share=1` so 3D/model files publish to the
-/// public Shared Files library, matching the web client). Returns the URL
-/// from the JSON response. Runs on a worker thread at every call site, so
-/// blocking here never freezes a frame. nginx caps the body at 6 MB.
-pub(crate) fn upload_file_blocking(
-    server_url: &str,
-    token: &str,
-    filename: &str,
-    mime: &str,
-    bytes: Vec<u8>,
-    share: bool,
-) -> Result<String, String> {
-    upload_file_blocking_ext(server_url, token, filename, mime, bytes, share, false)
-}
-
-/// As `upload_file_blocking`, plus an `encrypted` flag. When set, the body is
-/// opaque ciphertext and the server skips format/EXIF handling
-/// (`?encrypted=1`). Used for files in private conversations.
+/// Blocking multipart upload of any file to `<server_url>/api/upload?token=<this connection's token>`,
+/// `share` adding `&share=1` (a 3D or model file for the public Shared Files library) and
+/// `encrypted` adding `&encrypted=1` (opaque ciphertext: the server skips format and EXIF handling).
+/// Returns the URL from the JSON response. The app's own sends go through `upload_flagged`; this
+/// form is the tests'.
+#[cfg(test)]
 pub(crate) fn upload_file_blocking_ext(
     server_url: &str,
     token: &str,

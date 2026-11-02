@@ -26,6 +26,7 @@ pub const TICKET_PATH: &str = "/api/files/ticket";
 
 /// The full address a ticket's answer gives, on the server at `base`: only the members' file
 /// route for that item, with its ticket; anything else is refused.
+#[cfg(test)]
 pub fn ticket_address(base: &str, id: i64, answer: &Value) -> Result<String, String> {
     ticket_address_for(base, id, false, answer)
 }
@@ -45,6 +46,7 @@ pub fn ticket_address_for(base: &str, id: i64, download: bool, answer: &Value) -
 /// Ask the server at `base` for a ticket to `item`'s own file (file 0, to watch it), with this
 /// session's upload `token` in the header. Blocking: call it on a worker thread. The words never
 /// hold the token or a ticket.
+#[cfg(test)]
 pub fn ask(base: &str, token: &str, item: &ItemRef) -> Result<String, String> {
     ask_for(base, token, item, 0, false)
 }

@@ -234,7 +234,7 @@ pub(crate) fn declared_starts(path: &Path) -> Option<(f64, f64)> {
     let mut f = std::fs::File::open(path).ok()?;
     let len = f.metadata().ok()?.len();
     // The boxes directly inside [start, end): (type, body start, end).
-    let mut children = |f: &mut std::fs::File, start: u64, end: u64| -> Option<Vec<([u8; 4], u64, u64)>> {
+    let children = |f: &mut std::fs::File, start: u64, end: u64| -> Option<Vec<([u8; 4], u64, u64)>> {
         let mut out = Vec::new();
         let mut at = start;
         while at + 8 <= end && out.len() < 4096 {
@@ -736,7 +736,10 @@ pub struct SystemAudio {
 
 /// `Apartment` kept with the sound. Its drop balances `MFStartup` (a process-wide count, fine from
 /// any thread) and, on the thread that joined, COM.
-struct SendApartment(Apartment);
+struct SendApartment {
+    /// Held for its drop alone.
+    _apartment: Apartment,
+}
 // SAFETY: MFShutdown may be called from any thread, and `Apartment` leaves COM only on the thread
 // that joined it, whichever thread kira drops the sound on.
 unsafe impl Send for SendApartment {}
@@ -766,7 +769,7 @@ impl SystemAudio {
 
     fn reader(&mut self) -> Result<&IMFSourceReader, MediaError> {
         if self.reader.is_none() {
-            self.apartment = Some(SendApartment(Apartment::join()?));
+            self.apartment = Some(SendApartment { _apartment: Apartment::join()? });
             let reader = open_reader(&self.path, MF_SOURCE_READER_FIRST_AUDIO_STREAM)?.ok_or_else(|| MediaError::Audio("the file has no sound".into()))?;
             let format = AudioFormat::set_float(&reader)?.ok_or_else(|| MediaError::Audio("the file has no sound".into()))?;
             if format.rate != self.rate || format.channels != self.channels {

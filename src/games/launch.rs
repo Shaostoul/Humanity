@@ -8,7 +8,10 @@
 //! compiled in, so no test, snapshot or page drawn in a test can start a game, a store's client or
 //! a `steam://` link, whatever it clicks.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+// Only the real launchers below use it, and they are compiled out of a test build.
+#[cfg(not(test))]
+use std::path::Path;
 
 /// Something the Apps page asks the computer to start or show.
 #[derive(Debug, Clone, PartialEq, Eq)]

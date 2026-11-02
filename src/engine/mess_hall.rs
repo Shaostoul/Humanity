@@ -76,7 +76,7 @@ pub struct Counter<'a> {
 
 impl<'a> Counter<'a> {
     /// The engine's counter, measured from where the player stands now.
-    pub fn of(state: &'a mut EngineState) -> Counter<'a> {
+    pub(crate) fn of(state: &'a mut EngineState) -> Counter<'a> {
         let counter_m = nearest_counter_m(state.gui_state.home_machines.as_ref(), &state.gui_state.machine_labels, state.camera.position);
         Counter { gs: &mut state.gui_state, world: &mut state.game_world.world, data: &mut state.data_store, data_dir: &state.data_dir, counter_m }
     }
@@ -109,7 +109,7 @@ impl Meal {
 
 /// Take a meal at the counter (its card's button, and the probe's verb): the sentence it said,
 /// also left on the card.
-pub fn take_meal(state: &mut EngineState) -> String {
+pub(crate) fn take_meal(state: &mut EngineState) -> String {
     let said = take_meal_at(&mut Counter::of(state)).sentence();
     state.gui_state.fleet.counter_status = said.clone();
     said
@@ -117,7 +117,7 @@ pub fn take_meal(state: &mut EngineState) -> String {
 
 /// Fill your bottles at the counter (its card's button, and the probe's verb): the sentence it
 /// said, also left on the card.
-pub fn fill_bottles(state: &mut EngineState) -> String {
+pub(crate) fn fill_bottles(state: &mut EngineState) -> String {
     let said = fill_bottles_at(&mut Counter::of(state));
     state.gui_state.fleet.counter_status = said.clone();
     said
@@ -183,7 +183,7 @@ fn meter(data: &mut DataStore) -> crate::persistence::ShipMeals {
 /// Each frame (lib.rs, beside the trading post's flag): whether the pinned card is a serving
 /// counter, the button its card asked for carried out, and the meter mirrored for Inventory >
 /// The fleet.
-pub fn frame(state: &mut EngineState) {
+pub(crate) fn frame(state: &mut EngineState) {
     let gs = &mut state.gui_state;
     let pinned = gs.selected_machine.and_then(|i| gs.machine_labels.get(i)).map(|l| l.machine_id.clone());
     let was_open = gs.machine_card_meal;

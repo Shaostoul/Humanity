@@ -10,7 +10,7 @@
 //! and marks the asteroid as modified for re-meshing.
 
 use crate::vertex::Vertex;
-use noise::{NoiseFn, Perlin, Seedable};
+use noise::{NoiseFn, Perlin};
 use serde::Deserialize;
 
 /// Resolution: each voxel represents a 0.5m cube.
@@ -395,7 +395,6 @@ impl Asteroid {
         ];
 
         self.octree.for_each_solid(0, 0, 0, gs, &mut |x, y, z, vt: &VoxelType| {
-            let color = vt.color();
             let px = (x as f32 - center) * VOXEL_SIZE;
             let py = (y as f32 - center) * VOXEL_SIZE;
             let pz = (z as f32 - center) * VOXEL_SIZE;

@@ -1,6 +1,6 @@
 //! In-game HUD: health bar, hotbar, crosshair, compass, FPS, weather, day/night.
 
-use egui::{Align2, Area, Color32, FontId, Pos2, Rect, RichText, Rounding, Vec2};
+use egui::{Align2, Area, Color32, FontId, Pos2, Rect, RichText, CornerRadius, Vec2};
 use glam::{Mat4, Vec3};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
@@ -169,10 +169,10 @@ pub fn draw(
                 0.0
             };
             let hp_rect = Rect::from_min_size(Pos2::new(16.0, 16.0), Vec2::new(200.0, 16.0));
-            painter.rect_filled(hp_rect, Rounding::same(4), Color32::from_black_alpha(140));
+            painter.rect_filled(hp_rect, CornerRadius::same(4), Color32::from_black_alpha(140));
             let filled = Rect::from_min_size(hp_rect.min, Vec2::new(200.0 * hp, 16.0));
             let hp_color = if hp > 0.5 { theme.success() } else if hp > 0.25 { theme.warning() } else { theme.danger() };
-            painter.rect_filled(filled, Rounding::same(4), hp_color);
+            painter.rect_filled(filled, CornerRadius::same(4), hp_color);
             painter.text(
                 hp_rect.center(),
                 Align2::CENTER_CENTER,
@@ -578,7 +578,7 @@ pub fn draw(
                     sp,
                     if is_target { 5.0 } else { 3.0 },
                     egui::Stroke::new(
-                        if is_target { 1.5 } else { 1.0 },
+                        if is_target { 1.5 } else { 1.0_f32 },
                         if is_target { theme.accent() } else { Color32::from_black_alpha(150) },
                     ),
                 );
@@ -623,8 +623,8 @@ pub fn draw(
                 // enough to brighten the ring on approach.
                 let focus = to_target.dot(-fwd).clamp(0.0, 1.0).powi(8);
                 let ring_col = if focus > 0.5 { theme.accent() } else { Color32::from_white_alpha(140) };
-                painter.circle_stroke(sp, 14.0, egui::Stroke::new(1.6, ring_col));
-                painter.circle_stroke(sp, 2.0, egui::Stroke::new(1.2, ring_col));
+                painter.circle_stroke(sp, 14.0, egui::Stroke::new(1.6_f32, ring_col));
+                painter.circle_stroke(sp, 2.0, egui::Stroke::new(1.2_f32, ring_col));
                 if let Some(dir) = mark.off_screen {
                     // Out of view: a small arrow just outside the ring, pointing
                     // the way to turn (the ring sits TARGET_MARKER_MARGIN in from
@@ -848,8 +848,8 @@ pub fn draw(
                             Pos2::new(ax0 + i as f32 * (a_size + a_gap), ay),
                             Vec2::splat(a_size),
                         );
-                        painter.rect_filled(rect, Rounding::same(4), Color32::from_black_alpha(140));
-                        painter.rect_stroke(rect, Rounding::same(4), egui::Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
+                        painter.rect_filled(rect, CornerRadius::same(4), Color32::from_black_alpha(140));
+                        painter.rect_stroke(rect, CornerRadius::same(4), egui::Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Outside);
                         let ready = ab.cooldown_remaining <= 0.0;
                         // Cooldown sweep: a dark overlay that DRAINS downward
                         // as the ability recharges (full dark right after cast).
@@ -860,7 +860,7 @@ pub fn draw(
                                 Pos2::new(rect.left(), rect.bottom() - h),
                                 rect.right_bottom(),
                             );
-                            painter.rect_filled(overlay, Rounding::same(4), Color32::from_black_alpha(160));
+                            painter.rect_filled(overlay, CornerRadius::same(4), Color32::from_black_alpha(160));
                         }
                         // Two-word initials ("First Aid" -> FA).
                         let initials: String = ab
@@ -961,7 +961,7 @@ pub fn draw(
                     Pos2::new(x0 - 6.0, top - 4.0),
                     Pos2::new(x0 + width, bottom + 2.0),
                 );
-                painter.rect_filled(bg, Rounding::same(4), Color32::from_black_alpha(120));
+                painter.rect_filled(bg, CornerRadius::same(4), Color32::from_black_alpha(120));
                 // Header / connection status at the top of the box.
                 let status_col = if connected { theme.success() } else { theme.warning() };
                 text_shadowed(painter, Pos2::new(x0, top), Align2::LEFT_TOP, &status, 11.0, status_col);
@@ -1041,8 +1041,8 @@ pub fn draw(
                 // Panel-colored toast fill. RGB comes from the theme (bg_panel);
                 // only the ~90% alpha is intentional here so the toast reads over the 3D scene.
                 let toast_bg = theme.bg_panel();
-                painter.rect_filled(toast_rect, Rounding::same(6), Color32::from_rgba_premultiplied(toast_bg.r(), toast_bg.g(), toast_bg.b(), 230));
-                painter.rect_stroke(toast_rect, Rounding::same(6), egui::Stroke::new(1.0, theme.accent()), egui::StrokeKind::Outside);
+                painter.rect_filled(toast_rect, CornerRadius::same(6), Color32::from_rgba_premultiplied(toast_bg.r(), toast_bg.g(), toast_bg.b(), 230));
+                painter.rect_stroke(toast_rect, CornerRadius::same(6), egui::Stroke::new(1.0_f32, theme.accent()), egui::StrokeKind::Outside);
                 painter.text(
                     toast_rect.center(),
                     Align2::CENTER_CENTER,
@@ -1603,8 +1603,8 @@ fn draw_vital_row(painter: &egui::Painter, theme: &Theme, y: f32, row: &VitalRow
     match row.frac {
         Some(f) => {
             let bar = Rect::from_min_size(Pos2::new(66.0, y + 3.0), Vec2::new(120.0, 8.0));
-            painter.rect_filled(bar, Rounding::same(3), Color32::from_black_alpha(140));
-            painter.rect_filled(Rect::from_min_size(bar.min, Vec2::new(120.0 * f, 8.0)), Rounding::same(3), color);
+            painter.rect_filled(bar, CornerRadius::same(3), Color32::from_black_alpha(140));
+            painter.rect_filled(Rect::from_min_size(bar.min, Vec2::new(120.0 * f, 8.0)), CornerRadius::same(3), color);
         }
         None => {
             text_shadowed(painter, Pos2::new(66.0, y), Align2::LEFT_TOP, &row.text, 11.0, color);
@@ -1876,9 +1876,9 @@ fn machine_card_size(label: &crate::gui::MachineLabel) -> Vec2 {
 /// Draw the card body (background, name header, two-column stat rows) into `card`.
 /// `pinned` gives it an accent border (the E-opened station).
 fn draw_machine_card_body(painter: &egui::Painter, theme: &Theme, card: Rect, label: &crate::gui::MachineLabel, pinned: bool) {
-    painter.rect_filled(card, Rounding::same(5), Color32::from_black_alpha(if pinned { 228 } else { 205 }));
+    painter.rect_filled(card, CornerRadius::same(5), Color32::from_black_alpha(if pinned { 228 } else { 205 }));
     let border = if pinned { theme.accent() } else { Color32::from_white_alpha(45) };
-    painter.rect_stroke(card, Rounding::same(5), egui::Stroke::new(1.0, border), egui::StrokeKind::Outside);
+    painter.rect_stroke(card, CornerRadius::same(5), egui::Stroke::new(1.0_f32, border), egui::StrokeKind::Outside);
     let mut y = card.top() + CARD_PAD;
     painter.text(Pos2::new(card.left() + CARD_PAD, y), Align2::LEFT_TOP, &label.name, FontId::proportional(13.0), Color32::WHITE);
     y += CARD_ROW_H + 3.0;
@@ -2163,7 +2163,7 @@ fn draw_machine_card(painter: &egui::Painter, theme: &Theme, anchor: Pos2, label
     let card = Rect::from_min_size(Pos2::new(anchor.x + 12.0, anchor.y - size.y * 0.5), size);
     draw_machine_card_body(painter, theme, card, label, false);
     // A connector tick from the dot to the card.
-    painter.line_segment([anchor + Vec2::new(4.0, 0.0), Pos2::new(card.left(), anchor.y)], egui::Stroke::new(1.0, Color32::from_white_alpha(70)));
+    painter.line_segment([anchor + Vec2::new(4.0, 0.0), Pos2::new(card.left(), anchor.y)], egui::Stroke::new(1.0_f32, Color32::from_white_alpha(70)));
 }
 
 /// Map a stat kind to its painted icon, drawn in `color` (the status color).

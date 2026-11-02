@@ -255,7 +255,6 @@ mod tests {
     /// [] / right: [\"bed\"]".
     #[test]
     fn the_bedrooms_bed_sleeps_you_as_a_built_bed_does() {
-        use crate::machines::MachineHome;
         use std::sync::Mutex;
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {

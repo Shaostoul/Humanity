@@ -21,6 +21,7 @@ pub use site::PlanetSite;
 use crate::ecs::components::Transform;
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
+#[cfg(test)]
 use glam::Vec3;
 use serde::Deserialize;
 use std::collections::HashMap;

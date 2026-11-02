@@ -88,11 +88,6 @@ pub fn defaults(arrange: Arrange) -> [f32; 3] {
     }
 }
 
-/// The way the panes go in a page area of `area`.
-pub fn arrange_of(area: egui::Vec2, theme: &Theme) -> Arrange {
-    widgets::panes::arrange_for(area, 3, MIN_PANE, theme.spacing_md)
-}
-
 /// The view switch, Panes or Gallery, in the page's heading row.
 pub(crate) fn draw_switch(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let gallery = state.settings.files_layout.gallery;

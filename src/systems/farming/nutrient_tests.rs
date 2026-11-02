@@ -430,7 +430,7 @@ fn home_stock_of(data: &DataStore, item: &str) -> u32 {
 /// banking the organic N (nothing banked, nothing back).
 #[test]
 fn compost_banks_its_organic_nitrogen_and_it_comes_back_in_the_second_year() {
-    let mut data = make_store();
+    let data = make_store();
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));

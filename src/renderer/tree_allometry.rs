@@ -152,6 +152,7 @@ fn form_diameter_exponent(form: &str) -> f32 {
 /// still narrow enough that every species in the registry failed all four of
 /// them before this increment (fir measured 22.7 against a floor of 35, oak
 /// 13.0 against 19.5, acacia 14.7 against 22, palm 17.9 against 25).
+#[cfg(test)]
 pub(crate) fn stem_butt_slenderness_band(form: &str) -> (f32, f32) {
     match form {
         "conifer" => (35.0, 100.0),
@@ -236,7 +237,9 @@ pub(crate) const FOLIAGE_TIP_R_M: f32 = TWIG_TIP_R_M * 2.0;
 /// the honest full spread, and it still fails every pre-v0.1103 form that did
 /// not route its tip through `limb_tip_radius`: the acacia measured 11.3 mm of
 /// radius and the fir 55 mm.
+#[cfg(test)]
 pub(crate) const SHOOT_R_MAX_M: f32 = 0.006;
+#[cfg(test)]
 pub(crate) const SHOOT_R_MIN_M: f32 = 0.0012;
 
 /// Length a terminal shoot should come out at, metres. See `generations_for`.

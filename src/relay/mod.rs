@@ -1034,9 +1034,9 @@ pub async fn run_relay() {
                 // The random picks in a block of their own: the generator may not be held over
                 // the await below.
                 let (pick, line_at) = {
-                    let mut rng = rand::thread_rng();
-                    let pick = rng.gen_range(0..candidates.len());
-                    (pick, rng.gen_range(0..candidates[pick].4.len()))
+                    let mut rng = rand::rng();
+                    let pick = rng.random_range(0..candidates.len());
+                    (pick, rng.random_range(0..candidates[pick].4.len()))
                 };
                 let (entity_id, speaker, room_id, position, lines) = &candidates[pick];
                 let line = &lines[line_at];

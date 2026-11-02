@@ -9,7 +9,7 @@
 //! widgets::alert(ui, theme, AlertKind::Error, "Failed to load profile data");
 //! ```
 
-use egui::{Color32, Frame, RichText, Rounding, Stroke, Ui};
+use egui::{Color32, Frame, RichText, CornerRadius, Stroke, Ui};
 use super::super::theme::Theme;
 
 /// Severity of an alert. Drives the icon + accent colour.
@@ -69,10 +69,10 @@ fn alert_inner(
     // 18% alpha background tint of the accent — readable but unobtrusive.
     let bg = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 46); // theme-exempt: alpha composite of the kind's theme accent token, not a literal
 
-    Frame::none()
+    Frame::NONE
         .fill(bg)
-        .stroke(Stroke::new(1.0, accent))
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .stroke(Stroke::new(1.0_f32, accent))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
         .show(ui, |ui| {
             ui.horizontal(|ui| {

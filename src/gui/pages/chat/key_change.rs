@@ -14,7 +14,7 @@ pub(super) fn draw_key_change_notice(ui: &mut egui::Ui, theme: &Theme, state: &m
     let mut accept = false;
     Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, theme.warning()))
+        .stroke(Stroke::new(1.0_f32, theme.warning()))
         .inner_margin(egui::Margin::symmetric(12, 8))
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());

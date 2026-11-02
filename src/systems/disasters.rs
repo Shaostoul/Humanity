@@ -191,9 +191,9 @@ impl DisasterSystem {
             let chain_intensity = (intensity * 0.6).clamp(0.1, 1.0);
             // Offset position slightly for chain reactions.
             let offset = Vec3::new(
-                self.rng.gen_range(-500.0..500.0),
+                self.rng.random_range(-500.0..500.0),
                 0.0,
-                self.rng.gen_range(-500.0..500.0),
+                self.rng.random_range(-500.0..500.0),
             );
             let chain_pos = position + offset;
 

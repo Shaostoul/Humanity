@@ -14,7 +14,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::relay::core::did::{Fingerprint, did_for_pubkey, fingerprint_to_hex};
+use crate::relay::core::did::{Fingerprint, fingerprint_to_hex};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::DidResolution;
 

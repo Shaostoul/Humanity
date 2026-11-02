@@ -973,10 +973,10 @@ fn section_card(
     color: egui::Color32,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(color.linear_multiply(0.06))
-        .stroke(egui::Stroke::new(1.0, color.linear_multiply(0.55)))
-        .rounding(egui::Rounding::same(theme.border_radius as u8))
+        .stroke(egui::Stroke::new(1.0_f32, color.linear_multiply(0.55)))
+        .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
         .inner_margin(egui::Margin::same(8))
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());

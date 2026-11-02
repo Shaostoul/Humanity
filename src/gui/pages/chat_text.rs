@@ -4,7 +4,7 @@
 //! the one-line form the in-world HUD feed draws. Chat and the HUD both read the
 //! dialect through these, so they cannot disagree about what the markup means.
 
-use egui::{Frame, RichText, Rounding, Stroke};
+use egui::{Frame, RichText, CornerRadius, Stroke};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -212,10 +212,10 @@ pub(crate) fn draw_code_blocks(ui: &mut egui::Ui, theme: &Theme, blocks: &[CodeB
                 // Bound the width so long code lines wrap inside the column
                 // instead of stretching the horizontal layout off the edge.
                 ui.set_max_width(panel_w);
-                Frame::none()
+                Frame::NONE
                     .fill(theme.bg_card())
                     .stroke(Stroke::new(theme.border_width, theme.border()))
-                    .rounding(Rounding::same(4))
+                    .corner_radius(CornerRadius::same(4))
                     .inner_margin(egui::Margin::same(8))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {

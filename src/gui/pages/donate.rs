@@ -8,7 +8,7 @@
 //! Supports dynamic donation addresses from server config (funding.addresses array)
 //! with fallback to local config for offline mode.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -209,7 +209,7 @@ fn with_local<R>(f: impl FnOnce(&mut DonatePageState) -> R) -> R {
 /// Colored circle with a short abbreviation: the icon every card on this page uses.
 fn paint_icon(ui: &mut egui::Ui, abbrev: &str, color: Color32) {
     let (icon_rect, _) = ui.allocate_exact_size(Vec2::new(44.0, 44.0), egui::Sense::hover());
-    ui.painter().rect_filled(icon_rect, Rounding::same(22), color);
+    ui.painter().rect_filled(icon_rect, CornerRadius::same(22), color);
     ui.painter().text(
         icon_rect.center(),
         egui::Align2::CENTER_CENTER,
@@ -273,7 +273,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let sources = build_donation_sources(state);
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
                 // Hero section
@@ -416,9 +416,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 .monospace(),
                                         );
                                         if with_hint(ui, "donate.copy_address_hint", |ui| widgets::secondary_button(ui, theme, t("donate.copy_address"))) {
-                                            ui.output_mut(|o| {
-                                                o.copied_text = source.value.clone();
-                                            });
+                                            ui.ctx().copy_text(source.value.clone());
                                             with_local(|ds| {
                                                 ds.copied_message = tf("donate.copied_address", &[("network", &source.network)]);
                                                 ds.copied_timer = 3.0;

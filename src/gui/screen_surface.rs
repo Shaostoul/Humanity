@@ -728,7 +728,7 @@ impl ScreenCore {
         // run below. `self.textures` (borrowed by the guard) and `self.ctx`
         // (borrowed by the run) are disjoint fields, so both borrows coexist.
         // `ctx.run` wants an FnMut and `f` is FnOnce, hence the Option take.
-        let mut guard = TextureSwap::new(gui_state, &mut self.textures);
+        let guard = TextureSwap::new(gui_state, &mut self.textures);
         let mut f = Some(f);
         let out = self.ctx.run(input, |ctx| {
             if let Some(f) = f.take() {

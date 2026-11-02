@@ -92,7 +92,7 @@ fn every_item_says_what_remove_does_and_its_own_name() {
     db.record_upload(&ann.key, "1_chat.png", 100, 0i64, "Holiday photo.png", 4).unwrap();
     let s = db.get_server_settings().unwrap();
     let chat = PublishBody { key: ann.key.clone(), filename: "1_chat.png".into(), ..Default::default() };
-    publish_core(db, &s, &[], d.folders(), &chat).unwrap();
+    assert_eq!(publish_core(db, &s, &[], d.folders(), &chat).unwrap().0["item"]["filename"], "1_chat.png");
     published(db, &d, &ann.key, "2_made.mp4", "public");
 
     let list = list_core(db, &s, &ListParams::default(), None, None).unwrap().0;
@@ -182,7 +182,7 @@ fn a_members_own_use_is_the_room_checks_number() {
     db.record_upload(&ann.key, "1_item.mp4", 100, MEDIA_SHELF, "item.mp4", 3 * MIB).unwrap();
     std::fs::write(d.waiting.join("1_item.mp4"), b"x").unwrap();
     let body = PublishBody { key: ann.key.clone(), filename: "1_item.mp4".into(), ..Default::default() };
-    publish_core(db, &s, &[], d.folders(), &body).unwrap();
+    assert_eq!(publish_core(db, &s, &[], d.folders(), &body).unwrap().0["item"]["filename"], "1_item.mp4");
     db.record_upload(&ann.key, "2_wait.mp4", 100, MEDIA_SHELF, "Clip from the beach.mp4", 2 * MIB).unwrap();
     db.record_upload("someone_else", "3_theirs.mp4", 100, MEDIA_SHELF, "theirs.mp4", MIB).unwrap();
 
@@ -228,7 +228,7 @@ fn a_kept_item_leaves_its_uploaders_share() {
         .unwrap();
 
     assert_eq!(keep_core(db, &bea.key, item.id, true).unwrap_err().0, StatusCode::FORBIDDEN, "a member cannot keep");
-    keep_core(db, &mo.key, item.id, true).expect("a moderator keeps it");
+    assert_eq!(keep_core(db, &mo.key, item.id, true).expect("a moderator keeps it").0["kept"], true);
     assert_eq!(db.media_bytes(Some(&ann.key)), 0, "a kept item stops counting against its uploader's share");
     assert_eq!(db.media_bytes(None), 6 * MIB, "it still counts against the file space");
     assert!(db.media_item(item.id).unwrap().unwrap().kept);
@@ -237,28 +237,28 @@ fn a_kept_item_leaves_its_uploaders_share() {
     assert!(usage.largest.is_empty() && usage.oldest.is_empty() && usage.least_viewed.is_empty(), "no prune list has it");
     assert!(usage.people.iter().all(|p| p.key != ann.key), "nor Ann's share line");
 
-    keep_core(db, &mo.key, item.id, false).unwrap();
+    assert_eq!(keep_core(db, &mo.key, item.id, false).unwrap().0["kept"], false);
     assert_eq!(db.media_bytes(Some(&ann.key)), 6 * MIB, "back in her share, past it");
     assert!(db.media_item(item.id).unwrap().is_some(), "and not deleted for that");
     assert!(media_room(db, &s, &ann.key, 1, Reserved::default()).is_err(), "the share stops her next upload");
-    keep_core(db, &mo.key, item.id, true).unwrap();
+    assert_eq!(keep_core(db, &mo.key, item.id, true).unwrap().0["kept"], true);
 
     // A keep is undone only by the same or a higher role (2026-10-12). Seen red with the rank
     // check taken out of keep_core: the moderator's stop came back Ok, so `unwrap_err` panicked.
     let ad = person(10);
     db.join_server(&ad.key, "Ada").unwrap();
     db.set_role(&ad.key, "admin").unwrap();
-    keep_core(db, &ad.key, item.id, true).expect("an admin keeps it");
+    assert_eq!(keep_core(db, &ad.key, item.id, true).expect("an admin keeps it").0["kept"], true);
     let refused = keep_core(db, &mo.key, item.id, false).unwrap_err();
     assert_eq!(refused.0, StatusCode::FORBIDDEN, "a moderator cannot stop an admin's keep");
     assert!(refused.1.contains("only an admin"), "and is told why: {}", refused.1);
-    keep_core(db, &mo.key, item.id, true).expect("a moderator keeping it again is fine");
+    assert_eq!(keep_core(db, &mo.key, item.id, true).expect("a moderator keeping it again is fine").0["kept"], true);
     assert_eq!(db.media_kept_by(item.id).unwrap().as_deref(), Some(ad.key.as_str()), "and leaves it kept by the admin");
-    keep_core(db, &ad.key, item.id, false).expect("the admin can stop keeping it");
-    keep_core(db, &mo.key, item.id, true).unwrap();
-    keep_core(db, &ad.key, item.id, false).expect("an admin can stop a moderator's keep");
-    keep_core(db, &mo.key, item.id, true).unwrap();
-    remove_core(db, d.folders(), &RemoveTarget::Item(item.id), &ann.key).expect("the uploader can still remove a kept item");
+    assert_eq!(keep_core(db, &ad.key, item.id, false).expect("the admin can stop keeping it").0["kept"], false);
+    assert_eq!(keep_core(db, &mo.key, item.id, true).unwrap().0["kept"], true);
+    assert_eq!(keep_core(db, &ad.key, item.id, false).expect("an admin can stop a moderator's keep").0["kept"], false);
+    assert_eq!(keep_core(db, &mo.key, item.id, true).unwrap().0["kept"], true);
+    assert_eq!(remove_core(db, d.folders(), &RemoveTarget::Item(item.id), &ann.key).expect("the uploader can still remove a kept item").0["removed"], item.id);
 }
 
 /// W5. A STALE TILE NEVER ACTS ON ANOTHER ITEM: item numbers are never reused (the newest item
@@ -279,7 +279,7 @@ async fn a_stale_tile_never_acts_on_another_item() {
     state.db.set_role(&op.key, "admin").unwrap();
     published(&state.db, &d, &ann.key, "1_a.png", "public");
     let newest = published(&state.db, &d, &ann.key, "2_b.png", "public");
-    remove_core(&state.db, d.folders(), &RemoveTarget::Item(newest.id), &ann.key).unwrap();
+    assert_eq!(remove_core(&state.db, d.folders(), &RemoveTarget::Item(newest.id), &ann.key).unwrap().0["removed"], newest.id);
     let next = published(&state.db, &d, &ann.key, "3_c.png", "public");
     assert_eq!(next.id, newest.id + 1, "a removed item's number is never given again");
 
@@ -297,7 +297,7 @@ async fn a_stale_tile_never_acts_on_another_item() {
     let unnamed = feature(State(state.clone()), Json(feature_named("", now + 1))).await.unwrap_err();
     assert_eq!((unnamed.0, unnamed.1.as_str()), (StatusCode::BAD_REQUEST, NAME_THE_FILE));
     assert!(!state.db.media_item(next.id).unwrap().unwrap().featured.is_on(), "nothing changed");
-    feature(State(state.clone()), Json(feature_named("/uploads/3_c.png", now + 2))).await.expect("its own file, as its address");
+    assert_eq!(feature(State(state.clone()), Json(feature_named("/uploads/3_c.png", now + 2))).await.expect("its own file, as its address").0["featured"], "main");
 
     let keep_b = KeepBody { key: op.key.clone(), timestamp: now, sig: op.sign(&keep_purpose(next.id, true), now), id: next.id, kept: true, filename: "1_a.png".into() };
     assert_eq!(keep(State(state.clone()), Json(keep_b)).await.unwrap_err().0, StatusCode::CONFLICT, "keep");
@@ -452,13 +452,13 @@ fn a_media_upload_waits_where_nothing_serves_it() {
 
     let publish = |file: &str, visibility: &str| {
         let body = PublishBody { key: ann.key.clone(), filename: file.into(), visibility: Some(visibility.into()), ..Default::default() };
-        publish_core(db, &s, &[], d.folders(), &body).unwrap();
+        assert_eq!(publish_core(db, &s, &[], d.folders(), &body).unwrap().0["item"]["visibility"], visibility);
     };
     publish("1_pub.png", "public");
     publish("2_mem.mp4", "members");
     assert!(d.uploads.join("1_pub.png").is_file() && !d.waiting.join("1_pub.png").exists(), "published public, it moves to its address");
     assert!(d.members.join("2_mem.mp4").is_file() && !d.uploads.join("2_mem.mp4").exists(), "members only, to the members' folder");
-    remove_core(db, d.folders(), &RemoveTarget::Upload("3_gone.mp4".into()), &ann.key).unwrap();
+    assert_eq!(remove_core(db, d.folders(), &RemoveTarget::Upload("3_gone.mp4".into()), &ann.key).unwrap().0["removed_upload"], "3_gone.mp4");
     assert!(!d.waiting.join("3_gone.mp4").exists(), "a removal by name deletes it where it waits");
 }
 
@@ -527,7 +527,7 @@ fn a_members_only_item_names_its_stored_file() {
     let id = item["id"].as_i64().unwrap();
     let name = item["filename"].as_str().unwrap().to_string();
     same_item(db, id, &name).expect("the name it gives is the name a write must send");
-    remove_core(db, d.folders(), &RemoveTarget::Item(id), &ann.key).expect("and the remove goes through");
+    assert_eq!(remove_core(db, d.folders(), &RemoveTarget::Item(id), &ann.key).expect("and the remove goes through").0["removed"], id);
 }
 
 /// A PRIVATE FILE NEVER LEAVES BEFORE ITS DM: the mailbox keeps what arrived on day D until day

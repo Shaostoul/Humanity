@@ -212,7 +212,7 @@ fn draw_overlay(ctx: &egui::Context, theme: &Theme, words: &str, takes: bool, ov
         .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(theme.bg_card())
-                .stroke(egui::Stroke::new(2.0, edge))
+                .stroke(egui::Stroke::new(2.0_f32, edge))
                 .corner_radius(egui::CornerRadius::same(theme.border_radius_lg as u8))
                 .inner_margin(egui::Margin::same((theme.spacing_lg) as i8))
                 .show(ui, |ui| {
@@ -247,7 +247,7 @@ fn draw_note(ctx: &egui::Context, theme: &Theme) {
         .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(theme.bg_card())
-                .stroke(egui::Stroke::new(1.0, theme.warning()))
+                .stroke(egui::Stroke::new(1.0_f32, theme.warning()))
                 .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
                 .inner_margin(egui::Margin::symmetric(12, 8))
                 .show(ui, |ui| {

@@ -133,7 +133,7 @@ pub(super) fn draw_you(
     let inside = super::ship_view::shown_level(&state.maps).is_some();
     let ring: Vec<DVec3> = orbit_ring(me.ship_pos_m, me.ship_vel_mps, me.parent_mu, 192).into_iter().map(|p| scene.ship_place(p)).collect();
     if !inside {
-        stroke_ring(paint, proj, &ring, Stroke::new(1.2, accent.gamma_multiply(0.7)));
+        stroke_ring(paint, proj, &ring, Stroke::new(1.2_f32, accent.gamma_multiply(0.7)));
     }
 
     let centre = scene.ship_place(me.ship_centre_m());
@@ -148,13 +148,13 @@ pub(super) fn draw_you(
     if !world_drawn && big && !inside {
         if let Some(edges) = box_edges(proj, me) {
             for e in edges {
-                paint.line_segment(e, Stroke::new(1.0, accent.gamma_multiply(0.8)));
+                paint.line_segment(e, Stroke::new(1.0_f32, accent.gamma_multiply(0.8)));
             }
         }
     }
     if (!world_drawn || length_px < ICON_FLOOR_PX) && !inside {
         paint.circle_filled(at, 4.0, accent);
-        paint.circle_stroke(at, 9.0, Stroke::new(1.6, accent));
+        paint.circle_stroke(at, 9.0, Stroke::new(1.6_f32, accent));
     }
     let radius = crate::cosmos::find_body(&me.parent).map(|b| b.radius_km * 1000.0).unwrap_or(0.0);
     let (name, line2) = ship_label(me, radius);
@@ -177,7 +177,7 @@ pub(super) fn draw_you(
     if big && !inside {
         if let Some((you, _)) = proj.project(me.you_world_m) {
             paint.circle_filled(you, 3.5, theme.info());
-            paint.circle_stroke(you, 6.0, Stroke::new(1.2, theme.info()));
+            paint.circle_stroke(you, 6.0, Stroke::new(1.2_f32, theme.info()));
             paint.text(you + Vec2::new(8.0, 0.0), Align2::LEFT_CENTER, "You", FontId::proportional(11.0), theme.info());
         }
     }

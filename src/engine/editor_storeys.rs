@@ -29,11 +29,11 @@ use crate::engine::state::EngineState;
 use crate::gui::pages::construction::storeys::{choose_storey, editor_cut_of, select_slab, storey_cut_key_of};
 use crate::gui::GuiState;
 use crate::ship::home_structure::{
-    storey_index, wall_in_storey, FloorSlab, HomeStructure, InteriorWall, SlabMaterial, Storey, ROOM_DIVIDER_MIN_M,
+    storey_index, wall_in_storey, FloorSlab, HomeStructure, InteriorWall, Storey,
     STOREY_EPS,
 };
 use crate::ship::ship_structure::{zone_body, zone_body_mut, ShipStructure};
-use crate::ship::storey_edits::{add_floor_slab, new_slab_top, storey_name, CutAway, EditStorey, SlabDraw};
+use crate::ship::storey_edits::{add_floor_slab, new_slab_top, CutAway, EditStorey, SlabDraw};
 
 /// How near a room's floor must be to the storey's floor to be on it (metres). A room's floor is
 /// its storey's floor exactly (`detect_rooms`), so this only absorbs float error.

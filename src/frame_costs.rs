@@ -40,8 +40,8 @@
 //! (the timestamp ring, the per-view pass ids, the VRAM walk) is `renderer::gpu_costs`, which
 //! publishes into this store.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 /// Smoothing factor for the per-frame numbers: each frame contributes 15% of

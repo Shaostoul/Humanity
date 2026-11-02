@@ -316,7 +316,7 @@ fn remainder_slice(
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, _state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 draw_content(ui, theme);

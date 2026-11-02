@@ -207,8 +207,8 @@ async fn the_public_log_never_holds_name_contact_or_statement() {
     }
     let open_one = send(&state, &[("x-real-ip", "198.51.100.4")], &form(dusk.id).replace("Rosa", "Ines"), NOON).await;
     assert_eq!(open_one.0, 200);
-    decide_core(&state.db, d.folders(), OPERATOR, 1, Outcome::Kept, "The uploader showed it is theirs.", NOON + 1000).unwrap();
-    decide_core(&state.db, d.folders(), OPERATOR, 2, Outcome::Removed, "Removed while we ask.", NOON + 2000).unwrap();
+    assert_eq!(decide_core(&state.db, d.folders(), OPERATOR, 1, Outcome::Kept, "The uploader showed it is theirs.", NOON + 1000).unwrap().0["outcome"], "kept");
+    assert_eq!(decide_core(&state.db, d.folders(), OPERATOR, 2, Outcome::Removed, "Removed while we ask.", NOON + 2000).unwrap().0["outcome"], "removed");
 
     let log = log_core(&state.db).unwrap().0;
     let text = log.to_string();
@@ -295,7 +295,8 @@ async fn removed_removes_the_item() {
     assert_eq!((gone["item_removed"].as_bool(), gone["item_already_gone"].as_bool()), (Some(false), Some(true)));
     assert_eq!(state.db.takedown_by_id(2).unwrap().unwrap().state, "removed");
 
-    decide_core(&state.db, d.folders(), OPERATOR, 3, Outcome::Kept, "", NOON).unwrap();
+    let kept = decide_core(&state.db, d.folders(), OPERATOR, 3, Outcome::Kept, "", NOON).unwrap().0;
+    assert_eq!((kept["outcome"].as_str(), kept["item_removed"].as_bool()), (Some("kept"), Some(false)));
     assert!(state.db.media_item(dawn.id).unwrap().is_some(), "kept leaves its item");
     assert_eq!(decide_core(&state.db, d.folders(), OPERATOR, 99, Outcome::Kept, "", NOON).err().map(|e| e.0), Some(StatusCode::NOT_FOUND));
 }

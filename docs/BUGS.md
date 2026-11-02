@@ -7021,7 +7021,11 @@ Main only: no tag contains it.
 ## BUG-221: anyone signed in could create or edit any board task, which rung 3 would have made a way to page anyone (FIXED 2026-11-01, found 2026-11-01; the raw handlers date from the v0.6.0 refactor, 056aa0ee1)
 
 **Found by** notifications rung 3's plan (docs/design/notifications.md, section 11), reading the task
-routes before making a task's change notify its assignee. Not operator-reported.
+routes before making a task's change notify its assignee. Not operator-reported. **Found again,
+independently, the same day** by the warnings-to-zero agent (PRIORITIES TIER 0 item 14):
+`handle_raw_task_update` never read its `my_key` parameter, an unused-variable warning this PC's
+`RUSTFLAGS=-Awarnings` had hidden until 2026-11-01, and asking why a handler ignores who is asking
+led to the same hole. The two fixes were merged into one (main's).
 
 - **The hole.** The chat's enum handlers for `task_create`, `task_update` and `task_move` ask for a
   moderator or an admin, but `src/relay/relay.rs` matches `task_create`, `task_update` and
@@ -7038,7 +7042,14 @@ routes before making a task's change notify its assignee. Not operator-reported.
   description as its twin does, and keeps the assignee and project the form sends (it dropped
   both). Test `the_board_asks_for_a_role_and_a_given_task_tells_its_assignee`
   (`src/relay/handlers/task_notice_tests.rs`), seen red with the role check taken out of
-  `handle_raw_task_update` ("no role: the task is unchanged").
+  `handle_raw_task_update` ("no role: the task is unchanged"). The warnings agent's tests
+  (`src/relay/handlers/msg_handlers_task_rules_tests.rs`) cover the other raw paths against the
+  same answers: a member's raw update (status, title, priority and assignee all at once), raw
+  create and raw comment change nothing and are told why, and an admin's update and create and a
+  verified member's comment still go through; seen red with the checks taken out (the member's
+  update changed all four fields, the member's create made a second task).
 - **Lesson.** When a message type is matched in two places, the first match is the only one that
   runs: a check on the second is dead code that reads as protection. Look for the raw match before
-  trusting an enum handler's guard.
+  trusting an enum handler's guard. And a warning that a handler never reads its `my_key` (or any
+  parameter that names who is asking) is worth reading as a question about permissions, not as
+  tidying: here it was the whole bug.

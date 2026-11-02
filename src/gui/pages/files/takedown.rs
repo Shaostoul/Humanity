@@ -582,7 +582,7 @@ fn draw_log(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 /// One decided report: its outcome, the item, the dates and number, and the admin's note. Only the
 /// [`LogRow`] fields exist to be drawn.
 fn draw_log_row(ui: &mut egui::Ui, theme: &Theme, r: &LogRow) {
-    egui::Frame::none().stroke(egui::Stroke::new(1.0, theme.border())).rounding(egui::Rounding::same(theme.border_radius as u8)).inner_margin(theme.spacing_sm).show(ui, |ui| {
+    egui::Frame::NONE.stroke(egui::Stroke::new(1.0_f32, theme.border())).corner_radius(egui::CornerRadius::same(theme.border_radius as u8)).inner_margin(theme.spacing_sm).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.horizontal_wrapped(|ui| {
             let (word, color) = match r.outcome.as_str() {
@@ -660,7 +660,7 @@ fn draw_open_report(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, r: &
     let asking = state.files.takedown.confirm_remove == Some(r.id);
     let mut decide: Option<bool> = None;
     let mut open_item = false;
-    egui::Frame::none().stroke(egui::Stroke::new(1.0, theme.border())).rounding(egui::Rounding::same(theme.border_radius as u8)).inner_margin(theme.spacing_sm).show(ui, |ui| {
+    egui::Frame::NONE.stroke(egui::Stroke::new(1.0_f32, theme.border())).corner_radius(egui::CornerRadius::same(theme.border_radius as u8)).inner_margin(theme.spacing_sm).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.horizontal_wrapped(|ui| {
             let mut head = format!("Report #{} about {}", r.id, item_words(r.item_id, &r.item_title));

@@ -13,7 +13,7 @@
 //! The website's twin is `web/shared/view-toggle.js` with `.view-toggle` in
 //! `web/shared/list-views.css`.
 
-use egui::{Color32, Id, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
+use egui::{Color32, Id, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 use serde::{Deserialize, Serialize};
 
 use super::hint::Hint;
@@ -103,7 +103,7 @@ pub fn show(ui: &mut Ui, theme: &Theme, id_salt: impl std::hash::Hash, view: &mu
             changed = true;
         }
     }
-    painter.rect_stroke(outer, egui::CornerRadius::same(radius), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+    painter.rect_stroke(outer, egui::CornerRadius::same(radius), Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
     changed
 }
 
@@ -133,7 +133,7 @@ fn paint_icon(painter: &egui::Painter, view: ListView, rect: Rect, ink: Color32)
     let r = rect.shrink(rect.width() * 0.08);
     match view {
         ListView::Table => {
-            let stroke = Stroke::new(1.0, ink);
+            let stroke = Stroke::new(1.0_f32, ink);
             painter.rect_stroke(r, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
             for k in 1..4 {
                 let y = r.top() + r.height() * k as f32 / 4.0;
@@ -167,7 +167,7 @@ mod tests {
         let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0));
         let mut rect = Rect::NOTHING;
         let mut seen = ListView::Cards;
-        let mut frame = |events: Vec<egui::Event>, rect: &mut Rect, seen: &mut ListView| {
+        let frame = |events: Vec<egui::Event>, rect: &mut Rect, seen: &mut ListView| {
             let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
             let _ = ctx.run(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {

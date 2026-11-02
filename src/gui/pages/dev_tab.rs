@@ -47,10 +47,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .min_width(150.0)
         .max_width(260.0)
         .frame(
-            Frame::none()
+            Frame::NONE
                 .fill(theme.bg_sidebar())
                 .inner_margin(egui::Margin::symmetric(8, 12))
-                .stroke(Stroke::new(1.0, theme.border())),
+                .stroke(Stroke::new(1.0_f32, theme.border())),
         )
         .show(ctx, |ui| {
             let c = theme.nav_tools();

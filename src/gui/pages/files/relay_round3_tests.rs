@@ -304,7 +304,7 @@ fn a_finished_upload_cancelled_on_the_real_relay_leaves_nothing() {
     let (id, stored) = upload_whole(&r, "desk_r4_cancel_b", 300_000);
     let settings = r.state.db.get_server_settings().unwrap();
     let body = crate::relay::files::PublishBody { key: "ann".into(), filename: stored.clone(), ..Default::default() };
-    crate::relay::files::publish_core(&r.state.db, &settings, &[], r.dirs.folders(), &body).expect("published");
+    assert_eq!(crate::relay::files::publish_core(&r.state.db, &settings, &[], r.dirs.folders(), &body).expect("published").0["item"]["filename"], stored.as_str());
     let state = cancel_from_the_page(&r, &id);
     assert_eq!(state.files.status, upload_cancel::ALREADY_ON_FILES, "the page says the item stays");
     assert!(r.state.db.media_item_for_upload(&stored).unwrap().is_some(), "and it does");

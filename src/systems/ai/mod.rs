@@ -374,12 +374,12 @@ impl AISystem {
 
         if *timer <= 0.0 {
             // Pick a new wander target
-            let mut rng = rand::thread_rng();
-            let angle: f32 = rng.gen_range(0.0..std::f32::consts::TAU);
-            let dist: f32 = rng.gen_range(2.0..WANDER_RADIUS);
+            let mut rng = rand::rng();
+            let angle: f32 = rng.random_range(0.0..std::f32::consts::TAU);
+            let dist: f32 = rng.random_range(2.0..WANDER_RADIUS);
             let target_pos = me.position + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
             self.wander_targets.insert(me.id, target_pos);
-            *timer = rng.gen_range(3.0..8.0); // wander for 3-8 seconds
+            *timer = rng.random_range(3.0..8.0); // wander for 3-8 seconds
         }
 
         if let Some(&target_pos) = self.wander_targets.get(&me.id) {

@@ -229,6 +229,8 @@ pub(crate) struct TreeParts {
 /// widen them and fail the gate.
 pub(crate) struct BarkRun {
     /// The radius the count was derived from: the limb's widest drawn ring.
+    // Read only by the bark gate (tests), like `TreeParts::forks`.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub ref_r: f32,
     pub reps_lo: f32,
     pub reps_hi: f32,
@@ -2380,6 +2382,7 @@ impl LimbShape {
 
     /// The DRAWN radius at station `x` for a vertex whose outward radial unit
     /// is `m`.
+    #[cfg(test)]
     fn radius_at_dir(&self, m: [f32; 3], x: f32) -> f32 {
         self.base_radius_at(x) * self.flare.mul(m, x)
     }
@@ -2394,6 +2397,9 @@ impl LimbShape {
 
 /// One recorded junction: what the child was welded to, the limb it grew, and
 /// where its leading rings ended up. Read by the back-poke and flare gates.
+// Written by every build, read only by the tree gates in this file's tests (permanent
+// instrumentation, see `TreeParts::forks`), so dead outside a test build.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) struct Fork {
     pub parent: Junction,
     pub start: [f32; 3],
@@ -2411,6 +2417,8 @@ pub(crate) struct Fork {
 /// One ring of drawn limb: enough to reconstruct its vertices exactly, because
 /// `ring_basis`/`ring_point`/`ring_at` are shared with the tube that drew it.
 #[derive(Clone, Copy)]
+// Read only by the back-poke and flare gates (tests), like `Fork`.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) struct ForkRing {
     pub centre: [f32; 3],
     pub ax: [f32; 3],
@@ -2424,6 +2432,7 @@ pub(crate) struct ForkRing {
     pub flare: Option<FlareAt>,
 }
 
+#[cfg(test)]
 impl ForkRing {
     /// The vertices `bark_tube` put on this ring, in order.
     pub fn vertices(&self) -> Vec<[f32; 3]> {

@@ -459,10 +459,6 @@ impl Clock {
         self.reported.set(pos);
     }
 
-    /// Back to the beginning.
-    fn reset(&mut self) {
-        self.seek(0.0);
-    }
 }
 
 // ---------------------------------------------------------------------------

@@ -26,7 +26,7 @@ use crate::gui::{GuiPage, GuiState, SettingsCategory, WebSite, WebSiteCategory};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
+        .frame(Frame::NONE.fill(theme.bg_primary()).inner_margin(0.0))
         .show(ctx, |ui| {
             if state.settings.readable_web && state.web_view.is_open() {
                 draw_reader(ui, theme, state);
@@ -51,7 +51,7 @@ fn draw_reader(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // navigation to a site whose terms forbid being shown inside other
     // software is refused before it is fetched (web_view.rs).
     state.web_view.apply_embed_gate(&state.web_sites);
-    Frame::none().inner_margin(egui::Margin::same(inner as i8)).show(ui, |ui| {
+    Frame::NONE.inner_margin(egui::Margin::same(inner as i8)).show(ui, |ui| {
         let resp = state.web_view.show(ui, theme, &mut state.image_cache, disclosure.as_deref());
         if resp.wants_close {
             state.web_view.close();
@@ -248,11 +248,11 @@ fn draw_site_card(
     };
     let stroke_color = if resp.hovered() { accent } else { theme.border() };
 
-    painter.rect_filled(rect, egui::Rounding::same(theme.border_radius as u8), bg);
+    painter.rect_filled(rect, egui::CornerRadius::same(theme.border_radius as u8), bg);
     painter.rect_stroke(
         rect,
-        egui::Rounding::same(theme.border_radius as u8),
-        Stroke::new(1.5, stroke_color),
+        egui::CornerRadius::same(theme.border_radius as u8),
+        Stroke::new(1.5_f32, stroke_color),
         egui::StrokeKind::Inside,
     );
 

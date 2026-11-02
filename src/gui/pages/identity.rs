@@ -7,7 +7,7 @@
 
 use egui::{RichText, ScrollArea};
 use crate::gui::theme::Theme;
-use crate::gui::widgets::{self, Button, ButtonSize};
+use crate::gui::widgets::{self, Button};
 use crate::gui::GuiState;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {

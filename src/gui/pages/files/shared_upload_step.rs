@@ -19,7 +19,7 @@ use std::sync::mpsc::Receiver;
 pub struct UploadStep {
     pub path: PathBuf,
     pub filename: String,
-    pub looking: Looking,
+    pub(crate) looking: Looking,
     pub remove: bool,
 }
 

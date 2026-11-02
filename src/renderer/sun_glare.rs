@@ -19,7 +19,7 @@
 //! Every queue write here lands before the submit that reads it: each pass
 //! submits its own encoder, in frame order, and the views never interleave.
 
-use super::camera::{self, Camera};
+use super::camera::Camera;
 use super::Renderer;
 use crate::frame_costs;
 use bytemuck::{Pod, Zeroable};

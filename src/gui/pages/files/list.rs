@@ -95,7 +95,7 @@ pub(crate) fn row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: 
     let radius = egui::CornerRadius::same(theme.border_radius as u8);
     let painter = ui.painter_at(rect);
     if chosen {
-        painter.rect(rect, radius, theme.accent().gamma_multiply(0.18), egui::Stroke::new(1.5, theme.accent()), egui::StrokeKind::Inside);
+        painter.rect(rect, radius, theme.accent().gamma_multiply(0.18), egui::Stroke::new(1.5_f32, theme.accent()), egui::StrokeKind::Inside);
     } else if resp.hovered() {
         painter.rect_filled(rect, radius, theme.bg_tertiary());
     }

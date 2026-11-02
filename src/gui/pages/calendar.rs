@@ -1,7 +1,7 @@
 //! Calendar page — month view with 7-column grid, event dots, day selection,
 //! event list in right panel, and add-event form with time/color/description.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use crate::gui::{GuiCalendarEvent, GuiState};
 use crate::i18n::{t, t_dyn, tf};
 use crate::gui::theme::Theme;
@@ -40,7 +40,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
 fn draw_page(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             // Navigation header
             ui.horizontal(|ui| {
@@ -145,9 +145,9 @@ fn draw_page(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 } else {
                                     Color32::TRANSPARENT
                                 };
-                                ui.painter().rect_filled(rect, Rounding::same(4), fill);
+                                ui.painter().rect_filled(rect, CornerRadius::same(4), fill);
                                 if is_today && !is_selected {
-                                    ui.painter().rect_stroke(rect, Rounding::same(4), Stroke::new(1.5, theme.accent()), egui::StrokeKind::Outside);
+                                    ui.painter().rect_stroke(rect, CornerRadius::same(4), Stroke::new(1.5_f32, theme.accent()), egui::StrokeKind::Outside);
                                 }
 
                                 // Day number

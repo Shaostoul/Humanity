@@ -136,13 +136,13 @@ pub(crate) fn draw_for_version(ctx: &egui::Context, theme: &Theme, state: &mut G
 fn draw_warning(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, version: &str) {
     let size = theme.font_size_small;
     let panel = egui::TopBottomPanel::bottom(WARNING_PANEL)
-        .frame(egui::Frame::none().fill(theme.warning_bg()).inner_margin(egui::Margin::symmetric(8, 3)))
+        .frame(egui::Frame::NONE.fill(theme.warning_bg()).inner_margin(egui::Margin::symmetric(8, 3)))
         // Its own edge in the warning colour, not the panel's grey separator.
         .show_separator_line(false)
         .resizable(false)
         .show(ctx, |ui| {
             let edge = ui.max_rect().expand2(egui::vec2(8.0, 3.0));
-            ui.painter().hline(edge.x_range(), edge.top() + 0.5, Stroke::new(1.0, theme.warning()));
+            ui.painter().hline(edge.x_range(), edge.top() + 0.5, Stroke::new(1.0_f32, theme.warning()));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.label(RichText::new(tf("wip.version", &[("version", &version)])).size(size).color(theme.text_muted()));
                 ui.add_space(theme.spacing_md);

@@ -5,14 +5,10 @@
 //! encryption), not in the storage layer. SQLite is just the container
 //! for signed, tamper-evident objects.
 
-use rand::Rng;
-use rusqlite::{Connection, OptionalExtension, params};
-use std::collections::HashMap;
+use rusqlite::Connection;
 use std::path::Path;
 use std::sync::Mutex;
 use tracing::info;
-
-use crate::relay::relay::RelayMessage;
 
 /// A persisted pinned message record.
 #[derive(Debug, Clone)]
@@ -3265,7 +3261,7 @@ mod resilient_open_tests {
         // Corrupt live DB.
         std::fs::write(&db, b"corrupt live").unwrap();
 
-        let s = Storage::open_resilient(&db, &backups).expect("should fall back to older healthy backup");
+        let _s = Storage::open_resilient(&db, &backups).expect("should fall back to older healthy backup");
         assert_eq!(marker_count(&db, 333), 1, "should have restored the older HEALTHY backup");
     }
 }

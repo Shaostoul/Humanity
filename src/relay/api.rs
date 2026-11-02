@@ -2018,7 +2018,6 @@ pub async fn get_vapid_public_key(
     state: State<Arc<RelayState>>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     use base64ct::{Base64UrlUnpadded, Encoding};
-    use web_push_native::jwt_simple::prelude::ECDSAP256KeyPairLike;
 
     let kp = state.vapid_key.as_ref()
         .ok_or((StatusCode::SERVICE_UNAVAILABLE, "VAPID not configured.".into()))?;
@@ -3338,9 +3337,9 @@ pub async fn create_guild_invite(
     let id = uuid::Uuid::new_v4().to_string();
     let code: String = {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         (0..8).map(|_| {
-            let idx = rng.gen_range(0..36);
+            let idx = rng.random_range(0..36);
             if idx < 10 { (b'0' + idx) as char }
             else { (b'a' + idx - 10) as char }
         }).collect()

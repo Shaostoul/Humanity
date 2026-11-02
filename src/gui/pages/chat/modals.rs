@@ -344,9 +344,9 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
         } else {
             key.clone()
         };
-        Frame::none()
+        Frame::NONE
             .fill(theme.bg_secondary())
-            .rounding(Rounding::same(theme.border_radius as u8))
+            .corner_radius(CornerRadius::same(theme.border_radius as u8))
             .inner_margin(theme.spacing_sm)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {

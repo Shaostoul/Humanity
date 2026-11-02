@@ -27,10 +27,10 @@ use glam::Vec3;
 
 use crate::ship::room_types::RoomBounds;
 use crate::renderer::camera::{Underfoot, HEAD_ABOVE_EYE_M};
-use crate::ship::home_structure::{HomeStructure, STOREY_EPS};
+use crate::ship::home_structure::STOREY_EPS;
 use crate::ship::lifts::{lifts, LiftKey};
 use crate::ship::ship_structure::ShipStructure;
-use crate::ship::structure::{self, StructureKind, StructureType};
+use crate::ship::structure::{self, StructureKind};
 use crate::ship::wall_collision::{self, WallSegment, EYE_HEIGHT_M};
 
 /// The highest a body steps up in one go, metres (v0.584): onto a stair tread or a platform,

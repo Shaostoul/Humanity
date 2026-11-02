@@ -135,6 +135,7 @@ fn main() {
 }
 
 /// Current version from Cargo.toml at compile time
+#[cfg(feature = "native")]
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Scan the binaries directory for a versioned exe newer than this one.
@@ -202,6 +203,7 @@ fn find_newer_exe() -> Option<std::path::PathBuf> {
 }
 
 /// Parse "0.89.0" into [0, 89, 0] for comparison
+#[cfg(feature = "native")]
 fn parse_version(s: &str) -> Option<Vec<u32>> {
     let parts: Result<Vec<u32>, _> = s.split('.').map(|p| p.parse()).collect();
     parts.ok()

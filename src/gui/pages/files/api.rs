@@ -86,7 +86,7 @@ impl Featured {
     }
 }
 
-pub use super::api_items::{ItemFile, Licence, Licences, Sort};
+pub use super::api_items::{ItemFile, Licences, Sort};
 
 /// One Media item as every route gives it (relay/files.rs `item_json`).
 #[derive(Debug, Clone, PartialEq, Default)]

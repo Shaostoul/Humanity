@@ -1214,13 +1214,6 @@ let inside_atmo = atmo_shell_obj
             < a.scale.x
     })
     .unwrap_or(false);
-// 12c order fix: the fullscreen cloud
-// composite must respect the same rule
-// this match expresses for the shells -
-// outside the atmosphere the dome draws
-// OVER the deck. The renderer positions
-// the composite pass by this flag.
-let has_atmo = atmo_shell_obj.is_some();
 if let Some(f) =
     state.renderer.cloud_composite_frame.as_mut()
 {

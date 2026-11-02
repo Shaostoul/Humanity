@@ -37,8 +37,11 @@
 //! `wgsl_reference_constants_stay_in_sync` below, same discipline as
 //! `clouds::wgsl_cloud_constants_stay_in_sync`.
 
+// The old window, kept only to measure the new one against it (a test below).
+#[cfg(test)]
+use super::clouds::cloud_alpha_from_field;
 use super::clouds::{
-    cloud_alpha_from_field, cloud_hg, cloud_noise, cloud_synoptic_warp, cloud_weather_window, cloud_regime, cloud_rot_x, cloud_rot_y,
+    cloud_hg, cloud_noise, cloud_synoptic_warp, cloud_weather_window, cloud_regime, cloud_rot_x, cloud_rot_y,
     cloud_scatter_energy, CloudRegime, CLOUD_AMB_BASE, CLOUD_AMB_BOUNCE, CLOUD_AMB_TOP,
     CLOUD_BAND_STRETCH, CLOUD_DRIFT_CROSS, CLOUD_FIELD_HI, CLOUD_FIELD_LO, CLOUD_NIGHT_FLOOR,
     CLOUD_POWDER_STRENGTH,
@@ -82,11 +85,18 @@ const CLOUD_DETAIL_TILE_KM: f32 = 107.0;
 const CLOUD_PUFF_TILE_KM: f32 = 45.9;
 const CLOUD_FRAY_TILE_KM: f32 = 713.6;
 const CLOUD_CELL_TILE_KM: f32 = 8.0;
+// The six fade distances are read only by the tests that hold the shader's fades to them.
+#[cfg(test)]
 const CLOUD_DETAIL_FADE_NEAR_KM: f32 = 192.7;
+#[cfg(test)]
 const CLOUD_DETAIL_FADE_FAR_KM: f32 = 4495.0;
+#[cfg(test)]
 const CLOUD_PUFF_FADE_NEAR_KM: f32 = 51.4;
+#[cfg(test)]
 const CLOUD_PUFF_FADE_FAR_KM: f32 = 289.0;
+#[cfg(test)]
 const CLOUD_CELL_FADE_NEAR_KM: f32 = 30.0;
+#[cfg(test)]
 const CLOUD_CELL_FADE_FAR_KM: f32 = 60.0;
 
 // ── Small math mirrors (WGSL semantics) ──
@@ -1075,7 +1085,7 @@ mod debug_probe4 {
             let cs = ctx.carve(p, wa, &reg, 0.0);
             if cs.carve <= 0.01 { continue; }
             printed += 1;
-            let mut base = cs.carve;
+            let base = cs.carve;
             let fray_freq = 1.0 / (CLOUD_FRAY_TILE_KM * ctx.upkm);
             let fr = ctx.detail.sample([cs.ps[0]*fray_freq, cs.ps[1]*fray_freq, cs.ps[2]*fray_freq]);
             let frfbm = fr[0]*0.625 + fr[1]*0.25 + fr[2]*0.125;
@@ -1743,7 +1753,6 @@ mod cov_recenter {
             let r = 1.0 + 3.0 / r_km;
             let p = [dir[0] * r, dir[1] * r, dir[2] * r];
             let s = vol.sample([p[0] * shape_freq, p[1] * shape_freq, p[2] * shape_freq]);
-            let lofi = s[1] * 0.625 + s[2] * 0.25 + s[3] * 0.125;
             let body = s[0]; // single construction (10b): bake owns Perlin-Worley
             bodies.push(body);
         }

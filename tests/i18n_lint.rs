@@ -719,7 +719,8 @@ fn native_ui_literals_only_shrink() {
 #[derive(Debug, Clone)]
 enum Json {
     Obj(Vec<(String, Json)>),
-    Arr(Vec<Json>),
+    /// An array: walked over and dropped (the flattener reads strings in objects only).
+    Arr,
     Str(String),
     Other,
 }
@@ -818,20 +819,19 @@ fn parse_value(c: &[char], i: &mut usize) -> Result<Json, String> {
         }
         Some('[') => {
             *i += 1;
-            let mut v = Vec::new();
             skip_ws(c, i);
             if c.get(*i) == Some(&']') {
                 *i += 1;
-                return Ok(Json::Arr(v));
+                return Ok(Json::Arr);
             }
             loop {
-                v.push(parse_value(c, i)?);
+                parse_value(c, i)?;
                 skip_ws(c, i);
                 match c.get(*i) {
                     Some(',') => *i += 1,
                     Some(']') => {
                         *i += 1;
-                        return Ok(Json::Arr(v));
+                        return Ok(Json::Arr);
                     }
                     _ => return Err(format!("expected ',' or ']' at {i}")),
                 }

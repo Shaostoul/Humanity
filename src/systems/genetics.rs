@@ -124,11 +124,11 @@ impl GeneticsSystem {
 
             // Pick one allele from each parent (random within the parent's pair).
             let from_a = a_pair
-                .map(|(a1, a2)| if rng.gen_bool(0.5) { a1.clone() } else { a2.clone() })
+                .map(|(a1, a2)| if rng.random_bool(0.5) { a1.clone() } else { a2.clone() })
                 .or_else(|| b_pair.map(|(b1, _)| b1.clone()))
                 .unwrap_or_default();
             let from_b = b_pair
-                .map(|(b1, b2)| if rng.gen_bool(0.5) { b1.clone() } else { b2.clone() })
+                .map(|(b1, b2)| if rng.random_bool(0.5) { b1.clone() } else { b2.clone() })
                 .or_else(|| a_pair.map(|(a1, _)| a1.clone()))
                 .unwrap_or_default();
 
@@ -148,10 +148,10 @@ impl GeneticsSystem {
         pool: Option<&Vec<String>>,
         rng: &mut R,
     ) -> String {
-        if rng.gen::<f32>() >= DEFAULT_MUTATION_RATE { return allele; }
+        if rng.random::<f32>() >= DEFAULT_MUTATION_RATE { return allele; }
         match pool {
             Some(p) if !p.is_empty() => {
-                let idx = rng.gen_range(0..p.len());
+                let idx = rng.random_range(0..p.len());
                 p[idx].clone()
             }
             _ => allele,

@@ -201,7 +201,7 @@ pub fn link_down(state: &RelayState, peer: &str) {
 
 /// The writer wrote one frame.
 pub fn written(queued: &AtomicUsize) {
-    let _ = queued.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |q| Some(q.saturating_sub(1)));
+    let _ = queued.try_update(Ordering::Relaxed, Ordering::Relaxed, |q| Some(q.saturating_sub(1)));
 }
 
 /// `peer` asked for everything after `from` in this server's log (`their_log` is the log id it

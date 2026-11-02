@@ -1,7 +1,6 @@
 //! Core relay logic: connection management and message routing.
 
 use axum::extract::ws::{Message, WebSocket};
-use ed25519_dalek::{Signature, VerifyingKey};
 use futures::{SinkExt, StreamExt};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -2814,10 +2813,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
 
     let (mut ws_tx, mut ws_rx) = socket.split();
     let mut broadcast_rx = state.broadcast_tx.subscribe();
-    let mut peer_key: Option<String> = None;
-    // This socket's own upload token, removed when this socket closes whatever else stays open (C,
-    // 2026-10-11): the registration in `peers` shows only the newest socket's token.
-    let mut my_upload_token: Option<String> = None;
+    // This socket's key, and its own upload token (removed when this socket closes whatever else
+    // stays open, C, 2026-10-11: the registration in `peers` shows only the newest socket's token).
+    // Both are set just before the identify loop below ends; every other way out of it returns.
+    let peer_key: String;
+    let my_upload_token: String;
 
     // Inc3b — identify proof-of-possession. After receiving `Identify`
     // from a human (non-bot) client, we stash the unverified fields here
@@ -3182,8 +3182,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // Register peer and upload token mapping.
                 state.peers.write().await.insert(public_key.clone(), peer);
                 state.upload_tokens.write().await.insert(upload_token.clone(), public_key.clone());
-                my_upload_token = Some(upload_token.clone());
-                peer_key = Some(public_key.clone());
+                my_upload_token = upload_token.clone();
+                peer_key = public_key.clone();
 
                 // Load persisted user status.
                 if let Some(ref name) = final_name {
@@ -3380,9 +3380,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
         }
     }
 
-    let Some(my_key) = peer_key.clone() else {
-        return; // Connection closed before identifying.
-    };
+    let my_key = peer_key;
 
     // Spawn a task to forward broadcast messages to this client.
     let my_key_for_broadcast = my_key.clone();
@@ -6187,7 +6185,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     // this relay remembers erasing (the erasing client closes its socket right after the
     // erase, and the erase's own log line names no key: handlers/sign_ups.rs).
     let who = crate::relay::handlers::sign_ups::log_name_for(&state, &my_key);
-    crate::relay::handlers::live_conns::forget_upload_token(&state, my_upload_token.as_deref()).await;
+    crate::relay::handlers::live_conns::forget_upload_token(&state, Some(my_upload_token.as_str())).await;
     let seats_left =crate::relay::handlers::live_conns::depart_owned_seats(&state, &my_key, my_conn_id).await;
     if let Some(other) = crate::relay::handlers::live_conns::release_closed(&state, &my_key, my_conn_id).await {
         tracing::debug!("socket {my_conn_id} for {who} closed; socket {other} is still open");

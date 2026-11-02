@@ -12,7 +12,7 @@
 //! Real tab dropped it). It is now an alias that lands on the Real page, see
 //! [`draw`].
 
-use egui::{Color32, RichText, Rounding, Stroke, Vec2};
+use egui::{RichText, CornerRadius, Stroke, Vec2};
 use crate::gui::{GuiState, ProfileSection};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -342,11 +342,11 @@ fn draw_interests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let mut to_remove = None;
         ui.horizontal_wrapped(|ui| {
             for (i, interest) in state.profile_interests.iter().enumerate() {
-                let tag = egui::Frame::none()
+                let tag = egui::Frame::NONE
                     .fill(theme.bg_card())
-                    .rounding(Rounding::same(12))
+                    .corner_radius(CornerRadius::same(12))
                     .inner_margin(Vec2::new(8.0, 4.0))
-                    .stroke(Stroke::new(1.0, theme.border()));
+                    .stroke(Stroke::new(1.0_f32, theme.border()));
                 tag.show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;

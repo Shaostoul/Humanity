@@ -1715,10 +1715,6 @@ pub fn generate_from_layout(layout: &HomesteadLayout) -> HomesteadMeshes {
 // Hardcoded fallback
 // ---------------------------------------------------------------------------
 
-fn generate_fallback() -> HomesteadMeshes {
-    generate_from_layout(&fallback_layout())
-}
-
 /// The hardcoded fallback layout (used when no RON is present). Returns the LAYOUT so the
 /// editor + `load_layout_or_fallback` share it. (v0.455)
 fn fallback_layout() -> HomesteadLayout {

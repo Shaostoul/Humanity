@@ -171,7 +171,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let snap = dir.as_deref().map(|d| refresh(ctx, d)).unwrap_or_default();
     let mut act = None;
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 act = draw_section(ui, theme, dir.as_deref(), &snap);

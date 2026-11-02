@@ -249,7 +249,6 @@ mod tests {
     //!      loud error, never silent corruption. This is the guard that makes
     //!      "erring toward the writer is always correct" enforceable.
     use crate::relay::storage::Storage;
-    use r2d2::ManageConnection as _;
 
     /// Invariant 1: data written on the writer is visible through the read pool.
     #[test]

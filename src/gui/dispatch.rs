@@ -240,7 +240,8 @@ mod tests {
             };
             let mut drawn = false;
             for _ in 0..2 {
-                ctx.run(input(), |ctx| {
+                // The frame's shapes are not what this test reads (its state and egui's memory are).
+                let _ = ctx.run(input(), |ctx| {
                     drawn = draw_tool_page(ctx, page, &mut theme, &mut state);
                 });
             }

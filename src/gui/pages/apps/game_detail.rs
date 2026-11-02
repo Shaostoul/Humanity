@@ -282,7 +282,7 @@ fn paint_shot(ui: &egui::Ui, theme: &Theme, rect: Rect, picture: Option<(egui::T
             icons::paint_picture(ui.painter(), mark, theme.text_muted());
         }
     }
-    let stroke = if hovered { Stroke::new(2.0, theme.accent()) } else { Stroke::new(1.0, theme.border()) };
+    let stroke = if hovered { Stroke::new(2.0_f32, theme.accent()) } else { Stroke::new(1.0_f32, theme.border()) };
     ui.painter().rect_stroke(rect, corners, stroke, egui::StrokeKind::Inside);
 }
 

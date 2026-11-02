@@ -2815,7 +2815,7 @@ pub struct GuiState {
     /// chat/public_files.rs). `None` means the window is closed.
     pub chat_model_view: Option<crate::gui::model_view::Viewer>,
     /// A video posted in chat, playing in its own window (Play here, 2026-10-18).
-    pub chat_video: Option<crate::gui::pages::chat::public_files::ChatVideo>,
+    pub(crate) chat_video: Option<crate::gui::pages::chat::public_files::ChatVideo>,
 
     // ── Studio state ──
     pub studio: StudioState,

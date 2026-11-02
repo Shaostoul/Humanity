@@ -571,7 +571,8 @@ fn headless_run(
             events: ev.clone(),
             ..Default::default()
         };
-        ctx.run(input, |ctx| build(ctx));
+        // The frame's shapes are not what this test reads (its state and egui's memory are).
+        let _ = ctx.run(input, |ctx| build(ctx));
     }
     ctx
 }
@@ -634,7 +635,8 @@ fn inventory_container_header_click_toggles_open() {
     let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 1700.0));
     let run = |ctx: &egui::Context, events: Vec<egui::Event>, state: &mut GuiState, theme: &Theme| {
         let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
-        ctx.run(input, |ctx| crate::gui::pages::inventory::draw(ctx, theme, state));
+        // The frame's shapes are not what this test reads (its state and egui's memory are).
+        let _ = ctx.run(input, |ctx| crate::gui::pages::inventory::draw(ctx, theme, state));
     };
 
     // Settle: lay the page out twice so the places section expands + records the
@@ -723,7 +725,8 @@ fn web_view_link_click_queues_navigation_to_the_resolved_url() {
     let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 900.0));
     let run = |ctx: &egui::Context, events: Vec<egui::Event>, view: &mut WebViewState, images: &mut ImageCache| {
         let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
-        ctx.run(input, |ctx| {
+        // The frame's shapes are not what this test reads (its state and egui's memory are).
+        let _ = ctx.run(input, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 view.show(ui, &theme, images, None);
             });
@@ -811,7 +814,8 @@ fn web_view_requests_an_image_only_when_it_scrolls_into_view() {
 
     let run = |ctx: &egui::Context, screen: egui::Rect, view: &mut WebViewState, images: &mut ImageCache| {
         let input = egui::RawInput { screen_rect: Some(screen), events: Vec::new(), ..Default::default() };
-        ctx.run(input, |ctx| {
+        // The frame's shapes are not what this test reads (its state and egui's memory are).
+        let _ = ctx.run(input, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 view.show(ui, &theme, images, None);
             });
@@ -866,7 +870,8 @@ fn account_link_device_qr_is_discoverable_and_builds() {
     let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(960.0, 1800.0));
     let run = |ctx: &egui::Context, state: &mut GuiState, theme: &Theme| {
         let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
-        ctx.run(input, |ctx| {
+        // The frame's shapes are not what this test reads (its state and egui's memory are).
+        let _ = ctx.run(input, |ctx| {
             settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_account_content)
         });
     };
@@ -965,7 +970,7 @@ fn settings_panel(
             ..Default::default()
         }];
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_primary()))
+            .frame(egui::Frame::NONE.fill(theme.bg_primary()))
             .show(ctx, |_ui| {});
         crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
     });
@@ -986,7 +991,7 @@ fn settings_panel(
             landing: Landing::FromDeepWater { dist_m: 230.0 },
         });
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_primary()))
+            .frame(egui::Frame::NONE.fill(theme.bg_primary()))
             .show(ctx, |_ui| {});
         crate::gui::pages::hud::draw_death_screen(ctx, theme, state);
     });
@@ -1086,7 +1091,7 @@ fn snapshot_notice_banner() {
             at: std::time::Instant::now(),
         });
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_primary()))
+            .frame(egui::Frame::NONE.fill(theme.bg_primary()))
             .show(ctx, |_ui| {});
         crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
     });
@@ -1982,7 +1987,7 @@ fn snapshot_fleet_ledger() {
         state.fleet.prices.insert("bread_0".into(), 3.0);
         state.inventory_items = vec![Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 3, ..Default::default() })];
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
             .show(ctx, |ui| fleet::draw_section(ui, theme, state));
     });
 }
@@ -2001,7 +2006,7 @@ fn snapshot_household() {
             household::tests::snapshot_state(state);
         }
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
             .show(ctx, |ui| household::draw_card_from(ui, theme, state, std::path::Path::new("data")));
     });
 }
@@ -2032,7 +2037,7 @@ fn snapshot_where_you_live() {
             ui.label(egui::RichText::new(text).size(theme.font_size_small).italics().color(theme.text_muted()));
         };
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
             .show(ctx, |ui| {
                 ui.columns(2, |cols| {
                     caption(&mut cols[0], theme, "Settings > Gameplay, your own homestead");
@@ -3020,7 +3025,7 @@ Closing paragraph after the table.";
 
     render_page_png("markdown_features", 760, 660, |_ctx, theme, _state| {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+            .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
             .show(_ctx, |ui| {
                 let mut _link: Option<String> = None;
                 crate::gui::widgets::markdown::render_markdown_linked(ui, theme, SAMPLE, &mut _link);
@@ -3514,7 +3519,7 @@ fn snapshot_inventory_garden() {
         let mut acts = crate::gui::pages::inventory::GardenActions::default();
         crate::gui::pages::inventory::test_take_tiles_laid_out();
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().vertical_scroll_offset(3000.0).show(ui, |ui| {
                     crate::gui::pages::inventory::draw_garden_section(ui, theme, state, None, true, &mut acts);
@@ -3563,7 +3568,7 @@ fn snapshot_mining_map() {
         }];
         theme.apply_to_egui(ctx);
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(12.0))
+            .frame(egui::Frame::NONE.fill(theme.bg_primary()).inner_margin(12.0))
             .show(ctx, |ui| {
                 crate::gui::pages::inventory::draw_mining_map_for_test(ui, theme, &state.asteroids, &drones);
             });
@@ -4654,7 +4659,8 @@ fn weather_panel_time_stop_publishes_converted_global_hour() {
             events,
             ..Default::default()
         };
-        ctx.run(input, |ctx| {
+        // The frame's shapes are not what this test reads (its state and egui's memory are).
+        let _ = ctx.run(input, |ctx| {
             crate::gui::pages::weather_panel::draw(ctx, &theme, state);
         });
     };

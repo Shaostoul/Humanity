@@ -9,7 +9,7 @@ use crate::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
 use crate::gui::{GuiGuild, GuiState};
-use egui::{Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use std::collections::HashSet;
 
 /// Fetch every guild plus my memberships, merged into one list.
@@ -207,7 +207,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
@@ -289,10 +289,10 @@ fn draw_guild_grid(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .spacing(Vec2::new(theme.spacing_sm, theme.spacing_sm))
             .show(ui, |ui| {
                 for guild in &rows {
-                    let frame = egui::Frame::none()
+                    let frame = egui::Frame::NONE
                         .fill(theme.bg_card())
-                        .rounding(Rounding::same(theme.border_radius as u8))
-                        .stroke(Stroke::new(1.0, theme.border()))
+                        .corner_radius(CornerRadius::same(theme.border_radius as u8))
+                        .stroke(Stroke::new(1.0_f32, theme.border()))
                         .inner_margin(theme.card_padding);
 
                     frame.show(ui, |ui| {

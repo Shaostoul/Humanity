@@ -107,7 +107,7 @@ fn format_sim_speed(speed: f64) -> String {
 /// Render the time controls bar at the top of the Solar System view.
 /// Operator can pause / play / fast-forward / rewind / jump to "now".
 pub(super) fn draw_time_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let frame = egui::Frame::none()
+    let frame = egui::Frame::NONE
         .fill(egui::Color32::from_rgb(15, 15, 22))  // theme-exempt: Maps time bar bg
         .inner_margin(egui::Margin::symmetric(8, 4));
     frame.show(ui, |ui| {

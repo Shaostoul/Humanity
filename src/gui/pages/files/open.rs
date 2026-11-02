@@ -42,10 +42,8 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
-use egui::RichText;
 
 use super::api::{self, Item, ItemFile, ItemRef};
-use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::net::part_file::Part;
 use crate::gui::GuiState;
@@ -294,11 +292,6 @@ pub(crate) fn file_download_name(item: &Item, f: &ItemFile) -> String {
         return safe_name(&f.filename);
     }
     format!("{}-{}-{}", safe_name(&item.display_title()), item.id, f.file)
-}
-
-fn clock(seconds: f64) -> String {
-    let s = seconds.max(0.0) as u64;
-    format!("{}:{:02}", s / 60, s % 60)
 }
 
 #[cfg(all(test, windows))]

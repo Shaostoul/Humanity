@@ -368,7 +368,7 @@ fn spawn_publish(
 /// The whole publish pipeline: local validation, envelope signing,
 /// submission. Pure of UI state so the end-to-end test drives the EXACT
 /// path the button does.
-pub(crate) fn sign_and_submit(
+fn sign_and_submit(
     base: &str,
     seed: &[u8],
     payload: &ciborium::Value,

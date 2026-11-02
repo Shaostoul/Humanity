@@ -30,7 +30,6 @@ pub enum Phase {
 pub struct Run {
     pub ctl: Arc<Control>,
     rx: Receiver<Event>,
-    pub name: String,
     pub size: u64,
     /// The server's id, once it started.
     pub id: Option<String>,
@@ -44,14 +43,14 @@ impl Run {
     /// Start `plan` on a worker thread through `t`.
     pub fn start(t: Arc<dyn Transport>, plan: Plan, ctl: Arc<Control>) -> Run {
         let (tx, rx) = std::sync::mpsc::channel();
-        let (name, size, id) = (plan.name.clone(), plan.size, plan.resume.clone());
+        let (size, id) = (plan.size, plan.resume.clone());
         let phase = if id.is_some() { Phase::Sending } else { Phase::Hashing };
         let worker_ctl = ctl.clone();
         std::thread::Builder::new()
             .name("media-upload".into())
             .spawn(move || work(t.as_ref(), &worker_ctl, &plan, &tx))
             .ok();
-        Run { ctl, rx, name, size, id, sent: 0, hashed: 0, phase }
+        Run { ctl, rx, size, id, sent: 0, hashed: 0, phase }
     }
 
     /// Read what the worker reported since the last frame, keeping `phase` and the counts, and

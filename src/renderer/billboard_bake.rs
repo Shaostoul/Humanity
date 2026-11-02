@@ -2491,7 +2491,7 @@ pub mod leaf_shape {
     fn normalized(s: &LeafSilhouette) -> Vec<LeafPart> {
         let mut parts = raw_parts(s);
         let (mut ymax, mut xabs) = (1e-6f32, 1e-6f32);
-        let mut visit = |p: [f32; 2], ymax: &mut f32, xabs: &mut f32| {
+        let visit = |p: [f32; 2], ymax: &mut f32, xabs: &mut f32| {
             *ymax = ymax.max(p[1]);
             *xabs = xabs.max(p[0].abs());
         };

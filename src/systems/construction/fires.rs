@@ -110,7 +110,7 @@
 //! feature set (the relay build includes `systems/`).
 
 use super::site::PlanetSite;
-use super::{doorway, placement, uses, Blueprint, BlueprintRegistry, DoorOpen, Structure};
+use super::{doorway, uses, Blueprint, BlueprintRegistry, DoorOpen, Structure};
 use crate::ecs::components::{Controllable, Transform};
 use crate::systems::inventory::{Inventory, ItemRegistry};
 use glam::{DVec3, Vec3};

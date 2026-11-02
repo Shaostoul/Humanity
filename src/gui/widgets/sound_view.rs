@@ -604,7 +604,8 @@ pub(crate) mod tests {
         let theme = crate::gui::theme::load_theme();
         let frame = |events: Vec<egui::Event>, view: &mut SoundView| {
             let mut wave = egui::Rect::NOTHING;
-            ctx.run(egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 400.0))), events, ..Default::default() }, |ctx| {
+            // The frame's shapes are not what this test reads (its state and egui's memory are).
+            let _ = ctx.run(egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 400.0))), events, ..Default::default() }, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     let top = ui.cursor().min;
                     view.draw(ui, &theme, egui::vec2(600.0, 300.0));

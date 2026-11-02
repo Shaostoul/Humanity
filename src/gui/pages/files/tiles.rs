@@ -30,7 +30,7 @@
 //! EVERY ACTION NAMES THE ITEM'S FILE (the relay's W5): `Item::reference`; an item whose file the
 //! server did not name is not acted on, and the page says why.
 
-use egui::{Color32, RichText, Rounding, Sense, Stroke, Vec2};
+use egui::{Color32, RichText, CornerRadius, Sense, Stroke, Vec2};
 
 use super::api::{self, Item};
 use super::{kinds, signed_in_here, signer_or_say, spawn, Job};
@@ -242,10 +242,10 @@ pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
             request_picture(state, item);
         }
     }
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, if item.featured.is_on() { theme.accent() } else { theme.border() }))
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .stroke(Stroke::new(1.0_f32, if item.featured.is_on() { theme.accent() } else { theme.border() }))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.spacing_sm)
         .show(ui, |ui| {
             ui.set_width(TILE_W - 2.0 * theme.spacing_sm);
@@ -293,7 +293,7 @@ fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item
     let width = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, THUMB_H), Sense::click());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, Rounding::same(theme.border_radius as u8), theme.bg_tertiary());
+    painter.rect_filled(rect, CornerRadius::same(theme.border_radius as u8), theme.bg_tertiary());
     let font = egui::FontId::proportional(theme.font_size_small);
     let two_lines = |first: &str, second: &str, color: Color32| {
         let galley = painter.layout(first.to_string(), font.clone(), color, width - 16.0);

@@ -256,11 +256,11 @@ pub fn paint_pill_overlays(
         // (the user is "looking at" or interacting with this body).
         // Subtle for non-interacting always-shown planets.
         let border_stroke = if pp.expanded {
-            Stroke::new(2.0, theme.accent())
+            Stroke::new(2.0_f32, theme.accent())
         } else if pp.forced || pill_hovered {
-            Stroke::new(1.4, theme.accent())
+            Stroke::new(1.4_f32, theme.accent())
         } else {
-            Stroke::new(0.5, theme.border())
+            Stroke::new(0.5_f32, theme.border())
         };
         painter.rect_stroke(pp.rect, half_h, border_stroke, egui::StrokeKind::Outside);
 
@@ -277,7 +277,7 @@ pub fn paint_pill_overlays(
                 Pos2::new(cap_right_x, pp.rect.top() + 2.0),
                 Pos2::new(cap_right_x, pp.rect.bottom() - 2.0),
             ],
-            Stroke::new(0.8, divider_color),
+            Stroke::new(0.8_f32, divider_color),
         );
 
         // Name text — positioned just past the cap's right edge with
@@ -416,7 +416,7 @@ pub fn paint_card_extension(
     painter.rect_stroke(
         panel_rect,
         panel_corner_radius,
-        Stroke::new(1.0, theme.border()),
+        Stroke::new(1.0_f32, theme.border()),
         egui::StrokeKind::Outside,
     );
 

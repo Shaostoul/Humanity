@@ -665,7 +665,7 @@ pub fn orbit_path_mesh(
         // last point duplicates the first, so step over it on the wrap.
         let prev = points[(i + n - 1) % n];
         let next = points[(i + 1) % n];
-        let mut tan = (next - prev);
+        let mut tan = next - prev;
         if tan.length_squared() < 1e-6 {
             tan = Vec3::X;
         }

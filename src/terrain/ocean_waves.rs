@@ -115,6 +115,7 @@ const TAU: f32 = std::f32::consts::TAU;
 /// WGSL fract(): x - floor(x), always in [0, 1). Rust's f32::fract() is
 /// sign-preserving (x - trunc(x)) and would diverge for negative phases.
 #[inline]
+#[cfg(test)]
 fn wgsl_fract(x: f32) -> f32 {
     x - x.floor()
 }

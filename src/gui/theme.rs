@@ -1,7 +1,7 @@
 //! Theme system loaded from data/gui/theme.ron.
 //! Provides typed access to all styling variables and applies them to egui.
 
-use egui::{Color32, Context, Rounding, Stroke, Vec2, Visuals};
+use egui::{Color32, Context, Stroke, Vec2, Visuals};
 use serde::{Deserialize, Serialize};
 
 type C = (f32, f32, f32, f32);
@@ -670,21 +670,21 @@ impl Theme {
 
         // Noninteractive widgets (labels, separators)
         visuals.widgets.noninteractive.bg_fill = self.bg_secondary();  // #141418
-        visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, self.text_primary()); // #e8e8ea
+        visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, self.text_primary()); // #e8e8ea
 
         // Inactive widgets (buttons at rest)
         visuals.widgets.inactive.bg_fill = self.bg_card();             // #1a1a22
-        visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, self.text_secondary());
+        visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, self.text_secondary());
         // The OUTLINE egui draws around an unchecked radio circle / checkbox box
         // is bg_stroke, which defaulted to near-invisible on a dark panel
         // (operator: "the outline of the setting is also black or very dark
         // gray, hard to read"). A visible muted stroke makes every native
         // radio and checkbox legible at rest.
-        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, self.text_muted());
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, self.text_muted());
 
         // Hovered widgets
         visuals.widgets.hovered.bg_fill = Self::c32(&self.bg_tertiary); // #252530
-        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, self.text_primary());
+        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, self.text_primary());
 
         // Active (pressed) widgets
         visuals.widgets.active.bg_fill = self.accent();                // #ED8C24
@@ -695,14 +695,14 @@ impl Theme {
         // The only other thing it paints is a control's stroke while the mouse
         // is held on it (the check mark, the slider knob ring), which reads
         // fine in the strong ink on the accent fill.
-        visuals.widgets.active.fg_stroke = Stroke::new(1.0, self.text_strong());
+        visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, self.text_strong());
 
         // Selection
         visuals.selection.bg_fill = self.accent();                     // #ED8C24
-        visuals.selection.stroke = Stroke::new(1.0, self.text_on_accent());
+        visuals.selection.stroke = Stroke::new(1.0_f32, self.text_on_accent());
 
         // Window border
-        visuals.window_stroke = Stroke::new(1.0, self.border());      // #2a2a35
+        visuals.window_stroke = Stroke::new(1.0_f32, self.border());      // #2a2a35
 
         ctx.set_visuals(visuals);
 

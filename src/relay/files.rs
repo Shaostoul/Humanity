@@ -63,7 +63,7 @@ use std::sync::Arc;
 use crate::relay::relay::{RelayMessage, RelayState};
 pub use crate::relay::storage::files::{Folders, MEMBERS_DIR, UPLOADS_DIR};
 use crate::relay::storage::files::{
-    self as store, bare_name, CategoryEdit, Featured, ItemFile, FilesError, FilesItem, FilesQuery, Publish, Refusal, Signed, Sort, Spot, KINDS,
+    self as store, bare_name, CategoryEdit, Featured, ItemFile, FilesError, FilesItem, FilesQuery, Publish, Refusal, Signed, Spot, KINDS,
     MEDIA_SHELF,
 };
 use crate::relay::storage::{media_visibility_of, ServerSettings, Storage};

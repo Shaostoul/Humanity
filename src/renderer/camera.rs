@@ -189,14 +189,11 @@ struct CameraSnapshot {
     yaw: f32,
     pitch: f32,
     fov_degrees: f32,
-    /// Third-person follow distance or orbit distance.
-    distance: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
 struct CameraTransition {
     from: CameraSnapshot,
-    to_mode: CameraMode,
     elapsed: f32,
     duration: f32,
 }
@@ -613,11 +610,6 @@ impl Camera {
             yaw: self.yaw,
             pitch: self.pitch,
             fov_degrees: self.fov_degrees,
-            distance: match self.mode {
-                CameraMode::ThirdPerson => self.tp_distance,
-                CameraMode::Orbit => self.orbit_distance,
-                CameraMode::FirstPerson => 0.0,
-            },
         };
 
         // When switching from FP to TP, set tp_target to current position
@@ -646,7 +638,6 @@ impl Camera {
 
         self.transition = Some(CameraTransition {
             from: snapshot,
-            to_mode: new_mode,
             elapsed: 0.0,
             duration: 0.4,
         });

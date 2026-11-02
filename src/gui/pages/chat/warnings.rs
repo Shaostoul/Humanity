@@ -71,10 +71,10 @@ pub(super) fn draw_under_message(
             ui.add_space(indent);
             ui.vertical(|ui| {
                 ui.set_max_width(panel_w);
-                Frame::none()
+                Frame::NONE
                     .fill(theme.bg_card())
                     .stroke(Stroke::new(theme.border_width, theme.warning()))
-                    .rounding(Rounding::same(4))
+                    .corner_radius(CornerRadius::same(4))
                     .inner_margin(egui::Margin::same(8))
                     .show(ui, |ui| {
                         ui.set_min_width((panel_w - 16.0).max(0.0)); // one width for every card (the margins are 8 + 8)

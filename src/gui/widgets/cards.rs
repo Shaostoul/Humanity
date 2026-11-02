@@ -161,7 +161,7 @@ impl Grid {
             if self.cards {
                 for (bg, x, h) in &drawn {
                     let rect = Rect::from_min_size(Pos2::new(*x, top_left.y), Vec2::new(cell_w, if self.stretch { row_h } else { *h }));
-                    ui.painter().set(*bg, egui::epaint::RectShape::new(rect, corners, theme.bg_card(), Stroke::new(1.0, edge), egui::StrokeKind::Inside));
+                    ui.painter().set(*bg, egui::epaint::RectShape::new(rect, corners, theme.bg_card(), Stroke::new(1.0_f32, edge), egui::StrokeKind::Inside));
                 }
             }
             ui.advance_cursor_after_rect(Rect::from_min_size(top_left, Vec2::new(width, row_h)));
@@ -169,9 +169,9 @@ impl Grid {
             // The open cells' long words, each in a panel the grid's width, under their row.
             if let Some(detail) = detail.as_mut() {
                 for i in opened {
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(theme.bg_card())
-                        .stroke(Stroke::new(1.0, theme.accent()))
+                        .stroke(Stroke::new(1.0_f32, theme.accent()))
                         .corner_radius(corners)
                         .inner_margin(theme.card_padding)
                         .show(ui, |ui| {
@@ -208,9 +208,9 @@ pub fn plain_badge(ui: &mut Ui, theme: &Theme, text: &str) {
 }
 
 fn pill(ui: &mut Ui, theme: &Theme, text: &str, fill: Color32, edge: Color32, ink: Color32) {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(fill)
-        .stroke(Stroke::new(1.0, edge))
+        .stroke(Stroke::new(1.0_f32, edge))
         .corner_radius(egui::CornerRadius::same(theme.pill_radius.round().clamp(0.0, 255.0) as u8))
         .inner_margin(egui::Margin::symmetric(theme.badge_padding_h.round() as i8, theme.badge_padding_v.round() as i8))
         .show(ui, |ui| {
@@ -363,7 +363,7 @@ mod tests {
         let mut rects: Vec<Rect> = Vec::new();
         let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1000.0, 800.0))), ..Default::default() };
         let out = ctx.run(input, |ctx| {
-            egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
                 Grid::new("t").min_width(300.0).show(ui, &theme, 3, |ui, i| {
                     for _ in 0..(1 + i * 3) {
                         ui.label("x");
@@ -403,7 +403,7 @@ mod tests {
         let mut words = Rect::NOTHING;
         let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(700.0, 3000.0))), ..Default::default() };
         let out = ctx.run(input, |ctx| {
-            egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
                 Grid::new("d").min_width(300.0).show_with_details(
                     ui,
                     &theme,

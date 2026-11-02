@@ -267,7 +267,7 @@ pub fn build_water_patch_mesh_at(
             });
         }
     }
-    let mut emit_face = |ia: usize, ib: usize, ic: usize,
+    let emit_face = |ia: usize, ib: usize, ic: usize,
                          vertices: &mut Vec<SurfaceVertexData>,
                          indices: &mut Vec<u32>| {
         for &i in &[ia, ib, ic] {

@@ -243,6 +243,7 @@ fn position_au(o: &BeltOrbit, t: f64) -> DVec3 {
 
 /// Append the dust to `mesh` (tests; the page paints `dust_mesh`'s shared
 /// mesh without copying it). Returns how many points were drawn.
+#[cfg(test)]
 pub fn add_dust(mesh: &mut Mesh, set: &BeltSet, cache: &mut BeltCache, proj: &MapProjector, scene: &MapScene, rock: Color32, ice: Color32) -> u32 {
     let (dust, drawn) = dust_mesh(set, cache, proj, scene, rock, ice);
     mesh.append_ref(&dust);

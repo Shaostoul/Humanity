@@ -104,9 +104,9 @@ fn fixture_now() -> Value {
         project_use: true,
         ..Default::default()
     };
-    publish_core(db, &s, labels(), d.folders(), &dusk).expect("Dusk is published");
+    assert_eq!(publish_core(db, &s, labels(), d.folders(), &dusk).expect("Dusk is published").0["item"]["licence"], "cc_by_4");
     let staff = PublishBody { key: ANN.into(), filename: "1763_z.glb".into(), title: "Staff".into(), ..Default::default() };
-    publish_core(db, &s, labels(), d.folders(), &staff).expect("Staff is published");
+    assert_eq!(publish_core(db, &s, labels(), d.folders(), &staff).expect("Staff is published").0["item"]["title"], "Staff");
     let f = d.folders();
     db.attach_media_file(ANN, 1, "1761_y.zip", ROLE_FILE, 0, |members| f.place("1761_y.zip", members)).unwrap();
     db.attach_media_file(ANN, 1, "1762_c.jpg", ROLE_COVER, 0, |members| f.place("1762_c.jpg", members)).unwrap();

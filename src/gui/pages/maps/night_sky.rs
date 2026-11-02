@@ -3,7 +3,7 @@
 //! myths, seasons and key stars on hover).
 //! Moved out of `gui/pages/cosmos.rs` in Maps increment 0 (2026-10-20).
 
-use egui::{Align2, Color32, Pos2, RichText, Rounding, Stroke, Vec2};
+use egui::{Align2, Color32, Pos2, RichText, CornerRadius, Stroke, Vec2};
 use std::sync::OnceLock;
 
 use crate::gui::theme::Theme;
@@ -106,7 +106,7 @@ fn constellations() -> &'static [Constellation] {
 pub(super) fn draw_night_sky_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let (rect, response, _center, zoom) = allocate_canvas(ui, state);
     let paint = ui.painter_at(rect);
-    paint.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(5, 5, 12));  // theme-exempt: deep-space backdrop
+    paint.rect_filled(rect, CornerRadius::ZERO, Color32::from_rgb(5, 5, 12));  // theme-exempt: deep-space backdrop
     // Equirectangular projection of the celestial sphere:
     //   RA  in [0, 24) hours → x in [left, right]
     //   Dec in [-90, +90]    → y in [bottom, top]
@@ -125,12 +125,12 @@ pub(super) fn draw_night_sky_view(ui: &mut egui::Ui, theme: &Theme, state: &mut 
     for ra in (0..12).map(|i| i as f64 * 2.0) {
         let p1 = project(ra, -90.0);
         let p2 = project(ra, 90.0);
-        paint.line_segment([p1, p2], Stroke::new(0.5, Color32::from_rgb(20, 20, 35)));  // theme-exempt: celestial grid line — faint backdrop
+        paint.line_segment([p1, p2], Stroke::new(0.5_f32, Color32::from_rgb(20, 20, 35)));  // theme-exempt: celestial grid line — faint backdrop
     }
     for dec in (-3..=3).map(|i| i as f64 * 30.0) {
         let p1 = project(0.0, dec);
         let p2 = project(24.0, dec);
-        paint.line_segment([p1, p2], Stroke::new(0.5, Color32::from_rgb(20, 20, 35)));  // theme-exempt: celestial grid line — faint backdrop
+        paint.line_segment([p1, p2], Stroke::new(0.5_f32, Color32::from_rgb(20, 20, 35)));  // theme-exempt: celestial grid line — faint backdrop
         paint.text(
             project(0.0, dec) + Vec2::new(4.0, 0.0),
             Align2::LEFT_CENTER,
@@ -157,7 +157,7 @@ pub(super) fn draw_night_sky_view(ui: &mut egui::Ui, theme: &Theme, state: &mut 
             if let (Some(sa), Some(sb)) = (star_by_name.get(a.as_str()), star_by_name.get(b.as_str())) {
                 let pa = project(sa.ra_hours, sa.dec_deg);
                 let pb = project(sb.ra_hours, sb.dec_deg);
-                paint.line_segment([pa, pb], Stroke::new(1.0, const_color));
+                paint.line_segment([pa, pb], Stroke::new(1.0_f32, const_color));
                 // Label hover detection: did the cursor pass near this line?
                 if let Some(hp) = hover_pos {
                     if dist_point_to_segment(hp, pa, pb) < 6.0 {

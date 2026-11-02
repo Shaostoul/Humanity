@@ -150,7 +150,7 @@ fn collapse_tab(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, expanded: bo
     // theme.ron has bg_secondary/bg_tertiary/bg_sidebar_dark within 2/255
     // of each other, so a fill alone was invisible in the snapshot). The
     // border token is the one guaranteed to contrast with every ground.
-    let edge = egui::Stroke::new(1.0, theme.border());
+    let edge = egui::Stroke::new(1.0_f32, theme.border());
     // Half a pixel inside each edge: a line ON the edge is split with the
     // neighbour and the panel's clip rect drops the outer half entirely.
     let (l, r) = (rect.left() + 0.5, rect.right() - 0.5);
@@ -172,7 +172,7 @@ fn collapse_tab(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, expanded: bo
     // edges, danger-coloured on hover so it reads as "close", not "collapse".
     let x_color = if close.hovered() { theme.danger() } else { theme.text_secondary() };
     let x = close_rect.shrink(6.0);
-    let x_stroke = egui::Stroke::new(1.5, x_color);
+    let x_stroke = egui::Stroke::new(1.5_f32, x_color);
     painter.line_segment([x.left_top(), x.right_bottom()], x_stroke);
     painter.line_segment([x.right_top(), x.left_bottom()], x_stroke);
     // on_hover_text consumes the response, so read what we need first.

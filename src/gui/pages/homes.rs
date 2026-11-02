@@ -234,7 +234,7 @@ fn home_outline() -> &'static HomeOutline {
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             // ONE scroll for the whole page (2026-10-30): the Household card and the animals used to
             // stand still above a scroll of their own, and the Household card had a third, capped
@@ -242,7 +242,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ScrollArea::vertical().id_salt("homes_page").auto_shrink([false, false]).show(ui, |ui| {
                 // Clear of the scroll bar, which floats over the right edge.
                 let clear = theme.spacing_md.round().clamp(0.0, 127.0) as i8;
-                Frame::none().inner_margin(egui::Margin { right: clear, ..Default::default() }).show(ui, |ui| {
+                Frame::NONE.inner_margin(egui::Margin { right: clear, ..Default::default() }).show(ui, |ui| {
                     draw_page(ui, theme, state);
                 });
             });

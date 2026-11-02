@@ -177,7 +177,7 @@ async fn an_upload_crossing_midnight_counts_in_the_day_it_was_stored() {
     assert!(state.upload_clock.set(Box::new(clock)).is_ok(), "a new relay has no test clock yet");
     uploader(&state, "ann", "tok_ann", |r| r.max_upload_mb_per_day = 10).await;
 
-    send(&state, &d, "tok_ann", "late.mp4", MIB as usize).await.expect("stored");
+    assert_eq!(send(&state, &d, "tok_ann", "late.mp4", MIB as usize).await.expect("stored").0["size"], MIB, "the answer says what was stored");
     assert!(reads.load(std::sync::atomic::Ordering::SeqCst) >= 2, "test setup: the clock was read at the start and at the store");
     assert_eq!(state.db.upload_count("ann", Span::Day, midnight + 400), MIB as i64, "counted in the day it was stored");
     assert_eq!(state.db.upload_count("ann", Span::Hour, midnight + 400), 1, "and its upload in that hour");

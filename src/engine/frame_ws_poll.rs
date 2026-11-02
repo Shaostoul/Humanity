@@ -40,7 +40,6 @@ use crate::engine::state::EngineState;
 // named, which also documents that the pump is the only caller of either.
 use crate::engine::ipc_parse::parse_notification_prefs;
 use crate::engine::net_route::route_game_message;
-use crate::gui::GuiPage;
 
 /// Drain the relay socket for this frame and apply every message to the app.
 ///

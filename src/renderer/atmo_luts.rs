@@ -196,12 +196,13 @@ pub fn multiple_scattering_lut(p: &TransLutParams) -> Vec<[f32; 4]> {
             for ei in 0..MS_DIRS_EL {
                 // Stratified uniform sphere: cos(elevation) uniform in [-1,1].
                 let cos_el = -1.0 + 2.0 * (ei as f32 + 0.5) / MS_DIRS_EL as f32;
-                let sin_el = (1.0 - cos_el * cos_el).max(0.0).sqrt();
-                for ai in 0..MS_DIRS_AZ {
-                    let az = std::f32::consts::TAU * (ai as f32 + 0.5) / MS_DIRS_AZ as f32;
-                    // Direction relative to local up; only the vertical
-                    // component matters for the 1D exponential atmosphere,
-                    // but azimuth changes the sun angle at samples.
+                // Every azimuth gives the same sum here: the march treats the
+                // air as a flat slab at the sample (`r0 + t * dir_up`, the sun's
+                // mu_s held fixed), so only the vertical component reaches it.
+                // The loop is kept so the integral counts the paper's 64
+                // directions; a curved march, where the azimuth does turn the
+                // sun angle at each sample, would read the azimuth here.
+                for _ai in 0..MS_DIRS_AZ {
                     let dir_up = cos_el;
                     // March to the atmosphere top (or ground hit).
                     // Segment length: to shell top along this direction -

@@ -42,7 +42,7 @@ pub fn bin_lights(
     let mut indices = vec![0u32; TILE_COUNT * TILE_CAP];
     let (sw, sh) = (screen.0.max(1) as f32, screen.1.max(1) as f32);
 
-    let mut push = |tx: usize, ty: usize, li: usize, counts: &mut Vec<u32>, indices: &mut Vec<u32>| {
+    let push = |tx: usize, ty: usize, li: usize, counts: &mut Vec<u32>, indices: &mut Vec<u32>| {
         let t = ty * TILE_COLS + tx;
         let c = counts[t] as usize;
         if c < TILE_CAP {

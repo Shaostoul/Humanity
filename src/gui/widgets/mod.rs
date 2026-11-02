@@ -96,7 +96,7 @@ pub mod notice_bell;
 /// playing, painted inside the HUD. See `widgets/notice_banner.rs`.
 pub mod notice_banner;
 
-use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
+use egui::{Color32, Rect, RichText, CornerRadius, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
 
 // Re-export the universal button builder + variant enums so call sites only
@@ -229,10 +229,10 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
             .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, y_off))
             .interactable(false)
             .show(ctx, |ui| {
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(a(theme.bg_card()))
-                    .stroke(Stroke::new(1.5, a(accent)))
-                    .rounding(Rounding::same(theme.border_radius as u8))
+                    .stroke(Stroke::new(1.5_f32, a(accent)))
+                    .corner_radius(CornerRadius::same(theme.border_radius as u8))
                     .inner_margin(egui::Margin::symmetric(14, 9))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
@@ -249,11 +249,11 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
 
 /// Styled card container with background.
 pub fn card(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .show(ui, |ui| {
             add_contents(ui);
         });
@@ -263,11 +263,11 @@ pub fn card(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {
 /// cursor + accent border on hover. Returns the Response so callers branch
 /// on `.clicked()`. (Web mirror: `.card.clickable` gets the same treatment.)
 pub fn card_clickable(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) -> egui::Response {
-    let inner = egui::Frame::none()
+    let inner = egui::Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .show(ui, |ui| {
             add_contents(ui);
         });
@@ -275,8 +275,8 @@ pub fn card_clickable(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut
     if resp.hovered() {
         ui.painter().rect_stroke(
             resp.rect,
-            Rounding::same(theme.border_radius as u8),
-            Stroke::new(1.0, theme.accent()),
+            CornerRadius::same(theme.border_radius as u8),
+            Stroke::new(1.0_f32, theme.accent()),
             egui::epaint::StrokeKind::Outside,
         );
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -290,11 +290,11 @@ pub fn card_clickable(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut
 /// `card_suggested_label` at its top. First used by the Tasks page's suggested
 /// cards (2026-10-30). Web mirror: `.card-suggested` in web/shared/theme.css.
 pub fn card_suggested(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(theme.bg_panel())
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .show(ui, |ui| {
             // Inside the Frame, the available width is already the column less
             // the margin and stroke, so this never runs past the column.
@@ -387,10 +387,10 @@ pub fn tinted_section(
         // Tinted background derived from the accent (alpha 18) — same
         // formula color_section used before extraction.
         let tint = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 18);
-        egui::Frame::none()
+        egui::Frame::NONE
             .fill(tint)
-            .stroke(Stroke::new(1.5, accent))
-            .rounding(Rounding::same(theme.border_radius as u8))
+            .stroke(Stroke::new(1.5_f32, accent))
+            .corner_radius(CornerRadius::same(theme.border_radius as u8))
             .inner_margin(theme.card_padding * 1.5)
             .show(ui, |ui| {
                 ui.set_min_width(col_w - theme.card_padding * 3.0);
@@ -440,7 +440,7 @@ pub fn subsection_header(ui: &mut Ui, theme: &Theme, accent: Color32, title: &st
         // as one unit.
         let tick_h = theme.font_size_heading + 4.0;
         let (rect, _) = ui.allocate_exact_size(Vec2::new(4.0, tick_h), Sense::hover());
-        ui.painter().rect_filled(rect, Rounding::same(2), accent);
+        ui.painter().rect_filled(rect, CornerRadius::same(2), accent);
         ui.add_space(theme.spacing_xs);
         ui.label(
             RichText::new(title)
@@ -550,7 +550,7 @@ pub fn hold_to_confirm_at(
             points.push(egui::pos2(center.x + r * a.cos(), center.y + r * a.sin()));
         }
         ui.painter()
-            .add(egui::Shape::line(points, egui::Stroke::new(2.0, theme.danger())));
+            .add(egui::Shape::line(points, egui::Stroke::new(2.0_f32, theme.danger())));
         ui.ctx().request_repaint();
     }
 
@@ -731,8 +731,8 @@ pub fn focus_ring(ui: &Ui, theme: &Theme, response: &egui::Response) {
     if response.has_focus() {
         ui.painter().rect_stroke(
             response.rect.expand(2.0),
-            Rounding::same((theme.border_radius as u8).saturating_add(2)),
-            Stroke::new(2.0, theme.border_focus()),
+            CornerRadius::same((theme.border_radius as u8).saturating_add(2)),
+            Stroke::new(2.0_f32, theme.border_focus()),
             egui::epaint::StrokeKind::Outside,
         );
     }
@@ -851,7 +851,7 @@ fn custom_slider_with_width(
         // allocated rect and paint over the widget to its right.
         let t = if (max - min).abs() < f32::EPSILON { 0.5 } else { ((*value - min) / (max - min)).clamp(0.0, 1.0) };
         let thumb_x = travel_left + t * travel_w;
-        let rounding = Rounding::same((track_h / 2.0) as u8);
+        let rounding = CornerRadius::same((track_h / 2.0) as u8);
 
         // Draw dim track (unfilled portion: thumb to right)
         let track_right = Rect::from_min_max(
@@ -889,7 +889,7 @@ fn custom_slider_with_width(
                     egui::pos2(x1.min(thumb_x), center_y + track_h / 2.0),
                 );
                 // Only round the leftmost and rightmost slices
-                let slice_round = if i == 0 { rounding } else { Rounding::ZERO };
+                let slice_round = if i == 0 { rounding } else { CornerRadius::ZERO };
                 painter.rect_filled(slice, slice_round, color);
             }
         }
@@ -909,7 +909,7 @@ fn custom_slider_with_width(
         // RGB animated border (1.5px)
         let ctx_time = ui.ctx().input(|i| i.time);
         let rgb_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
-        painter.circle_stroke(thumb_center, thumb_r, egui::Stroke::new(1.5, rgb_color));
+        painter.circle_stroke(thumb_center, thumb_r, egui::Stroke::new(1.5_f32, rgb_color));
         // Request repaint for animation
         ui.ctx().request_repaint();
     }
@@ -1061,7 +1061,7 @@ pub fn custom_checkbox(ui: &mut Ui, theme: &Theme, value: &mut bool) -> bool {
 
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
-        let rounding = Rounding::same(3);
+        let rounding = CornerRadius::same(3);
 
         if *value {
             // Checked: filled accent background + checkmark
@@ -1077,8 +1077,8 @@ pub fn custom_checkbox(ui: &mut Ui, theme: &Theme, value: &mut bool) -> bool {
                 egui::pos2(cx - s * 0.3, cy + s * 0.7),
                 egui::pos2(cx + s, cy - s * 0.6),
             ];
-            painter.line_segment([points[0], points[1]], Stroke::new(2.0, check_color));
-            painter.line_segment([points[1], points[2]], Stroke::new(2.0, check_color));
+            painter.line_segment([points[0], points[1]], Stroke::new(2.0_f32, check_color));
+            painter.line_segment([points[1], points[2]], Stroke::new(2.0_f32, check_color));
         } else {
             // Unchecked: a clearly visible outline. Uses text_muted, not the
             // card border token, because on a dark panel the border token is
@@ -1086,7 +1086,7 @@ pub fn custom_checkbox(ui: &mut Ui, theme: &Theme, value: &mut bool) -> bool {
             // (operator: "the outline of the setting is also black or very dark
             // gray, hard to read"). A faint fill lifts it off the background too.
             painter.rect_filled(rect, rounding, theme.bg_tertiary());
-            painter.rect_stroke(rect, rounding, Stroke::new(1.5, theme.text_muted()), egui::epaint::StrokeKind::Outside);
+            painter.rect_stroke(rect, rounding, Stroke::new(1.5_f32, theme.text_muted()), egui::epaint::StrokeKind::Outside);
         }
     }
 
@@ -1222,9 +1222,9 @@ pub fn stepper_button(
     let painter = ui.painter();
     painter.rect(
         rect,
-        egui::Rounding::same(3),
+        egui::CornerRadius::same(3),
         fill,
-        egui::Stroke::new(1.5, border),
+        egui::Stroke::new(1.5_f32, border),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -1405,7 +1405,7 @@ fn container_node(
 fn paint_swatch(ui: &mut Ui, color: Option<Color32>) {
     if let Some(c) = color {
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
-        ui.painter().rect_filled(rect, Rounding::same(2), c);
+        ui.painter().rect_filled(rect, CornerRadius::same(2), c);
         ui.add_space(4.0);
     }
 }
@@ -1565,12 +1565,12 @@ pub fn swatch_color(seed: &str) -> Color32 {
 /// image/model loads; reusable for garden slots, market listings, avatars, etc.
 pub fn placeholder_tile(ui: &mut Ui, theme: &Theme, color: Color32, size: f32, glyph: &str) {
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
-    let rounding = Rounding::same(theme.border_radius_lg as u8);
+    let rounding = CornerRadius::same(theme.border_radius_lg as u8);
     ui.painter().rect_filled(rect, rounding, color);
     ui.painter().rect_stroke(
         rect,
         rounding,
-        Stroke::new(1.0, theme.border()),
+        Stroke::new(1.0_f32, theme.border()),
         egui::StrokeKind::Inside,
     );
     if !glyph.is_empty() {
@@ -1818,7 +1818,7 @@ pub fn section_nav(
             Color32::TRANSPARENT
         };
         let stroke = if is_active {
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 100))
+            Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 100))
         } else {
             Stroke::NONE
         };
@@ -1827,7 +1827,7 @@ pub fn section_nav(
         )
         .fill(fill)
         .stroke(stroke)
-        .rounding(Rounding::same(4))
+        .corner_radius(CornerRadius::same(4))
         .min_size(Vec2::new(ui.available_width(), 28.0));
         let resp = ui.add(btn);
         let resp = match &item.hint {
@@ -1872,9 +1872,9 @@ pub fn role_badge(ui: &mut Ui, theme: &Theme, role: &str) {
         _ => return,
     };
     let text = RichText::new(letter).size(theme.font_size_small).color(Theme::ink_on(color));
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(color)
-        .rounding(Rounding::same(3))
+        .corner_radius(CornerRadius::same(3))
         .inner_margin(Vec2::new(4.0, 1.0))
         .show(ui, |ui| { ui.label(text); });
 }
@@ -1885,9 +1885,9 @@ pub fn role_badge(ui: &mut Ui, theme: &Theme, role: &str) {
 /// Colored badge pill. Replaces 20+ inline badge patterns across pages.
 /// `text` is the display label, `color` is the badge background.
 pub fn badge(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(color)
-        .rounding(Rounding::same(theme.badge_radius as u8))
+        .corner_radius(CornerRadius::same(theme.badge_radius as u8))
         .inner_margin(theme.badge_padding())
         .show(ui, |ui| {
             ui.label(RichText::new(text).size(theme.small_size).color(Theme::ink_on(color)));
@@ -1896,9 +1896,9 @@ pub fn badge(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
 
 /// Small badge variant (tighter padding).
 pub fn badge_sm(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(color)
-        .rounding(Rounding::same(theme.badge_radius as u8))
+        .corner_radius(CornerRadius::same(theme.badge_radius as u8))
         .inner_margin(Vec2::new(4.0, 1.0))
         .show(ui, |ui| {
             // A badge is one word or two and never breaks: in a wrapping row
@@ -2073,7 +2073,7 @@ pub fn rgb_section_divider(ui: &mut Ui, theme: &Theme) {
     ui.add_space(theme.spacing_sm);
     let (rect, _) =
         ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
-    ui.painter().rect_filled(rect, Rounding::ZERO, color);
+    ui.painter().rect_filled(rect, CornerRadius::ZERO, color);
     ui.add_space(theme.spacing_sm);
     ui.ctx().request_repaint(); // keep the colour animating
 }

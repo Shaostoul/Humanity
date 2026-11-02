@@ -40,7 +40,7 @@
 //! `btn_primary`, …) are still exported as thin wrappers over the builder so
 //! existing call sites keep working without changes. Migrate at your leisure.
 
-use egui::{Color32, RichText, Rounding, Stroke, Ui, Vec2};
+use egui::{Color32, RichText, CornerRadius, Stroke, Ui, Vec2};
 use crate::gui::theme::Theme;
 
 /// Visual variant of the button.
@@ -274,7 +274,7 @@ impl<'a> Button<'a> {
             ButtonVariant::Secondary => (
                 theme.text_primary(),
                 theme.bg_tertiary(),
-                Stroke::new(1.0, theme.text_muted()),
+                Stroke::new(1.0_f32, theme.text_muted()),
             ),
             ButtonVariant::Danger => (
                 Theme::ink_on(theme.danger()),
@@ -301,7 +301,7 @@ impl<'a> Button<'a> {
         let mut btn = egui::Button::new(text)
             .fill(fill)
             .stroke(stroke)
-            .rounding(Rounding::same(theme.border_radius as u8));
+            .corner_radius(CornerRadius::same(theme.border_radius as u8));
         if self.full_width {
             btn = btn.min_size(Vec2::new(ui.available_width(), 0.0));
         } else if let Some(h) = self.min_height {
@@ -404,7 +404,7 @@ pub fn compact_button(ui: &mut Ui, theme: &Theme, label: &str, variant: ButtonVa
         ButtonVariant::Secondary => (
             theme.text_primary(),
             theme.bg_tertiary(),
-            Stroke::new(1.0, theme.text_muted()),
+            Stroke::new(1.0_f32, theme.text_muted()),
         ),
         ButtonVariant::Danger => (Theme::ink_on(theme.danger()), theme.danger(), Stroke::NONE),
         ButtonVariant::Success => (Theme::ink_on(theme.success()), theme.success(), Stroke::NONE),
@@ -419,7 +419,7 @@ pub fn compact_button(ui: &mut Ui, theme: &Theme, label: &str, variant: ButtonVa
     let btn = egui::Button::new(text)
         .fill(fill)
         .stroke(stroke)
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .min_size(Vec2::new(0.0, theme.compact_button_height));
     let r = ui.add(btn);
     ui.spacing_mut().button_padding = prev;

@@ -134,6 +134,7 @@ pub fn sun_in_view(pose: &MapPose, body: DVec3, sun: DVec3) -> DVec3 {
 /// The fraction of the visible disc that is lit, from the Sun's direction in
 /// the camera's frame: (1 + cos of the phase angle) / 2. Full face-on is 1, a
 /// new moon 0, a quarter one half.
+#[cfg(test)]
 pub fn illuminated_fraction(sun_view: DVec3) -> f64 {
     (1.0 + sun_view.z.clamp(-1.0, 1.0)) * 0.5
 }

@@ -96,10 +96,10 @@ pub fn grid(ui: &mut Ui, theme: &Theme, items: &[usize], min_tile_w: f32, mut ti
 /// hover. `add` draws its contents top to bottom at the inner width it is given.
 pub fn tile_frame(ui: &mut Ui, theme: &Theme, width: f32, selected: bool, add: impl FnOnce(&mut Ui, f32)) {
     let margin = theme.spacing_xs + 1.0;
-    let inner = egui::Frame::none()
+    let inner = egui::Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, if selected { theme.accent() } else { theme.border() }))
-        .rounding(egui::Rounding::same(theme.border_radius_lg as u8))
+        .stroke(Stroke::new(1.0_f32, if selected { theme.accent() } else { theme.border() }))
+        .corner_radius(egui::CornerRadius::same(theme.border_radius_lg as u8))
         .inner_margin(margin)
         .show(ui, |ui| {
             let w = width - 2.0 * margin - 2.0;
@@ -112,7 +112,7 @@ pub fn tile_frame(ui: &mut Ui, theme: &Theme, width: f32, selected: bool, add: i
     // Hover: the tile's edge lights up.
     let rect = inner.response.rect;
     if !selected && ui.rect_contains_pointer(rect) {
-        ui.painter().rect_stroke(rect, egui::Rounding::same(theme.border_radius_lg as u8), Stroke::new(1.0, theme.accent_hover()), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(rect, egui::CornerRadius::same(theme.border_radius_lg as u8), Stroke::new(1.0_f32, theme.accent_hover()), egui::StrokeKind::Inside);
     }
 }
 
@@ -151,7 +151,7 @@ pub fn list_headings(ui: &mut Ui, theme: &Theme, cells: &[Heading]) -> Option<us
         }
     });
     let line = ui.cursor().min.y;
-    ui.painter().hline(ui.max_rect().x_range(), line, Stroke::new(1.0, theme.border()));
+    ui.painter().hline(ui.max_rect().x_range(), line, Stroke::new(1.0_f32, theme.border()));
     ui.add_space(theme.spacing_xs);
     clicked
 }
@@ -170,7 +170,7 @@ pub fn list_row(ui: &mut Ui, theme: &Theme, n: usize, width: f32, row_h: f32, se
         None
     };
     if let Some(fill) = fill {
-        ui.painter().rect_filled(rect, egui::Rounding::same(theme.border_radius as u8), fill);
+        ui.painter().rect_filled(rect, egui::CornerRadius::same(theme.border_radius as u8), fill);
     }
     ui.allocate_ui_with_layout(Vec2::new(width, row_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
         ui.set_min_height(row_h);
@@ -201,7 +201,7 @@ pub fn details_panel(ctx: &egui::Context, theme: &Theme, id: &str, default_width
         .resizable(true)
         .default_width(default_width)
         .width_range(340.0..=760.0)
-        .frame(egui::Frame::none().fill(theme.bg_card()).inner_margin(theme.spacing_lg).stroke(Stroke::new(1.0, theme.border())))
+        .frame(egui::Frame::NONE.fill(theme.bg_card()).inner_margin(theme.spacing_lg).stroke(Stroke::new(1.0_f32, theme.border())))
         .show(ctx, |ui| {
             egui::ScrollArea::vertical()
                 .id_salt(format!("{id}_scroll"))
@@ -209,7 +209,7 @@ pub fn details_panel(ctx: &egui::Context, theme: &Theme, id: &str, default_width
                 .show(ui, |ui| {
                     // The room the scroll bar takes when the pointer is on it, and a little more.
                     let clear = theme.spacing_lg.round().clamp(0.0, 127.0) as i8;
-                    egui::Frame::none().inner_margin(egui::Margin { right: clear, ..Default::default() }).show(ui, add);
+                    egui::Frame::NONE.inner_margin(egui::Margin { right: clear, ..Default::default() }).show(ui, add);
                 })
                 .inner_rect
         })
@@ -226,7 +226,7 @@ pub fn section_heading(ui: &mut Ui, theme: &Theme, text: &str, note: Option<&str
         }
     });
     let y = ui.cursor().min.y + 1.0;
-    ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(1.0, theme.border()));
+    ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(1.0_f32, theme.border()));
     ui.add_space(theme.spacing_sm);
 }
 

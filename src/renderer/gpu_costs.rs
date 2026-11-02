@@ -169,7 +169,9 @@ struct FrameEnd {
 /// Set by `Renderer::mark_view_frame`, taken at the next frame boundary.
 static VIEW_FRAME: AtomicBool = AtomicBool::new(false);
 
-/// A world view was rendered in the frame in progress.
+/// A world view was rendered in the frame in progress. The native app's (and this file's tests',
+/// in every build); the relay build alone never draws one.
+#[cfg_attr(not(feature = "native"), allow(dead_code))]
 pub(crate) fn note_view_frame() {
     VIEW_FRAME.store(true, Ordering::Relaxed);
 }
@@ -187,7 +189,8 @@ pub(crate) fn publish_cpu_frame(world: bool) -> bool {
 
 impl TimerState {
     /// The frame in progress drew a world view: publish its batch as a world
-    /// frame's when it closes (`Renderer::mark_view_frame`).
+    /// frame's when it closes (`Renderer::mark_view_frame`; the tests, in every build).
+    #[cfg_attr(not(feature = "native"), allow(dead_code))]
     fn mark_world(&mut self) {
         self.frame_world = true;
     }
@@ -425,6 +428,7 @@ impl Renderer {
     /// so the map's render could never be measured. Marks both halves: the
     /// GPU passes timed so far this frame are published, and the CPU stages
     /// are folded in at the next frame boundary instead of discarded.
+    #[cfg(feature = "native")]
     pub(crate) fn mark_view_frame(&self) {
         note_view_frame();
         if let Some(t) = self.gpu_timers.as_ref() {
@@ -457,6 +461,7 @@ impl Renderer {
     /// builds its descriptor: the in-world screens' egui-to-texture pass
     /// (`gui::screen_surface`) is created with a device and a queue only.
     /// `None` on an adapter without timestamp queries, same as `pass_timer`.
+    #[cfg(feature = "native")]
     pub(crate) fn gpu_timers(&self) -> Option<Arc<GpuTimers>> {
         self.gpu_timers.clone()
     }

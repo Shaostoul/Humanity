@@ -221,7 +221,7 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &OfferRecord,
 fn card(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
     Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .inner_margin(egui::Margin::symmetric(12, 8))
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());

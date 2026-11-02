@@ -85,7 +85,7 @@ fn ctx_and_state(view: View) -> (egui::Context, GuiState) {
 }
 
 fn drawn(ctx: &egui::Context, state: &mut GuiState) -> Vec<egui::epaint::ClippedShape> {
-    let mut theme = load_theme();
+    let theme = load_theme();
     theme.apply_to_egui(ctx);
     let mut shapes = Vec::new();
     for _ in 0..3 {

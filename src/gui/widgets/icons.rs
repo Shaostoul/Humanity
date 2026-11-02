@@ -70,7 +70,7 @@ pub fn paint_cog(painter: &egui::Painter, rect: Rect, color: Color32) {
         let a2 = angle - tooth_w;
         let tip1 = Pos2::new(c.x + a1.cos() * tooth_r, c.y + a1.sin() * tooth_r);
         let tip2 = Pos2::new(c.x + a2.cos() * tooth_r, c.y + a2.sin() * tooth_r);
-        painter.line_segment([tip1, tip2], Stroke::new(1.0, color));
+        painter.line_segment([tip1, tip2], Stroke::new(1.0_f32, color));
     }
 
     // Outer ring
@@ -131,7 +131,7 @@ pub fn paint_leaf(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.add(egui::Shape::convex_polygon(pts, color, Stroke::NONE));
     painter.line_segment(
         [frac(rect, 0.20, 0.74), frac(rect, 0.78, 0.24)],
-        Stroke::new(1.0, Color32::from_black_alpha(90)),
+        Stroke::new(1.0_f32, Color32::from_black_alpha(90)),
     );
 }
 
@@ -403,7 +403,7 @@ pub fn paint_chat(painter: &egui::Painter, rect: Rect, color: Color32) {
     let stroke = Stroke::new((r * 0.18).max(1.0), color);
     // Rounded rect body
     let body = Rect::from_center_size(Pos2::new(c.x, c.y - r * 0.1), Vec2::new(r * 1.7, r * 1.2));
-    painter.rect_stroke(body, egui::Rounding::same(((r * 0.35) as u8).max(2)), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same(((r * 0.35) as u8).max(2)), stroke, egui::StrokeKind::Inside);
     // Tail (small triangle pointing down-left)
     let tail_top = Pos2::new(c.x - r * 0.4, body.bottom() - 0.5);
     let tail_bot = Pos2::new(c.x - r * 0.7, body.bottom() + r * 0.45);
@@ -418,7 +418,7 @@ pub fn paint_wallet(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let stroke = Stroke::new((w * 0.1).max(1.0), color);
     let body = Rect::from_center_size(c, Vec2::new(w * 0.85, w * 0.6));
-    painter.rect_stroke(body, egui::Rounding::same(2), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same(2), stroke, egui::StrokeKind::Inside);
     // Coin slot circle on the right
     painter.circle_filled(Pos2::new(body.right() - w * 0.12, c.y), w * 0.06, color);
 }
@@ -461,7 +461,7 @@ pub fn paint_scroll(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let stroke = Stroke::new((w * 0.08).max(1.0), color);
     let body = Rect::from_center_size(c, Vec2::new(w * 0.6, w * 0.8));
-    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
     // Three text lines inside
     for i in 0..3 {
         let y = body.top() + body.height() * (0.3 + 0.2 * i as f32);
@@ -496,7 +496,7 @@ pub fn paint_checklist(painter: &egui::Painter, rect: Rect, color: Color32) {
         let box_left = c.x - w * 0.3;
         let box_size = w * 0.15;
         let bx = Rect::from_min_size(Pos2::new(box_left, y - box_size * 0.5), Vec2::splat(box_size));
-        painter.rect_stroke(bx, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+        painter.rect_stroke(bx, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
         // Line to the right of the box
         painter.line_segment(
             [Pos2::new(box_left + box_size + w * 0.05, y), Pos2::new(c.x + w * 0.35, y)],
@@ -560,7 +560,7 @@ pub fn paint_box(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let stroke = Stroke::new((w * 0.1).max(1.0), color);
     let body = Rect::from_center_size(c, Vec2::new(w * 0.7, w * 0.6));
-    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
     // Lid line across the top
     painter.line_segment(
         [Pos2::new(body.left(), body.top() + body.height() * 0.3), Pos2::new(body.right(), body.top() + body.height() * 0.3)],
@@ -576,7 +576,7 @@ pub fn paint_picture(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let stroke = Stroke::new((w * 0.09).max(1.0), color);
     let frame = Rect::from_center_size(c, Vec2::new(w * 0.8, w * 0.64));
-    painter.rect_stroke(frame, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(frame, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
     // The mountain: a filled triangle standing on the frame's floor.
     let floor = frame.bottom() - w * 0.08;
     let pts = vec![
@@ -596,7 +596,7 @@ pub fn paint_gamepad(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let stroke = Stroke::new((w * 0.09).max(1.0), color);
     let body = Rect::from_center_size(c, Vec2::new(w * 0.9, w * 0.52));
-    painter.rect_stroke(body, egui::Rounding::same((w * 0.22) as u8), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same((w * 0.22) as u8), stroke, egui::StrokeKind::Inside);
     // The cross, on the left.
     let cross = Pos2::new(c.x - w * 0.22, c.y);
     let arm = w * 0.12;
@@ -614,7 +614,7 @@ pub fn paint_apps(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let side = w * 0.34;
     let gap = w * 0.1;
-    let corner = egui::Rounding::same((side * 0.25) as u8);
+    let corner = egui::CornerRadius::same((side * 0.25) as u8);
     for (dx, dy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
         let at = Pos2::new(c.x + dx * (side + gap) / 2.0, c.y + dy * (side + gap) / 2.0);
         painter.rect_filled(Rect::from_center_size(at, Vec2::splat(side)), corner, color);
@@ -669,7 +669,7 @@ pub fn paint_watch(painter: &egui::Painter, rect: Rect, color: Color32) {
         Pos2::new(c.x, c.y - w * 0.06),
         Vec2::new(w * 0.84, w * 0.58),
     );
-    painter.rect_stroke(screen, egui::Rounding::same(2), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(screen, egui::CornerRadius::same(2), stroke, egui::StrokeKind::Inside);
     // Play triangle centred in the screen.
     let s = w * 0.15;
     let sc = screen.center();
@@ -701,7 +701,7 @@ pub fn paint_house(painter: &egui::Painter, rect: Rect, color: Color32) {
         Pos2::new(c.x - s * 0.7, c.y - s * 0.1),
         Pos2::new(c.x + s * 0.7, c.y + s * 0.8),
     );
-    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
     // Roof (triangle outline on top).
     let roof = vec![
         Pos2::new(c.x - s * 0.9, c.y - s * 0.1),
@@ -724,11 +724,11 @@ pub fn paint_crown(painter: &egui::Painter, rect: Rect, color: Color32) {
     // Jeweled band (bottom rectangle).
     painter.rect_filled(
         Rect::from_min_max(Pos2::new(c.x - s, band_top), Pos2::new(c.x + s, base_y)),
-        egui::Rounding::same(0),
+        egui::CornerRadius::same(0),
         color,
     );
     // Three spikes rising from the band (each a convex triangle).
-    let mut spike = |a: Pos2, b: Pos2, apex: Pos2| {
+    let spike = |a: Pos2, b: Pos2, apex: Pos2| {
         painter.add(PathShape::convex_polygon(vec![a, b, apex], color, Stroke::NONE));
     };
     spike(
@@ -772,7 +772,7 @@ pub fn paint_bag(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let stroke = Stroke::new((w * 0.1).max(1.0), color);
     let body = Rect::from_center_size(Pos2::new(c.x, c.y + w * 0.05), Vec2::new(w * 0.6, w * 0.55));
-    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
     // Handle (arc above the body)
     let handle_y = body.top() - w * 0.05;
     let handle_w = body.width() * 0.5;
@@ -788,7 +788,7 @@ pub fn paint_hammer(painter: &egui::Painter, rect: Rect, color: Color32) {
     let stroke = Stroke::new((w * 0.12).max(1.0), color);
     // Head: horizontal rectangle on top
     let head = Rect::from_center_size(Pos2::new(c.x, c.y - w * 0.2), Vec2::new(w * 0.55, w * 0.2));
-    painter.rect_filled(head, egui::Rounding::same(1), color);
+    painter.rect_filled(head, egui::CornerRadius::same(1), color);
     // Handle: diagonal line going down-right
     painter.line_segment(
         [Pos2::new(c.x + w * 0.05, c.y - w * 0.1), Pos2::new(c.x + w * 0.3, c.y + w * 0.35)],
@@ -811,7 +811,7 @@ pub fn paint_building(painter: &egui::Painter, rect: Rect, color: Color32) {
             Pos2::new(c.x + dx * w - bar_w * 0.5, c.y + w * 0.35 - h),
             Vec2::new(bar_w, h),
         );
-        painter.rect_stroke(bar, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+        painter.rect_stroke(bar, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
     }
 }
 
@@ -850,7 +850,7 @@ pub fn paint_robot(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let stroke = Stroke::new((w * 0.1).max(1.0), color);
     let body = Rect::from_center_size(c, Vec2::new(w * 0.6, w * 0.55));
-    painter.rect_stroke(body, egui::Rounding::same(2), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same(2), stroke, egui::StrokeKind::Inside);
     // Two eye dots
     painter.circle_filled(Pos2::new(c.x - w * 0.12, c.y - w * 0.05), w * 0.05, color);
     painter.circle_filled(Pos2::new(c.x + w * 0.12, c.y - w * 0.05), w * 0.05, color);
@@ -874,7 +874,7 @@ pub fn paint_chart(painter: &egui::Painter, rect: Rect, color: Color32) {
             Pos2::new(c.x + dx * w - bar_w * 0.5, c.y + w * 0.35 - h),
             Vec2::new(bar_w, h),
         );
-        painter.rect_filled(bar, egui::Rounding::same(1), color);
+        painter.rect_filled(bar, egui::CornerRadius::same(1), color);
     }
     // Baseline
     painter.line_segment(
@@ -921,10 +921,10 @@ pub fn paint_clipboard(painter: &egui::Painter, rect: Rect, color: Color32) {
     let w = rect.width().min(rect.height());
     let stroke = Stroke::new((w * 0.08).max(1.0), color);
     let body = Rect::from_center_size(c, Vec2::new(w * 0.55, w * 0.7));
-    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    painter.rect_stroke(body, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
     // Tab at the top
     let tab = Rect::from_center_size(Pos2::new(c.x, body.top() - w * 0.02), Vec2::new(w * 0.25, w * 0.1));
-    painter.rect_filled(tab, egui::Rounding::same(1), color);
+    painter.rect_filled(tab, egui::CornerRadius::same(1), color);
     // Lines inside
     for i in 0..3 {
         let y = body.top() + body.height() * (0.35 + 0.2 * i as f32);
@@ -962,7 +962,7 @@ pub fn paint_server(painter: &egui::Painter, rect: Rect, color: Color32) {
             Pos2::new(c.x - unit_w * 0.5, top),
             Vec2::new(unit_w, unit_h),
         );
-        painter.rect_stroke(unit, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+        painter.rect_stroke(unit, egui::CornerRadius::same(1), stroke, egui::StrokeKind::Inside);
         // Status LED near the left edge of each unit.
         painter.circle_filled(
             Pos2::new(unit.left() + unit_w * 0.16, top + unit_h * 0.5),

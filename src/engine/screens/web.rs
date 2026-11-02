@@ -114,7 +114,7 @@ impl WebProvider {
         let view = &mut self.view;
         core.run_with(gui_state, |ctx, state| {
             egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(egui::Margin::same(theme.spacing_md as i8)))
+                .frame(egui::Frame::NONE.fill(theme.bg_primary()).inner_margin(egui::Margin::same(theme.spacing_md as i8)))
                 .show(ctx, |ui| {
                     // The swapped-in image cache is THIS screen's (see the
                     // texture-swap rule in screen_surface.rs), so page
@@ -218,7 +218,7 @@ impl ScreenProvider for WebProvider {
 /// software: the reason, in the words `EmbedVerdict::note` gives every host.
 fn refused_notice(ctx: &egui::Context, theme: &Theme, note: &str) {
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(egui::Margin::same(theme.spacing_md as i8)))
+        .frame(egui::Frame::NONE.fill(theme.bg_primary()).inner_margin(egui::Margin::same(theme.spacing_md as i8)))
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
             ui.label(
@@ -237,7 +237,7 @@ fn refused_notice(ctx: &egui::Context, theme: &Theme, note: &str) {
 /// read from across the room.
 fn off_notice(ctx: &egui::Context, theme: &Theme, url: &str) {
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(egui::Margin::same(theme.spacing_md as i8)))
+        .frame(egui::Frame::NONE.fill(theme.bg_primary()).inner_margin(egui::Margin::same(theme.spacing_md as i8)))
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
             ui.label(

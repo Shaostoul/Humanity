@@ -1,0 +1,5 @@
+{
+  "_what": "The most Rust warnings our crate may have in each check (scripts/warnings-ratchet.js, run by `just verify` and CI). A ratchet: it only goes down. Zero since 2026-11-01 (PRIORITIES TIER 0 item 14). A new warning is fixed, never budgeted.",
+  "native": 0,
+  "relay": 0
+}

@@ -279,8 +279,8 @@ pub fn draw_help_toggle(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 RichText::new(glyph).size(theme.font_size_body).color(text),
             )
             .fill(fill)
-            .stroke(egui::Stroke::new(1.0, theme.border()))
-            .rounding(egui::Rounding::same(theme.border_radius as u8))
+            .stroke(egui::Stroke::new(1.0_f32, theme.border()))
+            .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
             .min_size(egui::Vec2::splat(HELP_TOGGLE_SIZE));
             if ui.add(btn).on_hover_text(tooltip).clicked() {
                 state.help_panel_pinned = !pinned;

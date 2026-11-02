@@ -238,9 +238,9 @@ fn the_admin_routes_refuse_everyone_else() {
     assert!(!db.media_item(item.id).unwrap().unwrap().featured.is_on(), "the refusal changed nothing");
     assert_eq!(db.media_categories().unwrap()[0].name, "General");
 
-    feature_core(db, &op.key, item.id, Featured::Main).unwrap();
+    assert_eq!(feature_core(db, &op.key, item.id, Featured::Main).unwrap().0["featured"], "main", "the answer names the shelf");
     assert_eq!(db.media_item(item.id).unwrap().unwrap().featured, Featured::Main);
-    feature_core(db, &op.key, item.id, Featured::None).unwrap();
+    assert_eq!(feature_core(db, &op.key, item.id, Featured::None).unwrap().0["featured"], "none");
     assert!(!db.media_item(item.id).unwrap().unwrap().featured.is_on(), "an admin takes it off the featured row");
     assert_eq!(categories_core(db, &op.key, &general).unwrap().0["categories"][0]["name"], "Everything");
 }
@@ -262,7 +262,7 @@ async fn a_suggester_is_told_when_an_admin_decides() {
     db.set_role(&op.key, "admin").unwrap();
     assert_eq!(suggest_core(db, &out.key, "Ghosts", "").unwrap_err().0, StatusCode::FORBIDDEN, "not a member");
     let fire = suggest_core(db, &ann.key, "Fire flow arts", "").unwrap().0;
-    suggest_core(db, &bea.key, "Builds", "").unwrap();
+    assert_eq!(suggest_core(db, &bea.key, "Builds", "").unwrap().0["suggestion"]["name"], "Builds");
     let anns = suggestions_core(db, &ann.key).unwrap().0;
     assert_eq!((anns["suggestions"].as_array().unwrap().len(), anns["all"].as_bool()), (1, Some(false)), "a member sees their own");
     assert_eq!(suggestions_core(db, &op.key).unwrap().0["suggestions"].as_array().unwrap().len(), 2, "an admin sees all");
@@ -377,7 +377,7 @@ async fn a_media_write_needs_a_fresh_signature() {
     let wrong_purpose = FeatureBody { sig: op.sign("media_remove", now), ..body(now, &op) };
     assert_eq!(feature(State(state.clone()), Json(wrong_purpose)).await.unwrap_err().0, StatusCode::UNAUTHORIZED);
 
-    feature(State(state.clone()), Json(body(now, &op))).await.expect("the admin's signed request");
+    assert_eq!(feature(State(state.clone()), Json(body(now, &op))).await.expect("the admin's signed request").0["featured"], "main");
     let again = feature(State(state.clone()), Json(body(now, &op))).await;
     assert!(again.is_err(), "the same signed request was taken twice");
     assert_eq!(again.unwrap_err().0, StatusCode::CONFLICT);
@@ -452,7 +452,8 @@ fn an_unpublished_media_upload_expires_and_can_be_removed_by_name() {
     let done = remove_core(db, folders, &by_name("2_new.mp4"), &ann.key).unwrap().0;
     assert_eq!(done["file_removed"], true);
     assert!(!uploads.join("2_new.mp4").exists(), "the owner removed it, file and all");
-    remove_core(db, folders, &by_name("/uploads/3_also.png"), &op.key).expect("an admin removes anyone's, by its address too");
+    let also = remove_core(db, folders, &by_name("/uploads/3_also.png"), &op.key).expect("an admin removes anyone's, by its address too").0;
+    assert_eq!(also["removed_upload"], "3_also.png", "the answer names it by its stored name");
     assert_eq!(db.media_bytes(None), 0, "nothing waits now");
     assert_eq!(remove_core(db, folders, &by_name("2_new.mp4"), &ann.key).unwrap_err().0, StatusCode::NOT_FOUND);
     assert!(usage_core(db, &s, &op.key).unwrap().0["waiting"].as_array().unwrap().is_empty());
@@ -491,7 +492,8 @@ fn removing_an_item_gives_its_upload_back_and_keeps_a_file_in_use() {
     assert_eq!((done["file_kept"].as_bool(), done["file_removed"].as_bool()), (Some(true), Some(false)));
     assert_eq!(shelf_of(db, "1_chat.png"), Some(0), "the chat file is a chat file again");
 
-    remove_core(db, folders, &RemoveTarget::Item(ids[1]), &ann.key).unwrap();
+    let shared = remove_core(db, folders, &RemoveTarget::Item(ids[1]), &ann.key).unwrap().0;
+    assert_eq!((shared["removed"].as_i64(), shared["file_kept"].as_bool()), (Some(ids[1]), Some(true)), "{shared}");
     assert!(uploads.join("2_shared.glb").exists(), "the Shared Files file stays");
     assert_eq!(shelf_of(db, "2_shared.glb"), Some(1));
     assert_eq!(shared_list(db), vec!["2_shared.glb".to_string()], "and stays in its list");
@@ -559,7 +561,7 @@ async fn a_members_only_file_is_only_for_members() {
     let public = visibility_core(db, folders, id, &ann.key, "public").unwrap().0;
     assert_eq!(public["item"]["url"], "/uploads/1_case.glb");
     assert!(uploads.join("1_case.glb").exists() && !members.join("1_case.glb").exists(), "made public, the file is back at its address");
-    visibility_core(db, folders, id, &ann.key, "members").unwrap();
+    assert_eq!(visibility_core(db, folders, id, &ann.key, "members").unwrap().0["item"]["visibility"], "members");
     assert!(!uploads.join("1_case.glb").exists() && members.join("1_case.glb").exists(), "members only again, it leaves it");
 
     assert!(s.media_members_note.contains("everyone signed in") && s.media_members_note.contains("lockdown"), "{}", s.media_members_note);
@@ -651,7 +653,7 @@ async fn a_signature_names_its_target_and_is_never_far_ahead() {
     let ahead = feature(State(state.clone()), Json(feature_body(a.id, a.id, now + 31_000))).await;
     assert!(ahead.is_err(), "a timestamp 31 seconds ahead was taken");
     assert_eq!(ahead.unwrap_err().0, StatusCode::BAD_REQUEST);
-    feature(State(state.clone()), Json(feature_body(a.id, a.id, now + 20_000))).await.expect("20 seconds ahead is a clock a little fast");
+    assert_eq!(feature(State(state.clone()), Json(feature_body(a.id, a.id, now + 20_000))).await.expect("20 seconds ahead is a clock a little fast").0["id"], a.id);
 
     let moved = feature(State(state.clone()), Json(feature_body(b.id, a.id, now))).await;
     assert_eq!(moved.map(|_| ()).map_err(|(code, _)| code), Err(StatusCode::UNAUTHORIZED), "a signature for one item was taken for another");
@@ -782,7 +784,8 @@ fn a_file_already_public_goes_on_media_as_public_only() {
     assert_eq!(shared_list(db), vec!["2_shared.glb".to_string()], "a public Shared Files file stays in that list");
 
     for item in [&chat, &shared] {
-        remove_core(db, folders, &RemoveTarget::Item(item["item"]["id"].as_i64().unwrap()), &ann.key).unwrap();
+        let id = item["item"]["id"].as_i64().unwrap();
+        assert_eq!(remove_core(db, folders, &RemoveTarget::Item(id), &ann.key).unwrap().0["removed"], id);
     }
     assert_eq!((shelf_of(db, "1_chat.png"), shelf_of(db, "2_shared.glb")), (Some(0), Some(1)), "removed, each is back on its shelf");
 }

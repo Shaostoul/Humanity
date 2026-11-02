@@ -154,7 +154,7 @@ pub(super) fn draw_live_strip(ctx: &egui::Context, theme: &Theme, state: &mut Gu
             let streams = state.watch_streams.clone();
             if !streams.is_empty() {
                 ui.add_space(2.0);
-                for (id, stream_title, viewers, bound_chat) in streams {
+                for (id, stream_title, viewers, _bound_chat) in streams {
                     ui.horizontal(|ui| {
                         ui.add_space(12.0);
                         let label =
@@ -210,7 +210,7 @@ fn draw_user_row(
             let border_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
             ui.painter().rect_stroke(
                 full_rect, 2.0,
-                egui::Stroke::new(1.5, border_color),
+                egui::Stroke::new(1.5_f32, border_color),
                 egui::epaint::StrokeKind::Inside,
             );
             ui.ctx().request_repaint();
@@ -262,7 +262,7 @@ fn draw_user_row(
                 egui::pos2(cx, cy - 7.0),
                 Vec2::new(14.0, 14.0),
             );
-            ui.painter().rect_filled(badge_rect, Rounding::same(3), badge_color);
+            ui.painter().rect_filled(badge_rect, CornerRadius::same(3), badge_color);
             ui.painter().text(
                 badge_rect.center(),
                 egui::Align2::CENTER_CENTER,

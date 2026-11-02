@@ -115,12 +115,6 @@ fn hash3u(x: u32, y: u32, z: u32, seed: u32) -> u32 {
     h
 }
 
-/// Top 24 bits of a hash as a float in [0, 1).
-#[inline(always)]
-fn unit(h: u32) -> f32 {
-    (h >> 8) as f32 * (1.0 / 16_777_216.0)
-}
-
 /// Euclidean modulo for cell indices (handles the -1 neighbor row).
 ///
 /// PERFORMANCE (v0.1188, the 2x-resolution bake): this used to be the

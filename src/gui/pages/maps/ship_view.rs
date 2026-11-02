@@ -276,7 +276,7 @@ pub(super) fn draw_inside(paint: &egui::Painter, theme: &Theme, proj: &MapProjec
     for r in &rooms {
         let (min, max) = ((r.min.x as f64, r.min.z as f64), (r.max.x as f64, r.max.z as f64));
         let Some(q) = floor_quad(proj, &me, min, max, floor) else { continue };
-        paint.add(Shape::convex_polygon(q.to_vec(), room_fill(theme, r), Stroke::new(1.0, theme.map_room_edge())));
+        paint.add(Shape::convex_polygon(q.to_vec(), room_fill(theme, r), Stroke::new(1.0_f32, theme.map_room_edge())));
         drawn.rooms_filled += 1;
         if !room_is_named(r) {
             continue;
@@ -330,13 +330,13 @@ fn draw_you_here(paint: &egui::Painter, theme: &Theme, at: Pos2, ahead: Pos2) {
         paint.add(Shape::convex_polygon(vec![tip, at + side * 6.0 + dir * 4.0, at - side * 6.0 + dir * 4.0], theme.info().gamma_multiply(0.85), Stroke::NONE));
     }
     paint.circle_filled(at, 5.0, theme.info());
-    paint.circle_stroke(at, 8.0, Stroke::new(1.5, theme.info()));
+    paint.circle_stroke(at, 8.0, Stroke::new(1.5_f32, theme.info()));
 }
 
 /// With no world drawn: every body's walls on `level` (`wall_in_storey`) and its outline as lines
 /// on its floor, for each body big enough on screen to read.
 fn draw_walls(paint: &egui::Painter, theme: &Theme, proj: &MapProjector, me: &MapSelf, ship: &crate::ship::ship_structure::ShipStructure, level: &ShipLevel, floor: f64) {
-    let stroke = Stroke::new(1.5, theme.map_room_edge());
+    let stroke = Stroke::new(1.5_f32, theme.map_room_edge());
     let line = |a: (f64, f64), b: (f64, f64)| {
         if let (Some((p, _)), Some((q, _))) = (proj.project(me.ship_to_world(DVec3::new(a.0, floor, a.1))), proj.project(me.ship_to_world(DVec3::new(b.0, floor, b.1)))) {
             paint.line_segment([p, q], stroke);

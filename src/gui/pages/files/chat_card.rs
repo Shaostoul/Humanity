@@ -168,7 +168,6 @@ pub enum Picture {
 pub struct View {
     /// The card's key (its message and its item), which remembers whether it is open.
     pub key: String,
-    pub id: i64,
     pub state: CardState,
     pub open: bool,
     pub picture: Picture,
@@ -197,7 +196,7 @@ pub fn views(state: &GuiState, sender: &str, ts: u64, ids: &[i64]) -> (Vec<View>
                 (CardState::Ready(item), true) => picture_of(state, sender, item, &mut acts),
                 _ => Picture::None,
             };
-            View { key, id, state: card, open, picture }
+            View { key, state: card, open, picture }
         })
         .collect();
     (views, acts)
@@ -243,7 +242,7 @@ pub fn draw_all(ui: &mut egui::Ui, theme: &Theme, views: &[View], row_bg: Color3
             ui.set_min_width(ui.available_width());
             egui::Frame::NONE
                 .fill(theme.bg_card())
-                .stroke(Stroke::new(1.0, theme.border()))
+                .stroke(Stroke::new(1.0_f32, theme.border()))
                 .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
                 .inner_margin(egui::Margin::symmetric(8, 6))
                 .show(ui, |ui| draw_card(ui, theme, view, acts));

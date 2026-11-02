@@ -50,7 +50,7 @@ const STRIPE: f32 = 3.0;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 ui.vertical(|ui| {
@@ -178,9 +178,9 @@ fn draw_active(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, open: &mut Op
 /// One quest under way: its chain, its name, "Step 2 of 8" over the step meter, the step it is
 /// on as the focus, its rewards. A click opens its chain.
 fn active_card(ui: &mut egui::Ui, theme: &Theme, q: &crate::gui::GuiQuest, open: &mut Option<String>) {
-    let card = Frame::none()
+    let card = Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .corner_radius(egui::CornerRadius::same(theme.border_radius_lg as u8))
         .inner_margin(egui::Margin { left: (theme.spacing_lg + STRIPE) as i8, right: theme.spacing_lg as i8, top: theme.spacing_md as i8, bottom: theme.spacing_md as i8 })
         .show(ui, |ui| {
@@ -241,7 +241,7 @@ fn active_card(ui: &mut egui::Ui, theme: &Theme, q: &crate::gui::GuiQuest, open:
     );
     let click = card.response.interact(egui::Sense::click()).hint("quests.card_hint");
     if click.hovered() {
-        ui.painter().rect_stroke(rect, egui::CornerRadius::same(theme.border_radius_lg as u8), Stroke::new(1.0, theme.accent()), egui::StrokeKind::Outside);
+        ui.painter().rect_stroke(rect, egui::CornerRadius::same(theme.border_radius_lg as u8), Stroke::new(1.0_f32, theme.accent()), egui::StrokeKind::Outside);
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
     if click.clicked() {
@@ -285,7 +285,7 @@ fn step_meter(ui: &mut egui::Ui, theme: &Theme, done: usize, total: usize) {
 
 /// The step the player is on: the card's focus, on a faint accent ground with a stripe.
 fn now_block(ui: &mut egui::Ui, theme: &Theme, step: &str) {
-    let block = Frame::none()
+    let block = Frame::NONE
         .fill(theme.accent().gamma_multiply(0.08))
         .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
         .inner_margin(egui::Margin { left: (theme.spacing_md + STRIPE) as i8, right: theme.spacing_md as i8, top: theme.spacing_sm as i8, bottom: theme.spacing_sm as i8 })
@@ -381,7 +381,7 @@ fn draw_completed(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, open: &mut
                 .interact(egui::Sense::click())
                 .hint("quests.completed_hint");
             if row.hovered() {
-                ui.painter().rect_stroke(row.rect, egui::CornerRadius::same(theme.border_radius as u8), Stroke::new(1.0, theme.accent()), egui::StrokeKind::Outside);
+                ui.painter().rect_stroke(row.rect, egui::CornerRadius::same(theme.border_radius as u8), Stroke::new(1.0_f32, theme.accent()), egui::StrokeKind::Outside);
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
             if row.clicked() {

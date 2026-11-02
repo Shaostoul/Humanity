@@ -2,7 +2,7 @@
 //! (`data/maps/regions/*.bin`), roads and buildings drawn GPS-map style.
 //! Moved out of `gui/pages/cosmos.rs` in Maps increment 0 (2026-10-20).
 
-use egui::{Align2, Color32, Pos2, Rect, RichText, Rounding, Stroke, Vec2};
+use egui::{Align2, Color32, Pos2, Rect, RichText, CornerRadius, Stroke, Vec2};
 use std::sync::OnceLock;
 
 use crate::gui::theme::Theme;
@@ -138,7 +138,7 @@ pub(super) fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
 
     let (rect, response, center, zoom) = allocate_canvas(ui, state);
     let paint = ui.painter_at(rect);
-    paint.rect_filled(rect, Rounding::ZERO, MAP_GROUND);
+    paint.rect_filled(rect, CornerRadius::ZERO, MAP_GROUND);
 
     // Meters -> pixels: the region's larger half-extent fills the canvas at
     // zoom 1. Screen north is up (n grows up, screen y grows down).
@@ -206,7 +206,7 @@ pub(super) fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         let t = (b.height_m / 60.0).clamp(0.0, 1.0);
         let g = 70 + (t * 70.0) as u8;
         let color = Color32::from_rgb(g, g, g + 8); // theme-exempt: building outline, height-tinted grey — cartography
-        paint.add(egui::Shape::closed_line(pts, Stroke::new(0.8, color)));
+        paint.add(egui::Shape::closed_line(pts, Stroke::new(0.8_f32, color)));
         buildings_drawn += 1;
     }
 
@@ -380,7 +380,7 @@ pub(super) fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     // (measured above, with the names).
     paint.line_segment(
         [Pos2::new(bar_x, bar_y), Pos2::new(bar_x + bar_px, bar_y)],
-        Stroke::new(2.0, theme.text_secondary()),
+        Stroke::new(2.0_f32, theme.text_secondary()),
     );
     paint.text(
         Pos2::new(bar_x + bar_px / 2.0, bar_y - 4.0),

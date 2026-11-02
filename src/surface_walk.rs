@@ -21,7 +21,7 @@
 //! in the core since the crate split's rung 0: the renderer's camera aims with
 //! it, and the renderer may not reach into the simulation.
 
-use glam::{DVec3, Vec3};
+use glam::DVec3;
 
 use crate::terrain::drawn_surface::DrawnPatchSurface;
 use crate::terrain::ocean_mask::OceanMask;
@@ -32,6 +32,7 @@ use crate::terrain::terrain_tiles::TerrainTiles;
 // Standing eye height above the ground (metres): the radial distance the
 // stand/walk clamp rests the camera at above the sampled ground radius. The
 // body's, `ecs::components::EYE_HEIGHT_M`, since the crate split's rung 0.
+#[cfg(test)]
 use crate::ecs::components::EYE_HEIGHT_M;
 
 /// Clearance above the ground when the only reference available is the

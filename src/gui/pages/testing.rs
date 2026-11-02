@@ -11,7 +11,7 @@
 //!      a textarea, then sends ❌ message with the note).
 //!   5. Local status updates so the operator can see at a glance what's done.
 
-use egui::{Frame, RichText, ScrollArea, Stroke, Vec2};
+use egui::{Frame, RichText, ScrollArea, Stroke};
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -19,7 +19,7 @@ use crate::gui::{GuiPage, GuiState};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
+        .frame(Frame::NONE.fill(theme.bg_primary()).inner_margin(0.0))
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 ui.vertical_centered(|ui| {
@@ -87,10 +87,10 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// window size. lib.rs consumes `screenshot_capture_request` at end-of-frame and
 /// reports back through `screenshot_last_result`.
 fn draw_screenshot_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, theme.border()))
-        .rounding(egui::Rounding::same(theme.border_radius as u8))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
+        .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
         .show(ui, |ui| {
             ui.label(
@@ -223,10 +223,10 @@ fn draw_tasks(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             _        => theme.border(),
         };
 
-        Frame::none()
+        Frame::NONE
             .fill(theme.bg_card())
-            .stroke(Stroke::new(1.5, border_color))
-            .rounding(egui::Rounding::same(theme.border_radius as u8))
+            .stroke(Stroke::new(1.5_f32, border_color))
+            .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
             .inner_margin(theme.card_padding * 1.5)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {

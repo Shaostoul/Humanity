@@ -523,7 +523,7 @@ fn chamfer_feature(
             p[i] = payload_of(i);
         }
     }
-    let mut relax = |i: usize, j: usize, cost: f32, d: &mut [f32], p: &mut [f32]| {
+    let relax = |i: usize, j: usize, cost: f32, d: &mut [f32], p: &mut [f32]| {
         if d[j] + cost < d[i] {
             d[i] = d[j] + cost;
             p[i] = p[j];

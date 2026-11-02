@@ -57,8 +57,6 @@ pub struct WsClient {
     server_url: String,
     /// The user's display name (sent in the identify message).
     user_name: String,
-    /// The user's public key hex (sent in the identify message).
-    public_key: String,
 }
 
 impl WsClient {
@@ -105,7 +103,6 @@ impl WsClient {
             state: LinkState::Connecting,
             server_url: url.to_string(),
             user_name: name.to_string(),
-            public_key: pubkey_hex.to_string(),
         }
     }
 
@@ -123,7 +120,6 @@ impl WsClient {
             state: LinkState::Connected,
             server_url: "wss://recording.invalid/ws".to_string(),
             user_name: String::new(),
-            public_key: String::new(),
         };
         (client, sent)
     }

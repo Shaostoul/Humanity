@@ -100,7 +100,7 @@ pub fn safety_note(ui: &mut Ui, theme: &Theme, safety: &crate::how_to::model::Sa
     let hazard = safety.level.hazard();
     let colour = hazard_colour(theme, hazard);
     egui::Frame::NONE
-        .stroke(egui::Stroke::new(1.0, colour))
+        .stroke(egui::Stroke::new(1.0_f32, colour))
         .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
         .inner_margin(egui::Margin::same(theme.spacing_sm as i8))
         .show(ui, |ui| {

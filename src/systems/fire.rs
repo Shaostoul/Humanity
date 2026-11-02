@@ -145,7 +145,7 @@ impl System for FireSystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
         if dt <= 0.0 { return; }
         let dt = f64::from(dt);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Apply pending ignitions from previous tick (deferred to avoid alias).
         for (entity, fuel) in self.pending_ignitions.drain(..) {
@@ -202,7 +202,7 @@ impl System for FireSystem {
             for (target, target_pos, ignition_dist, fuel) in &flammables {
                 let dist = fire_pos.distance(*target_pos);
                 if dist > *ignition_dist { continue; }
-                if rng.gen::<f64>() < chance {
+                if rng.random::<f64>() < chance {
                     self.pending_ignitions.push((*target, *fuel));
                 }
             }

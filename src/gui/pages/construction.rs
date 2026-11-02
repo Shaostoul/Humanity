@@ -648,7 +648,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // ── CENTER: top-down plan overlay (optional; default OFF so the orbit cam is primary) ──
     if state.construction_plan_view {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(egui::Color32::from_black_alpha(150)))
+            .frame(egui::Frame::NONE.fill(egui::Color32::from_black_alpha(150)))
             .show(ctx, |ui| {
                 draw_floorplan_canvas(ui, theme, state);
             });
@@ -706,7 +706,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             // walls/machines/connections the home has (operator, v0.569). Declared before the scroll
             // so egui reserves its space; the scrollable content fills what remains above it.
             egui::TopBottomPanel::bottom("hs_left_actions")
-                .frame(egui::Frame::none())
+                .frame(egui::Frame::NONE)
                 .show_inside(ui, |ui| {
                     ui.add_space(theme.spacing_xs);
                     ui.separator();
@@ -1586,7 +1586,7 @@ fn legend_swatch(ui: &mut egui::Ui, theme: &Theme, look: &LegendLook) {
             painter.rect_filled(r, 0.0, *c);
         }
     }
-    painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, look.outline), egui::StrokeKind::Outside);
+    painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0_f32, look.outline), egui::StrokeKind::Outside);
 }
 
 /// Right-panel info for the STRUCTURE piece currently held for placement (v0.602): label, category,
@@ -3718,7 +3718,7 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                     .color(if held { theme.bg_primary() } else { theme.text_secondary() }),
                             );
                             if held {
-                                btn = btn.fill(theme.accent()).stroke(egui::Stroke::new(2.0, theme.warning()));
+                                btn = btn.fill(theme.accent()).stroke(egui::Stroke::new(2.0_f32, theme.warning()));
                             }
                             if ui.add_sized([92.0, 30.0], btn).clicked() {
                                 // Toggle: click the held item to cancel; click another to switch.
@@ -3925,17 +3925,17 @@ fn draw_floorplan_canvas(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
             (r.color[2] * 255.0) as u8,
             205,
         );
-        painter.rect_filled(room_rect, egui::Rounding::same(2), fill);
+        painter.rect_filled(room_rect, egui::CornerRadius::same(2), fill);
         let resp = ui.interact(room_rect, egui::Id::new(("plan_room", ri)), egui::Sense::click_and_drag());
         let selected = state.construction_selected_room == Some(ri);
         let stroke = if selected {
-            egui::Stroke::new(2.5, theme.accent())
+            egui::Stroke::new(2.5_f32, theme.accent())
         } else if resp.hovered() || resp.dragged() {
-            egui::Stroke::new(2.0, theme.accent())
+            egui::Stroke::new(2.0_f32, theme.accent())
         } else {
-            egui::Stroke::new(1.0, theme.border())
+            egui::Stroke::new(1.0_f32, theme.border())
         };
-        painter.rect_stroke(room_rect, egui::Rounding::same(2), stroke, egui::StrokeKind::Inside);
+        painter.rect_stroke(room_rect, egui::CornerRadius::same(2), stroke, egui::StrokeKind::Inside);
         painter.text(room_rect.center(), egui::Align2::CENTER_CENTER, &r.id, egui::FontId::proportional(12.0), theme.text_primary());
         if resp.clicked() || resp.drag_started() {
             clicked = Some(ri);

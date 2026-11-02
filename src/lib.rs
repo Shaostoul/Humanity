@@ -129,6 +129,7 @@ pub mod hot_reload;
 /// trees) each spray became a 0.5-1.9 m sheet lying across the grass, which is
 /// what the operator saw and reported. There is no scale factor that turns a
 /// sapling into a mature tree - the architecture differs, not just the size.
+#[cfg(feature = "native")]
 const MAX_MODEL_STRETCH: f32 = 3.0;
 
 
@@ -216,9 +217,10 @@ pub mod wasm_entry;
 /// (not inside `native_app` below) and made callable from both the render call site and its test
 /// in `machines.rs`, so the test guards the REAL condition instead of a hand-copied duplicate
 /// that could silently drift from it (caught in review, 2026-07-01). Pure bool logic, no
-/// rendering/ECS dependency, so it costs nothing to keep it available to the relay build too.
+/// rendering/ECS dependency; native only, as its caller and its test are.
 /// `drone_active` reflects `!gui_state.drones.is_empty()` as of the last refresh this frame;
 /// callers must call this only after that refresh runs, or it reads one frame stale.
+#[cfg(feature = "native")]
 pub(crate) fn drone_dock_visible(showroom: bool, hide_machines: bool, drone_active: bool) -> bool {
     !showroom && !hide_machines && !drone_active
 }
@@ -235,17 +237,11 @@ mod native_app {
     };
     use crate::assets::AssetManager;
     use crate::ecs::GameWorld;
-    use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
+    use crate::ecs::components::{Controllable, Health, Name, Transform};
     use crate::ecs::systems::SystemRunner;
     use crate::gui::{GuiGameTime, GuiItemSlot, GuiPage, GuiState, GuiWeather};
-    use crate::gui::theme::Theme;
     use crate::gui::pages::{
-        main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
-        tasks, profile, market, calculator, calendar, notes, civilization,
-        wallet, crafting, guilds, trade, bugs, donate, studio,
-        server_settings, identity, governance, testing,
-        browser, real,
-        humanity, library, quests, homes,
+        main_menu, escape_menu, chat, hud,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -254,7 +250,7 @@ mod native_app {
     use crate::renderer::camera::{Camera, CameraController};
     use crate::renderer::mesh::Mesh;
     use crate::renderer::{RenderObject, Renderer};
-    use crate::ship::ship_structure::{zone_body, zone_body_mut, zone_origin, ShipStructure};
+    use crate::ship::ship_structure::{zone_body, zone_body_mut};
     use crate::ship::storey_edits::EditStorey;
     use crate::systems::crafting::CraftingSystem;
     use crate::systems::farming::FarmingSystem;
@@ -268,13 +264,12 @@ mod native_app {
     use crate::systems::player::PlayerControllerSystem;
     use crate::systems::time::{GameTime, TimeSystem};
     use crate::systems::weather::{Weather, WeatherSystem};
-    use crate::terrain::planet::PlanetDef;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Instant;
     use winit::application::ApplicationHandler;
     use winit::event::{DeviceEvent, DeviceId, WindowEvent};
-    use winit::event_loop::{ActiveEventLoop, EventLoop};
+    use winit::event_loop::ActiveEventLoop;
     use winit::keyboard::{KeyCode, PhysicalKey};
     use winit::window::{Window, WindowId};
 
@@ -1959,7 +1954,6 @@ mod native_app {
                 flight: crate::systems::flight::FlightState::default(),
                 surface_walk_band: false,
                 surface_owns_translation: false,
-                floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
                 planet_defs: std::collections::HashMap::new(),
                 planet_heightmaps: std::collections::HashMap::new(),
                 planet_albedos: std::collections::HashMap::new(),
@@ -2156,7 +2150,6 @@ mod native_app {
                 cloud_map_regime: 0,
                 cloud_prev_cam_local: None,
                 cloud_prev_rot: None,
-                cloud_map_sun_epoch: glam::DVec3::ZERO,
                 sea_state_override: None,
                 // Rig determinism pins, both off by default (showcase_request
                 // {"wind":...} / {"anim_clock":...} turn them on).
@@ -2200,7 +2193,6 @@ mod native_app {
                 screens: crate::engine::screens::Screens::default(),
                 world_loaded: false,
                 boot_timer,
-                window_shown: false,
                 data_dir,
                 ctrl_held: false,
                 shift_held: false,
@@ -9462,7 +9454,6 @@ mod native_app {
                     // frame by -ship_pos. Live sim time = seconds since
                     // J2000 from the real clock, so the sky matches the
                     // real date (same as Maps "Now").
-                    let elapsed = (now - state.start_time).as_secs_f32();
                     // Planet spin in f64, reduced mod TAU (v0.872 SURFACE JITTER
                     // FIX): the render path used f32 seconds for the spin angle
                     // while the frame lock used f64 from the SAME clock. The
@@ -9505,7 +9496,9 @@ mod native_app {
                         let fov_deg = state.camera.fov_degrees;
                         // Chunked-LOD patch builds are budgeted PER FRAME
                         // across all bodies (in practice at most one body
-                        // is ever close enough to be chunk-active).
+                        // is ever close enough to be chunk-active): each
+                        // body takes what the bodies before it left of the
+                        // terrain_builds_per_frame setting (`budget_left`).
                         let mut patch_builds_this_frame = 0usize;
                         // Every body surface drawn this frame, for the sun each one is lit
                         // by (renderer::key_lights::sky_body_params, after the light block).
@@ -10140,11 +10133,16 @@ mod native_app {
                                     .settings
                                     .terrain_builds_per_frame
                                     .clamp(1.0, 64.0) as usize;
+                                // The setting is the frame's, not each body's
+                                // (2026-11-01: this count was kept and never
+                                // read, so two chunk-active bodies could each
+                                // build the whole budget).
+                                let budget_left = budget.saturating_sub(patch_builds_this_frame);
                                 let to_build: Vec<chunks::PatchId> = selection
                                     .build_requests
                                     .iter()
                                     .filter(|id| !cs.cache.contains_key(id))
-                                    .take(budget)
+                                    .take(budget_left)
                                     .cloned()
                                     .collect();
                                 if !to_build.is_empty() {
@@ -10346,7 +10344,7 @@ mod native_app {
                                     // rot are shared batch state.
                                     let patch_material = textured_mat
                                         .unwrap_or(state.planet_surface_material);
-                                    let mut push_patch = |e: &chunks::PatchEntry,
+                                    let push_patch = |e: &chunks::PatchEntry,
                                                           fade: f32,
                                                           batched: &mut Vec<
                                         crate::renderer::PatchDraw,

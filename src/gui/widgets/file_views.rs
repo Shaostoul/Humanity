@@ -346,7 +346,7 @@ fn cell(ui: &mut egui::Ui, theme: &Theme, e: &FsEntry, look: &Look, width: f32, 
     // In a picker for several, the tick in the top right.
     if look.multiple && !look.dir_mode && !e.is_dir {
         let tick = Rect::from_min_size(Pos2::new(preview.right() - 22.0, preview.top() + 4.0), Vec2::splat(18.0));
-        painter.rect(tick, 3.0, theme.bg_card(), Stroke::new(1.5, theme.text_primary()), egui::StrokeKind::Inside);
+        painter.rect(tick, 3.0, theme.bg_card(), Stroke::new(1.5_f32, theme.text_primary()), egui::StrokeKind::Inside);
         if look.is_chosen(e) {
             super::icons::paint_check(&painter, tick.shrink(3.0), theme.accent());
         }
@@ -357,9 +357,9 @@ fn cell(ui: &mut egui::Ui, theme: &Theme, e: &FsEntry, look: &Look, width: f32, 
     let galley = painter.layout_job(job);
     painter.galley(Pos2::new(rect.left() + 2.0, preview.bottom() + 3.0), galley, theme.text_primary());
     if chosen {
-        painter.rect_stroke(preview, theme.border_radius, Stroke::new(2.0, theme.accent()), egui::StrokeKind::Inside);
+        painter.rect_stroke(preview, theme.border_radius, Stroke::new(2.0_f32, theme.accent()), egui::StrokeKind::Inside);
     } else if resp.hovered() {
-        painter.rect_stroke(preview, theme.border_radius, Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+        painter.rect_stroke(preview, theme.border_radius, Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
     }
     let resp = resp.on_hover_text(if e.is_dir { e.name.clone() } else { format!("{} ({})", e.name, human_size(e.size)) });
     if resp.double_clicked() {

@@ -154,7 +154,7 @@ pub fn show(
             Arrange::Across => Rect::from_min_size(egui::pos2(start, area.top()), egui::vec2(*size, area.height())),
             Arrange::Down => Rect::from_min_size(egui::pos2(area.left(), start), egui::vec2(area.width(), *size)),
         };
-        ui.painter().rect(card, radius, theme.bg_card(), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+        ui.painter().rect(card, radius, theme.bg_card(), Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
         let inner = card.shrink(theme.spacing_sm);
         let mut child = ui.new_child(egui::UiBuilder::new().id_salt(id.with(("pane", i))).max_rect(inner).layout(egui::Layout::top_down(egui::Align::Min)));
         child.set_clip_rect(inner.intersect(ui.clip_rect()));
@@ -191,7 +191,7 @@ pub fn show(
                 Arrange::Across => (egui::pos2(c.x, c.y - reach), egui::pos2(c.x, c.y + reach)),
                 Arrange::Down => (egui::pos2(c.x - reach, c.y), egui::pos2(c.x + reach, c.y)),
             };
-            ui.painter().line_segment([a, b], Stroke::new(if active { 3.0 } else { 2.0 }, color));
+            ui.painter().line_segment([a, b], Stroke::new(if active { 3.0 } else { 2.0_f32 }, color));
             start += gap;
         }
     }

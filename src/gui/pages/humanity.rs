@@ -9,11 +9,11 @@
 //! dashes read as machine-written and cost trust on a landing page) and frames
 //! the personal "why" (one family's survival is everyone's). Keep it that way.
 
-use egui::{Align2, Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
+use egui::{Align2, Frame, Margin, RichText, CornerRadius, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::i18n::{t, t_marked};
-use crate::gui::widgets::{self, with_hint, Hint, SectionNavItem};
+use crate::gui::widgets::{self, with_hint, SectionNavItem};
 use super::{civilization, governance, identity, donate};
 
 /// The Humanity Accord, embedded at compile time from the canonical repo copy so
@@ -75,11 +75,11 @@ fn render_doc_modal(ctx: &egui::Context, theme: &Theme) {
         .default_height(560.0)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .frame(
-            Frame::none()
+            Frame::NONE
                 .fill(theme.bg_panel())
                 .inner_margin(theme.card_padding)
-                .stroke(Stroke::new(1.0, theme.border()))
-                .rounding(Rounding::same(8)),
+                .stroke(Stroke::new(1.0_f32, theme.border()))
+                .corner_radius(CornerRadius::same(8)),
         )
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -98,10 +98,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .min_width(160.0)
         .max_width(270.0)
         .frame(
-            Frame::none()
+            Frame::NONE
                 .fill(theme.bg_sidebar())
                 .inner_margin(Margin::symmetric(8, 12))
-                .stroke(Stroke::new(1.0, theme.border())),
+                .stroke(Stroke::new(1.0_f32, theme.border())),
         )
         .show(ctx, |ui| {
             let c = theme.nav_reality();
@@ -138,7 +138,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Context; draw_mission_dashboard only gets a Ui).
             civilization::poll_stats(ctx, state);
             egui::CentralPanel::default()
-                .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+                .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
                 .show(ctx, |ui| {
                     ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                         draw_mission_dashboard(ui, theme, state);
@@ -160,11 +160,11 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     ui.add_space(theme.spacing_sm);
     let rule_w = ui.available_width();
     let (rule, _) = ui.allocate_exact_size(egui::Vec2::new(rule_w, 3.0), egui::Sense::hover());
-    ui.painter().rect_filled(rule, Rounding::same(2), theme.accent());
+    ui.painter().rect_filled(rule, CornerRadius::same(2), theme.accent());
     ui.add_space(theme.spacing_md);
     ui.horizontal(|ui| {
         let (badge, _) = ui.allocate_exact_size(egui::Vec2::splat(36.0), egui::Sense::hover());
-        ui.painter().rect_filled(badge, Rounding::same(8), theme.accent());
+        ui.painter().rect_filled(badge, CornerRadius::same(8), theme.accent());
         widgets::icons::paint_heart(ui.painter(), badge.shrink(8.0), theme.text_on_accent());
         ui.add_space(theme.spacing_sm);
         // Heading = the nav label ("Humanity", the tab), not the product
@@ -481,11 +481,11 @@ fn accent_card_with_header(
     title: &str,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) {
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
-        .stroke(Stroke::new(1.5, theme.accent()))
+        .stroke(Stroke::new(1.5_f32, theme.accent()))
         .show(ui, |ui| {
             ui.label(
                 RichText::new(title)
@@ -505,9 +505,9 @@ fn quiet_card_with_header(
     title: &str,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) {
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
         .show(ui, |ui| {
             ui.label(
@@ -522,11 +522,11 @@ fn quiet_card_with_header(
 
 /// A chip naming one of the five things the mission ends ("End Poverty").
 fn goal_chip(ui: &mut egui::Ui, theme: &Theme, goal: &str) {
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_card())
-        .rounding(Rounding::same(6))
+        .corner_radius(CornerRadius::same(6))
         .inner_margin(Margin::symmetric(10, 4))
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .show(ui, |ui| {
             ui.label(
                 RichText::new(goal)

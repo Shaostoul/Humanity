@@ -159,6 +159,7 @@ pub(crate) fn sweep_own() {
 
 /// [`sweep_own`] for the parts in `dir` only (the tests, which run side by side, each sweep their
 /// own folder).
+#[cfg(test)]
 pub(crate) fn sweep_own_in(dir: &Path) {
     let paths: Vec<PathBuf> = {
         let mut list = open_list();
@@ -172,6 +173,7 @@ pub(crate) fn sweep_own_in(dir: &Path) {
 }
 
 /// Whether `path` is a part file this run is writing (so the exit deletes it).
+#[cfg(test)]
 pub(crate) fn is_listed(path: &Path) -> bool {
     open_list().iter().any(|p| p == path)
 }

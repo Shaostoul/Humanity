@@ -265,19 +265,17 @@ In order:
     still later, recorded in the design: Windows' taskbar overlay badge, macOS's menu-bar count, a
     click on a notice after the app has quit, closing a Linux notice through D-Bus (rung 5).
 14. **Rust warnings to zero, then held there (operator, 2026-10-31: "Sounds like we have a
-    reasonable path forward.")** The user environment's `RUSTFLAGS=-Awarnings` hid every warning
-    on this PC (docs/ai/builds.md); main had about 1,070 warning lines: ~530 renamed egui and rand
-    APIs, 211 float literals whose type is guessed (a future-compatibility lint), ~180 unused
-    imports, variables and `mut`s, ~65 items nothing calls, ~36 visibility mismatches, 62 results
-    thrown away (53 in the relay's tests), and a few real ones (lib.rs's `patch_builds_this_frame`
-    is counted and never read, so the terrain build limit "across all bodies" its comment
-    promises is not enforced). The plan: (1) the operator removes the user variable and restarts
-    the Claude app once the running agents are done (the orchestrator tells him when it is safe);
-    (2) one agent cleans to zero, mechanical first, then each never-called item looked at (delete
-    it, or wire it up if it was meant to work; dev tooling stays), after the stutter and tray-fix
-    agents land and before crate split rung 1; (3) a ratchet: `just verify` and CI's relay check
-    fail when a change adds a warning. The operator removed the variable and restarted on
-    2026-11-01; the cleanup agent is running.
+    reasonable path forward.") DONE 2026-11-01.** The operator removed the user
+    `RUSTFLAGS=-Awarnings` that had hidden every warning on this PC; main's 1,071 native and 258
+    relay warnings (817b0396d) are 0 and 0: the egui and rand renames, the float literals, the
+    unused imports and `mut`s, the visibility mismatches, every thrown-away result made a check,
+    each never-used item looked at (deleted, gated to tests, or gated to the native build), and
+    the vendored rav1d's five taken from upstream. Real defects it found: the terrain build limit
+    "across all bodies" was not enforced (fixed), and the web Tasks board's raw messages skipped
+    every task role check (BUG-221, which notifications rung 3 found independently; fixed once).
+    The ratchet: `just verify` and CI's relay step count the warnings against
+    scripts/warnings-budget.json (0 and 0) and fail loudly when anything hides them
+    (docs/ai/builds.md, "The warnings ratchet").
 15. **Pipes, cables and hoses along splines, and the AR layer (operator, 2026-11-01: "We want to
     make the process of laying pipes, cables, and whatever else as easy as possible.")** PLANNED
     2026-11-01: `docs/design/spline-routing.md` (23 rungs), with dated findings for the "to code"

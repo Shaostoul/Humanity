@@ -13,8 +13,8 @@ use crate::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 
 /// A well-watered crop of `plant` in unit `slot` of `area`, `days` garden
-/// days into its season at growth `speed` (the clock stands at 0).
-fn crop(data: &DataStore, plant: &str, area: &str, slot: u32, days: f64, speed: f32) -> CropInstance {
+/// days into its season (the clock stands at 0; the growth speed is the store's, `store`).
+fn crop(data: &DataStore, plant: &str, area: &str, slot: u32, days: f64) -> CropInstance {
     let stage = data.get::<PlantRegistry>("plant_registry").unwrap().get(plant).unwrap().first_stage().to_string();
     CropInstance {
         crop_def_id: plant.to_string(),
@@ -93,9 +93,9 @@ fn weeds_build_in_a_soil_bed_and_not_in_a_tower() {
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
     for slot in 0..4 {
-        world.spawn((crop(&data, "tomato", "tomato_bed", slot, 0.0, 100.0),));
-        world.spawn((crop(&data, "lettuce", "ntower_1", slot, 0.0, 100.0),));
-        world.spawn((crop(&data, "wheat", "grain_field_1", slot, 0.0, 100.0),));
+        world.spawn((crop(&data, "tomato", "tomato_bed", slot, 0.0),));
+        world.spawn((crop(&data, "lettuce", "ntower_1", slot, 0.0),));
+        world.spawn((crop(&data, "wheat", "grain_field_1", slot, 0.0),));
     }
     // 100x growth, 1 s ticks: a garden day is 12 ticks; thirty days.
     run(&mut sys, &mut world, &data, 360, 1.0);
@@ -119,7 +119,7 @@ fn weeds_cap_an_out_competed_crop_hardest_in_its_critical_period() {
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
     for (area, days) in [("bed_early", 10.0), ("bed_critical", 30.0), ("bed_late", 50.0), ("ntower_1", 30.0)] {
-        world.spawn((crop(&data, "tomato", area, 0, days, 1.0),));
+        world.spawn((crop(&data, "tomato", area, 0, days),));
         seed_weeds(&mut world, area, 1.0, 1.0);
     }
     // 1x growth, so the crops' ages hardly move: 600 s is half a garden day,
@@ -150,7 +150,7 @@ fn hoeing_removes_weeds_and_wears_the_hoe() {
     inv.add_item("hoe_0", 1, 1);
     let player = world.spawn((inv, Controllable));
     for slot in 0..4 {
-        world.spawn((crop(&data, "tomato", "tomato_bed", slot, 5.0, 1.0),));
+        world.spawn((crop(&data, "tomato", "tomato_bed", slot, 5.0),));
     }
     seed_weeds(&mut world, "tomato_bed", 0.2, 0.25);
     request(&data, "tomato_bed", "hoe");
@@ -222,8 +222,8 @@ fn mulch_prevents_weeds_for_its_cited_time_and_spends_its_item() {
     inv.add_item("sawdust_0", 3, 20);
     let player = world.spawn((inv, Controllable));
     for slot in 0..4 {
-        world.spawn((crop(&data, "tomato", "bed_a", slot, 0.0, 100.0),));
-        world.spawn((crop(&data, "tomato", "bed_b", slot, 0.0, 100.0),));
+        world.spawn((crop(&data, "tomato", "bed_a", slot, 0.0),));
+        world.spawn((crop(&data, "tomato", "bed_b", slot, 0.0),));
     }
     seed_weeds(&mut world, "bed_a", 0.2, 1.0);
     seed_weeds(&mut world, "bed_b", 0.2, 1.0);
@@ -270,8 +270,8 @@ fn sawdust_mulch_ties_up_nitrogen() {
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
     let rich = || CropSoil { store: Npk::new(100.0, 100.0, 100.0), uptake: 0.0 };
-    let a = world.spawn((crop(&data, "tomato", "bed_a", 0, 0.0, 100.0), rich()));
-    let b = world.spawn((crop(&data, "tomato", "bed_b", 0, 0.0, 100.0), rich()));
+    let a = world.spawn((crop(&data, "tomato", "bed_a", 0, 0.0), rich()));
+    let b = world.spawn((crop(&data, "tomato", "bed_b", 0, 0.0), rich()));
     request(&data, "bed_a", "mulch_sawdust");
     run(&mut sys, &mut world, &data, 120, 1.0);
     let n = |e: hecs::Entity| world.get::<&CropSoil>(e).unwrap().store.n;
@@ -295,8 +295,8 @@ fn off_mode_turns_weeds_off() {
     let mut inv = Inventory::new(16);
     inv.add_item("hoe_0", 1, 1);
     let player = world.spawn((inv, Controllable));
-    world.spawn((crop(&data, "tomato", "tomato_bed", 0, 0.0, 100.0),));
-    world.spawn((crop(&data, "tomato", "bed_weedy", 0, 30.0, 100.0),));
+    world.spawn((crop(&data, "tomato", "tomato_bed", 0, 0.0),));
+    world.spawn((crop(&data, "tomato", "bed_weedy", 0, 30.0),));
     seed_weeds(&mut world, "bed_weedy", 1.0, 1.0);
     run(&mut sys, &mut world, &data, 360, 1.0);
     assert!(!memory(&world).weeds.contains_key("tomato_bed"), "no weeds come up with weeds off");

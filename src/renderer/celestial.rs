@@ -1546,7 +1546,6 @@ impl Renderer {
             // queue-write/submission-ordering subtlety, not logic; the
             // ~1-2 ms is not worth a broken sky. Do not re-attempt without
             // a boot+ground-level-sky probe check.
-            let uniform_align = 256_u64;
             self.upload_object_uniforms(objects.iter().chain(transparent.iter()));
 
             // The classic opaque list: planet bodies (terrain class), near

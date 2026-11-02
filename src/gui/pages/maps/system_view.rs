@@ -523,21 +523,21 @@ fn paint_body_events(
         if let Some(t) = tightness.get(d.body.id.as_str()) {
             let w = t.weight();
             paint.circle_stroke(d.screen, r + 6.0 + w * 4.0, Stroke::new(1.0 + w * 2.0, theme.warning()));
-            paint.circle_stroke(d.screen, r + 3.0, Stroke::new(0.5, theme.warning()));
+            paint.circle_stroke(d.screen, r + 3.0, Stroke::new(0.5_f32, theme.warning()));
         }
         let Some(ev) = eclipse else { continue };
         match d.body.id.as_str() {
             "earth" => {
-                paint.circle_stroke(d.screen, r + 8.0, Stroke::new(2.0, theme.danger()));
+                paint.circle_stroke(d.screen, r + 8.0, Stroke::new(2.0_f32, theme.danger()));
                 paint.text(d.screen + Vec2::new(0.0, r + 22.0), Align2::CENTER_TOP, "ECLIPSE", egui::FontId::proportional(11.0), theme.danger());
             }
             "sun" => {
                 let dark_r = (r as f64 * ev.coverage.sqrt()).clamp(0.0, r as f64) as f32;
                 paint.circle_filled(d.screen, dark_r, theme.bg_primary());
-                paint.circle_stroke(d.screen, r + 2.0, Stroke::new(1.0, theme.danger()));
+                paint.circle_stroke(d.screen, r + 2.0, Stroke::new(1.0_f32, theme.danger()));
             }
             "moon" => {
-                paint.circle_stroke(d.screen, r + 4.0, Stroke::new(1.5, theme.danger()));
+                paint.circle_stroke(d.screen, r + 4.0, Stroke::new(1.5_f32, theme.danger()));
             }
             _ => {}
         }

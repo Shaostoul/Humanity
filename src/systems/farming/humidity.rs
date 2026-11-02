@@ -603,7 +603,7 @@ impl AirLayout {
         let mut parent: Vec<Option<usize>> = Vec::new();
         let mut area_room: HashMap<String, usize> = HashMap::new();
         // `room` as an index into `rooms`, added (exchanging with `up`) if it is not there yet.
-        let mut add = |rooms: &mut Vec<GrowRoom>, parent: &mut Vec<Option<usize>>, room: GrowRoom, up: Option<usize>| -> usize {
+        let add = |rooms: &mut Vec<GrowRoom>, parent: &mut Vec<Option<usize>>, room: GrowRoom, up: Option<usize>| -> usize {
             if let Some(i) = rooms.iter().position(|x| x.id == room.id) {
                 return i;
             }
@@ -758,19 +758,6 @@ impl AirMap {
             .flatten()
             .and_then(|p| state.get(&self.rooms[p].id))
             .map_or(self.home_vapour, |a| a.vapour_g_m3)
-    }
-
-    /// The carbon dioxide, g/m3, of the air room `i` exchanges with: its
-    /// parent room's (once known), or the home's.
-    fn outside_co2(&self, i: usize, state: &HashMap<String, RoomAir>) -> f64 {
-        self.parent
-            .get(i)
-            .copied()
-            .flatten()
-            .and_then(|p| state.get(&self.rooms[p].id))
-            .map(|a| a.co2_g_m3)
-            .filter(|c| *c > 0.0)
-            .unwrap_or(self.home_co2)
     }
 
     /// Is room `i` a room of the home (not a tent inside one)?

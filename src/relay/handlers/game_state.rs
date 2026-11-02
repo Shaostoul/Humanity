@@ -869,7 +869,7 @@ impl GameWorld {
         let lines = npc.components.get("greetings")?.as_array()?;
         if lines.is_empty() { return None; }
         use rand::Rng;
-        let idx = rand::thread_rng().gen_range(0..lines.len());
+        let idx = rand::rng().random_range(0..lines.len());
         let line = lines[idx].as_str()?.to_string();
         Some((speaker, line))
     }
@@ -1309,7 +1309,7 @@ impl GameWorld {
         // Random number generator scoped to this tick (wander fallback only;
         // the chore loop is fully deterministic).
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let dt_f = dt as f32;
 
         let entity_ids: Vec<u64> = self.entities.keys().copied().collect();
@@ -1339,8 +1339,8 @@ impl GameWorld {
             let y = wander.get("y").and_then(|v| v.as_f64()).unwrap_or(entity.position[1] as f64) as f32;
 
             // Brownian-style step in X/Z within bounds.
-            let dx = (rng.gen::<f32>() - 0.5) * 2.0 * speed * dt_f;
-            let dz = (rng.gen::<f32>() - 0.5) * 2.0 * speed * dt_f;
+            let dx = (rng.random::<f32>() - 0.5) * 2.0 * speed * dt_f;
+            let dz = (rng.random::<f32>() - 0.5) * 2.0 * speed * dt_f;
             entity.position[0] = (entity.position[0] + dx).clamp(min_x, max_x);
             entity.position[1] = y;
             entity.position[2] = (entity.position[2] + dz).clamp(min_z, max_z);

@@ -13,12 +13,9 @@ use crate::gui::{GuiState};
 use crate::gui::theme::Theme;
 use crate::hot_reload::HotReloadCoordinator;
 use crate::hot_reload::data_store::DataStore;
-use crate::input::InputState;
 use crate::renderer::camera::{Camera, CameraController};
 use crate::renderer::{RenderObject, Renderer};
 use crate::ship::ship_structure::ShipStructure;
-use crate::systems::time::GameTime;
-use crate::systems::weather::Weather;
 use crate::terrain::planet::PlanetDef;
 
 /// One placed machine's world anchor for the plant pass (v0.863).
@@ -284,7 +281,6 @@ pub(crate) struct EngineState {
     /// stale by design (the frame-lock section runs after the fly
     /// integration each frame).
     pub(crate) surface_owns_translation: bool,
-    pub(crate) floating_origin: crate::renderer::floating_origin::FloatingOrigin,
     /// Procedural surface parameters per sky body, loaded from
     /// `data/planets/<body_id>.ron` at world load (v0.763). Bodies
     /// without a def render as smooth LOD spheres with the coarse
@@ -977,10 +973,6 @@ pub(crate) struct EngineState {
     /// baseline whose delta equals the content-relative camera motion -
     /// the world-frame relative position slides at orbital speed even for
     /// a parked camera (measured 1.3-2.1 km/frame) and smears the map.
-    /// World sun direction at the cloud map's last content epoch (v0.1246
-    /// sun-delta invalidation - the map had NO time-of-day invalidation and
-    /// a 20-minute day guarantees stale lighting within minutes).
-    pub(crate) cloud_map_sun_epoch: glam::DVec3,
     /// f64 (v0.1238): after a real flight the camera sits at ~3.6e7 m in the
     /// ship-local frame (no floating-origin rebase), where one f32 ulp is 4 m.
     /// The per-frame DELTA of this baseline is centimeters, so an f32 chain
@@ -1144,8 +1136,6 @@ pub(crate) struct EngineState {
     /// Boot-phase timer (dev tooling): accumulates named spans from
     /// `resumed()` + `load_world()` and emits a summary + debug/boot_timing.json.
     pub(crate) boot_timer: crate::boot_timing::BootTimer,
-    /// Reserved for future use.
-    pub(crate) window_shown: bool,
     /// Data directory path (resolved once at startup, used for deferred loading).
     pub(crate) data_dir: PathBuf,
     /// Whether a Ctrl/Cmd modifier key is currently held. Tracked from

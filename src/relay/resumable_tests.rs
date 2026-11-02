@@ -276,7 +276,7 @@ async fn two_uploads_that_fit_alone_but_not_together_cannot_both_start() {
     let full = r.start("tok_bea", file("e.mp4", 1000, "video/mp4")).await.expect_err("the budget counts everyone's uploads in progress");
     assert!(full.words().contains("The file space on this server is full") && full.words().contains("still in progress"), "{}", full.words());
 
-    cancel_core(&r.state, r.folders(), &first, Some("tok_ann")).await.unwrap();
+    assert_eq!(cancel_core(&r.state, r.folders(), &first, Some("tok_ann")).await.unwrap().0, serde_json::json!({ "ok": true }), "an upload in progress is cancelled");
     r.settings(|s| s.media_budget_mb = 2);
     assert!(r.start("tok_ann", file("b.mp4", MIB * 6 / 10, "video/mp4")).await.is_ok(), "a cancel gives the room back");
 }
@@ -299,7 +299,7 @@ async fn at_most_three_uploads_at_once_per_person() {
     assert_eq!(fourth.status(), StatusCode::TOO_MANY_REQUESTS);
     assert!(fourth.words().contains("You have 3 uploads in progress"), "{}", fourth.words());
     assert!(r.start("tok_bea", file("b.mp4", 100, "video/mp4")).await.is_ok(), "Bea has her own three");
-    cancel_core(&r.state, r.folders(), &ids[0], Some("tok_ann")).await.unwrap();
+    assert_eq!(cancel_core(&r.state, r.folders(), &ids[0], Some("tok_ann")).await.unwrap().0, serde_json::json!({ "ok": true }), "an upload in progress is cancelled");
     assert!(r.start("tok_ann", file("3.mp4", 100, "video/mp4")).await.is_ok(), "one ended, one more starts");
 }
 

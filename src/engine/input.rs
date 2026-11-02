@@ -64,7 +64,7 @@ pub fn escape_closes_cloud_dev(gui: &mut GuiState) -> bool {
 /// open (the vendor window, the privacy chooser or a pinned machine card,
 /// 2026-10-04: they needed Alt held) and while dead (the Respawn button
 /// needs the cursor). Everything else is first-person play: grabbed.
-pub fn cursor_want_free(state: &EngineState) -> bool {
+pub(crate) fn cursor_want_free(state: &EngineState) -> bool {
     cursor_free_for(&state.gui_state, state.alt_held)
 }
 

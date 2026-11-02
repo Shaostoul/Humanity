@@ -287,7 +287,7 @@ pub struct FilesState {
     pub people: Vec<(String, String)>,
     /// One line about the last thing done or refused.
     pub status: String,
-    pub jobs: Vec<(Job, Receiver<Result<Value, Refusal>>)>,
+    pub(crate) jobs: Vec<(Job, Receiver<Result<Value, Refusal>>)>,
     /// Every featured item on the shelf shown (asked for page by page with `featured=1`, and the
     /// picked category with it when one is picked: round 5).
     pub featured: Vec<Item>,
@@ -311,17 +311,17 @@ pub struct FilesState {
     /// A waiting upload's Remove, waiting for its confirmation.
     pub confirm_waiting: Option<api::Waiting>,
     /// The Add to Files or Put on the Files page form, while open.
-    pub form: Option<add::Form>,
+    pub(crate) form: Option<add::Form>,
     /// The file picker of Add to Files, while open.
     pub picker: Option<widgets::file_browser::FilePickerState>,
     /// The Suggest a category form: (name, note), while open.
     pub suggest: Option<(String, String)>,
     /// An opened video, model or file.
-    pub open: Option<open::Opened>,
+    pub(crate) open: Option<open::Opened>,
     pub admin: FilesAdmin,
     /// The uploads in progress, each on its worker thread, each published by what its own form
     /// said (uploading.rs).
-    pub uploads: Vec<uploading::Entry>,
+    pub(crate) uploads: Vec<uploading::Entry>,
     /// The uploads the server has named that did not finish, kept in the app's config (each says
     /// which server and person it is for, so it survives a change of either).
     pub unfinished: Vec<resumable::Unfinished>,
@@ -332,7 +332,7 @@ pub struct FilesState {
     pub card_acts: Vec<chat_card::Act>,
     /// The publishes on their way, by the number of the upload or form that asked: Cancel reaches
     /// them through this (publishing.rs).
-    pub publishes: Vec<(u64, publishing::Fate)>,
+    pub(crate) publishes: Vec<(u64, publishing::Fate)>,
     /// The server's uploads (by id) whose cancel is on its way: each is shown "Cancelling..." and
     /// stays listed until the server confirmed (round 4, D4-2).
     pub cancelling: Vec<String>,
@@ -341,7 +341,7 @@ pub struct FilesState {
     pub token_mark: String,
     /// What the picked file of the open Add to Files form says (the form's number and its look,
     /// worked out on a worker; the files section of docs/design/files-showcase.md, 2026-10-11).
-    pub look: Option<(u64, crate::gui::pages::chat::attach_step::Looking)>,
+    pub(crate) look: Option<(u64, crate::gui::pages::chat::attach_step::Looking)>,
     /// When the cleaned copies of uploads were last swept (uploading.rs `sweep_cleaned`).
     pub last_sweep: Option<std::time::Instant>,
     /// "Report a copyright problem": its form, the public log's window, and the admins' open
@@ -886,7 +886,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.panel_margin))
+        .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_page(ui, theme, state);
         });
@@ -927,7 +927,9 @@ pub(crate) fn after_questions(state: &mut GuiState) {
     }
 }
 
-pub(crate) use add::{drop_and_post_words, post_key, upload_dropped, DROP_TO_UPLOAD};
+pub(crate) use add::{drop_and_post_words, upload_dropped, DROP_TO_UPLOAD};
+#[cfg(test)]
+pub(crate) use add::post_key;
 
 /// Files dropped on the window open the upload window (Add to Files, every control: the first is
 /// the item, the rest added once it is up), as choosing them with its button does; with no server

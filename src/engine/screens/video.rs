@@ -444,15 +444,10 @@ pub struct ScreenActions {
     pub strip_top_frac: f32,
 }
 
-/// The whole screen, in egui, GPU-free: the picture fitted into the
-/// surface over black bars (or the notice on the theme background), the
-/// control strip anchored to the bottom edge as a floating area over the
-/// picture, and the file picker window when it is open. Runs under the
-/// screen's own context through `ScreenCore::run_with`.
-/// Where the seek bar last laid itself out, so an interaction test can aim a
-/// click at the real thing rather than at a guessed fraction of the surface.
-/// The strip is an egui Area that measures itself as it draws, so its rows'
-/// positions are not knowable in advance.
+// Where the seek bar last laid itself out, so an interaction test can aim a
+// click at the real thing rather than at a guessed fraction of the surface.
+// The strip is an egui Area that measures itself as it draws, so its rows'
+// positions are not knowable in advance.
 #[cfg(test)]
 thread_local! {
     static LAST_SEEK_RECT: std::cell::RefCell<Option<egui::Rect>> = const { std::cell::RefCell::new(None) };
@@ -530,6 +525,11 @@ fn seek_bar(ui: &mut egui::Ui, theme: &Theme, view: &ScreenView, actions: &mut S
     painter.circle_filled(egui::pos2(filled_right, mid), knob, theme.text_primary());
 }
 
+/// The whole screen, in egui, GPU-free: the picture fitted into the
+/// surface over black bars (or the notice on the theme background), the
+/// control strip anchored to the bottom edge as a floating area over the
+/// picture, and the file picker window when it is open. Runs under the
+/// screen's own context through `ScreenCore::run_with`.
 pub fn draw_screen(
     ctx: &egui::Context,
     theme: &Theme,
@@ -545,7 +545,7 @@ pub fn draw_screen(
     match (&view.notice, view.tex) {
         (Some(text), _) => {
             egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(theme.spacing_md))
+                .frame(egui::Frame::NONE.fill(theme.bg_primary()).inner_margin(theme.spacing_md))
                 .show(ctx, |ui| {
                     ui.centered_and_justified(|ui| {
                         ui.label(egui::RichText::new(text).color(theme.text_primary()));
@@ -553,7 +553,7 @@ pub fn draw_screen(
                 });
         }
         (None, Some((id, w, h))) => {
-            egui::CentralPanel::default().frame(egui::Frame::none().fill(egui::Color32::BLACK)).show(ctx, |ui| {
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ctx, |ui| {
                 let (sw, sh) = (screen.width().max(1.0), screen.height().max(1.0));
                 let scale = f32::min(sw / w.max(1) as f32, sh / h.max(1) as f32);
                 let size = egui::vec2(w as f32 * scale, h as f32 * scale);
@@ -570,7 +570,7 @@ pub fn draw_screen(
         (None, None) => {
             // Opened but no frame due yet: black, the way a display looks in
             // the instant before the first frame.
-            egui::CentralPanel::default().frame(egui::Frame::none().fill(egui::Color32::BLACK)).show(ctx, |_| {});
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ctx, |_| {});
         }
     }
     if view.strip {
@@ -581,7 +581,7 @@ pub fn draw_screen(
             .order(egui::Order::Foreground)
             .interactable(true)
             .show(ctx, |ui| {
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(theme.spacing_sm as i8, theme.spacing_xs as i8))
                     .show(ui, |ui| {

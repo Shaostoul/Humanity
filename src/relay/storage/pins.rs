@@ -3,7 +3,6 @@
 use super::Storage;
 use super::PinnedMessageRecord;
 use rusqlite::params;
-use std::collections::HashMap;
 
 impl Storage {
     // ── Pin methods ──

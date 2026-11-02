@@ -1,7 +1,7 @@
 //! Universal search bar with optional filter chips.
 //! Used by: inventory, market, tasks, chat, files, recipes.
 
-use egui::{Color32, RichText, Rounding, Sense, Stroke, Ui, Vec2};
+use egui::{Color32, RichText, CornerRadius, Stroke, Ui, Vec2};
 use crate::gui::theme::Theme;
 
 /// A toggleable filter chip displayed below the search input.
@@ -22,7 +22,7 @@ pub fn search_bar(
     filters: &mut Vec<FilterChip>,
 ) -> bool {
     let mut changed = false;
-    let rounding = Rounding::same(theme.border_radius as u8);
+    let rounding = CornerRadius::same(theme.border_radius as u8);
 
     // ---- Search input row ----
     ui.horizontal(|ui| {
@@ -50,7 +50,7 @@ pub fn search_bar(
                 RichText::new("\u{2715}").size(theme.font_size_body).color(theme.text_muted()),
             )
             .fill(Color32::TRANSPARENT)
-            .rounding(rounding);
+            .corner_radius(rounding);
             if ui.add(clear_btn).clicked() {
                 query.clear();
                 changed = true;
@@ -80,8 +80,8 @@ pub fn search_bar(
                         .color(text_color),
                 )
                 .fill(bg)
-                .stroke(Stroke::new(1.0, theme.border()))
-                .rounding(Rounding::same(12));
+                .stroke(Stroke::new(1.0_f32, theme.border()))
+                .corner_radius(CornerRadius::same(12));
 
                 if ui.add(btn).clicked() {
                     chip.active = !chip.active;

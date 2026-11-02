@@ -4,7 +4,7 @@
 //! with a source). Data-driven from `data/laws/laws.json` via `gui::laws`.
 //! See docs/design/laws.md.
 
-use egui::{Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
+use egui::{Frame, Margin, RichText, CornerRadius, ScrollArea, Stroke};
 
 use crate::i18n::{t, t_marked, tf};
 use crate::gui::laws::Rule;
@@ -25,10 +25,10 @@ fn provenance(r: &Rule) -> String {
 /// A small bordered chip (BASE / REAL kind badge). Outline + colored text so it
 /// reads as a real chip (operator ask, 2026-07-01) without any literal colors.
 fn kind_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, color: egui::Color32) {
-    Frame::none()
-        .rounding(Rounding::same(6))
+    Frame::NONE
+        .corner_radius(CornerRadius::same(6))
         .inner_margin(Margin::symmetric(6, 1))
-        .stroke(Stroke::new(1.0, color))
+        .stroke(Stroke::new(1.0_f32, color))
         .show(ui, |ui| {
             ui.label(RichText::new(label).strong().color(color).size(theme.font_size_small));
         });

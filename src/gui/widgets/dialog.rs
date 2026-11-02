@@ -11,7 +11,7 @@
 //! - `dialog(ctx, theme, id, title, open, content)` — modal-style centered dialog
 //! - `dialog_anchored(ctx, theme, id, title, open, anchor, content)` — pin to a screen edge
 
-use egui::{Align2, Color32, Frame, RichText, Rounding, Stroke, Ui, Vec2};
+use egui::{Align2, Color32, Frame, RichText, CornerRadius, Stroke, Ui, Vec2};
 // Vec2 used by `dialog_anchored` callers via the `offset` parameter.
 use super::super::theme::Theme;
 
@@ -127,10 +127,10 @@ fn dialog_inner(
         // instead of running off the bottom.
         .vscroll(vscroll)
         .frame(
-            Frame::none()
+            Frame::NONE
                 .fill(theme.bg_card())
-                .stroke(Stroke::new(1.0, theme.border()))
-                .rounding(Rounding::same(theme.border_radius as u8))
+                .stroke(Stroke::new(1.0_f32, theme.border()))
+                .corner_radius(CornerRadius::same(theme.border_radius as u8))
                 .inner_margin(theme.card_padding)
                 .shadow(egui::epaint::Shadow {
                     offset: [0, 4],

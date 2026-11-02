@@ -159,7 +159,7 @@ pub fn verify_manifest_bytes_with(
     // ---- Ed25519 half ----
     {
         use base64::Engine;
-        use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+        use ed25519_dalek::{Signature, VerifyingKey};
         let pk_bytes = hex::decode(&pubs.ed25519)
             .map_err(|e| format!("bad embedded ed25519 pubkey hex: {e}"))?;
         let pk_arr: [u8; 32] = pk_bytes

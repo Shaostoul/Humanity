@@ -106,6 +106,7 @@ pub(crate) fn body_render_rot(station_ride: bool, station_world_rot: DQuat, body
 /// reads a fragment's lat/lon through the inverse model matrix) drew world +Y,
 /// Earth's north pole, along the hull's up: straight at the ship, where the
 /// equator at -122.3 belongs (`body_rot_tests`).
+#[cfg(test)]
 pub(crate) fn body_model_rot(station_ride: bool, station_world_rot: DQuat, body_rot: DQuat) -> glam::Quat {
     body_render_rot(station_ride, station_world_rot, body_rot).as_quat()
 }

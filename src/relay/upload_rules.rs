@@ -520,11 +520,6 @@ impl FileLimit {
         }
     }
 
-    /// What is said for a file of `len` bytes that is over this limit.
-    pub(crate) fn too_large(&self, len: u64) -> Refused {
-        self.refusal.clone().unwrap_or_else(|| super::upload_limits::upload_too_large(len, self.bytes))
-    }
-
     /// A request whose declared size is already over this limit (with the form's own bytes
     /// allowed on top): refused before a byte of it is read.
     pub(crate) fn declared_too_large(&self, headers: &axum::http::HeaderMap) -> Option<Refused> {

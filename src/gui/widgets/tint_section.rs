@@ -66,7 +66,7 @@ pub fn show<R>(ui: &mut egui::Ui, theme: &Theme, tint: Tint, title: &str, add: i
     let c = color(theme, tint);
     egui::Frame::NONE
         .fill(c.gamma_multiply(SHADE))
-        .stroke(egui::Stroke::new(1.0, c))
+        .stroke(egui::Stroke::new(1.0_f32, c))
         .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
         .inner_margin(egui::Margin::same(theme.spacing_sm as i8))
         .show(ui, |ui| {

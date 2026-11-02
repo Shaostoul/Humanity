@@ -6,8 +6,8 @@
 //! - Blue group: system/config pages
 //! Plus a Real/Sim toggle on the right.
 
-use egui::{Align, Color32, Frame, Layout, Rect, RichText, Rounding, Sense, Stroke, Vec2};
-use crate::gui::{GuiPage, GuiState, VERSION};
+use egui::{Color32, Frame, Rect, RichText, CornerRadius, Stroke, Vec2};
+use crate::gui::{GuiPage, GuiState};
 use crate::gui::theme::Theme;
 // Nav category colors / sizes used to live as `const` here. They moved to
 // `data/gui/theme.ron` in v0.175.0 so the Settings page color editor can
@@ -16,10 +16,6 @@ use crate::gui::theme::Theme;
 struct NavItem {
     label: &'static str,
     page: GuiPage,
-    /// One-line description used by category overview landing pages
-    /// (the new "all top buttons get a summary page" pattern in v0.181.0).
-    /// Empty string means the page hides from overviews.
-    description: &'static str,
 }
 
 /// Draw the RGB header nav bar at the top of the screen.
@@ -51,7 +47,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
     let attack_pulse = state.attack_pulse_active;
 
     egui::TopBottomPanel::top("escape_nav_bar")
-        .frame(Frame::none().fill(theme.bg_card()).inner_margin(egui::Margin::symmetric(8, 4)))
+        .frame(Frame::NONE.fill(theme.bg_card()).inner_margin(egui::Margin::symmetric(8, 4)))
         // Suppress the panel's default 1px gray separator line — the
         // rgb_separator below is the canonical visual divider. Without
         // this, the layout produces a stack of (active button border) +
@@ -115,11 +111,11 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // memory is docs/design/play-characters.md). The nav_group click
                 // handler branches on the label (v0.476.1).
                 let play_items = [
-                    NavItem { label: "Play", page: GuiPage::None, description: "" },
-                    NavItem { label: "Characters", page: GuiPage::None, description: "Pick who you play as and where. Always opens the picker." },
+                    NavItem { label: "Play", page: GuiPage::None },
+                    NavItem { label: "Characters", page: GuiPage::None },
                     // Apps beside Play (2026-10-19, pages/apps.rs; the Games library and the Tools page made one):
                     // the games on this computer, HumanityOS's own tools, other programs, help and services.
-                    NavItem { label: "Apps", page: GuiPage::Apps, description: "Your games, HumanityOS's own tools, other programs, real-world help and what you added, in one place." },
+                    NavItem { label: "Apps", page: GuiPage::Apps },
                 ];
                 nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -132,7 +128,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // Donate/Resources) live in the Humanity page's section_nav. This
                 // is what the H button opens.
                 let humanity_items = [
-                    NavItem { label: "Humanity", page: GuiPage::Humanity, description: "" },
+                    NavItem { label: "Humanity", page: GuiPage::Humanity },
                 ];
                 nav_group(ui, &humanity_items, theme.nav_reality(), text_muted, theme, state);
 
@@ -142,7 +138,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
                 // Chat — communication.
                 let chat_items = [
-                    NavItem { label: "Chat", page: GuiPage::Chat, description: "" },
+                    NavItem { label: "Chat", page: GuiPage::Chat },
                 ];
                 nav_group(ui, &chat_items, theme.nav_legacy_red(), text_muted, theme, state);
 
@@ -154,11 +150,11 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // Chat (operator 2026-06-06: "move the studio page to the top level
                 // main menu to the right of the chat button").
                 let studio_items = [
-                    NavItem { label: "Studio", page: GuiPage::Studio, description: "" },
-                    NavItem { label: "Watch", page: GuiPage::Watch, description: "" },
+                    NavItem { label: "Studio", page: GuiPage::Studio },
+                    NavItem { label: "Watch", page: GuiPage::Watch },
                     // The Files page beside Watch (docs/design/files-showcase.md, increment 2; called
                     // Media until 2026-10-19, still GuiPage::Files in code).
-                    NavItem { label: "Files", page: GuiPage::Files, description: "" },
+                    NavItem { label: "Files", page: GuiPage::Files },
                 ];
                 nav_group(ui, &studio_items, theme.nav_legacy_red(), text_muted, theme, state);
 
@@ -174,7 +170,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // sits at the top (one base character for now; servers store augmented
                 // versions — see docs/design/homes-as-profiles.md).
                 let profile_items = [
-                    NavItem { label: "Profile", page: GuiPage::Real, description: "" },
+                    NavItem { label: "Profile", page: GuiPage::Real },
                 ];
                 nav_group(ui, &profile_items, theme.nav_legacy_green(), text_muted, theme, state);
 
@@ -183,7 +179,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // homestead Design (rooms + bill-of-materials + power/water demand +
                 // a self-sufficiency summary). Sits by Profile (you -> your home).
                 let home_items = [
-                    NavItem { label: "Home", page: GuiPage::Homes, description: "" },
+                    NavItem { label: "Home", page: GuiPage::Homes },
                 ];
                 nav_group(ui, &home_items, theme.nav_legacy_green(), text_muted, theme, state);
 
@@ -195,7 +191,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // top-level tab (operator 2026-06-06: "add a top level quests page
                 // for now").
                 let quests_items = [
-                    NavItem { label: "Quests", page: GuiPage::Quests, description: "" },
+                    NavItem { label: "Quests", page: GuiPage::Quests },
                 ];
                 nav_group(ui, &quests_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -207,7 +203,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // (operator 2026-06-07: "move tasks to the right of quests"). Was a
                 // section inside the old Real tab.
                 let tasks_items = [
-                    NavItem { label: "Tasks", page: GuiPage::Tasks, description: "" },
+                    NavItem { label: "Tasks", page: GuiPage::Tasks },
                 ];
                 nav_group(ui, &tasks_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -220,7 +216,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // a top level page"). Previously reachable only as Real's "Possessions"
                 // section; now one click from the nav like every other core surface.
                 let inventory_items = [
-                    NavItem { label: "Inventory", page: GuiPage::Inventory, description: "" },
+                    NavItem { label: "Inventory", page: GuiPage::Inventory },
                 ];
                 nav_group(ui, &inventory_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -234,7 +230,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // only Crafting after Studio was promoted — so Play collapses into
                 // this direct tab rather than a one-item sidebar.
                 let crafting_items = [
-                    NavItem { label: "Crafting", page: GuiPage::Crafting, description: "" },
+                    NavItem { label: "Crafting", page: GuiPage::Crafting },
                 ];
                 nav_group(ui, &crafting_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -247,7 +243,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // section inside the old Real tab; GuiPage::Maps forwards to the Cosmos
                 // page (the real map). Closes the game-colored cluster.
                 let map_items = [
-                    NavItem { label: "Maps", page: GuiPage::Maps, description: "" },
+                    NavItem { label: "Maps", page: GuiPage::Maps },
                 ];
                 nav_group(ui, &map_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -260,7 +256,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // Platform's Calculator, Notes, Calendar and Browser are on Apps, its
                 // Recovery is in Settings > Account.
                 let dev_items = [
-                    NavItem { label: "Dev", page: GuiPage::Dev, description: "" },
+                    NavItem { label: "Dev", page: GuiPage::Dev },
                 ];
                 nav_group(ui, &dev_items, theme.nav_tools(), text_muted, theme, state);
 
@@ -285,8 +281,8 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // How-to beside it (2026-10-23, docs/design/how-to.md): the Library is what you
                 // read, How-to is what you do.
                 let library_items = [
-                    NavItem { label: "Library", page: GuiPage::Library, description: "" },
-                    NavItem { label: crate::gui::pages::how_to::words::w("title"), page: GuiPage::HowTo, description: "" },
+                    NavItem { label: "Library", page: GuiPage::Library },
+                    NavItem { label: crate::gui::pages::how_to::words::w("title"), page: GuiPage::HowTo },
                 ];
                 nav_group(ui, &library_items, theme.nav_reality(), text_muted, theme, state);
 
@@ -298,7 +294,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // its free software and real-world help services are Apps' parts.)
 
                 let settings_items = [
-                    NavItem { label: "Settings", page: GuiPage::Settings, description: "" },
+                    NavItem { label: "Settings", page: GuiPage::Settings },
                 ];
                 nav_group(ui, &settings_items, theme.nav_settings(), text_muted, theme, state);
                 // v0.479: the "Game Admin" nav button was removed -- game-world
@@ -438,7 +434,7 @@ fn rgb_separator(ctx: &egui::Context, theme: &Theme, panel_id: &'static str, att
     if theme.nav_separator_animation == anim::OFF { return; }
 
     egui::TopBottomPanel::top(panel_id)
-        .frame(Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
+        .frame(Frame::NONE.fill(theme.bg_primary()).inner_margin(0.0))
         .exact_height(theme.nav_separator_height)
         .show_separator_line(false)
         .show(ctx, |ui| {
@@ -457,7 +453,7 @@ fn rgb_separator(ctx: &egui::Context, theme: &Theme, panel_id: &'static str, att
                 fallback
             };
             let rect = ui.max_rect();
-            ui.painter().rect_filled(rect, Rounding::ZERO, color);
+            ui.painter().rect_filled(rect, CornerRadius::ZERO, color);
         });
 }
 
@@ -562,12 +558,12 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
         } else if response.hovered() {
             Stroke::new(theme.nav_hover_border_width, theme.nav_legacy_blue())
         } else {
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 60))
+            Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 60))
         };
 
         let painter = ui.painter();
-        painter.rect_filled(rect, Rounding::same(6), bg_fill);
-        painter.rect_stroke(rect, Rounding::same(6), border_stroke, egui::StrokeKind::Inside);
+        painter.rect_filled(rect, CornerRadius::same(6), bg_fill);
+        painter.rect_stroke(rect, CornerRadius::same(6), border_stroke, egui::StrokeKind::Inside);
 
         // Paint the icon centered vertically in a 14×14 box at the left (unless
         // text-only mode hides it).

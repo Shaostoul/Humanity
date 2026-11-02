@@ -755,7 +755,7 @@ The windows where people attach (the picker, Add to Media, Edit, "Send a file") 
   (`the_stored_name_keeps_its_words_and_its_extension`), `scripts/tests/file-risk-web.test.js`,
   `private-files-web.test.js`, `file-transfer-chat-web.test.js`, `media-web-item.test.js`,
   `protected-web.test.js`. Snapshot: `tests/snapshots/chat_public_files.png`.
-- Native: `src/gui/widgets/file_browser.rs` (`FilePickerState`, `file_picker_modal`), `src/gui/widgets/file_picker_memory.rs` (`PickerMemory`, `with`), chat attach wiring in `src/gui/pages/chat.rs` (`ATTACH_EXTS`, `upload_file_blocking`)
+- Native: `src/gui/widgets/file_browser.rs` (`FilePickerState`, `file_picker_modal`), `src/gui/widgets/file_picker_memory.rs` (`PickerMemory`, `with`), chat attach wiring in `src/gui/pages/chat.rs` (`ATTACH_EXTS`) and `src/gui/pages/chat/attach_send.rs` (`upload_flagged`)
 
 ### Unread Indicators (native, v0.715–v0.719)
 Sidebar-wide unread story, matching the web client's renderUnreadDots:

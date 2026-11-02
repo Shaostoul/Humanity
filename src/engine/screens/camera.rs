@@ -305,7 +305,7 @@ mod tests {
     use super::*;
     use crate::engine::screens::{camera_posts_from, provider_for};
     use crate::gui::screen_surface::ScreenSource;
-    use crate::machines::{MachineHome, PlacedMachine, ZoneRect, CAMERA_FOV_RANGE_DEG, CAMERA_PITCH_LIMIT_DEG};
+    use crate::machines::{PlacedMachine, ZoneRect, CAMERA_FOV_RANGE_DEG, CAMERA_PITCH_LIMIT_DEG};
     use glam::{Quat, Vec3};
 
     /// A placed camera post, the way `MachineHome::placements` builds one.

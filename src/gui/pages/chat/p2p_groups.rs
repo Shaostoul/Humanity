@@ -38,8 +38,8 @@
 use super::*;
 
 /// Synchronous (ureq) refresh of `state.p2p_groups` from the relay's
-/// /api/v2/groups projection. Matches the existing `upload_file_blocking`
-/// pattern — fine for occasional refreshes (create/join/first-render); promote
+/// /api/v2/groups projection. Matches the existing blocking upload
+/// (`attach_send::upload_flagged`) pattern — fine for occasional refreshes (create/join/first-render); promote
 /// to a background tokio task if it ever feels janky.
 pub(crate) fn refresh_p2p_groups(state: &mut GuiState) {
     let server_url = state.server_url.clone();

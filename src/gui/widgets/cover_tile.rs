@@ -66,7 +66,7 @@ fn paint(painter: &Painter, theme: &Theme, rect: Rect, picture: Option<(TextureI
     if let Some((tex, size)) = picture {
         let uv = fill_uv(size, rect.size());
         painter.add(egui::epaint::RectShape::filled(rect, corners, Color32::WHITE).with_texture(tex, uv));
-        painter.rect_stroke(rect, corners, Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+        painter.rect_stroke(rect, corners, Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
         return;
     }
     let hue = super::swatch_color(seed);
@@ -99,7 +99,7 @@ fn paint(painter: &Painter, theme: &Theme, rect: Rect, picture: Option<(TextureI
     // No title: the plain panel alone (a picture still being read, whose name is drawn under it:
     // a name is drawn once, never twice, 2026-10-19).
     if title.trim().is_empty() {
-        painter.rect_stroke(rect, corners, Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+        painter.rect_stroke(rect, corners, Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
         return;
     }
     // A darker band along the bottom holding the name.
@@ -112,7 +112,7 @@ fn paint(painter: &Painter, theme: &Theme, rect: Rect, picture: Option<(TextureI
     painter.rect_filled(band, band_corners, theme.bg_card().gamma_multiply(0.6));
     // At most two lines of the name: the band's clip cuts a third.
     painter.with_clip_rect(band.intersect(painter.clip_rect())).galley(egui::pos2(band.min.x + pad, band.min.y + pad), galley, theme.text_strong());
-    painter.rect_stroke(rect, corners, Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+    painter.rect_stroke(rect, corners, Stroke::new(1.0_f32, theme.border()), egui::StrokeKind::Inside);
 }
 
 /// A slim progress line `width` wide: `fraction` (0 to 1) of it in the accent colour.
@@ -147,7 +147,7 @@ pub fn choice_pills(ui: &mut Ui, theme: &Theme, options: &[String], chosen: usiz
         let (fill, text) = if on { (theme.accent(), theme.text_on_accent()) } else { (theme.bg_secondary(), theme.text_secondary()) };
         let button = egui::Button::new(RichText::new(label).size(theme.font_size_small).color(text))
             .fill(fill)
-            .stroke(Stroke::new(1.0, if on { theme.accent() } else { theme.border() }))
+            .stroke(Stroke::new(1.0_f32, if on { theme.accent() } else { theme.border() }))
             .corner_radius(CornerRadius::same(theme.pill_radius.round().clamp(0.0, 255.0) as u8));
         let mut resp = ui.add(button);
         if let Some(tip) = tips.get(i) {

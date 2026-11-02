@@ -16,7 +16,7 @@
 //! choice in AppConfig so it never re-asks; until a choice is made the
 //! relay keeps new accounts presence-hidden (fail-private).
 
-use egui::{Frame, RichText, Rounding, Stroke, Vec2};
+use egui::{Frame, RichText, CornerRadius, Stroke, Vec2};
 use serde::Deserialize;
 
 use crate::gui::theme::Theme;
@@ -122,11 +122,11 @@ fn tier_card(ui: &mut egui::Ui, theme: &Theme, tier: &PrivacyTier, selected: boo
     let resp = Frame::NONE
         .fill(if selected { theme.bg_panel() } else { theme.bg_card() })
         .stroke(if selected {
-            Stroke::new(2.0, theme.accent())
+            Stroke::new(2.0_f32, theme.accent())
         } else {
-            Stroke::new(1.0, theme.border())
+            Stroke::new(1.0_f32, theme.border())
         })
-        .rounding(Rounding::same(theme.border_radius as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .inner_margin(theme.card_padding)
         .show(ui, |ui| {
             ui.set_min_width(width - theme.card_padding as f32 * 2.0);

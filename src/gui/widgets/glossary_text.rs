@@ -62,7 +62,7 @@ pub fn glossary_words(ui: &mut Ui, theme: &Theme, marked: &str, size: f32, color
                     TextFormat {
                         font_id: font.clone(),
                         color: theme.accent(),
-                        underline: Stroke::new(1.0, theme.accent()),
+                        underline: Stroke::new(1.0_f32, theme.accent()),
                         ..Default::default()
                     }
                 } else {

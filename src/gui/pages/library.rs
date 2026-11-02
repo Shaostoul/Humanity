@@ -161,7 +161,7 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(RichText::new("Library").size(theme.font_size_title).color(theme.text_primary()));
             ui.label(
@@ -1035,10 +1035,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         continue;
                                     }
                                     shown += 1;
-                                    Frame::none()
+                                    Frame::NONE
                                         .fill(theme.bg_card())
-                                        .rounding(egui::Rounding::same(theme.border_radius as u8))
-                                        .stroke(Stroke::new(1.0, theme.border()))
+                                        .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
+                                        .stroke(Stroke::new(1.0_f32, theme.border()))
                                         .inner_margin(egui::Margin::symmetric(14, 10))
                                         .show(ui, |ui| {
                                             ui.set_width(ui.available_width());
@@ -1187,9 +1187,9 @@ fn rail_entry(ui: &mut egui::Ui, theme: &Theme, text: &str, selected: bool, stro
     let tint_slot = ui.painter().add(egui::Shape::Noop);
     let resp = ui.selectable_label(false, RichText::new(text).color(mix(chan, theme.text_primary(), 0.4)).strong());
     let r = resp.rect;
-    ui.painter().set(tint_slot, egui::Shape::rect_filled(r, egui::Rounding::same(4), chan.gamma_multiply(0.12)));
+    ui.painter().set(tint_slot, egui::Shape::rect_filled(r, egui::CornerRadius::same(4), chan.gamma_multiply(0.12)));
     let bar = egui::Rect::from_min_max(r.left_top(), egui::pos2(r.left() + 3.0, r.bottom()));
-    ui.painter().rect_filled(bar, egui::Rounding::ZERO, chan);
+    ui.painter().rect_filled(bar, egui::CornerRadius::ZERO, chan);
     resp
 }
 
@@ -1211,11 +1211,11 @@ fn tag_chip_resp(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) ->
     } else {
         (theme.bg_card(), theme.text_secondary())
     };
-    let resp = Frame::none()
+    let resp = Frame::NONE
         .fill(fill)
-        .rounding(egui::Rounding::same(10))
+        .corner_radius(egui::CornerRadius::same(10))
         .inner_margin(egui::Margin::symmetric(10, 3))
-        .stroke(Stroke::new(1.0, theme.border()))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .show(ui, |ui| {
             ui.add(Label::new(RichText::new(label).size(theme.font_size_small).color(text)).sense(Sense::click()))
                 .on_hover_cursor(CursorIcon::PointingHand)

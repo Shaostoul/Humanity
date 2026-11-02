@@ -221,7 +221,7 @@ fn install_step(ui: &mut egui::Ui, theme: &Theme, page: &ProgramsPart, i: usize,
 /// two lines as winget prints them, Windows' permission prompt, winget's usage data, and what
 /// pressing "I agree, install" means. Nothing has run but `winget show`.
 fn consent(ui: &mut egui::Ui, theme: &Theme, i: usize, e: &CatalogEntry, package: &Package, acts: &mut Vec<Act>) {
-    egui::Frame::none().fill(theme.bg_secondary()).stroke(egui::Stroke::new(1.0, theme.accent())).rounding(egui::Rounding::same(theme.border_radius_lg as u8)).inner_margin(theme.spacing_md).show(ui, |ui| {
+    egui::Frame::NONE.fill(theme.bg_secondary()).stroke(egui::Stroke::new(1.0_f32, theme.accent())).corner_radius(egui::CornerRadius::same(theme.border_radius_lg as u8)).inner_margin(theme.spacing_md).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.label(RichText::new(format!("Install {}", e.name)).size(theme.font_size_heading).color(theme.text_primary()));
         let mut rows: Vec<(&str, String)> = Vec::new();

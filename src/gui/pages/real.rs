@@ -29,10 +29,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .min_width(170.0)
         .max_width(280.0)
         .frame(
-            Frame::none()
+            Frame::NONE
                 .fill(theme.bg_sidebar())
                 .inner_margin(egui::Margin::symmetric(8, 12))
-                .stroke(Stroke::new(1.0, theme.border())),
+                .stroke(Stroke::new(1.0_f32, theme.border())),
         )
         .show(ctx, |ui| {
             let belongings = theme.warning(); // your stuff
@@ -95,7 +95,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         other => {
             state.profile_section = profile::section_from_id(other);
             egui::CentralPanel::default()
-                .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+                .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
                 .show(ctx, |ui| {
                     ScrollArea::vertical().show(ui, |ui| {
                         profile::draw_section_content(ui, theme, state);
@@ -117,10 +117,10 @@ fn draw_profile_selector(ui: &mut egui::Ui, theme: &Theme) {
     }
     // One option for now; this slice is the seam the per-server versions slot into.
     let options = ["Base (your real self)"];
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_card())
-        .rounding(egui::Rounding::same(theme.border_radius as u8))
-        .stroke(Stroke::new(1.0, theme.border()))
+        .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
+        .stroke(Stroke::new(1.0_f32, theme.border()))
         .inner_margin(egui::Margin::symmetric(8, 6))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());

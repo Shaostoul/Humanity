@@ -27,7 +27,7 @@
 //! play. Chat already works this way (the WS client is a background thread that fills
 //! GuiState regardless of the active page).
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -56,7 +56,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Left panel: scenes + sources
     egui::SidePanel::left("studio_left_panel")
         .exact_width(LEFT_PANEL_WIDTH)
-        .frame(Frame::none().fill(theme.bg_card()).inner_margin(theme.panel_margin))
+        .frame(Frame::NONE.fill(theme.bg_card()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_left_panel(ui, theme, state);
         });
@@ -64,14 +64,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Right panel: properties + stream settings
     egui::SidePanel::right("studio_right_panel")
         .exact_width(RIGHT_PANEL_WIDTH)
-        .frame(Frame::none().fill(theme.bg_card()).inner_margin(theme.panel_margin))
+        .frame(Frame::NONE.fill(theme.bg_card()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_right_panel(ui, theme, state);
         });
 
     // Center panel: preview + controls
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_primary()).inner_margin(theme.panel_margin))
+        .frame(Frame::NONE.fill(theme.bg_primary()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_center_panel(ui, theme, state);
         });
@@ -121,9 +121,9 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             };
             // Program's live border outranks preview's accent when a scene is both.
             let border = if in_program {
-                Stroke::new(1.0, theme.success())
+                Stroke::new(1.0_f32, theme.success())
             } else if in_preview {
-                Stroke::new(1.0, theme.accent())
+                Stroke::new(1.0_f32, theme.accent())
             } else {
                 Stroke::NONE
             };
@@ -135,10 +135,10 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 theme.text_secondary()
             };
 
-            Frame::none()
+            Frame::NONE
                 .fill(bg)
                 .stroke(border)
-                .rounding(Rounding::same(4))
+                .corner_radius(CornerRadius::same(4))
                 .inner_margin(Vec2::new(6.0, 3.0))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
@@ -235,9 +235,9 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 crate::gui::StudioSourceType::Timer => "[TMR]",
             };
 
-            Frame::none()
+            Frame::NONE
                 .fill(bg)
-                .rounding(Rounding::same(3))
+                .corner_radius(CornerRadius::same(3))
                 .inner_margin(Vec2::new(4.0, 2.0))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
@@ -314,9 +314,9 @@ fn draw_scene_canvas(
     live_glow: bool,
     empty_msg: &str,
 ) {
-    Frame::none()
+    Frame::NONE
         .fill(theme.bg_sidebar_dark())
-        .rounding(Rounding::same(4))
+        .corner_radius(CornerRadius::same(4))
         .stroke(Stroke::new(CANVAS_FRAME_STROKE, theme.border()))
         .show(ui, |ui| {
             let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
@@ -359,7 +359,7 @@ fn draw_scene_canvas(
                 let border_color = with_alpha(theme.studio_source_border(), alpha.min(80));
 
                 painter.rect_filled(src_rect, 2.0, fill_color);
-                painter.rect_stroke(src_rect, 2.0, Stroke::new(1.0, border_color), egui::StrokeKind::Outside);
+                painter.rect_stroke(src_rect, 2.0, Stroke::new(1.0_f32, border_color), egui::StrokeKind::Outside);
 
                 // Source label
                 painter.text(
@@ -386,7 +386,7 @@ fn draw_scene_canvas(
             if live_glow {
                 painter.rect_stroke(
                     rect, 4.0,
-                    Stroke::new(2.0, theme.success()),
+                    Stroke::new(2.0_f32, theme.success()),
                     egui::StrokeKind::Outside,
                 );
             }

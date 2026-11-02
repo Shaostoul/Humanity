@@ -292,6 +292,7 @@ impl Control {
         }
     }
 
+    #[cfg(test)]
     pub fn is_paused(&self) -> bool {
         self.flags().paused
     }

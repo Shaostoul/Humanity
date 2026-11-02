@@ -3,7 +3,7 @@
 //! Left sidebar: category filter. Center: search bar, sort dropdown, listing card grid.
 //! Detail view on click. "Create Listing" form.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
+use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Vec2};
 use crate::gui::{GuiState, GuiListing};
 use crate::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
@@ -216,7 +216,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("market_categories")
         .min_width(140.0)
         .max_width(170.0)
-        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(10.0))
+        .frame(Frame::NONE.fill(theme.bg_sidebar()).inner_margin(10.0))
         .show(ctx, |ui| {
             ui.label(RichText::new(t("market.categories")).size(theme.font_size_heading).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
@@ -242,7 +242,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         });
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             // Tab strip: Directory (signed catalog) | Classifieds (free-form).
             let mut tab = with_state(|ps| ps.tab);
@@ -297,7 +297,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                         // Image placeholder
                         let (img_rect, _) = ui.allocate_exact_size(Vec2::new(300.0, 180.0), egui::Sense::hover());
-                        ui.painter().rect_filled(img_rect, Rounding::same(6), theme.bg_secondary());
+                        ui.painter().rect_filled(img_rect, CornerRadius::same(6), theme.bg_secondary());
                         ui.painter().text(
                             img_rect.center(),
                             egui::Align2::CENTER_CENTER,

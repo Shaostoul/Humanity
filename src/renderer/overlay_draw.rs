@@ -140,7 +140,7 @@ impl Renderer {
         // Grow-to-high-water-mark, then refill. Reallocating only when the
         // count exceeds the previous peak means a steady downpour allocates
         // once and then never again.
-        let mut ensure = |buf: &mut Option<wgpu::Buffer>,
+        let ensure = |buf: &mut Option<wgpu::Buffer>,
                           cap: &mut usize,
                           data: &[particles::ParticleVertexData],
                           label: &str| {

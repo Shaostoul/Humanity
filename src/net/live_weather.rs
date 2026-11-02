@@ -282,7 +282,7 @@ fn decode(png_bytes: &[u8]) -> Option<Vec<u8>> {
     {
         let w = WEATHER_W as usize;
         let h = WEATHER_H as usize;
-        let mut pass = |horizontal: bool, buf: &mut Vec<u8>| {
+        let pass = |horizontal: bool, buf: &mut Vec<u8>| {
             let src: Vec<u8> = buf.clone();
             for y in 0..h {
                 for x in 0..w {
