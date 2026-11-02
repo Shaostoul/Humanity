@@ -6937,6 +6937,8 @@ data (docs/design/two-realities.md), so they belong on the device (and in the pe
 not merged blindly with a server's shared board; the native page should keep its own tasks, saved
 locally, and show a server's shared board beside them.
 
+**Direction decided 2026-11-02** (the operator, asked whether members may add board tasks, BUG-221): "You mean tasks, like in the task list page? Do we have two types of tasks, like private user tasks and public tasks? Should we have more? People should be able to add tasks to their own account that share between their devices but, they shouldn't have to share it with the server. I'm not really sure how we should implement this.  Let's go with the safest option for users and the server." So: a person's own tasks are theirs, kept on their device and shared only between their own devices, never readable by a server; a server's shared board keeps BUG-221's rule (moderators and admins create, change and assign; verified people, donors, moderators and admins comment). The plan for the kinds of task (own, shared with people I choose, a server's board) is to be written before the fix is built.
+
 **The chain link, for whoever saves them (2026-10-30, the seams review):** the website links a task
 to its chain by a `chain:<id>` label in the task's labels (a JSON-array string on the server); the
 desktop now reads that label into `GuiTask::chain` and hides it from the shown labels

@@ -998,9 +998,23 @@ The first rungs already touch every point of the operator's direction: real mate
 (1, 3, 4), the material picker (6), free placement (5), functional length (1) and networks (6, 11),
 features (6), anchors (7). The tapping rungs (16 to 18) build on all of them.
 
-## 19. Open questions for the operator
+## 19. Open questions for the operator: ANSWERED 2026-11-02
 
 Only the ones that are taste or direction; everything else above is decided, and reversible.
+All three answered on 2026-11-02, each with the recommendation below:
+
+- **1, the AR layer:** "Let's go with that. Could also be glasses, eye contacts, or even a brain
+  implact. We'll start with the default always on until we get further along in development and
+  things are running smoothly." So the wearer is a CATEGORY of gear (a visor, glasses, contact
+  lenses, an implant: data rows, infinite-of-x), and until the game is further along the AR layer
+  is simply on, with no gear needed; the gear rows and the "always on" switch come when the wearable
+  does.
+- **2, drinking water aboard:** "Let's go with this." Copper only as the ship profile's rule,
+  shown as this ship's rule (`allowed_drinking_water_ship`, already so since rung 0).
+- **3, powered doors on power loss:** "Sounds good. Let's do this." A per-door-type data row with
+  real defaults, and a manual release on both sides of every powered door (rung 17).
+
+The questions as they were put:
 
 1. **Is the AR layer something the character wears?** A visor the character puts on (so it can be
    lost, damaged and upgraded, and its sensing channels are gear), or simply the game's HUD.

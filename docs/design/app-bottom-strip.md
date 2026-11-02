@@ -296,6 +296,31 @@ Files rung 1 deliberately did not touch, because other work is changing them now
 
 ## 7. Decisions for the operator
 
+**Answered 2026-11-02** (his words exactly):
+
+- **1, dismissing the warning:** "We could have like a "mute for this session" button in the warning
+  bar. What do you think about like mute for this session,  one day, one week? Oh, and probably a
+  link to some doc in the library going into depth about the whole in development thing and why the
+  warning bar exists and everything else you think we should include." So: a mute with three
+  lengths (this session, one day, one week), and a Library document behind a link in the bar. The
+  orchestrator's additions, his to overrule: a mute ends early when a new version starts (the
+  unfinished state is per version), it is kept on this device only, and the title screen shows the
+  bar whatever the mute (answer 2).
+- **2, the title screen:** "It should stay on the title. I think it helps keep it honest."
+- **3, a lawyer reading the wording:** "Whenever we get the money for it."
+- **4, the chat footer:** "Let's do desktop only for now."
+- **5, the Overview as the first screen:** "I feel like the Humanity page was kinda meant to be the
+  overview but we're kinda missing the mark. Realistically we need to think about the top menu
+  buttons/pages. I also think we need to work on the "game" buttons. Like play and characters. The
+  characters page definitely needs work because, it looks confusing right now. The left and right
+  bar areas are small so a lot of text is crammed vertically. We need to even things out." So the
+  Overview is not a new page: the Humanity page becomes the overview, after a plan for the top
+  menu, the Play and Characters buttons, and the Characters page (its side columns too narrow, its
+  text crammed vertically).
+- **6 and 7** (the website's front door, the demo character) are still open.
+
+The decisions as they were put:
+
 1. **Can the warning be dismissed?** Proposed: no. It is one thin line, and its point is that it is
    always there until 1.0. The alternative, if it gets in the way: fold it to a small "Unfinished"
    tab for the session, still a link, back at every launch, with no setting.
