@@ -13,8 +13,7 @@
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* ── The front door, a title screen with tools in it (docs/design/front-door.md, section 2).
-       ONE page column for everything (the title, the menu, the update cards, the chat slice,
-       Start here), so every block lines up with every other, as the operator asked: "standard
+       ONE page column for everything (the title, the menu, the update cards, Start here), so every block lines up with every other, as the operator asked: "standard
        page width aligned with other elements". The column is the site's usual 1100 px; ?col=wide
        tries the widest page the site has (Apps, 1560 px) for the measurement in section 3.
        Theme tokens only: no colour is written here. ── */
@@ -94,7 +93,8 @@
     .fd-tile-name { display: block; font-weight: 800; color: var(--text-strong); }
     .fd-tile-line { display: block; color: var(--text-muted); font-size: 0.86rem; line-height: 1.4; }
 
-    /* Sections under the title screen: the update cards, the chat slice, Start here */
+    /* Sections under the title screen: the update cards, Start here. No chat slice: the operator,
+       2026-11-02, "That's fair. We can just exclude the chat on front page." (design, section 4). */
     .fd-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 30px 0 10px; }
     .fd-head h2 { font-size: 1.18rem; font-weight: 800; color: var(--text-strong); }
     .fd-head .fd-head-sub { color: var(--text-muted); font-size: 0.85rem; margin-left: 10px; font-weight: 400; }
@@ -123,26 +123,27 @@
       min-height: calc(3 * 1.45em);
     }
     .fd-card-title::first-letter { text-transform: uppercase; }
+    /* A signed release (design, section 3.1): the operator, 2026-11-02, "when I sign its widget
+       dressing is slightly different from the normal update ones". Its band and its mark take the
+       theme's verified colour (--badge-verified, the colour the chat gives a verified person), and
+       the mark says Signed in words, so the colour is never the only way to tell. A card that is
+       not signed stays exactly as it was. */
+    .fd-card.fd-signed {
+      border-top-color: var(--badge-verified);
+      background: color-mix(in srgb, var(--badge-verified) 7%, var(--bg-card));
+    }
+    .fd-signed-mark {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 1px 8px 1px 6px; border: 1px solid var(--badge-verified); border-radius: var(--pill-radius);
+      color: var(--badge-verified); font-size: 0.75rem; font-weight: 800; cursor: help;
+    }
+    .fd-signed-mark:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+    .fd-signed-mark .pg-ico { display: flex; }
+    .fd-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
     .fd-card-link { font-size: 0.85rem; color: var(--accent); text-decoration: none; font-weight: 700; }
     .fd-card-link:hover, .fd-card-link:focus-visible { text-decoration: underline; }
     .fd-note { color: var(--text-muted); font-size: 0.82rem; margin-top: 6px; }
     .fd-sample { color: var(--warning); }
-
-    /* The read-only chat slice: as tall as the cards, the same width as everything else */
-    .fd-chat { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 8px 14px 10px; }
-    .fd-chip {
-      display: inline-block; margin-left: 8px; padding: 1px 8px; border: 1px solid var(--border);
-      border-radius: var(--pill-radius); color: var(--text-muted); font-size: 0.75rem; font-weight: 700; vertical-align: middle;
-    }
-    .fd-public {
-      margin: 4px 0 6px; padding: 5px 10px; background: var(--warning-bg); border-left: 3px solid var(--warning);
-      border-radius: var(--radius); color: var(--text); font-size: 0.85rem;
-    }
-    .fd-chat ol { list-style: none; }
-    .fd-line { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 10px; align-items: baseline; line-height: 1.75; font-size: 0.95rem; }
-    .fd-line-time { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 0.82rem; }
-    .fd-line-name { font-weight: 700; color: var(--text-strong); }
-    .fd-line-text { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* Start here */
     .fd-start-intro { color: var(--text-secondary); max-width: 52rem; }
@@ -187,10 +188,6 @@
       .fd-title { padding-top: 20px; }
       .fd-tile { padding: 12px; gap: 10px; }
       .fd-tile-line { font-size: 0.8rem; }
-      /* A post on a phone: the name and time on one line, the words under them on up to two. */
-      .fd-line { grid-template-columns: auto minmax(0, 1fr); gap: 0 8px; line-height: 1.45; padding: 4px 0; }
-      .fd-line-time { order: 2; justify-self: end; }
-      .fd-line-text { order: 3; grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     }
     @media (max-width: 340px) { .fd-menu { grid-template-columns: minmax(0, 1fr); } }
   </style>
@@ -243,19 +240,6 @@
     </div>
     <div class="fd-cards" id="fd-cards" role="list" data-i18n-aria-label="front_door.updates_label" aria-label="Recent updates"></div>
     <p class="fd-note fd-sample" id="fd-cards-note" hidden></p>
-  </section>
-
-  <!-- ══ The read-only slice of the chat ══ -->
-  <section aria-labelledby="fd-chat-h">
-    <div class="fd-head">
-      <h2 id="fd-chat-h"><span data-i18n="front_door.chat_title">#general, as it happens</span><span class="fd-chip" data-i18n="front_door.chat_read_only">Read only</span></h2>
-      <a href="/?welcome=1&amp;return=/chat" data-i18n-tip="front_door.chat_join_hint" data-tip-desc="Opens the chat. The first time, you pick a name; there is no email or password."><span data-i18n="front_door.chat_join">Join the conversation</span> &rarr;</a>
-    </div>
-    <div class="fd-chat">
-      <p class="fd-public" data-i18n="front_door.chat_public_note">Posts in this channel are shown on the website's front page, to anyone.</p>
-      <ol id="fd-chat-lines" data-i18n-aria-label="front_door.chat_label" aria-label="Recent chat"></ol>
-    </div>
-    <p class="fd-note" data-i18n="front_door.chat_example_note">Example lines, not real posts. Real posts show here only after the server's admin picks a channel for the front page, everyone posting there has been told, and each post has waited 30 minutes so a <span data-term="moderator">moderator</span> can remove abuse first.</p>
   </section>
 
   <!-- ══ Start here: one question, answered within one click ══ -->

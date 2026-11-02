@@ -1,12 +1,9 @@
 {
-  "_comment": "The front door prototype's numbers (docs/design/front-door.md, sections 3 and 5). card_min_px is the narrowest an update card may be before the row drops a card; it was chosen by the measurement in section 3 (the last 100 release headlines, measured at each width in the page's own font). Below two cards side by side the row becomes a swipe row of card_max cards. chat_lines is how many posts the read-only chat slice shows, chat_lines_narrow on a phone. hold_minutes is the proposed wait before a chat post may show on the front page.",
+  "_comment": "The front door prototype's numbers (docs/design/front-door.md, section 3). card_min_px is the narrowest an update card may be before the row drops a card; it was chosen by the measurement in section 3 (the last 100 release headlines, measured at each width in the page's own font). Below two cards side by side the row becomes a swipe row of card_max cards. There is no chat slice (the operator, 2026-11-02), so no chat numbers.",
   "card_min_px": 220,
   "card_max": 9,
   "card_gap_px": 12,
   "swipe_card_px": 280,
-  "chat_lines": 7,
-  "chat_lines_narrow": 5,
-  "hold_minutes": 30,
   "updates_url": "/api/messages?channel=announcements&limit=",
   "release_notes_prefix": "https://github.com/Shaostoul/Humanity/releases/tag/"
 }

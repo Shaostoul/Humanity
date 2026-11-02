@@ -1,7 +1,9 @@
 /* The front door PROTOTYPE (docs/design/front-door.md). A decision aid for the operator, not the
    build: it shows the title screen (the mission in a line, what HumanityOS is, one search, "New
    here? Start here", the buttons to the in-depth areas), one row of update cards from
-   #announcements, a read-only slice of the chat, and Start here's one question.
+   #announcements (a signed release's card dressed its own way), and Start here's one question.
+   No chat slice: the operator, 2026-11-02, "That's fair. We can just exclude the chat on front
+   page." (the design, section 4).
 
    What it reads, all of it read-only:
      - ./config.json, ./destinations.json, ./goals.json, ./search-words.json (this folder; the
@@ -12,10 +14,12 @@
      - On the first key in the search box (never on load): /data/how_to/index.json,
        /data/how_to/planned.json, /data/library/index.json, the same files the How-to page and
        the Library read.
+     - ./signed-releases.json: which releases carry the signed release manifest, read from the
+       releases' files on GitHub on 2026-11-02. It stands in for the `signed` field the real
+       endpoint would give each update (the design, section 3.1); the visitor's browser never asks
+       GitHub itself.
      - /data/onboarding/quests.json for Start here's steps, with the Onboarding page's own
        progress (localStorage humanity_quest_progress), so a tick here is a tick there.
-   The chat slice shows EXAMPLE lines only, by design: no real person's words are put on this page
-   until the safety design in section 4 of the design is built.
 
    Kept on this device, in try/catch so a private window still works: the goal picked
    (hos_front_door_goal). Nothing is sent anywhere.
@@ -117,9 +121,12 @@
 
   var updates = [];
   var shownCount = -1;
+  // Version -> when it was signed, from ./signed-releases.json (see the header comment).
+  var signed = {};
   function cardFor(u) {
     var c = document.createElement('article');
-    c.className = 'fd-card';
+    var isSigned = !!(u.version && signed[u.version]);
+    c.className = 'fd-card' + (isSigned ? ' fd-signed' : '');
     c.setAttribute('role', 'listitem');
     var head = span('fd-card-head');
     head.appendChild(span('fd-card-ver', u.version ? 'v' + u.version : ''));
@@ -132,6 +139,7 @@
     title.textContent = u.title;
     title.title = u.title;
     c.appendChild(title);
+    var foot = span('fd-card-foot');
     if (u.url) {
       var link = document.createElement('a');
       link.className = 'fd-card-link';
@@ -139,8 +147,20 @@
       link.rel = 'noopener';
       link.textContent = T('front_door.update_notes');
       i18n.hint(link, 'front_door.update_notes_hint');
-      c.appendChild(link);
+      foot.appendChild(link);
     }
+    if (isSigned) {
+      // The word as well as the colour; its hint says what signed means for a person, and the
+      // keyboard reaches it so the hint shows on focus too.
+      var mark = span('fd-signed-mark');
+      mark.tabIndex = 0;
+      mark.appendChild(icon('shield', 13));
+      mark.appendChild(span('', T('front_door.signed')));
+      mark.setAttribute('aria-label', T('front_door.signed') + '. ' + T('front_door.signed_hint'));
+      i18n.hint(mark, 'front_door.signed_hint');
+      foot.appendChild(mark);
+    }
+    if (foot.firstChild) c.appendChild(foot);
     return c;
   }
 
@@ -193,24 +213,6 @@
         if (MEASURE) window.addEventListener('resize', function () { drawCards(false); });
         if (MEASURE) sweep(r.all);
       });
-  }
-
-  // ── The read-only chat slice: EXAMPLE lines (see the header comment) ──
-  function drawChat() {
-    var ol = document.getElementById('fd-chat-lines');
-    var narrow = window.matchMedia && window.matchMedia('(max-width: 560px)').matches;
-    var n = narrow ? cfg.chat_lines_narrow : cfg.chat_lines;
-    var total = 7;
-    var now = Date.now();
-    for (var i = total - n + 1; i <= total; i++) {
-      var li = document.createElement('li');
-      li.className = 'fd-line';
-      var at = new Date(now - (total - i) * 11 * 60000 - (cfg.hold_minutes * 60000));
-      li.appendChild(span('fd-line-time', at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })));
-      li.appendChild(span('fd-line-name', T('front_door.example_' + i + '_name')));
-      li.appendChild(span('fd-line-text', T('front_door.example_' + i + '_text')));
-      ol.appendChild(li);
-    }
   }
 
   // ── The search: the How-tos (their problems' signs included) and the Library's titles ──
@@ -499,11 +501,14 @@
   // ── Start ──
   getJson(BASE + 'config.json').then(function (c) {
     cfg = c;
-    drawChat();
     wireSearch();
     return Promise.all([
       getJson(BASE + 'destinations.json').then(function (d) { drawMenu(d.destinations || []); }),
-      loadUpdates(),
+      // Which releases are signed, then the cards (a card is dressed once, when it is drawn).
+      getJson(BASE + 'signed-releases.json')
+        .then(function (j) { (j.signed || []).forEach(function (s) { signed[s.version] = s.signed_at; }); })
+        .catch(function () { /* none known: every card is drawn plain */ })
+        .then(loadUpdates),
       Promise.all([getJson(BASE + 'goals.json'), getJson('/data/onboarding/quests.json').catch(function () { return { chains: [] }; })])
         .then(function (g) { (g[1].chains || []).forEach(function (c2) { chains[c2.id] = c2; }); drawGoals(g[0].goals || []); })
     ]);
