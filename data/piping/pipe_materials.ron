@@ -1,71 +1,578 @@
-// What a pipe, hose or cable is MADE OF, as the renderer draws it (2026-10-04).
-// Read by src/ship/pipe_materials.rs (disk first, the copy built into the exe if
-// this file is missing or does not parse).
+#![enable(implicit_some)]
+// THE ONE CATALOG of what a run (a pipe, hose, tube or cable) is made of (2026-10-04; grown into
+// the one catalog 2026-11-02, spline routing rung 0, docs/design/spline-routing.md section 5.3).
+// One material id resolves to its look, its behaviour and what it may carry; one size id to that
+// size's dimensions, its bend radii, and its electrical, fluid or data specs. The cable registry
+// that was data/utilities/conduits.ron (v0.604) merged in here as size rows of their materials,
+// keeping every id. Read by crates/humanity-core/src/run_materials.rs (disk first, the copy built
+// into the exe if this file is missing or does not parse), which the cable and data checks
+// (humanity_core::utilities) and the pipe looks (src/ship/pipe_materials.rs) both read.
 //
-// The pipe body shows its real material everywhere between the marker bands; what
-// flows inside is said by the bands alone (data/piping/marking_schemes.ron). No
-// marking standard colours the wall material (findings F28,
-// docs/reference/findings/2026-10-04-pipe-marking-standards.md), and pipes that need
-// no warning colour "may be painted to match surroundings ... or remain unpainted"
+// The pipe body shows its real material everywhere between the marker bands; what flows inside is
+// said by the bands alone (data/piping/marking_schemes.ron). No marking standard colours the wall
+// material (findings F28, docs/reference/findings/2026-10-04-pipe-marking-standards.md), and pipes
+// that need no warning colour "may be painted to match surroundings ... or remain unpainted"
 // (GSFC-STD-8006, F4; MIL-STD-101C says the same, F8).
 //
-// FIELD REFERENCE
-//   kinds[]       which material each conduit kind's body is drawn in. The kinds are
-//                 the closed set in src/ship/conduits.rs (ConduitKind::id): a kind
-//                 fixes how the run behaves (rigid with elbows, or flexible); WHICH
-//                 kind carries a given content is decided there, not here, and that
-//                 includes the potable-water rule recorded in that file.
-//   materials[]
-//     srgb        sRGB, 0-255; the renderer converts it to linear light. For a
-//                 dielectric, OUR rendition of its colour. For a bare metal it IS the
-//                 metal's reflectance (the shader takes a metal's F0 straight from it
-//                 and gives it no diffuse), so it must be the MEASURED value, never a
-//                 swatch: every channel at least 0.04 linear, the brightest at least 0.5
-//                 (the test a_metal_reflects_what_measured_metals_reflect)
-//     metallic    0 for a dielectric (rubber, PVC), 1 for a bare metal
-//     roughness   perceptual roughness, 0 mirror to 1 chalk
+// UNITS. Every length is in METRES (fields ending `_m`): outside diameter, bore, bend radius,
+// stick length, roughness. Mass in kg per metre, pressure in kPa, temperature in degrees Celsius;
+// the merged cable fields keep their own units in their names (amps, volts, ohms per metre, litres
+// per minute, megabits per second, milliseconds). A pipe size's DN is its metric nominal size (ISO
+// 6708: DN15 is 1/2 inch); `size` keeps the trade's own name for it. Where the source is imperial,
+// a bend radius's `as_read` keeps its words.
 //
-// Copper tube also carries its maker's type stripe and print line (Type L blue, Type
-// M red, F31); that thin marking is not drawn yet.
+// SOURCES. Every material, size and bend radius row names where its numbers come from: R1 to R44
+// (docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md), D1 to D19
+// (2026-11-01-manual-door-releases.md), or Ours("why"). A test fails on a row with none, and on
+// one naming a finding that does not exist.
+//
+// FIELD REFERENCE
+//   tags[]      the construction words a material may carry and a rule may name (armour, shield,
+//               fibre...): id, meaning. A tag used anywhere and not declared here fails the test.
+//   kinds[]     which material each of today's four drawn conduit kinds (src/ship/conduits.rs,
+//               ConduitKind::id) is drawn in. WHICH kind carries a given content is decided there,
+//               including the potable-water rule recorded in that file. These rows go when rung 1
+//               gives every run its own material (no source: they are a mapping, not a fact).
+//   materials[]
+//     id, name
+//     behaviour   Rigid (straight lengths and fittings, never bent in place), Bendable (bent with a
+//                 bender to at least its radius, or fitted), Flexible (a smooth curve, hanging or
+//                 lying where gravity puts it) (design 6.1). A material's class is fixed; a size
+//                 with no bender row turns with fittings.
+//     form        Pipe (any fluid line: pipe, tube, hose), Cable (wire, cable, fibre), Raceway (a
+//                 conduit or tray that holds cables)
+//     carries     what it may carry (Electricity, Water, HotWater, Air, Data, Fuel, Nutrient,
+//                 Waste); for a raceway, what the cables pulled through it may. The FIRST is the
+//                 content the cable and data checks file its sizes under.
+//     conductor   for a cable, what conducts: Copper, Aluminum, Superconductor, Glass; for copper
+//                 tube, Copper; absent for a wall that conducts nothing modelled
+//     tags        construction words from tags[]
+//     look        srgb (0-255, converted to linear light: for a dielectric OUR rendition of its
+//                 colour; for a bare metal its MEASURED reflectance, since the shader takes a
+//                 metal's F0 straight from it: every channel at least 0.04 linear, the brightest at
+//                 least 0.5), metallic (0 dielectric, 1 bare metal), roughness (perceptual, 0..1)
+//     sizes[]
+//       id        unique across the whole catalog (a connection's `spec` names one)
+//       size      the trade's name ("1/2", "14/2", "Cat6")
+//       label     what a picker shows
+//       dn, od_m, width_m (a flat cable's width; od_m is then its thickness, the way it bends),
+//       bore_m, stick_m (the length it is sold in: a straight stick, or a coil), kg_per_m,
+//       roughness_m (absolute, for friction), pressure_kpa, temp_max_c
+//       bend_radii[]   the material's own minimum by method: Bender (with a bender), Free (by
+//                      hand, at rest in place), AgainstCoil, Pulling (a cable under tension):
+//                      min_m, as_read, source
+//       awg (a larger number is a thinner wire; 4/0 is -3), ampacity_a, voltage_max, ohm_per_m
+//       (one conductor), shielded; flow_max_lpm; bandwidth_mbps, range_m, latency_ms,
+//       rf_emission (0..1); grade (Home, Commercial, Industrial), cost_per_m (credits a metre)
+//       A size is offered to the cable and data checks and the connection pickers only when its
+//       check's number is known: ampacity_a for electricity, bandwidth_mbps for data,
+//       flow_max_lpm for a fluid. Its absence means no source was read, never zero.
+//       note, source
+//   links[]     radio links (WiFi and the like): a data medium with no run at all, nothing laid,
+//               bent or supported, so not a material. id, label, carries, conductor, shielded,
+//               grade, cost_per_m, bandwidth_mbps, rf_emission, range_m, latency_ms, note, source.
+//
+// Copper tube also carries its maker's type stripe and print line (Type L blue, Type M red, F31);
+// that thin marking is not drawn yet.
 (
+    tags: [
+        (id: "unarmoured", meaning: "No metal armour over the cable."),
+        (id: "braid_armour", meaning: "A metal wire braid over the cable as armour."),
+        (id: "armour", meaning: "Other metal armour (interlocked tape, wire)."),
+        (id: "tape_shield", meaning: "A metal tape screen over the insulation."),
+        (id: "braid_shield", meaning: "A metal braid screen (not armour)."),
+        (id: "single_conductor", meaning: "One conductor."),
+        (id: "multiconductor", meaning: "Several conductors in one jacket."),
+        (id: "twisted_pair", meaning: "Twisted-pair data cable (Cat5e, Cat6)."),
+        (id: "coax", meaning: "Coaxial cable."),
+        (id: "fibre", meaning: "Optical fibre."),
+        (id: "polyimide", meaning: "Polyimide (Kapton) insulated wire."),
+        (id: "flame_test_failed", meaning: "Specialty cable that fails the flame test, so a ship needs fire stops along it (46 CFR 111.60-2)."),
+    ],
     kinds: [
-        (kind: "rigid_copper", material: "copper"),
+        (kind: "rigid_copper", material: "copper_l_drawn"),
         (kind: "flexible_hose", material: "hose_rubber"),
         (kind: "power_cord", material: "power_cord"),
         (kind: "data_cable", material: "data_cable"),
     ],
     materials: [
         (
-            id: "copper",
-            name: "Copper tube",
-            srgb: (250, 209, 194),
-            metallic: 1.0,
-            roughness: 0.4,
-            note: "Measured copper: a metal's colour here is its reflectance, F0 (0.955, 0.638, 0.538) in linear light, sRGB (250, 209, 194) (Real-Time Rendering, 4th ed., Table 9.2). Until 2026-10-04 this row held #B87333, the web 'copper' swatch ConduitKind::color() carried, which as a metal reflected 3% of blue light, less than any non-metal. Installed tube dulls over months as an oxide film grows: that is a darker, rougher FINISH over the metal (the finish layer the findings describe), not a lower reflectance, and it is not drawn yet. The roughness is a lightly worn tube's. Ours.",
+            id: "copper_l_drawn",
+            name: "Copper tube, Type L, drawn (hard)",
+            behaviour: Bendable,
+            form: Pipe,
+            carries: [Water, HotWater, Air, Fuel, Nutrient],
+            conductor: Copper,
+            look: (
+                srgb: (250, 209, 194),
+                metallic: 1.0,
+                roughness: 0.4,
+                note: "Measured copper: a metal's colour here is its reflectance, F0 (0.955, 0.638, 0.538) in linear light, sRGB (250, 209, 194) (Real-Time Rendering, 4th ed., Table 9.2). Until 2026-10-04 this row held #B87333, the web 'copper' swatch ConduitKind::color() carried, which as a metal reflected 3% of blue light, less than any non-metal. Installed tube dulls over months as an oxide film grows: that is a darker, rougher FINISH over the metal (the finish layer the findings describe), not a lower reflectance, and it is not drawn yet. The roughness is a lightly worn tube's.",
+            ),
+            source: [R(1), Ours("the look is measured copper's reflectance (Real-Time Rendering, 4th ed., Table 9.2); what it carries is copper tube's usual services in a building, not from a finding")],
+            note: "Hard tube bends with the correct hand bender up to 3/4 in (the CDA handbook, R1); its table has no drawn row above that, so 1 in and up turns with fittings (fittings_only_drawn_copper_large).",
+            sizes: [
+                (
+                    id: "copper_l_drawn_1_4", size: "1/4", label: "Copper 1/4\" (hard)", dn: 8,
+                    od_m: 0.009525, bore_m: 0.008001, stick_m: 6.096, kg_per_m: 0.18751, roughness_m: 0.0000015,
+                    source: [Ours("ASTM B88 Type L dimensions and weight as the CDA handbook tabulates them (its Table 14.3, not read in the 2026-11-01 finding, which read Table 4.1); 20 ft (6.1 m) straight lengths; the 0.0015 mm roughness of drawn tubing (the Moody chart's)")],
+                    note: "No drawn row at 1/4 in in CDA Table 4.1: it turns with fittings.",
+                ),
+                (
+                    id: "copper_l_drawn_3_8", size: "3/8", label: "Copper 3/8\" (hard)", dn: 10,
+                    od_m: 0.0127, bore_m: 0.010922, stick_m: 6.096, kg_per_m: 0.29466, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.04445, as_read: "1 3/4 in (drawn, types K, L, M)", source: [R(1)])],
+                    source: [Ours("as copper_l_drawn_1_4: ASTM B88 Type L as the CDA tabulates it, 20 ft lengths, drawn tubing's roughness")],
+                ),
+                (
+                    id: "copper_l_drawn_1_2", size: "1/2", label: "Copper 1/2\" (hard)", dn: 15,
+                    od_m: 0.015875, bore_m: 0.013843, stick_m: 6.096, kg_per_m: 0.42413, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.0635, as_read: "2 1/2 in (drawn, types K, L, M)", source: [R(1)])],
+                    source: [Ours("as copper_l_drawn_1_4")],
+                ),
+                (
+                    id: "copper_threequarter", size: "3/4", label: "Copper 3/4\" water", dn: 20,
+                    od_m: 0.022225, bore_m: 0.019, stick_m: 6.096, kg_per_m: 0.67711, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.0762, as_read: "3 in (drawn, types K, L)", source: [R(1)])],
+                    flow_max_lpm: 26.0, grade: Home, cost_per_m: 2.2,
+                    source: [Ours("the registry's row since v0.604 (data/utilities/conduits.ron), kept through the merge: its bore of 19.0 mm is the nominal 3/4 in, not Type L's real 0.785 in (19.94 mm, ASTM B88): correct it with the water network (spline routing rung 11), its first reader; its 26 L/min and cost are ours; the outside diameter, weight and stick length as copper_l_drawn_1_4")],
+                    note: "Rigid 3/4-inch main/trunk -- supplies a whole home branch. (Stage 2 plumbing.)",
+                ),
+                (
+                    id: "copper_l_drawn_1", size: "1", label: "Copper 1\" (hard)", dn: 25,
+                    od_m: 0.028575, bore_m: 0.026035, stick_m: 6.096, kg_per_m: 0.97474, roughness_m: 0.0000015,
+                    source: [Ours("as copper_l_drawn_1_4")],
+                    note: "No drawn row above 3/4 in in CDA Table 4.1: it turns with fittings.",
+                ),
+                (
+                    id: "copper_l_drawn_1_1_4", size: "1 1/4", label: "Copper 1 1/4\" (hard)", dn: 32,
+                    od_m: 0.034925, bore_m: 0.032131, stick_m: 6.096, kg_per_m: 1.31553, roughness_m: 0.0000015,
+                    source: [Ours("as copper_l_drawn_1_4")],
+                    note: "No drawn row above 3/4 in: fittings only.",
+                ),
+            ],
+        ),
+        (
+            id: "copper_l_annealed",
+            name: "Copper tube, Type L, annealed (soft)",
+            behaviour: Bendable,
+            form: Pipe,
+            carries: [Water, HotWater, Air, Fuel, Nutrient],
+            conductor: Copper,
+            look: (srgb: (250, 209, 194), metallic: 1.0, roughness: 0.4, note: "The same metal as copper_l_drawn."),
+            source: [R(1), Ours("the look and contents as copper_l_drawn")],
+            note: "Soft tube bends at CDA Table 4.1's annealed radii, with a lever bender (the handbook's figure 4.1 is for annealed tube only).",
+            sizes: [
+                (
+                    id: "copper_l_annealed_1_4", size: "1/4", label: "Copper 1/4\" (soft)", dn: 8,
+                    od_m: 0.009525, bore_m: 0.008001, stick_m: 18.288, kg_per_m: 0.18751, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.01905, as_read: "3/4 in (annealed, types K, L)", source: [R(1)])],
+                    source: [Ours("ASTM B88 Type L dimensions and weight as the CDA tabulates them; annealed tube is sold in coils, 60 ft (18.3 m) here; drawn tubing's roughness")],
+                ),
+                (
+                    id: "copper_l_annealed_3_8", size: "3/8", label: "Copper 3/8\" (soft)", dn: 10,
+                    od_m: 0.0127, bore_m: 0.010922, stick_m: 18.288, kg_per_m: 0.29466, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.0381, as_read: "1 1/2 in (annealed)", source: [R(1)])],
+                    source: [Ours("as copper_l_annealed_1_4")],
+                ),
+                (
+                    id: "copper_l_annealed_1_2", size: "1/2", label: "Copper 1/2\" (soft)", dn: 15,
+                    od_m: 0.015875, bore_m: 0.013843, stick_m: 18.288, kg_per_m: 0.42413, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.05715, as_read: "2 1/4 in (annealed)", source: [R(1)])],
+                    source: [Ours("as copper_l_annealed_1_4")],
+                ),
+                (
+                    id: "copper_l_annealed_3_4", size: "3/4", label: "Copper 3/4\" (soft)", dn: 20,
+                    od_m: 0.022225, bore_m: 0.019939, stick_m: 18.288, kg_per_m: 0.67711, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.0762, as_read: "3 in (annealed)", source: [R(1)])],
+                    source: [Ours("as copper_l_annealed_1_4")],
+                ),
+                (
+                    id: "copper_l_annealed_1", size: "1", label: "Copper 1\" (soft)", dn: 25,
+                    od_m: 0.028575, bore_m: 0.026035, stick_m: 18.288, kg_per_m: 0.97474, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.1016, as_read: "4 in (annealed)", source: [R(1)])],
+                    source: [Ours("as copper_l_annealed_1_4")],
+                ),
+                (
+                    id: "copper_l_annealed_1_1_4", size: "1 1/4", label: "Copper 1 1/4\" (soft)", dn: 32,
+                    od_m: 0.034925, bore_m: 0.032131, stick_m: 18.288, kg_per_m: 1.31553, roughness_m: 0.0000015,
+                    bend_radii: [(method: Bender, min_m: 0.2286, as_read: "9 in (annealed)", source: [R(1)])],
+                    source: [Ours("as copper_l_annealed_1_4")],
+                ),
+            ],
+        ),
+        (
+            id: "pex",
+            name: "PEX tubing (cross-linked polyethylene)",
+            behaviour: Flexible,
+            form: Pipe,
+            carries: [Water, HotWater],
+            look: (srgb: (236, 236, 230), metallic: 0.0, roughness: 0.45, note: "Natural (white) PEX. Ours: PEX is also sold red and blue, by the seller's choice."),
+            source: [R(3), Ours("the look is ours")],
+            note: "Bends freely at no tighter than 6 times its outside diameter (R3, bend_pex); snap-on bend supports hold a 90-degree sweep in place of an elbow. Keep at or below 180 F (82 C).",
+            sizes: [
+                (
+                    id: "pex_3_8", size: "3/8", label: "PEX 3/8\"", dn: 10, od_m: 0.0127, stick_m: 30.48, temp_max_c: 82.2,
+                    bend_radii: [(method: Free, min_m: 0.0762, as_read: "3.0 in (Table 9.1)", source: [R(3)])],
+                    source: [R(3), Ours("the outside diameter is copper tube size (ASTM F876/F877, not read; Table 9.1's radius is six times it); sold in coils, 100 ft (30.5 m) here")],
+                ),
+                (
+                    id: "pex_half", size: "1/2", label: "PEX 1/2\" water", dn: 15, od_m: 0.015875, bore_m: 0.012, stick_m: 30.48, temp_max_c: 82.2,
+                    bend_radii: [(method: Free, min_m: 0.09652, as_read: "3.8 in (Table 9.1; the text's own 1/2 in example)", source: [R(3)])],
+                    flow_max_lpm: 14.0, grade: Home, cost_per_m: 0.6,
+                    source: [R(3), Ours("the registry's row since v0.604 (data/utilities/conduits.ron), kept through the merge: its 12.0 mm bore, 14 L/min and cost are ours; the outside diameter and coil as pex_3_8")],
+                    note: "Flexible 1/2-inch potable line -- sinks, fixtures, low-flow branches. (Stage 2 plumbing.)",
+                ),
+                (
+                    id: "pex_3_4", size: "3/4", label: "PEX 3/4\"", dn: 20, od_m: 0.022225, stick_m: 30.48, temp_max_c: 82.2,
+                    bend_radii: [(method: Free, min_m: 0.13462, as_read: "5.3 in (Table 9.1)", source: [R(3)])],
+                    source: [R(3), Ours("as pex_3_8: copper tube size outside diameter (ASTM F876/F877, not read), a 100 ft coil")],
+                ),
+                (
+                    id: "pex_1", size: "1", label: "PEX 1\"", dn: 25, od_m: 0.028575, stick_m: 30.48, temp_max_c: 82.2,
+                    bend_radii: [(method: Free, min_m: 0.17272, as_read: "6.8 in (Table 9.1)", source: [R(3)])],
+                    source: [R(3), Ours("as pex_3_8: copper tube size outside diameter (ASTM F876/F877, not read), a 100 ft coil")],
+                ),
+            ],
+        ),
+        (
+            id: "cpvc",
+            name: "CPVC pipe (copper tube size)",
+            behaviour: Rigid,
+            form: Pipe,
+            carries: [Water, HotWater, Waste],
+            look: (srgb: (222, 205, 160), metallic: 0.0, roughness: 0.4, note: "CPVC's tan. Ours."),
+            source: [R(4), Ours("the look is ours")],
+            note: "Changes direction with fittings; never heat-bent (Charlotte Pipe, R4).",
+            sizes: [
+                (id: "cpvc_1_2", size: "1/2", label: "CPVC 1/2\"", dn: 15, od_m: 0.015875, stick_m: 3.048, source: [Ours("copper tube size outside diameter (ASTM D2846, not read); sold in 10 ft (3.05 m) lengths")]),
+                (id: "cpvc_3_4", size: "3/4", label: "CPVC 3/4\"", dn: 20, od_m: 0.022225, stick_m: 3.048, source: [Ours("as cpvc_1_2: copper tube size outside diameter (ASTM D2846, not read), 10 ft lengths")]),
+                (id: "cpvc_1", size: "1", label: "CPVC 1\"", dn: 25, od_m: 0.028575, stick_m: 3.048, source: [Ours("as cpvc_1_2: copper tube size outside diameter (ASTM D2846, not read), 10 ft lengths")]),
+            ],
+        ),
+        (
+            id: "cpvc_coil",
+            name: "CPVC tubing in coils (copper tube size)",
+            behaviour: Bendable,
+            form: Pipe,
+            carries: [Water, HotWater],
+            look: (srgb: (222, 205, 160), metallic: 0.0, roughness: 0.4, note: "As cpvc. Ours."),
+            source: [R(4), Ours("the look is ours")],
+            note: "The maker's coiled CPVC, which bends cold to a wide radius (Charlotte Pipe TM-PL p. 49).",
+            sizes: [
+                (
+                    id: "cpvc_coil_1_2", size: "1/2", label: "CPVC coil 1/2\"", dn: 15, od_m: 0.015875,
+                    bend_radii: [(method: Free, min_m: 0.4572, as_read: "18 in", source: [R(4)])],
+                    source: [R(4), Ours("outside diameter as cpvc_1_2")],
+                ),
+                (
+                    id: "cpvc_coil_3_4", size: "3/4", label: "CPVC coil 3/4\"", dn: 20, od_m: 0.022225,
+                    bend_radii: [(method: Free, min_m: 0.4572, as_read: "18 in", source: [R(4)])],
+                    source: [R(4), Ours("outside diameter as cpvc_1_2")],
+                ),
+                (
+                    id: "cpvc_coil_1", size: "1", label: "CPVC coil 1\"", dn: 25, od_m: 0.028575,
+                    bend_radii: [(method: Free, min_m: 0.6096, as_read: "24 in", source: [R(4)])],
+                    source: [R(4), Ours("outside diameter as cpvc_1_2")],
+                ),
+            ],
+        ),
+        (
+            id: "pvc_sch40",
+            name: "PVC pipe, Schedule 40",
+            behaviour: Rigid,
+            form: Pipe,
+            carries: [Waste, Water, Nutrient],
+            look: (srgb: (240, 240, 236), metallic: 0.0, roughness: 0.35, note: "White PVC. Ours."),
+            source: [R(4), Ours("the look is ours")],
+            note: "Changes direction with fittings; heat bending may damage it (R4). Most codes support it every 4 ft at every size (the maker's note, R4).",
+            sizes: [
+                (id: "pvc_sch40_1_1_2", size: "1 1/2", label: "PVC 1 1/2\"", dn: 40, od_m: 0.04826, stick_m: 3.048, source: [Ours("iron pipe size outside diameter (ASTM D1785, not read); 10 ft (3.05 m) lengths")]),
+                (id: "pvc_sch40_2", size: "2", label: "PVC 2\"", dn: 50, od_m: 0.060325, stick_m: 3.048, source: [Ours("as pvc_sch40_1_1_2")]),
+                (id: "pvc_sch40_3", size: "3", label: "PVC 3\"", dn: 80, od_m: 0.0889, stick_m: 3.048, source: [Ours("as pvc_sch40_1_1_2")]),
+                (id: "pvc_sch40_4", size: "4", label: "PVC 4\"", dn: 100, od_m: 0.1143, stick_m: 3.048, source: [Ours("as pvc_sch40_1_1_2")]),
+            ],
+        ),
+        (
+            id: "steel_sch40",
+            name: "Steel pipe, Schedule 40 (black)",
+            behaviour: Rigid,
+            form: Pipe,
+            carries: [Water, HotWater, Air, Fuel, Waste],
+            look: (srgb: (60, 62, 64), metallic: 0.0, roughness: 0.7, note: "Black steel pipe's mill-scale finish, drawn as a dark dielectric rather than bare metal. Ours."),
+            source: [R(5), R(9), Ours("the look and contents are ours")],
+            note: "Joined by threaded or welded fittings. Aboard a ship 46 CFR 56.80-5 lets steel pipe be bent by any hot or cold method to any radius meeting ASME B31.1 (R5); no pipe bender row is here yet, so it turns with fittings until one is.",
+            sizes: [
+                (id: "steel_sch40_1_2", size: "1/2", label: "Steel 1/2\"", dn: 15, od_m: 0.021336, stick_m: 6.4008, source: [Ours("iron pipe size outside diameter (ASME B36.10, not read); 21 ft (6.4 m) random lengths")]),
+                (id: "steel_sch40_3_4", size: "3/4", label: "Steel 3/4\"", dn: 20, od_m: 0.02667, stick_m: 6.4008, source: [Ours("as steel_sch40_1_2")]),
+                (id: "steel_sch40_1", size: "1", label: "Steel 1\"", dn: 25, od_m: 0.033401, stick_m: 6.4008, source: [Ours("as steel_sch40_1_2")]),
+                (id: "steel_sch40_2", size: "2", label: "Steel 2\"", dn: 50, od_m: 0.060325, stick_m: 6.4008, source: [Ours("as steel_sch40_1_2")]),
+                (id: "steel_sch40_4", size: "4", label: "Steel 4\"", dn: 100, od_m: 0.1143, stick_m: 6.4008, source: [Ours("as steel_sch40_1_2")]),
+            ],
+        ),
+        (
+            id: "csst",
+            name: "Corrugated stainless steel gas tubing (CSST)",
+            behaviour: Bendable,
+            form: Pipe,
+            carries: [Fuel],
+            look: (srgb: (230, 190, 40), metallic: 0.0, roughness: 0.5, note: "The yellow polyethylene jacket TracPipe is sold in. Ours."),
+            source: [R(7), Ours("the look is ours")],
+            note: "One maker's guide (TracPipe, FGP-001 12/16); several tight bends add pressure drop.",
+            sizes: [
+                (id: "csst_3_8", size: "3/8", label: "CSST 3/8\"", dn: 10, bend_radii: [(method: Free, min_m: 0.0142875, as_read: "9/16 in", source: [R(7)])], source: [R(7)]),
+                (id: "csst_1_2", size: "1/2", label: "CSST 1/2\"", dn: 15, bend_radii: [(method: Free, min_m: 0.01905, as_read: "3/4 in", source: [R(7)])], source: [R(7)]),
+                (id: "csst_3_4", size: "3/4", label: "CSST 3/4\"", dn: 20, bend_radii: [(method: Free, min_m: 0.0254, as_read: "1 in", source: [R(7)])], source: [R(7)]),
+                (id: "csst_1", size: "1", label: "CSST 1\"", dn: 25, bend_radii: [(method: Free, min_m: 0.0762, as_read: "3 in", source: [R(7)])], source: [R(7)]),
+                (id: "csst_1_1_4", size: "1 1/4", label: "CSST 1 1/4\"", dn: 32, bend_radii: [(method: Free, min_m: 0.0762, as_read: "3 in", source: [R(7)])], source: [R(7)]),
+                (id: "csst_1_1_2", size: "1 1/2", label: "CSST 1 1/2\"", dn: 40, bend_radii: [(method: Free, min_m: 0.0762, as_read: "3 in", source: [R(7)])], source: [R(7)]),
+                (id: "csst_2", size: "2", label: "CSST 2\"", dn: 50, bend_radii: [(method: Free, min_m: 0.1016, as_read: "4 in", source: [R(7)])], source: [R(7)]),
+            ],
+        ),
+        (
+            id: "hydraulic_hose",
+            name: "Hydraulic hose (Parker 451TC)",
+            behaviour: Flexible,
+            form: Pipe,
+            carries: [Fuel, Water, Air],
+            look: (srgb: (51, 56, 61), metallic: 0.0, roughness: 0.75, note: "Dark rubber, as hose_rubber."),
+            source: [R(6), Ours("the look and contents are ours")],
+            note: "The radius is the tightest arc before the hose's life is greatly reduced, measured to the inside of the bend; tighter risks kinking (Parker, R6). Rated as half the SAE 100R1 radius.",
+            sizes: [
+                (id: "hydraulic_hose_4", size: "-4", label: "Hydraulic hose -4 (1/4\")", dn: 6, bore_m: 0.00635, bend_radii: [(method: Free, min_m: 0.0508, as_read: "2 in (50 mm)", source: [R(6)])], source: [R(6)]),
+                (id: "hydraulic_hose_6", size: "-6", label: "Hydraulic hose -6 (3/8\")", dn: 10, bore_m: 0.009525, bend_radii: [(method: Free, min_m: 0.0635, as_read: "2 1/2 in (65 mm)", source: [R(6)])], source: [R(6)]),
+                (id: "hydraulic_hose_8", size: "-8", label: "Hydraulic hose -8 (1/2\")", dn: 12, bore_m: 0.0127, bend_radii: [(method: Free, min_m: 0.0889, as_read: "3 1/2 in (90 mm)", source: [R(6)])], source: [R(6)]),
+                (id: "hydraulic_hose_10", size: "-10", label: "Hydraulic hose -10 (5/8\")", dn: 16, bore_m: 0.015875, bend_radii: [(method: Free, min_m: 0.1016, as_read: "4 in (100 mm)", source: [R(6)])], source: [R(6)]),
+                (id: "hydraulic_hose_12", size: "-12", label: "Hydraulic hose -12 (3/4\")", dn: 19, bore_m: 0.01905, bend_radii: [(method: Free, min_m: 0.12065, as_read: "4 3/4 in (120 mm)", source: [R(6)])], source: [R(6)]),
+                (id: "hydraulic_hose_16", size: "-16", label: "Hydraulic hose -16 (1\")", dn: 25, bore_m: 0.0254, bend_radii: [(method: Free, min_m: 0.1524, as_read: "6 in (150 mm)", source: [R(6)])], source: [R(6)]),
+                (id: "hydraulic_hose_20", size: "-20", label: "Hydraulic hose -20 (1 1/4\")", dn: 31, bore_m: 0.03175, bend_radii: [(method: Free, min_m: 0.20955, as_read: "8 1/4 in (210 mm)", source: [R(6)])], source: [R(6)]),
+            ],
         ),
         (
             id: "hose_rubber",
             name: "Rubber hose",
-            srgb: (51, 56, 61),
-            metallic: 0.0,
-            roughness: 0.75,
-            note: "Dark rubber, ConduitKind::color()'s flexible-hose colour since v0.535.",
+            behaviour: Flexible,
+            form: Pipe,
+            carries: [Water, Air, Fuel, Nutrient, Waste],
+            look: (srgb: (51, 56, 61), metallic: 0.0, roughness: 0.75, note: "Dark rubber, ConduitKind::color()'s flexible-hose colour since v0.535."),
+            source: [Ours("the game's flexible hose since v0.535 (greywater, gas, air); no water-hose maker's sheet was read (the routing finding's unknowns), so its sizes borrow the hydraulic hose's radius at the same bore (R6), the closest public number")],
+            sizes: [
+                (
+                    id: "hose_rubber_5_8", size: "5/8", label: "Rubber hose 5/8\"", dn: 16, bore_m: 0.015875,
+                    bend_radii: [(method: Free, min_m: 0.1016, as_read: "4 in, Parker 451TC's -10 (5/8 in)", source: [R(6), Ours("the closest public number: a hydraulic hose's at the same bore")])],
+                    source: [Ours("a garden hose's common bore")],
+                ),
+                (
+                    id: "hose_rubber_1", size: "1", label: "Rubber hose 1\"", dn: 25, bore_m: 0.0254,
+                    bend_radii: [(method: Free, min_m: 0.1524, as_read: "6 in, Parker 451TC's -16 (1 in)", source: [R(6), Ours("the closest public number: a hydraulic hose's at the same bore")])],
+                    source: [Ours("a utility hose's common bore")],
+                ),
+            ],
         ),
         (
             id: "power_cord",
-            name: "Power cord jacket",
-            srgb: (26, 26, 31),
-            metallic: 0.0,
-            roughness: 0.6,
-            note: "Black cord, ConduitKind::color()'s power-cord colour since v0.535.",
+            name: "Flexible power cord (portable cord, type SOOW)",
+            behaviour: Flexible,
+            form: Cable,
+            carries: [Electricity],
+            conductor: Copper,
+            tags: ["unarmoured", "multiconductor"],
+            look: (srgb: (26, 26, 31), metallic: 0.0, roughness: 0.6, note: "Black cord, ConduitKind::color()'s power-cord colour since v0.535."),
+            source: [Ours("the game's power run since v0.535 is a flexible cord (the operator: 'flexible tubes are hoses and power extension cords'); 600 V portable cord is type SOOW")],
+            note: "No cord maker's sheet was read, so these sizes have no outside diameter or bend radius yet: the bend rules that need a diameter (4 times it, R22) have nothing to measure until one is.",
+            sizes: [
+                (
+                    id: "cu_awg14", size: "14 AWG", label: "Copper 14 AWG",
+                    awg: 14, ampacity_a: 15.0, voltage_max: 600.0, ohm_per_m: 0.008286, grade: Home, cost_per_m: 0.8,
+                    source: [R(42), Ours("the registry's row since v0.604 (data/utilities/conduits.ron), kept through the merge: NEC-like copper ampacity (the NEC was not read, R42) and copper's resistance per metre at this gauge")],
+                    note: "Standard 15 A home lighting + receptacle circuit. Cheapest; fine for lamps + small loads.",
+                ),
+                (
+                    id: "cu_awg12", size: "12 AWG", label: "Copper 12 AWG",
+                    awg: 12, ampacity_a: 20.0, voltage_max: 600.0, ohm_per_m: 0.005211, grade: Home, cost_per_m: 1.2,
+                    source: [R(42), Ours("as cu_awg14: NEC-like copper ampacity (the NEC was not read, R42) and copper's resistance at this gauge, kept through the merge")],
+                    note: "20 A home circuit -- kitchen/appliance + pumps. The workhorse residential cable.",
+                ),
+                (
+                    id: "cu_awg10", size: "10 AWG", label: "Copper 10 AWG",
+                    awg: 10, ampacity_a: 30.0, voltage_max: 600.0, ohm_per_m: 0.003277, grade: Home, cost_per_m: 1.9,
+                    source: [R(42), Ours("as cu_awg14: NEC-like copper ampacity (the NEC was not read, R42) and copper's resistance at this gauge, kept through the merge")],
+                    note: "30 A circuit -- water heater, dryer, EV charger, heavier machines.",
+                ),
+                (
+                    id: "cu_awg6_ind", size: "6 AWG", label: "Copper 6 AWG (industrial)",
+                    awg: 6, ampacity_a: 55.0, voltage_max: 600.0, ohm_per_m: 0.001296, shielded: true, grade: Industrial, cost_per_m: 4.5,
+                    source: [R(42), Ours("as cu_awg14: NEC-like copper ampacity (the NEC was not read, R42) and copper's resistance at this gauge, kept through the merge")],
+                    note: "55 A shielded feeder for industrial machines / sub-panels. Overkill (+expensive) at home.",
+                ),
+            ],
+        ),
+        (
+            id: "superconductor_cable",
+            name: "Room-temperature superconductor cable",
+            behaviour: Flexible,
+            form: Cable,
+            carries: [Electricity],
+            conductor: Superconductor,
+            tags: ["multiconductor"],
+            look: (srgb: (30, 36, 52), metallic: 0.0, roughness: 0.5, note: "A dark blue-grey jacket, to tell it from copper cord. Ours."),
+            source: [Ours("fiction: no room-temperature superconductor cable exists; the game's late-game upgrade since v0.616")],
+            sizes: [
+                (
+                    id: "sc_room_temp", size: "8 AWG", label: "Room-temp superconductor",
+                    awg: 8, ampacity_a: 2000.0, voltage_max: 50000.0, ohm_per_m: 0.0000001, shielded: true, grade: Industrial, cost_per_m: 60.0,
+                    source: [Ours("the registry's row since v0.604 (data/utilities/conduits.ron), kept through the merge: fiction, chosen to be near-lossless")],
+                    note: "Late-game upgrade target: near-zero loss, enormous ampacity. A mission swaps copper for this.",
+                ),
+            ],
+        ),
+        (
+            id: "nm_b",
+            name: "NM-B cable (nonmetallic-sheathed, Southwire Romex SIMpull)",
+            behaviour: Flexible,
+            form: Cable,
+            carries: [Electricity],
+            conductor: Copper,
+            tags: ["unarmoured", "multiconductor"],
+            look: (srgb: (238, 238, 232), metallic: 0.0, roughness: 0.55, note: "White, the maker's jacket colour for 14 AWG (12 AWG is yellow, 10 orange); one colour until a look can be per size. Ours."),
+            source: [R(19), Ours("the look is ours")],
+            note: "The house wiring of a US home. Its radii are the maker's (R19), not the code's: the NEC's 334.24 was not read (R42). No ampacity yet: the NEC's table was not read either, so these sizes are not offered to the cable check.",
+            sizes: [
+                (
+                    id: "nm_b_14_2", size: "14/2", label: "NM-B 14/2", awg: 14, od_m: 0.0044704, width_m: 0.0094488, voltage_max: 600.0, ohm_per_m: 0.008286,
+                    bend_radii: [(method: Free, min_m: 0.01778, as_read: "0.7 in (flat 0.372 by 0.176 in)", source: [R(19)])],
+                    source: [R(19), Ours("the 600 V rating is the one NM-B is printed with, and the resistance copper's at this gauge (as cu_awg14); not from the finding")],
+                ),
+                (
+                    id: "nm_b_12_2", size: "12/2", label: "NM-B 12/2", awg: 12, od_m: 0.004826, width_m: 0.0107188, voltage_max: 600.0, ohm_per_m: 0.005211,
+                    bend_radii: [(method: Free, min_m: 0.02032, as_read: "0.8 in (flat 0.422 by 0.190 in)", source: [R(19)])],
+                    source: [R(19), Ours("as nm_b_14_2: the 600 V rating NM-B is printed with and copper's resistance at this gauge")],
+                ),
+                (
+                    id: "nm_b_10_2", size: "10/2", label: "NM-B 10/2", awg: 10, od_m: 0.0055372, width_m: 0.012827, voltage_max: 600.0, ohm_per_m: 0.003277,
+                    bend_radii: [(method: Free, min_m: 0.02286, as_read: "0.9 in (flat 0.505 by 0.218 in)", source: [R(19)])],
+                    source: [R(19), Ours("as nm_b_14_2: the 600 V rating NM-B is printed with and copper's resistance at this gauge")],
+                ),
+                (
+                    id: "nm_b_14_4", size: "14/4", label: "NM-B 14/4", awg: 14, od_m: 0.00889, voltage_max: 600.0, ohm_per_m: 0.008286,
+                    bend_radii: [(method: Free, min_m: 0.03556, as_read: "1.4 in (round 0.35 in)", source: [R(19)])],
+                    source: [R(19), Ours("as nm_b_14_2: the 600 V rating NM-B is printed with and copper's resistance at this gauge")],
+                ),
+                (
+                    id: "nm_b_8_3", size: "8/3", label: "NM-B 8/3", awg: 8, od_m: 0.014859, voltage_max: 600.0, ohm_per_m: 0.002061,
+                    bend_radii: [(method: Free, min_m: 0.05842, as_read: "2.3 in (0.585 in)", source: [R(19)])],
+                    source: [R(19), Ours("as nm_b_14_2: the 600 V rating NM-B is printed with and copper's resistance at this gauge")],
+                ),
+                (
+                    id: "nm_b_2_3", size: "2/3", label: "NM-B 2/3", awg: 2, od_m: 0.0225298, voltage_max: 600.0, ohm_per_m: 0.0005127,
+                    bend_radii: [(method: Free, min_m: 0.0889, as_read: "3.5 in (0.887 in)", source: [R(19)])],
+                    source: [R(19), Ours("as nm_b_14_2: the 600 V rating NM-B is printed with and copper's resistance at this gauge")],
+                ),
+            ],
+        ),
+        (
+            id: "thhn",
+            name: "THHN/THWN-2 building wire (single conductor, Southwire SIMpull)",
+            behaviour: Flexible,
+            form: Cable,
+            carries: [Electricity],
+            conductor: Copper,
+            tags: ["unarmoured", "single_conductor"],
+            look: (srgb: (24, 24, 26), metallic: 0.0, roughness: 0.4, note: "Black insulation; its colour marks the circuit (black, red, white, green). Ours."),
+            source: [R(19), Ours("the look is ours")],
+            note: "Wire pulled through conduit (EMT). Radii are the maker's (R19). No ampacity yet (the NEC's table was not read, R42).",
+            sizes: [
+                (
+                    id: "thhn_8", size: "8 AWG", label: "THHN 8 AWG", awg: 8, od_m: 0.0055118, voltage_max: 600.0, ohm_per_m: 0.002061,
+                    bend_radii: [(method: Free, min_m: 0.02286, as_read: "0.9 in (0.217 in)", source: [R(19)])],
+                    source: [R(19), Ours("the 600 V rating THHN is printed with and copper's resistance at this gauge; not from the finding")],
+                ),
+                (
+                    id: "thhn_4", size: "4 AWG", label: "THHN 4 AWG", awg: 4, od_m: 0.0082296, voltage_max: 600.0, ohm_per_m: 0.0008152,
+                    bend_radii: [(method: Free, min_m: 0.03302, as_read: "1.3 in (0.324 in)", source: [R(19)])],
+                    source: [R(19), Ours("as thhn_8: the 600 V rating THHN is printed with and copper's resistance at this gauge")],
+                ),
+                (
+                    id: "thhn_4_0", size: "4/0", label: "THHN 4/0", awg: -3, od_m: 0.0156972, voltage_max: 600.0, ohm_per_m: 0.0001608,
+                    bend_radii: [(method: Free, min_m: 0.0635, as_read: "2.5 in (0.618 in)", source: [R(19)])],
+                    source: [R(19), Ours("as thhn_8: the 600 V rating THHN is printed with and copper's resistance at this gauge")],
+                ),
+                (
+                    id: "thhn_500_kcmil", size: "500 kcmil", label: "THHN 500 kcmil", od_m: 0.0230632, voltage_max: 600.0, ohm_per_m: 0.00006801,
+                    bend_radii: [(method: Free, min_m: 0.09144, as_read: "3.6 in (0.908 in)", source: [R(19)])],
+                    source: [R(19), Ours("as thhn_8; 500 kcmil (253 mm2) has no AWG")],
+                ),
+            ],
         ),
         (
             id: "data_cable",
-            name: "Data cable jacket",
-            srgb: (168, 170, 172),
-            metallic: 0.0,
-            roughness: 0.55,
-            note: "A light grey PVC jacket. Ours: Cat6 jackets come in many colours, a seller's choice we found no standard for.",
+            name: "Twisted-pair data cable (Cat6)",
+            behaviour: Flexible,
+            form: Cable,
+            carries: [Data],
+            conductor: Copper,
+            tags: ["unarmoured", "multiconductor", "twisted_pair"],
+            look: (srgb: (168, 170, 172), metallic: 0.0, roughness: 0.55, note: "A light grey PVC jacket. Ours: Cat6 jackets come in many colours, a seller's choice we found no standard for."),
+            source: [R(20), Ours("the look is ours")],
+            note: "Bend at least 4 times its diameter (UFGS 27 10 00, R20: bend_utp).",
+            sizes: [
+                (
+                    id: "eth_cat6", size: "Cat6", label: "Cat6 ethernet", od_m: 0.006,
+                    shielded: true, grade: Home, cost_per_m: 0.9,
+                    bandwidth_mbps: 1000.0, rf_emission: 0.0, range_m: 100.0, latency_ms: 1.0,
+                    source: [Ours("the registry's row since v0.619 (data/utilities/conduits.ron), kept through the merge: real-ish telecom figures (1 Gbit/s over a 100 m channel) and a cost of ours; the 6 mm diameter is the figure ConduitKind::DataCable's comment gives (no maker's sheet read)")],
+                    note: "Twisted-pair copper. Cheap, secure, NO RF emission -- but the run caps at ~100 m. The dependable wired default.",
+                ),
+            ],
+        ),
+        (
+            id: "fibre_optic",
+            name: "Fibre-optic cable (multimode OM4, tight-buffered riser)",
+            behaviour: Flexible,
+            form: Cable,
+            carries: [Data],
+            conductor: Glass,
+            tags: ["unarmoured", "fibre"],
+            look: (srgb: (0, 168, 178), metallic: 0.0, roughness: 0.5, note: "Aqua, the jacket colour commonly used for laser-optimised multimode fibre (TIA-598, not read). Ours."),
+            source: [R(21), Ours("the look is ours")],
+            note: "At least 20 times its diameter while pulling and 10 times installed (R20, R22: bend_fibre); the maker's own radii are on the size row (R21).",
+            sizes: [
+                (
+                    id: "fiber_om4", size: "8-fibre riser", label: "Fibre optic (OM4)", od_m: 0.00555,
+                    bend_radii: [
+                        (method: Pulling, min_m: 0.08325, as_read: "83.25 mm while installing", source: [R(21)]),
+                        (method: Free, min_m: 0.0555, as_read: "55.5 mm in operation", source: [R(21)]),
+                    ],
+                    grade: Commercial, cost_per_m: 3.5,
+                    bandwidth_mbps: 10000.0, rf_emission: 0.0, range_m: 400.0, latency_ms: 0.5,
+                    source: [R(21), Ours("the registry's row since v0.619 (data/utilities/conduits.ron), kept through the merge: real-ish figures for OM4 multimode and a cost of ours; the 5.55 mm diameter and radii are Corning's 8-fibre riser cable's (R21)")],
+                    note: "Glass fibre. Huge bandwidth, long range, immune to EMI, zero RF -- but pricier + needs transceivers at each end.",
+                ),
+            ],
+        ),
+        (
+            id: "emt",
+            name: "EMT conduit (electrical metallic tubing)",
+            behaviour: Bendable,
+            form: Raceway,
+            carries: [Electricity, Data],
+            look: (srgb: (213, 233, 237), metallic: 1.0, roughness: 0.5, note: "Galvanized steel: zinc's measured reflectance, F0 (0.664, 0.824, 0.850) in linear light (Real-Time Rendering, 4th ed., Table 9.2), rough with its spangle."),
+            source: [R(24), R(26), Ours("the look is zinc's measured reflectance (Real-Time Rendering, 4th ed., Table 9.2)")],
+            note: "Bent with a hand bender (data/piping/benders.ron, R24) or turned with cast-metal fittings; exposed, it runs parallel with or at right angles to walls and ceilings (UFGS 26 20 00, R26).",
+            sizes: [
+                (id: "emt_1_2", size: "1/2", label: "EMT 1/2\"", dn: 16, od_m: 0.0179324, stick_m: 3.048, source: [Ours("outside diameter per ANSI C80.3 (not read); 10 ft (3.05 m) lengths; DN is the conduit's metric designator")]),
+                (id: "emt_3_4", size: "3/4", label: "EMT 3/4\"", dn: 21, od_m: 0.0234188, stick_m: 3.048, source: [Ours("as emt_1_2: outside diameter per ANSI C80.3 (not read), 10 ft lengths")]),
+                (id: "emt_1", size: "1", label: "EMT 1\"", dn: 27, od_m: 0.0295402, stick_m: 3.048, source: [Ours("as emt_1_2: outside diameter per ANSI C80.3 (not read), 10 ft lengths")]),
+            ],
+        ),
+    ],
+    links: [
+        (
+            id: "wifi_6", label: "WiFi 6 (wireless)", carries: Data, conductor: Radio,
+            shielded: false, grade: Home, cost_per_m: 0.2,
+            bandwidth_mbps: 600.0, rf_emission: 0.6, range_m: 30.0, latency_ms: 8.0,
+            source: [Ours("the registry's row since v0.619 (data/utilities/conduits.ron), kept through the merge: real-ish WiFi 6 figures (shared 600 Mbit/s, about 30 m indoors), an RF level and an amortised cost of ours")],
+            note: "No cable to run -- but EMITS RF (rf_emission 0.6), so it is detectable (a signature). Shared bandwidth, walls cut range, less secure.",
         ),
     ],
 )

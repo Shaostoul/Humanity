@@ -842,8 +842,11 @@ not know which scheme is in use, even where one scheme allows colour alone
 - **The conduit registry cannot record plastic or steel pipe.**
   `ConductorMaterial` ([`src/utilities.rs`](../../../crates/humanity-core/src/utilities.rs) line
   118) offers Copper, Aluminum, Superconductor, Glass and Radio, and
-  [`data/utilities/conduits.ron`](../../../data/utilities/conduits.ron) line
+  `data/utilities/conduits.ron` line
   40 records `pex_half` (`label: "PEX 1/2\" water"`) as `material: Copper`.
+  [Note of 2026-11-02: that file merged into the material catalog,
+  [`data/piping/pipe_materials.ron`](../../../data/piping/pipe_materials.ron), whose PEX
+  material records plastic tubing and no conductor.]
 - **An earlier rule in the code limits potable water to copper.**
   `src/ship/conduits.rs` lines 21 to 22 (v0.535.0, 2026-06-25) say rigid
   copper is "MANDATORY for all potable water" and quote the operator: "no PVC

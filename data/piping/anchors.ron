@@ -1,0 +1,222 @@
+#![enable(implicit_some)]
+// Anchors: what holds a run to the structure (2026-11-02, spline routing rung 0,
+// docs/design/spline-routing.md sections 5.3 and 12). Straps, clips, cushioned clamps, rod
+// hangers, J-hooks, ties, trays, and the protector ramps vehicles drive over. Read by
+// src/ship/run_anchors.rs (disk first, the copy built into the exe if this file is missing or
+// does not parse). Nothing places them yet: rung 7 does, and the support_spacing and support_near
+// rules of data/piping/run_rules.ron read them (rung 8). One anchor may hold several runs (the
+// dedupe of today's hangers lives on as that).
+//
+// UNITS as data/piping/run_rules.ron: lengths in METRES, a load in NEWTONS. SOURCES as there.
+//
+// FIELD REFERENCE
+//   id, name
+//   kind        Strap, Clip, CushionClamp, RodHanger, JHook, Tie, Clamp, Tray, Ramp, RiserClamp
+//   holds       which runs it holds, in run_rules.ron's `applies` form (materials, forms, contents,
+//               tags, dn, od_m, ...); empty matches any run
+//   fixes_to    what it fastens to: Wood, Concrete, Steel (a ship's frames and a stud wall's steel
+//               studs), Run (it rides on another run, like a tie on a bundle)
+//   standoff_m  the gap from the surface to the run's centreline it adds, beyond the run's own
+//               radius (0 for a strap that clamps the run flat to the surface)
+//   load_n      the most it may carry; absent where no maker's rating was read
+//   holds_max   how many runs at most (a J-hook's 20 cables)
+//   rod_m       a rod hanger's rod diameter
+//   mesh        how it is drawn, in metres: width (across the run), depth (along it), thickness
+//   source, note
+(
+    anchors: [
+        (
+            id: "cable_staple",
+            name: "Cable staple",
+            kind: Strap,
+            holds: (materials: ["nm_b"]),
+            fixes_to: [Wood],
+            standoff_m: 0.0,
+            mesh: (width: 0.016, depth: 0.004, thickness: 0.0015),
+            source: [R(13), Ours("NM cable is secured in place (24 CFR 3280.808(d), R13); a staple driven into the stud is how it is done, its size ours")],
+        ),
+        (
+            id: "one_hole_strap",
+            name: "One-hole pipe strap",
+            kind: Strap,
+            holds: (forms: [Pipe, Raceway], behaviours: [Rigid, Bendable]),
+            fixes_to: [Wood, Concrete, Steel],
+            standoff_m: 0.0,
+            mesh: (width: 0.03, depth: 0.012, thickness: 0.0015),
+            source: [Ours("the common strap for copper tube and EMT; no rule read names one, its size ours")],
+        ),
+        (
+            id: "cushion_clamp",
+            name: "Cushioned pipe clamp",
+            kind: CushionClamp,
+            holds: (materials: ["pex", "cpvc", "cpvc_coil", "pvc_sch40"]),
+            fixes_to: [Wood, Concrete, Steel],
+            standoff_m: 0.01,
+            mesh: (width: 0.03, depth: 0.02, thickness: 0.004),
+            source: [R(8)],
+            note: "Hangers for plastic pipe must not compress, distort, cut or abrade it, and must let it move (24 CFR 3280.608(c)(3)), so plastic pipe gets a cushioned clamp, never a bare strap.",
+        ),
+        (
+            id: "rod_hanger_3_8",
+            name: "Clevis hanger on a 3/8 in rod",
+            kind: RodHanger,
+            holds: (forms: [Pipe], dn: (0, 50)),
+            fixes_to: [Concrete, Steel, Wood],
+            standoff_m: 0.15,
+            rod_m: 0.009525,
+            mesh: (width: 0.05, depth: 0.02, thickness: 0.003),
+            source: [R(9), Ours("the stand-off from the ceiling is ours: the rod is cut to length")],
+            note: "UFGS 23 05 15: rod 3/8 in for pipe 2 in and smaller. Load not read (MSS SP-58, R44).",
+        ),
+        (
+            id: "rod_hanger_1_2",
+            name: "Clevis hanger on a 1/2 in rod",
+            kind: RodHanger,
+            holds: (forms: [Pipe], dn: (65, 90)),
+            fixes_to: [Concrete, Steel],
+            standoff_m: 0.15,
+            rod_m: 0.0127,
+            mesh: (width: 0.07, depth: 0.025, thickness: 0.004),
+            source: [R(9), Ours("the stand-off is ours: the rod is cut to length")],
+            note: "UFGS 23 05 15: rod 1/2 in for pipe 2 1/2 to 3 1/2 in.",
+        ),
+        (
+            id: "rod_hanger_5_8",
+            name: "Clevis hanger on a 5/8 in rod",
+            kind: RodHanger,
+            holds: (forms: [Pipe], dn: (100, 125)),
+            fixes_to: [Concrete, Steel],
+            standoff_m: 0.15,
+            rod_m: 0.015875,
+            mesh: (width: 0.1, depth: 0.03, thickness: 0.005),
+            source: [R(9), Ours("the stand-off is ours: the rod is cut to length")],
+            note: "UFGS 23 05 15: rod 5/8 in for pipe 4 to 5 in.",
+        ),
+        (
+            id: "rod_hanger_3_4",
+            name: "Clevis hanger on a 3/4 in rod",
+            kind: RodHanger,
+            holds: (forms: [Pipe], dn: (150, 150)),
+            fixes_to: [Concrete, Steel],
+            standoff_m: 0.15,
+            rod_m: 0.01905,
+            mesh: (width: 0.13, depth: 0.035, thickness: 0.006),
+            source: [R(9), Ours("the stand-off is ours: the rod is cut to length")],
+            note: "UFGS 23 05 15: rod 3/4 in for pipe 6 in.",
+        ),
+        (
+            id: "rod_hanger_7_8",
+            name: "Clevis hanger on a 7/8 in rod",
+            kind: RodHanger,
+            holds: (forms: [Pipe], dn: (200, 300)),
+            fixes_to: [Concrete, Steel],
+            standoff_m: 0.15,
+            rod_m: 0.022225,
+            mesh: (width: 0.25, depth: 0.04, thickness: 0.008),
+            source: [R(9), Ours("the stand-off is ours: the rod is cut to length")],
+            note: "UFGS 23 05 15: rod 7/8 in for pipe 8 to 12 in.",
+        ),
+        (
+            id: "rod_hanger_1",
+            name: "Clevis hanger on a 1 in rod",
+            kind: RodHanger,
+            holds: (forms: [Pipe], dn: (350, 450)),
+            fixes_to: [Concrete, Steel],
+            standoff_m: 0.15,
+            rod_m: 0.0254,
+            mesh: (width: 0.4, depth: 0.05, thickness: 0.01),
+            source: [R(9), Ours("the stand-off is ours: the rod is cut to length")],
+            note: "UFGS 23 05 15: rod 1 in for pipe 14 to 18 in.",
+        ),
+        (
+            id: "rod_hanger_1_1_4",
+            name: "Clevis hanger on a 1 1/4 in rod",
+            kind: RodHanger,
+            holds: (forms: [Pipe], dn: (500, 9999)),
+            fixes_to: [Concrete, Steel],
+            standoff_m: 0.15,
+            rod_m: 0.03175,
+            mesh: (width: 0.55, depth: 0.06, thickness: 0.012),
+            source: [R(9), Ours("the stand-off is ours: the rod is cut to length")],
+            note: "UFGS 23 05 15: rod 1 1/4 in for pipe 20 in and over.",
+        ),
+        (
+            id: "j_hook",
+            name: "J-hook",
+            kind: JHook,
+            holds: (forms: [Cable], contents: [Data]),
+            fixes_to: [Wood, Concrete, Steel],
+            standoff_m: 0.03,
+            holds_max: 20,
+            mesh: (width: 0.05, depth: 0.025, thickness: 0.002),
+            source: [R(18), Ours("the stand-off and mesh are ours")],
+            note: "UFGS 27 10 00: J-hooks on 1.2 to 1.5 m centres, at most 20 cables of 6.4 mm per support, cable not touching pipes or ducts.",
+        ),
+        (
+            id: "ship_cable_hanger",
+            name: "Metal cable hanger",
+            kind: Clamp,
+            holds: (forms: [Cable]),
+            fixes_to: [Steel],
+            standoff_m: 0.02,
+            mesh: (width: 0.04, depth: 0.02, thickness: 0.003),
+            source: [R(14), Ours("its size is ours")],
+            note: "46 CFR 120.340(b)(4): metal supports, not more than 610 mm apart. Plastic ties are not acceptable as a raceway's support (UFGS 26 20 00, R31).",
+        ),
+        (
+            id: "cable_tray",
+            name: "Ladder cable tray",
+            kind: Tray,
+            holds: (forms: [Cable]),
+            fixes_to: [Steel, Concrete],
+            standoff_m: 0.05,
+            mesh: (width: 0.3, depth: 0.05, thickness: 0.05),
+            source: [R(14), R(22), Ours("width and stand-off ours")],
+            note: "IEC 60092-352 (3.19) supports a horizontal tray run at most every 400 mm; the space factor (fill) is at most 0.4 (R22).",
+        ),
+        (
+            id: "harness_spot_tie",
+            name: "Harness spot tie",
+            kind: Tie,
+            holds: (forms: [Cable]),
+            fixes_to: [Run],
+            standoff_m: 0.0,
+            mesh: (width: 0.004, depth: 0.003, thickness: 0.001),
+            source: [R(17), Ours("its size is ours")],
+            note: "Ties along a spacecraft harness, every 19.1 to 76.2 mm by the bundle's size (NASA-STD-8739.4A Table 9-1): the support_spacecraft_ties rows.",
+        ),
+        (
+            id: "cushioned_cable_clamp",
+            name: "Cushioned cable clamp",
+            kind: Clamp,
+            holds: (forms: [Cable]),
+            fixes_to: [Steel],
+            standoff_m: 0.01,
+            mesh: (width: 0.02, depth: 0.012, thickness: 0.002),
+            source: [R(16), Ours("its size is ours")],
+            note: "FAA AC 43.13-1B 11-146: clamps at intervals not exceeding 24 inches, the spacecraft profile's analogue.",
+        ),
+        (
+            id: "riser_clamp",
+            name: "Riser clamp",
+            kind: RiserClamp,
+            holds: (forms: [Pipe, Raceway]),
+            fixes_to: [Concrete, Steel, Wood],
+            standoff_m: 0.0,
+            mesh: (width: 0.08, depth: 0.012, thickness: 0.006),
+            source: [R(10), R(31), Ours("its size is ours")],
+            note: "Vertical runs are supported at each floor (UFGS 22 00 00, R10); exposed conduit risers clamped at each floor (UFGS 26 20 00, R31).",
+        ),
+        (
+            id: "cable_protector_ramp",
+            name: "Cable protector ramp",
+            kind: Ramp,
+            holds: (forms: [Cable, Pipe]),
+            fixes_to: [Concrete, Steel],
+            standoff_m: 0.0,
+            holds_max: 5,
+            mesh: (width: 0.5, depth: 0.9, thickness: 0.05),
+            source: [Ours("a ramp over cables and hoses laid on a floor, so heavy machinery can drive over them (the operator, 2026-11-01); no maker's load rating was read (the routing finding's unknowns), so load_n is absent and the five channels and the size are ours")],
+        ),
+    ],
+)

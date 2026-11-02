@@ -9,8 +9,18 @@ pub mod assembly;
 /// docs/design/ship-homes-and-logistics.md).
 pub mod build_frames;
 pub mod conduits;
-/// What a pipe, hose or cable is made of, as data (2026-10-04, data/piping/pipe_materials.ron).
+/// What a pipe, hose or cable is made of, as drawn today: today's four conduit kinds over the one
+/// material catalog (`humanity_core::run_materials`, data/piping/pipe_materials.ron).
 pub mod pipe_materials;
+/// The "to code" rules for runs and the profiles that group them (data/piping/run_rules.ron;
+/// spline routing rung 0, 2026-11-02). Data only until rung 8 evaluates them.
+pub mod run_rules;
+/// Fittings for runs: elbows, drain bends, tees, couplings, glands... (data/piping/fittings.ron).
+pub mod run_fittings;
+/// Anchors that hold runs: straps, hangers, J-hooks, trays, ramps (data/piping/anchors.ron).
+pub mod run_anchors;
+/// Benders and the radius each bends at (data/piping/benders.ron).
+pub mod run_benders;
 /// The coloured marker bands that say what flows in a pipe, scheme by scheme (2026-10-04,
 /// data/piping/marking_schemes.ron; docs/reference/findings/2026-10-04-pipe-marking-standards.md).
 pub mod pipe_marking;

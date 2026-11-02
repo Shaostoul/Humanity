@@ -569,7 +569,7 @@ nothing in it can shock you.
   below), or pin a cable and see whether it holds. The check is
   `check_cable` in `crates/humanity-core/src/utilities.rs`, called from `src/machines.rs`.
 - **The copper cables are real.** The catalogue in
-  `data/utilities/conduits.ron` lists 14, 12 and 10 gauge copper at 15,
+  `data/piping/pipe_materials.ron` lists 14, 12 and 10 gauge copper at 15,
   20 and 30 amps for the home, an industrial 6 gauge at 55 amps, and a
   room-temperature superconductor, which its data calls a late-game
   upgrade and which nobody has yet made in real life (general
@@ -764,7 +764,7 @@ read in the eCFR's text in force on 1 October 2026.
   shown in the Buildability section and the cable picker of the
   Construction page (`src/gui/pages/construction.rs`, which also holds
   the button that upgrades every power run to the superconductor). The
-  cable catalogue: `data/utilities/conduits.ron`.
+  cable catalogue: `data/piping/pipe_materials.ron`.
 - The running electrical simulation: `src/systems/electrical.rs`, with the
   ship's reactor feed in `src/systems/ship_power.rs`; the HUD's Power and
   Battery lines in `src/gui/pages/hud.rs`; the life support setting in

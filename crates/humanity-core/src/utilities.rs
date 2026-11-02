@@ -7,14 +7,20 @@
 //! cold water). We start with COPPER, grounded in real NEC ampacity; a later mission upgrades copper
 //! to a room-temperature superconductor.
 //!
-//! Stage 1 (this module): the pure DATA MODEL + the cable registry (`conduits.ron`) + the physics
-//! checks (`check_cable`, voltage drop, `awg_to_mm2`). NO `#[cfg(native)]` gate -- this is plain serde
+//! Stage 1 (this module): the pure DATA MODEL + the cable registry + the physics checks
+//! (`check_cable`, voltage drop, `awg_to_mm2`). NO `#[cfg(native)]` gate -- this is plain serde
 //! + math so it compiles under `relay` too. Wiring it into `MachineDef` ports + the buildability
 //! report is the next increment; see `docs/design/utility-wiring.md` + `docs/design/sim-realism-roadmap.md`.
 //!
+//! The registry's rows live in the ONE material catalog since 2026-11-02 (spline routing rung 0):
+//! `data/piping/pipe_materials.ron`, read by `crate::run_materials`, where each cable, pipe and data
+//! medium is a size row of its material (or, for a radio link, a link row) under the same id it had
+//! in the deleted `data/utilities/conduits.ron`. `conduit_types()` is a flat view of the rows the
+//! checks can judge; rung 1 renames it with the run model.
+//!
 //! `Utility` is a deliberately CLOSED enum (not a data file): each utility has distinct physics
 //! (electricity = ampacity + voltage drop; water = flow + pressure), so adding one is a real code
-//! decision. Infinite-of-X lives in the conduit CATALOG (`conduits.ron`) and in machine ports.
+//! decision. Infinite-of-X lives in the material CATALOG and in machine ports.
 
 use serde::{Deserialize, Serialize};
 
@@ -147,74 +153,121 @@ pub enum Grade {
     Industrial,
 }
 
-/// A cable / conduit TYPE from the registry (`data/utilities/conduits.ron`). Real-ish specs so wiring
-/// teaches real engineering. For electricity: AWG gauge, ampacity (A), voltage rating, shielded.
-#[derive(Debug, Clone, Deserialize)]
+/// One cable, pipe or data medium as the checks see it: a flat view of a size row of the material
+/// catalog (`crate::run_materials`, `data/piping/pipe_materials.ron`), or of a radio link row. Real-ish
+/// specs so wiring teaches real engineering. For electricity: AWG gauge, ampacity (A), voltage
+/// rating, shielded. A number the catalog has no source for reads 0 here, as the registry's serde
+/// defaults did; only rows whose check's own number is known are in the view
+/// (`RunMaterial::size_is_checked`).
+#[derive(Debug, Clone)]
 pub struct ConduitType {
     pub id: String,
     pub label: String,
     pub utility: Utility,
-    pub material: ConductorMaterial,
+    /// What conducts: the material's conductor. None for a fluid line whose wall conducts nothing
+    /// modelled (PEX). (conduits.ron called PEX "Copper"; the catalog does not.)
+    pub material: Option<ConductorMaterial>,
     /// American Wire Gauge (electrical). 0 for non-electrical.
-    #[serde(default)]
     pub awg: i32,
     /// Continuous current the cable can carry, AMPS (NEC-ish for copper). For a pipe: 0.
-    #[serde(default)]
     pub ampacity_a: f32,
     /// Insulation/voltage rating, VOLTS.
-    #[serde(default)]
     pub voltage_max: f32,
     /// Resistance per metre (ohm/m) of one conductor -- for voltage-drop. ~0 for a superconductor.
-    #[serde(default)]
     pub ohm_per_m: f32,
-    /// Pipe inner diameter (mm) for a fluid conduit; 0 for electrical.
-    #[serde(default)]
+    /// Pipe inner diameter (mm) for a fluid line; 0 for electrical. (The catalog's `bore_m`.)
     pub diameter_mm: f32,
-    /// Max continuous flow (L/min) for a fluid conduit; 0 for electrical.
-    #[serde(default)]
+    /// Max continuous flow (L/min) for a fluid line; 0 for electrical.
     pub flow_max_lpm: f32,
-    #[serde(default)]
     pub shielded: bool,
     pub grade: Grade,
     /// Cost per metre (cred-equivalent) -- so the auto-picker chooses the cheapest cable that fits.
-    #[serde(default)]
     pub cost_per_m: f32,
-    // ── DATA media fields (v0.619): for `utility: Data` rows (ethernet / fibre / WiFi / ...). All
-    //    `#[serde(default)]` so the electrical + water rows parse unchanged. Teach real telecom tradeoffs.
+    // ── DATA media fields (v0.619): for `utility: Data` rows (ethernet / fibre / WiFi / ...).
     /// Throughput in megabits/sec (Cat6 ~1000, fibre ~10000, WiFi shared ~600). 0 for non-data.
-    #[serde(default)]
     pub bandwidth_mbps: f32,
     /// A WIRELESS link (WiFi/Bluetooth/cellular): no physical cable, but emits RF. Wired = false.
-    #[serde(default)]
     pub wireless: bool,
     /// RF emission level 0..1 (0 = none/shielded-wired/fibre; ~0.6 = a WiFi router). A real property of
     /// the medium, for the planned detection-signature layer (docs/design/detection-sensing.md). It does
     /// NOT harm plants: that v0.620 consequence was removed 2026-09-27
     /// (docs/reference/findings/2026-09-27-wifi-and-plants.md).
-    #[serde(default)]
     pub rf_emission: f32,
     /// Max usable distance in metres (a wired run length limit ~100 m for Cat6; a wireless signal range).
-    #[serde(default)]
     pub range_m: f32,
     /// One-way latency in milliseconds (fibre lowest; wireless higher) -- for teaching + future routing.
-    #[serde(default)]
     pub latency_ms: f32,
     pub note: String,
 }
 
-/// The conduit/cable registry, parsed once + embedded (same pattern as the other registries).
+impl ConduitType {
+    /// The view of one size row of a material.
+    pub fn from_size(material: &crate::run_materials::RunMaterial, size: &crate::run_materials::RunSize) -> ConduitType {
+        ConduitType {
+            id: size.id.clone(),
+            label: size.label.clone(),
+            utility: material.checked_as().unwrap_or(Utility::Electricity),
+            material: material.conductor,
+            awg: size.awg.unwrap_or(0),
+            ampacity_a: size.ampacity_a.unwrap_or(0.0),
+            voltage_max: size.voltage_max.unwrap_or(0.0),
+            ohm_per_m: size.ohm_per_m.unwrap_or(0.0),
+            diameter_mm: size.bore_m.map_or(0.0, |b| b * 1000.0),
+            flow_max_lpm: size.flow_max_lpm.unwrap_or(0.0),
+            shielded: size.shielded,
+            grade: size.grade.unwrap_or(Grade::Home),
+            cost_per_m: size.cost_per_m.unwrap_or(0.0),
+            bandwidth_mbps: size.bandwidth_mbps.unwrap_or(0.0),
+            wireless: false,
+            rf_emission: size.rf_emission,
+            range_m: size.range_m.unwrap_or(0.0),
+            latency_ms: size.latency_ms.unwrap_or(0.0),
+            note: size.note.clone(),
+        }
+    }
+
+    /// The view of a radio link: no cable, but it emits RF.
+    pub fn from_link(link: &crate::run_materials::LinkRow) -> ConduitType {
+        ConduitType {
+            id: link.id.clone(),
+            label: link.label.clone(),
+            utility: link.carries,
+            material: Some(link.conductor),
+            awg: 0,
+            ampacity_a: 0.0,
+            voltage_max: 0.0,
+            ohm_per_m: 0.0,
+            diameter_mm: 0.0,
+            flow_max_lpm: 0.0,
+            shielded: link.shielded,
+            grade: link.grade,
+            cost_per_m: link.cost_per_m,
+            bandwidth_mbps: link.bandwidth_mbps,
+            wireless: true,
+            rf_emission: link.rf_emission,
+            range_m: link.range_m,
+            latency_ms: link.latency_ms,
+            note: link.note.clone(),
+        }
+    }
+}
+
+/// The checkable rows of a catalog, in its order: each material's sizes whose check's number is
+/// known, then the radio links.
+pub fn checkable_rows(catalog: &crate::run_materials::RunMaterials) -> Vec<ConduitType> {
+    let sizes = catalog
+        .materials
+        .iter()
+        .flat_map(|m| m.sizes.iter().filter(|s| m.size_is_checked(s)).map(move |s| ConduitType::from_size(m, s)));
+    sizes.chain(catalog.links.iter().map(ConduitType::from_link)).collect()
+}
+
+/// The cable/pipe/data registry the checks and pickers read, built once from the material catalog
+/// (`crate::run_materials::run_materials`: the data folder's copy first, the built-in one if that is
+/// missing or does not parse).
 pub fn conduit_types() -> &'static [ConduitType] {
     static REG: std::sync::OnceLock<Vec<ConduitType>> = std::sync::OnceLock::new();
-    REG.get_or_init(|| {
-        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/utilities/conduits.ron"));
-        match ron::from_str::<Vec<ConduitType>>(SRC) {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("conduits.ron parse error: {e}");
-                Vec::new()
-            }
-        }
-    })
+    REG.get_or_init(|| checkable_rows(crate::run_materials::run_materials()))
 }
 
 /// Look up a conduit type by id.
@@ -368,14 +421,14 @@ mod tests {
     #[test]
     fn registry_parses_with_copper_and_the_superconductor() {
         let types = conduit_types();
-        assert!(!types.is_empty(), "conduits.ron should parse");
+        assert!(!types.is_empty(), "the material catalog's checkable rows should load");
         for id in ["cu_awg14", "cu_awg12", "cu_awg10", "cu_awg6_ind", "sc_room_temp"] {
             assert!(conduit_type(id).is_some(), "missing conduit type {id}");
         }
         // The superconductor is near-lossless + the highest ampacity.
         let sc = conduit_type("sc_room_temp").unwrap();
         assert!(sc.ohm_per_m < 1e-4, "superconductor is ~lossless");
-        assert!(sc.material == ConductorMaterial::Superconductor);
+        assert!(sc.material == Some(ConductorMaterial::Superconductor));
     }
 
     #[test]

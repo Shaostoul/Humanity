@@ -1,6 +1,7 @@
 # Spline routing: pipes, hoses and cables laid along surfaces, to code, shown in the AR layer
 
-**Status: the complete plan, 2026-11-01. Nothing here is built yet.** It is written whole, every
+**Status: the complete plan, 2026-11-01. Rung 0 (rules and materials as data) is BUILT, 2026-11-02;
+the rest is not.** It is written whole, every
 part of the feature included, so that the data shapes, the per-frame budget and the scale are
 decided once and each rung below is a slice of the real thing (CLAUDE.md, "Plan the whole feature,
 build it in rungs, keep performance in mind throughout"). The numbers behind the "to code" rules
@@ -235,6 +236,20 @@ with a `source` naming a finding (R1 to R44, D1 to D19) or `ours` with a reason:
 
 `Utility` stays a closed enum (`crates/humanity-core/src/utilities.rs`: each utility has its own physics); everything
 under it is rows.
+
+**As built (rung 0, 2026-11-02).** The material catalog's types and loader are in the CORE,
+`humanity_core::run_materials`, not the ship: `utilities`' cable and data checks read its specs, and the
+core may reference no crate above it. The rules, fittings, anchors and benders, which only the ship's
+checks and curve will read, are the ship's (`ship::run_rules`, `run_fittings`, `run_anchors`,
+`run_benders`). Every row's `source` is `humanity_core::row_source::Source` (`R(n)`, `D(n)`,
+`Ours("why")`), and the tests read the findings documents' own numbered paragraphs, so a row naming a
+finding that does not exist fails `just validate-data`; `scripts/check-run-sources.js` holds the same
+rules in `just lints` and in CI, which runs no lib tests. Each rule also carries a `standing` (Law,
+Standard, Specification, Guidance, Maker, Ours) saying how binding its source is where its profile
+applies, so the editor (7.3) calls only `Law` "code". Two shapes the table above did not foresee: a
+radio link (WiFi) is a `links` row, not a material, since nothing is laid; and a size is offered to the
+cable and data checks only when its check's own number is known (ampacity, bandwidth, flow), so a
+size with no source for it (NM-B's ampacity: the NEC was not read, R42) is never checked as zero.
 
 ### 5.4 One word for the thing
 
@@ -897,8 +912,9 @@ pages; the renderer and GUI read core items; the engine wires them.
 | Piece | Crate | Module (plan) |
 |---|---|---|
 | Ports, utilities, cable and data checks | humanity-core | `utilities` (as now) |
+| The material catalog and row sources (built, rung 0) | humanity-core | `run_materials`, `row_source` (the cable checks read the catalog, so it cannot live above the core) |
 | The rod solver | humanity-core | `physics::rod` (pure) |
-| Run model, catalogs, curve, mesh as plain data, checks, auto-router, surfaces | humanity-ship | `ship::runs`, `ship::run_curve`, `ship::run_mesh`, `ship::run_checks`, `ship::run_route`, `ship::surfaces` (all relay-safe, no GPU) |
+| Run model, rule and part catalogs (`run_rules`, `run_fittings`, `run_anchors`, `run_benders`: built, rung 0), curve, mesh as plain data, checks, auto-router, surfaces | humanity-ship | `ship::runs`, `ship::run_curve`, `ship::run_mesh`, `ship::run_checks`, `ship::run_route`, `ship::surfaces` (all relay-safe, no GPU) |
 | Islands from runs | humanity-ship | `machines` |
 | Network physics, damage, sprinklers, drip, doors on power, sensing reveals | humanity-systems | `systems::electrical`, `plumbing`, new `pipe_flow`, `run_damage`, `fire`, `farming`, `door_anim`, `interaction` |
 | Shared run records | humanity-systems (the contract) and humanity-relay (the table and handlers) | `systems::construction::shared_runs`, `relay::storage::runs` |
@@ -919,7 +935,7 @@ actually takes.
 
 | # | Rung | What it delivers | Gate (red first) | Size |
 |---|---|---|---|---|
-| 0 | **Rules and materials as data** | `run_rules.ron` with the three profiles, `fittings.ron`, `anchors.ron`, `benders.ron`, the material catalog's behaviour and size fields (conduits.ron merged in), loaders, every row with a `source` | `just validate-data` loads them; a lint fails on a row with no `source` (seen failing on one); a test finds 24 CFR 3280.808's 1.37 m and CDA's 57 mm for 1/2 in annealed copper | M |
+| 0 | **Rules and materials as data** (BUILT 2026-11-02) | `run_rules.ron` with the three profiles, `fittings.ron`, `anchors.ron`, `benders.ron`, the material catalog's behaviour and size fields (conduits.ron merged in), loaders, every row with a `source` | `just validate-data` loads them; a lint fails on a row with no `source` (seen failing on one); a test finds 24 CFR 3280.808's 1.37 m and CDA's 57 mm for 1/2 in annealed copper | M (took about 2,300 lines of Rust, 600 of them tests, and 2,200 of data: L by lines, most of it the 101 rule rows and the catalog's 67 sizes of 17 materials) |
 | 1 | **The run model** | `Run` and its parts replace `connections` and `conduit_edges` (nodes kept as ends until rung 6); data files converted once; islands, the Conduits check and the markers read runs; **voltage drop on the real routed length** | the home's machine files round-trip byte for byte; the existing routing, marker and island tests pass on runs; `just verify-runtime` enters the world; a vantage screenshot of the utility room matches the one before (compared on a deliberately moved run first, to see it fail) | L |
 | 2 | **AR layer: model and compositor, with the sky moved in** | `core::ar`, `engine::ar`, the AR pass on today's lines; constellation figures and orbit rings as items; "Sky / map lines" becomes the AR layer's Sky rows | the sky vantage's screenshot is pixel-identical before and after; the category coverage test fails on a row with no switch | M |
 | 3 | **The curve core** | `ship::run_curve`: fillets with radius and angle rules, centripetal Catmull-Rom, arc length, rotation-minimizing frames, the feasibility report | unit tests: every fillet at or over its minimum; arc length within 1 mm on known shapes; no frame flip on a helix; the uniform Catmull-Rom (the roads') shown to cusp on a known input where the centripetal does not | M |

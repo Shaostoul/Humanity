@@ -3364,6 +3364,49 @@ The build editor's utility legend reads the same scheme. Dev pin: showcase `{"pi
   `gizmo_colours`: the 3D port gizmos in linear light, dark band colours outlined), `src/gui/pages/construction.rs`
   (`legend_look`: the editor legend is an outlined swatch of the pipes' marker beside theme text)
 
+### Run catalogs: rules and materials as data (spline routing rung 0, 2026-11-02)
+What pipes, hoses, tubes and cables ("runs") are made of, and the "to code" rules they are laid by, as
+data rows with a source each: the foundation the spline routing rungs build on
+(`docs/design/spline-routing.md`). ONE material catalog: `data/piping/pipe_materials.ron` grew from the
+pipe looks into every material's behaviour class (Rigid, Bendable, Flexible), form, what it may carry,
+tags, and its SIZES (outside and inside diameter, DN, minimum bend radius by method, stick length,
+mass per metre, roughness, temperature rating, and for cable the AWG, ampacity, voltage rating, ohm per
+metre, bandwidth, range, RF emission, cost per metre). The old cable registry
+(`data/utilities/conduits.ron`) merged in as size rows of their materials, every id kept, so a
+connection's pinned `spec` resolves to look, behaviour and specs; WiFi is a radio link row (a data
+medium with no run). Copper Type L (drawn and annealed, CDA Table 4.1's bend radii), PEX, CPVC,
+coiled CPVC, PVC, steel, CSST, hydraulic and rubber hose, portable cord, NM-B and THHN (Southwire's
+radii), Cat6, OM4 fibre, EMT, and the fictional superconductor. `data/piping/run_rules.ron`: 101 rules,
+every kind of the design's 7.1 (bend radius, fittings only, support spacing and nearness, separation,
+keep-out, vertical order, no shared holes, supports or bundles, slope, drain turns, penetrations, pull
+limits, fill, allowed materials) grouped into three profiles, `dwelling_us` (24 CFR 3280, UFGS, makers),
+`ship_us` (46 CFR, IEEE 45.8) and `spacecraft` (NASA-STD-8739.4A, FAA AC 43.13-1B), each rule with its
+standing there (Law, Standard, Specification, Guidance, Maker, Ours) so the editor calls only law
+"code". `fittings.ron` (elbows, R38's drain bends, tees, couplings, glands, transits, plates, PEX bend
+supports), `anchors.ron` (straps, cushioned clamps, rod hangers by pipe size, J-hooks, trays, ties,
+protector ramps), `benders.ron` (Klein's EMT benders, copper benders at the CDA's radii). Every row
+names a finding of the 2026-11-01 findings (R1..R44, D1..D19) or `Ours` with a reason; the tests read
+the findings documents' numbered paragraphs, so a row with no source, or naming a finding that does
+not exist, fails `just validate-data`. All of it loads disk-first and relay-safe; nothing evaluates the
+rules yet (rung 8), and the game routes, draws and simulates as before. The drinking-water copper-only
+rule is the ship profile's `Ours` row (the operator's v0.535 rule; an open question in the design's
+section 19).
+- Core: `crates/humanity-core/src/run_materials.rs` (the catalog's types and loader, here because
+  `utilities` reads its cable specs), `crates/humanity-core/src/row_source.rs` (`Source`, the findings
+  check), `crates/humanity-core/src/utilities.rs` (`conduit_types()` is a flat view of the catalog's
+  checkable rows)
+- Ship: `src/ship/run_rules.rs` (`RunRules`, `RuleKind`, `Applies`, `Standing`), `src/ship/run_fittings.rs`,
+  `src/ship/run_anchors.rs`, `src/ship/run_benders.rs`, `src/ship/pipe_materials.rs` (today's four drawn
+  kinds over the catalog)
+- Data: `data/piping/pipe_materials.ron`, `run_rules.ron`, `fittings.ron`, `anchors.ron`, `benders.ron`
+- Tests: `shipped_run_rules_find_the_nm_cable_spacing_in_the_dwelling_profile` (24 CFR 3280.808's 1.37 m),
+  `shipped_catalog_carries_the_cda_radius_for_half_inch_annealed_copper` (57 mm), the `*_cite_real_findings`
+  and `shipped_*_registry_parses_and_is_sound` tests; `src/machines.rs`
+  `shipped_connection_specs_resolve_through_the_material_catalog` (every pinned spec resolves)
+- Check: `scripts/check-run-sources.js` (the same source rules in `just lints` and CI, which runs no lib
+  tests; its test `scripts/tests/run-sources.test.js`, in `just rig-tests`)
+- Design: `docs/design/spline-routing.md` (rung 0); findings `docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md`
+
 ### Conduit Flow Visualization (v0.622, refined v0.623)
 Makes connections legible in a dark room. Every pipe was drawn as a STATIC line in its utility colour
 (the `connection_color` legend), faintly emissive; since 2026-10-04 a pipe draws its material and its
@@ -3884,12 +3927,12 @@ warning. The `wifi_router` stays as a powered network device (8 W, a wireless da
 
 ### Data / Telecom Media, Stage 1 (v0.619)
 The internet/telecom utility: teach real telecommunications. Data is `Utility::Data` in the same
-`conduits.ron` registry, with media that have real tradeoffs -- bandwidth, range, latency, cost, and RF
+cable registry (the material catalog since 2026-11-02), with media that have real tradeoffs -- bandwidth, range, latency, cost, and RF
 emission. Stage 1 ships the data model + link physics + 3 core media; emissions becoming detection
 signatures + the full media catalog are later stages. (RF harming plants was built in v0.620 and removed
 2026-09-27; the medium's `rf_emission` stays as the real property a detection layer would read.)
 - Native: `crates/humanity-core/src/utilities.rs` (`ConduitType` data fields `bandwidth_mbps`/`range_m`/`latency_ms`/`wireless`/`rf_emission`, `ConductorMaterial::{Glass,Radio}`, `check_data_link`/`cheapest_data_link_for`/`data_media`)
-- Data: `data/utilities/conduits.ron` (`eth_cat6` quiet wired workhorse, `fiber_om4` high-bandwidth no-RF, `wifi_6` convenient but RF-loud)
+- Data: `data/piping/pipe_materials.ron` (`eth_cat6` quiet wired workhorse and `fiber_om4` high-bandwidth no-RF, size rows; `wifi_6` convenient but RF-loud, a radio link row)
 - Design: `docs/design/telecom.md` (the 21-media catalog + the emissions-as-signature design + the staged plan)
 
 ### Conduit / Cable Data Model + Physics
@@ -3899,7 +3942,7 @@ NEC-ish copper specs (AWG, ampacity, voltage rating, ohm/m, cost/m, grade). `che
 round-trip voltage drop into Pass/Warn/Fail; `cheapest_cable_for` is the auto-picker; `awg_to_mm2` for
 display.
 - Native: `crates/humanity-core/src/utilities.rs` (`Utility`, `Port`, `ConduitType`, `ConductorMaterial`, `Grade`, `check_cable`, `cheapest_cable_for`, `conduit_types`)
-- Data: `data/utilities/conduits.ron` (copper 14/12/10 AWG home, 6 AWG industrial shielded, the `sc_room_temp` superconductor upgrade target, two water pipes)
+- Data: `data/piping/pipe_materials.ron`, the one material catalog (copper 14/12/10 AWG home and 6 AWG industrial shielded as sizes of the power cord, the `sc_room_temp` superconductor upgrade target, two water pipes; `data/utilities/conduits.ron` until 2026-11-02)
 - Design: `docs/design/utility-wiring.md`
 
 ### Superconductor Bulk-Upgrade (v0.616)
@@ -3907,7 +3950,7 @@ The late-game wiring payoff: an "Upgrade all power runs to superconductor" butto
 editor sets every power connection's `spec` to the room-temperature superconductor (near-zero loss, huge
 ampacity, so the Conduits check goes all-green); "Reset to auto" reverts to cheapest-copper auto-sizing.
 The action ships now; a future quest gates earning it.
-- Native: `src/gui/pages/construction.rs` (the bulk-spec buttons in `draw_machines_and_connections`), `data/utilities/conduits.ron` (`sc_room_temp`)
+- Native: `src/gui/pages/construction.rs` (the bulk-spec buttons in `draw_machines_and_connections`), `data/piping/pipe_materials.ron` (`sc_room_temp`)
 
 ### Per-Connection Cable Picker (v0.615)
 The utility-lines editor gives every POWER run a cable dropdown: "auto (cheapest copper)" or a pinned

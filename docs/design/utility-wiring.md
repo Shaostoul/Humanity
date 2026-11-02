@@ -1,7 +1,8 @@
 # Utility wiring -- connection ports + cables/conduit with real specs
 
 > **Status:** Stage 1 SHIPPED (v0.604): the data model + cable registry + physics, isolated + tested
-> (`crates/humanity-core/src/utilities.rs`, `data/utilities/conduits.ron`). Stages 2-4 below are the wiring-in plan. Read
+> (`crates/humanity-core/src/utilities.rs`; its registry rows are size rows of the material catalog,
+> `data/piping/pipe_materials.ron`, since 2026-11-02). Stages 2-4 below are the wiring-in plan. Read
 > this before touching any cable / port / conduit code. Companion: `docs/design/sim-realism-roadmap.md`
 > (gap #2, #11, #15), `docs/design/conduits-node-graph.md` (the routing graph this sits on top of).
 > **Next layer (planned 2026-11-01):** [spline-routing.md](spline-routing.md), runs laid along
@@ -30,7 +31,9 @@ shielded industrial feeder for a lamp).
 - **`ConduitType`** (registry rows) -- material (Copper/Aluminum/Superconductor), `awg`, `ampacity_a`,
   `voltage_max`, `ohm_per_m` (for voltage drop), `diameter_mm`/`flow_max_lpm` (fluids), `shielded`,
   `grade` (Home/Commercial/Industrial), `cost_per_m`.
-- **Registry:** `data/utilities/conduits.ron` (infinite-of-X). Copper 14/12/10 AWG (home), 6 AWG
+- **Registry:** the size rows of the one material catalog, `data/piping/pipe_materials.ron`
+  (infinite-of-X; `data/utilities/conduits.ron` until spline routing rung 0 merged it in on
+  2026-11-02, every id kept; `conduit_types()` is a flat view of it). Copper 14/12/10 AWG (home), 6 AWG
   (industrial, shielded), the `sc_room_temp` superconductor upgrade target, plus two water pipes
   (Stage 2). Real NEC ampacities + resistances.
 

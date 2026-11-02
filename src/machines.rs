@@ -4230,6 +4230,36 @@ mod tests {
         assert!(r.summary.contains("more than the whole home generates"), "{}", r.summary);
     }
 
+    /// Every cable, pipe or data medium a shipped machine file pins (`MachineConnection::spec`)
+    /// resolves through the one material catalog, `data/piping/pipe_materials.ron`: a size row or a
+    /// radio link (spline routing rung 0, 2026-11-02, when the cable registry `conduits.ron` merged
+    /// into it with every id kept). Nothing else holds the water specs (`pex_half`,
+    /// `copper_threequarter`): the Conduits and Data links checks look up only power and data runs.
+    /// Seen red with `cu_awg12` renamed in the catalog: "home.ron: ... pins `cu_awg12`, which the
+    /// material catalog does not have".
+    #[test]
+    fn shipped_connection_specs_resolve_through_the_material_catalog() {
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
+        let text = std::fs::read_to_string(root.join("data").join("piping").join("pipe_materials.ron")).expect("the catalog");
+        let catalog = humanity_core::run_materials::RunMaterials::parse(&text).expect("the catalog parses");
+        let mut pinned = 0usize;
+        for file in ["home.ron", "home_solo.ron", "ship.ron", "cabin.ron"] {
+            let home = MachineHome::load_file(&root.join("data").join("machines").join(file))
+                .unwrap_or_else(|| panic!("{file} parses"));
+            for c in &home.connections {
+                let Some(spec) = &c.spec else { continue };
+                pinned += 1;
+                assert!(
+                    catalog.size(spec).is_some() || catalog.link(spec).is_some(),
+                    "{file}: {}->{} pins `{spec}`, which the material catalog does not have",
+                    c.from,
+                    c.to
+                );
+            }
+        }
+        assert!(pinned >= 20, "the shipped homes pin specs (cables, pipes, media): {pinned}");
+    }
+
     /// v0.664: the shipped catalogs must offer a PLACEABLE grow light (a Consumer in the palette),
     /// or the grow-light meter is unreachable in-app. Also pins the seed designs to ship with ZERO
     /// grow lights placed -- the reference homes grow under the sun; the meter is the player's

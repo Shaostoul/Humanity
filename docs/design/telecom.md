@@ -9,12 +9,12 @@
 > wireless-RF caution are gone. See section (a) below. Stage 1 shipped a LEANER field set than
 > the fuller proposal below -- `ConduitType` gained `bandwidth_mbps`, `range_m`, `latency_ms`, `wireless`,
 > `rf_emission` (all `#[serde(default)]`) + `ConductorMaterial::{Glass, Radio}`, plus `check_data_link` /
-> `cheapest_data_link_for` / `data_media` in `crates/humanity-core/src/utilities.rs`, and three media in `conduits.ron`
-> (`eth_cat6`, `fiber_om4`, `wifi_6`). The fuller proposal's `class: DataClass` + `interference` + `secure`
+> `cheapest_data_link_for` / `data_media` in `crates/humanity-core/src/utilities.rs`, and three media in the cable registry
+> (then `conduits.ron`, since 2026-11-02 the material catalog `data/piping/pipe_materials.ron`) (`eth_cat6`, `fiber_om4`, `wifi_6`). The fuller proposal's `class: DataClass` + `interference` + `secure`
 > fields and the 21-media catalog (coax, single-mode fibre, Bluetooth, Zigbee, LoRa, cellular, satellite,
 > PLC, Li-Fi) land in later stages. Extends the power/water/air wiring system -- read
 > `docs/design/utility-wiring.md` FIRST; this doc assumes it. Data is `Utility::Data`, already in the
-> closed enum (`crates/humanity-core/src/utilities.rs`), routed through the SAME `conduits.ron` registry + machine ports +
+> closed enum (`crates/humanity-core/src/utilities.rs`), routed through the SAME registry (the material catalog since 2026-11-02) + machine ports +
 > buildability checks. Companions: `docs/design/conduits-node-graph.md` (the routing graph),
 > `docs/design/sim-realism-roadmap.md` (the realism gaps this closes). The teaching goal: real
 > telecom -- bandwidth, range, latency, RF emission, interference, security -- so a player learns to
@@ -26,8 +26,8 @@
 Data does NOT magically transmit. It travels through real **media** -- copper ethernet, coax, fiber
 optic, WiFi, Bluetooth, cellular, satellite, powerline, Li-Fi -- each with real limits: bandwidth
 (Mbps/Gbps), range (m), latency, **RF emission**, interference susceptibility, and security. A medium
-is a `ConduitType` row with `utility: Data` in `data/utilities/conduits.ron` (infinite-of-X: add a
-row, no code), a machine declares Data IN/OUT `Port`s (a demand in Mbps), and a data run is validated
+is a size row of a data material (a cable) or a radio link row in the material catalog,
+`data/piping/pipe_materials.ron` (infinite-of-X: add a row, no code; `conduits.ron` until 2026-11-02), a machine declares Data IN/OUT `Port`s (a demand in Mbps), and a data run is validated
 by `check_data_link` exactly like a power run is validated by `check_cable`. Wireless media (WiFi /
 Bluetooth / cellular / satellite) carry NO physical cable but DO emit RF -- and that emission is a
 real signal: a **detection signature** an enemy can sense (and a sensor you carry can sense theirs).
@@ -65,7 +65,7 @@ pub secure: bool,            // hard to passively tap (fiber/wired in-conduit) v
 `flow_max_lpm`) stay 0 on a data row; a data row stays 0 on the electrical/fluid fields. One struct,
 one registry -- no parallel architecture.
 
-## The media catalog (`data/utilities/conduits.ron`)
+## The media catalog (`data/piping/pipe_materials.ron`: data cables' size rows and radio links)
 
 Real-ish numbers (approximate, teaching-grade -- not lab-exact). `rf` = `rf_emission` 0..1.
 `intf` = `interference` susceptibility 0..1. Cost is per-metre for wired/optical, per-unit (the
@@ -151,7 +151,7 @@ Removed with it: `RF_HARM_THRESHOLD`, `RF_HEALTH_PENALTY` and the home-RF sum in
 and the Data-links buildability warning that a wireless link "can harm a nearby grow". A Wi-Fi link
 now passes that check exactly like a wired one wherever its bandwidth and range suffice. What stays:
 the `wifi_router` as a powered network device, and the data medium's `rf_emission` in
-`conduits.ron`, a real property of the medium that the detection layer in (b) would read.
+the material catalog (`data/piping/pipe_materials.ron`), a real property of the medium that the detection layer in (b) would read.
 
 Do not rebuild this without a new dated finding that changes the evidence (the findings doc says
 when to write one: an ICNIRP statement on plants, or a replicated household-distance study). A

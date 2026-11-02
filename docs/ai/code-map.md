@@ -6,11 +6,11 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1159 Rust files (660,447 lines) under `src/` and `crates/*/src/`; 128 JavaScript files (78,409 lines) under `web/`.
+1165 Rust files (662,588 lines) under `src/` and `crates/*/src/`; 128 JavaScript files (78,409 lines) under `web/`.
 
 ## Folders
 
-- `crates/humanity-core/src/` (34 files)
+- `crates/humanity-core/src/` (36 files)
 - `crates/humanity-core/src/audio/` (3 files): Audio manager powered by kira.
 - `crates/humanity-core/src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
 - `crates/humanity-core/src/hot_reload/` (3 files): Hot-reload coordinator, watches data files and reports which changed.
@@ -58,7 +58,7 @@
 - `src/relay/transport/` (2 files): Transport layer (Phase 7b, LoRa mesh stub).
 - `src/renderer/` (64 files): Renderer, the `Renderer` struct, its construction, and its registries.
 - `src/renderer/shader_loader/` (1 files): WGSL shader loading with optional hot-reload (native only).
-- `src/ship/` (32 files): Ship interior system, layout parsing and room mesh generation.
+- `src/ship/` (36 files): Ship interior system, layout parsing and room mesh generation.
 - `src/software/` (7 files): The readers of the Apps page's "Other programs" (2026-10-19; the operator: "What if we make the tools page like the games page?
 - `src/station/` (3 files): Crewed stations: the player's homestead as a real orbiting, pointed object.
 - `src/systems/` (63 files): HumanityOS Game Systems
@@ -86,7 +86,7 @@
 
 - `atomic_write.rs` (68): Writing a file so a crash at any moment leaves either the whole old file or the whole new one: the bytes go to a temp file beside it (`<name>.tmp`), are flushed to the disk, and the temp file is re... Main items: staging_path, stage_write, write_atomic.
 - `auto_unlock.rs` (408): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, keychain_stash, keychain_load, keychain_clear, encrypt_seed_with_pin, decrypt_seed_with_pin, generate_device_key (+4 more).
-- `boot_timing.rs` (169): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
+- `boot_timing.rs` (176): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
 - `build_permission.rs` (115): Who may build where, as the wire says it: a household permit (`Permit`, a plot holder's signed leave for one person to build on their plot, on one server, until a date), the longest one may run (`P... Main items: Permit, Why, PERMIT_MAX_DAYS.
 - `camera_angles.rs` (181): Which way a camera looks: the tangent frame on a planet's surface (up is the local radial, so the horizon is level wherever you stand), the forward a yaw and pitch give in it, and the yaw and pitch... Main items: tangent_basis, surface_forward, surface_look_angles, world_look_angles.
 - `civil_date.rs` (25): Calendar dates from day counts: the civil (proleptic Gregorian) date of a count of days since 1970-01-01, by Howard Hinnant's days-from-civil algorithm. Main items: epoch_days_to_ymd.
@@ -99,7 +99,7 @@
 - `embedded_data.rs` (907): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+139 more).
 - `frame_costs.rs` (1286): Live per-system resource measurement (resource budgets, increment 1 - MEASURE; see `docs/design/resource-budgets.md`). Main items: GpuTiming, Entry, Snapshot, Spike, StageTimer, gpu_id_has_cpu_twin, spikes, thread_times (+33 more).
 - `i18n.rs` (446): Every word a person reads in the app, by key, from `data/i18n/<language>.json` (the ELI5 mandate, docs/PRIORITIES.md TIER 3). Main items: Segment, plain, segments, t, t_dyn, t_marked, t_marked_dyn, has (+7 more).
-- `lib.rs` (106): humanity-core: the bottom of the stack, which every other crate of the workspace uses (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-core.md).
+- `lib.rs` (113): humanity-core: the bottom of the stack, which every other crate of the workspace uses (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-core.md).
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
 - `platform.rs` (88): Platform abstraction for native vs WASM. Main items: log_info, current_time_secs, current_time_secs, load_asset_bytes_sync, load_asset_bytes_async.
 - `play_journal.rs` (476): The play journal (docs/design/play-journal.md, rung 1): what happened while the game ran, by kind, in small capped files a Claude session reads through the dev MCP (`dev_play_journal`, `dev_play_ma... Main items: MarkAsk, Seen, Now, dir_for, start, dir, record, event_line (+13 more).
@@ -107,6 +107,8 @@
 - `raw_frame.rs` (19): A frame of pixels read back from the GPU for the live stream. Main items: RawFrame.
 - `reactions.rs` (121): Reaction emoji palette registry: the data-driven source of truth for which emoji can be used as message reactions, loaded from `data/reactions.json` (compile-time embedded, mirroring the `lock_type... Main items: normalize, top, all, is_allowed.
 - `reuse.rs` (73): The one "turn off all reuse" switch (CLAUDE.md, the reuse rule, refined 2026-10-30). Main items: enabled, set_enabled.
+- `row_source.rs` (185): Where a data row's numbers come from (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` sections 5.3 and 7.1). Main items: Source, Findings, finding_numbers, shape_problems, problems, OURS_REASON_MIN_CHARS, ROUTING_FINDINGS, DOOR_FINDINGS.
+- `run_materials.rs` (513): THE ONE CATALOG of what a run is made of: `data/piping/pipe_materials.ron` (2026-10-04, the pipe looks; grown into the one catalog 2026-11-02, spline routing rung 0, `docs/design/spline-routing.md`... Main items: Behaviour, Form, BendMethod, TagRow, KindMaterial, Look, BendRadius, RunSize (+5 more).
 - `scenic_views.rs` (116): Scenic views (v0.825): curated named viewpoints on planet surfaces, the data foundation for the camera-hub arc (task #77). Main items: ScenicView, ScenicViews.
 - `showroom.rs` (56): Character-select showroom data (v0.441): the backdrops you can preview your avatar against. Main items: Backdrop, load_backdrops.
 - `storage.rs` (522): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files. Main items: StorageMode, data_dir, exe_dir, os_root, mode, choose_installed, choose_portable, portable_config_path (+9 more).
@@ -115,7 +117,7 @@
 - `test_log.rs` (83): The warnings a test's own code writes to the log, read back (BUG-163). Main items: capture.
 - `test_temp.rs` (305): Temporary files and folders for tests that delete themselves (BUG-159). Main items: TempPath, db, file, path, dir, retry_left_open, PREFIX.
 - `turning.rs` (213): HOW A PERSON TURNS (BUG-165 and BUG-166, 2026-10-05): toward a heading at no more than a stated rate, speeding up into the turn and slowing out of it, so a turn never snaps and never swings past wh... Main items: TurnLimits, Turn, shortest, LOOK, BODY, MAX_STEP_S.
-- `utilities.rs` (460): Utility wiring -- connection ports + cables/conduit with REAL specs (v0.604). Main items: Utility, PortDir, Port, ConductorMaterial, Grade, ConduitType, CableVerdict, CableCheck (+11 more).
+- `utilities.rs` (513): Utility wiring -- connection ports + cables/conduit with REAL specs (v0.604). Main items: Utility, PortDir, Port, ConductorMaterial, Grade, ConduitType, CableVerdict, CableCheck (+12 more).
 - `vertex.rs` (22): The one mesh vertex: position, normal and UV, the shape every CPU-side mesh builder writes (the ship's structure and hull, the terrain's patches and asteroids, the plant and tree generators, the as... Main items: Vertex.
 - `weather_map.rs` (15): The live weather map's size (v0.874): an equirectangular grid of 1440 x 720 cells, a quarter of a degree each. Main items: WEATHER_MAP_W, WEATHER_MAP_H.
 
@@ -191,7 +193,7 @@
 
 - `config.rs` (3059): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, SavedServer, AppConfig, DonateAddressConfig, play_mode_allows (+16 more).
 - `lib.rs` (16299): HumanityOS Game Engine Main items: drone_dock_visible, run.
-- `machines.rs` (5538): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+43 more).
+- `machines.rs` (5568): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+43 more).
 - `main.rs` (243): HumanityOS, One binary to rule them all.
 - `persistence.rs` (1679): World persistence, save/load game state to JSON files. Main items: WorldSave, SavedHome, BodySave, ShipPlace, ShipMeals, SaveSlot, VehicleSave, ConstructionSave (+27 more).
 - `release_update.rs` (710): Signed-release verification + signing (the supply-chain root of trust). Main items: SigningPubkeys, ManifestArtifact, ReleaseManifest, ManifestSignature, VerifyOutcome, embedded_pubkeys, sha256_hex, verify_manifest_bytes (+11 more).
@@ -1045,13 +1047,17 @@
 - `levels.rs` (185): The LEVELS of a ship (Maps increment 3, "into the ship, deck by deck", docs/design/maps-zoom-to-anything.md section 5.7): the floors a person can be on aboard, from the bodies standing in it, so th... Main items: ShipLevel, level_name, standing_bodies, ship_levels, levels_of, level_at, by_ordinal, level_cuts (+2 more).
 - `lifts.rs` (85): The ship's ELEVATORS as plain data (v0.590, ship homes increment 7): each one aboard with its key, its base, its turn, its type and the STOPS its shaft spans, read from the ship's zones. Main items: LiftKey, Lift, lifts.
 - `lock_types.rs` (120): Lock TYPES registry (v0.570): the data-driven catalog of locks a door (or wall) can carry, loaded from `data/blueprints/lock_types.ron`. Main items: LockType, LockInteraction, DefeatMethod, LockState, lock_types, lock_type.
-- `mod.rs` (64): Ship interior system, layout parsing and room mesh generation.
+- `mod.rs` (74): Ship interior system, layout parsing and room mesh generation.
 - `moves.rs` (367): Moving aboard the shared ship (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale", and its section 5.10): how fast the relay lets a person go, how a game says a... Main items: SharedWorldRules, MovingRules, DeliveryRules, MoveDecl, floor_distance, feet_y, on_my_storey, in_reach (+7 more).
 - `neighbours.rs` (768): NEIGHBOURS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"). Main items: Neighbour, NeighbourView, views_made, neighbour_view, neighbour_view_at.
 - `pipe_marking.rs` (917): Pipe MARKING (2026-10-04): the coloured bands that say what flows inside a pipe, the way real piping is marked, generated from what the line actually carries. Main items: MarkingMode, PlacementRules, SchemeColour, ContentMarking, MarkingScheme, MarkingSchemes, MarkerReason, MarkerSite (+7 more).
-- `pipe_materials.rs` (269): What a pipe, hose or cable is MADE OF, as data (2026-10-04). Main items: PipeMaterial, BodyLook, KindMaterial, PipeMaterials, pipe_materials, srgb_to_linear.
+- `pipe_materials.rs` (210): What a pipe, hose or cable is MADE OF, as drawn today (2026-10-04; since 2026-11-02 a view of the one material catalog). Main items: BodyLook, PipeMaterials, pipe_materials.
 - `room_types.rs` (392): Room-type registry: the single source of truth for what a room is FOR. Main items: RoomTypeDef, RoomActionDef, RoomBounds, RoomTypeRegistry, RoomFunction.
 - `rooms.rs` (205): Room mesh generation, procedural box rooms with door openings. Main items: generate_room_mesh.
+- `run_anchors.rs` (202): Anchors for runs, as data: `data/piping/anchors.ron` (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` sections 5.3 and 12). Main items: AnchorKind, FixesTo, AnchorMesh, Anchor, Anchors, anchors.
+- `run_benders.rs` (193): Benders, as data: `data/piping/benders.ron` (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` sections 5.3 and 6.2). Main items: BenderKind, BenderSize, Bender, Benders, benders.
+- `run_fittings.rs` (217): Fittings for runs, as data: `data/piping/fittings.ron` (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` sections 5.3 and 6.2). Main items: FittingKind, Centreline, FittingMesh, Fitting, Fittings, fittings.
+- `run_rules.rs` (783): The "to code" rules for runs, as data: `data/piping/run_rules.ron` (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` section 7.1). Main items: Standing, Applies, BendMin, Near, Target, Lay, Zone, Shared (+14 more).
 - `ship_space.rs` (473): Where a point is in the ship (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"): aboard or not, and whose air it breathes. Main items: Aabb, AirSpaces, AirAt, tube_box, in_box, aboard_at, home_air_volume_m3, air_top (+3 more).
 - `ship_structure.rs` (4158): ShipStructure: MANY enclosed zones on one ship (increment A of docs/design/ship-superstructure.md, v0.754). Main items: ShipCorridor, CorridorAxis, CorridorGeom, CorridorMouth, ShipZone, PlotDoor, Plot, HomeDesign (+21 more).
 - `sight.rs` (856): WHAT THE EYE CAN SEE ABOARD, IN THREE DIMENSIONS (ship homes increment 7 review). Main items: SlabBox, PieceTop, PieceSolid, SightBlockers, ReachBlockers, Foot, solid_pieces, ship_solid_pieces (+7 more).

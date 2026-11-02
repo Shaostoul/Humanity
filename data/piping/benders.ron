@@ -1,0 +1,79 @@
+#![enable(implicit_some)]
+// Benders: the tools that bend tube and conduit, and the radius each bends at (2026-11-02, spline
+// routing rung 0, docs/design/spline-routing.md sections 5.3 and 6.2). Read by
+// src/ship/run_benders.rs (disk first, the copy built into the exe if this file is missing or
+// does not parse). The curve core (rung 3) fillets a bendable run's corner at the radius of the
+// bender that bends it; where a material and size have no bender here, the corner is turned with
+// a fitting instead (hard copper over 3/4 in, design 6.2).
+//
+// UNITS as data/piping/run_rules.ron: lengths in METRES, angles in DEGREES. SOURCES as there.
+//
+// FIELD REFERENCE
+//   id, name
+//   kind        Lever (a lever tube bender), Hand (a hand bender with a shoe on a handle, as for
+//               EMT), Machine
+//   sizes       one row per size it bends: size (a size row's id in pipe_materials.ron), clr_m (the
+//               centreline radius it bends that size at), as_read (the source's own number)
+//   marks_deg   the angles marked on the bender
+//   stops_deg   the angles its angle setter stops at, where it has one
+//   source, note
+(
+    benders: [
+        (
+            id: "klein_emt_1_2",
+            name: "Klein iron conduit bender, 1/2 in EMT (51603)",
+            kind: Hand,
+            sizes: [(size: "emt_1_2", clr_m: 0.117475, as_read: "Centerline Bend Radius 4.625 in")],
+            marks_deg: [10.0, 22.5, 30.0, 45.0, 60.0],
+            stops_deg: [10.0, 22.5, 30.0, 45.0],
+            source: [R(24)],
+        ),
+        (
+            id: "klein_emt_3_4",
+            name: "Klein iron conduit bender, 3/4 in EMT (51604)",
+            kind: Hand,
+            sizes: [(size: "emt_3_4", clr_m: 0.1397, as_read: "Centerline Bend Radius 5.5 in")],
+            marks_deg: [10.0, 22.5, 30.0, 45.0, 60.0],
+            stops_deg: [10.0, 22.5, 30.0, 45.0],
+            source: [R(24)],
+        ),
+        (
+            id: "klein_emt_1",
+            name: "Klein iron conduit bender, 1 in EMT (51605)",
+            kind: Hand,
+            sizes: [(size: "emt_1", clr_m: 0.187325, as_read: "Centerline Bend Radius 7.375 in")],
+            marks_deg: [10.0, 22.5, 30.0, 45.0, 60.0],
+            stops_deg: [10.0, 22.5, 30.0, 45.0],
+            source: [R(24)],
+        ),
+        (
+            id: "copper_lever_annealed",
+            name: "Lever tube bender for annealed copper",
+            kind: Lever,
+            sizes: [
+                (size: "copper_l_annealed_1_4", clr_m: 0.01905, as_read: "3/4 in"),
+                (size: "copper_l_annealed_3_8", clr_m: 0.0381, as_read: "1 1/2 in"),
+                (size: "copper_l_annealed_1_2", clr_m: 0.05715, as_read: "2 1/4 in"),
+                (size: "copper_l_annealed_3_4", clr_m: 0.0762, as_read: "3 in"),
+                (size: "copper_l_annealed_1", clr_m: 0.1016, as_read: "4 in"),
+                (size: "copper_l_annealed_1_1_4", clr_m: 0.2286, as_read: "9 in"),
+            ],
+            marks_deg: [],
+            source: [R(1), Ours("no maker's lever bender was read: this one bends each size at CDA Table 4.1's annealed minimum, and its degree scale was not recorded")],
+            note: "The CDA handbook's lever bender (its figure 4.1) is for annealed tube only.",
+        ),
+        (
+            id: "copper_hand_drawn",
+            name: "Hand tube bender for drawn copper",
+            kind: Hand,
+            sizes: [
+                (size: "copper_l_drawn_3_8", clr_m: 0.04445, as_read: "1 3/4 in"),
+                (size: "copper_l_drawn_1_2", clr_m: 0.0635, as_read: "2 1/2 in"),
+                (size: "copper_threequarter", clr_m: 0.0762, as_read: "3 in"),
+            ],
+            marks_deg: [],
+            source: [R(1), Ours("no maker's bender was read: this one bends each size at CDA Table 4.1's drawn minimum, and its marks were not recorded")],
+            note: "Drawn (hard) tube may be bent too, with the correct hand bender (the CDA handbook); its table has no drawn row above 3/4 in, so larger hard tube has no bender here and turns with fittings.",
+        ),
+    ],
+)

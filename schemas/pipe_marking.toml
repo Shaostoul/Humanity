@@ -2,9 +2,12 @@
 # Defines the two pipe registries under data/piping/ (2026-10-04):
 #
 #   data/piping/marking_schemes.ron  which coloured bands say WHAT FLOWS in a pipe, per scheme
-#   data/piping/pipe_materials.ron   what a pipe, hose or cable is MADE OF, as drawn
+#   data/piping/pipe_materials.ron   THE ONE CATALOG of what a run is made of: looks, behaviour classes,
+#                                    sizes and their specs (spline routing rung 0, 2026-11-02; the
+#                                    cable registry data/utilities/conduits.ron merged in)
 #
-# Read by src/ship/pipe_marking.rs and src/ship/pipe_materials.rs (disk first, the copy built
+# Read by src/ship/pipe_marking.rs and crates/humanity-core/src/run_materials.rs (whose ConduitKind
+# view is src/ship/pipe_materials.rs) (disk first, the copy built
 # into the exe if the file is missing or does not parse). Drawn by src/engine/pipe_markers.rs
 # and src/engine/home_meshes.rs. The research every mapping cites is
 # docs/reference/findings/2026-10-04-pipe-marking-standards.md.
@@ -112,13 +115,35 @@ description = "True when any part of the mapping is ours (no scheme read covers 
 # pipe_materials.ron
 # ---------------------------------------------------------------------------
 
+[fields.tags]
+type = "list"
+required = false
+description = "The construction words a material may carry and a rule (data/piping/run_rules.ron) may name: id, meaning. A tag used and not declared fails the catalog's test."
+examples = ["(id: \"unarmoured\", meaning: \"No metal armour over the cable.\")"]
+
 [fields.kinds]
 type = "list"
 required = true
-description = "One row per conduit kind (src/ship/conduits.rs ConduitKind::id): kind, material. Which kind carries a content is decided in code, including the potable-water rule recorded there."
-examples = ["(kind: \"rigid_copper\", material: \"copper\")"]
+description = "One row per conduit kind (src/ship/conduits.rs ConduitKind::id): kind, material. Which kind carries a content is decided in code, including the potable-water rule recorded there. A mapping, not a fact: no source. Removed by spline routing rung 1 with ConduitKind."
+examples = ["(kind: \"rigid_copper\", material: \"copper_l_drawn\")"]
 
 [fields.materials]
 type = "list"
 required = true
-description = "id, name, srgb (0-255, converted to linear light for the renderer: our rendition of a dielectric's colour, or a bare metal's MEASURED reflectance, since the shader takes a metal's F0 straight from it), metallic (0..1), roughness (0..1), note."
+description = "id, name, behaviour (Rigid, Bendable, Flexible), form (Pipe, Cable, Raceway), carries (Utility list; the FIRST is what the cable and data checks file its sizes under), conductor (optional: Copper, Aluminum, Superconductor, Glass), tags, look (srgb 0-255, converted to linear light: our rendition of a dielectric's colour, or a bare metal's MEASURED reflectance; metallic 0..1; roughness 0..1; note), sizes, source, note. Every length in metres."
+
+[fields."materials.sizes"]
+type = "list"
+required = true
+description = "id (unique across the catalog: a connection's spec names one), size (the trade's name), label, dn (ISO 6708 nominal size), od_m, width_m (a flat cable), bore_m, bend_radii [(method: Bender|Free|AgainstCoil|Pulling, min_m, as_read, source)], stick_m, kg_per_m, roughness_m, pressure_kpa, temp_max_c, awg, ampacity_a, voltage_max, ohm_per_m, shielded, flow_max_lpm, bandwidth_mbps, range_m, latency_ms, rf_emission, grade, cost_per_m, note, source. A number with no source is ABSENT, never 0; a size is offered to the cable and data checks only when its check's number (ampacity_a, bandwidth_mbps or flow_max_lpm) is present."
+
+[fields.links]
+type = "list"
+required = false
+description = "Radio links (WiFi): a data medium with no run, so not a material. id, label, carries, conductor, shielded, grade, cost_per_m, bandwidth_mbps, rf_emission, range_m, latency_ms, note, source."
+
+[fields.source]
+type = "list"
+required = true
+description = "On every material, size, bend radius and link row: R(n) (a finding of docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md), D(n) (of 2026-11-01-manual-door-releases.md) or Ours(\"why\"). A test reads the documents' numbered paragraphs and fails on a row with none or a finding that does not exist. The same field and check hold in run_rules.ron, fittings.ron, anchors.ron and benders.ron (their field references are in each file's header)."
+examples = ["[R(1)]", "[R(19), Ours(\"the 600 V rating is the one NM-B is printed with\")]"]

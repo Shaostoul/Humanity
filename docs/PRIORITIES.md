@@ -290,8 +290,13 @@ In order:
     snapping as a help, runs that feed the simulation (voltage drop, pressure, flow), features slid
     along a run (sprinkler, drip emitter, tap, valve), anchors and vehicle cable ramps, tapping
     into infrastructure (data-cable hacking, a powered door's emergency release panel), and one AR
-    layer owning every world-anchored overlay. Queued after crate split rung 1 (the orchestrator's
-    order; the operator may move it). Three questions for him in the design's section 19 (is the
+    layer owning every world-anchored overlay. **Rung 0 BUILT 2026-11-02** (rules and materials as
+    data): `data/piping/run_rules.ron` (101 rules, every kind, profiles `dwelling_us`, `ship_us`,
+    `spacecraft`), `fittings.ron`, `anchors.ron`, `benders.ron`, and `pipe_materials.ron` grown into
+    the one material catalog with `data/utilities/conduits.ron` merged in (every id kept; its loader
+    in the core, `humanity_core::run_materials`, because the cable checks read it); every row cites a
+    finding or `Ours` with a reason, checked against the findings documents. Next: rung 1, the run
+    model. Three questions for him in the design's section 19 (is the
     AR layer a visor the character wears; copper-only drinking water now that material changes;
     which way a powered door fails on power loss), each with a recommendation.
 

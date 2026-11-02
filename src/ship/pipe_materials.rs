@@ -1,4 +1,5 @@
-//! What a pipe, hose or cable is MADE OF, as data (2026-10-04).
+//! What a pipe, hose or cable is MADE OF, as drawn today (2026-10-04; since 2026-11-02 a view of
+//! the one material catalog).
 //!
 //! The pipe body draws its real material (copper, rubber hose, a cord's jacket)
 //! everywhere between its marker bands; what flows inside is said by the bands
@@ -9,35 +10,20 @@
 //! `ConduitKind::color()` held had no caller; they moved here (copper's then
 //! corrected from a web swatch to measured copper's reflectance).
 //!
-//! The registry is `data/piping/pipe_materials.ron`, read from disk first (so it can
-//! be modded) and from the copy built into the exe when the file is missing or does
-//! not parse. Pure serde, no renderer types: it compiles under `relay` too.
+//! THE CATALOG ITSELF moved down to the core on 2026-11-02 (spline routing rung 0):
+//! `humanity_core::run_materials` reads `data/piping/pipe_materials.ron`, which grew into the one
+//! catalog of what a run is made of (looks, behaviour classes, sizes and their specs, the old cable
+//! registry merged in), because the core's cable checks read it and the core may not reach up
+//! here. What stays here is the part that knows today's four drawn kinds (`ConduitKind`): which
+//! catalog material each kind's body is drawn in, and the draw call's look. Rung 1 gives every run
+//! its own material and this view goes with `ConduitKind`.
 
 use crate::ship::conduits::ConduitKind;
-use serde::Deserialize;
+use humanity_core::run_materials::{RunMaterial, RunMaterials};
 
-/// One material a conduit body can be drawn in.
-#[derive(Debug, Clone, Deserialize)]
-pub struct PipeMaterial {
-    pub id: String,
-    pub name: String,
-    /// sRGB, 0-255: our rendition of a dielectric's colour, or a bare metal's MEASURED
-    /// reflectance (the shader takes a metal's F0 straight from its base colour).
-    pub srgb: (u8, u8, u8),
-    pub metallic: f32,
-    pub roughness: f32,
-    #[serde(default)]
-    pub note: String,
-}
-
-impl PipeMaterial {
-    /// The colour in LINEAR light, alpha 1, for a renderer material's base colour
-    /// (the PBR shader treats `base_color` as linear albedo).
-    pub fn linear_rgba(&self) -> [f32; 4] {
-        let (r, g, b) = self.srgb;
-        [srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b), 1.0]
-    }
-}
+/// One sRGB channel (0-255) to linear light; in the core with the catalog, named here too for the
+/// callers that colour other things by it.
+pub use humanity_core::run_materials::srgb_to_linear;
 
 /// How a run's body is drawn (`PipeMaterials::body_look`).
 #[derive(Debug, Clone, PartialEq)]
@@ -50,39 +36,27 @@ pub struct BodyLook {
     pub roughness: f32,
 }
 
-/// Which material a conduit kind's body is drawn in.
-#[derive(Debug, Clone, Deserialize)]
-pub struct KindMaterial {
-    pub kind: String,
-    pub material: String,
+/// Today's drawn kinds over the material catalog: which material each `ConduitKind` is drawn in.
+#[derive(Debug, Clone, Copy)]
+pub struct PipeMaterials<'a> {
+    pub catalog: &'a RunMaterials,
 }
 
-/// The whole registry: data/piping/pipe_materials.ron.
-#[derive(Debug, Clone, Deserialize)]
-pub struct PipeMaterials {
-    pub kinds: Vec<KindMaterial>,
-    pub materials: Vec<PipeMaterial>,
-}
-
-impl PipeMaterials {
-    pub fn parse(text: &str) -> Result<Self, String> {
-        ron::from_str(text).map_err(|e| e.to_string())
-    }
-
-    pub fn material(&self, id: &str) -> Option<&PipeMaterial> {
-        self.materials.iter().find(|m| m.id == id)
+impl<'a> PipeMaterials<'a> {
+    pub fn material(&self, id: &str) -> Option<&'a RunMaterial> {
+        self.catalog.material(id)
     }
 
     /// The material a run of `kind` is drawn in.
-    pub fn for_kind(&self, kind: ConduitKind) -> Option<&PipeMaterial> {
-        let row = self.kinds.iter().find(|k| k.kind == kind.id())?;
+    pub fn for_kind(&self, kind: ConduitKind) -> Option<&'a RunMaterial> {
+        let row = self.catalog.kinds.iter().find(|k| k.kind == kind.id())?;
         self.material(&row.material)
     }
 
     /// The material the body of a run carrying `content` (a connection kind such as
     /// "water") is drawn in: the conduit kind `ConduitKind::for_resource` picks for
     /// it, then that kind's material. The content's own colour never paints the body.
-    pub fn for_content(&self, content: &str) -> Option<&PipeMaterial> {
+    pub fn for_content(&self, content: &str) -> Option<&'a RunMaterial> {
         self.for_kind(ConduitKind::for_resource(content))
     }
 
@@ -94,102 +68,59 @@ impl PipeMaterials {
         match self.for_content(line_kind) {
             Some(m) => BodyLook {
                 key: format!("pipebody:{}", m.id),
-                linear: m.linear_rgba(),
-                metallic: m.metallic,
-                roughness: m.roughness,
+                linear: m.look.linear_rgba(),
+                metallic: m.look.metallic,
+                roughness: m.look.roughness,
             },
             // A kind with no material row (the registry test forbids it): neutral grey.
             None => BodyLook { key: "pipebody:unknown".to_string(), linear: [0.3, 0.3, 0.3, 1.0], metallic: 0.0, roughness: 0.6 },
         }
     }
 
-    /// Everything wrong with the registry, as sentences (empty = sound): every
-    /// conduit kind has a row, every row names a known material, ids are unique,
-    /// and the numbers are in range.
+    /// Everything wrong with the kinds' rows, as sentences (empty = sound): every conduit kind has
+    /// exactly one row and no row names an unknown kind. (The catalog's own soundness, its ids,
+    /// numbers and sources, is `RunMaterials::problems`.)
     pub fn problems(&self) -> Vec<String> {
         let mut out = Vec::new();
         for kind in ConduitKind::ALL {
-            match self.kinds.iter().filter(|k| k.kind == kind.id()).count() {
+            match self.catalog.kinds.iter().filter(|k| k.kind == kind.id()).count() {
                 0 => out.push(format!("conduit kind `{}` has no material row", kind.id())),
                 1 => {}
                 n => out.push(format!("conduit kind `{}` has {n} material rows", kind.id())),
             }
         }
-        for k in &self.kinds {
+        for k in &self.catalog.kinds {
             if !ConduitKind::ALL.iter().any(|c| c.id() == k.kind) {
                 out.push(format!("material row for unknown conduit kind `{}`", k.kind));
-            }
-            if self.material(&k.material).is_none() {
-                out.push(format!("conduit kind `{}` names unknown material `{}`", k.kind, k.material));
-            }
-        }
-        let mut seen = std::collections::HashSet::new();
-        for m in &self.materials {
-            if !seen.insert(m.id.as_str()) {
-                out.push(format!("material `{}` is defined twice", m.id));
-            }
-            if !(0.0..=1.0).contains(&m.metallic) || !(0.0..=1.0).contains(&m.roughness) {
-                out.push(format!("material `{}`: metallic and roughness must be 0..1", m.id));
             }
         }
         out
     }
 }
 
-/// The shipped file, the fallback when the data folder's copy is missing or does
-/// not parse.
-const SHIPPED_PIPE_MATERIALS: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/piping/pipe_materials.ron"));
-
-/// The registry, loaded once: the data folder's copy first, the shipped copy if that
-/// is missing or does not parse (and the log says so, BUG-133).
-pub fn pipe_materials() -> &'static PipeMaterials {
-    static REG: std::sync::OnceLock<PipeMaterials> = std::sync::OnceLock::new();
-    REG.get_or_init(load_pipe_materials)
-}
-
-fn load_pipe_materials() -> PipeMaterials {
-    let path = humanity_core::storage::data_dir().join("piping").join("pipe_materials.ron");
-    match std::fs::read_to_string(&path) {
-        Ok(text) => match PipeMaterials::parse(&text) {
-            Ok(m) => return m,
-            Err(e) => humanity_core::embedded_data::note_builtin_copy(
-                "piping/pipe_materials.ron",
-                format_args!("{} does not parse ({e})", path.display()),
-            ),
-        },
-        Err(e) => humanity_core::embedded_data::note_builtin_copy(
-            "piping/pipe_materials.ron",
-            format_args!("{} could not be read ({e})", path.display()),
-        ),
-    }
-    PipeMaterials::parse(SHIPPED_PIPE_MATERIALS).unwrap_or_else(|e| {
-        log::error!("the shipped data/piping/pipe_materials.ron does not parse: {e}");
-        PipeMaterials { kinds: Vec::new(), materials: Vec::new() }
-    })
-}
-
-/// One sRGB channel (0-255) to linear light (the IEC 61966-2-1 curve).
-pub fn srgb_to_linear(c: u8) -> f32 {
-    let c = c as f32 / 255.0;
-    if c <= 0.04045 {
-        c / 12.92
-    } else {
-        ((c + 0.055) / 1.055).powf(2.4)
-    }
+/// The catalog as drawn, loaded once (`humanity_core::run_materials::run_materials`: the data
+/// folder's copy first, the shipped copy if that is missing or does not parse, and the log says so).
+pub fn pipe_materials() -> PipeMaterials<'static> {
+    PipeMaterials { catalog: humanity_core::run_materials::run_materials() }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn shipped() -> PipeMaterials {
-        PipeMaterials::parse(SHIPPED_PIPE_MATERIALS).expect("the shipped pipe_materials.ron parses")
+    /// The shipped catalog (the core's own tests check its soundness and its sources).
+    const SHIPPED_CATALOG: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/piping/pipe_materials.ron"));
+
+    fn shipped() -> RunMaterials {
+        RunMaterials::parse(SHIPPED_CATALOG).expect("the shipped pipe_materials.ron parses")
     }
 
     #[test]
     fn shipped_pipe_materials_registry_parses_and_is_sound() {
-        let reg = shipped();
+        let cat = shipped();
+        let reg = PipeMaterials { catalog: &cat };
         assert_eq!(reg.problems(), Vec::<String>::new());
+        assert_eq!(cat.problems(), Vec::<String>::new());
     }
 
     /// The pipe body is drawn in its MATERIAL, not in the colour of what it
@@ -204,14 +135,15 @@ mod tests {
     /// water pipe's body is copper, not the colour of its content".
     #[test]
     fn pipe_body_colour_comes_from_its_material_not_its_content() {
-        let reg = shipped();
-        let copper = reg.material("copper").expect("copper");
+        let cat = shipped();
+        let reg = PipeMaterials { catalog: &cat };
+        let copper = reg.material("copper_l_drawn").expect("copper_l_drawn");
         let water = reg.body_look("water");
-        assert_eq!(water.linear, copper.linear_rgba(), "a water pipe's body is copper, not the colour of its content: {water:?}");
-        assert_eq!((water.metallic, water.roughness), (copper.metallic, copper.roughness), "and has copper's finish");
-        assert_eq!(water.key, "pipebody:copper", "one cached material per body material");
+        assert_eq!(water.linear, copper.look.linear_rgba(), "a water pipe's body is copper, not the colour of its content: {water:?}");
+        assert_eq!((water.metallic, water.roughness), (copper.look.metallic, copper.look.roughness), "and has copper's finish");
+        assert_eq!(water.key, "pipebody:copper_l_drawn", "one cached material per body material");
         let cord = reg.material("power_cord").expect("power_cord");
-        assert_eq!(reg.body_look("power").linear, cord.linear_rgba(), "a power run is its cord");
+        assert_eq!(reg.body_look("power").linear, cord.look.linear_rgba(), "a power run is its cord");
         // And never the content's own colour, in any routed content.
         let scheme = crate::ship::pipe_marking::marking().default_scheme().expect("the ship's scheme");
         for row in &scheme.contents {
@@ -225,6 +157,23 @@ mod tests {
         }
     }
 
+    /// The four drawn kinds keep the look they had before the catalog grew (2026-11-02): the merge
+    /// moved rows, it did not repaint a pipe. The values are the 2026-10-04 rows'.
+    #[test]
+    fn the_drawn_kinds_keep_their_looks_through_the_catalog_merge() {
+        let cat = shipped();
+        let reg = PipeMaterials { catalog: &cat };
+        for (kind, srgb, metallic, roughness) in [
+            (ConduitKind::RigidCopper, (250, 209, 194), 1.0, 0.4),
+            (ConduitKind::FlexibleHose, (51, 56, 61), 0.0, 0.75),
+            (ConduitKind::PowerCord, (26, 26, 31), 0.0, 0.6),
+            (ConduitKind::DataCable, (168, 170, 172), 0.0, 0.55),
+        ] {
+            let m = reg.for_kind(kind).unwrap_or_else(|| panic!("{kind:?} has a material"));
+            assert_eq!((m.look.srgb, m.look.metallic, m.look.roughness), (srgb, metallic, roughness), "{kind:?} is drawn as before");
+        }
+    }
+
     /// A bare metal's colour is its reflectance (the shader takes a metal's F0 straight from its
     /// base colour, `mix(0.04, albedo, metallic)`, and gives it no diffuse), so a metal row must
     /// reflect at least the 4% any non-metal does in every channel, and, like every metal in
@@ -235,11 +184,11 @@ mod tests {
     /// [0.47932, 0.17144, 0.03310] in linear light: under the 4% any non-metal reflects".
     #[test]
     fn a_metal_reflects_what_measured_metals_reflect() {
-        let reg = shipped();
+        let cat = shipped();
         let mut metals = 0;
-        for m in reg.materials.iter().filter(|m| m.metallic >= 0.5) {
+        for m in cat.materials.iter().filter(|m| m.look.metallic >= 0.5) {
             metals += 1;
-            let l = m.linear_rgba();
+            let l = m.look.linear_rgba();
             assert!(
                 l[..3].iter().all(|c| *c >= 0.04),
                 "`{}` reflects [{:.5}, {:.5}, {:.5}] in linear light: under the 4% any non-metal reflects",
@@ -250,19 +199,11 @@ mod tests {
             );
             assert!(l[..3].iter().cloned().fold(0.0, f32::max) >= 0.5, "`{}` reflects under half the light in every channel: {l:?}", m.id);
         }
-        assert!(metals >= 1, "the registry carries a metal (copper)");
+        assert!(metals >= 1, "the catalog carries a metal (copper)");
         // Copper is measured copper: F0 (0.955, 0.638, 0.538) linear, Table 9.2.
-        let cu = reg.material("copper").expect("copper").linear_rgba();
+        let cu = cat.material("copper_l_drawn").expect("copper_l_drawn").look.linear_rgba();
         for (got, want) in cu[..3].iter().zip([0.955, 0.638, 0.538]) {
             assert!((got - want).abs() < 0.01, "copper's reflectance is the measured one: {cu:?}");
         }
-    }
-
-    #[test]
-    fn srgb_to_linear_matches_the_curve() {
-        assert_eq!(srgb_to_linear(0), 0.0);
-        assert!((srgb_to_linear(255) - 1.0).abs() < 1e-6);
-        // Mid grey 128 is about 0.2158 in linear light.
-        assert!((srgb_to_linear(128) - 0.2158).abs() < 1e-3);
     }
 }

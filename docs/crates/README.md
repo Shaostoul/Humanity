@@ -16,9 +16,9 @@ happens to the code.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 | Card | Lines | May use | What it is for | Requests |
 |---|---:|---|---|---:|
-| [humanity-core](humanity-core.md) | 14,811 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
+| [humanity-core](humanity-core.md) | 15,576 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
 | [humanity-protocol](humanity-protocol.md) | 12,539 | core | What the app and the server must agree on, byte for byte. | 0 |
-| [humanity-ship](humanity-ship.md) | 31,581 | core | The home and the ship as places a person stands in. | 0 |
+| [humanity-ship](humanity-ship.md) | 32,957 | core | The home and the ship as places a person stands in. | 0 |
 | [humanity-terrain](humanity-terrain.md) | 25,569 | core | Planets as shapes and numbers. | 0 |
 | [humanity-systems](humanity-systems.md) | 79,445 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
 | [humanity-relay](humanity-relay.md) | 110,880 | core, protocol, ship, systems | The server: the relay the VPS runs as `HumanityOS --headless`. | 0 |

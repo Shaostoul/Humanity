@@ -81,5 +81,11 @@ jobs:
       - name: Doc links (must stay 0 broken)
         run: node scripts/check-doc-links.js
 
+      # Spline routing rung 0 (2026-11-02): every row of the run catalogs (data/piping) cites a
+      # finding the 2026-11-01 findings documents define, or Ours with a reason. This workflow runs
+      # no lib tests, so the typed loaders' own source tests do not run here; this node check does.
+      - name: Run catalogs cite real findings
+        run: node scripts/check-run-sources.js && node --test scripts/tests/run-sources.test.js
+
       - name: BIP39 wordlists in sync (web == native, canonical + round-trip)
         run: node scripts/check-bip39-wordlists.js

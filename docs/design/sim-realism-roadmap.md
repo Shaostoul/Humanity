@@ -60,7 +60,8 @@ it, so the home-design parity guarantee (editor + AI edit the same
 self-resolved forks are both correct: **`Utility` as a closed enum** is right —
 each utility has *distinct physics* (ampacity+voltage-drop vs flow+pressure), so a
 new utility genuinely is a code decision; infinite-of-X correctly lives in the
-conduit *catalog* (`conduits.ron`) and in machines/ports/connections (all data).
+conduit *catalog* (`conduits.ron` then; since 2026-11-02 the material catalog,
+`data/piping/pipe_materials.ron`) and in machines/ports/connections (all data).
 **Keeping `MachinePower` AND adding `ports`** with a `derive_ports()` bridge is the
 only migration that doesn't break the live `ElectricalSystem` + `buildability_report`
 or the round-trip tests. The `#[serde(default)]` discipline on every new field means

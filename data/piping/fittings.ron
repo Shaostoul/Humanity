@@ -1,0 +1,260 @@
+#![enable(implicit_some)]
+// Fittings: the pieces that join, turn, branch, end or pass a run through a wall (2026-11-02,
+// spline routing rung 0, docs/design/spline-routing.md sections 5.3 and 6.2). Read by
+// src/ship/run_fittings.rs (disk first, the copy built into the exe if this file is missing or
+// does not parse). Nothing places them yet: the curve core (rung 3) turns a rigid corner with one
+// of these, and the mesh (rung 4) draws them.
+//
+// UNITS as data/piping/run_rules.ron: lengths in METRES, angles in DEGREES; a radius or a mesh
+// size may instead be a multiple of the run's outside diameter (TimesOd). SOURCES as there: R1 to
+// R44, D1 to D19, or Ours("why").
+//
+// FIELD REFERENCE
+//   id            unique; a drain_turn rule names its fitting by this id
+//   name          what the trade calls it
+//   kind          Elbow, DrainBend, Tee, Wye, Coupling, Union, Reducer, Cap, Sleeve, Gland,
+//                 Transit, Bushing, Plate, BendSupport
+//   materials     the material ids (data/piping/pipe_materials.ron) it is made for
+//   angles_deg    the turns it makes (an elbow's 90, a wye's 45 branch); empty for a straight piece
+//   centreline    the centreline radius of its turn: TimesOd(x), Metres(m), or SizeRow(method), the
+//                 run's own minimum for that method (a PEX bend support holds the free bend's
+//                 radius); absent where no source was read
+//   socket_m      how far a run's end goes into it (a solder cup's depth); absent where not read
+//   equivalent_m  its friction as an equivalent length of straight run; absent where not read
+//                 (the CDA handbook's Table 14.7 has the numbers; its cells ran together when the
+//                 finding read it, so none were recorded)
+//   mesh          how it is drawn, as multiples of the run's outside diameter: body (its outside
+//                 diameter) and length (along the run)
+//   source, note
+(
+    fittings: [
+        (
+            id: "copper_elbow_90",
+            name: "90-degree elbow (wrought copper, pressure)",
+            kind: Elbow,
+            materials: ["copper_l_drawn", "copper_l_annealed"],
+            angles_deg: [90.0],
+            centreline: TimesOd(1.0),
+            mesh: (body: 1.3, length: 1.6),
+            source: [Ours("the standard 90-degree elbow the CDA handbook's friction table lists (named in the routing finding's unknowns; its numbers were not recorded); the centreline radius of about one outside diameter is ours, since ASME B16.22's dimensions are sold and were not read, like R44's standards; the mesh body is the 1.3 collar the game draws today (data/routing_rules.ron collar_mult)")],
+        ),
+        (
+            id: "copper_elbow_45",
+            name: "45-degree elbow (wrought copper, pressure)",
+            kind: Elbow,
+            materials: ["copper_l_drawn", "copper_l_annealed"],
+            angles_deg: [45.0],
+            centreline: TimesOd(1.0),
+            mesh: (body: 1.3, length: 1.2),
+            source: [Ours("as copper_elbow_90: the standard 45-degree elbow, its radius and mesh ours")],
+            note: "Two 45s with a short straight between them make an offset (design 6.2).",
+        ),
+        (
+            id: "copper_tee",
+            name: "Tee (wrought copper, pressure)",
+            kind: Tee,
+            materials: ["copper_l_drawn", "copper_l_annealed"],
+            angles_deg: [90.0],
+            mesh: (body: 1.3, length: 2.0),
+            source: [Ours("the standard branch fitting; dimensions not read, the mesh ours")],
+        ),
+        (
+            id: "copper_coupling",
+            name: "Coupling (wrought copper)",
+            kind: Coupling,
+            materials: ["copper_l_drawn", "copper_l_annealed"],
+            angles_deg: [],
+            mesh: (body: 1.3, length: 1.6),
+            source: [Ours("joins two lengths where a stick ends (design 6.2: couplings at the material's stick length); dimensions not read, the mesh ours")],
+        ),
+        (
+            id: "copper_cap",
+            name: "Cap (wrought copper)",
+            kind: Cap,
+            materials: ["copper_l_drawn", "copper_l_annealed"],
+            angles_deg: [],
+            mesh: (body: 1.3, length: 0.8),
+            source: [Ours("closes an open end; dimensions not read, the mesh ours")],
+        ),
+        (
+            id: "union",
+            name: "Union",
+            kind: Union,
+            materials: ["copper_l_drawn", "copper_l_annealed", "steel_sch40", "cpvc", "pvc_sch40"],
+            angles_deg: [],
+            mesh: (body: 1.6, length: 2.0),
+            source: [Ours("a joint that comes apart without cutting, for a machine that is taken out; dimensions not read, the mesh ours")],
+        ),
+        (
+            id: "reducer",
+            name: "Reducer",
+            kind: Reducer,
+            materials: ["copper_l_drawn", "copper_l_annealed", "steel_sch40", "cpvc", "pvc_sch40", "pex"],
+            angles_deg: [],
+            mesh: (body: 1.3, length: 1.6),
+            source: [Ours("joins two sizes of the same material; dimensions not read, the mesh ours")],
+        ),
+        (
+            id: "pressure_elbow_90",
+            name: "90-degree elbow (threaded steel, solvent-weld CPVC or PVC)",
+            kind: Elbow,
+            materials: ["steel_sch40", "cpvc", "pvc_sch40"],
+            angles_deg: [90.0],
+            centreline: TimesOd(1.0),
+            mesh: (body: 1.4, length: 1.6),
+            source: [R(4), Ours("rigid PVC and CPVC change direction with fittings (R4); the radius and mesh are ours, the fittings' dimensions not read")],
+        ),
+        (
+            id: "pressure_elbow_45",
+            name: "45-degree elbow (threaded steel, solvent-weld CPVC or PVC)",
+            kind: Elbow,
+            materials: ["steel_sch40", "cpvc", "pvc_sch40"],
+            angles_deg: [45.0],
+            centreline: TimesOd(1.0),
+            mesh: (body: 1.4, length: 1.2),
+            source: [R(4), Ours("as pressure_elbow_90")],
+        ),
+        (
+            id: "pex_bend_support",
+            name: "PEX bend support (snap-on)",
+            kind: BendSupport,
+            materials: ["pex"],
+            angles_deg: [90.0],
+            centreline: SizeRow(Free),
+            mesh: (body: 1.2, length: 4.0),
+            source: [R(3)],
+            note: "Snap-on bend supports let a 90-degree sweep replace an elbow (the PPI guide): it holds the tube at its free bend radius.",
+        ),
+        (
+            id: "quarter_bend",
+            name: "Quarter bend (90-degree drain bend)",
+            kind: DrainBend,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [90.0],
+            mesh: (body: 1.3, length: 1.6),
+            source: [R(38)],
+            note: "Which way it may turn: drain_turn_quarter_bend in data/piping/run_rules.ron. Its radius was not read.",
+        ),
+        (
+            id: "short_sweep",
+            name: "Short sweep (90-degree drain bend, longer radius)",
+            kind: DrainBend,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [90.0],
+            mesh: (body: 1.3, length: 2.0),
+            source: [R(38)],
+        ),
+        (
+            id: "long_sweep",
+            name: "Long sweep (90-degree drain bend, longest radius)",
+            kind: DrainBend,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [90.0],
+            mesh: (body: 1.3, length: 2.6),
+            source: [R(38)],
+        ),
+        (
+            id: "sixth_bend",
+            name: "Sixth bend (60-degree drain bend)",
+            kind: DrainBend,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [60.0],
+            mesh: (body: 1.3, length: 1.4),
+            source: [R(38)],
+        ),
+        (
+            id: "eighth_bend",
+            name: "Eighth bend (45-degree drain bend)",
+            kind: DrainBend,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [45.0],
+            mesh: (body: 1.3, length: 1.2),
+            source: [R(38)],
+        ),
+        (
+            id: "sixteenth_bend",
+            name: "Sixteenth bend (22.5-degree drain bend)",
+            kind: DrainBend,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [22.5],
+            mesh: (body: 1.3, length: 1.0),
+            source: [R(38)],
+        ),
+        (
+            id: "sanitary_tee",
+            name: "Sanitary tee",
+            kind: Tee,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [90.0],
+            mesh: (body: 1.3, length: 2.0),
+            source: [R(38)],
+        ),
+        (
+            id: "wye",
+            name: "Wye",
+            kind: Wye,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [45.0],
+            mesh: (body: 1.3, length: 2.4),
+            source: [R(38)],
+        ),
+        (
+            id: "combination_wye_eighth",
+            name: "Combination wye and eighth bend",
+            kind: Wye,
+            materials: ["pvc_sch40", "steel_sch40"],
+            angles_deg: [90.0],
+            mesh: (body: 1.3, length: 2.6),
+            source: [R(38)],
+        ),
+        (
+            id: "wall_sleeve",
+            name: "Wall sleeve with gasket",
+            kind: Sleeve,
+            materials: [],
+            angles_deg: [],
+            mesh: (body: 1.6, length: 1.0),
+            source: [Ours("the passthrough gasket the game has drawn where a run crosses an interior wall since v0.535 (src/ship/conduits.rs FittingKind::Passthrough); empty materials: it fits any run")],
+        ),
+        (
+            id: "cable_gland",
+            name: "Watertight cable gland",
+            kind: Gland,
+            materials: ["power_cord", "nm_b", "thhn", "data_cable", "fibre_optic", "superconductor_cable"],
+            angles_deg: [],
+            mesh: (body: 2.0, length: 2.0),
+            source: [R(40)],
+            note: "Watertight glands or transits where cable passes a watertight bulkhead (IEC 60092-352 3.20). Dimensions not read; the mesh is ours.",
+        ),
+        (
+            id: "multi_cable_transit",
+            name: "Multi-cable transit",
+            kind: Transit,
+            materials: ["power_cord", "nm_b", "thhn", "data_cable", "fibre_optic", "superconductor_cable"],
+            angles_deg: [],
+            mesh: (body: 3.0, length: 3.0),
+            source: [R(40)],
+            note: "One frame many cables pass through a bulkhead in (IEC 60092-352 3.20). Dimensions not read; the mesh is ours.",
+        ),
+        (
+            id: "bulkhead_bushing",
+            name: "Bulkhead bushing",
+            kind: Bushing,
+            materials: ["power_cord", "nm_b", "thhn", "data_cable", "fibre_optic", "superconductor_cable"],
+            angles_deg: [],
+            mesh: (body: 1.5, length: 1.0),
+            source: [R(40)],
+            note: "IEEE 45.8 6.5.1: a bulkhead 6 mm or thicker may omit it if the hole's edges are rounded (penetration_cable_bushing).",
+        ),
+        (
+            id: "stud_plate",
+            name: "Steel stud protection plate",
+            kind: Plate,
+            materials: [],
+            angles_deg: [],
+            mesh: (body: 3.0, length: 0.2),
+            source: [R(41)],
+            note: "Where a cable or pipe passes within 1 1/2 in of a stud's face (penetration_stud_plate_cable, penetration_stud_plate_pipe). Empty materials: it protects any run.",
+        ),
+    ],
+)

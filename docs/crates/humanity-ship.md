@@ -6,7 +6,9 @@ The home and the ship as places a person stands in. It holds the home's walls, d
 rooms (`home_structure`, `rooms`, `room_types`), the ship's zones, corridors and hull
 (`ship_structure`, `hull`), where a person can stand, see and walk aboard (`standing`, `sight`,
 `wall_collision`, `ship_space`, `moves`), the starts a new player can choose (`starts`), the
-machines a home holds and what they drew over a day (`machines`), and the homestead station's orbit
+machines a home holds and what they drew over a day (`machines`), the rules, fittings, anchors and
+benders that runs (pipes, hoses, cables) are checked and built by (`run_rules`, `run_fittings`,
+`run_anchors`, `run_benders`, data/piping/; spline routing rung 0), and the homestead station's orbit
 (`station`). It is plain data and geometry with no GPU in it, and the server compiles it too, so the
 shared ship's rules are the same on both sides.
 
@@ -15,13 +17,13 @@ shared ship's rules are the same on both sides.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `ship/`, `machines.rs` + `machines/`, `station/`
-- **Size:** 31,581 lines in 37 files, 1,430 of them in 4 test files.
+- **Size:** 32,957 lines in 41 files, 1,430 of them in 4 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `ship/levels.rs` 184 of 200.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 3.
-- **May use** (the plan): core. **Uses today** (references in non-test code): core 36.
+- **May use** (the plan): core. **Uses today** (references in non-test code): core 57.
 - **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 323, gui 159, relay 38, systems 26.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 370 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 380 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine ship:: machines:: station:: --skip engine::crossing_tests::machines:: --skip engine::map_rig_ship:: --skip systems::crossing_tests::machines:: --skip systems::grow_machines::
@@ -69,6 +71,12 @@ And 190 more items, 375 references (`node scripts/crate-cards.js --interface hum
 - **Build the real thing.** Walls are real assemblies (`assembly.rs`), pipes carry real marking
   bands (`pipe_marking.rs`), the station keeps a real orbit. Source: [CLAUDE.md](../../CLAUDE.md),
   "Realistic-first".
+- **Every row of a run catalog names its source** (data/piping/run_rules.ron, fittings.ron,
+  anchors.ron, benders.ron, and the core's pipe_materials.ron): a finding R1..R44 or D1..D19 of the
+  2026-11-01 findings, or `Ours("why")`; each rule also says how binding it is where its profile
+  applies (`Standing`), and the editor calls only `Law` "code". The tests read the findings
+  documents' numbered paragraphs, so a row naming a finding that does not exist fails. Source:
+  [spline-routing.md](../design/spline-routing.md), sections 5.3 and 7.1.
 - **The station's orbit is planet-scale math:** positions and directions stay in f64 to the sampler.
   Source: [renderer.md](../ai/renderer.md), "f32 at planet scale".
 - **Moving aboard is checked on the state a player reaches,** in a booted game, one game at a time
@@ -103,6 +111,10 @@ And 190 more items, 375 references (`node scripts/crate-cards.js --interface hum
   `ship::standing`; in the ground storey's cut-away the greenhouse risers to g1 and g2 are cut at
   3.0 m, 0.24 m short of the ports drawn over them; a jump from the stair's seventh step can slip
   past a slab edge.
+- **Spline routing rung 1 next** ([spline-routing.md](../design/spline-routing.md), section 18):
+  the `Run` model replaces `connections` and `conduit_edges`; `ConduitKind`, the catalog's `kinds`
+  rows and `pipe_materials.rs`'s view go with it. Rungs 3, 7 and 8 read `run_benders`,
+  `run_fittings`, `run_anchors` and `run_rules`, which nothing evaluates yet.
 - **Rung 2 cuts ship and terrain, then systems;** its test code's wrong-way references (At a
   glance) move first. Source: [crate-split.md](../design/crate-split.md), "Order of work".
 

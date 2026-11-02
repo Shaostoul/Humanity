@@ -44,7 +44,7 @@ use std::path::Path;
 ///                        materials, opening styles): parsed from the embedded
 ///                        copy only, and they shape the ship every rig photographs
 ///   data/lighting/light_types.ron, data/lod/categories.ron,
-///   data/utilities/conduits.ron, data/reactions.json,
+///   data/reactions.json,
 ///   data/performance/budget_systems.ron   the same: embedded-only registries
 ///   data/fonts/NotoSans-Regular.ttf       the UI font
 ///   data/release/signing_pubkeys.json     the keys updates and local hand-offs
@@ -81,7 +81,6 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     "data/blueprints/zone_types.ron",
     "data/lighting/light_types.ron",
     "data/lod/categories.ron",
-    "data/utilities/conduits.ron",
     "data/reactions.json",
     "data/performance/budget_systems.ron",
     "data/fonts/NotoSans-Regular.ttf",

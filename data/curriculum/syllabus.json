@@ -1644,7 +1644,7 @@
         "engineering"
       ],
       "data": [
-        "data/utilities/conduits.ron",
+        "data/piping/pipe_materials.ron",
         "data/machines/home.ron"
       ],
       "sources": [
@@ -2719,7 +2719,7 @@
         "engineering"
       ],
       "data": [
-        "data/utilities/conduits.ron",
+        "data/piping/pipe_materials.ron",
         "data/machines/home.ron"
       ],
       "sources": [

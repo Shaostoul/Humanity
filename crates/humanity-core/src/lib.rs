@@ -46,6 +46,13 @@ pub mod showroom;
 /// Utility wiring -- connection ports + cables/conduit with real specs (v0.604). Ungated (pure
 /// serde + math) so it compiles under relay too.
 pub mod utilities;
+/// The one catalog of what a run (a pipe, hose, tube or cable) is made of: looks, behaviour classes,
+/// sizes and their electrical, fluid and data specs (data/piping/pipe_materials.ron; spline
+/// routing rung 0, 2026-11-02). Here because `utilities` reads its cable specs. Ungated.
+pub mod run_materials;
+/// Where a data row's numbers come from: a dated finding (R1.., D1..) or `Ours` with a reason, and
+/// the check that reads the findings documents' own numbered paragraphs (spline routing rung 0).
+pub mod row_source;
 pub mod cosmetics;
 /// Canonical Sol-system model (one `SolBody` set + one Kepler
 /// propagator) shared by the Maps page, the FPS world spawn, and the

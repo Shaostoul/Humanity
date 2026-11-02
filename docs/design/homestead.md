@@ -156,7 +156,8 @@ home_solo.ron and feeds live `PowerStatus {generation, consumption, balance,
 battery_wh, autonomy_hours}` (src/systems/electrical.rs), shown on the Home page
 and checked by the buildability report (Power source / Energy balance / Wiring /
 Conduits / Power circuit). The house adds CIRCUITS as `MachineConnection`s with
-pinned specs from `data/utilities/conduits.ron`:
+pinned specs from the material catalog, `data/piping/pipe_materials.ron` (`data/utilities/conduits.ron`
+until 2026-11-02):
 
 | Circuit | Cable | Serves | Real-world lesson |
 |---|---|---|---|
@@ -191,8 +192,8 @@ HotWater identically, src/machines.rs):
 | water_heater | utility | Electricity In, Water In, HotWater Out | **HotWater's first producer** |
 | septic_tank | outside, near utility | Waste In | from the structures.csv reference row |
 
-Pipes: `pex_half` branches, `copper_threequarter` trunk (both already in
-conduits.ron). Grey water: sinks/shower/washer drain to the composter, whose
+Pipes: `pex_half` branches, `copper_threequarter` trunk (both size rows of
+the material catalog). Grey water: sinks/shower/washer drain to the composter, whose
 "+155 L/d greywater" reclaim already feeds irrigation in home.ron's loop math.
 Black water: toilet > septic_tank (new machine; content today ends there, which
 is honest). `Utility::HotWater` exists end-to-end in crates/humanity-core/src/utilities.rs but has
@@ -353,7 +354,7 @@ effort and blocks nothing above.
 - `docs/design/home-design.md`: one home, one surface, AI == player parity.
 - `docs/design/homestead-solo-design.md`: every machine count and Wh/day figure.
 - `docs/design/construction-architecture.md`: the five-layer long-term pipeline.
-- `docs/design/utility-wiring.md` + `data/utilities/conduits.ron`: cables/pipes.
+- `docs/design/utility-wiring.md` + `data/piping/pipe_materials.ron`: cables/pipes.
 - `docs/design/wall-corners.md`: the deferred seam, and why rule 4.2 exists.
 - `docs/design/two-realities.md`: the same manifest doubles as the REAL-side
   possessions template (a real home's rooms, fixtures, and storage), which is
