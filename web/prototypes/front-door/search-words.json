@@ -1,0 +1,21 @@
+{
+  "_comment": "Plain words that mean the same, for the front door's search (docs/design/front-door.md, section 4.3). People arrive with a symptom in their own words and spelling; the guides are written in one spelling. Each row is a set of words any one of which matches the others. A row must hold only words that mean the same thing: \"runs\" was in the diarrhoea row for an hour and sent \"diarrhea\" to the furnace filter first (\"so it runs as it should\"). Found 2026-11-02: an American typing \"diarrhea\" found nothing, because the ORS how-to says \"diarrhoea\". The real build would move this file to data/front_door/search_words.json and the How-to page would read it too.",
+  "same": [
+    ["diarrhea", "diarrhoea", "loose stool"],
+    ["vomit", "vomiting", "throw up", "throwing up", "puke", "sick to my stomach"],
+    ["color", "colour"],
+    ["mold", "mould", "moldy", "mouldy"],
+    ["dehydrated", "dehydration", "thirsty", "rehydration"],
+    ["germs", "bacteria", "bugs in water", "unsafe water", "not safe to drink"],
+    ["power cut", "power outage", "blackout", "power is out", "no power"],
+    ["solar", "sun power", "solar panel"],
+    ["tomato", "tomatoes"],
+    ["seal", "seals", "sealed", "lid", "lids"],
+    ["bulging", "swollen", "puffed"],
+    ["furnace", "heater", "heating"],
+    ["filter", "filters"],
+    ["phrase", "recovery phrase", "24 words", "lost my account", "locked out"]
+  ],
+  "_ignore": "Small words a person types that no guide's search words need: they are dropped from the query, so \"my jar lid is bulging\" asks for jar, lid and bulging. English only: a translation brings its own list.",
+  "ignore": ["a", "an", "the", "my", "our", "is", "are", "was", "i", "im", "i'm", "to", "of", "and", "or", "how", "do", "does", "what", "it", "its", "in", "on", "for", "with", "can", "should", "help", "please", "me"]
+}

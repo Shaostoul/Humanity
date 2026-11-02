@@ -317,7 +317,10 @@ Files rung 1 deliberately did not touch, because other work is changing them now
   Overview is not a new page: the Humanity page becomes the overview, after a plan for the top
   menu, the Play and Characters buttons, and the Characters page (its side columns too narrow, its
   text crammed vertically).
-- **6 and 7** (the website's front door, the demo character) are still open.
+- **6 and 7** (the website's front door, the demo character) are still open. Decision 6 now has a
+  design and a prototype to choose from, [front-door.md](front-door.md) (2026-11-02): a title
+  screen with the search and Start here, a row of update cards from #announcements and a read-only
+  chat slice, which leaves the demo character off the front door (its section 6).
 
 The decisions as they were put:
 
