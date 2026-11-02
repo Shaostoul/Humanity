@@ -193,10 +193,15 @@ In order:
     `release_update.rs` filed under the GUI; main.rs counted; one `CutAway` box. The farm files'
     leftovers DONE the same day (the Garden follow-up: their `data_dir()` calls name the core, the
     lib.rs re-export is gone, 17 farm tests moved whole to engine/crossing_tests): both budgets
-    empty, 0 wrong-way references in code and in test code. Next: rung 1, the Cargo workspace with core and protocol split out: first the core's test
-    helpers (`test_temp`, `test_clock`, `test_log`: 305 of 412 cross-crate test-helper uses) as
-    a test-support feature or dev crate, and one way to name the repo root (565
-    `env!("CARGO_MANIFEST_DIR")` and 251 relative `include_str!` paths break when files move).
+    empty, 0 wrong-way references in code and in test code. Rung 1 DONE 2026-11-02 (91d131282): the
+    Cargo workspace, `crates/humanity-core` and `crates/humanity-protocol` cut out, the test helpers
+    behind a `test-support` feature, the repo root named only as `env!("HUMANITY_REPO_ROOT")`, every
+    source-walking tool reading the crates (four lints and the warnings ratchet were blind to them
+    until planted violations showed it), the same 5,586 lib tests and 3,201 relay tests as before.
+    Build times unchanged, as planned (the engine is still about 96% of the lines; quiet-machine
+    numbers in crate-split.md). Next: rung 2 (`humanity-ship`, `humanity-terrain`, then
+    `humanity-systems`), where the gains start; after the spline routing's rung 0 (item 15), which
+    edits the ship's catalogs, and on a quiet machine, because it is measured.
 11. **The farm on its own clock (planned 2026-10-30, `docs/design/farm-clock.md`).** The operator
     asked for the farm to update on a configurable interval and for crops to be computed only when
     looked at. Rung 1 DONE 2026-10-30 (50864e49d: every step exact, `step_path.rs`, proven by

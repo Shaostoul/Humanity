@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
-  "current_focus": "2026-11-01 night: merged and pushed today: the spline routing plan (docs), notifications rung 3 (3edb4d00e), Rust warnings to zero (dde580edd, CI green). Merged tonight too: BUG-222 (387b7dd88, lib tests beside the operator's GPU game). In flight: crate split rung 1 (agent, own worktree; told to merge main for src/test_gpu.rs and the new lib-tests.js). Next after them: the spline routing build (PRIORITIES 15). Stutter next steps: PRIORITIES 12. Waiting on the operator: the spline plan's three questions (design section 19), whether members may add board tasks (BUG-221 made it mods and admins), the bottom-strip plan, the landing page, the quest-chain review, BUG-217. The batch since v0.1547.0 is unreleased.",
+  "current_focus": "2026-11-02: crate split rung 1 merged (91d131282). Next: the spline routing's rung 0 (agent, its own worktree), then crate split rung 2 on a quiet machine. Stutter next steps: PRIORITIES 12. Waiting on the operator: the spline plan's three questions (design section 19), whether members may add board tasks (BUG-221 made it mods and admins), the bottom-strip plan, the landing page, the quest-chain review, BUG-217. The batch since v0.1547.0 is unreleased.",
   "open_questions_for_human": [
     {
       "date": "2026-08-25",
@@ -850,6 +850,21 @@
       "date": "2026-11-01",
       "decision": "Crate split rung 1 dispatched (general-purpose agent, its own worktree, brief in the scratchpad orch-split1-brief.txt): test-support feature for the core's test helpers, one way to name the repo root, then the workspace with humanity-core and humanity-protocol, every source-walking tool updated with each lint proven red on a moved file, CLAUDE.md Architecture rewritten, build times measured.",
       "why": "PRIORITIES 10's next rung, waiting only on the warnings merge (both touch most files). It needs main merged before its final gates: src/test_gpu.rs joins the core's test helpers, and scripts/lib-tests.js changes under it."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Crate split rung 1 merged (91d131282, squash of the agent's 12 commits): the Cargo workspace, crates/humanity-core and crates/humanity-protocol, test helpers behind a test-support feature, the repo root only as env!(\"HUMANITY_REPO_ROOT\") (tests/repo_root_lint.rs), every source-walking tool reading crates/. The build slot reinstalled from the main checkout (it names the new crates).",
+      "why": "PRIORITIES 10's rung 1. The staged tree was byte-identical to the tree the agent's gates passed on (lib tests 5,586 names, the same set as main, 5,366 passed; relay battery 3,201, same set; verify-runtime 3/3; release builds both). Rechecked on main by the orchestrator: both warnings ratchets 0, lints, the lib-test list. Four lints and the old ratchet had been blind to crates/ until planted violations showed it. Build times unchanged as planned (engine ~96% of lines); the gains start at rung 2."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "CLAUDE.md's relay line corrected: the server build needs no GPU, but wgpu still compiles into it through the ungated renderer module until the split moves that out (it said 'no GPU deps').",
+      "why": "The split agent found wgpu = \"24\" non-optional in Cargo.toml on main before the split; `pub mod renderer;` is ungated in src/lib.rs, so making it optional is the split's rung 3 work, not a quick fix."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Order: the spline routing's rung 0 (rules and materials as data, PRIORITIES 15) next, then crate split rung 2 (ship, terrain, systems), not in parallel.",
+      "why": "Rung 0 edits the cable registry (now crates/humanity-core/src/utilities.rs) and the ship's catalogs, which split rung 2 moves; and rung 2 is measured, which needs a quiet machine. Brief in the scratchpad orch-spline0-brief.txt."
     }
   ],
   "active_scopes_to_avoid": [
@@ -879,7 +894,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-01",
+  "last_updated": "2026-11-02",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

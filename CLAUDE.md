@@ -332,7 +332,7 @@ and the repo root only as `env!("HUMANITY_REPO_ROOT")` (`tests/repo_root_lint.rs
 `native/src/`, `server/src/`, or a `crates/` folder the workspace does not list, was working in a
 stale worktree: never trust that report; redo the work against the current layout.** Feature
 flags: `native` (the full desktop app, the default), `relay` (the headless server, built
-`--features relay --no-default-features`, no GPU deps; the deploy builds it on GitHub, not the VPS) and `wasm`. `HumanityOS --headless` is the
+`--features relay --no-default-features`, no window and no GPU needed, though wgpu still compiles into it through the ungated `renderer` module until the crate split moves that out; the deploy builds it on GitHub, not the VPS) and `wasm`. `HumanityOS --headless` is the
 server-only mode the VPS runs. The web frontend (`web/`) is plain HTML/JS served by nginx.
 
 **Where code lives: the Folders section of `docs/ai/code-map.md`**, then its line per file
