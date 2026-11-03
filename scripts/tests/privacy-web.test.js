@@ -396,6 +396,13 @@ test("7. Settings > Privacy has the levels and both switches, each with its word
   assert.match(section, /id="privacy-status"[^>]*role="status"/, "the line that says what happened");
   assert.ok(!section.includes("privacy.web_switches_title"), "the old label-only switches are gone");
   const at = (s) => { const i = html.indexOf('src="' + s); assert.ok(i >= 0, "settings.html loads " + s); return i; };
+  // The words come first (2026-11-03, seen on the live site): settings-privacy.js draws the level
+  // cards with i18n.t as it mounts, and the copies shell.js adds to the page run only after the
+  // page's own scripts, so without these two the cards showed their keys ("privacy.tier_private_
+  // name"). The tests above hand the section its i18n directly, which is why they could not see it.
+  // Red before the two tags were added to settings.html: "settings.html loads /shared/i18n-en.js".
+  assert.ok(at("/shared/i18n-en.js") < at("/shared/i18n.js"), "English first, then i18n.js (web/shared/i18n.js says why)");
+  assert.ok(at("/shared/i18n.js") < at("/shared/privacy-tiers.js"), "the words before the privacy scripts");
   const order = ["/chat/pq.js", "/shared/pq-relay-auth.js", "/shared/profile-changes.js", "/shared/relay-session.js", "/shared/privacy-tiers.js", "/pages/settings-privacy.js"];
   for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) < at(order[i]), order[i - 1] + " before " + order[i]);
   const chat = read("chat/index.html");
