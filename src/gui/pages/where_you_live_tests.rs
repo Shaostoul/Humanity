@@ -210,6 +210,19 @@ fn where_you_live_in_words() {
     assert_eq!(present(&out, &["Home Design", "Family (default)", "Solo --"]), Vec::<String>::new(), "and no longer says these");
 
     reset_draft();
+    // The kinds of home are cards (2026-11-02): each shows its first sentence, and its whole
+    // sentence, the places shared aboard and the food and water line open under its row from its
+    // "What it is like" fold. Closed, a card has its first sentence only.
+    let out = frame(&ctx, Vec::new(), &mut |ui| {
+        draw_choice(ui, &theme, &starts);
+    });
+    assert_eq!(missing(&out, &[first_sentence(&cabin.sentence)]), Vec::<String>::new(), "a card shows its first sentence");
+    assert_eq!(present(&out, &[cabin.sentence.as_str()]), Vec::<String>::new(), "the whole is behind the fold");
+    assert_eq!(texts(&out).iter().filter(|t| t.as_str() == "What it is like").count(), 3, "a fold on every card");
+    for s in &starts.starts {
+        crate::gui::widgets::cards::set_fold_open(&ctx, fold_salt(Place::Choice, &s.id), true);
+        crate::gui::widgets::cards::set_fold_open(&ctx, fold_salt(Place::Server, &s.id), true);
+    }
     let out = frame(&ctx, Vec::new(), &mut |ui| {
         draw_choice(ui, &theme, &starts);
     });
@@ -449,6 +462,11 @@ fn no_tier_word_on_the_choice() {
     };
     let mut drawn = Vec::new();
     reset_draft();
+    // Every card's fold open too, so the words under each row are read as well.
+    for s in &starts.starts {
+        crate::gui::widgets::cards::set_fold_open(&ctx, fold_salt(Place::Choice, &s.id), true);
+        crate::gui::widgets::cards::set_fold_open(&ctx, fold_salt(Place::Server, &s.id), true);
+    }
     drawn.extend(texts(&frame(&ctx, Vec::new(), &mut |ui| {
         draw_choice(ui, &theme, &starts);
     })));

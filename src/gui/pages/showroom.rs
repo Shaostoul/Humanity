@@ -8,9 +8,19 @@
 //! confirm); the main loop applies it to the avatar mesh, camera, backdrop, and
 //! save (edit-buffer-then-sync). Structure spec: docs/design/play-characters.md.
 //!
+//! THE LAYOUT (2026-11-02, docs/design/top-menu-and-game-pages.md section 5; the operator: "The
+//! left and right bar areas are small so a lot of text is crammed vertically. We need to even
+//! things out."). The columns are SHARES of the window (`column_widths`): WHO a fifth, WHERE about
+//! two fifths, the stage the rest, each between a narrowest and a widest. The character stands in
+//! the middle of the stage, not of the window: lib.rs shifts the camera's lens by `stage_shift`.
+//! The WHERE column keeps its three coloured parts and uses the width: the homes and the servers
+//! are small cards side by side (`pick_cards`), the selected server's card shows the few lines a
+//! person choosing needs with the rest behind "Server details", and the kinds of home are cards
+//! side by side (where_you_live.rs). Every word comes from data/i18n/en.json (`characters.*`).
+//!
 //! CHOOSE WHERE YOU LIVE (ship homes increment 6, lane 2B, 2026-10-12;
 //! docs/design/ship-homes-increment-6-plan.md 3.9). Two places in the picker choose a home:
-//! - the new-home row ("A new home", `NEW_HOME`): selected while your own home has no save yet,
+//! - the new-home card ("A new home", `NEW_HOME`): selected while your own home has no save yet,
 //!   it shows the choice (`where_you_live::draw_choice`, every start from data/homes/starts.ron),
 //!   the Enter bar names the home it makes ("Enter as Wanderer -> a new Cabin (solo)"), and Enter
 //!   remembers the choice (`persistence::live_save::choose_new_home`), which `save_slot::follow` makes into
@@ -25,28 +35,17 @@ use std::cell::RefCell;
 use std::time::Instant;
 
 use egui::{Context, RichText, ScrollArea};
+use humanity_core::i18n::{t, tf, tn};
 
 use crate::gui::pages::where_you_live as wyl;
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
+use crate::gui::widgets::{self, cards, Hint};
 use crate::gui::{GuiState, LauncherWhere};
 
 // Wardrobe slots come from data/inventory/equipment_slots.json (v0.942
 // infinite-of-x: was a hardcoded array duplicating that registry). The
 // inventory page and this wardrobe now share the one slot list via
 // gui_state.equipment_slots (id, label), loaded at startup.
-
-/// Display label for the WHERE row that makes a new home of your own. It has no
-/// save on disk yet, so its id is the empty string. Since increment 6 it is any
-/// start's home, chosen on the row (it read "My Homestead (new)").
-const NEW_HOME: &str = "A new home";
-
-/// Under the new-home row when your own home already has a save: there is one save for your
-/// own home (saves/offline_home.json, increment 6), so the choice of a start is offered only
-/// while it has none, and a new character moves into the home that is there.
-const NEW_HOME_TAKEN: &str =
-    "You already have a home of your own on this computer, so a new character moves into it. \
-     To live somewhere else, choose on a server's card below.";
 
 /// Sentinel id for the VIRTUAL "server you are connected to right now" row in
 /// the picker's Open Net card (v0.775). The app auto-connects to `server_url`
@@ -60,21 +59,44 @@ const NEW_HOME_TAKEN: &str =
 /// the crate split's rung 0, part B).
 pub(crate) const CONNECTED_SERVER_ID: &str = "__connected__";
 
-/// The WHO column's hint: what travels with a character, and where its progress lives. Since
-/// increment 6 (the operator's rule of 2026-10-04: server worlds start every player fresh) each
-/// server keeps its own save for you on this computer, made fresh from the home you choose there
-/// (saves/servers/, `persistence::slot_path`), and your own home keeps saves/offline_home.json;
-/// only your name, look and outfit cross between them (engine/save_slot.rs `Look`).
-const WHO_HINT: &str = "Your name and look travel with you. Each server you visit keeps its own home \
-                        and things for you, starting fresh; your own home keeps yours.";
-
-/// A server's card for someone with no identity: the server keeps a home under one (the sentence
-/// `where_you_live::choose_on_server` gives).
-const NO_IDENTITY: &str = "A server keeps your home there under your identity: make one first (Settings > Identity).";
-
 /// How long a server's card waits for its `game_home` answer before it stops saying it is asking,
 /// seconds. A relay from before increment 6 never answers; its card then says so.
 const ANSWER_WAIT_SECS: f32 = 10.0;
+
+// ── The layout's measures (2026-11-02) ───────────────────────────────────────────────────────────
+
+/// The WHO column's share of the window's width, and the narrowest and widest it is laid out at:
+/// at the operator's 2000 points it is 400, wide enough that its hint reads in two lines, and at
+/// his window's real 2560 it is 512 (the widest, 520, is reached only past 2600 points).
+pub const WHO_SHARE: f32 = 0.20;
+const WHO_MIN: f32 = 260.0;
+const WHO_MAX: f32 = 520.0;
+/// The WHERE column's: at 2000 points it is 880, room for three kinds of home side by side.
+pub const WHERE_SHARE: f32 = 0.44;
+const WHERE_MIN: f32 = 400.0;
+const WHERE_MAX: f32 = 1280.0;
+/// The most of the window the two columns take together: the stage keeps the rest, at least a
+/// quarter, so on a very small window the columns give up their share before the character
+/// disappears behind them.
+const COLUMNS_AT_MOST: f32 = 0.75;
+/// The narrowest a home's or a server's card is, before its row loses a column.
+const PICK_CARD_MIN: f32 = 200.0;
+/// The room kept at the WHO column's foot for the Name field and Edit look, under the list of
+/// characters (which scrolls on its own when there are more than fit above it).
+const WHO_FOOT: f32 = 110.0;
+
+/// The WHO and WHERE columns' widths for a window `screen_w` points wide.
+pub fn column_widths(screen_w: f32) -> (f32, f32) {
+    let who = (screen_w * WHO_SHARE).clamp(WHO_MIN, WHO_MAX);
+    let where_ = (screen_w * WHERE_SHARE).clamp(WHERE_MIN, WHERE_MAX);
+    let room = (screen_w * COLUMNS_AT_MOST).max(1.0);
+    if who + where_ > room {
+        let k = room / (who + where_);
+        (who * k, where_ * k)
+    } else {
+        (who, where_)
+    }
+}
 
 /// The card of the connected server: what it asked, and what is on its way.
 #[derive(Default)]
@@ -99,6 +121,53 @@ thread_local! {
     static OWN_HOME: RefCell<Option<String>> = const { RefCell::new(None) };
     /// The connected server's card (`draw_home_here`).
     static HERE: RefCell<HereCard> = RefCell::new(HereCard::default());
+}
+
+/// Where the picker's parts were drawn on its last frame: the screen, the WHO and WHERE columns
+/// (the editor's two columns in modes 1 and 2), and how tall the WHERE column's contents ran
+/// against the room it had (taller means it scrolls). The layout tests read it
+/// (showroom_tests.rs), and lib.rs centres the character in the stage between the columns
+/// (`stage_shift`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Drawn {
+    pub screen: egui::Rect,
+    pub who: egui::Rect,
+    pub where_: egui::Rect,
+    pub where_content_h: f32,
+    pub where_view_h: f32,
+}
+
+impl Default for Drawn {
+    fn default() -> Self {
+        Self { screen: egui::Rect::NOTHING, who: egui::Rect::NOTHING, where_: egui::Rect::NOTHING, where_content_h: 0.0, where_view_h: 0.0 }
+    }
+}
+
+thread_local! {
+    /// The picker's last frame (`Drawn`).
+    static DRAWN: std::cell::Cell<Drawn> = std::cell::Cell::new(Drawn::default());
+}
+
+/// Where the picker's parts were drawn on its last frame.
+pub fn drawn() -> Drawn {
+    DRAWN.with(|d| d.get())
+}
+
+/// How far the middle of the stage (between the two columns) is from the middle of the window, as
+/// a share of half the window's width: the camera's lens shift that stands the character in the
+/// middle of the stage (lib.rs, `Camera::lens_shift_x`). 0 before anything is drawn.
+pub fn stage_shift() -> f32 {
+    shift_for(&drawn())
+}
+
+/// [`stage_shift`] for a given frame.
+pub fn shift_for(d: &Drawn) -> f32 {
+    let w = d.screen.width();
+    if !(w > 1.0) || !d.who.is_positive() || !d.where_.is_positive() {
+        return 0.0;
+    }
+    let mid = (d.who.right() + d.where_.left()) * 0.5;
+    ((mid - d.screen.center().x) / (w * 0.5)).clamp(-1.0, 1.0)
 }
 
 /// The name of your own home's save, as the picker last scanned it (None: it has none).
@@ -140,12 +209,8 @@ fn draw_picker(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     }
 
     let pair = pairing(state);
-    let sentence = format!(
-        "Enter as {} -> {} ({})",
-        pair.who,
-        pair.world,
-        if pair.shared { "shared" } else { "solo" }
-    );
+    let how = if pair.shared { t("characters.shared") } else { t("characters.solo") };
+    let sentence = tf("characters.enter_as", &[("who", &pair.who), ("world", &pair.world), ("how", &how)]);
 
     // The Enter bar is shown FIRST on purpose: egui panels claim space in the
     // order they are added, so a bottom panel added after the two side columns
@@ -160,9 +225,9 @@ fn draw_picker(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     .color(theme.text_primary()),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if widgets::Button::primary("Enter")
+                if widgets::Button::primary(t("characters.enter"))
                     .disabled(pair.blocked.is_some())
-                    .tooltip("Play as this character in this world.")
+                    .hint("characters.enter_hint")
                     .show(ui, theme)
                 {
                     remember_new_home(state);
@@ -182,51 +247,55 @@ fn draw_picker(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.spacing_sm);
     });
 
+    let (who_w, where_w) = column_widths(ctx.screen_rect().width());
+
     // ── WHO: the characters you can be ──
-    egui::SidePanel::left("showroom_select")
+    let who_rect = egui::SidePanel::left("showroom_select")
         .resizable(false)
-        .exact_width(230.0)
+        .exact_width(who_w)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
             // A visible Back returns to the menu without entering the world --
             // the nav bar is hidden here, so Esc alone is not discoverable.
             // (v0.476.1)
-            if widgets::Button::secondary("< Back")
-                .tooltip("Return to the menu without entering the world. Same as Esc.")
+            if widgets::Button::secondary(t("characters.back"))
+                .hint("characters.back_hint")
                 .show(ui, theme)
             {
                 state.showroom_cancel = true;
             }
+            ui.add_space(theme.spacing_sm);
             ui.label(
-                RichText::new("Who")
-                    .size(theme.font_size_body)
+                RichText::new(t("characters.who"))
+                    .size(theme.font_size_heading)
                     .strong()
                     .color(theme.text_primary()),
             );
-            ui.add_space(theme.spacing_sm);
             draw_who_column(ui, theme, state);
-        });
+        })
+        .response
+        .rect;
 
     // ── WHERE: the worlds that character can enter ──
-    egui::SidePanel::right("showroom_details")
+    let where_side = egui::SidePanel::right("showroom_details")
         .resizable(false)
-        .exact_width(310.0)
+        .exact_width(where_w)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
             ui.label(
-                RichText::new("Where")
-                    .size(theme.font_size_body)
+                RichText::new(t("characters.where"))
+                    .size(theme.font_size_heading)
                     .strong()
                     .color(theme.text_primary()),
             );
-            ui.label(
-                RichText::new("Pick the world this character enters.")
-                    .size(theme.font_size_small)
-                    .color(theme.text_secondary()),
-            );
+            hint(ui, theme, t("characters.where_line"));
             ui.add_space(theme.spacing_sm);
-            draw_where_column(ui, theme, state);
+            draw_where_column(ui, theme, state)
         });
+    let (where_content_h, where_view_h) = where_side.inner;
+    DRAWN.with(|d| {
+        d.set(Drawn { screen: ctx.screen_rect(), who: who_rect, where_: where_side.response.rect, where_content_h, where_view_h })
+    });
 }
 
 /// Rescan the saves directory into the picker's (character, home) rows.
@@ -326,70 +395,68 @@ fn preselect(state: &mut GuiState) {
     state.launcher_selected_world = world;
 }
 
-/// WHO column: one flat row per local character, plus "+ New character", then
-/// the inline Name field and the door to the appearance editor. A character IS
-/// its save file until the character/world split, so a row is keyed by the name
-/// of the home it lives in (docs/design/character-and-save-custody.md).
+/// WHO column: the hint, then one card per local character (its name, and the home it lives in)
+/// and "+ New character", in a list that scrolls on its own when there are more than fit, then
+/// the inline Name field and the door to the appearance editor at the column's foot. A character
+/// IS its save file until the character/world split, so a card is keyed by the name of the home
+/// it lives in (docs/design/character-and-save-custody.md).
 fn draw_who_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let homes = state.launcher_homes.clone();
     let who = state.launcher_who.clone();
     let live_name = display_name(&state.character_name);
 
-    // Deferred so the row closures never mutate state while it is snapshotted.
+    // Deferred so the card closures never mutate state while it is snapshotted.
     let mut pick: Option<String> = None;
     let mut new_character = false;
     let mut edit_look = false;
 
-    ScrollArea::vertical().show(ui, |ui| {
-        hint(ui, theme, WHO_HINT);
-        ui.add_space(theme.spacing_xs);
+    hint(ui, theme, t("characters.who_hint"));
+    ui.add_space(theme.spacing_sm);
+
+    // The characters: as many as there are (infinite of X), in a list of their own that scrolls,
+    // so the Name field and Edit look stay in view however many there are.
+    let list_h = (ui.available_height() - WHO_FOOT).max(theme.font_size_body * 4.0);
+    let list = ScrollArea::vertical().id_salt("showroom_who_list").max_height(list_h).auto_shrink([false, true]).show(ui, |ui| {
+        ui.spacing_mut().item_spacing.y = theme.spacing_sm;
         for home in &homes {
             let is_sel = who == home.world;
-            // The selected row reads the LIVE name buffer, so an inline rename
+            // The selected card reads the LIVE name buffer, so an inline rename
             // shows up in the list as you type it.
-            let label = if is_sel {
-                live_name.clone()
-            } else {
-                display_name(&home.character)
-            };
-            if ui
-                .selectable_label(is_sel, RichText::new(label).color(theme.text_primary()))
-                .on_hover_text(format!("Lives in {}", home.world))
-                .clicked()
-            {
+            let name = if is_sel { live_name.clone() } else { display_name(&home.character) };
+            let lives = tf("characters.lives_in", &[("home", &home.world)]);
+            if pick_card(ui, theme, ("who", &home.world), is_sel, "characters.character_hint", |ui| {
+                card_title(ui, theme, &name);
+                hint(ui, theme, &lives);
+            }) {
                 pick = Some(home.world.clone());
             }
         }
-        ui.add_space(theme.spacing_xs);
-        if ui
-            .selectable_label(
-                who.is_empty(),
-                RichText::new("+ New character").color(theme.text_primary()),
-            )
-            .on_hover_text("Start fresh: a new name and look, in a new home.")
-            .clicked()
-        {
+        if pick_card(ui, theme, ("who", "+new"), who.is_empty(), "characters.new_character_hint", |ui| {
+            card_title(ui, theme, t("characters.new_character"));
+        }) {
             new_character = true;
         }
-
-        ui.add_space(theme.spacing_sm);
-        ui.separator();
-        // Renaming is identity housekeeping, so it lives here; colours and
-        // height are a session of their own, behind Edit look.
-        ui.label(
-            RichText::new("Name")
-                .size(theme.font_size_small)
-                .color(theme.text_secondary()),
-        );
-        ui.add(egui::TextEdit::singleline(&mut state.character_name).desired_width(f32::INFINITY));
-        ui.add_space(theme.spacing_xs);
-        if widgets::Button::secondary("Edit look")
-            .tooltip("Skin, hair, eyes, height and the backdrop. Done returns here.")
-            .show(ui, theme)
-        {
-            edit_look = true;
-        }
     });
+    widgets::hint::name_scroll_area(ui, list.id, t("characters.who"), "characters.characters_hint");
+
+    ui.add_space(theme.spacing_sm);
+    ui.separator();
+    // Renaming is identity housekeeping, so it lives here; colours and
+    // height are a session of their own, behind Edit look.
+    ui.label(
+        RichText::new(t("characters.name"))
+            .size(theme.font_size_small)
+            .color(theme.text_secondary()),
+    );
+    ui.add(egui::TextEdit::singleline(&mut state.character_name).desired_width(f32::INFINITY))
+        .hint("characters.name_hint");
+    ui.add_space(theme.spacing_xs);
+    if widgets::Button::secondary(t("characters.edit_look"))
+        .hint("characters.edit_look_hint")
+        .show(ui, theme)
+    {
+        edit_look = true;
+    }
 
     if let Some(world) = pick {
         state.launcher_who = world.clone();
@@ -404,7 +471,7 @@ fn draw_who_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if new_character {
         state.launcher_who.clear();
         state.launcher_selected_world.clear();
-        state.character_name = "Wanderer".to_string();
+        state.character_name = t("characters.default_name").to_string();
         // A new character starts from the default body, not the last one you
         // previewed, so the stage shows what you are actually about to be.
         state.appearance = Default::default();
@@ -418,94 +485,103 @@ fn draw_who_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 }
 
-/// WHERE column: the three trust models as color cards (v0.784, operator's RGB
-/// scheme). Selecting a row expands its details inline in its own card.
-fn draw_where_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+/// WHERE column: the three trust models as colour cards (v0.784, operator's RGB scheme), each
+/// using the column's width (2026-11-02): its rows are small cards side by side, and the selected
+/// one's details are drawn under them, so every home and server stays in view above whatever the
+/// selected one opens. Returns how tall its contents ran and the room it had.
+fn draw_where_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> (f32, f32) {
     let homes = state.launcher_homes.clone();
     let who_is_new = state.launcher_who.is_empty();
     let kind = state.launcher_where_kind;
     let sel_world = state.launcher_selected_world.clone();
     let sel_server = state.launcher_selected_server.clone();
     let servers = server_rows(state);
+    // Each server's address without its scheme ("public.guide", "127.0.0.1:3210").
+    let addresses: Vec<String> = servers
+        .iter()
+        .map(|(id, _, _)| {
+            let url = resolve_server(state, id).map(|s| s.1).unwrap_or_default();
+            url.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/').to_string()
+        })
+        .collect();
 
     let mut pick_world: Option<String> = None;
     let mut pick_server: Option<String> = None;
 
-    ScrollArea::vertical().show(ui, |ui| {
+    let scroll = ScrollArea::vertical().id_salt("showroom_where").show(ui, |ui| {
         // ── Your Homes: RED (offline, fully self-owned) ──
-        section_card(ui, theme, "Your Homes", theme.danger(), |ui| {
-            hint(
-                ui,
-                theme,
-                "Worlds you fully own, saved on this machine. Entering one plays \
-                 SOLO: you won't appear in the shared world (pick a server below \
-                 for that), and the Dev travel tools work freely.",
-            );
-            for home in &homes {
-                let is_sel = kind == LauncherWhere::Home && sel_world == home.world;
-                if ui
-                    .selectable_label(is_sel, RichText::new(&home.world).color(theme.text_primary()))
-                    .clicked()
-                {
-                    pick_world = Some(home.world.clone());
+        section_card(ui, theme, t("characters.your_homes"), theme.danger(), |ui| {
+            hint(ui, theme, t("characters.your_homes_hint"));
+            ui.add_space(theme.spacing_xs);
+            // The fresh-home card is offered when you own none, and whenever the new-character
+            // card is picked: a new character needs a new home until characters and worlds are
+            // separate files.
+            let offer_new = homes.is_empty() || who_is_new;
+            let count = homes.len() + usize::from(offer_new);
+            let new_sel = kind == LauncherWhere::Home && sel_world.is_empty();
+            pick_cards(ui, theme, "where_homes", count, |ui, i| match homes.get(i) {
+                Some(home) => {
+                    let is_sel = kind == LauncherWhere::Home && sel_world == home.world;
+                    if pick_card(ui, theme, ("home", &home.world), is_sel, "characters.home_hint", |ui| {
+                        card_title(ui, theme, &home.world);
+                        // The kind of home by its start's own name ("Homestead"), the save's id when
+                        // the starts file no longer lists it.
+                        let kind_name = wyl::starts().get(&home.design).map(|s| s.name.clone()).unwrap_or_else(|| home.design.clone());
+                        detail_row(ui, theme, t("characters.design"), &kind_name);
+                        detail_row(ui, theme, t("characters.last_played"), &last_played(home.timestamp));
+                    }) {
+                        pick_world = Some(home.world.clone());
+                    }
                 }
-                if is_sel {
-                    detail_row(ui, theme, "Design", &home.design);
-                    detail_row(ui, theme, "Last played", &last_played(home.timestamp));
+                None => {
+                    if pick_card(ui, theme, ("home", "+new"), new_sel, "characters.new_home_hint", |ui| {
+                        card_title(ui, theme, t("characters.new_home"));
+                    }) {
+                        pick_world = Some(String::new());
+                    }
                 }
-            }
-            // The fresh-home row is offered when you own none, and whenever the
-            // new-character row is picked: a new character needs a new home
-            // until characters and worlds are separate files.
-            if homes.is_empty() || who_is_new {
-                let is_sel = kind == LauncherWhere::Home && sel_world.is_empty();
-                if ui
-                    .selectable_label(is_sel, RichText::new(NEW_HOME).color(theme.text_primary()))
-                    .clicked()
-                {
-                    pick_world = Some(String::new());
-                }
-                // Selected: where the new home is (increment 6, 3.9). The choice is offered while
-                // your own home has no save; Enter makes it (`remember_new_home`).
-                if is_sel {
-                    ui.indent("new_home_choice", |ui| match own_home() {
-                        None => {
-                            wyl::draw_choice(ui, theme, wyl::starts());
-                        }
-                        Some(_) => hint(ui, theme, NEW_HOME_TAKEN),
-                    });
+            });
+            // Selected: where the new home is (increment 6, 3.9). The choice is offered while
+            // your own home has no save; Enter makes it (`remember_new_home`).
+            if offer_new && new_sel {
+                ui.add_space(theme.spacing_sm);
+                match own_home() {
+                    None => {
+                        wyl::draw_choice(ui, theme, wyl::starts());
+                    }
+                    Some(_) => hint(ui, theme, t("characters.new_home_taken")),
                 }
             }
         });
 
         // ── Open Net: GREEN (discovery; bring your own character) ──
         ui.add_space(theme.spacing_sm);
-        section_card(ui, theme, "Open Net", theme.success(), |ui| {
-            hint(
-                ui,
-                theme,
-                "Visit a server with your own character to see what it's about, \
-                 no new character needed. Self-custody, like Open Battle.net.",
-            );
+        section_card(ui, theme, t("characters.open_net"), theme.success(), |ui| {
+            hint(ui, theme, t("characters.open_net_hint"));
+            ui.add_space(theme.spacing_xs);
             if servers.is_empty() {
-                hint(ui, theme, "No servers yet. Add one from the Chat sidebar.");
+                hint(ui, theme, t("characters.no_servers"));
             } else {
-                for (id, name, connected) in &servers {
-                    let is_sel =
-                        kind == LauncherWhere::Server && sel_server.as_deref() == Some(id.as_str());
-                    let label = if *connected {
-                        format!("{name}  (connected)")
-                    } else {
-                        name.clone()
-                    };
-                    if ui
-                        .selectable_label(is_sel, RichText::new(label).color(theme.text_primary()))
-                        .clicked()
-                    {
+                pick_cards(ui, theme, "where_servers", servers.len(), |ui, i| {
+                    let (id, name, connected) = &servers[i];
+                    let is_sel = kind == LauncherWhere::Server && sel_server.as_deref() == Some(id.as_str());
+                    if pick_card(ui, theme, ("server", id), is_sel, "characters.server_hint", |ui| {
+                        card_title(ui, theme, name);
+                        // A second line on every card, so a row of them reads level: Connected for
+                        // the server the game talks to, else where it is.
+                        if *connected {
+                            cards::status_badge(ui, theme, t("characters.connected"), theme.success());
+                        } else {
+                            hint(ui, theme, &addresses[i]);
+                        }
+                    }) {
                         pick_server = Some(id.clone());
                     }
-                    if is_sel {
-                        // The server's own details, in the card it belongs to.
+                });
+                // The selected server's own card, under every server's, so the others stay in view.
+                if kind == LauncherWhere::Server {
+                    if let Some(id) = sel_server.as_deref().filter(|id| servers.iter().any(|s| s.0 == *id)) {
+                        ui.add_space(theme.spacing_sm);
                         draw_server_info(ui, theme, state, id);
                     }
                 }
@@ -514,14 +590,8 @@ fn draw_where_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // ── Closed Net: BLUE (the committed, server-held story world) ──
         ui.add_space(theme.spacing_sm);
-        section_card(ui, theme, "Closed Net", theme.info(), |ui| {
-            hint(
-                ui,
-                theme,
-                "Commit to a server's main story arc: characters the server holds so \
-                 progress cannot be forged, like Closed Battle.net. Your base body \
-                 carries over; augments are earned in-world. Arrives with multiplayer.",
-            );
+        section_card(ui, theme, t("characters.closed_net"), theme.info(), |ui| {
+            hint(ui, theme, t("characters.closed_net_hint"));
         });
     });
 
@@ -533,6 +603,7 @@ fn draw_where_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         state.launcher_where_kind = LauncherWhere::Server;
         state.launcher_selected_server = Some(id);
     }
+    (scroll.content_size.y, scroll.inner_rect.height())
 }
 
 /// The Open Net rows: the LIVE connection you are on right now (virtual,
@@ -611,13 +682,9 @@ fn pairing(state: &GuiState) -> Pairing {
             let blocked = if state.launcher_selected_world == state.launcher_who {
                 None
             } else if state.launcher_who.is_empty() {
-                Some(
-                    "A new character starts in a new home until characters and worlds \
-                     are separate files."
-                        .to_string(),
-                )
+                Some(t("characters.blocked_new").to_string())
             } else {
-                Some("Characters cannot move between homes yet.".to_string())
+                Some(t("characters.blocked_move").to_string())
             };
             Pairing { who, world, shared: false, blocked }
         }
@@ -625,42 +692,44 @@ fn pairing(state: &GuiState) -> Pairing {
             let Some(id) = state.launcher_selected_server.as_deref() else {
                 return Pairing {
                     who,
-                    world: "a server".to_string(),
+                    world: t("characters.a_server").to_string(),
                     shared: true,
-                    blocked: Some("Pick a server in Open Net.".to_string()),
+                    blocked: Some(t("characters.blocked_pick_server").to_string()),
                 };
             };
             let Some((name, url, connected)) = resolve_server(state, id) else {
                 return Pairing {
                     who,
-                    world: "a server".to_string(),
+                    world: t("characters.a_server").to_string(),
                     shared: true,
-                    blocked: Some("That server is no longer in your list.".to_string()),
+                    blocked: Some(t("characters.gone").to_string()),
                 };
             };
             let blocked = if connected && is_live_url(state, &url) {
                 None
             } else {
-                Some("Connect to this server in Chat first.".to_string())
+                Some(t("where_you_live.connect_first").to_string())
             };
             Pairing { who, world: name, shared: true, blocked }
         }
         LauncherWhere::ClosedNet => Pairing {
             who,
-            world: "a closed server".to_string(),
+            world: t("characters.a_closed_server").to_string(),
             shared: true,
-            blocked: Some("This server holds its own characters; create one here.".to_string()),
+            blocked: Some(t("characters.blocked_closed").to_string()),
         },
     }
 }
 
-/// Live metadata for the selected server, fetched once from its
-/// /api/server-info (name, description, version, members, online, accord,
-/// channels) and shown inline in the Open Net card (v0.478). No Enter button:
-/// the bottom bar is the single place a pairing is committed.
+/// The selected server's card, under the Open Net cards: the few lines a person choosing needs
+/// (its name and whether it is connected, its description, how many people), the rest behind
+/// "Server details" (its address, version, channels, the Accord, and for the connected server the
+/// note for its admins), then where you live on it. The details come from its /api/server-info,
+/// fetched once (v0.478). No Enter button: the bottom bar is the single place a pairing is
+/// committed.
 fn draw_server_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, id: &str) {
     let Some((svr_name, svr_url, svr_connected)) = resolve_server(state, id) else {
-        ui.label(RichText::new("That server is no longer in your list.").color(theme.text_muted()));
+        hint(ui, theme, t("characters.gone"));
         return;
     };
 
@@ -677,60 +746,66 @@ fn draw_server_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, id: 
         fetch_server_info(state, &cache_id, &svr_url);
     }
     let info = state.server_info_cache.get(&cache_id).cloned();
+    let live = is_live_url(state, &svr_url);
 
-    // Name: the fetched name if we have it, else the locally-known one.
-    let title = info
-        .as_ref()
-        .map(|i| i.name.clone())
-        .filter(|n| !n.is_empty())
-        .unwrap_or_else(|| svr_name.clone());
-    ui.add_space(theme.spacing_xs);
-    ui.label(RichText::new(title).size(theme.font_size_body).strong().color(theme.text_primary()));
+    egui::Frame::NONE
+        .fill(theme.bg_card())
+        .stroke(egui::Stroke::new(1.0_f32, theme.accent()))
+        .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
+        .inner_margin(theme.card_padding)
+        .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            // Name: the fetched name if we have it, else the locally-known one; and whether this
+            // game is connected to it, in words and colour.
+            let title = info.as_ref().map(|i| i.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| svr_name.clone());
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(title).size(theme.font_size_body).strong().color(theme.text_primary()));
+                if svr_connected {
+                    cards::status_badge(ui, theme, t("characters.connected"), theme.success());
+                } else {
+                    cards::status_badge(ui, theme, t("characters.not_connected"), theme.warning());
+                }
+            });
+            match &info {
+                None => hint(ui, theme, t("characters.loading")),
+                Some(i) => {
+                    if !i.description.trim().is_empty() {
+                        cards::readable(ui, theme, |ui| {
+                            ui.label(RichText::new(&i.description).size(theme.font_size_small).color(theme.text_secondary()));
+                        });
+                    }
+                    // In-world co-presence count (v0.776): avatars actually in the shared world
+                    // right now, distinct from chat "Online now".
+                    let members = tn("characters.members", i.member_count as i64, &[]);
+                    let people = tf("characters.people", &[("members", &members), ("online", &i.users_online), ("in_world", &i.game_players)]);
+                    hint(ui, theme, &people);
+                }
+            }
+            if cards::fold(ui, theme, ("showroom_server_details", &cache_id), t("characters.server_details"), "characters.server_details_hint") {
+                ui.indent("showroom_server_details_rows", |ui| {
+                    detail_row(ui, theme, t("characters.address"), &svr_url);
+                    if let Some(i) = &info {
+                        if !i.version.is_empty() {
+                            detail_row(ui, theme, t("characters.version"), &i.version);
+                        }
+                        detail_row(ui, theme, t("characters.channels"), &i.channels.len().to_string());
+                        detail_row(ui, theme, t("characters.accord"), if i.accord_compliant { t("characters.accord_yes") } else { t("characters.accord_no") });
+                    }
+                    // The description is EDITED in Server Settings (the admin's home for their
+                    // server), not here. For the server you are connected to, point the way.
+                    if live {
+                        hint(ui, theme, t("characters.admin_note"));
+                    }
+                });
+            }
 
-    detail_row(ui, theme, "Address", &svr_url);
-    detail_row(ui, theme, "Status", if svr_connected { "Connected" } else { "Not connected" });
-
-    match &info {
-        None => {
-            ui.add_space(theme.spacing_xs);
-            hint(ui, theme, "Loading server info...");
-        }
-        Some(i) => {
-            ui.add_space(theme.spacing_xs);
-            if !i.description.trim().is_empty() {
-                ui.label(
-                    RichText::new(&i.description)
-                        .size(theme.font_size_small)
-                        .color(theme.text_secondary()),
-                );
+            // Where you live on it (increment 6, 3.9): only the server the game talks to can be asked.
+            if svr_connected && live {
                 ui.add_space(theme.spacing_xs);
+                ui.separator();
+                draw_home_here(ui, theme, state);
             }
-            if !i.version.is_empty() {
-                detail_row(ui, theme, "Version", &i.version);
-            }
-            detail_row(ui, theme, "Members", &i.member_count.to_string());
-            detail_row(ui, theme, "Online now", &i.users_online.to_string());
-            // In-world co-presence count (v0.776): avatars actually in the
-            // shared world right now, distinct from chat "Online now".
-            detail_row(ui, theme, "In world", &i.game_players.to_string());
-            detail_row(ui, theme, "Channels", &i.channels.len().to_string());
-            detail_row(ui, theme, "Accord", if i.accord_compliant { "Compliant" } else { "Not declared" });
-        }
-    }
-
-    // The description is EDITED in Server Settings (the admin's home for their
-    // server), not here. For the server you are connected to, point the way.
-    if is_live_url(state, &svr_url) {
-        ui.add_space(theme.spacing_xs);
-        hint(ui, theme, "Admins: edit this server's description in Server Settings (server cog in Chat).");
-    }
-
-    // Where you live on it (increment 6, 3.9): only the server the game talks to can be asked.
-    if svr_connected && is_live_url(state, &svr_url) {
-        ui.add_space(theme.spacing_sm);
-        ui.separator();
-        draw_home_here(ui, theme, state);
-    }
+        });
 }
 
 /// The connected server's card, "where you live here" (ship homes increment 6, 3.9): the server
@@ -747,8 +822,8 @@ fn draw_server_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, id: 
 /// Choose waits, the old result is cleared from the answer shown, so any reply differs from it.
 fn draw_home_here(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if wyl::server_slot(state).is_none() {
-        ui.label(RichText::new(NO_IDENTITY).size(theme.font_size_small).color(theme.warning()));
-        hint(ui, theme, wyl::SERVER_NOTE);
+        ui.label(RichText::new(t("where_you_live.needs_identity")).size(theme.font_size_small).color(theme.warning()));
+        hint(ui, theme, t("where_you_live.server_note"));
         return;
     }
     let server = state.active_server_key();
@@ -814,12 +889,12 @@ fn remember_new_home(state: &GuiState) -> Option<wyl::Choice> {
 fn new_home_name() -> String {
     match own_home() {
         Some(name) if !name.trim().is_empty() => name,
-        Some(_) => "your own home".to_string(),
+        Some(_) => t("characters.your_own_home").to_string(),
         None => {
             let starts = wyl::starts();
             let choice = wyl::draft_choice(starts);
             let name = starts.get(&choice.start).map(|s| s.name.clone()).unwrap_or(choice.start);
-            format!("a new {name}")
+            tf("characters.a_new", &[("name", &name)])
         }
     }
 }
@@ -830,53 +905,51 @@ fn new_home_name() -> String {
 
 fn draw_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     let wardrobe = state.showroom_mode == 2;
-    let right_title = if wardrobe { "Wardrobe" } else { "Appearance" };
+    let right_title = if wardrobe { t("characters.wardrobe") } else { t("characters.appearance") };
     // "Edit look" from the picker borrows this same editor, so Done has to go
     // back where it came from instead of dropping you into the world.
     let from_picker = state.showroom_return_to_picker;
+    // The editor's columns: the picker's WHO width on both sides (the editor's right column holds
+    // a few controls, not the WHERE column's cards), so the stage keeps its place when Edit look
+    // opens from the picker.
+    let (who_w, _) = column_widths(ctx.screen_rect().width());
 
-    egui::SidePanel::left("showroom_select")
+    let who_rect = egui::SidePanel::left("showroom_select")
         .resizable(false)
-        .exact_width(230.0)
+        .exact_width(who_w)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
             ui.label(
-                RichText::new("Character")
-                    .size(theme.font_size_body)
+                RichText::new(t("characters.character"))
+                    .size(theme.font_size_heading)
                     .strong()
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_sm);
             let name = display_name(&state.character_name);
-            let _ = ui.selectable_label(true, RichText::new(name).color(theme.text_primary()));
+            card_title(ui, theme, &name);
             ui.add_space(theme.spacing_xs);
             hint(
                 ui,
                 theme,
-                if from_picker {
-                    "Editing your look. Done returns to the picker."
-                } else {
-                    "Editing your look. Close to return to the world."
-                },
+                if from_picker { t("characters.editing_from_picker") } else { t("characters.editing_in_world") },
             );
-        });
+        })
+        .response
+        .rect;
 
-    egui::SidePanel::right("showroom_details")
+    let right = egui::SidePanel::right("showroom_details")
         .resizable(false)
-        .exact_width(310.0)
+        .exact_width(who_w.max(310.0))
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
             ui.label(
                 RichText::new(right_title)
-                    .size(theme.font_size_body)
+                    .size(theme.font_size_heading)
                     .strong()
                     .color(theme.text_primary()),
             );
-            ui.label(
-                RichText::new("Drag the center to orbit. Wheel to zoom.")
-                    .size(theme.font_size_small)
-                    .color(theme.text_secondary()),
-            );
+            hint(ui, theme, t("characters.orbit_line"));
             ui.add_space(theme.spacing_sm);
 
             if wardrobe {
@@ -886,8 +959,8 @@ fn draw_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // The picker has its own inline Name field; this one serves the
                 // in-world mirror, where there is no WHO column.
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Name").color(theme.text_secondary()));
-                    ui.text_edit_singleline(&mut state.character_name);
+                    ui.label(RichText::new(t("characters.name")).color(theme.text_secondary()));
+                    ui.text_edit_singleline(&mut state.character_name).hint("characters.name_in_mirror_hint");
                 });
                 ui.add_space(theme.spacing_sm);
                 draw_appearance(ui, theme, state);
@@ -899,10 +972,7 @@ fn draw_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             draw_backdrop(ui, theme, state);
             ui.add_space(theme.spacing_md);
 
-            if ui
-                .button(RichText::new("Done").size(theme.font_size_body).strong())
-                .clicked()
-            {
+            if widgets::Button::primary(t("characters.done")).hint("characters.done_hint").show(ui, theme) {
                 if from_picker {
                     state.showroom_return_to_picker = false;
                     state.showroom_mode = 0;
@@ -910,7 +980,10 @@ fn draw_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     state.showroom_confirm = true;
                 }
             }
-        });
+        })
+        .response
+        .rect;
+    DRAWN.with(|d| d.set(Drawn { screen: ctx.screen_rect(), who: who_rect, where_: right, where_content_h: 0.0, where_view_h: 0.0 }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -985,16 +1058,44 @@ fn section_card(
         });
 }
 
-/// A muted one-line contextual hint (the operator loves in-page help).
+/// `count` small cards side by side in rows that fill the width (as many to a row as fit at
+/// `PICK_CARD_MIN`), each drawn by `cell` (which draws its own `pick_card`). The homes and the
+/// servers: twenty servers wrap into rows rather than one tower.
+fn pick_cards(ui: &mut egui::Ui, theme: &Theme, id: &str, count: usize, cell: impl FnMut(&mut egui::Ui, usize)) {
+    cards::Grid::new(("showroom_pick", id)).plain().min_width(PICK_CARD_MIN).gap(theme.spacing_sm).show(ui, theme, count, cell);
+}
+
+/// One card to pick (a character, a home, a server): the card's frame the width there is, edged in
+/// the accent when `selected` (`widgets::shelf::tile_frame`), what `add` draws inside it, and the
+/// whole card one click target with a stable id, so a click anywhere on it picks it. Returns
+/// whether it was clicked.
+fn pick_card(ui: &mut egui::Ui, theme: &Theme, id_salt: impl std::hash::Hash, selected: bool, hint_key: &'static str, add: impl FnOnce(&mut egui::Ui)) -> bool {
+    let width = ui.available_width();
+    let rect = ui.scope(|ui| widgets::shelf::tile_frame(ui, theme, width, selected, |ui, _| add(ui))).response.rect;
+    // Interacted AFTER the card's words are drawn, so the card is on top of them and takes the
+    // click wherever it lands (the words are not selectable).
+    let resp = ui.interact(rect, ui.id().with(("pick_card", id_salt)), egui::Sense::click()).hint(hint_key);
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp.clicked()
+}
+
+/// A card's name, strong.
+fn card_title(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.add(egui::Label::new(RichText::new(text).size(theme.font_size_body).strong().color(theme.text_primary())).selectable(false));
+}
+
+/// A muted contextual hint (the operator loves in-page help).
 fn hint(ui: &mut egui::Ui, theme: &Theme, text: &str) {
-    ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_muted()));
+    ui.add(egui::Label::new(RichText::new(text).size(theme.font_size_small).color(theme.text_muted())).selectable(false));
 }
 
 /// A "Label: value" detail line for the inline row summaries.
 fn detail_row(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(format!("{label}:")).size(theme.font_size_small).color(theme.text_secondary()));
-        ui.label(RichText::new(value).size(theme.font_size_small).color(theme.text_primary()));
+    ui.horizontal_wrapped(|ui| {
+        ui.add(egui::Label::new(RichText::new(format!("{label}:")).size(theme.font_size_small).color(theme.text_secondary())).selectable(false));
+        ui.add(egui::Label::new(RichText::new(value).size(theme.font_size_small).color(theme.text_primary())).selectable(false));
     });
 }
 
@@ -1003,7 +1104,7 @@ fn detail_row(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str) {
 fn display_name(name: &str) -> String {
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        "Wanderer".to_string()
+        t("characters.default_name").to_string()
     } else {
         trimmed.to_string()
     }
@@ -1017,54 +1118,50 @@ fn last_played(timestamp: u64) -> String {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     if timestamp == 0 || now <= timestamp {
-        return "just now".to_string();
+        return t("characters.just_now").to_string();
     }
     let secs = now - timestamp;
     if secs < 3600 {
-        format!("{} min ago", (secs / 60).max(1))
+        tf("characters.min_ago", &[("n", &(secs / 60).max(1))])
     } else if secs < 86_400 {
-        format!("{} h ago", secs / 3600)
+        tf("characters.hours_ago", &[("n", &(secs / 3600))])
     } else {
-        format!("{} days ago", secs / 86_400)
+        tn("characters.days_ago", (secs / 86_400) as i64, &[])
     }
 }
 
 fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Appearance").strong().color(theme.text_primary()));
+    ui.label(RichText::new(t("characters.appearance")).strong().color(theme.text_primary()));
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Skin").color(theme.text_secondary()));
-        if ui.color_edit_button_rgb(&mut state.appearance.skin_tone).changed() {
+        ui.label(RichText::new(t("characters.skin")).color(theme.text_secondary()));
+        if ui.color_edit_button_rgb(&mut state.appearance.skin_tone).hint("characters.skin_hint").changed() {
             state.appearance_dirty = true;
         }
     });
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Hair").color(theme.text_secondary()));
-        if ui.color_edit_button_rgb(&mut state.appearance.hair_color).changed() {
+        ui.label(RichText::new(t("characters.hair")).color(theme.text_secondary()));
+        if ui.color_edit_button_rgb(&mut state.appearance.hair_color).hint("characters.hair_hint").changed() {
             state.appearance_dirty = true;
         }
     });
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Eyes").color(theme.text_secondary()));
-        if ui.color_edit_button_rgb(&mut state.appearance.eye_color).changed() {
+        ui.label(RichText::new(t("characters.eyes")).color(theme.text_secondary()));
+        if ui.color_edit_button_rgb(&mut state.appearance.eye_color).hint("characters.eyes_hint").changed() {
             state.appearance_dirty = true;
         }
     });
-    if widgets::labeled_slider(ui, theme, "Height", &mut state.appearance.height_scale, 0.8..=1.2) {
+    if widgets::with_hint(ui, "characters.height_hint", |ui| widgets::labeled_slider(ui, theme, t("characters.height"), &mut state.appearance.height_scale, 0.8..=1.2)) {
         state.appearance_dirty = true;
     }
     // Reached from the picker there is no bedroom to walk to, so say where
     // outfits actually live.
     if state.showroom_return_to_picker {
-        ui.label(
-            RichText::new("Outfits: change them at the bedroom wardrobe.")
-                .size(theme.font_size_small)
-                .color(theme.text_muted()),
-        );
+        hint(ui, theme, t("characters.outfits_where"));
     }
 }
 
 fn draw_wardrobe(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Wardrobe").strong().color(theme.text_primary()));
+    ui.label(RichText::new(t("characters.wardrobe")).strong().color(theme.text_primary()));
     let slot_ids: Vec<String> = state.equipment_slots.iter().map(|(id, _)| id.clone()).collect();
     for slot in slot_ids.iter().map(|s| s.as_str()) {
         let current = state.outfit.equipped.get(slot).cloned();
@@ -1081,13 +1178,13 @@ fn draw_wardrobe(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(cap(slot)).color(theme.text_secondary()));
         ui.horizontal_wrapped(|ui| {
-            if ui.selectable_label(current.is_none(), "None").clicked() {
+            if ui.selectable_label(current.is_none(), t("characters.none")).hint("characters.none_hint").clicked() {
                 state.outfit.equipped.remove(slot);
                 state.outfit_dirty = true;
             }
             for (id, name) in &items {
                 let selected = current.as_deref() == Some(id.as_str());
-                if ui.selectable_label(selected, name).clicked() {
+                if ui.selectable_label(selected, name).hint("characters.wear_hint").clicked() {
                     state.outfit.equipped.insert(slot.to_string(), id.clone());
                     state.outfit_dirty = true;
                 }
@@ -1097,10 +1194,10 @@ fn draw_wardrobe(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_backdrop(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Backdrop").strong().color(theme.text_primary()));
+    ui.label(RichText::new(t("characters.backdrop")).strong().color(theme.text_primary()));
     let n = state.showroom_backdrop_names.len().max(1);
     ui.horizontal(|ui| {
-        if ui.button(RichText::new("  <  ")).clicked() {
+        if ui.button(RichText::new("  <  ")).hint("characters.backdrop_prev_hint").clicked() {
             state.showroom_backdrop = (state.showroom_backdrop + n - 1) % n;
         }
         let name = state
@@ -1109,7 +1206,7 @@ fn draw_backdrop(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .cloned()
             .unwrap_or_default();
         ui.label(RichText::new(name).color(theme.text_secondary()));
-        if ui.button(RichText::new("  >  ")).clicked() {
+        if ui.button(RichText::new("  >  ")).hint("characters.backdrop_next_hint").clicked() {
             state.showroom_backdrop = (state.showroom_backdrop + 1) % n;
         }
     });
@@ -1126,4 +1223,4 @@ fn cap(s: &str) -> String {
 
 #[cfg(test)]
 #[path = "showroom_tests.rs"]
-mod tests;
+pub(crate) mod tests;

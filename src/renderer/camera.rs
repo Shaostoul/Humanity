@@ -232,6 +232,14 @@ pub struct Camera {
     pub near: f32,
     pub far: f32,
     pub projection: Projection,
+    /// A sideways shift of the picture, in NDC (a share of half the screen's width, + to the
+    /// right): what the camera looks at is drawn this far off the middle, and nothing else about
+    /// the view changes (a lens shift: the projection is moved after it is made, so depth, the
+    /// view direction and every pick ray stay consistent). 0 except in the character showroom,
+    /// where lib.rs sets it each frame so the character stands in the middle of the stage between
+    /// the picker's columns rather than of the window (2026-11-02,
+    /// docs/design/top-menu-and-game-pages.md section 5; gui/pages/showroom.rs `stage_shift`).
+    pub lens_shift_x: f32,
 
     /// Absolute world position in meters (f64 precision).
     /// Updated each frame by accumulating the f32 `position` delta.
@@ -288,6 +296,7 @@ impl Camera {
             // orbit. 1e12 m = 1 trillion metres, comfortably past Jupiter.
             far: 1_000_000_000_000.0,
             projection: Projection::Perspective,
+            lens_shift_x: 0.0,
 
             mode: CameraMode::FirstPerson,
 
@@ -479,8 +488,19 @@ impl Camera {
         Quat::from_axis_angle(fwd.normalize(), self.roll) * self.up
     }
 
-    /// Projection matrix.
+    /// Projection matrix, moved sideways by `lens_shift_x` when it is set.
     pub fn projection_matrix(&self) -> Mat4 {
+        let proj = self.unshifted_projection();
+        if self.lens_shift_x == 0.0 {
+            proj
+        } else {
+            // clip.x += shift * clip.w, so NDC x moves by `shift` everywhere on screen.
+            Mat4::from_translation(Vec3::new(self.lens_shift_x, 0.0, 0.0)) * proj
+        }
+    }
+
+    /// The projection before any lens shift.
+    fn unshifted_projection(&self) -> Mat4 {
         match self.projection {
             Projection::Perspective => {
                 let fov = if let Some(ref t) = self.transition {
@@ -1902,5 +1922,52 @@ mod camera_body_tests {
         assert_eq!(cam.mode, CameraMode::FirstPerson);
         let moved = cam.position.distance(door);
         assert!(moved < 1e-3, "returning from the orbit camera moved the body {moved:.1} m, to its eye {:?}", cam.position);
+    }
+}
+
+#[cfg(test)]
+mod lens_shift_tests {
+    use super::*;
+
+    /// A LENS SHIFT MOVES THE PICTURE SIDEWAYS AND NOTHING ELSE (2026-11-02, the showroom's
+    /// stage): with `lens_shift_x` at -0.24 the point the orbit camera looks at is drawn at NDC x
+    /// -0.24 instead of 0, its height and depth on screen are unchanged, a point beside it moves
+    /// by the same amount, and the pick ray through the shifted point still hits it. At 0 the
+    /// projection is exactly what it was.
+    #[test]
+    fn a_lens_shift_moves_the_picture_sideways_and_nothing_else() {
+        let mut cam = Camera::new();
+        cam.mode = CameraMode::Orbit;
+        cam.aspect = 2000.0 / 1125.0;
+        cam.orbit_target = Vec3::new(0.0, 0.9, 0.0);
+        cam.orbit_distance = 3.2;
+        // A near far plane, so the pick ray's unprojection keeps its precision in f32.
+        cam.far = 100.0;
+        let ndc = |cam: &Camera, p: Vec3| {
+            let c = cam.view_projection_matrix() * p.extend(1.0);
+            Vec3::new(c.x / c.w, c.y / c.w, c.z / c.w)
+        };
+        let unshifted = cam.projection_matrix();
+        let target = ndc(&cam, cam.orbit_target);
+        let beside = ndc(&cam, cam.orbit_target + cam.right() * 0.3);
+        assert!(target.x.abs() < 1e-4, "unshifted, the look point is in the middle: {target:?}");
+
+        cam.lens_shift_x = -0.24;
+        let shifted = ndc(&cam, cam.orbit_target);
+        assert!((shifted.x + 0.24).abs() < 1e-4, "the look point moves to the shift: {shifted:?}");
+        assert!((shifted.y - target.y).abs() < 1e-5 && (shifted.z - target.z).abs() < 1e-6, "its height and depth stay: {shifted:?} {target:?}");
+        let beside_shifted = ndc(&cam, cam.orbit_target + cam.right() * 0.3);
+        assert!(((beside_shifted.x - beside.x) + 0.24).abs() < 1e-4, "everything moves by the same amount: {beside:?} {beside_shifted:?}");
+
+        // The pick ray through the pixel where the look point is now drawn still passes through it.
+        let (w, h) = (2000.0_f32, 1125.0_f32);
+        let px = ((shifted.x + 1.0) * 0.5 * w, (1.0 - shifted.y) * 0.5 * h);
+        let (origin, dir) = cam.pick_ray(px, (w, h));
+        let to = cam.orbit_target - origin;
+        let miss = (to - dir * to.dot(dir)).length();
+        assert!(miss < 1e-3, "the pick ray misses the look point by {miss} m");
+
+        cam.lens_shift_x = 0.0;
+        assert_eq!(cam.projection_matrix(), unshifted, "at 0 the projection is the one it was");
     }
 }

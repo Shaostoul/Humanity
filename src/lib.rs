@@ -6930,6 +6930,11 @@ mod native_app {
                         }
                     }
 
+                    // The character stands in the middle of the stage between the picker's
+                    // columns, not of the window (2026-11-02, docs/design/top-menu-and-game-pages.md
+                    // section 5): the camera's lens is shifted by the stage's offset, from the
+                    // panel's last frame; 0 whenever the showroom is closed.
+                    state.camera.lens_shift_x = if state.gui_state.showroom_active { crate::gui::pages::showroom::stage_shift() } else { 0.0 };
                     // ── Character-select showroom sync (v0.441): apply the panel's edits ──
                     // Rebuild the avatar when appearance changed (it is the tail of
                     // placeholder_objects, so truncate to its start + re-place).

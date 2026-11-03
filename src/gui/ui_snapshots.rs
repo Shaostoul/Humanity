@@ -3021,6 +3021,17 @@ fn snapshot_nav_bar_wrapped() {
     });
 }
 
+/// The whole top menu on one row, as it reads on the operator's 2000-point-wide window
+/// (docs/design/top-menu-and-game-pages.md, section 1: every button, in order and colour).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_bar_full() {
+    render_page_png("nav_bar_full", 2000, 80, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::Humanity;
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_toast() {
@@ -4145,6 +4156,10 @@ fn snapshot_showroom_picker() {
 /// note that a server starts you fresh. The WHO column carries the new hint (each server keeps its
 /// own home and things for you). The answer is the server's, so it is set each frame: the card's
 /// first frame asks the server afresh, as it does each time the picker opens.
+/// Since the 2026-11-02 relayout (docs/design/top-menu-and-game-pages.md section 5) the columns
+/// are shares of the window, the server's details beyond its description and people are behind
+/// Server details, and the kinds of home are cards side by side, so the picture changed: the same
+/// facts, laid out across the WHERE column instead of down it.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_picker_where_you_live() {
@@ -4198,7 +4213,8 @@ fn snapshot_picker_where_you_live() {
 /// new character and the new-home row "A new home" selected, which shows "Choose where you live"
 /// with every start from data/homes/starts.ron (the Apartment greyed), the Cabin picked (by a
 /// click, as a person picks it), and the Enter bar naming the home Enter makes: "Enter as
-/// Wanderer -> a new Cabin (solo)".
+/// Wanderer -> a new Cabin (solo)". Since the 2026-11-02 relayout each start is a card (its first
+/// sentence, its "What it is like" fold), side by side, so the picture changed with it.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_picker_new_home() {
@@ -4240,6 +4256,56 @@ fn snapshot_picker_new_home() {
         state.launcher_selected_world.clear();
         crate::gui::pages::showroom::draw(ctx, theme, state);
     });
+}
+
+/// Characters (Play) as the operator sees it (his screenshot of 2026-11-02): Shaostoul with one
+/// home of his own, connected to united-humanity.us with public.guide and his own Super Secret
+/// Invite Only Server saved beside it, the live server selected and no home on it yet
+/// (showroom_tests.rs `make_operator`, `operator_answer`). Rendered at three sizes: the app's own
+/// restored window (1280 x 720), his 2000 x 1125, and 4K (3840 x 2160), the layout's whole range.
+fn picker_operator_png(name: &str, w: u32, h: u32) {
+    use crate::gui::pages::showroom::tests as picker;
+    use crate::gui::pages::where_you_live as wyl;
+    let starts = humanity_ship::starts::Starts::load(std::path::Path::new("data"));
+    let answer = picker::operator_answer(&starts);
+    wyl::reset_draft();
+    let (ws, _sent) = crate::net::ws_client::WsClient::recording();
+    let ws = std::cell::RefCell::new(Some(ws));
+    render_page_png(name, w, h, |ctx, theme, state| {
+        if let Some(ws) = ws.borrow_mut().take() {
+            picker::make_operator(state, ws);
+        }
+        state.home_answer = Some(answer.clone());
+        crate::gui::pages::showroom::draw(ctx, theme, state);
+    });
+}
+
+/// At the scale his screenshot came in (2000 x 1125); its before picture is in ec6bd9a73.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_picker_operator() {
+    picker_operator_png("picker_operator", 2000, 1125);
+}
+
+/// At his screen's real size, 2560 x 1440 (a 65-inch TV). The picture before the relayout is his
+/// own screenshot of 2026-11-02: the same fixed 230 and 310 point columns, which did not grow with
+/// the window.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_picker_operator_2560() {
+    picker_operator_png("picker_operator_2560", 2560, 1440);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_picker_small() {
+    picker_operator_png("picker_small", 1280, 720);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_picker_4k() {
+    picker_operator_png("picker_4k", 3840, 2160);
 }
 
 /// The Maps page's Planet view (v0.1146): the Seattle Center OSM region

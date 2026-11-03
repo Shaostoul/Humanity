@@ -2423,6 +2423,15 @@ or garden; an erased account's server save is set aside, never deleted. Choose i
 Gameplay "Where you live" (the household, for the live save), on the Home page (read only), and
 in Characters (Play): "A new home" while your own home has no save yet, and the connected
 server's card. The website's chat has a "Where you live" window (command palette).
+**Characters relaid out (2026-11-02, docs/design/top-menu-and-game-pages.md section 5):** the
+WHO and WHERE columns are shares of the window, the character stands in the middle of the stage
+between them (a camera lens shift), the characters, homes and servers are small cards side by
+side, the selected server shows its name, Connected, description and how many people with the
+rest behind Server details, and the kinds of home are cards side by side, each with its first
+sentence, the household choice where it belongs, Choose, and a "What it is like" fold; every word
+by key. Tests: `showroom_tests.rs` (`the_picker_reads_evenly_at_the_operators_size`,
+`the_stage_keeps_its_room_at_every_size`, `every_control_on_the_picker_answers_a_click`,
+`the_character_stands_in_the_middle_of_the_stage`).
 - Data: `data/homes/starts.ron`, `data/homes/shipped/cabin.ron` (the player's copy `data/homes/cabin.ron`), `data/machines/cabin.ron`, `data/places/cabin_seed.json`, `data/asteroids/belt.ron`, `data/blueprints/ship_structure.ron` (`cabins-1`, c1 to c16, `commons-2`), `data/blueprints/zone_types.ron`
 - Native: `crates/humanity-ship/src/starts.rs` (`Starts`, `HomeAnswer`, `refusal_words`), `src/engine/save_slot.rs` (`wanted`, `fresh_save`, `follow`, `home_for`, `on_game_message`), `src/persistence/live_save.rs` (`ActiveHome`, the choices waiting for a fresh save, `set_aside_erased`), `src/save_load.rs` (`apply_onto_running_world`, `starting_kit`), `crates/humanity-systems/src/persistence.rs` (`SaveSlot`, `slot_path`, `ShipPlace`, `ShipMeals`), `src/engine/home_plot.rs` (`add_join_fields`, `guest_arrival`), `src/engine/world_load.rs` (`refresh_home_content`), `crates/humanity-ship/src/ship_space.rs` (`air_spaces_for`), `src/gui/pages/where_you_live.rs`, `src/gui/pages/showroom.rs`, `src/gui/pages/settings.rs`, `src/gui/pages/homes.rs`, `src/engine/ipc.rs` (`choose_start`, `pairing`, `meal`, `water`, `home_session`)
 - Server: `src/relay/handlers/game_state.rs` (`JoinHome`, `assign_home`, `HomeAssignment::add_to_welcome`), `src/relay/handlers/home_plots.rs` (`handle_home`, `answer_home`), `src/relay/storage/plots.rs` (`claim_plot`, `held_by`, `free_of`)

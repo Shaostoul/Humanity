@@ -1,6 +1,6 @@
 # Play and Characters: the WHO/WHERE restructure
 
-Status: SHIPPED v0.1147.0 (built 2026-08-17 exactly as proposed; all four open questions resolved per the recommendations, operator-approved). Section 2 describes the PRE-restructure surface, kept as the historical rationale. Originally: PROPOSAL (2026-08-16, from operator direction: "characters could go between worlds on
+Status: SHIPPED v0.1147.0 (built 2026-08-17 exactly as proposed; all four open questions resolved per the recommendations, operator-approved). **Relaid out 2026-11-02** (the columns as shares of the window instead of 230 and 310 points, cards side by side, the server's details and each kind of home's long words folded): [top-menu-and-game-pages.md](top-menu-and-game-pages.md) section 5, which also holds the plan for Play, Characters and Worlds and Servers pages. Section 2 describes the PRE-restructure surface, kept as the historical rationale. Originally: PROPOSAL (2026-08-16, from operator direction: "characters could go between worlds on
 different servers or saves... the characters page shows characters AND worlds... not quite
 structured right"). Each section is separable; react per section. Pairs with
 [characters-and-servers.md](characters-and-servers.md) (custody + open/closed policy),
