@@ -336,8 +336,25 @@ In order:
       Queued.
     - THE GAME'S INTRO AND SETTING: why the fleet is in interstellar space, how that ties to
       designing the best Earth homesteads, and why a person who comes back is still themselves
-      (the teleporter question). Ideas given to him on 2026-11-02; a setting design follows his
-      pick.
+      (the teleporter question). His pick, later the same day: the intro is ARRIVING as a new
+      crew member on a transport (a window seat; one craft carries a dozen or more players and
+      cargo), stepping off to the cargo being unloaded, checking in with a receptionist who
+      assigns a bedroom and the play style (simple home, advanced, ...); never checked in, a
+      death goes to general services (barracks, medbay); with a home, respawn there or where you
+      choose. The motherships' link has a RANGE (jump about a light year out), and the fleet is
+      upgraded to reach further, fly faster, better guns. He asked how a final death out of range
+      would be enforced without banning anyone (answered 2026-11-02). Setting design next, after
+      the double-menu design.
+    - THE DESKTOP APP DOES EVERYTHING: "We should add the pages... We can't leave anything out.
+      Everything needs to be able to be done through the app." A desktop Roadmap page and Devlog
+      page, and a parity audit of every one-sided page, in the double-menu design.
+    - VERIFICATION ROUTES: a variety. Vouching (his way now) as the core, an in-app request queue,
+      moderators vouching, a donation ("verifies the person at least cares enough to fund
+      development"), and proof from another account (a short code in a bio or post elsewhere;
+      "We'll have to figure out how to do it in an elegant way that's easy"). Chat access rung 2.
+    - CHANNELS: #general renamed #global (it federates), a new #feedback channel he can point the
+      orchestrator at, and #local shown as an ordinary channel row (reversing field test 4's
+      merge into the server name: "too hard to find"). Dispatched 2026-11-02.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches

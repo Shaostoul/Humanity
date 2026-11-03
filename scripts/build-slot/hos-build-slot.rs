@@ -341,6 +341,37 @@ fn learned_peak_mb(observed: &[u64], seed: u64) -> Option<u64> {
     Some((max + max / 10).max(seed / 2))
 }
 
+/// A peak no compile reaches (1 TB): a larger number in the ledger is a torn line, not a reading.
+const PLAUSIBLE_PEAK_MB: u64 = 1024 * 1024;
+
+/// One ledger line: epoch-seconds kind peak-commit-MB seconds peak-working-set-MB cpu-seconds.
+fn ledger_line(epoch_s: u64, kind: &str, peak_mb: u64, secs: u64, ws_mb: u64, cpu_s: f64) -> String {
+    format!("{} {} {} {} {} {:.0}\n", epoch_s, kind, peak_mb, secs, ws_mb, cpu_s.max(0.0))
+}
+
+/// Appends a whole line in ONE write. `writeln!` on a File writes each piece of the format
+/// separately, so two compiles finishing at the same moment interleaved their lines (2026-11-02:
+/// 29 torn lines in a day, one of them a "peak" of 1,081,793,679,699 MB that held every
+/// other-check-relay compile for the full 60-minute ceiling). One write to a file opened for
+/// appending lands whole at the end.
+fn append_ledger_line(path: &std::path::Path, line: &str) {
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
+/// A ledger line's peak for `kind`, or None when the line is not exactly the six fields
+/// `ledger_line` writes, with a plausible peak (the ledger may still hold torn lines from before
+/// `append_ledger_line`, and a hand edit may leave anything).
+fn ledger_peak(line: &str, kind: &str) -> Option<u64> {
+    let f: Vec<&str> = line.split(' ').collect();
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    if f.len() != 6 || f[1] != kind || !digits(f[0]) || f[0].len() != 10 || !f[2..].iter().all(|s| digits(s)) {
+        return None;
+    }
+    f[2].parse().ok().filter(|&mb| mb > 0 && mb < PLAUSIBLE_PEAK_MB)
+}
+
 // ── records: who holds room, who waits ────────────────────────────────────────────
 
 /// A held-<pid>.txt or wait-<pid>.txt file: key=value lines.
@@ -873,26 +904,13 @@ impl Slot {
         }
         let seed = seed_peak_mb(kind);
         let text = fs::read_to_string(self.dir.join("peaks.txt")).unwrap_or_default();
-        let observed: Vec<u64> = text
-            .lines()
-            .filter_map(|l| {
-                let f: Vec<&str> = l.split_whitespace().collect();
-                if f.len() >= 3 && f[1] == kind {
-                    f[2].parse().ok()
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let observed: Vec<u64> = text.lines().filter_map(|l| ledger_peak(l, kind)).collect();
         learned_peak_mb(&observed, seed).unwrap_or(seed)
     }
 
     fn record_peak(&self, kind: &str, peak_mb: u64, secs: u64, ws_mb: u64, cpu_s: f64) {
         let path = self.dir.join("peaks.txt");
-        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&path) {
-            // epoch-seconds kind peak-commit-MB seconds peak-working-set-MB cpu-seconds
-            let _ = writeln!(f, "{} {} {} {} {} {:.0}", now_ms() / 1000, kind, peak_mb, secs, ws_mb, cpu_s);
-        }
+        append_ledger_line(&path, &ledger_line(now_ms() / 1000, kind, peak_mb, secs, ws_mb, cpu_s));
         // Keep it short: the last 2,000 lines.
         if let Ok(meta) = fs::metadata(&path) {
             if meta.len() > 200_000 {
@@ -1470,6 +1488,52 @@ mod tests {
         assert_eq!(learned_peak_mb(&v, 10_000), Some(6_600));
         // never below half the seed
         assert_eq!(learned_peak_mb(&[1_000], 10_000), Some(5_000));
+    }
+
+    #[test]
+    fn a_torn_ledger_line_is_not_a_peak() {
+        // Two real torn lines from this machine's ledger, 2026-11-02. The first held every
+        // other-check-relay compile for the full 60-minute ceiling ("needs 1162083054.4 GB").
+        assert_eq!(ledger_peak("1793679699 other-check-relay 1081793679699  0other-check-relay 40  108 0 039", "other-check-relay"), None);
+        assert_eq!(ledger_peak("1793654343 other-check-relay 107 0 179365434358 other-check-relay  1240 ", "other-check-relay"), None);
+        assert_eq!(ledger_peak(" 0", "other-check-relay"), None);
+        assert_eq!(ledger_peak("1793683300 other-check-relay 108 0 40 0", "other-check-relay"), Some(108));
+        assert_eq!(ledger_peak("1793683300 other-check-relay 108 0 40 0", "lib-check-relay"), None);
+        // Well-formed but impossible: no compile reaches a terabyte.
+        assert_eq!(ledger_peak("1793683300 other-check-relay 1048576 0 40 0", "other-check-relay"), None);
+        // What ledger_line writes reads back, a NaN CPU time included.
+        let line = ledger_line(1_793_683_300, "lib-test-native", 9_800, 312, 7_400, 640.4);
+        assert_eq!(ledger_peak(line.trim_end(), "lib-test-native"), Some(9_800));
+        assert_eq!(ledger_peak(ledger_line(1_793_683_300, "x-y-z", 5, 1, 1, f64::NAN).trim_end(), "x-y-z"), Some(5));
+    }
+
+    #[test]
+    fn ledger_lines_appended_together_never_tear() {
+        // Eight writers at once, each with its own handle, the way separate compiles append.
+        // Red with the old write (one write per piece of the format, as writeln! did): see the commit.
+        let dir = std::env::temp_dir().join(format!("hos-build-slot-ledger-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("peaks.txt");
+        let _ = std::fs::remove_file(&path);
+        let writers: Vec<_> = (0..8u64)
+            .map(|w| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    for i in 0..400u64 {
+                        append_ledger_line(&path, &ledger_line(1_793_683_300 + i, "other-check-relay", 100 + w, i, 40, 1.0));
+                    }
+                })
+            })
+            .collect();
+        for w in writers {
+            w.join().unwrap();
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        let torn: Vec<&&str> = lines.iter().filter(|l| ledger_peak(l, "other-check-relay").is_none()).collect();
+        assert!(torn.is_empty(), "{} torn of {}: {:?}", torn.len(), lines.len(), torn.iter().take(3).collect::<Vec<_>>());
+        assert_eq!(lines.len(), 8 * 400);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
