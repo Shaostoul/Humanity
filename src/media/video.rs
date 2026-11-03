@@ -358,21 +358,21 @@ fn yuv_to_rgba(l: &PlaneLayout, y: &[u8], y_stride: usize, u: &[u8], v: &[u8], c
 /// frames) and the benchmark (which only counts them). Returns the count.
 pub fn decode_video<F: FnMut(VideoFrame)>(path: &std::path::Path, threads: i32, mut on_frame: F) -> Result<usize, MediaError> {
     let info = super::probe(path)?;
-    let mut mkv = super::open_demuxer(path)?;
+    // WebM or MP4: the player's own packet source (an MP4's config OBUs first, as the player does).
+    let mut packets = super::VideoPackets::open(path, &info)?;
     let mut decoder = Av1Decoder::new(threads)?;
-    let mut packet = matroska_demuxer::Frame::default();
     let mut count = 0usize;
     let mut deliver = |frame: VideoFrame| -> bool {
         count += 1;
         on_frame(frame);
         true
     };
-    while mkv.next_frame(&mut packet)? {
-        if packet.track != info.video_track {
-            continue;
-        }
-        let pts_ns = packet.timestamp.saturating_mul(info.timestamp_scale_ns) as i64;
-        decoder.decode_packet(&packet.data, pts_ns, &mut deliver)?;
+    let config = packets.config_obus().to_vec();
+    if !config.is_empty() {
+        decoder.decode_packet(&config, 0, &mut deliver)?;
+    }
+    while let Some(packet) = packets.next()? {
+        decoder.decode_packet(packet.data, packet.pts_ns, &mut deliver)?;
     }
     decoder.drain(&mut deliver)?;
     Ok(count)

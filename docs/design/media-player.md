@@ -54,6 +54,7 @@ road to frames in a texture, and it is the road we can keep.
 | Layer | Choice | Crate (exact version) | Licence (file opened and read) | Patent status |
 |---|---|---|---|---|
 | Container | WebM / Matroska | `matroska-demuxer 0.8.1` | Zlib OR MIT OR Apache-2.0 (`LICENSE-ZLIB`, `LICENSE-MIT`, `LICENSE-APACHE` in the crate) | Not applicable (a file format; Matroska is an open specification) |
+| Container | MP4 (ISO/IEC 14496-12 and -14), for AV1 inside it (2026-11-03, BUG-228; `src/media/mp4.rs`) | `mp4-atom 0.17.0`, default features (none); it brings `derive_more 2.1.1` (MIT) and `num 0.4.3` (MIT OR Apache-2.0) | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE` in the crate) | No pool licenses the container; the base-format patents once in the MPEG-4 Systems pool expired in 2018; one open point (ISO's 2026 declarations unread): `docs/reference/findings/2026-11-03-mp4-container.md` |
 | Video | AV1 | `rav1d 1.1.0`, `default-features = false`, features `bitdepth_8`, `bitdepth_16` | BSD-2-Clause (`COPYING` in the crate: VideoLAN and dav1d authors, ISRG) | **Royalty-free.** The Alliance for Open Media publishes a royalty-free patent licence for AV1 implementations and content |
 | Audio | Opus | `unsafe-libopus 0.2.0` (already in the tree for voice chat) | BSD-3-Clause (`LICENSE` in the crate: Xiph.Org, Skype, Octasic and others) | **Royalty-free.** The Opus licence file itself points at the Xiph, Microsoft and Broadcom royalty-free patent statements filed with the IETF |
 | Playback | kira 0.9.6 `StreamingSoundData::from_decoder` | already a dependency | MIT | Not applicable |
@@ -82,7 +83,13 @@ line in `docs/history/audio-engine.md`.
   task allowed them "only if a pure-Rust decoder exists"; for video none
   does, so a WebM that carries them is refused by name (`V_VP8`, `V_VP9`,
   `A_VORBIS`) rather than half-supported.
-- **Everything else** (MP4, MKV with H.264, MOV, AVI, MP3 audio) is the job
+- **AV1 in an MP4 is ours too (2026-11-03, BUG-228).** Only the box structure
+  was missing: `src/media/mp4.rs` reads it and hands AV1 to rav1d and Opus to
+  our decoder; AAC or any other sound in such a file goes to the computer's own
+  decoder (`system::probe_sound`), as an ordinary MP4's does. When nothing plays
+  a file, `media::probe` says what it is in plain names (`media::kind`), never a
+  reader's own message.
+- **Everything else** (MP4 with H.264 or H.265, MKV with H.264, MOV, AVI, MP3 audio) is the job
   of **transcode-on-ingest**: when a file enters the platform's storage, a
   later rung converts it once to WebM AV1 + Opus (with the machine's ffmpeg
   where present, or a pure-Rust rav1e + Opus encoder path when we have one

@@ -669,8 +669,8 @@ pub struct VideoProvider {
     player: Option<VideoPlayer>,
     /// A conversion in flight; its result opens the player.
     job: Option<TranscodeJob>,
-    /// Why a conversion was needed, for the notice ("uses the video codec
-    /// V_VP8, which this player does not decode").
+    /// Why a conversion was needed, for the notice ("is a WebM file with VP8
+    /// video, which this app cannot play as it is").
     convert_why: Option<String>,
     /// Set once an open has been tried, whatever the outcome, so a failed
     /// open is shown on the screen and not retried every frame.
@@ -1738,7 +1738,8 @@ mod tests {
         assert!(p.player.is_none(), "a VP8 file never opens as it is");
         let _ = p.plan_frame(&mut core, Instant::now());
         let (drawn, _) = run_draw(&mut core, &mut state, &mut p);
-        assert!(drawn.contains("V_VP8"), "the screen names the codec: {drawn:?}");
+        // In plain words since BUG-228 ("a WebM file with VP8 video"), not the Matroska id V_VP8.
+        assert!(drawn.contains("VP8 video") && !drawn.contains("V_VP8"), "the screen names the codec: {drawn:?}");
         if p.job.is_some() {
             assert!(drawn.contains("Converting"), "with ffmpeg it converts: {drawn:?}");
             assert_eq!(p.load_state(), LoadState::Loading);

@@ -435,8 +435,27 @@ fn probe_here(path: &Path) -> Result<MediaInfo, MediaError> {
         video_track: 0,
         timestamp_scale_ns: 100,
         system: true,
+        mp4: false,
+        system_sound: false,
         sound_lost,
     })
+}
+
+/// The sound of `path` alone, through the computer's own decoders: its rate and channels as
+/// Windows decodes it, `None` when the file has no sound, `Err` (the codec's name, or why) when
+/// Windows cannot decode it. For an MP4 whose AV1 picture our own decoder plays (BUG-228): its AAC
+/// sound plays the way an ordinary MP4's does. Runs on a short thread of its own, as `probe` does.
+pub fn probe_sound(path: &Path) -> Result<Option<(u32, u16)>, String> {
+    let path = path.to_path_buf();
+    std::thread::Builder::new()
+        .name("media-probe".into())
+        .spawn(move || {
+            let _apartment = Apartment::join().map_err(|e| e.to_string())?;
+            AudioFormat::of(&path).map(|f| f.map(|f| (f.rate, f.channels)))
+        })
+        .map_err(|e| e.to_string())?
+        .join()
+        .unwrap_or_else(|_| Err("Windows stopped while reading the sound.".to_string()))
 }
 
 /// One picture from the video at `path`, for a preview (the file picker's Pictures view,

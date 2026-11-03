@@ -47,6 +47,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, UNIX_EPOCH};
 
 use super::{probe, MediaError};
+use humanity_core::i18n::tf;
 
 /// The one-line fix shown whenever a conversion cannot start. Names the
 /// in-app place to set the path so nobody has to open a terminal.
@@ -644,7 +645,14 @@ pub enum Ingest {
 /// cannot fix (no video track, unreadable file) are returned as `Err`.
 fn why_convert(e: &MediaError) -> Result<String, String> {
     match e {
-        MediaError::Demux(_) => Ok("is not a WebM AV1 + Opus file".to_string()),
+        // What the file is, in plain names, and (where one applies) the sentence about this computer
+        // (BUG-228): "is an MP4 file with H.265 video and AAC sound, which this app cannot play as it
+        // is. This video is H.265. Windows plays it only with ...".
+        MediaError::Unplayable { kind, reason } => Ok(match reason {
+            Some(r) => format!("{}. {}", kind.why(), r.trim_end_matches('.')),
+            None => kind.why(),
+        }),
+        MediaError::Demux(_) => Ok(super::kind::FileKind::default().why()),
         MediaError::UnsupportedCodec { kind, codec_id } => Ok(format!("uses the {kind} codec {codec_id}, which this player does not decode")),
         MediaError::Audio(a) => Ok(format!("has audio the player cannot take as it is ({a})")),
         MediaError::Decoder(d) => Ok(format!("could not be decoded as it is ({d})")),
@@ -663,6 +671,14 @@ fn why_convert(e: &MediaError) -> Result<String, String> {
 /// scratch dir in tests).
 pub fn begin_ingest(src: &Path, ffmpeg_setting: &str, cache_dir: &Path) -> Ingest {
     let name = src.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| src.display().to_string());
+    begin_ingest_as(src, &name, ffmpeg_setting, cache_dir)
+}
+
+/// `begin_ingest` for a file a person knows by another name than its own: a video posted in chat
+/// plays from a temporary copy named like `3f2a...-41-7.video`, and its words must say
+/// "WH40K.mp4 is ..." (BUG-228).
+pub fn begin_ingest_as(src: &Path, name: &str, ffmpeg_setting: &str, cache_dir: &Path) -> Ingest {
+    let name = name.to_string();
     // A FOLDER is a disc (or the drive holding one): a different shape of
     // film, with its own module. One entry point, so the picker, the dev
     // IPC and a remembered choice all take the same road.
@@ -709,12 +725,15 @@ pub fn begin_ingest(src: &Path, ffmpeg_setting: &str, cache_dir: &Path) -> Inges
         if silent_fallback {
             return Ingest::Direct(src.to_path_buf());
         }
-        return Ingest::Failed(format!("{name} {why}; converting it needs ffmpeg, which was not found. {FFMPEG_HINT}"));
+        return Ingest::Failed(tf("video.needs_ffmpeg", &[("name", &name), ("why", &why), ("hint", &FFMPEG_HINT)]));
     };
     let encoder = match detect_encoder(&ffmpeg) {
         Ok(enc) => enc,
         Err(_) if silent_fallback => return Ingest::Direct(src.to_path_buf()),
-        Err(e) => return Ingest::Failed(format!("{name} {why}; {e} ({}). {FFMPEG_HINT}", ffmpeg.display())),
+        Err(e) => {
+            let error = format!("{e} ({})", ffmpeg.display());
+            return Ingest::Failed(tf("video.cannot_convert", &[("name", &name), ("why", &why), ("error", &error), ("hint", &FFMPEG_HINT)]));
+        }
     };
     Ingest::Transcoding { job: TranscodeJob::spawn(ffmpeg, encoder, src.to_path_buf(), dst), why }
 }
@@ -760,21 +779,19 @@ mod tests {
         humanity_core::test_temp::dir(&format!("transcode_{name}"))
     }
 
-    /// The MP4 fixture (H.264 + AAC) is refused by the player's own probe, and
-    /// the refusal names the container the player does read, so a person
-    /// reading the raw error knows what the file is not. (Windows's own
-    /// decoders play it: media/system_tests.rs; they are off here.)
+    /// The MP4 fixture (H.264 + AAC) is refused by the player's own decoders, and
+    /// the refusal says what the file IS, in plain names (BUG-228: it used to
+    /// pass on the Matroska reader's "Expected: Ebml Found: Unknown"). (Windows's
+    /// own decoders play it: media/system_tests.rs; they are off here.)
     #[test]
     fn probe_refuses_the_mp4_fixture_by_name() {
         super::super::system_decoders_off_on_this_thread();
         let mp4 = fixtures().join("moving-box-h264-aac.mp4");
         assert!(mp4.is_file(), "{}", mp4.display());
-        let err = probe(&mp4).expect_err("an MP4 must not probe as WebM");
-        assert!(matches!(err, MediaError::Demux(_)), "{err:?}");
-        let text = err.to_string();
-        assert!(text.contains("WebM/Matroska"), "the refusal names the container: {text}");
-        let why = why_convert(&err).expect("a container mismatch is something a conversion fixes");
-        assert!(why.contains("WebM AV1 + Opus"), "{why}");
+        let err = probe(&mp4).expect_err("an H.264 MP4 is not ours to decode");
+        assert!(matches!(err, MediaError::Unplayable { .. }), "{err:?}");
+        let why = why_convert(&err).expect("a file we cannot decode is something a conversion fixes");
+        assert_eq!(why, "is an MP4 file with H.264 video and AAC sound, which this app cannot play as it is");
     }
 
     /// THE command line. Change it here and in the doc comment together, on

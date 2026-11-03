@@ -370,3 +370,11 @@ what we will say about it.
   174.100, 116.435 and 116.500, the UK MCA), NASA's hatches (NASA-STD-3001 Vol. 2 Rev F), and lifts,
   the exception (keys for trained people only, power off first; California bans the device). The
   basis for the emergency release panel in `docs/design/spline-routing.md`, section 13.
+- [`2026-11-03-mp4-container.md`](2026-11-03-mp4-container.md),
+  whether the desktop app may read the MP4 container itself (ISO/IEC 14496-12 and 14496-14) to
+  play the AV1 video inside it (BUG-228). Probably yes: no pool (Via LA, Access Advance, Sisvel)
+  lists a file-format programme, the MPEG-4 Systems pool that once reached the first MP4 format
+  stopped licensing by 2011, and the two base-format patents tied to it expired in 2018; AOMedia's
+  AV1-in-ISOBMFF binding is a Final Deliverable under its royalty-free terms. Open: the 2026 edition
+  says patents were declared, and ISO's database refuses automated reading. The Rust readers'
+  licences (`mp4-atom` MIT OR Apache-2.0). Extends the 2026-09-19 codec finding.

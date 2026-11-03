@@ -45,6 +45,10 @@
 pub mod audio;
 /// Video discs: choosing a disc's main title and converting it (2026-09-18).
 pub mod dvd;
+/// What a file is, in a person's words, when nothing here plays it (BUG-228, 2026-11-03).
+pub mod kind;
+/// The MP4 container, so AV1 in an MP4 reaches our own decoder (BUG-228, 2026-11-03).
+pub mod mp4;
 /// Every other file through the computer's own decoders (Windows Media Foundation, 2026-10-18):
 /// an ordinary MP4 above all.
 #[cfg(windows)]
@@ -126,14 +130,27 @@ pub enum MediaError {
     /// The computer's own decoders (`system.rs`) could not play it, in a sentence a person reads
     /// as it is ("This copy of Windows has no video decoders. ...").
     System(String),
+    /// Nothing here plays the file: what `probe` says when every reader has refused it (BUG-228).
+    /// `kind` is what the file is, in plain names ("an MP4 file with H.265 video"); `reason` a
+    /// sentence about this computer when one applies (no H.265 extension, no decoders at all).
+    Unplayable { kind: kind::FileKind, reason: Option<String> },
 }
 
 impl fmt::Display for MediaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MediaError::Io(e) => write!(f, "could not read the media file: {e}"),
-            MediaError::Demux(e) => write!(f, "not a WebM/Matroska file we can read: {e}"),
-            MediaError::NoVideoTrack => write!(f, "the file has no video track"),
+            // A reader's own message ("Expected: Ebml Found: Unknown") is for the log, never a person
+            // (BUG-228): `{:?}` keeps it.
+            MediaError::Demux(_) => write!(f, "{}", humanity_core::i18n::t("video.damaged")),
+            MediaError::NoVideoTrack => write!(f, "{}", humanity_core::i18n::t("video.no_picture")),
+            MediaError::Unplayable { kind, reason } => {
+                write!(f, "{}", humanity_core::i18n::tf("video.this_file", &[("why", &kind.why())]))?;
+                match reason {
+                    Some(r) => write!(f, " {r}"),
+                    None => Ok(()),
+                }
+            }
             MediaError::UnsupportedCodec { kind, codec_id } => write!(
                 f,
                 "unsupported {kind} codec {codec_id}: this player decodes AV1 video ({CODEC_AV1}) \
@@ -224,6 +241,13 @@ pub struct MediaInfo {
     /// Decoded by the computer's own decoders (`system.rs`), not ours. Its tracks have no Matroska
     /// numbers then (`video_track` 0, `audio_track` Some(0) when it has sound).
     pub system: bool,
+    /// Our own decoders, reading an MP4 (`mp4.rs`, BUG-228): AV1 video, Opus sound. The track
+    /// numbers are the MP4's track ids; `timestamp_scale_ns` is unused (each track has its own
+    /// timescale).
+    pub mp4: bool,
+    /// The picture is ours and the sound the computer's own (AAC in an MP4 holding AV1, on
+    /// Windows): `attach_audio_with` hands the sound to `system::SystemAudio`.
+    pub system_sound: bool,
     /// The file has sound the computer's own decoders cannot play (that codec's name, "Opus" for
     /// instance): the picture plays silent unless converted (transcode.rs `begin_ingest`).
     pub sound_lost: Option<String>,
@@ -239,24 +263,61 @@ pub(crate) fn open_demuxer(path: &Path) -> Result<MatroskaFile<BufReader<File>>,
 
 /// Read the track table and refuse anything this player cannot decode. This
 /// is the ONLY place codec ids are checked, so the error a user sees always
-/// names the codec that stopped them.
+/// names what stopped them.
+///
+/// The readers are asked in turn: our own WebM/Matroska reader (AV1 and Opus), our own MP4 reader
+/// (AV1, with Opus or the computer's own sound decoder: BUG-228), then the computer's own decoders
+/// for the whole file (an ordinary MP4 on Windows). When none plays it, the refusal says what the
+/// file IS, in plain names (`MediaError::Unplayable`), never a reader's own message: a person was
+/// once shown "Expected: Ebml Found: Unknown" for an MP4. The readers' own refusals go to the log.
 pub fn probe(path: &Path) -> Result<MediaInfo, MediaError> {
-    let ours = probe_matroska(path);
-    // Not ours to decode (not WebM, or not AV1 and Opus): ask the computer's own decoders. Their
-    // refusal is logged and ours stands, so a file goes on to be converted exactly as before;
-    // except a sentence about this computer itself (no decoders at all, no H.265 extension), which
-    // says more than "not a WebM file".
-    #[cfg(windows)]
-    if system_decoders_on() {
-        if let Err(MediaError::Demux(_) | MediaError::UnsupportedCodec { .. }) = &ours {
-            match system::probe(path) {
-                Ok(info) => return Ok(info),
-                Err(MediaError::System(s)) if s == system::NO_DECODERS || s == system::NO_HEVC => return Err(MediaError::System(s)),
-                Err(e) => log::info!("media: Windows cannot play {} either: {e}", path.display()),
+    let refused = match probe_matroska(path) {
+        Ok(info) => return Ok(info),
+        Err(MediaError::Io(e)) => return Err(MediaError::Io(e)),
+        Err(e) => e,
+    };
+    // What the file is, for the words should nothing play it.
+    let mut kind = kind::FileKind::default();
+    if matches!(refused, MediaError::Demux(_)) {
+        // Not WebM or Matroska: an MP4, or a QuickTime file?
+        match mp4::open(path) {
+            Ok(movie) => {
+                kind = movie.kind();
+                if let Some(info) = probe_mp4(path, &movie) {
+                    return Ok(info);
+                }
+            }
+            Err(e) if mp4::not_mp4(&e) => {}
+            Err(MediaError::Io(e)) => return Err(MediaError::Io(e)),
+            Err(e) => {
+                log::info!("media: {} is an MP4 our reader refused: {e:?}", path.display());
+                kind.container = Some(kind::Container::Mp4);
             }
         }
+    } else {
+        kind = describe_matroska(path);
     }
-    ours
+    // Not ours to decode: ask the computer's own decoders. Their refusal is logged, except a sentence
+    // about this computer itself (no decoders at all, no H.265 extension), which goes with the words.
+    #[cfg_attr(not(windows), allow(unused_mut))]
+    let mut reason = None;
+    #[cfg(windows)]
+    if system_decoders_on() {
+        match system::probe(path) {
+            Ok(info) => return Ok(info),
+            Err(MediaError::System(s)) if s == system::NO_DECODERS || s == system::NO_HEVC => reason = Some(s),
+            Err(e) => log::info!("media: Windows cannot play {} either: {e}", path.display()),
+        }
+    }
+    log::info!("media: nothing here plays {}: {refused:?}", path.display());
+    // A file of sound alone is not a video at all; converting it would not give it a picture.
+    if kind.container.is_some() && kind.video.is_none() && kind.sound.is_some() {
+        return Err(MediaError::NoVideoTrack);
+    }
+    if matches!(refused, MediaError::NoVideoTrack) {
+        return Err(MediaError::NoVideoTrack);
+    }
+    Err(MediaError::Unplayable { kind, reason })
 }
 
 #[cfg(test)]
@@ -356,8 +417,91 @@ fn probe_matroska(path: &Path) -> Result<MediaInfo, MediaError> {
         audio_track,
         timestamp_scale_ns: scale,
         system: false,
+        mp4: false,
+        system_sound: false,
         sound_lost: None,
     })
+}
+
+/// What a WebM/Matroska file holds, in plain names, for the words when we cannot play it.
+fn describe_matroska(path: &Path) -> kind::FileKind {
+    let Ok(mkv) = open_demuxer(path) else { return kind::FileKind::default() };
+    let container = if mkv.ebml_header().doc_type() == "webm" { kind::Container::WebM } else { kind::Container::Matroska };
+    let first = |wanted: TrackType| {
+        mkv.tracks().iter().find(|t| t.track_type() == wanted).map(|t| kind::matroska_codec_name(t.codec_id()))
+    };
+    kind::FileKind { container: Some(container), video: first(TrackType::Video), sound: first(TrackType::Audio) }
+}
+
+/// `probe` for an MP4 holding AV1 video, which our own decoder plays (BUG-228): `None` when its
+/// picture is something else (the computer's own decoders are asked then). Opus sound is ours too;
+/// any other sound (AAC above all) goes to the computer's own decoders, the way an ordinary MP4's
+/// does, and where they cannot play it the picture plays silent (`sound_lost`) unless converted.
+fn probe_mp4(path: &Path, movie: &mp4::Movie) -> Option<MediaInfo> {
+    let video = movie.video.as_ref()?;
+    if !matches!(video.codec, mp4::TrackCodec::Av1 { .. }) {
+        return None;
+    }
+    let mut info = MediaInfo {
+        width: video.width,
+        height: video.height,
+        duration_s: movie.duration_s,
+        video_codec: "AV1".to_string(),
+        audio_codec: None,
+        sample_rate: 0,
+        channels: 0,
+        pre_skip: 0,
+        track_count: movie.track_count,
+        video_track: video.id as u64,
+        audio_track: None,
+        timestamp_scale_ns: 0,
+        system: false,
+        mp4: true,
+        system_sound: false,
+        sound_lost: None,
+    };
+    let Some(sound) = movie.audio.as_ref() else { return Some(info) };
+    match &sound.codec {
+        mp4::TrackCodec::Opus { channels, pre_skip, multistream } if !multistream && (1..=2).contains(channels) => {
+            info.audio_codec = Some("Opus".to_string());
+            info.audio_track = Some(sound.id as u64);
+            info.sample_rate = audio::OPUS_RATE;
+            info.channels = *channels as u16;
+            // The priming samples to drop: where the edit list starts the sound (its timescale is
+            // normally 48 kHz already), else the OpusSpecificBox's PreSkip (mp4.rs, "Time").
+            info.pre_skip = if sound.edited {
+                (sound.start_ticks.max(0) as f64 * audio::OPUS_RATE as f64 / sound.timescale as f64).round() as u32
+            } else {
+                *pre_skip as u32
+            };
+        }
+        other => {
+            let name = match other {
+                mp4::TrackCodec::Opus { channels, .. } => format!("Opus ({channels} channels)"),
+                other => other.name(),
+            };
+            #[cfg(windows)]
+            if system_decoders_on() {
+                match system::probe_sound(path) {
+                    Ok(Some((rate, channels))) => {
+                        info.audio_codec = Some(name.clone());
+                        info.audio_track = Some(sound.id as u64);
+                        info.sample_rate = rate;
+                        info.channels = channels;
+                        info.system_sound = true;
+                    }
+                    Ok(None) => {}
+                    Err(e) => log::info!("media: Windows cannot decode the sound of {}: {e}", path.display()),
+                }
+            }
+            #[cfg(not(windows))]
+            let _ = path;
+            if !info.system_sound {
+                info.sound_lost = Some(name);
+            }
+        }
+    }
+    Some(info)
 }
 
 // ---------------------------------------------------------------------------
@@ -597,6 +741,81 @@ fn push_frame(shared: &Shared, generation: u64, frame: VideoFrame) -> Push {
 /// than `start_s`. (It used to be done by passing `start_s = 0.0`, which also
 /// switched off that filter, so a fallback seek showed the clip from its first
 /// frame on its way to the target: BUG-158.)
+/// Where the AV1 packets come from: a WebM/Matroska track, or an MP4 track (BUG-228,
+/// 2026-11-03: `mp4.rs`). One packet at a time, on a file handle of its own.
+pub(crate) enum VideoPackets {
+    Mkv { mkv: MatroskaFile<BufReader<File>>, track: u64, scale_ns: u64, packet: MkvPacket },
+    Mp4 { reader: mp4::SampleReader, data: Vec<u8> },
+}
+
+/// One packet for the AV1 decoder: its bytes, its presentation time and, where the container says,
+/// whether it is a keyframe.
+pub(crate) struct VideoPacket<'a> {
+    pub data: &'a [u8],
+    pub pts_ns: i64,
+    pub keyframe: Option<bool>,
+}
+
+impl VideoPackets {
+    pub(crate) fn open(path: &Path, info: &MediaInfo) -> Result<Self, MediaError> {
+        Ok(if info.mp4 {
+            VideoPackets::Mp4 { reader: mp4::SampleReader::open(path, true)?, data: Vec::new() }
+        } else {
+            VideoPackets::Mkv { mkv: open_demuxer(path)?, track: info.video_track, scale_ns: info.timestamp_scale_ns, packet: MkvPacket::default() }
+        })
+    }
+
+    /// The config OBUs an MP4's `av1C` carries, to hand the decoder before the first packet
+    /// (mp4.rs, "Samples as the AV1 decoder takes them"); empty for WebM, whose blocks are complete.
+    pub(crate) fn config_obus(&self) -> &[u8] {
+        match self {
+            VideoPackets::Mp4 { reader, .. } => match &reader.track.codec {
+                mp4::TrackCodec::Av1 { config_obus } => config_obus,
+                _ => &[],
+            },
+            VideoPackets::Mkv { .. } => &[],
+        }
+    }
+
+    /// Whether `seek` lands exactly on the keyframe to start from (an MP4 lists them), so no preroll
+    /// rewind is needed.
+    fn seeks_to_keyframe(&self) -> bool {
+        matches!(self, VideoPackets::Mp4 { .. })
+    }
+
+    /// Reposition before `seconds`. `MatroskaFile::seek` takes a timestamp in the file's own
+    /// timescale units and uses its Cues, falling back to a linear scan; it lands on the first frame
+    /// AFTER the time asked for, which is why `decode_pass` rewinds and scans for a keyframe. An MP4
+    /// lands on the last keyframe at or before it.
+    fn seek(&mut self, seconds: f64) -> Result<(), String> {
+        match self {
+            VideoPackets::Mkv { mkv, scale_ns, .. } => mkv.seek((seconds * 1.0e9 / *scale_ns as f64) as u64).map_err(|e| e.to_string()),
+            VideoPackets::Mp4 { reader, .. } => {
+                reader.seek_to_sync(seconds);
+                Ok(())
+            }
+        }
+    }
+
+    /// The next video packet, or `None` at the end of the track.
+    pub(crate) fn next(&mut self) -> Result<Option<VideoPacket<'_>>, MediaError> {
+        match self {
+            VideoPackets::Mkv { mkv, track, scale_ns, packet } => loop {
+                if !mkv.next_frame(packet)? {
+                    return Ok(None);
+                }
+                if packet.track == *track {
+                    let pts_ns = packet.timestamp.saturating_mul(*scale_ns) as i64;
+                    return Ok(Some(VideoPacket { data: &packet.data, pts_ns, keyframe: packet.is_keyframe }));
+                }
+            },
+            VideoPackets::Mp4 { reader, data } => Ok(reader
+                .next(data)?
+                .map(|(pts_s, sync)| VideoPacket { data: &data[..], pts_ns: (pts_s * 1.0e9).round() as i64, keyframe: Some(sync) })),
+        }
+    }
+}
+
 fn decode_pass(
     path: &Path,
     info: &MediaInfo,
@@ -606,22 +825,17 @@ fn decode_pass(
     start_s: f64,
     from_top: bool,
 ) -> Result<PassEnd, MediaError> {
-    let mut mkv = open_demuxer(path)?;
+    let mut packets = VideoPackets::open(path, info)?;
     let mut decoder = video::Av1Decoder::new(threads)?;
-    let mut packet = MkvPacket::default();
-    let scale = info.timestamp_scale_ns;
 
-    // Reposition for a seek. `MatroskaFile::seek` takes a timestamp in the
-    // file's own timescale units and uses its Cues, falling back to a linear
-    // scan; it lands on the first frame AFTER the time asked for, which is why
-    // the rewind and the keyframe scan below are both needed.
+    // Reposition for a seek: to a little before the target in a WebM (see `VideoPackets::seek`), to
+    // the keyframe at or before it in an MP4.
     let mut need_keyframe = false;
     if start_s > 0.0 && !from_top {
-        let preroll_s = shared.seek_preroll_ns.load(Ordering::SeqCst) as f64 / 1.0e9;
+        let preroll_s = if packets.seeks_to_keyframe() { 0.0 } else { shared.seek_preroll_ns.load(Ordering::SeqCst) as f64 / 1.0e9 };
         let pre_s = (start_s - preroll_s).max(0.0);
-        let ts = (pre_s * 1.0e9 / scale as f64) as u64;
-        if ts > 0 {
-            if let Err(e) = mkv.seek(ts) {
+        if pre_s > 0.0 {
+            if let Err(e) = packets.seek(pre_s) {
                 log::warn!("media: seek to {pre_s:.1} s failed ({e}); decoding from the start");
                 return Ok(PassEnd::RetryFromStart);
             }
@@ -660,6 +874,13 @@ fn decode_pass(
         }
     };
 
+    // An MP4's config OBUs (its sequence header) first: harmless where the keyframes repeat them,
+    // needed where they do not. A pass has no picture from it.
+    let config = packets.config_obus().to_vec();
+    if !config.is_empty() && !decoder.decode_packet(&config, 0, &mut deliver)? {
+        return Ok(early.take().unwrap_or(PassEnd::Stop));
+    }
+
     loop {
         if shared.stop.load(Ordering::SeqCst) {
             return Ok(PassEnd::Stop);
@@ -667,23 +888,17 @@ fn decode_pass(
         if shared.generation.load(Ordering::SeqCst) != generation {
             return Ok(PassEnd::Restart);
         }
-        if !mkv.next_frame(&mut packet)? {
-            break;
-        }
-        if packet.track != info.video_track {
-            continue;
-        }
+        let Some(packet) = packets.next()? else { break };
         if need_keyframe {
             // rav1d cannot be handed a mid-GOP packet: it has no reference
             // frames to decode it against and returns an error that would end
             // the whole pass. Wait for the keyframe.
-            if packet.is_keyframe != Some(true) {
+            if packet.keyframe != Some(true) {
                 continue;
             }
             need_keyframe = false;
         }
-        let pts_ns = packet.timestamp.saturating_mul(scale) as i64;
-        if !decoder.decode_packet(&packet.data, pts_ns, &mut deliver)? {
+        if !decoder.decode_packet(packet.data, packet.pts_ns, &mut deliver)? {
             return Ok(early.take().unwrap_or(PassEnd::Stop));
         }
     }
@@ -742,6 +957,8 @@ fn drive(shared: &Shared, mut pass: impl FnMut(u64, f64, bool) -> Result<PassEnd
             }
             Ok(PassEnd::Eof) => {}
             Err(e) => {
+                // The person reads `e`'s plain words; the log keeps what the reader said.
+                log::warn!("media: decoding stopped: {e:?}");
                 let mut q = shared.queue.lock().unwrap_or_else(|e| e.into_inner());
                 q.error = Some(e.to_string());
                 if shared.generation.load(Ordering::SeqCst) == generation {
@@ -920,8 +1137,10 @@ impl VideoPlayer {
         if let Some(mut old) = self.audio.take() {
             old.stop(zero_tween());
         }
+        // The computer's own decoders play the sound of a file they play whole, and the sound of an
+        // MP4 whose AV1 picture is ours (`system_sound`, AAC above all).
         #[cfg(windows)]
-        let mut data = if self.info.system {
+        let mut data = if self.info.system || self.info.system_sound {
             kira::sound::streaming::StreamingSoundData::from_decoder(system::SystemAudio::open(&self.path, &self.info)?)
         } else {
             kira::sound::streaming::StreamingSoundData::from_decoder(audio::OpusTrack::open(&self.path, &self.info)?)

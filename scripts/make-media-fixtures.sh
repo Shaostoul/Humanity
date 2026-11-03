@@ -115,4 +115,28 @@ ffmpeg -hide_banner -loglevel error -y \
   -ac 2 -c:v mpeg2video -b:v 150k -g 15 -pix_fmt yuv420p \
   -c:a ac3 -b:a 96k -t 0.4 -f vob "$DVD/VTS_02_1.VOB"
 
+# 5-7. AV1 in an MP4 (BUG-228, 2026-11-03), the form video sites hand AV1 out in: our own decoder
+#    plays the picture from the MP4 (src/media/mp4.rs). 1 s of 160x90 at 30 fps, a 20 px red bar
+#    sliding right at 100 px/s over dark grey (so a test checks the PICTURE: bar left edge =
+#    100 * pts), keyframes every 15 frames (two), and a 440 Hz tone. libaom at -cpu-used 8 -crf 40
+#    keeps each file under 10 KB.
+#    5: Opus sound (our own decoder), 8,004 bytes. 6: AAC sound (the computer's own decoder),
+#    9,205 bytes. 7: the Opus file's picture alone copied into a FRAGMENTED MP4 (no sample tables,
+#    two moof fragments, default-base-is-moof), the shape a streaming download takes, 2,197 bytes.
+AV1_BAR="color=c=0x202020:s=160x90:r=30:d=1[bg];color=c=red:s=20x90:r=30:d=1[bar];[bg][bar]overlay=x='mod(t*100\,160)':y=0:shortest=1"
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "$AV1_BAR" -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1" \
+  -ac 2 -c:v libaom-av1 -cpu-used 8 -crf 40 -g 15 -pix_fmt yuv420p \
+  -c:a libopus -b:a 32k -t 1 -movflags +faststart \
+  "$OUT/sliding-bar-av1-opus.mp4"
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "$AV1_BAR" -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1" \
+  -ac 2 -c:v libaom-av1 -cpu-used 8 -crf 40 -g 15 -pix_fmt yuv420p \
+  -c:a aac -b:a 48k -t 1 -movflags +faststart \
+  "$OUT/sliding-bar-av1-aac.mp4"
+ffmpeg -hide_banner -loglevel error -y \
+  -i "$OUT/sliding-bar-av1-opus.mp4" -map 0:v -c copy \
+  -movflags +frag_keyframe+empty_moov+default_base_moof \
+  "$OUT/sliding-bar-av1-fragmented.mp4"
+
 ls -l "$OUT" "$DVD"

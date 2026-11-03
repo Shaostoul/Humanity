@@ -23,6 +23,16 @@ can't watch my own movies on my own free open source software."
   shown on any screen in the world. A format our player cannot decode is
   converted once with the ffmpeg already installed on your machine, cached, and
   played. Your original file is never modified.
+- **Plays AV1 video in an MP4 with its own decoder (since 2026-11-03).** Video
+  sites commonly hand out AV1, a royalty-free codec, in an MP4. The app's own
+  player already decoded AV1 from WebM; it now reads the MP4 container too, on
+  every computer, with no ffmpeg and no conversion. Opus sound plays through
+  the app's own decoder; AAC sound through your computer's own, the way an
+  ordinary MP4's sound does (below), and where your computer has none the
+  picture plays without sound and the app says so. As far as our research
+  found, nobody asks for a licence to read the container itself; the research,
+  with its one open point:
+  `docs/reference/findings/2026-11-03-mp4-container.md`.
 - **Plays an ordinary MP4 with your computer's own decoders (Windows, since
   v0.1513.0).** Windows 7 and later come with an H.264 video decoder and an AAC
   sound decoder that any program may call, so the desktop app asks Windows to
@@ -39,7 +49,9 @@ can't watch my own movies on my own free open source software."
   it uses the ffmpeg you already installed. This is the same posture HandBrake
   has held for years.
 - **Says no plainly.** A disc the app cannot read produces a sentence telling
-  you so, not a black rectangle and not a cryptic error.
+  you so, not a black rectangle and not a cryptic error. So does a file: it is
+  named by what it is ("an MP4 file with H.265 video and AAC sound"), with what
+  will play it.
 
 ## What the app does not do
 
@@ -137,7 +149,8 @@ Contact: the operator, through the project's public channels.
 
 ## Where this lives in the code
 
-- `src/media/` is the player and the conversion (`transcode.rs`).
+- `src/media/` is the player and the conversion (`transcode.rs`); `mp4.rs` reads
+  the MP4 container for the player's own AV1 decoder.
 - `src/engine/screens/video.rs` is the in-world screen and its controls.
 - `data/media/ingest.json` is the data file naming what the picker lists and
   where ffmpeg is looked for.

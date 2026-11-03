@@ -54,10 +54,11 @@ fn a_file_is_shown_by_the_name_it_was_sent_with() {
 
 /// A CARD KNOWS WHERE ITS FILE SITS: one on the message's own server loads (its size is asked, View
 /// in 3D is offered for a model), one on another website names that website and offers no 3D view,
-/// and a video either plays here (Play here: WebM always, MP4 where the computer's own decoders
-/// are, 2026-10-18) or carries the line about the computer's own player (with the patent reason
-/// for MP4 where they are not). Seen red 2026-10-17 with `other_site` always None: "a file on
-/// another website names it"; and 2026-10-18 with MP4 never offered: "an MP4 plays here".
+/// and a video on the message's own server plays here (Play here: WebM, Matroska and MP4 on every
+/// computer since BUG-228, our own MP4 reader and the conversion road standing behind it), one on
+/// another website carries the line about the computer's own player. Seen red 2026-10-17 with
+/// `other_site` always None: "a file on another website names it"; and 2026-10-18 with MP4 never
+/// offered: "an MP4 plays here".
 #[test]
 fn a_card_knows_where_its_file_sits_and_what_it_is() {
     let own = Card::of("/uploads/1760000000000_part.glb", SERVER);
@@ -68,15 +69,12 @@ fn a_card_knows_where_its_file_sits_and_what_it_is() {
     assert_eq!(theirs.other_site.as_deref(), Some("files.example.com"), "a file on another website names it");
     assert!(!theirs.viewable_in_3d(), "and is not fetched for a 3D view");
     let mp4 = Card::of("/uploads/1_clip.mp4", SERVER);
-    if plays_mp4_here() {
-        assert!(mp4.is_video() && mp4.plays_here() && mp4.video_line().is_none(), "an MP4 plays here");
-    } else {
-        assert!(mp4.is_video() && mp4.video_line().is_some_and(|l| l.contains(VIDEO_ELSEWHERE) && l.contains("patents")));
-    }
+    assert!(mp4.is_video() && mp4.plays_here() && mp4.video_line().is_none(), "an MP4 plays here");
     let webm = Card::of("/uploads/1_clip.webm", SERVER);
     assert!(webm.plays_here() && webm.video_line().is_none(), "a WebM plays here");
     let theirs_mp4 = Card::of("https://files.example.com/clip.mp4", SERVER);
     assert!(!theirs_mp4.plays_here(), "a video on another website is never fetched before Download");
+    assert_eq!(theirs_mp4.video_line().as_deref(), Some(VIDEO_ELSEWHERE));
     assert_eq!(Card::of("/uploads/1_a.pdf", SERVER).video_line(), None);
 }
 
@@ -123,8 +121,8 @@ fn a_file_on_another_website_is_not_contacted_before_a_click() {
     let own = Card::of("/uploads/1_notes.pdf", SERVER);
     let out = ctx.run(egui::RawInput::default(), |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            draw(ui, &theme, &mut cache, &mut viewer, &mut video, &theirs, theme.bg_primary());
-            draw(ui, &theme, &mut cache, &mut viewer, &mut video, &own, theme.bg_primary());
+            draw(ui, &theme, &mut cache, &mut viewer, &mut video, "", &theirs, theme.bg_primary());
+            draw(ui, &theme, &mut cache, &mut viewer, &mut video, "", &own, theme.bg_primary());
         });
     });
     let texts = texts_of(&out).join("
@@ -195,13 +193,41 @@ fn the_chat_page_shows_a_posted_video_as_a_card_not_a_bare_path() {
     }
     assert!(texts.contains("WH40K_Marriah_Carey.mp4"), "the video's name is shown: {texts}");
     assert!(texts.contains("1.1 MB") && texts.contains("Download"), "{texts}");
-    if plays_mp4_here() {
-        assert!(texts.contains(crate::gui::widgets::video_view::PLAY_HERE) && !texts.contains(MP4_WHY), "Play here, not the patent line: {texts}");
-    } else {
-        assert!(texts.contains(VIDEO_ELSEWHERE), "{texts}");
-    }
+    assert!(texts.contains(crate::gui::widgets::video_view::PLAY_HERE) && !texts.contains("patents"), "Play here, not the patent line: {texts}");
     assert!(texts.contains("Found this one"), "the message's own words stay: {texts}");
     assert!(!texts.contains("/uploads/"), "the bare address is not drawn: {texts}");
+}
+
+//// The chat's video window drawn until `until` holds for its words (or 30 s pass), over a view that
+/// was handed `fixture` (copied to a temporary `clip.video`, in place of the network) with the
+/// ffmpeg setting `ffmpeg`. Returns the window's last words, the copy's path and the window; the
+/// copy's folder is `dir`'s, kept by the caller so a check that the copy went cannot pass because
+/// the whole folder went first.
+fn play_in_window(fixture: &std::path::Path, dir: &std::path::Path, ffmpeg: &str, until: impl Fn(&[String]) -> bool) -> (Vec<String>, std::path::PathBuf, Option<ChatVideo>) {
+    let copy = dir.join("clip.video");
+    std::fs::copy(fixture, &copy).unwrap();
+    let mut view = crate::gui::widgets::video_view::VideoView::default();
+    let handed = copy.clone();
+    view.start(ffmpeg, "clip.mp4", move || Ok(handed));
+    let mut video = Some(ChatVideo { name: "clip.mp4".into(), view });
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    let input = || egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0))), ..Default::default() };
+    let started = std::time::Instant::now();
+    let mut texts = Vec::new();
+    while started.elapsed() < std::time::Duration::from_secs(30) {
+        let out = ctx.run(input(), |ctx| draw_video_window(ctx, &theme, &mut video));
+        texts = texts_of(&out);
+        if until(&texts) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    (texts, copy, video)
+}
+
+fn media_fixture(name: &str) -> std::path::PathBuf {
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media").join(name)
 }
 
 /// PLAY HERE PLAYS A VIDEO POSTED IN CHAT IN ITS OWN WINDOW (2026-10-18; it had said to watch it in
@@ -213,35 +239,58 @@ fn the_chat_page_shows_a_posted_video_as_a_card_not_a_bare_path() {
 #[cfg(windows)]
 #[test]
 fn play_here_plays_a_video_posted_in_chat_in_its_own_window() {
-    if !plays_mp4_here() {
+    if !crate::media::system::available() {
         println!("skipped: this copy of Windows has no Media Foundation");
         return;
     }
-    let fixture = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/moving-box-h264-aac.mp4");
+    let playing = |t: &[String]| t.iter().any(|t| t == "Pause");
     let dir = humanity_core::test_temp::dir("chat_play_here");
-    std::fs::create_dir_all(&dir).unwrap();
-    let copy = dir.join("clip.video");
-    std::fs::copy(&fixture, &copy).unwrap();
-    let mut view = crate::gui::widgets::video_view::VideoView::default();
-    let handed = copy.clone();
-    view.start(move || Ok(handed));
-    let mut video = Some(ChatVideo { name: "clip.mp4".into(), view });
-    let ctx = egui::Context::default();
-    let theme = crate::gui::theme::load_theme();
-    let input = || egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0))), ..Default::default() };
-    let started = std::time::Instant::now();
-    let mut texts = Vec::new();
-    while started.elapsed() < std::time::Duration::from_secs(30) {
-        let out = ctx.run(input(), |ctx| draw_video_window(ctx, &theme, &mut video));
-        texts = texts_of(&out);
-        if texts.iter().any(|t| t == "Pause") {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    let (texts, copy, video) = play_in_window(&media_fixture("moving-box-h264-aac.mp4"), &dir, "", playing);
     assert!(texts.iter().any(|t| t == "Pause") && texts.iter().any(|t| t == "Start again"), "the video plays in its window: {texts:?}");
     assert!(texts.iter().any(|t| t == "clip.mp4"), "the window is named for it: {texts:?}");
     assert!(texts.iter().any(|t| t == crate::gui::widgets::video_view::CLOSE), "its own Close: {texts:?}");
-    video = None;
-    assert!(video.is_none() && !copy.exists(), "Close takes the temporary copy with it");
+    drop(video);
+    assert!(!copy.exists(), "Close takes the temporary copy with it");
+}
+
+/// THE OPERATOR'S FILE PLAYS (BUG-228): Play here on an MP4 holding AV1 video plays it in its window
+/// through our own decoder, on any computer, with no ffmpeg (the setting points at nothing usable)
+/// and no AV1 extension in Windows (this PC has none). Seen red 2026-11-03 with the code before the
+/// fix planted back (the view opening the player directly, the old probe and its words): the window
+/// said "This video cannot play in the app: not a WebM/Matroska file we can read: unexpected element
+/// found. Expected: Ebml Found: Unknown. Download it to watch it in another player.", the
+/// operator's screenshot word for word.
+#[test]
+fn play_here_plays_an_av1_mp4_through_our_own_decoder() {
+    let dir = humanity_core::test_temp::dir("chat_av1_fake_ffmpeg");
+    let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+    std::fs::write(&fake, b"not ffmpeg").unwrap(); // a conversion cannot rescue the test
+    let playing = |t: &[String]| t.iter().any(|t| t == "Pause") || t.iter().any(|t| t.contains("cannot") || t.contains("could not"));
+    let (texts, copy, video) = play_in_window(&media_fixture("sliding-bar-av1-opus.mp4"), &dir, &fake.display().to_string(), playing);
+    assert!(texts.iter().any(|t| t == "Pause"), "the AV1 MP4 plays in its window: {texts:?}");
+    let player = video.as_ref().and_then(|v| v.view.player.as_ref()).expect("a player");
+    assert!(player.info().mp4 && !player.info().system, "through our own decoder: {:?}", player.info());
+    drop(video);
+    assert!(!copy.exists(), "Close takes the temporary copy with it");
+}
+
+/// A VIDEO NOTHING HERE PLAYS IS NAMED IN PLAIN WORDS IN THE WINDOW (BUG-228): what the file is and
+/// what will play it, never a reader's own message. The file is not a video at all, and the ffmpeg
+/// setting points at a file that is not ffmpeg, so nothing can rescue it. Seen red 2026-11-03 with
+/// the code before the fix planted back: "This video cannot play in the app: not a WebM/Matroska
+/// file we can read: unexpected element found. Expected: Ebml Found: Unknown. Download it to watch
+/// it in another player."
+#[test]
+fn a_video_nothing_here_plays_is_named_in_plain_words() {
+    let dir = humanity_core::test_temp::dir("chat_plain_words");
+    let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+    std::fs::write(&fake, b"not ffmpeg").unwrap();
+    let not_video = dir.join("not-a-video.bin");
+    std::fs::write(&not_video, b"these bytes are no film").unwrap();
+    let refused = |t: &[String]| t.iter().any(|t| t.contains("VLC"));
+    let (texts, _copy, _video) = play_in_window(&not_video, &dir, &fake.display().to_string(), refused);
+    let words = texts.iter().find(|t| t.contains("VLC")).unwrap_or_else(|| panic!("the window says what will play it: {texts:?}"));
+    assert!(words.starts_with("clip.mp4 is a kind of file this app does not read itself."), "what the file is, by the name it was posted with: {words}");
+    assert!(words.contains(crate::media::transcode::FFMPEG_HINT), "the fix in the app: {words}");
+    assert!(!words.contains("Ebml") && !words.contains("Expected") && !words.contains("WebM/Matroska"), "no reader's words: {words}");
 }

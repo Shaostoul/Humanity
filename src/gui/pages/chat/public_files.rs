@@ -15,10 +15,12 @@
 //! this: a non-friend's files are left out of the message with one line in their place
 //! (chat/protected.rs), so no card is drawn for them.
 //!
-//! A video plays in the computer's own player for now: the app's own player plays WebM video only
-//! (the common MP4 formats are covered by patents, docs/reference/media-stance.md), and a "Play
-//! here" in chat is a later step. A `.glb` or `.stl` from the message's own server gets View in 3D,
-//! the Media page's viewer in a window of its own.
+//! A video on the message's own server has Play here (2026-10-18), in a window of its own: the
+//! app's own player for AV1 in WebM or MP4, the computer's own decoders for an ordinary MP4 on
+//! Windows, and otherwise a conversion with the person's own ffmpeg, the road an in-world screen's
+//! video takes (`begin_ingest`, BUG-228); a file nothing here plays is named in plain words with
+//! what will play it. A `.glb` or `.stl` from the message's own server gets View in 3D, the Media
+//! page's viewer in a window of its own.
 //!
 //! Takes `use super::*` like the page's other children. The website's twin is the file card in
 //! web/chat/app.js `formatBody`.
@@ -37,12 +39,9 @@ pub(crate) const MAX_PUBLIC_FILE: u64 = 1024 * 1024 * 1024;
 /// The line when a Download did not work.
 pub(crate) const NOT_SAVED: &str = "This file could not be downloaded.";
 
-/// The line under a video the app cannot play itself, which plays in the computer's own player.
+/// The line under a video the app does not offer to play (one on another website, which is never
+/// fetched before Download is pressed).
 pub(crate) const VIDEO_ELSEWHERE: &str = "Download it to watch it in your computer's own player.";
-
-/// Added under an MP4 video where the app cannot ask the computer's own decoders (not Windows, or a
-/// Windows without them): why its own player does not play it.
-pub(crate) const MP4_WHY: &str = "The app's own player plays WebM video only, because the common MP4 formats are covered by patents.";
 
 /// A video posted in chat, playing in its own window (Play here on its card, 2026-10-18).
 pub(crate) struct ChatVideo {
@@ -52,24 +51,17 @@ pub(crate) struct ChatVideo {
 
 impl ChatVideo {
     /// Play here on `card`: fetch it to a temporary copy (the Media page's folder, swept at start)
-    /// on a worker, then play it.
-    pub(crate) fn start(card: &Card) -> ChatVideo {
+    /// on a worker, then play it the way an in-world screen would (`begin_ingest`: converted with
+    /// the ffmpeg at `ffmpeg_setting` when nothing here plays it as it is; BUG-228).
+    pub(crate) fn start(card: &Card, ffmpeg_setting: &str) -> ChatVideo {
         let mut view = crate::gui::widgets::video_view::VideoView::default();
         let (url, copy) = (card.url.clone(), crate::gui::pages::files::open::play_name(&card.url, 0));
-        view.start(move || {
+        view.start(ffmpeg_setting, &card.name, move || {
             let agent = crate::gui::pages::files::open::transfer_agent(std::time::Duration::from_secs(60));
             crate::gui::pages::files::open::fetch_to(&agent, &url, None, &crate::gui::pages::files::open::temp_dir(), &copy, MAX_PUBLIC_FILE)
         });
         ChatVideo { name: card.name.clone(), view }
     }
-}
-
-/// Whether this computer can ask its own decoders for an MP4 (Windows with Media Foundation).
-pub(crate) fn plays_mp4_here() -> bool {
-    #[cfg(windows)]
-    return crate::media::system::available();
-    #[cfg(not(windows))]
-    false
 }
 
 /// What a message links to that is drawn under it as cards: files posted into a public channel
@@ -178,16 +170,13 @@ impl Card {
         matches!(self.ext().as_str(), "mp4" | "webm" | "mov" | "m4v" | "mkv")
     }
 
-    /// Whether Play here is offered: a video on the message's own server that the app's player can
-    /// try (WebM and Matroska always; MP4 where the computer's own decoders are there). A video on
-    /// another website is never fetched before a click on Download.
+    /// Whether Play here is offered: a video on the message's own server. Every platform: our own
+    /// player reads WebM, Matroska and MP4 (AV1 inside), Windows's decoders an ordinary MP4, and
+    /// anything else is converted with the person's ffmpeg or named in plain words (BUG-228; MP4
+    /// had waited on Windows's decoders). A video on another website is never fetched before a
+    /// click on Download.
     pub(crate) fn plays_here(&self) -> bool {
-        self.other_site.is_none()
-            && match self.ext().as_str() {
-                "webm" | "mkv" => true,
-                "mp4" | "mov" | "m4v" => plays_mp4_here(),
-                _ => false,
-            }
+        self.other_site.is_none() && matches!(self.ext().as_str(), "webm" | "mkv" | "mp4" | "mov" | "m4v")
     }
 
     /// The line under a video the app does not offer to play, or None.
@@ -196,7 +185,6 @@ impl Card {
             return None;
         }
         match self.ext().as_str() {
-            "mp4" | "mov" | "m4v" if !plays_mp4_here() => Some(format!("{VIDEO_ELSEWHERE} {MP4_WHY}")),
             "mp4" | "mov" | "m4v" | "webm" | "mkv" => Some(VIDEO_ELSEWHERE.to_string()),
             _ => None,
         }
@@ -249,16 +237,18 @@ pub(crate) struct Pressed {
 /// Draw a card for each of `files` (as `files_in` found them) under a message that came through
 /// `msg_server` (empty for an older row: then `own_server`, the one this app is connected to).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn draw_all(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, video: &mut Option<ChatVideo>, files: &[String], msg_server: &str, own_server: &str, row_bg: Color32) {
+pub(super) fn draw_all(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, video: &mut Option<ChatVideo>, ffmpeg_setting: &str, files: &[String], msg_server: &str, own_server: &str, row_bg: Color32) {
     let server = if msg_server.is_empty() { own_server } else { msg_server };
     for raw in files {
-        draw(ui, theme, cache, model_view, video, &Card::of(raw, server), row_bg);
+        draw(ui, theme, cache, model_view, video, ffmpeg_setting, &Card::of(raw, server), row_bg);
     }
 }
 
 /// Draw `card` under its message and do what its buttons asked. The size is asked for a file on
-/// the message's own server only; a Download runs on the image cache's worker.
-pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, video: &mut Option<ChatVideo>, card: &Card, row_bg: Color32) {
+/// the message's own server only; a Download runs on the image cache's worker. `ffmpeg_setting` is
+/// Settings > Media's ffmpeg, for a Play here that has to convert.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, video: &mut Option<ChatVideo>, ffmpeg_setting: &str, card: &Card, row_bg: Color32) {
     if card.other_site.is_none() {
         cache.request_size(&card.url);
     }
@@ -280,7 +270,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, mod
     }
     if pressed.play {
         // One video at a time: a new Play here replaces the one playing (its copy goes with it).
-        *video = Some(ChatVideo::start(card));
+        *video = Some(ChatVideo::start(card, ffmpeg_setting));
     }
 }
 

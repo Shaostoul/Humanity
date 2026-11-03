@@ -108,14 +108,49 @@ impl Drop for OpusDecoder {
     }
 }
 
+/// Where the Opus packets come from: a WebM/Matroska track, or an MP4's sound track (BUG-228,
+/// 2026-11-03: `media::mp4`). Either way one packet at a time, on a file handle of its own.
+enum OpusPackets {
+    Mkv { mkv: MatroskaFile<BufReader<File>>, track: u64, packet: MkvPacket },
+    Mp4(super::mp4::SampleReader),
+}
+
+impl OpusPackets {
+    fn open(path: &Path, info: &MediaInfo, track: u64) -> Result<Self, MediaError> {
+        Ok(if info.mp4 {
+            OpusPackets::Mp4(super::mp4::SampleReader::open(path, false)?)
+        } else {
+            OpusPackets::Mkv { mkv: open_demuxer(path)?, track, packet: MkvPacket::default() }
+        })
+    }
+
+    /// The next Opus packet's bytes, or `None` at the end of the track.
+    fn next<'a>(&'a mut self, scratch: &'a mut Vec<u8>) -> Result<Option<&'a [u8]>, MediaError> {
+        match self {
+            OpusPackets::Mkv { mkv, track, packet } => loop {
+                if !mkv.next_frame(packet)? {
+                    return Ok(None);
+                }
+                if packet.track == *track {
+                    return Ok(Some(&packet.data));
+                }
+            },
+            OpusPackets::Mp4(reader) => Ok(reader.next(scratch)?.map(|_| &scratch[..])),
+        }
+    }
+}
+
 /// The file's Opus track as a kira `Decoder`. Holds its own demuxer so kira's
 /// decode thread never contends with the video thread for the file.
 pub struct OpusTrack {
     path: PathBuf,
-    mkv: MatroskaFile<BufReader<File>>,
+    /// The probe's facts, kept to open the packets again on a rewind.
+    info: MediaInfo,
+    packets: OpusPackets,
     track: u64,
     decoder: OpusDecoder,
-    packet: MkvPacket,
+    /// One MP4 sample's bytes (the Matroska reader keeps its own).
+    scratch: Vec<u8>,
     channels: usize,
     pre_skip: usize,
     /// Pre-skip samples still to drop (counts down from `pre_skip` after
@@ -140,18 +175,22 @@ impl OpusTrack {
         if channels == 0 || channels > 2 {
             return Err(MediaError::Audio(format!("{channels} channels; mono and stereo only")));
         }
-        let mkv = open_demuxer(path)?;
+        let packets = OpusPackets::open(path, info, track)?;
         // kira asks for frames up to num_frames and never past it, so this
         // must not exceed what the stream really holds. The container
         // duration counts from the first packet's start (the pre-skip
         // padding included), so subtracting pre_skip errs on the short side.
+        // (An MP4's duration is its edited length, the priming already cut,
+        // so the same subtraction errs further short there: a few
+        // milliseconds of the last packet, never a sample too many.)
         let num_frames = ((info.duration_s * OPUS_RATE as f64).floor() as usize).saturating_sub(info.pre_skip as usize);
         Ok(Self {
             path: path.to_path_buf(),
-            mkv,
+            info: info.clone(),
+            packets,
             track,
             decoder: OpusDecoder::new(channels)?,
-            packet: MkvPacket::default(),
+            scratch: Vec::new(),
             channels,
             pre_skip: info.pre_skip as usize,
             skip_left: info.pre_skip as usize,
@@ -168,16 +207,13 @@ impl OpusTrack {
         if self.eof {
             return Ok(None);
         }
-        loop {
-            if !self.mkv.next_frame(&mut self.packet)? {
+        {
+            let Some(packet) = self.packets.next(&mut self.scratch)? else {
                 self.eof = true;
                 return Ok(None);
-            }
-            if self.packet.track != self.track {
-                continue;
-            }
+            };
             let ch = self.channels;
-            let pcm = self.decoder.decode(&self.packet.data)?;
+            let pcm = self.decoder.decode(packet)?;
             let n = pcm.len() / ch;
             let drop = self.skip_left.min(n);
             self.skip_left -= drop;
@@ -193,7 +229,10 @@ impl OpusTrack {
     /// (a fresh state is exactly what a decoder reset gives, and it is what
     /// makes the samples after a rewind identical to the first pass).
     fn rewind(&mut self) -> Result<(), MediaError> {
-        self.mkv = open_demuxer(&self.path)?;
+        match &mut self.packets {
+            OpusPackets::Mp4(reader) => reader.rewind(),
+            OpusPackets::Mkv { .. } => self.packets = OpusPackets::open(&self.path, &self.info, self.track)?,
+        }
         self.decoder = OpusDecoder::new(self.channels)?;
         self.skip_left = self.pre_skip;
         self.cursor = 0;

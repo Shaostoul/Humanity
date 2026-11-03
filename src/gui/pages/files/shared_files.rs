@@ -359,8 +359,8 @@ pub(crate) fn draw_file(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     let bg = theme.bg_card();
     // A third of the way down, as the other places' middle panes show a file.
     ui.add_space((ui.available_height() * 0.3 - theme.spacing_lg).max(0.0));
-    let crate::gui::GuiState { image_cache, chat_model_view, chat_video, .. } = state;
-    crate::gui::pages::chat::public_files::draw(ui, theme, image_cache, chat_model_view, chat_video, &card, bg);
+    let crate::gui::GuiState { image_cache, chat_model_view, chat_video, settings, .. } = state;
+    crate::gui::pages::chat::public_files::draw(ui, theme, image_cache, chat_model_view, chat_video, &settings.ffmpeg_path, &card, bg);
 }
 
 /// The right pane: what the file chosen is, with Remove and Put on the Files page.

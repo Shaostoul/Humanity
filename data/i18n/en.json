@@ -3079,5 +3079,25 @@
     "web_modal_scope": "This only decides whether others can see you online and find you in directories. The directory switch is also on your Profile page, and the desktop app's Settings > Privacy can change both.",
     "web_level_set": "Privacy level set to {{level}}. The directory switch is also on your Profile page.",
     "tier_card_hint": "Picks this privacy level. The button below the levels puts it into effect."
+  },
+  "video": {
+    "file_mp4": "an MP4 file",
+    "file_mov": "a QuickTime (MOV) file",
+    "file_webm": "a WebM file",
+    "file_mkv": "a Matroska (MKV) file",
+    "kind_video": "{{file}} with {{video}} video",
+    "kind_video_sound": "{{file}} with {{video}} video and {{sound}} sound",
+    "kind_sound": "{{file}} with {{sound}} sound and no picture",
+    "why_known": "is {{kind}}, which this app cannot play as it is",
+    "why_unknown": "is a kind of file this app does not read itself",
+    "this_file": "This file {{why}}.",
+    "no_picture": "This file has sound but no picture.",
+    "damaged": "The file is damaged or cut short partway through.",
+    "needs_ffmpeg": "{{name}} {{why}}. The app can convert it to play here with ffmpeg, which was not found: {{hint}}.",
+    "cannot_convert": "{{name}} {{why}}. The app could not use ffmpeg to convert it: {{error}} ({{hint}}).",
+    "elsewhere": "Or download it and watch it in another player, such as VLC, which plays almost every kind.",
+    "converting": "Converting it to play here: {{pct}}%",
+    "convert_failed": "{{name}} could not be converted: {{error}}.",
+    "stopped": "The video stopped: {{error}}"
   }
 }

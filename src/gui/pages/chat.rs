@@ -1452,7 +1452,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                     }
                     // Public files and Media items: a card each (chat/public_files.rs, files/chat_card.rs).
-                    public_files::draw_all(ui, theme, &mut state.image_cache, &mut state.chat_model_view, &mut state.chat_video, &posted.files, &msg.server, &state.server_url, row_bg);
+                    public_files::draw_all(ui, theme, &mut state.image_cache, &mut state.chat_model_view, &mut state.chat_video, &state.settings.ffmpeg_path, &posted.files, &msg.server, &state.server_url, row_bg);
                     let (cards, needs) = crate::gui::pages::files::chat_card::views(state, &msg.sender_key, msg.timestamp_ms, &posted.items);
                     state.files.card_acts.extend(needs);
                     crate::gui::pages::files::chat_card::draw_all(ui, theme, &cards, row_bg, &mut state.files.card_acts);

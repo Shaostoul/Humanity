@@ -375,7 +375,7 @@ pub(crate) fn start_play(state: &GuiState, opened: &mut Opened) {
     match origin_of(&super::base_of(state), &opened.item, token.as_deref()) {
         Ok(origin) => {
             let name = play_name(&state.files.server, opened.item.id);
-            opened.video.start(move || origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &temp_dir(), &name, MAX_FETCH)));
+            opened.video.start(&state.settings.ffmpeg_path, &opened.item.title, move || origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &temp_dir(), &name, MAX_FETCH)));
         }
         Err(words) => opened.video.problem = words,
     }

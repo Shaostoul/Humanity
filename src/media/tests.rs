@@ -102,18 +102,17 @@ fn refuses_unsupported_codec_naming_it() {
         Ok(_) => panic!("a VP8 file must be refused"),
         Err(e) => e,
     };
+    // Since BUG-228 the refusal names the file in plain words (what it is), not the Matroska id:
+    // the person reads "VP8 video", the log keeps `V_VP8`.
     match &err {
-        MediaError::UnsupportedCodec { kind, codec_id } => {
-            assert_eq!(*kind, "video");
-            assert_eq!(codec_id, "V_VP8");
+        MediaError::Unplayable { kind, .. } => {
+            assert_eq!(kind.video.as_deref(), Some("VP8"));
+            assert_eq!(kind.sound.as_deref(), Some("Vorbis"));
         }
         other => panic!("wrong error kind: {other:?}"),
     }
     let text = err.to_string();
-    assert!(
-        text.contains("V_VP8") && text.contains("AV1") && text.contains("Opus"),
-        "the message must name the codec and the fix: {text}"
-    );
+    assert!(text.contains("WebM file with VP8 video"), "the message names the file and its codec: {text}");
 }
 
 /// Left edge of the red bar on the middle row, in pixels, or None.
@@ -934,4 +933,144 @@ fn a_seek_outside_the_clip_is_clamped_to_it() {
         player.position_s()
     );
     assert!(player.at_end(), "and the clip reads as finished there");
+}
+
+// ---------------------------------------------------------------------------
+// AV1 in an MP4 (BUG-228, 2026-11-03): the fixtures are described in mp4_tests.rs
+// ---------------------------------------------------------------------------
+
+const AV1_OPUS: &str = "sliding-bar-av1-opus.mp4";
+const AV1_AAC: &str = "sliding-bar-av1-aac.mp4";
+
+/// The MP4 fixtures' bar: 20 px wide, sliding right at 100 px/s (`overlay=x='mod(t*100,160)'`).
+const MP4_BAR_SPEED_PX_PER_S: f64 = 100.0;
+
+/// AN AV1 MP4 PLAYS THROUGH OUR OWN DECODER, the operator's file in miniature: `probe` takes it as
+/// ours (no Windows, no ffmpeg), and every one of its 30 pictures decodes, in order, at its size,
+/// with the bar where the recipe put it for that picture's time. Seen red 2026-11-03 with the probe
+/// before the fix planted back: "probe: Demux(\"unexpected element found. Expected: Ebml Found:
+/// Unknown\")", the Matroska reader's words the operator was shown (the seek test below failed the
+/// same way at "open").
+#[test]
+fn an_av1_mp4_plays_through_our_own_decoder() {
+    super::system_decoders_off_on_this_thread(); // ours, not Windows's
+    let info = probe(&fixture(AV1_OPUS)).expect("probe");
+    assert!(info.mp4 && !info.system, "our own decoder, from the MP4: {info:?}");
+    assert_eq!((info.video_codec.as_str(), info.audio_codec.as_deref()), ("AV1", Some("Opus")));
+    assert_eq!((info.width, info.height, info.channels, info.sample_rate), (160, 90, 2, 48_000));
+    assert_eq!(info.pre_skip, 312, "the priming the edit list cuts");
+    let mut frames = Vec::new();
+    let n = decode_video(&fixture(AV1_OPUS), 1, |f| frames.push(f)).expect("decode");
+    assert_eq!(n, 30, "1 s at 30 fps");
+    let mut last = -1.0;
+    for (i, f) in frames.iter().enumerate() {
+        assert_eq!((f.width, f.height), (160, 90));
+        assert!(f.pts_s > last, "frame {i} at {} s after {last}", f.pts_s);
+        last = f.pts_s;
+        assert!((f.pts_s - i as f64 / 30.0).abs() < 1.0e-6, "frame {i} at {} s", f.pts_s);
+        let expected = (f.pts_s * MP4_BAR_SPEED_PX_PER_S).round() as i64;
+        let left = bar_left_edge(f).unwrap_or_else(|| panic!("frame {i}: no red bar")) as i64;
+        assert!((left - expected).abs() <= 3, "frame {i} at {} s: the bar at {left}, not {expected}", f.pts_s);
+    }
+}
+
+/// THE OPUS IN AN MP4 SOUNDS FOR AS LONG AS THE FILE SAYS, and it is the 440 Hz tone: one second of
+/// stereo at 48 kHz after the priming is cut (within 5%). Seen red 2026-11-03 with the MP4 reader's
+/// sample-to-chunk runs ignored: "58896 samples against 96000 (ratio 0.614)".
+#[test]
+fn the_opus_in_an_mp4_sounds_for_as_long_as_the_file_says() {
+    super::system_decoders_off_on_this_thread();
+    let info = probe(&fixture(AV1_OPUS)).unwrap();
+    let (pcm, channels, rate) = OpusTrack::decode_all_pcm(&fixture(AV1_OPUS), &info).expect("opus");
+    assert_eq!((channels, rate), (2, 48_000));
+    let expected = info.duration_s * rate as f64 * channels as f64;
+    let ratio = pcm.len() as f64 / expected;
+    assert!((ratio - 1.0).abs() < 0.05, "{} samples against {expected:.0} (ratio {ratio:.3})", pcm.len());
+    let left: Vec<f32> = pcm.chunks_exact(2).map(|p| p[0]).collect();
+    let crossings = left.windows(2).filter(|w| w[0] < 0.0 && w[1] >= 0.0).count();
+    assert!((crossings as f64 - 440.0).abs() < 25.0, "a 440 Hz tone rises through zero 440 times a second, not {crossings}");
+    // And kira's seek lands where it is asked, as for WebM.
+    let mut track = OpusTrack::open(&fixture(AV1_OPUS), &info).unwrap();
+    assert!(track.seek(24_000).unwrap() <= 24_000);
+    assert!(!track.decode().unwrap().is_empty());
+}
+
+/// A SEEK IN AN AV1 MP4 LANDS WHERE IT WAS ASKED: 0.6 s, after the second keyframe at 0.5 s, and
+/// the picture agrees; an MP4 lists its keyframes, so no seek falls back to the top. Seen red
+/// 2026-11-03 with the probe before the fix planted back: "open: Demux(\"unexpected element found.
+/// Expected: Ebml Found: Unknown\")".
+#[test]
+fn a_seek_in_an_av1_mp4_lands_where_it_was_asked() {
+    super::system_decoders_off_on_this_thread();
+    let time = ManualClock::new();
+    let mut player = VideoPlayer::open_with_threads(fixture(AV1_OPUS), 1).expect("open");
+    player.use_manual_clock(&time);
+    player.seek_to(0.6);
+    let f = wait_for_frame_at(&mut player, 0.6 - 1.0e-6);
+    assert!((f.pts_s - 0.6).abs() < FRAME_S / 2.0, "the first picture after the seek is at {} s", f.pts_s);
+    let left = bar_left_edge(&f).expect("the bar") as i64;
+    assert!((left - 60).abs() <= 3, "at 0.6 s the bar is at 60 px, not {left}");
+    assert_eq!(player.seek_fallbacks(), 0, "an MP4 knows its keyframes: no decoding from the top");
+}
+
+/// AN AV1 MP4 WITH AAC SOUND PLAYS ITS SOUND THROUGH THE COMPUTER'S OWN DECODER, the way an
+/// ordinary MP4's sound plays: the picture is ours, the sound Windows's (48 kHz stereo), and it is
+/// the tone, not silence. Without Windows's decoders it plays silent and says which sound it lost.
+/// Seen red 2026-11-03 with `system_sound` never set: "Windows plays the AAC: MediaInfo { ...
+/// system_sound: false, sound_lost: Some(\"AAC\") }"; and with the probe before the fix planted
+/// back, "probe: Demux(\"unexpected element found. Expected: Ebml Found: Unknown\")" (Windows has
+/// no AV1 decoder on this PC, so the old road had nothing for this file at all).
+#[cfg(windows)]
+#[test]
+fn an_av1_mp4_with_aac_sound_plays_its_sound_through_windows() {
+    if !super::system::available() {
+        println!("skipped: this copy of Windows has no Media Foundation");
+        return;
+    }
+    let info = probe(&fixture(AV1_AAC)).expect("probe");
+    assert!(info.mp4 && !info.system, "the picture is ours: {info:?}");
+    assert!(info.system_sound, "Windows plays the AAC: {info:?}");
+    assert_eq!((info.audio_codec.as_deref(), info.sample_rate, info.channels), (Some("AAC"), 48_000, 2));
+    let mut sound = super::system::SystemAudio::open(&fixture(AV1_AAC), &info).expect("the sound opens");
+    let mut frames = Vec::new();
+    while frames.len() < 24_000 {
+        let chunk = kira::sound::streaming::Decoder::decode(&mut sound).expect("decodes");
+        assert!(!chunk.is_empty());
+        frames.extend(chunk);
+    }
+    let rms = (frames.iter().map(|f| (f.left as f64).powi(2)).sum::<f64>() / frames.len() as f64).sqrt();
+    assert!(rms > 0.02, "the tone, not silence (rms {rms:.4})");
+
+    super::system_decoders_off_on_this_thread();
+    let silent = probe(&fixture(AV1_AAC)).expect("probe without Windows");
+    assert!(!silent.system_sound && silent.sound_lost.as_deref() == Some("AAC"), "{silent:?}");
+}
+
+/// A FILE NOTHING HERE PLAYS IS NAMED IN PLAIN WORDS (BUG-228's first defect): what the file is,
+/// its container and codecs, never a reader's own message. Seen red 2026-11-03 with the probe
+/// before the fix planted back: "moving-box-h264-aac.mp4: Err(Demux(\"unexpected element found.
+/// Expected: Ebml Found: Unknown\"))".
+#[test]
+fn a_file_nothing_here_plays_is_named_in_plain_words() {
+    super::system_decoders_off_on_this_thread(); // so nothing plays these
+    let words = |name: &str| match probe(&fixture(name)) {
+        Err(e @ MediaError::Unplayable { .. }) => e.to_string(),
+        other => panic!("{name}: {other:?}"),
+    };
+    let mp4 = words("moving-box-h264-aac.mp4");
+    assert_eq!(mp4, "This file is an MP4 file with H.264 video and AAC sound, which this app cannot play as it is.");
+    let webm = words(UNSUPPORTED);
+    assert_eq!(webm, "This file is a WebM file with VP8 video and Vorbis sound, which this app cannot play as it is.");
+    let dir = humanity_core::test_temp::dir("plain_words");
+    std::fs::create_dir_all(&dir).unwrap();
+    let text = dir.join("holiday.mp4");
+    std::fs::write(&text, b"not a video at all").unwrap();
+    let unknown = match probe(&text) {
+        Err(e) => e.to_string(),
+        Ok(i) => panic!("{i:?}"),
+    };
+    assert_eq!(unknown, "This file is a kind of file this app does not read itself.");
+    for w in [&mp4, &webm, &unknown] {
+        assert!(!w.contains("Ebml") && !w.contains("V_") && !w.contains("Expected"), "no reader's words: {w}");
+    }
 }

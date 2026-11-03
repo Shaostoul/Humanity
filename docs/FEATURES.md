@@ -255,8 +255,8 @@ catch the bug via a revert-and-retest.
 
 ### Video Player Core (native, in-world screens rung 5, 2026-09-16)
 A purpose-built player core, no VLC and no ffmpeg at runtime: opens a
-WebM/Matroska file (any other format is converted once by the machine's
-ffmpeg on ingest, 2026-09-18), decodes AV1 video to RGBA frames and Opus audio to PCM
+WebM/Matroska file, or an MP4 holding AV1 (since 2026-11-03, BUG-228; any other format is
+converted once by the machine's ffmpeg on ingest, 2026-09-18), decodes AV1 video to RGBA frames and Opus audio to PCM
 on background threads, keeps a monotonic audio-led playback clock, and offers
 play / pause / seek-to-start / poll-the-due-frame. Refuses any other codec by
 name (H.264, H.265, AAC, VP8/VP9 and Vorbis are not decoded; other formats
@@ -267,8 +267,19 @@ machine in release mode, RGBA conversion included: 1080p AV1 decodes at
 at 1154 and 1802 fps). Design, licence audit and numbers:
 `docs/design/media-player.md`.
 - Native: `src/media/mod.rs` (`VideoPlayer`, clock, bounded frame queue, decode thread, `attach_audio_with` + `AudioAttach` (looping, the initial mix), `set_audio_mix`, `audio_position_s`, `audio_state`), `src/media/video.rs` (`Av1Decoder` over rav1d, YUV to RGBA), `src/media/audio.rs` (`OpusTrack`, a kira streaming `Decoder`), `crates/humanity-core/src/audio/mod.rs` (`play_stream` at an absolute amplitude and pan, `master_volume`, `sfx_volume`)
-- Data: `tests/fixtures/media/*.webm` (synthetic fixtures from `scripts/make-media-fixtures.sh`)
-- Tests: `src/media/tests.rs` (demux, decode, pixels, samples, clock, seek, thread join, ignored fps benchmark)
+- Data: `tests/fixtures/media/*.webm` and `sliding-bar-av1-*.mp4` (synthetic fixtures from `scripts/make-media-fixtures.sh`)
+- Tests: `src/media/tests.rs` (demux, decode, pixels, samples, clock, seek, thread join, ignored fps benchmark; AV1 in MP4 with Opus and with AAC, plain words), `src/media/mp4_tests.rs` (the MP4 reader)
+
+**AV1 in an MP4 plays through our own decoder (2026-11-03, BUG-228).** The form video sites hand
+AV1 out in. `src/media/mp4.rs` reads the MP4 container through `mp4-atom` (MIT OR Apache-2.0),
+every box decoded to a type, and builds each track's sample list itself, every count checked
+against the file's length (a stranger's file cannot make it allocate without limit); fragmented
+MP4 too. AV1 goes to rav1d, Opus to our decoder (its priming cut where the edit list says), AAC and
+any other sound to the computer's own decoder (`system::probe_sound`, then `SystemAudio`), or the
+picture plays silent and says so. A file nothing plays is named in plain words, its container and
+codecs ("an MP4 file with H.265 video and AAC sound", `media::kind::FileKind`,
+`MediaError::Unplayable`), never a reader's own message. The legal reading:
+`docs/reference/findings/2026-11-03-mp4-container.md`.
 
 ### Video on in-world screens (native, in-world screens rung 5 integration, 2026-09-16)
 "Movies on displays": a placed screen whose source is `video:<path>` plays a
@@ -736,6 +747,11 @@ going with the window. The player is one widget for the Media page and the chat,
 `src/gui/widgets/video_view.rs` (`VideoView`); the chat window is `chat/public_files.rs`
 `draw_video_window`, its sound `sync_video_sound`. The "WebM only, because of patents" line now shows
 only where the computer has no decoders to ask. The website plays a posted video in the page.
+Since 2026-11-03 (BUG-228) Play here takes the in-world screens' road, `transcode::begin_ingest_as`
+on the fetch's worker: played as it is, or converted once with the person's ffmpeg (the copy beside
+the temporary one, deleted with it, "Converting it to play here: 40%"), or refused in plain words
+naming the file by its posted name and what will play it. Offered for MP4 on every computer; the
+patent line is gone.
 **Media card follow-ups (v0.1513.0).** The desktop card names a content label before the Media page has
 loaded ("Labelled: Flashing lights."); the desktop takes only a link to a picture as a picture (a bare
 "render.png" in a non-friend's message no longer withholds its card) and removes it word by word;
