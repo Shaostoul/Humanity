@@ -312,7 +312,7 @@ In order:
     categories as pages, a secondary row, one/two/three-column page layouts, layers: primary 10,
     secondary 20, the warning 21, the footer 30, content 40+; designed for both apps before it is
     built; docs/design/top-menu-and-game-pages.md holds the options it replaces), then BUG-225 (Font
-    Size does nothing), then spline rung 1. AI training crawlers: ALLOWED ("Allow them.", robots.txt
+    Size does nothing: FIXED 2026-11-03, the whole app's zoom, 100% to 200%), then spline rung 1. AI training crawlers: ALLOWED ("Allow them.", robots.txt
     held by its test). His later answers the same day:
     - THE SIX QUESTIONS: Who, What, When, Where, Why and How, each a page, as cards on the front
       door and the Humanity overview. Most exist (How = How-to and Library, Where = Maps, Why =
