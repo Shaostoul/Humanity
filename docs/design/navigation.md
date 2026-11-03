@@ -796,3 +796,40 @@ layer number in his numbering.
     "Websites".
 12. **People:** the name (People, Members, or Community), and AI participants listed among them,
     labelled AI. *Recommended:* People, with AI listed and labelled.
+
+### 16.1 His answers (2026-11-03)
+
+Quoted exactly. Where a question is not here, it is still open, and its recommendation stands
+until he answers.
+
+- **Question 1, the name of the own-life category.** "I'm worried about there being a conflict
+  between the home page and the page with the player homes. What other options do you think makes
+  sense? "Mine"?" Open. The orchestrator's answer: "Life", which pairs with Play (your real life and
+  the game, `two-realities.md`) and names nothing else in the app; "Mine" collides with the Tasks
+  page's own "Mine" view (tasks rung 1, BUG-217) and does not fit Market or Trade; "Me" and
+  "Personal" are the others.
+- **Question 2, Play's click.** "Maybe click and hold after booting the app. Then just tapping Play
+  brings up the subpages that are relevant to the game. Like characters, homes, servers, etc.?"
+  So: a tap on Play opens Play's page and row (Characters, homes, Worlds, Servers, ...); a press
+  and hold goes into the world, filling as it is held (the reusable `widgets::hold_to_confirm`,
+  with a hold far shorter than its 3 s for deleting). Holding is hard for some hands, so Play's
+  page also has its own "Enter the world" button, and a keyboard's Enter on that button goes in at
+  once. Section 3 and rung 2 follow this.
+- **Question 3, the preview on hover.** "For what exactly? Yes with option for off." The preview is
+  this: resting the pointer on a category's button for a moment shows that category's pages in the
+  second row, without clicking, so a person can see what is inside before going there; moving
+  away brings back the row of the page they are on. Yes, with a Settings switch to turn it off.
+- **Question 4, the mouse's side buttons in the world.** "I'm not sure what to make them do yet."
+  They stay unbound in the world until he decides; on every page they are Back and Forward.
+- **Question 5, an urgent alert over an open popup.** "Yes."
+- **Question 8, Rules beside Laws now.** "Yes"
+- **Question 9, the Dev page's sections as row pages, Bugs also in the help panel.** "Yes."
+- **Question 10, the phone's rows always visible.** "Yes."
+
+On the mock-up of the Files page (`nav_double_tv_hover.png`): "I feel like that first image should
+be ordered as your private local files files, your publicly shared files, then files by
+friends/servers? Maintains the RGB styling. R for private, B for servers." The RGB language is
+the launcher's (`characters-and-servers.md`: offline RED, open GREEN, closed BLUE), so the Files
+page's places go red (this computer: the HumanityOS folder, Your folders), green (what you share
+publicly), blue (what friends and servers share). That is a change to the Files page itself,
+queued as its own increment; the menus here are unchanged by it.

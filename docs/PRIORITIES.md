@@ -349,7 +349,17 @@ In order:
       thirteen questions for him in section 10). Rungs 1 to 7 need no decision on the jump.
     - THE NAVIGATION: DESIGNED, docs/design/navigation.md (eight categories as pages, a
       secondary row each, one layer order, the six question pages, browser-like history, the
-      parity audit; eight rungs; twelve questions for him in section 16).
+      parity audit; eight rungs; twelve questions for him in section 16). His answers 2026-11-03
+      in section 16.1: Play is tap for its pages, press and hold to enter the world; the
+      own-life category's name is open ("Home" clashes with player homes; "Life" recommended);
+      the side buttons stay unbound in the world; yes to the preview (with an off switch), urgent
+      over popups, Rules, Dev's row, phone rows always visible.
+    - THE FILES PAGE'S PLACES IN RGB ORDER (2026-11-03): red, this computer (the HumanityOS folder,
+      Your folders); green, what you share publicly; blue, what friends and servers share. The
+      launcher's colour language. Queued after BUG-228 (which touches the Files viewer).
+    - RESPAWN AND REVIVAL, its own design (his ask, 2026-11-03): revival beyond the lifeline is a
+      heavy carried piece taking every back slot; Hardcore's costs to play with (mission gear and
+      experience, the highest skill's last level); magic considered. Dispatched.
     - THE DESKTOP APP DOES EVERYTHING: "We should add the pages... We can't leave anything out.
       Everything needs to be able to be done through the app." A desktop Roadmap page and Devlog
       page, and a parity audit of every one-sided page, in the double-menu design.

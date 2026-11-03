@@ -1090,3 +1090,26 @@ check the paper itself.
 12. **gravity-and-movement.md's "Decision: torch-ship brachistochrone, no FTL"** still stands while
     his FTL proposal waits. The jump of question 1 is for small craft only, which keeps that
     section's reasoning about gravity whole: the motherships never coast.
+
+## 10.1 His answers (2026-11-03)
+
+Quoted exactly. Questions not listed here are still open, and their recommendations stand until he
+answers.
+
+- **Questions 1, 5 and 11** (the jump for small craft only; weapons for things that are not
+  people, and sport by consent; "the lifeline" as the word people read): "Agreed".
+- **Bringing someone back, beyond the lifeline.** "And any way of bringing dead people back to life
+  is someone bringing the heavy portable gear piece that makes it possible but weighs a ton. Like
+  maybe it takes all back slots while on mission. Like a backpack." So what keeps a mind going out
+  there is not a small recorder every crew member wears: it is a heavy piece of gear someone on the
+  mission chooses to carry, taking every back slot. Section 4 is reworked in the respawn design
+  (below).
+- **Hardcore.** "I like the idea. It's brutal. We'll have to keep playing with it. Maybe hardcore is
+  losing all gear and experience gained during the mission. Could also make death make the highest
+  leveled skill lose the previous full level's worth of experience. Just any skill, whichever is
+  highest. We'll have to put together a doc specific for infinitely respawning lore mechanics or
+  maybe revives use magic, since I kinda want to include magic."
+
+The respawn and revival mechanics get their own design document, as he asks, collecting the
+options (the heavy carried gear, Hardcore's costs, the highest skill's lost level, and magic) for
+him to play with.
