@@ -152,6 +152,16 @@ Real-time text chat with channels, threads, and message history.
   `src/relay/default_channels.rs`). #local is an ordinary row under its server in both apps; a
   server's name folds its rooms; a room that is gone lands the app in #global. `just feedback`
   prints the newest #feedback lines from united-humanity.us (`scripts/feedback.js`).
+- **One room row for every server (2026-11-03, BUG-242, docs/design/chat-channels.md section 6):**
+  the desktop draws a room under the active server and under every other one with one drawer,
+  `src/gui/pages/chat/channel_row.rs` `draw_room_row`: the voice column (mic or speaker, or empty),
+  `# name` and its level badge, eye and node-graph, then the unread dot and the muted mark at fixed
+  places on the right; a line of the body text tall. The website's rooms keep the same voice column
+  (`web/chat/chat-ui.js` `.ch-voice-slot`).
+- **How much of a message the DM list shows (2026-11-03, desktop):** Names only, Name and one line
+  (the default) or Name and two lines, in Settings > Privacy and the DMs header's cog; the levels are
+  data (`data/gui/dm_preview.json`), the choice is `config.json` `dm_preview_lines`
+  (`src/gui/pages/chat/dm_rows.rs`). The website's DM list shows names only.
 - **Is my line posted? (2026-10-24):** my own room line reads "Sending...", then is posted, or
   "Not sent" with why (too long for my limit, too fast, a new account's wait) and Edit and send
   again; "Not confirmed by the server yet" after 20 s. The relay names each refusal to its sender

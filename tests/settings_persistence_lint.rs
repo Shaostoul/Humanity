@@ -103,6 +103,11 @@ const SETTINGS_FILES: &[&str] = &[
     // leg of `notifications` removed from config.rs: "notifications: never read by apply_to_state".
     "src/gui/pages/settings/notifications.rs",
     "src/gui/pages/chat/mute_menu.rs",
+    // Settings > Privacy (pages/privacy.rs): its level cards, the presence switch, and the DM
+    // list's message previews (2026-11-03, `dm_preview_lines`, chosen there and in the DMs cog).
+    // Seen red 2026-11-03 with the previews' load leg removed from config.rs:
+    // "dm_preview_lines: never read by apply_to_state".
+    "src/gui/pages/privacy.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget

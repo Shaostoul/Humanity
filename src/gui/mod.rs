@@ -4612,6 +4612,9 @@ pub struct SettingsState {
     pub privacy_tier: String,
     /// Settings > Safety, "Warnings on messages" (step F, 10g): On by default; Off hides them all.
     pub warnings_on_messages: bool,
+    /// How many lines of each conversation's last message the DM list shows, 0 for names only
+    /// (2026-11-03; Settings > Privacy and the DMs cog; pages/chat/dm_rows.rs).
+    pub dm_preview_lines: u8,
     /// The report dialog's "Help outside this server" country, last picked on this device (10e-ii):
     /// a code, "other", or empty (never picked). Kept here only; never sent anywhere.
     pub outside_help_country: String,
@@ -4752,6 +4755,7 @@ impl Default for SettingsState {
             online_status_visible: false,
             privacy_tier: String::new(),
             warnings_on_messages: true,
+            dm_preview_lines: crate::gui::pages::chat::dm_rows::DEFAULT_LINES,
             outside_help_country: String::new(),
             files_in_messages: Default::default(),
             files_folders: Vec::new(),

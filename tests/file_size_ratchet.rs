@@ -35,6 +35,9 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-11-03: `gui/pages/chat/left_panel.rs` 2_100 -> 1_900. BUG-242 drew every server's rooms
+///   with one room row (`gui/pages/chat/channel_row.rs`) instead of two blocks of their own
+///   (1_841 lines that day, with the DM previews' layout in `chat/dm_rows.rs`).
 /// - 2026-11-01: `relay/relay.rs` 6_380 -> 6_340. Notifications rung 3's `task_notice` took it past
 ///   its budget, so the Web Push send (`RelayState::send_push_notification`, 79 lines) moved out
 ///   unchanged into its child module `relay/push_send.rs`.
@@ -449,7 +452,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/engine/frame_near_trees.rs", 700),
     ("crates/humanity-systems/src/surface_walk.rs", 474),
     ("src/gui/pages/chat.rs", 4_700),
-    ("src/gui/pages/chat/left_panel.rs", 2_100),
+    ("src/gui/pages/chat/left_panel.rs", 1_900),
     ("src/gui/pages/chat/modals.rs", 1_550),
     ("src/gui/pages/chat/p2p_groups.rs", 800),
     ("src/gui/pages/chat/right_panel.rs", 600),

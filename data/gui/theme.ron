@@ -71,6 +71,7 @@
     avatar_gap: 8.0,
     pill_radius: 9.0,
     row_height: 15.883123,
+    row_accent_width: 3.0,
     header_height: 16.0,
     border_width: 1.0,
     status_dot_size: 7.6860423,

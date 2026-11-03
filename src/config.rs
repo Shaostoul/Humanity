@@ -373,6 +373,11 @@ pub struct AppConfig {
     /// 2026-10-10). On by default, so a config written before it existed warns.
     #[serde(default = "default_true")]
     pub warnings_on_messages: bool,
+    /// The DM list's message previews (2026-11-03, gui/pages/chat/dm_rows.rs): how many lines of
+    /// each conversation's last message show under the name, 0 for names only. One line for a
+    /// config written before the choice existed, the look the list had.
+    #[serde(default = "default_dm_preview_lines")]
+    pub dm_preview_lines: u8,
     /// The report dialog's "Help outside this server" country (blocking-and-safe-mode.md 10e-ii,
     /// 2026-10-10): the last one picked on this device, a code such as "GB" or "other" for
     /// Another country; empty until one is picked. The person's own choice, kept in this file
@@ -1117,6 +1122,7 @@ fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_star_catalog_tier() -> String { "auto".to_string() }
 fn default_true() -> bool { true }
+fn default_dm_preview_lines() -> u8 { crate::gui::pages::chat::dm_rows::DEFAULT_LINES }
 fn default_language() -> String { "en".to_string() }
 // Settings that were reachable in the UI but never persisted until v0.1066.
 // Defaults MUST match the `Settings::default()` values in src/gui/mod.rs, so
@@ -1551,6 +1557,7 @@ impl AppConfig {
             online_status_visible: state.settings.online_status_visible,
             privacy_tier: state.settings.privacy_tier.clone(),
             warnings_on_messages: state.settings.warnings_on_messages,
+            dm_preview_lines: state.settings.dm_preview_lines,
             outside_help_country: state.settings.outside_help_country.clone(),
             files_in_messages: state.settings.files_in_messages.clone(),
             files_unfinished_uploads: state.files.unfinished.clone(),
@@ -1755,6 +1762,7 @@ impl AppConfig {
         state.settings.online_status_visible = self.online_status_visible;
         state.settings.privacy_tier = self.privacy_tier.clone();
         state.settings.warnings_on_messages = self.warnings_on_messages;
+        state.settings.dm_preview_lines = self.dm_preview_lines;
         state.settings.outside_help_country = self.outside_help_country.clone();
         state.settings.files_in_messages = self.files_in_messages.clone();
         state.files.unfinished = self.files_unfinished_uploads.clone();

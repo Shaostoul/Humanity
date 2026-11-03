@@ -3534,6 +3534,109 @@ fn snapshot_chat_channels() {
     });
 }
 
+/// BUG-242: the chat sidebar with each of two servers active, the operator's two screenshots
+/// (2026-11-03: "The active server everything is really tight. The inactive server channels are
+/// loose."). Both servers' rooms are open, each with a room that has voice and one that does not,
+/// an unread room, and on united-humanity.us a muted one. One room row draws every server's rooms
+/// (chat/channel_row.rs), so the two pictures differ only in which server says "(current)" and
+/// which room is lit; the rooms keep their place, their indent and their spacing.
+fn rooms_with_active(name: &str, home_active: bool) {
+    render_page_png(name, 1280, 900, move |ctx, theme, state| {
+        // The closure runs once per frame: seed on the first only.
+        if state.connections.is_empty() {
+            use humanity_protocol::chat_access::{PostLevel, ReadLevel};
+            const HOME: &str = "https://united-humanity.us";
+            const OTHER: &str = "https://public.guide";
+            let room = |id: &str, post: PostLevel, voice: bool, unread: bool| ChatChannel {
+                id: id.into(),
+                name: id.into(),
+                read_level: ReadLevel::Anyone,
+                post_level: post,
+                federated: true,
+                voice_enabled: voice,
+                unread,
+                ..Default::default()
+            };
+            let home_rooms = vec![
+                room("announcements", PostLevel::Mods, false, false),
+                room("global", PostLevel::Members, true, false),
+                room("feedback", PostLevel::Members, false, true),
+            ];
+            let other_rooms = vec![room("announcements", PostLevel::Mods, false, false), room("global", PostLevel::Members, true, true)];
+            let saved = |name: &str, url: &str| ChatServer { name: name.into(), channels: vec![], voice_channels: vec![], id: format!("srv_{name}"), url: url.into(), connected: true };
+            state.chat_servers = vec![saved("united-humanity.us", HOME), saved("public.guide", OTHER)];
+            let (active, active_rooms, other, parked_rooms) =
+                if home_active { (HOME, home_rooms, OTHER, other_rooms) } else { (OTHER, other_rooms, HOME, home_rooms) };
+            state.server_url = active.into();
+            state.connected_server_url = active.into();
+            state.ws_client = Some(crate::net::ws_client::WsClient::recording().0);
+            state.chat_channels = active_rooms;
+            state.chat_active_channel = "global".into();
+            state.connections.push(crate::gui::ServerConnection {
+                url: other.into(),
+                display_url: other.into(),
+                identified: true,
+                channels: parked_rooms,
+                ..Default::default()
+            });
+            state.chat_server_folds.insert(other.into(), false);
+            // united-humanity.us's #feedback muted until unmuted: the room row's muted mark.
+            state.settings.notifications.mutes.mute_room(HOME, "feedback", crate::notifications::now_secs(), 0);
+            state.chat_left_panel_width = 360.0;
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_rooms_home_active() {
+    rooms_with_active("chat_rooms_home_active", true);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_rooms_second_active() {
+    rooms_with_active("chat_rooms_second_active", false);
+}
+
+/// The DM list's message previews at each level (2026-11-03, chat/dm_rows.rs): three
+/// conversations, two with a long last message, shown as names only, a name and one line (the
+/// default), and a name and two lines.
+fn dm_previews_at(name: &str, lines: u8) {
+    render_page_png(name, 1280, 900, move |ctx, theme, state| {
+        // The closure runs once per frame: seed on the first only.
+        if !state.chat_dms.iter().any(|d| d.user_name == "Bela") {
+            let dm = |name: &str, key: &str, last: &str, unread: bool| ChatDm { user_name: name.into(), user_key: key.into(), last_message: last.into(), timestamp: String::new(), unread };
+            state.chat_dms = vec![
+                dm("Ada", "dlth3:ada", "See you at the build", true),
+                dm("Bela", "dlth3:bela", "The seedlings came up this morning, all twelve of them, and the tomatoes are already taller than the peppers. Come and see them before the weekend.", false),
+                dm("Chidi", "dlth3:chidi", "You: Thanks! The seed potatoes arrived today and they look healthy. I will plant them on Saturday if the rain holds off.", false),
+            ];
+            state.settings.dm_preview_lines = lines;
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_dm_names_only() {
+    dm_previews_at("chat_dm_names_only", 0);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_dm_one_line() {
+    dm_previews_at("chat_dm_one_line", 1);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_dm_two_lines() {
+    dm_previews_at("chat_dm_two_lines", 2);
+}
+
 /// The Commons MERGED view, rendered from two populated background carrier
 /// connections (field test 5: the operator's Commons rooms rendered empty).
 /// This is the falsifiable repro: if the merge breaks, this snapshot shows

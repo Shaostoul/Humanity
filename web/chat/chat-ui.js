@@ -2096,9 +2096,14 @@ var federatedRetryMs = 30000;
       // match the live roster + join by id (not by name).
       const vc = (window._voiceChannels || []).find(c => String(c.id) === String(ch.id));
       const voiceJoined = String(ch.id) === String(window._currentRoomId);
+      // Every room keeps the voice column (BUG-242, as the desktop's room row,
+      // src/gui/pages/chat/channel_row.rs): a room without voice has it empty, so a
+      // voice mark never pushes one room's name sideways. Only the mic is .ch-mic,
+      // which the click handler joins or leaves with; a click on an empty slot opens
+      // the room like the rest of the row.
       const micHtml = ch.voice_enabled
-        ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.id)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
-        : '';
+        ? `<span class="ch-voice-slot ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.id)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
+        : '<span class="ch-voice-slot" aria-hidden="true"></span>';
       const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
       // Live voice roster under the channel: who is connected to voice here
       // (from the relay's voice_channel_list broadcast). (v0.481)

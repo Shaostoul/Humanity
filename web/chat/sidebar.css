@@ -100,6 +100,16 @@
   cursor: pointer;
   border-radius: var(--radius-sm);
 }
+/* The voice column (BUG-242, as the desktop's room row): every server room keeps it, the mic in
+   it or nothing, one small icon wide, so each room's name starts at the same place. */
+.channel-item .ch-voice-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-small);
+  margin-right: 5px;
+  vertical-align: middle;
+}
 .channel-item .ch-mic:hover { color: var(--text); opacity: 1; }
 .channel-item.active .ch-mic { color: var(--text); opacity: 0.95; }
 .channel-item .ch-mic.joined { color: var(--accent); opacity: 1; }

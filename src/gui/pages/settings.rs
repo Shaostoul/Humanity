@@ -2131,6 +2131,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
             any_changed |= styled_slider(ui, &ss, "Avatar Gap", &mut theme.avatar_gap, 0.0..=24.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Pill Radius", &mut theme.pill_radius, 0.0..=20.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Row Height", &mut theme.row_height, 12.0..=48.0, label_color);
+            any_changed |= styled_slider(ui, &ss, humanity_core::i18n::t("settings.row_accent_width"), &mut theme.row_accent_width, 0.0..=8.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Header Height", &mut theme.header_height, 16.0..=64.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Button Height", &mut theme.button_height, 16.0..=48.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Input Height", &mut theme.input_height, 16.0..=48.0, label_color);

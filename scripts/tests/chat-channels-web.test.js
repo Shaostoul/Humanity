@@ -142,3 +142,30 @@ test("#local is an ordinary row, and the server's name is the fold", async () =>
   const fed = html.slice(html.indexOf("public.guide"));
   assert.ok(fed.length > 0 && !fed.includes("data-channel-id"), "another server is one line, no rooms under it");
 });
+
+// BUG-242 (2026-11-03): every room keeps the voice column, so a room's name starts at the same
+// place with or without a voice mark, as on the desktop (src/gui/pages/chat/channel_row.rs). The
+// operator's screenshots showed a voice mark pushing one room's name sideways. The slot comes first
+// in each row, before the "# name"; a room with voice has its mic in it (a click joins or leaves),
+// a room without has an empty slot of the same width that nothing clicks.
+//
+// Seen red 2026-11-03 on renderServerList as it was (the mic drawn only on a voice room):
+// "#announcements keeps the voice column".
+test("every room keeps the voice column, so a voice mark moves no name", async () => {
+  const { ctx, list } = loadChat([]);
+  vm.runInContext("channelList = " + JSON.stringify(CHANNELS) + "; activeChannel = 'global';", ctx);
+  vm.runInContext("renderServerList", ctx)();
+  const html = list.innerHTML;
+  for (const ch of CHANNELS) {
+    const row = rowOf(html, ch.id);
+    const slot = row.indexOf('class="ch-voice-slot');
+    assert.ok(slot >= 0, `#${ch.name} keeps the voice column: ` + row);
+    assert.ok(slot < row.indexOf('class="ch-label"'), `#${ch.name}'s voice column comes before its name`);
+    assert.strictEqual(row.split('class="ch-voice-slot').length - 1, 1, `#${ch.name} has one voice column`);
+    if (ch.voice_enabled) {
+      assert.ok(row.includes(`data-voice-channel="${ch.id}"`), `#${ch.name}'s mic is in its column`);
+    } else {
+      assert.ok(!row.includes("data-voice-channel") && !row.includes("ch-mic"), `#${ch.name}'s column is empty and nothing clicks it`);
+    }
+  }
+});

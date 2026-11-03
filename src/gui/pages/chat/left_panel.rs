@@ -30,6 +30,10 @@
 //!     mutating state mid-draw.
 //!   * `draw_active_server_entry` is the expanded server: its channel list,
 //!     unread marks, and the per-channel menus.
+//!   * Every room row, under the active server and under every other one, is
+//!     drawn by ONE drawer, `channel_row::draw_room_row` (BUG-242, 2026-11-03:
+//!     the two paths had drifted into a tight list and a loose one); the two
+//!     callers here only decide what a click means.
 //!
 //! `draw_commons_section` deliberately stayed in `chat.rs`: it is drawn here
 //! but it belongs to the commons helpers (`commons_rooms`, `open_commons_room`,
@@ -40,7 +44,6 @@
 use super::*;
 use crate::gui::widgets::Hint as _;
 use crate::gui::{connect_target, OFFICIAL_SERVER};
-use humanity_protocol::chat_access::{PostLevel, ReadLevel};
 
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
 
@@ -264,7 +267,7 @@ fn draw_scratchpad_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.painter().rect_filled(rect, 0.0, bg);
 
         if is_active {
-            let bar = egui::Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height()));
+            let bar = egui::Rect::from_min_size(rect.min, Vec2::new(theme.row_accent_width, rect.height()));
             ui.painter().rect_filled(bar, 0.0, sp);
         }
 
@@ -417,6 +420,14 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 crate::gui::pages::settings::notifications::send_synced(state);
                                 state.dm_settings_popup_open = false;
                             }
+                            // How much of each message the list shows (chat/dm_rows.rs), the same
+                            // choice as Settings > Privacy; the popup stays open to show it.
+                            ui.separator();
+                            ui.label(RichText::new(humanity_core::i18n::t("chat.dm_preview_title")).size(theme.font_size_small).color(theme.text_secondary()).strong());
+                            if let Some(lines) = super::dm_rows::picker(ui, theme, state.settings.dm_preview_lines) {
+                                state.settings.dm_preview_lines = lines;
+                                state.settings_dirty = true;
+                            }
                         });
                 });
             // Close-on-click-outside — but ignore the trigger-click frame
@@ -465,13 +476,21 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let dm_channel = format!("dm:{}", dm.user_key);
                     let is_active = state.chat_active_channel == dm_channel;
 
-                    // Channel-row style DM entry. When we have a last-message
-                    // preview the row grows a second line for it (v0.715).
-                    let has_preview = !dm.last_message.trim().is_empty();
-                    let row_height = if has_preview {
-                        theme.row_height + theme.font_size_small + 4.0
-                    } else {
-                        theme.row_height
+                    // Channel-row style DM entry. Under the name, as much of the last message
+                    // as the person chose (chat/dm_rows.rs: names only, one line or two), and
+                    // the row grows by what it shows (v0.715; the choice 2026-11-03).
+                    let preview_color = if dm.unread { theme.text_secondary() } else { theme.text_muted() };
+                    let preview_w = ui.available_width() - (theme.item_padding + 2.0) - 10.0;
+                    let lines = super::dm_rows::preview_lines(state);
+                    let preview = super::dm_rows::preview(ui, theme, &dm.last_message, preview_w, lines, preview_color);
+                    let has_preview = preview.is_some();
+                    // The name's line is a line of the body text tall, as a room row is
+                    // (chat/channel_row.rs, BUG-242): the theme's row height alone is shorter
+                    // than the name, which packed a list of names only together.
+                    let name_h = super::channel_row::text_row_height(ui, theme);
+                    let row_height = match &preview {
+                        Some(galley) => name_h + galley.size().y + 2.0 * theme.spacing_xs,
+                        None => name_h,
                     };
                     let (full_rect, response) = ui.allocate_exact_size(
                         Vec2::new(ui.available_width(), row_height),
@@ -488,7 +507,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                         // Active indicator bar, in the DM lane's identity accent.
                         if is_active {
-                            let bar = egui::Rect::from_min_size(full_rect.min, Vec2::new(3.0, full_rect.height()));
+                            let bar = egui::Rect::from_min_size(full_rect.min, Vec2::new(theme.row_accent_width, full_rect.height()));
                             ui.painter().rect_filled(bar, 0.0, theme.dm_accent());
                         }
 
@@ -496,7 +515,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // With a preview, the name sits on the upper line and
                         // the preview on the lower; without, name is centered.
                         let cy = if has_preview {
-                            full_rect.top() + theme.row_height * 0.5
+                            full_rect.top() + name_h * 0.5
                         } else {
                             full_rect.center().y
                         };
@@ -523,33 +542,11 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             super::mute_menu::paint_muted_mark(ui, at, theme.text_muted(), egui::Id::new(("dm_muted_mark", &dm.user_key)), until);
                         }
 
-                        // Last-message preview line: muted, single line,
-                        // elided to fit the row width. Newlines flattened.
-                        if has_preview {
-                            let avail_w = full_rect.width() - (theme.item_padding + 2.0) - 10.0;
-                            // Cheap width heuristic: proportional glyphs
-                            // average ~0.55em; egui has no single-line elide.
-                            let max_chars = ((avail_w / (theme.font_size_small * 0.55)).max(4.0)) as usize;
-                            let flat: String = dm
-                                .last_message
-                                .chars()
-                                .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
-                                .collect();
-                            let flat = flat.trim();
-                            let preview: String = if flat.chars().count() > max_chars {
-                                let cut: String = flat.chars().take(max_chars.saturating_sub(3)).collect();
-                                format!("{}...", cut.trim_end())
-                            } else {
-                                flat.to_string()
-                            };
-                            let preview_color = if dm.unread { theme.text_secondary() } else { theme.text_muted() };
-                            ui.painter().text(
-                                egui::pos2(full_rect.left() + theme.item_padding + 2.0, full_rect.top() + theme.row_height + theme.font_size_small * 0.5),
-                                egui::Align2::LEFT_CENTER,
-                                &preview,
-                                egui::FontId::proportional(theme.font_size_small),
-                                preview_color,
-                            );
+                        // The last message's preview: as many lines as the person chose, cut with
+                        // an ellipsis at the row's width, line breaks flattened (chat/dm_rows.rs).
+                        if let Some(galley) = preview {
+                            let at = egui::pos2(full_rect.left() + theme.item_padding + 2.0, full_rect.top() + name_h);
+                            ui.painter().galley(at, galley, preview_color);
                         }
                     }
 
@@ -994,31 +991,20 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     // Bridged rooms live only in COMMONS (field test 4); #local
                     // is an ordinary row like every other room since
                     // 2026-11-02 (docs/design/chat-channels.md section 5).
-                    let bg_channels: Vec<(String, String, bool, bool, ReadLevel, PostLevel)> = {
+                    let bg_channels: Vec<crate::gui::ChatChannel> = {
                         // The Commons rooms THIS server is a linked carrier of (chat/commons.rs).
                         let commons = commons_rooms_carried_by(state, &server.url);
-                        let filter_map = |ch: &crate::gui::ChatChannel| {
-                            if (ch.federated && commons.contains(&ch.id)) || !crate::engine::protected::lists_channel(state, ch) {
-                                None
-                            } else {
-                                Some((
-                                    ch.id.clone(),
-                                    ch.name.clone(),
-                                    ch.unread,
-                                    false,
-                                    ch.read_level,
-                                    ch.post_level,
-                                ))
-                            }
+                        let listed = |ch: &&crate::gui::ChatChannel| {
+                            !(ch.federated && commons.contains(&ch.id)) && crate::engine::protected::lists_channel(state, ch)
                         };
                         if is_current {
-                            state.chat_channels.iter().filter_map(filter_map).collect()
+                            state.chat_channels.iter().filter(listed).cloned().collect()
                         } else {
                             state
                                 .connections
                                 .iter()
                                 .find(|c| c.url == norm_server_url(&server.url))
-                                .map(|c| c.channels.iter().filter_map(filter_map).collect())
+                                .map(|c| c.channels.iter().filter(listed).cloned().collect())
                                 .unwrap_or_default()
                         }
                     };
@@ -1109,103 +1095,58 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         ui.set_min_width(160.0);
                         super::mute_menu::server_items(ui, theme, state, &server.url);
                     });
-                    // This server's channels, live from its background
-                    // connection (multi-connection stage 4). ALL channels are
-                    // listed; a bridged one carries the federation badge and
-                    // opens the merged Commons view WITHOUT switching servers
-                    // (one room, one view). A plain channel switches to this
-                    // server and lands in that room. A CURRENT but offline
-                    // server (the operator's stopped self-relay) lists its
-                    // last-known channels from the legacy fields, so it never
-                    // looks channel-less.
+                    // This server's rooms, live from its background connection
+                    // (multi-connection stage 4), drawn by THE room row
+                    // (chat/channel_row.rs), the one the server the app is on
+                    // draws its rooms with, so a room looks the same whichever
+                    // server is active (BUG-242). A room (or its voice mark)
+                    // switches to this server and lands in that room. A CURRENT
+                    // but offline server (the operator's stopped self-relay)
+                    // lists its last-known channels from the legacy fields, so
+                    // it never looks channel-less.
                     if !sec_collapsed {
-                        for (ch_id, ch_name, ch_unread, ch_commons, ch_read, ch_post) in bg_channels.clone() {
-                            ui.horizontal(|ui| {
-                                // Exactly the ACTIVE channel-row height: any
-                                // per-path height difference shuffles the
-                                // list on switch (field test 7 discipline).
-                                ui.set_min_height(theme.row_height);
-                                ui.add_space(24.0);
-                                let label = ui
-                                    .add(
-                                        egui::Label::new(
-                                            RichText::new(format!("# {}", ch_name))
-                                                .size(theme.font_size_body)
-                                                .color(theme.text_secondary()),
-                                        )
-                                        .sense(egui::Sense::click()),
-                                    )
-                                    .on_hover_text(if ch_commons {
-                                        format!(
-                                            "Open the Commons view of #{} (bridged room)",
-                                            ch_name
-                                        )
-                                    } else {
-                                        format!("Open #{} on {}", ch_name, server.name)
-                                    });
-                                // The read level's badge, as on the current server's rows
-                                // (chat/access.rs, docs/design/chat-access.md 6.1).
-                                let isz = (theme.body_size * 0.9).min(14.0);
-                                let (badge, badge_resp) = ui.allocate_exact_size(egui::Vec2::splat(isz), egui::Sense::hover());
-                                super::access::paint_level_badge(ui.painter(), badge, ch_read, theme.text_muted());
-                                if badge_resp.hovered() {
-                                    super::access::badge_tooltip(ui, &ch_id, ch_read, ch_post);
-                                }
-                                if ch_commons {
-                                    let (br, _) = ui.allocate_exact_size(
-                                        egui::vec2(13.0, 11.0),
-                                        egui::Sense::hover(),
-                                    );
-                                    crate::gui::widgets::icons::paint_federation(
-                                        ui.painter(),
-                                        br,
-                                        theme.text_muted(),
-                                    );
-                                }
-                                if ch_unread {
-                                    let (ur, _) = ui.allocate_exact_size(
-                                        egui::vec2(8.0, 8.0),
-                                        egui::Sense::hover(),
-                                    );
-                                    ui.painter().circle_filled(
-                                        ur.center(),
-                                        3.0,
-                                        theme.accent(),
-                                    );
-                                }
-                                // Mute room and its level (rung 2): a parked server's room has the
-                                // active one's right-click, keyed by this server (chat/mute_menu.rs).
-                                label.context_menu(|ui| {
-                                    super::mute_menu::room_items(ui, theme, state, &server.url, &ch_id);
-                                    ui.separator();
-                                    super::mute_menu::level_items(ui, theme, state, &server.url, &ch_id);
-                                });
-                                if label.clicked() && state.private_key_bytes.is_some() {
-                                    if ch_commons {
-                                        open_commons_room(state, &ch_id);
-                                    } else {
-                                        // Same switch as clicking the server name
-                                        // (gui/connections.rs), then land directly
-                                        // in the clicked room.
-                                        state.switch_to_server(&server.url, &server.name);
-                                        // The room the server comes back in keeps what it has
-                                        // (BUG-035's rule, as on the current server's rows).
-                                        if state.chat_active_channel != ch_id {
-                                            state.chat_active_channel = ch_id.clone();
-                                            state.chat_messages.clear();
-                                            state.history_fetched = false;
-                                        }
-                                        if let Some(c) = state
-                                            .chat_channels
-                                            .iter_mut()
-                                            .find(|c| c.id == ch_id)
-                                        {
-                                            c.unread = false;
-                                        }
-                                        crate::config::AppConfig::from_gui_state(state).save();
-                                    }
-                                }
+                        for ch in &bg_channels {
+                            let out = super::channel_row::draw_room_row(
+                                ui,
+                                theme,
+                                state,
+                                &super::channel_row::RoomRowSpec {
+                                    id: &ch.id,
+                                    name: &ch.name,
+                                    server_url: &server.url,
+                                    server_name: &server.name,
+                                    here: is_current,
+                                    open: is_current && ch.id == state.chat_active_channel,
+                                    unread: ch.unread,
+                                    read_level: ch.read_level,
+                                    post_level: ch.post_level,
+                                    federated: ch.federated,
+                                    voice: ch.voice_enabled.then_some(ch.voice_joined),
+                                },
+                            );
+                            // Mute room and its level (rung 2): a parked server's room has the
+                            // active one's right-click, keyed by this server (chat/mute_menu.rs).
+                            out.row.context_menu(|ui| {
+                                super::mute_menu::room_items(ui, theme, state, &server.url, &ch.id);
+                                ui.separator();
+                                super::mute_menu::level_items(ui, theme, state, &server.url, &ch.id);
                             });
+                            if (out.opened || out.voice_clicked) && state.private_key_bytes.is_some() {
+                                // The one switch (gui/connections.rs), shared with the cog
+                                // and the server strip, then land directly in the room.
+                                state.switch_to_server(&server.url, &server.name);
+                                // The room the server comes back in keeps what it has
+                                // (BUG-035's rule, as on the current server's rows).
+                                if state.chat_active_channel != ch.id {
+                                    state.chat_active_channel = ch.id.clone();
+                                    state.chat_messages.clear();
+                                    state.history_fetched = false;
+                                }
+                                if let Some(c) = state.chat_channels.iter_mut().find(|c| c.id == ch.id) {
+                                    c.unread = false;
+                                }
+                                crate::config::AppConfig::from_gui_state(state).save();
+                            }
                         }
                     }
                     row_spans.push((server.url.clone(), span_top, ui.cursor().min.y));
@@ -1680,15 +1621,11 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     // Rooms that render ONCE in the COMMONS section above are
                     // hidden from every per-server list (federation-ux.md).
                     let commons_names = commons_rooms_carried_by(state, &state.server_url);
-                    let is_channel_admin = {
-                        let vr = viewer_role(state);
-                        vr == "admin" || vr == "moderator" || vr == "mod"
-                    };
 
                     // Track which channel index had a voice toggle click
                     let mut voice_toggle_idx: Option<(usize, bool)> = None;
-                    // Track which channel had a gear icon click
-                    let mut gear_click_id: Option<String> = None;
+                    // (A per-room gear click was tracked here until 2026-11-03: its target was
+                    // an empty rect since v0.187 moved channel admin into Server Settings.)
                     // Voice roster (v0.484): a clicked participant (name, public_key)
                     // opens the per-user control modal; local key marks our own row.
                     let mut voice_user_click: Option<(String, String)> = None;
@@ -1702,152 +1639,46 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         if (ch.federated && commons_names.contains(&ch.id)) || !crate::engine::protected::lists_channel(state, ch) {
                             continue;
                         }
-                        let is_commons = false;
-                        let is_active = ch.id == active;
-                        let accent = theme.accent();
-                        let bg = if is_active {
-                            Color32::from_rgb(
-                                accent.r() / 5 + 15,
-                                accent.g() / 5 + 15,
-                                accent.b() / 5 + 15,
-                            )
-                        } else {
-                            theme.server_row_bg()
-                        };
-
-                        // Single click target for the whole row; check click position
-                        // to distinguish voice/gear/channel clicks without overlapping interact().
-                        let row_w = ui.available_width();
-                        let (row_rect, response) = ui.allocate_exact_size(
-                            Vec2::new(row_w, theme.row_height),
-                            egui::Sense::click(),
+                        // THE room row (chat/channel_row.rs), the one every other server's
+                        // rooms are drawn with too: the same indent, height, marks and
+                        // voice column whichever server is active (BUG-242).
+                        let url = state.server_url.clone();
+                        let out = super::channel_row::draw_room_row(
+                            ui,
+                            theme,
+                            state,
+                            &super::channel_row::RoomRowSpec {
+                                id: &ch.id,
+                                name: &ch.name,
+                                server_url: &url,
+                                server_name: &svr_name,
+                                here: true,
+                                open: ch.id == active,
+                                unread: ch.unread,
+                                read_level: ch.read_level,
+                                post_level: ch.post_level,
+                                federated: ch.federated,
+                                voice: ch.voice_enabled.then_some(ch.voice_joined),
+                            },
                         );
-
-                        let mut voice_icon_rect = egui::Rect::NOTHING;
-                        let gear_icon_rect = egui::Rect::NOTHING;
-
-                        if ui.is_rect_visible(row_rect) {
-                            let hover = response.hovered();
-                            let fill = if hover && !is_active { theme.server_row_hover() } else { bg };
-                            ui.painter().rect_filled(row_rect, 0.0, fill);
-                            if is_active {
-                                let bar = egui::Rect::from_min_size(row_rect.min, Vec2::new(3.0, row_rect.height()));
-                                ui.painter().rect_filled(bar, 0.0, accent);
-                            }
-
-                            let text_color = if is_active { theme.text_primary() } else { theme.text_secondary() };
-                            let icon_size = 12.0;
-                            let cy = row_rect.center().y;
-                            let mut cx = row_rect.left() + theme.item_padding + 2.0;
-
-                            // 1. Voice chat icon
-                            if ch.voice_enabled {
-                                let icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
-                                voice_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
-                                if ch.voice_joined {
-                                    crate::gui::widgets::icons::paint_speaker(ui.painter(), icon_rect, theme.success());
-                                } else {
-                                    let on_voice = response.hovered() && voice_icon_rect.contains(ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()));
-                                    let mic_color = if on_voice { Color32::WHITE } else { theme.text_muted() };
-                                    crate::gui::widgets::icons::paint_mic(ui.painter(), icon_rect, mic_color);
-                                }
-                                cx += icon_size + 2.0;
-                            }
-
-                            // (Per-channel settings cog removed in v0.187 —
-                            // channel admin lives in the Server Settings
-                            // modal next to the server name. Click that
-                            // single cog to manage every channel + role +
-                            // member in one place.)
-
-                            // 2. Unread dot (same look as the DM/group rows). (v0.718)
-                            if ch.unread {
-                                let dot_r = theme.status_dot_size * 0.375;
-                                ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, theme.danger());
-                                cx += dot_r * 2.0 + 3.0;
-                            }
-
-                            // 3. # Channel name
-                            let name_str = format!("# {}", ch.name);
-                            let name_color = if ch.unread && !is_active { theme.text_primary() } else { text_color };
-                            ui.painter().text(
-                                egui::pos2(cx + 2.0, cy),
-                                egui::Align2::LEFT_CENTER,
-                                &name_str,
-                                egui::FontId::proportional(theme.body_size),
-                                name_color,
-                            );
-                            // Status icons after the name: the read level's badge (globe,
-                            // person, tick: chat/access.rs, docs/design/chat-access.md 6.1),
-                            // eye = only moderators and admins post, node-graph = federated
-                            // (v0.244; paint_eye/paint_federation added v0.240).
-                            {
-                                let name_w = ui.fonts(|f| f.layout_no_wrap(
-                                    name_str.clone(),
-                                    egui::FontId::proportional(theme.body_size),
-                                    text_color,
-                                )).size().x;
-                                let isz = (theme.body_size * 0.9).min(14.0);
-                                let mut ix = cx + 2.0 + name_w + 6.0;
-                                let badge = egui::Rect::from_min_size(egui::pos2(ix, cy - isz / 2.0), Vec2::splat(isz));
-                                super::access::paint_level_badge(ui.painter(), badge, ch.read_level, theme.text_muted());
-                                if response.hovered() && ui.rect_contains_pointer(badge) {
-                                    super::access::badge_tooltip(ui, &ch.id, ch.read_level, ch.post_level);
-                                }
-                                ix += isz + 3.0;
-                                if ch.post_level.staff_only() {
-                                    let r = egui::Rect::from_min_size(
-                                        egui::pos2(ix, cy - isz / 2.0),
-                                        Vec2::splat(isz),
-                                    );
-                                    crate::gui::widgets::icons::paint_eye(
-                                        ui.painter(), r, theme.text_muted());
-                                    ix += isz + 3.0;
-                                }
-                                if ch.federated {
-                                    let r = egui::Rect::from_min_size(
-                                        egui::pos2(ix, cy - isz / 2.0),
-                                        Vec2::splat(isz),
-                                    );
-                                    crate::gui::widgets::icons::paint_federation(
-                                        ui.painter(), r, theme.text_muted());
-                                }
-                            }
-                        }
-
-                        if response.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if response.clicked() {
-                            let click_pos = ui.ctx().input(|i| i.pointer.interact_pos().unwrap_or_default());
-                            if voice_icon_rect.contains(click_pos) && ch.voice_enabled {
-                                voice_toggle_idx = Some((idx, !ch.voice_joined));
-                            } else if gear_icon_rect.contains(click_pos) && is_channel_admin {
-                                gear_click_id = Some(ch.id.clone());
-                            } else if is_commons {
-                                // Bridged channel: open the merged Commons
-                                // view of this room (same one the COMMONS
-                                // section opens -- one room, one view).
-                                if !is_active {
-                                    open_commons_room(state, &ch.id);
-                                }
-                            } else if state.chat_active_channel != ch.id {
-                                // Only swap channel context when the click actually changes
-                                // channels. Re-clicking the active channel used to clear
-                                // chat_messages and re-fetch history, which nuked any
-                                // local-echoed unsent reply (BUG-035). Now it's a no-op.
-                                state.chat_active_channel = ch.id.clone();
-                                state.chat_reply_to = None; // a reply stays in its own conversation
-                                state.chat_messages.clear();
-                                state.history_fetched = false;
-                                // Opening the channel clears its unread dot. (v0.718)
-                                if let Some(c) = state.chat_channels.iter_mut().find(|c| c.id == ch.id) {
-                                    c.unread = false;
-                                }
+                        if out.voice_clicked {
+                            voice_toggle_idx = Some((idx, !ch.voice_joined));
+                        } else if out.opened && state.chat_active_channel != ch.id {
+                            // Only swap channel context when the click actually changes
+                            // channels. Re-clicking the active channel used to clear
+                            // chat_messages and re-fetch history, which nuked any
+                            // local-echoed unsent reply (BUG-035). Now it's a no-op.
+                            state.chat_active_channel = ch.id.clone();
+                            state.chat_reply_to = None; // a reply stays in its own conversation
+                            state.chat_messages.clear();
+                            state.history_fetched = false;
+                            // Opening the channel clears its unread dot. (v0.718)
+                            if let Some(c) = state.chat_channels.iter_mut().find(|c| c.id == ch.id) {
+                                c.unread = false;
                             }
                         }
                         // Right-click: copy channel link
-                        response.context_menu(|ui| {
+                        out.row.context_menu(|ui| {
                             let link = format!("https://united-humanity.us/chat/{}", ch.name);
                             if ui.button("Copy Channel Link").clicked() {
                                 ui.ctx().copy_text(link);
@@ -1855,7 +1686,6 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             }
                             // Mute room (2026-10-30, chat/mute_menu.rs).
                             ui.separator();
-                            let url = state.server_url.clone();
                             super::mute_menu::room_items(ui, theme, state, &url, &ch.id);
                             // The room's level (rung 2): every line, mentions and replies, nothing.
                             ui.separator();
@@ -1883,7 +1713,8 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             if ui.is_rect_visible(prect) {
                                 let isz = 10.0;
                                 let pcy = prect.center().y;
-                                let pix = prect.left() + theme.item_padding + 18.0; // indent under the name
+                                // Under the room's name, past the voice column (chat/channel_row.rs).
+                                let pix = prect.left() + super::channel_row::room_indent(theme);
                                 // Your own entry is accent + bold so you can tell at a
                                 // glance you are in this channel's voice. (v0.484)
                                 let col = if is_me { theme.accent() } else { theme.text_secondary() };
@@ -1907,17 +1738,6 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                                     col,
                                 );
                             }
-                        }
-                    }
-
-                    // Apply gear click (open edit modal for that channel)
-                    if let Some(ch_id) = gear_click_id {
-                        if let Some(ch) = channels.iter().find(|c| c.id == ch_id) {
-                            state.show_channel_edit_modal = true;
-                            state.edit_channel_id = ch.id.clone();
-                            state.edit_channel_name = ch.name.clone();
-                            state.edit_channel_description = ch.description.clone();
-                            state.edit_channel_confirm_delete = false;
                         }
                     }
 

@@ -49,6 +49,12 @@ pub(crate) fn server_items(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
     }
 }
 
+/// Until when the room `room` on the server at `url` is muted, if it is now (the room row's muted
+/// mark, chat/channel_row.rs).
+pub(crate) fn room_mute(state: &GuiState, url: &str, room: &str) -> Option<i64> {
+    state.settings.notifications.mutes.room_muted(&norm_server_url(url), room, now_secs())
+}
+
 /// A room's items, as the server's.
 pub(crate) fn room_items(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, url: &str, room: &str) {
     let key = norm_server_url(url);
@@ -146,7 +152,7 @@ fn muted_line(ui: &mut egui::Ui, theme: &Theme, until: i64) {
 
 /// The muted mark on a server row: a bell with a slash centred at `center`, in place of the row's
 /// link dot and in its `color` (so whether the server is up still shows), saying until when on
-/// hover.
+/// hover. A room row (chat/channel_row.rs) and a DM row show the same mark at their right end.
 pub(crate) fn paint_muted_mark(ui: &mut egui::Ui, center: egui::Pos2, color: egui::Color32, id: egui::Id, until: i64) {
     let r = egui::Rect::from_center_size(center, egui::vec2(12.0, 12.0));
     crate::gui::widgets::icons::paint_bell_off(ui.painter(), r, color);

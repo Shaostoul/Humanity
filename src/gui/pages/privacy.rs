@@ -345,6 +345,17 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     }
     widgets::body_hint(ui, theme, t("privacy.presence_does"));
     ui.add_space(theme.spacing_md);
+    // How much of a message the DM list shows (2026-11-03, chat/dm_rows.rs): a preview can be read
+    // by anyone who can see the screen, so the choice sits with the privacy switches. The same
+    // choice is in the DMs header's cog.
+    widgets::subsection_label(ui, theme, t("chat.dm_preview_title"));
+    widgets::body_hint(ui, theme, t("chat.dm_preview_intro"));
+    ui.add_space(theme.spacing_xs);
+    if let Some(lines) = crate::gui::pages::chat::dm_rows::picker(ui, theme, state.settings.dm_preview_lines) {
+        state.settings.dm_preview_lines = lines;
+        state.settings_dirty = true;
+    }
+    ui.add_space(theme.spacing_md);
     widgets::subsection_label(ui, theme, t("privacy.seen_title"));
     // Each key written out (not a loop over names) so tests/i18n_lint.rs checks every one exists.
     for words in [

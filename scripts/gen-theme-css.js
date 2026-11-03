@@ -212,6 +212,7 @@ function buildCss(tokens) {
   lines.push(`  --sidebar-width: ${n(t.sidebar_width, 240)}px;`);
   lines.push(`  --modal-width: ${n(t.modal_width, 440)}px;`);
   lines.push(`  --row-height: ${n(t.row_height, 18)}px;`);
+  lines.push(`  --row-accent-width: ${n(t.row_accent_width, 3)}px;`);
   lines.push(`  --header-height: ${n(t.header_height, 24)}px;`);
   lines.push(`  --content-width: none;`);
   lines.push('');

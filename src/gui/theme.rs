@@ -156,6 +156,10 @@ pub struct Theme {
     pub pill_radius: f32,
     #[serde(default = "default_row_height")]
     pub row_height: f32,
+    /// The bar at a sidebar row's left edge that marks the open room or conversation (the chat's
+    /// room, DM and scratchpad rows; 2026-11-03, BUG-242).
+    #[serde(default = "default_row_accent_width")]
+    pub row_accent_width: f32,
     #[serde(default = "default_header_height")]
     pub header_height: f32,
     #[serde(default = "default_border_width")]
@@ -677,6 +681,7 @@ impl Theme {
         self.icon_size = 32.0;
         self.icon_small = 16.0;
         self.row_height = 18.0;
+        self.row_accent_width = default_row_accent_width();
         self.header_height = 36.0;
         self.border_width = 1.0;
         self.status_dot_size = 8.0;
@@ -806,6 +811,7 @@ fn default_avatar_size() -> f32 { 32.0 }
 fn default_avatar_gap() -> f32 { 8.0 }
 fn default_pill_radius() -> f32 { 9.0 }
 fn default_row_height() -> f32 { 18.0 }
+fn default_row_accent_width() -> f32 { 3.0 }
 fn default_header_height() -> f32 { 36.0 }
 fn default_border_width() -> f32 { 1.0 }
 fn default_status_dot_size() -> f32 { 8.0 }
@@ -1008,6 +1014,7 @@ fn default_theme() -> Theme {
         avatar_gap: 8.0,
         pill_radius: 9.0,
         row_height: 18.0,
+        row_accent_width: default_row_accent_width(),
         header_height: 36.0,
         border_width: 1.0,
         status_dot_size: 8.0,

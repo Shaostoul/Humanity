@@ -96,6 +96,11 @@ pub(crate) use attach_view::{cache_key as private_file_key, open as open_private
 /// file's key. See `chat/reply.rs`. A notice's text goes through its `preview_of` too
 /// (engine/notify.rs), so a notice never holds a file's key either.
 pub(crate) mod reply;
+/// How much of a conversation's last message the DM list shows (2026-11-03). See `chat/dm_rows.rs`.
+pub(crate) mod dm_rows;
+/// THE room row of the sidebar, one drawer for a room under any server, active or not (BUG-242).
+/// See `chat/channel_row.rs`.
+mod channel_row;
 /// Mute server and Mute room, and a server row's muted mark (2026-10-30,
 /// docs/design/notifications.md). See `chat/mute_menu.rs`.
 mod mute_menu;
@@ -115,6 +120,8 @@ pub(crate) use commons::{
 };
 #[cfg(test)]
 mod composer_tests; // the composer grows upward and stays on screen (2026-10-10)
+#[cfg(test)]
+mod channel_row_tests; // a room row is the same under every server (BUG-242)
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -3451,7 +3458,7 @@ fn draw_commons_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     );
                     let bar = egui::Rect::from_min_size(
                         row_rect.min,
-                        Vec2::new(3.0, row_rect.height()),
+                        Vec2::new(theme.row_accent_width, row_rect.height()),
                     );
                     ui.painter().rect_filled(bar, 0.0, acc);
                 } else if response.hovered() {

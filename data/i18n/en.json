@@ -183,7 +183,19 @@
     "channel_desc_local": "This server only. Never bridged to other servers.",
     "channel_desc_global": "Talk with everyone, on this server and on every server linked to it.",
     "channel_desc_feedback": "Tell the people building HumanityOS what works, what does not, and what you would like next. Anyone can read it, on every linked server.",
-    "server_row_hint": "Shows or hides this server's channels."
+    "server_row_hint": "Shows or hides this server's channels.",
+    "room_row_hint": "Opens this room. Right-click it to mute it or to choose what it tells you about.",
+    "room_row_other_hint": "Switches to {{server}} and opens #{{room}} there.",
+    "voice_join_hint": "Joins this room's voice chat.",
+    "voice_leave_hint": "Leaves this room's voice chat.",
+    "dm_preview_title": "Message previews in Direct Messages",
+    "dm_preview_intro": "How much of each conversation's last message shows under the person's name. Anyone who can see your screen can read a preview, so fewer lines keep more to yourself.",
+    "dm_preview_names": "Names only",
+    "dm_preview_names_hint": "Shows only each person's name. No words of any message are on the screen, so someone looking at it sees who you talk with but not what was said.",
+    "dm_preview_one": "Name and one line",
+    "dm_preview_one_hint": "Shows each person's name and the start of their last message on one line. Anyone who can see your screen can read it.",
+    "dm_preview_two": "Name and two lines",
+    "dm_preview_two_hint": "Shows each person's name and up to two lines of their last message. Anyone who can see your screen can read them."
   },
   "settings": {
     "language": "Language",
@@ -243,7 +255,8 @@
     "theme_nav_secondary_button_height": "Second row button height",
     "theme_nav_secondary_font_size": "Second row word size",
     "nav_preview": "Show a category's pages when the pointer rests on it",
-    "nav_preview_desc": "Rest the pointer on a button in the top row for a moment, and the row under it shows that category's pages, so you can see what is inside before going there. Off: the second row changes only when you click."
+    "nav_preview_desc": "Rest the pointer on a button in the top row for a moment, and the row under it shows that category's pages, so you can see what is inside before going there. Off: the second row changes only when you click.",
+    "row_accent_width": "Row Accent Width"
   },
   "laws": {
     "title": "Laws and rights",

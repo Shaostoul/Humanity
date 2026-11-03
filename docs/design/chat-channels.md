@@ -162,7 +162,48 @@ and `the_chat_rows_and_the_strip_switch_the_same_way` (desktop) and
 `scripts/tests/chat-channels-web.test.js` (website), each seen red first; the picture is the
 `chat_channels` snapshot (`src/gui/ui_snapshots.rs`, 2560 x 1440).
 
-## 6. Open, for the operator
+## 6. One room row for every server (BUG-242, 2026-11-03)
+
+The operator, with two screenshots: "For some reason the formatting changes depending on the
+active server. The active server everything is really tight. The inactive server channels are
+loose." The desktop drew the active server's rooms in one block of `left_panel.rs` and every other
+server's in another: the first as painted rows the theme's row height tall (15.9 points, shorter than
+a line of the 16.4-point body text), the names 8 points from the panel's edge and pushed right by a
+voice mark or an unread dot; the second as labels in a horizontal layout, indented 24 points, a line
+of text (22 points) tall, with no ground of their own. Switching servers swapped which looked which.
+
+**Now one drawer, `src/gui/pages/chat/channel_row.rs` `draw_room_row`, draws a room under any
+server**, as `draw_server_row` has drawn every server's header since field tests 3 to 6. Its fixed
+slots, left to right, every size a theme token:
+
+- **the voice column**, `room_indent` wide (the small icon plus the row's padding and a small gap,
+  25 points in the shipped theme): the mic, or the speaker while you are in the room's voice, for a
+  room with voice; empty for one without. So every name starts at the same place, indented under its
+  server's name, with or without voice. On the server the app is on the mic joins or leaves the
+  voice; on another server it does what the rest of the row does, switches and lands in the room.
+- **`# name`**, then its marks: the read level's badge, the eye (only moderators post), the
+  node-graph (federated).
+- **at fixed places from the right edge**: the unread dot, then the muted mark (Mute room, a bell
+  with a slash, which rooms did not show before).
+
+**Loose, not tight.** A row is a line of the body text tall, never less than the theme's row height:
+what the other servers' rooms already were, the look the operator called loose, which reads better
+and matches the tree under each server's name. The theme's row height alone is shorter than the text
+it holds, which is what packed the active server's rooms together. The open room keeps its accent
+wash and its bar (`row_accent_width`, a new token the DM and scratchpad rows use too).
+
+The website lists only its own server's rooms (section 5), so it never had the two paths; its rooms
+had the other half of the defect, a mic in front of a voice room's name only, and now keep the
+voice column too (`web/chat/chat-ui.js` `renderServerList`, `.ch-voice-slot` in `sidebar.css`).
+
+Held by `src/gui/pages/chat/channel_row_tests.rs`
+`a_room_row_is_the_same_under_the_active_server_and_another` (the same left edge with and without
+voice, height and steps, at 100% and 200% Font Size, whichever server is active) and the website's
+`every room keeps the voice column, so a voice mark moves no name`
+(`scripts/tests/chat-channels-web.test.js`), each seen red first; the pictures are the
+`chat_rooms_home_active` and `chat_rooms_second_active` snapshots.
+
+## 7. Open, for the operator
 
 - **#feedback's levels.** Anyone reads it and people with a name post. Opening posting to people
   without a name would gather more but invites spam; keeping reading open is what lets

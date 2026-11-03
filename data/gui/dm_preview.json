@@ -1,0 +1,8 @@
+{
+  "_comment": "How much of each conversation's last message the desktop app's Direct Messages list shows under the person's name (2026-11-03; src/gui/pages/chat/dm_rows.rs). The operator: \"I like seeing the snippet but, some people might only want the usernames to display.\" Each level is the number of lines of the message the row shows (`lines`; 0 is the name alone), with its words and hint (keys in data/i18n/en.json). The person's choice is kept as that number (config.json `dm_preview_lines`), one line unless they choose another (dm_rows.rs DEFAULT_LINES, today's look), so a level added here is offered in Settings > Privacy and the DMs header's cog with no change to the code; a saved number larger than any level here shows as many lines as the largest level does. A preview is also something anyone looking at the screen can read, which is why the words say so. The website's DM list shows names only (web/chat/chat-dms.js renderDmList, its layout since 2026-05-27; docs/FEATURES.md, Unread Indicators), so it has no previews to choose between.",
+  "levels": [
+    { "id": "names", "lines": 0, "label": "chat.dm_preview_names", "hint": "chat.dm_preview_names_hint" },
+    { "id": "one_line", "lines": 1, "label": "chat.dm_preview_one", "hint": "chat.dm_preview_one_hint" },
+    { "id": "two_lines", "lines": 2, "label": "chat.dm_preview_two", "hint": "chat.dm_preview_two_hint" }
+  ]
+}
