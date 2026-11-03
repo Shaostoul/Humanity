@@ -198,10 +198,15 @@ impl Storage {
             )
             .unwrap_or(0);
 
-        // Activity
+        // Activity. The busiest channel anyone may read: /api/civilization is public, and a
+        // members' channel's name is theirs to share (docs/design/chat-access.md). BUG-232: this
+        // asked for a `channel` column, which `messages` has never had (it is `channel_id`), so it
+        // always fell back.
         let most_active_channel: String = db
             .query_row(
-                "SELECT channel FROM messages GROUP BY channel ORDER BY COUNT(*) DESC LIMIT 1",
+                "SELECT m.channel_id FROM messages m JOIN channels c ON c.id = m.channel_id
+                 WHERE c.read_level = 'anyone'
+                 GROUP BY m.channel_id ORDER BY COUNT(*) DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -285,6 +290,39 @@ mod civilization_counter_tests {
         assert_eq!(s.resources.tasks_completed, 1, "one is done");
         assert_eq!(s.resources.tasks_in_progress, 1, "one is in_progress (underscore, not hyphen)");
         assert_eq!(s.resources.tasks_open, 2, "two are backlog");
+    }
+
+    /// The busiest channel anyone may read is the one named (BUG-232). The query asked for a
+    /// `channel` column that `messages` does not have, so it always fell back to #global. A
+    /// busier members' channel is never named: /api/civilization is public.
+    ///
+    /// PROVEN RED (2026-11-03): with the old query it named "global" (the fallback), not
+    /// "feedback"; without the read-level join it named "team", the members' channel.
+    #[test]
+    fn the_most_active_channel_is_the_busiest_one_anyone_may_read() {
+        use humanity_protocol::chat_access::{PostLevel, ReadLevel};
+        let db = test_storage();
+        for id in ["feedback", "team"] {
+            db.create_channel(id, id, None, "system", PostLevel::Members).unwrap();
+        }
+        db.set_channel_access("feedback", ReadLevel::Anyone, PostLevel::Members).unwrap();
+        let lines = [("feedback", 2), ("team", 5)];
+        let conn = db.conn.lock().unwrap();
+        let mut ts = 1_793_700_000_000i64;
+        for (channel, n) in lines {
+            for _ in 0..n {
+                ts += 1;
+                conn.execute(
+                    "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
+                     VALUES ('chat', 'pk', 'Ann', 'hello', ?1, '{}', ?2)",
+                    rusqlite::params![ts, channel],
+                )
+                .unwrap();
+            }
+        }
+        drop(conn);
+        let s = db.get_civilization_stats(0);
+        assert_eq!(s.activity.most_active_channel, "feedback", "the busiest channel anyone may read");
     }
 
     /// The relay CANNOT know a follow count, and must not pretend to.
