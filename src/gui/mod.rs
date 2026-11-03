@@ -208,6 +208,9 @@ mod donate_funding_tests;
 /// docs/design/wcag-audit-2026-10-23.md): Tab through each page, every stop named and hinted.
 #[cfg(all(test, feature = "native"))]
 mod a11y_tests;
+/// A throwaway mock-up of the double top menu, pictures for docs/design/navigation.md.
+#[cfg(all(test, feature = "native"))]
+mod nav_mockup_tests;
 
 /// What the passphrase / PIN prompt is for.
 ///

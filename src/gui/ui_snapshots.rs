@@ -4869,3 +4869,37 @@ fn clock_speed_readout_describes_a_real_day_length() {
     assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(24, 1.0), "24 hours");
     assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(24, 72.0), "20 minutes");
 }
+
+// ── The double top menu's mock-up (docs/design/navigation.md section 15, 2026-11-02) ────────────
+// Throwaway: the pictures of a design, drawn by src/gui/nav_mockup_tests.rs. Delete these five
+// with that file when the design's rung 2 (the real double menu) lands with its own snapshots.
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_double_tv() {
+    crate::gui::nav_mockup_tests::tv();
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_double_tv_hover() {
+    crate::gui::nav_mockup_tests::tv_hover();
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_double_tv_popup() {
+    crate::gui::nav_mockup_tests::tv_popup();
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_double_laptop() {
+    crate::gui::nav_mockup_tests::laptop();
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_double_phone() {
+    crate::gui::nav_mockup_tests::phone();
+}

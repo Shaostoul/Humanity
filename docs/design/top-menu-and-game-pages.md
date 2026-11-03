@@ -1,5 +1,16 @@
 # The top menu, the game buttons, and the Humanity page as the overview
 
+**SUPERSEDED in part (2026-11-02, later the same day): section 4's options are overtaken by the
+double top menu, [navigation.md](navigation.md)**, the operator's own direction ("The more we
+develop the more I think the going to a single top menu might've been a mistake."). That design
+takes A1's grouping as its categories, B1 (the Humanity page is the overview), C1 (Play goes in at
+once and says where) and D1 (a Worlds page and a Servers page, the picker their summary), so the
+options below are no longer open choices but its inputs. **The findings stand:** sections 1 to 3
+(what the menu, the Humanity page and Play and Characters are today), 4d's inventory of what the
+Worlds and Servers pages build on, and section 5 (the Characters relayout, built). The questions in
+section 6 are replaced by navigation.md's section 16, except question 6 (text size on the TV),
+which is BUG-225.
+
 **Status (2026-11-02):** a plan with options. Sections 4a to 4d are taste decisions for the
 operator: nothing in them is built or decided. Section 5, the Characters page relayout, is decided
 (his concrete complaint) and built in the same piece of work.

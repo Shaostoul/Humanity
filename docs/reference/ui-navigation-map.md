@@ -1,5 +1,9 @@
 # UI Navigation Map
 
+> **A redesign is planned (2026-11-02), not built:** the double top menu, one layer order and Back
+> and Forward, in [docs/design/navigation.md](../design/navigation.md). This map describes the app
+> as it is; rewrite it from that design as each of its rungs lands.
+
 > Built 2026-08-16 from a full survey of both surfaces (operator request:
 > "create like a tree graph so we can easily see where everything connects...
 > we're partially looking for mismatched names"). Companion to
