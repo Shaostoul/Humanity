@@ -635,7 +635,9 @@ fn a_database_with_the_levels_renames_general_to_global_once() {
 ///
 /// Seen red 2026-11-02 with BEGIN IMMEDIATE and COMMIT taken out of the batch: "nothing of the
 /// upgrade is left behind" (left: (true, true, true, true), right: (false, false, false, true)):
-/// all three columns were added before the DROP failed.
+/// all three columns were added before the DROP failed. Since BUG-230 (2026-11-03) the transaction
+/// is the whole upgrade's (storage/start.rs `UpgradeTransaction`), not this step's; seen red the
+/// same way with it taken out.
 #[test]
 fn the_upgrade_is_all_or_nothing() {
     let path = humanity_core::test_temp::db("access_all_or_nothing");

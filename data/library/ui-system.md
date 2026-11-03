@@ -42,6 +42,26 @@ The rules that do belong here, because they are rules rather than values:
   without wiring it into the Settings editor breaks the coverage test.
 - Do not hand-edit `web/shared/theme.css`. Edit the RON and run `just theme`.
 
+### One scale: the Font Size is the app's zoom (2026-11-03, BUG-225)
+
+Settings > Appearance > Font Size (100% to 200%) is egui's zoom factor on the main window, set
+before every pass by `gui::font_size::before_frame`, so every size in the theme and in the code
+grows together. The rules that follow from it:
+
+- **Measure in points, never in pixels.** A size, a gap, a row height or a menu's width is a
+  token or a number in points; the zoom turns points into pixels. Never scale a text size by
+  the setting by hand (the setting would then count twice).
+- **Turn points into pixels only through `ctx.pixels_per_point()`**, read live: a render target
+  sized for a rect (the Maps world layer, the model viewer), a picture decoded at the size it is
+  shown, a dev IPC coordinate. Code that assumes one pixel per point is wrong at 150% even on the
+  operator's 100% Windows scaling.
+- **Place a marker over the world by projecting into `ctx.screen_rect()`** (points), as the HUD
+  does, never into the window's pixel size.
+- **The in-world screens keep their own scale**: each has its own context at one pixel per
+  point (`screen_surface.rs`), and its built-in keyboard zoom is off.
+- **Snapshots draw at 100%** unless one asks for a size (`render_page_png_at`); a page whose
+  layout depends on the width should also be seen at 200% on 1280 by 720 (640 by 360 points).
+
 ## Words: every string by key from `data/i18n/` (2026-10-22)
 
 Operator, 2026-10-22: "let's only focus on English for now but, make sure we prep for all

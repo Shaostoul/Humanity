@@ -56,7 +56,9 @@ web-sys = { version = "0.3", features = [
 js-sys = { version = "0.3" }
 wasm-bindgen = { version = "0.2" }
 wasm-bindgen-futures = { version = "0.4" }
-rusqlite = { version = "0.34", features = ["bundled", "backup"] }
+# "hooks": the relay's start refuses every commit but the upgrade's own while it runs
+# (src/relay/storage/start.rs `UpgradeTransaction`, BUG-230).
+rusqlite = { version = "0.34", features = ["bundled", "backup", "hooks"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 ciborium = { version = "0.2" }
 blake3 = { version = "1" }

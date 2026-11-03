@@ -662,18 +662,24 @@ pub async fn run_relay() {
     let db_dir = std::path::Path::new(&db_path).parent().unwrap_or(std::path::Path::new("."));
     std::fs::create_dir_all(db_dir).expect("Failed to create database directory");
 
-    // Resilient open: verifies integrity on boot and, on corruption,
-    // restores the newest healthy backup from <repo>/backups; refuses to
-    // start (rather than silently wipe) if no good backup exists. The
-    // backups dir is a sibling of the data dir (db=<repo>/data/relay.db,
-    // backups=<repo>/backups). Falls back to data-dir-local if the
-    // layout is unexpected. (TIER 1 #3, post-2026-05-21.)
+    // Resilient open: checks the file before the upgrade touches it and, only when the FILE is
+    // damaged, restores the newest healthy backup from <repo>/backups; refuses to start (rather
+    // than silently wipe) if no good backup exists. An upgrade step that fails on a healthy file
+    // stops the start with the step named and the file as it was (BUG-230). The backups dir is a
+    // sibling of the data dir (db=<repo>/data/relay.db, backups=<repo>/backups). Falls back to
+    // data-dir-local if the layout is unexpected. (TIER 1 #3, post-2026-05-21.)
     let backups_dir = db_dir
         .parent()
         .map(|repo| repo.join("backups"))
         .unwrap_or_else(|| db_dir.join("backups"));
-    let db = storage::Storage::open_resilient(std::path::Path::new(&db_path), &backups_dir)
-        .expect("Failed to open database (corrupt + no healthy backup — see logs)");
+    let db = storage::Storage::open_resilient(std::path::Path::new(&db_path), &backups_dir).unwrap_or_else(|failure| {
+        // A line each in the journal, then the stop. A panic, not an exit: the desktop's Host a
+        // node runs this on a thread of its own and shows the panic's words (host_node.rs).
+        for line in failure.lines() {
+            tracing::error!("{line}");
+        }
+        panic!("{failure}")
+    });
 
     // Continuous backup (2026-10-22, backup_stream): start following the write-ahead log
     // BEFORE anything below writes, so no change made at start is missed. Off unless the

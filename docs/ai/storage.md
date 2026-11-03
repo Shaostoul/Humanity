@@ -63,6 +63,30 @@ certificate pattern (client-held, statelessly verified) is the house answer.
 
 - **SQLite: never reference an ALTER-added column from the main schema batch in `src/relay/storage/mod.rs`.** The batch runs BEFORE the ALTER block, so on the LIVE database an index, trigger or view over the new column aborts it and the relay dies at startup, while every fresh-DB test passes (BUG-046 in `docs/BUGS.md`). Such indexes go AFTER the ALTER block, and any change to an existing table's shape needs a pre-migration-shape `Storage::open` test (pattern: `opens_a_pre_v0675_database_and_migrates_it` in `src/relay/storage/uploads.rs`). Enforced since 2026-10-19 by `tests/schema_alter_order_lint.rs` (in `just lints` and CI): nothing in `Storage::open` may name table.column before the ALTER that adds it (indexes, triggers, views, INSERT, UPDATE, DELETE).
 
+## The open at start, and the upgrade's one transaction (BUG-230, 2026-11-03)
+
+- **The start tells a damaged file from a failed upgrade.** `Storage::open_resilient` (the relay's
+  start, `run_relay`) first CHECKS the file read-only (`PRAGMA quick_check`, nothing written), then
+  calls `Storage::open`, the upgrade. Only the check can call a file damaged (SQLITE_NOTADB,
+  SQLITE_CORRUPT, or quick_check listing damage), and only a damaged file goes to recovery: the
+  newest backup that passes the check AND holds a relay schema is copied beside it as
+  `relay.db.restoring`, checked, and renamed over it, the damaged file kept as
+  `relay.db.corrupt-<time>`. A file the check could not read (permissions, a lock, the disk) and an
+  upgrade step that fails both stop the start with nothing moved. The words for each case:
+  `src/relay/storage/start.rs` (`OpenFailure`); what the operator does: docs/INCIDENT-PLAYBOOK.md,
+  "The relay will not start after an update".
+- **`Storage::open` is ONE transaction** (`UpgradeTransaction`, start.rs). A step that fails undoes
+  every step before it, so the file is left byte for byte as it was and the release before still
+  opens it; the error (`UpgradeFailed`) names the step by its line, which `?` records through
+  `#[track_caller]`. So a new step needs no transaction of its own and must not open one (a
+  `BEGIN` inside it fails: SQLite has no nested BEGIN; a SAVEPOINT works if a step truly needs
+  one), and must not run what SQLite refuses inside a transaction (`PRAGMA journal_mode`, `VACUUM`,
+  `PRAGMA wal_checkpoint`: a step that drops a table sets `scrub_wal`, and the checkpoint runs
+  after the commit). While the upgrade runs, a commit hook refuses every commit but its own, so a
+  step whose error is ignored cannot end the transaction early and let the steps after it commit
+  one by one. The test for an upgrade failing on a live shape, through the real start:
+  `a_healthy_file_whose_upgrade_fails_is_left_as_it_was` (storage/mod.rs `resilient_open_tests`).
+
 ## Several `impl Storage` blocks
 
 **Multiple `impl Storage` blocks** across `src/relay/storage/*.rs` -- Rust allows this within one crate

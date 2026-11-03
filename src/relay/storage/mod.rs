@@ -300,51 +300,58 @@ impl Storage {
         f(&conn)
     }
 
-    /// Open the DB with corruption detection + backup-restore recovery.
+    /// Open the relay's database at start: check it, upgrade it, and restore a backup only when
+    /// the FILE is damaged. The boot-path entry point (`run_relay`); the plain [`Storage::open`]
+    /// below is the upgrade on its own, used by tests and tools.
     ///
-    /// This is the boot-path entry point the relay should use (the plain
-    /// `open()` below is unchanged and used everywhere else / by tests).
+    /// A start, step by step (BUG-230, 2026-11-03: until then any error from the open, an
+    /// upgrade step the code got wrong included, sent the file to recovery, so a bad release
+    /// moved the newest data aside and started on an older backup):
+    ///   1. THE CHECK, before any upgrade step touches the file: open it READ-ONLY and run
+    ///      `PRAGMA quick_check` (`Storage::check_readonly`). No file yet is a new database.
+    ///      Only this phase can call a file damaged: SQLite saying it is not a database or is
+    ///      malformed, or quick_check listing damage.
+    ///   2. A file that could not be checked for a reason that says nothing about its bytes (its
+    ///      permissions, a lock another program holds, the disk): refuse to start, nothing
+    ///      moved ([`OpenFailure::NotChecked`]).
+    ///   3. A healthy file: [`Storage::open`], the upgrade, all of it in one transaction. A step
+    ///      that fails is the code's fault, not the file's: the transaction is undone, the file
+    ///      is left byte for byte as it was, and the start stops with the step named
+    ///      ([`OpenFailure::UpgradeFailed`]). The previous release still opens that file.
+    ///   4. A damaged file: recovery, as since 2026-05-21. Walk the backups newest-first (both
+    ///      layers: the caller's dir, the VPS script's 30-minute rotation, and the in-process
+    ///      6-hour rotation beside the live DB, `<db_dir>/backups`), checking each READ-ONLY;
+    ///      sealed ones (.db.enc, 2026-08-23) are unsealed to a scratch file first. The first
+    ///      that passes and holds a relay schema is copied beside the live file and checked
+    ///      again; then the damaged file is kept as `<path>.corrupt-<ts>` (for forensics, never
+    ///      deleted) and the copy takes its place, so `relay.db` is never missing (a missing one
+    ///      would start as a fresh, empty database). Then step 3 on the restored copy.
+    ///   5. No backup passes: the damaged file is left in place and the start refuses
+    ///      ([`OpenFailure::Damaged`]), rather than run on damage or start empty. The boot site
+    ///      panics with the words: a loud, visible failure the watchdog flags. Operator decides.
     ///
-    /// Healthy path = `open()` + one fast `PRAGMA quick_check`. Identical
-    /// behavior to `open()` for a healthy DB; the only addition is the
-    /// integrity probe.
-    ///
-    /// On detected corruption (open error OR failed quick_check):
-    ///   1. Walk `backups_dir`'s `relay-*.db` newest-first, verifying each
-    ///      READ-ONLY (no mutation of the backup) until one passes
-    ///      quick_check.
-    ///   2. The first healthy backup: quarantine the corrupt live file(s)
-    ///      to `<path>.corrupt-<ts>` (preserved for forensics, NOT
-    ///      deleted), copy the backup into place, open + verify it.
-    ///   3. If NO backup verifies clean: DO NOT touch the live file and
-    ///      return Err. The relay then refuses to start (the boot site
-    ///      `.expect()`s) — a loud, visible failure the watchdog flags —
-    ///      rather than silently running on corrupt data OR silently
-    ///      creating a fresh empty schema (which would masquerade as a
-    ///      wipe). Refusing-to-start is the safe failure for an
-    ///      unattended relay: no surprise data loss; operator decides.
-    ///
-    /// Added after the 2026-05-21 incident review (TIER 1 #3 SQLite WAL
-    /// corruption recovery). See docs/INCIDENT-PLAYBOOK.md.
-    pub fn open_resilient(path: &Path, backups_dir: &Path) -> Result<Self, rusqlite::Error> {
-        // Healthy path (the overwhelming common case).
-        match Self::open_and_verify(path) {
-            Ok(s) => return Ok(s),
-            Err(e) => {
-                tracing::error!(
-                    "DB at {} failed to open or passed integrity check ({}). Entering recovery.",
-                    path.display(), e
-                );
+    /// Added after the 2026-05-21 incident review (TIER 1 #3 SQLite WAL corruption recovery).
+    /// What the operator sees in each case: docs/INCIDENT-PLAYBOOK.md, "The relay will not start
+    /// after an update".
+    pub fn open_resilient(path: &Path, backups_dir: &Path) -> Result<Self, OpenFailure> {
+        // 1. The check, before anything writes.
+        let damage = if !path.exists() {
+            None
+        } else {
+            match Self::check_readonly(path) {
+                Checked::Healthy => None,
+                Checked::Damaged(found) => Some(found),
+                // 2. Not damage: nothing to recover from.
+                Checked::NotChecked(error) => return Err(OpenFailure::NotChecked { path: path.to_path_buf(), error }),
             }
-        }
+        };
+        // 3. A healthy file (or none yet): the upgrade. Its failure is never sent to recovery.
+        let Some(damage) = damage else {
+            return Self::open(path).map_err(|failed| OpenFailure::UpgradeFailed { path: path.to_path_buf(), failed, restored_from: None });
+        };
 
-        // Recovery: newest-first, restore the first backup that verifies.
-        // Sealed backups (.db.enc, 2026-08-23) are decrypted to a scratch
-        // file with the machine-local key before the integrity probe.
-        // Scan BOTH backup layers: the caller's dir (the VPS script's
-        // 30-minute rotation) and the in-process 6-hour rotation next to
-        // the live DB (`<db_dir>/backups`), which historically was never
-        // consulted (its `relay_` underscore names failed the old filter).
+        // 4. Recovery: newest-first, restore the first backup that passes.
+        tracing::error!("The database at {} is damaged ({damage}). Looking for the newest backup that passes the check.", path.display());
         let mut candidates = Self::list_backups(backups_dir);
         let inproc_dir = backup_crypto::key_dir_for_db(path).join("backups");
         if inproc_dir != backups_dir {
@@ -359,96 +366,102 @@ impl Storage {
         tracing::warn!("Recovery: {} backup candidate(s) across {} and {}", candidates.len(), backups_dir.display(), inproc_dir.display());
         let backup_key = backup_crypto::load_or_create_key(&backup_crypto::key_dir_for_db(path));
         let scratch = backups_dir.join("restore-scratch.db");
+        let restoring = std::path::PathBuf::from(format!("{}.restoring", path.display()));
+        let mut restored: Option<std::path::PathBuf> = None;
         for candidate in &candidates {
             let backup: &Path = if backup_crypto::is_encrypted_backup(candidate) {
                 let Some(ref key) = backup_key else {
-                    tracing::warn!("Recovery: {} is sealed but no backup key is loadable — trying older", candidate.display());
+                    tracing::warn!("Recovery: {} is sealed but no backup key is loadable; trying older", candidate.display());
                     continue;
                 };
                 if let Err(e) = backup_crypto::decrypt_file(key, candidate, &scratch) {
-                    tracing::warn!("Recovery: could not unseal {} ({e}) — trying older", candidate.display());
+                    tracing::warn!("Recovery: could not unseal {} ({e}); trying older", candidate.display());
                     continue;
                 }
                 &scratch
             } else {
                 candidate
             };
-            if !Self::verify_readonly(backup) {
-                tracing::warn!("Recovery: backup {} also fails integrity — trying older", candidate.display());
+            if !Self::is_restorable_backup(backup) {
+                tracing::warn!("Recovery: backup {} fails the check or holds no relay database; trying older", candidate.display());
                 continue;
             }
-            // Healthy backup found. Quarantine the corrupt live file(s),
-            // copy the backup into place, open + verify.
-            Self::quarantine_corrupt(path);
-            match std::fs::copy(backup, path) {
-                Ok(_) => match Self::open_and_verify(path) {
-                    Ok(s) => {
-                        tracing::warn!("DB RECOVERED from backup {}", candidate.display());
-                        // Never leave a decrypted scratch copy behind.
-                        let _ = std::fs::remove_file(&scratch);
-                        return Ok(s);
-                    }
-                    Err(e) => {
-                        tracing::error!("Restored backup {} failed post-copy verify: {}", candidate.display(), e);
-                        // Fall through to the loud-failure path below.
-                        break;
-                    }
-                },
-                Err(e) => {
-                    tracing::error!("Failed to copy backup {} into place: {}", candidate.display(), e);
-                    break;
-                }
+            // Copy it beside the live file and check the copy, before anything is moved.
+            if let Err(e) = std::fs::copy(backup, &restoring) {
+                tracing::error!("Recovery: could not copy backup {} beside the database ({e}); trying older", candidate.display());
+                let _ = std::fs::remove_file(&restoring);
+                continue;
             }
+            if !matches!(Self::check_readonly(&restoring), Checked::Healthy) {
+                tracing::error!("Recovery: the copy of backup {} fails the check; trying older", candidate.display());
+                let _ = std::fs::remove_file(&restoring);
+                continue;
+            }
+            // Keep the damaged file aside, then put the copy in its place.
+            let Some(kept) = Self::quarantine_corrupt(path) else {
+                let _ = std::fs::remove_file(&restoring);
+                break;
+            };
+            if let Err(e) = std::fs::rename(&restoring, path) {
+                tracing::error!("Recovery: could not put the copy of backup {} in place ({e})", candidate.display());
+                let _ = std::fs::remove_file(&restoring);
+                break;
+            }
+            tracing::warn!("DB RECOVERED from backup {}; the damaged file is kept as {}", candidate.display(), kept.display());
+            restored = Some(candidate.clone());
+            break;
         }
-        // Never leave a decrypted scratch copy behind, whichever way the
-        // loop ended.
+        // Never leave a decrypted scratch copy behind, whichever way the loop ended.
         let _ = std::fs::remove_file(&scratch);
 
-        // No healthy backup (or post-copy verify failed). Fail loud —
-        // refuse to start rather than silently wipe or run corrupt.
-        tracing::error!(
-            "DB recovery FAILED: no healthy backup in {}. Refusing to start on corrupt data — operator intervention required (restore a known-good backup, or run scripts/pq-wipe.sh for an intentional fresh slate).",
-            backups_dir.display()
-        );
-        Err(rusqlite::Error::SqliteFailure(
-            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
-            Some(format!("DB at {} corrupt and no healthy backup in {}", path.display(), backups_dir.display())),
-        ))
-    }
-
-    /// `open()` plus a fast `PRAGMA quick_check`. Returns Err if the open
-    /// fails OR the integrity probe is not "ok". Used for the live path
-    /// (migrations run, which is correct there).
-    fn open_and_verify(path: &Path) -> Result<Self, rusqlite::Error> {
-        let storage = Self::open(path)?;
-        let ok: String = storage.with_conn(|c| {
-            c.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0))
-        })?;
-        if ok != "ok" {
-            return Err(rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
-                Some(format!("quick_check returned '{}'", ok)),
-            ));
+        match restored {
+            // Step 3 on the restored copy: an upgrade that fails on it stops the start the same
+            // way, the copy left as it was (the next start finds it healthy and moves nothing).
+            Some(from) => Self::open(path).map_err(|failed| OpenFailure::UpgradeFailed { path: path.to_path_buf(), failed, restored_from: Some(from) }),
+            // 5. No healthy backup (or it could not be put in place). Fail loud, the damaged
+            // file where it was.
+            None => Err(OpenFailure::Damaged { path: path.to_path_buf(), backups: vec![backups_dir.to_path_buf(), inproc_dir], damage }),
         }
-        Ok(storage)
     }
 
-    /// Verify a candidate backup WITHOUT mutating it: open read-only and
-    /// run quick_check. Read-only matters — we must not run migrations or
-    /// touch the WAL of a backup we might not even use.
-    fn verify_readonly(path: &Path) -> bool {
+    /// Check a database file WITHOUT changing it: open it read-only and run `PRAGMA quick_check`.
+    /// Read-only matters: no upgrade step, and no write of any kind, may run before the verdict
+    /// (BUG-230), and a backup we might not use must not be touched.
+    ///
+    /// quick_check, not integrity_check: quick_check reads every page of every b-tree, the
+    /// freelist and every record, which is the damage a disk does (torn or overwritten pages, a
+    /// file cut short); integrity_check also checks that each index holds exactly its table's
+    /// rows, which takes many times longer on a large database at every start, and the one kind
+    /// of damage it adds is repaired in place with `REINDEX`, where restoring an older backup
+    /// over it would lose everything written since that backup.
+    fn check_readonly(path: &Path) -> Checked {
         use rusqlite::OpenFlags;
-        let conn = match Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        ) {
+        let conn = match Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX) {
             Ok(c) => c,
-            Err(_) => return false,
+            Err(e) => return Checked::of_error(e),
         };
-        matches!(
-            conn.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0)),
-            Ok(s) if s == "ok"
-        )
+        let found = conn.prepare("PRAGMA quick_check").and_then(|mut statement| {
+            let rows = statement.query_map([], |r| r.get::<_, String>(0))?;
+            rows.take(5).collect::<Result<Vec<String>, _>>()
+        });
+        match found {
+            Ok(rows) if rows.len() == 1 && rows[0] == "ok" => Checked::Healthy,
+            Ok(rows) => Checked::Damaged(format!("quick_check found: {}", rows.join("; "))),
+            Err(e) => Checked::of_error(e),
+        }
+    }
+
+    /// A backup that may be put in the live file's place: it passes the check AND holds a relay
+    /// database. SQLite opens a file of no bytes as an empty database, which passes; restoring
+    /// one would start the relay on nothing, a wipe that looks like a recovery.
+    fn is_restorable_backup(path: &Path) -> bool {
+        if !matches!(Self::check_readonly(path), Checked::Healthy) {
+            return false;
+        }
+        Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX)
+            .and_then(|c| c.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'messages'", [], |r| r.get::<_, i64>(0)))
+            .map(|n| n == 1)
+            .unwrap_or(false)
     }
 
     /// List `relay-*.db` backups in `backups_dir`, newest-first by mtime.
@@ -477,28 +490,64 @@ impl Storage {
         entries.into_iter().map(|(_, p)| p).collect()
     }
 
-    /// Move a corrupt DB file (plus its -wal/-shm sidecars) aside to
-    /// `<path>.corrupt-<ts>` for forensics. Best-effort; never panics.
-    fn quarantine_corrupt(path: &Path) {
+    /// Keep a damaged database aside as `<path>.corrupt-<ts>` (its -wal and -shm beside it) for
+    /// forensics, before a backup's copy takes its place. Never deleted.
+    ///
+    /// The main file is hard-linked (or copied, where links are not possible), not moved, so
+    /// `path` is never missing: the checked copy is renamed over it afterwards in one step. (Until
+    /// BUG-230's fix it was moved first and the backup copied after, so a copy that failed, on a
+    /// full disk say, left no `relay.db`, and the next start made a fresh, empty one.) Its -wal and
+    /// -shm are moved, since a log left beside the restored copy would be replayed into it. None
+    /// when any of that could not be done: the restore then does not happen, because a damaged
+    /// file is still the newest data there is.
+    fn quarantine_corrupt(path: &Path) -> Option<std::path::PathBuf> {
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        for suffix in ["", "-wal", "-shm"] {
-            let src = std::path::PathBuf::from(format!("{}{}", path.display(), suffix));
+        // Two restores within one second must not share a name (a copy would overwrite the first).
+        let mut kept = std::path::PathBuf::from(format!("{}.corrupt-{ts}", path.display()));
+        let mut n = 1;
+        while kept.exists() {
+            n += 1;
+            kept = std::path::PathBuf::from(format!("{}.corrupt-{ts}-{n}", path.display()));
+        }
+        if let Err(e) = std::fs::hard_link(path, &kept).or_else(|_| std::fs::copy(path, &kept).map(|_| ())) {
+            tracing::error!("quarantine: could not keep {} aside as {} ({e}); not restoring over it", path.display(), kept.display());
+            return None;
+        }
+        tracing::warn!("quarantine: kept {} as {}", path.display(), kept.display());
+        for suffix in ["-wal", "-shm"] {
+            let src = std::path::PathBuf::from(format!("{}{suffix}", path.display()));
             if src.exists() {
-                let dst = std::path::PathBuf::from(format!("{}.corrupt-{}{}", path.display(), ts, suffix));
-                if let Err(e) = std::fs::rename(&src, &dst) {
-                    tracing::warn!("quarantine: could not move {} aside: {}", src.display(), e);
-                } else {
-                    tracing::warn!("quarantine: moved {} -> {}", src.display(), dst.display());
+                let dst = std::path::PathBuf::from(format!("{}{suffix}", kept.display()));
+                match std::fs::rename(&src, &dst) {
+                    Ok(()) => tracing::warn!("quarantine: moved {} -> {}", src.display(), dst.display()),
+                    // The -wal goes first, so nothing else has moved yet: stop here.
+                    Err(e) if suffix == "-wal" => {
+                        tracing::error!("quarantine: could not move {} aside ({e}); not restoring over it", src.display());
+                        return None;
+                    }
+                    // A -shm is only an index of the -wal, which the first connection to open
+                    // the restored copy rebuilds, so one left behind does no harm.
+                    Err(e) => tracing::warn!("quarantine: could not move {} aside ({e}); SQLite rebuilds it", src.display()),
                 }
             }
         }
+        Some(kept)
     }
 
-    /// Open or create the database at the given path.
-    pub fn open(path: &Path) -> Result<Self, rusqlite::Error> {
+    /// Open or create the database at the given path, and bring it to this code's shape: the
+    /// upgrade, every step of it in ONE transaction (`UpgradeTransaction` in start.rs, BUG-230,
+    /// 2026-11-03). A step that fails undoes all of them, so the file is left as it was and the
+    /// release before still opens it; the error names the step ([`UpgradeFailed`]: its line here,
+    /// and what SQLite said). Until then each step committed on its own, so a failure, or a crash
+    /// part way, left a half-upgraded file whose next start skipped what its probes saw as done
+    /// (the two-ALTER `reply_to` step, the four `max_uploads_per_user_*` ALTERs and the copy of
+    /// the old value into them, and others).
+    ///
+    /// `open_resilient` checks the file before calling this; tests and tools call it directly.
+    pub fn open(path: &Path) -> Result<Self, UpgradeFailed> {
         let conn = Connection::open(path)?;
 
         // Enable WAL mode for better concurrent read/write performance.
@@ -509,7 +558,16 @@ impl Storage {
         // our delete volume. It does NOT scrub the WAL or rotating backups, see the
         // bulk-wipe checkpoint in channels.rs and the documented residual in
         // docs/reference/retention_and_deletion_semantics.md.
+        // Outside the transaction: SQLite cannot change the journal mode inside one (every relay
+        // database is in WAL mode already, so on one this changes nothing).
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;")?;
+
+        // THE UPGRADE'S ONE TRANSACTION, from here to `upgrade.commit()` below. A `?` that returns
+        // early drops it, which undoes every step. SQLite runs CREATE, ALTER and DROP inside a
+        // transaction. What it cannot run inside one waits for the commit: the checkpoint that
+        // folds a dropped table's zeroed pages into the file (`scrub_wal`).
+        let upgrade = UpgradeTransaction::begin(&conn)?;
+        let mut scrub_wal = false;
 
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS messages (
@@ -1026,17 +1084,17 @@ impl Storage {
         // subpoena or breach could export. The data is not migrated
         // ANYWHERE on purpose: the whole point is that it stops existing.
         // secure_delete=ON (set at open) zeroes the freed pages, and the
-        // checkpoint folds them out of the WAL. Rotating file backups
+        // checkpoint folds them out of the WAL: once the upgrade has
+        // committed (`scrub_wal`), since SQLite refuses a checkpoint inside
+        // a transaction (BUG-230). Rotating file backups
         // still hold pre-drop copies until they age out (documented in
         // docs/reference/retention_and_deletion_semantics.md).
         let has_legacy_dms: bool = conn
             .prepare("SELECT 1 FROM direct_messages LIMIT 0")
             .is_ok();
         if has_legacy_dms {
-            conn.execute_batch(
-                "DROP TABLE direct_messages;
-                 PRAGMA wal_checkpoint(TRUNCATE);",
-            )?;
+            conn.execute_batch("DROP TABLE direct_messages;")?;
+            scrub_wal = true;
             info!("Migration: dropped legacy direct_messages table (sealed-sender DM cutover — the server-side DM graph is gone)");
         }
 
@@ -1048,10 +1106,8 @@ impl Storage {
             .prepare("SELECT 1 FROM listing_messages LIMIT 0")
             .is_ok();
         if has_listing_msgs {
-            conn.execute_batch(
-                "DROP TABLE listing_messages;
-                 PRAGMA wal_checkpoint(TRUNCATE);",
-            )?;
+            conn.execute_batch("DROP TABLE listing_messages;")?;
+            scrub_wal = true;
             info!("Migration: dropped plaintext listing_messages table (marketplace contact is E2EE DMs now)");
         }
 
@@ -1065,9 +1121,9 @@ impl Storage {
             conn.execute_batch(
                 "DROP TABLE IF EXISTS group_messages;
                  DROP TABLE IF EXISTS group_members;
-                 DROP TABLE IF EXISTS groups;
-                 PRAGMA wal_checkpoint(TRUNCATE);",
+                 DROP TABLE IF EXISTS groups;",
             )?;
+            scrub_wal = true;
             info!("Migration: dropped legacy plaintext group tables (groups are E2EE P2P now)");
         }
 
@@ -1078,10 +1134,8 @@ impl Storage {
         // secure-delete discipline as direct_messages above.
         let has_follows: bool = conn.prepare("SELECT 1 FROM follows LIMIT 0").is_ok();
         if has_follows {
-            conn.execute_batch(
-                "DROP TABLE follows;
-                 PRAGMA wal_checkpoint(TRUNCATE);",
-            )?;
+            conn.execute_batch("DROP TABLE follows;")?;
+            scrub_wal = true;
             info!("Migration: dropped follows table (the social graph is client-side now)");
         }
 
@@ -1091,10 +1145,8 @@ impl Storage {
         // `reports_v2` replaces it (storage/reports.rs). Not migrated, on purpose (no
         // compatibility code before launch, CLAUDE.md).
         if conn.prepare("SELECT 1 FROM reports LIMIT 0").is_ok() {
-            conn.execute_batch(
-                "DROP TABLE reports;
-                 PRAGMA wal_checkpoint(TRUNCATE);",
-            )?;
+            conn.execute_batch("DROP TABLE reports;")?;
+            scrub_wal = true;
             info!("Migration: dropped the old name-and-reason reports table (reports_v2 replaces it)");
         }
 
@@ -1109,9 +1161,9 @@ impl Storage {
                 "DROP TABLE IF EXISTS recovery_shares;
                  DROP TABLE IF EXISTS recovery_requests;
                  DROP TABLE IF EXISTS recovery_approvals;
-                 DELETE FROM signed_objects WHERE object_type IN ('recovery_share_v1', 'recovery_request_v1', 'recovery_approval_v1');
-                 PRAGMA wal_checkpoint(TRUNCATE);",
+                 DELETE FROM signed_objects WHERE object_type IN ('recovery_share_v1', 'recovery_request_v1', 'recovery_approval_v1');",
             )?;
+            scrub_wal = true;
             info!("Migration: dropped the first recovery tables (recovery_pieces replaces them; no trusted person is named on the server)");
         }
 
@@ -1177,7 +1229,10 @@ impl Storage {
         // them run together or none do. Run one at a time, a crash after the read_level column was
         // added but before #global and #announcements were opened would have left both at Members
         // for good (the next start sees the column and skips), quietly ending the read view and
-        // their federation. SQLite runs ALTER TABLE inside a transaction.
+        // their federation. SQLite runs ALTER TABLE inside a transaction. Since BUG-230
+        // (2026-11-03) the transaction is the whole upgrade's (`UpgradeTransaction`, above the
+        // schema batch), so these steps need none of their own; a DROP SQLite refuses here undoes
+        // every step before it too (chat_access_tests.rs `the_upgrade_is_all_or_nothing`).
         //
         // #GENERAL BECOMES #GLOBAL in the same transaction (2026-11-02, docs/design/chat-channels.md
         // section 2). The operator: "What do you think about renaming #general chat to #global since
@@ -1218,36 +1273,28 @@ impl Storage {
             steps.push("ALTER TABLE channels DROP COLUMN read_only;".to_string());
         }
         if rename_to_global || !steps.is_empty() {
-            let upgrade = || -> Result<(), rusqlite::Error> {
-                conn.execute_batch("BEGIN IMMEDIATE;")?;
-                if rename_to_global {
-                    channels::move_channel_on(&conn, "general", main)?;
-                    // The words #general was made with give way to #global's (data/server/default_channels.json);
-                    // words an admin wrote stay theirs.
-                    if let Some(words) = crate::relay::default_channels::get(main).map(|c| c.words()) {
-                        conn.execute(
-                            "UPDATE channels SET description = ?1 WHERE id = ?2 AND COALESCE(description, '') IN ('', 'General discussion')",
-                            rusqlite::params![words, main],
-                        )?;
-                    }
-                    conn.execute_batch(
-                        "DROP TRIGGER IF EXISTS messages_fts_ai;
-                         DROP TRIGGER IF EXISTS messages_fts_ad;
-                         DROP TRIGGER IF EXISTS messages_fts_au;",
+            if rename_to_global {
+                channels::move_channel_on(&conn, "general", main)?;
+                // The words #general was made with give way to #global's (data/server/default_channels.json);
+                // words an admin wrote stay theirs.
+                if let Some(words) = crate::relay::default_channels::get(main).map(|c| c.words()) {
+                    conn.execute(
+                        "UPDATE channels SET description = ?1 WHERE id = ?2 AND COALESCE(description, '') IN ('', 'General discussion')",
+                        rusqlite::params![words, main],
                     )?;
                 }
-                conn.execute_batch(&steps.join("\n"))?;
-                conn.execute_batch("COMMIT;")
-            };
-            if let Err(e) = upgrade() {
-                let _ = conn.execute_batch("ROLLBACK;");
-                return Err(e);
+                conn.execute_batch(
+                    "DROP TRIGGER IF EXISTS messages_fts_ai;
+                     DROP TRIGGER IF EXISTS messages_fts_ad;
+                     DROP TRIGGER IF EXISTS messages_fts_au;",
+                )?;
             }
+            conn.execute_batch(&steps.join("\n"))?;
             if rename_to_global {
                 info!("Migration: #general renamed to #{main}, with everything filed under it");
             }
             if !steps.is_empty() {
-                info!("Migration: chat access levels ({} steps in one transaction)", steps.len());
+                info!("Migration: chat access levels ({} steps, in the upgrade's one transaction)", steps.len());
             }
         }
 
@@ -1935,16 +1982,15 @@ impl Storage {
         // decisions taken for docs/design/ship-homes-increment-5-plan.md,
         // number 4). The UPDATE runs once, with the ALTER, so an admin who
         // later turns the rank off for Admin finds it still off after a
-        // restart. One transaction, so a stop between the two cannot leave
+        // restart. One transaction (the upgrade's, since BUG-230), so a stop
+        // between the two cannot leave
         // the column without Admin's rank. Placed after the ALTERs above and
         // before the seed below (the v0.262.2 ordering), and no index over
         // the column (BUG-046).
         if conn.prepare("SELECT can_edit_ship FROM roles LIMIT 0").is_err() {
             conn.execute_batch(
-                "BEGIN;
-                 ALTER TABLE roles ADD COLUMN can_edit_ship INTEGER NOT NULL DEFAULT 0;
-                 UPDATE roles SET can_edit_ship = 1 WHERE id = 'admin';
-                 COMMIT;"
+                "ALTER TABLE roles ADD COLUMN can_edit_ship INTEGER NOT NULL DEFAULT 0;
+                 UPDATE roles SET can_edit_ship = 1 WHERE id = 'admin';"
             )?;
             info!("Migration: added can_edit_ship (roles); the built-in Admin role has it");
         }
@@ -1955,7 +2001,8 @@ impl Storage {
         // `max_private_file_mb` (the largest file in a DM or a group, 6 as both apps used),
         // `max_upload_mb_per_day` and `max_uploads_per_hour` (0 = no limit), and
         // `max_private_held_mb` (B5: private files one person holds at once, 0 = no limit). The
-        // allowances are given by tier once, with the columns, in one transaction: Admin none,
+        // allowances are given by tier once, with the columns, in one transaction (the upgrade's,
+        // since BUG-230): Admin none,
         // Moderator 4096 MB, 200 an hour and 120 MB held, Verified (and Donor, and any custom role
         // on that tier) 1024 MB, 60 and 60 MB, anything else 100 MB, 20 and 30 MB; an admin's
         // later change survives a restart. After
@@ -1963,8 +2010,7 @@ impl Storage {
         // (BUG-046). `an_existing_roles_table_gains_the_upload_limits` opens a table from before.
         if conn.prepare("SELECT max_upload_mb_per_day FROM roles LIMIT 0").is_err() {
             conn.execute_batch(
-                "BEGIN;
-                 ALTER TABLE roles ADD COLUMN max_media_file_mb     INTEGER NOT NULL DEFAULT 0;
+                "ALTER TABLE roles ADD COLUMN max_media_file_mb     INTEGER NOT NULL DEFAULT 0;
                  ALTER TABLE roles ADD COLUMN max_private_file_mb   INTEGER NOT NULL DEFAULT 6;
                  ALTER TABLE roles ADD COLUMN max_upload_mb_per_day INTEGER NOT NULL DEFAULT 100;
                  ALTER TABLE roles ADD COLUMN max_uploads_per_hour  INTEGER NOT NULL DEFAULT 20;
@@ -1972,8 +2018,7 @@ impl Storage {
                  UPDATE roles SET
                    max_upload_mb_per_day = CASE base_tier WHEN 'admin' THEN 0 WHEN 'mod' THEN 4096 WHEN 'verified' THEN 1024 ELSE 100 END,
                    max_uploads_per_hour  = CASE base_tier WHEN 'admin' THEN 0 WHEN 'mod' THEN 200  WHEN 'verified' THEN 60   ELSE 20  END,
-                   max_private_held_mb   = CASE base_tier WHEN 'admin' THEN 0 WHEN 'mod' THEN 120  WHEN 'verified' THEN 60   ELSE 30  END;
-                 COMMIT;"
+                   max_private_held_mb   = CASE base_tier WHEN 'admin' THEN 0 WHEN 'mod' THEN 120  WHEN 'verified' THEN 60   ELSE 30  END;"
             )?;
             info!("Migration: added the Media file, private file, day, hour and private-held upload limits (roles)");
         }
@@ -1982,17 +2027,16 @@ impl Storage {
         // `max_forwarded_mb_per_day` (docs/design/files-showcase.md, "Device-to-device big files:
         // the shapes, exact", part 2; storage/roles.rs): MB a day one person's big files sent
         // device to device may pass through the server's call forwarder, counted there in memory.
-        // 0 = no limit. Given by tier once, with the column, in one transaction: Admin (and any
+        // 0 = no limit. Given by tier once, with the column, in one transaction (the upgrade's,
+        // since BUG-230): Admin (and any
         // custom role on its tier) none, everything else 2048, as the upload limits above are; an
         // admin's later change survives a restart. After the ALTERs above, before the seed below
         // (the v0.262.2 ordering), no index over it (BUG-046).
         // `an_existing_roles_table_gains_the_forwarded_limit` opens a table from before.
         if conn.prepare("SELECT max_forwarded_mb_per_day FROM roles LIMIT 0").is_err() {
             conn.execute_batch(
-                "BEGIN;
-                 ALTER TABLE roles ADD COLUMN max_forwarded_mb_per_day INTEGER NOT NULL DEFAULT 2048;
-                 UPDATE roles SET max_forwarded_mb_per_day = CASE base_tier WHEN 'admin' THEN 0 ELSE 2048 END;
-                 COMMIT;"
+                "ALTER TABLE roles ADD COLUMN max_forwarded_mb_per_day INTEGER NOT NULL DEFAULT 2048;
+                 UPDATE roles SET max_forwarded_mb_per_day = CASE base_tier WHEN 'admin' THEN 0 ELSE 2048 END;"
             )?;
             info!("Migration: added the forwarded MB a day limit (roles)");
         }
@@ -2998,8 +3042,16 @@ impl Storage {
             );"
         )?;
 
+        // The last step: the upgrade commits, every step at once.
+        upgrade.commit()?;
+        // A table holding people's data was dropped above: fold the zeroed pages out of the WAL
+        // into the file now (the checkpoint cannot run inside the transaction).
+        if scrub_wal {
+            conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+        }
+
         // Build the read-only connection pool NOW — after every CREATE
-        // TABLE / migration above has run on the writer `conn`, so a pooled
+        // TABLE / migration above has run on the writer `conn` and committed, so a pooled
         // reader never observes a schema-less database. The pool opens the
         // SAME file read-only with matching WAL/foreign_keys/busy_timeout
         // pragmas (see `pool::build_read_pool`). All current call sites still
@@ -3057,6 +3109,12 @@ impl Storage {
 // Connection-pool plumbing for concurrent reads (R3). Not a domain module —
 // it provides the read-only `r2d2` pool that backs `Storage::with_read_conn`.
 mod pool;
+
+/// The relay's database at start (BUG-230): the check's verdict, the upgrade's one transaction,
+/// and the words a start that fails stops with.
+mod start;
+pub use start::{OpenFailure, UpgradeFailed};
+use start::{Checked, UpgradeTransaction};
 
 // Domain method modules — each has its own impl Storage block.
 // Rust supports splitting impl blocks across files via the module system.
@@ -3363,5 +3421,231 @@ mod resilient_open_tests {
 
         let _s = Storage::open_resilient(&db, &backups).expect("should fall back to older healthy backup");
         assert_eq!(marker_count(&db, 333), 1, "should have restored the older HEALTHY backup");
+    }
+
+    /// The names of the files in `dir` that contain `needle`.
+    fn files_containing(dir: &Path, needle: &str) -> Vec<String> {
+        std::fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains(needle))
+            .collect()
+    }
+
+    /// How many messages carry the timestamp `ts`, read through a read-only connection, so a
+    /// file whose upgrade fails can still be looked into without upgrading it.
+    fn marker_count_readonly(path: &Path, ts: u64) -> i64 {
+        let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        conn.query_row("SELECT COUNT(*) FROM messages WHERE timestamp = ?1", rusqlite::params![ts as i64], |r| r.get(0)).unwrap()
+    }
+
+    /// A real relay database with enough rows to span many pages, its newest line marked `ts`.
+    /// The other lines are stamped from 1,000,000 on, clear of every marker the tests use (a
+    /// first version stamped them 0 to 399, which holds 222, the backup's marker, and so passed
+    /// "the backup is what opened" on the damaged file itself).
+    fn make_full_db(path: &Path, ts: u64) {
+        let s = Storage::open(path).expect("open");
+        s.with_conn(|c| {
+            for i in 0..400 {
+                c.execute(
+                    "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
+                     VALUES ('chat', 'pk', 'name', ?1, ?2, '{}', 'global')",
+                    rusqlite::params![format!("line {i} of a day's talk, long enough to fill the pages {}", "x".repeat(200)), 1_000_000 + i as i64],
+                )?;
+            }
+            c.execute(
+                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
+                 VALUES ('chat', 'pk', 'name', 'the newest line', ?1, '{}', 'global')",
+                rusqlite::params![ts as i64],
+            )
+        })
+        .unwrap();
+    }
+
+    /// BUG-230: A DAMAGED FILE IS STILL RESTORED FROM THE NEWEST BACKUP, the two ways a file is
+    /// damaged on a disk: pages overwritten with garbage in the middle (the header and the schema
+    /// still read, so it opens as a database and only the check finds the damage), and a file cut
+    /// off at half its length. Each is moved aside as `relay.db.corrupt-<time>`, and the newest
+    /// backup that passes the check is put in its place.
+    ///
+    /// Green on the code before the fix (this is what it already did). Seen red 2026-11-03 with the
+    /// check's verdict planted wrong (a damaged file treated as healthy and sent straight to the
+    /// upgrade): "garbage pages: the backup is what opened" (left: 0, right: 1): the upgrade ran
+    /// through the damaged pages without a word, and the relay would have started on them. So the
+    /// check before the upgrade is what finds the damage; the upgrade does not.
+    #[test]
+    fn a_damaged_file_is_still_restored_from_the_newest_backup() {
+        let garbage = |p: &Path| {
+            let mut bytes = std::fs::read(p).unwrap();
+            let middle = (bytes.len() / 2) & !4095;
+            for b in &mut bytes[middle..middle + 8 * 4096] {
+                *b = 0xA5;
+            }
+            std::fs::write(p, bytes).unwrap();
+        };
+        let truncate = |p: &Path| {
+            let len = std::fs::metadata(p).unwrap().len();
+            std::fs::OpenOptions::new().write(true).open(p).unwrap().set_len((len / 2) & !4095).unwrap();
+        };
+        let cases: [(&str, &dyn Fn(&Path)); 2] = [("garbage pages", &garbage), ("cut off at half", &truncate)];
+        for (case, damage) in cases {
+            let dir = tmp_dir("damaged");
+            let db = dir.join("relay.db");
+            let backups = dir.join("backups");
+            std::fs::create_dir_all(&backups).unwrap();
+            make_healthy_db(&backups.join("relay-20260101-000000.db"), 222);
+            make_full_db(&db, 111);
+            damage(&db);
+
+            let s = match Storage::open_resilient(&db, &backups) {
+                Ok(s) => s,
+                Err(e) => panic!("{case}: a damaged file is restored from its backup: {e}"),
+            };
+            let n = s.with_conn(|c| c.query_row("SELECT COUNT(*) FROM messages WHERE timestamp = 222", [], |r| r.get::<_, i64>(0))).unwrap();
+            assert_eq!(n, 1, "{case}: the backup is what opened");
+            assert_eq!(files_containing(&dir, "relay.db.corrupt-").iter().filter(|n| !n.ends_with("-wal") && !n.ends_with("-shm")).count(), 1, "{case}: the damaged file is kept beside it");
+        }
+    }
+
+    /// BUG-230: A HEALTHY FILE WHOSE UPGRADE FAILS IS LEFT BYTE FOR BYTE AS IT WAS. The database the
+    /// code before the chat access upgrade wrote (tests/fixtures/relay/relay_v0_1456.sql), in WAL
+    /// mode as every relay database is, holding a view over `channels.read_only`: SQLite refuses the
+    /// upgrade's DROP of that column (the plant of chat_access_tests.rs
+    /// `the_upgrade_is_all_or_nothing`). Its backup is the same file from before its newest line
+    /// was posted, so it fails the same step. Started twice (a start, then systemd's restart),
+    /// through `open_resilient`, the path the relay's start takes: the file is not moved aside, no
+    /// backup is copied in, every byte of it is as it was (the steps of the upgrade before the
+    /// failing one included: the schema batch makes the tables added since v0.1456, so with the
+    /// upgrade committed a step at a time they would stay), nothing waits beside it, and the error
+    /// names the step.
+    ///
+    /// Seen red 2026-11-03 on the code before the fix: "the first start: the file is not moved
+    /// aside" (left: ["relay.db.corrupt-1793713598"], right: []): the live file was quarantined and
+    /// the older backup put in its place. With the start told apart but the upgrade's one
+    /// transaction taken out (every step committing on its own, as before the fix): "the first
+    /// start: every byte of the file is as it was (974848 bytes before, 1003520 after)".
+    #[test]
+    fn a_healthy_file_whose_upgrade_fails_is_left_as_it_was() {
+        let dir = tmp_dir("upgrade_fails");
+        let db = dir.join("relay.db");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        {
+            let conn = Connection::open(&db).unwrap();
+            conn.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
+            conn.execute_batch(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/relay/relay_v0_1456.sql"))).expect("the previous code's database loads from its dump");
+            conn.execute_batch(
+                "INSERT INTO channels (id, name, created_at, read_only, federated) VALUES ('general', 'general', 1, 0, 1);
+                 INSERT INTO channels (id, name, created_at, read_only, federated) VALUES ('announcements', 'announcements', 1, 1, 1);
+                 INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
+                     VALUES ('chat', 'pk', 'name', 'an older line', 444, '{}', 'general');
+                 CREATE VIEW read_only_channels AS SELECT id FROM channels WHERE read_only = 1;",
+            )
+            .unwrap();
+        }
+        // The backup the 30-minute snapshot took before the newest line was posted.
+        std::fs::copy(&db, backups.join("relay-20260101-000000.db")).unwrap();
+        {
+            let conn = Connection::open(&db).unwrap();
+            conn.execute(
+                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
+                 VALUES ('chat', 'pk', 'name', 'the newest line', 555, '{}', 'general')",
+                [],
+            )
+            .unwrap();
+        }
+        let before = std::fs::read(&db).unwrap();
+        assert!(!dir.join("relay.db-wal").exists(), "the planted file was closed cleanly");
+
+        for start in ["the first start", "a restart"] {
+            let err = match Storage::open_resilient(&db, &backups) {
+                Ok(_) => panic!("{start}: the upgrade fails, so the database does not open"),
+                Err(e) => e.to_string(),
+            };
+            println!("{start}: {err}");
+            assert_eq!(files_containing(&dir, ".corrupt-"), Vec::<String>::new(), "{start}: the file is not moved aside");
+            let after = std::fs::read(&db).unwrap();
+            assert!(after == before, "{start}: every byte of the file is as it was ({} bytes before, {} after)", before.len(), after.len());
+            assert!(!dir.join("relay.db-wal").exists(), "{start}: nothing of the upgrade waits beside it");
+            assert_eq!(marker_count_readonly(&db, 555), 1, "{start}: it still holds the newest line (no backup was copied in)");
+            assert!(err.contains("read_only"), "{start}: the error says what SQLite refused: {err}");
+            assert!(err.contains("src/relay/storage/mod.rs:"), "{start}: and names the step's place in the code: {err}");
+        }
+    }
+
+    /// BUG-230: A FILE THAT CANNOT BE OPENED AT ALL IS NOT DAMAGE. Here `relay.db` is a folder,
+    /// the stand-in for every reason SQLite cannot read a file that says nothing about its bytes
+    /// (its permissions after a copy made as another user, a lock another program holds, the disk).
+    /// Nothing is moved aside and no backup is put in its place.
+    ///
+    /// Seen red 2026-11-03 on the code before the fix: "it does not open": it opened, on the
+    /// backup, copied in where the folder had been after the folder was moved aside.
+    #[test]
+    fn a_file_that_cannot_be_read_is_not_damage() {
+        let dir = tmp_dir("unreadable");
+        let db = dir.join("relay.db");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        make_healthy_db(&backups.join("relay-20260101-000000.db"), 222);
+        std::fs::create_dir_all(&db).unwrap();
+
+        assert!(Storage::open_resilient(&db, &backups).is_err(), "it does not open");
+        assert_eq!(files_containing(&dir, ".corrupt-"), Vec::<String>::new(), "nothing is moved aside");
+        assert!(db.is_dir(), "the folder is where it was");
+    }
+
+    /// AN EMPTY FILE IS NOT A BACKUP. SQLite opens a file of no bytes as an empty database, which
+    /// passes its check; restoring one would start the relay on nothing, a wipe that looks like a
+    /// recovery. A backup has to hold a schema; an empty newest one is passed over for the older
+    /// real one.
+    ///
+    /// Seen red 2026-11-03 on the code before the fix: "the older real backup is restored" (left:
+    /// 0, right: 1): the empty file was put in place and opened as a fresh database.
+    #[test]
+    fn an_empty_backup_is_not_restored() {
+        let dir = tmp_dir("empty_backup");
+        let db = dir.join("relay.db");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        make_healthy_db(&backups.join("relay-20260101-000000.db"), 333);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(backups.join("relay-20260102-000000.db"), b"").unwrap();
+        std::fs::write(&db, b"corrupt live").unwrap();
+
+        let _s = Storage::open_resilient(&db, &backups).expect("the older real backup restores");
+        drop(_s);
+        assert_eq!(marker_count(&db, 333), 1, "the older real backup is restored");
+    }
+
+    /// A TABLE THE UPGRADE DROPS IS STILL SCRUBBED FROM THE FILE, now that the whole upgrade is one
+    /// transaction (BUG-230): the checkpoint that folds the zeroed pages into the database file runs
+    /// once the upgrade has committed, not inside it, where SQLite refuses it. Looked at while the
+    /// database is still open, before closing it folds the log in anyway.
+    ///
+    /// Seen red 2026-11-03 with the checkpoint after the commit taken out (the run also had the
+    /// transaction taken out, which leaves the DROP committed and the file the same): "the dropped
+    /// DM graph is gone from relay.db" (the marker still in the main file). Green on the code before the fix,
+    /// whose checkpoint ran inside each DROP's own batch.
+    #[test]
+    fn a_table_the_upgrade_drops_is_scrubbed_once_it_commits() {
+        const MARKER: &str = "DROPPED_GRAPH_EDGE_5c1e09d7";
+        let dir = tmp_dir("drop_scrub");
+        let db = dir.join("relay.db");
+        {
+            let conn = Connection::open(&db).unwrap();
+            conn.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
+            conn.execute_batch(&format!(
+                "CREATE TABLE direct_messages (id INTEGER PRIMARY KEY, from_key TEXT, to_key TEXT, content TEXT);
+                 INSERT INTO direct_messages (from_key, to_key, content) VALUES ('alice', 'bob', '{MARKER}');"
+            ))
+            .unwrap();
+        }
+        let scan = |p: &Path| std::fs::read(p).map(|b| b.windows(MARKER.len()).any(|w| w == MARKER.as_bytes())).unwrap_or(false);
+        assert!(scan(&db), "the marker is on disk before the upgrade (so the test can fail)");
+        let s = Storage::open(&db).expect("open drops the table");
+        assert!(!scan(&db), "the dropped DM graph is gone from relay.db");
+        assert!(!scan(&dir.join("relay.db-wal")), "and from its log");
+        drop(s);
     }
 }

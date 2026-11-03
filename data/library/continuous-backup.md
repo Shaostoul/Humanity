@@ -242,4 +242,5 @@ them cannot read them.
 - The alert-channels editor: alerts go to the channels in `data/alert-channels.secrets.json`, edited
   over SSH (`docs/design/in-app-ops.md`).
 - Automatic recovery from the continuous backup at start (`Storage::open_resilient` still restores
-  the newest local snapshot when the database is corrupt).
+  the newest local snapshot when the check before the upgrade finds the file damaged; an upgrade
+  that fails on a healthy file restores nothing and stops the start, BUG-230).

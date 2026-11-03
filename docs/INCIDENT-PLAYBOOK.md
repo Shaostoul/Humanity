@@ -48,6 +48,68 @@ If `/opt` is near 100%:
 - `/opt/Humanity/data/uploads/`, user uploads. Quotas enforced (Roles v0.262) but check.
 - `/opt/Humanity/target/`, Rust build artifacts. Can be removed safely if disk-pressured; CI rebuilds.
 
+### The relay will not start after an update
+**Symptom**: `systemctl status humanity-relay` shows `activating (auto-restart)`, chat does not
+connect, the watchdog alerts.
+
+**Diagnosis**: the start checks the database READ-ONLY before the upgrade changes anything, and
+says which of the cases below it is (BUG-230, 2026-11-03, from the first release after v0.1547.0).
+systemd restarts it every 5 s and each start logs the same lines, so the last 30 are enough:
+```bash
+ssh humanity-vps "journalctl -u humanity-relay --no-pager -n 30 | grep -E 'ERROR|WARN|panicked'"
+```
+
+1. **`DATABASE UPGRADE FAILED`: the new code could not upgrade a healthy file.** The code's fault,
+   not the file's. (Lines shown without the journal's time and host prefix.)
+   ```
+   ERROR humanity_engine::relay: DATABASE UPGRADE FAILED: the relay did not start. /opt/Humanity/data/relay.db is healthy (it passed its check), but this release (v<its version>) could not upgrade it.
+   ERROR humanity_engine::relay: The step that failed: src/relay/storage/mod.rs:1292 (error in view read_only_channels after drop column: no such column: read_only).
+   ERROR humanity_engine::relay: Nothing in the database was changed: the upgrade is one transaction, and it was undone. No file was moved and no backup was restored.
+   ERROR humanity_engine::relay: What to do: run the previous release again (it still opens this file as it is), and report the step above so the upgrade can be fixed. Do not restore a backup over this file: it holds the newest data.
+   thread 'main' panicked at src/relay/mod.rs:681:9:  (then the same words again, on one line)
+   ```
+   **Do**: put the previous code back. united-humanity.us deploys from main: revert the commit
+   and push, or `just sync` from the commit before. public.guide deploys from releases: install
+   the previous release. It opens the file exactly as it was, nothing lost. Then fix the step
+   named (that line of `src/relay/storage/mod.rs`) with a test that opens a database of the live
+   shape (BUG-046's lesson; `tests/fixtures/relay/relay_v0_1456.sql` is one), and deploy again.
+   **Do not** restore a backup, move `relay.db` or run `pq-wipe.sh`: the file is healthy and the
+   newest there is, and a backup would lose everything written since it was taken. The restarts
+   every 5 s change nothing in it.
+2. **`could not be checked`: SQLite could not read the file.** Not damage; nothing was moved.
+   ```
+   ERROR humanity_engine::relay: The relay did not start: /opt/Humanity/data/relay.db could not be checked (unable to open database file).
+   ERROR humanity_engine::relay: This is not damage: SQLite could not read the file (its permissions, a lock another program holds on it, or the disk). Nothing was moved or replaced.
+   ERROR humanity_engine::relay: What to do: fix what stops the relay reading the file, then start it again.
+   ```
+   **Do**: `ls -l /opt/Humanity/data/relay.db*` (the owner and mode: a file copied in as root is
+   the usual cause), `df -h /opt`, `fuser -v /opt/Humanity/data/relay.db` (another program holding
+   it). Fix that; the next restart starts.
+3. **`is damaged`, then `DB RECOVERED from backup`: the file was damaged, and the relay started on
+   the newest backup.** It runs, on data as old as that backup.
+   ```
+   ERROR humanity_engine::relay::storage: The database at /opt/Humanity/data/relay.db is damaged (quick_check found: ...). Looking for the newest backup that passes the check.
+   WARN humanity_engine::relay::storage: quarantine: kept /opt/Humanity/data/relay.db as /opt/Humanity/data/relay.db.corrupt-1793744036
+   WARN humanity_engine::relay::storage: DB RECOVERED from backup /opt/Humanity/backups/relay-20261103-120000.db; the damaged file is kept as /opt/Humanity/data/relay.db.corrupt-1793744036
+   ```
+   What was written after that backup is only in the `.corrupt-<time>` file: "SQLite corruption /
+   WAL torn" below has the `.recover` step to get rows out of it.
+4. **`DB recovery FAILED`: damaged, and no backup could be put in its place.** The damaged file is
+   where it was. Follow "SQLite corruption / WAL torn" below.
+5. **Case 3, then case 1**: `DB RECOVERED`, then `DATABASE UPGRADE FAILED ... The database was
+   damaged, so the backup ... was put in its place first`. Do case 1. From the next start only
+   case 1's lines repeat, since the restored copy is healthy and nothing more is moved.
+
+A `relay.db.restoring` left beside the database is a backup's copy from a restore that stopped
+part way; the live file was not touched. Delete it.
+
+**Before the fix** (any release up to v0.1547.0, so public.guide until its next release), case 1
+looked like case 3: `failed to open or passed integrity check (...). Entering recovery.`, then
+`quarantine: moved ...`, then `Restored backup ... failed post-copy verify`, and every restart moved
+another file aside. If you see that, the newest data is in the OLDEST `relay.db.corrupt-<time>`
+(the first one moved). Stop the relay, rename that file to `relay.db` and its `-wal` to
+`relay.db-wal` (delete its `-shm`), and run the previous release.
+
 ### SQLite corruption / WAL torn
 **Symptom**: relay panics with "database disk image is malformed" or similar.
 
@@ -59,6 +121,8 @@ If `/opt` is near 100%:
 5. **Inc6-style fresh slate**: `bash /opt/Humanity/scripts/pq-wipe.sh --yes`. Last resort; users re-onboard from seed.
 
 > **AUTOMATED since v0.286.0:** the relay now boots via `Storage::open_resilient`, on a failed integrity check it auto-restores the newest *healthy* `backups/relay-*.db` (quarantining the corrupt file to `relay.db.corrupt-<ts>`), and if NO healthy backup exists it refuses to start (loud failure, watchdog alerts) rather than silently wiping. The manual steps above are the fallback if the automated recovery itself can't find a good backup. The relay watchdog (`humanity-relay-watchdog.timer`, every 2 min) catches the refuse-to-start case and logs CRITICAL.
+>
+> **Since BUG-230's fix (2026-11-03)** the check runs read-only BEFORE the upgrade, and only its verdict sends a file to recovery: a failed upgrade step, or a file that could not be read at all, never restores a backup ("The relay will not start after an update", above). A backup must also hold a relay database (an empty file is passed over), and its copy is checked beside the live file before the swap, so `relay.db` is never missing.
 
 ### Server lost, or its database gone (restore from continuous backup)
 **Symptom**: the machine is gone (disk dead, VPS deleted), or the database is damaged beyond what
@@ -256,6 +320,7 @@ A user logs in from web + native simultaneously, edits profile from both, clocks
 ## Update log
 - 2026-05-20, initial creation; populated with the four real incidents from the last 30 days + the anticipated failure list seeded from the audit work.
 - 2026-10-03, added the dev-relay Windows Firewall prompts (BIND_ADDRESS, loopback-only dev launchers and tests).
+- 2026-11-03, added "The relay will not start after an update" (BUG-230: a failed upgrade is told apart from a damaged file).
 
 ## The TURN relay abuse and the 12-hour invisible outage (2026-08-07)
 
