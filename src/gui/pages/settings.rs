@@ -1358,6 +1358,13 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         }
         widgets::setting_hint(ui, theme, hint, t("settings.font_size_desc"));
 
+        // The top menu's preview (navigation rung 2; docs/design/navigation.md section 4.1, the
+        // operator 2026-11-03: "Yes with option for off"): read by pages/escape_menu.rs.
+        if with_hint(ui, "settings.nav_preview_desc", |ui| widgets::toggle(ui, theme, t("settings.nav_preview"), &mut state.settings.nav_preview)) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, t("settings.nav_preview_desc"));
+
         // The hint-display mode itself (Full / Hover / Off): how every
         // description on this page, and every control's hover hint, is shown.
         if hint_display_picker(ui, theme, &mut state.settings.hint_display) {
@@ -1664,6 +1671,33 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     let ui_r = &mut cols[1];
                     let color_tuple = unsafe { &mut *ptr };
                     if color_row(ui_r, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+            });
+
+            // The top menu's eight categories (navigation rung 2, 2026-11-03), each row named with
+            // its category's own words (data/gui/navigation.json names these tokens).
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(RichText::new(t("settings.theme_nav_cat_heading")).size(theme.font_size_body).color(theme.text_primary()).strong());
+            ui.label(RichText::new(t("settings.theme_nav_cat_note")).size(theme.font_size_small).color(theme.text_muted()));
+            ui.add_space(theme.spacing_sm);
+            ui.columns(2, |cols| {
+                let cats = [
+                    (t("nav.humanity"), &mut theme.nav_cat_humanity as *mut _),
+                    (t("nav.play"),     &mut theme.nav_cat_play as *mut _),
+                    (t("nav.chat"),     &mut theme.nav_cat_chat as *mut _),
+                    (t("nav.own_life"), &mut theme.nav_cat_own_life as *mut _),
+                    (t("nav.apps"),     &mut theme.nav_cat_apps as *mut _),
+                    (t("nav.library"),  &mut theme.nav_cat_library as *mut _),
+                    (t("nav.dev"),      &mut theme.nav_cat_dev as *mut _),
+                    (t("nav.settings"), &mut theme.nav_cat_settings as *mut _),
+                ];
+                for (i, (label, ptr)) in cats.into_iter().enumerate() {
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(&mut cols[i / 4], label, color_tuple, label_color) {
                         any_color_changed = true;
                     }
                 }
@@ -2176,6 +2210,14 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
             any_changed |= styled_slider(ui, &ss, "Separator Height", &mut theme.nav_separator_height, 1.0..=10.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Active Border Width", &mut theme.nav_active_border_width, 1.0..=5.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Hover Border Width", &mut theme.nav_hover_border_width, 1.0..=5.0, label_color);
+            // The two rows' sizes (navigation rung 2), in points: the Font Size grows them further.
+            use humanity_core::i18n::t;
+            any_changed |= styled_slider(ui, &ss, t("settings.theme_nav_primary_height"), &mut theme.nav_primary_height, 32.0..=80.0, label_color);
+            any_changed |= styled_slider(ui, &ss, t("settings.theme_nav_primary_button_height"), &mut theme.nav_primary_button_height, 24.0..=72.0, label_color);
+            any_changed |= styled_slider(ui, &ss, t("settings.theme_nav_icon_size"), &mut theme.nav_icon_size, 10.0..=36.0, label_color);
+            any_changed |= styled_slider(ui, &ss, t("settings.theme_nav_secondary_height"), &mut theme.nav_secondary_height, 28.0..=72.0, label_color);
+            any_changed |= styled_slider(ui, &ss, t("settings.theme_nav_secondary_button_height"), &mut theme.nav_secondary_button_height, 20.0..=64.0, label_color);
+            any_changed |= styled_slider(ui, &ss, t("settings.theme_nav_secondary_font_size"), &mut theme.nav_secondary_font_size, 10.0..=28.0, label_color);
         });
 
         ui.add_space(spacing_sm);

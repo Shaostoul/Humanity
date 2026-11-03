@@ -359,6 +359,28 @@ pub struct Theme {
     pub section_yellow_bg: C,
     #[serde(default = "default_section_yellow")]
     pub section_yellow: C,
+    // ── The top menu's category colours (navigation rung 2, 2026-11-03) ──
+    // One per category of data/gui/navigation.json, named for its id (docs/design/navigation.md,
+    // sections 3 and 13): the primary button's tint and edge, the bar that runs down from it, and
+    // the secondary row's tint while it shows that category. Never alone: every button carries
+    // its words. The defaults are the design's: Humanity red, Play purple, Chat cyan, the own-life
+    // category green, Apps blue, Library magenta, Dev amber, Settings grey.
+    #[serde(default = "default_nav_cat_humanity")]
+    pub nav_cat_humanity: C,
+    #[serde(default = "default_nav_cat_play")]
+    pub nav_cat_play: C,
+    #[serde(default = "default_nav_cat_chat")]
+    pub nav_cat_chat: C,
+    #[serde(default = "default_nav_cat_own_life")]
+    pub nav_cat_own_life: C,
+    #[serde(default = "default_nav_cat_apps")]
+    pub nav_cat_apps: C,
+    #[serde(default = "default_nav_cat_library")]
+    pub nav_cat_library: C,
+    #[serde(default = "default_nav_cat_dev")]
+    pub nav_cat_dev: C,
+    #[serde(default = "default_nav_cat_settings")]
+    pub nav_cat_settings: C,
 
     // Nav sizing knobs. Pulled out of the hardcoded constants so the
     // operator can tune nav presence without recompiling.
@@ -368,6 +390,22 @@ pub struct Theme {
     pub nav_active_border_width: f32,
     #[serde(default = "default_nav_hover_border_width")]
     pub nav_hover_border_width: f32,
+    // The two rows' sizes, in points (navigation rung 2; docs/design/navigation.md section 7,
+    // measured for the operator's 65-inch screen at 4 ft): the primary row and its buttons, their
+    // icons (the words are `font_size_body`), the secondary row, its buttons and its words. In
+    // points, so the Font Size (the app's zoom, gui/font_size.rs) grows them with everything else.
+    #[serde(default = "default_nav_primary_height")]
+    pub nav_primary_height: f32,
+    #[serde(default = "default_nav_primary_button_height")]
+    pub nav_primary_button_height: f32,
+    #[serde(default = "default_nav_icon_size")]
+    pub nav_icon_size: f32,
+    #[serde(default = "default_nav_secondary_height")]
+    pub nav_secondary_height: f32,
+    #[serde(default = "default_nav_secondary_button_height")]
+    pub nav_secondary_button_height: f32,
+    #[serde(default = "default_nav_secondary_font_size")]
+    pub nav_secondary_font_size: f32,
 
     // ── Animations (v0.177.0) ──
     // Master switch + per-element style/speed tokens. Lets users turn
@@ -510,6 +548,14 @@ impl Theme {
     pub fn section_cyan(&self) -> Color32 { Self::c32(&self.section_cyan) }
     pub fn section_magenta_bg(&self) -> Color32 { Self::c32(&self.section_magenta_bg) }
     pub fn section_magenta(&self) -> Color32 { Self::c32(&self.section_magenta) }
+    pub fn nav_cat_humanity(&self) -> Color32 { Self::c32(&self.nav_cat_humanity) }
+    pub fn nav_cat_play(&self) -> Color32 { Self::c32(&self.nav_cat_play) }
+    pub fn nav_cat_chat(&self) -> Color32 { Self::c32(&self.nav_cat_chat) }
+    pub fn nav_cat_own_life(&self) -> Color32 { Self::c32(&self.nav_cat_own_life) }
+    pub fn nav_cat_apps(&self) -> Color32 { Self::c32(&self.nav_cat_apps) }
+    pub fn nav_cat_library(&self) -> Color32 { Self::c32(&self.nav_cat_library) }
+    pub fn nav_cat_dev(&self) -> Color32 { Self::c32(&self.nav_cat_dev) }
+    pub fn nav_cat_settings(&self) -> Color32 { Self::c32(&self.nav_cat_settings) }
     pub fn section_yellow_bg(&self) -> Color32 { Self::c32(&self.section_yellow_bg) }
     pub fn section_yellow(&self) -> Color32 { Self::c32(&self.section_yellow) }
     pub fn slider_track(&self) -> Color32 { Self::c32(&self.slider_track) }
@@ -857,9 +903,25 @@ fn default_section_magenta_bg() -> C { (0.176, 0.059, 0.165, 1.0) }
 fn default_section_magenta()    -> C { (0.839, 0.255, 0.776, 1.0) } // #D641C6
 fn default_section_yellow_bg()  -> C { (0.176, 0.157, 0.039, 1.0) }
 fn default_section_yellow()     -> C { (0.945, 0.769, 0.059, 1.0) } // #F1C40F
+// The top menu's categories (navigation rung 2): the design's colours, section 3.
+fn default_nav_cat_humanity() -> C { default_nav_reality() }
+fn default_nav_cat_play()     -> C { default_nav_sim() }
+fn default_nav_cat_chat()     -> C { default_section_cyan() }
+fn default_nav_cat_own_life() -> C { default_nav_legacy_green() }
+fn default_nav_cat_apps()     -> C { default_nav_tools() }
+fn default_nav_cat_library()  -> C { default_section_magenta() }
+fn default_nav_cat_dev()      -> C { default_nav_dev() }
+fn default_nav_cat_settings() -> C { default_nav_settings() }
 fn default_nav_separator_height() -> f32 { 3.0 }
 fn default_nav_active_border_width() -> f32 { 2.0 }
 fn default_nav_hover_border_width() -> f32 { 2.0 }
+// The two rows' sizes (navigation rung 2, section 7 of docs/design/navigation.md).
+fn default_nav_primary_height() -> f32 { 48.0 }
+fn default_nav_primary_button_height() -> f32 { 36.0 }
+fn default_nav_icon_size() -> f32 { 18.0 }
+fn default_nav_secondary_height() -> f32 { 40.0 }
+fn default_nav_secondary_button_height() -> f32 { 30.0 }
+fn default_nav_secondary_font_size() -> f32 { 14.5 }
 // Animation defaults (v0.177.0).
 fn default_animations_enabled() -> bool { true }
 fn default_nav_separator_anim() -> u8 { 2 }   // RGB_CYCLE
@@ -1018,9 +1080,23 @@ fn default_theme() -> Theme {
         section_magenta: default_section_magenta(),
         section_yellow_bg: default_section_yellow_bg(),
         section_yellow: default_section_yellow(),
+        nav_cat_humanity: default_nav_cat_humanity(),
+        nav_cat_play: default_nav_cat_play(),
+        nav_cat_chat: default_nav_cat_chat(),
+        nav_cat_own_life: default_nav_cat_own_life(),
+        nav_cat_apps: default_nav_cat_apps(),
+        nav_cat_library: default_nav_cat_library(),
+        nav_cat_dev: default_nav_cat_dev(),
+        nav_cat_settings: default_nav_cat_settings(),
         nav_separator_height: default_nav_separator_height(),
         nav_active_border_width: default_nav_active_border_width(),
         nav_hover_border_width: default_nav_hover_border_width(),
+        nav_primary_height: default_nav_primary_height(),
+        nav_primary_button_height: default_nav_primary_button_height(),
+        nav_icon_size: default_nav_icon_size(),
+        nav_secondary_height: default_nav_secondary_height(),
+        nav_secondary_button_height: default_nav_secondary_button_height(),
+        nav_secondary_font_size: default_nav_secondary_font_size(),
         animations_enabled: default_animations_enabled(),
         nav_separator_animation: default_nav_separator_anim(),
         nav_separator_animation_speed: default_anim_speed(),

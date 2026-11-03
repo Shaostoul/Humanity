@@ -2495,6 +2495,14 @@ mod native_app {
                             state.gui_state.help_panel_pinned = false;
                             return;
                         }
+                        // Then the top menu's preview, or a More list (navigation rung 2, section
+                        // 10.4 rule 1): the second row goes back to the page's own row at once.
+                        if key == KeyCode::Escape && pressed
+                            && !matches!(state.gui_state.active_page, GuiPage::None | GuiPage::MainMenu)
+                            && crate::gui::pages::escape_menu::end_preview(&state.egui_ctx)
+                        {
+                            return;
+                        }
 
                         if key == KeyCode::Escape && pressed {
                             // Esc cancels the showroom cleanly. Leaving showroom_active
@@ -15303,7 +15311,7 @@ mod native_app {
                                 if state.gui_state.keymap_visible
                                     || state.gui_state.help_panel_pinned
                                 {
-                                    crate::gui::pages::keymap::draw(ctx, &state.theme, &state.gui_state);
+                                    crate::gui::pages::keymap::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
                                 // Diagnostics dev-HUD overlays (F2/F3/F4), v0.482.
                                 crate::gui::pages::diagnostics::draw(ctx, &state.theme, &state.gui_state);

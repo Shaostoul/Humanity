@@ -1,8 +1,9 @@
 # UI Navigation Map
 
-> **A redesign is planned (2026-11-02), not built:** the double top menu, one layer order and Back
-> and Forward, in [docs/design/navigation.md](../design/navigation.md). This map describes the app
-> as it is; rewrite it from that design as each of its rungs lands.
+> **A redesign is being built (2026-11-02 design):** the double top menu, one layer order and Back
+> and Forward, in [docs/design/navigation.md](../design/navigation.md). Rung 2 (2026-11-03) built
+> the DESKTOP's two rows, mapped below; the website keeps its single row until rung 5. Rewrite this
+> map from that design as each of its rungs lands.
 
 > Built 2026-08-16 from a full survey of both surfaces (operator request:
 > "create like a tree graph so we can easily see where everything connects...
@@ -17,53 +18,53 @@
 
 ## The native tree (the product; web mirrors this)
 
-Top nav, one row, drawn in `escape_menu.rs` (order and exact labels):
+Top menu, TWO ROWS since navigation rung 2 (2026-11-03), drawn in `escape_menu.rs` from
+`data/gui/navigation.json` (order and exact labels). The primary row: Back and Forward, the eight
+categories (each a page of its own), the Aa cycle, the notices bell and help. The second row: the
+pages of the category of the page on screen, or of another category while the pointer rests on its
+button (the preview); what does not fit goes under More. Only pages that exist are drawn.
 
 ```
-HumanityOS (native top nav)
+HumanityOS (native top menu)
 |
-|- Play            -> in-world FPS (GuiPage::None); opens Showroom if no character yet
-|- Characters      -> Showroom picker (same GuiPage::None; picker forced)
-|- Humanity        -> Humanity page (mission hub)
-|   |- Mission Dashboard  (inline dashboard; NOT the Civilization page - see OPEN-7)
-|   |- Governance         -> governance content ("Civic Participation")
-|   |- Laws               -> laws content
-|   |- Directory          -> identity content ("Identity & Credentials") - see OPEN-8
-|   |- Donate             -> donate content ("Support HumanityOS")
+|- Humanity        -> Humanity page (the Mission Dashboard, one column; no side list since rung 2)
+|   |- Directory          -> Identity page ("Identity & Credentials") - see OPEN-8
+|   |- Governance         -> Governance page ("Civic Participation")
+|   |- Laws               -> Laws page
+|   |- Donate             -> Donate page ("Support HumanityOS")
+|   |  (waiting for rung 7: Mission, People, Rules, Roadmap, Devlog)
+|- Play            -> Play page (who and where you played last, Enter the world); a press and
+|   |                  hold on Play goes straight into the world (GuiPage::None)
+|   |- Characters         -> Showroom picker (GuiPage::None, picker forced)
+|   |- Quests             -> Quests page (sim quests + learn-by-doing chains)
+|   |- Inventory          -> Inventory page
+|   |- Crafting           -> Crafting page
+|   |  (waiting for rung 7: Worlds, Servers)
 |- Chat            -> Chat page
-|   |- # scratchpad
-|   |- DMs (n)
-|   |- Groups (n)
-|   |- Commons (n)        merged federated rooms, "?" explainer
-|   |- Servers (n)        "+" add server; server icon -> Relay Control ("MY SERVERS")
-|   |   |- per-server cog -> Server Settings ("Server: <name>")
-|   |- right rail: Studio / Friends (n) / <server> members
-|- Studio          -> Studio page (streaming; no page title - see OPEN-5)
-|- Watch           -> Watch page
-|- Files           -> Files page (files.rs; places: Shared on <server>, Shared files, Admin,
-|   |                  HumanityOS folder, Your folders; the Media page and Platform > Files until 2026-10-19)
-|- Profile         -> Real page (sidebar "Profile")
-|   |- PRIVATE:  Body & Measurements | Identity | Private Notes
-|   |- PERSONAL: Network Profile | Interests | Skills
-|   |- PUBLIC:   Social Links | Streaming
-|   |- BELONGINGS: Wallet
-|   |- LIFE:     Market | Trade | Guilds
-|- Home            -> Homes page ("Your Home")
-|- Quests          -> Quests page (sim quests + learn-by-doing chains)
-|- Tasks           -> Tasks page (kanban)
-|- Inventory       -> Inventory page
-|- Crafting        -> Crafting page
-|- Maps            -> Maps page (src/gui/pages/maps/, heading "Maps")
-|   |- views: Planet | Solar System | Galaxy | Night Sky
-|- Dev             -> Dev tab (sidebar; it replaced the Platform tab 2026-10-20)
-|   |- Bugs ("Report a Bug") | Testing | Performance | Dev | Planet Tuner
-|   |  (Platform's Calculator, Notes, Calendar and Browser are on Apps; its
-|   |   Recovery is Settings > Account > "Recovery through trusted people")
+|   |  (in the page: # scratchpad, DMs, Groups, Commons, Servers with "+"; the server icon
+|   |   -> Relay Control ("MY SERVERS"); a per-server cog -> Server Settings)
+|   |- Watch              -> Watch page
+|   |- Studio             -> Studio page (streaming; no page title - see OPEN-5)
+|   |- Files              -> Files page (files.rs)
+|   |- Guilds             -> Guilds page
+|- Life            -> Homes page ("Your home"; "Life" is a working name, the operator's to choose)
+|   |- Profile            -> Real page (sidebar "Profile")
+|   |- Tasks              -> Tasks page (kanban)
+|   |- Maps               -> Maps page (views: Planet | Solar System | Galaxy | Night Sky)
+|   |- Wallet             -> Wallet page
+|   |- Market             -> Market page
+|   |- Trade              -> Trade page
+|- Apps            -> Apps page
+|   |- Notes | Calendar | Calculator | Browser
 |- Library         -> Library page (document tree + Dictionary)
-|- Tools           -> Tools page (external catalog)
+|   |- How-to             -> How-to page
+|- Dev             -> Dev page, the developer's tools (no side list since rung 2)
+|   |- Bugs ("Report a Bug"; also Report a problem in the pinned help panel) | Testing
+|   |- Performance | Planet Tuner | Claude | Journal (the Dev page's parts)
 |- Settings        -> Settings page
 |   |- Account | Appearance | Animations | Widgets | Notifications | Wallet
 |   |- Audio | Graphics | Gameplay | Controls | Privacy | Data | Updates
+|   |- Server settings    -> Server Settings page
 |- [Aa]            display-mode cycle (icons/text/both)
 
 Market page (reached from Profile > LIFE > Market, or onboarding links):

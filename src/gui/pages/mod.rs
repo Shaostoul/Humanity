@@ -32,8 +32,9 @@ pub mod safety_protected;
 pub mod safety_group_reports;
 pub mod profile;
 pub mod real;
-// v0.415.0: play module removed (the dead v0.360 Crafting/Studio fold —
-// nothing navigated to GuiPage::Play; the nav's Play button is GuiPage::None).
+/// Play's own page (navigation rung 2, 2026-11-03): who and where you played last, and Enter the
+/// world. (An older play module, the v0.360 Crafting/Studio fold, went in v0.415.0.)
+pub mod play;
 // The Platform tab (v0.360) was retired on 2026-10-20: its developer tools are
 // the Dev tab (dev_tab.rs), its Calculator, Notes, Calendar and Browser are on
 // Apps, its Recovery is in Settings > Account.

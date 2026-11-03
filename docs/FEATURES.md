@@ -1658,17 +1658,26 @@ Immediate-mode UI with theme.ron, 13 reusable widgets, 20+ pages.
 Title screen with Play, Settings, Quit. Overlays on 3D scene.
 - Native: `src/gui/pages/main_menu.rs`
 
-### Top menu (the menu as data since 2026-11-03)
-The row at the top of every app page, on both apps, drawn from one file (docs/design/navigation.md,
-rung 1; until then two hand-written copies that drifted). The file holds the design's eight
+### Top menu (the menu as data since 2026-11-03; two rows on the desktop since rung 2)
+The menu at the top of every app page, on both apps, drawn from one file (docs/design/navigation.md;
+rung 1, until then two hand-written copies that drifted). The file holds the design's eight
 categories with every page placed in their rows, what is reachable outside the rows (each with why),
-and `today_row`, what the single row shows until rung 2 draws the two rows. (The file name
-`escape_menu.rs` is older than the row: it is not an in-game pause overlay.)
-- Data: `data/gui/navigation.json` (words and hints by key in `data/i18n/en.json`; the own-life category's id is `own_life`, its name one word, `nav.own_life`, while it is open)
-- Native: `src/gui/navigation.rs` (read once and again on a save, refused whole with the entry named when malformed; the exe's own copy otherwise), `src/gui/pages/escape_menu.rs` (draws `today_row.desktop`)
-- Web: `web/shared/shell.js` (draws `NAV_ROW`, written into it by `scripts/gen-navigation.js` from the file and en.json)
-- Tests: `src/gui/navigation_tests.rs` (the file reads, every GuiPage once, a malformed row refused, the drawn and clicked row is the file's), `scripts/tests/navigation-web.test.js` (the written copy current, the drawn row is the file's, a bad file refused), `page_registry_lint` (every web page once, every address a page), `page_parity_lint` ("The top menu")
-- Snapshots: `tests/snapshots/nav_bar_full.png`, `nav_bar_wrapped.png`, `nav_bar_icon_only.png`
+the desktop's timings, and `today_row.web`, the website's single row until rung 5. ON THE DESKTOP,
+TWO ROWS (rung 2, 2026-11-03): the eight categories (Humanity, Play, Chat, Life, Apps, Library, Dev,
+Settings; "Life" is a working name, the operator's to choose), Back and Forward (Back walks the
+steps Escape walks; the app's history is rung 4), the Aa switch, the bell and help; under it the
+category's pages, only pages that exist (Mission, People, Rules, Roadmap, Devlog, Worlds and Servers
+wait for rung 7). Resting the pointer 200 ms on another category previews its row (Settings >
+Appearance turns it off; Escape ends it); a row that does not fit puts the rest under More, never a
+third row. Play: a tap opens Play's page, a press and hold of 800 ms goes into the world. Sizes and
+category colours are theme tokens (`nav_primary_height` and siblings, `nav_cat_<id>`), each in
+Settings. The Humanity and Dev side lists became their rows. (The file name `escape_menu.rs` is
+older than the menu: it is not an in-game pause overlay.)
+- Data: `data/gui/navigation.json` (words and hints by key in `data/i18n/en.json`; the own-life category's id is `own_life`, its name one word, `nav.own_life`), `data/gui/theme.ron` (the sizes and colours)
+- Native: `src/gui/navigation.rs` (read once and again on a save, refused whole with the entry named when malformed; the exe's own copy otherwise; `Menu::desktop`, `place_of`), `src/gui/pages/escape_menu.rs` (the two rows, the preview, More, Play's hold; `end_preview` for Escape), `src/gui/pages/play.rs` (Play's page and `enter_world`), `src/gui/widgets/icons.rs` (`named`: the desktop's picture for each icon name), `src/gui/widgets/mod.rs` (`hold_step`, every hold's clock)
+- Web: `web/shared/shell.js` (draws `NAV_ROW`, written into it by `scripts/gen-navigation.js` from the file and en.json; `web_label` keeps the website's Home tab saying Home)
+- Tests: `src/gui/navigation_tests.rs` (the file reads, every GuiPage once, the rows as drawn hold only pages that exist, each once, a malformed row refused, each page's place), `src/gui/pages/escape_menu_tests.rs` (the rows are the file's, a click on each category, the preview's rest and leave, a click in the preview, the switch off, Play's tap, hold and button, More at 100/150/200% on 2560x1440 and 1280x720), `a11y_tests.rs` (`a11y_the_top_menu_names_and_hints_every_stop`), `font_size.rs` (two lines at every size), `scripts/tests/navigation-web.test.js`, `page_registry_lint`, `page_parity_lint` ("The top menu")
+- Snapshots: `tests/snapshots/nav_rows_tv_100.png`, `_tv_200`, `_720_100`, `_720_200` and each `_preview`, `play_page.png`, and `nav_bar_full.png`, `nav_bar_wrapped.png`, `nav_bar_icon_only.png`
 
 ### Settings Page
 Graphics, audio, controls, game, account categories with sliders and toggles.
@@ -4595,12 +4604,16 @@ your own home has no save yet.
 - Server: `src/relay/api.rs` (`get_server_info`), `src/relay/handlers/home_plots.rs` (`handle_home`)
 
 ### Dev Tab (the developer tools, 2026-10-20)
-One top-menu tab, Dev, holding the developer tools in a side list: Bugs, Testing, Performance,
-Dev, Planet Tuner, (2026-10-22) Claude and (2026-10-24) Journal, the play journal (all permanent: perpetual development). It replaced the Platform tab, which
+One top-menu category, Dev, holding the developer tools: Bugs, Testing, Performance, Dev,
+Planet Tuner, (2026-10-22) Claude and (2026-10-24) Journal, the play journal (all permanent: perpetual development). Since
+navigation rung 2 (2026-11-03) they are the Dev row of the top menu instead of a side list: the
+Dev button opens the developer's tools, Bugs and Testing are pages of their own, the rest the Dev
+page's parts; Report a problem (the Bugs page) is in the pinned help panel too, for everyone.
+It replaced the Platform tab, which
 the operator called redundant on 2026-10-20: Platform's Calculator, Notes, Calendar and Browser
 are HumanityOS tools on the Apps page, its Recovery is in Settings > Account.
 - Native: `src/gui/pages/dev_tab.rs` (`SECTIONS`, `GuiPage::Dev`, page id "dev"); tests in
-  `dev_tab_tests.rs` (the six listed and nothing else; the top menu says Dev, never Platform)
+  `dev_tab_tests.rs` (the Dev row lists the six and nothing else, no side list; the top menu says Dev, never Platform)
 - Web: `web/pages/dev.html` (the Dev Workbench) carries the same list; the top menu's
   Dev tab opens it; `web/pages/platform.html` retired (removed from the live site by
   `scripts/sync-web-root.sh`)

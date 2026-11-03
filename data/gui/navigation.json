@@ -1,48 +1,54 @@
 {
   "_comment": [
-    "THE TOP MENU, for both apps (docs/design/navigation.md, sections 3 and 13; rung 1 built 2026-11-03). Infinite-of-X: a category or a page in it is a row here, never code.",
+    "THE TOP MENU, for both apps (docs/design/navigation.md, sections 3 and 13; rung 1 built 2026-11-03, rung 2, the desktop's two rows, the same day). Infinite-of-X: a category or a page in it is a row here, never code.",
     "Read by the desktop app (src/gui/navigation.rs: once at start and again when this file is saved, never each frame; a copy is built into the exe for a data folder without it) and by the website through scripts/gen-navigation.js, which writes the website's part into web/shared/shell.js (a test fails while that is out of date: run `node scripts/gen-navigation.js` after editing this file or a word it names).",
-    "categories: the design's eight, in order, each a page of its own; `items` are the category's other pages (the secondary row of rung 2). Every entry has an `id` (unique in this file), `label` and `hint` (keys in data/i18n/en.json), `icon` (a name in web/shared/icons.js; `humanity` is the brand H; the desktop app draws the icon of the entry's page, src/gui/widgets/icons.rs `nav_icon`, until rung 2 draws these names), `page` (the desktop page: an id src/gui/dispatch.rs `page_id` gives, `none` for the world, or null when the desktop has no page for it yet), an optional `section` (the part of that page it opens: a side-list section today, such as the Dev page's `claude`; on the world, `picker` is the character picker), and `web` (the website address, or null when the website has no page for it). A category also has `colour`, a theme token (data/gui/theme.ron). An item may say `desktop_only` (no website page by nature; the website will show it dimmed and open /download), `web_only`, and `new` (a page this design adds and has not built yet; where `page` or `web` is set on a new entry, it opens what does that job today, and `_note` says what).",
-    "THE OWN-LIFE CATEGORY'S NAME IS OPEN (section 16.1, question 1: \"Home\" clashes with the player homes; \"Life\" is recommended). Its id is the neutral `own_life` and its words are the key `nav.own_life`, so renaming it is one word in data/i18n/en.json.",
-    "outside: what a person can reach that the design's two rows leave out, each with `why` (the title screen, an alias, the website's own pages). A test holds every desktop page and every website page to exactly one place in this file (categories, items or outside): none lost, none twice.",
-    "today_row: what the single top row shows UNTIL rung 2 draws the two rows (the brief: where today's row and the design disagree, today's row wins). `desktop` is src/gui/pages/escape_menu.rs's groups (a theme token each, a dot between groups); `web` is web/shared/shell.js's (a CSS class each, a divider between); `web_active` maps an entry to the older key the website lights its tab by, where the two differ (the pages' data-active and shell.js's address list)."
+    "categories: the design's eight, in order, each a page of its own; `items` are the category's other pages. THE DESKTOP DRAWS THEM AS TWO ROWS (rung 2): the categories in the primary row, and under it the items of the category of the page on screen (or of another category while the pointer rests on its button: `timings`). Every entry has an `id` (unique in this file), `label` and `hint` (keys in data/i18n/en.json), `icon` (a name in web/shared/icons.js; `humanity` is the brand H; the desktop draws its own picture for each name, src/gui/widgets/icons.rs `named`), `page` (the desktop page: an id src/gui/dispatch.rs `page_id` gives, `none` for the world, or null when the desktop has no page for it yet), an optional `section` (the part of that page it opens: one of the Dev page's parts, such as `claude`; on the world, `picker` is the character picker), and `web` (the website address, or null when the website has no page for it). A category also has `colour`, a theme token (data/gui/theme.ron, `nav_cat_<its id>`). An item may say `desktop_only` (no website page by nature; the website will show it dimmed and open /download), `web_only`, and `new` (a page this design adds and has not built yet).",
+    "A ROW SHOWS ONLY PAGES THAT EXIST (rung 2): an item with no desktop `page` is not drawn on the desktop, and a page that does not exist yet never borrows another page's name (\"The nav button label is the page's name\"). Waiting for rung 7, the pages the design adds (`new`): Mission on the desktop (until then the Humanity page IS the Mission Dashboard), People (the Directory stands in its place under its own name until People takes it in), Rules, Roadmap and Devlog on the desktop, Worlds, and Servers (the Relay Control page, the servers you run, is opened from the chat's sidebar until it becomes Servers' Yours part).",
+    "THE OWN-LIFE CATEGORY'S NAME IS OPEN (section 16.1, question 1: \"Home\" clashes with the player homes). Its id is the neutral `own_life` and its words are the key `nav.own_life`, \"Life\" since rung 2 as a working name the operator may change: renaming it is one word in data/i18n/en.json.",
+    "outside: what a person can reach that the design's two rows leave out, each with `why` (the world itself, the title screen, an alias, the website's own pages). A test holds every desktop page and every website page to exactly one place in this file (categories, items or outside): none lost, none twice.",
+    "timings: the desktop's, in milliseconds (section 4.1): how long the pointer rests on another category's button before the second row previews its pages (`preview_rest_ms`), how long the preview stays after the pointer leaves both rows (`preview_leave_ms`), and how long Play is pressed and held to go straight into the world (`play_hold_ms`; a tap opens Play's page).",
+    "today_row: what the WEBSITE's single row shows until rung 5 draws its two rows (the desktop's two rows replaced its own single row in rung 2). `web` is web/shared/shell.js's groups (a CSS class each, a divider between); `web_active` maps an entry to the older key the website lights its tab by, where the two differ (the pages' data-active and shell.js's address list); `web_label` maps an entry to the words the website's tab still shows, where they differ from the entry's (the own-life category is \"Life\" on the desktop; the website's tab opens its Home page, so it says Home until rung 5)."
   ],
   "categories": [
     {
-      "id": "humanity", "label": "nav.humanity", "hint": "nav.humanity_hint", "icon": "humanity", "colour": "nav_reality",
+      "id": "humanity", "label": "nav.humanity", "hint": "nav.humanity_hint", "icon": "humanity", "colour": "nav_cat_humanity",
       "page": "humanity", "web": "/humanity",
+      "_note": "On the desktop the Humanity page is the Mission Dashboard until rung 7 builds the overview (the You, Your character and Us bands and the six question cards); its side list became this row in rung 2.",
       "items": [
-        { "id": "mission", "label": "nav.mission", "hint": "nav.mission_hint", "icon": "star", "page": "humanity", "section": "civilization", "web": "/mission",
-          "_note": "On the desktop the Mission Dashboard is the Humanity page's first section today; the website's /mission forwards to the Library's mission essay until it becomes the desktop page's mirror (section 8)." },
-        { "id": "people", "label": "nav.people", "hint": "nav.people_hint", "icon": "users", "page": "identity", "web": "/identity", "new": true,
-          "_note": "People is new on both apps (section 8, rung 7). Until it is built, both open the Directory (the desktop's Identity page, the website's /identity), which becomes its Look someone up part." },
+        { "id": "mission", "label": "nav.mission", "hint": "nav.mission_hint", "icon": "star", "page": null, "web": "/mission", "new": true,
+          "_note": "New on the desktop (rung 7): until the overview is built, the Humanity page itself is the Mission Dashboard, so a Mission button would open the page Humanity opens. The website's /mission forwards to the Library's mission essay until it becomes the desktop page's mirror (section 8)." },
+        { "id": "people", "label": "nav.people", "hint": "nav.people_hint", "icon": "users", "page": null, "web": null, "new": true,
+          "_note": "New on both apps (section 8, rung 7). Until it is built, the Directory (next) is shown under its own name; it becomes People's Look someone up part." },
+        { "id": "directory", "label": "humanity.nav_directory", "hint": "humanity.nav_directory_hint", "icon": "key", "page": "identity", "web": "/identity",
+          "_note": "The Directory (the desktop's Identity page, the website's /identity): in the Humanity side list until rung 2, in this row until People takes it in (rung 7)." },
         { "id": "governance", "label": "nav.governance", "hint": "humanity.nav_governance_hint", "icon": "check", "page": "governance", "web": "/governance" },
         { "id": "laws", "label": "nav.laws", "hint": "humanity.nav_laws_hint", "icon": "shield", "page": "laws", "web": "/laws" },
         { "id": "rules", "label": "nav.rules", "hint": "nav.rules_hint", "icon": "info", "page": null, "web": "/rules", "new": true,
-          "_note": "New on the desktop (section 9); the website has it." },
+          "_note": "New on the desktop (section 9, rung 7); the website has it." },
         { "id": "donate", "label": "nav.donate", "hint": "humanity.nav_donate_hint", "icon": "heart", "page": "donate", "web": "/donate" },
         { "id": "roadmap", "label": "nav.roadmap", "hint": "nav.roadmap_hint", "icon": "rocket", "page": null, "web": "/roadmap", "new": true,
-          "_note": "New on the desktop (section 9); the website has it." },
+          "_note": "New on the desktop (section 9, rung 7); the website has it." },
         { "id": "devlog", "label": "nav.devlog", "hint": "nav.devlog_hint", "icon": "refresh", "page": null, "web": "/devlog", "new": true,
-          "_note": "New on the desktop (section 9); the website has it." }
+          "_note": "New on the desktop (section 9, rung 7); the website has it." }
       ]
     },
     {
-      "id": "play", "label": "nav.play", "hint": "nav.play_hint", "icon": "games", "colour": "nav_sim",
-      "page": "none", "web": "/download",
-      "_note": "The world, with the character and world played last (or the picker when none is recorded). No game runs in a browser, so the website's Play opens /download. Section 16.1, question 2: a tap will open Play's own page and a press and hold will go into the world (rung 2).",
+      "id": "play", "label": "nav.play", "hint": "nav.play_hint", "icon": "games", "colour": "nav_cat_play",
+      "page": "play", "web": "/download",
+      "_note": "Section 16.1, question 2 (rung 2): a tap opens Play's page (who and where you played last, and its Enter the world button); a press and hold goes straight into the world (`timings.play_hold_ms`). No game runs in a browser, so the website's Play opens /download.",
       "items": [
         { "id": "characters", "label": "nav.characters", "hint": "nav.characters_hint", "icon": "user", "page": "none", "section": "picker", "web": null, "desktop_only": true },
-        { "id": "worlds", "label": "nav.worlds", "hint": "nav.worlds_hint", "icon": "globe", "page": null, "web": null, "desktop_only": true, "new": true },
-        { "id": "servers", "label": "nav.servers", "hint": "nav.servers_hint", "icon": "network", "page": "relay_control", "web": null, "new": true,
-          "_note": "Servers is new on both apps (section 8, rung 7). Until it is built, the desktop's opens the servers you run (the Relay Control page, today opened from the chat's sidebar), which becomes its Yours part." },
+        { "id": "worlds", "label": "nav.worlds", "hint": "nav.worlds_hint", "icon": "globe", "page": null, "web": null, "desktop_only": true, "new": true,
+          "_note": "New on the desktop (section 8, rung 7)." },
+        { "id": "servers", "label": "nav.servers", "hint": "nav.servers_hint", "icon": "network", "page": null, "web": null, "new": true,
+          "_note": "New on both apps (section 8, rung 7). Until it is built, the servers you run (the Relay Control page) open from the chat's sidebar, as before (`outside`); they become its Yours part." },
         { "id": "quests", "label": "nav.quests", "hint": "nav.quests_hint", "icon": "compass", "page": "quests", "web": null, "desktop_only": true },
         { "id": "inventory", "label": "nav.inventory", "hint": "nav.inventory_hint", "icon": "inventory", "page": "inventory", "web": "/inventory" },
         { "id": "crafting", "label": "nav.crafting", "hint": "nav.crafting_hint", "icon": "crafting", "page": "crafting", "web": "/crafting" }
       ]
     },
     {
-      "id": "chat", "label": "nav.chat", "hint": "nav.chat_hint", "icon": "chat", "colour": "section_cyan",
+      "id": "chat", "label": "nav.chat", "hint": "nav.chat_hint", "icon": "chat", "colour": "nav_cat_chat",
       "page": "chat", "web": "/chat",
       "items": [
         { "id": "watch", "label": "nav.watch", "hint": "nav.watch_hint", "icon": "video", "page": "watch", "web": "/watch" },
@@ -52,7 +58,7 @@
       ]
     },
     {
-      "id": "own_life", "label": "nav.own_life", "hint": "nav.home_hint", "icon": "home", "colour": "nav_legacy_green",
+      "id": "own_life", "label": "nav.own_life", "hint": "nav.home_hint", "icon": "home", "colour": "nav_cat_own_life",
       "page": "homes", "web": "/home",
       "_note": "Its name is open (see the comment at the top). Its page today is the Home page (your homestead).",
       "items": [
@@ -65,7 +71,7 @@
       ]
     },
     {
-      "id": "apps", "label": "nav.apps", "hint": "nav.apps_hint", "icon": "apps", "colour": "nav_tools",
+      "id": "apps", "label": "nav.apps", "hint": "nav.apps_hint", "icon": "apps", "colour": "nav_cat_apps",
       "page": "apps", "web": "/apps",
       "items": [
         { "id": "notes", "label": "nav.notes", "hint": "nav.notes_hint", "icon": "edit", "page": "notes", "web": "/notes" },
@@ -75,15 +81,16 @@
       ]
     },
     {
-      "id": "library", "label": "nav.library", "hint": "nav.library_hint", "icon": "journal", "colour": "section_magenta",
+      "id": "library", "label": "nav.library", "hint": "nav.library_hint", "icon": "journal", "colour": "nav_cat_library",
       "page": "library", "web": "/library",
       "items": [
         { "id": "how_to", "label": "nav.how_to", "hint": "nav.how_to_hint", "icon": "steps", "page": "how_to", "web": "/how-to" }
       ]
     },
     {
-      "id": "dev", "label": "nav.dev", "hint": "nav.dev_hint", "icon": "tool", "colour": "nav_dev",
+      "id": "dev", "label": "nav.dev", "hint": "nav.dev_hint", "icon": "tool", "colour": "nav_cat_dev",
       "page": "dev", "web": "/dev",
+      "_note": "The Dev page opens on its developer's tools (the creature spawner and friends, src/gui/pages/dev.rs); its other parts are this row's items. Its side list became this row in rung 2 (section 16.1, question 9).",
       "items": [
         { "id": "bugs", "label": "nav.bugs", "hint": "nav.bugs_hint", "icon": "bug", "page": "bugs", "web": "/bugs" },
         { "id": "testing", "label": "nav.testing", "hint": "nav.testing_hint", "icon": "clip", "page": "testing", "web": null, "desktop_only": true },
@@ -98,7 +105,7 @@
       ]
     },
     {
-      "id": "settings", "label": "nav.settings", "hint": "nav.settings_hint", "icon": "settings", "colour": "nav_settings",
+      "id": "settings", "label": "nav.settings", "hint": "nav.settings_hint", "icon": "settings", "colour": "nav_cat_settings",
       "page": "settings", "web": "/settings",
       "items": [
         { "id": "server_settings", "label": "nav.server_settings", "hint": "nav.server_settings_hint", "icon": "lock", "page": "server_settings", "web": "/admin",
@@ -107,8 +114,10 @@
     }
   ],
   "outside": [
+    { "id": "world", "page": "none", "why": "The world itself, first person: Play's press and hold and the Enter the world button on Play's page go in (section 11: entering the world is never a menu step)." },
     { "id": "title_screen", "page": "main_menu", "why": "The title screen, shown at launch; never in a menu (section 3)." },
     { "id": "profile_alias", "page": "profile", "why": "An alias: this page id forwards to the Profile page (`real`), which the own-life row's Profile opens (src/gui/pages/real.rs)." },
+    { "id": "relay_control", "page": "relay_control", "why": "The servers you run (the Relay Control page), opened from the chat's sidebar: it becomes the Servers page's Yours part when Servers is built (section 8, rung 7)." },
     { "id": "front_door", "web": "/", "why": "The website's front door: shell.js draws it itself at the row's left end (section 3: it becomes the site's name)." },
     { "id": "onboarding", "label": "nav.onboarding", "hint": "nav.onboarding_hint", "icon": "compass", "web": "/onboarding", "why": "The learn-by-doing chains; Start here on the front door opens it (section 9). Today's website row shows it where the desktop shows Quests." },
     { "id": "accord", "web": "/accord", "why": "The Library's Accord shelf on a permalink of its own, an address to share (section 9)." },
@@ -117,22 +126,8 @@
     { "id": "recovery", "web": "/recovery", "why": "Recovery through trusted people: a part of Settings > Account on the desktop (section 9)." },
     { "id": "hi", "web": "/hi", "why": "The printed card's QR address, never in a menu (section 9)." }
   ],
+  "timings": { "preview_rest_ms": 200, "preview_leave_ms": 300, "play_hold_ms": 800 },
   "today_row": {
-    "desktop": [
-      { "colour": "nav_sim", "items": ["play", "characters", "apps"] },
-      { "colour": "nav_reality", "items": ["humanity"] },
-      { "colour": "nav_legacy_red", "items": ["chat"] },
-      { "colour": "nav_legacy_red", "items": ["studio", "watch", "files"] },
-      { "colour": "nav_legacy_green", "items": ["profile", "own_life"] },
-      { "colour": "nav_sim", "items": ["quests"] },
-      { "colour": "nav_sim", "items": ["tasks"] },
-      { "colour": "nav_sim", "items": ["inventory"] },
-      { "colour": "nav_sim", "items": ["crafting"] },
-      { "colour": "nav_sim", "items": ["maps"] },
-      { "colour": "nav_tools", "items": ["dev"] },
-      { "colour": "nav_reality", "items": ["library", "how_to"] },
-      { "colour": "nav_settings", "items": ["settings"] }
-    ],
     "web": [
       { "class": "nav-group-sim", "items": ["play", "apps"] },
       { "class": "nav-group-red", "items": ["humanity"] },
@@ -144,6 +139,7 @@
       { "class": "nav-group-red", "items": ["library", "how_to"] },
       { "class": "nav-group-settings", "items": ["settings"] }
     ],
-    "web_active": { "own_life": "home", "onboarding": "quests", "inventory": "gear", "maps": "map" }
+    "web_active": { "own_life": "home", "onboarding": "quests", "inventory": "gear", "maps": "map" },
+    "web_label": { "own_life": "nav.home" }
   }
 }

@@ -357,6 +357,26 @@ In order:
     - THE FILES PAGE'S PLACES IN RGB ORDER (2026-11-03): red, this computer (the HumanityOS folder,
       Your folders); green, what you share publicly; blue, what friends and servers share. The
       launcher's colour language. Queued after BUG-228 (which touches the Files viewer).
+    - LINKS TO CHANNELS (2026-11-03): "Can we make it so I can link people to specific channels
+      like https://united-humanity.us/chat#global or https://united-humanity.us/chat#fire-disciples"
+      The web chat opens /chat#x for a signed-in person but cleans the address, a visitor's
+      redirect drops it, and nothing offers Copy link. Next agent (brief orch-chlinks-brief.txt):
+      the address shows the channel, visitors keep it, Copy link in both apps, the desktop opens
+      its own server's channel links in the app. Also (his words: "I think we need to also fix
+      the default channel to go to global"): every entry point lands on #global; the visitor's
+      read view opens #announcements today (its first tab). Then the per-person controls.
+    - COMMONS (same day, his screenshot: #global and #feedback not in Commons): public.guide is
+      on the old release; its room is id `general` shown as "global", and it has no #feedback.
+      Commons matches by id, so both join at public.guide's next release (the rename runs there
+      too). Nothing to change by hand.
+    - PER-PERSON CONTROLS ON THE PROFILE CARD (2026-11-03, with a screenshot of another person's
+      card): "We need to add the various controls users can use on other users to the profile
+      page. Like we need to set file sharing limits, allowed to call during quiet hours, etc."
+      Design and build after navigation rung 2. The card he showed had no name (a "?" avatar):
+      an opener passing an empty name, to fix with it.
+    - DM PREVIEWS (same day): "we should add an option to hide or show varying amounts of
+      people's replies in the DMs section. I like seeing the snippet but, some people might only
+      want the usernames to display." Sent to the BUG-242 agent (the same file).
     - RESPAWN AND REVIVAL, its own design (his ask, 2026-11-03): DESIGNED,
       docs/design/respawn-and-revival.md. The field lifeline (a 40 kg backpack-shaped unit, every
       back slot, one per team, runs minds and never records one); Hardcore's costs side by side

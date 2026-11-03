@@ -88,10 +88,11 @@ pub const HELP_TOGGLE_SIZE: f32 = 26.0;
 /// the content author wrote one for this page, the prose help topic for it (from
 /// data/help/topics.json, the same file the web client reads). No topic means no prose
 /// section at all rather than an empty heading.
-pub fn draw(ctx: &Context, theme: &Theme, state: &GuiState) {
+pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     let name = current_context(state);
     let binds = binds_for(state, name);
     let pinned = state.help_panel_pinned;
+    let mut report = false;
 
     // Only the pinned panel takes input. The F1-held overlay stays click-through so
     // it can never swallow a click you meant for the page under it.
@@ -101,7 +102,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &GuiState) {
     // instead, just under the nav bar, so it reads as belonging to the button that
     // opened it and leaves the middle of the page you are reading about visible.
     let (align, offset) = if pinned {
-        (egui::Align2::CENTER_TOP, egui::vec2(0.0, 72.0))
+        // Under both rows of the top menu (navigation rung 2).
+        (egui::Align2::CENTER_TOP, egui::vec2(0.0, crate::gui::pages::escape_menu::rows_height(theme) + 8.0))
     } else {
         (egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
     };
@@ -232,8 +234,22 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &GuiState) {
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
+                    // Report a problem, for everyone (navigation rung 2; the operator's answer of
+                    // 2026-11-03 to docs/design/navigation.md question 9): the Bugs page is in the
+                    // Dev row too, and Dev hides at 1.0, so the way to tell us what went wrong is
+                    // here as well. The pinned panel only: the F1 glance takes no clicks.
+                    if pinned {
+                        ui.add_space(theme.spacing_xs);
+                        report = crate::gui::widgets::Button::secondary(humanity_core::i18n::t("help.report_problem"))
+                            .hint("help.report_problem_hint")
+                            .show(ui, theme);
+                    }
                 });
         });
+    if report {
+        state.help_panel_pinned = false;
+        state.push_nav_to(GuiPage::BugReport);
+    }
 }
 
 /// Draw the always-in-the-same-place help toggle in the top-right corner.
@@ -267,8 +283,11 @@ pub fn draw_help_toggle(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // when the window is narrow, so a button placed in it would move. This one cannot.
     // The nav bar reserves the matching width on its right edge so nothing is covered.
     egui::Area::new(egui::Id::new("help_toggle_button"))
-        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-8.0, 5.0))
+        // Centred in the top menu's primary row (navigation rung 2).
+        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-8.0, crate::gui::pages::escape_menu::corner_y(theme, HELP_TOGGLE_SIZE)))
         .order(egui::Order::Foreground)
+        // Hover only: an Area senses a click by default, a nameless Tab stop beside the button.
+        .sense(egui::Sense::hover())
         .show(ctx, |ui| {
             let (fill, text) = if pinned {
                 (theme.accent(), theme.text_on_accent())
@@ -318,5 +337,47 @@ mod tests {
                  discovery surface for it, so an unlisted hotkey is invisible"
             );
         }
+    }
+
+    /// REPORT A PROBLEM IS IN THE PINNED HELP PANEL (navigation rung 2; docs/design/navigation.md,
+    /// question 9, the operator: "Yes."): the Bugs page for everyone, not only through the Dev
+    /// row. A click on it opens the Bugs page as a step from the page you were on (Escape comes
+    /// back) and closes the panel; the F1 glance, which takes no clicks, has no button.
+    ///
+    /// Seen red 2026-11-03 before the button was drawn: "\"Report a problem\" is in the pinned
+    /// panel".
+    #[test]
+    fn the_pinned_help_panel_reports_a_problem() {
+        let ctx = egui::Context::default();
+        crate::gui::install_fonts(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        ctx.all_styles_mut(|s| s.animation_time = 0.0);
+        let mut state = GuiState::default();
+        state.active_page = GuiPage::Chat;
+        state.help_panel_pinned = true;
+        let words = humanity_core::i18n::t("help.report_problem");
+        let frame = |state: &mut GuiState, events: Vec<egui::Event>| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 1000.0))), events, ..Default::default() };
+            ctx.run(input, |ctx| draw(ctx, &theme, state))
+        };
+        frame(&mut state, Vec::new());
+        let out = frame(&mut state, Vec::new());
+        let mut at = None;
+        for cs in &out.shapes {
+            if let egui::Shape::Text(t) = &cs.shape {
+                if t.galley.text() == words {
+                    at = Some(t.galley.rect.translate(t.pos.to_vec2()).center());
+                }
+            }
+        }
+        let at = at.unwrap_or_else(|| panic!("{words:?} is in the pinned panel"));
+        let m = egui::Modifiers::default();
+        frame(&mut state, vec![egui::Event::PointerMoved(at)]);
+        frame(&mut state, vec![egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(&mut state, vec![egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+        assert_eq!(state.active_page, GuiPage::BugReport, "it opens the Bugs page");
+        assert!(!state.help_panel_pinned, "and closes the panel");
+        assert_eq!(state.nav_back_stack, vec![GuiPage::Chat], "as a step from the page you were on");
     }
 }

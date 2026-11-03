@@ -21,7 +21,7 @@
 
 use super::pages::{
     apps, browser, bugs, calculator, calendar, chat, crafting, donate, governance,
-    dev_tab, guilds, homes, how_to, humanity, identity, inventory, laws, library, maps, market, notes, profile, quests,
+    dev_tab, guilds, homes, how_to, humanity, identity, inventory, laws, library, maps, market, notes, play, profile, quests,
     files, real, relay_control, server_settings, settings, studio, tasks, testing,
     trade, wallet, watch,
 };
@@ -82,6 +82,7 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Maps => maps::draw(ctx, theme, state),
         GuiPage::Testing => testing::draw(ctx, theme, state),
         GuiPage::Browser => browser::draw(ctx, theme, state),
+        GuiPage::Play => play::draw(ctx, theme, state),
     }
     true
 }
@@ -135,6 +136,7 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Maps => "maps",
         GuiPage::Testing => "testing",
         GuiPage::Browser => "browser",
+        GuiPage::Play => "play",
     }
 }
 
@@ -188,6 +190,7 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Maps,
     GuiPage::Testing,
     GuiPage::Browser,
+    GuiPage::Play,
 ];
 
 /// The pages that need `EngineState` to draw and therefore cannot be shown on

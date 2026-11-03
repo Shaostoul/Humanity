@@ -32,13 +32,15 @@ The registration is a hand-wired chain, all in predictable places:
 3. **Dispatch**: add the match arm in `src/lib.rs`'s page dispatch
    (`GuiPage::YourPage => your_page::draw(ctx, &state.theme, &mut
    state.gui_state)`, grep `GuiPage::Cosmos =>` to find the block).
-4. **Navigation**: the single-row nav bar lives in
-   `src/gui/pages/escape_menu.rs` (`draw_nav_bar_one_tier`, `NavItem`
-   arrays grouped into Play / Humanity / Chat / Real / Sim / Platform
-   groups). Most new surfaces should NOT be a new top-level tab: the v0.358+
-   direction folds related sections into the existing hub pages (Real,
-   Platform, Humanity) via their internal `section_nav`. Adding a top-level
-   tab is an operator taste decision.
+4. **Navigation**: the top menu is DATA, `data/gui/navigation.json` (both
+   apps; docs/design/navigation.md). On the desktop it is two rows since
+   navigation rung 2 (2026-11-03): eight categories, and under each its
+   pages. A new page goes in as an item of the category it belongs to (its
+   id, words and hint by key, icon, `page`, `web`), never in code;
+   `src/gui/navigation_tests.rs` fails until every `GuiPage` has exactly one
+   place in the file. A page the design adds and has not built yet is
+   `new` with no `page`, so no row shows it under another page's name.
+   Adding a CATEGORY is an operator taste decision.
 5. **Page state**: fields go on `GuiState` (`src/gui/mod.rs`), not statics.
 
 ## Widgets and theme tokens

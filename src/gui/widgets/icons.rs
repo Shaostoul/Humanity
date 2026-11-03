@@ -1037,7 +1037,29 @@ pub fn nav_icon(page: crate::gui::GuiPage) -> Option<fn(&egui::Painter, Rect, Co
         // None = FPS game mode; the "Play" nav button carries this page and gets
         // the play-triangle glyph.
         P::None     => paint_play,
+        // Play's own page (navigation rung 2): the same triangle as going in.
+        P::Play     => paint_play,
         P::Homes    => paint_house,
+        _ => return None,
+    })
+}
+
+/// The desktop's own picture for an icon NAME of data/gui/navigation.json (navigation rung 2,
+/// 2026-11-03). The file's names are the website's (web/shared/icons.js draws them as SVG); the
+/// desktop keeps its own painted pictures, each the one its page already wore in the single row,
+/// so a category looks on the desktop as it always has. The primary row draws these (the
+/// secondary row is words only, docs/design/navigation.md section 7); a category whose name has
+/// no picture here is refused when the file is read (gui/navigation.rs).
+pub fn named(name: &str) -> Option<fn(&egui::Painter, Rect, Color32)> {
+    Some(match name {
+        "humanity" => paint_humanity,
+        "games" => paint_play,
+        "chat" => paint_chat,
+        "home" => paint_house,
+        "apps" => paint_apps,
+        "journal" => paint_scroll,
+        "tool" => paint_wrench,
+        "settings" => paint_cog,
         _ => return None,
     })
 }

@@ -729,10 +729,11 @@ test("the composer is native's one box: text, Search, Pins, ?, Attach, Send; its
 });
 
 // ── 7. The top menu (Track W step 5) ────────────────────────────────────
-// Native's menu (src/gui/pages/escape_menu.rs draw_nav_bar_one_tier) is one wrapping row of
-// category-coloured groups with a "·" between groups (separator_dot), Chat a group of its own.
-// The web's had the same groups but a 1 px line between them with no room around it, and Chat
-// shared its group with Watch and Files. Red first, 2026-10-22, against step 4's web/.
+// Native's menu was then one wrapping row of category-coloured groups with a "·" between groups,
+// Chat a group of its own (src/gui/pages/escape_menu.rs; two rows since navigation rung 2,
+// 2026-11-03, while the website keeps this single row until rung 5). The web's had the same groups
+// but a 1 px line between them with no room around it, and Chat shared its group with Watch and
+// Files. Red first, 2026-10-22, against step 4's web/.
 test("the site menu: a dot between groups, as native's separator_dot, and Chat a group of its own", () => {
   const shell = read("shared/shell.js");
   const at = shell.indexOf(".hub-nav .nav-divider {");

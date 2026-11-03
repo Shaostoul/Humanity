@@ -1,5 +1,6 @@
-// Child of pages/dev_tab.rs: the Dev tab and the top menu, after the Platform tab was retired
-// (2026-10-20). Headless: the page and the menu are drawn into an egui context with no window and
+// Child of pages/dev_tab.rs: the Dev page and the top menu, after the Platform tab was retired
+// (2026-10-20) and the Dev page's side list became the Dev row of the top menu (navigation rung 2,
+// 2026-11-03). Headless: the page and the menu are drawn into an egui context with no window and
 // the text they painted is read back. Each test was seen failing once; what it saw red is at the
 // test.
 
@@ -47,48 +48,44 @@ fn drawn(size: egui::Vec2, mut draw: impl FnMut(&egui::Context, &mut Theme)) -> 
     texts(&last.expect("three frames ran"))
 }
 
-/// THE DEV TAB LISTS THE DEVELOPER TOOLS, AND ONLY THEM: the Dev page, drawn through the app's
-/// own page table, has a side list titled Dev holding Bugs, Testing, Performance, Dev, Planet
-/// Tuner and Claude, in that order, and none of what the Platform tab also held (Recovery is in
-/// Settings now; Calculator, Notes, Calendar and Browser are on the Apps page).
+/// THE DEV ROW LISTS THE DEVELOPER TOOLS, AND ONLY THEM: on the Dev page, the top menu's second
+/// row holds Bugs, Testing, Performance, Planet Tuner, Claude and Journal, in that order, and none
+/// of what the Platform tab also held (Recovery is in Settings now; Calculator, Notes, Calendar and
+/// Browser are on the Apps page); and the Dev page itself has no side list any more, opening on the
+/// developer's tools.
 ///
 /// Seen red 2026-10-20 with `GuiPage::Dev` still drawing the old Platform list: "Platform is not
-/// in the Dev tab's list: [("Platform", 13.0), ("Recovery", 65.0), ("Calculator", 99.0), ("Notes",
-/// 133.0), ("Calendar", 167.0), ("Bugs", 201.0), ... ("Browser", 371.0), ("Title", 91.0), ...]".
-/// The "Title" there was the Bugs page's form, which a looser column test let in; the column
-/// below is the side panel's own (it opens 190 px wide, and the page beside it starts after it).
-///
-/// Claude joined the list on 2026-10-22 (dev_agents/).
-/// Seen red 2026-10-23 with Claude taken out of SECTIONS: "Claude is in the Dev tab's list:
-/// [(\"Dev\", 13.0), (\"Bugs\", 65.0), (\"Testing\", 99.0), (\"Performance\", 133.0), (\"Dev\",
-/// 167.0), (\"Planet Tuner\", 201.0)]".
+/// in the Dev tab's list: [("Platform", 13.0), ("Recovery", 65.0), ...]". Claude joined the list on
+/// 2026-10-22 (dev_agents/); seen red 2026-10-23 with Claude taken out of SECTIONS. Rung 2: seen
+/// red 2026-11-03 with a side list drawn back beside the page (Bugs and Performance in it): "the
+/// Dev page has no side list any more: [(\"Performance\", 114.0), (\"Dev\", 105.0)]".
 #[test]
-fn the_dev_tab_lists_the_developer_tools() {
+fn the_dev_row_lists_the_developer_tools() {
     let mut state = GuiState::default();
-    let t = drawn(egui::vec2(1400.0, 1000.0), |ctx, theme| {
+    state.active_page = GuiPage::Dev;
+    let size = egui::vec2(1800.0, 1000.0);
+    let t = drawn(size, |ctx, theme| {
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, &mut state);
         crate::gui::dispatch::draw_tool_page(ctx, GuiPage::Dev, theme, &mut state);
     });
-    // The side list is the left panel; the section drawn beside it is not part of the question.
-    let side: Vec<(&str, f32)> =
-        t.iter().filter(|(_, r)| r.left() < 150.0 && r.right() < 195.0).map(|(s, r)| (s.as_str(), r.top())).collect();
+    let theme = load_theme();
+    let (top, bottom) = (theme.nav_primary_height, theme.nav_primary_height + theme.nav_secondary_height);
+    let mut row: Vec<(&str, f32)> = t.iter().filter(|(_, r)| r.center().y > top && r.center().y < bottom).map(|(s, r)| (s.as_str(), r.left())).collect();
+    row.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let names: Vec<&str> = row.iter().map(|(s, _)| *s).collect();
+    assert_eq!(names, ["Bugs", "Testing", "Performance", "Planet Tuner", "Claude", "Journal"], "the Dev row");
     for gone in ["Platform", "Recovery", "Calculator", "Notes", "Calendar", "Browser"] {
-        assert!(!side.iter().any(|(s, _)| *s == gone), "{gone} is not in the Dev tab's list: {side:?}");
+        assert!(!names.contains(&gone), "{gone} is not in the Dev row: {names:?}");
     }
-    let tops: Vec<f32> = ["Bugs", "Testing", "Performance", "Planet Tuner", "Claude", "Journal"]
-        .iter()
-        .map(|name| side.iter().find(|(s, _)| s == name).unwrap_or_else(|| panic!("{name} is in the Dev tab's list: {side:?}")).1)
-        .collect();
-    assert!(tops.windows(2).all(|w| w[0] < w[1]), "in the side list's order: {side:?}");
-    // "Dev" is drawn twice: the list's title, and the Dev tools section between Performance and
-    // Planet Tuner.
-    let devs: Vec<f32> = side.iter().filter(|(s, _)| *s == "Dev").map(|(_, y)| *y).collect();
-    assert_eq!(devs.len(), 2, "the title Dev and the section Dev: {side:?}");
-    assert!(devs[0] < tops[0] && tops[2] < devs[1] && devs[1] < tops[3], "Dev's title on top, its section after Performance: {side:?}");
+    // No side list: nothing is drawn in a narrow column at the page's left under the rows.
+    let side: Vec<(&str, f32)> = t.iter().filter(|(_, r)| r.top() > bottom + 4.0 && r.right() < 195.0).map(|(s, r)| (s.as_str(), r.top())).collect();
+    assert!(!side.iter().any(|(s, _)| *s == "Bugs" || *s == "Performance"), "the Dev page has no side list any more: {side:?}");
+    assert_eq!(state.active_dev_section, crate::gui::pages::dev_tab::FIRST_SECTION, "the Dev page opens on the developer's tools");
     assert_eq!(crate::gui::dispatch::page_id(GuiPage::Dev), "dev");
 }
 
-/// THE TOP MENU HAS DEV AND NO PLATFORM: the nav bar every page sits under names the developer
-/// tools' tab Dev, and Platform is nowhere on it.
+/// THE TOP MENU HAS DEV AND NO PLATFORM: the menu every page sits under names the developer
+/// tools' category Dev, and Platform is nowhere on it.
 ///
 /// Seen red 2026-10-20 with the menu's entry still labelled Platform: "the top menu has Dev:
 /// [..., "Crafting", "·", "Maps", "·", "Platform", "·", "Library", "·", "Settings", "Aa"]".

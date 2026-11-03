@@ -1,10 +1,13 @@
 # Navigation: the double top menu, the layers, the six questions, and Back and Forward
 
-**Status (2026-11-02): a design for the operator's review.** Built so far: a throwaway mock-up
-that renders its pictures (`src/gui/nav_mockup_tests.rs`, section 15), the menu's words, by key
-(`nav.*`, `front_door.q_*` in `data/i18n/en.json`), and **rung 1 (2026-11-03): the menu as data,
-`data/gui/navigation.json`, which both apps' single row is drawn from, with no visible change**
-(section 14). The questions that are his are in section 16, each with a recommendation.
+**Status (2026-11-03): being built, rung by rung (section 14).** Built so far: the menu's words,
+by key (`nav.*`, `front_door.q_*` in `data/i18n/en.json`); **rung 1: the menu as data,
+`data/gui/navigation.json`**, which both apps draw from; and **rung 2: the double menu on the
+desktop** (the two rows, the preview, More, the sizes and colours as theme tokens, Back and
+Forward drawn, Play's page with its tap and hold, the Humanity and Dev side lists become their
+rows). The website keeps its single row until rung 5. The throwaway mock-up that drew this
+design's pictures (section 15) was deleted with rung 2. The questions that are his are in section
+16, each with a recommendation; his answers are 16.1.
 
 It covers both apps, the desktop app first and the website mirroring it: the two menus and every
 page placed in them (section 3), how they behave under a mouse, a keyboard and a thumb (4), the
@@ -704,6 +707,36 @@ desktop's offline copy of the website carries `web/` only), and a test fails whi
 out of date. Left for rung 2, which uses them: the preview timings, the phone sizes, and drawing
 the icons by the file's names on the desktop (it draws each button's page's icon meanwhile).
 
+**As built in rung 2 (2026-11-03).** The file gained `timings` (`preview_rest_ms` 200,
+`preview_leave_ms` 300, `play_hold_ms` 800) and lost `today_row.desktop` (the desktop draws the
+categories as its two rows; `today_row.web` stays the website's until rung 5, with `web_label`
+keeping its own-life tab on Home). The phone sizes wait for rung 5, which draws the phone. Its
+rules grew with the rows: a category always opens a whole desktop page and has a desktop picture
+for its icon (`widgets::icons::named`: the file's names are the website's, mapped to the desktop's
+own painted pictures, each the one its page wore in the single row); a part (`section`) must be
+one its page has (the world's `picker`, the Dev page's parts); and a page not built yet (`new`)
+never opens a desktop page, so **a row shows only pages that exist and never one under another
+page's name**. That is why the rows as drawn differ from section 3's table: the Humanity row is
+Directory (the Identity page, under the side list's word, standing where People will be),
+Governance, Laws, Donate; Mission waits because until the overview is built the Humanity page IS
+the Mission Dashboard (a Mission button would open the page Humanity opens); People, Rules,
+Roadmap, Devlog, Worlds and Servers wait for rung 7 (the Relay Control page, Servers' future Yours
+part, opens from the chat's sidebar as before and is in `outside`). The own-life category's word is
+"Life", a working name the operator may change (16.1). Play is a page of its own
+(`GuiPage::Play`, `src/gui/pages/play.rs`): who and where was played last and Enter the world; a
+tap on Play opens it, a press and hold of 800 ms goes in (the button fills as it is held; the
+hold's clock is `widgets::hold_step`, shared with the delete confirms, and 800 ms is where egui
+stops counting a press as a click, so no press is both). The sizes are the section 7 tokens and
+the colours one `nav_cat_<id>` token per category, each in Settings (Appearance's colours, Widgets'
+Nav card), and the preview's switch is Settings > Appearance, "Show a category's pages when the
+pointer rests on it". Back walks the steps Escape walks (the old back stack) until rung 4; Forward
+is drawn dimmed, saying it is not built yet. The help panel, pinned, has Report a problem (16.1,
+question 9). The cost is not a frame-cost row: the menu draws only on frames a page covers, which
+the frame costs discard (no world was drawn), so it is timed headless instead
+(`the_two_rows_cost_a_small_part_of_a_frame`): 0.31 ms on the fastest frame and 0.32 to 0.34 ms
+median in a test build (our code unoptimised), on his screen with the preview showing. The release
+build was not timed; if it is near the 0.1 ms this section calls a finding, that is the next look.
+
 **New theme tokens** (`theme.ron`, each with its Settings editor row and its accessor): the sizes in
 section 7 (`nav_primary_height`, `nav_primary_button_height`, `nav_icon_size`,
 `nav_secondary_height`, `nav_secondary_button_height`, `nav_secondary_font_size`), one colour per
@@ -746,7 +779,18 @@ finding.
    and Forward buttons (drawn, wired in rung 4); the Humanity and Dev side lists become their rows;
    Inventory, Crafting and Quests move under Play. Then **delete `src/gui/nav_mockup_tests.rs`**.
    *Gate:* `just verify`, the click and preview tests, the a11y Tab walk, the snapshots of section
-   13 read by eye.
+   13 read by eye. **Built 2026-11-03** (section 13, "As built in rung 2"; with the operator's
+   answers of 16.1: Play's tap and hold, the preview's switch, the Dev row, Report a problem in
+   the help panel). Its tests: `src/gui/pages/escape_menu_tests.rs` (the rows are the file's, a
+   click on each category opens its page, a rest of 200 ms previews and leaving brings back the
+   page's own row, a click in the preview, the switch off, Play's tap, hold and button, More at
+   100%, 150% and 200% on 2560 x 1440 and 1280 x 720 with never a third row, what More lists),
+   `navigation_tests.rs` (the rows hold only pages that exist, each once), `a11y_tests.rs` (the
+   menu's Tab walk names and hints every stop, in both icon modes), `font_size.rs` (two lines at
+   every size, where BUG-225's test had pinned the single row's two and three), the help panel's
+   `the_pinned_help_panel_reports_a_problem`. Its pictures: `tests/snapshots/nav_rows_*.png` and
+   `play_page.png`. The mock-up and its five pictures are deleted (a picture no test writes is
+   refused, `tests/snapshot_recipe_lint.rs`).
 3. **The layer order.** `src/gui/layers.rs`; the notices and help panels under a popup's shade; the
    toasts to the tooltip order; the website's `--z-*` scale and the literal ratchet; the website's
    modals covering the whole window. *Gate:* the layer-order test, `wip-strip-room-web.test.js`,
@@ -773,13 +817,18 @@ they go one at a time; rung 7's pages can go in parallel once rung 2 has landed.
 
 ## 15. The mock-ups
 
-Rendered by `src/gui/nav_mockup_tests.rs` (throwaway, test-only: `node scripts/lib-tests.js --crate
-humanity-engine snapshot_nav_double --ignored --test-threads=1 --nocapture`, or `just snapshot
-nav_double_tv` for one), with the real theme, the
-real fonts, the real warning bar and the menu's words by key. Each band carries a tag with its
-layer number in his numbering.
+**Deleted with rung 2 (2026-11-03), code and pictures:** the design's mock-up was throwaway by
+plan, and `tests/snapshot_recipe_lint.rs` refuses a picture no test writes. The five pictures
+below are in git at the commit before rung 2 (`git show 57fde1c95:tests/snapshots/nav_double_tv.png`
+and so on); the two they draw that are not built yet, the popup's layers (rung 3) and the phone
+(rung 5), are drawn again by those rungs' own snapshots. Rung 2's real rows are
+`tests/snapshots/nav_rows_{tv,720}_{100,200}.png` (the Dev page's row, docked) and the same with
+`_preview` (the Chat page, the pointer resting on Play), and `play_page.png`.
 
-| Picture | What it shows |
+They were rendered by `src/gui/nav_mockup_tests.rs` with the real theme, the real fonts, the real
+warning bar and the menu's words by key, each band tagged with its layer number in his numbering.
+
+| Picture (deleted) | What it showed |
 |---|---|
 | `tests/snapshots/nav_double_tv.png` | His screen, 2560 x 1440: the primary row (Humanity open; Back and Forward at its left), Humanity's row with the new pages marked, the overview in one column (the three bands, the six question cards, the latest updates), the footer chat folded on # global, the warning |
 | `tests/snapshots/nav_double_tv_hover.png` | The Files page (Chat's category) in three columns, the pointer resting on Play so the secondary row previews Play's pages, and the footer chat unfolded with # global, # local, # feedback and # announcements as rows |
@@ -829,7 +878,9 @@ until he answers.
   sense? "Mine"?" Open. The orchestrator's answer: "Life", which pairs with Play (your real life and
   the game, `two-realities.md`) and names nothing else in the app; "Mine" collides with the Tasks
   page's own "Mine" view (tasks rung 1, BUG-217) and does not fit Market or Trade; "Me" and
-  "Personal" are the others.
+  "Personal" are the others. Since rung 2 the desktop shows "Life" as a working name (one word,
+  `nav.own_life`); it still opens the Home page, whose own heading is "Your home". The website's tab
+  says Home until rung 5 (`today_row.web_label`).
 - **Question 2, Play's click.** "Maybe click and hold after booting the app. Then just tapping Play
   brings up the subpages that are relevant to the game. Like characters, homes, servers, etc.?"
   So: a tap on Play opens Play's page and row (Characters, homes, Worlds, Servers, ...); a press
@@ -859,5 +910,5 @@ queued as its own increment; the menus here are unchanged by it. **Built 2026-11
 on this computer" (the HumanityOS folder, Your folders; desktop only), green "What you share"
 (Yours on <server>, Your shared files), blue "What everyone shares" (Shared on <server>, Shared
 files, Admin), in the launcher's own tokens; the page still opens on Shared on <server>. The
-mock-up picture itself (`nav_double_tv_hover.png`) still draws the old order until it is rendered
-again.
+mock-up picture itself (`nav_double_tv_hover.png`) was deleted with the mock-up in rung 2, still
+drawing the old order (it is in git at 57fde1c95); the Files page's own snapshots draw the new.

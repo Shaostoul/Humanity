@@ -1,9 +1,10 @@
 //! Humanity, the collective / mission tab (page carve, v0.360; Mission
 //! Dashboard built out v0.362; copy revised v0.363).
 //!
-//! What the **H** button opens. A `section_nav` sidebar with Mission Dashboard
-//! (the real landing, below) + Governance, Directory (Identity), Onboarding,
-//! Donate, Resources (delegated to their pages). The Mission Dashboard is built
+//! What the **H** button opens: the Mission Dashboard (below). Its side list (Governance, Laws,
+//! the Directory, Donate) became the Humanity row of the top menu in navigation rung 2
+//! (2026-11-03, docs/design/navigation.md): those are pages of their own, so this page is one
+//! column, and its buttons below open them as steps from here. The Mission Dashboard is built
 //! from `docs/design/humanity-page.md` to be good enough to be the public
 //! landing page. NOTE: copy here is deliberately em-dash-free (operator: em
 //! dashes read as machine-written and cost trust on a landing page) and frames
@@ -13,8 +14,8 @@ use egui::{Align2, Frame, Margin, RichText, CornerRadius, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use humanity_core::i18n::{t, t_marked};
-use crate::gui::widgets::{self, with_hint, SectionNavItem};
-use super::{civilization, governance, identity, donate};
+use crate::gui::widgets::{self, with_hint};
+use super::civilization;
 
 /// The Humanity Accord, embedded at compile time from the canonical repo copy so
 /// it is readable in-app with no network and no separate data file to ship or let
@@ -93,59 +94,16 @@ fn render_doc_modal(ctx: &egui::Context, theme: &Theme) {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::SidePanel::left("humanity_section_nav")
-        .default_width(200.0)
-        .min_width(160.0)
-        .max_width(270.0)
-        .frame(
-            Frame::NONE
-                .fill(theme.bg_sidebar())
-                .inner_margin(Margin::symmetric(8, 12))
-                .stroke(Stroke::new(1.0_f32, theme.border())),
-        )
+    // The Mission Dashboard embeds the live community dashboard, so its relay fetch has to be
+    // pumped from here (poll_stats needs the Context; draw_mission_dashboard only gets a Ui).
+    civilization::poll_stats(ctx, state);
+    egui::CentralPanel::default()
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
-            let c = theme.nav_reality();
-            let items = [
-                SectionNavItem::new("civilization", t("humanity.nav_dashboard"), c).hint("humanity.nav_dashboard_hint"), // i18n-exempt: the section's id, not words
-                SectionNavItem::new("governance", t("governance.title"), c).hint("humanity.nav_governance_hint"), // i18n-exempt: the section's id, not words
-                SectionNavItem::new("laws", t("humanity.nav_laws"), c).hint("humanity.nav_laws_hint"), // i18n-exempt: the section's id, not words
-                SectionNavItem::new("identity", t("humanity.nav_directory"), c).hint("humanity.nav_directory_hint"), // i18n-exempt: the section's id, not words
-                SectionNavItem::new("donate", t("nav.donate"), c).hint("humanity.nav_donate_hint"), // i18n-exempt: the section's id, not words
-            ];
-            if let Some(clicked) = widgets::section_nav(
-                ui,
-                theme,
-                Some(t("humanity.title")),
-                &items,
-                &state.active_humanity_section,
-            ) {
-                state.active_humanity_section = clicked;
-            }
+            ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                draw_mission_dashboard(ui, theme, state);
+            });
         });
-
-    let section = state.active_humanity_section.clone();
-    match section.as_str() {
-        "governance" => governance::draw(ctx, theme, state),
-        "laws" => super::laws::draw(ctx, theme, state),
-        "identity" => identity::draw(ctx, theme, state),
-        "donate" => donate::draw(ctx, theme, state),
-        // v0.415.0: "onboarding" + "resources" arms removed with their retired
-        // pages (neither was in the sidebar; Library + the dashboard cover them).
-        // Default = the Mission Dashboard (the real Humanity landing).
-        _ => {
-            // The Mission Dashboard embeds the live community dashboard, so its
-            // relay fetch has to be pumped from here (poll_stats needs the
-            // Context; draw_mission_dashboard only gets a Ui).
-            civilization::poll_stats(ctx, state);
-            egui::CentralPanel::default()
-                .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
-                .show(ctx, |ui| {
-                    ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                        draw_mission_dashboard(ui, theme, state);
-                    });
-                });
-        }
-    }
 
     // In-app document viewer overlay (e.g. the Humanity Accord). Drawn last so it
     // floats over whichever section is showing.
@@ -218,14 +176,16 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 // silently fell through to Profile > Body & Measurements (v0.699 fix).
                 state.active_page = crate::gui::GuiPage::Quests;
             }
+            // Laws, Donate and Governance are pages of their own since navigation rung 2 (the
+            // Humanity row); opened from here, so Escape comes back.
             if widgets::Button::secondary(t("humanity.see_laws")).hint("humanity.see_laws_hint").show(ui, theme) {
-                state.active_humanity_section = "laws".to_string();
+                state.push_nav_to(crate::gui::GuiPage::Laws);
             }
             if widgets::Button::secondary(t("humanity.fund_work")).hint("humanity.fund_work_hint").show(ui, theme) {
-                state.active_humanity_section = "donate".to_string();
+                state.push_nav_to(crate::gui::GuiPage::Donate);
             }
             if widgets::Button::secondary(t("humanity.shape_rules")).hint("humanity.shape_rules_hint").show(ui, theme) {
-                state.active_humanity_section = "governance".to_string();
+                state.push_nav_to(crate::gui::GuiPage::Governance);
             }
         });
     });
@@ -453,10 +413,10 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 state.active_page = crate::gui::GuiPage::Quests;
             }
             if widgets::Button::secondary(t("humanity.fund_work")).hint("humanity.fund_work_hint").show(ui, theme) {
-                state.active_humanity_section = "donate".to_string();
+                state.push_nav_to(crate::gui::GuiPage::Donate);
             }
             if widgets::Button::secondary(t("humanity.shape_rules")).hint("humanity.shape_rules_hint").show(ui, theme) {
-                state.active_humanity_section = "governance".to_string();
+                state.push_nav_to(crate::gui::GuiPage::Governance);
             }
         });
     });

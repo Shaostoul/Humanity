@@ -3094,20 +3094,23 @@ fn snapshot_wip_mute_settings() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_nav_bar_wrapped() {
-    // Narrow width (v0.859): the top nav must WRAP its buttons into extra rows
-    // rather than clip them off the right edge. 720px is too narrow for all ~18
-    // buttons on one row, so this proves the wrap.
+    // Narrow width (v0.859): the top menu must not clip its buttons off the right edge. Until
+    // navigation rung 2 (2026-11-03) it wrapped them into extra rows; since then the primary row
+    // shows what fits in order and puts the rest under More, never a third row. 720 points is too
+    // narrow for all eight categories, so this shows More (on the Chat page, Chat's row under it).
     render_page_png("nav_bar_wrapped", 720, 200, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::Chat;
         crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
     });
 }
 
-/// The whole top menu on one row, as it reads on the operator's 2000-point-wide window
-/// (docs/design/top-menu-and-game-pages.md, section 1: every button, in order and colour).
+/// The whole top menu, as it reads on the operator's 2000-point-wide window
+/// (docs/design/top-menu-and-game-pages.md, section 1: every button, in order and colour): since
+/// navigation rung 2 (2026-11-03) its two rows, the eight categories and Humanity's row under them.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_nav_bar_full() {
-    render_page_png("nav_bar_full", 2000, 80, |ctx, theme, state| {
+    render_page_png("nav_bar_full", 2000, 100, |ctx, theme, state| {
         state.active_page = crate::gui::GuiPage::Humanity;
         crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
     });
@@ -3234,8 +3237,10 @@ Closing paragraph after the table.";
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_nav_bar_icon_only() {
-    // Icon-only compact mode (v0.859): labels hidden, icons remain.
+    // Icon-only compact mode (v0.859): labels hidden, icons remain (the primary row's; the second
+    // row is words only, navigation rung 2). On the Chat page, so Chat's row shows under it.
     render_page_png("nav_bar_icon_only", 720, 200, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::Chat;
         state.nav_display_mode = crate::gui::NavDisplayMode::IconOnly;
         crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
     });
@@ -5047,38 +5052,86 @@ fn clock_speed_readout_describes_a_real_day_length() {
     assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(24, 72.0), "20 minutes");
 }
 
-// ── The double top menu's mock-up (docs/design/navigation.md section 15, 2026-11-02) ────────────
-// Throwaway: the pictures of a design, drawn by src/gui/nav_mockup_tests.rs. Delete these five
-// with that file when the design's rung 2 (the real double menu) lands with its own snapshots.
+// ── The top menu's two rows (docs/design/navigation.md, rung 2, 2026-11-03) ─────────────────────
+// On the operator's 2560 by 1440 screen and in the app's restored 1280 by 720 window, at 100% and
+// 200% (the Font Size, BUG-225): the rows docked on the Dev page (its six pages, the longest row
+// the desktop draws), and the second row PREVIEWING Play's pages while the Chat page is open (a
+// picture has no pointer to rest, so the preview is pinned). They replaced the design's mock-up
+// pictures (nav_double_*.png, drawn by the throwaway nav_mockup_tests.rs, deleted with it).
 
-#[test]
-#[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_nav_double_tv() {
-    crate::gui::nav_mockup_tests::tv();
+/// The top menu alone over the page's background, `h` pixels tall, on `page`, previewing
+/// `preview`'s pages when one is named.
+fn nav_rows_at(name: &str, w: u32, percent: f32, page: crate::gui::GuiPage, preview: Option<&'static str>) {
+    let h = (240.0 * percent / 100.0) as u32;
+    render_page_png_at(name, w, h, percent, move |ctx, theme, state| {
+        state.active_page = page;
+        if let Some(cat) = preview {
+            crate::gui::pages::escape_menu::preview_for_snapshot(ctx, cat);
+        }
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+        crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(theme.bg_panel())).show(ctx, |_| {});
+    });
 }
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_nav_double_tv_hover() {
-    crate::gui::nav_mockup_tests::tv_hover();
+fn snapshot_nav_rows_tv_100() {
+    nav_rows_at("nav_rows_tv_100", 2560, 100.0, crate::gui::GuiPage::Dev, None);
 }
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_nav_double_tv_popup() {
-    crate::gui::nav_mockup_tests::tv_popup();
+fn snapshot_nav_rows_tv_200() {
+    nav_rows_at("nav_rows_tv_200", 2560, 200.0, crate::gui::GuiPage::Dev, None);
 }
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_nav_double_laptop() {
-    crate::gui::nav_mockup_tests::laptop();
+fn snapshot_nav_rows_720_100() {
+    nav_rows_at("nav_rows_720_100", 1280, 100.0, crate::gui::GuiPage::Dev, None);
 }
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_nav_double_phone() {
-    crate::gui::nav_mockup_tests::phone();
+fn snapshot_nav_rows_720_200() {
+    nav_rows_at("nav_rows_720_200", 1280, 200.0, crate::gui::GuiPage::Dev, None);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_rows_tv_100_preview() {
+    nav_rows_at("nav_rows_tv_100_preview", 2560, 100.0, crate::gui::GuiPage::Chat, Some("play"));
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_rows_tv_200_preview() {
+    nav_rows_at("nav_rows_tv_200_preview", 2560, 200.0, crate::gui::GuiPage::Chat, Some("play"));
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_rows_720_100_preview() {
+    nav_rows_at("nav_rows_720_100_preview", 1280, 100.0, crate::gui::GuiPage::Chat, Some("play"));
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_rows_720_200_preview() {
+    nav_rows_at("nav_rows_720_200_preview", 1280, 200.0, crate::gui::GuiPage::Chat, Some("play"));
+}
+
+/// Play's own page under the menu (navigation rung 2): who and where was played last, and Enter
+/// the world, in the app's restored window.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_play_page() {
+    render_page_png("play_page", 1280, 720, |ctx, theme, state| {
+        state.launcher_last_character = "Ana".to_string();
+        state.launcher_last_world = "home:".to_string();
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Play);
+    });
 }
 
 /// The HUD's bottom-left corner in the console room with the in-game chat feed showing (BUG-236,

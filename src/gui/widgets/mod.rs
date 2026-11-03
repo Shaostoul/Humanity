@@ -493,6 +493,28 @@ pub fn hold_to_confirm(
     hold_to_confirm_at(ui, theme, id, label, rect, hold_seconds, tooltip)
 }
 
+/// The press-and-hold clock every hold control fills by: how far the hold has got (0 to 1), kept
+/// in egui's memory under `id`, and whether it completed on this frame. `holding` is whether the
+/// pointer is pressed on the control now; letting go early starts it again from zero, and so does
+/// completing. Shared by [`hold_to_confirm_at`], chat.rs `hold_to_confirm_button` and the top
+/// menu's Play button (navigation rung 2, pages/escape_menu.rs), so every hold in the app counts
+/// time the same way.
+pub fn hold_step(ui: &Ui, id: egui::Id, holding: bool, hold_seconds: f32) -> (f32, bool) {
+    let mut progress: f32 = ui.ctx().data_mut(|d| d.get_temp(id).unwrap_or(0.0));
+    if holding {
+        let dt = ui.input(|i| i.stable_dt).min(0.1);
+        progress += dt / hold_seconds.max(0.1);
+    } else {
+        progress = 0.0;
+    }
+    let fired = progress >= 1.0;
+    if fired {
+        progress = 0.0;
+    }
+    ui.ctx().data_mut(|d| d.insert_temp(id, progress));
+    (progress, fired)
+}
+
 /// Rect-positioned variant of [`hold_to_confirm`] for painter-based rows
 /// (fixed slot layouts): same press-and-hold pinwheel, at an exact rect.
 pub fn hold_to_confirm_at(
@@ -508,19 +530,8 @@ pub fn hold_to_confirm_at(
     let resp = ui.interact(rect, id.with("hold"), egui::Sense::click_and_drag());
     let center = rect.center();
 
-    let mut progress: f32 = ui.ctx().data_mut(|d| d.get_temp(id).unwrap_or(0.0));
     let holding = resp.is_pointer_button_down_on();
-    if holding {
-        let dt = ui.input(|i| i.stable_dt).min(0.1);
-        progress += dt / hold_seconds.max(0.1);
-    } else {
-        progress = 0.0;
-    }
-    let fired = progress >= 1.0;
-    if fired {
-        progress = 0.0;
-    }
-    ui.ctx().data_mut(|d| d.insert_temp(id, progress));
+    let (progress, fired) = hold_step(ui, id, holding, hold_seconds);
 
     let color = if holding {
         theme.danger()

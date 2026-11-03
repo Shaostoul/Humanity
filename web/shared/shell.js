@@ -970,7 +970,7 @@
     ] },
     { cls: "nav-group-green", tabs: [
       { id: "profile", href: "/profile", icon: "profile", label: "Profile", key: "nav.profile", active: "profile" }, // i18n-exempt: en.json's words for its key
-      { id: "own_life", href: "/home", icon: "home", label: "Home", key: "nav.own_life", active: "home" } // i18n-exempt: en.json's words for its key
+      { id: "own_life", href: "/home", icon: "home", label: "Home", key: "nav.home", active: "home" } // i18n-exempt: en.json's words for its key
     ] },
     { cls: "nav-group-sim", tabs: [
       { id: "onboarding", href: "/onboarding", icon: "compass", label: "Onboarding", key: "nav.onboarding", active: "quests" }, // i18n-exempt: en.json's words for its key

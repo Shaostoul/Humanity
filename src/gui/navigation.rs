@@ -1,21 +1,30 @@
-//! The top menu as data (docs/design/navigation.md, section 13; rung 1, 2026-11-03).
+//! The top menu as data (docs/design/navigation.md, section 13; rung 1, 2026-11-03; rung 2, the
+//! desktop's two rows, the same day).
 //!
 //! `data/gui/navigation.json` holds the design's eight categories and every page placed in them,
-//! what a person can reach that the design's rows leave out (`outside`, each with its reason), and
-//! what the single top row shows until rung 2 draws the two rows (`today_row`). Both apps draw
-//! from it: the desktop's row through [`menu`] (pages/escape_menu.rs), the website's through
+//! what a person can reach that the design's rows leave out (`outside`, each with its reason), the
+//! desktop's timings (the second row's preview, Play's press and hold), and what the website's
+//! single row shows until rung 5 draws its two rows (`today_row`). Both apps draw from it: the
+//! desktop's two rows through [`menu`] (pages/escape_menu.rs), the website's row through
 //! scripts/gen-navigation.js, which writes the website's part into web/shared/shell.js. The file's
 //! own `_comment` says what each field means.
+//!
+//! THE DESKTOP'S ROWS ([`Menu::desktop`]): each category, its own page its primary button, and
+//! under it the items that have a desktop page, in the file's order. An item the desktop has no
+//! page for yet (a page the design adds, `new`, or one the website alone has) is not drawn: a row
+//! shows only pages that exist, and never under another page's name.
 //!
 //! READ once, when the menu is first drawn, and again when the file is saved ([`reload`], from
 //! engine/hot_reload_gates.rs): never each frame, and nothing else is kept. A file this version
 //! cannot read is refused WHOLE, naming the entry and what is wrong with it ([`parse`]): a word
-//! key that is not in data/i18n/en.json, a page that is not a page, an id or a page in two places,
-//! a field it does not know. At start the copy built into the exe is then used (with the log line
-//! every built-in copy writes); on a save while the app runs, the menu keeps what it had. The
-//! tests (navigation_tests.rs) hold both copies to the rules, so the built-in one always reads.
+//! key that is not in data/i18n/en.json, a page that is not a page, a part a page does not have,
+//! an id or a page in two places, a category with no page or no desktop picture, a timing out of
+//! its range, a field it does not know. At start the copy built into the exe is then used (with
+//! the log line every built-in copy writes); on a save while the app runs, the menu keeps what it
+//! had. The tests (navigation_tests.rs) hold both copies to the rules, so the built-in one always
+//! reads.
 //!
-//! COST: [`menu`] is a read lock and a reference count each frame; the row's ids were turned into
+//! COST: [`menu`] is a read lock and a reference count each frame; the rows' ids were turned into
 //! pages when the file was read.
 
 use std::collections::{BTreeMap, HashSet};
@@ -43,11 +52,12 @@ pub struct Category {
     pub label: String,
     /// Its hint, a key in data/i18n/en.json.
     pub hint: String,
-    /// A name in web/shared/icons.js (`humanity`: the brand H).
+    /// A name in web/shared/icons.js (`humanity`: the brand H); the desktop draws its own picture
+    /// of each name (widgets/icons.rs `named`).
     pub icon: String,
     /// A theme token by name ([`colour_of`]).
     pub colour: String,
-    /// The desktop page (a `dispatch::page_id`), or none yet.
+    /// The desktop page (a `dispatch::page_id`). Every category has one: its primary button.
     #[serde(default)]
     pub page: Option<String>,
     /// The part of that page it opens.
@@ -109,15 +119,26 @@ pub struct Outside {
     pub why: String,
 }
 
-/// A group of today's desktop row: its colour (a theme token) and its entries' ids.
-#[derive(Debug, Clone, Deserialize)]
+/// The desktop's timings, in milliseconds (section 4.1 of the design).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DesktopGroup {
-    pub colour: String,
-    pub items: Vec<String>,
+pub struct Timings {
+    /// How long the pointer rests on another category's button before the second row previews it.
+    pub preview_rest_ms: u32,
+    /// How long the preview stays after the pointer leaves both rows.
+    pub preview_leave_ms: u32,
+    /// How long Play is pressed and held to go straight into the world.
+    pub play_hold_ms: u32,
 }
 
-/// A group of today's website row: its CSS class and its entries' ids.
+impl Default for Timings {
+    /// The design's numbers, for a menu that could not be read at all.
+    fn default() -> Self {
+        Timings { preview_rest_ms: 200, preview_leave_ms: 300, play_hold_ms: 800 }
+    }
+}
+
+/// A group of the website's single row: its CSS class and its entries' ids.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WebGroup {
@@ -125,15 +146,17 @@ pub struct WebGroup {
     pub items: Vec<String>,
 }
 
-/// What the single top row shows until rung 2.
+/// What the website's single row shows until rung 5.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TodayRow {
-    pub desktop: Vec<DesktopGroup>,
     pub web: Vec<WebGroup>,
     /// An entry's id to the older key the website lights its tab by, where the two differ.
     #[serde(default)]
     pub web_active: BTreeMap<String, String>,
+    /// An entry's id to the words (a key) the website's tab still shows, where they differ.
+    #[serde(default)]
+    pub web_label: BTreeMap<String, String>,
 }
 
 /// `data/gui/navigation.json`, as written.
@@ -145,6 +168,7 @@ pub struct File {
     pub categories: Vec<Category>,
     #[serde(default)]
     pub outside: Vec<Outside>,
+    pub timings: Timings,
     pub today_row: TodayRow,
 }
 
@@ -221,46 +245,76 @@ impl File {
     }
 }
 
-/// One button of today's desktop row, its id already turned into a page.
+/// One button of the desktop's rows, its entry resolved: a category's own (its primary button) or
+/// one of its items.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RowButton {
+pub struct NavButton {
     pub id: String,
     /// Its words' key in data/i18n/en.json.
     pub label: String,
+    /// Its hint's key in data/i18n/en.json.
+    pub hint: String,
+    /// Its icon's name (widgets/icons.rs `named` draws the desktop's picture of it).
+    pub icon: String,
     pub page: GuiPage,
-    /// The character picker rather than the world (Characters).
-    pub picker: bool,
+    /// The part of the page it opens: one of the Dev page's parts, or the world's `picker`.
+    pub section: Option<String>,
 }
 
-/// A group of today's desktop row: a dot is drawn between two groups.
+impl NavButton {
+    /// The character picker rather than the world itself (Characters).
+    pub fn picker(&self) -> bool {
+        self.page == GuiPage::None && self.section.as_deref() == Some(PICKER)
+    }
+}
+
+/// A category as the desktop draws it: its primary button, and the row under it.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RowGroup {
+pub struct NavCategory {
+    pub id: String,
     /// A theme token by name ([`colour_of`]).
     pub colour: String,
-    pub buttons: Vec<RowButton>,
+    /// Its own page.
+    pub button: NavButton,
+    /// Its other pages the desktop has, in the file's order.
+    pub items: Vec<NavButton>,
 }
 
-/// The menu, read: the file, and the desktop's row resolved from it.
+/// The menu, read: the file, and the desktop's two rows resolved from it.
 #[derive(Debug, Clone, Default)]
 pub struct Menu {
     pub file: File,
-    pub desktop_row: Vec<RowGroup>,
+    pub desktop: Vec<NavCategory>,
 }
 
-/// The theme tokens a menu entry may name (data/gui/theme.ron). A name not here is refused when
-/// the file is read, so a typo is an error rather than a grey button.
+impl Menu {
+    /// Where the page on screen sits in the rows: its category, and the item when it is not the
+    /// category's own page. `dev_section` is the Dev page's open part (`GuiState::active_dev_section`):
+    /// the Dev page's parts are items of the Dev row, and any other part is the Dev page itself.
+    /// None for a page the rows leave out (the title screen, Relay Control from the chat's sidebar).
+    pub fn place_of(&self, page: GuiPage, dev_section: &str) -> Option<(usize, Option<usize>)> {
+        let section = (page == GuiPage::Dev).then_some(dev_section);
+        for (ci, c) in self.desktop.iter().enumerate() {
+            if let Some(ii) = c.items.iter().position(|b| b.page == page && b.section.as_deref() == section && !b.picker()) {
+                return Some((ci, Some(ii)));
+            }
+        }
+        self.desktop.iter().position(|c| c.button.page == page).map(|ci| (ci, None))
+    }
+}
+
+/// The theme tokens a menu category may name (data/gui/theme.ron): one per category. A name not
+/// here is refused when the file is read, so a typo is an error rather than a grey button.
 pub fn colour_of(name: &str) -> Option<fn(&Theme) -> Color32> {
     Some(match name {
-        "nav_reality" => Theme::nav_reality,
-        "nav_sim" => Theme::nav_sim,
-        "nav_tools" => Theme::nav_tools,
-        "nav_settings" => Theme::nav_settings,
-        "nav_dev" => Theme::nav_dev,
-        "nav_legacy_red" => Theme::nav_legacy_red,
-        "nav_legacy_green" => Theme::nav_legacy_green,
-        "nav_legacy_blue" => Theme::nav_legacy_blue,
-        "section_cyan" => Theme::section_cyan,
-        "section_magenta" => Theme::section_magenta,
+        "nav_cat_humanity" => Theme::nav_cat_humanity,
+        "nav_cat_play" => Theme::nav_cat_play,
+        "nav_cat_chat" => Theme::nav_cat_chat,
+        "nav_cat_own_life" => Theme::nav_cat_own_life,
+        "nav_cat_apps" => Theme::nav_cat_apps,
+        "nav_cat_library" => Theme::nav_cat_library,
+        "nav_cat_dev" => Theme::nav_cat_dev,
+        "nav_cat_settings" => Theme::nav_cat_settings,
         _ => return None,
     })
 }
@@ -270,8 +324,8 @@ pub fn colour_of(name: &str) -> Option<fn(&Theme) -> Color32> {
 pub fn parse(text: &str) -> Result<Menu, String> {
     let file: File = serde_json::from_str(text).map_err(|e| e.to_string())?;
     check(&file)?;
-    let desktop_row = desktop_row(&file)?;
-    Ok(Menu { file, desktop_row })
+    let desktop = desktop_rows(&file)?;
+    Ok(Menu { file, desktop })
 }
 
 /// An id: lower-case letters, digits and `_`.
@@ -279,7 +333,17 @@ fn is_id(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
-/// The rules every entry, and the row, keeps.
+/// The parts of a desktop page an entry may open: the world's picker and the Dev page's parts.
+/// Every other page is opened whole.
+fn page_has_part(page: &str, section: &str) -> bool {
+    match page {
+        "none" => section == PICKER,
+        "dev" => crate::gui::pages::dev_tab::SECTIONS.iter().any(|(id, _)| *id == section),
+        _ => false,
+    }
+}
+
+/// The rules every entry, and the rows, keep.
 fn check(file: &File) -> Result<(), String> {
     let places = file.places();
     let mut ids: HashSet<&str> = HashSet::new();
@@ -304,10 +368,22 @@ fn check(file: &File) -> Result<(), String> {
                 }
             }
         }
+        // A row shows only pages that exist (rung 2): a page not built yet never stands in under
+        // another page's name ("The nav button label is the page's name").
+        if p.new {
+            if let Some(page) = p.page {
+                return Err(format!("{who} is a page not built yet (`new`), so it opens no desktop page: `{page}` is another page, which would show under its name"));
+            }
+        }
         match p.page {
             Some(page) => {
                 if crate::gui::dispatch::page_from_id(page).is_none() {
                     return Err(format!("{who}: `{page}` is not a desktop page (src/gui/dispatch.rs page_id)"));
+                }
+                if let Some(s) = p.section {
+                    if !page_has_part(page, s) {
+                        return Err(format!("{who}: the desktop page `{page}` has no part `{s}` the menu can open"));
+                    }
                 }
                 if !desktop_places.insert((page, p.section.unwrap_or(""))) {
                     let part = p.section.map(|s| format!(", part `{s}`,")).unwrap_or_default();
@@ -347,28 +423,25 @@ fn check(file: &File) -> Result<(), String> {
         if colour_of(&c.colour).is_none() {
             return Err(format!("the category `{}`: `{}` is not a theme token the menu knows", c.id, c.colour));
         }
+        // A primary button always opens a page: the row under it is that page's category.
+        if c.page.is_none() || c.section.is_some() {
+            return Err(format!("the category `{}` opens no whole desktop page: its primary button would open nothing", c.id));
+        }
+        if crate::gui::widgets::icons::named(&c.icon).is_none() {
+            return Err(format!("the category `{}`: its icon `{}` has no desktop picture (src/gui/widgets/icons.rs `named`)", c.id, c.icon));
+        }
+    }
+    let t = file.timings;
+    for (what, ms, range) in [
+        ("preview_rest_ms", t.preview_rest_ms, 50..=2000),
+        ("preview_leave_ms", t.preview_leave_ms, 0..=5000),
+        ("play_hold_ms", t.play_hold_ms, 300..=3000),
+    ] {
+        if !range.contains(&ms) {
+            return Err(format!("timings: `{what}` is {ms} ms, outside {} to {} ms", range.start(), range.end()));
+        }
     }
     let by_id: BTreeMap<&str, &Place> = places.iter().map(|p| (p.id, p)).collect();
-    let mut shown: HashSet<&str> = HashSet::new();
-    for g in &file.today_row.desktop {
-        if colour_of(&g.colour).is_none() {
-            return Err(format!("today's desktop row: `{}` is not a theme token the menu knows", g.colour));
-        }
-        for id in &g.items {
-            let Some(p) = by_id.get(id.as_str()) else {
-                return Err(format!("today's desktop row names `{id}`, which is no entry"));
-            };
-            if p.page.is_none() || p.label.is_none() {
-                return Err(format!("today's desktop row names `{id}`, which has no desktop page or no words"));
-            }
-            if p.section.is_some_and(|s| !(p.page == Some("none") && s == PICKER)) {
-                return Err(format!("today's desktop row names `{id}`, a part of a page: the single row opens whole pages"));
-            }
-            if !shown.insert(id) {
-                return Err(format!("today's desktop row shows `{id}` twice"));
-            }
-        }
-    }
     let mut shown_web: HashSet<&str> = HashSet::new();
     for g in &file.today_row.web {
         if g.class.trim().is_empty() {
@@ -391,26 +464,31 @@ fn check(file: &File) -> Result<(), String> {
             return Err(format!("today's website row: web_active names `{id}`, which is not in that row (or has no key)"));
         }
     }
+    for (id, key) in &file.today_row.web_label {
+        if !shown_web.contains(id.as_str()) || !humanity_core::i18n::has(key) {
+            return Err(format!("today's website row: web_label names `{id}`, which is not in that row, or `{key}`, which is not a key in data/i18n/en.json"));
+        }
+    }
     Ok(())
 }
 
-/// Today's desktop row with its ids turned into pages (the file is checked first).
-fn desktop_row(file: &File) -> Result<Vec<RowGroup>, String> {
-    let places = file.places();
+/// The desktop's two rows with their ids turned into pages (the file is checked first).
+fn desktop_rows(file: &File) -> Result<Vec<NavCategory>, String> {
+    let button = |id: &str, label: &str, hint: &str, icon: &str, page: Option<&str>, section: Option<&str>| -> Result<Option<NavButton>, String> {
+        let Some(page) = page else { return Ok(None) };
+        let page = crate::gui::dispatch::page_from_id(page).ok_or_else(|| format!("`{id}`: `{page}` is not a desktop page"))?;
+        Ok(Some(NavButton { id: id.to_string(), label: label.to_string(), hint: hint.to_string(), icon: icon.to_string(), page, section: section.map(str::to_string) }))
+    };
     let mut out = Vec::new();
-    for g in &file.today_row.desktop {
-        let mut buttons = Vec::new();
-        for id in &g.items {
-            let p = places.iter().find(|p| p.id == id.as_str()).ok_or_else(|| format!("today's desktop row names `{id}`, which is no entry"))?;
-            let page = p.page.and_then(crate::gui::dispatch::page_from_id).ok_or_else(|| format!("`{id}` has no desktop page"))?;
-            buttons.push(RowButton {
-                id: id.clone(),
-                label: p.label.unwrap_or_default().to_string(),
-                page,
-                picker: page == GuiPage::None && p.section == Some(PICKER),
-            });
+    for c in &file.categories {
+        let own = button(&c.id, &c.label, &c.hint, &c.icon, c.page.as_deref(), None)?.ok_or_else(|| format!("the category `{}` has no desktop page", c.id))?;
+        let mut items = Vec::new();
+        for i in &c.items {
+            if let Some(b) = button(&i.id, &i.label, &i.hint, &i.icon, i.page.as_deref(), i.section.as_deref())? {
+                items.push(b);
+            }
         }
-        out.push(RowGroup { colour: g.colour.clone(), buttons });
+        out.push(NavCategory { id: c.id.clone(), colour: c.colour.clone(), button: own, items });
     }
     Ok(out)
 }

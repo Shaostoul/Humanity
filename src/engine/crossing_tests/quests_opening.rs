@@ -1139,7 +1139,8 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
     let src = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"));
     let inventory = src("src/gui/pages/inventory.rs");
     let crafting = src("src/gui/pages/crafting.rs");
-    // The top row is data since 2026-11-03 (data/gui/navigation.json, navigation rung 1).
+    // The top menu is data since 2026-11-03 (data/gui/navigation.json, navigation rung 1); since
+    // rung 2 Crafting is in the Play row of its two rows.
     let nav = crate::gui::navigation::load(&data_dir());
     let keys = String::from_utf8(read("keymaps.ron")).unwrap();
     let recipes = RecipeRegistry::from_csv(&read("recipes.csv")).unwrap();
@@ -1156,8 +1157,8 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
     assert!(keys.contains("(action: \"Menu / back\", keys: \"Esc\")"), "Esc opens the menu");
     assert!(keys.contains("keys: \"E (look at a target)\""), "E opens what the player looks at");
     assert!(
-        nav.desktop_row.iter().flat_map(|g| &g.buttons).any(|b| b.page == crate::gui::GuiPage::Crafting && humanity_core::i18n::t_dyn(&b.label) == "Crafting"),
-        "the menu has a Crafting tab"
+        nav.desktop.iter().flat_map(|c| &c.items).any(|b| b.page == crate::gui::GuiPage::Crafting && humanity_core::i18n::t_dyn(&b.label) == "Crafting"),
+        "the menu has a Crafting button"
     );
     let starts = Starts::load(&data_dir());
     let mut read_openings = Vec::new();

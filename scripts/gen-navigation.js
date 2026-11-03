@@ -11,10 +11,11 @@
  * copy of the website (scripts/bundle-web.js) carries web/ and not data/; i18n-en.js is the same
  * arrangement for the words (scripts/gen-i18n.js).
  *
- * In rung 1 the website draws `today_row.web` (what its single row shows until rung 5 draws the two
- * rows): each group's CSS class and its tabs, each tab's address, icon (a name in
- * web/shared/icons.js; `humanity` is the brand H), words and the key the page lights it by
- * (`web_active`, else its id).
+ * Until rung 5 the website draws `today_row.web` (what its single row shows until it draws the two
+ * rows the desktop app has since rung 2): each group's CSS class and its tabs, each tab's address,
+ * icon (a name in web/shared/icons.js; `humanity` is the brand H), words (`web_label`'s key where
+ * the website's tab still says something other than the entry's words, else the entry's) and the
+ * key the page lights it by (`web_active`, else its id).
  *
  * It refuses a file the website cannot draw, naming the entry (the desktop's own rules, pages
  * included, are src/gui/navigation.rs's): an id twice, a word key en.json lacks, an icon icons.js
@@ -104,6 +105,7 @@ function webRow(navText, enText, iconsText) {
   }
   const today = (nav.today_row && nav.today_row.web) || [];
   const activeOf = (nav.today_row && nav.today_row.web_active) || {};
+  const labelOf = (nav.today_row && nav.today_row.web_label) || {};
   const shown = new Set();
   const row = today.map((g) => {
     if (typeof g.class !== 'string' || !g.class.trim()) throw new Error('today\'s website row has a group with no class');
@@ -115,12 +117,17 @@ function webRow(navText, enText, iconsText) {
         if (!p.web || !p.label || !p.icon) throw new Error('today\'s website row names `' + id + '`, which has no website address, no words or no icon');
         if (shown.has(id)) throw new Error('today\'s website row shows `' + id + '` twice');
         shown.add(id);
-        return { id, href: p.web, icon: p.icon, label: word(en, p.label), key: p.label, active: activeOf[id] || id };
+        const key = labelOf[id] || p.label;
+        return { id, href: p.web, icon: p.icon, label: word(en, key), key, active: activeOf[id] || id };
       }),
     };
   });
   for (const id of Object.keys(activeOf)) {
     if (!shown.has(id)) throw new Error('today\'s website row: web_active names `' + id + '`, which is not in that row');
+  }
+  for (const [id, key] of Object.entries(labelOf)) {
+    if (!shown.has(id)) throw new Error('today\'s website row: web_label names `' + id + '`, which is not in that row');
+    if (word(en, key) === undefined) throw new Error('today\'s website row: web_label gives `' + id + '` the key `' + key + '`, which is not in data/i18n/en.json');
   }
   return row;
 }

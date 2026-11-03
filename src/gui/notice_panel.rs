@@ -46,8 +46,12 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     let open = state.notify.panel_open;
     let x = -(8.0 + crate::gui::pages::keymap::HELP_TOGGLE_SIZE + BELL_GAP);
     let area = egui::Area::new(egui::Id::new("notice_bell_button"))
-        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(x, 5.0))
+        // Centred in the top menu's primary row, beside help (navigation rung 2).
+        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(x, crate::gui::pages::escape_menu::corner_y(theme, BELL_SIZE)))
         .order(egui::Order::Foreground)
+        // The Area's own response senses hover only: egui's default for an Area is a click, which
+        // made it a nameless Tab stop of its own beside the bell (the top menu's a11y walk).
+        .sense(egui::Sense::hover())
         .show(ctx, |ui| {
             let label = widgets::notice_bell::label_for(unseen);
             widgets::notice_bell::notice_bell(ui, theme, BELL_SIZE, unseen, open, &label)

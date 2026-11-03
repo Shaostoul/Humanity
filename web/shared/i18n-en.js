@@ -27,7 +27,7 @@ window.HOS_I18N_EN = {
     "humanity": "Humanity",
     "humanity_hint": "The overview: you, your character and the people here, and what HumanityOS is.",
     "play": "Play",
-    "play_hint": "Goes into the world with the character and the world you played last.",
+    "play_hint": "Opens Play: who and where you played last, your characters and your quests. Press and hold it to go straight into the world.",
     "play_hint_named": "Goes into {{world}} as {{character}}, the way you played last.",
     "chat_hint": "Messages with people, groups and servers, and what people share and stream.",
     "home_hint": "Your own life: your home, your profile, your tasks, your maps and your money.",
@@ -75,7 +75,7 @@ window.HOS_I18N_EN = {
     "forward_none_hint": "Nothing to go forward to: you have not gone back.",
     "more": "More",
     "more_hint": "The rest of this row, which does not fit across the window.",
-    "own_life": "Home",
+    "own_life": "Life",
     "onboarding": "Onboarding",
     "ops": "Ops",
     "widgets": "Widget Playground",
@@ -114,7 +114,11 @@ window.HOS_I18N_EN = {
     "ops_hint": "How the servers are running, and the operator's tools for them.",
     "widgets_hint": "Every widget the website uses, on one page, to try and compare.",
     "server_settings_hint": "The settings of a server you are on: a member's, a moderator's and an admin's.",
-    "onboarding_hint": "Getting started by doing: short chains of steps toward clean water, food and power."
+    "onboarding_hint": "Getting started by doing: short chains of steps toward clean water, food and power.",
+    "display_mode_hint": "How the top row's buttons show: icon and words, icon only, or words only.",
+    "back_from_hint": "Goes back to the page you opened this one from. Escape does the same.",
+    "forward_not_yet_hint": "Going forward again after going back is not built yet: open the page from the menu.",
+    "display_mode": "Button style"
   },
   "common": {
     "save": "Save",
@@ -233,7 +237,17 @@ window.HOS_I18N_EN = {
       "every_second": "Every second",
       "every_minute": "Every minute",
       "every_hour": "Every hour"
-    }
+    },
+    "theme_nav_cat_heading": "Top menu categories",
+    "theme_nav_cat_note": "Each category's colour in the top menu: its button, the bar under it, and the row of its pages.",
+    "theme_nav_primary_height": "Top row height",
+    "theme_nav_primary_button_height": "Top row button height",
+    "theme_nav_icon_size": "Top row icon size",
+    "theme_nav_secondary_height": "Second row height",
+    "theme_nav_secondary_button_height": "Second row button height",
+    "theme_nav_secondary_font_size": "Second row word size",
+    "nav_preview": "Show a category's pages when the pointer rests on it",
+    "nav_preview_desc": "Rest the pointer on a button in the top row for a moment, and the row under it shows that category's pages, so you can see what is inside before going there. Off: the second row changes only when you click."
   },
   "laws": {
     "title": "Laws and rights",
@@ -3197,5 +3211,19 @@ window.HOS_I18N_EN = {
   },
   "hud": {
     "room_here": "Here: {{actions}}"
+  },
+  "play": {
+    "last": "You last played as {{character}} in {{world}}.",
+    "last_no_character": "You last played in {{world}}.",
+    "none": "Nothing played yet. Enter the world opens the character picker, to choose who you play and where.",
+    "world_home": "your home",
+    "world_server": "the server you are connected to",
+    "enter": "Enter the world",
+    "enter_hint": "Goes into the world now, as the character and in the world you played last, or opens the character picker the first time. Enter on this button does the same.",
+    "hold_tip": "Or press and hold Play in the top menu to go straight in."
+  },
+  "help": {
+    "report_problem": "Report a problem",
+    "report_problem_hint": "Opens the Bugs page, to tell the people building HumanityOS what went wrong and see what others have reported."
   }
 };

@@ -250,8 +250,8 @@ mod tests {
         assert_eq!(zoom_for(175.0), 1.75);
     }
 
-    /// Today's single top row at a size, in a window of `px` pixels: its panel's height in points,
-    /// the window's width in points, how many rows its words sit on (text tops more than half a
+    /// The top menu at a size, in a window of `px` pixels: the height its panels take in points,
+    /// the window's width in points, how many lines its words sit on (text tops more than half a
     /// row apart), and the right edge of its rightmost text.
     fn top_row_at(px: egui::Vec2, percent: f32) -> (f32, f32, usize, f32) {
         let theme = crate::gui::theme::load_theme();
@@ -287,28 +287,33 @@ mod tests {
         (height, ctx.screen_rect().width(), tops.len(), right)
     }
 
-    /// TODAY'S SINGLE TOP ROW AT EACH SIZE (navigation.md section 7, the second need, until the
-    /// double menu's More arrives in navigation rung 2). Printed with `--nocapture` for the
-    /// record in BUG-225 (2026-11-03: one row up to 150% on the operator's screen and two at 200%;
-    /// in 1280 by 720, two rows at 100% and three at 150% and 200%, 29% of the window's height).
-    /// Held: nothing is cut off at the window's right edge at any size, and no size wraps to more
-    /// rows than it did that day (a ratchet until More: a new button that adds a row shows here).
+    /// THE TOP MENU AT EACH SIZE (navigation.md section 7, the second need). Printed with
+    /// `--nocapture` for the record in BUG-225. Until navigation rung 2 the menu was one wrapping
+    /// row, and this test held that day's counts as a ratchet (2026-11-03: one row up to 150% on
+    /// the operator's screen and two at 200%; in 1280 by 720, two rows at 100% and three at 150%
+    /// and 200%, 29% of the window's height). Since rung 2 (the same day) it is two rows that never
+    /// wrap: what does not fit goes under More (pages/escape_menu.rs), so at every size the words
+    /// sit on exactly two lines, the primary row's and the secondary row's, and nothing is cut off
+    /// at the window's right edge. (Which buttons More takes at each size: escape_menu_tests.rs,
+    /// `more_takes_what_does_not_fit_never_a_third_row`.) Seen red 2026-11-03 with More switched
+    /// off (every button laid out whatever the room): "at 150% in 1280x720 px a word of the top row
+    /// ends at 866.25, past the window's 853.34375 points".
     #[test]
     fn font_size_top_row_rows_at_each_size() {
         for (px, percent, most_rows) in [
-            (WINDOW_PX, 100.0, 1),
-            (WINDOW_PX, 150.0, 1),
+            (WINDOW_PX, 100.0, 2),
+            (WINDOW_PX, 150.0, 2),
             (WINDOW_PX, 200.0, 2),
             (egui::vec2(1280.0, 720.0), 100.0, 2),
-            (egui::vec2(1280.0, 720.0), 150.0, 3),
-            (egui::vec2(1280.0, 720.0), 200.0, 3),
+            (egui::vec2(1280.0, 720.0), 150.0, 2),
+            (egui::vec2(1280.0, 720.0), 200.0, 2),
         ] {
             let (height, width, rows, right) = top_row_at(px, percent);
             let share = height * percent / 100.0 / px.y;
             println!("top row at {percent}% in {}x{} px ({width:.0} points across): {height:.0} points tall, words on {rows} row(s), rightmost word ends at {right:.0}, {:.1}% of the window's height", px.x, px.y, share * 100.0);
             assert!(rows >= 1, "no words found in the top row at {percent}%");
             assert!(right <= width, "at {percent}% in {}x{} px a word of the top row ends at {right}, past the window's {width} points", px.x, px.y);
-            assert!(rows <= most_rows, "at {percent}% in {}x{} px the top row wraps to {rows} rows (at most {most_rows})", px.x, px.y);
+            assert_eq!(rows, most_rows, "at {percent}% in {}x{} px the top menu's words sit on {rows} lines (its two rows, never a third)", px.x, px.y);
         }
     }
 

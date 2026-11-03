@@ -3131,7 +3131,8 @@ spectrum is the decoded file's, looked up by the play position).
 ## The places in the launcher's red, green and blue (both apps, 2026-11-03)
 
 **The ask.** The operator, on the navigation mock-up of this page (`nav_double_tv_hover.png`,
-docs/design/navigation.md section 16.1): "I feel like that first image should be ordered as your
+docs/design/navigation.md section 16.1; the picture went with the mock-up in navigation rung 2, and
+is in git at 57fde1c95): "I feel like that first image should be ordered as your
 private local files files, your publicly shared files, then files by friends/servers? Maintains the
 RGB styling. R for private, B for servers." The RGB language is the launcher's
 (docs/design/characters-and-servers.md, "Launcher color language": offline homes RED, open net

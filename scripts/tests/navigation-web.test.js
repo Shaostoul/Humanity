@@ -9,8 +9,11 @@
 //     file and data/i18n/en.json today (a file edited without running it fails here).
 //  2. The row web/shared/shell.js draws, run whole as a page loads it (wip-shell-harness.js), is
 //     the file's today_row.web: its groups' classes in order, each tab's address, words and icon,
-//     and the tab a page lights (web_active's older keys). Read from the file here, not through the
-//     generator, so a generator that wrote the wrong thing fails too.
+//     and the tab a page lights (web_active's older keys), and the words a tab still shows where
+//     they differ from its entry's (web_label: the own-life category is "Life" on the desktop since
+//     rung 2, and the website's tab, which opens its Home page, still says Home until rung 5). Read
+//     from the file here, not through the generator, so a generator that wrote the wrong thing fails
+//     too.
 //  3. A file the website cannot draw is refused, naming the entry.
 //
 // HOS_WEB_DIR points the shell at another copy of web/ (how test 2 was seen red).
@@ -82,15 +85,18 @@ test('the menu written into web/shared/shell.js is current with data/gui/navigat
 // of it, where it passed with the shipped file) and the file's Onboarding and Tasks swapped: "the
 // website's row is the file's (groups and addresses), on /pages/notes.html", the sixth group
 // "+ '/onboarding', '/tasks', - '/onboarding'"; with the row drawn from the file (and the block
-// written again) the same swap passes.
+// written again) the same swap passes. Rung 2 (2026-11-03): seen red with the own-life category's
+// words changed to "Life" and this test not yet reading web_label: "own_life's words are en.json's
+// Life", 'Home' !== 'Life' (the website's tab, which the generator kept on Home).
 test('the row shell.js draws is the file\'s today_row.web, words, icons and lit tab included', () => {
   const entries = byId(NAV);
   const activeOf = NAV.today_row.web_active || {};
+  const labelOf = NAV.today_row.web_label || {};
   const want = NAV.today_row.web.map((g) => ({
     cls: g.class,
     tabs: g.items.map((id) => {
       const e = entries.get(id);
-      return { id, href: e.web, label: words(e.label), icon: e.icon, active: activeOf[id] || id };
+      return { id, href: e.web, label: words(labelOf[id] || e.label), icon: e.icon, active: activeOf[id] || id };
     }),
   }));
   // A page for each tab, lighting it the way its page does (its script tag's data-active, the key
@@ -137,6 +143,8 @@ test('a file the website cannot draw is refused, naming the entry', () => {
     ['a tab twice', (v) => { v.today_row.web[1].items[0] = 'play'; }, 'today\'s website row shows `play` twice'],
     ['a group with no class', (v) => { v.today_row.web[0].class = ' '; }, 'today\'s website row has a group with no class'],
     ['web_active for a tab not in the row', (v) => { v.today_row.web_active.studio = 'studio'; }, 'web_active names `studio`'],
+    ['web_label for a tab not in the row', (v) => { v.today_row.web_label.studio = 'nav.studio'; }, 'web_label names `studio`'],
+    ['web_label with a key en.json lacks', (v) => { v.today_row.web_label.own_life = 'nav.hoem'; }, 'the key `nav.hoem`, which is not in data/i18n/en.json'],
   ];
   const letThrough = [];
   for (const [what, breakIt, says] of cases) {

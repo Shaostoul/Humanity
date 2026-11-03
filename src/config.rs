@@ -450,6 +450,10 @@ pub struct AppConfig {
     /// to 24) that nothing read; such a value loads as 100%.
     #[serde(default = "default_font_size")]
     pub font_size: f32,
+    /// The top menu's second row previews a category while the pointer rests on its button
+    /// (navigation rung 2, pages/escape_menu.rs); on by default.
+    #[serde(default = "default_true")]
+    pub nav_preview: bool,
     /// Dark theme.
     #[serde(default = "default_true")]
     pub dark_mode: bool,
@@ -1562,6 +1566,7 @@ impl AppConfig {
             how_to_layout: state.settings.how_to_layout.clone(),
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
+            nav_preview: state.settings.nav_preview,
             dark_mode: state.settings.dark_mode,
             hint_display: state.settings.hint_display,
             language: state.settings.language.clone(),
@@ -1768,6 +1773,7 @@ impl AppConfig {
         // Clamp the ranges the UI enforces, so a hand-edited config cannot
         // produce an unusable window (a 0 font size or a 0 m far plane).
         state.settings.font_size = crate::gui::font_size::checked(self.font_size);
+        state.settings.nav_preview = self.nav_preview;
         state.settings.dark_mode = self.dark_mode;
         state.settings.hint_display = self.hint_display;
         // The language: a code no file provides (a translation removed since)

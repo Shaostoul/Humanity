@@ -1,5 +1,13 @@
-//! Dev, the developer tools tab (2026-10-20): Bugs, Testing, Performance, Dev,
-//! Planet Tuner and Claude in one side list, each section drawn by its own page.
+//! Dev, the developer tools page (2026-10-20): the developer's tools, Performance, Planet Tuner,
+//! Claude and Journal, each part drawn by its own page.
+//!
+//! ITS PARTS ARE THE DEV ROW'S PAGES since navigation rung 2 (2026-11-03; docs/design/navigation.md
+//! section 16.1, question 9, the operator: "Yes."): the side list it had went, and the top menu's
+//! second row under Dev lists Bugs, Testing, Performance, Planet Tuner, Claude and Journal
+//! (data/gui/navigation.json). Bugs and Testing are pages of their own (BugReport, Testing); the
+//! other four are this page's parts, which the row opens by setting `GuiState::active_dev_section`.
+//! The Dev button itself opens the developer's tools (`FIRST_SECTION`, dev.rs: the creature
+//! spawner and friends). A part the row does not name is never shown.
 //!
 //! It replaced the Platform tab (page carve v0.360), which the operator called
 //! redundant on 2026-10-20 ("I feel like the platform page we had before is
@@ -8,7 +16,7 @@
 //!   page (data/gui/humanityos_tools.json), each opening its own page.
 //! - Recovery through trusted people is a subsection of Settings > Account,
 //!   beside the recovery phrase (gui/pages/settings/recovery.rs).
-//! - The five developer tools stayed together here. They are permanent: the
+//! - The developer tools stayed together here. They are permanent: the
 //!   project is in perpetual development, so none of them is trimmed.
 //! - Claude (2026-10-22, the operator's integrations between HumanityOS and
 //!   Claude Code) joined them: what the agents are doing, read from this
@@ -20,59 +28,35 @@
 //! same list, linking the ones the website has (its Claude tab shows what a
 //! website can reach).
 
-use egui::{Frame, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
-use crate::gui::widgets::{self, SectionNavItem};
-use super::{bugs, dev, dev_agents, dev_journal, performance, planet_tuner, testing};
+use super::{dev, dev_agents, dev_journal, performance, planet_tuner};
 
-/// The Dev tab's sections, in the side list's order: (id, label). The id is
-/// what `GuiState::active_dev_section` holds.
+/// The Dev page's parts: (id, what it is). The id is what `GuiState::active_dev_section` holds and
+/// what a Dev row item's `section` names in data/gui/navigation.json (gui/navigation.rs refuses a
+/// part not listed here).
 pub const SECTIONS: &[(&str, &str)] = &[
-    ("bugs", "Bugs"),
-    ("testing", "Testing"),
+    ("dev", "the developer's tools"),
     ("performance", "Performance"),
-    ("dev", "Dev"),
     ("planet_tuner", "Planet Tuner"),
     ("claude", "Claude"),
     ("journal", "Journal"),
 ];
 
-/// The section a fresh session opens on.
-pub const FIRST_SECTION: &str = "bugs";
+/// The part the Dev button opens: the developer's tools.
+pub const FIRST_SECTION: &str = "dev";
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::SidePanel::left("dev_section_nav")
-        .default_width(190.0)
-        .min_width(150.0)
-        .max_width(260.0)
-        .frame(
-            Frame::NONE
-                .fill(theme.bg_sidebar())
-                .inner_margin(egui::Margin::symmetric(8, 12))
-                .stroke(Stroke::new(1.0_f32, theme.border())),
-        )
-        .show(ctx, |ui| {
-            let c = theme.nav_tools();
-            let items: Vec<SectionNavItem> =
-                SECTIONS.iter().map(|&(id, label)| SectionNavItem::new(id, label, c)).collect();
-            if let Some(clicked) = widgets::section_nav(ui, theme, Some("Dev"), &items, &state.active_dev_section) {
-                state.active_dev_section = clicked;
-            }
-        });
-
     let section = state.active_dev_section.clone();
     match section.as_str() {
-        "testing" => testing::draw(ctx, theme, state),
         // Resource budgets increment 1: live GPU/CPU/VRAM/RAM pies.
         "performance" => performance::draw(ctx, theme, state),
-        "dev" => dev::draw(ctx, theme, state),
         "planet_tuner" => planet_tuner::draw(ctx, theme, state),
         // What Claude is doing (2026-10-22): read-only, from this computer's files.
         "claude" => dev_agents::draw(ctx, theme, state),
         // The play journal (2026-10-24): what the game recorded, and the F8 marks.
         "journal" => dev_journal::draw(ctx, theme, state),
-        _ => bugs::draw(ctx, theme, state),
+        _ => dev::draw(ctx, theme, state),
     }
 }
 

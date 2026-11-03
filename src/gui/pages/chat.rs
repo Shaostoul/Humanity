@@ -2134,19 +2134,8 @@ pub(crate) fn hold_to_confirm_button(
     let w = ui.available_width().max(180.0);
     let (rect, resp) =
         ui.allocate_exact_size(egui::vec2(w, 30.0), egui::Sense::click_and_drag());
-    let mut progress: f32 = ui.ctx().data_mut(|d| d.get_temp(id).unwrap_or(0.0));
     let holding = resp.is_pointer_button_down_on();
-    if holding {
-        let dt = ui.input(|i| i.stable_dt).min(0.1);
-        progress += dt / hold_seconds.max(0.1);
-    } else {
-        progress = 0.0;
-    }
-    let fired = progress >= 1.0;
-    if fired {
-        progress = 0.0;
-    }
-    ui.ctx().data_mut(|d| d.insert_temp(id, progress));
+    let (progress, fired) = crate::gui::widgets::hold_step(ui, id, holding, hold_seconds);
 
     // A clock-style ring on the left fills as you hold, and the arc cycles RGB
     // FAST (faster than the 3s nav channeling) so the wheel is as visible as

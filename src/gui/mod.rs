@@ -215,9 +215,6 @@ mod donate_funding_tests;
 /// docs/design/wcag-audit-2026-10-23.md): Tab through each page, every stop named and hinted.
 #[cfg(all(test, feature = "native"))]
 mod a11y_tests;
-/// A throwaway mock-up of the double top menu, pictures for docs/design/navigation.md.
-#[cfg(all(test, feature = "native"))]
-mod nav_mockup_tests;
 
 /// What the passphrase / PIN prompt is for.
 ///
@@ -406,9 +403,12 @@ pub enum GuiPage {
     /// section_nav sidebar folding in Profile's sections + Inventory, Wallet,
     /// Tasks, Map, Market. Replaces six separate nav buttons. See pages/real.rs.
     Real,
-    // v0.415.0: removed the Play GuiPage variant (the v0.360 tab that folded
-    // Crafting + Studio). Both are top-level tabs now and nothing navigated to
-    // it; the nav's Play button is GuiPage::None (FPS mode), unrelated.
+    /// Play's own page (navigation rung 2, 2026-11-03; the operator's answer of 2026-11-03): who
+    /// and where you played last and an Enter the world button, under the Play row (Characters,
+    /// Quests, Inventory, Crafting). A tap on Play opens it; a press and hold goes into the world
+    /// (`None`). pages/play.rs. (A Play variant of v0.360, a tab folding Crafting and Studio, went
+    /// in v0.415.0: an unrelated page of the same name.)
+    Play,
     /// Dev, the developer tools tab (2026-10-20): a section_nav over Bugs,
     /// Testing, Performance, Dev and Planet Tuner (pages/dev_tab.rs). It
     /// replaced the Platform tab (v0.360), whose Calculator, Notes, Calendar
@@ -1109,12 +1109,9 @@ pub struct GuiState {
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
     pub active_real_section: String,
-    /// Selected section of the Dev tab (an id from `pages::dev_tab::SECTIONS`:
-    /// "bugs", "testing", "performance", "dev", "planet_tuner", "claude").
+    /// The Dev page's open part, an id from `pages::dev_tab::SECTIONS` (the Dev row's items open
+    /// them since navigation rung 2; the Humanity page has no parts since then).
     pub active_dev_section: String,
-    /// Selected section for the folded Humanity tab ("civilization"/
-    /// "governance"/"identity"/"onboarding"/"donate"/"resources").
-    pub active_humanity_section: String,
     pub map_selected_planet: Option<usize>,
     pub map_zoom: f32,
 
@@ -3441,7 +3438,6 @@ impl Default for GuiState {
             // "inventory" default was removed from the list long ago).
             active_real_section: "body".to_string(),
             active_dev_section: crate::gui::pages::dev_tab::FIRST_SECTION.to_string(),
-            active_humanity_section: "civilization".to_string(),
             map_selected_planet: None,
             map_zoom: 1.0,
 
@@ -4540,6 +4536,9 @@ pub struct SettingsState {
     pub dark_mode: bool,
     /// The Font Size, in percent (100 to 200): the whole app's zoom (gui/font_size.rs).
     pub font_size: f32,
+    /// The top menu's second row previews a category while the pointer rests on its button
+    /// (navigation rung 2, pages/escape_menu.rs). On by default.
+    pub nav_preview: bool,
     /// How per-setting descriptions are shown on THIS page (v0.1116): Full
     /// (inline, tightened) / Hover ("(?)" marker) / Off. See `HintDisplay`.
     pub hint_display: HintDisplay,
@@ -4735,6 +4734,7 @@ impl Default for SettingsState {
             invert_y: false,
             dark_mode: true,
             font_size: font_size::DEFAULT_PERCENT,
+            nav_preview: true,
             hint_display: HintDisplay::default(),
             language: "en".to_string(),
             hostile_wildlife: false,
