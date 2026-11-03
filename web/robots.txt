@@ -9,14 +9,11 @@
 # uploaded file and a Files item's page with "X-Robots-Tag: noindex", which keeps a linked address
 # out of a search index even so (src/relay/mod.rs, keep_out_of_search).
 #
-# AI training crawlers are treated like every other crawler: the operator has not decided
-# otherwise. To keep them off the whole site, add a group like this ABOVE "User-agent: *" (one
-# User-agent line per crawler; the names are each company's own):
-#   User-agent: GPTBot
-#   User-agent: ClaudeBot
-#   User-agent: Google-Extended
-#   User-agent: CCBot
-#   Disallow: /
+# AI training crawlers are welcome on the public pages, under the same rules as every other
+# crawler: the operator, 2026-11-02, "Allow them." The pages are CC0, and spreading what they teach
+# is the mission. The same Disallow lines keep them off people's posts (/api/) and uploads, so
+# allowing them never hands anyone's chat to a training set. So no crawler gets a group of its
+# own here; scripts/tests/robots-web.test.js fails if one is added.
 
 User-agent: *
 Disallow: /api/

@@ -86,6 +86,15 @@ test("2. the sitemap is what data/site/public_pages.json says, every page in it 
   assert.strictEqual(new Set(PAGES.pages.map((p) => p.path)).size, PAGES.pages.length, "no page twice");
 });
 
+test("2b. AI training crawlers get the public pages under the same rules as everyone (operator, 2026-11-02)", () => {
+  // "Allow them.": no crawler is singled out, so GPTBot, ClaudeBot and the rest read the * group,
+  // which still keeps them off /api/ (people's posts) and /uploads/.
+  const agents = ROBOTS.split(/\r?\n/).map((l) => l.replace(/#.*$/, "").trim()).filter((l) => /^user-agent\s*:/i.test(l));
+  assert.deepStrictEqual(agents.map((l) => l.split(":")[1].trim()), ["*"], "one group, for every crawler");
+  assert.strictEqual(allowed(RULES, "/library"), true);
+  assert.strictEqual(allowed(RULES, "/api/messages?channel=general"), false);
+});
+
 test("3. the deploy puts both files at the web root", () => {
   const sync = fs.readFileSync(path.join(ROOT, "scripts", "sync-web-root.sh"), "utf8");
   assert.match(sync, /for f in robots\.txt sitemap\.xml; do\s*\n\s*\[ -f "\$SRC\/web\/\$f" \] && cp "\$SRC\/web\/\$f" "\$DST\/\$f"/, "sync-web-root.sh copies them to the root");

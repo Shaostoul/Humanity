@@ -312,7 +312,32 @@ In order:
     categories as pages, a secondary row, one/two/three-column page layouts, layers: primary 10,
     secondary 20, the warning 21, the footer 30, content 40+; designed for both apps before it is
     built; docs/design/top-menu-and-game-pages.md holds the options it replaces), then BUG-225 (Font
-    Size does nothing), then spline rung 1. Open for him: AI training crawlers in robots.txt.
+    Size does nothing), then spline rung 1. AI training crawlers: ALLOWED ("Allow them.", robots.txt
+    held by its test). His later answers the same day:
+    - THE SIX QUESTIONS: Who, What, When, Where, Why and How, each a page, as cards on the front
+      door and the Humanity overview. Most exist (How = How-to and Library, Where = Maps, Why =
+      the Mission, When = Roadmap, Devlog and Calendar); missing are a Who page (people), a When
+      page in the desktop app, and Where's Worlds and Servers pages. In the double-menu design.
+    - BACK AND FORWARD like a web browser: the mouse's back button, in both apps. Today the
+      desktop keeps a back stack only for pages opened from another page, and Escape pops it.
+      In the double-menu design.
+    - FULL-SCREEN POPUPS: the dimmed, click-to-close backdrop over everything, the top menus
+      included, then the window, then its controls. In the double-menu design's layer order.
+    - CHAT ACCESS: all six additions approved; @everyone for moderators and admins only; a badge
+      for each level (Anyone, Members, Verified, Mods/admins); later, a mark by the names of
+      people with things for sale or download; how to become verified (an admin or moderator
+      vouches, an in-app request, who verified whom recorded; verification grants sharing,
+      within a storage allowance the admin sets, so his own backups keep room). Sent to the
+      running agent.
+    - BUG-228: an AV1-in-MP4 video will not play, and the screen shows the container reader's
+      own words. Queued after BUG-225.
+    - FULL RELEASE NOTES ON OUR SITE: the release step sends the notes to our server (signed,
+      like the release signatures); Devlog shows them inline; a backfill sends the old ones.
+      Queued.
+    - THE GAME'S INTRO AND SETTING: why the fleet is in interstellar space, how that ties to
+      designing the best Earth homesteads, and why a person who comes back is still themselves
+      (the teleporter question). Ideas given to him on 2026-11-02; a setting design follows his
+      pick.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches
