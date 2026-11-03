@@ -18,7 +18,7 @@ The operator, 2026-10-30:
 > branches could be like purify water with evaporation and another for reverse osmosis and so
 > forth. Another one for food with its own branches."
 
-The game teaches real survival skills through simulation (the Real/Sim toggle). The body's needs
+The game teaches real survival skills through simulation (the two realities, `two-realities.md`). The body's needs
 are already simulated at real scale: Hydration empties in about two days and then kills in about
 one more, Satiation empties in about a week (`crates/humanity-systems/src/food.rs`, v0.1005 "REAL SCALE"). What the
 game does not yet do is lead a player through *how* to meet those needs the way a person would have

@@ -39,10 +39,10 @@ By making capability easy to learn and use.
 
 ## Where the Project Is Headed
 
-One app, two sides of the same tools, switched with a **Real/Sim toggle**:
+One app, two realities, separated by where you are rather than by a switch:
 
-- **Real**, life tools you actually use: chat, inventory, tasks, maps, market, notes, health
-- **Sim**, a full 3D game teaching the same skills: homesteading, farming, construction, off-grid systems, on a true-scale Earth and beyond
+- **The app is your real life**, tools you actually use: chat, your possessions, tasks, maps, market, notes, health
+- **The game is a place you walk into** through Play, a full 3D world teaching the same skills: homesteading, farming, construction, off-grid systems, on a true-scale Earth and beyond
 - **The native desktop app is the product**; the website mirrors it so everything works in a browser too
 - **Federated and self-hostable**, anyone can run a server; your identity travels with you
 

@@ -406,9 +406,13 @@ the guard: add the case to `scripts/tests/tool-guard.test.js` and fix it, never 
 - **SQLite: never reference an ALTER-added column from the main schema batch in `src/relay/storage/mod.rs`.** On the LIVE database the relay dies at startup while every fresh-DB test passes (BUG-046; `tests/schema_alter_order_lint.rs` enforces it). Detail: `docs/ai/storage.md`.
 - **Build caches fill C:** (it filled on 2026-09-27). Each worktree builds its own `target/` (8 to 10 GB) and cargo never prunes; the hourly disk guard deletes idle ones. Put a scratch build's target in the scratchpad and delete it after; `cargo clean` when C: runs short (nobody else building, no game running). Deleting `target/` never loses work. Detail: `docs/ai/orchestrator.md`, section 5.
 
-## Real/Sim toggle
+## Two realities, and no Real/Sim toggle
 
-The Real/Sim toggle switches the UI context between real-life tools and simulation mode. "Sim" was chosen over "Game" because the platform teaches real survival skills through simulation. Both modes share the same tools (inventory, tasks, maps, market) but display different datasets.
+Every domain exists twice: a game (the 3D world) and a real-life tool (your real possessions, body,
+tasks, money, place). **There is no Real/Sim toggle** (operator, 2026-07-16: one was tried and
+deliberately removed; "do NOT bring it back"). The two are separated by navigation: the app's pages
+are your real life, always; the game is a place you walk into through Play, with its own character,
+inventory and crafting reached from inside the world. Detail: `docs/design/two-realities.md`.
 
 ## Realistic-first: build the 2030 version, not the placeholder (operator, 2026-08-02)
 

@@ -1,5 +1,11 @@
 # Intro Sequence: "The Dream"
 
+> **A newer design proposes a different intro (2026-11-02, awaiting the operator's review):**
+> [docs/design/game-setting-and-intro.md](../design/game-setting-and-intro.md), arriving aboard as a
+> new crew member on a transport. It keeps this document's subtext (Earth is healthy; humanity left
+> by choice) and recommends retiring "The Dream" as the intro (its question 13). Nothing here was
+> ever built. Do not build from this document until the operator has answered.
+
 ## Overview
 The first-time player experience. No menus, no tutorials, no text walls. Pure cinematic immersion that establishes the stakes, the beauty, and the mission.
 

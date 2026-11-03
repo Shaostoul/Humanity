@@ -307,7 +307,7 @@ Tiles, each one domain, all from values the app already has:
 
 ### 5.4 The Real side
 
-With the Real/Sim toggle on Real, the Overview is the person's own real tracking (Real Me: what
+On the app's side (your real life; there is no Real/Sim toggle, `two-realities.md`), the Overview is the person's own real tracking (Real Me: what
 Profile's Body & Measurements holds, and later diet, sleep and fitness logs). It shows only what
 the person entered; an empty tile says how to start ("Add your weight"). Real and Sim numbers are
 never mixed on one screen.

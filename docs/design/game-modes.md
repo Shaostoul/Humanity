@@ -261,10 +261,11 @@ rule), and bug reports that arrive as a replay file instead of prose.
 
 ### E. Peaceful (no-fail) and Hardcore (permadeath), as named choices
 
-Health hits 0 and nothing happens today: death, respawn and healing are all in the
-designed closure, not the code. When the death-and-recovery loop lands, both ends
-of that axis should be a deliberate named choice made at world creation, not an
-afterthought. No-fail is an accessibility-mission requirement (children, disabled
+Death has been real since v0.745 (you wake in the respawner), with a cost by mode
+since 2026-10-04 (`death-and-your-pack.md`: Simplified loses nothing, Realistic
+leaves the pack where you fell). Hardcore is designed in
+`game-setting-and-intro.md` section 4, chosen per character at check-in. Both ends
+of that axis should be a deliberate named choice, not an afterthought. No-fail is an accessibility-mission requirement (children, disabled
 players, anyone using this as a life tool). Hardcore matters because stakes are
 the teaching mechanism. Right now the peaceful mode exists only as an unnamed
 slider at 0.

@@ -343,8 +343,13 @@ In order:
       death goes to general services (barracks, medbay); with a home, respawn there or where you
       choose. The motherships' link has a RANGE (jump about a light year out), and the fleet is
       upgraded to reach further, fly faster, better guns. He asked how a final death out of range
-      would be enforced without banning anyone (answered 2026-11-02). Setting design next, after
-      the double-menu design.
+      would be enforced without banning anyone (answered 2026-11-02). DESIGNED the same night:
+      docs/design/game-setting-and-intro.md (one mind on two supports, never copied; a recorder
+      out of range; Hardcore per character, never a ban; the arrival beat by beat; rungs 1 to 9;
+      thirteen questions for him in section 10). Rungs 1 to 7 need no decision on the jump.
+    - THE NAVIGATION: DESIGNED, docs/design/navigation.md (eight categories as pages, a
+      secondary row each, one layer order, the six question pages, browser-like history, the
+      parity audit; eight rungs; twelve questions for him in section 16).
     - THE DESKTOP APP DOES EVERYTHING: "We should add the pages... We can't leave anything out.
       Everything needs to be able to be done through the app." A desktop Roadmap page and Devlog
       page, and a parity audit of every one-sided page, in the double-menu design.

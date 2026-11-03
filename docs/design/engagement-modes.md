@@ -89,7 +89,7 @@ Players in Trade / Automation / Cooperative / Background modes for this domain d
 - UI panels filter what to expose based on the player's chosen mode for that domain.
 - The simulation itself doesn't know which mode the player picked, it always runs at full depth.
 - Settings page exposes per-domain mode choice.
-- Real/Sim toggle informs defaults (Real mode tends Direct; Sim mode tends Background).
+- Which reality a domain is in informs defaults (the real-life tool tends Direct; the game tends Background). There is no Real/Sim toggle: the two are separated by navigation (`two-realities.md`).
 - Mode transitions need narrative/UX care (e.g., player abandons their garden → NPCs or automation take over; what happens to their crops in transition?).
 
 ## Open questions
@@ -104,7 +104,7 @@ Players in Trade / Automation / Cooperative / Background modes for this domain d
 
 - **Infinite-of-X:** modes 2, 4, 5 require lots of NPCs, lots of guilds, lots of automation, all of which must be data-driven.
 - **Universal widgets:** the diagnostic+options panel becomes a reusable widget that adapts to any domain (water, food, fertilizer, energy).
-- **Real/Sim toggle:** informs default mode per domain, but doesn't override player choice.
+- **The two realities:** whether a domain is the real-life tool or the game informs its default mode, but doesn't override player choice.
 - **AI-as-citizens:** AI agents can occupy any of the five modes alongside humans. An AI agent might Direct-produce food while trading services with human players.
 - **Mod-first architecture:** mods extend the simulation horizontally (new content) rather than vertically (new tiers), which keeps mod compatibility tractable.
 
