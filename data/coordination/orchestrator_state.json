@@ -910,6 +910,21 @@
       "date": "2026-11-02",
       "decision": "Characters relayout + top-menu plan finished (branch worktree-agent-a07b48f503974bc0d, docs/design/top-menu-and-game-pages.md): columns as shares (WHO a fifth, WHERE 0.44), cards for homes and servers, the character centred in the stage by a camera lens shift, 141 words moved to keys; plan recommends A1 (menu by Real/Sim, Inventory/Crafting/Quests into the game), B1 (an Overview section first on Humanity), C1 (keep Play and Characters, Play says what it repeats), D1 (Worlds and Servers pages, Servers first). Tasks finished too, back for the unreadable-file fix. Both merge AFTER crate split rung 2 (lib.rs, camera, engine files). BUG-225 logged: Settings Font Size does nothing, which matters on his 65-inch TV.",
       "why": "Rung 2 has been in final gates for hours; landing two Rust branches first would make it re-run them. The Characters agent closed the operator's own game gracefully to take GPU snapshots (allowed, 2026-10-13)."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "NAVIGATION DIRECTION (his words): \"The more we develop the more I think the going to a single top menu might've been a mistake. Previously we had a double top menu. Like the \"primary top menu bar\" is parent categories. Still pages in of themselves but, by going to that top page or hovering over that top menu button would popup the secondary top menu.\" Four parts per page: primary top menu, secondary top menu, page content, collapsible footer featuring chat. Page content modes: single column, left/right, left/middle/right. Layers: primary 10 (on top of everything), secondary 20, the unfinished-software warning 21 (\"we don't want the footer covering it\"), footer 30, page content 40+.",
+      "why": "To be written into docs/design/top-menu-and-game-pages.md (Characters branch, merging after split rung 2) as the chosen direction replacing options A1-A3, then designed for both apps before building. Queued behind the front door build at the weekly pace (69% used, 3 days left)."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "CHAT ACCESS (his words): \"Nonaccounts should be available to view. Unverified users with a chosen name should get to type reply and share 1 URL at a time. Verified get to share files/pictures/whatever.\" \"Yeah, we should have the ability to set channels to private/public.\" He asked what he is forgetting, and whether there is a non-account way to view chat (\"I thought it redirects people to the pick a name page\"). Robots: \"Agreed\" to members-only-capable channels plus robots.txt; asked what else robots.txt should do.",
+      "why": "A chat-access design (read and post levels per channel, per role) is queued after the front door; robots.txt, a sitemap and an X-Robots-Tag noindex on /api/ go into the front door build. AI training crawlers: his decision, open."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Front door ADOPTED (\"Let's do it.\"), standard column; no chat on the web front page (\"It's not worth the hassle... The app has the footer chat\"); the signed mark kept and added to Devlog (\"Keep and update devlog too.\"); the release-signature route decided by the orchestrator: the updater's verify half moves to a relay-linkable crate (humanity-protocol likely). His screen: 100% scaling, about 4 feet away at a sit/stand desk; phone OnePlus 9 Pro (about 412x915 CSS). Build brief: scratchpad orch-frontdoor-build-brief.txt.",
+      "why": "At 4 feet the 100% page's text is about 2.5 times larger to his eye than at the 10-foot TV guideline, so 100% is fine for him; BUG-225 (Font Size does nothing) still gets fixed. The Devlog's per-visitor GitHub API calls leak visitors' addresses: it reads our endpoint instead."
     }
   ],
   "active_scopes_to_avoid": [
