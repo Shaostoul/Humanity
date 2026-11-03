@@ -9,7 +9,7 @@ use super::*;
 use humanity_core::ecs::components::{Dead, Health, StatusEffects, Vitals};
 use humanity_core::ecs::systems::System;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::food::FoodSystem;
+use humanity_systems::food::FoodSystem;
 use std::sync::Mutex;
 
 fn data_dir() -> &'static std::path::Path {
@@ -20,7 +20,7 @@ fn data_dir() -> &'static std::path::Path {
 /// Vitals drain slider at 0) so a test's long tick changes only what it is about.
 fn food_store() -> DataStore {
     let mut data = DataStore::new();
-    let reg = crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
+    let reg = humanity_systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
         env!("HUMANITY_REPO_ROOT"),
         "/data/status_effects.csv"
     )))
@@ -256,5 +256,5 @@ fn a_save_from_before_the_body_loads_with_a_new_body() {
     assert_eq!((v.satiation, v.hydration, v.energy, v.waste), (new.satiation, new.hydration, new.energy, new.waste));
     assert!(world.get::<&StatusEffects>(p).unwrap().active.is_empty(), "no effects");
     assert!(world.get::<&Dead>(p).is_err(), "alive");
-    assert_eq!(crate::systems::food::urine_tank_level(&world), 0.0, "an empty urine tank");
+    assert_eq!(humanity_systems::food::urine_tank_level(&world), 0.0, "an empty urine tank");
 }

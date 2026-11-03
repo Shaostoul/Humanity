@@ -6,16 +6,16 @@
 use super::*;
 use crate::config::AppConfig;
 use crate::gui::screen_surface::find_text_in_shapes;
-use crate::persistence::{SaveSlot, ShipPlace};
-use crate::persistence::live_save::{active_home, set_active_home, ActiveHome};
-use crate::ship::starts::{HeldHome, HomeRefusal, StartOffer};
+use humanity_systems::persistence::{SaveSlot, ShipPlace};
+use humanity_systems::persistence::live_save::{active_home, set_active_home, ActiveHome};
+use humanity_ship::starts::{HeldHome, HomeRefusal, StartOffer};
 use std::path::Path;
 
 // ── The data ─────────────────────────────────────────────────────────────────────────────────────
 
 /// The repo's starts file, as the game reads it.
 fn the_starts() -> Starts {
-    Starts::parse(&std::fs::read(Path::new("data").join(crate::ship::starts::STARTS_FILE)).expect("data/homes/starts.ron"))
+    Starts::parse(&std::fs::read(Path::new("data").join(humanity_ship::starts::STARTS_FILE)).expect("data/homes/starts.ron"))
         .expect("the starts file keeps its rules")
 }
 
@@ -53,7 +53,7 @@ pub(crate) fn server_cabin() -> ActiveHome {
     let server = "https://ship.example".to_string();
     let slot = SaveSlot::Server { server: server.clone(), identity: "ab".repeat(32) };
     ActiveHome {
-        path: crate::persistence::slot_path(&std::env::temp_dir(), &slot),
+        path: humanity_systems::persistence::slot_path(&std::env::temp_dir(), &slot),
         slot,
         start: "cabin".into(),
         household: "solo".into(),
@@ -259,7 +259,7 @@ fn where_you_live_in_words() {
 
     let mut gs = GuiState::default();
     gs.homestead_design = crate::gui::load_homestead_design(Path::new("data"));
-    gs.home_machines = crate::systems::grow_machines::load_home(&Path::new("data").join("machines").join("home.ron"));
+    gs.home_machines = humanity_systems::grow_machines::load_home(&Path::new("data").join("machines").join("home.ron"));
     let out = home_page(&ctx, &theme, &mut gs);
     assert_eq!(
         missing(&out, &["Where you live", "In this world you live in a Homestead (a family of three).", "Your Home"]),
@@ -287,7 +287,7 @@ fn where_you_live_in_words() {
 
     let mut gs = GuiState::default();
     gs.homestead_design = crate::gui::load_homestead_design(Path::new("data"));
-    gs.home_machines = crate::systems::grow_machines::load_home(&Path::new("data").join("machines").join("cabin.ron"));
+    gs.home_machines = humanity_systems::grow_machines::load_home(&Path::new("data").join("machines").join("cabin.ron"));
     let out = home_page(&ctx, &theme, &mut gs);
     assert_eq!(missing(&out, &["Where you live", "In this world you live in a Cabin (just you)."]), Vec::<String>::new());
     assert_eq!(
@@ -362,7 +362,7 @@ fn where_you_live_in_words() {
     // A refusal says the server's own sentence.
     let full = HomeAnswer {
         refused: Some(HomeRefusal::Full),
-        message: crate::ship::starts::refusal_words(HomeRefusal::Full, &cabin, None, &[]),
+        message: humanity_ship::starts::refusal_words(HomeRefusal::Full, &cabin, None, &[]),
         ..guest_answer(&starts)
     };
     let out = frame(&ctx, Vec::new(), &mut |ui| {
@@ -405,11 +405,11 @@ fn the_household_choice_is_the_saves() {
     set_active_home(offline_homestead());
     let mut gs = GuiState::default();
     let config_before = serde_json::to_value(AppConfig::from_gui_state(&gs)).expect("AppConfig serializes");
-    assert_eq!(crate::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home.ron"));
+    assert_eq!(humanity_systems::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home.ron"));
 
     click(&ctx, "Just you", &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
     assert_eq!(active_home().household, "solo", "the live save's household is now solo");
-    assert_eq!(crate::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home_solo.ron"), "and the household file follows it");
+    assert_eq!(humanity_systems::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home_solo.ron"), "and the household file follows it");
     assert!(!gs.settings_dirty, "Settings is not marked to be saved: the household is the save's");
     assert_eq!(serde_json::to_value(AppConfig::from_gui_state(&gs)).unwrap(), config_before, "nothing AppConfig writes changed");
     let out = frame(&ctx, Vec::new(), &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
@@ -417,7 +417,7 @@ fn the_household_choice_is_the_saves() {
 
     click(&ctx, "A family of three", &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
     assert_eq!(active_home().household, "family");
-    assert_eq!(crate::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home.ron"));
+    assert_eq!(humanity_systems::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home.ron"));
     assert!(!gs.settings_dirty);
     assert_eq!(serde_json::to_value(AppConfig::from_gui_state(&gs)).unwrap(), config_before);
     set_active_home(ActiveHome::offline());
@@ -439,7 +439,7 @@ fn no_tier_word_on_the_choice() {
     let held = held_answer(&starts);
     let refused = HomeAnswer {
         refused: Some(HomeRefusal::HoldsOne),
-        message: crate::ship::starts::refusal_words(
+        message: humanity_ship::starts::refusal_words(
             HomeRefusal::HoldsOne,
             starts.get("homestead").unwrap(),
             held.plot.as_ref(),

@@ -3,12 +3,12 @@
 
 use super::*;
 use crate::gui::pages::maps::camera::tests::feed_at;
-use crate::ship::ship_structure::ShipStructure;
+use humanity_ship::ship_structure::ShipStructure;
 
 fn shipped() -> (ShipStructure, Vec<RoomBounds>) {
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles at p1");
-    let rooms = crate::ship::room_types::RoomTypeRegistry::load(&data).room_bounds(&ship.generate_meshes().room_info);
+    let rooms = humanity_ship::room_types::RoomTypeRegistry::load(&data).room_bounds(&ship.generate_meshes().room_info);
     (ship, rooms)
 }
 
@@ -127,7 +127,7 @@ fn web_ship_plan() -> serde_json::Value {
     let (ship, rooms) = shipped();
     let r2 = |v: f32| ((v as f64) * 100.0).round() / 100.0;
     let levels = levels::ship_levels(&ship);
-    let body_json = |o: glam::Vec3, b: &crate::ship::home_structure::HomeStructure| {
+    let body_json = |o: glam::Vec3, b: &humanity_ship::home_structure::HomeStructure| {
         let storeys: Vec<[f64; 2]> = b.storeys().iter().map(|s| [r2(s.floor), r2(s.top)]).collect();
         let walls: Vec<[f64; 6]> = b
             .walls
@@ -147,7 +147,7 @@ fn web_ship_plan() -> serde_json::Value {
         bodies.push(j);
     }
     let mut designs = serde_json::Map::new();
-    let view = crate::ship::neighbours::neighbour_view(&ship);
+    let view = humanity_ship::neighbours::neighbour_view(&ship);
     for n in &view.neighbours {
         let o = glam::Vec3::new(n.plot.origin.0, n.plot.origin.1, n.plot.origin.2);
         designs.entry(n.design.kind.clone()).or_insert_with(|| {
@@ -171,7 +171,7 @@ fn web_ship_plan() -> serde_json::Value {
     serde_json::json!({
         "_generated": "By the app (src/gui/pages/maps/ship_view_tests.rs, `the_web_ship_plan_is_current`) from data/blueprints/ship_structure.ron, data/homes/ and data/rooms.ron. Do not edit by hand: run HUMANITY_WRITE_SHIP_PLAN=1 node scripts/lib-tests.js the_web_ship_plan_is_current to write it again after a change to the ship.",
         "ship": ship.id,
-        "name": crate::station::home(&crate::station::load_all(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"))).name,
+        "name": humanity_ship::station::home(&humanity_ship::station::load_all(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"))).name,
         "home_plot": ship.home_plot().map(|p| p.id.clone()),
         "levels": levels.iter().map(|l| serde_json::json!({ "ordinal": l.ordinal, "name": l.name(), "short": l.short_name(), "floor": r2(l.floor), "top": r2(l.top) })).collect::<Vec<_>>(),
         "bodies": bodies,

@@ -15,19 +15,19 @@
 //! REAL field sampler the clamp feeds in, rather than a local copy of the
 //! elevation formula (a second copy is the very defect class under test).
 
-use crate::surface_walk::*;
+use humanity_systems::surface_walk::*;
 use crate::engine::frame_lock::ground_radius_m;
-use crate::terrain::planet_chunks::{
+use humanity_terrain::planet_chunks::{
     build_patch_mesh, patch_corners, patch_edge_arc_m, PatchId, PatchMesh, PATCH_TESS,
 };
 use humanity_core::ecs::components::EYE_HEIGHT_M;
-use crate::terrain::drawn_surface::DrawnPatchSurface;
-use crate::terrain::ocean_mask::OceanMask;
-use crate::terrain::planet::PlanetDef;
-use crate::terrain::planet_chunks::DetailNoise;
-use crate::terrain::planet_chunks::ElevationSource;
+use humanity_terrain::drawn_surface::DrawnPatchSurface;
+use humanity_terrain::ocean_mask::OceanMask;
+use humanity_terrain::planet::PlanetDef;
+use humanity_terrain::planet_chunks::DetailNoise;
+use humanity_terrain::planet_chunks::ElevationSource;
 use glam::DVec3;
-use crate::terrain::planet_heightmap::PlanetHeightmap;
+use humanity_terrain::planet_heightmap::PlanetHeightmap;
 
 /// The shipped Earth grids plus the real earth.ron (NOT the test fixture:
 /// `planet_chunks::tests::earth_like` carries surface_relief 0.011, 3.5x

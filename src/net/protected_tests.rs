@@ -406,15 +406,19 @@ fn passes_go_only_to_approved_friends_while_it_is_on() {
 }
 
 /// NEVER ASKS THE OPERATING SYSTEM FOR AN AGE (10h; California Civil Code 1798.501(e), see
-/// docs/reference/findings/2026-10-10-california-ab-1043-age-signals.md): no file under src/
-/// names Windows' age-range call or Apple's declared-age-range interface. The names are built
+/// docs/reference/findings/2026-10-10-california-ab-1043-age-signals.md): no file under src/ or
+/// crates/*/src/ names Windows' age-range call or Apple's declared-age-range interface. The names are built
 /// from parts here, so this file does not match itself.
 /// Seen red 2026-10-10 on its first run, against this file's own doc comment, which then named
 /// Apple's interface in full.
 #[test]
 fn nothing_asks_the_operating_system_for_an_age() {
     let needles = [["GetUserAge", "Range"].concat(), ["Declared", "AgeRange"].concat(), ["Declared", "Age", "Range"].join(" ")];
-    let mut stack = vec![std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src")];
+    // Every crate's sources, the engine's src/ and each one under crates/: the crate split moves code
+    // out of src/ rung by rung, and a scan of src/ alone went blind to each crate it cut.
+    let repo = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
+    let mut stack = vec![repo.join("src")];
+    stack.extend(std::fs::read_dir(repo.join("crates")).expect("crates/ reads").flatten().map(|e| e.path().join("src")).filter(|p| p.is_dir()));
     let mut seen = 0;
     while let Some(dir) = stack.pop() {
         for entry in std::fs::read_dir(&dir).expect("src/ reads") {

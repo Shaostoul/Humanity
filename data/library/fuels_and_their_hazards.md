@@ -549,8 +549,8 @@ hazards.
   Paint). The gasoline and diesel it makes go to home storage. The
   recipe asks for Engineering level 2, but a machine that runs by itself
   skips that check: owning the machine is enough (`data/recipes.csv`,
-  `data/machines/home.ron`, `src/systems/crafting/mod.rs`,
-  `src/systems/inventory/containers.rs`). Each is a litre at its real
+  `data/machines/home.ron`, `crates/humanity-systems/src/crafting/mod.rs`,
+  `crates/humanity-systems/src/inventory/containers.rs`). Each is a litre at its real
   density, 0.745 kg for gasoline and 0.847 kg for diesel
   (`data/items.csv`, which cites them). The home's backup generator has
   a 200 litre drum of its own: take gasoline from home storage into your
@@ -568,13 +568,13 @@ hazards.
   or drinking water again, even after it is cleaned, though it can still
   hold fuel, and its machine card says so in a warning line
   (`data/containers/content_classes.ron`,
-  `src/systems/inventory/containers.rs`, `src/lib.rs`). That is the real
+  `crates/humanity-systems/src/inventory/containers.rs`, `src/lib.rs`). That is the real
   rule too: see [Storing Water Safely](/library#storing-water-safely).
 - **A generator that burns only its own fuel.** The backup generator is
   modelled on a 1.8 kilowatt inverter set burning 1.125 litres an hour
   while it runs, and it runs only when its circuit is short of power and
   the batteries on that circuit are below a quarter full, or there are
-  none (`data/machines/home.ron`, `src/systems/electrical.rs`). Its data
+  none (`data/machines/home.ron`, `crates/humanity-systems/src/electrical.rs`). Its data
   names the one fuel its engine is built for, Gasoline, as a real set
   like it runs on, and nothing else runs it: its drum takes nothing else
   and its Store button offers nothing else. Diesel, Crude Oil, Glue and
@@ -769,19 +769,19 @@ October 2026.
   fuel refinery and the backup generator, their drums and the
   generator's 1.8 kW and 1.125 litres an hour (`data/machines/home.ron`);
   the refinery running by itself on crude oil from its drum and home
-  storage, skipping the skill check (`src/systems/crafting/mod.rs`), and
+  storage, skipping the skill check (`crates/humanity-systems/src/crafting/mod.rs`), and
   its drum taking only that (`vessel_takes` in
-  `src/systems/inventory/containers.rs`); Coal, Crude
+  `crates/humanity-systems/src/inventory/containers.rs`); Coal, Crude
   Oil, Gasoline, Diesel, Glue and Paint and their content classes
   (`data/items.csv`), and the recipes that use Coal up
   (`data/recipes.csv`); the backstop rule, the fed circuit and the
   generator burning only the fuel its data names (`fuels` in
-  `data/machines/home.ron`, `src/systems/electrical.rs`), the only thing
+  `data/machines/home.ron`, `crates/humanity-systems/src/electrical.rs`), the only thing
   its drum takes and its Store button offers (`store_offers` in
-  `src/systems/inventory/containers.rs`); the Ship life support setting
+  `crates/humanity-systems/src/inventory/containers.rs`); the Ship life support setting
   (`src/gui/pages/settings.rs`); the flammable class and the container's
   memory (`data/containers/content_classes.ron`,
-  `src/systems/inventory/containers.rs`), with the warning line built in
+  `crates/humanity-systems/src/inventory/containers.rs`), with the warning line built in
   `src/lib.rs`; the Take and Store buttons (`src/gui/pages/hud.rs`); the
   gases table (`data/chemistry/gases.csv`, listed only among the files
   the game ships, `crates/humanity-core/src/embedded_data.rs`).

@@ -528,7 +528,7 @@ guide is about: what happens when the power goes.
   production, demand, the balance and how many days the cistern would
   last. The pump is `water_pump` in `data/machines/home.ron`; the rule
   that its water needs power is in `src/engine/home_spawn.rs` and
-  `src/systems/plumbing.rs`.
+  `crates/humanity-systems/src/plumbing.rs`.
 - **Rain needs no power.** The 8,000 litre cistern also gains a small,
   steady trickle the game counts as rain off the roof, with no power
   needed. It is a fixed amount: the same every day, whatever the
@@ -696,11 +696,11 @@ is updated in place. Web pages and documents were read on 4 October
   `water_purifier` and `water_tank` in `data/machines/home.ron` and
   `data/machines/home_solo.ron`; whether a machine's water needs power,
   `src/engine/home_spawn.rs`; the plumbing balance per connected group of
-  machines, with no height or distance in it, `src/systems/plumbing.rs`;
+  machines, with no height or distance in it, `crates/humanity-systems/src/plumbing.rs`;
   the Live water card on the Home page, `src/gui/pages/homes.rs`.
 - Carryable water: `water_jerrycan_0` and `water_bottle_0` in
   `data/items.csv`, the vessels in `data/containers/fluids.ron`, read by
-  `src/systems/fluids.rs`.
+  `crates/humanity-systems/src/fluids.rs`.
 - The Build Water Pump recipe: `build_water_pump` in `data/recipes.csv`.
 - The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`).

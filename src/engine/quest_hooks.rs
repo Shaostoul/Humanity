@@ -19,9 +19,9 @@ use crate::engine::state::EngineState;
 /// front door.
 pub(crate) fn frame(state: &mut EngineState) {
     for view in views_that_came_on_screen(&mut state.gui_state) {
-        crate::systems::quests::push_quest_event(&state.data_store, crate::systems::quests::view_event_key(view));
+        humanity_systems::quests::push_quest_event(&state.data_store, humanity_systems::quests::view_event_key(view));
     }
-    crate::systems::quests::publish_front_door(&mut state.data_store, state.gui_state.ship_structure.as_ref());
+    humanity_systems::quests::publish_front_door(&mut state.data_store, state.gui_state.ship_structure.as_ref());
 }
 
 /// The views the interface drew since this was last asked that it had not

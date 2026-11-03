@@ -12,16 +12,16 @@ Where things live:
 | What | File |
 |---|---|
 | Every number, its source, a quotation and the date read | `data/life_support.ron` |
-| The physics: gases, the exact balance, the machines' controllers, the home's own air | `src/systems/life_support.rs` |
-| Each grow room's and tent's air, stepped with the home's | `src/systems/farming/humidity.rs` (`step_rooms`) |
-| The crops' gas exchange and the irrigation's kept water | `src/systems/farming/mod.rs` (the crop loop) |
-| The boundary test, the shipped homes' balance, the modes | `src/systems/farming/life_support_tests.rs` |
+| The physics: gases, the exact balance, the machines' controllers, the home's own air | `crates/humanity-systems/src/life_support.rs` |
+| Each grow room's and tent's air, stepped with the home's | `crates/humanity-systems/src/farming/humidity.rs` (`step_rooms`) |
+| The crops' gas exchange and the irrigation's kept water | `crates/humanity-systems/src/farming/mod.rs` (the crop loop) |
+| The boundary test, the shipped homes' balance, the modes | `crates/humanity-systems/src/farming/life_support_tests.rs` |
 | The machines | `air_handler` and `air_recycler` (now the CO2 scrubber) in `data/machines/home.ron` and `home_solo.ron` |
 | The mushrooms' air (2026-09-27): what stale air costs them, what each fungus breathes, the CO2 fans' controller | `data/garden/humidity.ron` (STALE AIR, THE FUNGI'S BREATH, THE CO2 FANS); `tent_co2_fan` and `room_co2_fan` in both home files |
-| What the power meter charges a day (2026-09-27; measured since 2026-10-22) | `MachineHome::day_draw` in `src/machines.rs`: what each machine drew over its last game day (`src/systems/day_energy.rs`), else its data's estimate (`MachineDef::average_load_watts`, `average_watts` on the air machines in both home files) |
-| What it credits a day, and the backstop apart (2026-09-27) | `MachineDef::average_supply_watts` and `backstop_watts` in `src/machines.rs`; the solar panel's `average_watts`, the wind turbine's day-average `watts` and the generator in both home files (section 7) |
-| Who the electrical sim feeds first on a short island (2026-09-27) | `src/systems/electrical.rs` |
-| The ship's reactor, its feed taps and the per-home supply ledger (2026-09-27) | `data/ship_power.ron`, `src/systems/ship_power.rs` (section 8) |
+| What the power meter charges a day (2026-09-27; measured since 2026-10-22) | `MachineHome::day_draw` in `crates/humanity-ship/src/machines.rs`: what each machine drew over its last game day (`crates/humanity-systems/src/day_energy.rs`), else its data's estimate (`MachineDef::average_load_watts`, `average_watts` on the air machines in both home files) |
+| What it credits a day, and the backstop apart (2026-09-27) | `MachineDef::average_supply_watts` and `backstop_watts` in `crates/humanity-ship/src/machines.rs`; the solar panel's `average_watts`, the wind turbine's day-average `watts` and the generator in both home files (section 7) |
+| Who the electrical sim feeds first on a short island (2026-09-27) | `crates/humanity-systems/src/electrical.rs` |
+| The ship's reactor, its feed taps and the per-home supply ledger (2026-09-27) | `data/ship_power.ron`, `crates/humanity-systems/src/ship_power.rs` (section 8) |
 
 ## 1. What was wrong before
 
@@ -166,7 +166,7 @@ Buildability energy balance charges what the Usage meter charges and warns when 
 home balances only on the generator's fuel. The figures, sources and tests are in
 section 7. Since 2026-10-22 those per-machine averages are only the first day's
 estimate: the machines' power tick records what each placed machine really drew
-(`src/systems/day_energy.rs`), and once a machine has run a whole game day every
+(`crates/humanity-systems/src/day_energy.rs`), and once a machine has run a whole game day every
 meter, card and the time away charge that day instead (`MachineHome::day_draw`), so
 a room resized or a player's own room is charged what its machines really do. The
 shipped-homes test checks both: each `average_watts` against the measured day, and
@@ -488,7 +488,7 @@ for a 1,000 L unit).
 
 ### Tests (2026-09-27), each seen red on a deliberate break
 
-In `src/systems/farming/life_support_tests.rs`:
+In `crates/humanity-systems/src/farming/life_support_tests.rs`:
 `the_air_handlers_keep_their_power_through_a_short_night` (red with the old
 0 W shedding, and with only powered handlers writing their draw, in a grow
 room's air step or in the home's),
@@ -502,14 +502,14 @@ CO2 fans out of the exchange, and drawing a switched fan at the cube of its
 share), `a_co2_controller_lands_its_air_on_the_setpoint`
 (red with the once-a-slice band controller), and the shipped-homes test
 extended (red with the tent fans moved out of the family home, and with the air
-handler's `average_watts` at its nameplate). In `src/systems/electrical.rs`:
+handler's `average_watts` at its nameplate). In `crates/humanity-systems/src/electrical.rs`:
 `a_short_island_sheds_its_optional_loads_first` and
-`a_load_drawing_nothing_is_never_shed`. In `src/machines.rs`:
+`a_load_drawing_nothing_is_never_shed`. In `crates/humanity-ship/src/machines.rs`:
 `the_static_meters_charge_what_the_machines_draw` and
 `every_shipped_mushroom_rack_has_a_wired_co2_fan`.
 
 The meter's supply side, the fish tanks' pumps and the household's hot water
-(2026-09-27), in `src/machines.rs`:
+(2026-09-27), in `crates/humanity-ship/src/machines.rs`:
 `the_meter_shows_a_backstop_apart_from_what_the_home_makes` (red counting a
 fueled genset's `watts` for the day: the test home "made" 44.4 kWh a day),
 `the_power_sources_make_their_sourced_daily_energy` (red with the solo
@@ -520,7 +520,7 @@ without its hot fill, and the family household tap back at 0.17 L/min), and
 `the_household_machines_charge_their_sourced_daily_energy` extended (red with
 the solo fish tank unpowered, the family loop's supply left at 15.1, the tower
 timer note back at "15 min on / 15 off", and the energy balance counting only
-machines with a power role). In `src/systems/self_sufficiency.rs`:
+machines with a power role). In `crates/humanity-systems/src/self_sufficiency.rs`:
 `household_energy_supply_sums_kwh_per_day_components` now holds the component
 table to the catalog (red with the table's panel left at 1.44).
 
@@ -614,7 +614,7 @@ rather than offered whole to each; what homes return credited to the fleet;
 and the ship's water and air supplies metered the same way. The ledger's
 shape is fixed for that now so none of it changes the per-home record.
 
-**Tests** (`src/systems/ship_power_tests.rs`), each seen red:
+**Tests** (`crates/humanity-systems/src/ship_power_tests.rs`), each seen red:
 `a_fed_home_never_sheds_and_is_metered_to_the_watt_hour` (red with the feed
 left out of the island's supply), `realistic_mode_runs_on_its_own_generation_and_batteries`
 (red with the feed ignoring the mode), `own_solar_offsets_reactor_draw_one_for_one`

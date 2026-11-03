@@ -374,7 +374,7 @@ date; re-check before trusting one. The container data basis is
   the unit's pH against its crop's window, each soil grow area has Lime and
   Sulfur buttons, and Settings has "Soil pH: Off / On"). plants.csv's
   `ph_min`/`ph_max` windows, read by nothing before, now matter. The model is
-  `src/systems/farming/soil_ph.rs`; every number and its source is in
+  `crates/humanity-systems/src/farming/soil_ph.rs`; every number and its source is in
   `data/garden/soil_ph.ron`. Each soil unit (bed, tray or field unit) has a pH
   kept in `SoilMemory::ph`, so it stays with the unit between crops and is
   saved (an older save reads every unit at its medium's start). A bed starts
@@ -973,7 +973,7 @@ date; re-check before trusting one. The container data basis is
   the dry matter in USDA's raw and cooked long-grain rows (NDB 20444 and
   20445); the `cooked_rice` profile is the cooked row, 130 kcal, kept four days
   (FoodKeeper "Cooked rice", 4-6 days refrigerated). Tests, each seen red:
-  `the_household_machines_charge_their_sourced_daily_energy` (src/machines.rs),
+  `the_household_machines_charge_their_sourced_daily_energy` (crates/humanity-ship/src/machines.rs),
   `hulled_grains_are_dehulled_at_their_sourced_split_before_they_are_eaten`,
   `the_cereal_hull_compost_is_balanced` and
   `cooked_rice_takes_up_water_at_usdas_ratio` (tests/byproduct_use_lint.rs).
@@ -1031,9 +1031,9 @@ date; re-check before trusting one. The container data basis is
   `the_meter_shows_a_backstop_apart_from_what_the_home_makes`,
   `the_power_sources_make_their_sourced_daily_energy`,
   `the_household_hot_water_is_each_fixtures_measured_share`, the household
-  energy test extended (src/machines.rs), and
+  energy test extended (crates/humanity-ship/src/machines.rs), and
   `household_energy_supply_sums_kwh_per_day_components`
-  (src/systems/self_sufficiency.rs). Found, left alone: (1) the live sim still
+  (crates/humanity-systems/src/self_sufficiency.rs). Found, left alone: (1) the live sim still
   gives each panel 400 W on the game's twelve-hour sine, 2.8 times the site's
   yield, and with the batteries not yet carrying load at night the wind's real
   4.4 W now carries almost nothing after sunset; (2) the water heaters' RECS
@@ -1047,16 +1047,16 @@ date; re-check before trusting one. The container data basis is
 1. **Items vanish when the backpack is full.** "Take to backpack" removes the
    placed item before adding it, and ignores the overflow
    (`src/gui/pages/inventory.rs` ~1796; `InventoryOp::Add` return value
-   ignored at `src/systems/inventory/mod.rs` ~764). Manual craft outputs that
+   ignored at `crates/humanity-systems/src/inventory/mod.rs` ~764). Manual craft outputs that
    do not fit are also discarded with only a log line
-   (`src/systems/crafting/mod.rs` ~518-524).
+   (`crates/humanity-systems/src/crafting/mod.rs` ~518-524).
 2. **The showcase garden is invisible to the Garden panel and the sliders.**
    `auto_seed_showcase` tags crops with machine INSTANCE ids (`ntower_0`,
    `grain_field_1`), the Garden panel and the water/nutrient sliders key on
    type or tower-config ids, and the field climate check keys on a `_field`
    suffix the instance ids do not have (`src/engine/ipc.rs` ~222,
    `src/gui/pages/inventory.rs` ~212-247 and ~1894-1913,
-   `src/systems/farming/mod.rs` ~1132). Its `grain_tray` and `potato_bed`
+   `crates/humanity-systems/src/farming/mod.rs` ~1132). Its `grain_tray` and `potato_bed`
    keys match no machine type, so those surfaces are never seeded
    (`data/world/showcase.ron`).
 3. **Twelve recipe inputs have no source at all**, blocking 12 recipes, mostly
@@ -1072,10 +1072,10 @@ date; re-check before trusting one. The container data basis is
    player spawns empty).
 5. **Cooked foods feed nobody.** Cake, pie, omelette, stew, sandwich, juice
    and nine more have no nutrition profile, so eating them does nothing
-   (`src/systems/food.rs` ~191-238), while `grain_mill_0` and `grain_silo_0`
+   (`crates/humanity-systems/src/food.rs` ~191-238), while `grain_mill_0` and `grain_silo_0`
    count as food because of their `grain_` prefix.
 6. **Crafting XP is skipped** when a machine's own vessel takes every output
-   (early return, `src/systems/crafting/mod.rs` ~1281).
+   (early return, `crates/humanity-systems/src/crafting/mod.rs` ~1281).
 7. Six of the Crafting page's eleven sidebar categories match no recipe
    (`data/crafting/categories.json`), so 225 recipes appear only under "All".
 

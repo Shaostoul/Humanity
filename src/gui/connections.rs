@@ -409,7 +409,7 @@ impl GuiState {
             self.connected_server_url.clone()
         };
         self.disconnect_active();
-        self.account_erased_on_server(&dialed, outcome, &crate::persistence::saves_dir());
+        self.account_erased_on_server(&dialed, outcome, &humanity_systems::persistence::saves_dir());
     }
 
     /// `account_erased_on_active` and `account_erased_on_parked` past the connection: remember the
@@ -418,7 +418,7 @@ impl GuiState {
     /// so a sign-up there again starts fresh, and its plot, which the relay released with the
     /// account, is not built on again). `saves_dir` is the saves folder (a test gives a throwaway).
     pub fn account_erased_on_server(&mut self, url: &str, outcome: EraseOutcome, saves_dir: &std::path::Path) {
-        crate::persistence::live_save::set_aside_erased(saves_dir, &crate::gui::pages::chat::norm_server_url(url), &self.profile_public_key);
+        humanity_systems::persistence::live_save::set_aside_erased(saves_dir, &crate::gui::pages::chat::norm_server_url(url), &self.profile_public_key);
         let entry = erased_entry(&self.profile_public_key, url);
         self.account_erased_on.insert(entry, outcome);
     }
@@ -436,7 +436,7 @@ impl GuiState {
         conn.manually_disconnected = true;
         conn.status = "Disconnected".to_string();
         let url = conn.url.clone();
-        self.account_erased_on_server(&url, outcome, &crate::persistence::saves_dir());
+        self.account_erased_on_server(&url, outcome, &humanity_systems::persistence::saves_dir());
     }
 
     /// The server the game is talking to, as the connection list keys it (normalized, the URL the
@@ -1071,8 +1071,8 @@ mod erased_account_tests {
     fn an_erased_account_sets_its_server_save_aside() {
         let saves = humanity_core::test_temp::dir("erased_account_save_aside");
         let save_of = |key: &str, url: &str| {
-            let slot = crate::persistence::live_save::slot_for("", key, &crate::gui::pages::chat::norm_server_url(url), false);
-            let path = crate::persistence::slot_path(&saves, &slot);
+            let slot = humanity_systems::persistence::live_save::slot_for("", key, &crate::gui::pages::chat::norm_server_url(url), false);
+            let path = humanity_systems::persistence::slot_path(&saves, &slot);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(&path, b"{}").unwrap();
             path
@@ -1080,14 +1080,14 @@ mod erased_account_tests {
         let erased = save_of(KEY, "https://a.example");
         let other_server = save_of(KEY, "https://b.example");
         let other_identity = save_of("ffee9988", "https://a.example");
-        let own_home = crate::persistence::slot_path(&saves, &crate::persistence::SaveSlot::Offline);
+        let own_home = humanity_systems::persistence::slot_path(&saves, &humanity_systems::persistence::SaveSlot::Offline);
         std::fs::write(&own_home, b"{}").unwrap();
 
         let mut state = on("https://a.example");
         state.disconnect_active();
         state.account_erased_on_server("https://a.example", EraseOutcome::Erased, &saves);
         assert!(!erased.exists(), "an erase on the active server left its save in place");
-        let day = crate::persistence::utc_day(crate::persistence::now_ms());
+        let day = humanity_systems::persistence::utc_day(humanity_systems::persistence::now_ms());
         let aside = erased.with_file_name(format!("{}.erased-{day}.json", erased.file_stem().unwrap().to_string_lossy()));
         assert_eq!(std::fs::read(&aside).ok().as_deref(), Some(&b"{}"[..]), "the save is kept beside itself, never deleted: {}", aside.display());
         assert!(other_server.exists(), "another server's save stays");

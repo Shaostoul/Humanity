@@ -508,7 +508,7 @@ In the game, tools are something you make, use up and make again.
 - **You can always make the first one.** The rule in the data is that a
   recipe that makes a tool never needs that tool itself, "so the first
   one can always be made" (`data/crafting/tools.ron`,
-  `src/systems/crafting/tools.rs`). The hammer is made at a workbench
+  `crates/humanity-systems/src/crafting/tools.rs`). The hammer is made at a workbench
   and needs no tool at all.
 - **The tool recipes** (`data/recipes.csv`). At a workbench: Craft
   Hammer and the two screwdrivers, each from 1 Iron Ingot and 1 Wood
@@ -535,7 +535,7 @@ In the game, tools are something you make, use up and make again.
   Poor tool, the full number for Standard, 1.3 times for Good, 1.8 for
   Excellent and 2.5 for Masterwork, while a Defective one breaks the
   first time it is used (`data/manufacturing.ron`,
-  `src/systems/crafting/quality.rs`). At level 1 the score runs from
+  `crates/humanity-systems/src/crafting/quality.rs`). At level 1 the score runs from
   0.35 to 0.55 against the band edge of 0.40, so a beginner's tools come
   out Standard about three times in four and Poor the rest
   (arithmetic from those files); only higher levels reach Good and above.
@@ -708,17 +708,17 @@ were read on 4 October 2026.
 ### Inside this project
 
 - Which crafts need which tools, and the first-tool rule:
-  `data/crafting/tools.ron`, `src/systems/crafting/tools.rs`.
+  `data/crafting/tools.ron`, `crates/humanity-systems/src/crafting/tools.rs`.
 - Tool recipes and durabilities: `data/recipes.csv` (the TOOL CRAFTING
   block), `data/items.csv` (`durability` column).
 - Grades: `data/manufacturing.ron` (`quality_levels`),
-  `src/systems/crafting/quality.rs` (`skill_factor`, `score`, the
+  `crates/humanity-systems/src/crafting/quality.rs` (`skill_factor`, `score`, the
   beginner factor of 0.45).
 - The default home's workbenches, forge and anvil station:
   `data/machines/home.ron`.
 - The Play mode setting and what it frees (`PlayMode` and
   `play_mode_allows` in `src/config.rs`); tool checks, wear and the
-  stocking of every recipe input in `src/systems/crafting/mod.rs`; the
+  stocking of every recipe input in `crates/humanity-systems/src/crafting/mod.rs`; the
   Crafting page's own checks and its "Dev: stock all materials" button
   in `src/gui/pages/crafting.rs`; the "Dev: max skills" button in
   `src/gui/pages/profile.rs`; the "Enable dev cheats" switch

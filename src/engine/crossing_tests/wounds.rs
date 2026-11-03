@@ -1,16 +1,16 @@
 //! From systems/wounds_tests.rs: wounds and their care come back with a save, saved and loaded by
 //! the engine (`save_load`).
 
-use crate::systems::food::*;
+use humanity_systems::food::*;
 use humanity_core::ecs::components::StatusEffects;
-use crate::systems::food::wounds_tests::certain;
-use crate::systems::food::wounds_tests::data_dir;
-use crate::systems::food::wounds_tests::effects;
-use crate::systems::food::wounds_tests::player;
-use crate::systems::food::wounds_tests::registry;
-use crate::systems::food::wounds_tests::run;
-use crate::systems::food::wounds_tests::store;
-use crate::systems::illness::Mode;
+use humanity_systems::food::fixtures::wounds::certain;
+use humanity_systems::food::fixtures::wounds::data_dir;
+use humanity_systems::food::fixtures::wounds::effects;
+use humanity_systems::food::fixtures::wounds::player;
+use humanity_systems::food::fixtures::wounds::registry;
+use humanity_systems::food::fixtures::wounds::run;
+use humanity_systems::food::fixtures::wounds::store;
+use humanity_systems::illness::Mode;
 
 /// WOUNDS COME BACK WITH A SAVE. They are status effects, so the body's save (`BodySave`)
 /// carries each with the time it has left, the care with them; a load puts them back, and the
@@ -29,7 +29,7 @@ fn wounds_and_their_care_come_back_with_a_save() {
             .insert(
                 p,
                 (
-                    crate::systems::skills::PlayerSkills::new(),
+                    humanity_systems::skills::PlayerSkills::new(),
                     humanity_core::ecs::components::Name("Astra".into()),
                     humanity_core::ecs::components::Appearance::default(),
                     humanity_core::ecs::components::Outfit::default(),
@@ -49,7 +49,7 @@ fn wounds_and_their_care_come_back_with_a_save() {
         fx.apply("burn_partial", 1_000_000.0);
         fx.apply("wound_care", 1_000_000.0);
     }
-    let save: crate::persistence::WorldSave =
+    let save: humanity_systems::persistence::WorldSave =
         serde_json::from_str(&serde_json::to_string(&extract_world_save(&world)).unwrap()).unwrap();
     let mut fresh = hecs::World::new();
     let q = saved_player(&mut fresh);

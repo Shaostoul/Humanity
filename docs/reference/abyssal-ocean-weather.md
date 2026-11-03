@@ -45,7 +45,7 @@ with near-zero impedance.
    vec4 uniforms (4 vortices, 2 solitons, 1 rogue, 1 hurricane). Each field is
    evaluated identically in shader and on CPU so the camera/buoyancy rides the
    drawn surface. This is exactly the house twin pattern; it would finally give
-   `src/systems/disasters.rs` (currently written but NOT registered, zero
+   `crates/humanity-systems/src/disasters.rs` (currently written but NOT registered, zero
    visuals) real water-coupled events. Foam-from-shear saturates at
    `min(k*strength, 0.62)`: already-broken water cannot get whiter.
 
@@ -91,7 +91,7 @@ with near-zero impedance.
    (equilibrium = rate*duty/decay), never snaps to 1 ("storm sea becomes a
    snowfield"). Also: a separate BUBBLES channel (raft lingers tens of seconds
    after the whitecap; decay 0.12/s vs foam 0.35/s) and a spray-seed channel.
-   Relevant beside `src/terrain/ocean_fft.rs` foam pipeline (L350-461).
+   Relevant beside `crates/humanity-terrain/src/ocean_fft.rs` foam pipeline (L350-461).
 
 6. **Backlit crest subsurface scattering** (`src/ocean/OceanMesh.js`). Our gap
    list names missing SSS explicitly. Their worked formulation: `backlit =

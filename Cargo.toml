@@ -2,7 +2,7 @@
 # humanity-engine (the app, the server mode and the binary), and the crates cut out of it so far, each in
 # crates/<name>/ with a one-page card in docs/crates/. The plan for all ten is scripts/crate-layers.json.
 [workspace]
-members = [".", "crates/humanity-core", "crates/humanity-protocol"]
+members = [".", "crates/humanity-core", "crates/humanity-protocol", "crates/humanity-ship", "crates/humanity-terrain", "crates/humanity-systems"]
 # vendor/rav1d is a patched dependency ([patch.crates-io] below), not one of ours.
 exclude = ["vendor"]
 resolver = "2"
@@ -20,6 +20,8 @@ edition = "2021"
 [workspace.dependencies]
 bytemuck = { version = "1", features = ["derive"] }
 hecs = "0.10"
+noise = "0.9"
+rand = "0.9"
 rapier3d = "0.22"
 glam = { version = "0.29", features = ["serde"] }
 kira = { version = "0.9" }
@@ -82,7 +84,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
+native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
 relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -93,9 +95,13 @@ wasm = [
 ]
 
 [dependencies]
-# Ours (the crate split): the core always (the wasm build too), the protocol with the server's code.
+# Ours (the crate split): the core, the ship, the terrain and the simulation always (the wasm build
+# too), the protocol with the server's code.
 humanity-core = { path = "crates/humanity-core", default-features = false }
 humanity-protocol = { path = "crates/humanity-protocol", default-features = false, optional = true }
+humanity-ship = { path = "crates/humanity-ship", default-features = false }
+humanity-terrain = { path = "crates/humanity-terrain", default-features = false }
+humanity-systems = { path = "crates/humanity-systems", default-features = false }
 # Data parallelism (v0.1067). The particle update + vertex-collect loop is
 # embarrassingly parallel and was MEASURED at 17-20 ns per particle per frame
 # on one core, which put the practical ceiling near 50k particles at 120 fps.
@@ -131,8 +137,8 @@ serde_json = { workspace = true }
 # Logging
 log = { workspace = true }
 # Procedural generation
-noise = "0.9"
-rand = "0.9"
+noise = { workspace = true }
+rand = { workspace = true }
 thiserror = { workspace = true }
 # getrandom needs "js" feature on wasm32 (activated by `wasm` feature flag above)
 getrandom = { workspace = true }
@@ -470,6 +476,9 @@ rav1d = { path = "vendor/rav1d" }
 # crate's tests, so they sit behind each crate's `test-support` feature (the crate split, rung 1).
 humanity-core = { path = "crates/humanity-core", default-features = false, features = ["test-support"] }
 humanity-protocol = { path = "crates/humanity-protocol", default-features = false, features = ["test-support"] }
+humanity-ship = { path = "crates/humanity-ship", default-features = false, features = ["test-support"] }
+humanity-terrain = { path = "crates/humanity-terrain", default-features = false, features = ["test-support"] }
+humanity-systems = { path = "crates/humanity-systems", default-features = false, features = ["test-support"] }
 # GeoTIFF reading for the terrain data build tools (examples/ only, never in
 # the shipped binary): decodes the NOAA ETOPO 2022 float32 elevation tiles.
 tiff = "0.9"

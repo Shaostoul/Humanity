@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::gui::pages::fleet_ledger::FleetGive;
-use crate::systems::inventory::{FleetHeld, Inventory, TradeSettlements};
+use humanity_systems::inventory::{FleetHeld, Inventory, TradeSettlements};
 
 fn world_with_bread(n: u32) -> (hecs::World, hecs::Entity) {
     let mut world = hecs::World::new();
@@ -41,7 +41,7 @@ fn answer(id: &str, ok: bool, error: &str) -> serde_json::Value {
 /// The InventorySystem's frame: it applies the queued moves (a refused give's items going back).
 fn inventory_frame(world: &mut hecs::World) {
     use humanity_core::ecs::systems::System;
-    crate::systems::inventory::InventorySystem::new().tick(world, 0.016, &humanity_core::hot_reload::data_store::DataStore::new());
+    humanity_systems::inventory::InventorySystem::new().tick(world, 0.016, &humanity_core::hot_reload::data_store::DataStore::new());
 }
 
 /// A GIVE'S ITEMS ARE IN ONE PLACE AT A TIME (finding 1 of the 2026-10-04 review): asked, the

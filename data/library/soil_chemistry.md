@@ -549,7 +549,7 @@ bed, and its numbers come from sources this guide also uses.
   them; a growing crop draws it down by what that crop's harvest will
   remove, and a crop is held back by whichever nutrient is scarcest. The
   game's notices name the element, phosphorus or potassium, even though
-  the grams are oxides (`src/systems/farming/soil.rs`,
+  the grams are oxides (`crates/humanity-systems/src/farming/soil.rs`,
   `data/garden/nutrients.ron`).
 
 What the game leaves out, so you do not learn it from the game: there is
@@ -707,9 +707,9 @@ public domain. Documents and web pages were read on 4 October 2026.
 - Soil pH in the garden: `data/garden/soil_ph.ron` (start pH, the loam's
   buffer, the amendments, urine's acidity, the 8.3 ceiling and 4.0
   floor, `loss_per_ph_unit` and the NRCS yield table) and
-  `src/systems/farming/soil_ph.rs`.
+  `crates/humanity-systems/src/farming/soil_ph.rs`.
 - Nutrients as N, P2O5 and K2O, and the scarcest-nutrient cap:
-  `src/systems/farming/soil.rs` and `data/garden/nutrients.ron`.
+  `crates/humanity-systems/src/farming/soil.rs` and `data/garden/nutrients.ron`.
 - The Soil pH, Play mode and "Start every session from the default
   home" settings: `soil_ph`, `PlayMode`, `play_mode_allows` and
   `fresh_world_each_launch` in `src/config.rs`; the Gameplay settings

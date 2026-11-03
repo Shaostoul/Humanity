@@ -74,7 +74,7 @@ pub(crate) struct FeedInputs<'a> {
 /// recomputed; "you" is the camera's render-frame position taken back to the
 /// world (`station::render_to_world_rot`) and into the ship's own axes.
 pub(crate) fn build(i: &FeedInputs) -> MapSelf {
-    let to_world = crate::station::render_to_world_rot(i.riding, i.station_rot);
+    let to_world = humanity_ship::station::render_to_world_rot(i.riding, i.station_rot);
     let cam = DVec3::new(i.cam_local.x as f64, i.cam_local.y as f64, i.cam_local.z as f64);
     let you_world = i.ship_world_pos + to_world * cam;
     let facing = i.station_rot.inverse() * (to_world * i.cam_forward.as_dvec3());
@@ -112,8 +112,8 @@ fn where_aboard(state: &EngineState) -> (Option<i32>, Option<(String, String)>) 
         return (None, None);
     };
     let eye = state.camera.position;
-    let levels = crate::ship::levels::ship_levels(ship);
-    let level = crate::ship::levels::level_at(&levels, eye.y - state.controller.eye_height()).map(|i| levels[i].ordinal);
+    let levels = humanity_ship::levels::ship_levels(ship);
+    let level = humanity_ship::levels::level_at(&levels, eye.y - state.controller.eye_height()).map(|i| levels[i].ordinal);
     let room = crate::gui::pages::hud::room_card_at(&g.room_bounds, Some(ship), &g.keybinds, eye).map(|r| (r.id.clone(), r.display_name.clone()));
     (level, room)
 }
@@ -124,9 +124,9 @@ pub(crate) fn publish(state: &mut EngineState, vel: DVec3) {
     let _cost = humanity_core::frame_costs::stage("cpu.maps_feed");
     let (game_seconds, game_day_s) = state
         .data_store
-        .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+        .get::<std::sync::Mutex<humanity_systems::time::GameTime>>("game_time")
         .and_then(|m| m.lock().ok().map(|g| (g.elapsed_seconds, g.seconds_per_day())))
-        .unwrap_or((0.0, crate::systems::time::EARTH_DAY_S));
+        .unwrap_or((0.0, humanity_systems::time::EARTH_DAY_S));
     let (level, room) = where_aboard(state);
     let me = build(&FeedInputs {
         station_id: &state.station_def.id,

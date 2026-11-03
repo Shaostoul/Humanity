@@ -31,13 +31,13 @@ the parent's `moons` list for moons. It then exists in the Cosmos page, the
 sky, and the 3D system with no code.
 
 **Layer 2 - the detailed surface: `data/planets/<id>.ron`** (a `PlanetDef`,
-struct in `src/terrain/planet.rs`). At world load, `src/lib.rs` walks every
+struct in `crates/humanity-terrain/src/planet.rs`). At world load, `src/lib.rs` walks every
 sol.json body and checks whether `data/planets/<id>.ron` exists; if yes, the
 body gets an icosphere LOD surface you can approach and walk on. Shipped:
 `earth.ron`, `mars.ron`, `moon.ron`, `pluto.ron`. **Giving a body a real
 surface = writing this RON file**, named exactly after the sol.json id.
 
-## PlanetDef fields (see `src/terrain/planet.rs` for defaults and full docs)
+## PlanetDef fields (see `crates/humanity-terrain/src/planet.rs` for defaults and full docs)
 
 Core: `name`, `radius` (meters), `gravity`, `terrain_seed`, `ore_seed`,
 `orbital_radius`, `orbital_period`, `rotation_period`, `axial_tilt`.
@@ -64,7 +64,7 @@ copy it and prune for a new body.
 ## The albedo pipeline (HOSALB1)
 
 Real surface imagery ships as `data/planets/<id>_albedo.bin` in the HOSALB1
-container (`src/terrain/planet_albedo.rs`):
+container (`crates/humanity-terrain/src/planet_albedo.rs`):
 
 ```
 bytes 0..7    magic b"HOSALB1"
@@ -89,7 +89,7 @@ Builders (node, no npm deps):
 - `scripts/dump-albedo-png.js` - visual inspection of a baked .bin.
 
 At load, samples are decoded to linear and graded by
-`grade_albedo` (`src/terrain/planet_surface.rs`): ocean-floor darkening, a
+`grade_albedo` (`crates/humanity-terrain/src/planet_surface.rs`): ocean-floor darkening, a
 land gain with shadow/vegetation lift (`land_gain`, smoothstep on the
 green-dominance measure), and the sea-ice cap blend from `cap_color`. The
 same function feeds both the per-face fallback and the baked GPU texture, so
@@ -99,14 +99,14 @@ face colors and texture colors agree by construction.
 
 - Base grid: `data/planets/earth_heightmap.bin` from NOAA ETOPO1, built by
   `scripts/build-earth-heightmap.js` (0.05 degree, ~5.5 km cells; same header
-  family as HOSALB1, see `src/terrain/planet_heightmap.rs`). When a heightmap
+  family as HOSALB1, see `crates/humanity-terrain/src/planet_heightmap.rs`). When a heightmap
   loads, the RON's hand-tuned `sea_level` is OVERRIDDEN with the grid's true
   0 m position so the real coastline is exact; on load failure the game warns
   and falls back to procedural noise (a missing grid must never blank a
   planet).
 - Detail tier: `data/planets/earth_tiles/` holds optional 15x15-degree tiles
   at 15 arc-seconds (~460 m cells, `N00E000.bin` naming), streamed by
-  `src/terrain/terrain_tiles.rs` (center + 8 neighbors resident, ~26 MB
+  `crates/humanity-terrain/src/terrain_tiles.rs` (center + 8 neighbors resident, ~26 MB
   each). Built locally by `examples/build_earth_tiles.rs` from NOAA
   ETOPO 2022.
 

@@ -16,7 +16,7 @@
 use crate::engine::state::EngineState;
 use crate::renderer::mesh::Mesh;
 use humanity_core::vertex::Vertex;
-use crate::ship::pipe_marking::{self, MarkingMode};
+use humanity_ship::pipe_marking::{self, MarkingMode};
 use glam::{Quat, Vec3};
 use std::collections::{HashMap, HashSet};
 

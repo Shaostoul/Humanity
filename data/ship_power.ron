@@ -11,7 +11,7 @@
 // So in the default Ship life support mode (Station-supplied) every power island
 // of the player's home is tied to the ship's bus: the home's own panels, turbine
 // and batteries are used first, and the reactor supplies the rest, metered to the
-// watt-hour (src/systems/ship_power.rs). In the Realistic mode the tie is off and
+// watt-hour (crates/humanity-systems/src/ship_power.rs). In the Realistic mode the tie is off and
 // the home runs on what it makes and stores. A planet build site is never on it.
 //
 // THE REACTOR CLASS IS A GAME CHOICE; its figure is a real one. The model is the

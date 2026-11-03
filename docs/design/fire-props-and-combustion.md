@@ -35,12 +35,12 @@ It also helps to know what EmberGen itself is. It is an **offline authoring tool
 
 ### Simulation pieces that exist
 
-- **FireSystem** (src/systems/fire.rs, v0.142.0, 5ffea893) is not registered (tests/engine_wiring_lint.rs:71), and no code attaches its components. If it did run, "intensity" would be a unitless 0 to 1 value, fuel would drop 1 unit per second, and damage would be a flat 1 HP/s within 1.5 m. It ignores oxygen, fuel type, temperature and smoke, and it never reads data/fire_system.ron (loaded as untyped `ron::Value`, fire.rs:31-36).
+- **FireSystem** (crates/humanity-systems/src/fire.rs, v0.142.0, 5ffea893) is not registered (tests/engine_wiring_lint.rs:71), and no code attaches its components. If it did run, "intensity" would be a unitless 0 to 1 value, fuel would drop 1 unit per second, and damage would be a flat 1 HP/s within 1.5 m. It ignores oxygen, fuel type, temperature and smoke, and it never reads data/fire_system.ron (loaded as untyped `ron::Value`, fire.rs:31-36).
 - **AtmosphereSystem** is live (lib.rs:1070, since 310714e4). It models one 14,000 m3 home air volume (engine/home_spawn.rs:36) with O2 and CO2 from occupants. Its explosive-limit and toxic-gas tables are hard-coded (atmosphere.rs:195-237) and duplicate data/chemistry/gases.csv. The damage path needs `InEnclosedSpace` and `IgnitionSource`, which nothing spawns, so only the O2 "breathable" flag reaches the player (lib.rs:5741-5758).
 - **Vitals are richer than the HUD shows.** Satiation, hydration, energy, oxygen, body temperature and waste all exist and drain health (ecs/components.rs:79-110; food.rs:476-630). The HUD shows a health bar only (gui/pages/hud.rs:101-118). Everything else is on the Inventory page (inventory.rs:1431-1520).
 - **Status effects are ready but unused.** Rows for burning, poisoned, toxic_atmosphere and overheated (status_effects.csv:46, 47, 80, 54) would tick through the live effect loop (food.rs:601-626) as soon as something applies them. Nothing does.
-- **Burn degrees 1 to 3** were defined in data/medical.ron:105-139, but MedicalSystem was dormant. (2026-10-12, first-hour audit S8: both deleted. Burns are now three `wound` status effects in data/medical/wounds.ron, red skin, blistered and deep, each with a course and a chance of going bad, applied by the food system through src/systems/wounds.rs; fire.rs pushes a body's heat as an injury instead of taking health in f32.)
-- **DisasterSystem** has MeteorImpact and AsteroidImpact (src/systems/disasters.rs:36-37, 104-105, 124). It is not registered (engine_wiring_lint.rs:41), and nothing reads its `vfx_id` strings.
+- **Burn degrees 1 to 3** were defined in data/medical.ron:105-139, but MedicalSystem was dormant. (2026-10-12, first-hour audit S8: both deleted. Burns are now three `wound` status effects in data/medical/wounds.ron, red skin, blistered and deep, each with a course and a chance of going bad, applied by the food system through crates/humanity-systems/src/wounds.rs; fire.rs pushes a body's heat as an injury instead of taking health in f32.)
+- **DisasterSystem** has MeteorImpact and AsteroidImpact (crates/humanity-systems/src/disasters.rs:36-37, 104-105, 124). It is not registered (engine_wiring_lint.rs:41), and nothing reads its `vfx_id` strings.
 
 ### Models and props
 
@@ -199,7 +199,7 @@ Only one GPU rig may run at a time.
   - Radiant and contact exposure map to the burn depths in data/medical/wounds.ron (`burns.steps`, today seconds of fire at full intensity).
   - A CO/smoke field on EnvironmentContext lets the existing status rows (toxic_atmosphere, poisoned, burning, overheated) apply through the live effect tick. Each needs only an `effects.apply()` call.
 - Also fix the status-ID mismatch: fire_system.ron uses `debuff_*` IDs that are not in status_effects.csv.
-- Files: new src/systems/wick.rs, crates/humanity-core/src/ecs/components.rs, src/systems/atmosphere.rs, src/systems/food.rs, data/status_effects.csv, registration in src/lib.rs, tests/engine_wiring_lint.rs.
+- Files: new crates/humanity-systems/src/wick.rs, crates/humanity-core/src/ecs/components.rs, crates/humanity-systems/src/atmosphere.rs, crates/humanity-systems/src/food.rs, data/status_effects.csv, registration in src/lib.rs, tests/engine_wiring_lint.rs.
 - Verify: lib tests. For example: a 25 mL kerosene soak burns out inside the fuel row's range; the grip of a 6061 shaft rises more slowly than the grip of a CP-Ti shaft only if the data says so; a closed-room spin raises CO and triggers toxic_atmosphere. Then `just snapshot` of the Inventory page and the Home air card.
 
 **F8. Close-up truth: wick material, char and motion.**
@@ -235,7 +235,7 @@ Outside this ladder but blocking the full vision: **a character body with skelet
 
 **A5. The crater.** voxel-terrain.md rung 6 (heightmap depression plus rim voxels, :82-84). This depends on that plan's rungs 1 to 5, which are unbuilt.
 
-**A6. Aftermath.** A dust column fed into the cloud system (weather-water-roadmap.md:80-104), fires ignited through F7's system, and the existing tsunami height field (src/terrain/ocean_events.rs) wired to the disaster instead of a dev command.
+**A6. Aftermath.** A dust column fed into the cloud system (weather-water-roadmap.md:80-104), fires ignited through F7's system, and the existing tsunami height field (crates/humanity-terrain/src/ocean_events.rs) wired to the disaster instead of a dev command.
 
 ---
 

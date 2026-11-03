@@ -61,7 +61,7 @@ per-crop conditions.
 
 ## FarmingSystem (3.51 ms)
 
-`FarmingSystem::tick` (`src/systems/farming/mod.rs:954`) walks every crop several times. The cost is
+`FarmingSystem::tick` (`crates/humanity-systems/src/farming/mod.rs:954`) walks every crop several times. The cost is
 string-keyed SipHash lookups and small heap allocations repeated per crop, not arithmetic.
 
 | Pass | Lines | Est. ms | Why |

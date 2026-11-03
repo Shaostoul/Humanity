@@ -1,6 +1,6 @@
 // Hand tools a manual craft needs (2026-09-26; crafting depth, rung 1 of the
 // gameplay arc, docs/design/gameplay-gaps-2026-09-25.md). Read by
-// src/systems/crafting/tools.rs for both the crafting system and the
+// crates/humanity-systems/src/crafting/tools.rs for both the crafting system and the
 // Crafting page.
 //
 // A tool is not consumed. Each manual craft wears every tool it names by one

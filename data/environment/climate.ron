@@ -9,12 +9,12 @@
 //
 // ONE ROW PER WORLD, which is the point: a new world is a row, not code
 // (docs/design/infinite-of-x.md). A world without a row falls back to the
-// generic per-body model in src/systems/body_environment.rs (catalog mean
+// generic per-body model in crates/humanity-systems/src/body_environment.rs (catalog mean
 // temperature, a latitude cosine, the lapse) with Earth's pressure column
 // where it has air; that is the honest "we have no climate data for it" arm.
 //
 // Design: docs/design/environment-fields.md, "Layer 1 as built".
-// CPU model (f64): src/systems/env_layer1.rs
+// CPU model (f64): crates/humanity-systems/src/env_layer1.rs
 // GPU twin (f32):  assets/shaders/pbr/00-bindings-vertex.wgsl, EnvClimate and
 //                  the env_l1_* functions, held in lockstep by a test that
 //                  RUNS the shader functions (env_layer1.rs tests).
@@ -33,7 +33,7 @@
 //   north_winter_solstice_year_fraction
 //                 where the northern winter solstice falls in the GAME year.
 //                 The game year is 120 days of four 30-day seasons starting
-//                 with Spring at day 0 (src/systems/time.rs). Read as
+//                 with Spring at day 0 (crates/humanity-systems/src/time.rs). Read as
 //                 astronomical seasons, Spring begins at the March equinox, so
 //                 the northern winter solstice is the first day of Winter:
 //                 day 90 of 120 = 0.75.

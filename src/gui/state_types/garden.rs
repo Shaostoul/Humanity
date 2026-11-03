@@ -40,8 +40,8 @@ pub struct GardenPests {
     /// and what the player just chose: hand-pollinate an area, or introduce
     /// a colony in a hive.
     pub pollination_off: bool,
-    pub pollinate_areas: Vec<crate::systems::farming::pollination::AreaRow>,
-    pub pollinate_pending: Option<crate::systems::farming::pollination::Request>,
+    pub pollinate_areas: Vec<humanity_systems::farming::pollination::AreaRow>,
+    pub pollinate_pending: Option<humanity_systems::farming::pollination::Request>,
     /// Picking over a season (2026-09-26, farming::picking): Settings
     /// "Realistic" (saved as AppConfig::picking_realistic; Forgiving is the
     /// default), and the crop the player chose to clear from its plot.
@@ -65,12 +65,12 @@ pub struct GardenPests {
     /// Weeds (2026-09-26, farming::weeds): a row per soil area with its cover,
     /// mulch and seed bank and the Hoe / Mulch buttons, and the control the
     /// player just chose as (area, control id), carried next frame.
-    pub weeds: Vec<crate::systems::farming::weeds::WeedAreaRow>,
+    pub weeds: Vec<humanity_systems::farming::weeds::WeedAreaRow>,
     pub weed_pending: Option<(String, String)>,
     /// Row covers (2026-09-27, farming::pests::cover_rows): a row per soil
     /// area saying whether a cover is on, with its Row cover / Take off
     /// button. The button goes through `pending`, like the pest controls.
-    pub covers: Vec<crate::systems::farming::pests::CoverRow>,
+    pub covers: Vec<humanity_systems::farming::pests::CoverRow>,
     /// Each crop's wait and water in plain words (2026-10-12, first-hour
     /// audit F11, farming::outlook): its card's "Ripe in" and "Water" rows
     /// and the line under its slot tile. Keyed by the crop's entity bits
@@ -78,7 +78,7 @@ pub struct GardenPests {
     /// bridge from `farming::outlook::OutlookView`; a crop with no entry
     /// shows neither row. Hashed with the small fast hasher (2026-10-31): the Garden page reads
     /// every crop's entry every frame to key its tiles' sizes (gui/widgets/offscreen.rs).
-    pub outlook: std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook, crate::gui::widgets::offscreen::KeyBuild>,
+    pub outlook: std::collections::HashMap<u64, humanity_systems::farming::outlook::CropOutlook, crate::gui::widgets::offscreen::KeyBuild>,
 }
 
 /// A growing crop for GUI display (synced from the ECS each frame).
@@ -140,7 +140,7 @@ pub struct GuiCrop {
     /// and for a ripe plant between picks when its next pick comes, which
     /// its slot tile shows instead of "ripe" (2026-09-27,
     /// `picking::stage_word`).
-    pub picking: crate::systems::farming::picking::PickRow,
+    pub picking: humanity_systems::farming::picking::PickRow,
     /// Its "Humidity" card row: the air it grows in against its plants.csv
     /// window, and the cap outside it (farming::humidity::GuiView); "" = none.
     pub humidity: String,

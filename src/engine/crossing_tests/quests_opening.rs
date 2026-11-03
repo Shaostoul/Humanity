@@ -20,24 +20,24 @@
 //! recreation room, your cabin's door.
 
 use humanity_core::ecs::systems::System;
-use crate::systems::quests::*;
+use humanity_systems::quests::*;
 use humanity_core::ecs::components::{AsteroidBody, Controllable, StatusEffects, Transform, Vitals, Wallet};
-use crate::ship::ship_structure::{HomeDesign, ShipStructure};
-use crate::ship::starts::Starts;
-use crate::systems::construction::{placement, BlueprintRegistry, BuildRequest, ConstructionSystem};
-use crate::systems::crafting::{CraftingSystem, RecipeRegistry};
-use crate::systems::farming::{FarmingSystem, PlantRegistry};
-use crate::systems::food::FoodSystem;
-use crate::systems::inventory::ItemRegistry;
-use crate::systems::mining::DroneSystem;
-use crate::systems::skills::SkillRegistry;
+use humanity_ship::ship_structure::{HomeDesign, ShipStructure};
+use humanity_ship::starts::Starts;
+use humanity_systems::construction::{placement, BlueprintRegistry, BuildRequest, ConstructionSystem};
+use humanity_systems::crafting::{CraftingSystem, RecipeRegistry};
+use humanity_systems::farming::{FarmingSystem, PlantRegistry};
+use humanity_systems::food::FoodSystem;
+use humanity_systems::inventory::ItemRegistry;
+use humanity_systems::mining::DroneSystem;
+use humanity_systems::skills::SkillRegistry;
 use glam::Vec3;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::inventory::Inventory;
-use crate::systems::quests::PLANT_EVENT;
-use crate::systems::quests::counted;
+use humanity_systems::inventory::Inventory;
+use humanity_systems::quests::PLANT_EVENT;
+use humanity_systems::quests::counted;
 use std::collections::HashMap;
 
 fn data_dir() -> PathBuf {
@@ -57,18 +57,18 @@ fn opening_store() -> DataStore {
     data.insert("quest_destinations", DestinationList::from_ron(&read("entities/destinations.ron")).expect("destinations parse"));
     data.insert("item_registry", ItemRegistry::from_csv(&read("items.csv")).expect("items.csv"));
     data.insert("skill_registry", SkillRegistry::from_csv(&read("skills/skills.csv")).expect("skills.csv"));
-    let tools = crate::systems::crafting::tools::load(&dir);
+    let tools = humanity_systems::crafting::tools::load(&dir);
     data.insert("recipe_registry", RecipeRegistry::from_csv(&read("recipes.csv")).expect("recipes.csv").with_tools(&tools));
     data.insert("blueprint_registry", BlueprintRegistry::from_ron(&read("blueprints/basic.ron")).expect("basic.ron"));
     data.insert("plant_registry", PlantRegistry::from_csv(&read("plants.csv")).expect("plants.csv"));
     data.insert(
         "status_effect_registry",
-        crate::systems::status_effects::StatusEffectRegistry::from_csv(&read("status_effects.csv")).expect("status_effects.csv"),
+        humanity_systems::status_effects::StatusEffectRegistry::from_csv(&read("status_effects.csv")).expect("status_effects.csv"),
     );
     for key in ["quest_events", "player_notices"] {
         data.insert(key, Mutex::new(Vec::<String>::new()));
     }
-    data.insert("xp_grants", Mutex::new(Vec::<crate::systems::skills::SkillXPEvent>::new()));
+    data.insert("xp_grants", Mutex::new(Vec::<humanity_systems::skills::SkillXPEvent>::new()));
     for key in ["consume_request", "drink_request", "plant_request", "craft_request"] {
         data.insert(key, Mutex::new(Option::<String>::None));
     }
@@ -90,7 +90,7 @@ fn opening_store() -> DataStore {
 /// game publishes them for the station gate (`placed_machine_types`,
 /// engine::built_uses::publish_stations: every placed row and array cell).
 fn placed_in(home_file: &str) -> std::collections::HashSet<String> {
-    let home = crate::systems::grow_machines::load_home(&data_dir().join("machines").join(home_file)).unwrap_or_else(|| panic!("{home_file} parses"));
+    let home = humanity_systems::grow_machines::load_home(&data_dir().join("machines").join(home_file)).unwrap_or_else(|| panic!("{home_file} parses"));
     home.all_instances().into_iter().map(|i| i.machine).collect()
 }
 
@@ -163,7 +163,7 @@ fn new_player(world: &mut hecs::World, ship: &ShipStructure) -> hecs::Entity {
         Vitals::default(),
         StatusEffects::default(),
         Wallet::default(),
-        crate::systems::skills::PlayerSkills::new(),
+        humanity_systems::skills::PlayerSkills::new(),
         tracker,
     ))
 }
@@ -470,7 +470,7 @@ fn planting_counts_every_way_the_player_sows_and_nothing_else() {
     // a grow machine within reach (farming::sowing, 2026-10-12).
     data.insert(
         "grow_plots",
-        vec![crate::systems::farming::lighting::GrowPlot { id: "oilseed_bed_1".into(), footprint_m2: 2.0, ..Default::default() }],
+        vec![humanity_systems::farming::lighting::GrowPlot { id: "oilseed_bed_1".into(), footprint_m2: 2.0, ..Default::default() }],
     );
     data.insert("grow_instances", HashMap::from([("oilseed_bed".to_string(), vec![("oilseed_bed_1".to_string(), 2u32)])]));
     data.insert("camera_position", Vec3::new(0.0, 1.7, 1.0));
@@ -819,11 +819,11 @@ fn walk_the_opening(home_file: &str, plot: &str, dev: bool) {
     //    trading post sells the coal (the frame bridge's vendor_buy), the
     //    hand craft takes the ore from home storage and the coal from the pack.
     {
-        let goods = crate::systems::economy::TradeGoodsRegistry::from_ron(&read("trade_goods.ron")).expect("trade_goods.ron");
+        let goods = humanity_systems::economy::TradeGoodsRegistry::from_ron(&read("trade_goods.ron")).expect("trade_goods.ron");
         let items = game.data.get::<ItemRegistry>("item_registry");
         let mut q = game.world.query_one::<(&mut Inventory, &mut Wallet)>(game.player).unwrap();
         let (inv, wallet) = q.get().unwrap();
-        crate::systems::economy::vendor_buy(inv, &mut wallet.credits, &goods, items, "coal_0", 1).expect("the trading post sells coal");
+        humanity_systems::economy::vendor_buy(inv, &mut wallet.credits, &goods, items, "coal_0", 1).expect("the trading post sells coal");
     }
     game.request("craft_request", "smelt_iron");
     let said = game.until_past(5, 20, &format!("{walk}: smelting the iron"));
@@ -1162,7 +1162,7 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
         read_openings.push(id.clone());
         let def = quest_def(id);
         let kit: Vec<String> = start.kit.iter().map(|(id, _)| id.clone()).collect();
-        let food = kit.iter().find(|id| crate::systems::food::consume_kinds().get(*id) == Some(&false));
+        let food = kit.iter().find(|id| humanity_systems::food::consume_kinds().get(*id) == Some(&false));
         // Each plot this start's homes stand on, as the quests see it from there.
         let plots: Vec<(String, DataStore)> = file
             .plots
@@ -1306,7 +1306,7 @@ fn a_player_who_finished_the_old_first_steps_is_not_sent_back() {
             ),
         )
         .unwrap();
-    let mut save = crate::persistence::WorldSave::new_offline("My Homestead", "homestead");
+    let mut save = humanity_systems::persistence::WorldSave::new_offline("My Homestead", "homestead");
     let mut before = QuestTracker::default();
     before.completed_quests.push("gs_first_steps".into());
     before.accept_quest("gs_toolsmith");

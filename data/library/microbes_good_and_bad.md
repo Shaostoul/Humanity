@@ -509,7 +509,7 @@ themselves.
   quarter of its nourishment and always gives you Food Poisoning, and
   some foods eaten as they are carry a chance of it: raw meat 40 percent,
   raw fish 25, eggs 15, fresh milk 5 and raw vegetables 2
-  (`src/systems/food.rs`, `data/food_system.ron`). [When Food or Water
+  (`crates/humanity-systems/src/food.rs`, `data/food_system.ron`). [When Food or Water
   Makes You Sick](/library#when-food-or-water-makes-you-sick) says what Food
   Poisoning does to you in the game.
 - **Under the default settings.** A new game starts in the Normal play
@@ -517,10 +517,10 @@ themselves.
   tools take you off the ship, so in Normal the food you carry ages in
   the ship's air, at room temperature (`src/config.rs`,
   `src/gui/pages/dev.rs`, `src/engine/survival_env.rs`,
-  `src/systems/atmosphere.rs`). The clock runs at the Realistic time
+  `crates/humanity-systems/src/atmosphere.rs`). The clock runs at the Realistic time
   speed unless you change it (Settings > Gameplay > Time), so a game
   second is a real second and raw meat really does keep about a day
-  (`src/systems/time.rs`). Settings > Gameplay > "Start every session
+  (`crates/humanity-systems/src/time.rs`). Settings > Gameplay > "Start every session
   from the default home" is off by default, so your food, with its age,
   is still there at the next launch.
 - **Crop diseases spread in humid air.** Gray mold, powdery mildew and
@@ -536,12 +536,12 @@ themselves.
   urine" button turns your character's Waste into Fertilizer at once, and
   the Composter's compost recipes take a 20-second craft that, in Normal,
   uses up the materials (`src/gui/pages/inventory.rs`,
-  `src/systems/food.rs`, `data/recipes.csv`). Letting Waste build up gives
+  `crates/humanity-systems/src/food.rs`, `data/recipes.csv`). Letting Waste build up gives
   the Unsanitary condition, which slows you a little, and composting
   clears it; no germs are involved.
 - **Fermenting is only written down.** The food data has a "Fermented"
   cooking method that the game loads but never uses
-  (`data/food_system.ron`, `src/systems/food.rs`). The Make
+  (`data/food_system.ron`, `crates/humanity-systems/src/food.rs`). The Make
   Cheese recipe says it cultures the milk, but it takes only milk and
   salt, and Bake Bread takes flour, water and salt: there is no yeast or
   culture in the game (`data/recipes.csv`, `data/items.csv`).
@@ -552,7 +552,7 @@ themselves.
   as caused by bacteria (the infection, an infected wound and plague),
   not the cold, the flu or Food Poisoning, so with nothing like that on
   you, its Use button keeps it in your pack and says why
-  (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
+  (`data/medical/treatments.ron`, `crates/humanity-systems/src/treatment.rs`,
   `src/gui/pages/inventory.rs`).
 
 What the game leaves out, so you do not learn it from the game: there are
@@ -733,14 +733,14 @@ were read on 5 October 2026.
   (`spoilage_rate_hours`, `raw_consumption_risk`, `temperature_zones`,
   and the "Fermented" cooking method nothing uses); eating, Food
   Poisoning, the
-  Waste meter and composting: `src/systems/food.rs`; the illness rows:
+  Waste meter and composting: `crates/humanity-systems/src/food.rs`; the illness rows:
   `data/status_effects.csv`; what Antibiotics end:
-  `data/medical/treatments.ron` and `src/systems/treatment.rs`; the air
+  `data/medical/treatments.ron` and `crates/humanity-systems/src/treatment.rs`; the air
   around you aboard:
-  `src/engine/survival_env.rs` and `src/systems/atmosphere.rs`; the play
+  `src/engine/survival_env.rs` and `crates/humanity-systems/src/atmosphere.rs`; the play
   mode, its Dev-only tools and the time speed: `src/config.rs`,
-  `src/gui/pages/dev.rs`, `src/systems/time.rs`; food saved with the
-  game: `src/persistence.rs`, `src/save_load.rs`; the Inventory page's
+  `src/gui/pages/dev.rs`, `crates/humanity-systems/src/time.rs`; food saved with the
+  game: `crates/humanity-systems/src/persistence.rs`, `src/save_load.rs`; the Inventory page's
   buttons:
   `src/gui/pages/inventory.rs`; the crop diseases and Bt:
   `data/garden/pests.ron`, `data/items.csv`; the recipes:

@@ -5,7 +5,7 @@
 //! F6 location bookmarks.
 use glam::Vec3;
 use crate::engine::state::EngineState;
-use crate::terrain::planet::PlanetDef;
+use humanity_terrain::planet::PlanetDef;
 
 /// Altitude (m) below which the camera engages planetary SURFACE mode while
 /// frame-locked to a body (task #76 increment 1): up becomes the local
@@ -51,9 +51,9 @@ pub(crate) const INERTIAL_BLEND_MAX_ALT: f64 = 1_000_000.0;
 /// level (no heightmap) or a bare Earth radius (no def).
 pub(crate) fn ground_radius_m(
     def: Option<&PlanetDef>,
-    hm: Option<&crate::terrain::planet_heightmap::PlanetHeightmap>,
-    detail: Option<&crate::terrain::planet_chunks::DetailNoise>,
-    tiles: Option<&crate::terrain::terrain_tiles::TerrainTiles>,
+    hm: Option<&humanity_terrain::planet_heightmap::PlanetHeightmap>,
+    detail: Option<&humanity_terrain::planet_chunks::DetailNoise>,
+    tiles: Option<&humanity_terrain::terrain_tiles::TerrainTiles>,
     // f64 unit dir (v0.1012, the operator f32 audit): an f32 UNIT vector
     // quantizes ground positions at ~0.4-0.8 m - the same defect class as
     // the v0.1010 tile-grid fix, but on the CLAMP side. The coarse base
@@ -74,7 +74,7 @@ pub(crate) fn ground_radius_m(
                 // `tiles` is EARTH's tier: callers pass it only for earth.
                 Some(h) => match detail {
                     Some(dn) => {
-                        crate::terrain::planet_chunks::drawn_elevation_normalized(
+                        humanity_terrain::planet_chunks::drawn_elevation_normalized(
                             h, d, dn, tiles, unit_dir,
                         )
                     }
@@ -89,9 +89,9 @@ pub(crate) fn ground_radius_m(
             // what makes the ocean enterable down to the Marianas trench.
             if d.has_water {
                 d.radius
-                    * crate::terrain::planet_surface::displaced_radius_f64_true(d, elev as f64)
+                    * humanity_terrain::planet_surface::displaced_radius_f64_true(d, elev as f64)
             } else {
-                d.radius * crate::terrain::planet_surface::displaced_radius_f64(d, elev as f64)
+                d.radius * humanity_terrain::planet_surface::displaced_radius_f64(d, elev as f64)
             }
         }
         None => 6.371e6,
@@ -108,7 +108,7 @@ pub(crate) fn ground_radius_m(
 pub(crate) fn current_planet_spin(state: &EngineState) -> f64 {
     let hour = state
         .data_store
-        .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+        .get::<std::sync::Mutex<humanity_systems::time::GameTime>>("game_time")
         .and_then(|m| m.lock().ok())
         // Where the sun is on a 24-hour dial, so the planet turns once per
         // game day of any length (the one clock, 2026-09-27).
@@ -180,7 +180,7 @@ pub(crate) fn ocean_anchor256(state: &EngineState) -> [f32; 4] {
         return [0.0, 0.0, 0.0, k];
     }
     let a = state.frame_lock_anchor;
-    let m = crate::terrain::ocean_fft::FFT_B_ANCHOR_MOD_M;
+    let m = humanity_terrain::ocean_fft::FFT_B_ANCHOR_MOD_M;
     [
         a.x.rem_euclid(m) as f32,
         a.y.rem_euclid(m) as f32,
@@ -531,8 +531,8 @@ pub(crate) fn publish_body_environment(state: &mut EngineState) {
     // (the coarse-data boundary the f32 rule allows).
     let land_fraction = match (body_id, state.ocean_mask.as_ref()) {
         (Some("earth"), Some(om)) => {
-            let (lat, lon) = crate::terrain::planet_heightmap::dir_to_latlon_deg_f64(up);
-            crate::systems::env_layer1::land_fraction_around(lat, lon, |la, lo| {
+            let (lat, lon) = humanity_terrain::planet_heightmap::dir_to_latlon_deg_f64(up);
+            humanity_systems::env_layer1::land_fraction_around(lat, lon, |la, lo| {
                 om.is_ocean_latlon(la as f32, lo as f32)
             })
         }
@@ -558,7 +558,7 @@ pub(crate) fn publish_body_environment(state: &mut EngineState) {
     let catalog_mean_k = body_id
         .and_then(humanity_core::cosmos::find_body)
         .map(|b| b.mean_temperature_k as f32);
-    let env = crate::systems::body_environment::environment_for_frame_lock(
+    let env = humanity_systems::body_environment::environment_for_frame_lock(
         body_id,
         def,
         catalog_mean_k,
@@ -604,7 +604,7 @@ pub(crate) fn publish_planet_tuner_readout(state: &mut EngineState) {
         .unwrap_or(24.0);
     if let Some(w) = state
         .data_store
-        .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
+        .get::<std::sync::Mutex<humanity_systems::weather::Weather>>("weather")
         .and_then(|m| m.lock().ok())
     {
         t.readout.temp_at_player_c = w.temperature_at_player;
@@ -612,7 +612,7 @@ pub(crate) fn publish_planet_tuner_readout(state: &mut EngineState) {
     }
     t.readout.breathable_outside = state
         .data_store
-        .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
+        .get::<humanity_systems::body_environment::BodyEnvironment>("body_environment")
         .map(|e| e.breathable_outside())
         .unwrap_or(false);
     // Editor copies: `current` tracks the loaded def every frame (so a hot

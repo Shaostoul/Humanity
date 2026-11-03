@@ -52,12 +52,12 @@
 use crate::gui::GuiState;
 use humanity_core::hot_reload::data_store::DataStore;
 // The live weather record the deck reads its coverage from. In lib.rs it
-// arrived through `mod native_app`'s `use crate::systems::weather::Weather`.
-use crate::systems::weather::Weather;
+// arrived through `mod native_app`'s `use humanity_systems::weather::Weather`.
+use humanity_systems::weather::Weather;
 use crate::renderer::camera::Camera;
 use crate::renderer::mesh::Mesh;
 use crate::renderer::{RenderObject, Renderer};
-use crate::terrain::planet::PlanetDef;
+use humanity_terrain::planet::PlanetDef;
 use glam::{DVec3, Quat, Vec3};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -107,7 +107,7 @@ pub(crate) struct ShellState<'a> {
     /// CHANGES, so weather stays where it appeared instead of following the
     /// player around. Replaces nothing: before v0.1329 the weather had no
     /// position at all, which is the root of BUG-080.
-    pub weather_anchor: &'a mut Option<(glam::Vec3, crate::systems::weather::WeatherCondition)>,
+    pub weather_anchor: &'a mut Option<(glam::Vec3, humanity_systems::weather::WeatherCondition)>,
     /// Which slab regime (above / inside / below) the march ran in last
     /// frame, so the transition is hysteretic instead of flickering.
     pub cloud_map_regime: &'a mut u8,
@@ -253,7 +253,7 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
         m
     } else {
         let mut ico =
-            crate::terrain::icosphere::Icosphere::new();
+            humanity_terrain::icosphere::Icosphere::new();
         ico.subdivide_n(shell_level);
         let m = state.renderer.add_mesh(
             Mesh::from_icosphere(
@@ -353,7 +353,7 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
         .and_then(|m| m.lock().ok())
         .map(|w| (w.condition, w.intensity));
     let kind_id = condition.map(|(c, _)| {
-        use crate::systems::weather::WeatherCondition as WC;
+        use humanity_systems::weather::WeatherCondition as WC;
         match c {
             WC::Storm => "storm",
             WC::Rain => "rain",
@@ -1179,7 +1179,7 @@ if let Some(ac) = d.atmosphere_color {
             m
         } else {
             let mut ico =
-                crate::terrain::icosphere::Icosphere::new();
+                humanity_terrain::icosphere::Icosphere::new();
             ico.subdivide_n(shell_level);
             let m = state.renderer.add_mesh(Mesh::from_icosphere(
                 &state.renderer.device,

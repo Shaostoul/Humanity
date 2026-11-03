@@ -458,7 +458,7 @@ resource nodes such as berry bushes and clay pits. It is in
 - **Size from mass.** Animals are still simple box figures. Each one's
   body is scaled as if its typical mass were water, which gives a scale
   of about 15 centimetres for a hen and 43 for a sheep (`body_side` in
-  `src/systems/livestock.rs`).
+  `crates/humanity-systems/src/livestock.rs`).
 - **The home's animals.** Three hens, two goats and two sheep live by the
   fields of the home (`data/entities/livestock.ron`). They amble around
   the field they were placed at, at about a third of their species'
@@ -608,7 +608,7 @@ documents were read on 4 October 2026.
 
 - The creature database, `data/creatures.csv` (101 rows; diet, mass,
   speed, movement, behaviour, drops and renewable products), read by
-  `src/systems/livestock.rs` (body size from mass, the amble at a third
+  `crates/humanity-systems/src/livestock.rs` (body size from mass, the amble at a third
   of listed speed, fleeing predators within 12 metres); the home's
   animals in `data/entities/livestock.ron`; the removed wolf spawn in
   `data/entities/wild_spawns.ron`.

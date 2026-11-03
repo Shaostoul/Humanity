@@ -15,8 +15,8 @@ use humanity_core::hot_reload::HotReloadCoordinator;
 use humanity_core::hot_reload::data_store::DataStore;
 use crate::renderer::camera::{Camera, CameraController};
 use crate::renderer::{RenderObject, Renderer};
-use crate::ship::ship_structure::ShipStructure;
-use crate::terrain::planet::PlanetDef;
+use humanity_ship::ship_structure::ShipStructure;
+use humanity_terrain::planet::PlanetDef;
 
 /// One placed machine's world anchor for the plant pass (v0.863).
 #[derive(Clone)]
@@ -188,14 +188,14 @@ pub(crate) struct EngineState {
     /// terrain tier, ~460 m cells): region residency follows the camera,
     /// deep patches + the ground clamp sample it via tile_or_base. An
     /// empty/absent tile dir simply leaves the base grid in charge.
-    pub(crate) terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles,
+    pub(crate) terrain_tiles: humanity_terrain::terrain_tiles::TerrainTiles,
     /// OSM region 3D residency (maps ladder rung 3 inc. 2, v0.1148): parsed
     /// regions, the in-progress elevation grid, and the standing meshes.
     pub(crate) region_meshes: crate::engine::region_meshes::RegionMeshState,
     /// Connected-ocean mask for EARTH (v0.876 real-water Stage 1):
     /// flips the chunked terrain to true bathymetry and gates the
     /// water-shell patches. None = the pre-v0.876 clamped sea sphere.
-    pub(crate) ocean_mask: Option<crate::terrain::ocean_mask::OceanMask>,
+    pub(crate) ocean_mask: Option<humanity_terrain::ocean_mask::OceanMask>,
     /// Live Earth weather (v0.874): the background NASA GIBS fetcher
     /// delivers RG8 cloud-fraction grids here (cache first, then fresh
     /// every 30 min). None when the setting is off. Polled per frame;
@@ -231,7 +231,7 @@ pub(crate) struct EngineState {
     pub(crate) station_world_rot: glam::DQuat,
     /// The station definition in force, from data. Held so the F11 panel can
     /// show and change it without re-reading the file every frame.
-    pub(crate) station_def: crate::station::StationDef,
+    pub(crate) station_def: humanity_ship::station::StationDef,
     /// True while the player frame RIDES the station (within the aboard
     /// radius): ship_world_pos advances by the station's orbital delta
     /// each frame so every home-local system works unchanged.
@@ -254,10 +254,10 @@ pub(crate) struct EngineState {
     /// Loaded once at boot; degrades to empty (and therefore harmless) when the
     /// file is missing or malformed, so a typo cannot silently start hurting
     /// people.
-    pub(crate) flight_data: crate::systems::flight::FlightData,
+    pub(crate) flight_data: humanity_systems::flight::FlightData,
     /// What the drive and the rotating sections are doing RIGHT NOW. The single
     /// source of the felt-gravity number every consequence reads.
-    pub(crate) flight: crate::systems::flight::FlightState,
+    pub(crate) flight: humanity_systems::flight::FlightState,
     /// THIS frame's planet spin angle (v0.878.2): computed ONCE per
     /// frame at the top of RedrawRequested and read by every consumer
     /// (surface lock, frame-lock captures, render, camera requests).
@@ -293,13 +293,13 @@ pub(crate) struct EngineState {
     /// corrupt grid degrades gracefully instead of blanking the planet.
     // Arc-wrapped (v0.930): background sky-sphere builds share these
     // grids with worker threads at zero copy cost.
-    pub(crate) planet_heightmaps: std::collections::HashMap<String, std::sync::Arc<crate::terrain::planet_heightmap::PlanetHeightmap>>,
+    pub(crate) planet_heightmaps: std::collections::HashMap<String, std::sync::Arc<humanity_terrain::planet_heightmap::PlanetHeightmap>>,
     /// Loaded real surface-color grids for defs whose `albedo` field
     /// points at a data file (Earth ships one: NASA Blue Marble
     /// downsampled to 4096x2048, ~25 MB resident). Keyed by body id; a
     /// body absent here falls back to the elevation-band classifier,
     /// so a missing or corrupt grid degrades gracefully.
-    pub(crate) planet_albedos: std::collections::HashMap<String, std::sync::Arc<crate::terrain::planet_albedo::PlanetAlbedo>>,
+    pub(crate) planet_albedos: std::collections::HashMap<String, std::sync::Arc<humanity_terrain::planet_albedo::PlanetAlbedo>>,
     /// Cached sky-body meshes keyed by (body id, subdivision level).
     /// Bodies WITHOUT a procedural def share plain icosphere meshes
     /// under the reserved id "_flat". LOD switches therefore never
@@ -308,13 +308,13 @@ pub(crate) struct EngineState {
     pub(crate) planet_mesh_cache: std::collections::HashMap<(String, u32), usize>,
     /// Background sky-sphere builds in flight (v0.930): key = (body, level),
     /// worker delivers the CPU mesh via the channel; frame thread uploads.
-    pub(crate) sky_mesh_pending: std::collections::HashMap<(String, u32), std::sync::mpsc::Receiver<crate::terrain::planet_surface::SurfaceMeshData>>,
+    pub(crate) sky_mesh_pending: std::collections::HashMap<(String, u32), std::sync::mpsc::Receiver<humanity_terrain::planet_surface::SurfaceMeshData>>,
     /// Chunked-LOD state per heightmap-bearing body (2026-07-11): the
     /// quadtree patch cache + detail noise that takes over from the
     /// uniform sphere when the planet's disc overflows the screen (the
     /// old ladder's level-8 rung). See terrain::planet_chunks for the
     /// full architecture (depth-cap math, culling, streaming, skirts).
-    pub(crate) planet_chunk_states: std::collections::HashMap<String, crate::terrain::planet_chunks::ChunkState>,
+    pub(crate) planet_chunk_states: std::collections::HashMap<String, humanity_terrain::planet_chunks::ChunkState>,
     /// Renderer mesh slots freed by patch LRU eviction, recycled via
     /// replace_mesh so the renderer's append-only mesh Vec stays
     /// bounded no matter how long a flight streams patches in and out.
@@ -440,7 +440,7 @@ pub(crate) struct EngineState {
     /// Near-field REAL tree models on planet surfaces (v0.911): the
     /// planet-fixed vegetation stream re-enumerated around the camera
     /// so photoscanned conifers stand where the silhouette cards are.
-    pub(crate) near_trees: Vec<crate::terrain::planet_chunks::NearTree>,
+    pub(crate) near_trees: Vec<humanity_terrain::planet_chunks::NearTree>,
     /// Planet-local camera position at the last near-tree recompute
     /// (recompute when the camera moves far enough).
     pub(crate) near_trees_center: glam::DVec3,
@@ -450,7 +450,7 @@ pub(crate) struct EngineState {
     /// camera distance every frame by `chunks::grass_live_emerge`, which is
     /// what keeps the density ramp anchored on the player instead of on the
     /// last harvest (and therefore ringless).
-    pub(crate) near_grass: Vec<crate::terrain::planet_chunks::NearGrass>,
+    pub(crate) near_grass: Vec<humanity_terrain::planet_chunks::NearGrass>,
     /// Planet-local camera position at the last grass harvest.
     pub(crate) near_grass_center: glam::DVec3,
     /// Patch depth the last grass harvest placed its bases against - the
@@ -504,12 +504,12 @@ pub(crate) struct EngineState {
     /// Static wall/perimeter collision segments for the home (v0.556): the player (= the camera)
     /// is pushed out of these in first person so you can no longer walk through walls. Rebuilt
     /// from the home_structure on every structural edit + on world load. Doors collide live.
-    pub(crate) wall_colliders: Vec<crate::ship::wall_collision::WallSegment>,
+    pub(crate) wall_colliders: Vec<humanity_ship::wall_collision::WallSegment>,
     /// The home's doors shut THIS FRAME, each from its sill to its head (the increment 7 follow-ups,
     /// 2026-10-21): refilled once a frame before the walk (`built_uses::refresh_shut_doors`), and
     /// read by the walk's sweep and by the hand's reach (`built_uses::reach_blockers`: E at a built
     /// piece, F's take-down), so a shut door stops both.
-    pub(crate) shut_doors: Vec<crate::ship::wall_collision::WallSegment>,
+    pub(crate) shut_doors: Vec<humanity_ship::wall_collision::WallSegment>,
     /// One-shot SFX queue (v0.983): gameplay sites push (catalog id, fallback
     /// path) pairs; the audio frame-sync block drains and plays them through
     /// the kira sfx bus. Keeps action code free of audio borrows and gives
@@ -519,7 +519,7 @@ pub(crate) struct EngineState {
     /// open, so nameplates/machine cards hide behind solid walls but stay visible through glass
     /// and doorways. Rebuilt alongside `wall_colliders`; live closed doors are appended per
     /// frame when the HUD blocker list is assembled.
-    pub(crate) sight_colliders: Vec<crate::ship::wall_collision::WallSegment>,
+    pub(crate) sight_colliders: Vec<humanity_ship::wall_collision::WallSegment>,
     /// Home machine CONNECTIONS as live colored cylinders (v0.530): (mesh, material, position,
     /// rotation, scale). Replaces the static routed pipes so connections appear immediately +
     /// follow rooms in the editor. Rebuilt with the machines; uses one cached unit cylinder mesh
@@ -595,7 +595,7 @@ pub(crate) struct EngineState {
     /// (0 closed, 1 open). Doors animate open on the player's approach by their data-driven style
     /// (systems::door_anim); windows are fixed glass. One cached unit-box mesh + a slab + a glass
     /// material, reused (scaled/rotated/animated per frame), so it never leaks.
-    pub(crate) door_panels: Vec<(crate::ship::door_panels::PanelPlacement, f32)>,
+    pub(crate) door_panels: Vec<(humanity_ship::door_panels::PanelPlacement, f32)>,
     /// Runtime "opened via its control panel" flag per door (v0.567), parallel to door_panels. A
     /// MANUAL door with this set opens; the player toggles it at the panel. Reset on rebuild.
     pub(crate) door_manual_open: Vec<bool>,
@@ -603,7 +603,7 @@ pub(crate) struct EngineState {
     /// parallel to door_panels[i].0.locks. The player unlocks/breaks locks at runtime; reset to the
     /// authored states on a structural rebuild (mirrors door_manual_open). A door is passable only
     /// when all of its locks are open.
-    pub(crate) door_locks: Vec<Vec<crate::ship::lock_types::LockState>>,
+    pub(crate) door_locks: Vec<Vec<humanity_ship::lock_types::LockState>>,
     pub(crate) door_panel_mesh: Option<usize>,
     pub(crate) door_slab_mat: Option<usize>,
     pub(crate) door_glass_mat: Option<usize>,
@@ -672,10 +672,10 @@ pub(crate) struct EngineState {
     /// The loaded hull profile (disk first, embedded fallback -- see HullProfile::load).
     /// Loaded lazily on the first `rebuild_hull`; None only if BOTH copies fail to parse
     /// (the hull is then simply absent).
-    pub(crate) hull_profile: Option<crate::ship::hull::HullProfile>,
+    pub(crate) hull_profile: Option<humanity_ship::hull::HullProfile>,
     /// The live homestead layout (v0.455). Held so the construction editor can mutate it
     /// (per-wall kinds, heights) and regenerate the meshes without a restart.
-    pub(crate) homestead_layout: Option<crate::ship::fibonacci::HomesteadLayout>,
+    pub(crate) homestead_layout: Option<humanity_ship::fibonacci::HomesteadLayout>,
     /// Astral-projection construction camera (v0.464): true while the orbit cam is engaged
     /// for the editor, so we switch in/out exactly once (works for B AND the panel Close).
     pub(crate) construction_cam_active: bool,
@@ -859,13 +859,13 @@ pub(crate) struct EngineState {
     /// survival environment context: inside = oxygenated/heated, outside =
     /// vacuum/cold. None until the homestead generates.
     pub(crate) homestead_bounds: Option<(Vec3, Vec3)>,
-    /// Whose air each place breathes (ship homes increment 4, src/ship/ship_space.rs): this
+    /// Whose air each place breathes (ship homes increment 4, crates/humanity-ship/src/ship_space.rs): this
     /// player's own home box and the ship's shared spaces, refreshed with the meshes. The survival
     /// context reads it; `homestead_bounds` stays the box around every room (the hull top).
-    pub(crate) ship_air: crate::ship::ship_space::AirSpaces,
+    pub(crate) ship_air: humanity_ship::ship_space::AirSpaces,
     /// The ship's box, where "aboard" ends (increment 4, `ShipStructure::aboard_bounds`),
     /// refreshed with the meshes. None until the ship assembles.
-    pub(crate) aboard_bounds: Option<crate::ship::ship_space::Aabb>,
+    pub(crate) aboard_bounds: Option<humanity_ship::ship_space::Aabb>,
     /// The game's half of the relay's speed check (engine/move_check.rs).
     pub(crate) moves: crate::engine::move_check::ClientMoves,
     /// The Maps page's world layer: its textures and when it last rendered (engine/map_view.rs).
@@ -961,7 +961,7 @@ pub(crate) struct EngineState {
     /// condition CHANGES, so a storm stays where it appeared instead of following
     /// the player. Before this the weather had no position at all, which is the
     /// root of BUG-080.
-    pub(crate) weather_anchor: Option<(glam::Vec3, crate::systems::weather::WeatherCondition)>,
+    pub(crate) weather_anchor: Option<(glam::Vec3, humanity_systems::weather::WeatherCondition)>,
     /// Which extent regime the frozen params came from (12c): 0 = unset,
     /// 1 = above the deck (nadir anchor, shell-disc extent), 2 = inside
     /// the slab (zenith, full sphere), 3 = under the deck (zenith,
@@ -1032,7 +1032,7 @@ pub(crate) struct EngineState {
     /// (spin-fixed, like the water vertex frame). None = dead calm. Today
     /// this is dev tooling; the rung-3 lifecycle will drive the same slot
     /// from data/weather/events.ron.
-    pub(crate) ocean_event_pin: Option<crate::terrain::ocean_events::PinnedOceanEvents>,
+    pub(crate) ocean_event_pin: Option<humanity_terrain::ocean_events::PinnedOceanEvents>,
     /// Dev/showcase pin for the cloud deck's effective coverage (None =
     /// live MODIS weather + event boost). Set via showcase_request
     /// {"cloud_cover":"0.75"|"auto"}. Exists because a cloud-verification
@@ -1078,14 +1078,14 @@ pub(crate) struct EngineState {
     pub(crate) far_tree_built_cam: glam::DVec3,
     pub(crate) far_tree_pending: Option<
         std::sync::mpsc::Receiver<
-            Option<(crate::terrain::planet_surface::SurfaceMeshData, glam::DVec3)>,
+            Option<(humanity_terrain::planet_surface::SurfaceMeshData, glam::DVec3)>,
         >,
     >,
     /// FFT-ocean spectrum + per-frame height realization (v0.1029,
     /// water-fft.md increment 1). Built lazily when the Settings toggle
     /// turns on near an ocean body; the SAME height array feeds the GPU
     /// displacement tile and the buoyancy twin (drawn == sampled).
-    pub(crate) ocean_fft: Option<crate::terrain::ocean_fft::OceanCascades>,
+    pub(crate) ocean_fft: Option<humanity_terrain::ocean_fft::OceanCascades>,
     /// Smoothed wind (m/s) driving the FFT ocean spectrum (v0.1050). Tracks
     /// the live weather (or the showcase sea pin) on a ~30 s constant.
     pub(crate) ocean_fft_wind: f32,
@@ -1177,7 +1177,7 @@ pub(crate) struct EngineState {
 #[derive(Clone, Default)]
 pub(crate) struct EditorSnapshot {
     pub(crate) structure: Option<ShipStructure>,
-    pub(crate) machines: Option<crate::machines::MachineHome>,
+    pub(crate) machines: Option<humanity_ship::machines::MachineHome>,
 }
 
 /// Bounded undo/redo history for the construction editor (v0.575). Snapshot model: cheap (the home

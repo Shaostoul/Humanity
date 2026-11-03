@@ -6,9 +6,9 @@ use humanity_core::ecs::components::{
     AsteroidBody, Battery, Controllable, CropInstance, Drone, DronePhase, Health, HomeMachine, MachineInstanceId,
     Name, Transform, Vehicle, Wallet,
 };
-use crate::systems::inventory::Inventory;
-use crate::systems::quests::QuestTracker;
-use crate::systems::skills::{PlayerSkills, SkillProgress};
+use humanity_systems::inventory::Inventory;
+use humanity_systems::quests::QuestTracker;
+use humanity_systems::skills::{PlayerSkills, SkillProgress};
 
 fn data_dir() -> PathBuf {
     Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
@@ -19,8 +19,8 @@ fn data_dir() -> PathBuf {
 fn data_store() -> humanity_core::hot_reload::data_store::DataStore {
     let mut data = humanity_core::hot_reload::data_store::DataStore::new();
     data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
-    crate::systems::crafting::register(&mut data);
-    crate::systems::livestock::register(&mut data);
+    humanity_systems::crafting::register(&mut data);
+    humanity_systems::livestock::register(&mut data);
     data
 }
 
@@ -119,10 +119,10 @@ fn a_fresh_server_save_carries_only_the_look() {
         Battery { charge_wh: 9_000.0, capacity_wh: 10_000.0, max_charge_w: 1.0, max_discharge_w: 1.0 },
     ));
     gui.own_home = Some(SavedHome {
-        design: crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the homestead is built in"),
+        design: humanity_ship::ship_structure::HomeDesign::built_in("homestead").expect("the homestead is built in"),
         machines: Default::default(),
     });
-    gui.placed_items = vec![crate::systems::inventory::placed::PlacedItem {
+    gui.placed_items = vec![humanity_systems::inventory::placed::PlacedItem {
         key: "gold_ingot_0".into(),
         name: "Gold ingot".into(),
         qty: 50,
@@ -181,9 +181,9 @@ fn a_fresh_server_save_carries_only_the_look() {
     assert_eq!(gui.character_name, "Ann");
 
     // The file the server's save is kept in says the same, and is the live save now.
-    let path = crate::persistence::slot_path(&saves, &slot);
+    let path = humanity_systems::persistence::slot_path(&saves, &slot);
     assert_eq!(taken.path, path);
-    let on_disk = crate::persistence::load_world(&path).expect("the fresh save was written");
+    let on_disk = humanity_systems::persistence::load_world(&path).expect("the fresh save was written");
     assert_eq!((on_disk.kind.as_str(), on_disk.start.as_str(), on_disk.household.as_str()), ("server", "cabin", "solo"));
     assert_eq!(on_disk.server, "https://example.test");
     assert_eq!(summed(&on_disk.inventory), kit);
@@ -193,7 +193,7 @@ fn a_fresh_server_save_carries_only_the_look() {
     assert_eq!(on_disk.credits, Wallet::default().credits);
     assert!(on_disk.progress_saved);
     assert_eq!(on_disk.character_name, "Ann");
-    let active = crate::persistence::live_save::active_home();
+    let active = humanity_systems::persistence::live_save::active_home();
     assert_eq!((active.slot, active.path, active.start.as_str()), (slot.clone(), path, "cabin"));
     assert_eq!(gui.save_slot, slot);
 }
@@ -273,7 +273,7 @@ fn an_unreadable_server_save_is_set_aside_and_a_fresh_one_made() {
     let starts = Starts::load(&data_dir);
     let saves = humanity_core::test_temp::dir("unreadable_server_save");
     let slot = SaveSlot::Server { server: "https://example.test".into(), identity: "cd".repeat(32) };
-    let path = crate::persistence::slot_path(&saves, &slot);
+    let path = humanity_systems::persistence::slot_path(&saves, &slot);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, b"{ not a save").unwrap();
     let (save, at, fresh) = open_slot(&saves, &data_dir, &starts, &slot, Some("cabin"), None, &Look::default()).unwrap();

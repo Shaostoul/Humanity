@@ -541,7 +541,7 @@ practised in it.
   plumbing and levelling the pieces do for you are described in [Square,
   Level and Plumb](/library#square-level-and-plumb).
 - **Building trains you.** Finishing a piece gives experience in the
-  Shelter Building skill (`src/systems/construction/mod.rs`).
+  Shelter Building skill (`crates/humanity-systems/src/construction/mod.rs`).
 
 **Two settings change this.**
 
@@ -685,8 +685,8 @@ documents were read on 4 October 2026.
   `data/blueprints/basic.ron`. Wood Plank and Nail Box: `data/items.csv`;
   the Saw Planks recipes and the furniture recipes that use nails:
   `data/recipes.csv`. Materials taken in every play mode, and Shelter
-  Building experience: `src/systems/construction/mod.rs`. Placement:
-  `src/systems/construction/placement.rs`. Play mode: `src/config.rs`
+  Building experience: `crates/humanity-systems/src/construction/mod.rs`. Placement:
+  `crates/humanity-systems/src/construction/placement.rs`. Play mode: `src/config.rs`
   (`PlayMode`, `play_mode_allows`); the "Start every session from the
   default home" setting: `src/config.rs` and `src/save_load.rs`.
 - [How a Building Stands Up](/library#how-a-building-stands-up), [Foundations

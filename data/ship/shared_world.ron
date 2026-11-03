@@ -1,5 +1,5 @@
 // MOVING ABOARD THE SHARED SHIP, AND WHO HEARS ABOUT IT (increment 4 of
-// docs/design/ship-homes-and-logistics.md, "getting around at ship scale"; read by src/ship/moves.rs,
+// docs/design/ship-homes-and-logistics.md, "getting around at ship scale"; read by crates/humanity-ship/src/moves.rs,
 // disk first, the copy built into the exe only when this file is missing or does not parse).
 //
 // The relay holds every player where their last accepted move left them. Each position update a
@@ -13,8 +13,8 @@
 //     Commons, the spot a reconnect kept), Respawn and stepping out and back in (the relay spawns
 //     them afresh), which the relay itself decides;
 //   - a reconnect that finds the player still in the world: one move as far as they could have
-//     walked while the connection was down, at most 90 m (`FAR_FROM_HELD_M`, src/ship/moves.rs);
-//   - a teleporter or other transit link, named by its id (src/ship/transit.rs);
+//     walked while the connection was down, at most 90 m (`FAR_FROM_HELD_M`, crates/humanity-ship/src/moves.rs);
+//   - a teleporter or other transit link, named by its id (crates/humanity-ship/src/transit.rs);
 //   - shutting the build editor, which stands the player at their build spot on their own plot,
 //     at standing height on its floor;
 //   - driving a vehicle, at that vehicle's own speed (data/vehicles/kits.ron, `speed_mps`), when

@@ -12,7 +12,7 @@
 
 ## Model (shipped, Stage 1)
 
-- **Registry:** `data/blueprints/lock_types.ron` (the catalog) + `src/ship/lock_types.rs` (`LockType`,
+- **Registry:** `data/blueprints/lock_types.ron` (the catalog) + `crates/humanity-ship/src/lock_types.rs` (`LockType`,
   `LockInteraction`, `DefeatMethod`, `LockState`). Same `include_str! + OnceLock + lookup-by-id`
   pattern as `wall_materials`. Pure serde/data, no native gate (the relay parses it).
 - **Instances:** `Opening.locks: Vec<LockInstance>` (`type_id`, `state`, `secret`, `offset`), serde

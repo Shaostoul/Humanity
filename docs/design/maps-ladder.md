@@ -68,14 +68,14 @@ in the 3D world.
   terrain (asphalt/footpath materials, +0.18/+0.12 m lift), buildings
   extruded from footprints with 2.5 m below-grade skirts, planet-fixed so
   they ride Earth's spin. Shared parser/projection/mesher in
-  src/terrain/osm_region.rs (build plan: docs/design/osm-extrusion-plan.md);
+  crates/humanity-terrain/src/osm_region.rs (build plan: docs/design/osm-extrusion-plan.md);
   live wiring in src/engine/region_meshes.rs (progressive main-thread
   elevation grid + background mesh worker, 40 km build / 60 km draw).
   Regions shipped: Seattle Center + Silverdale WA (the operator's town).
 - **Water increment SHIPPED v0.1149** (operator field report: Dyes Inlet
   and the lakes were missing): HOSMREG2 water records (sea assembled from
   OSM coastline with the land-left/water-right rule, inland multipolygon
-  water, island holes) + the terrain CARVE (src/terrain/water_carve.rs):
+  water, island holes) + the terrain CARVE (crates/humanity-terrain/src/water_carve.rs):
   ground under sea polygons is pressed 2 m below sea level at every
   terrain formula site, so the existing animated ocean shell becomes the
   inlet's water; lakes get flat sheets at lowest-shore level with beds

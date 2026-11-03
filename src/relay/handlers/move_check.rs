@@ -38,9 +38,9 @@
 //!   - driving (`MoveDecl::Vehicle`): that vehicle's own speed, from data/vehicles/kits.ron, when
 //!     it is faster than on foot (no shipped vehicle is: the fastest is 12 m/s).
 
-use crate::ship::moves::{floor_distance, MoveDecl, MovingRules, FAR_FROM_HELD_M};
-use crate::ship::ship_space::Aabb;
-use crate::ship::transit::TransitLink;
+use humanity_ship::moves::{floor_distance, MoveDecl, MovingRules, FAR_FROM_HELD_M};
+use humanity_ship::ship_space::Aabb;
+use humanity_ship::transit::TransitLink;
 use glam::Vec3;
 
 /// The relay's clock for the speed check, seconds since the first call: monotonic, and the same
@@ -141,14 +141,14 @@ const EDITOR_FLOOR_TOLERANCE_M: f32 = 0.25;
 /// the plot's floor, never over its highest floor, and the up-and-down allowance still applies (M5).
 pub(crate) fn on_a_floor_of(b: &Aabb, eye_y: f32) -> bool {
     let feet = eye_y - EDITOR_EYE_M;
-    let top_floor = (b.1.y - crate::ship::moves::STANDING_ROOM_M).max(b.0.y);
+    let top_floor = (b.1.y - humanity_ship::moves::STANDING_ROOM_M).max(b.0.y);
     feet >= b.0.y - EDITOR_FLOOR_TOLERANCE_M && feet <= top_floor + EDITOR_FLOOR_TOLERANCE_M
 }
 
 /// How far from a transit pad's middle someone standing in it can be (a teleporter's footprint),
 /// for a link in a home, which the relay has no copy of.
 fn pad_reach_m() -> f32 {
-    crate::ship::structure::structure_type("teleporter").map_or(1.0, |t| (t.size.0 * 0.5 + 0.05).hypot(t.size.2 * 0.5 + 0.05))
+    humanity_ship::structure::structure_type("teleporter").map_or(1.0, |t| (t.size.0 * 0.5 + 0.05).hypot(t.size.2 * 0.5 + 0.05))
 }
 
 /// True when `p` stands on the box across the floor (x and z, 10 cm of slack).
@@ -170,7 +170,7 @@ fn pad_on_plot(b: &Aabb, p: Vec3) -> bool {
 /// storey rule (`moves::on_my_storey`): the pad's floor is from half a metre under the feet to 2.5 m
 /// over them.
 fn at_pad_height(eye: Vec3, pad: Vec3) -> bool {
-    crate::ship::moves::on_my_storey(eye.y, pad.y)
+    humanity_ship::moves::on_my_storey(eye.y, pad.y)
 }
 
 impl MoveState {
@@ -238,7 +238,7 @@ impl MoveState {
         // free), or the reason it is not a move anyone could make.
         let walked = match ctx.declared {
             Some(MoveDecl::Link { zone, from, to, from_at, to_at }) => {
-                let ends = if zone == crate::ship::ship_structure::HOME_ZONE_ID {
+                let ends = if zone == humanity_ship::ship_structure::HOME_ZONE_ID {
                     // The player's own home: the relay has no copy of it, so both ends must be on
                     // their own plot, inside its box (a pad on either floor of a two-storey plot).
                     match &ctx.own_plot {
@@ -443,7 +443,7 @@ pub fn vehicle_speeds(data_dir: &std::path::Path) -> std::collections::HashMap<S
     let path = data_dir.join("vehicles").join("kits.ron");
     let kits = std::fs::read_to_string(&path)
         .map_err(|e| e.to_string())
-        .and_then(|t| ron::from_str::<Vec<crate::systems::vehicles::VehicleKitDef>>(&t).map_err(|e| e.to_string()));
+        .and_then(|t| ron::from_str::<Vec<humanity_systems::vehicles::VehicleKitDef>>(&t).map_err(|e| e.to_string()));
     match kits {
         Ok(kits) => kits.into_iter().filter(|k| k.speed_mps.is_finite() && k.speed_mps > 0.0).map(|k| (k.vehicle_item, k.speed_mps)).collect(),
         Err(e) => {
@@ -457,7 +457,7 @@ pub fn vehicle_speeds(data_dir: &std::path::Path) -> std::collections::HashMap<S
 mod tests {
     use super::*;
     use crate::relay::handlers::game_state::GameWorld;
-    use crate::ship::moves::SharedWorldRules;
+    use humanity_ship::moves::SharedWorldRules;
 
     /// The shipped rules: 25 m/s on foot with a quarter's margin (the allowance builds at
     /// 31.25 m/s and keeps at most 1.5 s of it, 46.9 m), 20 m/s up or down, 1 m of slack.
@@ -489,7 +489,7 @@ mod tests {
     /// The box of a plot of the ship file (data/blueprints/ship_structure.ron): p1, a homestead
     /// plot, is 55 x 6 x 89 since ship homes increment 7 (two storeys); c1, a cabin's, 3 m tall.
     fn plot_box(id: &str) -> Aabb {
-        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").as_path()).expect("the ship file");
+        let ship = humanity_ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").as_path()).expect("the ship file");
         ship.plots.iter().find(|p| p.id == id).unwrap_or_else(|| panic!("plot {id} in the ship file")).aabb()
     }
 
@@ -788,9 +788,9 @@ mod tests {
     #[test]
     fn the_relays_links_resolve_by_id() {
         assert!(GameWorld::new().transit.is_empty(), "the shipped ship has no teleporter in a shared zone");
-        let mut ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).expect("the ship file");
+        let mut ship = humanity_ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).expect("the ship file");
         let commons = ship.zones.iter_mut().find(|z| z.id == "commons").expect("the Commons");
-        let pad = |id: &str, pair: &str, x: f32, z: f32| crate::ship::home_structure::PlacedStructure { id: id.into(), type_id: "teleporter".into(), pos: (x, 0.0, z), rot_deg: 0.0, pair: Some(pair.into()) };
+        let pad = |id: &str, pair: &str, x: f32, z: f32| humanity_ship::home_structure::PlacedStructure { id: id.into(), type_id: "teleporter".into(), pos: (x, 0.0, z), rot_deg: 0.0, pair: Some(pair.into()) };
         commons.body.structures = vec![pad("tp-west", "tp-east", 3.0, 30.0), pad("tp-east", "tp-west", 30.0, 30.0)];
         let links = ship.transit_links();
         assert_eq!(links.len(), 2);

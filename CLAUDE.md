@@ -322,12 +322,13 @@ that he did not make.
 
 ## Architecture
 
-A Cargo workspace compiles into `HumanityOS.exe` (since 2026-11-01, rung 1 of the crate split,
+A Cargo workspace compiles into `HumanityOS.exe` (since 2026-11-01, the crate split,
 `docs/design/crate-split.md`): the root package `humanity-engine` (`src/`: the app, the server mode,
-the binary) and the crates cut out of it so far, `crates/humanity-core/` and
-`crates/humanity-protocol/` (the root `Cargo.toml`'s `[workspace] members` is the list; a card each
-in `docs/crates/`). Code names a moved module by its crate (`humanity_core::storage::data_dir()`),
-and the repo root only as `env!("HUMANITY_REPO_ROOT")` (`tests/repo_root_lint.rs`). v0.90.0 merged
+the binary) and the crates cut out of it so far, `crates/humanity-core/` and `-protocol/` (rung 1),
+`-ship/`, `-terrain/` and `-systems/` (rung 2, the simulation and what it runs on); the root
+`Cargo.toml`'s `[workspace] members` is the list, and each has a card in `docs/crates/`. Code names a
+moved module by its crate (`humanity_core::storage::data_dir()`, `humanity_systems::farming`), and
+the repo root only as `env!("HUMANITY_REPO_ROOT")` (`tests/repo_root_lint.rs`). v0.90.0 merged
 `server/` into `src/relay/` and `native/` into `src/`. **An agent that reports edits under
 `native/src/`, `server/src/`, or a `crates/` folder the workspace does not list, was working in a
 stale worktree: never trust that report; redo the work against the current layout.** Feature
@@ -368,7 +369,7 @@ just verify           # native + relay checks (warnings counted, budget 0), lib 
 just lints            # the std-only lints on their own
 just test-lib [filter]  # every workspace member's lib tests (`--crate <name>` for one; a bare `cargo test --lib` fails on Windows: LNK1318 below)
 just build-slot-status  # who is compiling, who waits for memory (the build slot, below)
-just verify-relay     # RUN the relay test battery (~200 s): after changing src/relay/, crates/, or shared code the server also compiles (src/systems/ and the like: its tests run there too)
+just verify-relay     # RUN the relay test battery (~200 s): after changing src/relay/, crates/, or shared code the server also compiles (the ship, the terrain, the systems: their tests run there too)
 just verify-runtime   # BOOTS the release exe and enters the world: after renderer or shader work
 just validate-data    # one-shot data-loader check (~0.2 s): after editing data/
 just snapshot <name>  # render one egui page to tests/snapshots/<name>.png; `just snapshots` renders all.

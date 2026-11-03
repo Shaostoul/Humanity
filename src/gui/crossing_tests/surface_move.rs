@@ -1,12 +1,12 @@
 //! From surface_move.rs's tests: the movement model's wish direction, from the renderer's camera
 //! and its controller.
 
-use crate::surface_move::*;
+use humanity_systems::surface_move::*;
 use crate::renderer::camera::Camera;
 use crate::renderer::camera::CameraController;
-use crate::surface_move::tests::DT;
-use crate::surface_move::tests::G;
-use crate::surface_move::tests::SETTLE;
+use humanity_systems::surface_move::fixtures::DT;
+use humanity_systems::surface_move::fixtures::G;
+use humanity_systems::surface_move::fixtures::SETTLE;
 use glam::DVec3;
 use glam::Vec3;
 

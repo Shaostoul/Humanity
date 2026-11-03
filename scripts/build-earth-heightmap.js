@@ -29,7 +29,7 @@
 //      finer: 17500/65535 = ~0.267 m. The BOTTOM keeps margin under the
 //      averaged min (-10427.8 m). Anything outside clamps (none does today).
 //   3. WRITE the "HOSHGT1" container consumed by
-//      src/terrain/planet_heightmap.rs (see that file for the byte layout).
+//      crates/humanity-terrain/src/planet_heightmap.rs (see that file for the byte layout).
 //   4. SELF-VERIFY by bilinear-sampling the OUTPUT at known real-world
 //      anchors (Everest, Challenger Deep, mid-Pacific, Sahara) with the
 //      same math the Rust sampler uses. A byte-order, orientation, or
@@ -122,7 +122,7 @@ if (srcMax < 5000 || srcMin > -8000) {
   fail('averaged data range is implausible for Earth; wrong file or byte order?');
 }
 
-// Keep in sync with src/terrain/planet_heightmap.rs::quantize_meters.
+// Keep in sync with crates/humanity-terrain/src/planet_heightmap.rs::quantize_meters.
 function quantize(h) {
   const t = Math.min(1, Math.max(0, (h - MIN_M) / (MAX_M - MIN_M)));
   return Math.round(t * 65535);

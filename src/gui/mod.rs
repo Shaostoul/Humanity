@@ -285,7 +285,7 @@ pub enum LauncherWhere {
 
 /// One local save as the picker sees it: the WHO (character) and the WHERE
 /// (home world) halves of the SAME file. `WorldSave` fuses them today
-/// (src/persistence.rs), so the picker presents both axes from one row and
+/// (crates/humanity-systems/src/persistence.rs), so the picker presents both axes from one row and
 /// greys the pairings the fused file cannot honour yet.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -518,8 +518,8 @@ pub struct GuiState {
     pub copresence_refused_note: Option<String>,
     /// Ship homes increment 6 (engine/save_slot.rs): which save is live (your own home, or one server's), and
     /// the connected server's last `game_home` answer (where you live there, and what is free).
-    pub save_slot: crate::persistence::SaveSlot,
-    pub home_answer: Option<crate::ship::starts::HomeAnswer>,
+    pub save_slot: humanity_systems::persistence::SaveSlot,
+    pub home_answer: Option<humanity_ship::starts::HomeAnswer>,
     /// Dev spawn tool (v0.777, the Dev tab's Dev section): when Some(def_id), lib.rs spawns
     /// that creature/NPC in front of the player next frame and clears it. The
     /// generic "spawn any creature/NPC" the operator asked for; species come
@@ -853,7 +853,7 @@ pub struct GuiState {
     /// + live CLOSED doors, each standing between its own heights, + the SOLID floor slabs, + the
     /// solid pieces (placed boxes and stairs, 2026-10-22). Rebuilt per frame by lib.rs. Empty = no occlusion (legacy layout, build editor, or not
     /// near the home).
-    pub sight_blockers: crate::ship::sight::SightBlockers,
+    pub sight_blockers: humanity_ship::sight::SightBlockers,
     /// Index into machine_labels of the machine the player is currently looking at
     /// within interact range (walk-up interaction, v0.431). Recomputed each frame.
     pub targeted_machine: Option<usize>,
@@ -868,7 +868,7 @@ pub struct GuiState {
     pub livestock_care: String,
     /// Every cared-for animal and every herd animal that died, for Home > Animals
     /// (`animal_care::herd_rows`, refreshed each frame by lib.rs).
-    pub herd: Vec<crate::systems::animal_care::HerdRow>,
+    pub herd: Vec<humanity_systems::animal_care::HerdRow>,
     /// Transient collect feedback ("+1 Egg from Chicken" / "Your pack is full").
     pub livestock_notice: String,
     /// game_time when livestock_notice was set; lib.rs clears it after 3 s.
@@ -947,7 +947,7 @@ pub struct GuiState {
     /// Last equip action's receipt or refusal, shown in the Equipment section.
     pub equip_status: String,
     /// Room volumes (v0.429), for room-based label occlusion: which room is the camera in.
-    pub room_bounds: Vec<crate::ship::room_types::RoomBounds>,
+    pub room_bounds: Vec<humanity_ship::room_types::RoomBounds>,
     /// Hold-Tab "reveal" peek (v0.429): triples the label distances and shows labels
     /// through walls across all owned/explored rooms. True only while Tab is held.
     pub reveal_held: bool,
@@ -1023,7 +1023,7 @@ pub struct GuiState {
     pub homestead_design: Option<HomesteadDesign>,
     /// The homestead's self-sufficiency loops (energy/water/food/nutrients) from
     /// data/machines/home.ron, rendered as the closure summary on the Home page (v0.432).
-    pub homestead_loops: Vec<crate::machines::HomeLoop>,
+    pub homestead_loops: Vec<humanity_ship::machines::HomeLoop>,
     /// The curated aeroponic tower configs (nutrition + apothecary), browsed on the
     /// Home page. Empty if data/towers/aeroponic_configs.ron is absent.
     pub tower_configs: Vec<TowerConfig>,
@@ -1032,7 +1032,7 @@ pub struct GuiState {
     pub garden_areas: Vec<GardenArea>,
     /// Grow-media registry (data/garden/grow_media.ron) — the per-medium edit form is
     /// rendered from this, so adding a plot-type is a data edit (infinite-of-X).
-    pub grow_media: Vec<GrowMedium>,
+    pub grow_media: Vec<humanity_systems::grow_machines::GrowMedium>,
     /// Per-area irrigation targets the garden edit modal publishes to the sim, keyed by
     /// tower_id (e.g. "nutrition" -> 0.0..=1.0 water level). lib.rs bridges this into the
     /// DataStore's "garden_irrigation" channel each frame; FarmingSystem tops matching
@@ -1046,17 +1046,17 @@ pub struct GuiState {
     /// Organize-layer inventory pool: every seeded item tagged with its container path,
     /// so the nested-container inventory can move items between containers. Seeded from
     /// `places` at startup via `flatten_placed_items`. The live backpack is separate.
-    pub placed_items: Vec<crate::systems::inventory::placed::PlacedItem>,
+    pub placed_items: Vec<humanity_systems::inventory::placed::PlacedItem>,
     /// Pending backpack <-> container transfers (item_id, qty, is_add). The inventory
     /// page pushes these when an item moves into/out of the live backpack; lib.rs drains
     /// them into the InventorySystem channel each frame. is_add => add to the backpack.
-    pub pending_inventory_transfers: Vec<crate::systems::inventory::TransferOp>,
+    pub pending_inventory_transfers: Vec<humanity_systems::inventory::TransferOp>,
     /// Where each "Take to backpack" came from (2026-09-25), so whatever the
     /// backpack cannot hold goes back to that container instead of
     /// vanishing. Moved to `inflight_take_origins` when the ops are handed to
     /// the InventorySystem, and resolved after its tick.
-    pub pending_take_origins: Vec<crate::systems::inventory::placed::PlacedItem>,
-    pub inflight_take_origins: Vec<crate::systems::inventory::placed::PlacedItem>,
+    pub pending_take_origins: Vec<humanity_systems::inventory::placed::PlacedItem>,
+    pub inflight_take_origins: Vec<humanity_systems::inventory::placed::PlacedItem>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
@@ -1083,7 +1083,7 @@ pub struct GuiState {
     /// progress, replaced whenever the editor keeps an edit outside Dev, and
     /// written into every save that keeps progress; the Dev mode leaves it as
     /// it is (it authors the data files instead).
-    pub own_home: Option<crate::persistence::SavedHome>,
+    pub own_home: Option<humanity_systems::persistence::SavedHome>,
     /// The live home layout IS the character's own: it came from their save at world load, or
     /// they changed it with the editor outside the Dev mode this session (engine/own_home.rs).
     /// While it is, every save that keeps progress records the home as it stands
@@ -1219,7 +1219,7 @@ pub struct GuiState {
     /// The player's carried load, its limit where they stand and what it does
     /// to them (BUG-136): the Inventory page's Weight tile and the HUD's
     /// overload line. Published each frame by `engine::carry_load`.
-    pub carry: crate::systems::encumbrance::CarryState,
+    pub carry: humanity_systems::encumbrance::CarryState,
     /// Current mouse-wheel speed gear shown next to the altitude.
     pub surface_speed_mult: f32,
 
@@ -1267,7 +1267,7 @@ pub struct GuiState {
     /// publish_stations): aboard the home's machines and its built stations,
     /// at a planet site that site's; the same set CraftingSystem gates on.
     pub stations_here: std::collections::HashSet<String>,
-    pub stations_where: crate::systems::construction::StationsWhere,
+    pub stations_where: humanity_systems::construction::StationsWhere,
     /// The home's storage by item (engine/stock_piles.rs publish_home_stock)
     /// and whether a hand craft here can draw on it (BUG-147, built_uses.rs):
     /// the Crafting page splits each input between backpack and storage.
@@ -1383,10 +1383,10 @@ pub struct GuiState {
     /// The drone's running costs as the drone system last showed them (first-hour audit
     /// S5, 2026-10-12): its battery, its wear and what its service takes. None with no
     /// drone data, when it flies free. Synced by engine::drone::bridge.
-    pub drone_readout: Option<crate::systems::mining::DroneReadout>,
+    pub drone_readout: Option<humanity_systems::mining::DroneReadout>,
     /// The Mining panel's Repair or Cancel this frame, handed to the drone system by
     /// engine::drone::bridge.
-    pub pending_drone_request: Option<crate::systems::mining::DroneRequest>,
+    pub pending_drone_request: Option<humanity_systems::mining::DroneRequest>,
     /// World vehicles (Stage 3, v0.680), synced from the ECS each frame for the
     /// Inventory page's Vehicles section.
     pub vehicles: Vec<GuiVehicle>,
@@ -1425,7 +1425,7 @@ pub struct GuiState {
     /// `systems::quests::chain`, 2026-10-30): everything in Dev, what the player has reached
     /// otherwise.
     pub quest_chain_open: Option<String>,
-    pub quest_chain: Option<crate::systems::quests::chain::ChainView>,
+    pub quest_chain: Option<humanity_systems::quests::chain::ChainView>,
     /// The views a quest can ask the player to open (2026-10-04, the
     /// opening's "check your vitals"), as drawn this frame: a page adds one
     /// through `on_screen` while it shows it ("vitals": the Inventory page's
@@ -1481,10 +1481,10 @@ pub struct GuiState {
     pub power_battery_wh: f32,
     pub power_battery_capacity_wh: f32,
     pub power_autonomy_hours: f32,
-    pub power_ship: crate::systems::electrical::ShipFeedReading, // the ship's reactor feed (ship_power)
+    pub power_ship: humanity_systems::electrical::ShipFeedReading, // the ship's reactor feed (ship_power)
     /// What each placed machine drew over its last game day (2026-10-22, machines::day_energy),
     /// copied from the DataStore when an hour completes: the meters and machine cards read it.
-    pub machine_day_energy: crate::machines::day_energy::DayEnergy,
+    pub machine_day_energy: humanity_ship::machines::day_energy::DayEnergy,
     /// Live home WATER readout (v0.608), mirrored from PlumbingSystem each frame: production + demand
     /// (L/min), stored + capacity (litres), and days of autonomy at the current demand.
     pub water_production_lpm: f32,
@@ -1496,7 +1496,7 @@ pub struct GuiState {
     /// Electric station types with no powered machine right now (2026-09-26).
     pub unpowered_station_types: std::collections::HashSet<String>,
     /// Quality grades (data/manufacturing.ron), published once (2026-09-26).
-    pub quality_levels: crate::systems::crafting::quality::QualityLevels,
+    pub quality_levels: humanity_systems::crafting::quality::QualityLevels,
     pub water_capacity_l: f32,
     pub water_days_autonomy: f32,
     /// Live home AIR readout (v0.617), mirrored from AtmosphereSystem each frame: O2/CO2 percent, total
@@ -1527,7 +1527,7 @@ pub struct GuiState {
     /// The AI edits the same file by hand, so an AI-placed machine is player-editable and
     /// vice versa. Saved by `home_machines_save` alongside the room layout. See
     /// docs/design/home-design.md. None if home.ron is absent.
-    pub home_machines: Option<crate::machines::MachineHome>,
+    pub home_machines: Option<humanity_ship::machines::MachineHome>,
     /// The editor's Add-Machine picker selection (a catalog type id). (v0.519)
     pub home_machine_add_type: String,
     /// The editor's Add-Connection pickers: from-machine id, to-machine id, and kind. (v0.523,
@@ -1560,7 +1560,7 @@ pub struct GuiState {
     /// when the editor opens, so the zone detail panel can show what a zone's `room_type` resolves
     /// to (purpose + action labels via `HomeStructure::room_actions_for`) without touching disk
     /// every frame. Empty until the editor first opens. (console-room increment)
-    pub room_type_registry: crate::ship::room_types::RoomTypeRegistry,
+    pub room_type_registry: humanity_ship::room_types::RoomTypeRegistry,
     /// Current Add-Room picker selection. (v0.459)
     pub construction_add_type: String,
     /// A room index the panel requested to delete; applied after the scroll loop. (v0.459)
@@ -1695,7 +1695,7 @@ pub struct GuiState {
     pub cloud_dev_discard_diag: bool,
     /// True while the panel is driving the weather (random rolls suspended).
     pub weather_manual: bool,
-    pub weather_pick_condition: crate::systems::weather::WeatherCondition,
+    pub weather_pick_condition: humanity_systems::weather::WeatherCondition,
     pub weather_pick_intensity: f32,
     pub weather_pick_wind: f32,
     /// The selected preset's "what to look for" line, shown under the grid.
@@ -1970,7 +1970,7 @@ pub struct GuiState {
     /// ALL zones (load_world + rebuild_homestead via `ShipStructure::generate_meshes`) instead of
     /// the old room-AABB layout when present. Loaded in load_world (with one-time adoption of a
     /// legacy home_structure.ron).
-    pub ship_structure: Option<crate::ship::ship_structure::ShipStructure>,
+    pub ship_structure: Option<humanity_ship::ship_structure::ShipStructure>,
     /// Index into `ship_structure.zones` of the zone the construction editor is EDITING (the zone
     /// selector at the top of the Home structure panel, v0.754). All viewport tools + panel edits
     /// operate on this zone; gizmos and ray picks convert between world and zone-local space
@@ -2781,7 +2781,7 @@ pub struct GuiState {
     pub pending_respawn: bool,
     /// What the death cost in the Death mode chosen, the pack prompt and the rules
     /// (2026-10-04, systems::death_pack; set by engine/death_pack.rs).
-    pub death_pack: crate::systems::death_pack::DeathPackHud,
+    pub death_pack: humanity_systems::death_pack::DeathPackHud,
     // v0.197.0: ai_usage_filters removed (AI Usage page deleted).
     // v0.415.0: onboarding_concepts + onboarding_core_pages removed with the
     // standalone onboarding page. NOTE (audit 2026-07-30): the claim that "the
@@ -3748,7 +3748,7 @@ impl Default for GuiState {
             cloud_dev_shape_off: false,
             cloud_dev_discard_diag: false,
             weather_manual: false,
-            weather_pick_condition: crate::systems::weather::WeatherCondition::Clear,
+            weather_pick_condition: humanity_systems::weather::WeatherCondition::Clear,
             weather_pick_intensity: 0.0,
             weather_pick_wind: 8.0,
             weather_pick_note: String::new(),
@@ -4661,7 +4661,7 @@ impl Default for SettingsState {
             // v0.1109: defaults are the shipped engine constants, so exposing
             // these three changed nothing about how the world looks.
             near_tree_budget: crate::config::NEAR_TREE_BUDGET_DEFAULT,
-            grass_far_m: crate::terrain::grass::GRASS_FAR_M,
+            grass_far_m: humanity_terrain::grass::GRASS_FAR_M,
             grass_harvest_cap: crate::config::GRASS_HARVEST_CAP_DEFAULT,
             tree_density: 0.6,
             grass_density: 1.0,
@@ -4671,11 +4671,11 @@ impl Default for SettingsState {
             sun_shadows: true,
             shadow_strength: 1.0,
             sun_aperture_mm: crate::renderer::sun_disc::DEFAULT_APERTURE_MM,
-            time_speed: crate::systems::time::DEFAULT_TIME_SPEED,
-            hours_per_day: crate::systems::time::DEFAULT_HOURS_PER_DAY,
-            days_per_year: crate::systems::time::DEFAULT_DAYS_PER_YEAR,
-            pest_severity: crate::systems::farming::pests::DEFAULT_PEST_SEVERITY,
-            garden_update_s: crate::systems::farming::clock::DEFAULT_INTERVAL_S as f32,
+            time_speed: humanity_systems::time::DEFAULT_TIME_SPEED,
+            hours_per_day: humanity_systems::time::DEFAULT_HOURS_PER_DAY,
+            days_per_year: humanity_systems::time::DEFAULT_DAYS_PER_YEAR,
+            pest_severity: humanity_systems::farming::pests::DEFAULT_PEST_SEVERITY,
+            garden_update_s: humanity_systems::farming::clock::DEFAULT_INTERVAL_S as f32,
             offline_progression: true,
             // Progress is kept between launches by default (2026-10-04).
             fresh_world_each_launch: false,

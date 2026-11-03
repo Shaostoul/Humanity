@@ -1,10 +1,10 @@
 //! From ship/sight.rs's tests: every shipped machine is E's from its own floor, the floor read by the
 //! engine's footing (`footing::Footing::floor_under`), not by the storey rule under test.
 
-use crate::ship::sight::tests::aboard;
-use crate::ship::sight::*;
+use humanity_ship::sight::fixtures::aboard;
+use humanity_ship::sight::*;
 use glam::Vec3;
-use crate::ship::sight::tests::e_from;
+use humanity_ship::sight::fixtures::e_from;
 
 /// The REAL floor under a fixture whose foot is at `foot` over (x, z) (ship frame): the highest
 /// floor at or under its foot there that a body stands on (`Footing::floor_under`, measured so

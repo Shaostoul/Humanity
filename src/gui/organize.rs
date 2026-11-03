@@ -4,7 +4,7 @@
 //! for crops planted into a specific machine.
 
 use super::{GardenArea, Place};
-use crate::systems::inventory::placed::PlacedItem;
+use humanity_systems::inventory::placed::PlacedItem;
 
 /// The container path of a TOP-LEVEL place: its index in the list, or its
 /// `id` when it is `keyed` (a built chest, 2026-09-27). Everything that walks
@@ -123,7 +123,7 @@ pub fn return_to_storage(
         .iter_mut()
         .find(|p| p.key == key && p.container == container && p.wear == wear && p.quality == quality)
     {
-        p.age_s = crate::systems::inventory::blend_age(p.age_s, p.qty, age_s, qty);
+        p.age_s = humanity_systems::inventory::blend_age(p.age_s, p.qty, age_s, qty);
         p.qty += qty;
     } else {
         pool.push(PlacedItem { key: key.to_string(), name: name.clone(), qty, container: container.clone(), wear, quality, age_s });

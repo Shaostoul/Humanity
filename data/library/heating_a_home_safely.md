@@ -654,7 +654,7 @@ carbon monoxide this guide is about.
 
 - **The station holds the air at its own temperature.** Sessions start in
   the home aboard the station in orbit. With nothing of yours heating it,
-  the home's air stays at about 20 C (`src/systems/atmosphere.rs`), the
+  the home's air stays at about 20 C (`crates/humanity-systems/src/atmosphere.rs`), the
   grow rooms at 21 C (`data/garden/humidity.ron`, `room_temp_c`), and the
   ship's shared spaces, such as the Commons, at 21 C
   (`crates/humanity-core/src/ecs/components.rs`); holding them there costs you nothing. The
@@ -679,7 +679,7 @@ carbon monoxide this guide is about.
 - **How much it warms is the room's heat loss.** A room loses heat
   through its walls and ceiling and with the air it trades with the rest
   of the home, and it settles where the heater's watts and that loss
-  balance (`src/systems/farming/heat.rs`; the numbers and their sources
+  balance (`crates/humanity-systems/src/farming/heat.rs`; the numbers and their sources
   are in `data/garden/humidity.ron`, THE HEAT). The game takes every grow
   room to lose heat the way single glass does, 6.24 W for each square
   metre of wall and ceiling and each degree it is warmer than the air
@@ -789,23 +789,23 @@ carbon monoxide this guide is about.
 - **What reads the warmer air.** A room's humidity: warmer air holds more
   water, so the same damp reads drier, and its fans, humidifiers and air
   handlers work to their setpoints at the new temperature
-  (`src/systems/farming/humidity.rs`). The pests in it, which develop
+  (`crates/humanity-systems/src/farming/humidity.rs`). The pests in it, which develop
   faster in warmth (`data/garden/pests.ron`). Your body, which feels the
   air of the grow room you stand in, or the home's own air elsewhere in the
   home (`src/engine/survival_env.rs`). And food, which ages faster in
   warmer air, the food you carry and the food in the home's storage
-  (`src/systems/food.rs`). The crops' growth does not yet answer a grow
+  (`crates/humanity-systems/src/food.rs`). The crops' growth does not yet answer a grow
   room's temperature: indoors they grow as if every room were inside their
   range, as the game assumed before heaters worked.
 - **Shelter keeps the weather off but makes no heat.** On a planet, your
   body heat is modelled from the weather, your clothes and any shelter you
   have built: a roof keeps the rain off and, under it, walls on the
-  windward side keep the wind off (`src/systems/construction/uses.rs`).
+  windward side keep the wind off (`crates/humanity-systems/src/construction/uses.rs`).
   A roof also hides the sky. In the open your body loses heat to a clear
   night sky that is colder than the air, and takes heat from the sun at
   noon; under a roof both are gone, so a clear night is a little less
   cold under one and a sunny noon a little less hot. But the air under a
-  roof is as cold as the air outside (`src/systems/body_heat.rs`,
+  roof is as cold as the air outside (`crates/humanity-systems/src/body_heat.rs`,
   `src/engine/survival_env.rs`; its tests note that on a 5 C day a
   shelter with no fire is still 5 C inside, and that on a clear 10 C
   night the skin ends about 1.9 C warmer under a roof). A heater cannot
@@ -822,7 +822,7 @@ carbon monoxide this guide is about.
 - **No carbon monoxide anywhere.** The air system can call air toxic when
   carbon monoxide passes 50 parts per million, but nothing in the game
   puts any into a room's air: a wood stove's goes up its flue
-  (`src/systems/atmosphere.rs`). The home's backup generator
+  (`crates/humanity-systems/src/atmosphere.rs`). The home's backup generator
   sits inside, in the plant room, with its own 200 litre fuel drum
   (`data/machines/home.ron`); in real life a generator used indoors is
   one of the two things NOAA's record names in the carbon monoxide deaths
@@ -835,7 +835,7 @@ carbon monoxide this guide is about.
   the ship or under a roof, and no roof can be built over one, so it
   never heats a room. Its warmth does not pass through a wall or a roof
   either, so a fire outside a closed hut warms nobody inside it. It makes
-  no smoke or carbon monoxide (`src/systems/construction/fires.rs`,
+  no smoke or carbon monoxide (`crates/humanity-systems/src/construction/fires.rs`,
   `src/engine/survival_env.rs`); [Making and Controlling
   Fire](/library#making-and-controlling-fire) has the rest.
 - **No house fires, no alarms that do anything.** The only fires in the
@@ -1132,7 +1132,7 @@ used here and the wording is not.
 
 ### Inside this project
 
-- The home's air held at about 20 C (`src/systems/atmosphere.rs`, its
+- The home's air held at about 20 C (`crates/humanity-systems/src/atmosphere.rs`, its
   default of 293 K, and `src/engine/survival_env.rs`), the grow rooms at
   21 C (`room_temp_c` in `data/garden/humidity.ron`), and the ship's
   shared spaces at the default 21 C (`crates/humanity-core/src/ecs/components.rs`); the
@@ -1141,10 +1141,10 @@ used here and the wording is not.
   (`data/recipes.csv`, `data/items.csv`); the space heater machine, its
   1,500 W and its 24 C thermostat (`heater` in `data/machines/home.ron`
   and `data/machines/home_solo.ron`); the heat balance of each air, its
-  walls' single-glass heat loss and its sources (`src/systems/farming/heat.rs`,
+  walls' single-glass heat loss and its sources (`crates/humanity-systems/src/farming/heat.rs`,
   THE HEAT in `data/garden/humidity.ron`), and the tests that measure the
   10 x 10 x 3 m room's 1 C, the greenhouse-sized room's 0.13 C and the thermostat
-  (`src/systems/farming/heat_tests.rs`);
+  (`crates/humanity-systems/src/farming/heat_tests.rs`);
   the heat pump and the wood stove (`heat_pump` and `wood_stove` in
   `data/machines/home.ron`, where their sources are quoted and the stove's
   burn rate and oxygen are worked out: the Mitsubishi Electric MSZ-FS09NA
@@ -1165,24 +1165,24 @@ used here and the wording is not.
   https://www.drolet.ca/file/45930a_20-03-2019.pdf, and 46240_IA of
   29 February 2024, linked from the product page above), and the ship's
   supply ledger that meters the oxygen it burns (`OXYGEN` in
-  `src/systems/ship_power.rs`); their
+  `crates/humanity-systems/src/ship_power.rs`); their
   recipes, items and firebox (`data/recipes.csv`, `data/items.csv`,
   `stove_firebox` in `data/containers/types.csv`), and the tests that
   measure the heat pump's heat and bill, the stove's burn, its oxygen and
-  its box (`src/systems/farming/heat_tests.rs`,
+  its box (`crates/humanity-systems/src/farming/heat_tests.rs`,
   `src/engine/home_spawn.rs`);
-  what reads a warmed room (`src/systems/farming/humidity.rs`, the pests'
-  temperature in `src/systems/farming/mod.rs`, `src/engine/survival_env.rs`,
-  `src/systems/food.rs`); the Greenhouse Construction quest's heater step
+  what reads a warmed room (`crates/humanity-systems/src/farming/humidity.rs`, the pests'
+  temperature in `crates/humanity-systems/src/farming/mod.rs`, `src/engine/survival_env.rs`,
+  `crates/humanity-systems/src/food.rs`); the Greenhouse Construction quest's heater step
   (`data/quests/farming.ron`); the body heat model,
   the built shelter's roof and walls, the sky hidden by a roof, and the
-  5 C, clear night and noon tests (`src/systems/body_heat.rs`,
-  `src/systems/construction/uses.rs`, `src/engine/survival_env.rs`); fly
+  5 C, clear night and noon tests (`crates/humanity-systems/src/body_heat.rs`,
+  `crates/humanity-systems/src/construction/uses.rs`, `src/engine/survival_env.rs`); fly
   mode keeping the weather off the body (`src/engine/survival_env.rs`)
   and the HUD's movement line reading FLY (`movement_line` in
   `src/gui/pages/hud.rs`); the Hypothermia condition
   (`data/status_effects.csv`); the 50 ppm carbon monoxide threshold
-  (`src/systems/atmosphere.rs`); the backup generator and its drum in the
+  (`crates/humanity-systems/src/atmosphere.rs`); the backup generator and its drum in the
   plant room (`data/machines/home.ron`); the climate figures and their
   NOAA sources (`data/locales/silverdale_wa/climate.json`).
 - [Firewood](/library#firewood), [Ventilation, Damp and

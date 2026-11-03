@@ -7,9 +7,9 @@
 
 use super::*;
 use humanity_core::ecs::components::{Appearance, Controllable, Health, Name, Outfit, StatusEffects, Vitals};
-use crate::systems::death_pack::{DeathRules, TakeBack};
-use crate::systems::inventory::{Inventory, ItemRegistry, ItemStack};
-use crate::systems::skills::PlayerSkills;
+use humanity_systems::death_pack::{DeathRules, TakeBack};
+use humanity_systems::inventory::{Inventory, ItemRegistry, ItemStack};
+use humanity_systems::skills::PlayerSkills;
 
 fn data_dir() -> std::path::PathBuf {
     std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
@@ -90,7 +90,7 @@ fn simplified_keeps_the_backpack_on_death() {
     let (mut world, p) = player_world();
     carry(&mut world, p);
     let before = backpack(&world, p);
-    let note = crate::systems::death_pack::on_death(&mut world, DeathMode::Simplified, Some(kitchen()));
+    let note = humanity_systems::death_pack::on_death(&mut world, DeathMode::Simplified, Some(kitchen()));
     assert_eq!(note, DeathNote::NothingLost, "Simplified: nothing is lost");
     assert_eq!(backpack(&world, p), before, "the backpack is as it was");
     assert!(dp::packs(&world).is_empty(), "no pack is left anywhere");
@@ -278,7 +278,7 @@ fn e_reaches_a_pack_in_front_within_reach() {
 }
 
 /// Through the file format and back, as a save on disk is.
-fn round_trip(save: &crate::persistence::WorldSave) -> crate::persistence::WorldSave {
+fn round_trip(save: &humanity_systems::persistence::WorldSave) -> humanity_systems::persistence::WorldSave {
     serde_json::from_str(&serde_json::to_string(save).unwrap()).unwrap()
 }
 
@@ -319,7 +319,7 @@ fn the_pack_survives_a_save_and_a_load() {
     // A save written before packs existed.
     let mut old = serde_json::to_value(&save).unwrap();
     old.as_object_mut().unwrap().remove("left_packs");
-    let old: crate::persistence::WorldSave = serde_json::from_value(old).unwrap();
+    let old: humanity_systems::persistence::WorldSave = serde_json::from_value(old).unwrap();
     assert!(old.left_packs.is_empty());
 }
 

@@ -6,7 +6,7 @@ If this is your first day in this repo, start here.
 
 HumanityOS is a Rust workspace that compiles into one binary: the root package at `src/` and
 the crates cut out of it so far under `crates/` (the crate split, `docs/design/crate-split.md`:
-ten crates decided on 2026-10-30, the first two cut on 2026-11-01), plus a plain HTML/JS web
+ten crates decided on 2026-10-30, the first two cut on 2026-11-01, three more on 2026-11-02), plus a plain HTML/JS web
 frontend (`web/`) that mirrors it. Feature flags (`native`, `relay`, `wasm`) decide what's
 included. It is
 both a real-world learning/coordination platform and an educational game, the two
@@ -20,7 +20,7 @@ separate products.
 > operator (2026-06-30), was not the direction then. (The split into ten crates by layer,
 > decided 2026-10-30, `docs/design/crate-split.md`, is a different thing: it cuts along the
 > dependency layers to make builds faster, not into per-feature modules.) Feature domains
-> (farming, crafting, combat, electrical, ...) live as modules INSIDE `src/systems/`
+> (farming, crafting, combat, electrical, ...) live as modules INSIDE `crates/humanity-systems/src/`
 > and `src/relay/storage/`, not as separate crates. If you see a doc, comment, or AI
 > agent still framing this as multi-crate, that description is stale.
 

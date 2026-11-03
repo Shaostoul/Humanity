@@ -30,9 +30,10 @@ See also: `docs/website/README.md`.
 ### Rust workspace (one unified binary, post-v0.90)
 
 - `src/`, the root package, all features behind flags, and the crates cut
-  out of it so far, `crates/humanity-core/` and `crates/humanity-protocol/`
+  out of it so far, `crates/humanity-core/`, `crates/humanity-protocol/`, `crates/humanity-ship/`,
+  `crates/humanity-terrain/` and `crates/humanity-systems/`
   (the crate split, `docs/design/crate-split.md`). `src/relay/` is the axum
-  relay server (was `server/`); the rest is the game engine + systems. Build
+  relay server (was `server/`); the rest is the game engine. Build
   modes: `HumanityOS` (native desktop) / `HumanityOS --headless` (relay).
 
 ### Other implemented runtime surfaces
@@ -42,7 +43,7 @@ See also: `docs/website/README.md`.
 
 ### Important gap
 
-Most domain systems are documented in `docs/design/` AND implemented as modules under `src/systems/`. The live list of systems that exist but are not yet registered in the runtime is `DEFERRED_SYSTEMS` in `tests/engine_wiring_lint.rs`, which the build enforces; read that rather than this paragraph, because it cannot go stale without failing a test.
+Most domain systems are documented in `docs/design/` AND implemented as modules under `crates/humanity-systems/src/`. The live list of systems that exist but are not yet registered in the runtime is `DEFERRED_SYSTEMS` in `tests/engine_wiring_lint.rs`, which the build enforces; read that rather than this paragraph, because it cannot go stale without failing a test.
 
 ## 3) Design-to-implementation map
 
@@ -95,7 +96,7 @@ Most domain systems are documented in `docs/design/` AND implemented as modules 
   - `docs/design/pages/`
 - Implementation now:
   - Mostly design/spec stage
-  - Domain systems live in `src/systems/` inside the single `src/` crate
+  - Domain systems live in `crates/humanity-systems/src/` inside the single `src/` crate
 - Status:
   - **Documented: strong**
   - **Implemented: mostly registered.** As of 2026-09-14 only EcologySystem,
@@ -160,8 +161,8 @@ Most domain systems are documented in `docs/design/` AND implemented as modules 
 > their own: add a domain as a **module** inside the crate its layer belongs to
 > (`scripts/crate-layers.json`).
 
-Add one pilot domain module (example: `src/systems/orbital.rs` or
-`src/systems/carpentry.rs`) that:
+Add one pilot domain module (example: `crates/humanity-systems/src/orbital.rs` or
+`crates/humanity-systems/src/carpentry.rs`) that:
 
 - reuses shared primitives from `crates/humanity-protocol/src/` (crypto/encoding) and
   the ECS in `crates/humanity-core/src/ecs/` where appropriate,

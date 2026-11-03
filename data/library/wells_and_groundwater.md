@@ -480,7 +480,7 @@ The game has a well, but not groundwater.
   and the home's plumbing shares that water with every connected tank and
   machine. The pump is `water_pump` in `data/machines/home.ron`; the rule
   that its water needs power is in `src/engine/home_spawn.rs` and
-  `src/systems/plumbing.rs`. [Moving Water Without
+  `crates/humanity-systems/src/plumbing.rs`. [Moving Water Without
   Power](/library#moving-water-without-power) describes the rest of the home's
   plumbing.
 
@@ -489,7 +489,7 @@ no aquifer behind the pump. The well never runs low, its yield never
 falls in summer, it has no depth, no water table and no cone of
 depression, it cannot be contaminated, it needs no water right, and it
 never affects a neighbour or a stream. Code for a groundwater model
-exists in `src/systems/hydrology.rs`, but it is not running in the game.
+exists in `crates/humanity-systems/src/hydrology.rs`, but it is not running in the game.
 The Silverdale locale data (`data/locales/silverdale_wa/water.json`)
 does record the real aquifer, the local well depths and the legal limits
 used in this guide, ready for when it is.
@@ -667,8 +667,8 @@ facts are used here and the wording is not.
 
 - The home's well pump: `water_pump` in `data/machines/home.ron` (10 W,
   2 L a minute, the "well lift" outlet); power-gated water in
-  `src/engine/home_spawn.rs` and `src/systems/plumbing.rs`. The unused
-  groundwater model: `src/systems/hydrology.rs` (its `HydrologySystem`
+  `src/engine/home_spawn.rs` and `crates/humanity-systems/src/plumbing.rs`. The unused
+  groundwater model: `crates/humanity-systems/src/hydrology.rs` (its `HydrologySystem`
   is not registered with the game's system runner).
 - The Silverdale groundwater record: `data/locales/silverdale_wa/water.json`.
 - The "Start every session from the default home" setting

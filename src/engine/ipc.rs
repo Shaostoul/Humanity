@@ -170,7 +170,7 @@ pub(crate) fn parse_pairing(raw: &str) -> Option<&'static str> {
 /// Whether that start is offered is the server card's own check (`save_slot::choose_on_server`).
 pub(crate) fn parse_start(raw: &str) -> Option<String> {
     let id = raw.trim();
-    crate::ship::starts::is_start_id(id).then(|| id.to_string())
+    humanity_ship::starts::is_start_id(id).then(|| id.to_string())
 }
 
 /// Read a `meal` or `water` verb's value (ship homes increment 6): "1" presses the serving
@@ -295,7 +295,7 @@ fn normalised_or(v: Vec3, fallback: impl FnOnce() -> Vec3) -> Vec3 {
 
 /// data/world/showcase.ron shape (v0.863 perpetual showcase). Lives with the grow
 /// machines' food model, which reads the same crops to compute each machine's figure.
-pub(crate) use crate::systems::grow_machines::ShowcaseCfg;
+pub(crate) use humanity_systems::grow_machines::ShowcaseCfg;
 
 /// Whether the showcase may plant the garden now, or why not (`auto_seed_showcase`'s first
 /// check, kept pure so it is tested without a window). A free, ripe garden is a free resource,
@@ -366,19 +366,19 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
     }
     let Some(reg) = state
         .data_store
-        .get::<crate::systems::farming::PlantRegistry>("plant_registry")
+        .get::<humanity_systems::farming::PlantRegistry>("plant_registry")
     else {
         return;
     };
     let elapsed = state
         .data_store
-        .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+        .get::<std::sync::Mutex<humanity_systems::time::GameTime>>("game_time")
         .and_then(|m| m.lock().ok())
         .map(|gt| gt.elapsed_seconds)
         .unwrap_or(0.0);
     let tower_cfgs = crate::gui::load_tower_configs(&humanity_core::storage::data_dir());
     // A garden day: 24 hours of the one game clock (farming's day, 2026-09-27).
-    const DAY: f64 = crate::systems::time::EARTH_DAY_S;
+    const DAY: f64 = humanity_systems::time::EARTH_DAY_S;
 
     // Collect the spawn list first (no world borrow while iterating data).
     let mut to_spawn: Vec<humanity_core::ecs::components::CropInstance> = Vec::new();
@@ -393,7 +393,7 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
         // separate growth speed (the one clock, 2026-09-27).
         list.push(humanity_core::ecs::components::CropInstance {
             crop_def_id: plant_id.to_string(),
-            growth_stage: crate::systems::farming::stage_from_progress(frac, &stages).to_string(),
+            growth_stage: humanity_systems::farming::stage_from_progress(frac, &stages).to_string(),
             planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64,
             water_level: 1.0,
             health: 100.0,
@@ -418,7 +418,7 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
             };
             // One crop per cup, the plantings cycled: the same rule the grow
             // machines' food figure counts (grow_machines::tower_cup_crops).
-            let cups = crate::systems::grow_machines::tower_cup_crops(&cycle, slots);
+            let cups = humanity_systems::grow_machines::tower_cup_crops(&cycle, slots);
             for (slot, plant) in (0u32..).zip(&cups) {
                 let frac = slot as f32 / (slots.max(2) - 1) as f32;
                 stagger(&mut to_spawn, plant, &g.id, slot, frac);
@@ -1080,7 +1080,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // second under a world-fixed camera. A hold over the time-speed setting
     // (time::request_speed_hold); the TimeSystem's accumulator is authoritative.
     if let Some(sc) = grab("time_scale").and_then(|t| t.parse::<f32>().ok()) {
-        crate::systems::time::request_speed_hold(&state.data_store, Some(sc.max(0.0)));
+        humanity_systems::time::request_speed_hold(&state.data_store, Some(sc.max(0.0)));
     }
     // Optional "hud":"0" hides the HUD, the crosshair dot with it
     // (hud::crosshair_visible); "hud":"1" shows it again, and the rigs send
@@ -1264,7 +1264,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // "auto": a vantage that cares pins its own mode, and the rigs send "auto" before every other
     // vantage (scripts/lib/showcase-pins.js). The pipes rebuild on the next frame.
     if let Some(t) = grab("pipe_marking") {
-        use crate::ship::pipe_marking::MarkingMode;
+        use humanity_ship::pipe_marking::MarkingMode;
         state.pipe_markers.pin = match t.as_str() {
             "full" => Some(MarkingMode::Full),
             "simplified" => Some(MarkingMode::Simplified),
@@ -1620,25 +1620,25 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // change nothing in the air" went unnoticed for so long.
     if let Some(w) = grab("weather") {
         let (cond, intensity) = match w.to_ascii_lowercase().as_str() {
-            "clear" => (crate::systems::weather::WeatherCondition::Clear, 0.0),
-            "cloudy" => (crate::systems::weather::WeatherCondition::Cloudy, 0.4),
-            "rain" => (crate::systems::weather::WeatherCondition::Rain, 0.9),
-            "storm" => (crate::systems::weather::WeatherCondition::Storm, 1.0),
-            "snow" => (crate::systems::weather::WeatherCondition::Snow, 0.7),
-            "fog" => (crate::systems::weather::WeatherCondition::Fog, 1.0),
-            "sandstorm" => (crate::systems::weather::WeatherCondition::Sandstorm, 1.0),
-            _ => (crate::systems::weather::WeatherCondition::Clear, 0.0),
+            "clear" => (humanity_systems::weather::WeatherCondition::Clear, 0.0),
+            "cloudy" => (humanity_systems::weather::WeatherCondition::Cloudy, 0.4),
+            "rain" => (humanity_systems::weather::WeatherCondition::Rain, 0.9),
+            "storm" => (humanity_systems::weather::WeatherCondition::Storm, 1.0),
+            "snow" => (humanity_systems::weather::WeatherCondition::Snow, 0.7),
+            "fog" => (humanity_systems::weather::WeatherCondition::Fog, 1.0),
+            "sandstorm" => (humanity_systems::weather::WeatherCondition::Sandstorm, 1.0),
+            _ => (humanity_systems::weather::WeatherCondition::Clear, 0.0),
         };
         if let Some(m) = state
             .data_store
-            .get::<std::sync::Mutex<crate::systems::weather::WeatherControl>>("weather_control")
+            .get::<std::sync::Mutex<humanity_systems::weather::WeatherControl>>("weather_control")
         {
             if let Ok(mut c) = m.lock() {
                 // {"weather_wind":"0"} beside it pins the weather's own wind,
                 // m/s (2026-09-29): a calm clear night is the case the body's
                 // "feels" figure is most different from the air.
                 let wind = grab("weather_wind").and_then(|x| x.parse::<f32>().ok()).map(|v| v.clamp(0.0, 60.0));
-                c.manual = Some(crate::systems::weather::ManualWeather {
+                c.manual = Some(humanity_systems::weather::ManualWeather {
                     condition: cond,
                     intensity,
                     wind_speed: wind.unwrap_or(if intensity > 0.8 { 18.0 } else { 4.0 }),
@@ -1756,7 +1756,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             crate::renderer::billboard_bake::BakeCpuModel,
         > = std::collections::HashMap::new();
         let t_parse = std::time::Instant::now();
-        for t in crate::terrain::tree_registry::registry().trees.iter() {
+        for t in humanity_terrain::tree_registry::registry().trees.iter() {
             if t.is_procedural() {
                 continue;
             }
@@ -2269,7 +2269,7 @@ pub(crate) fn sky_rotation(state: &EngineState) -> glam::Quat {
         - 946_728_000.0)
         / 86_400.0;
     let to_catalogue = crate::renderer::sky_frame::equatorial_to_world(state.sun_world_pos, days_since_j2000).inverse();
-    (to_catalogue * crate::station::render_to_world_rot(state.station_ride, state.station_world_rot)).as_quat()
+    (to_catalogue * humanity_ship::station::render_to_world_rot(state.station_ride, state.station_world_rot)).as_quat()
 }
 
 /// The Sun's direction for the CELESTIAL pass and the god rays, in the
@@ -2289,14 +2289,14 @@ pub(crate) fn celestial_sun_dir(state: &EngineState) -> Vec3 {
 
 /// `celestial_sun_dir`'s arithmetic, in pure form.
 pub(crate) fn celestial_sun_dir_from(riding: bool, station_rot: glam::DQuat, sun_world: glam::DVec3, origin_world: glam::DVec3) -> Vec3 {
-    let d = crate::station::to_hull(riding, station_rot, (sun_world - origin_world).normalize_or_zero()).normalize_or_zero();
+    let d = humanity_ship::station::to_hull(riding, station_rot, (sun_world - origin_world).normalize_or_zero()).normalize_or_zero();
     Vec3::new(d.x as f32, d.y as f32, d.z as f32)
 }
 
 #[cfg(test)]
 mod celestial_sun_tests {
     use super::*;
-    use crate::station::orbit;
+    use humanity_ship::station::orbit;
 
     /// Aboard at local noon over the ship (the Sun straight above it), the
     /// celestial pass's Sun is the hull's own up, +Y, so the Earth under the
@@ -2308,7 +2308,7 @@ mod celestial_sun_tests {
     /// (on the hull's horizon: Earth's terminator through the middle).
     #[test]
     fn aboard_the_celestial_sun_is_in_the_hull_frame() {
-        let def = crate::station::default_home();
+        let def = humanity_ship::station::default_home();
         for t in [0.0, 6.0 * 3600.0, 14.5 * 3600.0] {
             let (pos, vel) = orbit::propagate(&def.orbit, orbit::MU_EARTH, orbit::REAL_SECONDS_PER_DAY, t, 86_400.0);
             let rot = orbit::attitude(&def.attitude, pos, vel);
@@ -3450,7 +3450,7 @@ pub(crate) fn advance_station_park(state: &mut EngineState) {
         // rides in (the HULL FRAME rule: the world's axes are not the deck's;
         // the first capture without this faced empty sky).
         let to_sun = state.sun_world_pos - state.ship_world_pos;
-        let dir = crate::station::to_hull(state.station_ride, state.station_world_rot, to_sun);
+        let dir = humanity_ship::station::to_hull(state.station_ride, state.station_world_rot, to_sun);
         let (yaw, pitch) = humanity_core::dev_travel::look_angles(dir);
         state.camera.yaw = yaw;
         state.camera.pitch = pitch;
@@ -3800,7 +3800,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // ground feature. Otherwise the sunlit-heuristic Travel vantage.
     let dir_out = if let Some((lat, lon)) = latlon {
         // The body's own turn (2026-10-21): a lat/lon is on THAT body's ground.
-        let d = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
+        let d = humanity_terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
         let world = crate::engine::planet_build::body_world_rot(&body_id, state.current_spin, sim_t)
             * glam::DVec3::new(d.x as f64, d.y as f64, d.z as f64);
         world.normalize_or_zero()
@@ -3821,7 +3821,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // (no lat/lon) targets keep the sphere radius; there is no terrain up
     // there to clear.
     let mut surface_radius = if let Some((lat, lon)) = latlon {
-        let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
+        let unit = humanity_terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
         // Tile-aware parking (v0.885): sample the DRAWN elevation (base +
         // detail noise + streamed tiles when resident) so a low park over
         // a tile-data peak (Fuji) starts ABOVE the drawn cone instead of
@@ -3836,7 +3836,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         let detail = state
             .planet_defs
             .get(&body_id)
-            .map(|d| crate::terrain::planet_chunks::DetailNoise::new(d.terrain_seed));
+            .map(|d| humanity_terrain::planet_chunks::DetailNoise::new(d.terrain_seed));
         let tiles = (body_id == "earth" && state.terrain_tiles.tier_installed())
             .then_some(&state.terrain_tiles);
         ground_radius_m(
@@ -3864,7 +3864,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // water shell, so park on the water. (Below-sea-level dry land like
     // the Dead Sea parks ~400 m high - a fine trade against diving.)
     if body_id == "earth" && latlon.is_some() && surface_radius < radius_m {
-        surface_radius = radius_m + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
+        surface_radius = radius_m + humanity_terrain::ocean_waves::SURFACE_LIFT_M as f64;
     }
     let vantage = body_rel_earth + dir_out * (surface_radius + altitude_km * 1000.0);
     if state.dev_travel_home.is_none() {
@@ -4441,10 +4441,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // Increment 4: the corrections the relay sent and this game applied, and the rig's walk in
         // progress (engine/move_check.rs); whether the camera stands inside the ship's bounds.
         "moves": crate::engine::move_check::probe_json(state),
-        // Every transit link the ship has (its teleporter pairs, src/ship/transit.rs): the rig
+        // Every transit link the ship has (its teleporter pairs, crates/humanity-ship/src/transit.rs): the rig
         // walks onto the home's own west pad and judges where it lands (the increment 4 review, R1).
         "transit": crate::engine::move_check::transit_probe_json(state),
-        "aboard_ship": state.aboard_bounds.is_some_and(|b| crate::ship::ship_space::in_box(&b, state.camera.position)),
+        "aboard_ship": state.aboard_bounds.is_some_and(|b| humanity_ship::ship_space::in_box(&b, state.camera.position)),
         // Increment 5: the pieces the server keeps as this game has them, what this player may
         // build, what waits for the relay (engine/shared_build.rs `probe_json`), and the window's
         // size in pixels, the space of every frame's `shared` rects and of a screenshot.
@@ -4508,7 +4508,7 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
 
 /// The recorder's `home_session` for the running game (see above).
 pub(crate) fn home_session_json(state: &EngineState) -> serde_json::Value {
-    home_session_core(&state.gui_state, &state.game_world.world, &state.data_store, &crate::persistence::saves_dir())
+    home_session_core(&state.gui_state, &state.game_world.world, &state.data_store, &humanity_systems::persistence::saves_dir())
 }
 
 /// Every item of `inventory` and how many, summed by id.
@@ -4524,7 +4524,7 @@ fn backpack_json(inventory: &[(String, u32)]) -> serde_json::Value {
 /// start, household, place aboard, mess hall meter and backpack.
 fn save_file_json(path: &std::path::Path) -> serde_json::Value {
     let mut v = serde_json::json!({ "path": path.display().to_string(), "exists": path.exists() });
-    if let Some(save) = path.exists().then(|| crate::persistence::load_world(path).ok()).flatten() {
+    if let Some(save) = path.exists().then(|| humanity_systems::persistence::load_world(path).ok()).flatten() {
         v["start"] = serde_json::json!(save.start);
         v["household"] = serde_json::json!(save.household);
         v["ship_place"] = serde_json::json!(save.ship_place);
@@ -4542,12 +4542,12 @@ pub(crate) fn home_session_core(
     data: &humanity_core::hot_reload::data_store::DataStore,
     saves_dir: &std::path::Path,
 ) -> serde_json::Value {
-    use crate::persistence::SaveSlot;
+    use humanity_systems::persistence::SaveSlot;
     let word = |s: &SaveSlot| match s {
         SaveSlot::Offline => "offline",
         SaveSlot::Server { .. } => "server",
     };
-    let active = crate::persistence::live_save::active_home();
+    let active = humanity_systems::persistence::live_save::active_home();
     // The character as the live world holds it, as a save would write it.
     let me = crate::save_load::extract_world_save(world);
     let quests = me.quests.clone().unwrap_or_default();
@@ -4567,7 +4567,7 @@ pub(crate) fn home_session_core(
             .map(|k| serde_json::json!({ "direction": k.direction, "quantity": k.quantity, "value": k.value }))
             .collect::<Vec<_>>()
     });
-    let server_save = crate::gui::pages::where_you_live::server_slot(gs).map(|s| save_file_json(&crate::persistence::slot_path(saves_dir, &s)));
+    let server_save = crate::gui::pages::where_you_live::server_slot(gs).map(|s| save_file_json(&humanity_systems::persistence::slot_path(saves_dir, &s)));
     serde_json::json!({
         "slot": word(&gs.save_slot),
         "wanted": word(&crate::engine::save_slot::wanted(gs)),
@@ -4594,7 +4594,7 @@ pub(crate) fn home_session_core(
         "counter": gs.fleet.counter_status,
         "fleet_meals": fleet_meals,
         "answer": gs.home_answer.as_ref().map(|a| a.to_message()),
-        "own_save": save_file_json(&crate::persistence::slot_path(saves_dir, &SaveSlot::Offline)),
+        "own_save": save_file_json(&humanity_systems::persistence::slot_path(saves_dir, &SaveSlot::Offline)),
         "server_save": server_save,
         "last_verb": LAST_HOME_VERB.with(|l| l.borrow().clone()),
     })
@@ -4604,7 +4604,7 @@ pub(crate) fn home_session_core(
 //
 // Drop `debug/door_points_request.json` (any content) while the game runs. The same frame
 // writes `debug/door_points_done.json`: `{"ok": true, "ship_hash", "places": [...], "doors":
-// [...], "storeys": [{"floor", "walls"}, ...]}` (src/ship/door_points.rs), the ship's places (each
+// [...], "storeys": [{"floor", "walls"}, ...]}` (crates/humanity-ship/src/door_points.rs), the ship's places (each
 // shared zone, each plot with its door), every corridor's door points, from the Rust corridor
 // geometry, and every wall a person walks against, by the storey whose floor it stands on. A rig
 // (scripts/verify-copresence.js, scripts/lib/copresence-judge.js `doorRoute`) walks the game and
@@ -4613,11 +4613,11 @@ pub(crate) fn home_session_core(
 // world has not loaded, or the legacy layout is showing). Permanent dev tooling.
 
 /// What the door-points request answers (see above). Pure.
-pub(crate) fn door_points_json(ship: Option<&crate::ship::ship_structure::ShipStructure>) -> serde_json::Value {
+pub(crate) fn door_points_json(ship: Option<&humanity_ship::ship_structure::ShipStructure>) -> serde_json::Value {
     let Some(ship) = ship else {
         return serde_json::json!({"ok": false, "error": "no ship has assembled (the world has not loaded, or the legacy layout is showing)"});
     };
-    let mut v = serde_json::to_value(crate::ship::door_points::door_points(ship)).unwrap_or_else(|_| serde_json::json!({}));
+    let mut v = serde_json::to_value(humanity_ship::door_points::door_points(ship)).unwrap_or_else(|_| serde_json::json!({}));
     if let Some(o) = v.as_object_mut() {
         o.insert("ok".into(), serde_json::json!(true));
     }
@@ -5411,7 +5411,7 @@ mod console_verb_tests {
     //! this session only (`console_this_session`).
     use super::*;
     use crate::config::PlayMode;
-    use crate::ship::ship_structure::ShipStructure;
+    use humanity_ship::ship_structure::ShipStructure;
 
     /// A Dev session, the rigs' play mode, on the shipped ship from p1, the editor's zone the home.
     fn dev_session() -> crate::gui::GuiState {
@@ -5495,9 +5495,9 @@ mod shared_build_ipc_tests {
     //! reports for scripts/lib/shared-build-judge.js.
     use super::*;
     use crate::engine::shared_build::{piece_rows, spawn_piece, ScreenView};
-    use crate::ship::build_frames::BuildFrames;
-    use crate::systems::construction::shared::Piece;
-    use crate::systems::construction::BlueprintRegistry;
+    use humanity_ship::build_frames::BuildFrames;
+    use humanity_systems::construction::shared::Piece;
+    use humanity_systems::construction::BlueprintRegistry;
     use glam::Mat4;
 
     /// The body of `fn name` in this file, up to the first line that is a lone `}` (line endings
@@ -5554,7 +5554,7 @@ mod shared_build_ipc_tests {
     fn the_recorder_reports_shared_pieces() {
         let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-        let frames = BuildFrames::of_ship(&crate::ship::ship_structure::ShipStructure::ship_for_relay(&dir).unwrap());
+        let frames = BuildFrames::of_ship(&humanity_ship::ship_structure::ShipStructure::ship_for_relay(&dir).unwrap());
         let commons = frames.get("zone:commons").unwrap();
         let t = 1_759_500_000.0;
         let at = |id: u64, bp: &str, local: [f32; 3], placed_at: f64| Piece {
@@ -5610,8 +5610,8 @@ mod household_ipc_tests {
     //! its judge reads.
     use super::*;
     use crate::net::household::{GivenPermit, GivenState, HeldPermit, Household, Judged, PermitKey, Verdict};
-    use crate::ship::door_panels::{neighbour_panel_placements, ship_panel_placements, PanelPlacement};
-    use crate::ship::ship_structure::{OpenPlots, ShipStructure};
+    use humanity_ship::door_panels::{neighbour_panel_placements, ship_panel_placements, PanelPlacement};
+    use humanity_ship::ship_structure::{OpenPlots, ShipStructure};
     use humanity_core::build_permission::Permit;
     use std::collections::BTreeSet;
 
@@ -5757,9 +5757,9 @@ mod home_session_ipc_tests {
     //! Enter, a server card's Choose, the serving counter's two buttons), and the recorder's
     //! `home_session`, which its judge reads.
     use super::*;
-    use crate::persistence::{SaveSlot, ShipMeals};
-    use crate::ship::ship_structure::ShipStructure;
-    use crate::ship::starts::Starts;
+    use humanity_systems::persistence::{SaveSlot, ShipMeals};
+    use humanity_ship::ship_structure::ShipStructure;
+    use humanity_ship::starts::Starts;
 
     /// The body of `fn name` in this file, up to the first line that is a lone `}`.
     fn body_of(name: &str) -> String {
@@ -5845,9 +5845,9 @@ mod home_session_ipc_tests {
         let slot = SaveSlot::Server { server: server.clone(), identity: me.clone() };
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
         let saves = std::env::temp_dir().join(format!("home-session-probe-{nanos}"));
-        let server_path = crate::persistence::slot_path(&saves, &slot);
+        let server_path = humanity_systems::persistence::slot_path(&saves, &slot);
         let place = crate::engine::save_slot::place_on(Some(&ship), "c2");
-        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome {
+        humanity_systems::persistence::live_save::set_active_home(humanity_systems::persistence::live_save::ActiveHome {
             slot: slot.clone(),
             path: server_path.clone(),
             start: "cabin".into(),
@@ -5884,7 +5884,7 @@ mod home_session_ipc_tests {
         gs.home_answer = Some(crate::gui::pages::where_you_live::tests::held_answer(&starts));
 
         // This server's save on disk (your own home's is not), written as a save is.
-        let mut on_disk = crate::persistence::WorldSave::new_offline("My Cabin", "cabin");
+        let mut on_disk = humanity_systems::persistence::WorldSave::new_offline("My Cabin", "cabin");
         on_disk.kind = "server".into();
         on_disk.household = "solo".into();
         on_disk.ship_place = place.clone();

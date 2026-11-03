@@ -24,7 +24,9 @@
 //
 // THE WORKSPACE (2026-11-01, the crate split's rung 1, docs/design/crate-split.md). Each member
 // of the workspace has a test program of its own: the core's tests are humanity_core-<hash>.exe,
-// the protocol's humanity_protocol-<hash>.exe, the rest still the engine's humanity_engine-<hash>.exe.
+// the protocol's humanity_protocol-<hash>.exe, since rung 2 (2026-11-02) the ship's, the terrain's
+// and the simulation's humanity_ship-, humanity_terrain- and humanity_systems-<hash>.exe, the rest
+// still the engine's humanity_engine-<hash>.exe.
 // Until rung 1 there was one, found as the only test artifact cargo printed; a script that still
 // took "the" program would run a third of the suite and report it all green. So every member's
 // program is built and run (scripts/lib/lib-test-programs.js), in the order cargo lists the
@@ -33,7 +35,10 @@
 // partial pass's GPU tests are asked of every program by exact name; only the one holding them
 // runs any). The summary adds them up, and a member whose program cargo did not build fails the
 // run. A test's name is its path inside its own crate: the protocol's tests lost their
-// `relay::core::` prefix in the move (`kdf::tests::...`); the core's kept theirs.
+// `relay::core::` prefix in the move (`kdf::tests::...`); the core's kept theirs; the ship's lost
+// `ship::` (`sight::tests::...`; `machines::` and `station::` kept theirs), the terrain's
+// `terrain::`, the simulation's `systems::` (`persistence::`, `surface_walk::` and
+// `surface_move::` kept theirs).
 //
 // WHY (2026-10-09): Microsoft's linker refuses to write the library test
 // program's debug file (PDB) with "LNK1318: Unexpected PDB error; LIMIT (12)",
@@ -124,7 +129,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--crate") {
     const c = argv[++i];
     if (!c) {
-      console.error("lib-tests: --crate needs a workspace member's name (humanity-core, humanity-protocol, humanity-engine)");
+      console.error("lib-tests: --crate needs a workspace member's name (the root Cargo.toml's [workspace] members: humanity-core, humanity-systems, humanity-engine, ...)");
       process.exit(2);
     }
     opts.crates.push(c);
@@ -214,6 +219,20 @@ const runArgs = partialPass ? [...partialPass.gpu_skipped, "--exact", ...L.nonSe
 if (!GIVEN_EXES) spawnSync(process.execPath, [path.join(__dirname, "build-slot.js"), "ensure"], { cwd: ROOT, stdio: "inherit" });
 
 // 3. Build the test programs, one per workspace member: [{ name, exe }], in cargo's order.
+/** Each member's folder (package name -> folder), from cargo metadata: its test program runs there
+ * (programDir), as `cargo test` runs it. */
+const MEMBER_DIR = new Map();
+/** Test program -> the folder it runs in. */
+const PROGRAM_DIR = new Map();
+/** Where a test program runs, and the CARGO_MANIFEST_DIR it is given: its member's folder, as
+ * `cargo test` (and so `just verify-relay`) does. Until 2026-11-02 every program ran from the repo
+ * root, which hid four tests of the crates cut at the crate split's rung 2 that read data/ from
+ * where they were started: they passed here and failed under `cargo test`. A program given with
+ * --exe, or of a member cargo metadata did not name, runs from the repo root. */
+function programDir(exe) {
+  return PROGRAM_DIR.get(exe) || ROOT;
+}
+
 /** The workspace's members with a library (cargo metadata), the --crate ones if any were named. */
 function members() {
   const r = spawnSync("cargo", ["metadata", "--no-deps", "--format-version", "1"], { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 });
@@ -221,7 +240,9 @@ function members() {
     console.error(`lib-tests: cargo metadata failed:\n${r.stderr}`);
     process.exit(1);
   }
-  const all = P.membersOf(JSON.parse(r.stdout));
+  const meta = JSON.parse(r.stdout);
+  const all = P.membersOf(meta);
+  for (const [name, dir] of P.memberDirs(meta)) MEMBER_DIR.set(name, dir);
   for (const c of opts.crates) {
     if (!all.includes(c)) {
       console.error(`lib-tests: "${c}" is not a member of the workspace (${all.join(", ")})`);
@@ -281,6 +302,7 @@ function buildTestPrograms() {
     console.error(`lib-tests: cargo built no test program for ${missing.join(", ")} (its messages named ${[...exes.keys()].join(", ") || "none"})`);
     process.exit(1);
   }
+  for (const name of want) if (MEMBER_DIR.has(name)) PROGRAM_DIR.set(exes.get(name), MEMBER_DIR.get(name));
   return want.map((name) => ({ name, exe: exes.get(name) }));
 }
 
@@ -290,9 +312,10 @@ const RESULT_RE = /test (\S+)(?: - should panic)? \.\.\. (ok|FAILED|ignored\b.*)
 const WARNED_RE = /test (\S+) has been running for over \d+ seconds/;
 const RUNNING_RE = /^running (\d+) tests?$/;
 
-/** The environment the test program gets: the repo root, and the GPU note when his game runs. */
-function programEnv() {
-  const env = { ...process.env, CARGO_MANIFEST_DIR: ROOT };
+/** The environment the test program gets: its member's folder (programDir), and the GPU note when
+ * his game runs. */
+function programEnv(dir) {
+  const env = { ...process.env, CARGO_MANIFEST_DIR: dir };
   delete env.HUMANITY_TEST_GPU_BUSY;
   delete env.HUMANITY_TEST_GPU_SKIPPED;
   if (busy.length) {
@@ -312,7 +335,7 @@ function programEnv() {
 function runProgram(exe, args, timeoutMin) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const c = spawn(exe, args, { cwd: ROOT, env: programEnv(), stdio: ["inherit", "pipe", "pipe"] });
+    const c = spawn(exe, args, { cwd: programDir(exe), env: programEnv(programDir(exe)), stdio: ["inherit", "pipe", "pipe"] });
     let out = "";
     const keep = (d) => {
       if (out.length < 64 * 1024 * 1024) out += d;
@@ -417,7 +440,7 @@ function listTests(exe, args) {
     } else if (!a.startsWith("-")) keepArgs.push(a); // a name filter
     else if ((a === "--test-threads" || a === "--format" || a === "--color" || a === "-Z" || a === "--logfile") && i + 1 < args.length) i++;
   }
-  const r = spawnSync(exe, [...keepArgs, "--list", "--format", "terse"], { cwd: ROOT, env: programEnv(), encoding: "utf8", maxBuffer: 1 << 28 });
+  const r = spawnSync(exe, [...keepArgs, "--list", "--format", "terse"], { cwd: programDir(exe), env: programEnv(programDir(exe)), encoding: "utf8", maxBuffer: 1 << 28 });
   if (r.status !== 0) return null;
   return String(r.stdout)
     .split(/\r?\n/)

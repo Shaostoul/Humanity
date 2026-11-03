@@ -5,8 +5,8 @@
 //!
 //!   cargo run --release --example probe_fuji
 
-use humanity_engine::terrain::planet_heightmap::PlanetHeightmap;
-use humanity_engine::terrain::terrain_tiles::TerrainTiles;
+use humanity_terrain::planet_heightmap::PlanetHeightmap;
+use humanity_terrain::terrain_tiles::TerrainTiles;
 use std::path::PathBuf;
 
 fn main() {
@@ -41,7 +41,7 @@ fn main() {
     print!("tile: ");
     for i in -8..=8 {
         let lon = 138.7274 + i as f32 * 0.02;
-        print!("{:>5.0}", tiles.sample_meters_smooth(35.3606, lon).unwrap_or(f32::NAN));
+        print!("{:>5.0}", tiles.sample_meters_smooth(35.3606, lon as f64).unwrap_or(f32::NAN));
     }
     println!();
 }

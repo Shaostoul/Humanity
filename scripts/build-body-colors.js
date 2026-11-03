@@ -35,7 +35,7 @@ const SOL = path.join(ROOT, "data", "star_systems", "sol.json");
 const PLANETS = path.join(ROOT, "data", "planets");
 
 // sRGB byte -> linear (IEC 61966-2-1), and back: the same curve as
-// src/terrain/planet_albedo.rs `srgb_byte_to_linear` / `linear_to_srgb_byte`.
+// crates/humanity-terrain/src/planet_albedo.rs `srgb_byte_to_linear` / `linear_to_srgb_byte`.
 function toLinear(b) {
   const c = b / 255;
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

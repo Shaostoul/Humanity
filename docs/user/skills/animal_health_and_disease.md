@@ -547,7 +547,7 @@ home's animals never need a vet.
   chance, and meat spoils after 24 game hours at room temperature;
   cooking removes that chance, though cooked food spoils in its turn,
   and anything spoiled always poisons (`data/food_system.ron`,
-  `src/systems/food.rs`).
+  `crates/humanity-systems/src/food.rs`).
 - **Food poisoning dries you out.** While it lasts it takes water from
   your Hydration, 1.5 litres a day on top of what you lose anyway, and
   then it passes on its own: after two days of game time in the
@@ -559,8 +559,8 @@ home's animals never need a vet.
   start with puts back the most. No medicine ends it; Antibiotics stay
   in your pack, and the game says why ([When Food or Water Makes You
   Sick](when_food_or_water_makes_you_sick.md) has the detail;
-  `data/medical/illnesses.ron`, `src/systems/illness.rs`,
-  `src/systems/food.rs`). If you do die, the default Death setting,
+  `data/medical/illnesses.ron`, `crates/humanity-systems/src/illness.rs`,
+  `crates/humanity-systems/src/food.rs`). If you do die, the default Death setting,
   Simplified, takes nothing from you, and the Respawn button brings you
   back at full health with the illness gone (`src/config.rs`,
   `src/lib.rs`).
@@ -801,17 +801,17 @@ documents were read on 4 October 2026.
 ### Inside this project
 
 - Animal hit points in `data/creatures.csv` (`health_base`) and the
-  combat system that alone reduces them (`src/systems/combat/mod.rs`);
+  combat system that alone reduces them (`crates/humanity-systems/src/combat/mod.rs`);
   the home's herd in `data/entities/livestock.ron`.
 - Food risks: the `milk` profile (raw risk 0.05, spoilage 168 hours), the
   `raw_meat` profile (raw risk 0.40, spoilage 24 hours) and the `cheese`
   and `fats_oils` profiles (no raw risk; spoilage 504 and 720 hours) in
   `data/food_system.ron`, with the temperature zones that speed or slow
   spoilage, mapped to items in `data/food/item_profiles.ron`; spoilage
-  and food poisoning in `src/systems/food.rs`. Food Poisoning's course
+  and food poisoning in `crates/humanity-systems/src/food.rs`. Food Poisoning's course
   in `data/status_effects.csv`, and the water it takes, what each drink
   puts back while you are ill and the Illness modes in
-  `data/medical/illnesses.ron` and `src/systems/illness.rs`; the
+  `data/medical/illnesses.ron` and `crates/humanity-systems/src/illness.rs`; the
   medical items' Use button in `src/gui/pages/inventory.rs`, with what
   each item does in `data/medical/treatments.ron`; the Death setting and
   the respawn in `src/config.rs` and `src/lib.rs`.

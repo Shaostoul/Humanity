@@ -19,15 +19,15 @@ A "home" is **three disconnected data models**, only one of which a player can e
 
 | Layer | File | Captures | Player-editable? | AI-editable? |
 |-------|------|----------|------------------|--------------|
-| **Rooms** | `data/blueprints/homestead_layout.ron` (`RoomConfig`, `src/ship/fibonacci.rs`) | geometry (AABB), walls, openings (door/window/airlock), level/storey, `material_type` | YES — the construction editor (`src/gui/pages/construction.rs`) round-trips it | yes (edit RON) |
-| **Machines** | `data/machines/home.ron` (`MachineHome`, `src/machines.rs`) | machine catalog + instances (`{id, machine, room, offset}`) + arrays + connections (power/water/nutrient) + the live electrical role | **NO — there is no in-app way to place a machine** | yes (edit RON) |
+| **Rooms** | `data/blueprints/homestead_layout.ron` (`RoomConfig`, `crates/humanity-ship/src/fibonacci.rs`) | geometry (AABB), walls, openings (door/window/airlock), level/storey, `material_type` | YES — the construction editor (`src/gui/pages/construction.rs`) round-trips it | yes (edit RON) |
+| **Machines** | `data/machines/home.ron` (`MachineHome`, `crates/humanity-ship/src/machines.rs`) | machine catalog + instances (`{id, machine, room, offset}`) + arrays + connections (power/water/nutrient) + the live electrical role | **NO — there is no in-app way to place a machine** | yes (edit RON) |
 | **Blueprint** | `data/blueprints/fibonacci_homestead.ron` (`HomesteadDesign`, `src/gui/mod.rs`) | per-room materials BOM + design-time power/water targets + Fibonacci tiers + build order | NO (read-only on the Home page) | yes (edit RON) |
 
 Consequences:
 
 - **The AI's designs are not player-reproducible.** A player can edit rooms but cannot place a single machine, so the machine half of any AI home is unreachable to them.
 - **The AI's job is harder than it should be.** Designing a home means hand-editing three RON files that don't know about each other (move a room and its machines don't follow), with no validation and no result until a restart.
-- **The one real seam already exists:** `MachineInstance.room` references a `homestead_layout.ron` room id (`src/machines.rs`). Machines are already *placed in rooms*. The editor already knows rooms. So "edit the machines in this room" is a natural extension, not a new world.
+- **The one real seam already exists:** `MachineInstance.room` references a `homestead_layout.ron` room id (`crates/humanity-ship/src/machines.rs`). Machines are already *placed in rooms*. The editor already knows rooms. So "edit the machines in this room" is a natural extension, not a new world.
 
 ## North star: one home, one surface
 
@@ -41,10 +41,10 @@ The litmus test for "done": **an AI-authored home opens in the construction edit
 
 The numbers are already real; the gap is wiring + a check, not the model.
 
-- **Energy** — kWh/day, not nameplate. `home.ron` (per `docs/design/self-sufficiency.md`): 8×400W panels ≈ 11.5 kWh/day at 4.5 sun-hours. Live: `ElectricalSystem` publishes `PowerStatus {generation, consumption, balance, battery_wh, autonomy_hours}` (`src/systems/electrical.rs`); `integrate_battery` is unit-tested.
-- **Water** -- L/day. 8000 L cistern. Live (v0.608): `PlumbingSystem` (`src/systems/plumbing.rs`) fills the cistern from powered producers (the well pump) and drains it for demand (household + irrigation), per plumbing island, publishing `WaterStatus`. Coupled to power -- cut the grid and the pump stops, the cistern drains. Machines spawn as `WaterTank`/`WaterProducer`/`WaterConsumer`/`PlumbingCircuit` entities (derived from machine ports + `MachineStorage`).
+- **Energy** — kWh/day, not nameplate. `home.ron` (per `docs/design/self-sufficiency.md`): 8×400W panels ≈ 11.5 kWh/day at 4.5 sun-hours. Live: `ElectricalSystem` publishes `PowerStatus {generation, consumption, balance, battery_wh, autonomy_hours}` (`crates/humanity-systems/src/electrical.rs`); `integrate_battery` is unit-tested.
+- **Water** -- L/day. 8000 L cistern. Live (v0.608): `PlumbingSystem` (`crates/humanity-systems/src/plumbing.rs`) fills the cistern from powered producers (the well pump) and drains it for demand (household + irrigation), per plumbing island, publishing `WaterStatus`. Coupled to power -- cut the grid and the pump stops, the cistern drains. Machines spawn as `WaterTank`/`WaterProducer`/`WaterConsumer`/`PlumbingCircuit` entities (derived from machine ports + `MachineStorage`).
 - **Food** — kcal/day with honest limits (indoor canopy is light-capped, grow-lights are EROI-negative, aquaponics closes B12/omega-3). Static specs today, no live FoodSystem.
-- **Structure** — `materials.csv` carries real density / tensile strength / cost (steel 7850 kg/m³, 500 MPa; oak 750, 100 MPa). `src/systems/construction/solver.rs` already derives member capacity from yield strength; it's a pure de-risk spike, not yet wired to room/machine edits.
+- **Structure** — `materials.csv` carries real density / tensile strength / cost (steel 7850 kg/m³, 500 MPa; oak 750, 100 MPa). `crates/humanity-systems/src/construction/solver.rs` already derives member capacity from yield strength; it's a pure de-risk spike, not yet wired to room/machine edits.
 
 **The buildability validator** runs on any design — AI or player — and answers "could you actually build + run this on Earth?":
 

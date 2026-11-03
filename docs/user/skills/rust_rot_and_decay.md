@@ -658,13 +658,13 @@ and documents were read on 3 and 4 October 2026.
 
 - Silverdale's climate: `data/locales/silverdale_wa/climate.json`.
 - What does and does not decay in the game: tool and hoe wear and the
-  play mode (`src/systems/crafting/mod.rs`, `src/systems/farming/weeds.rs`,
+  play mode (`crates/humanity-systems/src/crafting/mod.rs`, `crates/humanity-systems/src/farming/weeds.rs`,
   `src/config.rs`); row cover wear (`data/garden/pests.ron`,
-  `src/systems/farming/pests.rs`); sawdust and bark mulch and the
+  `crates/humanity-systems/src/farming/pests.rs`); sawdust and bark mulch and the
   nitrogen they take as they rot (`data/garden/weeds.ron`,
-  `src/systems/farming/weeds.rs`), switched by the garden pests setting
+  `crates/humanity-systems/src/farming/weeds.rs`), switched by the garden pests setting
   (`src/gui/pages/settings.rs`, default `DEFAULT_PEST_SEVERITY` in
-  `src/systems/farming/pests.rs`); food spoilage (`src/systems/food.rs`).
+  `crates/humanity-systems/src/farming/pests.rs`); food spoilage (`crates/humanity-systems/src/food.rs`).
 - The corrosion ratings and rust compounds that nothing reads yet:
   `data/chemistry/alloys.csv` and `data/chemistry/compounds.csv`.
 - [Metals and Alloys](../making/metals_and_alloys.md), [Working With

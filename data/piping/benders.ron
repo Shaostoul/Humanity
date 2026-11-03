@@ -1,7 +1,7 @@
 #![enable(implicit_some)]
 // Benders: the tools that bend tube and conduit, and the radius each bends at (2026-11-02, spline
 // routing rung 0, docs/design/spline-routing.md sections 5.3 and 6.2). Read by
-// src/ship/run_benders.rs (disk first, the copy built into the exe if this file is missing or
+// crates/humanity-ship/src/run_benders.rs (disk first, the copy built into the exe if this file is missing or
 // does not parse). The curve core (rung 3) fillets a bendable run's corner at the radius of the
 // bender that bends it; where a material and size have no bender here, the corner is turned with
 // a fitting instead (hard copper over 3/4 in, design 6.2).

@@ -1,6 +1,6 @@
 # Death and your pack
 
-Written 2026-10-04. Code: `src/systems/death_pack.rs` (the rules and the arithmetic, no
+Written 2026-10-04. Code: `crates/humanity-systems/src/death_pack.rs` (the rules and the arithmetic, no
 window, compiled into the relay with the save format), `src/engine/death_pack.rs` (the
 frame: where you fell, the pack drawn, the marker, the E press, the clock; tests in
 `death_pack_tests.rs`). Data: `data/world/death.ron`. Setting: Settings > Gameplay > Death.

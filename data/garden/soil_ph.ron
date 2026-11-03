@@ -1,5 +1,5 @@
 // Soil pH (2026-09-26, gardening depth: the next rung of the soil model).
-// Read by src/systems/farming/soil_ph.rs, which carries the model and the
+// Read by crates/humanity-systems/src/farming/soil_ph.rs, which carries the model and the
 // reasoning; this file carries the numbers and where each one came from.
 // Every source below was read on 2026-09-26.
 //

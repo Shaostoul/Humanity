@@ -577,8 +577,8 @@ were read on 3 October 2026.
 
 ### Inside this project
 
-- The harvest roll: `harvest_quantity` in `src/systems/farming/mod.rs`
-  and its caller in `src/systems/farming/picking.rs`; the yields in
+- The harvest roll: `harvest_quantity` in `crates/humanity-systems/src/farming/mod.rs`
+  and its caller in `crates/humanity-systems/src/farming/picking.rs`; the yields in
   `data/plants.csv`, with their sources in `data/garden/yields.ron`.
 - The F2 performance overlay and its 120-frame bar graph:
   `src/gui/pages/diagnostics.rs`, with the per-frame figure set in

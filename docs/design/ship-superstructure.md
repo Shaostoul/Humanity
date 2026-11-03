@@ -26,7 +26,7 @@ primitive - it is plurality and connection:
 
 ### A. ShipStructure: many zones (the foundation, direction-independent)
 
-> SHIPPED (v0.754): `src/ship/ship_structure.rs` (ShipZone/ShipStructure + one-time
+> SHIPPED (v0.754): `crates/humanity-ship/src/ship_structure.rs` (ShipZone/ShipStructure + one-time
 > adoption of a legacy home_structure.ron), `data/blueprints/ship_structure.ron`
 > (the old home file migrated outright as zone "home"), per-zone meshes/collision/
 > door panels/lights, `MachineInstance.zone` (default "home") with per-zone clamping,
@@ -124,7 +124,7 @@ being its 3rd door and the commons' entrance its 1st:
 
 ### D. The hull wrap (what makes it LOOK like a ship)
 
-> SHIPPED: `src/ship/hull.rs` (headless loft math) + `data/blueprints/hull_profile.ron`
+> SHIPPED: `crates/humanity-ship/src/hull.rs` (headless loft math) + `data/blueprints/hull_profile.ron`
 > (embedded fallback). The profile is stations `(at 0..1, half-width scale, height scale)`
 > lofted along the cluster's LONGER horizontal axis around the AABB + `margin`; the loft is
 > CLAMPED so plating never slices a zone box or corridor tube (tapers only bite where the
@@ -152,7 +152,7 @@ A generated shell around the zone cluster so the exterior reads as a vessel:
 ### E. Later, explicitly out of scope now
 
 Multi-deck Y stacking (zones already carry a Y origin; the editor UX is the
-work), NPC pathing across the corridor graph (src/ship BFS exists), per-zone
+work), NPC pathing across the corridor graph (crates/humanity-ship/src BFS exists), per-zone
 atmosphere with airlocks, ship-in-ship (cosmos container model already
 nests), hull damage.
 

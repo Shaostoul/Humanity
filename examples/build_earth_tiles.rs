@@ -70,7 +70,7 @@ fn main() {
             out.extend_from_slice(&MIN_M.to_le_bytes());
             out.extend_from_slice(&MAX_M.to_le_bytes());
             for &m in &px {
-                let q = humanity_engine::terrain::planet_heightmap::quantize_meters(m, MIN_M, MAX_M);
+                let q = humanity_terrain::planet_heightmap::quantize_meters(m, MIN_M, MAX_M);
                 out.extend_from_slice(&q.to_le_bytes());
             }
             let mut f = fs::File::create(&dst).expect("create tile bin");

@@ -10,9 +10,9 @@ use egui::{Context, RichText};
 
 use crate::gui::theme::Theme;
 use crate::gui::{EditorOpening, EditorOpeningKind, GuiState};
-use crate::ship::fibonacci::WallKind;
-use crate::ship::home_structure::{Opening, OpeningKind};
-use crate::ship::ship_structure::{zone_body, zone_body_mut};
+use humanity_ship::fibonacci::WallKind;
+use humanity_ship::home_structure::{Opening, OpeningKind};
+use humanity_ship::ship_structure::{zone_body, zone_body_mut};
 
 // The ship-level tools at the top of the left panel (zone selector, corridors, plots and
 // districts), in pages/construction/ship_tools.rs.
@@ -539,14 +539,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             if let Some(mtype) = add_machine {
                                 if home.catalog.contains_key(&mtype) {
                                     let id = home.unique_instance_id(&mtype);
-                                    home.instances.push(crate::machines::MachineInstance {
+                                    home.instances.push(humanity_ship::machines::MachineInstance {
                                         id,
                                         machine: mtype,
                                         room: room_id.clone(),
                                         offset: (0.0, 0.0, 0.0),
                                         rotation: 0.0,
                                         // Legacy room-editor path (no ship): the default zone.
-                                        zone: crate::machines::default_machine_zone(),
+                                        zone: humanity_ship::machines::default_machine_zone(),
                                         screen_source: None,
                                     });
                                     machines_changed = true;
@@ -587,7 +587,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // meters charge the air handlers and the scrubber to the home or
                 // to the station (2026-09-27).
                 // And what each machine really drew over its last game day (2026-10-22).
-                let basis = crate::machines::MeterBasis {
+                let basis = humanity_ship::machines::MeterBasis {
                     life_support_on_grid: state.garden_pests.life_support_realistic,
                     recorded: Some(&state.machine_day_energy),
                 };
@@ -1013,7 +1013,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // panel shows its real properties so the builder learns while building.
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Material").color(theme.text_muted()));
-                    let mats = crate::ship::home_structure::wall_materials();
+                    let mats = humanity_ship::home_structure::wall_materials();
                     let cur_name = mats
                         .iter()
                         .find(|m| m.id == wall.material)
@@ -1029,7 +1029,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             }
                         });
                 });
-                if let Some(m) = crate::ship::home_structure::wall_material(wall.material) {
+                if let Some(m) = humanity_ship::home_structure::wall_material(wall.material) {
                     ui.label(RichText::new(format!("Density {:.0} kg/m3   Tensile {:.0} MPa", m.density_kg_m3, m.tensile_mpa))
                         .size(theme.font_size_small).color(theme.text_muted()));
                     ui.label(RichText::new(format!("Cost {:.2}/kg   {}", m.cost_per_kg, if m.renewable { "renewable" } else { "non-renewable" }))
@@ -1062,7 +1062,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new(format!("Surface layers ({})", wall.layers.len())).strong().color(theme.text_secondary()));
                 ui.label(RichText::new(format!("Total {:.0} cm with layers; exposed = {}",
                         wall.total_thickness() * 100.0,
-                        crate::ship::home_structure::wall_material(wall.exposed_material()).map(|m| m.name.clone()).unwrap_or_default()))
+                        humanity_ship::home_structure::wall_material(wall.exposed_material()).map(|m| m.name.clone()).unwrap_or_default()))
                     .size(theme.font_size_small).color(theme.text_muted()));
                 let mut rm_layer: Option<usize> = None;
                 let mut mv_layer: Option<(usize, usize)> = None;
@@ -1070,7 +1070,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 for li in 0..nlayers {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(format!("{}.", li + 1)).size(theme.font_size_small).color(theme.text_muted()));
-                        let mname = crate::ship::home_structure::wall_material(wall.layers[li].material)
+                        let mname = humanity_ship::home_structure::wall_material(wall.layers[li].material)
                             .map(|m| m.name.clone())
                             .unwrap_or_else(|| format!("#{}", wall.layers[li].material));
                         ui.label(RichText::new(mname).size(theme.font_size_small).color(theme.text_primary()));
@@ -1086,10 +1086,10 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 egui::ComboBox::from_id_salt("wall_add_layer")
                     .selected_text("Add surface layer...")
                     .show_ui(ui, |ui| {
-                        for m in crate::ship::home_structure::wall_materials() {
+                        for m in humanity_ship::home_structure::wall_materials() {
                             if ui.selectable_label(false, format!("{} ({})", m.name, m.category)).clicked() {
                                 // New coat goes on TOP (index 0) -> it becomes the exposed face.
-                                wall.layers.insert(0, crate::ship::home_structure::SurfaceLayer {
+                                wall.layers.insert(0, humanity_ship::home_structure::SurfaceLayer {
                                     material: m.id,
                                     thickness_m: 0.01,
                                 });
@@ -1202,7 +1202,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             let mut remove_lock: Option<usize> = None;
                             for li in 0..op.locks.len() {
                                 ui.horizontal(|ui| {
-                                    let name = crate::ship::lock_types::lock_type(&op.locks[li].type_id)
+                                    let name = humanity_ship::lock_types::lock_type(&op.locks[li].type_id)
                                         .map(|t| t.name.clone())
                                         .unwrap_or_else(|| op.locks[li].type_id.clone());
                                     ui.label(RichText::new(name).size(theme.font_size_small).color(theme.text_primary()));
@@ -1211,9 +1211,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         .selected_text(format!("{:?}", op.locks[li].state))
                                         .show_ui(ui, |ui| {
                                             for s in [
-                                                crate::ship::lock_types::LockState::Locked,
-                                                crate::ship::lock_types::LockState::Unlocked,
-                                                crate::ship::lock_types::LockState::Broken,
+                                                humanity_ship::lock_types::LockState::Locked,
+                                                humanity_ship::lock_types::LockState::Unlocked,
+                                                humanity_ship::lock_types::LockState::Broken,
                                             ] {
                                                 if ui.selectable_value(&mut op.locks[li].state, s, format!("{s:?}")).clicked() {
                                                     changed = true;
@@ -1232,11 +1232,11 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             egui::ComboBox::from_id_salt(("add_lock", sel, oi))
                                 .selected_text("Add lock...")
                                 .show_ui(ui, |ui| {
-                                    for lt in crate::ship::lock_types::lock_types() {
+                                    for lt in humanity_ship::lock_types::lock_types() {
                                         if ui.selectable_label(false, RichText::new(lt.name.clone()).size(theme.font_size_small)).clicked() {
-                                            op.locks.push(crate::ship::home_structure::LockInstance {
+                                            op.locks.push(humanity_ship::home_structure::LockInstance {
                                                 type_id: lt.id.clone(),
-                                                state: crate::ship::lock_types::LockState::Locked,
+                                                state: humanity_ship::lock_types::LockState::Locked,
                                                 secret: None,
                                                 offset: 0.0,
                                             });
@@ -1449,7 +1449,7 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .size(theme.font_size_small).color(theme.text_muted()));
     ui.add_space(theme.spacing_xs);
     if let Some(power) = &def.power {
-        use crate::machines::MachinePower::*;
+        use humanity_ship::machines::MachinePower::*;
         let s = match power {
             // What a source makes over a day, as the meter counts it (2026-09-27).
             Solar { peak_watts, average_watts: Some(a) } => format!("Solar source -- up to {peak_watts:.0} W in full sun, {a:.0} W averaged over the year here"),
@@ -1499,7 +1499,7 @@ fn held_machine_cost(state: &GuiState, machine_type: &str, name: &str) -> Option
     if state.settings.play_mode.allows(crate::config::Capability::FreeResources) {
         return None;
     }
-    let item = crate::machines::placement_item_id(machine_type);
+    let item = humanity_ship::machines::placement_item_id(machine_type);
     let carried: u32 = state.inventory_items.iter().flatten().filter(|s| s.item_id == item).map(|s| s.quantity).sum();
     let stored = if state.home_storage_here { state.home_stock.get(&item).copied().unwrap_or(0) } else { 0 };
     Some(match carried + stored {
@@ -1548,8 +1548,8 @@ struct LegendLook {
 /// colour, and ISO 14726's black for waste, compost and grey water (and blue, at 3.1:1) did not
 /// read on the editor's black panels; Full mode's swatch also tells apart the contents Simplified
 /// groups under one main colour.
-fn legend_look(theme: &Theme, kind: &str, mode: crate::ship::pipe_marking::MarkingMode) -> LegendLook {
-    let scheme = crate::ship::pipe_marking::marking().default_scheme();
+fn legend_look(theme: &Theme, kind: &str, mode: humanity_ship::pipe_marking::MarkingMode) -> LegendLook {
+    let scheme = humanity_ship::pipe_marking::marking().default_scheme();
     let bands = scheme
         .and_then(|s| s.marker_colours(kind, mode))
         .unwrap_or_default()
@@ -1560,12 +1560,12 @@ fn legend_look(theme: &Theme, kind: &str, mode: crate::ship::pipe_marking::Marki
 }
 
 /// The pipe-marking mode the legend follows: the Settings choice, the one the pipes are drawn in.
-fn legend_mode(state: &GuiState) -> crate::ship::pipe_marking::MarkingMode {
-    crate::ship::pipe_marking::MarkingMode::from_full(state.settings.pipe_marking_full)
+fn legend_mode(state: &GuiState) -> humanity_ship::pipe_marking::MarkingMode {
+    humanity_ship::pipe_marking::MarkingMode::from_full(state.settings.pipe_marking_full)
 }
 
 /// One legend row: the marker swatch for `kind`, then `text` in the legend's text colour.
-fn legend_label(ui: &mut egui::Ui, theme: &Theme, kind: &str, mode: crate::ship::pipe_marking::MarkingMode, text: RichText) {
+fn legend_label(ui: &mut egui::Ui, theme: &Theme, kind: &str, mode: humanity_ship::pipe_marking::MarkingMode, text: RichText) {
     let look = legend_look(theme, kind, mode);
     ui.horizontal(|ui| {
         legend_swatch(ui, theme, &look);
@@ -1593,7 +1593,7 @@ fn legend_swatch(ui: &mut egui::Ui, theme: &Theme, look: &LegendLook) {
 /// size, and its note. Read-only.
 fn draw_held_structure_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let Some(tid) = state.construction_structure_type.clone() else { return };
-    let Some(ty) = crate::ship::structure::structure_type(&tid) else {
+    let Some(ty) = humanity_ship::structure::structure_type(&tid) else {
         ui.label(RichText::new(format!("Placing {tid}")).strong().color(theme.text_primary()));
         return;
     };
@@ -1635,8 +1635,8 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .catalog
                 .get(&inst.machine)
                 .map(|d| home.day_draw(&inst, d, Some(&state.machine_day_energy)))
-                .filter(|d| d.watts > 0.0 || d.source != crate::machines::DaySource::Data)
-                .map(|d| crate::machines::day_draw_line(&d));
+                .filter(|d| d.watts > 0.0 || d.source != humanity_ship::machines::DaySource::Data)
+                .map(|d| humanity_ship::machines::day_draw_line(&d));
             (inst, def, conns, is_direct, day)
         })
     });
@@ -1689,11 +1689,11 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if let Some(power) = &d.power {
             ui.add_space(theme.spacing_xs);
             let role = match power {
-                crate::machines::MachinePower::Solar { peak_watts, .. } => format!("Solar  peak {peak_watts:.0} W"),
-                crate::machines::MachinePower::Generator { watts, fuel_lph, .. } if *fuel_lph > 0.0 => format!("Backstop generator  {watts:.0} W while running"),
-                crate::machines::MachinePower::Generator { watts, .. } => format!("Generator  {watts:.1} W day average"),
-                crate::machines::MachinePower::Consumer { watts, priority, .. } => format!("Consumer  {watts:.0} W  (priority {priority})"),
-                crate::machines::MachinePower::Battery { capacity_wh, .. } => format!("Battery  {capacity_wh:.0} Wh"),
+                humanity_ship::machines::MachinePower::Solar { peak_watts, .. } => format!("Solar  peak {peak_watts:.0} W"),
+                humanity_ship::machines::MachinePower::Generator { watts, fuel_lph, .. } if *fuel_lph > 0.0 => format!("Backstop generator  {watts:.0} W while running"),
+                humanity_ship::machines::MachinePower::Generator { watts, .. } => format!("Generator  {watts:.1} W day average"),
+                humanity_ship::machines::MachinePower::Consumer { watts, priority, .. } => format!("Consumer  {watts:.0} W  (priority {priority})"),
+                humanity_ship::machines::MachinePower::Battery { capacity_wh, .. } => format!("Battery  {capacity_wh:.0} Wh"),
             };
             ui.label(RichText::new(role).size(theme.font_size_small).color(theme.text_primary()));
         }
@@ -1829,12 +1829,12 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             let chosen = state.construction_storeys.chosen;
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             // On the storey being worked on, as the wall tool places it (increment 7).
-            let es = crate::ship::storey_edits::EditStorey::of(h, chosen);
-            let mut wall = crate::ship::storey_edits::new_wall_on_storey(h, es, (x1, z1), (x2, z2));
+            let es = humanity_ship::storey_edits::EditStorey::of(h, chosen);
+            let mut wall = humanity_ship::storey_edits::new_wall_on_storey(h, es, (x1, z1), (x2, z2));
             wall.material = mat;
             h.walls.push(wall);
             state.construction_structure_dirty = true;
-            format!("added wall #{} ({x1},{z1})->({x2},{z2}) mat {mat} on {}", h.walls.len(), crate::ship::storey_edits::storey_name(es.index).to_lowercase())
+            format!("added wall #{} ({x1},{z1})->({x2},{z2}) mat {mat} on {}", h.walls.len(), humanity_ship::storey_edits::storey_name(es.index).to_lowercase())
         }
         "rm_wall" => {
             let Some(i) = u(1) else { return "usage: rm_wall <n>".into(); };
@@ -1863,8 +1863,8 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             let (Some(at), Some(width)) = (f(2), f(3)) else { return "usage: add_door <wall> <at> <width>".into(); };
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if w >= 1 && w <= h.walls.len() {
-                h.walls[w - 1].openings.push(crate::ship::home_structure::Opening {
-                    kind: crate::ship::home_structure::OpeningKind::Door,
+                h.walls[w - 1].openings.push(humanity_ship::home_structure::Opening {
+                    kind: humanity_ship::home_structure::OpeningKind::Door,
                     at, width, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6,
                     locked: false, auto_open: true, control_panel: false, locks: Vec::new(),
                 });
@@ -1882,8 +1882,8 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 return format!("unknown light type '{tid}'. types: {}", ids.join(", "));
             }
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
-            h.lights.push(crate::ship::home_structure::PlacedLight {
-                type_id: tid.to_string(), pos: (x, y, z), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: None, range: None, path: Vec::new(), subdivision: crate::ship::home_structure::default_strip_subdivision(),
+            h.lights.push(humanity_ship::home_structure::PlacedLight {
+                type_id: tid.to_string(), pos: (x, y, z), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: None, range: None, path: Vec::new(), subdivision: humanity_ship::home_structure::default_strip_subdivision(),
             });
             state.construction_structure_dirty = true;
             format!("added light #{} ({tid}) at ({x},{y},{z})", h.lights.len())
@@ -1902,8 +1902,8 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         "add_structure" => {
             let Some(tid) = parts.get(1) else { return "usage: add_structure <type> x y z [yaw]".into(); };
             let (Some(x), Some(y), Some(z)) = (f(2), f(3), f(4)) else { return "usage: add_structure <type> x y z [yaw]".into(); };
-            if crate::ship::structure::structure_type(tid).is_none() {
-                let ids: Vec<&str> = crate::ship::structure::structure_types().iter().map(|t| t.id.as_str()).collect();
+            if humanity_ship::structure::structure_type(tid).is_none() {
+                let ids: Vec<&str> = humanity_ship::structure::structure_types().iter().map(|t| t.id.as_str()).collect();
                 return format!("unknown structure type '{tid}'. types: {}", ids.join(", "));
             }
             if *tid == "wall" {
@@ -1911,7 +1911,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             }
             let yaw = f(5).unwrap_or(0.0);
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
-            h.structures.push(crate::ship::home_structure::PlacedStructure {
+            h.structures.push(humanity_ship::home_structure::PlacedStructure {
                 id: h.next_structure_id(tid), type_id: tid.to_string(), pos: (x, y, z), rot_deg: yaw, pair: None,
             });
             state.construction_structure_dirty = true;
@@ -1938,13 +1938,13 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         "add_layer" => {
             let (Some(w), Some(mat)) = (u(1), u(2)) else { return "usage: add_layer <wall> <material> <thickness>".into(); };
             let Some(th) = f(3) else { return "usage: add_layer <wall> <material> <thickness>".into(); };
-            if crate::ship::home_structure::wall_material(mat as u32).is_none() {
+            if humanity_ship::home_structure::wall_material(mat as u32).is_none() {
                 return format!("unknown material {mat} (1-8).");
             }
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if w >= 1 && w <= h.walls.len() {
                 // New coat goes on TOP (index 0) -> the exposed face, matching the gizmo editor.
-                h.walls[w - 1].layers.insert(0, crate::ship::home_structure::SurfaceLayer {
+                h.walls[w - 1].layers.insert(0, humanity_ship::home_structure::SurfaceLayer {
                     material: mat as u32, thickness_m: th.max(0.001),
                 });
                 state.construction_structure_dirty = true;
@@ -1972,8 +1972,8 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             };
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if w >= 1 && w <= h.walls.len() {
-                h.walls[w - 1].openings.push(crate::ship::home_structure::Opening {
-                    kind: crate::ship::home_structure::OpeningKind::Window,
+                h.walls[w - 1].openings.push(humanity_ship::home_structure::Opening {
+                    kind: humanity_ship::home_structure::OpeningKind::Window,
                     at, width, sill, height, style: "fixed".into(), open_dist: 2.6,
                     locked: false, auto_open: true, control_panel: false, locks: Vec::new(),
                 });
@@ -1999,15 +1999,15 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         "add_lock" => {
             let (Some(w), Some(o)) = (u(1), u(2)) else { return "usage: add_lock <wall> <opening> <type>".into(); };
             let Some(tid) = parts.get(3) else { return "usage: add_lock <wall> <opening> <type>".into(); };
-            if crate::ship::lock_types::lock_type(tid).is_none() {
-                let ids: Vec<&str> = crate::ship::lock_types::lock_types().iter().map(|t| t.id.as_str()).collect();
+            if humanity_ship::lock_types::lock_type(tid).is_none() {
+                let ids: Vec<&str> = humanity_ship::lock_types::lock_types().iter().map(|t| t.id.as_str()).collect();
                 return format!("unknown lock type '{tid}'. types: {}", ids.join(", "));
             }
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             match h.walls.get_mut(w.wrapping_sub(1)).and_then(|wl| wl.openings.get_mut(o.wrapping_sub(1))) {
                 Some(op) if w >= 1 && o >= 1 => {
-                    op.locks.push(crate::ship::home_structure::LockInstance {
-                        type_id: tid.to_string(), state: crate::ship::lock_types::LockState::Locked, secret: None, offset: 0.0,
+                    op.locks.push(humanity_ship::home_structure::LockInstance {
+                        type_id: tid.to_string(), state: humanity_ship::lock_types::LockState::Locked, secret: None, offset: 0.0,
                     });
                     state.construction_structure_dirty = true;
                     format!("locked wall #{w} opening #{o} with {tid}")
@@ -2019,7 +2019,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             let (Some(x), Some(z)) = (f(1), f(2)) else { return "usage: add_road_node <x> <z>".into(); };
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             let id = h.unique_road_node_id();
-            h.road_nodes.push(crate::ship::home_structure::RoadNode { id, pos: (x, z) });
+            h.road_nodes.push(humanity_ship::home_structure::RoadNode { id, pos: (x, z) });
             state.construction_structure_dirty = true;
             format!("added road node N{id} at ({x},{z})")
         }
@@ -2039,8 +2039,8 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 return "usage: add_road <fromN> <toN> <class> [width]".into();
             };
             let Some(cls) = parts.get(3) else { return "usage: add_road <fromN> <toN> <class> [width]".into(); };
-            if crate::ship::structure::road_type(cls).is_none() {
-                let ids: Vec<&str> = crate::ship::structure::road_types().iter().map(|t| t.id.as_str()).collect();
+            if humanity_ship::structure::road_type(cls).is_none() {
+                let ids: Vec<&str> = humanity_ship::structure::road_types().iter().map(|t| t.id.as_str()).collect();
                 return format!("unknown road class '{cls}'. classes: {}", ids.join(", "));
             }
             if from == to {
@@ -2051,7 +2051,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             if h.road_node_pos(from).is_none() || h.road_node_pos(to).is_none() {
                 return format!("need both nodes (N{from}, N{to}).");
             }
-            h.road_edges.push(crate::ship::home_structure::RoadEdge { from, to, class: cls.to_string(), width });
+            h.road_edges.push(humanity_ship::home_structure::RoadEdge { from, to, class: cls.to_string(), width });
             state.construction_structure_dirty = true;
             format!("added {cls} road N{from}->N{to} ({width} m wide)")
         }
@@ -2071,24 +2071,24 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
 }
 
 /// Display string for a conduit endpoint (v0.581).
-fn conduit_end_str(e: &crate::machines::ConduitEnd) -> String {
+fn conduit_end_str(e: &humanity_ship::machines::ConduitEnd) -> String {
     match e {
-        crate::machines::ConduitEnd::Machine(id) => format!("M:{id}"),
-        crate::machines::ConduitEnd::Node(id) => format!("N:{id}"),
+        humanity_ship::machines::ConduitEnd::Machine(id) => format!("M:{id}"),
+        humanity_ship::machines::ConduitEnd::Node(id) => format!("N:{id}"),
     }
 }
 /// Parse a combo key ("m:id" / "n:id") back to a ConduitEnd (v0.581).
-fn conduit_parse_end(k: &str) -> Option<crate::machines::ConduitEnd> {
+fn conduit_parse_end(k: &str) -> Option<humanity_ship::machines::ConduitEnd> {
     if let Some(id) = k.strip_prefix("m:") {
-        Some(crate::machines::ConduitEnd::Machine(id.to_string()))
+        Some(humanity_ship::machines::ConduitEnd::Machine(id.to_string()))
     } else {
-        k.strip_prefix("n:").map(|id| crate::machines::ConduitEnd::Node(id.to_string()))
+        k.strip_prefix("n:").map(|id| humanity_ship::machines::ConduitEnd::Node(id.to_string()))
     }
 }
 
 /// Human label for a zone type id (v0.631), falling back to the raw id.
 fn zone_label(type_id: &str) -> String {
-    crate::ship::structure::zone_type(type_id).map(|t| t.label.clone()).unwrap_or_else(|| type_id.to_string())
+    humanity_ship::structure::zone_type(type_id).map(|t| t.label.clone()).unwrap_or_else(|| type_id.to_string())
 }
 
 /// ZONES editor (v0.631, superstructure M1): add/list/resize the macro VOLUMES the structure is carved
@@ -2099,7 +2099,7 @@ fn draw_zones_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Some(h) => h.zones.iter().map(|z| (z.id.clone(), z.type_id.clone(), z.origin, z.size)).collect(),
         None => return,
     };
-    let types = crate::ship::structure::zone_types();
+    let types = humanity_ship::structure::zone_types();
     if types.is_empty() {
         return;
     }
@@ -2128,7 +2128,7 @@ fn draw_zones_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             });
             for (id, type_id, origin, size) in &zones {
-                let c = crate::ship::structure::zone_type(type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
+                let c = humanity_ship::structure::zone_type(type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
                 let col = egui::Color32::from_rgb((c.0 * 255.0) as u8, (c.1 * 255.0) as u8, (c.2 * 255.0) as u8);
                 ui.add_space(theme.spacing_xs);
                 ui.horizontal(|ui| {
@@ -2158,7 +2158,7 @@ fn draw_zones_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
     if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
         if let Some(t) = add_type {
-            let sz = crate::ship::structure::zone_type(&t).map(|zt| zt.default_size).unwrap_or((20.0, 4.0, 20.0));
+            let sz = humanity_ship::structure::zone_type(&t).map(|zt| zt.default_size).unwrap_or((20.0, 4.0, 20.0));
             // Seed the new zone centred in the structure footprint.
             let origin = ((hs.width * 0.5 - sz.0 * 0.5).max(0.0), 0.0, (hs.depth * 0.5 - sz.2 * 0.5).max(0.0));
             hs.add_zone(&t, origin, sz);
@@ -2341,7 +2341,7 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         .unwrap_or_default();
     if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
         let ps = &mut hs.structures[sel];
-        let ty = crate::ship::structure::structure_type(&ps.type_id);
+        let ty = humanity_ship::structure::structure_type(&ps.type_id);
         let label = ty.map(|t| t.label.clone()).unwrap_or_else(|| ps.type_id.clone());
         let kind = ty.map(|t| t.kind);
         ui.label(RichText::new(label).strong().size(theme.font_size_body).color(theme.text_primary()));
@@ -2368,14 +2368,14 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         // them, v0.592). Pick a SAME-TYPE partner. The kind decides how the pair is interpreted.
         let pairable = matches!(
             kind,
-            Some(crate::ship::structure::StructureKind::Teleporter)
-                | Some(crate::ship::structure::StructureKind::Train)
+            Some(humanity_ship::structure::StructureKind::Teleporter)
+                | Some(humanity_ship::structure::StructureKind::Train)
         );
         if pairable {
             ui.add_space(theme.spacing_xs);
             let cur = ps.pair.clone();
             let my_type = ps.type_id.clone();
-            let noun = if kind == Some(crate::ship::structure::StructureKind::Train) { "platform" } else { "teleporter" };
+            let noun = if kind == Some(humanity_ship::structure::StructureKind::Train) { "platform" } else { "teleporter" };
             // The partner by its place in the list and its id (a pair names the id, increment 4).
             let cur_txt = cur
                 .as_deref()
@@ -2505,7 +2505,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut changed = false;
     // Default the class picker to the first road type.
     if state.construction_road_class.is_empty() {
-        if let Some(rt) = crate::ship::structure::road_types().first() {
+        if let Some(rt) = humanity_ship::structure::road_types().first() {
             state.construction_road_class = rt.id.clone();
         }
     }
@@ -2520,7 +2520,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                     let id = h.unique_road_node_id();
                     let pos = (h.width * 0.5, h.depth * 0.5);
-                    h.road_nodes.push(crate::ship::home_structure::RoadNode { id, pos });
+                    h.road_nodes.push(humanity_ship::home_structure::RoadNode { id, pos });
                     changed = true;
                 }
             }
@@ -2559,7 +2559,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal(|ui| {
                     egui::ComboBox::from_id_salt("road_class").selected_text(state.construction_road_class.clone())
                         .show_ui(ui, |ui| {
-                            for rt in crate::ship::structure::road_types() {
+                            for rt in humanity_ship::structure::road_types() {
                                 ui.selectable_value(&mut state.construction_road_class, rt.id.clone(), rt.label.clone());
                             }
                         });
@@ -2569,7 +2569,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         if f != t {
                             if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                                 if h.road_node_pos(f).is_some() && h.road_node_pos(t).is_some() {
-                                    h.road_edges.push(crate::ship::home_structure::RoadEdge { from: f, to: t, class: cls, width: w });
+                                    h.road_edges.push(humanity_ship::home_structure::RoadEdge { from: f, to: t, class: cls, width: w });
                                     changed = true;
                                 }
                             }
@@ -2663,11 +2663,11 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             return;
         }
     };
-    let c = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
+    let c = humanity_ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
     let col = egui::Color32::from_rgb((c.0 * 255.0) as u8, (c.1 * 255.0) as u8, (c.2 * 255.0) as u8);
     ui.label(RichText::new(zone_label(&z.type_id)).strong().size(theme.font_size_body).color(col));
     ui.label(RichText::new(format!("zone {id}")).size(theme.font_size_small).color(theme.text_muted()));
-    if let Some(zt) = crate::ship::structure::zone_type(&z.type_id) {
+    if let Some(zt) = humanity_ship::structure::zone_type(&z.type_id) {
         ui.label(RichText::new(&zt.purpose).size(theme.font_size_small).color(theme.text_muted()));
     }
     // ROOM TYPE (console-room increment): which data/rooms.ron entry the room this zone covers
@@ -2777,14 +2777,14 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// Right-panel detail for a selected CONDUIT-graph (pipe) node (v0.597): id, editable x/y/z, kind,
 /// connected-edge count, Remove. Edits flag the machines dirty so the routing rebuilds.
 fn draw_conduit_node_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::machines::ConduitEnd;
+    use humanity_ship::machines::ConduitEnd;
     let id = match &state.construction_conduit_node_selected {
         Some(i) => i.clone(),
         None => return,
     };
     let mut changed = false;
     let mut deselect = false;
-    let touches = |e: &crate::machines::ConduitEdge| {
+    let touches = |e: &humanity_ship::machines::ConduitEdge| {
         matches!(&e.from, ConduitEnd::Node(n) if *n == id) || matches!(&e.to, ConduitEnd::Node(n) if *n == id)
     };
     let edges = state.home_machines.as_ref().map_or(0, |h| h.conduit_edges.iter().filter(|e| touches(e)).count());
@@ -2919,7 +2919,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     };
     let mut rows: Vec<Row> = Vec::new();
     // The edited zone's origin, for the rows below whose positions are local to it.
-    let zo = crate::ship::ship_structure::zone_origin(&state.ship_structure, state.construction_zone);
+    let zo = humanity_ship::ship_structure::zone_origin(&state.ship_structure, state.construction_zone);
     let world = |p: (f32, f32, f32), o: glam::Vec3| (p.0 + o.x, p.1 + o.y, p.2 + o.z);
     if let Some(hs) = zone_body(&state.ship_structure, state.construction_zone) {
         for (i, w) in hs.walls.iter().enumerate() {
@@ -2935,7 +2935,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             });
         }
         for (i, ps) in hs.structures.iter().enumerate() {
-            let name = crate::ship::structure::structure_type(&ps.type_id)
+            let name = humanity_ship::structure::structure_type(&ps.type_id)
                 .map(|t| t.label.clone())
                 .unwrap_or_else(|| ps.type_id.clone());
             rows.push(Row { tag: "Struct", key: Key::Structure(i), name, pos: ps.pos, selected: state.construction_structure_selected == Some(i), removable: true, on: None, at: world(ps.pos, zo) });
@@ -2953,7 +2953,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         for (i, s) in hs.floors.iter().enumerate() {
             let (x0, z0, x1, z1) = s.rect();
             let c = ((x0 + x1) * 0.5, s.top, (z0 + z1) * 0.5);
-            let name = format!("{}, {}", crate::ship::storey_edits::slab_name(i, s), crate::ship::storey_edits::storey_name(hs.storey_of_y(s.top)).to_lowercase());
+            let name = format!("{}, {}", humanity_ship::storey_edits::slab_name(i, s), humanity_ship::storey_edits::storey_name(hs.storey_of_y(s.top)).to_lowercase());
             rows.push(Row { tag: "Floor", key: Key::Slab(i), name, pos: c, selected: state.construction_storeys.slab_selected == Some(i), removable: true, on: None, at: world(c, zo) });
         }
     }
@@ -3295,7 +3295,7 @@ fn group_delete(state: &mut GuiState) {
         slab_idx.sort_unstable();
         slab_idx.dedup();
         for &i in slab_idx.iter().rev() {
-            crate::ship::storey_edits::remove_floor_slab(hs, i);
+            humanity_ship::storey_edits::remove_floor_slab(hs, i);
         }
         struct_dirty = !struct_idx.is_empty() || !wall_idx.is_empty() || !light_idx.is_empty() || !road_ids.is_empty() || !slab_idx.is_empty();
     }
@@ -3586,7 +3586,7 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // gated to the new HomeStructure editor (placement needs a HomeStructure) so the legacy room-AABB
     // home never shows a placeable-looking ghost that can't drop. (v0.583)
     let mut categories: Vec<(String, Vec<(String, String)>)> = if state.ship_structure.is_some() {
-        crate::ship::structure::palette_categories()
+        humanity_ship::structure::palette_categories()
     } else {
         Vec::new()
     };
@@ -3698,7 +3698,7 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             // The Guard entry DRAWS guards with the wall tool (ship homes increment
                             // 7): a guard is a wall in a balustrade material, and a loose guard
                             // section placed on its own would stop nobody.
-                            let is_guard_tool = is_structure && id == crate::ship::storey_edits::GUARD_TYPE;
+                            let is_guard_tool = is_structure && id == humanity_ship::storey_edits::GUARD_TYPE;
                             let is_lights = state.construction_palette_category == "Lights";
                             let held = if is_wall_tool || is_guard_tool {
                                 // The drawing tool draws floors instead while the slab tool is on.
@@ -3766,15 +3766,15 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 fn draw_buildability(
     ui: &mut egui::Ui,
     theme: &Theme,
-    home: &crate::machines::MachineHome,
-    basis: crate::machines::MeterBasis,
-    mode: crate::ship::pipe_marking::MarkingMode,
+    home: &humanity_ship::machines::MachineHome,
+    basis: humanity_ship::machines::MeterBasis,
+    mode: humanity_ship::pipe_marking::MarkingMode,
 ) {
-    use crate::machines::CheckStatus;
+    use humanity_ship::machines::CheckStatus;
     ui.add_space(theme.spacing_md);
     ui.separator();
     ui.label(RichText::new("Buildability").strong().color(theme.text_primary()));
-    let report = home.buildability_report(crate::machines::METER_SUN_HOURS, basis);
+    let report = home.buildability_report(humanity_ship::machines::METER_SUN_HOURS, basis);
     if report.checks.is_empty() {
         ui.label(
             RichText::new("No systems to check yet -- place a panel, battery, and a load.")
@@ -3798,7 +3798,7 @@ fn draw_buildability(
     }
     // Usage / self-sufficiency METERS (v0.630, grid S2): per-utility daily generation vs demand, framed
     // to TEACH (how much you make + use, how self-sufficient you are) -- never a penalty for consuming.
-    let meters = home.utility_meters(crate::machines::METER_SUN_HOURS, basis);
+    let meters = home.utility_meters(humanity_ship::machines::METER_SUN_HOURS, basis);
     if !meters.is_empty() {
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Usage + self-sufficiency").strong().color(theme.text_primary()));
@@ -3825,7 +3825,7 @@ fn draw_buildability(
             let [measured, estimated] = m.source_groups(&home.catalog);
             for (title, groups) in [("Measured over the last game day", measured), ("Estimated from the data until each has run a whole game day", estimated)] {
                 if !groups.is_empty() {
-                    let line = format!("{title}: {}.", crate::machines::source_group_line(&groups));
+                    let line = format!("{title}: {}.", humanity_ship::machines::source_group_line(&groups));
                     ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_muted()));
                 }
             }
@@ -3836,8 +3836,8 @@ fn draw_buildability(
     // placed: green = the lights fit inside the free solar headroom; amber = the home now eats its
     // battery reserves every day to keep them on; red = the lights ALONE outdraw everything the
     // home generates -- the visceral proof of why the garden grows under the sun, not LEDs.
-    if let Some(gl) = home.grow_light_report(crate::machines::METER_SUN_HOURS, basis) {
-        use crate::machines::GrowLightVerdict;
+    if let Some(gl) = home.grow_light_report(humanity_ship::machines::METER_SUN_HOURS, basis) {
+        use humanity_ship::machines::GrowLightVerdict;
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Grow-light power meter").strong().color(theme.text_primary()));
         // Same verdict glyphs as the checks above: ✓ / ⚠ render reliably, "!" (ASCII) for red.
@@ -3963,10 +3963,10 @@ fn draw_floorplan_canvas(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
 #[cfg(test)]
 mod legend_tests {
     use super::*;
-    use crate::ship::pipe_marking::{contrast_ratio, marking, MarkingMode};
+    use humanity_ship::pipe_marking::{contrast_ratio, marking, MarkingMode};
 
     fn linear(c: egui::Color32) -> [f32; 4] {
-        use crate::ship::pipe_materials::srgb_to_linear;
+        use humanity_ship::pipe_materials::srgb_to_linear;
         [srgb_to_linear(c.r()), srgb_to_linear(c.g()), srgb_to_linear(c.b()), 1.0]
     }
 
@@ -4014,7 +4014,7 @@ mod legend_tests {
 #[cfg(test)]
 mod multi_select_tests {
     use super::*;
-    use crate::machines::{MachineConnection, MachineDef, MachineHome, MachineInstance};
+    use humanity_ship::machines::{MachineConnection, MachineDef, MachineHome, MachineInstance};
     use std::collections::BTreeMap;
 
     fn box_def() -> MachineDef {
@@ -4050,7 +4050,7 @@ mod multi_select_tests {
             model: None,
             screen: None,
             camera: None,
-            camera_px: crate::machines::CAMERA_PX_DEFAULT,
+            camera_px: humanity_ship::machines::CAMERA_PX_DEFAULT,
         }
     }
 

@@ -895,17 +895,17 @@ documents were read on 4 October 2026.
   and the farming experience in `src/lib.rs`; the herd placed at world
   entry in `src/engine/world_load.rs`; timers, and the pack taking as
   much of a yield as fits (`collect_into_pack`), in
-  `src/systems/livestock.rs`.
+  `crates/humanity-systems/src/livestock.rs`.
 - Milk as food: the `milk` profile in `data/food_system.ron` (spoilage
   168 hours, raw risk 0.05) and the `cheese`, `fats_oils` and `porridge`
   profiles (no raw risk); spoilage and food poisoning in
-  `src/systems/food.rs`, slowed in the Freezer by its `keeps_zone` in
+  `crates/humanity-systems/src/food.rs`, slowed in the Freezer by its `keeps_zone` in
   `data/containers/types.csv`; the milk recipes in `data/recipes.csv`.
   Wool as `wool_0` in `data/trade_goods.ron`, with no recipe using it.
-- The swing and its damage (`src/lib.rs`, `src/systems/combat/mod.rs`),
+- The swing and its damage (`src/lib.rs`, `crates/humanity-systems/src/combat/mod.rs`),
   the default F key (`crates/humanity-core/src/input/bindings.rs`).
 - The game clock and its default Realistic speed (`DEFAULT_TIME_SPEED` in
-  `src/systems/time.rs`); the Play mode setting and free materials
+  `crates/humanity-systems/src/time.rs`); the Play mode setting and free materials
   (`PlayMode` and `play_mode_allows` in `src/config.rs`; the Creative
   mode switch on the Inventory page, `src/gui/pages/inventory.rs`); the
   "Start every session from the default home" setting (`src/config.rs`,

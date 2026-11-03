@@ -6,11 +6,11 @@
 
 use super::*;
 use crate::gui::pages::settings::restore_snapshot_into_game;
-use crate::persistence::live_save::set_active_home;
+use humanity_systems::persistence::live_save::set_active_home;
 use humanity_core::ecs::components::{AsteroidBody, Battery, HomeMachine, MachineInstanceId, Name, WaterTank};
-use crate::persistence::{SaveSlot, ShipMeals, ShipPlace};
-use crate::systems::inventory::containers::Container;
-use crate::systems::machine_levels::{HeldMachineLevels, MachineLevels};
+use humanity_systems::persistence::{SaveSlot, ShipMeals, ShipPlace};
+use humanity_systems::inventory::containers::Container;
+use humanity_systems::machine_levels::{HeldMachineLevels, MachineLevels};
 
 fn data_dir() -> PathBuf {
     std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
@@ -43,8 +43,8 @@ fn items_of(world: &hecs::World) -> Vec<(String, u32)> {
 fn data_store() -> humanity_core::hot_reload::data_store::DataStore {
     let mut data = humanity_core::hot_reload::data_store::DataStore::new();
     data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
-    crate::systems::crafting::register(&mut data);
-    crate::systems::livestock::register(&mut data);
+    humanity_systems::crafting::register(&mut data);
+    humanity_systems::livestock::register(&mut data);
     data
 }
 
@@ -112,7 +112,7 @@ fn a_fresh_save_resets_every_machines_level() {
     world.spawn((HeldMachineLevels(vec![MachineLevels { id: "grain_silo_0".into(), vessel: Some(grain), ..Default::default() }]),));
 
     let data_dir = data_dir();
-    let starts = crate::ship::starts::Starts::load(&data_dir);
+    let starts = humanity_ship::starts::Starts::load(&data_dir);
     let fresh = crate::engine::save_slot::fresh_save(
         &data_dir,
         &starts,
@@ -280,7 +280,7 @@ fn the_asteroid_belt_is_data_and_the_same_as_before() {
     let empty = humanity_core::test_temp::dir("no_belt");
     assert_eq!(json(&asteroid_belt(&empty)), json(&before), "the built-in belt");
 
-    let items = crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(data_dir().join("items.csv")).unwrap()).unwrap();
+    let items = humanity_systems::inventory::ItemRegistry::from_csv(&std::fs::read(data_dir().join("items.csv")).unwrap()).unwrap();
     for a in &belt {
         for (ore, n) in &a.ores {
             assert!(items.items.contains_key(ore) && *n > 0.0, "{}'s {ore} is not an item, or none", a.id);

@@ -85,7 +85,7 @@ fn is_crew(e: &super::game_state::GameEntity) -> bool {
 /// ship_world.rs `set_home_plot`, and the plot their explore quest names) for the relay's own
 /// rules; nobody else is told it (the design, section 5.10: "No endpoint lists who lives
 /// where"; the review of increment 4, P7). Nothing in the game reads another player's plot: a
-/// neighbour's home is drawn from the ship file's plots (src/ship/neighbours.rs).
+/// neighbour's home is drawn from the ship file's plots (crates/humanity-ship/src/neighbours.rs).
 ///
 /// And of another PLAYER, only what draws and names them (2026-10-10): their name, their look
 /// and their identity key (the key so someone who blocked them can leave them undrawn). Their
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn players_out_of_view_are_not_sent_each_others_moves() {
         let mut world = GameWorld::new();
-        world.rules.delivery = crate::ship::moves::DeliveryRules { in_view_m: 50.0, out_of_view_m: 60.0 };
+        world.rules.delivery = humanity_ship::moves::DeliveryRules { in_view_m: 50.0, out_of_view_m: 60.0 };
         let a = world.spawn_player("e11e00aa", [53.5, 1.7, 40.5]);
         let b = world.spawn_player("e11e00bb", [53.5, 1.7, 139.5]);
         world.rejudge_view(a);
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn the_crew_are_in_view_only_near_them() {
         let mut world = GameWorld::new();
-        world.rules.delivery = crate::ship::moves::DeliveryRules { in_view_m: 50.0, out_of_view_m: 60.0 };
+        world.rules.delivery = humanity_ship::moves::DeliveryRules { in_view_m: 50.0, out_of_view_m: 60.0 };
         let p = world.spawn_player("e11e00cc", [53.5, 1.7, 139.5]);
         world.rejudge_view(p);
         let snap = world.snapshot_for(p);
@@ -334,8 +334,8 @@ mod tests {
     /// inside the 300 m it takes to go out of view, so everyone aboard still sees everyone".
     #[test]
     fn on_the_shipped_ship_neighbours_see_each_other_and_the_far_end_is_out_of_view() {
-        use crate::ship::ship_space::{tube_box, Aabb};
-        use crate::ship::ship_structure::{HomeDesign, ShipStructure};
+        use humanity_ship::ship_space::{tube_box, Aabb};
+        use humanity_ship::ship_structure::{HomeDesign, ShipStructure};
         let mut world = GameWorld::new();
         let ship = ShipStructure::load_ship_file(std::path::Path::new("data")).expect("the relay's ship file");
         let mut boxes: Vec<(String, Aabb)> = Vec::new();
@@ -385,7 +385,7 @@ mod tests {
         // kind's shipped design (since ship homes increment 6 the ship holds sixteen cabins after
         // the twelve homesteads, 2.5 m apart on their hall: the last homestead's neighbour is not
         // the first cabin).
-        let door_of = |p: &crate::ship::ship_structure::Plot| {
+        let door_of = |p: &humanity_ship::ship_structure::Plot| {
             let design = HomeDesign::built_in_ref(&p.kind).unwrap_or_else(|| panic!("the shipped {} design", p.kind));
             (p.id.clone(), ShipStructure::plot_spawn(p, design))
         };
@@ -422,7 +422,7 @@ mod tests {
     /// id, origin and size, and the plot their explore quest names) for the relay's own rules, and
     /// the welcome's snapshot and `game_in_view` sent it, with their name, to every other player.
     /// Nothing in the game reads another player's plot (a neighbour's home is drawn from the
-    /// ship file's plots, src/ship/neighbours.rs). Now another player's entry says nothing of it;
+    /// ship file's plots, crates/humanity-ship/src/neighbours.rs). Now another player's entry says nothing of it;
     /// a player's own entry keeps it.
     ///
     /// Seen red 2026-10-04 on the code before the fix: "a's welcome says where b lives: {...,

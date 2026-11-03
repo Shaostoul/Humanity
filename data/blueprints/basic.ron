@@ -8,7 +8,7 @@
     // sees it. Only pieces whose pose is their whole state: the foundations, the plain walls,
     // the window wall and the roof. A door, a chest, a bed, a station, a generator or a fire
     // carries state the server does not keep. Unset is false: the piece stays in your own home.
-    // src/systems/construction/shared.rs `shared_only_on_stateless_blueprints` holds this line.
+    // crates/humanity-systems/src/construction/shared.rs `shared_only_on_stateless_blueprints` holds this line.
     (id: "wood_foundation", name: "Wood Foundation", category: "foundation", materials: [("wood_plank_0", 8)], build_time: 5.0, size: (4.0, 0.2, 4.0), snap_to: [], health: 200.0, provides: Some("foundation"), shared: true),
     (id: "stone_foundation", name: "Stone Foundation", category: "foundation", materials: [("stone_brick_0", 12)], build_time: 8.0, size: (4.0, 0.3, 4.0), snap_to: [], health: 400.0, provides: Some("foundation"), shared: true),
     (id: "wood_wall", name: "Wood Wall", category: "wall", materials: [("wood_plank_0", 6)], build_time: 4.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 150.0, provides: Some("shelter"), shared: true),
@@ -57,7 +57,7 @@
     // roof (built or still going up), or where there is no air to burn
     // (construction::outdoors_refusal), and no roof is ever built over it
     // (construction::roofs_over_outdoors_piece): it stays in the open all its life.
-    // burns: it is a fire (src/systems/construction/fires.rs, whose doc has every source):
+    // burns: it is a fire (crates/humanity-systems/src/construction/fires.rs, whose doc has every source):
     // - seconds_per_fuel 2400: the US Forest Service's campground fire ring burned 11 kg
     //   of split firewood in 55 minutes of typical recreational use (Urbanski 2021, for
     //   the Minnesota Pollution Control Agency), so an 8 kg Wood Log lasts 40 minutes.

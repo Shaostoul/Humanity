@@ -41,9 +41,9 @@
 use crate::config::{Capability, PlayMode};
 use crate::engine::state::EngineState;
 use crate::gui::GuiState;
-use crate::machines::MachineHome;
-use crate::persistence::SavedHome;
-use crate::ship::ship_structure::{HomeDesign, ShipStructure};
+use humanity_ship::machines::MachineHome;
+use humanity_systems::persistence::SavedHome;
+use humanity_ship::ship_structure::{HomeDesign, ShipStructure};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -184,7 +184,7 @@ pub(crate) fn refresh_own_home(gui: &mut GuiState) {
 /// `autosave_ship_structure`, lib.rs): keep the edits where the mode keeps them, and outside Dev
 /// write the save at once, so the edit and what it cost reach the disk together.
 pub(crate) fn keep_edits_now(state: &mut EngineState) -> Result<String, String> {
-    let machines_path = crate::persistence::live_save::active_home_machines_path(&state.data_dir);
+    let machines_path = humanity_systems::persistence::live_save::active_home_machines_path(&state.data_dir);
     match keep_editor_edits(&mut state.gui_state, &state.data_dir, &machines_path)? {
         Kept::DataFiles(note) => Ok(note),
         Kept::Save(note) => {
@@ -205,7 +205,7 @@ pub(crate) fn keep_edits_now(state: &mut EngineState) -> Result<String, String> 
 /// loaded from the data files, so the Home page, the offline catch-up and the menu's live power
 /// count the character's own machines. True when the layout changed (the caller respawns the
 /// menu's machine entities). The design goes on the plot at world load (`design_in_effect`).
-pub(crate) fn adopt_saved_home(gui: &mut GuiState, save: &crate::persistence::WorldSave) -> bool {
+pub(crate) fn adopt_saved_home(gui: &mut GuiState, save: &humanity_systems::persistence::WorldSave) -> bool {
     gui.own_home = save.home.clone();
     let Some(own) = in_effect(gui).cloned() else {
         return false;
@@ -220,7 +220,7 @@ pub(crate) fn adopt_saved_home(gui: &mut GuiState, save: &crate::persistence::Wo
 /// The machine layout for world load: the data file's, with the character's own machines in
 /// place of the household's when one applies. Also says whether the live home is now their own.
 pub(crate) fn machines_for_world(gui: &mut GuiState, path: &Path) -> Option<MachineHome> {
-    let mut home = crate::systems::grow_machines::load_home(path)?;
+    let mut home = humanity_systems::grow_machines::load_home(path)?;
     let own = in_effect(gui).cloned();
     gui.own_home_live = own.is_some();
     overlay_machines(&mut home, own.as_ref());
@@ -234,19 +234,19 @@ pub(crate) fn machines_for_world(gui: &mut GuiState, path: &Path) -> Option<Mach
 /// colliders, machine entities) and puts the save's machine levels on machines it brought back.
 /// The Dev mode's home is the data files', which a save does not hold: there only the save's own
 /// home is taken up (to be written back), and the home standing is left as it is.
-pub(crate) fn reapply_saved_home(state: &mut EngineState, save: &crate::persistence::WorldSave) {
+pub(crate) fn reapply_saved_home(state: &mut EngineState, save: &humanity_systems::persistence::WorldSave) {
     state.gui_state.own_home = save.home.clone();
     if authors_data_files(state.gui_state.settings.play_mode) {
         return;
     }
-    let path = crate::persistence::live_save::active_home_machines_path(&state.data_dir);
+    let path = humanity_systems::persistence::live_save::active_home_machines_path(&state.data_dir);
     if let Some(home) = machines_for_world(&mut state.gui_state, &path) {
         state.gui_state.home_machines = Some(home);
     }
     let own_design = design_in_effect(&state.gui_state).cloned();
     // A server's save is the SHIPPED design (ship homes increment 6, `save_slot::design_of`), never
     // data/homes/<kind>.ron, which an offline Dev session can change; your own home the file's.
-    let server = crate::persistence::live_save::active_home().is_server();
+    let server = humanity_systems::persistence::live_save::active_home().is_server();
     if let Some(ship) = state.gui_state.ship_structure.as_ref() {
         if let (Some(plot), Some(now)) = (ship.home_plot().map(|p| p.id.clone()), ship.home_design()) {
             let design = own_design.filter(|d| d.kind == now.kind).or_else(|| {
@@ -265,7 +265,7 @@ pub(crate) fn reapply_saved_home(state: &mut EngineState, save: &crate::persiste
         }
     }
     crate::engine::home_meshes::rebuild_homestead(state);
-    crate::systems::machine_levels::land_held(&mut state.game_world.world);
+    humanity_systems::machine_levels::land_held(&mut state.game_world.world);
 }
 
 /// Give back what was paid for every machine no longer placed (removed by any path since the
@@ -284,7 +284,7 @@ pub(crate) fn refund_removed_machines(state: &mut EngineState) {
 
 /// `give_back` for the live game, with the line that tells the player where the item went.
 fn give_back_with_line(state: &mut EngineState, item: &str) -> String {
-    let name = item_name(state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry"), item);
+    let name = item_name(state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry"), item);
     match give_back(&mut state.game_world.world, &state.data_store, item) {
         GaveBack::Backpack => format!("Your {name} is back in your backpack."),
         GaveBack::Storage => format!("Your {name} went back to your home's storage: the backpack had no room."),
@@ -298,7 +298,7 @@ pub(crate) enum GaveBack {
     Storage,
 }
 
-fn item_name(items: Option<&crate::systems::inventory::ItemRegistry>, item: &str) -> String {
+fn item_name(items: Option<&humanity_systems::inventory::ItemRegistry>, item: &str) -> String {
     items.and_then(|r| r.items.get(item)).map(|d| d.name.clone()).unwrap_or_else(|| item.to_string())
 }
 
@@ -312,8 +312,8 @@ pub(crate) fn give_back(
     item: &str,
 ) -> GaveBack {
     use humanity_core::ecs::components::Controllable;
-    use crate::systems::inventory::Inventory;
-    let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    use humanity_systems::inventory::Inventory;
+    let items = data.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
     let max_stack = items.map(|r| r.max_stack_for(item)).unwrap_or(99);
     let unit_vol = items.map(|r| r.volume_for(item)).unwrap_or(0.0);
     let player = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e);
@@ -348,7 +348,7 @@ pub(crate) fn payment_changes(now: Option<&MachineHome>, target: Option<&Machine
 pub(crate) fn settle_restore(state: &mut EngineState, target: Option<&MachineHome>) -> Result<(), String> {
     let (charges, refunds) = payment_changes(state.gui_state.home_machines.as_ref(), target);
     if !charges.is_empty() {
-        let storage = crate::systems::crafting::home_store::HomeStore::here(&state.data_store).reachable();
+        let storage = humanity_systems::crafting::home_store::HomeStore::here(&state.data_store).reachable();
         let mut need: BTreeMap<&str, u32> = BTreeMap::new();
         for (_, item) in &charges {
             *need.entry(item.as_str()).or_insert(0) += 1;
@@ -356,7 +356,7 @@ pub(crate) fn settle_restore(state: &mut EngineState, target: Option<&MachineHom
         for (item, n) in &need {
             let have = crate::engine::editor::count_available(&state.game_world.world, &state.gui_state.placed_items, storage, item);
             if have < *n {
-                let items = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+                let items = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
                 return Err(format!(
                     "Cannot put that back: it takes {n} {} and you have {have}{}.",
                     item_name(items, item),
@@ -366,7 +366,7 @@ pub(crate) fn settle_restore(state: &mut EngineState, target: Option<&MachineHom
         }
         for (_, item) in &charges {
             crate::engine::editor::take_one(&mut state.game_world.world, &mut state.gui_state.placed_items, storage, item);
-            let name = item_name(state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry"), item);
+            let name = item_name(state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry"), item);
             state.gui_state.pending_notices.push(format!("Putting it back took your {name} again."));
         }
     }
@@ -380,8 +380,8 @@ pub(crate) fn settle_restore(state: &mut EngineState, target: Option<&MachineHom
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::machines::MachineInstance;
-    use crate::ship::ship_structure::ShipStructure;
+    use humanity_ship::machines::MachineInstance;
+    use humanity_ship::ship_structure::ShipStructure;
 
     /// A throwaway data dir holding the tree's ship file and machine files and the SHIPPED
     /// homestead design (never the developer's own data/homes/homestead.ron, which an editor
@@ -412,7 +412,7 @@ mod tests {
         let mut gui = GuiState::default();
         gui.settings.play_mode = mode;
         gui.ship_structure = Some(ShipStructure::load_and_assemble(dir, None).expect("the ship assembles"));
-        gui.home_machines = crate::systems::grow_machines::load_home(&dir.join("machines").join("home.ron"));
+        gui.home_machines = humanity_systems::grow_machines::load_home(&dir.join("machines").join("home.ron"));
         gui
     }
 
@@ -482,12 +482,12 @@ mod tests {
         let world = hecs::World::new();
         let data = humanity_core::hot_reload::data_store::DataStore::new();
         crate::save_load::save_home_at(&save_path, &world, &[], &data, true, gui.own_home.as_ref());
-        let back = crate::persistence::load_world(&save_path).expect("the save reads back");
+        let back = humanity_systems::persistence::load_world(&save_path).expect("the save reads back");
         assert!(back.home.is_some(), "the save holds the home");
 
         // The next session: the data files' layout, with the save's home put in.
         let mut next = GuiState::default();
-        next.home_machines = crate::systems::grow_machines::load_home(&machines_path);
+        next.home_machines = humanity_systems::grow_machines::load_home(&machines_path);
         assert!(!next.home_machines.as_ref().unwrap().instances.iter().any(|i| i.id == id), "the data file never had it");
         assert!(adopt_saved_home(&mut next, &back), "the save's home applies in Normal");
         let m = next.home_machines.as_ref().unwrap();
@@ -517,7 +517,7 @@ mod tests {
         let kept = keep_editor_edits(&mut gui, &dir, &machines_path).expect("written");
         assert!(matches!(kept, Kept::DataFiles(_)), "a Dev-mode edit is written to the data files: {kept:?}");
         assert!(gui.own_home.is_none(), "the Dev mode gives the character no home of their own");
-        let written = crate::systems::grow_machines::load_home(&machines_path).expect("home.ron loads");
+        let written = humanity_systems::grow_machines::load_home(&machines_path).expect("home.ron loads");
         assert!(written.instances.iter().any(|i| i.id == id), "the smelter is in data/machines/home.ron");
         assert!(written.paid.is_empty(), "a payment is never written into a shared file");
         let text = std::fs::read_to_string(&machines_path).unwrap();
@@ -577,11 +577,11 @@ mod tests {
         let mut normal = session(&dir, PlayMode::Normal);
         let id = place_and_build(&mut normal, None);
         keep_own_home(&mut normal).unwrap();
-        let mut save = crate::persistence::WorldSave::new_offline("t", "homestead");
+        let mut save = humanity_systems::persistence::WorldSave::new_offline("t", "homestead");
         save.home = normal.own_home.clone();
         let mut dev = GuiState::default();
         dev.settings.play_mode = PlayMode::Dev;
-        dev.home_machines = crate::systems::grow_machines::load_home(&machines_path);
+        dev.home_machines = humanity_systems::grow_machines::load_home(&machines_path);
         assert!(!adopt_saved_home(&mut dev, &save), "Dev does not apply the save's home");
         assert!(dev.own_home.is_some(), "but keeps it, to write back into the save");
         assert!(!dev.home_machines.as_ref().unwrap().instances.iter().any(|i| i.id == id));
@@ -616,7 +616,7 @@ mod tests {
     #[test]
     fn a_payment_goes_back_to_the_backpack_else_to_storage() {
         use humanity_core::ecs::components::Controllable;
-        use crate::systems::inventory::Inventory;
+        use humanity_systems::inventory::Inventory;
         let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
         let mut world = hecs::World::new();
@@ -627,7 +627,7 @@ mod tests {
         {
             let mut inv = world.get::<&mut Inventory>(player).unwrap();
             for slot in inv.slots.iter_mut() {
-                *slot = Some(crate::systems::inventory::ItemStack::new("rock_0".into(), 99, 99));
+                *slot = Some(humanity_systems::inventory::ItemStack::new("rock_0".into(), 99, 99));
             }
         }
         assert_eq!(give_back(&mut world, &data, "smelter_0"), GaveBack::Storage);

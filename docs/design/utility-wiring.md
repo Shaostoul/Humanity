@@ -71,7 +71,7 @@ shielded industrial feeder for a lamp).
   PORTS (`flow_lpm`); a cistern's capacity comes from `MachineDef.storage`; `water_islands` groups them.
   A producer/consumer flagged `needs_power` only flows while the SAME entity's `PowerConsumer` is enabled
   -- cut the power (or shed it) and the pump stops, the cistern drains, `days_autonomy` ticks down. The
-  live `WaterStatus` shows on the Home page next to Live power. (`src/systems/plumbing.rs`,
+  live `WaterStatus` shows on the Home page next to Live power. (`crates/humanity-systems/src/plumbing.rs`,
   `crates/humanity-core/src/ecs/components.rs` WaterTank/WaterProducer/WaterConsumer/PlumbingCircuit.)
 - **Stage 3c (next):** generalise the runtime gate so a powered TRANSPORT machine (pump) gates delivery
   across a chain, and add a water buildability check (every fixture reaches a source/tank).

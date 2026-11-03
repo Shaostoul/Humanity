@@ -151,7 +151,7 @@ pub fn draw(ui: &mut Ui, theme: &Theme, state: &mut GuiState, lib: &Library) {
         let ever = state.how_to.runs.iter().any(|r| r.how_to == id);
         let label = if ever { w("start_again") } else { w("start") };
         if widgets::Button::primary(label).tooltip(w("start_tip")).show(ui, theme) {
-            let started = crate::how_to::runs::Run::start(h, &l.hash, crate::persistence::now_ms());
+            let started = crate::how_to::runs::Run::start(h, &l.hash, humanity_systems::persistence::now_ms());
             state.how_to.save_run(started.clone());
             run = Some(started);
         }
@@ -189,7 +189,7 @@ pub fn draw(ui: &mut Ui, theme: &Theme, state: &mut GuiState, lib: &Library) {
         });
         if let Some(o) = end {
             let mut r = r.clone();
-            r.finish(o, crate::persistence::now_ms());
+            r.finish(o, humanity_systems::persistence::now_ms());
             state.how_to.save_run(r);
         }
     }

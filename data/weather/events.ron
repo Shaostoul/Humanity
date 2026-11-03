@@ -6,7 +6,7 @@
 // code. Adding a fire storm later = adding an entry (plus any new
 // particle emitter ids it references in data/particles.ron).
 //
-// Loaded by: src/systems/weather_events.rs (WeatherEventRegistry)
+// Loaded by: crates/humanity-systems/src/weather_events.rs (WeatherEventRegistry)
 // Status: SCHEMA increment - loader-validated, not yet consumed by
 // WeatherSystem (that wiring is the next rung; hazard numbers are
 // placeholders until then and deal no damage today).

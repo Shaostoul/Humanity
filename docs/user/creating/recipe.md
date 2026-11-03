@@ -42,7 +42,7 @@ We will add a recipe by copying a line that already works and changing it one pi
 
 You do not need to do anything special to "install" the recipe. The game reads `recipes.csv` on its own:
 
-- At startup, the game loads all data files, including recipes, into its internal catalog (in the code, `RecipeRegistry::from_csv` in `src/systems/crafting/mod.rs` reads the file, and `load_data_registries` in `src/engine/registries.rs` stores it under the name `recipe_registry`).
+- At startup, the game loads all data files, including recipes, into its internal catalog (in the code, `RecipeRegistry::from_csv` in `crates/humanity-systems/src/crafting/mod.rs` reads the file, and `load_data_registries` in `src/engine/registries.rs` stores it under the name `recipe_registry`).
 - The crafting system and the Crafting page's recipe browser both read from that catalog, so your recipe shows up in the recipe list automatically.
 - The data is also re-loaded every time you enter the 3D world. So if the game is already running, you can edit `recipes.csv`, save, leave the world, and re-enter it, and your changes are picked up. No restart required (though restarting also works).
 

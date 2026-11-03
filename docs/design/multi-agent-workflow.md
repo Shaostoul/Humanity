@@ -136,10 +136,10 @@ Domain work in this repo separates cleanly. Verified 2026-07-30:
 
 | Domain | Owns (disjoint) |
 |---|---|
-| weather / clouds | `src/systems/{weather,weather_events,atmosphere,hydrology,disasters}.rs`, `src/renderer/{clouds,cloud_noise,atmosphere}.rs`, `assets/shaders/pbr/{30-atmosphere,40-clouds}.wgsl` |
-| plants | `data/{plants.csv,plants_visual.ron}`, `src/renderer/{plant_mesh,tree_mesh}.rs`, `src/systems/{ecology.rs,farming/}` |
-| creature AI | `data/{creatures.csv,npcs.ron,npc/}`, `src/systems/ai/{behavior,flow_field}.rs` |
-| combat | `src/systems/combat/{damage,effects}.rs` |
+| weather / clouds | `crates/humanity-systems/src/{weather,weather_events,atmosphere,hydrology,disasters}.rs`, `src/renderer/{clouds,cloud_noise,atmosphere}.rs`, `assets/shaders/pbr/{30-atmosphere,40-clouds}.wgsl` |
+| plants | `data/{plants.csv,plants_visual.ron}`, `src/renderer/{plant_mesh,tree_mesh}.rs`, `crates/humanity-systems/src/{ecology.rs,farming/}` |
+| creature AI | `data/{creatures.csv,npcs.ron,npc/}`, `crates/humanity-systems/src/ai/{behavior,flow_field}.rs` |
+| combat | `crates/humanity-systems/src/combat/{damage,effects}.rs` |
 
 The shaders are already split into seven numbered files and AI/combat into modules,
 so these domains genuinely do not overlap. **But they all funnel through the same few

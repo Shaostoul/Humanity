@@ -1,6 +1,6 @@
 // Which items are food, and which nutrition profile each one uses.
 //
-// Read by src/systems/food.rs for three things at once: whether an item can be
+// Read by crates/humanity-systems/src/food.rs for three things at once: whether an item can be
 // eaten or drunk, how nourishing it is, and how fast it spoils. The profile ids
 // on the right are rows of data/food_system.ron `nutrition_profiles`, where the
 // real-world numbers and their sources live.
@@ -256,14 +256,14 @@
     // HOW MUCH ONE DRINK IS (2026-10-20): (item id, litres). A drink puts back
     // the water it carries: these litres, times the share of the drink that is
     // water (worked out from its profile in data/food_system.ron), at 20
-    // Hydration points a litre (src/systems/food.rs, HYDRATION_PER_LITRE: the
+    // Hydration points a litre (crates/humanity-systems/src/food.rs, HYDRATION_PER_LITRE: the
     // bar empties in two days at the 2.5 L a day a resting adult loses). So a
     // 500 mL bottle of water puts back 10 points and a litre of milk about 18.
     // Until then every drink gave 30 points, 1.5 L, whatever it was.
     //
     // Every item above whose profile is a beverage needs a row here, and a
     // vessel in data/containers/fluids.ron drinks the litres it is filled with
-    // (the coverage test in src/systems/food.rs checks both).
+    // (the coverage test in crates/humanity-systems/src/food.rs checks both).
     drinks: [
         ("water_bottle_0", 0.5),     // items.csv "Purified drinking water 500ml"; fluids.ron fills it with 0.5 L
         ("water_purified_0", 1.0),   // items.csv "Filtered clean water jug", 1.0 kg: a litre
@@ -279,7 +279,7 @@
     // one puts back what those grams carry: their food energy (the profile's
     // kcal per 100 g in data/food_system.ron) as Satiation, a day's 2,000 kcal
     // for a day's hunger, and their water (the profile's water_g) as
-    // Hydration, at 20 points a litre (src/systems/food.rs, SATIATION_PER_KCAL
+    // Hydration, at 20 points a litre (crates/humanity-systems/src/food.rs, SATIATION_PER_KCAL
     // and HYDRATION_PER_LITRE). Until then an item gave the same whatever it
     // weighed: 0.15 Satiation for each kcal in 100 g of its food, so a 50 g
     // bunch of basil fed like 100 g of it and a 300 g loaf of bread gave 40
@@ -311,7 +311,7 @@
     //
     // Every item in `items` that is not a drink needs a row, and no row may
     // say more grams than items.csv weighs the item (the coverage test
-    // every_food_says_how_much_of_it_is_eaten in src/systems/food.rs).
+    // every_food_says_how_much_of_it_is_eaten in crates/humanity-systems/src/food.rs).
     portions: [
         // --- Meat, fish, eggs, dairy, fats ---
         ("raw_meat_0", 600.0),       // items.csv 0.6 kg of butchered meat, the bones apart

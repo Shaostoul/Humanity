@@ -40,7 +40,7 @@ east shell near z 39..41). Inside the box:
 - **The machine layer works**: `data/machines/home.ron` / `home_solo.ron` place the
   whole power/water/food/waste plant as `MachineInstance`s (absolute x/z, zone
   "home"), connected by `MachineConnection`s with real cable/pipe specs, validated
-  by `MachineHome::buildability_report` (src/machines.rs), simulated live by
+  by `MachineHome::buildability_report` (crates/humanity-ship/src/machines.rs), simulated live by
   `ElectricalSystem` (PowerStatus), `PlumbingSystem` (WaterStatus), and
   `AtmosphereSystem` (AirStatus, registered in src/lib.rs).
 - **Zero furniture.** No bed, chair, table, or rug exists in the walkable home.
@@ -50,7 +50,7 @@ east shell near z 39..41). Inside the box:
   registered and never ticks, per docs/FEATURES.md), `data/items.csv` (e.g.
   `rug_0`), and `data/ships/room_equipment.ron` (relay starter ship only).
 
-Wall model (src/ship/home_structure.rs): `InteriorWall { a, b, height, material,
+Wall model (crates/humanity-ship/src/home_structure.rs): `InteriorWall { a, b, height, material,
 thickness, layers, openings }` between corner nodes snapped to a 5 cm grid;
 `Opening { Door | Window, at, width, sill, height, style, locks, auto_open,
 control_panel }`. Materials come from `data/blueprints/wall_materials.ron` (8 real
@@ -153,7 +153,7 @@ via the construction editor. Rules:
 
 The plant (4 solar, 2 battery banks, wind, generator) already exists in
 home_solo.ron and feeds live `PowerStatus {generation, consumption, balance,
-battery_wh, autonomy_hours}` (src/systems/electrical.rs), shown on the Home page
+battery_wh, autonomy_hours}` (crates/humanity-systems/src/electrical.rs), shown on the Home page
 and checked by the buildability report (Power source / Energy balance / Wiring /
 Conduits / Power circuit). The house adds CIRCUITS as `MachineConnection`s with
 pinned specs from the material catalog, `data/piping/pipe_materials.ron` (`data/utilities/conduits.ron`
@@ -177,10 +177,10 @@ entry gives them a body and a port anchor, but they are cosmetic until then.
 ### 5.2 Plumbing
 
 Live today: cistern > pump > purifier > `home_water_use` (one aggregate 80 L/day
-node), per plumbing island, publishing `WaterStatus` (src/systems/plumbing.rs).
+node), per plumbing island, publishing `WaterStatus` (crates/humanity-systems/src/plumbing.rs).
 The house splits the aggregate into per-room fixtures (new catalog entries, all
 following the existing Port pattern; PlumbingSystem already treats Water and
-HotWater identically, src/machines.rs):
+HotWater identically, crates/humanity-ship/src/machines.rs):
 
 | Fixture (new machine id) | Room | Ports | Notes |
 |---|---|---|---|
@@ -208,7 +208,7 @@ zero producers or consumers today; this arc activates it with data only.
   catalog's `heater` (a 1,500 W electric space heater on a 24 C thermostat,
   placed from the crafted `heater_0`) warms the air it stands in: a grow room's
   or tent's own, else the home's own air, by a linear heat balance stepped with
-  the airs' water and gases in the farming tick (`src/systems/farming/heat.rs`;
+  the airs' water and gases in the farming tick (`crates/humanity-systems/src/farming/heat.rs`;
   numbers and sources in `data/garden/humidity.ron`, THE HEAT). Each air sits at
   its own temperature (the station holds it there for nothing) plus what heaters
   add, and everything that reads that air reads the sum: humidity, CO2, pests,
@@ -216,7 +216,7 @@ zero producers or consumers today; this arc activates it with data only.
   the space heater (`data/hvac.ron`'s heat_pump, wood_stove and radiant_floor
   have no catalog counterpart), the crops' growth answering a room's
   temperature, every room keeping its own air, and the station's own climate.
-  The never-registered `HvacSystem` (src/systems/hvac.rs, with its RoomEnvironment
+  The never-registered `HvacSystem` (crates/humanity-systems/src/hvac.rs, with its RoomEnvironment
   and HvacUnit components) was deleted on 2026-10-05, superseded by the farming air
   step: build on that.
 
@@ -335,7 +335,7 @@ effort and blocks nothing above.
 5. Blackwater/waste chain: no septic machine; Waste utility has no consumers.
 6. PlacedLight wattage: house lighting draws no power in the sim.
 7. HVAC runtime: hvac.ron has no loader into the machine layer. Room heat runs
-   since 2026-10-05 in the farming air step, `src/systems/farming/heat.rs` (see
+   since 2026-10-05 in the farming air step, `crates/humanity-systems/src/farming/heat.rs` (see
    5.3); the old never-registered HvacSystem was deleted the same day.
 8. (Closed by the console-room increment.) Wall-bounded rooms are now named by
    the zone covering their centre and joined to rooms.ron through the zone's

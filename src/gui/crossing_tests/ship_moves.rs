@@ -1,7 +1,7 @@
 //! From ship/moves.rs's tests: the relay's on-foot limit covers the fastest legitimate walk, the
 //! renderer's walk and sprint times every speed buff and piece of gear the simulation knows.
 
-use crate::ship::moves::tests::shipped;
+use humanity_ship::moves::fixtures::shipped;
 
 /// The fastest a person can walk on these data files, folded by the very functions lib.rs
 /// moves the player with (the review of increment 4, R2: this read `speed:<v>:multiply` from
@@ -14,8 +14,8 @@ use crate::ship::moves::tests::shipped;
 #[cfg(feature = "native")]
 fn fastest_walk_mps(effects: &str, equipment: &str) -> f32 {
     use crate::renderer::camera::{SPRINT_FACTOR, WALK_SPEED_MPS};
-    use crate::systems::economy::EquipmentRegistry;
-    use crate::systems::status_effects::StatusEffectRegistry;
+    use humanity_systems::economy::EquipmentRegistry;
+    use humanity_systems::status_effects::StatusEffectRegistry;
     let rows = |csv: &str| -> Vec<Vec<String>> {
         csv.lines().filter(|l| !l.starts_with('#') && !l.starts_with("id,") && !l.trim().is_empty()).map(|l| l.split(',').map(str::to_string).collect()).collect()
     };

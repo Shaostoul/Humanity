@@ -734,10 +734,10 @@ Grouped by what kind of authority each one is. Web pages were read on
   Unsanitary effect: `data/status_effects.csv`. The Waste reading, the
   "Compost and draw off urine" action and food spoilage:
   `WASTE_RISE_PER_SEC`, `WASTE_PER_MEAL`, `UNSANITARY_THRESHOLD` and the
-  spoilage code in `src/systems/food.rs`; the button in
+  spoilage code in `crates/humanity-systems/src/food.rs`; the button in
   `src/gui/pages/inventory.rs`. Garden pests: `data/garden/pests.ron`.
 - The body, the Waste reading among its vitals, saved with the game:
-  `BodySave` in `src/persistence.rs` and `restore_body` in
+  `BodySave` in `crates/humanity-systems/src/persistence.rs` and `restore_body` in
   `src/save_load.rs`. The Play mode and the "Start every session from the
   default home" setting: `src/config.rs`.
 - [What Not to Compost, Burn or Pour

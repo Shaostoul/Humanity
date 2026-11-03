@@ -45,7 +45,7 @@ valuable closure (see ladder).
 
 ## T0: BODY (live)
 
-**What runs:** FoodSystem (src/systems/food.rs, lib.rs:5191) decays
+**What runs:** FoodSystem (crates/humanity-systems/src/food.rs, lib.rs:5191) decays
 satiation/hydration/energy/oxygen/body-temp/waste on the Vitals component;
 eating maps items to the 12 nutrition profiles in data/food_system.ron
 (kcal, raw-consumption risk, spoilage rolls); Rest restores energy; Compost
@@ -57,23 +57,23 @@ lib.rs:6797-6841); a home power loss makes indoor air unbreathable.
 
 **Sharpest gaps (all verified AT THE TIME; the first three are now WRONG):**
 - ~~Health hits 0 and NOTHING happens. No death, no respawn, no penalty.~~
-  **CLOSED in v0.745.** Death is real: `src/systems/food.rs:607-611` and
+  **CLOSED in v0.745.** Death is real: `crates/humanity-systems/src/food.rs:607-611` and
   `:618-629` kill the player and publish a cause.
 - ~~No health regeneration exists in any live path (rest/food do not heal).~~
   **CLOSED in v0.745.** `healing_per_tick` feeds `effect_heal`
-  (`src/systems/food.rs:592`).
+  (`crates/humanity-systems/src/food.rs:592`).
 - ~~Effects are speed-only: damage_per_tick / healing_per_tick ... consumed by
   nothing.~~ **CLOSED in v0.745.** Both are consumed at
-  `src/systems/food.rs:580-596`, normalized per-second by `tick_interval_s`.
+  `crates/humanity-systems/src/food.rs:580-596`, normalized per-second by `tick_interval_s`.
   Five live health drains now exist (starvation, dehydration, suffocation,
   freezing, heat exhaustion). ~~Genuinely still unread: `stackable`, `max_stacks`,
   `damage_type`, `dispel_type` are dropped by the loader.~~ **CLOSED 2026-10-05
   (BUG-162):** the loader now refuses a row with a column it does not declare;
   `dispel_type`, which nothing read, became tags that medical items end
-  (`data/medical/treatments.ron`, `src/systems/treatment.rs`); `stackable`,
+  (`data/medical/treatments.ron`, `crates/humanity-systems/src/treatment.rs`); `stackable`,
   `max_stacks` and `damage_type` are read but not acted on (nothing stacks, and
   damage has no type). Food poisoning stopped being a health drain: it takes
-  water over game days and passes (`src/systems/illness.rs`).
+  water over game days and passes (`crates/humanity-systems/src/illness.rs`).
 - Vitals are visible only on the Inventory page; no in-world HUD warning.
 
 **Designed closure:** the death-and-recovery loop. Death inserts Dead,
@@ -109,7 +109,7 @@ educational core and it works.
   parsed, DISPLAYED, and ignored by the growth tick.~~ **PARTLY CLOSED in
   v0.749.** Growth is not a timer: `effective_progress = progress *
   health_factor * nutrient_factor * climate_factor`
-  (`src/systems/farming/mod.rs:1071`). Temperature window and season ARE
+  (`crates/humanity-systems/src/farming/mod.rs:1071`). Temperature window and season ARE
   consumed (`:1046-1066`), gated to FIELD crops since indoor grows are
   climate-controlled, and deliberately slow rather than lethal. Water stress
   damages `crop.health` (RF stress did too, until 2026-09-27), and crops DIE to `STAGE_DEAD`
@@ -125,7 +125,7 @@ educational core and it works.
   legumes, and mushrooms harvest to a warning log. Fix is a harvest_item
   column on plants.csv (already sketched in code comments).
 - No away-time growth (crops freeze when the app closes).
-- Self-sufficiency scoring (src/systems/self_sufficiency.rs +
+- Self-sufficiency scoring (crates/humanity-systems/src/self_sufficiency.rs +
   data/food/crop_nutrition.ron) is built and tested but only tests consume
   it; the Home page still shows hand-typed kcal strings.
 
@@ -232,7 +232,7 @@ do not exist.
 (decision-briefs.md Brief 1) is the staging ground; ships become the T5
 vehicle class with interiors (the ship layout + BFS pathfinding code
 already exists); planets go from skybox to landable via the real planet
-pipeline (PlanetDef in src/terrain/planet.rs + reload_planet_defs + the
+pipeline (PlanetDef in crates/humanity-terrain/src/planet.rs + reload_planet_defs + the
 chunked-LOD terrain path that already renders Earth at true scale). Every T5
 increment should reuse a T1-T2 system in a new shell (a ship is a mobile
 homestead; life support is the SAME AtmosphereSystem).

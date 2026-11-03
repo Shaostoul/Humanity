@@ -7,7 +7,7 @@ are marked so, and listed in 3.6), and **every one needs a refutation pass befor
 screen** (the house rule for teaching data: a previous round of researched species records lost 48
 of 60 on adversarial review, almost all on the fields that can hurt someone). Companions: `docs/design/how-to.md` (the real procedures a quest step links),
 `docs/design/gameplay-loop-map.md` and `docs/design/progression-skills-gear.md` (the design bible),
-`src/systems/quests/` (the quest system as built).
+`crates/humanity-systems/src/quests/` (the quest system as built).
 
 ## Why
 
@@ -20,7 +20,7 @@ The operator, 2026-10-30:
 
 The game teaches real survival skills through simulation (the Real/Sim toggle). The body's needs
 are already simulated at real scale: Hydration empties in about two days and then kills in about
-one more, Satiation empties in about a week (`src/systems/food.rs`, v0.1005 "REAL SCALE"). What the
+one more, Satiation empties in about a week (`crates/humanity-systems/src/food.rs`, v0.1005 "REAL SCALE"). What the
 game does not yet do is lead a player through *how* to meet those needs the way a person would have
 to in life. These chains do that, one need at a time, with a branch for each real method.
 
@@ -30,7 +30,7 @@ The operator asked, so here it is in one place:
 
 | Word | What it is | Which reality | Where it lives |
 |---|---|---|---|
-| **Quest** | The game's path: a story goal with steps the game checks, rewards (items, skill XP), and the HUD's quest line. | Sim only | Quests page; `data/quests/*.ron`; `src/systems/quests/` |
+| **Quest** | The game's path: a story goal with steps the game checks, rewards (items, skill XP), and the HUD's quest line. | Sim only | Quests page; `data/quests/*.ron`; `crates/humanity-systems/src/quests/` |
 | **Task** | A person's own real to-do. The Tasks page also holds the learn-by-doing guide panel (`data/onboarding/quests.json`), which is platform onboarding, not gameplay. | Real only | Tasks page |
 | **How-to** | A real procedure as data: steps, checks, safety notes, sources. The game can render one too. | Real, and Sim where the game models it | How-to page; `data/how_to/` |
 
@@ -45,7 +45,7 @@ to Tasks on its own.
 
 ### 1.1 What the code does today
 
-A quest is a `QuestDef` (`src/systems/quests/mod.rs`): `id`, `name`, `description`, ordered
+A quest is a `QuestDef` (`crates/humanity-systems/src/quests/mod.rs`): `id`, `name`, `description`, ordered
 `steps`, item `rewards`, `xp_rewards`, and one `prerequisite: Option<String>`. Each step has a
 `description` (the HUD line) and one `QuestObjective` (`objectives.rs`): `Gather`, `Craft`, `Make`,
 `Harvest`, `Build`, `Travel`, `Talk`, `Eat`, `Plant`, `View`.
@@ -191,7 +191,7 @@ before the purifier (rain catchment fills it; `data/machines/home_solo.ron` alre
 into `water_tank` and through `water_purifier`); a rain barrel the player builds (`water_rain`); a
 stream or pond node in the world beside the existing forage nodes (`data/entities/wild_spawns.ron`);
 and aboard the ship, the air handlers' condensate drain (the pipe media already name `condensate`,
-`src/machines.rs`). And the emergency the chain prepares for: when the purifier has no power, the
+`crates/humanity-ship/src/machines.rs`). And the emergency the chain prepares for: when the purifier has no power, the
 home's taps deliver the cistern's water as it is, and the game says so the way a boil-water notice
 would.
 
@@ -617,7 +617,7 @@ nothing to drink (H7). Rewards: XP shelter_building 15.
 ### 2.4 Air in a sealed home
 
 *Ship homes and the sealed homestead. The home already simulates its air (the model in
-`src/systems/atmosphere.rs`, its state `HomeAirState` in `crates/humanity-core/src/ecs/components.rs`; the CO2
+`crates/humanity-systems/src/atmosphere.rs`, its state `HomeAirState` in `crates/humanity-core/src/ecs/components.rs`; the CO2
 percentage reaches the Home page as `air_co2_pct`), and a planted homestead's crops already hold it
 near 465 ppm with the scrubber idle (the air loop's note in `data/machines/home_solo.ron`). So these
 steps are easy in a home whose garden grows, and the lesson is what holds the air there: they are

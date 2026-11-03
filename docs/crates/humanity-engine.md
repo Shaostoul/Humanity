@@ -18,10 +18,10 @@ edit re-checks the least.
   - the crate root: `lib.rs`
   - the binary: `main.rs`
   - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`, `save_load_farm_tests.rs`
-- **Size:** 94,762 lines in 130 files, 12,940 of them in 45 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_shells.rs` 1,289 of 1,300, `lib.rs` 16,298 of 16,700, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 716 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,652 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
+- **Size:** 94,737 lines in 130 files, 12,940 of them in 45 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_shells.rs` 1,289 of 1,300, `lib.rs` 16,273 of 16,700, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 716 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,652 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 30, `relay` 5, `wasm` 1.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui. **Uses today** (references in non-test code): core 601, systems 554, gui 521, ship 323, renderer 308, terrain 131, net 97, relay 11.
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui. **Uses today** (references in non-test code): core 601, systems 555, gui 520, ship 323, renderer 308, terrain 131, net 97, relay 11.
 - **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 695 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
@@ -98,11 +98,13 @@ just test-lib --crate humanity-engine engine:: save_load:: wasm_entry:: --skip e
   HERE, "Increment 7 follow-ups".
 - **BUG-217, open:** `frame_ws_poll.rs` replaces the desktop's task list with the server's, so a
   task made in the app is lost (the gui card has the fix's shape). Source: [BUGS.md](../BUGS.md).
-- **For the split:** since rung 1 the core and the protocol are crates of their own, so this
-  crate names them (`humanity_core::storage::data_dir()`, `humanity_protocol::kdf`) and keeps no
-  re-export of either. Tests still make 88 references into the test-only modules of modules cut
-  later (`node scripts/crate-graph.js --fixtures`): each becomes that crate's `test-support`
-  feature at its cut. Rung 4
+- **For the split:** the core and the protocol (rung 1) and the ship, the terrain and the
+  simulation (rung 2) are crates of their own, so this crate names them
+  (`humanity_core::storage::data_dir()`, `humanity_protocol::kdf`, `humanity_systems::farming`) and
+  keeps no re-export of any. Tests still make 44 references into the test-only modules of modules
+  cut later (`node scripts/crate-graph.js --fixtures`; it does not see test-gated items in non-test
+  modules, nor a test module reached through a `use a::{self, tests}` group, so compile the moved
+  tree to find those): each becomes that crate's `test-support` feature at its cut. Rung 4
   leaves the engine on top once gui is cut. Source: [crate-split.md](../design/crate-split.md).
 
 ## Requests from other crates

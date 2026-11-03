@@ -106,7 +106,7 @@
     },
     {
       "key": "persistence",
-      "in_project": "src/persistence.rs",
+      "in_project": "crates/humanity-systems/src/persistence.rs",
       "title": "Save snapshots: how many are kept and how often",
       "dated": "undated",
       "read": "2026-10-23",
@@ -121,7 +121,7 @@
       "note": "Its lines begin Restored (on disk, or with the home being loaded back into the game); with Start every session from the default home on, only the character is loaded now. As the code stood on 2026-10-23."
     }
   ],
-  "review": { "status": "verified", "hash": "618926c29c602b8e225ca6b90338e6836e5711a8b256be1ad21da7759a385b7c", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
+  "review": { "status": "verified", "hash": "bbf525b3716a5040264cdca0b3acbc53c3ab64f28fcace4f06983e53b7aaa8a1", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
   "written_by": "ai",
   "updated": "2026-10-23"
 }

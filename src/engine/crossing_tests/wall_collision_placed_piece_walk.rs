@@ -4,11 +4,11 @@
 //! Placed solid pieces walked with the whole frame (the increment 7 follow-ups, 2026-10-21): the
 //! footing, the walk's substeps and the sweep, in lib.rs's order (`engine::footing::test_aboard`).
 
-use crate::ship::wall_collision::*;
+use humanity_ship::wall_collision::*;
 use crate::engine::footing::test_aboard::{body_at, live_frame, Aboard, EAST, NORTH};
 use humanity_core::input::bindings::GameAction as A;
 use crate::renderer::camera::HEAD_ABOVE_EYE_M;
-use crate::ship::ship_structure::{ShipStructure, ShipZone};
+use humanity_ship::ship_structure::{ShipStructure, ShipZone};
 use glam::Vec3;
 
 const EYE: f32 = EYE_HEIGHT_M;

@@ -13,8 +13,8 @@
 //! the home itself is ship/storey_edits.rs.
 
 use super::*;
-use crate::ship::home_structure::{storey_index, SlabMaterial};
-use crate::ship::storey_edits::{
+use humanity_ship::home_structure::{storey_index, SlabMaterial};
+use humanity_ship::storey_edits::{
     add_floor_slab, cut_away_of, left_standing_without, new_slab_top, remove_floor_slab, slab_name, storey_name, CutAway,
     EditStorey, SlabDraw,
 };

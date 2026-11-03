@@ -39,7 +39,7 @@
 //! starts cannot leave a store in a wall or a crew walk headed onto a plot.
 
 use super::game_state::{DoorDef, GameEntity, GameWorld, QuestProgress, RoomInfo, ShipRoom};
-use crate::ship::ship_structure::{PlotArrival, ShipStructure};
+use humanity_ship::ship_structure::{PlotArrival, ShipStructure};
 
 /// Height over the floor where the relay stands a figure (the crew, the furniture): their
 /// centre, a metre up. The game grounds every crew member at the same height over its floor
@@ -152,10 +152,10 @@ pub fn room_contains(room: &ShipRoom, p: [f32; 3]) -> bool {
 /// The plot whose box holds `p`, if any: over its floor plan (x and z, edges included) and from a
 /// metre under its floor up to its top. A figure over a plot but above its top is not on it (ship
 /// homes increment 7); every point inside a plot's box, 3 m or 6 m, keeps the answer it had. The
-/// one box rule of the build frames (src/ship/build_frames.rs `box_holds`).
+/// one box rule of the build frames (crates/humanity-ship/src/build_frames.rs `box_holds`).
 pub fn plot_at(plots: &[PlotArrival], p: [f32; 3]) -> Option<&PlotArrival> {
     use glam::Vec3;
-    plots.iter().find(|pl| crate::ship::build_frames::box_holds(Vec3::from(pl.origin), Vec3::from(pl.size), Vec3::from(p)))
+    plots.iter().find(|pl| humanity_ship::build_frames::box_holds(Vec3::from(pl.origin), Vec3::from(pl.size), Vec3::from(p)))
 }
 
 /// A point of a room at standing height, from room-local (x, z) metres (None: its middle).
@@ -458,7 +458,7 @@ fn progress_of(e: &GameEntity) -> (Option<String>, Vec<String>, u64, u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ship::ship_structure::ShipStructure;
+    use humanity_ship::ship_structure::ShipStructure;
 
     fn data() -> std::path::PathBuf {
         std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
@@ -547,7 +547,7 @@ mod tests {
     /// takes the plot's box, so a figure 6.5 m over p1 (a 6 m homestead plot) stands on no plot;
     /// one at its door, on its upper floor at eye height (4.7 m) and jumping there (5.9 m) is on
     /// p1; over a 3 m cabin plot, 3.5 m up is on none. The same rule as the build frames
-    /// (src/ship/build_frames.rs `box_holds`).
+    /// (crates/humanity-ship/src/build_frames.rs `box_holds`).
     ///
     /// Seen red 2026-10-20 with `plot_at` across the floor only: "a figure 6.5 m over p1 is on
     /// Some(\"p1\")".
@@ -644,9 +644,9 @@ mod tests {
 
     /// The walls of the shipped ship as everyone walks against them (the rig's own list,
     /// `wall_collision::everyones_walls`, with the home on its default plot).
-    fn walls() -> Vec<crate::ship::wall_collision::WallSegment> {
+    fn walls() -> Vec<humanity_ship::wall_collision::WallSegment> {
         let ship = ShipStructure::load_and_assemble_shipped(&data(), None).expect("the shipped ship assembles");
-        crate::ship::wall_collision::everyones_walls(&ship)
+        humanity_ship::wall_collision::everyones_walls(&ship)
     }
 
     /// Closest distance between two segments on the floor (x, z); 0 when they cross.
@@ -724,7 +724,7 @@ mod tests {
     fn every_crew_walk_is_clear_of_the_ships_furniture() {
         let world = GameWorld::new();
         let ship = ship();
-        let rows = crate::machines::MachineHome::load_file(&data().join("machines/ship.ron")).expect("ship.ron parses");
+        let rows = humanity_ship::machines::MachineHome::load_file(&data().join("machines/ship.ron")).expect("ship.ron parses");
         // Each Furniture row's footprint, ship metres: (id, min x, min z, max x, max z).
         let furniture: Vec<(String, (f32, f32), (f32, f32))> = rows
             .all_instances()

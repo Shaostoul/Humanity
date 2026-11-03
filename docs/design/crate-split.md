@@ -14,7 +14,9 @@ ratchet now holds test code too, file by file; the data folder's path is the cor
 is the GUI's; main.rs and the crate root's own items are counted; one cut-away box. **Rung 1 is
 done (2026-11-01):** the Cargo workspace, with `humanity-core` and `humanity-protocol` cut out into
 `crates/` (Order of work, below, with the build times before and after: unchanged, as a small
-piece off one end of the chain predicts). Rung 2 is next.
+piece off one end of the chain predicts). **Rung 2 is done (2026-11-02):** `humanity-ship`,
+`humanity-terrain` and `humanity-systems` cut out, about 138,000 lines from under the engine (Order
+of work, below, with the build times). Rung 3 is next.
 
 The plan's one source is `scripts/crate-layers.json`: which crate every part of `src/` goes to and
 which crates each may use. `node scripts/crate-graph.js --crates` prints each crate's size, and
@@ -165,7 +167,7 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
   crates whatever the cache holds. The CI gain needs `git restore-mtime` before building, or Cargo's
   content-hash freshness (still unstable). Locally the gain is immediate.
 - **No runtime change** is intended anywhere. Each rung keeps the farming golden state
-  (`src/systems/farming/golden_tests.rs`), the lib tests, the relay battery and a
+  (`crates/humanity-systems/src/farming/golden_tests.rs`), the lib tests, the relay battery and a
   `just verify-runtime` boot exactly as they were.
 
 ## Order of work (each rung shippable alone, and measured)
@@ -247,13 +249,13 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      `crossing_tests` folder or file per destination crate, declared once in that crate's root
      module, a file per file the tests came from: src/engine/crossing_tests/ (19 files, two of them
      whole files moved with git mv: `engine/parity_tests.rs`, `systems/quests/opening_tests.rs`),
-     src/gui/crossing_tests/ (13), src/systems/crossing_tests/ (7), src/relay/crossing_tests/ (2)
+     src/gui/crossing_tests/ (13), crates/humanity-systems/src/crossing_tests/ (7), src/relay/crossing_tests/ (2)
      (the engine's 25 files since the farm's six joined it, below)
      and one file each in net, renderer, terrain and the ship. Nothing in a test changed but its
      paths; the how-to checker's nine page-reading tests run without the app's page list in the
      relay's crate and again with it in the GUI's (`gui/crossing_tests/how_to.rs`), and the station
      tests take their own 24-hour day instead of the simulation's constant. **The farm's last 15**
-     (src/systems/farming/heat_tests.rs 6, life_support_tests.rs 3, mod.rs 3, humidity_tests.rs 1,
+     (crates/humanity-systems/src/farming/heat_tests.rs 6, life_support_tests.rs 3, mod.rs 3, humidity_tests.rs 1,
      soil_ph_tests.rs 1, weed_tests.rs 1; all systems -> engine, the engine's home spawn and save and
      load) moved the same way the same evening, once the farm's session finished with those files:
      to src/engine/crossing_tests/farming_heat.rs (eight tests, with the stove and heat-pump helpers
@@ -388,6 +390,94 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      compiles, read 86 and 88 s for the same edits main compiles in 53 s. The gains start at rung 2,
      which takes ship, terrain and systems (about 137,000 lines) out from under the engine.
 2. **`humanity-ship`, `humanity-terrain`, then `humanity-systems`.** Measure.
+   **Done (2026-11-02), in seven steps, a commit each:**
+   - **The fixtures first** (step 1). Every helper another planned crate's tests took from a test
+     module of the three moved out of it into a `fixtures` module beside it, `pub`, before any file
+     moved: `standing`, `sight`, `moves` and `door_panels` in the ship; `far_trees` and
+     `drawn_surface` in the terrain; `surface_move`, `env_layer1`, `food::fixtures::{wounds,
+     spoilage}` and `farming::fixtures::{gardening, heat, humidity, life_support, soil_ph, weeds}`
+     in the simulation. At the cut each is gated `any(test, feature = "test-support")`, rung 1's
+     mechanism and name. `crate-graph --fixtures` listed 44 of these references; it did not list
+     two more kinds, found by compiling the moved tree: test-gated ITEMS in non-test modules
+     (`ShipStructure::load_and_assemble_shipped`, `MealRules::built_in`,
+     `status_effects::with_old_dispel_type_column`, `near_trees::frame_loop_source`,
+     `water_carve::PublishedForTest`) and a test module reached through a `use` group
+     (`use farming::{self, step_tests, ..}`: the step tests' garden and its comparison, and the golden
+     garden they start from, now `farming::fixtures::{step, golden}`).
+   - **What would break, fixed on the old layout** (step 2): the move was first made once, compiled
+     in both feature sets, and every fix replayed before the move, so steps 3 and 4 are the moves.
+     46 items (fields and methods counted) became `pub` because another planned crate uses them
+     (the build editor's pure half, `storey_edits`; the plant mesh builder's primitives;
+     `HomeStructure::material_color`;
+     `persistence::{civil_from_days, days_from_civil}`; `quests::{PLANT_EVENT, counted}`;
+     `farming::{SECONDS_PER_DAY, stage_index}`, `FarmingSystem::reuse_override`; the test-only items
+     above; the full list is the step's commit). The relay's two methods on the ship's `ShipPlots`
+     (E0116) became the relay's functions of the same names. Two dead-code allows that only held
+     while caller and callee shared a crate went. No `include_str!` reached into another module's
+     folder this time, and no inherent impl outside the relay's.
+   - **The cut** (steps 3 and 4): `git mv`, each root module's folder the crate's `src/` and its
+     `mod.rs` the `lib.rs`, so the modules are the crate's (`humanity_ship::ship_structure`,
+     `humanity_terrain::planet`, `humanity_systems::farming`) and the extra modules keep their names
+     (`humanity_ship::machines`, `humanity_ship::station`, `humanity_systems::persistence`,
+     `::surface_walk`, `::surface_move`); 1,050 + 388 + 1,968 paths rewritten, no re-export. The
+     spline routing's rung 0 files that landed on main that day moved with the ship. Each crate's
+     `native` (its default) forwards to the crates under it; the root's `native` turns on all
+     three; nothing in them names `relay` or `wasm`, so the server build compiles them whole but
+     their `native` parts (the ship's `RoomBounds` and `machines::home_ron_path`, the terrain's OSM
+     mesher, the simulation's live save, server save names, named rooms and home-store words). None
+     of them depends on egui, winit or wgpu. noise and rand joined `[workspace.dependencies]`.
+   - **What the moves broke that compiling did not show.** The full lib-test run on the moved tree
+     failed six: a ship test that searched the engine's lib.rs for `crate::ship::sight::...`, which
+     the path rewrite had turned into `crate::sight::...` (it now looks for
+     `humanity_ship::sight::...`), the terrain's one-reader-of-the-density test, which read its own
+     file at the old path, and four how-to tests (below). Reading every source walk in the lib tests
+     found two that passed blind, walking `src/` alone: the simulation's no-bare-`MachineHome::load`
+     test and the net's no-age-API scan (blind to the core and the protocol since rung 1); they and
+     the density test walk every crate now. **And where a test starts:** cargo starts each test
+     program in its own package's folder, where no data/ sits, while lib-tests started every
+     program from the repo root. So the full lib-test run passed and the relay battery failed four
+     simulation tests whose notices the server build reads from data/i18n/en.json, unseen at first
+     because cargo stopped at main's own failing core test; 20 more had been handing
+     `ElectricalSystem` a bare `"data"` and passing on an empty table. Now a test build's
+     `storage::data_dir()` falls back to the repo's data/, those tests name it, and lib-tests starts
+     each program in its member's folder, as cargo does. Paths that followed the files: the golden test's recorded state,
+     the grass coverage scan's files, and the how-to whose source cites `src/persistence.rs` (the
+     checker refuses a source the repo does not have; the one changed path rebinds its review hash,
+     `node scripts/build-how-to.js`).
+   - **Every tool that knows where code lives** (step 5), each source-walking check seen red on a
+     violation planted under the new crates (the step's commit lists them with their red lines).
+   - **The docs** (step 6): CLAUDE.md's Architecture paragraph, builds.md, the cards, the code map,
+     and every path to a moved file across docs/, data/, web/, scripts/, schemas/ and the code's own
+     comments (link targets only in the records).
+   - **Measured: an edit compiles about a quarter faster, with 138,000 lines out from under the
+     engine.** `cargo check` of an engine edit went from 18 s to 14 s, the test build from 55 s to
+     42 s, the cold test build from 264 s to 227 s; the cold check stayed at about 82 s, because the
+     crates sit on its critical path in front of the engine (core 3 s, ship 5 s beside the
+     terrain's 1 s, systems 9 s, then the engine 61 s). Main (36f20b942) and the branch in the same
+     worktree the same day, two and a half hours apart, `CARGO_BUILD_JOBS=4`, each compile timed by
+     the build slot's own line (so no memory wait is counted), the same comment line appended to the
+     simulation's `time.rs` and to `engine/launch_focus.rs`:
+
+     | Build | main, rung 1 | rung 2 |
+     |---|---|---|
+     | `cargo check --features native`, cold | core 3 s and protocol 1 s, then the engine 74 s (wall 83 s) | protocol 1 s, core 3 s, terrain 1 s, ship 5 s, systems 9 s, then the engine 61 s (wall 82 s) |
+     | the same, one line in the simulation | engine 18 s (wall 21 s) | systems 2 s, engine 14 s (wall 19 s, leaving out a 38 s wait for memory behind another session's compile) |
+     | the same, one line in the engine | engine 18 s (wall 21 s) | engine 14 s (wall 17 s) |
+     | the lib test build, cold | core and protocol 5 to 8 s, then the engine 254 s (wall 264 s) | core, protocol and terrain 4 to 12 s, ship 17 and 21 s, systems 22 and 35 s (library, then test program), the engine 182 s (wall 227 s) |
+     | the same, one line in the simulation | engine 56 s (wall 59 s) | systems 3 and 6 s, engine 42 s (wall 48 s) |
+     | the same, one line in the engine | engine 55 s (wall 59 s) | engine 42 s (wall 45 s) |
+
+     The engine went from about 95% of the code to 74.9% (496,000 of 662,000 lines: ship 33,000,
+     terrain 25,600 and the simulation 79,500 out), and every edit still re-checks it: a
+     simulation edit now costs its own crate's few seconds plus the engine's 14 s, where it cost
+     the engine's 18 s. The crates' test programs compile beside the engine's. **The conditions**
+     (compare quiet-machine rows only): main's rows ran beside the operator's open HumanityOS
+     (about 0.8 of a core), no other compile, 21.4 to 21.8 GB free; the branch's check rows began
+     with one or two other sessions' compiles on the machine (16.9 to 21.8 GB free) and its test
+     rows with none and no game (22.1 to 22.3 GB free). A first branch attempt, beside another
+     agent's lib test build, read 76 s for the cold engine check and is not used. The next gains
+     are rung 3's: the relay, the net and the renderer are about 207,000 of the engine's 496,000
+     lines (the 2026-10-31 reading above).
 3. **`humanity-relay`, `humanity-net` and `humanity-renderer`.** Measure the server build on
    GitHub.
 4. **`humanity-gui`**, leaving **`humanity-engine`**, the app and the binary. Measure an engine

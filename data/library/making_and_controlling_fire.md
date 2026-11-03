@@ -539,7 +539,7 @@ that goes.
   Profile page's "Dev: max skills" button, shown only in the Dev play
   mode and not in Normal, where the game starts, raises it, along with
   every other skill (`src/gui/pages/profile.rs`,
-  `src/systems/skills/mod.rs`).
+  `crates/humanity-systems/src/skills/mod.rs`).
 - **A campfire you build.** The Abilities list has a Campfire ability,
   and for a new character it sits in the first slot of the hotbar, so
   the 1 key casts it. Casting it builds a campfire on the ground in front
@@ -567,7 +567,7 @@ that goes.
   the time you come back, and one still going up when you quit is
   finished while you are away and has burned from then on. It heals
   nothing (`data/abilities.csv`, `data/blueprints/basic.ron`,
-  `src/systems/abilities.rs`, `src/systems/construction/fires.rs`,
+  `crates/humanity-systems/src/abilities.rs`, `crates/humanity-systems/src/construction/fires.rs`,
   `src/save_load.rs`). The
   item list's Campfire Kit, "Tinder flint and starter bundle", and its
   decorative Candles and Handheld Torches do nothing (`data/items.csv`).
@@ -582,7 +582,7 @@ that goes.
   Iron by itself, and a machine that runs by itself always uses up real
   ingredients, its
   charcoal included, taken from home storage and never from your
-  backpack (`src/systems/crafting/mod.rs`). No flame or smoke is involved
+  backpack (`crates/humanity-systems/src/crafting/mod.rs`). No flame or smoke is involved
   either way.
 - **Nothing catches fire, and nothing spreads.** A campfire burns its
   own logs and nothing more: it lights nothing near it, throws no sparks
@@ -591,7 +591,7 @@ that goes.
   drum while it runs, but with no flame, smoke or exhaust ([Choosing and
   Running a Generator](/library#choosing-and-running-a-generator)). The code
   has a fire system that would let fires spread and do harm
-  (`src/systems/fire.rs`), but nothing registers it. The Crafting page
+  (`crates/humanity-systems/src/fire.rs`), but nothing registers it. The Crafting page
   lists a Fire Extinguisher and a Smoke Detector, but once made neither
   does anything.
 - **No burn bans, smoke or wind-blown sparks.** There are no fire
@@ -611,8 +611,8 @@ that goes.
   window, which the game counts as a wall, stops all of it, and an open
   doorway lets it through. A real fire warms only the side of you that faces it;
   the game's body has one skin, so it spreads that warmth all round
-  (`src/systems/construction/fires.rs`, `src/engine/survival_env.rs`,
-  `src/systems/body_heat.rs`). Built shelter keeps wind and rain off your
+  (`crates/humanity-systems/src/construction/fires.rs`, `src/engine/survival_env.rs`,
+  `crates/humanity-systems/src/body_heat.rs`). Built shelter keeps wind and rain off your
   body, and a roof hides the cold night sky; [Heating a Home
   Safely](/library#heating-a-home-safely) describes the body heat model and its
   default settings.
@@ -826,29 +826,29 @@ not.
 ### Inside this project
 
 - The Fire Making skill (`data/skills/skills.csv`) and the experience
-  calls in the code (`src/systems/skills/mod.rs` and its callers); the
+  calls in the code (`crates/humanity-systems/src/skills/mod.rs` and its callers); the
   Profile page's "Dev: max skills" button (`src/gui/pages/profile.rs`,
   shown while `dev_cheats_active` in `src/gui/mod.rs` holds, which the
   Dev play mode with the cheats setting on makes true), which sets every
-  skill to its maximum (`src/systems/skills/mod.rs`); the Campfire
+  skill to its maximum (`crates/humanity-systems/src/skills/mod.rs`); the Campfire
   ability and what casting it does (`data/abilities.csv`,
-  `src/systems/abilities.rs`) and its place on the hotbar (sorted in
+  `crates/humanity-systems/src/abilities.rs`) and its place on the hotbar (sorted in
   `src/lib.rs`, drawn in `src/gui/pages/hud.rs`); the campfire it builds,
   where it may stand and where no roof may go over it, how it burns and
   how much heat it gives, with the sources of those numbers in the code's
-  own notes (`data/blueprints/basic.ron`, `src/systems/construction/mod.rs`,
-  `src/systems/construction/uses.rs`, `src/systems/construction/fires.rs`,
+  own notes (`data/blueprints/basic.ron`, `crates/humanity-systems/src/construction/mod.rs`,
+  `crates/humanity-systems/src/construction/uses.rs`, `crates/humanity-systems/src/construction/fires.rs`,
   the placing hint in `src/engine/build_place.rs`), how it burns while the
   game is closed (`src/save_load.rs`), and the warmth a body feels from
-  it, which a built piece between stops (`src/systems/construction/fires.rs`,
-  `src/engine/survival_env.rs`, `src/systems/body_heat.rs`); the Campfire Kit,
+  it, which a built piece between stops (`crates/humanity-systems/src/construction/fires.rs`,
+  `src/engine/survival_env.rs`, `crates/humanity-systems/src/body_heat.rs`); the Campfire Kit,
   Candle, Handheld Torch, Coal, Fire Extinguisher and Smoke Detector
   items (`data/items.csv`); the Make Charcoal and other recipes
   (`data/recipes.csv`); the home's kiln and smelter, and the smelter's
   Smelt Iron (`data/machines/home.ron`); machines that run by themselves
   using real ingredients from home storage only
-  (`src/systems/crafting/mod.rs`); the unregistered fire system
-  (`src/systems/fire.rs`, absent from the system list in `src/lib.rs`).
+  (`crates/humanity-systems/src/crafting/mod.rs`); the unregistered fire system
+  (`crates/humanity-systems/src/fire.rs`, absent from the system list in `src/lib.rs`).
 - [Firewood](/library#firewood), [Heating a Home Safely](/library#heating-a-home-safely),
   [Fuels and Their Hazards](/library#fuels-and-their-hazards), [Fire Performance
   Fuels](/library#fire-performance-fuels), [Heat and How It

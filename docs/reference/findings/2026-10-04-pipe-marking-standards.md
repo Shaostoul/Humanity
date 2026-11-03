@@ -817,10 +817,10 @@ not know which scheme is in use, even where one scheme allows colour alone
   pipe between them (F5, F8, F17, F29).
 - **Our code cites a standard it does not follow.**
   [`data/routing_rules.ron`](../../../data/routing_rules.ron) line 5 and
-  [`src/systems/construction/routing.rs`](../../../src/systems/construction/routing.rs)
+  [`src/systems/construction/routing.rs`](../../../crates/humanity-systems/src/construction/routing.rs)
   line 12 say the routing is "Grounded in ... ASME A13.1 (pipe color)". The
   colours actually come from `MachineHome::connection_color`
-  ([`src/machines.rs`](../../../src/machines.rs) line 2338), where water is
+  ([`src/machines.rs`](../../../crates/humanity-ship/src/machines.rs) line 2338), where water is
   blue (A13.1 says green, per GSFC and the vendor quote, F4, F5), hot water
   is red (red is fire fighting in ISO 14726, ISO 20560-1, A13.1 per GSFC,
   BS 1710 and MIL-STD-101C), power is amber yellow (yellow is flammable or a
@@ -835,7 +835,7 @@ not know which scheme is in use, even where one scheme allows colour alone
   little emissive glow, varying only metal and roughness between rigid and
   flexible kinds.
 - **The code already holds material colours that nothing draws.**
-  `ConduitKind::color()` ([`src/ship/conduits.rs`](../../../src/ship/conduits.rs)
+  `ConduitKind::color()` ([`src/ship/conduits.rs`](../../../crates/humanity-ship/src/conduits.rs)
   line 59) returns copper for rigid copper, "dark rubber" for a hose and
   "black cord" for a power cord. It has no callers: `home_meshes.rs` line
   1981 uses `connection_color` instead.

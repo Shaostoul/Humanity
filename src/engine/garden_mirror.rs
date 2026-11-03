@@ -69,8 +69,8 @@ use crate::engine::state::EngineState;
 use crate::gui::widgets::offscreen::KeyHasher;
 use crate::gui::{GardenPests, GuiAreaPests, GuiCrop};
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::farming::{self, pests::CoverRow, pollination::AreaFlags, weeds::WeedAreaRow};
-use crate::systems::inventory::ItemRegistry;
+use humanity_systems::farming::{self, pests::CoverRow, pollination::AreaFlags, weeds::WeedAreaRow};
+use humanity_systems::inventory::ItemRegistry;
 
 /// The main egui context's pass number when the Garden data was last built. The pass number goes
 /// up once a frame, when the main UI runs; both callers run before it, so they see the same number
@@ -184,7 +184,7 @@ fn build_once(state: &mut EngineState, wall: bool) {
         &mut state.data_store,
         &mut state.gui_state.placed_items,
         &mut state.gui_state.home_stock,
-        crate::systems::farming::clock::LOOK_FRESH_S,
+        humanity_systems::farming::clock::LOOK_FRESH_S,
     );
     let reuse = humanity_core::reuse::enabled();
     ROWS.with(|r| {
@@ -234,7 +234,7 @@ pub(crate) fn build(
     reuse: bool,
     wall: bool,
 ) {
-    use crate::systems::farming::{humidity, lighting, outlook, picking, pollination, soil as sl, soil_ph, weeds};
+    use humanity_systems::farming::{humidity, lighting, outlook, picking, pollination, soil as sl, soil_ph, weeds};
     // Its cost, on the Performance page's "Data for the open pages" row (budget_systems.ron).
     let _cost = humanity_core::frame_costs::stage("cpu.page_data.garden");
     // Its parts (cpu.garden.*, children of cpu.page_data.garden, never summed with it): each

@@ -6,7 +6,7 @@
 
 use super::*;
 use humanity_protocol::pq_crypto::{build_plot_permit, derive_dilithium_seed, plot_permit_preimage, DilithiumKeypair};
-use crate::systems::construction::placement::quarter_turn;
+use humanity_systems::construction::placement::quarter_turn;
 
 /// "Now" for these tests, Unix seconds (any time works: permits are judged against it).
 const NOW: u64 = 1_760_000_000;

@@ -25,12 +25,12 @@
 # Hot-reloadable: not read by the game yet (phase 2 adds the loader, see below).
 #
 # HOW PHASE 2 LOADS IT
-# One module, a closed_loop folder under src/systems (planned, not built yet, so
+# One module, a closed_loop folder under crates/humanity-systems/src (planned, not built yet, so
 # not written as a path the schema-path check would look for), with serde structs
 # that mirror the shapes below field for field: `Sources`, `Person`, `Scenario`
 # (earth_today and mothership share it), `Technologies`, `PopulationSteps`,
 # `Drift` and `TestCases`, each `ron::from_str` on the file, the way
-# data/life_support.ron is loaded by src/systems/life_support.rs. A loader test
+# data/life_support.ron is loaded by crates/humanity-systems/src/life_support.rs. A loader test
 # fails when any `source` id is not in sources.ron, when any figure lacks a
 # `read` date or a `check`, and when a research option lacks a readiness level.
 # These files must also join the embedded-data list (crates/humanity-core/src/embedded_data.rs) so

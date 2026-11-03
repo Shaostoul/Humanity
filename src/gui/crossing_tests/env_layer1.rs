@@ -3,10 +3,10 @@
 
 use crate::renderer::shader_loader::wgsl_eval::Evaluator;
 use crate::renderer::shader_loader::wgsl_eval::Value;
-use crate::systems::env_layer1::GPU_FLOATS;
-use crate::systems::env_layer1::tests::dir_at;
-use crate::systems::env_layer1::tests::shipped;
-use crate::systems::env_layer1::wind_body;
+use humanity_systems::env_layer1::GPU_FLOATS;
+use humanity_systems::env_layer1::fixtures::dir_at;
+use humanity_systems::env_layer1::fixtures::shipped;
+use humanity_systems::env_layer1::wind_body;
 
 /// The CPU and WGSL twins agree over a grid of places, altitudes, land shares
 /// and dates, for every world with a row. The WGSL side is the SHIPPED

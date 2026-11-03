@@ -1,23 +1,23 @@
 //! From systems/wounds_tests.rs: the falls, walked with the renderer's camera and controller.
 
-use crate::surface_move::{radial_step, MoveMode};
-use crate::systems::food::wounds_tests::SURFACE_SETTLE;
+use humanity_systems::surface_move::{radial_step, MoveMode};
+use humanity_systems::food::fixtures::wounds::SURFACE_SETTLE;
 use humanity_core::input::bindings::GameAction;
 use crate::renderer::camera::Camera;
 use crate::renderer::camera::CameraController;
 use crate::renderer::camera::JUMP_SPEED_MPS;
 use crate::renderer::camera::WALK_SPEED_MPS;
-use crate::systems::food::wounds_tests::EARTH_G;
-use crate::systems::food::wounds_tests::FRAME_S;
-use crate::systems::food::wounds_tests::free_fall;
-use crate::systems::food::wounds_tests::ids;
-use crate::systems::food::wounds_tests::land;
-use crate::systems::illness::Mode;
+use humanity_systems::food::fixtures::wounds::EARTH_G;
+use humanity_systems::food::fixtures::wounds::FRAME_S;
+use humanity_systems::food::fixtures::wounds::free_fall;
+use humanity_systems::food::fixtures::wounds::ids;
+use humanity_systems::food::fixtures::wounds::land;
+use humanity_systems::illness::Mode;
 use humanity_core::ecs::components::StatusEffects;
-use crate::systems::food::wounds_tests::MOON_G;
-use crate::systems::food::wounds_tests::registry;
-use crate::systems::food::wounds_tests::shipped;
-use crate::systems::food::wounds_tests::shipped_falls;
+use humanity_systems::food::fixtures::wounds::MOON_G;
+use humanity_systems::food::fixtures::wounds::registry;
+use humanity_systems::food::fixtures::wounds::shipped;
+use humanity_systems::food::fixtures::wounds::shipped_falls;
 
 /// A walker aboard under gravity `g`, standing on a deck `deck_m` above the floor, a few frames
 /// in (so the walk knows where it left the body).
@@ -390,7 +390,7 @@ fn the_shipped_fall_data_is_whole() {
     for s in &f.steps {
         let row = w.get(&s.effect).unwrap_or_else(|| panic!("{} has no row in wounds.ron", s.effect));
         let def = reg.get(&s.effect).unwrap_or_else(|| panic!("{} is not a status effect", s.effect));
-        assert_eq!(def.kind, crate::systems::wounds::WOUND, "{} is a wound", s.effect);
+        assert_eq!(def.kind, humanity_systems::wounds::WOUND, "{} is a wound", s.effect);
         assert!(
             def.modifier().is_some_and(|(stat, v, op)| stat == "speed" && op == "multiply" && v > 0.0 && v < 1.0),
             "{} slows walking: {:?}",

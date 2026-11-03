@@ -15,7 +15,7 @@
 //!
 //! Its own file because msg_handlers.rs is held to a line budget (tests/file_size_ratchet.rs).
 
-use crate::relay::handlers::game_state::{plot_owner_id, start_of_kind, GameWorld, JoinHome, JoinRefusal};
+use crate::relay::handlers::game_state::{join_refusal, plot_owner_id, start_of_kind, GameWorld, JoinHome, JoinRefusal};
 use crate::relay::handlers::msg_handlers::{
     despawn_player_now, handle_game_ban, handle_game_banned_list, handle_game_unban, is_game_admin, perception_rate_allows,
     send_game_private,
@@ -23,7 +23,7 @@ use crate::relay::handlers::msg_handlers::{
 use crate::relay::handlers::shared_build::{came_down_note, take_down_plot};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::Storage;
-use crate::ship::starts::{refusal_words, HeldHome, HomeAnswer, HomeRefusal, Start, StartOffer, CHOOSE_HOME};
+use humanity_ship::starts::{refusal_words, HeldHome, HomeAnswer, HomeRefusal, Start, StartOffer, CHOOSE_HOME};
 use std::sync::Arc;
 
 /// True when this join was refused before anything is spawned, sent privately as
@@ -50,14 +50,14 @@ pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome
     }
     let (why, ship, present) = {
         let world = state.game_world.read().await;
-        let Some(why) = world.ship_plots.join_refusal(join) else { return false };
+        let Some(why) = join_refusal(&world.ship_plots, join) else { return false };
         let ship = serde_json::json!({ "id": world.ship_plots.ship_id, "hash": world.ship_plots.ship_hash });
         (why, ship, world.find_player_entity(my_key).is_some())
     };
     let (reason, message) = match why {
-        JoinRefusal::OtherShip => ("other_ship", crate::ship::ship_structure::OTHER_SHIP_SENTENCE),
-        JoinRefusal::NoShip => ("no_ship", crate::ship::ship_structure::NO_SHIP_SENTENCE),
-        JoinRefusal::NoShipNamed => ("no_ship_named", crate::ship::ship_structure::OWN_SHIP_SENTENCE),
+        JoinRefusal::OtherShip => ("other_ship", humanity_ship::ship_structure::OTHER_SHIP_SENTENCE),
+        JoinRefusal::NoShip => ("no_ship", humanity_ship::ship_structure::NO_SHIP_SENTENCE),
+        JoinRefusal::NoShipNamed => ("no_ship_named", humanity_ship::ship_structure::OWN_SHIP_SENTENCE),
     };
     tracing::info!("Game: {} join refused ({reason}, theirs {:?}); nothing spawned", crate::relay::handlers::federation::key_in_log(my_key), join.ship_hash);
     if present {
@@ -124,7 +124,7 @@ pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> Erased
         let told = serde_json::json!({
             "type": "game_join_denied",
             "reason": "account_erased",
-            "message": crate::ship::ship_structure::ERASED_SENTENCE,
+            "message": humanity_ship::ship_structure::ERASED_SENTENCE,
             "chat_unaffected": true,
         });
         send_game_private(state, key, &told).await;
@@ -283,7 +283,7 @@ pub async fn handle_game_release_plot(state: &Arc<RelayState>, my_key: &str, raw
 
 /// `game_home_request` (where do I live on this ship, and what is free?) and `game_choose_home`
 /// {start} (give me a home of this kind, while I hold none here), both answered with `game_home`
-/// (src/ship/starts.rs `HomeAnswer`) to the asker alone (docs/design/ship-homes-increment-6-plan.md
+/// (crates/humanity-ship/src/starts.rs `HomeAnswer`) to the asker alone (docs/design/ship-homes-increment-6-plan.md
 /// section 3.5). The answer names only the asker's own plot and counts of free plots per start:
 /// nobody is told who lives where (plan 3.11). Nothing new is stored: a choice is the claim the
 /// join makes, the existing `game_plots` row. A guest in the world who chooses is answered
@@ -315,7 +315,7 @@ pub(crate) enum HomeAsk<'a> {
 /// is never chosen while it is being given to a joiner or given back.
 pub(crate) async fn home_answer(state: &Arc<RelayState>, my_key: &str, kind: &str, raw: &serde_json::Value) -> Option<HomeAnswer> {
     let ask = if kind == CHOOSE_HOME {
-        HomeAsk::Choose(raw.get("start").and_then(|v| v.as_str()).filter(|s| crate::ship::starts::is_start_id(s)))
+        HomeAsk::Choose(raw.get("start").and_then(|v| v.as_str()).filter(|s| humanity_ship::starts::is_start_id(s)))
     } else {
         HomeAsk::Where
     };
@@ -470,7 +470,7 @@ pub(crate) fn answer_home(world: &GameWorld, db: &Storage, my_key: &str, ask: Ho
 
 /// A start the file has no row for, as `refusal_words` reads it: not offered, named after the id
 /// asked for ("Palace homes are not offered on this ship."), or "Those" when none was given.
-fn unknown_start(starts: &crate::ship::starts::Starts, asked: Option<&str>) -> Start {
+fn unknown_start(starts: &humanity_ship::starts::Starts, asked: Option<&str>) -> Start {
     let mut s = starts.default_start().clone();
     let name = asked.map(|a| a.replace(['_', '-'], " ")).unwrap_or_else(|| "those".into());
     let mut chars = name.chars();

@@ -22,7 +22,7 @@ with different owners and different forge-resistance:
 1. **Identity + cosmetics -- ALWAYS self-custodial, in both modes.** The owner is the user's seed-
    derived Dilithium3/ML-DSA-65 key (`derive_pq_identity`, `src/gui/mod.rs:1898`); it is unforgeable
    and never a server row. The cosmetic fields (`character_name`, `appearance`, `outfit`, `design`)
-   already exist as plain fields on `WorldSave` (`src/persistence.rs:14-48`), explicitly decoupled
+   already exist as plain fields on `WorldSave` (`crates/humanity-systems/src/persistence.rs:14-48`), explicitly decoupled
    from the chat name. The design promotes these to a new **`character_v1` signed object** built via
    the existing `ObjectBuilder` (`crates/humanity-protocol/src/object.rs`: canonical CBOR + Dilithium3 sig + BLAKE3
    id -- the same substrate that carries `signed_profile_v1`/`vouch_v1`), so a character cannot be
@@ -218,7 +218,7 @@ terms:
 - **One save per world, on the device.** Your own home is `saves/offline_home.json`; each server you
   play on gets `saves/servers/<server hash>-<identity>.json` (the first 16 hex digits of the BLAKE3
   hash of the server's address, then the first 16 of your public key; no address in a file name),
-  one per server and identity (`src/persistence.rs` `SaveSlot`, `slot_path`). The picker's WHO list
+  one per server and identity (`crates/humanity-systems/src/persistence.rs` `SaveSlot`, `slot_path`). The picker's WHO list
   scans only the top of `saves/`, so a server save never shows as a character of its own.
 - **Made fresh, the look crosses.** A server's save is made from the start you choose there (a
   Cabin or a Homestead, `data/homes/starts.ron`): the start's kit and opening quest, the default

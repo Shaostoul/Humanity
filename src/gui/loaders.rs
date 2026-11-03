@@ -35,7 +35,7 @@
 //! studio types) arrive without a single one of them being widened.
 
 use super::*;
-use crate::systems::inventory::placed::PlacedItem;
+use humanity_systems::inventory::placed::PlacedItem;
 
 /// Load the external catalog from `data/external/catalog.json`: free software
 /// (`kind == "software"`) and real-world help services (`kind == "service"`), in
@@ -553,7 +553,7 @@ pub struct GardenArea {
 /// engine's, since the crate split's rung 0).
 pub fn load_garden_areas(machines_path: &std::path::Path, data_dir: &std::path::Path) -> Vec<GardenArea> {
     let path = machines_path;
-    let Some(home) = crate::systems::grow_machines::load_home(path) else {
+    let Some(home) = humanity_systems::grow_machines::load_home(path) else {
         return Vec::new();
     };
     garden_areas_of(&home, data_dir)
@@ -561,8 +561,8 @@ pub fn load_garden_areas(machines_path: &std::path::Path, data_dir: &std::path::
 
 /// `load_garden_areas` for a layout already in hand: the character's own home, applied after
 /// their save at startup (engine/own_home.rs `adopt_saved_home`, 2026-10-04).
-pub fn garden_areas_of(home: &crate::machines::MachineHome, data_dir: &std::path::Path) -> Vec<GardenArea> {
-    let media = load_grow_media(data_dir);
+pub fn garden_areas_of(home: &humanity_ship::machines::MachineHome, data_dir: &std::path::Path) -> Vec<GardenArea> {
+    let media = humanity_systems::grow_machines::load_grow_media(data_dir);
     let is_grow = |machine: &str| home.catalog.contains_key(machine) && media.iter().any(|m| m.matches(machine));
     // v0.538: count EVERY grow machine, not just those in a literal "garden" room. The HomeStructure
     // home's rooms are flood-fill ids (home/room_1/...) that never equal "garden", so the old
@@ -594,10 +594,9 @@ pub fn garden_areas_of(home: &crate::machines::MachineHome, data_dir: &std::path
     out
 }
 
-/// The grow-media registry (data/garden/grow_media.ron): its types and loader live
-/// with the food model in `systems::grow_machines`, which needs them under every
-/// feature set; re-exported so `crate::gui::GrowMedium` keeps its spelling.
-pub use crate::systems::grow_machines::{load_grow_media, GrowControl, GrowMedium};
+// The grow-media registry (data/garden/grow_media.ron): its types and loader live with the food
+// model in `humanity_systems::grow_machines`, which needs them under every feature set, and are
+// named there (the GUI's re-export of them went with the crate split's rung 2: one name per thing).
 
 /// Load the aeroponic tower configs (data/towers/aeroponic_configs.ron). Empty on
 /// absence/parse error.
@@ -695,7 +694,7 @@ fn intersect_axis(windows: &[(String, (f32, f32))], label: &str) -> (Option<(f32
 #[cfg(feature = "native")]
 pub fn compute_tower_compat(
     tower: &TowerConfig,
-    reg: &crate::systems::farming::PlantRegistry,
+    reg: &humanity_systems::farming::PlantRegistry,
     held_ph: Option<f32>,
 ) -> TowerCompat {
     // Distinct plant ids (a max-variety tower is mostly distinct already).
@@ -756,7 +755,7 @@ pub fn compute_tower_compat(
 #[cfg(all(test, feature = "native"))]
 mod tower_compat_tests {
     use super::*;
-    use crate::systems::farming::PlantRegistry;
+    use humanity_systems::farming::PlantRegistry;
 
     fn reg_from(csv: &[u8]) -> PlantRegistry {
         PlantRegistry::from_csv(csv).expect("parse")
@@ -1220,7 +1219,7 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
                 return Vec::new();
             }
         };
-    let tool_rules = crate::systems::crafting::tools::load(data_dir);
+    let tool_rules = humanity_systems::crafting::tools::load(data_dir);
     // Which outputs are durable (graded when made by hand, 2026-09-26), and
     // each item's litres (where a result goes, BUG-147).
     #[derive(serde::Deserialize)]
@@ -1239,32 +1238,32 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
     let kits = humanity_core::embedded_data::load_data_or_embedded(
         data_dir,
         "vehicles/kits.ron",
-        crate::systems::vehicles::VehicleKitRegistry::from_ron,
+        humanity_systems::vehicles::VehicleKitRegistry::from_ron,
     )
     .ok();
     let rolls = |id: &str| kits.as_ref().is_some_and(|k| k.get_vehicle(id).is_some());
     rows.into_iter()
         .map(|r| GuiRecipe {
-            graded: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs)
+            graded: humanity_systems::crafting::Recipe::parse_ingredients(&r.outputs)
                 .iter()
                 .any(|(o, _)| durable.contains(o.as_str())),
-            output_volume_l: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs)
+            output_volume_l: humanity_systems::crafting::Recipe::parse_ingredients(&r.outputs)
                 .iter()
                 .filter(|(o, _)| !rolls(o))
                 .map(|(o, q)| litres.get(o.as_str()).copied().unwrap_or(0.0) * *q as f32)
                 .sum(),
-            rolls_out: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs).iter().any(|(o, _)| rolls(o)),
+            rolls_out: humanity_systems::crafting::Recipe::parse_ingredients(&r.outputs).iter().any(|(o, _)| rolls(o)),
             tools: tool_rules.tools_for(
                 &r.id,
                 r.station_required.trim(),
                 &r.category,
-                &crate::systems::crafting::Recipe::parse_ingredients(&r.outputs),
+                &humanity_systems::crafting::Recipe::parse_ingredients(&r.outputs),
             ),
             id: r.id,
             name: r.name,
             category: r.category,
-            inputs: crate::systems::crafting::Recipe::parse_ingredients(&r.inputs),
-            outputs: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs),
+            inputs: humanity_systems::crafting::Recipe::parse_ingredients(&r.inputs),
+            outputs: humanity_systems::crafting::Recipe::parse_ingredients(&r.outputs),
             craft_time_sec: r.craft_time_sec,
             station_required: r.station_required,
             skill_required: {

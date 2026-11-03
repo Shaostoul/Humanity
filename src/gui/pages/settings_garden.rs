@@ -18,7 +18,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets::Hint;
 use crate::gui::{widgets, GuiState, HintDisplay};
 use humanity_core::i18n::t;
-use crate::systems::farming::clock;
+use humanity_systems::farming::clock;
 
 /// Draw the Garden updates choice. Marks the settings dirty when it changes.
 pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay) {
@@ -46,13 +46,13 @@ mod tests {
     fn every_choice_has_its_words_and_the_default_is_offered() {
         let en: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/i18n/en.json")).unwrap()).unwrap();
-        for (_, key) in crate::systems::farming::clock::CHOICES {
+        for (_, key) in humanity_systems::farming::clock::CHOICES {
             let mut v = &en;
             for part in key.split('.') {
                 v = &v[part];
             }
             assert!(v.as_str().is_some_and(|s| !s.is_empty()), "{key} has no words in en.json");
         }
-        assert!(crate::systems::farming::clock::CHOICES.iter().any(|(s, _)| *s == crate::systems::farming::clock::DEFAULT_INTERVAL_S));
+        assert!(humanity_systems::farming::clock::CHOICES.iter().any(|(s, _)| *s == humanity_systems::farming::clock::DEFAULT_INTERVAL_S));
     }
 }

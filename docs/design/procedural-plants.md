@@ -28,7 +28,7 @@ The honest justification is **coverage**, and only coverage.
 
 `data/plants.csv` has 134 species. `data/plants_visual.ron` has **19** authored recipes.
 `assets/models/plants/` has models for **19** crop species. So **115 of 134 crops have no
-art and no recipe at all**, and fall back to `generic_visual()` (`src/terrain/plant_mesh.rs`),
+art and no recipe at all**, and fall back to `generic_visual()` (`crates/humanity-terrain/src/plant_mesh.rs`),
 which exists specifically because the operator complained in v0.903 that "the potato garden is
 just a plain slab of brown". No amount of GLTF sourcing scales to the infinite-of-X rule, and
 hand-authoring 134 flat recipes does not scale to the species count this project implies.
@@ -62,14 +62,14 @@ Two further measured facts that matter:
 
 | Piece | Where | State |
 |---|---|---|
-| Procedural plant mesh generator | `src/terrain/plant_mesh.rs` (712 LOC then; in the renderer until the 2026-10-31 crate split) | WORKING. 6 form archetypes, **continuous** growth `t`, a `wilt` axis, deterministic seeding, `generic_visual()` fallback. |
+| Procedural plant mesh generator | `crates/humanity-terrain/src/plant_mesh.rs` (712 LOC then; in the renderer until the 2026-10-31 crate split) | WORKING. 6 form archetypes, **continuous** growth `t`, a `wilt` axis, deterministic seeding, `generic_visual()` fallback. |
 | Per-species visual recipe | `data/plants_visual.ron` | WORKING, hot-reloadable. 19 of 134 crops authored. |
 | Hero GLTF crop tier | `src/engine/home_meshes.rs:843-852` | WORKING. Bed and field crops with a model render at the growth quartile as material type 19. |
 | Agronomic species data | `data/plants.csv` | 134 species, real USDA/FAO-derived numbers, including unused `ph_min`/`ph_max`. |
 | Per-plant stress schema | `data/entities/plants/plant_001.ron` | AUTHORED BUT UNPARSED. Named water/nutrient/temperature/light/space stress, `disease_state`, `pest_pressure`, biomass/root/canopy indices, `yield_potential`. |
 | Per-species physiology | `data/entities/plants/tomato.ron` | AUTHORED BUT UNPARSED. Per-stage duration and NPK, DLI/PPFD/photoperiod, Kc evapotranspiration, CO2, `rotation_group`, `common_pests`, `common_diseases`, pruning. |
 | Plant genetics | `data/genetics.ron` | AUTHORED BUT UNWIRED. 12 heritable plant traits, 5 genetic diseases each carrying a `visual_sign` string. |
-| Disease contagion engine | `src/systems/ecology.rs` | WRITTEN AND WORKING, unregistered, never touches crops (queries `Health` + `Transform`; crops have neither). |
+| Disease contagion engine | `crates/humanity-systems/src/ecology.rs` | WRITTEN AND WORKING, unregistered, never touches crops (queries `Health` + `Transform`; crops have neither). |
 | Impostor baker | `src/renderer/billboard_bake.rs` | WORKING, generic over `BakePart`. Single side-on view, **not** an octahedral impostor baker. |
 | LOD registry | `data/lod/categories.ron` + `crates/humanity-core/src/lod_registry.rs` | WORKING, grass/shrub/tree rows and Settings sliders already rendered. |
 
@@ -219,7 +219,7 @@ to calibrate and publish only derived numbers.
 meshes. What actually blocks continuous growth is **one expression**:
 `src/engine/home_meshes.rs:797` computes `t` as the **stage-index
 fraction** `(i+1)/n` instead of the continuous progress the farming system already has at
-`src/systems/farming/mod.rs:1065`, and the rebuild signature at
+`crates/humanity-systems/src/farming/mod.rs:1065`, and the rebuild signature at
 `:659-677` hashes `growth_stage` as a **string**, so nothing re-triggers between stages.
 
 Threading continuous progress through and adding a quantized-`t` term to the rebuild signature
@@ -328,7 +328,7 @@ underneath cannot currently carry the realism claim:
 - A game day is **1200 s** and the year is **120 days**. Maize to black layer is ~2700 F-days
   = ~1500 C-days base 10; at a 28 C mean that is ~83 real days, **2.7 game seasons**, so maize
   could not finish inside a game summer. Winter wheat would consume most of a game year.
-- **Photoperiod is a literal no-op.** `src/systems/time.rs:86-100` hardcodes a 06:00 to 18:00
+- **Photoperiod is a literal no-op.** `crates/humanity-systems/src/time.rs:86-100` hardcodes a 06:00 to 18:00
   arc with no latitude and no seasonal variation, so daylength is exactly 12.0 h everywhere,
   always. Any critical-daylength comparison is a compile-time constant. That silently destroys
   hop, hemp, onion (bulbing is a photoperiod class matched to latitude), garlic, potato, soybean
@@ -746,7 +746,7 @@ latitude-aware daylength and a per-plot temperature field, with its own acceptan
 - Do not iterate the far-tree card sheet. It is default OFF after a twice-repeated operator
   rejection.
 - Do not widen the shared `Vertex`.
-- Do not add to the hardcoded wild-tree species in `src/terrain/planet_chunks.rs`. PRIORITIES
+- Do not add to the hardcoded wild-tree species in `crates/humanity-terrain/src/planet_chunks.rs`. PRIORITIES
   already commits to converting that to data.
 - Do not regenerate plant meshes for autumn. SpeedTree deliberately does not make seasons
   keyframable and cross-fades exported seasons instead: **seasonal change is a material and

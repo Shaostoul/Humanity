@@ -31,7 +31,7 @@ machine, this frame, this resolution:
 
 The moon row is the one that cannot be argued with. The run log says
 `Planet chunks 'moon': ACTIVE (6 patches drawn, 27 cached, 0.6 MB)`. Six
-patches at `PATCH_MESH_BYTES` (`src/terrain/planet_chunks.rs:198`) is about
+patches at `PATCH_MESH_BYTES` (`crates/humanity-terrain/src/planet_chunks.rs:198`) is about
 6,300 vertices. One material, untextured fallback, no clouds, no ocean shell,
 no atmosphere shell, `light_count.x = 0` in the celestial pass so no point
 lights at all (`assets/shaders/pbr/90-fragment-main.wgsl:2076`, and the guard
@@ -978,7 +978,7 @@ so "grass off" is not reachable from Settings.
 
 **The water shell, 42 to 49 ms at low ocean eyes.** `[WaterDiag] draws=1024
 ... budget=1024 sat=true`, hitting `WATER_MAX_LEAVES = 1024`
-(`src/terrain/planet_chunks.rs:2469`; `MAX_CHUNK_LEAVES = 640` at line 154 is
+(`crates/humanity-terrain/src/planet_chunks.rs:2469`; `MAX_CHUNK_LEAVES = 640` at line 154 is
 the land patch cap, a different number). Those 1024 patches are drawn in the
 transparent pass at `mod.rs:4775` to `4825`, on `overlay_pipeline` when
 `water_depth_write` is set, which is alpha blend, `cull_mode: None`, depth

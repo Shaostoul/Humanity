@@ -57,7 +57,7 @@ sphere varies with latitude and would leave the poles weightless. Therefore:
 
 ### How the engine expresses this: `gravity_curve`
 
-Shipped 2026-08-12 in `PlanetDef` (`src/terrain/planet.rs`):
+Shipped 2026-08-12 in `PlanetDef` (`crates/humanity-terrain/src/planet.rs`):
 
 ```ron
 // data/planets/agartha.ron (illustrative)

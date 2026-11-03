@@ -183,7 +183,7 @@ impl Run {
 
 /// Where a person's runs are kept on this computer.
 pub fn default_dir() -> PathBuf {
-    match crate::persistence::saves_dir().parent() {
+    match humanity_systems::persistence::saves_dir().parent() {
         Some(root) if !root.as_os_str().is_empty() => root.join("how_to").join("runs"),
         _ => PathBuf::from("how_to").join("runs"),
     }

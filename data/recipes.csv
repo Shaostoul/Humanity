@@ -24,7 +24,7 @@ smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1|slag_0:1,10,
 # leaves as gas. The graphite variant further down leaves the same slag: it comes from the ore, not
 # the carbon. Iron and steel get none yet: blast-furnace slag is 275 kg per t (worldsteel fact sheet,
 # April 2021), 1 slag per 3 kg iron ingot, but smelt_iron's outputs are pinned by a test in
-# src/systems/crafting/mod.rs; converter slag is 126 kg per t, under half a unit per steel ingot.
+# crates/humanity-systems/src/crafting/mod.rs; converter slag is 126 kg per t, under half a unit per steel ingot.
 smelt_copper,Smelt Copper,smelting,copper_ore_0:2|coal_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metalworking,1,Reduce copper ore into a pure copper ingot and skim off the slag
 smelt_nickel,Smelt Nickel,smelting,nickel_ore_0:2|coal_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore into a nickel ingot
 smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_0:1,18,smelter_0,metalworking,4,Refine platinum-group ore into a platinum ingot
@@ -434,7 +434,7 @@ craft_ammo_crate,Build Ammo Crate,crafting,wood_plank_0:4|nail_box_0:1,ammo_crat
 # and coolers for life support, and cloth and rope in a crewed craft for parachutes and insulation
 # blankets. The recipes used to put 38 to 203 kg of parts into vehicles of 180 kg to 50 t, which is why
 # BUG-145 had to price a spacecraft pod under a sedan. Two economy tests hold this in
-# src/systems/economy/mod.rs: vehicle_recipes_weigh_what_the_vehicle_weighs (the weight), and
+# crates/humanity-systems/src/economy/mod.rs: vehicle_recipes_weigh_what_the_vehicle_weighs (the weight), and
 # no_vehicle_sells_for_less_than_its_parts with no_recipe_resells_for_more_than_its_inputs_cost (each
 # vehicle's data/trade_goods.ron price sits between what its parts cost and twice that). build_raft is
 # the one exception: items.csv lists the raft as 20 kg of bamboo, no bamboo-pole item exists, and its six

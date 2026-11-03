@@ -14,8 +14,8 @@ All state fields must be:
 - explainable
 
 > **Grounding note (2026-06-30):** field names below track the real Rust types in
-> `src/systems/construction/` (`mod.rs`, `structural.rs`, `routing.rs`, `solver.rs`) plus
-> `src/ship/structure.rs`. Where the design calls for more fidelity than currently
+> `crates/humanity-systems/src/construction/` (`mod.rs`, `structural.rs`, `routing.rs`, `solver.rs`) plus
+> `crates/humanity-ship/src/structure.rs`. Where the design calls for more fidelity than currently
 > implemented, that gap is called out explicitly rather than implied as shipped.
 
 ---
@@ -34,7 +34,7 @@ Construction state is organized into:
 
 ## Blueprint Definition (data, not runtime state)
 
-Loaded from RON via `Blueprint` (`src/systems/construction/mod.rs`):
+Loaded from RON via `Blueprint` (`crates/humanity-systems/src/construction/mod.rs`):
 - `id` (stable identifier)
 - `name`
 - `category`

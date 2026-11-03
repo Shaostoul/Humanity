@@ -20,7 +20,7 @@
 //! tile later becomes resident, the grid + meshes rebuild ONCE so
 //! buildings sit on tile-refined ground instead of hovering.
 
-use crate::terrain::osm_region::{self, OsmRegion, RegionMeshKind, RegionMeshes};
+use humanity_terrain::osm_region::{self, OsmRegion, RegionMeshKind, RegionMeshes};
 use glam::DVec3;
 use std::sync::mpsc::{channel, Receiver};
 
@@ -61,7 +61,7 @@ pub(crate) struct ElevGrid {
     progress: usize,
     with_tiles: bool,
     /// Fine-octave noise for the drawn-ground oracle, built once per grid.
-    detail: crate::terrain::planet_chunks::DetailNoise,
+    detail: humanity_terrain::planet_chunks::DetailNoise,
 }
 
 impl ElevGrid {
@@ -199,9 +199,9 @@ impl RegionMeshState {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn tick(
     rm: &mut RegionMeshState,
-    def: &crate::terrain::planet::PlanetDef,
-    hm: &crate::terrain::planet_heightmap::PlanetHeightmap,
-    tiles: &crate::terrain::terrain_tiles::TerrainTiles,
+    def: &humanity_terrain::planet::PlanetDef,
+    hm: &humanity_terrain::planet_heightmap::PlanetHeightmap,
+    tiles: &humanity_terrain::terrain_tiles::TerrainTiles,
     renderer: &mut crate::renderer::Renderer,
     celestial_objects: &mut Vec<crate::renderer::RenderObject>,
     cam_local: DVec3,
@@ -221,8 +221,8 @@ pub(crate) fn tick(
     let mut carve_published = false;
     if !rm.carve_built {
         rm.carve_built = true;
-        let detail = crate::terrain::planet_chunks::DetailNoise::new(def.terrain_seed);
-        let sea_r = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
+        let detail = humanity_terrain::planet_chunks::DetailNoise::new(def.terrain_seed);
+        let sea_r = def.radius + humanity_terrain::ocean_waves::SURFACE_LIFT_M as f64;
         // Sibling .dem.bin files (real ~13 m elevation, v0.1153): keyed by
         // region name order, loaded once here.
         let dem_dir = humanity_core::storage::DATA_DIR
@@ -230,7 +230,7 @@ pub(crate) fn tick(
             .cloned()
             .unwrap_or_else(|| std::path::PathBuf::from("data"))
             .join("maps/regions");
-        let mut dems: Vec<Option<crate::terrain::osm_region::RegionDem>> = Vec::new();
+        let mut dems: Vec<Option<humanity_terrain::osm_region::RegionDem>> = Vec::new();
         for r in &rm.regions {
             // The mesher never learned file paths (regions arrive parsed),
             // so recover the stem by matching origin: cheapest robust key is
@@ -244,7 +244,7 @@ pub(crate) fn tick(
                         continue;
                     }
                     if let Some(d) =
-                        std::fs::read(&p).ok().and_then(|b| crate::terrain::osm_region::parse_dem(&b))
+                        std::fs::read(&p).ok().and_then(|b| humanity_terrain::osm_region::parse_dem(&b))
                     {
                         let (s, n, w, e) = d.bounds_deg();
                         if r.origin_lat > s && r.origin_lat < n && r.origin_lon > w && r.origin_lon < e
@@ -305,7 +305,7 @@ pub(crate) fn tick(
                 }
                 min_rel.max(0.5)
             };
-            if let Some(m) = crate::terrain::water_carve::RegionMask::from_region_with_dem(
+            if let Some(m) = humanity_terrain::water_carve::RegionMask::from_region_with_dem(
                 r,
                 &lake_level,
                 dems[ri].clone(),
@@ -315,7 +315,7 @@ pub(crate) fn tick(
         }
         if !masks.is_empty() {
             let count = masks.len();
-            crate::terrain::water_carve::set_global(std::sync::Arc::new(masks));
+            humanity_terrain::water_carve::set_global(std::sync::Arc::new(masks));
             carve_published = true;
             log::info!("[Region] water carve published for {count} region(s)");
         }
@@ -337,7 +337,7 @@ pub(crate) fn tick(
                 // Sea clamp HERE (the mesher's elev contract): waterfront
                 // cells sample Puget Sound bathymetry, and a building base
                 // must never sink to the seabed.
-                let sea = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
+                let sea = def.radius + humanity_terrain::ocean_waves::SURFACE_LIFT_M as f64;
                 g.data[i] = r.max(sea) as f32;
             }
             g.progress = end;
@@ -466,7 +466,7 @@ pub(crate) fn tick(
                 data: vec![0.0; GRID_N * GRID_N],
                 progress: 0,
                 with_tiles,
-                detail: crate::terrain::planet_chunks::DetailNoise::new(def.terrain_seed),
+                detail: humanity_terrain::planet_chunks::DetailNoise::new(def.terrain_seed),
             });
             log::info!(
                 "[Region] \"{}\" in range: sampling the elevation grid ({}x{}, tiles: {with_tiles})",

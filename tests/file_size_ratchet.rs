@@ -220,7 +220,7 @@ fn repo() -> &'static Path {
 ///   reach it.
 ///   THE ONE THING THAT WAS NOT PURE MOTION, and it is the v0.1320 lesson
 ///   arriving on schedule in a second place: TWO gates prove a thing by READING
-///   `src/terrain/grass.rs`'s source text (the quality-slider scan inside
+///   `crates/humanity-terrain/src/grass.rs`'s source text (the quality-slider scan inside
 ///   `near_grass_density_matches_a_real_sward`, and the Settings page's
 ///   `engine_source`). Both named exactly one file, so the grass extraction
 ///   would have made each go quietly blind to half of what it guards while
@@ -229,7 +229,7 @@ fn repo() -> &'static Path {
 ///   `near_trees::frame_loop_source()`. ADD ANY FILE YOU EXTRACT FROM THE
 ///   COVERAGE PATH TO THAT LIST. It was proved RED before being trusted: a
 ///   planted `grass_detail()` call in grass_fields.rs fails the gate naming
-///   `src/terrain/grass_fields.rs:241`.
+///   `crates/humanity-terrain/src/grass_fields.rs:241`.
 ///   `materials.rs` (408 of 500) and `capture.rs` (277 of 300) keep their
 ///   budgets rather than ratcheting to measured+3%: both are already at the
 ///   small-file FLOOR the v0.1093 note argues for, where 3% is a handful of
@@ -353,7 +353,7 @@ fn repo() -> &'static Path {
 ///   ungated and compiles into the relay build. 18_300 -> 17_932, so 200 of
 ///   the 368 lines are banked and 168 stay as working room. THE FILE NO LONGER
 ///   HAS A NAMED NEXT EXTRACTION - whoever next needs room should name one
-///   rather than nibble. New watch entry `src/surface_walk.rs` at 1_150: it
+///   rather than nibble. New watch entry `crates/humanity-systems/src/surface_walk.rs` at 1_150: it
 ///   went 450 -> 1_066 landing the drawn-ground stand, about 620 of that being
 ///   its gate suite, which is load-bearing and NOT the thing to extract.
 ///   (2026-10-31, the crate split's backlog: 1_150 -> 474. That gate suite reads the engine's
@@ -372,7 +372,7 @@ fn repo() -> &'static Path {
 ///   scan-stretch guard, the procedural fallback and their material
 ///   registration, ~250 lines around the `for name in &tree_names` loop) is a
 ///   coherent cluster with one job. The next increment that wants room in
-///   lib.rs should move it to `src/terrain/near_tree_models.rs` rather than
+///   lib.rs should move it to `crates/humanity-terrain/src/near_tree_models.rs` rather than
 ///   find another comment to shorten.
 /// - v0.1103: the extraction the v0.1100 note below ASKED FOR landed, and the
 ///   ratchet is why. A card-form increment took tree_mesh.rs to 6_531 (+81 over
@@ -430,7 +430,7 @@ fn repo() -> &'static Path {
 /// - v0.1092: `planet_chunks` 5_950 -> 4_820. The v0.1091 grass-strand
 ///   increment raised the budget to 5_950 with the extraction of the layer
 ///   recorded IN THAT COMMIT as the immediate next increment; that extraction
-///   is this one. The layer moved verbatim to `src/terrain/grass.rs`, which
+///   is this one. The layer moved verbatim to `crates/humanity-terrain/src/grass.rs`, which
 ///   joins the watch list at its own measured size, so the file it left
 ///   cannot quietly reabsorb it and the new file cannot quietly grow into a
 ///   second monolith.
@@ -447,7 +447,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/engine/frame_shells.rs", 1_300),
     ("src/engine/frame_water.rs", 750),
     ("src/engine/frame_near_trees.rs", 700),
-    ("src/surface_walk.rs", 474),
+    ("crates/humanity-systems/src/surface_walk.rs", 474),
     ("src/gui/pages/chat.rs", 4_700),
     ("src/gui/pages/chat/left_panel.rs", 2_100),
     ("src/gui/pages/chat/modals.rs", 1_550),
@@ -477,7 +477,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/engine/map_cut.rs", 75),
     ("src/engine/map_rig_ship.rs", 115),
     ("src/gui/pages/maps/ship_view.rs", 410),
-    ("src/ship/levels.rs", 200),
+    ("crates/humanity-ship/src/levels.rs", 200),
     ("src/gui/widgets/level_picker.rs", 160),
     ("src/gui/pages/maps/planet_view.rs", 435),
     ("src/gui/pages/maps/galaxy_view.rs", 395),
@@ -491,12 +491,12 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/relay/handlers/msg_handlers.rs", 4_660),
     ("src/relay/handlers/profile.rs", 650),
     ("src/relay/handlers/stream.rs", 550),
-    ("src/terrain/planet_chunks.rs", 4_740),
-    ("src/terrain/water_patches.rs", 450),
-    ("src/terrain/grass.rs", 2_640),
-    ("src/terrain/grass_fields.rs", 350),
-    ("src/terrain/grass_mesh.rs", 1_000),
-    ("src/terrain/drawn_surface.rs", 1_100),
+    ("crates/humanity-terrain/src/planet_chunks.rs", 4_740),
+    ("crates/humanity-terrain/src/water_patches.rs", 450),
+    ("crates/humanity-terrain/src/grass.rs", 2_640),
+    ("crates/humanity-terrain/src/grass_fields.rs", 350),
+    ("crates/humanity-terrain/src/grass_mesh.rs", 1_000),
+    ("crates/humanity-terrain/src/drawn_surface.rs", 1_100),
     ("src/gui/pages/construction.rs", 4_250),
     ("src/relay/api.rs", 3_930),
     ("src/relay/api_market.rs", 800),

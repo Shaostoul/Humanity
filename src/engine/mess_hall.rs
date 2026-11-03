@@ -18,7 +18,7 @@
 //!
 //! Both are done at the counter: within the reach of every interaction (5 m, the walk-up
 //! card's own reach) of a serving counter ON YOUR FLOOR (ship homes increment 7: a counter on the
-//! floor above, right over your head, is not in reach; src/ship/moves.rs `on_my_storey`, the one
+//! floor above, right over your head, is not in reach; crates/humanity-ship/src/moves.rs `on_my_storey`, the one
 //! storey rule the server applies too). In the shared world the server checks its own reach
 //! from the store, which stands just in front of the counter.
 //!
@@ -30,10 +30,10 @@ use std::path::Path;
 
 use crate::engine::state::EngineState;
 use crate::gui::pages::fleet_ledger::{self, CounterAsk};
-use crate::ship::moves::INTERACT_REACH_M;
+use humanity_ship::moves::INTERACT_REACH_M;
 use crate::gui::GuiState;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::ship_meals::{self, MealRules, Served};
+use humanity_systems::ship_meals::{self, MealRules, Served};
 
 /// The machine type a serving counter is (data/machines/ship.ron's catalog, increment 6 lane 1A).
 pub const COUNTER_TYPE: &str = "serving_counter";
@@ -43,7 +43,7 @@ pub const WALK_TO_COUNTER: &str = "Walk up to the mess hall's serving counter fi
 
 /// True when the machine `selected_id` (the pinned card's) is a serving counter: its card offers
 /// a meal and water. Nothing else does, however much it looks like furniture.
-pub fn card_offers_meal(machines: Option<&crate::machines::MachineHome>, selected_id: Option<&str>) -> bool {
+pub fn card_offers_meal(machines: Option<&humanity_ship::machines::MachineHome>, selected_id: Option<&str>) -> bool {
     let (Some(m), Some(id)) = (machines, selected_id) else { return false };
     m.instances.iter().any(|i| i.id == id && i.machine == COUNTER_TYPE)
 }
@@ -51,14 +51,14 @@ pub fn card_offers_meal(machines: Option<&crate::machines::MachineHome>, selecte
 /// How far `from` (the player's eyes) is from the nearest serving counter's walk-up label ON
 /// THEIR FLOOR, metres; None with no counter on it in this home's machines. A counter on another
 /// storey is no counter of theirs, however near it is through the slab (ship homes increment 7;
-/// the shared storey rule, src/ship/moves.rs `on_my_storey`: the label floats 0.4 m over the 0.9 m
+/// the shared storey rule, crates/humanity-ship/src/moves.rs `on_my_storey`: the label floats 0.4 m over the 0.9 m
 /// counter, 1.3 m over its floor, inside the 2.5 m a person's storey reaches over their feet).
-pub fn nearest_counter_m(machines: Option<&crate::machines::MachineHome>, labels: &[crate::gui::MachineLabel], from: glam::Vec3) -> Option<f32> {
+pub fn nearest_counter_m(machines: Option<&humanity_ship::machines::MachineHome>, labels: &[crate::gui::MachineLabel], from: glam::Vec3) -> Option<f32> {
     let m = machines?;
     labels
         .iter()
         .filter(|l| m.instances.iter().any(|i| i.id == l.machine_id && i.machine == COUNTER_TYPE))
-        .filter(|l| crate::ship::moves::on_my_storey(from.y, l.pos.y))
+        .filter(|l| humanity_ship::moves::on_my_storey(from.y, l.pos.y))
         .map(|l| l.pos.distance(from))
         .min_by(|a, b| a.total_cmp(b))
 }
@@ -136,12 +136,12 @@ pub fn take_meal_at(c: &mut Counter) -> Meal {
         return Meal::No(WALK_TO_COUNTER.into());
     }
     let rules = MealRules::load(c.data_dir);
-    let now = crate::systems::time::elapsed_now(c.data);
+    let now = humanity_systems::time::elapsed_now(c.data);
     let mut after = meter(c.data);
     match ship_meals::serve(&mut after, now, &rules) {
         Served::NotYet { ready_in_s } => Meal::No(ship_meals::not_yet_sentence(ready_in_s)),
         Served::Meal { item } => {
-            let max_stack = c.data.get::<crate::systems::inventory::ItemRegistry>("item_registry").map_or(99, |r| r.max_stack_for(&item));
+            let max_stack = c.data.get::<humanity_systems::inventory::ItemRegistry>("item_registry").map_or(99, |r| r.max_stack_for(&item));
             if !crate::engine::fleet::feed(c.world, c.gs, &item, max_stack) {
                 return Meal::No("No meal: you are not in the world yet.".into());
             }
@@ -157,8 +157,8 @@ pub fn fill_bottles_at(c: &mut Counter) -> String {
     if !c.at_counter() {
         return WALK_TO_COUNTER.into();
     }
-    let table = c.data.get::<crate::systems::fluids::FluidTable>("fluid_table").cloned().unwrap_or_else(|| crate::systems::fluids::FluidTable::load(c.data_dir));
-    let filled = ship_meals::fill_vessels(&table, c.world, c.data.get::<crate::systems::inventory::ItemRegistry>("item_registry"));
+    let table = c.data.get::<humanity_systems::fluids::FluidTable>("fluid_table").cloned().unwrap_or_else(|| humanity_systems::fluids::FluidTable::load(c.data_dir));
+    let filled = ship_meals::fill_vessels(&table, c.world, c.data.get::<humanity_systems::inventory::ItemRegistry>("item_registry"));
     if filled.litres > 0.0 {
         let mut m = meter(c.data);
         m.water_l += filled.litres;
@@ -171,7 +171,7 @@ pub fn fill_bottles_at(c: &mut Counter) -> String {
 /// `save_load::register_ship_meals`), and every load puts the save's there; where nothing has
 /// registered it (a test's bare store), the first use takes up the live save's own meter, as a
 /// save with none registered keeps the one it had, so nothing counted before is lost.
-fn meter(data: &mut DataStore) -> crate::persistence::ShipMeals {
+fn meter(data: &mut DataStore) -> humanity_systems::persistence::ShipMeals {
     if let Some(m) = crate::save_load::ship_meals(data) {
         return m;
     }

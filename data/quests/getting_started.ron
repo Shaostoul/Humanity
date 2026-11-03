@@ -45,7 +45,7 @@
 // systems::quests::step_text). Each step's completion posts a notice naming the
 // next one, and the quest's completion one naming what it gave.
 //
-// Tests (src/systems/quests/opening_tests.rs, src/machines.rs): the_opening_walks_*
+// Tests (crates/humanity-systems/src/quests/opening_tests.rs, crates/humanity-ship/src/machines.rs): the_opening_walks_*
 // and the_cabin_opening_walks_on_this_data play each opening on this data with
 // the real systems; the_mess_hall_is_the_nearest_one holds where the Cabin's is
 // sent; every_step_* holds every line to the 64 characters and to the places it
@@ -53,7 +53,7 @@
 // homesteads have what each First Steps step uses (the station, the food, the
 // seeds, the materials).
 //
-// Format: Vec<QuestDef>, see src/systems/quests/mod.rs
+// Format: Vec<QuestDef>, see crates/humanity-systems/src/quests/mod.rs
 [
     (
         id: "gs_first_steps",

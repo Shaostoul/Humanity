@@ -429,7 +429,7 @@ Ship homes increment 6 gave every world its own game save (docs/design/ship-home
   - Your own home: `saves/offline_home.json`.
   - Each server you have played on, for each identity that played there:
     `saves/servers/<A>-<B>.json`, where A is the first 16 hex digits of the BLAKE3 hash of the
-    server's address and B the first 16 hex digits of your public key (`src/persistence.rs`
+    server's address and B the first 16 hex digits of your public key (`crates/humanity-systems/src/persistence.rs`
     `slot_path`). The file NAME holds no address, so a listing of the folder does not say where
     you play. The file itself is plain JSON and does record the server's address (`server`) and
     where your home stood on its ship (`ship_place`: the ship's id and hash, and the plot), with

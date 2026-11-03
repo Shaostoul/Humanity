@@ -17,7 +17,7 @@ Three separate defects, all in the type-20 vertex branch:
 1. **The wind vector was a constant in OBJECT space.** Line 594 was
    `normalize(vec3(0.86, 0.0, 0.32))`, and the comment at line 570 says object
    space explicitly. Instance yaw is a full random turn
-   (`src/terrain/planet_chunks.rs:1883`, `az = (r2 % 6283) / 1000.0`), so every
+   (`crates/humanity-terrain/src/planet_chunks.rs:1883`, `az = (r2 % 6283) / 1000.0`), so every
    tree's wind direction was its own random azimuth and a stand FANNED OUT
    instead of leaning together. This is the most unphysical part and no amount
    of amplitude tuning fixes it.
@@ -26,7 +26,7 @@ Three separate defects, all in the type-20 vertex branch:
    goes as v^2, so a stand holds a mean downwind deflection and oscillates ABOUT
    it; at Beaufort 8 (17-20 m/s, inside the storm range) the textbook
    description is literally "whole trees in motion". `WeatherState::wind_speed`
-   exists at `src/systems/weather.rs:35` and reaches 10-25 m/s on Storm and
+   exists at `crates/humanity-systems/src/weather.rs:35` and reaches 10-25 m/s on Storm and
    Hurricane rolls (`weather.rs:284` and `:305`). Nothing in the foliage path
    read it.
 3. **The gust was a standing wave.** `0.65 + 0.35 * sin(t * 0.23 + phase * 0.5)`

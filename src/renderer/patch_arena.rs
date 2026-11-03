@@ -35,7 +35,7 @@
 use humanity_core::vertex::Vertex;
 // The ranges a patch is given (the patch cache keeps one per batched patch; terrain's since the
 // crate split's rung 0).
-use crate::terrain::planet_chunks::PatchSlot;
+use humanity_terrain::planet_chunks::PatchSlot;
 
 /// First-fit range allocator over `0..cap` with free-list merging on free.
 /// Units are ELEMENTS (vertices or indices), not bytes.

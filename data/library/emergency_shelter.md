@@ -610,7 +610,7 @@ of what kills people on a real first night.
   reach your body at all. The Body heat setting in Settings > Gameplay
   decides how hard the cold hits; [What to Do When You Are
   Lost](/library#what-to-do-when-you-are-lost) explains its Forgiving default
-  (`src/systems/body_heat.rs`, `src/engine/survival_env.rs`).
+  (`crates/humanity-systems/src/body_heat.rs`, `src/engine/survival_env.rs`).
 - **A built shelter.** The walls and the Wood Roof in
   `data/blueprints/basic.ron` count as shelter. A roof overhead keeps the
   rain and snow off and the cold of a clear night sky away. Under a roof,
@@ -619,7 +619,7 @@ of what kills people on a real first night.
   the wind as the survival manual's lean-to, and the open side turned into
   the wind lets it straight in. The HUD's Shelter line says "Sheltered",
   "Out of the rain and the wind", or how much of the wind still gets in
-  (`src/systems/construction/uses.rs`, `src/gui/pages/hud.rs`). Finishing
+  (`crates/humanity-systems/src/construction/uses.rs`, `src/gui/pages/hud.rs`). Finishing
   a structure trains Shelter Building.
 - **Only what you build.** Trees, hollows and a parked vehicle give no
   shelter in the game; only built pieces count.
@@ -631,8 +631,8 @@ of what kills people on a real first night.
   inside it. Its warmth reaches you only in a straight line: a wall or a
   roof between you and the fire stops all of it, so a fire in front of
   the open side of a three-walled shelter warms the person in it, and a
-  fire behind its walls does not (`src/systems/construction/fires.rs`,
-  `src/systems/construction/mod.rs`).
+  fire behind its walls does not (`crates/humanity-systems/src/construction/fires.rs`,
+  `crates/humanity-systems/src/construction/mod.rs`).
 
 What the game leaves out, so you do not learn it from the game: there is
 no ground to lose heat to, so lying on cold earth costs nothing; no
@@ -849,11 +849,11 @@ County's, read on 5 October 2026.
   bathrooms, toilet rooms and storage closets; with the sources it read):
   [2026-10-04-portable-unvented-heaters-washington](https://github.com/Shaostoul/Humanity/blob/main/docs/reference/findings/2026-10-04-portable-unvented-heaters-washington.md).
 - The body heat model, its weather, clothing, wet, sky and shelter inputs,
-  and fly mode suspending it: `src/systems/body_heat.rs` and
+  and fly mode suspending it: `crates/humanity-systems/src/body_heat.rs` and
   `src/engine/survival_env.rs`. The shelter test and the HUD line:
-  `src/systems/construction/uses.rs` and `src/gui/pages/hud.rs`. The
+  `crates/humanity-systems/src/construction/uses.rs` and `src/gui/pages/hud.rs`. The
   shelter pieces: `data/blueprints/basic.ron`. Building trains Shelter
-  Building: `src/systems/construction/mod.rs`. Clothing insulation:
+  Building: `crates/humanity-systems/src/construction/mod.rs`. Clothing insulation:
   `data/equipment.csv`.
 - [Cold and Hypothermia](/library#cold-and-hypothermia), [What to Do When You
   Are Lost](/library#what-to-do-when-you-are-lost), [The Hazards Where You

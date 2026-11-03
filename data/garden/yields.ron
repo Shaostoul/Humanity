@@ -2,7 +2,7 @@
 // grow unit really yields). data/plants.csv carries the compiled numbers the
 // game reads (area_per_plant_m2, yield_min, yield_max, water_liters_per_day);
 // this file carries where each one came from, and the shipped-data test in
-// src/systems/farming/unit_tests.rs holds plants.csv to it.
+// crates/humanity-systems/src/farming/unit_tests.rs holds plants.csv to it.
 //
 // -- The problem this fixes ---------------------------------------------------
 //

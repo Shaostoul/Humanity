@@ -10,7 +10,7 @@ pieces ship incrementally.
   inter-star distances. The `crates/humanity-core/src/cosmos` module already computes true Keplerian positions and
   real distances; the gap is RENDERING across that enormous dynamic range, not the data.
 - **Planet generator for ANY size, without killing computers.** A planet generator (the
-  icosphere planet in `src/terrain/planet.rs` already does distance LOD) that scales from a
+  icosphere planet in `crates/humanity-terrain/src/planet.rs` already does distance LOD) that scales from a
   small moon to a gas giant, streaming detail by distance so the framerate holds. Real-world
   terrain fidelity is the target (e.g. the "mountain" showroom backdrop literally on Mount
   Rainier once heightmaps land, per the room-purpose doc).

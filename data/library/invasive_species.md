@@ -672,7 +672,7 @@ read in the Electronic Code of Federal Regulations, current to 1 October
 - The Silverdale species records and their status counts:
   `data/locales/silverdale_wa/species.json` (no game system reads it).
 - Garden weeds, the seed bank and the Burnside calibration:
-  `data/garden/weeds.ron` and `src/systems/farming/weeds.rs` (free hoeing
+  `data/garden/weeds.ron` and `crates/humanity-systems/src/farming/weeds.rs` (free hoeing
   and mulch in creative play). Garden pests: `data/garden/pests.ron`.
 - The Play mode and the "Start every session from the default home"
   setting: `src/config.rs`.

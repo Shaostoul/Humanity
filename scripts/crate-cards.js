@@ -379,7 +379,7 @@ function facts(plan, a) {
 function cardBlock(f) {
   const L = [];
   L.push(f.cut
-    ? `- **Owns** all of \`${f.cut}/\`, a crate of its own since the crate split's rung 1 (\`scripts/crate-layers.json\` gives its \`dir\`); the modules its \`lib.rs\` declares, by the gate each compiles under:`
+    ? `- **Owns** all of \`${f.cut}/\`, a crate of its own since the crate split cut it (\`scripts/crate-layers.json\` gives its \`dir\`; the rung is in \`docs/design/crate-split.md\`); the modules its \`lib.rs\` declares, by the gate each compiles under:`
     : '- **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:');
   const groups = new Map();
   for (const p of f.paths) groups.set(p.gate, [...(groups.get(p.gate) || []), p.shown]);

@@ -3,8 +3,8 @@
 //! (`engine::home_spawn`).
 
 use humanity_core::ecs::systems::System;
-use crate::systems::farming::*;
-use crate::systems::farming::gardening_tests::*;
+use humanity_systems::farming::*;
+use humanity_systems::farming::fixtures::gardening::*;
 
 /// Offline progression end to end (2026-09-25): a garden saved, then loaded
 /// after time away, must be further along when the toggle is on and exactly
@@ -25,7 +25,7 @@ fn time_away_grows_the_garden_only_with_offline_progression_on() {
             (def.growth_days as f64 * SECONDS_PER_DAY, def.stages())
         };
         // Saved one minute after planting, at game second 1000.
-        let mut save = crate::persistence::WorldSave::new_offline("t", "homestead");
+        let mut save = humanity_systems::persistence::WorldSave::new_offline("t", "homestead");
         save.game_time = 1060.0;
         save.timestamp = 1_000_000;
         save.crops = vec![CropInstance {
@@ -45,7 +45,7 @@ fn time_away_grows_the_garden_only_with_offline_progression_on() {
         let now = save.timestamp + (growth_seconds * 0.6) as u64;
         let r = crate::save_load::catch_up_world(&mut world, &save, offline_on, 1.0, now);
         assert!((r.clock - 1060.0).abs() < 1e-9, "the clock resumes where it was saved");
-        data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+        data.get::<std::sync::Mutex<humanity_systems::time::GameTime>>("game_time")
             .unwrap()
             .lock()
             .unwrap()
@@ -92,9 +92,9 @@ fn powered_wifi_router_leaves_crop_health_unchanged() {
         growing_seconds: 0.0,
     };
     let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home.ron");
-    let home = crate::systems::grow_machines::load_home(&path).expect("home.ron parses");
+    let home = humanity_systems::grow_machines::load_home(&path).expect("home.ron parses");
     let router = home.catalog.get("wifi_router").expect("home.ron catalogs the wifi_router");
-    let inst = crate::machines::MachineInstance {
+    let inst = humanity_ship::machines::MachineInstance {
         id: "router_test".to_string(),
         machine: "wifi_router".to_string(),
         room: "room-greenhouse".to_string(),

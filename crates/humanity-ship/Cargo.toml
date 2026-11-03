@@ -1,0 +1,38 @@
+# humanity-ship (docs/crates/humanity-ship.md): the home and the ship as places a person stands in: the
+# home's walls, doors, storeys and rooms, the ship's zones and hull, where a person can stand, see and
+# walk aboard, the starts, the machines a home holds and the homestead station's orbit. Plain data and
+# geometry with no GPU in it; the server compiles it too. It uses only the core. Cut out of the one crate
+# in the crate split's rung 2 (2026-11-02, docs/design/crate-split.md).
+[package]
+name = "humanity-ship"
+version.workspace = true
+edition.workspace = true
+publish = false
+# Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
+build = "../repo_root.rs"
+
+[features]
+# The same default as the root package, so `cargo test -p humanity-ship` tests what the app builds.
+default = ["native"]
+# The desktop app's parts: a room's bounds with its name and purpose (room_types::RoomBounds) and the
+# household's machines file (machines::home_ron_path). The root's `native` turns it on; the server
+# build (`--features relay --no-default-features`) leaves it off.
+native = ["humanity-core/native"]
+# The fixtures other crates' tests share (the shipped ship assembled, the corridor ship, the walled
+# platforms, the homestead as the game walks it, the shared-world rules). A crate's #[cfg(test)] items
+# are never compiled into another crate's tests, so a dependent turns this on in its
+# [dev-dependencies] only; no product build carries it.
+test-support = []
+
+[dependencies]
+humanity-core = { path = "../humanity-core", default-features = false }
+glam = { workspace = true }
+hecs = { workspace = true }
+log = { workspace = true }
+ron = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# The core's test helpers (test_temp).
+humanity-core = { path = "../humanity-core", default-features = false, features = ["test-support"] }

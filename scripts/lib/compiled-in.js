@@ -118,12 +118,12 @@ const FALLBACK_SITES = {
   "src/assets/mod.rs::parse_embedded_json":
     "private; called only by AssetManager::load_json_or_embedded, after the disk file is absent, unreadable or does not parse",
   "src/assets/mod.rs::get_embedded_str": "public but has no caller in src/",
-  "src/systems/env_layer1.rs::shipped":
+  "crates/humanity-systems/src/env_layer1.rs::shipped":
     "the climate table for a reader whose DataStore has none; engine::registries puts data/environment/climate.ron (disk first) in the game's DataStore at boot, so in the game it serves only tests",
-  "src/ship/ship_structure.rs::built_in_ship_file":
+  "crates/humanity-ship/src/ship_structure.rs::built_in_ship_file":
     "called by ShipStructure::load_ship_file after the disk ship file is absent, by ShipPlots::load after it does not load, by tests, and by engine/home_plot.rs other_ship_sentence_here, which reads it only to compare its hash with that of a server that refused this game's ship (ship homes increment 4 review, P6: the data folder's copy may be older than the app), never to run on it; it calls note_builtin_copy itself with the caller's reason, so that read is in the log too, and no rig run is ever refused a ship",
-  "src/systems/farming/weeds.rs::shipped": "called by WeedData::load after the disk copy is missing or does not parse, and by tests",
-  "src/systems/farming/picking.rs::shipped":
+  "crates/humanity-systems/src/farming/weeds.rs::shipped": "called by WeedData::load after the disk copy is missing or does not parse, and by tests",
+  "crates/humanity-systems/src/farming/picking.rs::shipped":
     "called by HarvestWindows::load after the disk copy is missing or does not parse, and by DataStore readers when nothing registered the data; picking::register puts load() (disk first) there at boot; the no-DataStore model (self_sufficiency) uses current(), which is load()",
 };
 

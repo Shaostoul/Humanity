@@ -949,7 +949,7 @@ mod tests {
             .join("planets")
             .join("earth.ron");
         let text = std::fs::read_to_string(&path).expect("earth.ron missing");
-        let def: crate::terrain::planet::PlanetDef =
+        let def: humanity_terrain::planet::PlanetDef =
             ron::from_str(&text).expect("earth.ron failed to parse");
         // Worst-case peak: the RON's fallback sea_level is LOWER than the
         // heightmap's true value (0.55 vs ~0.629), so it bounds the real

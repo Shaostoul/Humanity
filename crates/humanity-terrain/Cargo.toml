@@ -1,0 +1,36 @@
+# humanity-terrain (docs/crates/humanity-terrain.md): planets as shapes and numbers: the surface and its
+# heights, the level-of-detail patches and their meshes as plain data, the oceans and water, the plants'
+# and trees' geometry, real map regions, asteroids and the celestial projection. It draws nothing (the
+# renderer uploads what it builds) and uses only the core, so it compiles once and stays built. Cut out
+# of the one crate in the crate split's rung 2 (2026-11-02, docs/design/crate-split.md).
+[package]
+name = "humanity-terrain"
+version.workspace = true
+edition.workspace = true
+publish = false
+# Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
+build = "../repo_root.rs"
+
+[features]
+# The same default as the root package, so `cargo test -p humanity-terrain` tests what the app builds.
+default = ["native"]
+# The desktop app's parts: the OpenStreetMap regions' 3D mesher (osm_region). The root's `native` turns
+# it on; the server build (`--features relay --no-default-features`) leaves it off.
+native = ["humanity-core/native"]
+# The fixtures other crates' tests share (the Silverdale region fixtures, the far-tree test planet,
+# the region-mask registry's test hold, the frame loop's sources). A crate's #[cfg(test)] items are
+# never compiled into another crate's tests, so a dependent turns this on in its [dev-dependencies]
+# only; no product build carries it.
+test-support = []
+
+[dependencies]
+humanity-core = { path = "../humanity-core", default-features = false }
+glam = { workspace = true }
+log = { workspace = true }
+noise = { workspace = true }
+ron = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+# The core's test helpers and fixtures (test_temp, dev_travel::fixtures).
+humanity-core = { path = "../humanity-core", default-features = false, features = ["test-support"] }

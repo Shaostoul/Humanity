@@ -25,8 +25,8 @@
 
 use crate::engine::planet_build::PlayerView;
 use crate::engine::state::EngineState;
-use crate::terrain::drawn_surface::{drawn_leaf_containing, DrawnPatchSurface};
-use crate::terrain::planet_chunks::{self as chunks, ElevationSource};
+use humanity_terrain::drawn_surface::{drawn_leaf_containing, DrawnPatchSurface};
+use humanity_terrain::planet_chunks::{self as chunks, ElevationSource};
 use glam::DVec3;
 use std::collections::HashMap;
 
@@ -49,7 +49,7 @@ fn tree_row(
     harvest_uncarved_r: f64,
     fine_r: f64,
 ) -> serde_json::Value {
-    let (lat, lon) = crate::terrain::osm_region::dir_to_latlon_f64(t.dir);
+    let (lat, lon) = humanity_terrain::osm_region::dir_to_latlon_f64(t.dir);
     let base = t.dir * t.r_m;
     let ndc = view.ndc(base - eye);
     serde_json::json!({
@@ -122,13 +122,13 @@ pub(crate) fn report(state: &EngineState) -> Option<serde_json::Value> {
     let v = PlayerView::of(state);
     let body = v.body.clone()?;
     let def = state.planet_defs.get(&body)?;
-    let hm: &crate::terrain::planet_heightmap::PlanetHeightmap = state.planet_heightmaps.get(&body)?;
+    let hm: &humanity_terrain::planet_heightmap::PlanetHeightmap = state.planet_heightmaps.get(&body)?;
     let cs = state.planet_chunk_states.get(&body)?;
     let earth = body == "earth";
     let tiles = (earth && state.terrain_tiles.tier_installed()).then_some(&state.terrain_tiles);
     let ocean = if earth { state.ocean_mask.as_ref() } else { None };
     let src = ElevationSource::Heightmap { hm, detail: &cs.detail, tiles, ocean };
-    let carve = crate::terrain::water_carve::snapshot();
+    let carve = humanity_terrain::water_carve::snapshot();
     let eye = v.anchor;
     let up = eye.normalize_or_zero();
     let fwd = (v.rot.inverse() * v.forward.as_dvec3()).normalize_or_zero();
@@ -182,7 +182,7 @@ pub(crate) fn report(state: &EngineState) -> Option<serde_json::Value> {
         }
         rows.push(row);
     }
-    let (lat, lon) = crate::terrain::osm_region::dir_to_latlon_f64(up);
+    let (lat, lon) = humanity_terrain::osm_region::dir_to_latlon_f64(up);
     let eye_drawn = drawn_r(up);
     let eye_walk = crate::engine::planet_build::Ground::for_body(state, &body).map(|g| g.radius(up));
     let max_drawn_depth = cs.last_drawn.iter().map(|p| p.depth).max().unwrap_or(0);

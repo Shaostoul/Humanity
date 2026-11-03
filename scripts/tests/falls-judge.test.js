@@ -551,7 +551,7 @@ function goodPlanetRun() {
 
 /** The deck's height (data/blueprints/basic.ron: the Wood Wall's 3.0 m and the Wood Roof's 0.2). */
 const DECK_M = DATA.planet.deck.top_m;
-/** The sand's clearance under a standing eye (src/surface_walk.rs DRAWN_CLEARANCE_M). */
+/** The sand's clearance under a standing eye (crates/humanity-systems/src/surface_walk.rs DRAWN_CLEARANCE_M). */
 const SAND_CLEARANCE_M = 0.05;
 
 /** The planet walk at 60 frames a second, standing on the deck and walking off its edge: the eye

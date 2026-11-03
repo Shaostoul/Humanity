@@ -654,7 +654,7 @@ and documents were read on 4 October 2026.
   name, look and outfit, and the record of settled trades).
 - The Trading and Leadership skills: `data/skills/skills.csv`; nothing
   in `src/` awards either of them experience, and the "Dev: max skills"
-  button (`src/gui/pages/profile.rs`, `src/systems/skills/mod.rs`) sets
+  button (`src/gui/pages/profile.rs`, `crates/humanity-systems/src/skills/mod.rs`) sets
   every skill to its top level, shown in Dev play mode with dev cheats
   on (`src/config.rs`, `cheats_enabled` in `data/gui/theme.ron`).
 - [Trading Fairly](/library#trading-fairly), [Keeping

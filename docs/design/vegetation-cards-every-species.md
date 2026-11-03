@@ -32,7 +32,7 @@ real person downloads:
   and paints `vec3(0.10, 0.16, 0.07)`: a flat dark green SQUARE, `h` by `h`,
   two crossed pairs of them per tree.
 - The other six species are procedural, so they never reach the sprite path at
-  all: `src/terrain/planet_chunks.rs:1925` gates it on
+  all: `crates/humanity-terrain/src/planet_chunks.rs:1925` gates it on
   `albedo.is_some() && !sp_proc`, and they fall to lines 1967-1970, which emit a
   0.5 m wide trunk rectangle plus a canopy rectangle 1.1h wide by 0.75h tall in
   one flat colour.
@@ -58,7 +58,7 @@ default OFF after the operator's "black squares in a grid" verdict, and "do not
 iterate the card sheet further."
 
 That verdict is about a different feature. `far_tree_sheet` (`src/config.rs:512`,
-`src/terrain/far_trees.rs`, default false at `src/gui/mod.rs:6796`) is a single
+`crates/humanity-terrain/src/far_trees.rs`, default false at `src/gui/mod.rs:6796`) is a single
 coarse silhouette SHEET mesh rebuilt around the camera for the multi-kilometre
 range. The per-tree cards this brief is about are baked into the patch meshes by
 `emit_card` / `emit_sprite_card` and are the 70 m to 1500 m rung that is DEFAULT
@@ -141,7 +141,7 @@ lands. Do not A/B against them; re-measure first.
 ## Scope, in the order to do it
 
 Files: `src/renderer/billboard_bake.rs`, `src/lib.rs` (bake site, around 9461),
-`src/terrain/planet_chunks.rs` (emitters, 1668-1975), `data/vegetation/trees.ron`,
+`crates/humanity-terrain/src/planet_chunks.rs` (emitters, 1668-1975), `data/vegetation/trees.ron`,
 `src/renderer/mod.rs:938-939` (atlas texture size), and the tile decode at
 `assets/shaders/pbr/90-fragment-main.wgsl:808-827`.
 
@@ -309,7 +309,7 @@ height, `let half = 0.5 * w_m.max(h_m) * 1.05;`, centred on the joint AABB
 (`src/renderer/billboard_bake.rs:167-171`), and it RETURNS that footprint.
 `bake_tree_atlas` throws the return away as `_fp`
 (`src/renderer/billboard_bake.rs:103`). `emit_sprite_card` then hardcodes
-`let w = h; // square sprite frame` (`src/terrain/planet_chunks.rs:1717`) and
+`let w = h; // square sprite frame` (`crates/humanity-terrain/src/planet_chunks.rs:1717`) and
 maps `v01` 0..1 onto world 0..h measured from the tree's base.
 
 The two agree only when the tree is taller than it is wide. Fir at 22 m by about
@@ -350,7 +350,7 @@ FIX, and it is small:
   `base - up * (base_offset * side)`. That replaces both `let w = h;` and the
   `up * (h * v01)` term with `side`.
 - For a procedural species the scale factor is exactly the `jitter` already
-  computed at `src/terrain/planet_chunks.rs:1918` (`h = sp_h * jitter`, and the
+  computed at `crates/humanity-terrain/src/planet_chunks.rs:1918` (`h = sp_h * jitter`, and the
   bake builds at `t.height_m`), but write it as `h / h_nominal_m` anyway: a
   model-backed species' baked AABB height is the glTF's, not the registry's, and
   only the ratio form is right for both.
@@ -367,7 +367,7 @@ baked pixels occupy.
 
 ### 4. Drop the procedural exclusion
 
-`src/terrain/planet_chunks.rs:1925`: `if albedo.is_some() && !sp_proc` becomes
+`crates/humanity-terrain/src/planet_chunks.rs:1925`: `if albedo.is_some() && !sp_proc` becomes
 `if albedo.is_some()`. Delete the stale comment above it (lines 1919-1924, the
 one that promises real impostors as a later increment; this IS that increment).
 
@@ -494,7 +494,7 @@ normal = normalize(mix(up_r, fs, 0.5));
   fade into something that already matches.
 
   This is NOT the `far_tree_sheet` the operator rejected
-  (`src/terrain/far_trees.rs`, default off). It changes nothing beyond 1500 m
+  (`crates/humanity-terrain/src/far_trees.rs`, default off). It changes nothing beyond 1500 m
   and adds no mesh.
 
 The shader half of item 6 is ONE anchored insertion into the sprite branch at
@@ -675,7 +675,7 @@ Each of these is real work that someone will be tempted to fold in. Do not.
 
 Written by the implementing agent. Items 1, 2, 3, 3b, 4 and 5 are DONE inside
 the four owned files (`src/renderer/billboard_bake.rs`,
-`src/renderer/tree_mesh.rs`, `src/terrain/planet_chunks.rs`,
+`src/renderer/tree_mesh.rs`, `crates/humanity-terrain/src/planet_chunks.rs`,
 `data/vegetation/trees.ron`). The edits below are the ones that fall in files
 the implementer does not own; apply them serially, in this order. Nothing
 compiles until 1 and 2 are both in (the baker's public API changed).

@@ -836,7 +836,7 @@ CI/CD
 > **This section is a historical snapshot from 2026-03-18 and is stale on specifics**
 > (much of "Phase 2: Game Engine Rendering" below has since shipped: deferred PBR,
 > bloom, hologram renderer, terrain, atmosphere all exist in `src/renderer/` /
-> `src/terrain/` today). For the current, actively-maintained backlog and roadmap, see
+> `crates/humanity-terrain/src/` today). For the current, actively-maintained backlog and roadmap, see
 > `docs/PRIORITIES.md` (tactical, top of TIER 0 = next) and `docs/ROADMAP.md`
 > (strategic, public-facing). Keep the phase *shape* below for mission context only.
 

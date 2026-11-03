@@ -2,7 +2,7 @@
 // Anchors: what holds a run to the structure (2026-11-02, spline routing rung 0,
 // docs/design/spline-routing.md sections 5.3 and 12). Straps, clips, cushioned clamps, rod
 // hangers, J-hooks, ties, trays, and the protector ramps vehicles drive over. Read by
-// src/ship/run_anchors.rs (disk first, the copy built into the exe if this file is missing or
+// crates/humanity-ship/src/run_anchors.rs (disk first, the copy built into the exe if this file is missing or
 // does not parse). Nothing places them yet: rung 7 does, and the support_spacing and support_near
 // rules of data/piping/run_rules.ron read them (rung 8). One anchor may hold several runs (the
 // dedupe of today's hangers lives on as that).

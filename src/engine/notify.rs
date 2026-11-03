@@ -457,7 +457,7 @@ fn pump_game_events(state: &mut EngineState) {
     let now = now_f64();
     let raised: Vec<(String, String)> = state
         .data_store
-        .get::<std::sync::Mutex<Vec<(String, String)>>>(crate::systems::GAME_EVENTS_KEY)
+        .get::<std::sync::Mutex<Vec<(String, String)>>>(humanity_systems::GAME_EVENTS_KEY)
         .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
         .unwrap_or_default();
     let rt = &mut state.gui_state.notify;

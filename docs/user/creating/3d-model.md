@@ -102,7 +102,7 @@ For the curious, here is what happens inside the game code:
   folder's parent (the repo root, so `assets/models/...` also works if
   you downloaded the source code).
 - Machine models are wired through the `model` field on `MachineDef` in
-  `src/machines.rs`. Each placed machine gets its own copy of the mesh.
+  `crates/humanity-ship/src/machines.rs`. Each placed machine gets its own copy of the mesh.
 - A second surface exists for scattered plants: `data/entities/decorations.ron`
   holds rows like `(model: "grass_medium_02_v1", near: "machine_id",
   count: 8, spread: 5.0)` that sprinkle plant models from

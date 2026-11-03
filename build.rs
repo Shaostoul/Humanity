@@ -52,7 +52,7 @@ use std::path::Path;
 ///   docs/accord/humanity_accord.md        the Accord the Humanity page shows
 ///   data/homes/shipped   the shipped home designs: a neighbour's plot is drawn as its
 ///                        kind's built-in design, never the disk copy, so that read is
-///                        embedded-only (ship homes increment 2, src/ship/neighbours.rs,
+///                        embedded-only (ship homes increment 2, crates/humanity-ship/src/neighbours.rs,
 ///                        HomeDesign::built_in). Only this folder: data/homes/<kind>.ron
 ///                        is the player's OWN home, which every editor Save rewrites, read
 ///                        from disk first; stamping it made a Save in a repo checkout turn

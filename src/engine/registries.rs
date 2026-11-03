@@ -7,8 +7,8 @@ use std::path::Path;
 
 use humanity_core::embedded_data::load_data_or_embedded;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::skills::SkillRegistry;
-use crate::systems::quests::QuestRegistry;
+use humanity_systems::skills::SkillRegistry;
+use humanity_systems::quests::QuestRegistry;
 
 /// Load the small, runtime-critical data registries (items, recipes, plants,
 /// status effects, skills, quests, containers) into the DataStore.
@@ -43,18 +43,18 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
             Err(e) => log::warn!("{e}; {key} unavailable (its system runs on defaults)"),
         }
     }
-    put(store, data_dir, "items.csv", "item_registry", crate::systems::inventory::ItemRegistry::from_csv);
+    put(store, data_dir, "items.csv", "item_registry", humanity_systems::inventory::ItemRegistry::from_csv);
     // Garden nutrients, N-P-K (data/garden/nutrients.ron, 2026-09-26): the
     // farming system prefers this entry, so an edited file takes effect.
-    store.insert("garden_nutrients", crate::systems::farming::soil::NutrientData::load());
+    store.insert("garden_nutrients", humanity_systems::farming::soil::NutrientData::load());
     // Quality grades for hand-made goods (data/manufacturing.ron, 2026-09-26).
-    store.insert("quality_levels", crate::systems::crafting::quality::load(data_dir));
+    store.insert("quality_levels", humanity_systems::crafting::quality::load(data_dir));
     // Recipes, with the hand tools each needs (data/crafting/tools.ron, 2026-09-26).
-    let tool_rules = crate::systems::crafting::tools::load(data_dir);
+    let tool_rules = humanity_systems::crafting::tools::load(data_dir);
     put(store, data_dir, "recipes.csv", "recipe_registry", |b: &[u8]| {
-        crate::systems::crafting::RecipeRegistry::from_csv(b).map(|r| r.with_tools(&tool_rules))
+        humanity_systems::crafting::RecipeRegistry::from_csv(b).map(|r| r.with_tools(&tool_rules))
     });
-    put(store, data_dir, "plants.csv", "plant_registry", crate::systems::farming::PlantRegistry::from_csv);
+    put(store, data_dir, "plants.csv", "plant_registry", humanity_systems::farming::PlantRegistry::from_csv);
 
     // Environment region kinds (v0.1329). Same loader as every other registry:
     // it is bytes in, parsed table out, so the RON gets disk-first modding and
@@ -76,38 +76,38 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
         store,
         data_dir,
         "environment/climate.ron",
-        crate::systems::env_layer1::STORE_KEY,
-        crate::systems::env_layer1::ClimateTable::from_bytes,
+        humanity_systems::env_layer1::STORE_KEY,
+        humanity_systems::env_layer1::ClimateTable::from_bytes,
     );
     put(
         store,
         data_dir,
         "status_effects.csv",
         "status_effect_registry",
-        crate::systems::status_effects::StatusEffectRegistry::from_csv,
+        humanity_systems::status_effects::StatusEffectRegistry::from_csv,
     );
     put(store, data_dir, "skills/skills.csv", "skill_registry", SkillRegistry::from_csv);
-    put(store, data_dir, "equipment.csv", "equipment_registry", crate::systems::economy::EquipmentRegistry::from_csv);
+    put(store, data_dir, "equipment.csv", "equipment_registry", humanity_systems::economy::EquipmentRegistry::from_csv);
     // CreatureRegistry (v0.751, ladder rung 7): creatures.csv finally gets
     // its loader. Read by the livestock spawn + walk-up collect bridges.
-    put(store, data_dir, "creatures.csv", "creature_registry", crate::systems::livestock::CreatureRegistry::from_csv);
+    put(store, data_dir, "creatures.csv", "creature_registry", humanity_systems::livestock::CreatureRegistry::from_csv);
     // What each kept animal eats and drinks, and what going without does
     // (2026-10-12, first-hour audit S6). Read by the livestock tick.
     {
-        use crate::systems::animal_care::{CareData, DATA_KEY, FILE};
+        use humanity_systems::animal_care::{CareData, DATA_KEY, FILE};
         put(store, data_dir, FILE, DATA_KEY, CareData::from_ron);
     }
     // AbilityRegistry (v0.753, ladder rung 8): abilities.csv (formerly
     // spells.csv) gets its loader. Read by AbilitySystem + the Profile
     // page's Abilities panel.
-    put(store, data_dir, "abilities.csv", "ability_registry", crate::systems::abilities::AbilityRegistry::from_csv);
+    put(store, data_dir, "abilities.csv", "ability_registry", humanity_systems::abilities::AbilityRegistry::from_csv);
     // Each quest file the game ships by the same rule, then any other in
     // data/quests/ (a modder's).
     store.insert("quest_registry", QuestRegistry::load(data_dir));
     // Travel destinations (v0.979): named world places; a Travel step is done
     // while the player stands in one and it is the current step (2026-10-04,
     // including the player's own front door). Read by QuestSystem::tick.
-    match load_data_or_embedded(data_dir, "entities/destinations.ron", crate::systems::quests::DestinationList::from_ron) {
+    match load_data_or_embedded(data_dir, "entities/destinations.ron", humanity_systems::quests::DestinationList::from_ron) {
         Ok(list) => {
             log::info!("Loaded {} travel destinations from entities/destinations.ron", list.destinations.len());
             store.insert("quest_destinations", list);
@@ -119,7 +119,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
     // foundation/wall/door/window/roof/furniture/machine catalog that had nothing
     // loading it into the DataStore before this, so every queue_build() call would
     // have silently missed the registry lookup forever.
-    match load_data_or_embedded(data_dir, "blueprints/basic.ron", crate::systems::construction::BlueprintRegistry::from_ron) {
+    match load_data_or_embedded(data_dir, "blueprints/basic.ron", humanity_systems::construction::BlueprintRegistry::from_ron) {
         Ok(reg) => {
             log::info!("Loaded {} blueprints from blueprints/basic.ron", reg.blueprints.len());
             store.insert("blueprint_registry", reg);
@@ -128,7 +128,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
     }
     // LivestockSpawnList (v0.751, ladder rung 7): which starter animals the
     // homestead gets and near which field. Read by load_world's spawn pass.
-    match load_data_or_embedded(data_dir, "entities/livestock.ron", crate::systems::livestock::LivestockSpawnList::from_ron) {
+    match load_data_or_embedded(data_dir, "entities/livestock.ron", humanity_systems::livestock::LivestockSpawnList::from_ron) {
         Ok(list) => {
             log::info!("Loaded {} livestock placements from entities/livestock.ron", list.animals.len());
             store.insert("livestock_spawn_list", list);
@@ -137,7 +137,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
     }
     // WildSpawnList (v0.761, combat arc): hostile creatures placed away
     // from the homestead. Read by load_world's wild spawn pass.
-    match load_data_or_embedded(data_dir, "entities/wild_spawns.ron", crate::systems::livestock::WildSpawnList::from_ron) {
+    match load_data_or_embedded(data_dir, "entities/wild_spawns.ron", humanity_systems::livestock::WildSpawnList::from_ron) {
         Ok(list) => {
             log::info!("Loaded {} wild spawn placements from entities/wild_spawns.ron", list.spawns.len());
             store.insert("wild_spawn_list", list);
@@ -148,7 +148,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
     // tornado/blizzard/meteor-shower definitions. Loaded + validated now;
     // WeatherSystem starts CONSUMING it on the next rung (trigger rolls,
     // wind profiles, hazards) - until then it is inert data.
-    match load_data_or_embedded(data_dir, "weather/events.ron", crate::systems::weather_events::WeatherEventRegistry::from_ron) {
+    match load_data_or_embedded(data_dir, "weather/events.ron", humanity_systems::weather_events::WeatherEventRegistry::from_ron) {
         Ok(reg) => {
             log::info!("Loaded {} weather events from weather/events.ron", reg.len());
             store.insert("weather_event_registry", reg);
@@ -160,15 +160,15 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
     // deployed-vehicle render pass.
     // TradeGoodsRegistry (v0.747, ladder rung 3): base credit values for the
     // vendor economy. Read by the vendor bridge + the vendor modal.
-    match load_data_or_embedded(data_dir, "trade_goods.ron", crate::systems::economy::TradeGoodsRegistry::from_ron) {
+    match load_data_or_embedded(data_dir, "trade_goods.ron", humanity_systems::economy::TradeGoodsRegistry::from_ron) {
         Ok(reg) => {
             // The parts prices that cap what a better craft grade fetches
             // (BUG-146), from the items and recipes loaded above. With
             // either missing nothing can be crafted, so there is no loop
             // to stop and the goods go in without them.
             let reg = match (
-                store.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
-                store.get::<crate::systems::crafting::RecipeRegistry>("recipe_registry"),
+                store.get::<humanity_systems::inventory::ItemRegistry>("item_registry"),
+                store.get::<humanity_systems::crafting::RecipeRegistry>("recipe_registry"),
             ) {
                 (Some(items), Some(recipes)) => reg.with_parts_prices(items, recipes),
                 _ => {
@@ -185,7 +185,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
         }
         Err(e) => log::warn!("{e}; vendors disabled"),
     }
-    match load_data_or_embedded(data_dir, "vehicles/kits.ron", crate::systems::vehicles::VehicleKitRegistry::from_ron) {
+    match load_data_or_embedded(data_dir, "vehicles/kits.ron", humanity_systems::vehicles::VehicleKitRegistry::from_ron) {
         Ok(reg) => {
             log::info!("Loaded {} vehicle kits from vehicles/kits.ron", reg.len());
             store.insert("vehicle_kit_registry", reg);
@@ -196,7 +196,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
     // is chosen on its own by the shared rule, so one file this version cannot
     // read costs only that file, never the others' (BUG-163).
     {
-        use crate::systems::inventory::containers::ContainerRegistry;
+        use humanity_systems::inventory::containers::ContainerRegistry;
         let types = load_data_or_embedded(data_dir, "containers/types.csv", ContainerRegistry::types_from_csv);
         let classes =
             load_data_or_embedded(data_dir, "containers/content_classes.ron", ContainerRegistry::classes_from_ron);
@@ -232,7 +232,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
         }
         // Fluids are litres (2026-09-26): tap-water items and carryable vessels.
         {
-            use crate::systems::fluids::FluidTable;
+            use humanity_systems::fluids::FluidTable;
             match load_data_or_embedded(data_dir, FluidTable::FILE, FluidTable::from_ron) {
                 Ok(t) => {
                     log::info!("Loaded fluid table: {} tap items, {} vessels", t.tap.len(), t.fillables.len());
@@ -262,10 +262,10 @@ mod tests {
         let mut store = DataStore::new();
         load_data_registries(&mut store, &std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"));
         let goods = store
-            .get::<crate::systems::economy::TradeGoodsRegistry>("trade_goods_registry")
+            .get::<humanity_systems::economy::TradeGoodsRegistry>("trade_goods_registry")
             .expect("the trade goods load");
         let levels = store
-            .get::<crate::systems::crafting::quality::QualityLevels>("quality_levels")
+            .get::<humanity_systems::crafting::quality::QualityLevels>("quality_levels")
             .expect("the grades load");
         let parts = goods.parts_price("hammer_0").expect("the game's trading post has no parts price for the hammer");
         let top = levels.levels.len() as u8;
@@ -280,7 +280,7 @@ mod tests {
     // ── A data folder older than the game (BUG-163) ──
 
     use humanity_core::embedded_data::STATUS_EFFECTS_CSV;
-    use crate::systems::status_effects::StatusEffectRegistry;
+    use humanity_systems::status_effects::StatusEffectRegistry;
 
     /// A data folder holding only `files` (path under data/, text), loaded the way the game
     /// loads its own, with every warning logged while it loaded. The folder is named `data`, as
@@ -340,7 +340,7 @@ mod tests {
     ///   a status_effects.csv with an old column loaded 0 status effects, not the 70 built in
     #[test]
     fn a_status_effects_file_with_an_old_column_loads_the_built_in_copy() {
-        let stale = crate::systems::status_effects::with_old_dispel_type_column(STATUS_EFFECTS_CSV);
+        let stale = humanity_systems::status_effects::with_old_dispel_type_column(STATUS_EFFECTS_CSV);
         let (store, lines, _dir) = load_from(&[("status_effects.csv", &stale)]);
         let built_in = built_in_effects();
         let reg = store.get::<StatusEffectRegistry>("status_effect_registry").expect("a status effect registry");

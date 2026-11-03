@@ -35,7 +35,7 @@
             ],
             pass: "All zero. Seen red first on a deliberate break (a figure citing a missing id).",
             budget: (cpu_s: 0.2, memory_mb: 20.0),
-            uses: ["src/systems/closed_loop/data.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/data.rs (new)"],
             needs: ["the loader (phase 2, step 1)"],
         ),
         (
@@ -48,7 +48,7 @@
             ],
             pass: "Within 1%. Passes on today's data (the two NASA documents agree per MJ to 0.9%); fails if either drifts.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/life_support.rs"],
+            uses: ["crates/humanity-systems/src/life_support.rs"],
             needs: ["the loader"],
         ),
         (
@@ -61,7 +61,7 @@
             ],
             pass: "The reporter prints every loop separately; the 99.1% exists only beside the food loop's 0%.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/report.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/report.rs (new)"],
             needs: ["the loader"],
         ),
         (
@@ -70,7 +70,7 @@
             expect: [(metric: "byte difference between two runs' ledgers", value: 0.0, tolerance: 0.0, unit: "bytes", rule: Within)],
             pass: "Identical output, or the closure numbers are not reproducible.",
             budget: (cpu_s: 4.0, memory_mb: 300.0),
-            uses: ["src/systems/farming/life_support_tests.rs (shipped_home)"],
+            uses: ["crates/humanity-systems/src/farming/life_support_tests.rs (shipped_home)"],
             needs: ["sim seeds (headless-sim-runner.md increment 2)"],
         ),
 
@@ -89,7 +89,7 @@
             ],
             pass: "Every Within holds; the Reports are recorded beside docs/design/ship-life-support.md's tables. Expected values are that document's section 9 measurements and home_solo.ron's loops (1.86 to 1.92 of 1.96 kg CO2; 1.33 of 1.51 kg O2 on the 2026-09-27 day; 4.45 of 31.8 and 8.7 kWh; 1,780 of 2,200 kcal). A change in the game that moves one is a finding to write down, not a tolerance to widen.",
             budget: (cpu_s: 3.0, memory_mb: 300.0),
-            uses: ["src/systems/farming/life_support_tests.rs (shipped_home, settle_home)", "src/systems/life_support.rs", "src/systems/farming/humidity.rs", "src/systems/grow_machines.rs", "src/machines.rs (utility_meters)", "src/systems/ship_power.rs"],
+            uses: ["crates/humanity-systems/src/farming/life_support_tests.rs (shipped_home, settle_home)", "crates/humanity-systems/src/life_support.rs", "crates/humanity-systems/src/farming/humidity.rs", "crates/humanity-systems/src/grow_machines.rs", "crates/humanity-ship/src/machines.rs (utility_meters)", "crates/humanity-systems/src/ship_power.rs"],
             needs: [],
         ),
         (
@@ -102,7 +102,7 @@
             ],
             pass: "As the solo case; expected values from ship-life-support.md section 9 (4.98 of 5.89 kg on the measured day, 5.71 to 5.93 settled; 11.0 of 60.85 kWh).",
             budget: (cpu_s: 4.0, memory_mb: 400.0),
-            uses: ["src/systems/farming/life_support_tests.rs", "src/systems/life_support.rs", "src/machines.rs"],
+            uses: ["crates/humanity-systems/src/farming/life_support_tests.rs", "crates/humanity-systems/src/life_support.rs", "crates/humanity-ship/src/machines.rs"],
             needs: [],
         ),
         (
@@ -130,7 +130,7 @@
             ],
             pass: "The failure margins table in docs/design/closed-loop-test.md section 3.5 is printed from the game, not from the design doc. The 22-day figure is this plan's hand estimate (resident 0.78 and tents 1.19 kg of CO2 a day into 11,160 m3); half to double it passes, outside that the estimate or the model is wrong.",
             budget: (cpu_s: 10.0, memory_mb: 300.0),
-            uses: ["src/systems/life_support.rs", "src/systems/electrical.rs", "src/systems/ship_power.rs", "src/systems/plumbing"],
+            uses: ["crates/humanity-systems/src/life_support.rs", "crates/humanity-systems/src/electrical.rs", "crates/humanity-systems/src/ship_power.rs", "crates/humanity-systems/src/plumbing"],
             needs: ["coarse steps validated by dt_ladder (or run at 6 s and accept the time)"],
         ),
 
@@ -146,7 +146,7 @@
             ],
             pass: "-88 kg is 0.24 kg a day (0.1 shortfall plus 0.14 in the leak, home_solo.ron) for 365 days, +/- 20%. The phosphorus ledger closes to 0.1%: the first time the game's nutrient loop is measured over a season, not asserted.",
             budget: (cpu_s: 120.0, memory_mb: 500.0),
-            uses: ["the whole ECS SystemRunner through frame_sim::step", "src/systems/farming/soil.rs", "src/save_load.rs (catch_up_world for the away-versus-live check)"],
+            uses: ["the whole ECS SystemRunner through frame_sim::step", "crates/humanity-systems/src/farming/soil.rs", "src/save_load.rs (catch_up_world for the away-versus-live check)"],
             needs: ["headless-sim-runner.md increment 2 (--sim soak, sim seeds)", "data/sim/step_tolerances.ron"],
         ),
         (
@@ -164,7 +164,7 @@
             expect: [(metric: "days until the stock-versus-ledger check reports it", value: 365.0, tolerance: 0.0, unit: "days", rule: AtMost)],
             pass: "Reported within the year. Seen red first: with the check off, the year passes silently.",
             budget: (cpu_s: 120.0, memory_mb: 500.0),
-            uses: ["src/systems/life_support.rs", "src/systems/closed_loop/report.rs (new)"],
+            uses: ["crates/humanity-systems/src/life_support.rs", "crates/humanity-systems/src/closed_loop/report.rs (new)"],
             needs: ["headless-sim-runner.md increment 2"],
         ),
 
@@ -175,7 +175,7 @@
             expect: [(metric: "largest difference in any loop's ledger from the home run", value: 0.0, tolerance: 0.02, unit: "fraction", rule: AtMost)],
             pass: "Within 2% on every loop. The aggregate tier is a ledger per zone (population: u64, mothership-superstructure.md), and this case is what keeps it from becoming a second, drifting twin of the home systems (headless-sim-runner.md, risk 1).",
             budget: (cpu_s: 0.1, memory_mb: 20.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the aggregate tier (phase 2, step 4)"],
         ),
         (
@@ -194,7 +194,7 @@
             ],
             pass: "The aggregate's arithmetic on sourced inputs gives the sourced outputs. This checks the model's bookkeeping, not the world: the world is in the figures.",
             budget: (cpu_s: 0.05, memory_mb: 10.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the aggregate tier"],
         ),
         (
@@ -208,7 +208,7 @@
             ],
             pass: "Every step's per-person budget and verdict is printed; a disagreement with population_steps.ron is a finding for the file or the model. 2.62e9 ha is 0.32 ha (the middle of 0.28 to 0.36) x 8.2 billion; 2.13e9 is 0.26 ha (0.24 to 0.28). The land figures come from homestead_land_is_the_sum_of_its_parts, not typed here.",
             budget: (cpu_s: 2.0, memory_mb: 100.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the aggregate tier", "Threshold industries (drift.ron) for the steps above a household"],
         ),
         (
@@ -226,7 +226,7 @@
             ],
             pass: "The per-person sum recomputed from the figures equals pp.total.power; once the aggregate is calibrated against the home runs, the home-measured coefficients replace the hand-derived ones and any difference is reported. THIS CASE CANNOT CATCH A WRONG INPUT on its own (it re-derives the same arithmetic): the cases marked INDEPENDENT ROUTE below check each of its load-bearing inputs another way, and this case passes only when they do. The unsourced 33% plant is a labelled scenario, never the point.",
             budget: (cpu_s: 1.0, memory_mb: 100.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the aggregate tier"],
         ),
         (
@@ -243,7 +243,7 @@
             ],
             pass: "Switching an option on changes exactly its listed figures and nothing else; the printed table is the 'what matters most' ranking the design doc's section 7.3 argues for. 0.305 = 8.21e13 / 2.69e14 (fusion_energy_counts_both_reactions). The per-year ratio is Report, not a pass line: it sits 39% below the per-joule 0.305 at fission's net 20% (0.185; 29% below at the stated 23.3%, 0.216), and that gap is the assumed 33% fusion plant efficiency, not the fuel. The fusion reactor's radiator is Report: its plant efficiency is unproven.",
             budget: (cpu_s: 2.0, memory_mb: 100.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the aggregate tier"],
         ),
         (
@@ -277,7 +277,7 @@
             ],
             pass: "The table's own mass balance closes to a gram. INDEPENDENT ROUTE: conservation of mass, not the values' labels; a value read against the wrong label (the layout prints each one a line above its label) breaks the balance.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/data.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/data.rs (new)"],
             needs: ["the loader"],
         ),
         (
@@ -291,7 +291,7 @@
             ],
             pass: "No heat engine beats Carnot. INDEPENDENT ROUTE: the second law, from the reactor's own datasheet temperatures held in structured fields (not prose). It FAILS rather than passing vacuously if no thermo field is found (the AtLeast line). Would have caught the first pass's 'waste heat rejected at 600 K' at 33%: with a 589 K core the bound is negative.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the loader, reading the thermo field (schemas/closed_loop.toml)"],
         ),
         (
@@ -303,7 +303,7 @@
             ],
             pass: "Every watt the reactors make, delivered or not, leaves the ship as radiation; the plant's own use (about 1.8 kW a person) is heat too. NET basis: the ship's 10.8 kW is delivered electricity, so thermal power is 10.8 / 0.20 = 54 kW a person; on the stated gross 23.3% the same check gives 57.9 m2, which must also pass when that efficiency is selected. INDEPENDENT ROUTE: an energy ledger from the reactor's thermal power, not from the per-person electricity. Would have caught the first pass's 13 m2, which radiated the first pass's 9.4 kW a person and none of the reactor's other heat (31 to 38 kW).",
             budget: (cpu_s: 0.1, memory_mb: 20.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)", "src/systems/ship_power.rs (the reactor's rating)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)", "crates/humanity-systems/src/ship_power.rs (the reactor's rating)"],
             needs: ["the aggregate tier"],
         ),
         (
@@ -318,7 +318,7 @@
             ],
             pass: "The budgets use the efficiency of the reactor the game actually carries, read from a structured field: the point must be the class's point, any value must lie within its bounds, and anything else (the 33% plant) must be labelled a scenario. INDEPENDENT ROUTE: a second data file. Would have caught the first pass's unsourced 33 to 40% and the second's gross 23.3% used as the point for a net load.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/ship_power.rs", "src/systems/closed_loop/data.rs (new)"],
+            uses: ["crates/humanity-systems/src/ship_power.rs", "crates/humanity-systems/src/closed_loop/data.rs (new)"],
             needs: ["the loader"],
         ),
         (
@@ -331,7 +331,7 @@
             ],
             pass: "At steady state people excrete almost all the phosphorus they eat ('~98% P eaten is excreted in adults', cordell-2010), so excreted phosphorus over the edible share bounds what the farm takes up: the point uptake must lie inside [0.59, 1.22] kg. Bounds, not a ratio to one excretion value, so it passes on correct data whichever excretion figure is current (a single ratio passes at 0.61 kg and fails at 0.44). INDEPENDENT ROUTE: the person's excreta, not the farm's biomass. Would have caught the first pass's 2.6 kg.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)", "src/systems/farming/soil.rs (the measured uptake, once the home-year run exists)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)", "crates/humanity-systems/src/farming/soil.rs (the measured uptake, once the home-year run exists)"],
             needs: ["the aggregate tier", "the farm's phosphorus uptake and the edible share as structured figures: today the 1.10 kg is in pp.nutrients.p_makeup's derivation and the 0.5 to 0.75 in this case's inputs (an estimate around data/home_outline.json's 0.63, not separately sourced)"],
         ),
         (
@@ -344,7 +344,7 @@
             ],
             pass: "What the land and ocean took is what was emitted less what the air kept, and the air is measured. One value (0.32, tolerance 0.02) is shared with earth_today_reproduces_the_measured_world; the NOAA route's 0.31 lies inside it. Period figures are filtered by their `period`, so the decade's 50% is never compared with 2024. INDEPENDENT ROUTE: NOAA's measured growth, not the budget's sink models. Would have caught the first pass's 46% for 2024.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the loader, reading the period field"],
         ),
         (
@@ -360,7 +360,7 @@
             ],
             pass: "The data's STORED values are recomputed from the masses and the isotope standard; a stored value that drifts from the physics fails. INDEPENDENT ROUTE: mass defects and VSMOW, against numbers the other files carry. Would have caught the first pass's 3.374e14 J/kg (no blanket, no lithium) and the 26 g a tonne.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the loader"],
         ),
         (
@@ -386,7 +386,7 @@
             ],
             pass: "Excreta exclude household greywater; a national figure sits within reach of the world average. INDEPENDENT ROUTE: a second source and the table's own rows. Would have caught the first pass's 0.75 kg (the table's total, greywater included).",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/data.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/data.rs (new)"],
             needs: ["the loader"],
         ),
         (
@@ -399,7 +399,7 @@
             ],
             pass: "'Today' means what has been shown to work, not what physics allows. INDEPENDENT ROUTE: the kind of each number, recorded beside it. Would have caught the first pass's 3.4 umol/J (a calculated limit) in the Today lighting budget.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/data.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/data.rs (new)"],
             needs: ["the loader, reading the `kind` field (in the data and schemas/closed_loop.toml since the third review)"],
         ),
         (
@@ -411,7 +411,7 @@
             ],
             pass: "The water a canopy breathes out is evaporated by the light it absorbs, so its latent heat (200 L a day x 2.45 MJ per kg, 5.7 kW a person) cannot exceed the lighting power. POINTS ONLY: the transpiration rate is a single measured figure that does not scale with light in the data, so ranges are not combined (the low lighting end, 3.5 kW, against a fixed 5.7 kW would fail on correct data). When phase 2 scales transpiration with light, the case checks every pair. INDEPENDENT ROUTE: the Water loop's transpiration against the Energy loop's light, from different sources.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/farming/humidity.rs (the crops' breath, once at ship scale)", "src/systems/closed_loop/aggregate.rs (new)"],
+            uses: ["crates/humanity-systems/src/farming/humidity.rs (the crops' breath, once at ship scale)", "crates/humanity-systems/src/closed_loop/aggregate.rs (new)"],
             needs: ["the aggregate tier"],
         ),
         (
@@ -424,7 +424,7 @@
             ],
             pass: "A fraction is printed with what it is a fraction of, read from the structured scope field: 8.6% of commercially traded energy beside 18.0% of final consumption; 13.3% of the food's value, not its mass. It FAILS rather than passing vacuously if the scope fields are missing (the AtLeast line). Would have caught the first pass teaching 8.6% bare.",
             budget: (cpu_s: 0.01, memory_mb: 5.0),
-            uses: ["src/systems/closed_loop/report.rs (new)"],
+            uses: ["crates/humanity-systems/src/closed_loop/report.rs (new)"],
             needs: ["the report, reading the scope field"],
         ),
         (
@@ -450,7 +450,7 @@
             ],
             pass: "The jump's arithmetic reproduces drift.ron's results exactly; the stock-out year and reopened loops are the report. A CI variant runs the 1,000 years with the rates frozen (no re-measure) in under 10 s.",
             budget: (cpu_s: 900.0, memory_mb: 1000.0),
-            uses: ["src/systems/closed_loop/aggregate.rs (new)", "src/save_load.rs (catch_up_world, the jump)", "solo_home_year (the century re-measure)"],
+            uses: ["crates/humanity-systems/src/closed_loop/aggregate.rs (new)", "src/save_load.rs (catch_up_world, the jump)", "solo_home_year (the century re-measure)"],
             needs: ["the aggregate tier", "headless-sim-runner.md increment 2", "per-material stocks (a new data file, phase 2)"],
         ),
     ],

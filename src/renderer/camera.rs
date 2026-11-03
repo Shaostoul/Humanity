@@ -14,7 +14,7 @@ use glam::{DVec3, Mat4, Quat, Vec3};
 use super::light::RoomLight;
 // The celestial pass's projection (`celestial_projection` below wraps it): terrain's since the
 // crate split's rung 0, beside the patch selector's frustum that is built from it.
-use crate::terrain::celestial_projection::celestial_projection;
+use humanity_terrain::celestial_projection::celestial_projection;
 
 /// Fallback first-person gravity (m/s^2) if the data knob is missing.
 /// The LIVE value is `CameraController::interior_gravity`, wired from
@@ -33,7 +33,7 @@ pub const WALK_SPEED_MPS: f32 = 5.0;
 pub const SPRINT_FACTOR: f32 = 1.9;
 /// How fast a jump leaves the floor, metres a second (`CameraController::jump_speed`): at the
 /// homestead's 1 g it rises about 1.27 m (v^2 / 2g). A home's air reaches high enough over the
-/// highest thing in it for a person to jump there (src/ship/ship_space.rs `HEADROOM_M`, held to
+/// highest thing in it for a person to jump there (crates/humanity-ship/src/ship_space.rs `HEADROOM_M`, held to
 /// this number by a test in engine/survival_env.rs).
 pub const JUMP_SPEED_MPS: f32 = 5.0;
 
@@ -151,7 +151,7 @@ pub struct CameraUniforms {
     /// (offset 672) so every earlier byte-offset pad poke in renderer/mod.rs
     /// stays valid; the renderer pokes this block wholesale from
     /// `Renderer::ocean_event_rows` after the full uniform write. CPU twin +
-    /// layout doc: src/terrain/ocean_events.rs (PinnedOceanEvents).
+    /// layout doc: crates/humanity-terrain/src/ocean_events.rs (PinnedOceanEvents).
     pub ocean_event: [[f32; 4]; 14],
 }
 

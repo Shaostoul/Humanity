@@ -49,8 +49,8 @@ When adding a new API endpoint:
 - [ ] Nothing to copy into `CLAUDE.md`: `src/relay/mod.rs` is the route list (CLAUDE.md says to grep it)
 
 When adding a new game system:
-- [ ] Create in `src/systems/NAME/mod.rs`
-- [ ] Add `pub mod NAME;` to `src/systems/mod.rs`
+- [ ] Create in `crates/humanity-systems/src/NAME/mod.rs`
+- [ ] Add `pub mod NAME;` to `crates/humanity-systems/src/lib.rs`
 - [ ] Register in engine loop (`src/lib.rs` resumed())
 - [ ] Add data files to `data/` if needed
 - [ ] Run `cargo check` for both native and WASM targets

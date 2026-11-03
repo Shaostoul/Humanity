@@ -1107,8 +1107,8 @@ or reproduced here.
   (`combustion_air`), and what it leaves out;
   `docs/reference/findings/2026-10-20-stove-combustion-air.md` for the
   dated research on where a stove's combustion air should come from (24 CFR
-  3280.709(g) and Drolet's manuals); `src/systems/farming/heat.rs` for the model, and
-  `src/systems/farming/heat_tests.rs` for the tests that measure it.
+  3280.709(g) and Drolet's manuals); `crates/humanity-systems/src/farming/heat.rs` for the model, and
+  `crates/humanity-systems/src/farming/heat_tests.rs` for the tests that measure it.
 
 ### Labelled in the text as rules of thumb or arithmetic, not as sourced values
 

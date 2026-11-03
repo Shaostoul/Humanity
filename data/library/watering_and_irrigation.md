@@ -705,7 +705,7 @@ taken from them is restated here in our own words.
 
 - `data/plants.csv` (the water column) and `data/garden/yields.ron`, WATER:
   each crop's FAO-56 water use and how it was worked out.
-- `src/systems/farming/mod.rs`: the irrigation, rain, hand watering, water
+- `crates/humanity-systems/src/farming/mod.rs`: the irrigation, rain, hand watering, water
   stress and the harvest's yield response to water.
 - [Ship Life Support](https://github.com/Shaostoul/Humanity/blob/main/docs/design/ship-life-support.md) and
   `data/life_support.ron`: how the ship's garden water leaves as vapour and

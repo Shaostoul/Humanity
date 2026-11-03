@@ -472,14 +472,14 @@ its numbers come from them.
   the game warns you when it goes over a crop that needs insects to set
   fruit. It wears out after a year in the weather, the low end of Maryland's
   one to three years, and taking it off returns it to your pack.
-- **Outdoor fields and the weather** (`src/systems/farming/mod.rs`). A field
+- **Outdoor fields and the weather** (`crates/humanity-systems/src/farming/mod.rs`). A field
   crop grows at a quarter speed out of its season, and a degree outside its
   temperature range slows it by 5 percent, down to a fifth of full speed.
   The indoor grow rooms are climate controlled and skip the weather: the
   station holds them at 21 C, and their crops grow as if that were inside
   every crop's range.
 - **Greenhouse heaters** (`heater` in `data/machines/home.ron`,
-  `src/systems/farming/heat.rs`, since 5 October 2026). The space heater
+  `crates/humanity-systems/src/farming/heat.rs`, since 5 October 2026). The space heater
   the Build Heater recipe makes can be placed in a grow room and cabled to
   power: a 1,500 W electric heater whose thermostat holds the room at 24 C
   (75 F, the middle of Georgia's 70 to 80 F days). How warm it gets is the
@@ -618,8 +618,8 @@ taken from them is restated here in our own words.
 - `data/garden/humidity.ron`: the grow rooms' air, the fan and the
   Ventilate control, and THE HEAT: a heater's warmth, the single-glass heat
   loss and its sources. The heater itself is `heater` in
-  `data/machines/home.ron`; the model is `src/systems/farming/heat.rs`, and
-  `src/systems/farming/heat_tests.rs` measures the 1 C and 0.13 C figures.
+  `data/machines/home.ron`; the model is `crates/humanity-systems/src/farming/heat.rs`, and
+  `crates/humanity-systems/src/farming/heat_tests.rs` measures the 1 C and 0.13 C figures.
 - `data/garden/lighting.ron`: the grow lights and their timer, with its
   citation of the DesignLights Consortium's Horticultural Technical
   Requirements V3.0 for the 2.30 micromoles per joule minimum,

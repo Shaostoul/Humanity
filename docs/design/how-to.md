@@ -262,7 +262,7 @@ Any step may also carry:
 - `if`: show this step only when an earlier `choose` picked something (`"if": { "furnace_kind":
   "gas" }`) or when a place applies (`"if": { "place": "wa" }`).
 - `sim`: how the game sees it: `{ "watch": { "kind": "plant", "target": "tomato" } }` reuses the
-  quest objective kinds (`src/systems/quests/objectives.rs`: Gather, Craft, Make, Harvest,
+  quest objective kinds (`crates/humanity-systems/src/quests/objectives.rs`: Gather, Craft, Make, Harvest,
   Build, Travel, Talk, Eat, Plant, View), `"read"` means the player confirms it (the game cannot
   observe wiping a jar rim, and reading it is the lesson), `"skip"` means the game does not model
   it.
@@ -389,7 +389,7 @@ their device, and is never sent anywhere unless they choose to.
 ```
 
 - Native: `%APPDATA%/HumanityOS/how_to/runs/<run>.json`, photos in `how_to/runs/<run>/`, each
-  written to a `.tmp` and renamed (the save pattern in `src/persistence.rs`), listed with its size
+  written to a `.tmp` and renamed (the save pattern in `crates/humanity-systems/src/persistence.rs`), listed with its size
   in Settings > Data. Web: IndexedDB.
 - Step state is keyed by step **id**, so a how-to that is edited, reordered or updated mid-run
   keeps the run's ticks. A step that no longer exists shows as "This step was removed since you
@@ -799,7 +799,7 @@ shows, not what the data is.
    is not a requirement (operator, 2026-10-23: "We're not really concerned about backwards
    compatibility until after v1.0"). The 36 calls of `RecipeRegistry::from_csv` in 17 files (most of them tests) move to
    one helper that builds the registry from the shipped how-tos. Needs a quiet
-   window: `src/systems/crafting/mod.rs`, the registries and the embedded data are shared files.
+   window: `crates/humanity-systems/src/crafting/mod.rs`, the registries and the embedded data are shared files.
    *Proves:* one model; the economy, machines, food and quests behave exactly as before (their
    tests pass unchanged); the load budget holds at ~400 files.
 5. **Practise in the game.** `sim` bindings through the quest hooks; Settings > Gameplay "Making

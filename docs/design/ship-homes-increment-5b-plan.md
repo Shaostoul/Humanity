@@ -38,19 +38,19 @@ Date: 2026-10-12. Read against main at 401d21114 (v0.1487.1). Sources: docs/desi
 - **Plots.** Twelve homestead plots, pN at (0, 0, 99(N-1)), 55 x 3 x 89 m; p1's corridor runs to the Commons at z 40, p2 to p12 to First Street (data/blueprints/ship_structure.ron; ship-homes doc 1005-1020).
 - **Where the home stands.** `ShipStructure` :509-535 (`home` is `#[serde(skip)]` :532-534, the precedent for a field that is never saved). `home_plot()` :1314, `home_is_away()` :1666. `ship_hash()` :1358-1361 hashes `ship_file()` :1930-1937, so skip fields never change the hash.
 - **Who is a neighbour.** `neighbour_plots()` ship_structure.rs:1681-1688: every plot but the home's, all of them for a guest. `plot_door_tube()` :1694.
-- **Neighbour shells.** src/ship/neighbours.rs:
+- **Neighbour shells.** crates/humanity-ship/src/neighbours.rs:
   - each neighbour is drawn as its kind's shipped design (`HomeDesign::built_in_ref`, ship_structure.rs:368-377, embedded data/homes/shipped/homestead.ron) with its door corridor (`make_view` :131-150);
   - render only: no machines, no rooms, so no lights, and no walking collision (module doc :16-24);
   - the view is cached per thread by `NeighbourKey` (own plot, plots, zone boxes) :73-125, and one shell is baked per design and door (`bake` :170-206, using `HomeStructure::bake_shell_groups`, home_structure.rs:1183: floors, interior walls, structures, ceiling, trim, no glass);
   - `draw_into` :238-244, `neighbour_mouths` :248-250, `segments(sight)` :256-273 (the home's walls with its door open, plus its corridor side walls).
-- **Collision.** src/ship/wall_collision.rs:
+- **Collision.** crates/humanity-ship/src/wall_collision.rs:
   - `ship_wall_segments` :135-137 is walking: own zones, ship corridors, never a neighbour;
   - `ship_sight_segments` :148-150 adds the neighbours and their corridor holes, for sight only;
   - `everyones_walls` :159-161 is the rig's;
   - all three build in `ship_segments_impl` :177-208.
   - The hole a neighbour's corridor makes in First Street or the Commons is cut in the mesh only, so the wall still stops this player (neighbours.rs:18-20, test :344-365).
-- **Doors.** src/ship/door_panels.rs: `PanelPlacement::others_only` :68-72; `ship_panel_placements` :81-102 appends the neighbour pairs last; `neighbour_panel_placements` :112-115; `door_actor_distance` :123-130 opens an `others_only` door for other players only.
-- **Hull.** It wraps every neighbour plot opaquely (src/ship/hull.rs:331-348). Unchanged here.
+- **Doors.** crates/humanity-ship/src/door_panels.rs: `PanelPlacement::others_only` :68-72; `ship_panel_placements` :81-102 appends the neighbour pairs last; `neighbour_panel_placements` :112-115; `door_actor_distance` :123-130 opens an `others_only` door for other players only.
+- **Hull.** It wraps every neighbour plot opaquely (crates/humanity-ship/src/hull.rs:331-348). Unchanged here.
 - **Rebuild sites.** Colliders and lights are rebuilt in src/engine/home_meshes.rs `rebuild_homestead` :206-300 (walls :240-243, sight :244-247, auto and placed lights :255-262), `rebuild_door_panels` :2095-2120 and `home_lights` :2145- (placed lights of every zone not put away). The world load does the same at src/engine/world_load.rs:156-163, :172-179.
 - **Guests.** A guest's home is put away and every plot is a neighbour's. `guest_stand` / `on_plot_ground` / `in_corridor` are at src/engine/home_plot.rs:394-425; `over_plot` is at :1141.
 
@@ -69,7 +69,7 @@ Date: 2026-10-12. Read against main at 401d21114 (v0.1487.1). Sources: docs/desi
 - **What is missing to draw the home "as the shared world knows it".** Nothing on the wire. A way in (walking collision, doors), light inside (a neighbour has no rooms, so no lights) and the permit wiring are missing.
 
 ### 1.3 Permits today
-- **Contract.** src/systems/construction/shared.rs:
+- **Contract.** crates/humanity-systems/src/construction/shared.rs:
   - `PERMIT_MAX_DAYS = 90` :84-88;
   - the `Why` codes and words for permits :289-351 (`PermitExpired`, `PermitNotFromHolder`, `PermitBad`, `PermitTooLong`, `NotYourPiece`);
   - `Permit {issuer, server, plot, grantee, expiry, sig}` :467-491 and `Ranks` :493-504;
@@ -400,13 +400,13 @@ Edited by two waves in sequence, never in parallel:
 ### Wave 0: the contract and the room (one builder, merges first)
 Files:
 - src/gui/mod.rs: move `donate_funding_tests` (:198-273) and `ui_click_sound_tests` (:4749-4799) verbatim to new src/gui/donate_funding_tests.rs and src/gui/click_sound_tests.rs via `#[cfg(...)] #[path] mod`. Add `pub household: crate::net::household::Household` beside `fleet` (:2613) and its default (:4061).
-- src/systems/construction/shared.rs: the two messages and msg constants.
+- crates/humanity-systems/src/construction/shared.rs: the two messages and msg constants.
 - src/relay/handlers/shared_build.rs: a `read_request` arm for `PermitCheck` with the permit caps only.
 - src/engine/shared_build.rs: a stub arm `FromRelay::PermitStatus { .. } => {}` in `receive`.
 - src/net/dm_pq.rs: `CTL_PERMIT`, and its line in the `DmInner.text` doc.
 - NEW src/net/household.rs and src/net/mod.rs: the note, `HeldPermit` / `GivenPermit` / `GivenState`, `PermitKey`, `Verdict`, `Household`, `judge_arrival`, keep and record rules, `prune`, `usable`, `date_words`, `Lengths` / `load_lengths`.
 - src/net/dm_store.rs: the two fields, `permits_held`, `keep_permit`, `permits_given`, `record_given`, `set_given_state`, `prune_permits`; `set_pass_server` clears them.
-- src/ship/ship_structure.rs: `OpenPlots` and the `open` field.
+- crates/humanity-ship/src/ship_structure.rs: `OpenPlots` and the `open` field.
 - NEW data/ship/household.ron; crates/humanity-core/src/embedded_data.rs (const and match arm).
 
 Tests:
@@ -445,9 +445,9 @@ Tests:
 
 **1B Walking in (ship and render).**
 Files:
-- src/ship/neighbours.rs: open queries on `NeighbourView` (zone cuts, segments and mouths by plot; design lights by plot).
-- src/ship/wall_collision.rs: the walking path.
-- src/ship/door_panels.rs.
+- crates/humanity-ship/src/neighbours.rs: open queries on `NeighbourView` (zone cuts, segments and mouths by plot; design lights by plot).
+- crates/humanity-ship/src/wall_collision.rs: the walking path.
+- crates/humanity-ship/src/door_panels.rs.
 - src/engine/home_meshes.rs: `home_lights` adds `open.lit`; new `open_plots_changed`.
 
 Tests:

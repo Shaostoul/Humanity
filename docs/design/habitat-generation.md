@@ -94,7 +94,7 @@ gone since ship homes increment 2
 ([ship-homes-and-logistics.md](ship-homes-and-logistics.md), section 7). A
 residential zone draws nothing now: its homes are the ship's PLOTS. Every plot
 but the player's own is drawn as its kind's shipped design, with its door
-corridor (`src/ship/neighbours.rs`, the shell baked by
+corridor (`crates/humanity-ship/src/neighbours.rs`, the shell baked by
 `HomeStructure::bake_shell_groups`), render only, with no collision of its own.
 So the volume-to-content generator for homes is now a list in the ship file (the
 plots), not a fill computed from a zone's box; the spine below would generate
@@ -112,7 +112,7 @@ that list.
 
 So the spine is: give the tiler a Y loop, and let non-residential types emit
 `HomeStructure` bodies instead of solid boxes. `resolve_positions`
-(`src/ship/fibonacci.rs:483`) is the room packer to feed it; it needs a bounding
+(`crates/humanity-ship/src/fibonacci.rs:483`) is the room packer to feed it; it needs a bounding
 volume added, since today it packs outward from a room list with no container.
 
 **Scale reality check.** The "mothership" today is about 400 x 200 m of labelled
@@ -130,7 +130,7 @@ This is the surprise, and it is a good one.
 
 **Walking on a curved surface with a per-frame-variable up vector, while the
 frame spins beneath you, is already solved and shipped.** It is what planets do.
-`src/surface_walk.rs` and `src/surface_move.rs` take `up` as an argument
+`crates/humanity-systems/src/surface_walk.rs` and `crates/humanity-systems/src/surface_move.rs` take `up` as an argument
 throughout and contain no world-Y assumption:
 
 - `tangent_basis(up)` (`surface_walk.rs:162`) builds an east/north frame for any
@@ -226,7 +226,7 @@ and the reason is worth writing down because it makes the realistic option the
 easy one.
 
 **Gravity in this engine is a scalar parameter, not a simulation.** `radial_step`
-(`src/surface_move.rs:198`) takes `g_accel: f64` and hands it to `vertical_step`,
+(`crates/humanity-systems/src/surface_move.rs:198`) takes `g_accel: f64` and hands it to `vertical_step`,
 which does closed-form ballistics with terminal velocity. Rapier is never stepped
 (`ship/wall_collision.rs:4`), so there is no rigid-body solver in the player's
 path to be expensive in the first place.

@@ -3,8 +3,8 @@
 
 use super::*;
 use crate::gui::pages::fleet_ledger::FleetStore;
-use crate::persistence::ShipMeals;
-use crate::systems::inventory::Inventory;
+use humanity_systems::persistence::ShipMeals;
+use humanity_systems::inventory::Inventory;
 use std::sync::Mutex;
 
 fn data_dir() -> std::path::PathBuf {
@@ -16,10 +16,10 @@ fn data_dir() -> std::path::PathBuf {
 fn store(now: f64) -> DataStore {
     let mut data = DataStore::new();
     crate::save_load::register_ship_meals(&mut data);
-    let mut clock = crate::systems::time::GameTime::default();
+    let mut clock = humanity_systems::time::GameTime::default();
     clock.elapsed_seconds = now;
     data.insert("game_time", Mutex::new(clock));
-    data.insert("item_registry", crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(data_dir().join("items.csv")).unwrap()).unwrap());
+    data.insert("item_registry", humanity_systems::inventory::ItemRegistry::from_csv(&std::fs::read(data_dir().join("items.csv")).unwrap()).unwrap());
     data
 }
 
@@ -159,7 +159,7 @@ fn filling_bottles_at_the_counter() {
 /// shelf row shelf_1 offers no meal".
 #[test]
 fn only_a_serving_counter_offers_a_meal() {
-    let mut home = crate::systems::grow_machines::load_home(&data_dir().join("machines/home.ron")).expect("home.ron loads");
+    let mut home = humanity_systems::grow_machines::load_home(&data_dir().join("machines/home.ron")).expect("home.ron loads");
     let mut counter = home.instances.iter().find(|i| i.zone != "home").cloned().expect("a ship row to copy the shape of");
     counter.id = "mess-hall-counter".into();
     counter.machine = COUNTER_TYPE.into();

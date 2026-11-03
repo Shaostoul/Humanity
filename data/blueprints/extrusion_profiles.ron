@@ -1,7 +1,7 @@
 // Structural extrusion profiles (added 2026-07-01, operator's real-life 3D-printer parts bin).
 //
 // A profile is a closed 2D polygon in (out, up) metres, the SAME shape `sweep_profile`
-// (src/ship/fibonacci.rs) already extrudes for interior trim (baseboard/crown/casing). Reused
+// (crates/humanity-ship/src/fibonacci.rs) already extrudes for interior trim (baseboard/crown/casing). Reused
 // as-is here for STRUCTURAL framing instead: one cross-section, extruded to any length at
 // placement time. No 3D model needed for a constant-cross-section member, only its outline.
 // Infinite-of-X: add a profile by adding one entry here, no code.

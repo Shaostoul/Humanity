@@ -47,9 +47,9 @@ use crate::engine::editor::Cuts;
 use crate::engine::state::{EngineState, SceneDrawLists};
 use crate::gui::pages::maps::tile_grid::{rects_touch, TileKey, TILE_PX};
 use crate::renderer::RenderObject;
-use crate::ship::home_structure::storey_index;
-use crate::ship::levels::ShipLevel;
-use crate::ship::ship_structure::{CorridorAxis, ShipStructure};
+use humanity_ship::home_structure::storey_index;
+use humanity_ship::levels::ShipLevel;
+use humanity_ship::ship_structure::{CorridorAxis, ShipStructure};
 
 /// One tile's texture, bytes.
 pub const TILE_BYTES: usize = (TILE_PX * TILE_PX * 4) as usize;
@@ -102,7 +102,7 @@ pub(crate) fn plan_items(ship: &ShipStructure, level: &ShipLevel, machines: &[(V
         for p in &b.structures {
             // Its footprint at any turn: half its diagonal, from its type's size (a stair, a deck,
             // an 8 m train platform), and a margin.
-            let reach = crate::ship::structure::structure_type(&p.type_id).map_or(3.0, |t| 0.5 * t.size.0.hypot(t.size.2)) + 0.25;
+            let reach = humanity_ship::structure::structure_type(&p.type_id).map_or(3.0, |t| 0.5 * t.size.0.hypot(t.size.2)) + 0.25;
             let (x, zz) = at(p.pos.0, p.pos.2);
             push(around(x, zz, reach), &(o, p));
         }
@@ -123,7 +123,7 @@ pub(crate) fn plan_items(ship: &ShipStructure, level: &ShipLevel, machines: &[(V
         };
         push(rect, &g);
     }
-    let view = crate::ship::neighbours::neighbour_view(ship);
+    let view = humanity_ship::neighbours::neighbour_view(ship);
     for n in &view.neighbours {
         let (x, y, zz) = n.plot.origin;
         let k = storey_index(&n.design.body.storeys(), level.floor - y);

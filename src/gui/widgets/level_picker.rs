@@ -124,7 +124,7 @@ mod tests {
     use super::*;
 
     fn level(ordinal: i32) -> PickerLevel {
-        PickerLevel { ordinal, short: crate::ship::levels::ShipLevel { ordinal, floor: 0.0, top: 0.0 }.short_name(), name: crate::ship::levels::level_name(ordinal) }
+        PickerLevel { ordinal, short: humanity_ship::levels::ShipLevel { ordinal, floor: 0.0, top: 0.0 }.short_name(), name: humanity_ship::levels::level_name(ordinal) }
     }
 
     /// The rows read top to bottom (the highest level first, then down to the basements, then

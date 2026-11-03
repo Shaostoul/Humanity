@@ -145,7 +145,7 @@ reason the tool is upstream of everything here.
 whole 55 by 89 m acre is partitioned into twenty-three rooms instead of one
 corner plus an open hall, every screen sits in the room where a person would use
 it. Since ship homes increment 2 (2026-10-04) every plot that is not the
-player's own is drawn as the SHIPPED homestead (`src/ship/neighbours.rs`, baked
+player's own is drawn as the SHIPPED homestead (`crates/humanity-ship/src/neighbours.rs`, baked
 by `HomeStructure::bake_shell_groups`; the v0.638 `tile_home_clones`, which
 stamped the player's own walls into every residential slot, is gone, and a
 residential zone draws nothing: its homes are the plots). The drawing does NOT

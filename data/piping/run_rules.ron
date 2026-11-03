@@ -2,7 +2,7 @@
 // The "to code" rules for runs (pipes, hoses, tubes and cables), and the PROFILES that group
 // them: what a run laid in a home, aboard a ship or in a spacecraft must keep to (2026-11-02,
 // spline routing rung 0, docs/design/spline-routing.md sections 7.1 and 18). Read by
-// src/ship/run_rules.rs (disk first, the copy built into the exe if this file is missing or does
+// crates/humanity-ship/src/run_rules.rs (disk first, the copy built into the exe if this file is missing or does
 // not parse). Nothing evaluates these rows yet: rung 8 does (`ship::run_checks`), each kind by
 // the run's computed curve, its anchors and its neighbours in the same cells.
 //
@@ -16,7 +16,7 @@
 // docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md (R45 to R53 and the dated
 // notes under earlier findings are the 2026-11-02 refutation pass), D1 to D19 those of
 // 2026-11-01-manual-door-releases.md, and Ours("why") marks a number the project chose, with its
-// reason. A test (src/ship/run_rules.rs) reads the findings documents' numbered paragraphs and
+// reason. A test (crates/humanity-ship/src/run_rules.rs) reads the findings documents' numbered paragraphs and
 // fails on a row with no source and on one naming a finding that does not exist.
 //
 // STANDING says how binding the source is WHERE THE PROFILE APPLIES, so the editor's words never
@@ -1006,7 +1006,7 @@
             profiles: ["dwelling_us", "ship_us"],
             standing: Ours,
             as_read: "a gasketed sleeve where a run crosses an interior wall",
-            source: [Ours("the passthrough gasket the game has drawn where a run crosses an interior wall since v0.535 (src/ship/conduits.rs, the operator's 'passthrough gaskets'); no rule read asks it of an ordinary interior wall")],
+            source: [Ours("the passthrough gasket the game has drawn where a run crosses an interior wall since v0.535 (crates/humanity-ship/src/conduits.rs, the operator's 'passthrough gaskets'); no rule read asks it of an ordinary interior wall")],
         ),
         (
             id: "penetration_bulkhead_integrity",

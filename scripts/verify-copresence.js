@@ -1282,7 +1282,7 @@ async function clearFirstRunWindows() {
   return { ok, detail: cleared.join("; ") };
 }
 
-/** The game's door points (debug/door_points_request.json, src/ship/door_points.rs). */
+/** The game's door points (debug/door_points_request.json, crates/humanity-ship/src/door_points.rs). */
 async function doorPointsOf() {
   clearDone("door_points_done.json");
   req("door_points_request.json", {});
@@ -2685,7 +2685,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       // EVIDENCE, not judged: out of the world (no move is sent), a picture of the neighbour's
       // plot from the shared zone its corridor runs to, 2 m in from its mouth, looking back down
       // the corridor at its door: the hole in the zone's wall, the corridor, and the neighbour's
-      // home drawn as the default design (increment 2, src/ship/neighbours.rs).
+      // home drawn as the default design (increment 2, crates/humanity-ship/src/neighbours.rs).
       const nbr = dp.doors.find((d) => d.from.startsWith("plot:") && !(dp.places.find((p) => p.id === d.from) || {}).own);
       if (nbr) {
         const dir = [0, 1, 2].map((k) => nbr.mouths[1][k] - nbr.mouths[0][k]);
@@ -3673,7 +3673,7 @@ async function runBuildOnce(runStamp, cleanups) {
       detail: `${A.name} (entity ${A.id}) holds ${A.plot || "no plot"}, ${R.name} (entity ${R.id}, the relay's admin) holds ${R.plot || "no plot"}; ranks ${JSON.stringify(A.ranks)} and ${JSON.stringify(R.ranks)}`,
     };
     step("shipwright", manifest.steps_ok.walkers.ok, manifest.steps_ok.walkers.detail);
-    // Every frame's box, from the game's own door points (src/ship/door_points.rs places are named
+    // Every frame's box, from the game's own door points (crates/humanity-ship/src/door_points.rs places are named
     // exactly as frames: "plot:p1", "zone:commons").
     const dp = await doorPointsOf();
     if (!dp || dp.ok !== true) throw new Error(`the game reported no door points: ${JSON.stringify(dp)}`);
@@ -5288,7 +5288,7 @@ async function runStartsOnce(runStamp, cleanups) {
         (marked ? `OFFLINE_MARK: ${Object.keys(manifest.offline.mark).length} item kinds after the stock` : "the stock never changed the backpack (the Dev mode's cheats off?)"),
     );
 
-    // The ship's places and doors, from the game's own corridor geometry (src/ship/door_points.rs).
+    // The ship's places and doors, from the game's own corridor geometry (crates/humanity-ship/src/door_points.rs).
     const dp = await doorPointsOf();
     if (!dp || dp.ok !== true) throw new Error(`the game reported no door points: ${JSON.stringify(dp)}`);
     manifest.door_points = dp;

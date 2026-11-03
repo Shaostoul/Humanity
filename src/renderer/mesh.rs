@@ -228,7 +228,7 @@ impl Mesh {
     /// Vertices are on a sphere of the given radius, normals point outward.
     pub fn from_icosphere(
         device: &wgpu::Device,
-        icosphere: &crate::terrain::icosphere::Icosphere,
+        icosphere: &humanity_terrain::icosphere::Icosphere,
         radius: f32,
     ) -> Self {
         let vertices: Vec<Vertex> = icosphere.vertices.iter().map(|v| {
@@ -264,7 +264,7 @@ impl Mesh {
     /// the packed value. No new vertex layout or pipeline needed.
     pub fn from_planet_surface(
         device: &wgpu::Device,
-        data: &crate::terrain::planet_surface::SurfaceMeshData,
+        data: &humanity_terrain::planet_surface::SurfaceMeshData,
     ) -> Self {
         let vertices = Self::planet_surface_vertices(data);
         Self::from_vertices(device, &vertices, &data.indices)
@@ -276,7 +276,7 @@ impl Mesh {
     /// per-patch GPU buffers. Both paths must stay byte-identical -- the
     /// arena's fallback IS from_planet_surface.
     pub fn planet_surface_vertices(
-        data: &crate::terrain::planet_surface::SurfaceMeshData,
+        data: &humanity_terrain::planet_surface::SurfaceMeshData,
     ) -> Vec<Vertex> {
         data.vertices
             .iter()
@@ -291,7 +291,7 @@ impl Mesh {
                 uv: if v.color[0] < 0.0 {
                     [v.color[1], v.color[2]]
                 } else {
-                    crate::terrain::planet_surface::pack_color_to_uv_flags(
+                    humanity_terrain::planet_surface::pack_color_to_uv_flags(
                         v.color,
                         v.water,
                         v.tree_card,
@@ -1108,7 +1108,7 @@ mod tests {
     #[test]
     fn icosphere_faces_wind_outward() {
         use glam::Vec3;
-        let mut ico = crate::terrain::icosphere::Icosphere::new();
+        let mut ico = humanity_terrain::icosphere::Icosphere::new();
         ico.subdivide_n(2);
         assert_eq!(ico.faces.len(), 320);
         for (k, f) in ico.faces.iter().enumerate() {

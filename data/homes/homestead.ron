@@ -25,7 +25,7 @@
 // the form an exe built before ship homes increment 4 reads. Such an exe moves a home it cannot
 // parse aside as homestead.invalid-<time>.ron, so an older archive launched from this checkout
 // must still read it. Builds since increment 4 read either form and write ids
-// (`pair: Some("teleporter-2")`) on the next editor Save (src/ship/home_structure.rs
+// (`pair: Some("teleporter-2")`) on the next editor Save (crates/humanity-ship/src/home_structure.rs
 // `settle_structures`).
 //
 // Zones: `room_type: Some("<data/rooms.ron key>")` on a room-grade zone gives the room the

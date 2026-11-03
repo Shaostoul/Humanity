@@ -412,7 +412,7 @@ the cold stores this guide describes.
   faster.
 - **Spoiled food makes you ill.** Eating a spoiled item gives a quarter
   of its nutrition and always causes food poisoning
-  (`src/systems/food.rs`).
+  (`crates/humanity-systems/src/food.rs`).
 - **Food spoils wherever it is kept.** Food in your pack, in the home's
   storage (the Barn and its other places, and chests you build) and in
   the home's storage vessels, such as a pantry cabinet or the Freezer,
@@ -566,15 +566,15 @@ read on 4 October 2026.
   scale it in `data/food_system.ron`; which items are food in
   `data/food/item_profiles.ron`; the spoilage clock each holder of food
   carries, on game time and by the zone where it is kept, and the effects
-  of eating spoiled food in `src/systems/food.rs`; home storage aged in
+  of eating spoiled food in `crates/humanity-systems/src/food.rs`; home storage aged in
   `src/engine/stock_piles.rs` (`age_home_storage`, with the planet chest
-  gap); the ages saved with the game in `src/persistence.rs` and
+  gap); the ages saved with the game in `crates/humanity-systems/src/persistence.rs` and
   `src/save_load.rs`; the home's air held at 293 K, about 20 C, in
-  `src/systems/atmosphere.rs`. The Freezer (`freezer`) and pantry
+  `crates/humanity-systems/src/atmosphere.rs`. The Freezer (`freezer`) and pantry
   cabinets in `data/machines/home.ron` and `data/machines/home_solo.ron`,
   which are typed containers (`data/containers/types.csv`, where the
   freezer chest's `keeps_zone` is `frozen`;
-  `src/systems/inventory/containers.rs`); storing into them from a
+  `crates/humanity-systems/src/inventory/containers.rs`); storing into them from a
   machine's card in `src/lib.rs`.
 - The Silverdale soil record (the Alderwood perched water table and the
   basement rating, from USDA NRCS soil data):

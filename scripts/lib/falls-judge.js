@@ -2,7 +2,7 @@
 // walks into hurt the way the code and data/medical/falls.ron say, in both Illness and injury
 // modes, and does a drop the player did not walk into hurt nobody?
 //
-// WHY. Falls shipped on 2026-10-20 (v0.1527.0, src/systems/falls.rs) with unit tests over the
+// WHY. Falls shipped on 2026-10-20 (v0.1527.0, crates/humanity-systems/src/falls.rs) with unit tests over the
 // controller, the watch and the body pass, and nothing that looked at the game: `player_landed`
 // logged nothing and no probe said what health or wounds the player had. A landing that never
 // reached the body (the lib.rs hand-off missing, the watch swallowing every landing, the walk
@@ -270,7 +270,7 @@ function readHomeStructures(text) {
 const num2 = (s) => s.split(",").map((v) => Number(v.trim()));
 
 /** A home design's floor slabs (ship homes increment 7): [{ a [x, z], b [x, z], top }], home metres.
- *  A slab's top is a floor a person stands on (src/ship/home_structure.rs `FloorSlab`). */
+ *  A slab's top is a floor a person stands on (crates/humanity-ship/src/home_structure.rs `FloorSlab`). */
 function readHomeFloors(text) {
   const t = uncomment(text);
   return [...listAfter(t, "floors").matchAll(/\ba\s*:\s*\(([^)]*)\)\s*,\s*b\s*:\s*\(([^)]*)\)\s*,\s*top\s*:\s*([-\d.]+)/g)].map((m) => ({
@@ -318,7 +318,7 @@ const floorAt = (floors, top, x, z) => (floors || []).some((s) => Math.abs(s.top
 /**
  * The staircase a walk leg goes up and off: the tallest Steps-shaped Stairs in the home, with the
  * pose to start from (home metres, eye height; 1 m before its first step, facing up it) and the
- * drop off its top. Mirrors src/ship/structure.rs: a piece's local +z maps to world
+ * drop off its top. Mirrors crates/humanity-ship/src/structure.rs: a piece's local +z maps to world
  * (sin r, cos r), and its steps rise along local +z; forward_xz is (sin yaw, -cos yaw), so facing
  * up the stairs is yaw = pi - r.
  */
@@ -915,7 +915,7 @@ function judgeFalls(run) {
         la === lb
           ? `no landing reached the body (${lb} before and after) for a ${f2(drop.drop_m)} m drop that would land at ${f2(vCam)} m/s`
           : `a landing reached the body (${lb} -> ${la}, the last at ${f2(last)} m/s) after a PLACEMENT: ` +
-              (onPlanet ? "the planet walk's placement test (CameraController::surface_step, SURFACE_PLACED_M) let a teleport's drop hurt" : "FallWatch let a teleport's drop hurt (src/systems/falls.rs)")
+              (onPlanet ? "the planet walk's placement test (CameraController::surface_step, SURFACE_PLACED_M) let a teleport's drop hurt" : "FallWatch let a teleport's drop hurt (crates/humanity-systems/src/falls.rs)")
       );
       check(`${id}.no_wound`, newWounds.length === 0, newWounds.length ? `new wound(s) ${newWounds.join(", ")} from a placement` : "no new wound");
       check(`${id}.health`, Math.abs(hb - ha) <= LIMITS.HEALTH_TOL, `health ${f2(hb)} -> ${f2(ha)}`);

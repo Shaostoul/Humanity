@@ -692,7 +692,7 @@ place. Web pages and documents were read on 4 October 2026.
 - The Play mode setting and what it frees (`PlayMode` and
   `play_mode_allows` in `src/config.rs`); the crafting checks that
   skip materials, station and tools in Creative and Dev
-  (`src/systems/crafting/mod.rs`); the Crafting page's own checks on
+  (`crates/humanity-systems/src/crafting/mod.rs`); the Crafting page's own checks on
   materials, tools, station and skill, and its "Dev: stock all
   materials" button (`src/gui/pages/crafting.rs`); the "Dev: max skills"
   button (`src/gui/pages/profile.rs`); the "Enable dev cheats" switch

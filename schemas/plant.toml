@@ -9,7 +9,7 @@
 # column short of the end).
 #
 # WHAT READS THIS FILE
-#   src/systems/farming/           -- `PlantDef` (mod.rs) deserializes each row.
+#   crates/humanity-systems/src/farming/           -- `PlantDef` (mod.rs) deserializes each row.
 #                                     Growth, water, nutrients, pH, temperature,
 #                                     humidity, yield and stages all drive the
 #                                     farming simulation from here.
@@ -98,7 +98,7 @@ example = "0.0077"
 type = "float"
 required = true
 engine = true
-description = """Relative nitrogen demand, higher is hungrier. NOT kilograms: tomato 0.15 is no real per-plant or per-hectare figure. Since 2026-09-26 the farming sim reads it (src/systems/farming/soil.rs) ONLY for a crop whose removal_n_g_per_kg is blank: that crop needs, each season, its expected harvest in kg times the anchor crop's published N removal per kg (data/garden/nutrients.ron: tomato, 1.5 g/kg, CDFA FREP) times this index over the anchor's. Its unit of growing space holds a store of available N that the crop draws down as it grows. Known weakness, and why the removal columns exist: the indices understate dense harvests (grain, dry legumes) 5 to 20 times against extension removal tables."""
+description = """Relative nitrogen demand, higher is hungrier. NOT kilograms: tomato 0.15 is no real per-plant or per-hectare figure. Since 2026-09-26 the farming sim reads it (crates/humanity-systems/src/farming/soil.rs) ONLY for a crop whose removal_n_g_per_kg is blank: that crop needs, each season, its expected harvest in kg times the anchor crop's published N removal per kg (data/garden/nutrients.ron: tomato, 1.5 g/kg, CDFA FREP) times this index over the anchor's. Its unit of growing space holds a store of available N that the crop draws down as it grows. Known weakness, and why the removal columns exist: the indices understate dense harvests (grain, dry legumes) 5 to 20 times against extension removal tables."""
 example = "0.15"
 
 [fields.nutrient_p]
@@ -309,7 +309,7 @@ description = """
 Share of the crop's nitrogen it fixes from the air, as a percent: the %Ndfa
 ("N derived from the atmosphere") that legume studies report (added
 2026-09-26, closing the garden's nitrogen loop). The farming sim
-(src/systems/farming/soil.rs) draws only the other share of the crop's N need
+(crates/humanity-systems/src/farming/soil.rs) draws only the other share of the crop's N need
 from its unit (`soil_draw`), and when the crop is harvested it leaves the
 fixed N held in its roots, nodules and haulm in the unit as a credit for the
 next crop (`legume_credit_n`, with the harvest's share of whole-plant N from
@@ -332,7 +332,7 @@ Grams of N that one kg of this crop's harvest carries out of its unit of
 growing space (added 2026-09-26). The basis is the harvest as the game's
 harvest item represents it: fresh produce as picked, grain and dry seed at
 the storage moisture its source table reports. The farming sim
-(src/systems/farming/soil.rs, `removal_per_kg`) takes a crop's season need of
+(crates/humanity-systems/src/farming/soil.rs, `removal_per_kg`) takes a crop's season need of
 N as this times its expected harvest in kg; a legume still fixes its
 n_fixed_pct share of it from the air.
 
@@ -385,10 +385,10 @@ Floor area one plant takes, m2: the in-row x between-row spacing a university
 extension or planting guide gives (for drilled cereals and pulses, 1 / the
 recommended established plants per m2). A bed, tray or field plot holds
 floor(plot floor area / this) plants, at least 1; a tower cup and a hand-planted
-crop hold one (src/systems/farming/units.rs). Blank means one plant a unit, the
+crop hold one (crates/humanity-systems/src/farming/units.rs). Blank means one plant a unit, the
 behaviour before 2026-09-26. Every filled value has a record in
 data/garden/yields.ron with its source, and the shipped-data test in
-src/systems/farming/unit_tests.rs holds each crop's harvest per m2 to a band for
+crates/humanity-systems/src/farming/unit_tests.rs holds each crop's harvest per m2 to a band for
 its kind of harvest, so a per-m2 figure typed as per-plant fails."""
 example = "0.003"
 
@@ -410,7 +410,7 @@ engine = true
 description = """
 The daily light integral (mol/m2/day) recommended for good yield and quality,
 from the same findings document. Sets how much of a grow light a plot needs
-(src/systems/farming/lighting.rs, area_needs and light_cover): a plot takes
+(crates/humanity-systems/src/farming/lighting.rs, area_needs and light_cover): a plot takes
 target / 17 times the canopy of a light quoted at the lettuce reference in
 data/garden/lighting.ron. Blank = planned at that reference, and the crop card
 says the crop's own is not sourced. Some targets are speed-breeding or

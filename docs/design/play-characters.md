@@ -21,7 +21,7 @@ structured right"). Each section is separable; react per section. Pairs with
   and XP live on the server. This is the Diablo II open/closed Battle.net split already
   designed in characters-and-servers.md; this doc is only about the screen that expresses it.
 
-Today a local save fuses both halves: `WorldSave` (`src/persistence.rs:15`) holds the world
+Today a local save fuses both halves: `WorldSave` (`crates/humanity-systems/src/persistence.rs:15`) holds the world
 (inventory, constructions, crops, credits, quests) AND the character (`character_name`,
 `appearance`, `outfit`). The UI cannot be fully honest about WHO vs WHERE until that file
 splits, but it can present the two axes now and grey the not-yet-possible pairings.

@@ -272,7 +272,7 @@ chairs, a sideboard; no action beyond the usual) and `guest_bedroom` (actions
 `sleep` and `personal_storage`, with no `customize_appearance`). The second bedroom
 cannot use `bedroom`: that type carries the mirror's action, and
 `the_shipped_home_has_one_appearance_room_and_one_wardrobe_room`
-(`src/ship/room_types.rs`) requires exactly one room in the home to open the
+(`crates/humanity-ship/src/room_types.rs`) requires exactly one room in the home to open the
 appearance station.
 
 **Why a shower room and a boot room.** With the bathroom and wet room upstairs, the
@@ -603,7 +603,7 @@ The data follows this draft, with these differences, each decided or found while
   G's guard rows). Section 7's change is built as planned: the `ramp` row is
   `size: (1.8, 0.4, 6.8)`, 1:17, and ramp-1 stands at `(48.0, 0.0, 17.4)` at 180 degrees, so
   the 1.2 m ramp with 1.55 m to the bay's lid is gone.
-- **The checks of section 10 are tests now**: src/ship/homestead_layout_tests.rs, run with
+- **The checks of section 10 are tests now**: crates/humanity-ship/src/homestead_layout_tests.rs, run with
   `node scripts/lib-tests.js homestead_layout_tests`.
 - **The ladder's gap is 0.8 m, not its own 0.6 m** (the increment's review, 2026-10-21). A body
   is 0.6 m across and each balustrade end reaches 0.03 m into the gap, so a climber needs 0.66

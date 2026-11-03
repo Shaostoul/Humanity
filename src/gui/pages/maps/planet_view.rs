@@ -10,15 +10,15 @@ use crate::gui::widgets;
 use crate::gui::widgets::label_placer::{self, LabelPlacer};
 use crate::gui::GuiState;
 // The OSM region reader (HOSMREG1) lives in the terrain module, shared with
-// the in-world 3D extruder. See src/terrain/osm_region.rs.
-use crate::terrain::osm_region::{parse_region, triangulate_ring, OsmRegion, OsmRoad, WaterKind};
+// the in-world 3D extruder. See crates/humanity-terrain/src/osm_region.rs.
+use humanity_terrain::osm_region::{parse_region, triangulate_ring, OsmRegion, OsmRoad, WaterKind};
 
 use super::{allocate_canvas, MapFooter};
 
 // ─────────────────────── Planet view (OSM regions, meters) ──────────────────
 
 // The HOSMREG1 parser and the region types used to live here, private to
-// this page. They moved to `crate::terrain::osm_region` (v0.1148) when the
+// this page. They moved to `humanity_terrain::osm_region` (v0.1148) when the
 // in-world 3D extruder became a second reader of the same files: one parser,
 // one projection contract, no drift. This view is unchanged otherwise; the
 // field names are identical.

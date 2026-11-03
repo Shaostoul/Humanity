@@ -154,8 +154,8 @@ than the docs suggest.
 Also verified. These are the real work, and none of them are hinted at by the
 "crew NPCs work" surface.
 
-- **No pathfinding of any kind.** Both `src/systems/ai/flow_field.rs` and
-  `src/systems/ai/behavior.rs` are 26-line dead stubs with zero call sites and
+- **No pathfinding of any kind.** Both `crates/humanity-systems/src/ai/flow_field.rs` and
+  `crates/humanity-systems/src/ai/behavior.rs` are 26-line dead stubs with zero call sites and
   non-existent data files, despite a doc comment claiming flow fields support
   "million-agent navigation". Crew walk in straight lines through walls today,
   and that is documented in `data/npc/chores.ron` as an accepted first-step
@@ -256,7 +256,7 @@ by what breaks first rather than by how bad it sounds.
    (`game_state.rs:1037-1167`): roughly 10k JSON walks and 20k string allocations
    per second at 500 NPCs, serialised behind a lock the 20 Hz sim also wants.
 7. **`AISystem` is O(n-squared)** with multiple all-pairs loops and no spatial
-   index (`src/systems/ai/mod.rs:400-491`). **Not on the crew path today** (crew
+   index (`crates/humanity-systems/src/ai/mod.rs:400-491`). **Not on the crew path today** (crew
    lack `Health` so they fail its query), but it becomes the bill the moment
    crowd NPCs get `AIBehavior`. Do not put them on it without a spatial index.
 8. **Every player spawns at the identical point** `[0.0, 1.0, 0.0]`
@@ -331,7 +331,7 @@ core** even after the O(n squared) is fixed, at roughly 2 us per agent in a 16.6
 budget, and threading cannot buy past that until ~50k (above). And **the CPU work
 that FEEDS the instance buffer** is the real trap: the grass draw scales
 beautifully while the grass HARVEST that fills it measures 16-31 ms
-(`src/terrain/grass.rs:702`), runs inline on the frame thread every 4 m of camera
+(`crates/humanity-terrain/src/grass.rs:702`), runs inline on the frame thread every 4 m of camera
 movement, and produces "one doubled frame every few seconds of walking". The
 documented fix (time-slice it) is unbuilt. A crowd harvest must not repeat that.
 

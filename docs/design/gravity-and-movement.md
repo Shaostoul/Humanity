@@ -33,7 +33,7 @@ g_accel =  length(g_total)
 **The engine already stores gravity in exactly this form.** `set_surface_up`
 (`src/renderer/camera.rs:259`) takes an arbitrary `Vec3`, normalizes it, and
 re-derives yaw and pitch so the view does not pop. `radial_step`
-(`src/surface_move.rs:198`) takes `g_accel` as a plain scalar, computed at the
+(`crates/humanity-systems/src/surface_move.rs:198`) takes `g_accel` as a plain scalar, computed at the
 call site from `gravity_at(altitude)` (`src/lib.rs:4827`). Direction and
 magnitude are already separate, already general, and the magnitude is already
 surfaced to the F2 readout as `surface_gravity_now`.
@@ -126,12 +126,12 @@ grapple (`:54`), `maneuvering_unit` ("Jetpack attachment providing 6-axis
 thrust", `:157`), `tether_line` ("50-meter retractable cable", `:168`) and
 `mag_boots` ("Electromagnet-soled boots for walking on ferrous hull surfaces in
 zero-g", `:179`). `DockingSystem` deserializes them as
-`eva_equipment: Vec<ron::Value>` (`src/systems/docking.rs:28`) and **never reads
+`eva_equipment: Vec<ron::Value>` (`crates/humanity-systems/src/docking.rs:28`) and **never reads
 them**. That is four of the operator's six tools already named, described and
 loaded. It is the schema anchor for the `locomotion_aid` rows below.
 
 **`vertical_step` is already written as a jetpack.**
-(`src/surface_walk.rs:295-338`.) It takes a thrust as a TARGET RATE and ramps
+(`crates/humanity-systems/src/surface_walk.rs:295-338`.) It takes a thrust as a TARGET RATE and ramps
 velocity toward it, works from either side so an upward burn arrests a fall, and
 terminal-clamps free fall. Its own doc comment calls it "a jetpack spool, not a
 teleport". What it lacks is a fuel hook and any axis but the radial one.
@@ -214,7 +214,7 @@ this is an extension rather than an invention. (Note `gameplay-loop-map.md` says
 otherwise on both counts; it is stale by several hundred versions and those gaps
 closed in v0.745 and v0.749.)
 
-- **Crew: about eight lines.** `src/systems/food.rs:450-616` runs one query with
+- **Crew: about eight lines.** `crates/humanity-systems/src/food.rs:450-616` runs one query with
   five live health drains (starvation, dehydration, suffocation, freezing, heat
   exhaustion). Every stressor has the identical shape, e.g. the cold one at
   `food.rs:543-550`: apply a condition, compute an amount scaled by gear resist,
@@ -223,7 +223,7 @@ closed in v0.745 and v0.749.)
   the HUD readout for free. Add a `high_g` row next to the existing
   `zero_gravity` one.
 - **Plants: about three lines, and the template was RF.**
-  `src/systems/farming/mod.rs` did
+  `crates/humanity-systems/src/farming/mod.rs` did
   `crop.health -= RF_HEALTH_PENALTY * home_rf * dt` for an ambient scalar field
   (that Wi-Fi crop harm was removed 2026-09-27), and the crop dies to
   `STAGE_DEAD` at zero health. A g-load line in the same place gives the
@@ -245,7 +245,7 @@ default is short plumbing. Farming does not read it, so the plant path needs its
 own read.
 
 **Important: nothing can currently PRODUCE a g-load.** The ship is on rails.
-`src/station/orbit.rs` is closed-form Keplerian kinematics evaluated from the
+`crates/humanity-ship/src/station/orbit.rs` is closed-form Keplerian kinematics evaluated from the
 clock, with no forces, no mass and no integration. `PropulsionDef` exists as a
 type (`systems/vehicles/propulsion.rs:9`), is referenced by nothing, and cites a
 `data/propulsion.csv` that does not exist. So the burn state has to be AUTHORED
@@ -397,7 +397,7 @@ to carry everyone indefinitely without it, and an honest label in-game that FTL 
 the one deliberate fiction. Awaiting his answer.
 
 **Decision: torch-ship brachistochrone, no FTL.** Travel stays a closed-form
-function of the clock, which is the shape `src/station/orbit.rs` already has, so
+function of the clock, which is the shape `crates/humanity-ship/src/station/orbit.rs` already has, so
 there is nothing to sync. In-system voyages become the near-term destination
 content. The interstellar crossing stays the setting rather than a trip anyone
 waits out.

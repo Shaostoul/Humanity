@@ -8,7 +8,7 @@
 // The window runs as in the browser, in its own global scope (node:vm), with the DOM replaced by a
 // small tree that keeps what is written to it (and refuses innerHTML, which the window never uses:
 // the server's words reach the screen through textContent only). The chat's socket is a stand-in
-// that keeps what is sent. The answers are built to the Rust wire, src/ship/starts.rs (`HomeAnswer`,
+// that keeps what is sent. The answers are built to the Rust wire, crates/humanity-ship/src/starts.rs (`HomeAnswer`,
 // `StartOffer`, `HeldHome`, `HomeRefusal`): test 0 reads those types' fields out of starts.rs and
 // holds every answer here to them, and the "as shipped" answers carry the words of
 // data/homes/starts.ron, as the relay sends them. The relay's own half (lane 1B) is built to the
@@ -49,20 +49,20 @@ const vm = require("node:vm");
 
 const ROOT = path.join(__dirname, "..", "..");
 const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, "web");
-const STARTS_RS = fs.readFileSync(path.join(ROOT, "src", "ship", "starts.rs"), "utf8").replace(/\r\n/g, "\n");
+const STARTS_RS = fs.readFileSync(path.join(ROOT, "crates", "humanity-ship", "src", "starts.rs"), "utf8").replace(/\r\n/g, "\n");
 const STARTS_RON = fs.readFileSync(path.join(ROOT, "data", "homes", "starts.ron"), "utf8").replace(/\r\n/g, "\n");
 
-// ── The Rust wire, read out of src/ship/starts.rs ──────────────────────────
+// ── The Rust wire, read out of crates/humanity-ship/src/starts.rs ──────────────────────────
 
 function rustConst(name) {
   const m = STARTS_RS.match(new RegExp(`pub const ${name}: &str = "([^"]+)";`));
-  assert.ok(m, `src/ship/starts.rs defines ${name}`);
+  assert.ok(m, `crates/humanity-ship/src/starts.rs defines ${name}`);
   return m[1];
 }
 /** A struct's fields, each with whether serde leaves it out when empty. */
 function rustFields(name) {
   const m = STARTS_RS.match(new RegExp(`pub struct ${name} \\{\\n([\\s\\S]*?)\\n\\}`));
-  assert.ok(m, `src/ship/starts.rs defines ${name}`);
+  assert.ok(m, `crates/humanity-ship/src/starts.rs defines ${name}`);
   const fields = {};
   let skip = false;
   for (const line of m[1].split("\n")) {
@@ -75,7 +75,7 @@ function rustFields(name) {
 /** HomeRefusal's variants as they go on the wire (serde rename_all = "snake_case"). */
 function rustRefusals() {
   const m = STARTS_RS.match(/#\[serde\(rename_all = "snake_case"\)\]\npub enum HomeRefusal \{\n([\s\S]*?)\n\}/);
-  assert.ok(m, "src/ship/starts.rs defines HomeRefusal, snake_case on the wire");
+  assert.ok(m, "crates/humanity-ship/src/starts.rs defines HomeRefusal, snake_case on the wire");
   return [...m[1].matchAll(/^\s*([A-Z]\w*),/gm)].map((v) => v[1].replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase());
 }
 const HOME_REQUEST = rustConst("HOME_REQUEST");

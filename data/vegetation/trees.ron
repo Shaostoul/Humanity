@@ -1,7 +1,7 @@
 // Planet-surface tree species (v0.1066).
 //
 // Replaces the hardcoded `species_fir = ((r5 >> 9) & 1) == 0` bool in
-// src/terrain/planet_chunks.rs, which allowed exactly two species (fir 22 m,
+// crates/humanity-terrain/src/planet_chunks.rs, which allowed exactly two species (fir 22 m,
 // pine 16 m) everywhere on Earth. Adding a species is now a row here.
 //
 // TWO KINDS OF SPECIES:

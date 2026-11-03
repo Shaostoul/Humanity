@@ -10,7 +10,7 @@ Use SQLite as the first persistence backend while keeping save management access
 
 ## Current scaffold
 
-- module (single-crate layout, post-v0.90): world persistence in `src/persistence.rs`;
+- module (single-crate layout, post-v0.90): world persistence in `crates/humanity-systems/src/persistence.rs`;
   relay-side SQLite domain modules in `src/relay/storage/`. (This doc originally
   referenced a `crates/persistence-sqlite` sub-crate, which no longer exists.)
 - snapshots table with JSON world blob + tick metadata

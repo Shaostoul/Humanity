@@ -1,7 +1,7 @@
 //! From systems/farming/weed_tests.rs: an area's weeds through a save and load (`save_load`).
 
 use humanity_core::ecs::components::{AreaWeeds, SoilMemory};
-use crate::systems::farming::weed_tests::*;
+use humanity_systems::farming::fixtures::weeds::*;
 
 /// The weeds are saved: they live on `SoilMemory`, which the world save
 /// writes whole, so a round trip keeps an area's cover, seed bank, notice and
@@ -20,13 +20,13 @@ fn weeds_survive_a_save_and_old_saves_load_with_none() {
     memory_in.weeds.insert("tomato_bed".into(), w.clone());
     world.spawn((memory_in,));
     let text = serde_json::to_string(&extract_world_save(&world)).unwrap();
-    let back: crate::persistence::WorldSave = serde_json::from_str(&text).unwrap();
+    let back: humanity_systems::persistence::WorldSave = serde_json::from_str(&text).unwrap();
     let mut fresh = hecs::World::new();
     apply_save_to_world(&mut fresh, &back);
     assert_eq!(memory(&fresh).weeds.get("tomato_bed"), Some(&w), "the bed's weeds came back");
     let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
     old["soil_memory"].as_object_mut().unwrap().remove("weeds");
-    let back: crate::persistence::WorldSave = serde_json::from_value(old).unwrap();
+    let back: humanity_systems::persistence::WorldSave = serde_json::from_value(old).unwrap();
     let mut older = hecs::World::new();
     apply_save_to_world(&mut older, &back);
     assert!(memory(&older).weeds.is_empty(), "an old save loads with no weeds");

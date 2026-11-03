@@ -28,7 +28,7 @@
 # putting the WRONG content class into it DAMAGES the vessel and eventually
 # BREAKS it (e.g. cement — a dry_goods solid — poured into a dairy/liquid tank).
 #
-# These archetypes are loaded by `ContainerRegistry` (src/systems/inventory/
+# These archetypes are loaded by `ContainerRegistry` (crates/humanity-systems/src/inventory/
 # containers.rs) alongside the content-class rule table in
 # `data/containers/content_classes.ron`. Items carry a `content_class` (see
 # schemas/item.toml); the registry's compatibility check matches an item's

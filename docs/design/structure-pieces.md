@@ -1,7 +1,7 @@
 # Structural building pieces (stairs, ladders, elevators, teleporters, trains, roads)
 
 Status: Stage 2 shipped (v0.583 placement + v0.584 walkable footing & teleporters).
-Owner surface: `data/blueprints/structure_types.ron` + `src/ship/structure.rs`.
+Owner surface: `data/blueprints/structure_types.ron` + `crates/humanity-ship/src/structure.rs`.
 
 ## Why
 

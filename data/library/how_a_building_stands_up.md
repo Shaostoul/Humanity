@@ -626,7 +626,7 @@ none of the open sides facing the wind, it says "Out of the rain and the
 wind". Turn an open side into the wind and the display tells you what
 share of the wind gets in. The body heat model uses that, so a
 shelter built with its back to the wind keeps you warmer than one built
-the other way round (`src/systems/construction/uses.rs`,
+the other way round (`crates/humanity-systems/src/construction/uses.rs`,
 `src/engine/survival_env.rs`).
 
 **What holds a building up, it does not model.** Every built piece has a
@@ -648,11 +648,11 @@ first prototype of a structural check: it carries load down through a
 frame's members to its foundation, breaks a member that is loaded beyond
 its capacity, lets that load move to the neighbours so failures can
 cascade, and finds any part that has lost every path to the ground
-(`src/systems/construction/solver.rs`). It is tested on its own and is
+(`crates/humanity-systems/src/construction/solver.rs`). It is tested on its own and is
 not connected to anything you build.
 
 **Building trains you.** Finishing a piece from the Crafting page gives
-experience in the Shelter Building skill (`src/systems/construction/mod.rs`).
+experience in the Shelter Building skill (`crates/humanity-systems/src/construction/mod.rs`).
 
 **Two settings change this.**
 
@@ -817,18 +817,18 @@ documents were read on 4 October 2026.
 
 ### Inside this project
 
-- Shelter from rain and wind: `src/systems/construction/uses.rs`
+- Shelter from rain and wind: `crates/humanity-systems/src/construction/uses.rs`
   (`shelter_at`, `ShelterCheck`, the three-wall rule and the wind share)
   and `src/engine/survival_env.rs`. Built pieces and their health
   figures: `data/blueprints/basic.ron`; nothing reduces a built piece's
   health (no system queries `Structure` health to change it). Placement
-  and resting on the pieces below: `src/systems/construction/placement.rs`;
+  and resting on the pieces below: `crates/humanity-systems/src/construction/placement.rs`;
   taking a piece down: `src/engine/build_place.rs`. The wall material
   panel: `src/gui/pages/construction.rs` and
   `data/blueprints/wall_materials.ron`. The structural prototype:
-  `src/systems/construction/solver.rs` and `structural.rs`, called only
+  `crates/humanity-systems/src/construction/solver.rs` and `structural.rs`, called only
   from their tests. Shelter Building experience:
-  `src/systems/construction/mod.rs`. Play mode: `src/config.rs`
+  `crates/humanity-systems/src/construction/mod.rs`. Play mode: `src/config.rs`
   (`PlayMode`, `play_mode_allows`); the "Start every session from the
   default home" setting: `src/config.rs` and `src/save_load.rs`.
 - [Foundations and Ground](/library#foundations-and-ground), [Framing a

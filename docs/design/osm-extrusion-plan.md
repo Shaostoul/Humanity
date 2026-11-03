@@ -16,7 +16,7 @@ renderer/floating_origin.rs:1-36 documents the DVec3-absolute /
 f32-camera-relative discipline; CLAUDE.md states the hard rule: planet
 positions and unit directions stay f64 until a coarse-data boundary.
 
-**Chunked LOD.** src/terrain/planet_chunks.rs:1-74 is the design: a
+**Chunked LOD.** crates/humanity-terrain/src/planet_chunks.rs:1-74 is the design: a
 quadtree over the 20 icosahedron faces, PATCH_TESS = 16 (line 105),
 MAX_PATCH_DEPTH = 13 (~54 m triangles) rising to TILE_MAX_PATCH_DEPTH = 20
 (~0.42 m) when the streamed tile tier is installed; split at 12 projected
@@ -34,7 +34,7 @@ src/engine/frame_lock.rs:104-122). Patches draw batched
 **The lat/lon mapping exists and is test-locked.**
 `latlon_to_dir(lat_deg, lon_deg) -> Vec3` and `dir_to_latlon_deg` (+ an
 f64 twin for the forward direction) live in
-src/terrain/planet_heightmap.rs:47-82 (+Y = north pole, east = -z;
+crates/humanity-terrain/src/planet_heightmap.rs:47-82 (+Y = north pole, east = -z;
 round-trip test at 320-340). The probe rig's camera_request uses exactly
 this (src/engine/ipc.rs:823-891). `latlon_to_dir` is f32-only today; the
 region pipeline needs an f64 twin.
@@ -43,10 +43,10 @@ region pipeline needs an f64 twin.
 
 `ground_radius_m(def, hm, detail, tiles, unit_dir: DVec3) -> f64`
 (src/engine/frame_lock.rs:48-95) is THE drawn-ground oracle: routes
-through drawn_elevation_normalized (src/terrain/planet_chunks.rs:633-660)
+through drawn_elevation_normalized (crates/humanity-terrain/src/planet_chunks.rs:633-660)
 = base grid or resident 460 m tile + land-masked fine detail noise at
 FINEST_DETAIL_DEPTH = 24, then displaced_radius_f64_true
-(src/terrain/planet_surface.rs:172-176). Earth's surface_relief 0.003123
+(crates/humanity-terrain/src/planet_surface.rs:172-176). Earth's surface_relief 0.003123
 (data/planets/earth.ron:83) is TRUE 1x vertical scale, so real building
 heights read correctly. The player walk is an analytic clamp against this
 same function; there is NO terrain collider at all (src/lib.rs:3985-4030).
@@ -65,7 +65,7 @@ clamp waterfront buildings need.
   0 panel grid, 1 brushed metal, 2 concrete, 3 wood
   (src/renderer/materials.rs:47-60). One material per RenderObject, so
   per-material batching = one mesh per material class.
-- Ship rooms show the raw quad-emitter pattern (src/ship/rooms.rs:20 ->
+- Ship rooms show the raw quad-emitter pattern (crates/humanity-ship/src/rooms.rs:20 ->
   (Vec<Vertex>, Vec<u32>)), consumed via Mesh::from_vertices
   (src/engine/home_meshes.rs:23-183).
 - **The on-planet precedent is near trees** (src/lib.rs:9640-9762):
@@ -104,7 +104,7 @@ Nothing here is a throwaway.
 
 ### Build steps
 
-**1. New pure module src/terrain/osm_region.rs** (ungated,
+**1. New pure module crates/humanity-terrain/src/osm_region.rs** (ungated,
 headless-testable, in the style of planet_heightmap.rs).
 - Move the HOSMREG1 parser here from cosmos.rs; cosmos.rs re-uses it.
   Keep the exact-EOF walk.
@@ -219,7 +219,7 @@ the relay feature check) and gate the engine/renderer parts native.
 
 ## Implementation files
 
-- src/terrain/osm_region.rs (NEW: parser, projection contract, ear clip,
+- crates/humanity-terrain/src/osm_region.rs (NEW: parser, projection contract, ear clip,
   extrusion mesher, unit tests)
 - src/engine/region_meshes.rs (NEW: residency, background build,
   RenderObject push; state fields in src/engine/state.rs)

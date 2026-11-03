@@ -3,7 +3,7 @@
 // Generalized sibling of scripts/build-earth-albedo.js (Earth keeps its own
 // dedicated script; this one bakes every OTHER body). Same decode, same
 // area-weighted linear-light downsample, same HOSALB1 container consumed by
-// src/terrain/planet_albedo.rs -- plus two source-fixup passes real
+// crates/humanity-terrain/src/planet_albedo.rs -- plus two source-fixup passes real
 // non-Earth maps need:
 //
 //   --roll180     Roll the source columns by half the width. NASA's New

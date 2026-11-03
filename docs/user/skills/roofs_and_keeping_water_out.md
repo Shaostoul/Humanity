@@ -580,10 +580,10 @@ it models a fall from a height. In real life a roof is a large part of a
 building's maintenance, and the danger in looking after one is the
 height.
 
-The shelter test is in `src/systems/construction/uses.rs`
+The shelter test is in `crates/humanity-systems/src/construction/uses.rs`
 (`shelter_at`, `ShelterCheck`), the weather on the body in
-`src/engine/survival_env.rs` and `src/systems/body_heat.rs`, building in
-`src/systems/construction/mod.rs` and taking down in
+`src/engine/survival_env.rs` and `crates/humanity-systems/src/body_heat.rs`, building in
+`crates/humanity-systems/src/construction/mod.rs` and taking down in
 `src/engine/build_place.rs`.
 
 ## You own this when
@@ -760,11 +760,11 @@ is updated in place. Other pages and documents were read on 4 October
 - The Wood Roof and its materials: `data/blueprints/basic.ron`. Building,
   where its materials come from (pack first, then home storage aboard;
   the pack only on a planet) and its experience:
-  `src/systems/construction/mod.rs`. The shelter
+  `crates/humanity-systems/src/construction/mod.rs`. The shelter
   test and the Shelter line's wording:
-  `src/systems/construction/uses.rs`. Rain and
+  `crates/humanity-systems/src/construction/uses.rs`. Rain and
   wind on the body: `src/engine/survival_env.rs` and
-  `src/systems/body_heat.rs`. Taking a piece down:
+  `crates/humanity-systems/src/body_heat.rs`. Taking a piece down:
   `src/engine/build_place.rs`.
 - The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`, its hint in

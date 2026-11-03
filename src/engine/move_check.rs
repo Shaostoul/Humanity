@@ -9,7 +9,7 @@
 //!   - stamps every position update with the newest correction applied (`correction`), so the
 //!     relay can tell the updates sent before it from those sent after;
 //!   - says what a fast move WAS when it was a real one (`declare`, `"moved"`): a teleporter jump
-//!     (lib.rs, the teleporter pads, src/ship/transit.rs), shutting the build editor at the build
+//!     (lib.rs, the teleporter pads, crates/humanity-ship/src/transit.rs), shutting the build editor at the build
 //!     spot (lib.rs, the editor's close), driving (every update while in a cab);
 //!   - while the follow cam watches a vehicle in the shared world, reports where the body stands,
 //!     not the camera hanging behind the vehicle, and puts the camera back there when it ends
@@ -20,7 +20,7 @@
 //!     through; facing the way it walks and turning as a person turns (`walk_step`, BUG-165).
 
 use crate::engine::state::EngineState;
-use crate::ship::moves::MoveDecl;
+use humanity_ship::moves::MoveDecl;
 use glam::Vec3;
 
 /// The sentence a correction shows when the relay sends none of its own.
@@ -128,7 +128,7 @@ pub(crate) fn teleport_rearm(cooldown: f32, on_a_pad: bool, dt: f32) -> (f32, bo
 }
 
 /// The teleporter pads, once a frame (lib.rs): every zone's teleporters (v0.754), as transit
-/// links by id (ship homes increment 4, src/ship/transit.rs). Standing in a pad's footprint (on
+/// links by id (ship homes increment 4, crates/humanity-ship/src/transit.rs). Standing in a pad's footprint (on
 /// its storey, `transit_link_at`), in first person, not building and not in Dev fly mode (flying
 /// through a pad must not yank the traveller across the ship), with the pads re-armed
 /// (`teleport_rearm`), jumps the player to the partner pad: onto its floor, which may be another
@@ -157,7 +157,7 @@ pub(crate) fn teleporter_tick(state: &mut EngineState, dt: f32) {
 /// middle, their eye `eye_height` over its floor (`TransitLink::to_at`, the pad's placed height
 /// plus its zone's), so a jump to a pad upstairs lands upstairs. It used to set x and z only and
 /// keep the height the person had, which put them under or over the far pad's floor.
-pub(crate) fn teleport_landing(link: &crate::ship::transit::TransitLink, eye_height: f32) -> Vec3 {
+pub(crate) fn teleport_landing(link: &humanity_ship::transit::TransitLink, eye_height: f32) -> Vec3 {
     link.to_at + Vec3::Y * eye_height
 }
 
@@ -662,12 +662,12 @@ mod tests {
 mod storey_tests {
     use super::*;
     use crate::engine::footing::test_aboard::*;
-    use crate::ship::wall_collision::EYE_HEIGHT_M as EYE;
+    use humanity_ship::wall_collision::EYE_HEIGHT_M as EYE;
 
     /// The jump `teleporter_tick` makes from where the body's eye is, as it makes it: the link
     /// found there, the body stood at its landing, and the floor re-seated there (the far pad's own
     /// floor if nothing else is under it). The link it took.
-    fn jump(ctl: &mut crate::renderer::camera::CameraController, cam: &mut crate::renderer::camera::Camera, w: &Aboard) -> crate::ship::transit::TransitLink {
+    fn jump(ctl: &mut crate::renderer::camera::CameraController, cam: &mut crate::renderer::camera::Camera, w: &Aboard) -> humanity_ship::transit::TransitLink {
         let link = w.ship.transit_link_at(cam.position).expect("the body stands on a pad");
         let at = teleport_landing(&link, ctl.eye_height());
         cam.position = at;

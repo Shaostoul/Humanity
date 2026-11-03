@@ -891,7 +891,7 @@ edition Washington enforces.
 ### Inside this project
 
 - The Construction page's power runs, cable picker and Buildability
-  checks: `src/gui/pages/construction.rs` and `src/machines.rs`; the
+  checks: `src/gui/pages/construction.rs` and `crates/humanity-ship/src/machines.rs`; the
   locked ship wiring outside the Dev play mode is in the same page.
 - [Electricity and How It Flows](/library#electricity-and-how-it-flows),
   [Working Out Why Something Broke](/library#working-out-why-something-broke),

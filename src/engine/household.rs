@@ -753,7 +753,7 @@ pub const UNANSWERED_S: f64 = 10.0;
 pub const AGAIN_S: f64 = 5.0;
 /// At most one check each this many seconds (shared.rs `SEND_INTERVAL_MS`; the relay's own limit
 /// for permit checks is 200 ms per player).
-pub const CHECK_GAP_S: f64 = crate::systems::construction::shared::SEND_INTERVAL_MS as f64 / 1000.0;
+pub const CHECK_GAP_S: f64 = humanity_systems::construction::shared::SEND_INTERVAL_MS as f64 / 1000.0;
 
 /// The crosshair's words while a held permit for the plot aimed at is still being checked with the
 /// server (plan 3.8), after "Placing Wood Wall: ".
@@ -857,7 +857,7 @@ pub(crate) fn tick(gs: &mut GuiState, now: f64, last_sent: &mut Option<f64>, out
             house.last_req = house.last_req.wrapping_add(1).max(1);
             let req_id = house.last_req;
             let key = hh::PermitKey::of(h);
-            let check = crate::systems::construction::shared::ToRelay::PermitCheck { req_id, permit: h.permit.clone() };
+            let check = humanity_systems::construction::shared::ToRelay::PermitCheck { req_id, permit: h.permit.clone() };
             outbox.push(serde_json::to_string(&check).unwrap_or_default());
             house.asked.insert(req_id, (key.clone(), now));
             // A permit asked about again keeps what the relay said last until it answers, so a
@@ -916,7 +916,7 @@ pub(crate) fn refused_by_server(gs: &mut GuiState, key: hh::PermitKey, why: Why,
 /// The notice when a permit that worked stops working: "Your household permit for plot p1 no
 /// longer works: Ada took it back."
 fn no_longer_works(gs: &GuiState, key: &hh::PermitKey, why: Why) -> String {
-    use crate::systems::construction::shared::{why_words, Action, Reason};
+    use humanity_systems::construction::shared::{why_words, Action, Reason};
     let name = crate::engine::dm::dm_display_name(gs, &key.from);
     let reason = match why {
         Why::PermitNotFromHolder => format!("{name} does not hold that plot any more"),

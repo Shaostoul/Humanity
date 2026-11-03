@@ -124,7 +124,7 @@ pub struct GuiWeather {
     /// prevailing wind plus the weather's own (2026-09-27). The HUD's reading.
     pub wind_at_player: (f32, f32),
     /// What falls at the player, rain and snow (systems::precipitation).
-    pub falling: crate::systems::precipitation::Falling,
+    pub falling: humanity_systems::precipitation::Falling,
     /// Active extreme-weather event display name ("" = none, v0.1035):
     /// the HUD shows this instead of the plain condition while it runs.
     pub event: String,
@@ -731,7 +731,7 @@ pub struct BuildPlacing {
     pub ghost: Option<humanity_core::ecs::components::Transform>,
     /// The frame `ghost` is in: None aboard (the home frame), else the build
     /// site on a planet's ground (2026-09-27, BUG-102).
-    pub site: Option<crate::systems::construction::PlanetSite>,
+    pub site: Option<humanity_systems::construction::PlanetSite>,
     /// The ghost's box is already built there: E would spend the materials
     /// twice, so it does nothing and the hint says why.
     pub occupied: bool,
@@ -777,7 +777,7 @@ pub struct GuiVitals {
     /// Active status effects: (display name, seconds remaining).
     pub effects: Vec<(String, f32)>,
     /// Each wound and illness, with what helps (2026-10-12, `systems::wounds::care_lines`).
-    pub care: Vec<crate::systems::wounds::CareLine>,
+    pub care: Vec<humanity_systems::wounds::CareLine>,
 }
 
 /// An asteroid (with remaining ore) for GUI display.
@@ -1567,7 +1567,7 @@ pub struct MachineLabel {
     /// the walk-up reads, never the label's (0.4 m over its top), `ship::sight::walk_up_target`.
     pub foot_y: f32,
     pub name: String,
-    pub stats: Vec<crate::machines::MachineStat>,
+    pub stats: Vec<humanity_ship::machines::MachineStat>,
     /// The room this machine sits in (for room-based occlusion: a label only shows by
     /// default when you are in its room; hold Tab to see across rooms).
     pub room: String,
@@ -1577,7 +1577,7 @@ pub struct MachineLabel {
     pub machine_id: String,
     /// What E does at it instead of opening its card, from its def's `provides`
     /// (`engine::built_uses::machine_use`): the home's bed sleeps you. None: the card.
-    pub on_use: Option<crate::systems::construction::uses::StructureUse>,
+    pub on_use: Option<humanity_systems::construction::uses::StructureUse>,
 }
 
 #[cfg(feature = "native")]
@@ -1676,7 +1676,7 @@ pub struct EditorOpening {
 #[derive(Clone)]
 pub struct ConstructionRoom {
     pub id: String,
-    pub walls: [crate::ship::fibonacci::WallKind; 4], // N, S, W, E
+    pub walls: [humanity_ship::fibonacci::WallKind; 4], // N, S, W, E
     /// Per-wall opening slide offset (metres along the wall, signed; 0 = centred). (v0.468)
     pub wall_offsets: [f32; 4],
     /// Placed openings (doors/windows/airlocks) on this room's walls (v0.469).

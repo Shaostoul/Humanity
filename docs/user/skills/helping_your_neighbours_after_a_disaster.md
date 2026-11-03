@@ -592,19 +592,19 @@ The game does not model a disaster or a neighbourhood yet.
 
 - **No disasters happen.** The game has a disaster system that lists
   earthquakes, floods, tsunamis, heat waves and more
-  (`src/systems/disasters.rs`), but nothing registers it with the game, so
+  (`crates/humanity-systems/src/disasters.rs`), but nothing registers it with the game, so
   it never runs.
 - **The storms do no damage of their own.** The weather can bring a
   Thunderstorm, a Blizzard, a Tornado or a Meteor Shower
   (`data/weather/events.ron`), and near a Tornado the HUD can tell you to
   take cover, but the damage these events list is not applied by the
   game's code, so none of them hurts you or your home directly
-  (`src/lib.rs`, `src/systems/weather_events.rs`). Only their wind reaches
+  (`src/lib.rs`, `crates/humanity-systems/src/weather_events.rs`). Only their wind reaches
   your body: a Thunderstorm or a Blizzard adds gusts to the wind your body
   heat feels, so a Blizzard can still chill you outdoors. The rain and snow
   they show are drawn on the screen and nothing more; it is the ordinary
-  weather's rain and snow that wet you (`src/systems/weather.rs`,
-  `src/systems/precipitation.rs`, `src/engine/survival_env.rs`).
+  weather's rain and snow that wet you (`crates/humanity-systems/src/weather.rs`,
+  `crates/humanity-systems/src/precipitation.rs`, `src/engine/survival_env.rs`).
 - **No neighbours to check on.** Nobody in the game gets hurt, trapped or
   frightened in a way you can help with. The Leadership skill, which this
   topic belongs to, appears in the skill list (`data/skills/skills.csv`),
@@ -612,12 +612,12 @@ The game does not model a disaster or a neighbourhood yet.
   "Dev: max skills" button, shown only in the Dev play mode and not in
   Normal, where the game starts, raises it, along with every other skill
   (`src/gui/pages/profile.rs`,
-  `src/systems/skills/mod.rs`). The Medicine skill rises by crafting
+  `crates/humanity-systems/src/skills/mod.rs`). The Medicine skill rises by crafting
   medical supplies, not by helping anyone ([First Aid Until Help
   Arrives](first_aid_until_help_arrives.md) has the detail).
 - **No gas, no fire to fight.** There are no gas meters to shut off and no
   buildings damaged by a disaster to judge. The game has a fire system
-  that would spread fire and let it be put out (`src/systems/fire.rs`),
+  that would spread fire and let it be put out (`crates/humanity-systems/src/fire.rs`),
   but nothing registers it either. A Fire Extinguisher appears in the item
   list and in some recipes (`data/items.csv`, `data/recipes.csv`), but it
   has no Use button in the Inventory: only the medical items have one
@@ -785,19 +785,19 @@ used here and the wording is not.
 
 ### Inside this project
 
-- The unregistered disaster and fire systems: `src/systems/disasters.rs`,
-  `src/systems/fire.rs`. The weather
+- The unregistered disaster and fire systems: `crates/humanity-systems/src/disasters.rs`,
+  `crates/humanity-systems/src/fire.rs`. The weather
   events and their unapplied damage: `data/weather/events.ron`,
-  `src/systems/weather_events.rs` and the HUD warning in `src/lib.rs`; the
-  events' gusts added to the wind in `src/systems/weather.rs`, which
+  `crates/humanity-systems/src/weather_events.rs` and the HUD warning in `src/lib.rs`; the
+  events' gusts added to the wind in `crates/humanity-systems/src/weather.rs`, which
   reaches the body through `src/engine/survival_env.rs`, while their rain
   and snow are particle effects only (the emitters in
   `data/weather/events.ron`) and the rain and snow on the body come from
   the ordinary weather (`falling_at_player` in
-  `src/systems/precipitation.rs`). The Leadership and
+  `crates/humanity-systems/src/precipitation.rs`). The Leadership and
   Medicine skills: `data/skills/skills.csv`, with skill experience from
-  crafting in `src/systems/crafting/mod.rs` and the "Dev: max skills"
-  button in `src/gui/pages/profile.rs` and `src/systems/skills/mod.rs`. The Fire
+  crafting in `crates/humanity-systems/src/crafting/mod.rs` and the "Dev: max skills"
+  button in `src/gui/pages/profile.rs` and `crates/humanity-systems/src/skills/mod.rs`. The Fire
   Extinguisher: `data/items.csv`, `data/recipes.csv`; which items have a
   Use button: `src/gui/pages/inventory.rs`, `data/medical/treatments.ron`.
   The "Start every session from the default

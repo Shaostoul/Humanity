@@ -13,13 +13,13 @@
 
 use humanity_core::dev_travel::frame_lock_capture;
 use crate::engine::frame_lock::ground_radius_m;
-use crate::surface_move::ground_sample_dir;
-use crate::surface_walk::{walk_ground_radius, DRAWN_CLEARANCE_M, LOD_CLEARANCE_M};
-use crate::terrain::ocean_mask::OceanMask;
-use crate::terrain::planet::PlanetDef;
-use crate::terrain::planet_chunks as pc;
-use crate::terrain::planet_chunks::DetailNoise;
-use crate::terrain::planet_heightmap::PlanetHeightmap;
+use humanity_systems::surface_move::ground_sample_dir;
+use humanity_systems::surface_walk::{walk_ground_radius, DRAWN_CLEARANCE_M, LOD_CLEARANCE_M};
+use humanity_terrain::ocean_mask::OceanMask;
+use humanity_terrain::planet::PlanetDef;
+use humanity_terrain::planet_chunks as pc;
+use humanity_terrain::planet_chunks::DetailNoise;
+use humanity_terrain::planet_heightmap::PlanetHeightmap;
 use glam::{DQuat, DVec3};
 
 /// A day in 20 real minutes (the 24-hour day at the Simplified time
@@ -85,7 +85,7 @@ impl<'a> StandSim<'a> {
         dir: DVec3,
     ) -> Self {
         let field = ground_radius_m(Some(def), Some(hm), Some(dn), None, dir);
-        let rest = crate::surface_move::rest_height(field, DRAWN_CLEARANCE_M);
+        let rest = humanity_systems::surface_move::rest_height(field, DRAWN_CLEARANCE_M);
         Self {
             def,
             hm,
@@ -159,9 +159,9 @@ impl<'a> StandSim<'a> {
             self.last_clearance
         };
         // lib.rs 4454-4486: rest height, then one frame of radial motion.
-        let rest = crate::surface_move::rest_height(g, clearance);
-        let vs = crate::surface_move::radial_step(
-            crate::surface_move::MoveMode::Walk,
+        let rest = humanity_systems::surface_move::rest_height(g, clearance);
+        let vs = humanity_systems::surface_move::radial_step(
+            humanity_systems::surface_move::MoveMode::Walk,
             true,
             false,
             self.anchor.length(),
@@ -293,7 +293,7 @@ fn drawn_depth_at(
     // Mirrors lib.rs 8810-8820: same reverse-Z projection, same transform
     // into the planet's unrotated frame (here spin 0, camera at the render
     // origin, so the planet offset is -cam_local).
-    let proj = crate::terrain::celestial_projection::celestial_projection_f64(cam.fov_degrees as f64, cam.aspect as f64);
+    let proj = humanity_terrain::celestial_projection::celestial_projection_f64(cam.fov_degrees as f64, cam.aspect as f64);
     let frustum = pc::FrustumPlanes::from_view_proj(&(proj * cam.view_matrix().as_dmat4()))
         .into_local(DQuat::IDENTITY, -cam_local);
     let params = pc::ChunkParams {
@@ -301,9 +301,9 @@ fn drawn_depth_at(
         radius_m: def.radius,
         band: pc::RadialBand {
             min_r_m: def.radius
-                * crate::terrain::planet_surface::displaced_radius_f64(def, 0.0),
+                * humanity_terrain::planet_surface::displaced_radius_f64(def, 0.0),
             max_r_m: def.radius
-                * crate::terrain::planet_surface::displaced_radius_f64(def, 1.0),
+                * humanity_terrain::planet_surface::displaced_radius_f64(def, 1.0),
         },
         max_depth: pc::TILE_MAX_PATCH_DEPTH,
         split_px: SPLIT_PX,

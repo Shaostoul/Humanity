@@ -490,7 +490,7 @@ The game has salt-cured meat, but no curing salt and no smoking.
   the parts are in your backpack, or in your home's storage while you are
   at home, and any tool it needs is in your backpack, and the craft then
   uses up the parts and wears the tool by one use
-  (`src/gui/pages/crafting.rs`, `src/systems/crafting/mod.rs`). The Salt
+  (`src/gui/pages/crafting.rs`, `crates/humanity-systems/src/crafting/mod.rs`). The Salt
   is in the Barn, Raw Mutton comes from the home's sheep and goats, as
   [Keeping Animals](keeping_animals.md) describes, and a new character's
   starting kit holds the Utility Knife (`data/places/seed.json`,
@@ -716,7 +716,7 @@ were read on 4 October 2026.
   `data/machines/home.ron`; the starting kit: `data/world/player.ron`. The
   Crafting page's checks and its "Dev: stock all materials" button:
   `src/gui/pages/crafting.rs`; the craft rules and the skill gate from
-  level 2: `src/systems/crafting/mod.rs`. The unread toxin record:
+  level 2: `crates/humanity-systems/src/crafting/mod.rs`. The unread toxin record:
   `data/chemistry/toxins.csv`. The salting and smoking rows no code reads
   yet: `data/food_system.ron`.
 - The red alder record in `data/locales/silverdale_wa/species.json`.

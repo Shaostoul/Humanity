@@ -11,8 +11,8 @@ use crate::engine::net_route::reload_planet_defs;
 use crate::engine::registries::load_data_registries;
 use crate::engine::state::EngineState;
 use crate::renderer::mesh::Mesh;
-use crate::ship::starts::HomeContent;
-use crate::systems::inventory::ItemRegistry;
+use humanity_ship::starts::HomeContent;
+use humanity_systems::inventory::ItemRegistry;
 
 /// Place a blockman avatar standing on a podium at `base` (the podium floor position),
 /// built from the player's `Appearance` (v0.440). A rudimentary humanoid from boxes +
@@ -146,8 +146,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 "The ship did not load ({why}); the default home is showing instead. Your files were kept. See logs/run.log."
             );
             log::error!("load_world: the ship did not assemble ({why}); the legacy default home is showing instead");
-            let layout = crate::ship::fibonacci::load_layout_or_fallback();
-            let meshes = crate::ship::fibonacci::generate_from_layout(&layout);
+            let layout = humanity_ship::fibonacci::load_layout_or_fallback();
+            let meshes = humanity_ship::fibonacci::generate_from_layout(&layout);
             let info = meshes.room_info.clone();
             state.homestead_layout = Some(layout);
             (meshes, info)
@@ -162,11 +162,11 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // Wall collision segments so the player can't walk through walls from the first frame
     // (v0.556; per-zone origin offsets v0.754).
     state.wall_colliders = match &state.gui_state.ship_structure {
-        Some(ship) => crate::ship::wall_collision::ship_wall_segments(ship),
+        Some(ship) => humanity_ship::wall_collision::ship_wall_segments(ship),
         None => Vec::new(),
     };
     state.sight_colliders = match &state.gui_state.ship_structure {
-        Some(ship) => crate::ship::wall_collision::ship_sight_segments(ship),
+        Some(ship) => humanity_ship::wall_collision::ship_sight_segments(ship),
         None => Vec::new(),
     };
     apply_homestead_meshes(state, homestead);
@@ -256,7 +256,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
     let start_row = crate::engine::save_slot::live_start(&state.data_dir);
     let content = start_row.home_content.clone();
     {
-        let path = crate::persistence::live_save::active_home_machines_path(&state.data_dir);
+        let path = humanity_systems::persistence::live_save::active_home_machines_path(&state.data_dir);
         // The data file's layout, with the character's own machines in the household's place when
         // their save holds a home of their own outside the Dev mode (engine/own_home.rs,
         // 2026-10-04). The editor edits this same layout from here on, so what it shows, what is
@@ -289,7 +289,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // back on the new ones below (2026-09-27, systems::machine_levels):
             // respawning used to reset every bank and tank to half and empty
             // every vessel, at each world entry.
-            let carried_levels = crate::systems::machine_levels::take_all(&mut state.game_world.world);
+            let carried_levels = humanity_systems::machine_levels::take_all(&mut state.game_world.world);
             // Despawn any previously-spawned home machine entities so re-entering the
             // world never duplicates the live power entities (load_world can re-run).
             {
@@ -308,7 +308,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // carrying each room's FUNCTION joined by id from data/rooms.ron (v0.439):
             // the walkable world finally knows what each room is for.
             let room_types =
-                crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+                humanity_ship::room_types::RoomTypeRegistry::load(&state.data_dir);
             // Zone-named rooms resolve through their zone's room_type; legacy ids join on
             // themselves (RoomTypeRegistry::room_bounds, the one place a room becomes a RoomBounds).
             state.gui_state.room_bounds = room_types.room_bounds(&room_info);
@@ -331,7 +331,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 std::collections::HashMap::new();
             // Every machine that is placed (its catalog entry known, its zone or room found), with
             // where it stands, first: their count is how many mesh slots the bodies take.
-            let resolved: Vec<(&crate::machines::MachineInstance, &crate::machines::MachineDef, Vec3)> = all_instances
+            let resolved: Vec<(&humanity_ship::machines::MachineInstance, &humanity_ship::machines::MachineDef, Vec3)> = all_instances
                 .iter()
                 .filter_map(|inst| {
                     let def = home.catalog.get(&inst.machine)?;
@@ -340,8 +340,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
                     let pos = if let Some(zones) = zone_rects.as_deref() {
                         // Zone-local offset at the zone's origin (increment 1a): the same
                         // `zone_world_pos` placements() uses, so the two cannot drift.
-                        let zr = crate::machines::resolve_zone_rect(zones, &inst.zone)?;
-                        let (x, y, z) = crate::machines::zone_world_pos(zr, inst.offset);
+                        let zr = humanity_ship::machines::resolve_zone_rect(zones, &inst.zone)?;
+                        let (x, y, z) = humanity_ship::machines::zone_world_pos(zr, inst.offset);
                         Vec3::new(x, y, z)
                     } else {
                         let &(center, floor_y, _ceiling_y) = rooms.get(inst.room.as_str())?;
@@ -368,7 +368,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                     Some(pos),
                     state
                         .data_store
-                        .get::<crate::systems::inventory::containers::ContainerRegistry>(
+                        .get::<humanity_systems::inventory::containers::ContainerRegistry>(
                             "container_registry",
                         ),
                 );
@@ -379,7 +379,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // Their levels back, by instance id. What is left belongs to a machine
             // no longer in the layout, which takes its contents with it, as
             // removing one in the editor always has.
-            let orphaned = crate::systems::machine_levels::apply(&mut state.game_world.world, &carried_levels);
+            let orphaned = humanity_systems::machine_levels::apply(&mut state.game_world.world, &carried_levels);
             if !orphaned.is_empty() {
                 log::warn!("Machines: {} saved machine levels had no machine to go to: {:?}", orphaned.len(), orphaned);
             }
@@ -521,28 +521,28 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // GAME clock, and the same elements are used here and every frame after.
     {
         state.gui_state.credits = humanity_core::credits::Credits::load(&state.data_dir);
-        let defs = crate::station::load_all(&state.data_dir);
-        state.station_def = crate::station::home(&defs);
-        let (pos, vel) = crate::station::orbit::propagate(
+        let defs = humanity_ship::station::load_all(&state.data_dir);
+        state.station_def = humanity_ship::station::home(&defs);
+        let (pos, vel) = humanity_ship::station::orbit::propagate(
             &state.station_def.orbit,
-            crate::station::orbit::MU_EARTH,
-            crate::station::orbit::REAL_SECONDS_PER_DAY,
+            humanity_ship::station::orbit::MU_EARTH,
+            humanity_ship::station::orbit::REAL_SECONDS_PER_DAY,
             0.0,
-            crate::systems::time::EARTH_DAY_S,
+            humanity_systems::time::EARTH_DAY_S,
         );
         state.station_world_pos = pos;
         state.station_world_rot =
-            crate::station::orbit::attitude(&state.station_def.attitude, pos, vel);
+            humanity_ship::station::orbit::attitude(&state.station_def.attitude, pos, vel);
         state.ship_world_pos = pos;
         // The longitude the home hangs over, so its panels, grow lights and
         // crops see the sun the deck sees and the HUD reads the deck's time
         // (BUG-090). A home on any other orbit has no fixed place below it
         // and keeps the game clock (longitude 0).
-        if let Some(lon) = crate::station::orbit::hang_longitude_deg(
+        if let Some(lon) = humanity_ship::station::orbit::hang_longitude_deg(
             &state.station_def.orbit,
-            crate::systems::time::EARTH_DAY_S,
+            humanity_systems::time::EARTH_DAY_S,
         ) {
-            state.data_store.insert(crate::systems::time::HOME_LONGITUDE_KEY, lon);
+            state.data_store.insert(humanity_systems::time::HOME_LONGITUDE_KEY, lon);
         }
         log::info!(
             "station: {} on a {:.0} km orbit of {}, {:?}",
@@ -683,8 +683,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // data/rooms.ron rather than from a room id, so any authored home puts it
     // in the right place by naming a room type.
     let appearance_room = {
-        let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
-        let opens = |r: &crate::ship::fibonacci::RoomInfo, page: &str| {
+        let reg = humanity_ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+        let opens = |r: &humanity_ship::fibonacci::RoomInfo, page: &str| {
             reg.action_pages(r).iter().any(|p| p == page)
         };
         room_info
@@ -800,12 +800,12 @@ pub(crate) fn spawn_herd(
     machine_world_pos: &std::collections::HashMap<String, Vec3>,
     carries: bool,
 ) -> usize {
-    let saved_timers = crate::systems::livestock::take_pending_herd(data)
-        .unwrap_or_else(|| crate::systems::livestock::herd_timers(world));
+    let saved_timers = humanity_systems::livestock::take_pending_herd(data)
+        .unwrap_or_else(|| humanity_systems::livestock::herd_timers(world));
     // How each is kept (fed, watered, how long short) goes to the
     // new herd the same way: the save's, else the previous herd's
     // (systems::animal_care, 2026-10-12).
-    crate::systems::animal_care::hold_current(world, data);
+    humanity_systems::animal_care::hold_current(world, data);
     let old: Vec<hecs::Entity> = world.query::<&humanity_core::ecs::components::Creature>()
         .iter()
         .map(|(e, _)| e)
@@ -818,8 +818,8 @@ pub(crate) fn spawn_herd(
     }
     let mut bundles = Vec::new();
     if let (Some(reg), Some(list)) = (
-        data.get::<crate::systems::livestock::CreatureRegistry>("creature_registry"),
-        data.get::<crate::systems::livestock::LivestockSpawnList>("livestock_spawn_list"),
+        data.get::<humanity_systems::livestock::CreatureRegistry>("creature_registry"),
+        data.get::<humanity_systems::livestock::LivestockSpawnList>("livestock_spawn_list"),
     ) {
         let items = data.get::<ItemRegistry>("item_registry");
         let mut per_species: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
@@ -842,10 +842,10 @@ pub(crate) fn spawn_herd(
                 let r = p.spread * (0.45 + 0.55 * (i as f32 + 1.0) / p.count as f32);
                 let pos = anchor + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
                 let n = per_species.entry(def.id.as_str()).or_insert(0);
-                let slot = crate::systems::livestock::herd_slot(&def.id, *n);
+                let slot = humanity_systems::livestock::herd_slot(&def.id, *n);
                 *n += 1;
                 // An animal that died stays dead (2026-10-12).
-                if crate::systems::animal_care::is_lost(data, &slot) {
+                if humanity_systems::animal_care::is_lost(data, &slot) {
                     continue;
                 }
                 let since = saved_timers
@@ -873,7 +873,7 @@ pub(crate) fn spawn_herd(
                         regrow_time: product.regrow_s,
                         time_since_harvest: since, // ready on arrival unless saved
                     },
-                    crate::systems::livestock::HerdSlot(slot),
+                    humanity_systems::livestock::HerdSlot(slot),
                     // Combat arc (v0.760): animals are living
                     // entities - real health from the species
                     // + a resolved loot table for the kill.
@@ -928,8 +928,8 @@ pub(crate) fn spawn_wilds(
     }
     let mut bundles = Vec::new();
     if let (Some(reg), Some(list)) = (
-        data.get::<crate::systems::livestock::CreatureRegistry>("creature_registry"),
-        data.get::<crate::systems::livestock::WildSpawnList>("wild_spawn_list"),
+        data.get::<humanity_systems::livestock::CreatureRegistry>("creature_registry"),
+        data.get::<humanity_systems::livestock::WildSpawnList>("wild_spawn_list"),
     ) {
         let items = data.get::<ItemRegistry>("item_registry");
         for (si, s) in list.spawns.iter().enumerate() {
@@ -942,7 +942,7 @@ pub(crate) fn spawn_wilds(
             // operator: "disable the wolves"). Dev-page spawns are unaffected.
             if !hostile_wildlife
                 && matches!(
-                    crate::systems::livestock::behavior_type_for(def),
+                    humanity_systems::livestock::behavior_type_for(def),
                     "predator" | "aggressive"
                 )
             {
@@ -976,7 +976,7 @@ pub(crate) fn spawn_wilds(
                         entries: def.loot_entries(items),
                     },
                     humanity_core::ecs::components::AIBehavior {
-                        behavior_type: crate::systems::livestock::behavior_type_for(def)
+                        behavior_type: humanity_systems::livestock::behavior_type_for(def)
                             .to_string(),
                         state: "idle".to_string(),
                         target: None,
@@ -1348,7 +1348,7 @@ pub(crate) fn refresh_home_content(state: &mut EngineState) {
 /// (`own_air`); a home on the ship's ventilation (a cabin) gets none, and its player breathes the
 /// ship's air there (ship/ship_space.rs `air_spaces_for`). Pure on the world.
 pub(crate) fn replace_home_air(world: &mut hecs::World, own_air: bool, metabolic_kcal_per_day: f32, volume_m3: f32) {
-    let old: Vec<hecs::Entity> = world.query::<&crate::systems::atmosphere::HomeAir>().iter().map(|(e, _)| e).collect();
+    let old: Vec<hecs::Entity> = world.query::<&humanity_systems::atmosphere::HomeAir>().iter().map(|(e, _)| e).collect();
     for e in old {
         let _ = world.despawn(e);
     }

@@ -17,8 +17,8 @@
 
 use super::*;
 use crate::renderer::camera::CameraController;
-use crate::surface_move::{radial_step, rest_height, walk_rest, MoveMode, RadialStep};
-use crate::surface_walk::DRAWN_CLEARANCE_M;
+use humanity_systems::surface_move::{radial_step, rest_height, walk_rest, MoveMode, RadialStep};
+use humanity_systems::surface_walk::DRAWN_CLEARANCE_M;
 use humanity_core::ecs::components::EYE_HEIGHT_M;
 
 const EARTH_R: f64 = 6_371_000.0;
@@ -35,7 +35,7 @@ fn shipped() -> BlueprintRegistry {
 /// A site on the sphere of Earth's radius at a latitude and longitude (open Sahara sand, the
 /// verify-falls planet ground, by default).
 fn site_at(lat: f64, lon: f64) -> PlanetSite {
-    PlanetSite { body: "earth".into(), origin: crate::terrain::osm_region::latlon_to_dir_f64(lat, lon) * EARTH_R }
+    PlanetSite { body: "earth".into(), origin: humanity_terrain::osm_region::latlon_to_dir_f64(lat, lon) * EARTH_R }
 }
 
 /// Build `pieces` (id, x, z, quarter turns) in `site` the way the ghost and the dev `build` verb

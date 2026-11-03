@@ -979,7 +979,7 @@ verify-starts *ARGS:
 verify-household *ARGS:
     node scripts/verify-copresence.js --household "$@"
 
-# Proves in the REAL game that falls hurt the player the way src/systems/falls.rs and
+# Proves in the REAL game that falls hurt the player the way crates/humanity-systems/src/falls.rs and
 # data/medical/falls.ron say (2026-10-20). BOOTS ONE game in its own portable sandbox
 # (.probe-rig/falls: background, never focused, silent, no server), enters the world by the dev
 # autopilot (the rig's own home, aboard the homestead) and walks the player up stairs-1 and off

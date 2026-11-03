@@ -656,7 +656,7 @@ public domain. Web pages were read on 3 October 2026.
   `insecticidal_soap_0`, `cement_0`, `gravel_0`, `concrete_block_0`).
 - One batch per press: the Craft button in `src/gui/pages/crafting.rs`.
 - Crafting by hand without using up ingredients in the Dev and Creative
-  play modes: the `creative_mode` checks in `src/systems/crafting/mod.rs`
+  play modes: the `creative_mode` checks in `crates/humanity-systems/src/crafting/mod.rs`
   and `play_mode_allows` in `src/config.rs`; the "Start every session
   from the default home" setting (`src/config.rs`, `src/save_load.rs`).
 - The Calculator's left-to-right evaluation: `evaluate_expression` in

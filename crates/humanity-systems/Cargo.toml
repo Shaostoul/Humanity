@@ -1,0 +1,47 @@
+# humanity-systems (docs/crates/humanity-systems.md): the simulation, what happens in the world and why:
+# farming, building, crafting, food, the body, weather and the environment, creatures, the economy and the
+# quests, the save's shape (persistence) and walking and moving on a planet. It draws nothing and the
+# server compiles it too. It uses the core, the ship and the terrain. Cut out of the one crate in the crate
+# split's rung 2 (2026-11-02, docs/design/crate-split.md).
+[package]
+name = "humanity-systems"
+version.workspace = true
+edition.workspace = true
+publish = false
+# Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
+build = "../repo_root.rs"
+
+[features]
+# The same default as the root package, so `cargo test -p humanity-systems` tests what the app builds.
+default = ["native"]
+# The desktop app's parts: which save is live (persistence::live_save), a server save's file
+# (persistence::slot_path), the rooms published with their names (farming::humidity) and the home
+# store's words from the word source (crafting::home_store). The root's `native` turns it on; the
+# server build (`--features relay --no-default-features`) leaves it off.
+native = ["humanity-core/native", "humanity-ship/native", "humanity-terrain/native"]
+# The fixtures other crates' tests share (the farm's stores, the wounds and spoilage helpers, the
+# climate table, the fall constants, the built-in meal rules, an old status-effects file). A crate's
+# #[cfg(test)] items are never compiled into another crate's tests, so a dependent turns this on in
+# its [dev-dependencies] only; no product build carries it.
+test-support = []
+
+[dependencies]
+humanity-core = { path = "../humanity-core", default-features = false }
+humanity-ship = { path = "../humanity-ship", default-features = false }
+humanity-terrain = { path = "../humanity-terrain", default-features = false }
+blake3 = { workspace = true }
+glam = { workspace = true }
+hecs = { workspace = true }
+log = { workspace = true }
+rand = { workspace = true }
+rapier3d = { workspace = true }
+ron = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# The core's test helpers, and the ship's and the terrain's fixtures (the corridor ship, the shipped ship
+# assembled, the Silverdale region and its mask registry's hold).
+humanity-core = { path = "../humanity-core", default-features = false, features = ["test-support"] }
+humanity-ship = { path = "../humanity-ship", default-features = false, features = ["test-support"] }
+humanity-terrain = { path = "../humanity-terrain", default-features = false, features = ["test-support"] }

@@ -15,7 +15,7 @@ Code map:
 | A page rendered into a texture | `src/gui/screen_surface.rs` (`ScreenCore`, `ScreenSurface`) |
 | World quads, look-ray hits, input routing, per-frame drawing | `src/engine/screens.rs` |
 | The screen material (type 24) | `src/renderer/materials.rs` (`MATERIAL_TYPE_SCREEN`, `add_material_with_albedo_view`), `assets/shaders/pbr/90-fragment-main.wgsl` |
-| Data shape | `src/machines.rs` (`ScreenDef`, `MachineInstance.screen_source`), `data/machines/home.ron`, `home_solo.ron` |
+| Data shape | `crates/humanity-ship/src/machines.rs` (`ScreenDef`, `MachineInstance.screen_source`), `data/machines/home.ron`, `home_solo.ron` |
 | Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`, `WorldRender`, `LoadState`, `ScreenWorld`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/live.rs` (the live stream), `src/engine/screens/camera.rs` (the in-game camera) |
 | One view of the world from any pose | `src/engine/ipc.rs` (`render_view_onto`, `ViewPasses`), shared by the hi-res screenshot and the camera screens |
 | The web provider (rung 6) | `src/engine/screens/web.rs` (`WebProvider`) |
@@ -414,7 +414,7 @@ camera pays for it explicitly by raising `camera_px`. Yaw 0 is the body's front 
 instance's `rotation` ADDS to it, so turning the post in the editor turns
 the camera; pitch is positive up (a mounted camera looks a little down);
 fov is the vertical field of view. `PlacedMachine::camera_pose`
-(`src/machines.rs`) resolves the lens: just below the machine's top, on its
+(`crates/humanity-ship/src/machines.rs`) resolves the lens: just below the machine's top, on its
 FRONT face (so the post's own body is behind the near plane), yaw = def yaw
 + rotation, pitch clamped to 89 degrees either way, fov to 10..150.
 `engine::screens::camera_posts_from` collects every post's pose on every

@@ -1,7 +1,7 @@
 #![enable(implicit_some)]
 // Fittings: the pieces that join, turn, branch, end or pass a run through a wall (2026-11-02,
 // spline routing rung 0, docs/design/spline-routing.md sections 5.3 and 6.2). Read by
-// src/ship/run_fittings.rs (disk first, the copy built into the exe if this file is missing or
+// crates/humanity-ship/src/run_fittings.rs (disk first, the copy built into the exe if this file is missing or
 // does not parse). Nothing places them yet: the curve core (rung 3) turns a rigid corner with one
 // of these, and the mesh (rung 4) draws them.
 //
@@ -215,7 +215,7 @@
             materials: [],
             angles_deg: [],
             mesh: (body: 1.6, length: 1.0),
-            source: [Ours("the passthrough gasket the game has drawn where a run crosses an interior wall since v0.535 (src/ship/conduits.rs FittingKind::Passthrough); empty materials: it fits any run")],
+            source: [Ours("the passthrough gasket the game has drawn where a run crosses an interior wall since v0.535 (crates/humanity-ship/src/conduits.rs FittingKind::Passthrough); empty materials: it fits any run")],
         ),
         (
             id: "cable_gland",

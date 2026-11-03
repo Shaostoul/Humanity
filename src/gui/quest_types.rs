@@ -6,7 +6,7 @@
 //! QuestTracker every frame): they live here, beside the type, so lib.rs stays the frame's
 //! wiring and not its arithmetic.
 
-use crate::systems::quests::{chain, ActiveQuest, QuestRegistry};
+use humanity_systems::quests::{chain, ActiveQuest, QuestRegistry};
 
 /// A player quest for GUI display, synced from the ECS QuestTracker each frame.
 /// Active quests carry their current step (index/total + description), the chain they belong

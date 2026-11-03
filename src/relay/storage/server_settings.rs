@@ -249,7 +249,7 @@ pub const ERASED_ACCOUNTS_CAP_RANGE: (i64, i64) = (1, 1_000_000);
 /// by `a_fresh_database_runs_the_shared_world_in_real_time` and
 /// `a_server_from_before_the_world_clock_upgrades_to_real_time`.
 pub fn default_world_time_scale() -> f64 {
-    f64::from(crate::systems::time::REALISTIC_TIME_SPEED)
+    f64::from(humanity_systems::time::REALISTIC_TIME_SPEED)
 }
 
 /// The fleet's supply on a new server, and on one whose stored value is not a mode this code
@@ -277,7 +277,7 @@ pub fn fleet_supply_mode_of(v: &str) -> Option<&'static str> {
 /// 1,000). None for a value that is not a number at all, so a bad message
 /// leaves the clock as it was rather than stopping or racing it.
 pub fn clamp_world_time_scale(v: f64) -> Option<f64> {
-    use crate::systems::time::{MAX_TIME_SPEED, MIN_TIME_SPEED};
+    use humanity_systems::time::{MAX_TIME_SPEED, MIN_TIME_SPEED};
     v.is_finite().then(|| v.clamp(f64::from(MIN_TIME_SPEED), f64::from(MAX_TIME_SPEED)))
 }
 
@@ -708,7 +708,7 @@ mod tests {
             })
             .expect("the column has a DEFAULT");
         assert_eq!(schema_default.parse::<f64>().ok(), Some(1.0), "the column's DEFAULT is 1, not {schema_default}");
-        assert_eq!(default_world_time_scale(), f64::from(crate::systems::time::REALISTIC_TIME_SPEED), "the code's default is the Realistic speed");
+        assert_eq!(default_world_time_scale(), f64::from(humanity_systems::time::REALISTIC_TIME_SPEED), "the code's default is the Realistic speed");
         assert_eq!(db.get_server_settings().expect("get").world_time_scale, 1.0);
     }
 

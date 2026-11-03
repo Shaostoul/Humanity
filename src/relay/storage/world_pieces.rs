@@ -15,7 +15,7 @@
 //!
 //! - `world_id` is the ship's id from the ship file, as `game_plots` keeps it, so a later fleet
 //!   of ships keeps one set of pieces per ship.
-//! - `frame` is where the piece is kept (src/ship/build_frames.rs): a plot, `plot:p3`, or one of
+//! - `frame` is where the piece is kept (crates/humanity-ship/src/build_frames.rs): a plot, `plot:p3`, or one of
 //!   the ship's shared spaces, `zone:commons`. The pose is measured from that frame's corner.
 //! - The pose columns hold what the relay kept after its checks
 //!   (systems/construction/shared.rs `pose_in_frame`): the canonical pose, on the grid, turned a
@@ -39,7 +39,7 @@
 //! (storage/account.rs, found under its `did:hum:` like its plot).
 
 use super::Storage;
-use crate::systems::construction::shared::Piece;
+use humanity_systems::construction::shared::Piece;
 use rusqlite::params;
 
 /// One piece about to be kept: what the relay checked and accepted, in its frame's terms.
@@ -47,7 +47,7 @@ use rusqlite::params;
 pub struct NewPiece {
     /// The ship's id (the ship file's), as `game_plots` keeps it.
     pub world_id: String,
-    /// The frame it is kept in: `plot:p3`, `zone:commons` (src/ship/build_frames.rs).
+    /// The frame it is kept in: `plot:p3`, `zone:commons` (crates/humanity-ship/src/build_frames.rs).
     pub frame: String,
     /// Which blueprint (data/blueprints/basic.ron).
     pub blueprint_id: String,

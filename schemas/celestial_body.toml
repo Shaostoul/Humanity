@@ -16,12 +16,12 @@
 # but has no landable surface).
 #
 # ENGINE INTEGRATION:
-#   Terrain Generation (src/terrain/)
-#     - Icosphere (src/terrain/icosphere.rs): Base mesh for planets/moons.
+#   Terrain Generation (crates/humanity-terrain/src/)
+#     - Icosphere (crates/humanity-terrain/src/icosphere.rs): Base mesh for planets/moons.
 #       Starts as a 20-face icosahedron, subdivided recursively. At level N:
 #       20 * 4^N faces. Projected onto a sphere of the body's radius.
-#     - Planet defs (src/terrain/planet.rs): PlanetDef struct loaded from RON.
-#     - Sky surfaces (src/terrain/planet_surface.rs, v0.763): procedural
+#     - Planet defs (crates/humanity-terrain/src/planet.rs): PlanetDef struct loaded from RON.
+#     - Sky surfaces (crates/humanity-terrain/src/planet_surface.rs, v0.763): procedural
 #       fractal surface + per-face color from terrain_seed. Subdivision level
 #       is SCREEN-SIZE-driven (projected pixel diameter; one more level per
 #       doubling past a settings threshold, capped by a settings max level):
@@ -31,19 +31,19 @@
 #         ...doubling...
 #         cap       : level 7 (327,680 faces)
 #       (Defaults; both knobs live tune in Settings -> Graphics -> Planets.)
-#     - PlanetRenderer's distance-based LOD ladder (also src/terrain/planet.rs)
+#     - PlanetRenderer's distance-based LOD ladder (also crates/humanity-terrain/src/planet.rs)
 #       remains the seed for the future landing arc (chunked near-surface
 #       subdivision down to walkable resolution).
-#     - Asteroid (src/terrain/asteroid.rs): Sparse octree voxel mesh
+#     - Asteroid (crates/humanity-terrain/src/asteroid.rs): Sparse octree voxel mesh
 #       with greedy meshing. Used for small irregular bodies.
-#     - Heightmap (src/terrain/heightmap.rs): Fine-detail terrain at
+#     - Heightmap (crates/humanity-terrain/src/heightmap.rs): Fine-detail terrain at
 #       surface level, blended with icosphere at transition distance.
 #
 #   Solar System Map — The orbital tree from bodies.json renders as an
 #     interactive 3D map. Bodies orbit their parent using Keplerian elements.
 #     The map supports time warp to visualize orbital mechanics.
 #
-#   Biome/Weather — src/systems/weather.rs and src/systems/ecology.rs
+#   Biome/Weather — crates/humanity-systems/src/weather.rs and crates/humanity-systems/src/ecology.rs
 #     - biomes list references biome definitions (temperature, precipitation, flora/fauna)
 #     - atmosphere composition and pressure determine weather patterns
 #     - axial_tilt + orbital_period drive seasonal variation
@@ -364,7 +364,7 @@ constraints = "Max 512 characters."
 #   8. LOD dynamically adjusts as camera moves (subdivide approaching faces,
 #      collapse distant faces)
 #
-# SKY RENDERING (v0.763, src/terrain/planet_surface.rs): bodies seen from the
+# SKY RENDERING (v0.763, crates/humanity-terrain/src/planet_surface.rs): bodies seen from the
 # homestead render as whole-sphere icospheres whose subdivision level follows
 # the body's PROJECTED PIXEL SIZE (one more level per doubling past a
 # threshold; both knobs live in Settings -> Graphics -> Planets). Land is
@@ -429,7 +429,7 @@ constraints = "Max 512 characters."
 #     axial_tilt: 0.0017,
 #
 #     // Procedural sky-surface fields (v0.763, all optional with defaults;
-#     // consumed by src/terrain/planet_surface.rs). Shipped examples:
+#     // consumed by crates/humanity-terrain/src/planet_surface.rs). Shipped examples:
 #     // data/planets/earth.ron, mars.ron, moon.ron.
 #     surface_relief: 0.02,        // max land displacement, fraction of radius
 #     noise_frequency: 2.2,        // base elevation-noise frequency

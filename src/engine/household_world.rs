@@ -23,10 +23,10 @@ use crate::relay::storage::plot_owner_id;
 pub(crate) fn open_for(
     household: &mut hh::Household,
     held: &[HeldPermit],
-    ship: &crate::ship::ship_structure::ShipStructure,
+    ship: &humanity_ship::ship_structure::ShipStructure,
     standing: Option<glam::Vec3>,
     now_s: u64,
-) -> crate::ship::ship_structure::OpenPlots {
+) -> humanity_ship::ship_structure::OpenPlots {
     // Nothing held: nothing usable, and no set of the ship's plots built every frame for it.
     household.usable = if held.is_empty() {
         BTreeSet::new()
@@ -46,12 +46,12 @@ pub(crate) fn open_for(
     }
     household.lit = here.filter(|h| walkable.contains(h));
     household.walkable = walkable;
-    crate::ship::ship_structure::OpenPlots { plots: household.walkable.clone(), lit: household.lit.clone() }
+    humanity_ship::ship_structure::OpenPlots { plots: household.walkable.clone(), lit: household.lit.clone() }
 }
 
 /// Make `ship.open` `want`; true when it changed. Compared with the LIVE ship each frame, so a ship
 /// rebuilt since (which starts with nothing open) is opened again.
-pub(crate) fn set_open(ship: &mut crate::ship::ship_structure::ShipStructure, want: crate::ship::ship_structure::OpenPlots) -> bool {
+pub(crate) fn set_open(ship: &mut humanity_ship::ship_structure::ShipStructure, want: humanity_ship::ship_structure::OpenPlots) -> bool {
     if ship.open == want {
         return false;
     }
@@ -96,7 +96,7 @@ pub(crate) fn probe_json(state: &crate::engine::state::EngineState) -> serde_jso
 /// - `mouths`: each neighbour plot's corridor door mouths, both ends, with `others_only` (true:
 ///   shut to this player) and `open` (the doors' largest open fraction);
 /// - `checks_waiting`, `sending`, `withdrawals_waiting` and `line`.
-pub(crate) fn probe_core(gs: &GuiState, doors: &[(crate::ship::door_panels::PanelPlacement, f32)]) -> serde_json::Value {
+pub(crate) fn probe_core(gs: &GuiState, doors: &[(humanity_ship::door_panels::PanelPlacement, f32)]) -> serde_json::Value {
     use serde_json::json;
     let store = gs.dm_store.as_ref();
     let household = &gs.household;
@@ -193,10 +193,10 @@ fn standing_json(s: &Standing) -> serde_json::Value {
 /// door halves stand in it, whether they open only for the other players (`others_only`, null with
 /// none), and how far open they are (the larger fraction). The halves are found by where they stand
 /// among the neighbours' doors, which `ship_panel_placements` puts last.
-fn mouths_json(ship: &crate::ship::ship_structure::ShipStructure, doors: &[(crate::ship::door_panels::PanelPlacement, f32)]) -> serde_json::Value {
-    use crate::ship::ship_structure::CorridorAxis;
-    let view = crate::ship::neighbours::neighbour_view(ship);
-    let tail_len = crate::ship::door_panels::neighbour_panel_placements(ship).len();
+fn mouths_json(ship: &humanity_ship::ship_structure::ShipStructure, doors: &[(humanity_ship::door_panels::PanelPlacement, f32)]) -> serde_json::Value {
+    use humanity_ship::ship_structure::CorridorAxis;
+    let view = humanity_ship::neighbours::neighbour_view(ship);
+    let tail_len = humanity_ship::door_panels::neighbour_panel_placements(ship).len();
     let tail = &doors[doors.len().saturating_sub(tail_len)..];
     let mut out: std::collections::BTreeMap<String, Vec<serde_json::Value>> = std::collections::BTreeMap::new();
     for (plot, m) in view.mouths_by_plot(ship) {
@@ -211,7 +211,7 @@ fn mouths_json(ship: &crate::ship::ship_structure::ShipStructure, doors: &[(crat
             };
             (along - m.plane).abs() < 0.05 && (across - m.lat).abs() <= m.door.0 * 0.5 + 0.01 && (c.y - m.floor_y).abs() < 0.05
         };
-        let halves: Vec<&(crate::ship::door_panels::PanelPlacement, f32)> = tail.iter().filter(|(p, _)| in_mouth(p.center)).collect();
+        let halves: Vec<&(humanity_ship::door_panels::PanelPlacement, f32)> = tail.iter().filter(|(p, _)| in_mouth(p.center)).collect();
         let others_only = (!halves.is_empty()).then(|| halves.iter().all(|(p, _)| p.others_only));
         let open = halves.iter().map(|(_, f)| *f).fold(0.0f32, f32::max);
         out.entry(plot.to_string()).or_default().push(serde_json::json!({

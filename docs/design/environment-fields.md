@@ -82,7 +82,7 @@ smoothstepped from the radius inward by the softness fraction.
 
 ## What should have a latitude, a longitude and a size
 
-The audit, from `src/systems/`. The short answer to the operator's question is
+The audit, from `crates/humanity-systems/src/`. The short answer to the operator's question is
 "almost everything we call environmental, and today almost none of it does."
 
 **Already positioned, keep as is:** terrain and its 16 biomes; the MODIS cloud
@@ -438,7 +438,7 @@ lever if it matters.
 
 ## Layer 1 as built (2026-09-27, PRIORITIES item 1 step 3)
 
-Code: `src/systems/env_layer1.rs` (CPU, f64), `EnvClimate` and the `env_l1_*`
+Code: `crates/humanity-systems/src/env_layer1.rs` (CPU, f64), `EnvClimate` and the `env_l1_*`
 functions in `assets/shaders/pbr/00-bindings-vertex.wgsl` (GPU, f32), one row
 per world in `data/environment/climate.ron`, and Earth's numbers reproducible
 with `node scripts/climate-fit.js`.
@@ -560,7 +560,7 @@ next: see the section below.
 
 ## Rain or snow, decided by the air (2026-09-27)
 
-Code: `src/systems/precipitation.rs`. The first two CPU consumers of Layer 1
+Code: `crates/humanity-systems/src/precipitation.rs`. The first two CPU consumers of Layer 1
 after the body heat model.
 
 **What changed.** The condition still names the weather SYSTEM (its clouds, its

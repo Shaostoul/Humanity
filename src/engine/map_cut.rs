@@ -26,7 +26,7 @@ use crate::engine::editor::Cuts;
 use crate::engine::state::EngineState;
 use crate::gui::{GuiPage, GuiState};
 use crate::renderer::RenderObject;
-use crate::ship::levels::{self, ShipLevel};
+use humanity_ship::levels::{self, ShipLevel};
 
 /// The level the Maps page shows cut open, when the home should be drawn cut for it: the page
 /// open, a level shown (`ship_view::shown_level`: picked, or yours on the plan; aboard, near the
@@ -49,7 +49,7 @@ pub(crate) fn map_cuts(g: &GuiState) -> Cuts {
 }
 
 /// The home's shell for the Maps page's level (`levels::level_meshes`), None for the whole ship.
-pub(crate) fn map_level_meshes(g: &GuiState) -> Option<crate::ship::fibonacci::HomesteadMeshes> {
+pub(crate) fn map_level_meshes(g: &GuiState) -> Option<humanity_ship::fibonacci::HomesteadMeshes> {
     let level = map_level(g)?;
     levels::level_meshes(g.ship_structure.as_ref()?, &level)
 }

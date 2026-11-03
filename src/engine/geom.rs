@@ -10,7 +10,7 @@ pub(crate) const LIGHT_RING_ANGULAR_RADIUS: f32 = 0.05;
 /// seal), else to the box perimeter if near an edge, else to the 0.25 m grid when grid snap is
 /// on. Always clamped into the box footprint. (v0.541)
 pub(crate) fn snap_node_position(
-    hs: &crate::ship::home_structure::HomeStructure,
+    hs: &humanity_ship::home_structure::HomeStructure,
     grabbed: (f32, f32),
     raw: (f32, f32),
     grid: bool,
@@ -31,7 +31,7 @@ pub(crate) fn snap_node_position(
     if let Some((c, _)) = best {
         // Snap onto the existing corner, quantized to the corner grid so the two become
         // BYTE-IDENTICAL (one orb, one draggable group; no overlapping-but-distinct duplicate).
-        return crate::ship::home_structure::quantize_corner(c);
+        return humanity_ship::home_structure::quantize_corner(c);
     }
     // 2. Grid snap, then edge snap to the box perimeter.
     let (w, d) = (hs.width, hs.depth);
@@ -51,7 +51,7 @@ pub(crate) fn snap_node_position(
     } else if z > d - 0.5 {
         z = d;
     }
-    crate::ship::home_structure::quantize_corner((x.clamp(0.0, w), z.clamp(0.0, d)))
+    humanity_ship::home_structure::quantize_corner((x.clamp(0.0, w), z.clamp(0.0, d)))
 }
 
 /// Snap (x,z) to the nearest other object's X and/or Z within `tol` metres (independent per axis),
@@ -125,7 +125,7 @@ pub(crate) fn light_ring_pick_tolerance(ring_radius: f32) -> f32 {
 pub(crate) fn range_sphere_edges() -> &'static [(Vec3, Vec3)] {
     static EDGES: std::sync::OnceLock<Vec<(Vec3, Vec3)>> = std::sync::OnceLock::new();
     EDGES.get_or_init(|| {
-        let mut ico = crate::terrain::icosphere::Icosphere::new();
+        let mut ico = humanity_terrain::icosphere::Icosphere::new();
         ico.subdivide_n(2);
         // Faces share edges; dedupe on the (min, max) index pair so each edge draws once.
         let mut seen = std::collections::HashSet::new();

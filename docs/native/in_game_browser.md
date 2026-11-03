@@ -154,7 +154,7 @@ min_distance_between = 50.0   # meters - don't cluster duplicates
 
 | Path | Role |
 |------|------|
-| `src/systems/browser.rs` | CEF lifecycle, offscreen rendering, texture upload |
+| `crates/humanity-systems/src/browser.rs` | CEF lifecycle, offscreen rendering, texture upload |
 | `src/components/kiosk.rs` | Kiosk ECS component |
 | `crates/humanity-core/src/input/browser_input.rs` | Input forwarding (mouse, keyboard, VR controller) |
 | `data/kiosks/*.toml` | Kiosk definitions (URL, domain allowlist, placement) |

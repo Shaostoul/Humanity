@@ -116,7 +116,7 @@
 #                           docs/reference/findings/2026-09-26-crop-daily-light-integrals.md
 #                           (27 of the home's 63 crops sourced; the rest blank, listed there as
 #                           not found). dli_target sets how much of a grow light a plot needs
-#                           (src/systems/farming/lighting.rs); a blank target is planned at the
+#                           (crates/humanity-systems/src/farming/lighting.rs); a blank target is planned at the
 #                           lettuce figure in data/garden/lighting.ron and the crop card says so.
 #                           Several targets are speed-breeding or CO2-enriched chamber figures
 #                           (flags SB and CO2 in the findings), higher than a home crop in

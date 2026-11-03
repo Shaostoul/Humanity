@@ -36,12 +36,12 @@ use egui::RichText;
 
 use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState};
-use crate::systems::inventory::FleetHeld;
+use humanity_systems::inventory::FleetHeld;
 
 // How near a player stands to use a fleet store: the reach of every interaction, 5 m, and on
-// their own floor (src/ship/moves.rs `in_reach`, the relay's own rule, ship homes increment 7;
+// their own floor (crates/humanity-ship/src/moves.rs `in_reach`, the relay's own rule, ship homes increment 7;
 // the relay checks it, this only says so first).
-use crate::ship::moves::INTERACT_REACH_M;
+use humanity_ship::moves::INTERACT_REACH_M;
 
 /// One of the fleet's stores in the shared world (from the welcome's snapshot).
 #[derive(Debug, Clone, PartialEq)]
@@ -218,7 +218,7 @@ pub struct FleetView {
     pub counter_status: String,
     /// The meals and water the ship's stores have given this save on this computer (the
     /// offline meter, mirrored each frame by engine/mess_hall.rs; None until something counts).
-    pub meals_here: Option<crate::persistence::ShipMeals>,
+    pub meals_here: Option<humanity_systems::persistence::ShipMeals>,
 }
 
 /// A button on the mess hall's serving counter's card (ship homes increment 6).
@@ -310,29 +310,29 @@ pub fn when_text(game_time: f64, real_day: i64) -> String {
 }
 
 /// The fleet store nearest the player, and how far it is in a straight line: the nearest of the
-/// stores on the player's own floor (src/ship/moves.rs `on_my_storey`, ship homes increment 7), and
+/// stores on the player's own floor (crates/humanity-ship/src/moves.rs `on_my_storey`, ship homes increment 7), and
 /// only when none is on it the nearest on any floor, so a store over the player's head never hides
 /// the one across the room, and the panel can still say where the nearest is.
 pub fn nearest_store(view: &FleetView) -> Option<(&FleetStore, f32)> {
     let me = glam::Vec3::from(view.my_position?);
     view.stores
         .iter()
-        .map(|s| (s, me.distance(glam::Vec3::from(s.position)), crate::ship::moves::on_my_storey(me.y, s.position[1])))
+        .map(|s| (s, me.distance(glam::Vec3::from(s.position)), humanity_ship::moves::on_my_storey(me.y, s.position[1])))
         .min_by(|a, b| b.2.cmp(&a.2).then(a.1.total_cmp(&b.1)))
         .map(|(s, d, _)| (s, d))
 }
 
 /// Why the player cannot use `store` (`dist` metres from them) for what `to_do` says ("to take a
 /// meal", "to give"), as a sentence with what to do about it; None when it is in reach. The shared
-/// reach rule (src/ship/moves.rs `in_reach`): within 5 m AND on the player's floor, which is what
+/// reach rule (crates/humanity-ship/src/moves.rs `in_reach`): within 5 m AND on the player's floor, which is what
 /// the relay checks too.
 pub fn out_of_reach_sentence(view: &FleetView, store: &FleetStore, dist: f32, to_do: &str) -> Option<String> {
     let me = glam::Vec3::from(view.my_position?);
     let at = glam::Vec3::from(store.position);
-    if crate::ship::moves::in_reach(me, at, INTERACT_REACH_M) {
+    if humanity_ship::moves::in_reach(me, at, INTERACT_REACH_M) {
         return None;
     }
-    if !crate::ship::moves::on_my_storey(me.y, at.y) {
+    if !humanity_ship::moves::on_my_storey(me.y, at.y) {
         let way = if at.y > me.y { "up" } else { "down" };
         return Some(format!("{} is on another floor: go {way} to it {to_do}.", store.name));
     }
@@ -397,9 +397,9 @@ pub fn take_meal_at_nearest(state: &GuiState) -> Result<serde_json::Value, Strin
 
 /// "On this computer the ship's stores have fed you 3 meals and 1.5 L of water." (Inventory >
 /// The fleet out of a server's world: the mess hall's counter counts here then.)
-pub fn meals_here_sentence(m: &crate::persistence::ShipMeals) -> String {
+pub fn meals_here_sentence(m: &humanity_systems::persistence::ShipMeals) -> String {
     let meals = if m.taken == 1 { "1 meal".to_string() } else { format!("{} meals", m.taken) };
-    format!("On this computer the ship's stores have fed you {meals} and {} of water.", crate::systems::ship_meals::litres_text(m.water_l))
+    format!("On this computer the ship's stores have fed you {meals} and {} of water.", humanity_systems::ship_meals::litres_text(m.water_l))
 }
 
 /// Give `qty` of `item_id` from the backpack to the fleet at the nearest store: checked here
@@ -577,7 +577,7 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             widgets::body_hint(ui, theme, &format!("You are at {} ({:.1} m away).", s.name, d));
             Some(s.clone())
         }
-        Some((s, _)) if state.fleet.my_position.is_some_and(|me| !crate::ship::moves::on_my_storey(me[1], s.position[1])) => {
+        Some((s, _)) if state.fleet.my_position.is_some_and(|me| !humanity_ship::moves::on_my_storey(me[1], s.position[1])) => {
             widgets::body_hint(ui, theme, &format!("The nearest fleet store is {}, on another floor. Go to its floor to take a meal or give.", s.name));
             None
         }

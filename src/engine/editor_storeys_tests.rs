@@ -4,8 +4,8 @@
 //! `try_place_held_light`), or on a stub where nothing existed yet; the red line is in each doc.
 
 use super::*;
-use crate::ship::home_structure::{HomeStructure, SlabMaterial, Storey};
-use crate::ship::storey_edits::{cut_away_of, new_guard_on_storey, new_wall_on_storey, remove_floor_slab};
+use humanity_ship::home_structure::{HomeStructure, SlabMaterial, Storey};
+use humanity_ship::storey_edits::{cut_away_of, new_guard_on_storey, new_wall_on_storey, remove_floor_slab};
 use glam::Vec3;
 
 fn body(text: &str) -> HomeStructure {
@@ -238,7 +238,7 @@ fn the_palette_guard_draws_a_guard_wall_on_the_chosen_storey() {
     assert!(g.is_some(), "the guard tool draws a wall / left: {g:?}");
     let g = g.unwrap();
     assert_eq!((g.base, g.height), (3.0, 1.0), "on storey 2's floor, as tall as the guard type");
-    let mat = crate::ship::home_structure::wall_material(g.material).map(|m| m.name.as_str());
+    let mat = humanity_ship::home_structure::wall_material(g.material).map(|m| m.name.as_str());
     assert_eq!(mat, Some("Steel balustrade"));
     assert!(g.guard().is_some(), "it draws as a guard (posts, balusters and a rail)");
 }
@@ -273,13 +273,13 @@ fn the_editor_opens_on_your_storey_with_the_avatar_at_your_feet() {
 /// right: None".
 #[test]
 fn the_editors_save_writes_the_spawn_only_from_an_avatar_moved_onto_the_ground() {
-    let zone: crate::ship::ship_structure::ShipZone = ron::from_str(
+    let zone: humanity_ship::ship_structure::ShipZone = ron::from_str(
         "(id: \"home\", purpose: \"residence\", body: (width: 10.0, depth: 10.0, height: 6.0, \
          floors: [(a: (0.0, 0.0), b: (10.0, 5.0), top: 3.0)]))",
     )
     .expect("the test zone parses");
     let mut g = crate::gui::GuiState::default();
-    g.ship_structure = Some(crate::ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
+    g.ship_structure = Some(humanity_ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
     g.construction_zone = 0;
     g.build_char_pos = Some((2.0, 2.0));
     g.construction_storeys.chosen = 0;
@@ -307,7 +307,7 @@ fn the_editors_save_writes_the_spawn_only_from_an_avatar_moved_onto_the_ground()
 /// written from step 8 of stairs-1 is (38.89, 38.65), on the flight".
 #[test]
 fn the_editors_save_never_puts_the_spawn_inside_a_stair() {
-    use crate::ship::ship_structure::ShipStructure;
+    use humanity_ship::ship_structure::ShipStructure;
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
     let hz = ship.home_zone_index();
@@ -318,14 +318,14 @@ fn the_editors_save_never_puts_the_spawn_inside_a_stair() {
     g.construction_storeys.avatar_seed = Some((hz, (53.5, 40.5), 0));
     // Where the steps more than a step up stand (x 36.5 to 40.16, z 38.05 to 39.25), and a body's
     // radius round it.
-    let r = crate::ship::wall_collision::PLAYER_RADIUS;
+    let r = humanity_ship::wall_collision::PLAYER_RADIUS;
     let on_flight = |p: (f32, f32)| p.0 > 36.5 - r && p.0 < 40.16 + r && p.1 > 38.05 - r && p.1 < 39.25 + r;
     g.build_char_pos = Some((38.89, 38.65));
     let spawn = spawn_from_avatar(&g).expect("an avatar moved on the ground storey writes a spawn");
     assert!(!on_flight(spawn), "the spawn written from step 8 of stairs-1 is ({:.2}, {:.2}), on the flight", spawn.0, spawn.1);
     let hs = zone_body(&g.ship_structure, hz).expect("the home's body");
-    assert_eq!(crate::ship::standing::standing_on(hs, 0, spawn.0, spawn.1), Ok(()), "the spawn written from step 8, ({:.2}, {:.2})", spawn.0, spawn.1);
-    assert_eq!(crate::ship::standing::top_at(hs, 0, spawn.0, spawn.1), None, "the spawn written from step 8 is over a tread");
+    assert_eq!(humanity_ship::standing::standing_on(hs, 0, spawn.0, spawn.1), Ok(()), "the spawn written from step 8, ({:.2}, {:.2})", spawn.0, spawn.1);
+    assert_eq!(humanity_ship::standing::top_at(hs, 0, spawn.0, spawn.1), None, "the spawn written from step 8 is over a tread");
     g.build_char_pos = Some((40.6, 38.65));
     assert_eq!(spawn_from_avatar(&g), Some((40.6, 38.65)), "step 2 of stairs-1, 0.375 m up, is stood on from the floor");
 }
@@ -344,10 +344,10 @@ fn the_editors_save_never_puts_the_spawn_inside_a_stair() {
 #[test]
 fn the_editors_save_never_puts_the_spawn_inside_a_built_box() {
     for (roofed, what) in [(true, "under a floor"), (false, "open to the roof")] {
-        let body = crate::ship::standing::tests::walled_platform(roofed);
-        let zone = crate::ship::ship_structure::ShipZone { id: "home".into(), label: String::new(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body };
+        let body = humanity_ship::standing::fixtures::walled_platform(roofed);
+        let zone = humanity_ship::ship_structure::ShipZone { id: "home".into(), label: String::new(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body };
         let mut g = crate::gui::GuiState::default();
-        g.ship_structure = Some(crate::ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
+        g.ship_structure = Some(humanity_ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
         g.construction_zone = 0;
         g.construction_storeys.chosen = 0;
         g.construction_storeys.avatar_seed = Some((0, (8.0, 8.0), 0));
@@ -371,11 +371,11 @@ fn the_editors_save_never_puts_the_spawn_inside_a_built_box() {
 #[test]
 fn a_machine_selection_follows_the_storey() {
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-    let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+    let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
     let hz = ship.home_zone_index();
     let mut g = crate::gui::GuiState::default();
     g.ship_structure = Some(ship);
-    g.home_machines = crate::systems::grow_machines::load_home(&data.join("machines").join("home.ron"));
+    g.home_machines = humanity_systems::grow_machines::load_home(&data.join("machines").join("home.ron"));
     assert!(g.home_machines.is_some(), "the household's machines load");
     g.construction_zone = hz;
     g.construction_storeys.chosen = 1;
@@ -414,13 +414,13 @@ fn the_cut_away_leaves_out_what_stands_over_it() {
     let o = ship.zones[hz].origin_vec();
 
     // Machines: hidden exactly when the layout puts them on the home's upper floor.
-    let home = crate::systems::grow_machines::load_home(&data.join("machines/home.ron")).expect("the household's machines load");
+    let home = humanity_systems::grow_machines::load_home(&data.join("machines/home.ron")).expect("the household's machines load");
     let rects = ship.zone_rects();
     let upstairs: std::collections::HashSet<String> = home
         .all_instances()
         .into_iter()
         .filter(|i| i.offset.1 >= 3.0 - STOREY_EPS)
-        .filter(|i| crate::machines::resolve_zone_rect(&rects, &i.zone).is_some_and(|z| z.id == ship.zones[hz].id))
+        .filter(|i| humanity_ship::machines::resolve_zone_rect(&rects, &i.zone).is_some_and(|z| z.id == ship.zones[hz].id))
         .map(|i| i.id)
         .collect();
     assert!(upstairs.contains("bed_1") && upstairs.contains("desk_monitor_1"), "the bed and the study's monitor are upstairs");
@@ -433,13 +433,13 @@ fn the_cut_away_leaves_out_what_stands_over_it() {
     assert!(wrong.is_empty(), "{} of {} machines are drawn wrong in the cut-away: {wrong:#?}", wrong.len(), placed.len());
 
     // Door panels: the ones shown are the cut body's own.
-    let key = |p: &crate::ship::door_panels::PanelPlacement| {
+    let key = |p: &humanity_ship::door_panels::PanelPlacement| {
         ((p.center.x * 100.0).round() as i64, (p.center.y * 100.0).round() as i64, (p.center.z * 100.0).round() as i64)
     };
-    let all = crate::ship::door_panels::ship_panel_placements(&ship);
+    let all = humanity_ship::door_panels::ship_panel_placements(&ship);
     let mut shown: Vec<_> = all.iter().filter(|p| !cut.hides(p.center)).map(key).collect();
     let cut_ship = cut_away_ship(&ship, hz, 0).expect("the cut ship");
-    let mut own: Vec<_> = crate::ship::door_panels::ship_panel_placements(&cut_ship).iter().map(key).collect();
+    let mut own: Vec<_> = humanity_ship::door_panels::ship_panel_placements(&cut_ship).iter().map(key).collect();
     shown.sort_unstable();
     own.sort_unstable();
     assert!(all.len() > own.len(), "the cut body has fewer doors than the whole ship ({} vs {})", own.len(), all.len());

@@ -195,7 +195,7 @@ fn a_give_reaches_a_store_only_on_your_floor() {
     let (store, at) = store_of(&world);
     let key = "e11e00b9";
     player_at_store(&mut world, key);
-    world.entities.get_mut(&store).unwrap().position = [at[0], at[1] + crate::ship::moves::STOREY_M, at[2]];
+    world.entities.get_mut(&store).unwrap().position = [at[0], at[1] + humanity_ship::moves::STOREY_M, at[2]];
     let up = give(&world, &db, key, &give_msg("g-up", store, "bread_0", 1));
     assert_eq!(up["error"], "too_far", "a give to a store a storey up was taken: {up}");
     assert!(lines_of(&db, key).is_empty(), "nothing recorded");

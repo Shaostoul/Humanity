@@ -471,7 +471,7 @@ The game models almost none of this.
   in the current build lowers it: no weather, decay, leak, fire or
   disaster damages a wall, roof or floor, so there is nothing to repair.
   The figures are in `data/blueprints/basic.ron`; nothing in
-  `src/systems/construction/` reduces them.
+  `crates/humanity-systems/src/construction/` reduces them.
 - **The only fix is to rebuild.** While holding a piece to place from
   the Crafting page, the Swing tool key (F by default) takes down the
   finished piece you are looking at, within 8 m, and returns all of its
@@ -480,7 +480,7 @@ The game models almost none of this.
   gives back its stones and only the whole logs it has not burned. You
   can then build it again (`src/engine/build_place.rs`).
 - **Building trains you.** Finishing a piece gives experience in the
-  Shelter Building skill (`src/systems/construction/mod.rs`).
+  Shelter Building skill (`crates/humanity-systems/src/construction/mod.rs`).
 - **The rest of the home does not wear either,** as [Keeping Things
   Working](keeping_things_working.md) and [Rust, Rot and
   Decay](rust_rot_and_decay.md) describe: machines need no servicing,
@@ -636,7 +636,7 @@ is updated in place. Other pages and documents were read on 4 October
 
 - Built pieces, their materials and their health figures:
   `data/blueprints/basic.ron`. Building and its experience:
-  `src/systems/construction/mod.rs`. Taking a piece down:
+  `crates/humanity-systems/src/construction/mod.rs`. Taking a piece down:
   `src/engine/build_place.rs`. The "Start every session from the default
   home" setting: `src/config.rs`, `src/save_load.rs`.
 - [Roofs and Keeping Water Out](roofs_and_keeping_water_out.md),

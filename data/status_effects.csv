@@ -1,16 +1,16 @@
 # HumanityOS Status Effects Database
 # Buffs, debuffs, conditions, diseases, and environmental effects
 #
-# Column definitions (every column is read: src/systems/status_effects.rs refuses a row with a
+# Column definitions (every column is read: crates/humanity-systems/src/status_effects.rs refuses a row with a
 # column it does not declare, so a new column needs a field there first; BUG-162, 2026-10-05):
 #   id                - Unique effect identifier
 #   name              - Display name
 #   type              - buff, debuff, condition, environmental, disease, wound, poison. A disease
-#                       is an illness: it runs on the game clock (src/systems/illness.rs), and what
+#                       is an illness: it runs on the game clock (crates/humanity-systems/src/illness.rs), and what
 #                       it does to the body is in data/medical/illnesses.ron. A wound (a bite, a
 #                       burn, bleeding, an infected wound, a sprain or a broken bone from a fall)
 #                       runs on the game clock too, and what it does is in data/medical/wounds.ron
-#                       (src/systems/wounds.rs; a fall's speeds in data/medical/falls.ron); its
+#                       (crates/humanity-systems/src/wounds.rs; a fall's speeds in data/medical/falls.ron); its
 #                       own damage and healing columns stay 0, and its speed modifier slows
 #                       walking while it lasts
 #   duration_s        - Duration in seconds (0 = permanent until removed); a disease's or a

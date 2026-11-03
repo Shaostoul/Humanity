@@ -526,9 +526,9 @@ test("the household block is read through PROBE alone, in either mouths shape", 
 });
 
 // The words the judge looks for on the game's screen are the game's own: the one copy lives in
-// src/systems/construction/shared.rs (`Why::NotYourPiece`).
+// crates/humanity-systems/src/construction/shared.rs (`Why::NotYourPiece`).
 test("the not-your-piece words are the contract's own", () => {
-  const shared = fs.readFileSync(path.join(REPO, "src", "systems", "construction", "shared.rs"), "utf8");
+  const shared = fs.readFileSync(path.join(REPO, "crates", "humanity-systems", "src", "construction", "shared.rs"), "utf8");
   assert.ok(shared.includes(J.NOT_YOUR_PIECE_SENTENCE), `shared.rs no longer says "${J.NOT_YOUR_PIECE_SENTENCE}"`);
   assert.ok(shared.includes('"permit_withdrawn"'), "shared.rs no longer names permit_withdrawn, which take_back_closes_it reads");
 });

@@ -5,7 +5,7 @@
 use std::time::Instant;
 use crate::engine::state::EngineState;
 use crate::renderer::mesh::Mesh;
-use crate::terrain::planet::PlanetDef;
+use humanity_terrain::planet::PlanetDef;
 
 /// Route a `__game__:`-tagged relay message into the multiplayer sync system (v0.472).
 /// `payload` is the JSON AFTER the `__game__:` prefix. Maps the relay's `game_*` wire types
@@ -39,7 +39,7 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         // included, so it counts only while this player is in the shared world.
         Some("game_time_sync") => {
             if let Some(word) = host_clock_from(&v, state.gui_state.copresence_active && !state.gui_state.copresence_solo) {
-                crate::systems::time::hear_host_clock(&state.data_store, word);
+                humanity_systems::time::hear_host_clock(&state.data_store, word);
             }
         }
         Some("game_welcome") => {
@@ -316,8 +316,8 @@ pub(crate) fn snapshot_entry_messages(e: &serde_json::Value, own_id: Option<u32>
 /// 1x, by default, 2026-10-04); a word without one is a host that runs at 1x
 /// (`HOST_TIME_SPEED`), and a speed out of range is held to the Time
 /// setting's (`clamp_time_speed`).
-pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<crate::systems::time::HostClock> {
-    use crate::systems::time;
+pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<humanity_systems::time::HostClock> {
+    use humanity_systems::time;
     if !joined {
         return None;
     }
@@ -674,8 +674,8 @@ pub(crate) fn position_update_json(out: &crate::net::sync::OutgoingPosition) -> 
 pub(crate) struct PlanetDefBake {
     id: String,
     def: PlanetDef,
-    heightmap: Option<std::sync::Arc<crate::terrain::planet_heightmap::PlanetHeightmap>>,
-    albedo: Option<std::sync::Arc<crate::terrain::planet_albedo::PlanetAlbedo>>,
+    heightmap: Option<std::sync::Arc<humanity_terrain::planet_heightmap::PlanetHeightmap>>,
+    albedo: Option<std::sync::Arc<humanity_terrain::planet_albedo::PlanetAlbedo>>,
     /// The per-pixel surface texture (RGBA8 at the albedo grid's size), when
     /// BOTH grids loaded, with how long its bake took.
     texture: Option<(Vec<u8>, std::time::Duration)>,
@@ -722,7 +722,7 @@ pub(crate) fn bake_planet_defs(data_dir: &std::path::Path) -> Vec<PlanetDefBake>
         // (a missing grid must never blank a planet).
         if let Some(hm_rel) = def.heightmap.clone() {
             let hm_path = data_dir.join(&hm_rel);
-            match crate::terrain::planet_heightmap::PlanetHeightmap::load(&hm_path) {
+            match humanity_terrain::planet_heightmap::PlanetHeightmap::load(&hm_path) {
                 Ok(hm) => {
                     def.sea_level = hm.sea_level_normalized();
                     log::info!(
@@ -747,7 +747,7 @@ pub(crate) fn bake_planet_defs(data_dir: &std::path::Path) -> Vec<PlanetDefBake>
             // sea_level is NOT overridden here: for an airless body it is a
             // color-band threshold (the Moon's maria line), not a coastline.
             let t0 = Instant::now();
-            let hm = crate::terrain::procedural_heightmap::synthesize(&def);
+            let hm = humanity_terrain::procedural_heightmap::synthesize(&def);
             log::info!(
                 "Planet '{}': synthesized heightmap ({}x{}, {:.0}..{:.0} m) in {:.0?}",
                 b.id, hm.width(), hm.height(),
@@ -762,7 +762,7 @@ pub(crate) fn bake_planet_defs(data_dir: &std::path::Path) -> Vec<PlanetDefBake>
         let mut albedo = None;
         if let Some(al_rel) = def.albedo.clone() {
             let al_path = data_dir.join(&al_rel);
-            match crate::terrain::planet_albedo::PlanetAlbedo::load(&al_path) {
+            match humanity_terrain::planet_albedo::PlanetAlbedo::load(&al_path) {
                 Ok(al) => {
                     log::info!("Planet '{}': albedo {} ({}x{})", b.id, al_rel, al.width(), al.height());
                     albedo = Some(std::sync::Arc::new(al));
@@ -779,7 +779,7 @@ pub(crate) fn bake_planet_defs(data_dir: &std::path::Path) -> Vec<PlanetDefBake>
         let texture = match (heightmap.as_ref(), albedo.as_ref()) {
             (Some(hm), Some(al)) => {
                 let t0 = Instant::now();
-                let rgba = crate::terrain::planet_surface::bake_albedo_rgba(&def, hm, al);
+                let rgba = humanity_terrain::planet_surface::bake_albedo_rgba(&def, hm, al);
                 Some((rgba, t0.elapsed()))
             }
             _ => None,
@@ -1125,8 +1125,8 @@ mod tests {
     #[test]
     fn each_shared_build_message_reaches_the_client() {
         use crate::engine::shared_build::{on_message, tick_core, welcome, Ctx, SharedBuild};
-        use crate::systems::construction::shared::{self, Action, FromRelay, Piece, Reason, SharedBuildIntent, SharedPiece, Spent};
-        use crate::systems::construction::BlueprintRegistry;
+        use humanity_systems::construction::shared::{self, Action, FromRelay, Piece, Reason, SharedBuildIntent, SharedPiece, Spent};
+        use humanity_systems::construction::BlueprintRegistry;
         use std::sync::Mutex;
         // The router: the hook before its own match, and the welcome told.
         let src = include_str!("net_route.rs").replace("\r\n", "\n");
@@ -1145,12 +1145,12 @@ mod tests {
         let size = reg.get("wood_wall").unwrap().size;
         let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert("blueprint_registry", reg);
-        data.insert("inventory_transfer_ops", Mutex::new(Vec::<crate::systems::inventory::TransferOp>::new()));
+        data.insert("inventory_transfer_ops", Mutex::new(Vec::<humanity_systems::inventory::TransferOp>::new()));
         data.insert(shared::OUT_CHANNEL, shared::OutQueue::default());
         let mut world = hecs::World::new();
         let mut gui = crate::gui::GuiState::default();
         let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-        gui.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).unwrap());
+        gui.ship_structure = Some(humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).unwrap());
         gui.copresence_active = true;
         let mut sb = SharedBuild::default();
         welcome(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, &serde_json::json!({ "type": "game_welcome" }));
@@ -1183,7 +1183,7 @@ mod tests {
         assert!(route(&FromRelay::FrameOutOfView { frame: "plot:p2".into() }));
         drop(route);
         assert_eq!(world.query::<&SharedPiece>().iter().count(), 0, "out of view, p2's piece came down");
-        let back = data.get::<Mutex<Vec<crate::systems::inventory::TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().len();
+        let back = data.get::<Mutex<Vec<humanity_systems::inventory::TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().len();
         assert_eq!(back, 1, "the refused build's planks are on their way back");
         // Not about pieces: left to the router's own arms.
         let clock = serde_json::json!({ "type": "game_time_sync", "game_time": 10.0 });
@@ -1495,7 +1495,7 @@ mod tests {
     /// take it. Red check, run: ignoring `joined` fails the second assertion.
     #[test]
     fn the_host_clock_counts_only_when_joined() {
-        use crate::systems::time::{HostClock, HOST_TIME_SPEED};
+        use humanity_systems::time::{HostClock, HOST_TIME_SPEED};
         let v = serde_json::json!({"type": "game_time_sync", "game_time": 259200.0, "server_time": 1.0});
         assert_eq!(host_clock_from(&v, true), Some(HostClock { game_time: 259200.0, time_scale: HOST_TIME_SPEED }));
         assert_eq!(host_clock_from(&v, false), None, "chat only: not in the shared world");
@@ -1517,7 +1517,7 @@ mod tests {
         assert_eq!(word.game_time, 600.0);
         assert_eq!(word.time_scale, 72.0, "the host's 72x");
         let fast = serde_json::json!({"type": "game_time_sync", "game_time": 600.0, "time_scale": 1.0e9});
-        assert_eq!(host_clock_from(&fast, true).unwrap().time_scale, crate::systems::time::MAX_TIME_SPEED);
+        assert_eq!(host_clock_from(&fast, true).unwrap().time_scale, humanity_systems::time::MAX_TIME_SPEED);
     }
 
     /// OUR POSITION UPDATE CARRIES OUR CLOCK, AND ANOTHER PLAYER'S IS TAKEN

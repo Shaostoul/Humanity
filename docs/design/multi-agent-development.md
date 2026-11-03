@@ -73,8 +73,8 @@ Each domain owns specific directories. Agents MUST NOT modify files outside thei
 |--------|------|-----------|---------------|
 | **Renderer** | `src/renderer/`, `assets/shaders/` | mod.rs, camera.rs, hologram.rs, pipeline.rs | Shadow mapping, particles, post-processing, frustum culling |
 | **GUI** | `src/gui/` | mod.rs, theme.rs, widgets/, pages/ | Page polish, new pages, widget library |
-| **Systems** | `src/systems/` | All game systems | Combat, economy, logistics (stubs to fill) |
-| **Terrain** | `src/terrain/`, `src/ship/` | planet.rs, asteroid.rs, fibonacci.rs | Terrain streaming, room materials |
+| **Systems** | `crates/humanity-systems/src/` | All game systems | Combat, economy, logistics (stubs to fill) |
+| **Terrain** | `crates/humanity-terrain/src/`, `crates/humanity-ship/src/` | planet.rs, asteroid.rs, fibonacci.rs | Terrain streaming, room materials |
 | **Physics** | `crates/humanity-core/src/physics/` | mod.rs, collision.rs, fluid.rs | Fluid sim, collision events |
 | **Audio** | `crates/humanity-core/src/audio/` | mod.rs, spatial.rs | Spatial 3D audio wiring |
 | **Network** | `src/net/` | client.rs, sync.rs, protocol.rs | State replication improvements |

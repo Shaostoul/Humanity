@@ -1,6 +1,6 @@
 // Fleet flight: drives, inertial dampeners, and who breaks at what g.
 //
-// Read by src/systems/flight.rs. Everything here is data (infinite-of-x):
+// Read by crates/humanity-systems/src/flight.rs. Everything here is data (infinite-of-x):
 // adding a drive or a tolerance class is adding a row, not writing code.
 //
 // THE ONE THING TO UNDERSTAND BEFORE EDITING: thrust gravity and spin gravity

@@ -1,11 +1,11 @@
 //! From systems/food_spoilage_tests.rs: food keeps its age through a save, saved and loaded by the
 //! engine (`save_load`).
 
-use crate::systems::food::spoilage_tests::age_of;
-use crate::systems::food::spoilage_tests::barn;
-use crate::systems::inventory::Inventory;
-use crate::systems::inventory::containers::Container;
-use crate::systems::inventory::placed::PlacedItem;
+use humanity_systems::food::fixtures::spoilage::age_of;
+use humanity_systems::food::fixtures::spoilage::barn;
+use humanity_systems::inventory::Inventory;
+use humanity_systems::inventory::containers::Container;
+use humanity_systems::inventory::placed::PlacedItem;
 
 /// FOOD KEEPS ITS AGE THROUGH A SAVE (first-hour audit S6): a stack in the backpack, an item
 /// in the Barn and a vessel's contents come back from the file as old as they were, so a
@@ -23,7 +23,7 @@ fn food_keeps_its_age_through_a_save() {
     world.spawn((
         humanity_core::ecs::components::Controllable,
         inv,
-        crate::systems::skills::PlayerSkills::new(),
+        humanity_systems::skills::PlayerSkills::new(),
         humanity_core::ecs::components::Name("Astra".to_string()),
         humanity_core::ecs::components::Appearance::default(),
         humanity_core::ecs::components::Outfit::default(),
@@ -35,13 +35,13 @@ fn food_keeps_its_age_through_a_save() {
     world.spawn((MachineInstanceId("pantry_1".into()), pantry));
     let mut save = crate::save_load::extract_world_save(&world);
     save.placed_items = Some(vec![PlacedItem { age_s: 40_000.0, ..barn("flour_0", 5) }]);
-    let save: crate::persistence::WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+    let save: humanity_systems::persistence::WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
 
     let mut fresh = hecs::World::new();
     let p = fresh.spawn((
         humanity_core::ecs::components::Controllable,
         Inventory::new(8),
-        crate::systems::skills::PlayerSkills::new(),
+        humanity_systems::skills::PlayerSkills::new(),
         humanity_core::ecs::components::Name("X".to_string()),
         humanity_core::ecs::components::Appearance::default(),
         humanity_core::ecs::components::Outfit::default(),

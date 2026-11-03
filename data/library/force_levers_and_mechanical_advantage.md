@@ -711,18 +711,18 @@ pages and documents were read on 3 and 4 October 2026.
   `src/gui/pages/maps/body_list.rs`, from `data/star_systems/sol.json`.
 - Mass and the carrying limit: the `weight_kg` column of
   `data/items.csv`; the 50 kg `weight_capacity` and the backpack
-  `carry_capacity` bonus in `src/systems/inventory/mod.rs` and
+  `carry_capacity` bonus in `crates/humanity-systems/src/inventory/mod.rs` and
   `data/equipment.csv`; the rules (the limit scaled by 9.81 divided by
   the local gravity, the Realistic slowdown and the jump's share of its
   launch speed, the square root of 70 over 70 plus the load) in
-  `src/systems/encumbrance.rs`; applied to walking and jumping each frame
+  `crates/humanity-systems/src/encumbrance.rs`; applied to walking and jumping each frame
   in `src/engine/carry_load.rs`; the Weight tile,
   `src/gui/pages/inventory.rs`, and the HUD's overload line,
   `src/gui/pages/hud.rs`. The slowdown reaches walking only, never
   flying, swimming or climbing a ladder.
 - The crowbar and wheelbarrow: `data/items.csv` and `data/recipes.csv`.
-- The unconnected structural prototype: `src/systems/construction/solver.rs`
-  and `src/systems/construction/structural.rs`.
+- The unconnected structural prototype: `crates/humanity-systems/src/construction/solver.rs`
+  and `crates/humanity-systems/src/construction/structural.rs`.
 - [Units and Converting Them](/library#units-and-converting-them), [Keeping
   Things Working](/library#keeping-things-working), [Nails, Screws and
   Bolts](/library#nails-screws-and-bolts), [Metals and

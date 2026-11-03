@@ -446,9 +446,9 @@ test("nothing recorded fails every check that has evidence to read", () => {
 });
 
 // The sentences the judge looks for on the game's screen are the game's own words: the one copy
-// of each lives in src/systems/construction/shared.rs (`Why::NotYourPlot`, `Why::ShipRank`).
+// of each lives in crates/humanity-systems/src/construction/shared.rs (`Why::NotYourPlot`, `Why::ShipRank`).
 test("the sentences on screen are the contract's own words", () => {
-  const shared = fs.readFileSync(path.join(REPO, "src", "systems", "construction", "shared.rs"), "utf8");
+  const shared = fs.readFileSync(path.join(REPO, "crates", "humanity-systems", "src", "construction", "shared.rs"), "utf8");
   assert.ok(shared.includes(J.PLOT_SENTENCE), `shared.rs no longer says "${J.PLOT_SENTENCE}"`);
   assert.ok(shared.includes(J.RANK_SENTENCE), `shared.rs no longer says "${J.RANK_SENTENCE}"`);
 });

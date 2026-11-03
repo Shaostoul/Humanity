@@ -20,14 +20,14 @@
 #             assets/vfx/ (visual_effect field)
 #
 # Connection to game systems:
-#   Crafting/enchanting (src/systems/crafting/) -- the enchanting workbench
+#   Crafting/enchanting (crates/humanity-systems/src/crafting/) -- the enchanting workbench
 #     reads this table to validate which enchantments can be applied to which items.
 #     Consumes reagents, checks skill level, deducts mana_cost from the enchanter.
-#   Combat system (src/systems/combat/) -- reads bonus_damage, bonus_armor,
+#   Combat system (crates/humanity-systems/src/combat/) -- reads bonus_damage, bonus_armor,
 #     and special_effect fields on equipped items during damage resolution.
-#   Inventory system (src/systems/inventory/) -- displays enchantment info
+#   Inventory system (crates/humanity-systems/src/inventory/) -- displays enchantment info
 #     in tooltips, enforces max_stacks and conflicts_with rules.
-#   Skill progression (src/systems/skills/) -- gates enchantments behind
+#   Skill progression (crates/humanity-systems/src/skills/) -- gates enchantments behind
 #     skill_required + skill_level. Applying enchantments grants enchanting XP.
 #   Renderer (src/renderer/) -- reads visual_effect to apply glow colors
 #     and particle effects to enchanted item meshes.

@@ -37,7 +37,7 @@
 ```
 %APPDATA%/HumanityOS/
   identity/      - encrypted Dilithium3 keys (passphrase-locked via Argon2id)
-  saves/         - full ECS world state as JSON (src/persistence.rs)
+  saves/         - full ECS world state as JSON (crates/humanity-systems/src/persistence.rs)
   settings/      - preferences, sync config, display state
   cache/         - offline messages, avatars, manifests
   backups/       - auto-rotated, last 5
@@ -161,7 +161,7 @@ Two separate concerns living side-by-side in the same binary:
 - **Social/identity/governance**, flows through the v2 substrate above. Federated, signed, replicated.
 - **Game state** (ECS world, inventory, terrain, ship layouts, NPCs), lives in:
   - `data/` next to the exe, hot-reloadable canonical content (CSV/RON/TOML/JSON)
-  - `%APPDATA%/HumanityOS/saves/`, per-user world state (JSON, written by `src/persistence.rs`)
+  - `%APPDATA%/HumanityOS/saves/`, per-user world state (JSON, written by `crates/humanity-systems/src/persistence.rs`)
   - In-memory `hecs::World` at runtime
 - The two intersect at the **inventory** and **marketplace** boundaries, your game-mode marketplace listings can carry trust scores from the social layer.
 

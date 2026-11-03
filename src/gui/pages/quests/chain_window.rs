@@ -15,7 +15,7 @@ use humanity_core::i18n::{t, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
-use crate::systems::quests::chain::{ChainQuest, ChainStep, ChainView, QuestState, Reveal, StepState};
+use humanity_systems::quests::chain::{ChainQuest, ChainStep, ChainView, QuestState, Reveal, StepState};
 
 /// The window's width, when the screen has room.
 const WINDOW_WIDTH: f32 = 600.0;

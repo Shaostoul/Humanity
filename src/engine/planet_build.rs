@@ -49,9 +49,9 @@ use humanity_core::ecs::components::Transform;
 use crate::engine::state::EngineState;
 use crate::renderer::camera::CameraMode;
 use crate::renderer::RenderObject;
-use crate::systems::construction::site::{self, PlanetSite};
-use crate::systems::construction::{placement, BlueprintRegistry, Construction, Structure};
-use crate::terrain::planet::PlanetDef;
+use humanity_systems::construction::site::{self, PlanetSite};
+use humanity_systems::construction::{placement, BlueprintRegistry, Construction, Structure};
+use humanity_terrain::planet::PlanetDef;
 use glam::{DQuat, DVec3, Vec3};
 
 /// How high the eye may be over the ground and still place a piece, metres:
@@ -92,7 +92,7 @@ pub(crate) fn note_body(state: &mut EngineState, body: &str, render_off: DVec3, 
 /// this (lib.rs `rot_d`), and the look conversions below use it, so there is
 /// one formula.
 pub(crate) fn body_render_rot(station_ride: bool, station_world_rot: DQuat, body_rot: DQuat) -> DQuat {
-    crate::station::hull_frame_rot(station_ride, station_world_rot) * body_rot
+    humanity_ship::station::hull_frame_rot(station_ride, station_world_rot) * body_rot
 }
 
 /// The f32 rotation every draw of a body carries (its uniform sphere, its
@@ -190,10 +190,10 @@ impl PlayerView {
 /// The ground of one body, as the player stands on it this frame.
 pub(crate) struct Ground<'a> {
     def: &'a PlanetDef,
-    hm: Option<&'a crate::terrain::planet_heightmap::PlanetHeightmap>,
-    detail: crate::terrain::planet_chunks::DetailNoise,
-    tiles: Option<&'a crate::terrain::terrain_tiles::TerrainTiles>,
-    ocean: Option<&'a crate::terrain::ocean_mask::OceanMask>,
+    hm: Option<&'a humanity_terrain::planet_heightmap::PlanetHeightmap>,
+    detail: humanity_terrain::planet_chunks::DetailNoise,
+    tiles: Option<&'a humanity_terrain::terrain_tiles::TerrainTiles>,
+    ocean: Option<&'a humanity_terrain::ocean_mask::OceanMask>,
     drawn_depth: u8,
     earth: bool,
 }
@@ -207,7 +207,7 @@ impl<'a> Ground<'a> {
         Some(Ground {
             def,
             hm: state.planet_heightmaps.get(body).map(|a| a.as_ref()),
-            detail: crate::terrain::planet_chunks::DetailNoise::new(def.terrain_seed),
+            detail: humanity_terrain::planet_chunks::DetailNoise::new(def.terrain_seed),
             tiles: earth.then_some(&state.terrain_tiles),
             ocean: if earth { state.ocean_mask.as_ref() } else { None },
             drawn_depth: state
@@ -225,7 +225,7 @@ impl<'a> Ground<'a> {
     /// player's own feet are clamped to). f64 end to end.
     pub(crate) fn radius(&self, dir: DVec3) -> f64 {
         let field = crate::engine::frame_lock::ground_radius_m(Some(self.def), self.hm, Some(&self.detail), self.tiles, dir);
-        crate::surface_walk::walk_ground_radius(
+        humanity_systems::surface_walk::walk_ground_radius(
             field,
             Some(self.def),
             self.hm,
@@ -356,7 +356,7 @@ pub(crate) fn ghost(state: &EngineState, blueprint_id: &str, quarter_turns: u8) 
 /// sees a shared piece, and never this player's own foundation under it, so on a private one it
 /// would hang in the air for them. Which it is depends only on x and z (the frame the piece stands
 /// in, and the whole footprint inside it), which resting does not move, so the plain pose decides.
-pub(crate) fn aboard_pose(state: &EngineState, bp: &crate::systems::construction::Blueprint, at: Vec3, quarter_turns: u8) -> Transform {
+pub(crate) fn aboard_pose(state: &EngineState, bp: &humanity_systems::construction::Blueprint, at: Vec3, quarter_turns: u8) -> Transform {
     let world = &state.game_world.world;
     let Some(reg) = state.data_store.get::<BlueprintRegistry>("blueprint_registry") else {
         return placement::placement_pose(bp, at, quarter_turns, world, &BlueprintRegistry::new(), None);
@@ -546,7 +546,7 @@ pub(crate) fn push_render_objects(
     };
     let world = &state.game_world.world;
     let mut scaffolds = world.query::<(&Construction, &Transform, Option<&PlanetSite>)>();
-    let mut finished = world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&crate::systems::construction::DoorOpen>)>();
+    let mut finished = world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&humanity_systems::construction::DoorOpen>)>();
     // A scaffold rises from 15% to full height with progress.
     let rising = scaffolds.iter().map(|(_e, (c, tf, site))| {
         let frac = (c.progress / c.build_time.max(0.01)).clamp(0.0, 1.0) * 0.85 + 0.15;
@@ -556,7 +556,7 @@ pub(crate) fn push_render_objects(
     // same boxes that block the walk.
     let standing = finished.iter().flat_map(|(_e, (s, tf, site, open))| {
         let material = mat_for(&s.blueprint_id);
-        use crate::systems::construction::doorway::{piece_parts, Part};
+        use humanity_systems::construction::doorway::{piece_parts, Part};
         let parts: Vec<(Transform, usize, bool)> = match registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| piece_parts(bp, tf, open.is_some())) {
             Some(parts) => parts
                 .into_iter()
@@ -650,7 +650,7 @@ pub(crate) fn dev_build(state: &mut EngineState, spec: &str, at: Option<&str>) -
     }
     match &site {
         Some(s) => {
-            let (lat, lon) = crate::terrain::osm_region::dir_to_latlon_f64(s.origin.normalize());
+            let (lat, lon) = humanity_terrain::osm_region::dir_to_latlon_f64(s.origin.normalize());
             format!("{built} of {} pieces stood up at the {} site at {lat:.6}, {lon:.6}", items.len(), s.body)
         }
         None => format!("{built} of {} pieces stood up in the home", items.len()),
@@ -667,7 +667,7 @@ fn dev_ground_point<'a>(state: &'a EngineState, at: Option<&str>) -> Option<(Pla
     let body = v.body.clone()?;
     let ground = Ground::for_body(state, &body)?;
     let base_dir = match at.map(|a| a.split(',').filter_map(|v| v.trim().parse::<f64>().ok()).collect::<Vec<_>>()) {
-        Some(ll) if ll.len() == 2 => crate::terrain::osm_region::latlon_to_dir_f64(ll[0], ll[1]),
+        Some(ll) if ll.len() == 2 => humanity_terrain::osm_region::latlon_to_dir_f64(ll[0], ll[1]),
         _ => {
             let up = v.anchor.normalize_or_zero();
             let probe = PlanetSite { body: body.clone(), origin: up * ground.radius(up) };
@@ -759,7 +759,7 @@ pub(crate) fn collide_on_site(
     if segments.is_empty() {
         return after;
     }
-    let resolved = crate::ship::wall_collision::resolve(from, to, crate::ship::wall_collision::PLAYER_RADIUS, &[], &segments);
+    let resolved = humanity_ship::wall_collision::resolve(from, to, humanity_ship::wall_collision::PLAYER_RADIUS, &[], &segments);
     if (resolved - to).length_squared() < 1.0e-10 {
         return after;
     }
@@ -826,12 +826,12 @@ pub(crate) fn built_floor_radius(
     let base = site.origin.length();
     let reach = feet_r + f64::from(crate::engine::footing::STEP_UP_M);
     let mut best: Option<f64> = None;
-    let mut q = world.query::<(&Structure, &Transform, &PlanetSite, Option<&crate::systems::construction::DoorOpen>)>();
+    let mut q = world.query::<(&Structure, &Transform, &PlanetSite, Option<&humanity_systems::construction::DoorOpen>)>();
     for (_e, (s, tf, piece_site, open)) in q.iter() {
         if piece_site != &site {
             continue;
         }
-        let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| crate::systems::construction::doorway::piece_parts(bp, tf, open.is_some()));
+        let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| humanity_systems::construction::doorway::piece_parts(bp, tf, open.is_some()));
         let boxes: Vec<(Vec3, Vec3)> = match parts {
             Some(parts) => parts.iter().map(|(p, _)| humanity_core::ecs::components::world_aabb(p)).collect(),
             None => vec![humanity_core::ecs::components::world_aabb(tf)],
@@ -853,7 +853,7 @@ pub(crate) fn built_floor_radius(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::systems::construction::uses;
+    use humanity_systems::construction::uses;
 
     const EARTH_R: f64 = 6_371_000.0;
 
@@ -864,7 +864,7 @@ mod tests {
     /// A site on flat ground (a sphere of Earth's radius) at a latitude and
     /// longitude.
     fn site_at(lat: f64, lon: f64) -> PlanetSite {
-        PlanetSite { body: "earth".into(), origin: crate::terrain::osm_region::latlon_to_dir_f64(lat, lon) * EARTH_R }
+        PlanetSite { body: "earth".into(), origin: humanity_terrain::osm_region::latlon_to_dir_f64(lat, lon) * EARTH_R }
     }
 
     /// Build `pieces` in `site` the way the ghost places them.
@@ -1018,7 +1018,7 @@ mod tests {
     /// again (the old `body_rot(state)`) fails the source assertions.
     #[test]
     fn note_body_is_handed_the_terrains_own_rot_d() {
-        let src = crate::terrain::planet_chunks::frame_loop_source();
+        let src = humanity_terrain::planet_chunks::frame_loop_source();
         let bindings = src.matches("let rot_d =").count();
         assert_eq!(bindings, 1, "one rot_d binding in the frame loop, got {bindings}");
         let at = src.find("let rot_d =").unwrap();
@@ -1086,7 +1086,7 @@ mod tests {
         let hit = |id: &str| pieces.iter().filter(|(b, _)| b == id).filter_map(|(_, tf)| uses::ray_hits_box(from, dir, tf)).fold(f32::MAX, f32::min);
         let (chest, wall) = (hit("storage_chest"), hit("wood_wall"));
         assert!(chest < wall && wall < 10.0, "the chest ({chest} m) is in front of the wall ({wall} m)");
-        let depth = |d: f32| crate::terrain::celestial_projection::celestial_depth_at(d);
+        let depth = |d: f32| humanity_terrain::celestial_projection::celestial_depth_at(d);
         assert!(depth(chest) > depth(wall) && depth(chest) <= 1.0, "one pass, nearer wins: {} vs {}", depth(chest), depth(wall));
     }
 }
@@ -1099,7 +1099,7 @@ mod floor_tests;
 #[cfg(test)]
 mod body_rot_tests {
     use super::*;
-    use crate::station::orbit;
+    use humanity_ship::station::orbit;
 
     /// FROM THE SHIP, EARTH FACES IT WITH ITS EQUATOR (2026-10-21). Aboard the
     /// UHS Mothership (data/stations/home.ron: synchronous, equatorial, over
@@ -1122,8 +1122,8 @@ mod body_rot_tests {
     /// (a longitude at the pole means nothing).
     #[test]
     fn from_the_ship_earth_shows_its_equator_under_the_ship_and_its_pole_to_the_north() {
-        let def = crate::station::default_home();
-        let day = crate::systems::time::EARTH_DAY_S;
+        let def = humanity_ship::station::default_home();
+        let day = humanity_systems::time::EARTH_DAY_S;
         let wrap = |d: f64| (d + 180.0).rem_euclid(360.0) - 180.0;
         for sun_az_deg in [0.0_f64, 93.0, 183.0, 271.0] {
             let sun_az = sun_az_deg.to_radians();
@@ -1134,18 +1134,18 @@ mod body_rot_tests {
                 let ship_rot = orbit::attitude(&def.attitude, ship, vel);
                 let spin = humanity_core::dev_travel::planet_spin_from_time(hour, sun_az);
                 // Earth's centre in the render frame, exactly as site 1 places it.
-                let centre = crate::station::to_hull(true, ship_rot, DVec3::ZERO - ship);
+                let centre = humanity_ship::station::to_hull(true, ship_rot, DVec3::ZERO - ship);
                 let m = body_model_rot(true, ship_rot, body_world_rot("earth", spin, t));
                 // The fragment nearest the ship, read the way the type-12 shader reads it.
                 let toward_ship = (-centre).normalize().as_vec3();
                 let local = m.inverse() * toward_ship;
-                let (lat, lon) = crate::terrain::planet_heightmap::dir_to_latlon_deg(local);
+                let (lat, lon) = humanity_terrain::planet_heightmap::dir_to_latlon_deg(local);
                 assert!(
                     lat.abs() < 0.01 && wrap(lon as f64 - -122.3).abs() < 0.01,
                     "sun azimuth {sun_az_deg}, hour {hour}: the point under the ship is drawn at latitude {lat:.3}, longitude {lon:.3}, not on the equator at -122.3"
                 );
                 let pole = m * Vec3::Y;
-                let north = crate::station::to_hull(true, ship_rot, DVec3::Y).as_vec3();
+                let north = humanity_ship::station::to_hull(true, ship_rot, DVec3::Y).as_vec3();
                 assert!(
                     (pole - north).length() < 1.0e-4,
                     "sun azimuth {sun_az_deg}, hour {hour}: Earth's north pole is drawn toward {pole:?}, the world's north is {north:?} in the hull's axes"
@@ -1195,7 +1195,7 @@ mod body_rot_tests {
                 * humanity_core::cosmos::M_PER_AU)
                 .normalize();
             let local = body_world_rot("moon", spin, t).inverse() * to_earth;
-            let (lat, lon) = crate::terrain::planet_heightmap::dir_to_latlon_deg_f64(local);
+            let (lat, lon) = humanity_terrain::planet_heightmap::dir_to_latlon_deg_f64(local);
             let lon = wrap(lon);
             assert!(
                 lon.abs() < 8.5 && lat.abs() < 7.5,
@@ -1218,7 +1218,7 @@ mod body_rot_tests {
 #[cfg(test)]
 mod site_collision_tests {
     use super::*;
-    use crate::systems::construction::{placement, BlueprintRegistry, Structure};
+    use humanity_systems::construction::{placement, BlueprintRegistry, Structure};
 
     /// A BUILT WALL IS SOLID ON THE GROUND (2026-09-28). A site on Earth's
     /// equator with one wall standing north-south: a step east into it from

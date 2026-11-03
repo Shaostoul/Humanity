@@ -39,7 +39,7 @@ fn species() -> &'static Vec<SpeciesRow> {
             match humanity_core::embedded_data::load_data_or_embedded(
                 &humanity_core::storage::data_dir(),
                 "creatures.csv",
-                crate::systems::livestock::CreatureRegistry::from_csv,
+                humanity_systems::livestock::CreatureRegistry::from_csv,
             ) {
                 Ok(reg) => reg
                     .defs

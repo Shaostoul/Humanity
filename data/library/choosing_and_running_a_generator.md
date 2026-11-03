@@ -621,7 +621,7 @@ one thing: a generator is a backstop, not a source.
   gasoline generator, `data/items.csv`). Only that fuel runs it, and its
   drum takes, and its Store button offers, nothing else: Diesel, Paint,
   Glue and Crude Oil are flammable too, and none of them runs it
-  (`fuels` in the data file, `src/systems/electrical.rs`). A real engine
+  (`fuels` in the data file, `crates/humanity-systems/src/electrical.rs`). A real engine
   is the same: it runs on the fuel its maker built it for (general
   knowledge), and [Fuels and Their Hazards](/library#fuels-and-their-hazards)
   has how to keep each fuel in its own labelled can so the wrong one
@@ -646,7 +646,7 @@ one thing: a generator is a backstop, not a source.
   when the home's own sources fall short of the load, its batteries are
   below a quarter full, and its drum holds its fuel, and it burns that fuel
   from its own 200-litre drum while it runs; an empty drum means no power
-  (`src/systems/electrical.rs`). The play mode makes no difference to
+  (`crates/humanity-systems/src/electrical.rs`). The play mode makes no difference to
   this.
 - **Overload is handled for you.** When the power on a circuit is less
   than its load, the game switches loads off, the optional ones before the
@@ -820,12 +820,12 @@ were read on 4 October 2026; the Washington rule was read the same day.
   Plant room; the maker's figures it rests on are recorded in the file);
   the Construction page's description (`src/gui/pages/construction.rs`);
   the backstop rule, the fed islands that never start it, and the drum
-  burn (`src/systems/electrical.rs`); the one fuel it names, Gasoline
+  burn (`crates/humanity-systems/src/electrical.rs`); the one fuel it names, Gasoline
   (`fuels` in both data files), the only one that runs it and the only
   one its drum takes and its Store button offers
-  (`src/systems/inventory/containers.rs`), and its item's description as
+  (`crates/humanity-systems/src/inventory/containers.rs`), and its item's description as
   a gasoline generator (`data/items.csv`); the Ship life support setting and
-  its Station-supplied default (`src/systems/ship_power.rs`,
+  its Station-supplied default (`crates/humanity-systems/src/ship_power.rs`,
   `src/config.rs`, `src/gui/pages/settings.rs`).
 - [Where Your Own Electrical Work Stops](/library#where-your-electrical-work-stops),
   [Electricity and How It Flows](/library#electricity-and-how-it-flows),

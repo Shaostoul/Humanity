@@ -6,10 +6,10 @@
 //! a jump used to clear. On the shipped ship with the homestead on p1, whose home stands at the
 //! ship's origin, so its home-local metres are the world's.
 
-use crate::ship::wall_collision::*;
+use humanity_ship::wall_collision::*;
 use crate::engine::footing::test_aboard::{body_at, live_frame, Aboard, EAST, NORTH, SOUTH, WEST};
 use humanity_core::input::bindings::GameAction as A;
-use crate::ship::ship_structure::ShipStructure;
+use humanity_ship::ship_structure::ShipStructure;
 use glam::Vec3;
 
 const EYE: f32 = EYE_HEIGHT_M;
@@ -249,7 +249,7 @@ fn guarded_hatch(gap: f32) -> ShipStructure {
             ],
             structures: [(id: "ladder-1", type_id: "ladder", pos: (2.0, 0.0, 2.0))]))"#
     );
-    let zone: crate::ship::ship_structure::ShipZone = ron::from_str(&ron_text).expect("the guarded hatch parses");
+    let zone: humanity_ship::ship_structure::ShipZone = ron::from_str(&ron_text).expect("the guarded hatch parses");
     assert!(zone.body.walls.iter().all(|w| w.guard().is_some()), "material 9 is a guard");
     ShipStructure { zones: vec![zone], ..Default::default() }
 }

@@ -487,7 +487,7 @@ blockers. What became of each:
 1. **`InteriorWall` had no base Y.** It has one now (`InteriorWall::base`, with
    an opening's sill measured from it), so an upstairs wall stands on its storey.
 2. **Collision was flattened to one plane.** A wall segment carries the heights
-   it spans (`WallSegment`'s `y0` and `y1`, `src/ship/wall_collision.rs`), so an
+   it spans (`WallSegment`'s `y0` and `y1`, `crates/humanity-ship/src/wall_collision.rs`), so an
    upstairs wall stops a body upstairs only.
 3. **The footing sampler took the first room whose XZ box held the player.**
    Footing now reads the floor slabs (`HomeStructure::floors`) and the storeys
@@ -528,7 +528,7 @@ position is decided before the code exists.
 `HomeStructure::tile_home_clones`, which stamped the player's OWN shell into every
 slot of the residential district; it is gone, with `home_design_roster()`. Every
 plot of the ship that is not the player's own is now drawn as its kind's SHIPPED
-design, `data/homes/shipped/<kind>.ron` (`src/ship/neighbours.rs`, the shell
+design, `data/homes/shipped/<kind>.ron` (`crates/humanity-ship/src/neighbours.rs`, the shell
 baked by `HomeStructure::bake_shell_groups`), so editing your own home no longer
 changes how your neighbours' look; changing the default every newcomer gets is an
 edit of that shipped file. Drawing each player's own published design on their
@@ -564,8 +564,8 @@ carries only the bones.
 | `data/rooms.ron` | New room types `dressing`, `hall`, `entry`; the appearance station moved from the wet room to the bedroom. |
 | `data/blueprints/zone_types.ron` | New zone type `room_dressing`. |
 | `src/lib.rs` | The character-station walk-up reads what a room's actions OPEN instead of matching two hardcoded room ids, which were never going to match. |
-| `src/ship/room_types.rs`, `src/gui/state_types.rs`, `src/engine/home_meshes.rs` | `RoomTypeRegistry::action_pages` and `RoomBounds::action_pages`: the semantic half of a room's actions, separate from the labels, plus the test that the home has exactly one appearance room and one wardrobe room. |
-| `src/machines.rs` | The test that every placed machine really stands inside the room it names, in both home files. |
+| `crates/humanity-ship/src/room_types.rs`, `src/gui/state_types.rs`, `src/engine/home_meshes.rs` | `RoomTypeRegistry::action_pages` and `RoomBounds::action_pages`: the semantic half of a room's actions, separate from the labels, plus the test that the home has exactly one appearance room and one wardrobe room. |
+| `crates/humanity-ship/src/machines.rs` | The test that every placed machine really stands inside the room it names, in both home files. |
 | `src/engine/world_load.rs` | World entry prefers the home's authored spawn point over the largest room; the character-select avatar goes to the room that changes clothes. |
-| `src/ship/home_structure.rs` | The shipped-home test now derives its bounds from the authored zones and checks every room, rather than pinning one room's coordinates. |
+| `crates/humanity-ship/src/home_structure.rs` | The shipped-home test now derives its bounds from the authored zones and checks every room, rather than pinning one room's coordinates. |
 | `scripts/photograph-home.js`, `scripts/home-vantages.json` | The rig that took the pictures below. It boots the release build, enters the world, stands at each authored pose and captures the viewport. `node scripts/photograph-home.js`, or `--only 05-great-room` for one. |

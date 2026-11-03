@@ -5,7 +5,7 @@
 /// Milliseconds since 1970 as YYYY-MM-DDTHH:MM:SSZ.
 pub fn iso(ms: u64) -> String {
     let secs = ms / 1000;
-    let (y, m, d) = crate::persistence::civil_from_days((secs / 86_400) as i64);
+    let (y, m, d) = humanity_systems::persistence::civil_from_days((secs / 86_400) as i64);
     let t = secs % 86_400;
     format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", t / 3600, t / 60 % 60, t % 60)
 }
@@ -29,7 +29,7 @@ pub fn ms_from_iso(s: &str) -> Option<u64> {
     let n = |r: std::ops::Range<usize>| s.get(r)?.parse::<i64>().ok();
     let (y, m, d) = (n(0..4)?, n(5..7)?, n(8..10)?);
     let (hh, mm, ss) = (n(11..13)?, n(14..16)?, n(17..19)?);
-    let days = crate::persistence::days_from_civil(y, m, d);
+    let days = humanity_systems::persistence::days_from_civil(y, m, d);
     let secs = days * 86_400 + hh * 3600 + mm * 60 + ss;
     u64::try_from(secs).ok().map(|s| s * 1000)
 }

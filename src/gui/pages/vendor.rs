@@ -77,7 +77,7 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     .filter_map(|it| {
                         state.vendor_goods.iter().find(|g| g.id == it.item_id).map(|g| {
                             let m = state.quality_levels.price_multiplier(it.quality);
-                            let price = crate::systems::economy::parts::graded_pay(g.sell_price, g.parts_price, m).unwrap_or(0);
+                            let price = humanity_systems::economy::parts::graded_pay(g.sell_price, g.parts_price, m).unwrap_or(0);
                             let name = match state.quality_levels.name(it.quality) {
                                 Some(grade) => format!("{} ({grade})", it.name),
                                 None => it.name.clone(),

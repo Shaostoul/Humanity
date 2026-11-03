@@ -460,14 +460,14 @@ The game has soap, lye, animal fat, and a recipe that joins them.
   Hazmat Containment Box, and a container that has held a corrosive is
   never used for food or drinking water again
   (`data/containers/types.csv`, `data/containers/content_classes.ron`,
-  `src/systems/inventory/containers.rs`).
+  `crates/humanity-systems/src/inventory/containers.rs`).
 - **Using soap.** Washing out a container that held food or dairy takes
   a Soap Bar as well as water, and wears the bar by one use; a bar lasts
   30 uses before any adjustment for how well it was made, and a bar you
   make by hand is graded by your Alchemy level like a tool
   (`data/containers/content_classes.ron`,
-  `src/systems/inventory/containers.rs`,
-  `src/systems/crafting/quality.rs`). Mix Insecticidal Soap, by hand,
+  `crates/humanity-systems/src/inventory/containers.rs`,
+  `crates/humanity-systems/src/crafting/quality.rs`). Mix Insecticidal Soap, by hand,
   dissolves one bar in 5 litres of water to make five sprays for the
   garden (`data/recipes.csv`, `data/garden/pests.ron`).
 
@@ -642,13 +642,13 @@ read through a page reader that returns the page's own text.
 - Containers: `data/containers/content_classes.ron` (the corrosive
   class and soap as the cleaning agent for food),
   `data/containers/types.csv` (the Hazmat Containment Box),
-  `src/systems/inventory/containers.rs` (toxic history and soap wear).
-- Grades: `src/systems/crafting/quality.rs` and `data/manufacturing.ron`.
+  `crates/humanity-systems/src/inventory/containers.rs` (toxic history and soap wear).
+- Grades: `crates/humanity-systems/src/crafting/quality.rs` and `data/manufacturing.ron`.
 - The default home's Chemistry Set and stove:
   `data/machines/home.ron`.
 - The Play mode setting and what it frees (`PlayMode` and
   `play_mode_allows` in `src/config.rs`); the crafting checks and the
-  stocking of every recipe input (`src/systems/crafting/mod.rs`); the
+  stocking of every recipe input (`crates/humanity-systems/src/crafting/mod.rs`); the
   Crafting page's own checks and its "Dev: stock all materials" button
   (`src/gui/pages/crafting.rs`); the "Dev: max skills" button
   (`src/gui/pages/profile.rs`); the "Enable dev cheats" switch

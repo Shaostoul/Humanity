@@ -25,7 +25,7 @@
  *                floor(i/8) is (cellIndex & 7) with LSB-first packing.
  *
  * Usage: node scripts/build-ocean-mask.js [heightmap.bin] [out.bin]
- * Rust loader + tests: src/terrain/ocean_mask.rs (keep formats in sync).
+ * Rust loader + tests: crates/humanity-terrain/src/ocean_mask.rs (keep formats in sync).
  */
 const fs = require('fs');
 const path = require('path');

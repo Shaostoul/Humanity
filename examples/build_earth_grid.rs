@@ -8,7 +8,7 @@
 //! (ext_data/etopo2022_15s/, 15x15 deg each, 3600x3600 float32 metres),
 //! box-averages them into a 7200x3600 (0.05 deg, ~5.5 km cells) global grid
 //! (12x12 source samples per output cell), and writes the HOSHGT1 format
-//! `src/terrain/planet_heightmap.rs` loads. Replaces the old ETOPO1-derived
+//! `crates/humanity-terrain/src/planet_heightmap.rs` loads. Replaces the old ETOPO1-derived
 //! 3600x1800 grid: 4x the cells AND the true peak window is restored
 //! (Everest stops being clamped at the old averaged max of 6394.5 m).
 //!
@@ -154,7 +154,7 @@ fn main() {
         let m = (acc[i] / cnt[i].max(1) as f64) as f32;
         real_lo = real_lo.min(m);
         real_hi = real_hi.max(m);
-        let q = humanity_engine::terrain::planet_heightmap::quantize_meters(m, MIN_M, MAX_M);
+        let q = humanity_terrain::planet_heightmap::quantize_meters(m, MIN_M, MAX_M);
         out.extend_from_slice(&q.to_le_bytes());
     }
     let mut f = fs::File::create(&out_path).expect("create output");
@@ -168,7 +168,7 @@ fn main() {
     );
 
     // Sanity probes the operator cares about.
-    let hm = humanity_engine::terrain::planet_heightmap::PlanetHeightmap::load(&out_path)
+    let hm = humanity_terrain::planet_heightmap::PlanetHeightmap::load(&out_path)
         .expect("reload output");
     println!("Fuji (35.36N 138.73E): {:.0} m", hm.sample_meters_latlon(35.36, 138.73));
     println!("Everest (27.99N 86.93E): {:.0} m", hm.sample_meters_latlon(27.99, 86.93));

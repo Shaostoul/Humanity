@@ -2,9 +2,9 @@
 
 Status: **rung 1 BUILT and measured, 2026-10-30** (the four places below exact, and five more found
 on the way; what is still taken a step at a time is listed under rung 1 with its measured size:
-`src/systems/farming/step_path.rs`, proven by `step_tests.rs`); **rung 2 BUILT and measured,
+`crates/humanity-systems/src/farming/step_path.rs`, proven by `step_tests.rs`); **rung 2 BUILT and measured,
 2026-10-31** (each grow area on its own turn of the farm's own clock, the readers bringing it up to
-now first: `src/systems/farming/clock.rs`, proven by `clock_tests.rs`); rungs 3 and 4 are plan.
+now first: `crates/humanity-systems/src/farming/clock.rs`, proven by `clock_tests.rs`); rungs 3 and 4 are plan.
 Companion to `docs/design/sim-frame-cost.md`
 (where the farm's per-frame cost was measured and cut) and `docs/design/headless-sim-runner.md`
 (time acceleration, the dt ladder and the step-invariance tests this plan reuses).
@@ -53,7 +53,7 @@ growth clock), dehydration (linear, clamped at zero), the growth clock itself (m
 
 ## The rungs (each shippable alone, each proven)
 
-**Rung 1: every step exact. BUILT 2026-10-30** (`src/systems/farming/step_path.rs`, proven by
+**Rung 1: every step exact. BUILT 2026-10-30** (`crates/humanity-systems/src/farming/step_path.rs`, proven by
 `step_tests.rs`). Each tick's step is cut where its regime changes and every piece is solved in
 closed form, because within a piece the water level, the health and the growth age all move in
 straight lines:
@@ -136,7 +136,7 @@ The golden digest moved (`golden_tests.rs`, regenerated): its 8-game-hour steps 
 counted each all lit or all dark by its last moment, and every fix above changes some of its
 state.
 
-**Rung 2: the farm on its own clock. BUILT 2026-10-31** (`src/systems/farming/clock.rs`, the tick in
+**Rung 2: the farm on its own clock. BUILT 2026-10-31** (`crates/humanity-systems/src/farming/clock.rs`, the tick in
 `farming/mod.rs`; proven by `clock_tests.rs`). FarmingSystem gathers the elapsed game time and
 advances each grow area at an interval of its own, a setting (Settings > Gameplay > "Garden
 updates": every frame, every second, every minute, every hour; default every second, which at the
@@ -367,10 +367,10 @@ change only at a growth stage, which rung 3 turns into an event instead of a per
 
 ## Tests
 
-- Rung 1 (built): `src/systems/farming/step_tests.rs`, the golden garden at a 60 s, 600 s and
+- Rung 1 (built): `crates/humanity-systems/src/farming/step_tests.rs`, the golden garden at a 60 s, 600 s and
   3,600 s tick (the dt ladder of headless-sim-runner.md from its 60 s rung), with and without the
   air; `step_path.rs`'s own tests (one long step against 1,440 short ones, crossing every regime).
-- Rung 2 (built): `src/systems/farming/clock_tests.rs`: the rotation's rule; the reuse switch
+- Rung 2 (built): `crates/humanity-systems/src/farming/clock_tests.rs`: the rotation's rule; the reuse switch
   (every area every frame, to the bit); every second and every minute over a sunrise in frames of
   a tenth of a second, ten minutes and an hour over step_tests' thirty hours, each against the
   farm advancing every area every frame; the harvest between two turns (with and without the

@@ -1,5 +1,5 @@
 // Weeds in the garden's soil, and how the grower keeps them down
-// (2026-09-26, gardening depth). Read by src/systems/farming/weeds.rs, which
+// (2026-09-26, gardening depth). Read by crates/humanity-systems/src/farming/weeds.rs, which
 // carries the model; this file carries the numbers and where each one came
 // from. Every source was read on 2026-09-26.
 //

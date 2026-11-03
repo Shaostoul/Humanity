@@ -25,10 +25,10 @@
 //! the canopy is a shell rather than a solid block of foliage.
 
 use super::billboard_bake::leaf_colour::{self, LeafVariation};
-use crate::terrain::plant_mesh::{ring_basis, ring_dir, ring_point, Organ, PlantMeshBuilder};
+use humanity_terrain::plant_mesh::{ring_basis, ring_dir, ring_point, Organ, PlantMeshBuilder};
 // The species rows, the atlas tiles and the card footprints this builder and its child modules
 // (`use super::*`) read: terrain's since the crate split's rung 0 (they were the top of this file).
-use crate::terrain::tree_registry::*;
+use humanity_terrain::tree_registry::*;
 
 // ── Deterministic RNG (xorshift64*, same shape as plant_mesh) ────────────
 
@@ -4067,7 +4067,7 @@ mod tests {
             for f in b.indices.chunks(3) {
                 let p: Vec<[f32; 3]> = f.iter().map(|&i| b.vertices[i as usize].position).collect();
                 let z = (p[0][2] + p[1][2] + p[2][2]) / 3.0;
-                let (c, _) = crate::terrain::planet_surface::unpack_uv_to_color(
+                let (c, _) = humanity_terrain::planet_surface::unpack_uv_to_color(
                     b.vertices[f[0] as usize].uv,
                 );
                 // Cheap lambert against a fixed key so the form reads.
@@ -4832,7 +4832,7 @@ mod tests {
             for f in built.bake.indices.chunks(3) {
                 let uv = built.bake.vertices[f[0] as usize].uv;
                 let (c, water) =
-                    crate::terrain::planet_surface::unpack_uv_to_color(uv);
+                    humanity_terrain::planet_surface::unpack_uv_to_color(uv);
                 assert!(!water, "{}: a merged face decoded as water", t.id);
                 assert!(c.iter().all(|x| (0.0..=1.0).contains(x)), "{}: colour {c:?}", t.id);
             }
@@ -5944,7 +5944,7 @@ mod tests {
         let mut pink = 0;
         for f in b.indices.chunks(3) {
             let uv = b.vertices[f[0] as usize].uv;
-            let (c, _) = crate::terrain::planet_surface::unpack_uv_to_color(uv);
+            let (c, _) = humanity_terrain::planet_surface::unpack_uv_to_color(uv);
             if c[0] > 0.85 && c[1] > 0.55 && c[1] < 0.9 && c[2] > 0.6 {
                 pink += 1;
             }

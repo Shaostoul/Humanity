@@ -3,7 +3,7 @@
 // VESSEL from outside instead of floating boxes. Purely visual -- no exterior
 // collision (landing bays / EVA are a later increment), interiors untouched.
 //
-// How generation works (src/ship/hull.rs):
+// How generation works (crates/humanity-ship/src/hull.rs):
 // - The cluster's LONGER horizontal axis becomes the hull's longitudinal axis.
 //   For the shipped two-zone ship that is X (home x 0..55 plus the Commons
 //   x 65..99 = 99 m, against an 89 m Z span).

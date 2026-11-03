@@ -471,7 +471,7 @@ test("the counter's words are the game's own", () => {
   const read = (p) => fs.readFileSync(path.join(REPO, ...p.split("/")), "utf8");
   const mess = read("src/engine/mess_hall.rs");
   const fleet = read("src/engine/fleet.rs");
-  const meals = read("src/systems/ship_meals.rs");
+  const meals = read("crates/humanity-systems/src/ship_meals.rs");
   assert.ok(mess.includes(`"${SJ.SENTENCES.asked}"`), "mess_hall.rs no longer asks in the words the judge reads");
   assert.ok(mess.includes(`"${SJ.SENTENCES.eaten_offline}"`), "mess_hall.rs no longer serves the ship's stores in the words the judge reads");
   assert.ok(fleet.includes(`"${SJ.SENTENCES.eaten}"`), "fleet.rs no longer says a server's meal was eaten in the words the judge reads");

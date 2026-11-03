@@ -19,7 +19,7 @@
 // self-sufficiency.md's "What data we'd add" section calls for: a per-crop calorie/yield->kcal
 // bridge so the food loop can be COMPUTED from crop data instead of trusting the hand-typed
 // "+120 kcal/d" strings in the machine catalog (data/machines/home.ron). Loaded by
-// src/systems/self_sufficiency.rs (feature-neutral ron+serde). Data-driven (infinite-of-X):
+// crates/humanity-systems/src/self_sufficiency.rs (feature-neutral ron+serde). Data-driven (infinite-of-X):
 // add a crop row here, no code change. This file says what 100 g of a harvest holds; how many
 // grams a plot harvests is NOT here: see FIELDS below.
 //
@@ -66,7 +66,7 @@
 //
 // WHAT A HARVEST WEIGHS (2026-09-26): plants.csv yield_min/yield_max (items per plant) x the
 // harvest item's items.csv weight_kg x the plants in the plot. food_supply_kcal_per_day() in
-// src/systems/self_sufficiency.rs reads exactly that (farming::units::plot_harvest_kg), the same
+// crates/humanity-systems/src/self_sufficiency.rs reads exactly that (farming::units::plot_harvest_kg), the same
 // figure the harvest hands the player and the nutrient model bills the soil for.
 //
 // POTATO CHECK (test self_sufficiency::tests::potato_bed_calories_come_from_the_cited_yield): a

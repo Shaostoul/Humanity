@@ -257,7 +257,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 /// Post a notice once when a running timer ends while the app is open, and ask for a repaint each
 /// second while any timer runs (only then: an idle page costs nothing per frame).
 fn announce_timers(ui: &egui::Ui, lib: &Library, state: &mut GuiState) {
-    let now = crate::persistence::now_ms();
+    let now = humanity_systems::persistence::now_ms();
     let mut due = Vec::new();
     let mut running = false;
     for r in state.how_to.runs.iter().filter(|r| r.is_open()) {

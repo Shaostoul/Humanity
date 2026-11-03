@@ -10,8 +10,8 @@ use crate::gui::pages::trade::trade_moves_tests::hammer_for_wheat;
 use crate::gui::pages::trade::trade_moves_tests::held;
 use crate::gui::pages::trade::trade_moves_tests::op;
 use crate::gui::pages::trade::trade_moves_tests::queued;
-use crate::systems::inventory::Inventory;
-use crate::systems::inventory::TradeSettlements;
+use humanity_systems::inventory::Inventory;
+use humanity_systems::inventory::TradeSettlements;
 
 /// BLOCKER (2026-10-02 review): the relay connects at the main menu, so a
 /// trade settles into the home loaded at startup; clicking Play then loads
@@ -28,7 +28,7 @@ fn a_trade_undone_by_a_save_load_settles_once_into_the_loaded_home() {
     carry(&mut world, p, "wheat_0", 5);
     // The save on disk: the last autosave, from before the trade.
     let disk = crate::save_load::extract_world_save(&world);
-    let mut inv = crate::systems::inventory::InventorySystem::new();
+    let mut inv = humanity_systems::inventory::InventorySystem::new();
     let mut gs = GuiState::default();
     gs.profile_public_key = "bob".into();
     let known = |_: &str| true;
@@ -74,7 +74,7 @@ fn moves_queued_before_a_save_load_are_sized_again_against_the_loaded_backpack()
     let disk = crate::save_load::extract_world_save(&world);
     // Since that save, 3 of the wheat were eaten.
     world.get::<&mut Inventory>(p).unwrap().remove_item("wheat_0", 3);
-    let mut inv = crate::systems::inventory::InventorySystem::new();
+    let mut inv = humanity_systems::inventory::InventorySystem::new();
     let mut gs = GuiState::default();
     gs.profile_public_key = "bob".into();
 

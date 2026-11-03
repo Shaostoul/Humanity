@@ -772,7 +772,7 @@ impl<'a> Scanner<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::terrain::planet::PlanetDef;
+    use humanity_terrain::planet::PlanetDef;
 
     /// The REAL shipped Earth definition, read off disk so these tests
     /// exercise exactly the file the Planet Tuner will rewrite, comments and

@@ -1,7 +1,7 @@
 // The mining drone's running costs (first-hour audit S5, 2026-10-12): the
 // electricity each trip takes from the home, how fast its dock charges it, and
 // how many trips it flies before it needs a service. Read by
-// src/systems/mining.rs (`DroneSpec`); edit here, no code.
+// crates/humanity-systems/src/mining.rs (`DroneSpec`); edit here, no code.
 //
 // WHICH REAL MACHINE. No drone flies to asteroids today, so the game's drone is
 // sized as the real cargo drone that carries its hold: 10 units of ore, 45 kg of

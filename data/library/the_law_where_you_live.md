@@ -859,7 +859,7 @@ facts are used here and the wording is not.
   and 179 real; 3 checked, none by a person, all three liberty-or-life;
   none at the Silverdale level).
 - The law templates and civic roles in `data/governance.ron`, which no
-  running code reads (`src/systems/governance.rs` is never registered).
+  running code reads (`crates/humanity-systems/src/governance.rs` is never registered).
 - The Tools page's Legal category: `data/external/catalog.json`.
 - [Silverdale, Washington](/library#silverdale-wa) (the treaty
   co-management note), [Making an Agreement That

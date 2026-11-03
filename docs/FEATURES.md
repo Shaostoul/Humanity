@@ -7,7 +7,7 @@ Complete inventory of every feature, where it lives, and what it does. Updated 2
 > individual PATHS in it are dead, though: `assets/shaders/pbr_simple.wgsl` (the
 > shader is eleven numbered files under `assets/shaders/pbr/`), the Resources
 > page (retired 2026-07-30 into `data/external/`), `web/activities/`, and a
-> handful of deleted `src/gui/pages/` and `src/systems/` files. Check a path
+> handful of deleted `src/gui/pages/` and `crates/humanity-systems/src/` files. Check a path
 > exists before acting on it.
 
 ## How to Read This
@@ -21,7 +21,7 @@ Each feature lists:
 
 > **Architecture note (v0.90.0):** The `server/` and `native/` directories no longer exist.
 > Everything is a single binary from `src/`. Server relay code is at `src/relay/`.
-> Game/renderer/GUI code is at `src/renderer/`, `src/gui/`, `src/systems/`, etc.
+> Game/renderer/GUI code is at `src/renderer/`, `src/gui/`, `crates/humanity-systems/src/`, etc.
 > Run `HumanityOS --headless` for server-only mode (VPS, Raspberry Pi).
 
 ---
@@ -1463,7 +1463,7 @@ Server-side game world with entity management, position validation, player sync.
 
 ### Moving aboard: the speed check, transit links, delivery by view (ship homes increment 4, 2026-10-04)
 The relay checks every position update against how far anyone can go in the time since (`data/ship/shared_world.ron`: 25 m/s on foot with a margin, 1.5 s banked) and answers a move past it with `game_position_correction`, which the game applies by standing the player back where the relay holds them: corrected, never frozen. The real fast moves are told apart: spawning, a reconnect (as far as the time away allows, at most 90 m), a teleporter by its link ids, shutting the build editor onto one's own plot, driving a vehicle at its own speed. Placed structures have stable ids and pairs name ids (the shipped homestead's west teleporter used to be paired with its ladder by list index). Game news reaches only the players who have the mover in view (250 m, out at 300), never a socket that is only chatting. "Aboard" is inside the ship's bounds, and each home breathes its own air, sized from its design. Nobody is told which plot another player lives on. Declared jumps come at most one a second; the teleporter pads re-arm only once you have stepped off them. The rig walks the game (showcase `walk_to`) the way a person walks with the mouse and W: it turns to face the way it goes, walks, and turns to the facing asked for at the end, at most 150 degrees a second, easing in and out (BUG-165, `crates/humanity-core/src/turning.rs`); it judges one deliberate oversized jump, and walks onto the home's own teleporter and shuts the build editor away from the build spot, each a jump only its declaration explains (the increment 4 review, 2026-10-04).
-- Shared: `src/ship/moves.rs`, `src/ship/transit.rs`, `src/ship/ship_space.rs`
+- Shared: `crates/humanity-ship/src/moves.rs`, `crates/humanity-ship/src/transit.rs`, `crates/humanity-ship/src/ship_space.rs`
 - Server: `src/relay/handlers/move_check.rs`, `src/relay/handlers/game_interest.rs`
 - Game: `src/engine/move_check.rs`
 
@@ -1479,7 +1479,7 @@ this computer, one a meal time on the game clock, counted in the save's `ship_me
 your bottles** (every empty water vessel carried, online and offline, counted on the same meter).
 Away from a server, Inventory > The fleet says how many meals and litres were counted here. The
 mess halls have tables and chairs, and the Commons a recreation room with couches and a screen.
-- Native: `src/engine/mess_hall.rs` (`card_offers_meal`, `take_meal`, `fill_bottles`), `src/systems/ship_meals.rs` (`serve`), `src/gui/pages/hud.rs` (the counter card), `src/gui/pages/fleet_ledger.rs` (`take_meal_at_nearest`), `src/engine/fleet.rs` (`on_meal`, stores from `game_in_view`)
+- Native: `src/engine/mess_hall.rs` (`card_offers_meal`, `take_meal`, `fill_bottles`), `crates/humanity-systems/src/ship_meals.rs` (`serve`), `src/gui/pages/hud.rs` (the counter card), `src/gui/pages/fleet_ledger.rs` (`take_meal_at_nearest`), `src/engine/fleet.rs` (`on_meal`, stores from `game_in_view`)
 - Data: `data/food/ship_stores.ron`, `data/machines/ship.ron` (`serving_counter`, the tables, the recreation room), `data/ship/fleet_ledger.ron` (the meal good)
 - Server: `src/relay/handlers/ship_stores.rs` (`take_meal`)
 - Server: `src/relay/handlers/ship_stores.rs`
@@ -1647,7 +1647,7 @@ orbits, v0.647.0).
   (`web/shared/sol-orbits.js`, the web twin of the orbit model).
 - **Into the ship, deck by deck (Maps increment 3, 2026-10-22).** Close to your ship the
   LEVEL PICKER (`src/gui/widgets/level_picker.rs`) lists its levels top to bottom with yours
-  marked; the levels come from the data (`src/ship/levels.rs`: every distinct storey floor of
+  marked; the levels come from the data (`crates/humanity-ship/src/levels.rs`: every distinct storey floor of
   every body aboard, neighbours' homes included; ordinals as IMDF's, named as the editor names
   storeys). Picking one shows it CUT OPEN: the home is drawn cut at that level by the build
   editor's own rule (`HomeStructure::cut_away`, which moved there from the editor;
@@ -1749,7 +1749,7 @@ scale bar, viewport culling. Demo region: Seattle Center (8,966 roads,
 1,457 buildings, byte-deterministic rebuilds). Rust lock:
 shipped_seattle_region_is_real (Pike Street, Rainier Square Tower 259 m).
 Ladder: docs/design/maps-ladder.md rung 3 (next: 3D extrusion in-world).
-- Native: src/gui/pages/maps/planet_view.rs (map_regions/draw_planet_view; the parser, parse_region, is src/terrain/osm_region.rs)
+- Native: src/gui/pages/maps/planet_view.rs (map_regions/draw_planet_view; the parser, parse_region, is crates/humanity-terrain/src/osm_region.rs)
 - Generator: scripts/fetch-osm-region.mjs
 
 ### Map Label Placement (2026-09-27)
@@ -1773,7 +1773,7 @@ same chip, from theme variables.
 ### OSM Regions Extruded In-World (v0.1148)
 The same HOSMREG1 regions stand up in the 3D world: real roads draped on
 the terrain and real buildings extruded from their footprints, planet-
-fixed (they ride Earth's spin like the trees). src/terrain/osm_region.rs
+fixed (they ride Earth's spin like the trees). crates/humanity-terrain/src/osm_region.rs
 is the shared parser + projection contract (region meters <-> lat/lon <->
 unit dir, f64 end-to-end per the planet-scale discipline) + ear-clipper
 triangulation + build_region_meshes, which takes an elevation closure so
@@ -1788,7 +1788,7 @@ within 40 km (drawn to 60 km) and rebuild once when terrain tiles sharpen.
 Shipped regions: Seattle Center + Silverdale WA (the operator's real
 town). Probe vantages silverdale-osm-ground + seattle-osm-5km +
 silverdale-osm-2km lock it visually.
-- Native: src/terrain/osm_region.rs, src/engine/region_meshes.rs (lib.rs hook in the earth branch)
+- Native: crates/humanity-terrain/src/osm_region.rs, src/engine/region_meshes.rs (lib.rs hook in the earth branch)
 
 ### Region Water: Real Inlets, Lakes, and the Terrain Carve (v0.1149)
 Operator field report: "the water isn't right... Dyes Inlet is missing.
@@ -1798,7 +1798,7 @@ lakes sit above sea level where the ocean shell cannot exist. Fix is the
 flight-simulator technique: vector water masks override raster terrain.
 HOSMREG2 adds water records (sea assembled from OSM coastline ways with
 the land-left/water-right closure rule, inland water incl. multipolygon
-relations, island inner rings). src/terrain/water_carve.rs rasterizes
+relations, island inner rings). crates/humanity-terrain/src/water_carve.rs rasterizes
 each region's water to a 1024x1024 mask and the terrain formula sites
 (build_patch_mesh + drawn_elevation_normalized, i.e. patches, walk clamp,
 grass, region grids) press ground under sea polygons 2 m below sea level,
@@ -1809,7 +1809,7 @@ under. The 2D Planet view draws the same polygons (ear-clipped fills,
 island repaint, named-water labels). Rust locks: 7 water_carve tests +
 shipped-file locks (Dyes Inlet sea area > 5 km2, Island Lake + its Clark
 Island hole, Lake Union in Seattle Center).
-- Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/maps/planet_view.rs (2D)
+- Native: crates/humanity-terrain/src/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/maps/planet_view.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
 ### The Sharp Converged Sky (v0.1165, phase 8)
@@ -1922,7 +1922,7 @@ physical slab (with its first rig vantage as the BUG-049 lock), and the
 rig gained cloud_quality / cloud_cover showcase pins. Orbit look
 verified with live MODIS. Phase 2 (from-below presence calibration on
 the thin slab) is fenced in docs/design/clouds-depth.md.
-- Native: src/terrain/planet.rs (cloud_slab_scales), renderer pipeline
+- Native: crates/humanity-terrain/src/planet.rs (cloud_slab_scales), renderer pipeline
   params2, assets/shaders/pbr/40-clouds.wgsl, data/planets/earth.ron
 - Dev: scripts/measure-cloud-depth.mjs, probe-sweep junction self-heal
 
@@ -1976,7 +1976,7 @@ shipped-file geography gates (Dyes Inlet <= 2 m, the SW ridge > 150 m:
 an orientation flip would land the ridge in the inlet). Probe rig
 hardened the same day: tree-kill + rig-path process sweep + EBUSY
 retry (three zombie instances in one session).
-- Native: src/terrain/osm_region.rs (parse_dem/RegionDem), water_carve.rs (taper + dem_overlay), src/engine/region_meshes.rs (DEM load + lake levels)
+- Native: crates/humanity-terrain/src/osm_region.rs (parse_dem/RegionDem), water_carve.rs (taper + dem_overlay), src/engine/region_meshes.rs (DEM load + lake levels)
 - Generator: scripts/fetch-region-dem.mjs (HOSDEM1, 17 self-checks + geography gates)
 
 ### Vegetation Keeps Off the Streets (v0.1152)
@@ -1992,7 +1992,7 @@ the A/B caught it) and a per-harvest disc pre-reject makes them free
 outside any region. Probe-proven: Silverdale's streets and homes read
 through the forest instead of under it, 29.8 fps vs the 30 fps ungated
 baseline.
-- Native: src/terrain/water_carve.rs (CELL_BUILT + built_weight_at_deg + any_mask_in_disc), planet_chunks.rs, near_trees.rs, far_trees.rs, grass.rs
+- Native: crates/humanity-terrain/src/water_carve.rs (CELL_BUILT + built_weight_at_deg + any_mask_in_disc), planet_chunks.rs, near_trees.rs, far_trees.rs, grass.rs
 
 ### Chat Live Strip + Streaming Revive (v0.1150)
 The v0.855-0.857 broadcast pipeline (app-window capture, MJPEG over a
@@ -2035,7 +2035,7 @@ the ones not reached dimmed. The chain is built only while its window is open on
 page. Web: the /onboarding guides (the web's Quests target) became the same cards, each opening
 its steps in a window (real-life guides: every step shows, the ones after the next dimmed).
 - Native: src/gui/pages/quests.rs, src/gui/pages/quests/chain_window.rs, src/gui/quest_types.rs,
-  src/systems/quests/chain.rs (the view and its no-spoiler tests); lib.rs quest mirror
+  crates/humanity-systems/src/quests/chain.rs (the view and its no-spoiler tests); lib.rs quest mirror
 - Web: web/pages/onboarding.html
 - Snapshots: quests, quests_branches, quests_chain_first_steps, quests_chain_branches, quests_chain_dev
 
@@ -2057,7 +2057,7 @@ storage / needs 45") and says plainly what is short. What the backpack cannot
 take of the result goes to home storage with its grade; the rover, truck and
 Nova still roll out as vehicles. On a planet, in open space and as a guest on
 a shared ship, only the backpack counts, and the page says why.
-- Native: `src/gui/pages/crafting.rs`, `src/systems/crafting/home_store.rs`
+- Native: `src/gui/pages/crafting.rs`, `crates/humanity-systems/src/crafting/home_store.rs`
   (`HomeStore`, `Draw`), `src/engine/built_uses.rs` (`home_storage_here`)
 
 ### Guilds Page
@@ -2202,18 +2202,18 @@ Since 2026-09-27 it is drawn by its own FULLSCREEN ADDITIVE EMISSION PASS rather
 
 ### Environment Layer 1: each world's climate (2026-09-27)
 The base field under all weather: the air temperature, air pressure and prevailing wind at any place and date on a world, a pure function of the direction from the body centre, the altitude, the share of land around the place and the time of year. Temperature is North, Cahalan and Coakley's energy-balance form (a P2 profile plus a seasonal term that flips between hemispheres) with separate land and sea seasons per hemisphere; pressure and the lapse are the 1976 US Standard Atmosphere's two lowest layers, started from the place's own sea-level temperature; the wind is the zonal-mean 10 m wind (trades, westerlies, Antarctic easterlies, and their seasonal shift) as a 16-term sine series. Earth's numbers are fitted to the NCEP/NCAR Reanalysis 1 1991-2020 means by a checked-in script; Mars carries its NASA fact sheet column; a world without a row keeps the generic body model. The weather is now a DEVIATION on top of it: the at-player temperature, pressure and wind the body heat model reads come from Layer 1 where the player stands, so the equator, a mountain and the pole feel different air. Implemented twice, f64 for the simulation and f32 WGSL for the renderer, and a test RUNS the shader functions on the CPU (a naga-IR interpreter) over about 2,000 places and dates against the Rust copy. No GPU caller yet: cloud advection is the first.
-- Native: `src/systems/env_layer1.rs` (model; tests in `env_layer1_tests.rs`), `assets/shaders/pbr/00-bindings-vertex.wgsl` (`EnvClimate`, `env_l1_*`), `src/systems/weather.rs` (`air_at_player`, the at-player export), `src/engine/survival_env.rs` (feeds the body heat model), `src/engine/frame_lock.rs` (direction + land share), `src/renderer/shader_loader/wgsl_eval.rs` (the test-only WGSL interpreter, reusable for any pure shader twin)
+- Native: `crates/humanity-systems/src/env_layer1.rs` (model; tests in `env_layer1_tests.rs`), `assets/shaders/pbr/00-bindings-vertex.wgsl` (`EnvClimate`, `env_l1_*`), `crates/humanity-systems/src/weather.rs` (`air_at_player`, the at-player export), `src/engine/survival_env.rs` (feeds the body heat model), `src/engine/frame_lock.rs` (direction + land share), `src/renderer/shader_loader/wgsl_eval.rs` (the test-only WGSL interpreter, reusable for any pure shader twin)
 - Data: `data/environment/climate.ron` (one row per world, sources beside every number); `node scripts/climate-fit.js` reproduces Earth's row
 - Design: `docs/design/environment-fields.md`, "Layer 1 as built"
 ### In-world screens (rungs 1 and 2, 2026-09-16)
 Any native egui tool page (inventory, tasks, chat, library, the MJPEG Watch page, ...) renders onto a flat display placed in the 3D world, and the player can look at it, click it, scroll it and type into it. It is the real page function drawn against the real `GuiState` (the wall inventory IS the player's inventory), under a second egui context per screen so scroll and open states are per screen. The scene samples the page's texture directly through a type-24 emitter material (no readback, no copy; sun and shadow do not darken a display, aerial haze still applies). Input: the camera look ray while the cursor is grabbed, the cursor ray while it is free, 3.5 m reach, click consumption (the game's own click skips a frame a screen took), keyboard focus on the last-clicked screen while its page wants text, Escape releases. Data: a `screen` block on a machine def (`page`, `px`, `face`, `bezel_m`, `brightness`) plus a per-instance `screen_page`; two `wall_screen` instances ship in the common room. Dev IPC: `debug/screen_request.json` (hover / click / scroll / text / snapshot through the same event API) and `debug/screen_done.json`. Every plain tool page now goes through ONE dispatch table shared by the main UI and the screens. Design doc: `docs/design/in-world-screens.md`.
-- Native: `src/gui/dispatch.rs`, `src/gui/screen_surface.rs`, `src/engine/screens.rs`, `src/engine/ipc.rs` (`poll_screen_request`), `src/renderer/materials.rs` (`MATERIAL_TYPE_SCREEN`, `add_material_with_albedo_view`, `update_material_albedo_pixels`), `assets/shaders/pbr/90-fragment-main.wgsl` (type 24), `src/machines.rs` (`ScreenDef`)
+- Native: `src/gui/dispatch.rs`, `src/gui/screen_surface.rs`, `src/engine/screens.rs`, `src/engine/ipc.rs` (`poll_screen_request`), `src/renderer/materials.rs` (`MATERIAL_TYPE_SCREEN`, `add_material_with_albedo_view`, `update_material_albedo_pixels`), `assets/shaders/pbr/90-fragment-main.wgsl` (type 24), `crates/humanity-ship/src/machines.rs` (`ScreenDef`)
 - Web: none by design. The screens are surfaces inside the 3D world the native renderer draws; the website has no world to place them in.
 - Data: `data/machines/home.ron`, `data/machines/home_solo.ron` ("Displays" category: `wall_screen`, `desk_monitor`)
 
 ### Live feeds and in-game cameras on screens (in-world screens rung 3, 2026-09-16)
 Two more things a wall screen can show, both chosen from the data file alone. `watch:<stream id>` shows the relay's MJPEG live stream (the stream id is the publisher's registered name, lower case): each screen owns its OWN `LiveViewer`, started on its first frame against the configured server and dropped with the surface, so two walls on one stream get every frame instead of splitting them; frames are letterboxed into the surface's own size (never stretched), a status page covers "connecting" and "stream offline" with the relay's reason, and an ended stream is retried every 15 s. `camera:<instance id>` shows the game world from a placed CAMERA POST: a machine def with `camera: Some((yaw, pitch, fov))` (the instance's rotation adds to the yaw), resolved to a lens pose on every placement rebuild and move. The world is rendered straight into the screen's surface (created in the scene's format) through `render_view_onto`, the sky + scene passes refactored out of the hi-res screenshot so both share one function; at most one camera renders per frame and each at most 10 times a second (starvation-order round-robin), sky and scene passes only (no planet/cloud pass: its temporal history belongs to the player's camera). Ships as `camera_post` in both home catalogs, `camera_post_1` in the garden looking down the tower rows, and two console-room wall screens (`wall_screen_3` = the garden camera, `wall_screen_4` = `watch:shaostoul`). The dev IPC done file now carries the provider's status fields (`connected`/`frames`, `renders`/`live`/`error`). Design doc: `docs/design/in-world-screens.md`, "Live and camera sources".
-- Native: `src/engine/screens/live.rs` (`LiveProvider`, `letterbox_rect`, `letterbox_into`), `src/engine/screens/camera.rs` (`CameraProvider`, `pick_due`, `camera_from_pose`, `EngineWorld`), `src/gui/screen_surface.rs` (`WorldRender`, `WorldRenderState`, `surface_format`, `new_with_format`), `src/engine/screens.rs` (`camera_posts_from`, the scheduler in `frame_surfaces`), `src/engine/ipc.rs` (`render_view_onto`, `ViewPasses`, the status merge), `src/machines.rs` (`MachineDef.camera`, `CameraPose`, `PlacedMachine::camera_pose`)
+- Native: `src/engine/screens/live.rs` (`LiveProvider`, `letterbox_rect`, `letterbox_into`), `src/engine/screens/camera.rs` (`CameraProvider`, `pick_due`, `camera_from_pose`, `EngineWorld`), `src/gui/screen_surface.rs` (`WorldRender`, `WorldRenderState`, `surface_format`, `new_with_format`), `src/engine/screens.rs` (`camera_posts_from`, the scheduler in `frame_surfaces`), `src/engine/ipc.rs` (`render_view_onto`, `ViewPasses`, the status merge), `crates/humanity-ship/src/machines.rs` (`MachineDef.camera`, `CameraPose`, `PlacedMachine::camera_pose`)
 - Web: none by design (the screens live in the 3D world the native renderer draws).
 - Data: `data/machines/home.ron`, `data/machines/home_solo.ron` (`camera_post`)
 
@@ -2293,11 +2293,11 @@ Data-driven sun direction passed as shader uniform instead of hardcoded in WGSL.
 
 ### Planet Registry (v0.90.8)
 Unified celestial body management for renderer, terrain, and maps.
-- Native: `src/terrain/planet.rs`
+- Native: `crates/humanity-terrain/src/planet.rs`
 
 ### Construction Placement (v0.90.8, partial)
 Scaffolded placement system for building in the game world. Needs full integration. **⚠️ `PlacementSystem` NOT registered, never ticks (see the lint).**
-- Native: `src/systems/construction/mod.rs`
+- Native: `crates/humanity-systems/src/construction/mod.rs`
 
 ### GLTF Model Loading
 Load .glb/.gltf models with normal and UV fallbacks. Cached by path.
@@ -2313,7 +2313,7 @@ Every scene pass draws into a scene target; one full-screen present pass copies 
 
 ### Icosphere Planet Terrain
 Recursive subdivision from icosahedron. LOD from billboard to walkable surface.
-- Native: `src/terrain/icosphere.rs`, `src/terrain/planet.rs`
+- Native: `crates/humanity-terrain/src/icosphere.rs`, `crates/humanity-terrain/src/planet.rs`
 - Data: `data/planets/*.ron`
 
 ### Procedural Sky-Planet Surfaces (v0.763)
@@ -2329,7 +2329,7 @@ packed in the UV channel (PBR shader material types 12/13), so no new vertex
 layout or pipeline. Planet defs HOT-RELOAD (v0.764): saving a
 `data/planets/<id>.ron` mid-game re-reads the defs + drops cached meshes, so
 palette/noise/sea-level tuning shows in the sky within a frame.
-- Native: `src/terrain/planet_surface.rs`, `src/terrain/planet.rs`
+- Native: `crates/humanity-terrain/src/planet_surface.rs`, `crates/humanity-terrain/src/planet.rs`
   (`lod_level_for_pixels`), `src/renderer/mesh.rs` (`from_planet_surface`),
   `assets/shaders/pbr_simple.wgsl` (types 12/13), sky loop in `src/lib.rs`
 - Data: `data/planets/earth.ron`, `mars.ron`, `moon.ron` (palette + noise
@@ -2353,23 +2353,23 @@ pinned, renderer slots recycled). Below the heightmap's 0.1 deg resolution,
 3 octaves of seeded land-masked detail noise (~30 m) keep close terrain
 from going flat. Toggle in Settings > Graphics > Planets ("Chunked surface
 detail"), persisted in AppConfig.
-- Native: `src/terrain/planet_chunks.rs` (pure math + 17 headless tests),
+- Native: `crates/humanity-terrain/src/planet_chunks.rs` (pure math + 17 headless tests),
   sky loop in `src/lib.rs` (selection/build/draw), `src/renderer/mesh.rs`
   (`placeholder` slot recycling)
 - Data: any `data/planets/<id>.ron` with a `heightmap` (Earth today)
 
 ### Heightmap Terrain Generation
 Procedural terrain from heightmaps with 16 biome types.
-- Native: `src/terrain/heightmap.rs`
+- Native: `crates/humanity-terrain/src/heightmap.rs`
 
 ### Voxel Asteroids
 Sparse octree storage, greedy meshing, ore veins by classification, mining.
-- Native: `src/terrain/asteroid.rs`
+- Native: `crates/humanity-terrain/src/asteroid.rs`
 - Data: `data/asteroids/types.csv`
 
 ### Ship Interiors
 Ship layouts from RON, room mesh generation, BFS pathfinding between rooms.
-- Native: `src/ship/layout.rs`, `src/ship/rooms.rs`
+- Native: `crates/humanity-ship/src/layout.rs`, `crates/humanity-ship/src/rooms.rs`
 - Data: `data/ships/starter_fleet.ron`
 
 ### Physics (rapier3d)
@@ -2424,10 +2424,10 @@ Gameplay "Where you live" (the household, for the live save), on the Home page (
 in Characters (Play): "A new home" while your own home has no save yet, and the connected
 server's card. The website's chat has a "Where you live" window (command palette).
 - Data: `data/homes/starts.ron`, `data/homes/shipped/cabin.ron` (the player's copy `data/homes/cabin.ron`), `data/machines/cabin.ron`, `data/places/cabin_seed.json`, `data/asteroids/belt.ron`, `data/blueprints/ship_structure.ron` (`cabins-1`, c1 to c16, `commons-2`), `data/blueprints/zone_types.ron`
-- Native: `src/ship/starts.rs` (`Starts`, `HomeAnswer`, `refusal_words`), `src/engine/save_slot.rs` (`wanted`, `fresh_save`, `follow`, `home_for`, `on_game_message`), `src/persistence/live_save.rs` (`ActiveHome`, the choices waiting for a fresh save, `set_aside_erased`), `src/save_load.rs` (`apply_onto_running_world`, `starting_kit`), `src/persistence.rs` (`SaveSlot`, `slot_path`, `ShipPlace`, `ShipMeals`), `src/engine/home_plot.rs` (`add_join_fields`, `guest_arrival`), `src/engine/world_load.rs` (`refresh_home_content`), `src/ship/ship_space.rs` (`air_spaces_for`), `src/gui/pages/where_you_live.rs`, `src/gui/pages/showroom.rs`, `src/gui/pages/settings.rs`, `src/gui/pages/homes.rs`, `src/engine/ipc.rs` (`choose_start`, `pairing`, `meal`, `water`, `home_session`)
+- Native: `crates/humanity-ship/src/starts.rs` (`Starts`, `HomeAnswer`, `refusal_words`), `src/engine/save_slot.rs` (`wanted`, `fresh_save`, `follow`, `home_for`, `on_game_message`), `src/persistence/live_save.rs` (`ActiveHome`, the choices waiting for a fresh save, `set_aside_erased`), `src/save_load.rs` (`apply_onto_running_world`, `starting_kit`), `crates/humanity-systems/src/persistence.rs` (`SaveSlot`, `slot_path`, `ShipPlace`, `ShipMeals`), `src/engine/home_plot.rs` (`add_join_fields`, `guest_arrival`), `src/engine/world_load.rs` (`refresh_home_content`), `crates/humanity-ship/src/ship_space.rs` (`air_spaces_for`), `src/gui/pages/where_you_live.rs`, `src/gui/pages/showroom.rs`, `src/gui/pages/settings.rs`, `src/gui/pages/homes.rs`, `src/engine/ipc.rs` (`choose_start`, `pairing`, `meal`, `water`, `home_session`)
 - Server: `src/relay/handlers/game_state.rs` (`JoinHome`, `assign_home`, `HomeAssignment::add_to_welcome`), `src/relay/handlers/home_plots.rs` (`handle_home`, `answer_home`), `src/relay/storage/plots.rs` (`claim_plot`, `held_by`, `free_of`)
 - Web: `web/chat/chat-home.js` (palette item `openWhereYouLive` in `data/commands.json`)
-- Tests: `src/ship/starts.rs`, `src/engine/save_slot_tests.rs`, `src/engine/save_slot_home_tests.rs`, `src/save_load_slot_tests.rs`, `src/gui/pages/where_you_live_tests.rs`, `src/gui/pages/showroom_tests.rs`, `src/relay/features.rs` (`a_cabin_and_a_homestead_on_one_ship`), `scripts/tests/chat-home.test.js`. Design: `docs/design/ship-homes-and-logistics.md` (increment 6 as built), `docs/design/ship-homes-increment-6-plan.md`
+- Tests: `crates/humanity-ship/src/starts.rs`, `src/engine/save_slot_tests.rs`, `src/engine/save_slot_home_tests.rs`, `src/save_load_slot_tests.rs`, `src/gui/pages/where_you_live_tests.rs`, `src/gui/pages/showroom_tests.rs`, `src/relay/features.rs` (`a_cabin_and_a_homestead_on_one_ship`), `scripts/tests/chat-home.test.js`. Design: `docs/design/ship-homes-and-logistics.md` (increment 6 as built), `docs/design/ship-homes-increment-6-plan.md`
 
 ### Multiplayer Networking
 WebSocket client (tungstenite), message protocol, ECS sync, position interpolation.
@@ -2464,7 +2464,7 @@ is written to a temp file and renamed over the real one, and the previous
 version is kept as a snapshot under `backups/saves/<slot>/` (the newest 10, at
 most one per 15 minutes, never a duplicate); Settings > Data lists them with
 Restore and "Snapshot now" (v0.1442.0, BUG-129).
-- Native: `src/persistence.rs`, `src/save_load.rs` (the offline home: inventory,
+- Native: `crates/humanity-systems/src/persistence.rs`, `src/save_load.rs` (the offline home: inventory,
   skills, wallet, quests, vehicles, crops, builds and scaffolds, craft batches in
   flight, the world clock; since 2026-09-27 also the asteroids as mined down,
   the drone in flight with its cargo, the "Keep mining" standing order and the
@@ -2476,7 +2476,7 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   id and carried across world entry, which respawns every machine. Before, each
   restart and each world entry reset banks and tanks to half and emptied every
   vessel, destroying what was stored in it. None of them moves on by the time
-  away. `src/systems/machine_levels.rs`, `WorldSave.machine_levels`. The home's
+  away. `crates/humanity-systems/src/machine_levels.rs`, `WorldSave.machine_levels`. The home's
   air (oxygen, carbon dioxide, humidity) and each grow room's air were already
   saved in `SoilMemory` (`home_air`, `rooms`).
 - **Offline progression (2026-09-25):** crops, scaffolds under construction and
@@ -2487,7 +2487,7 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
 - **Offline progression, the rest of single player (2026-09-27):** the
   automated machines run the time away through moment by moment on the inputs
   really on hand and the power the home could spare, resting at their keep
-  targets and feeding each other (`src/systems/crafting/away.rs`); the drone
+  targets and feeding each other (`crates/humanity-systems/src/crafting/away.rs`); the drone
   finishes its trip and keeps flying a standing order out of the asteroid's
   real ore (`mining::advance_away`); each animal's egg, milk or wool timer
   moves on to one yield waiting (`livestock::timers_after_away`), and since
@@ -2523,7 +2523,7 @@ Server constants moved from hardcoded Rust to external JSON configuration.
 
 ### 8 Game System Modules (v0.90.7)
 Scaffolded system modules for expanded gameplay.
-- Native: `src/systems/`
+- Native: `crates/humanity-systems/src/`
 
 ### Shader Library
 WGSL shaders: planet surfaces (earth, mars, venus, mercury, jupiter, saturn, uranus, neptune, moon, pluto), PBR, procedural materials (brick, metal, wood, concrete, fabric, aperiodic), stars, constellations, orbit rings, ghost preview, particles, bloom, the Sun's visibility taps (`sun_vis.wgsl`).
@@ -2553,8 +2553,8 @@ double speed (v0.762). Kills train melee (kinetic) / ranged (else) via
 xp_grants. Melee (v0.765): F swings the worn hands-slot weapon (tool/blade
 equipment rows: axe 14, spear 15 at 3m, pickaxe 12...) or bare hands (3 dmg);
 offensive abilities cast at the faced creature (v0.760). Wild spawns are data.
-- Native: `src/systems/combat/` (system, `player_swing`, damage types),
-  `src/systems/ai/mod.rs` (behavior machine + bites), lib.rs bridges (swing,
+- Native: `crates/humanity-systems/src/combat/` (system, `player_swing`, damage types),
+  `crates/humanity-systems/src/ai/mod.rs` (behavior machine + bites), lib.rs bridges (swing,
   loot settle, armor rebuild, cast targeting)
 - Data: `data/entities/wild_spawns.ron`, `data/creatures.csv` loot tables,
   `data/equipment.csv` damage/armor columns, 128 generated loot items in
@@ -2567,7 +2567,7 @@ column: `item:amount:regrow_seconds`). Starter herd (chickens/goats/sheep) place
 lissajous graze paths. Walk-up `[E]` collects the regrown product (egg/milk/wool)
 volume-gated into the pack, grants farming XP + a `harvest_<creature>` quest event.
 Placeholder block bodies sized from real species mass.
-- Native: `src/systems/livestock.rs` (registry, spawn list, collect, LivestockSystem),
+- Native: `crates/humanity-systems/src/livestock.rs` (registry, spawn list, collect, LivestockSystem),
   `crates/humanity-core/src/ecs/components.rs` (`Creature`, `Harvestable`), lib.rs walk-up + collect bridges + render pass
 - Data: `data/creatures.csv`, `data/entities/livestock.ron`, `wool_0` in `data/items.csv`
 - **Animal care (2026-10-12, first-hour audit S6):** each kept animal eats real dry matter a
@@ -2578,7 +2578,7 @@ Placeholder block bodies sized from real species mass.
   Forgiving (production only). Yields are per real day at 1x (a hen every 26 h, a goat 3 L a
   day, a sheep's fleece a year), timed in f64. The walk-up prompt says how the animal is and
   what it needs; Home > Animals lists the herd. Feed is drawn while the player is away, and
-  nothing sickens then. Native: `src/systems/animal_care.rs` (+ `_tests.rs`),
+  nothing sickens then. Native: `crates/humanity-systems/src/animal_care.rs` (+ `_tests.rs`),
   `src/gui/pages/herd.rs`; data: `data/livestock/care.ron`, `hay_0` (items.csv, trade_goods.ron,
   30 bales in the seeded Barn).
 
@@ -2595,22 +2595,22 @@ blueprint builds that piece where a piece in hand would go (the engine's spot,
 energy only when the build starts. The Campfire ability builds a campfire
 (`construction::fires`: lit with its own logs, burns down, E adds a log, radiates
 heat the body heat model feels; outdoors only).
-- Native: `src/systems/abilities.rs`, `src/gui/pages/profile.rs` (panel),
+- Native: `crates/humanity-systems/src/abilities.rs`, `src/gui/pages/profile.rs` (panel),
   lib.rs bridge (`pending_cast`, `ability_status`, `ability_cooldowns`),
-  `src/engine/build_place.rs` (`publish_cast_spot`), `src/systems/construction/fires.rs`
+  `src/engine/build_place.rs` (`publish_cast_spot`), `crates/humanity-systems/src/construction/fires.rs`
 - Data: `data/abilities.csv`, `data/blueprints/basic.ron` (`campfire`)
 
 ### Player Controller
 WASD movement, gravity, jump, ground detection via raycast.
-- Native: `src/systems/player.rs`
+- Native: `crates/humanity-systems/src/player.rs`
 
 ### Interaction System
 Raycast from camera, find nearest interactable entity.
-- Native: `src/systems/interaction.rs`
+- Native: `crates/humanity-systems/src/interaction.rs`
 
 ### Day/Night Cycle
 One game clock (2026-09-27, decision-briefs.md Brief 6): an hour is 3,600 game seconds, a day is the Settings "Hours in a day" (default 24, 12 to 48), a year the "Days in a year" (default 365), and the "Time speed" (default 1 = real time, presets Realistic 1x, a day an hour 24x, Simplified 72x, Garden testing 720x, up to 1,000x) is the only speed-up: crops, tanks, batteries, the body's daily needs, the weather, the sun, the planet's spin and the seasons all follow it. The sun is up the middle half of any day (`GameTime::solar_hour`). Holds over the speed: the F11 freeze, sleep (7,200x, a night in 4 real seconds) and the probe rig. Offline time counts at the time speed.
-- Native: `src/systems/time.rs`, `src/gui/pages/settings_time.rs` (Settings > Gameplay > Time)
+- Native: `crates/humanity-systems/src/time.rs`, `src/gui/pages/settings_time.rs` (Settings > Gameplay > Time)
 
 ### Weather System
 7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **Registered, ticks live** (`WeatherSystem` is NOT in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01 during the overnight loop's registration-status sweep).
@@ -2618,20 +2618,20 @@ One game clock (2026-09-27, decision-briefs.md Brief 6): an hour is 3,600 game s
 - **The HUD weather line reads the air the player stands in (2026-09-27):** the condition as it falls there ("Rain and snow" inside the band), the temperature at the player, and the wind at the player (environment Layer 1's prevailing wind plus the weather's own) with the compass point it blows from. The F11 panel repeats it as "At the player". Sealed indoors (the home aboard) the line
 is the home's air instead, "Indoors 20C, still air" (`hud_weather_text`, 2026-09-28): it used to show the planet's weather
 in a room at 20 C.
-- Native: `src/systems/weather.rs`, `src/systems/precipitation.rs` (phase), `src/gui/pages/hud.rs` (`weather_line`)
+- Native: `crates/humanity-systems/src/weather.rs`, `crates/humanity-systems/src/precipitation.rs` (phase), `src/gui/pages/hud.rs` (`weather_line`)
 - Design: `docs/design/environment-fields.md`, "Rain or snow, decided by the air"
 
 ### Hydrological System
 Rain cycle, rivers, aquifers, contamination tracking, water table simulation. **⚠️ NOT registered, never ticks (see the lint).**
-- Native: `src/systems/hydrology.rs`
+- Native: `crates/humanity-systems/src/hydrology.rs`
 
 ### Atmospheric System
 Gas tracking, explosions, suffocation, pressure simulation. **Registered (v0.617), ticks the home's sealed EnclosedSpace + publishes live AirStatus** (`AtmosphereSystem` is NOT in `DEFERRED_SYSTEMS` -- the lint's own comment there notes it was removed at v0.617; this "NOT registered" note was stale, corrected 2026-07-01).
-- Native: `src/systems/atmosphere.rs`
+- Native: `crates/humanity-systems/src/atmosphere.rs`
 
 ### Disaster System
 21 disaster types with chain reactions, severity scaling, black holes. **⚠️ NOT registered, never ticks (see the lint).**
-- Native: `src/systems/disasters.rs`
+- Native: `crates/humanity-systems/src/disasters.rs`
 
 ### Farming
 6 growth stages, water/health simulation, seasonal effects. Yield follows the
@@ -2769,7 +2769,7 @@ each grow area's rows and tile keys until that area's change number
 (`engine/garden_mirror.rs`); a wall screen builds at most an eighth of the
 crops a build. "Turn off all reuse" runs every area every frame and builds
 every row every build.
-- Native: `src/systems/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden), `src/gui/widgets/offscreen.rs`
+- Native: `crates/humanity-systems/src/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden), `src/gui/widgets/offscreen.rs`
 - Data: `data/plants.csv`, `data/garden/grow_media.ron`, `data/items.csv`
 
 ### Inventory
@@ -2791,10 +2791,10 @@ the build menu too, and hand crafts since BUG-147: the main loop mirrors the
 organize-layer placed items into a `home_stock` map pre-tick (leaving out
 chests built on a planet, whose contents are not in the home); the systems
 count + consume; the diff drains back post-tick.
-- Native: `src/systems/inventory/mod.rs`, `src/gui/pages/inventory.rs`,
-  `src/systems/crafting/mod.rs` (home_stock), `src/engine/stock_piles.rs`
+- Native: `crates/humanity-systems/src/inventory/mod.rs`, `src/gui/pages/inventory.rs`,
+  `crates/humanity-systems/src/crafting/mod.rs` (home_stock), `src/engine/stock_piles.rs`
   (`publish_home_stock`, `take_consumed_home_stock`),
-  `src/systems/inventory/placed.rs` (`stock_counts`, `take_consumed`)
+  `crates/humanity-systems/src/inventory/placed.rs` (`stock_counts`, `take_consumed`)
 - Data: `data/items.csv` (volume_l), `data/materials.csv` (densities)
 
 ### Typed Containers (volume-capped vessels)
@@ -2807,7 +2807,7 @@ Store buttons; harvest overflow fills them; the backstop
 genset burns only the fuels its data names (`fuels` on its `Generator` power
 role, spawned as `BurnsFuels`; BUG-154), and its drum takes and offers only
 those (`vessel_takes_item`, `store_offers` in `containers.rs`;
-`src/systems/electrical.rs`). The homes' genset names Gasoline, which the fuel
+`crates/humanity-systems/src/electrical.rs`). The homes' genset names Gasoline, which the fuel
 refinery distils from crude oil along with Diesel at EIA's split (`refine_crude`:
 10 crude oil of 1.25 L into 6 L of gasoline and 4 L of diesel; both are litre items at their
 GREET densities, cited in `data/items.csv`; 2026-10-20, replacing "Refined Fuel").
@@ -2831,7 +2831,7 @@ Content memory and materials (v0.1345.0): a vessel remembers its last
 content and any toxic history, needs a Clean (water from the tanks) before
 switching contents, never holds food again after fuel or solvents, and its
 material (`data/containers/materials.csv`) refuses what it reacts with.
-- Native: `src/systems/inventory/containers.rs`, `src/machines.rs`
+- Native: `crates/humanity-systems/src/inventory/containers.rs`, `crates/humanity-ship/src/machines.rs`
 - Data: `data/containers/types.csv`, `materials.csv`, `content_traits.ron`, `data/machines/home.ron`
 - Design: `docs/design/containers.md`
 
@@ -2842,7 +2842,7 @@ tool's uses and its sale price, never merges across stacks, and survives
 storage. Machines make standard goods (v0.1353.0). Above standard the
 trading post pays the grade's multiple only up to a ceiling set by what
 the good's parts cost there, so no grade loops money (BUG-146, v0.1463.0).
-- Native: `src/systems/crafting/quality.rs`, `src/systems/inventory/mod.rs` (`ItemStack::quality`, `add_item_q`, `TransferOp`), `src/systems/economy/mod.rs` (`vendor_sell`), `src/systems/economy/parts.rs` (`graded_pay`, `parts_prices`)
+- Native: `crates/humanity-systems/src/crafting/quality.rs`, `crates/humanity-systems/src/inventory/mod.rs` (`ItemStack::quality`, `add_item_q`, `TransferOp`), `crates/humanity-systems/src/economy/mod.rs` (`vendor_sell`), `crates/humanity-systems/src/economy/parts.rs` (`graded_pay`, `parts_prices`)
 - Data: `data/manufacturing.ron` (`quality_levels`)
 
 ### Byproducts and Machine Output to Storage
@@ -2853,7 +2853,7 @@ whey bread); `tests/byproduct_use_lint.rs` keeps them used and stops
 byproduct recipes creating mass or multiplying an input. Automated machines
 deliver into home storage (the Barn) and rest while `auto_keep` of their
 product is on hand (v0.1351.0).
-- Native: `src/systems/crafting/mod.rs` (`home_stock_outputs`, keep gate), `src/engine/stock_piles.rs` (`receive_machine_outputs`)
+- Native: `crates/humanity-systems/src/crafting/mod.rs` (`home_stock_outputs`, keep gate), `src/engine/stock_piles.rs` (`receive_machine_outputs`)
 - Data: `data/recipes.csv`, `data/items.csv`, `data/machines/home.ron` (`auto_keep`)
 
 ### Station Power (idle and working draw)
@@ -2862,7 +2862,7 @@ draws that until a craft runs at it and its full `watts` while one does. A
 manual craft at an electric station with no powered machine of its type is
 refused (notice, nothing spent) and the Crafting page says the station has no
 power (v0.1349.0).
-- Native: `src/systems/crafting/mod.rs` (`station_unpowered`, the draw pass at the end of the tick), `src/engine/home_spawn.rs` (`MachineType`, `StationLoad`), `src/machines.rs`
+- Native: `crates/humanity-systems/src/crafting/mod.rs` (`station_unpowered`, the draw pass at the end of the tick), `src/engine/home_spawn.rs` (`MachineType`, `StationLoad`), `crates/humanity-ship/src/machines.rs`
 - Data: `data/machines/home.ron` (stove, oven, electronics bench, sewing machine)
 
 ### Hand Tools and Tool Wear
@@ -2871,7 +2871,7 @@ rules by station and category, plus per-recipe lists); tools are not consumed
 but each craft wears one use off them, and they break at their items.csv
 durability. The inventory card shows "Uses left". Automated machines need no
 tools. The web Crafting page lists the same tools (v0.1348.0).
-- Native: `src/systems/crafting/tools.rs`, `src/systems/crafting/mod.rs`, `src/systems/inventory/mod.rs` (`wear_item`), `src/gui/pages/crafting.rs`
+- Native: `crates/humanity-systems/src/crafting/tools.rs`, `crates/humanity-systems/src/crafting/mod.rs`, `crates/humanity-systems/src/inventory/mod.rs` (`wear_item`), `src/gui/pages/crafting.rs`
 - Data: `data/crafting/tools.ron`, `data/items.csv` (durability)
 - Web: `scripts/gen-recipes-json.js` -> `data/recipes.json`, `web/pages/crafting.html`
 
@@ -2880,7 +2880,7 @@ A recipe that needs a measure of tap water draws it from the home tanks when
 the backpack has none (the Crafting page counts the tanks too); a water
 tank's walk-up card fills the empty bottles and jerrycans you carry and
 pours full ones back; drinking a bottle hands the empty back (v0.1347.0).
-- Native: `src/systems/fluids.rs`, `src/systems/crafting/mod.rs`, `src/systems/food.rs`
+- Native: `crates/humanity-systems/src/fluids.rs`, `crates/humanity-systems/src/crafting/mod.rs`, `crates/humanity-systems/src/food.rs`
 - Data: `data/containers/fluids.ron`, `data/items.csv` (water_bottle_empty_0, water_jerrycan_empty_0, water_jerrycan_0)
 
 ### Visible Storage (Barn racks and tank gauges)
@@ -2888,7 +2888,7 @@ The Barn's storage zone builds open pallet racks (`ZoneFiller` mesh_kind
 "rack"), and whatever is filed in the Barn (the organize layer's places tree)
 shows as 96 L crates on their decks, bottom deck first, updating as the stock
 changes. Every water tank carries a level gauge (v0.1346.0).
-- Native: `src/engine/stock_piles.rs`, `src/ship/structure.rs` (`rack_deck_levels`, `ZoneFiller::cells`)
+- Native: `src/engine/stock_piles.rs`, `crates/humanity-ship/src/structure.rs` (`rack_deck_levels`, `ZoneFiller::cells`)
 - Data: `data/places/seed.json` (the seeded Barn store), `data/blueprints/zone_filler.ron`
 
 Every other district kind has its own shape too (v0.1434.0,
@@ -2910,7 +2910,7 @@ deliberately paint-only (v0.461 click-eating lesson).
 
 ### Crafting
 Recipe matching from CSV, input validation, timed crafting.
-- Native: `src/systems/crafting/mod.rs`
+- Native: `crates/humanity-systems/src/crafting/mod.rs`
 - Data: `data/recipes.csv`
 
 ### Construction
@@ -2928,7 +2928,7 @@ in by data, no ids in code; the first structure the look ray meets wins, so a wa
 - `provides: "rest"` (the Bed): E lies down and sleeps 8 game hours. The clock runs 120 times faster through
   the night (the time scrubber's channel, so crops, crafts and the sun live the night by their own rules;
   never a clock jump), then the player wakes with full energy, no `fatigued`, the `rested` buff, the clock back
-  at its old speed, and a notice saying when. Dying asleep restores nothing. `src/systems/sleep.rs`, run by
+  at its old speed, and a notice saying when. Dying asleep restores nothing. `crates/humanity-systems/src/sleep.rs`, run by
   FoodSystem. The Inventory page's button is a **Short rest** since 2026-09-27: a ten-minute nap (Brooks and
   Lack 2006, Sleep 29(6)) that repays ten minutes of sleep (1.6 energy points) and lifts the `fatigued` slowdown
   for 155 minutes (the `refreshed` buff) for a tired person, not an exhausted one (energy below 10); a second
@@ -3049,9 +3049,9 @@ on a planet stand at the drawn ground's height where they were built, so far off
 a coarser level, they can sit a little high or low; a planet piece's face turned from the sun reads near
 black; a generator that can be built at a site (nothing on a planet can make power yet, so a planet stove
 or oven stays unpowered).
-- Native: `src/systems/construction/mod.rs`, `src/systems/construction/placement.rs`,
-  `src/systems/construction/site.rs` (build sites), `src/systems/construction/uses.rs`,
-  `src/systems/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press, chest sync, the stations where the player is),
+- Native: `crates/humanity-systems/src/construction/mod.rs`, `crates/humanity-systems/src/construction/placement.rs`,
+  `crates/humanity-systems/src/construction/site.rs` (build sites), `crates/humanity-systems/src/construction/uses.rs`,
+  `crates/humanity-systems/src/sleep.rs`, `src/engine/built_uses.rs` (prompt, E press, chest sync, the stations where the player is),
   `src/engine/build_place.rs` (the piece in hand), `src/engine/planet_build.rs` (the frame, the ground, the
   draw, the dev build verb), `src/engine/survival_env.rs` (shelter to the body), `src/gui/organize.rs`
   (`place_path`, `sync_built_stores`), `src/gui/pages/hud.rs` (the prompts and the Shelter row)
@@ -3108,7 +3108,7 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   points per kcal in 100 g whatever the item weighed (a loaf 40, nearly three days) and 10 Hydration for produce,
   3 for the rest. Coverage tests: `every_food_says_how_much_of_it_is_eaten`,
   `every_profile_says_how_much_water_it_carries`.
-- Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
+- Native: `crates/humanity-systems/src/body_heat.rs` (model, tests in `body_heat_tests.rs`), `crates/humanity-systems/src/food.rs` (the vitals
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)
 - Design: `docs/design/body-heat.md`
@@ -3136,9 +3136,9 @@ jumping in nonzero G based on weight/mass. We can obviously carry heavier in low
   noclip camera). The jump is the one place carried mass acts. Ladders climb at the same rate whatever is carried.
 - The mode is each player's own setting, also in the shared world: a server cannot yet require Realistic carrying
   (tracked in `docs/design/in-app-ops.md`).
-- Native: `src/systems/encumbrance.rs` (the rules, standalone tests), `src/engine/carry_load.rs` (applies them each
+- Native: `crates/humanity-systems/src/encumbrance.rs` (the rules, standalone tests), `src/engine/carry_load.rs` (applies them each
   frame), `src/renderer/camera.rs` (`carry_speed_factor` and `jump_scale`, the homestead walk and jump),
-  `src/surface_move.rs` (`carry_walk_factor` and `carry_gated_radial`, the planet walk and jump), `src/systems/inventory/mod.rs` (`carry_bonus_kg`, the gravity-aware `encumbered` flag),
+  `crates/humanity-systems/src/surface_move.rs` (`carry_walk_factor` and `carry_gated_radial`, the planet walk and jump), `crates/humanity-systems/src/inventory/mod.rs` (`carry_bonus_kg`, the gravity-aware `encumbered` flag),
   `src/gui/pages/inventory.rs` (tile), `src/gui/pages/hud.rs` (HUD line), `src/gui/pages/settings.rs` (mode).
   Web: none; movement and the in-game Status tiles exist only in the desktop app.
 
@@ -3161,53 +3161,53 @@ fell for a while, to go back for."). Either way you wake in the respawner with f
   with the home to another plot, and food in a pack keeps aging.
 - On a shared server the pack is yours alone (it lives in your own game and save): a lootable pack is an open
   decision, and the design note lists what it would need.
-- Native: `src/systems/death_pack.rs` (rules, leave, take back, clock, placement; relay-safe), `src/engine/death_pack.rs`
+- Native: `crates/humanity-systems/src/death_pack.rs` (rules, leave, take back, clock, placement; relay-safe), `src/engine/death_pack.rs`
   (the frame: death surfaced, where you fell, prompt, E, draw, marker; tests in `death_pack_tests.rs`),
   `src/gui/pages/hud.rs` (`death_screen_lines`, the prompt), `src/gui/pages/settings.rs` (`death_hint`, the mode),
-  `src/config.rs` (`death_realistic`), `src/save_load.rs` + `src/persistence.rs` (the save).
+  `src/config.rs` (`death_realistic`), `src/save_load.rs` + `crates/humanity-systems/src/persistence.rs` (the save).
   Web: none; the 3D world exists only in the desktop app.
 - Data: `data/world/death.ron` (the time, the warning, reach, facing cone, air height, wall clearance, room slack,
   open-space distance, shore search, the pack's size and colours)
 - Design: `docs/design/death-and-your-pack.md`
 
 ### Skills/Progression
-20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `src/systems/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
-- Native: `src/systems/skills/mod.rs`
+20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `crates/humanity-systems/src/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
+- Native: `crates/humanity-systems/src/skills/mod.rs`
 - Data: `data/skills/skills.csv`
 
 ### AI Behaviors
 5 behavior types (passive, aggressive, herd, predator, guard) with state machines. **⚠️ Native `AISystem` NOT registered, never ticks (the relay drives ambient NPCs separately, server-side). See the lint.**
-- Native: `src/systems/ai/mod.rs`
+- Native: `crates/humanity-systems/src/ai/mod.rs`
 
 ### Vehicles/Mechs
 Enter/exit vehicles, torso twist, jump jets, heat management. **⚠️ NOT registered, never ticks (see the lint).**
-- Native: `src/systems/vehicles/mod.rs`
+- Native: `crates/humanity-systems/src/vehicles/mod.rs`
 
 ### Ecology/Disease
 Disease spread by proximity, seasonal effects, population tracking. **⚠️ NOT registered, never ticks (see the lint).**
-- Native: `src/systems/ecology.rs`
+- Native: `crates/humanity-systems/src/ecology.rs`
 
 ### Quests
 Data-driven quest progression from RON files. 10 objective kinds: Gather, Craft, Make, Harvest, Build, Travel, Talk, and since 2026-10-04 Eat, Plant and View. **Registered, ticks live in native single-player too** (`QuestSystem` is NOT in `DEFERRED_SYSTEMS`; this "NOT registered, native single-player doesn't work" note was stale, corrected 2026-07-01. The relay separately runs the authoritative quest chain for multiplayer -- that part remains accurate.) Each step done posts a notice naming the next step, and a finished quest one naming what it gave and the quest that starts (`step_notice`, `completion_notice`, `next_quest_notice`).
-- Native: `src/systems/quests/mod.rs`, `src/systems/quests/objectives.rs`
+- Native: `crates/humanity-systems/src/quests/mod.rs`, `crates/humanity-systems/src/quests/objectives.rs`
 - Data: `data/quests/*.ron`, `data/entities/destinations.ron`
 
 **The opening: the first ten minutes (2026-10-04).** First Steps (`gs_first_steps`, accepted at spawn) is a new player's first ten minutes, in the order the operator accepted: check your vitals (press I, Inventory > Status), eat (a Basic Ration from the starting kit), plant (Inventory > Garden > the Variety Greens and Beans tower > Plant this tower), craft a tool (Esc > Crafting > Carve Fishing Rod, a plank and a wire from the Barn at the workbench), get 3 iron ore (Inventory > Mining, or the trading post), smelt iron (Crafting > Smelt Iron, coal from the trading post, or graphite from asteroid C-3), build a Storage Chest (Crafting > Structures > Build, then E), and step out of your own front door. Then Toolsmith and Build First Habitat follow as before. Each step's line is the HUD's quest line (64 characters with its counter) and names the key, page and section as the game shows them. A player who finished the old two-step First Steps keeps it finished (same id).
 - **Eat** counts what the food system really eats from the backpack (`eat_<item>`, `FoodSystem` on the consume channel; a drink is not eating). **Plant** counts every crop the player sows, from a backpack seed, a tower design or a bed (`plant_<crop>`, `FarmingSystem`; the showcase garden is not the player). Both count any item when the step names none. **View** is a view coming on screen: the Inventory page's Status section marks "vitals" (`GuiState::on_screen`) and `src/engine/quest_hooks.rs` reports it once per opening. A Plant button that plants nothing now says why (no seed in the backpack for what it grows, or every cup or plot already taken).
 - **Travel** is done while the player stands in the place AND it is the current step (`destinations_here`): walking past a place earlier does not count. A destination can be `at: Some(OwnFrontDoor(out_m: 1.5))` instead of a fixed `pos`: the doorstep of the player's OWN front door, on whichever plot they were given (the Commons for a family plot, First Street for a street plot), published every frame from the assembled ship (`front_door_of`, `publish_front_door`, `FRONT_DOOR_KEY`). A step line can say what the door opens on with `{front_door_opens_on}` (`step_text`). A guest (no plot, the home put away) has no front door aboard, and cannot build or craft at the home's stations either, so a guest's opening waits until they hold a plot or play solo.
-- Tests: `src/engine/crossing_tests/quests_opening.rs` (the engine's since the crate split moved tests that reach up) walks the whole opening on the shipped data with the real systems, plus one test per new kind, the HUD's 64 characters for every step of every shipped quest on every plot, the names each step quotes, and a returning player; `every_shipped_home_has_what_the_starter_quests_need` (`src/machines.rs`) checks both shipped homes have the food, the seeds, the tower, the stations and every recipe input the chain uses.
+- Tests: `src/engine/crossing_tests/quests_opening.rs` (the engine's since the crate split moved tests that reach up) walks the whole opening on the shipped data with the real systems, plus one test per new kind, the HUD's 64 characters for every step of every shipped quest on every plot, the names each step quotes, and a returning player; `every_shipped_home_has_what_the_starter_quests_need` (`crates/humanity-ship/src/machines.rs`) checks both shipped homes have the food, the seeds, the tower, the stations and every recipe input the chain uses.
 
 **Each start has its own opening (ship homes increment 6, 2026-10-12).** A new character is given its start's `opening` (data/homes/starts.ron): the Homestead's First Steps above, or the Cabin's **Settling In** (`gs_first_steps_cabin`): check your vitals, walk to the mess hall, take a meal at the serving counter, visit the recreation room, head home to your cabin door. The mess hall and the recreation room are destinations of a new kind, `at: Some(NearestVolume(zone_type: ...))`: the ship's labelled volume of that zone type nearest the player's own front door (nearest where they stand, for a guest), the place being its whole floor plus the destination's radius (the ship's volumes are published every frame beside the front door, `publish_front_door`, `SHIP_PLACES_KEY`). The Quests page never offers another start's opening (`ship::starts::opening_quests`).
 - Data: `data/quests/getting_started.ron` (`gs_first_steps_cabin`), `data/entities/destinations.ron` (`mess_hall`, `recreation`), `data/homes/starts.ron` (`opening`)
-- Tests: `src/engine/crossing_tests/quests_opening.rs` (the engine's since the crate split moved tests that reach up) (`the_cabin_opening_walks_on_this_data`, `the_mess_hall_is_the_nearest_one`), `src/systems/quests/mod.rs` (`a_shared_place_aboard_is_its_whole_floor`)
+- Tests: `src/engine/crossing_tests/quests_opening.rs` (the engine's since the crate split moved tests that reach up) (`the_cabin_opening_walks_on_this_data`, `the_mess_hall_is_the_nearest_one`), `crates/humanity-systems/src/quests/mod.rs` (`a_shared_place_aboard_is_its_whole_floor`)
 
 ### Combat
 Damage calculation, status effects. **⚠️ `CombatSystem` NOT registered, never ticks (see the lint).**
-- Native: `src/systems/combat/`
+- Native: `crates/humanity-systems/src/combat/`
 
 ### Economy
 Fleet resource management. **⚠️ `EconomySystem` NOT registered, never ticks (see the lint).**
-- Native: `src/systems/economy/`
+- Native: `crates/humanity-systems/src/economy/`
 
 ### Economy Automation Phase 1: the living production chain (v0.663)
 The operator's living-ecosystem loop, running with ZERO player interaction after one
@@ -3236,7 +3236,7 @@ becomes finished tools on its own. Three pieces:
   (previously they all ran on raw frame dt and ignored the time scale).
 Locked by 5 new tests, incl. `full_chain_drone_ore_becomes_a_hammer_untouched`: one
 drone commission -> ore -> auto-smelted ingot -> auto-crafted hammer, untouched.
-- Native: `src/systems/crafting/mod.rs` (AutoRefine arm + completion redirect), `src/systems/mining.rs` (standing order), `src/systems/time.rs` (`scaled_dt`), `src/systems/manufacturing.rs`, `crates/humanity-core/src/ecs/components.rs` (`AutoRefine`), `src/machines.rs` (`MachineDef::auto_recipe`), `src/lib.rs` (spawn + bridge), `src/gui/pages/inventory.rs` ("Keep mining")
+- Native: `crates/humanity-systems/src/crafting/mod.rs` (AutoRefine arm + completion redirect), `crates/humanity-systems/src/mining.rs` (standing order), `crates/humanity-systems/src/time.rs` (`scaled_dt`), `crates/humanity-systems/src/manufacturing.rs`, `crates/humanity-core/src/ecs/components.rs` (`AutoRefine`), `crates/humanity-ship/src/machines.rs` (`MachineDef::auto_recipe`), `src/lib.rs` (spawn + bridge), `src/gui/pages/inventory.rs` ("Keep mining")
 - Data: `data/machines/home.ron` (smelter `auto_recipe` + the new workbench machine)
 
 ### Economy Automation Phase 2, Stage 1: Vehicle Kits (v0.677)
@@ -3279,7 +3279,7 @@ machine -- so drone -> smelter -> assembler is now mine-ore-to-vehicle, untouche
 - Factory-spawned vehicles are the same persistent Vehicle entities Stage 1 deploys
   (rendered by the same pass, saved in `WorldSave.deployed_vehicles`).
 Locked by 5 tests incl. the full-backpack line, mid-batch despawn, and a data lint.
-- Native: `src/systems/crafting/mod.rs` (`deliver_outputs`, `ActiveCraft::pad`), `src/lib.rs` (machine Transform)
+- Native: `crates/humanity-systems/src/crafting/mod.rs` (`deliver_outputs`, `ActiveCraft::pad`), `src/lib.rs` (machine Transform)
 - Data: `data/machines/home.ron` (`vehicle_assembler`), `data/recipes.csv` (`assemble_rover`/`assemble_truck`)
 
 ### Economy Automation Phase 2, Stage 3 slice 1: Vehicles Move (v0.680-v0.682)
@@ -3302,13 +3302,13 @@ pad lanes automatically reuse the slot a summoned vehicle vacates.
   web client does not render.
 Remaining Stage 3: follow-cam, take-over driving (VehicleSystem's dormant
 enter/exit arms), the buy-side order flow (gated on the wallet/currency decision).
-- Native: `src/systems/vehicles/mod.rs` (summon + `tick_routes`), `src/systems/crafting/mod.rs` (`auto_craft_status`), `src/gui/pages/inventory.rs` (Vehicles section), `src/net/sync.rs` (crew grounding, v0.681), `src/lib.rs` (sync + bridges + `drone_dock_anim`)
-- Native: `src/systems/vehicles/mod.rs` (registry + deploy arm), `crates/humanity-core/src/ecs/components.rs` (`Vehicle`), `src/lib.rs` (registry load + channel + bridge + render pass), `src/gui/pages/inventory.rs` (Deploy button), `src/persistence.rs` + `src/save_load.rs` (`deployed_vehicles`)
+- Native: `crates/humanity-systems/src/vehicles/mod.rs` (summon + `tick_routes`), `crates/humanity-systems/src/crafting/mod.rs` (`auto_craft_status`), `src/gui/pages/inventory.rs` (Vehicles section), `src/net/sync.rs` (crew grounding, v0.681), `src/lib.rs` (sync + bridges + `drone_dock_anim`)
+- Native: `crates/humanity-systems/src/vehicles/mod.rs` (registry + deploy arm), `crates/humanity-core/src/ecs/components.rs` (`Vehicle`), `src/lib.rs` (registry load + channel + bridge + render pass), `src/gui/pages/inventory.rs` (Deploy button), `crates/humanity-systems/src/persistence.rs` + `src/save_load.rs` (`deployed_vehicles`)
 - Data: `data/vehicles/kits.ron`, `data/items.csv` (kit rows), `data/recipes.csv` (kit recipes)
 
 > The old "Navigation" and "Logistics" support-module entries were removed 2026-07-02:
-> `src/systems/navigation/` and `src/systems/logistics/` were deleted in the v0.674.0
-> dead-code sweep (zero callers). `src/systems/transportation.rs` (CargoVehicle routes)
+> `crates/humanity-systems/src/navigation/` and `crates/humanity-systems/src/logistics/` were deleted in the v0.674.0
+> dead-code sweep (zero callers). `crates/humanity-systems/src/transportation.rs` (CargoVehicle routes)
 > still exists unregistered and is the Stage 3 raw material.
 
 ---
@@ -3368,9 +3368,9 @@ cover cargo). Two modes, Settings > Gameplay > Pipe markings: Simplified (one ba
 MIL-STD-1247D's brown and orange stripes). Copper is drawn with measured copper's reflectance. The registry also carries ISO 20560-1, ASME A13.1, BS 1710, DIN
 2403 and MIL-STD-1247D for the Real side. All bands of one colour are one merged mesh (one draw per colour).
 The build editor's utility legend reads the same scheme. Dev pin: showcase `{"pipe_marking":"full"}`.
-- Native: `src/ship/pipe_marking.rs` (registry, placement, bands), `src/ship/pipe_materials.rs`,
+- Native: `crates/humanity-ship/src/pipe_marking.rs` (registry, placement, bands), `crates/humanity-ship/src/pipe_materials.rs`,
   `src/engine/pipe_markers.rs` (merged band meshes, mode switch), `src/engine/home_meshes.rs`
-  (`rebuild_connection_objects`), `src/machines.rs` (`connection_color` = the scheme's main colour, `line_content`,
+  (`rebuild_connection_objects`), `crates/humanity-ship/src/machines.rs` (`connection_color` = the scheme's main colour, `line_content`,
   `gizmo_colours`: the 3D port gizmos in linear light, dark band colours outlined), `src/gui/pages/construction.rs`
   (`legend_look`: the editor legend is an outlined swatch of the pipes' marker beside theme text)
 
@@ -3405,13 +3405,13 @@ section 19).
   `utilities` reads its cable specs), `crates/humanity-core/src/row_source.rs` (`Source`, the findings
   check), `crates/humanity-core/src/utilities.rs` (`conduit_types()` is a flat view of the catalog's
   checkable rows)
-- Ship: `src/ship/run_rules.rs` (`RunRules`, `RuleKind`, `Applies`, `Standing`), `src/ship/run_fittings.rs`,
-  `src/ship/run_anchors.rs`, `src/ship/run_benders.rs`, `src/ship/pipe_materials.rs` (today's four drawn
+- Ship: `crates/humanity-ship/src/run_rules.rs` (`RunRules`, `RuleKind`, `Applies`, `Standing`), `crates/humanity-ship/src/run_fittings.rs`,
+  `crates/humanity-ship/src/run_anchors.rs`, `crates/humanity-ship/src/run_benders.rs`, `crates/humanity-ship/src/pipe_materials.rs` (today's four drawn
   kinds over the catalog)
 - Data: `data/piping/pipe_materials.ron`, `run_rules.ron`, `fittings.ron`, `anchors.ron`, `benders.ron`
 - Tests: `shipped_run_rules_find_the_nm_cable_spacing_in_the_dwelling_profile` (24 CFR 3280.808's 1.37 m),
   `shipped_catalog_carries_the_cda_radius_for_half_inch_annealed_copper` (57 mm), the `*_cite_real_findings`
-  and `shipped_*_registry_parses_and_is_sound` tests; `src/machines.rs`
+  and `shipped_*_registry_parses_and_is_sound` tests; `crates/humanity-ship/src/machines.rs`
   `shipped_connection_specs_resolve_through_the_material_catalog` (every pinned spec resolves)
 - Check: `scripts/check-run-sources.js` (the same source rules in `just lints` and CI, which runs no lib
   tests; its test `scripts/tests/run-sources.test.js`, in `just rig-tests`)
@@ -3427,7 +3427,7 @@ flow direction, so it's obvious which runs go to/from the thing you're inspectin
 where v0.622 animated every pipe -- the change both declutters the view and keeps the render loop cheap
 no matter how many conduits the home has). Build-mode only, gated on the "Helper gizmos" toggle; the
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
-- Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend, read from the ship's marking scheme since 2026-10-04)
+- Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `crates/humanity-ship/src/machines.rs` (`connection_color` legend, read from the ship's marking scheme since 2026-10-04)
 
 ### Rail cars -- the rail line comes alive (M2b, v0.637)
 A small car now animates along each rail edge in build mode, so the rail graph (v0.635) reads as a living
@@ -3454,7 +3454,7 @@ road graph exactly. `HomeStructure` gained `rail_nodes` + `rail_edges` (serde-de
 edges) / `add_rail_edge` (refuses self-loop, unknown endpoint, or either-direction duplicate). A "Rail"
 editor panel drops stops + wires edges (from/to pickers); a gizmo renders each stop as a pale-gold ring
 and each edge as a straight track line. Cars + multi-stop routing are M2b.
-- Native: `src/ship/home_structure.rs` (`RailNode`/`RailEdge` + the rail-graph methods + tests), `src/gui/pages/construction.rs` (`draw_rail_editor`), `src/lib.rs` (rail-graph gizmo render), `src/gui/mod.rs` (`rail_edge_from`/`rail_edge_to`)
+- Native: `crates/humanity-ship/src/home_structure.rs` (`RailNode`/`RailEdge` + the rail-graph methods + tests), `src/gui/pages/construction.rs` (`draw_rail_editor`), `src/lib.rs` (rail-graph gizmo render), `src/gui/mod.rs` (`rail_edge_from`/`rail_edge_to`)
 
 ### Zone interactivity -- click / drag / duplicate (v0.634)
 Zones (the macro districts from M1) became first-class gizmo objects, like machines/nodes. Click a zone
@@ -3463,7 +3463,7 @@ front); the selected box highlights bright white and its detail shows on the rig
 editable origin/size, and Duplicate / Remove / Deselect. Drag a selected zone on the floor (its centre
 follows the cursor). `duplicate_zone` clones a zone with a fresh id nudged +2 m. No new persisted field
 (`construction_zone_selected` is a pure selection); zones render live so edits show immediately.
-- Native: `src/lib.rs` (`try_pick_zone` + `ObjectGrab::Zone` drag + selected-zone highlight), `src/ship/home_structure.rs` (`duplicate_zone`), `src/gui/pages/construction.rs` (`draw_zone_detail` + dispatch), `src/gui/mod.rs` (`construction_zone_selected`)
+- Native: `src/lib.rs` (`try_pick_zone` + `ObjectGrab::Zone` drag + selected-zone highlight), `crates/humanity-ship/src/home_structure.rs` (`duplicate_zone`), `src/gui/pages/construction.rs` (`draw_zone_detail` + dispatch), `src/gui/mod.rs` (`construction_zone_selected`)
 
 ### Machine rotation (yaw) (v0.633)
 A placed machine can now be ROTATED about its vertical axis -- so a box-shaped machine (a teleporter, a
@@ -3472,7 +3472,7 @@ gained a `rotation` yaw field (degrees, serde-default 0, so every existing home 
 it flows through `PlacedMachine` into the renderer (`Quat::from_rotation_y`). The machine detail panel has
 a Rotation control (a degree DragValue + a "+90" button); direct instances only (an array member has no
 individual pose). Persists with Save.
-- Native: `src/machines.rs` (`MachineInstance.rotation` + `PlacedMachine.rotation` + placements carry it), `src/lib.rs` (yaw threaded through `machine_objects` + applied in the machine RenderObject), `src/gui/pages/construction.rs` (Rotation control in `draw_machine_detail`)
+- Native: `crates/humanity-ship/src/machines.rs` (`MachineInstance.rotation` + `PlacedMachine.rotation` + placements carry it), `src/lib.rs` (yaw threaded through `machine_objects` + applied in the machine RenderObject), `src/gui/pages/construction.rs` (Rotation control in `draw_machine_detail`)
 
 ### Conduit node TIERS + service-entrance grid-tie (v0.632)
 The conduit pipe-graph gained its trunk-hierarchy controls (`conduits-node-graph.md` Stage 2 foundation +
@@ -3481,7 +3481,7 @@ Subsub (2) -- and the node renders sized by tier (a main line is a big ring, sub
 and-branch reads at a glance. And a node can be flagged a GRID TIE / service entrance (where the home or
 zone meets the external mothership/fleet grid), rendered as a distinct amber double ring. `ConduitNode`
 gained a `grid_tie` bool (serde-default); both tier + grid_tie persist with the home.
-- Native: `src/machines.rs` (`ConduitNode.grid_tie`), `src/gui/pages/construction.rs` (tier selector + grid-tie checkbox in `draw_conduit_node_detail`), `src/lib.rs` (tier-sized + grid-tie node rendering)
+- Native: `crates/humanity-ship/src/machines.rs` (`ConduitNode.grid_tie`), `src/gui/pages/construction.rs` (tier selector + grid-tie checkbox in `draw_conduit_node_detail`), `src/lib.rs` (tier-sized + grid-tie node rendering)
 
 ### Mothership ZONES, M1 -- the macro layout primitive (v0.631)
 The first piece of the mothership superstructure (`docs/design/mothership-superstructure.md`): a ZONE is a
@@ -3493,7 +3493,7 @@ centred in the footprint), lists them, and edits their origin/size; each renders
 wireframe box in build mode so the layout reads at a glance. Zones live on `HomeStructure` (serde-default,
 so every existing home parses unchanged) and persist with Save. Data model only this stage -- transit
 graphs (M2), the civic mall (M3), industrial+cargo (M4), hangar/mech (M5) build on it.
-- Native: `src/ship/structure.rs` (`ZoneType` + `zone_types()`), `src/ship/home_structure.rs` (`Zone` + `zones` + `add_zone`/`remove_zone`), `data/blueprints/zone_types.ron`, `src/gui/pages/construction.rs` (`draw_zones_editor`), `src/lib.rs` (zone wireframe render)
+- Native: `crates/humanity-ship/src/structure.rs` (`ZoneType` + `zone_types()`), `crates/humanity-ship/src/home_structure.rs` (`Zone` + `zones` + `add_zone`/`remove_zone`), `data/blueprints/zone_types.ron`, `src/gui/pages/construction.rs` (`draw_zones_editor`), `src/lib.rs` (zone wireframe render)
 
 ### Room identity + the Console room (zone-named rooms, homestead increment)
 Rooms detected from the walls (`HomeStructure::detect_rooms`) stop being anonymous: a room-grade
@@ -3511,7 +3511,7 @@ and a walled 3.5 x 3 m annex north of the common room (x 47.5..51.0, z 44.0..47.
 screens"; `wall_screen_5` on its north wall plays the demo clip). Also added
 room-grade zone types `room_garden` and `room_living`, and `room_type` on every house zone with a
 rooms.ron entry.
-- Native: `src/ship/home_structure.rs` (`Zone::room_type`, `name_rooms_from_zones`, `room_actions_for`), `src/ship/fibonacci.rs` (`RoomInfo::room_type`/`label`/`type_key`), `src/ship/room_types.rs` (`lookup_type`, `function_for`, `RoomFunction`), `src/engine/home_meshes.rs` + `src/engine/world_load.rs` (RoomBounds join), `src/gui/pages/construction.rs` (`draw_zone_detail` room-type picker), `src/gui/mod.rs` (`room_type_registry`)
+- Native: `crates/humanity-ship/src/home_structure.rs` (`Zone::room_type`, `name_rooms_from_zones`, `room_actions_for`), `crates/humanity-ship/src/fibonacci.rs` (`RoomInfo::room_type`/`label`/`type_key`), `crates/humanity-ship/src/room_types.rs` (`lookup_type`, `function_for`, `RoomFunction`), `src/engine/home_meshes.rs` + `src/engine/world_load.rs` (RoomBounds join), `src/gui/pages/construction.rs` (`draw_zone_detail` room-type picker), `src/gui/mod.rs` (`room_type_registry`)
 - Data: `data/blueprints/zone_types.ron`, `data/rooms.ron` (`console_room`), `data/blueprints/ship_structure.ron` (zone `console-room` + annex walls, door, light)
 - Docs: `docs/design/homestead.md` (Room identity, Console room), `docs/game/ship_zoning_transit.md`
 
@@ -3527,7 +3527,7 @@ language note "this is why the garden uses the sun." Pure + world-free (`Machine
 so an AI can read it before committing a design. Neither seed design places a light (the reference gardens
 are sun-lit; discovering the meter is the lesson). Same release also fixed `utility_meters` counting each
 battery bank's bus terminal as 48 kWh/day of phantom demand.
-- Native: `src/machines.rs` (`GrowLightReport`, `GrowLightVerdict`, `grow_light_report`, `GROW_LIGHT_DUTY_HOURS`), `src/gui/pages/construction.rs` (`draw_buildability` grow-light section), `data/machines/home.ron` + `home_solo.ron` (`grow_light` catalog entry)
+- Native: `crates/humanity-ship/src/machines.rs` (`GrowLightReport`, `GrowLightVerdict`, `grow_light_report`, `GROW_LIGHT_DUTY_HOURS`), `src/gui/pages/construction.rs` (`draw_buildability` grow-light section), `data/machines/home.ron` + `home_solo.ron` (`grow_light` catalog entry)
 
 ### Usage meters + home self-sufficiency (grid S2, v0.630)
 The Buildability panel now shows per-utility USAGE METERS: for power (kWh/day), water (L/day), and data
@@ -3536,12 +3536,12 @@ non-punitively (grid-hierarchy.md): "makes 4.5, uses 2.4 kWh/day -- fully self-s
 with the community)" or "... 60% self-sufficient (X imported from the grid)". Pure + world-free
 (`MachineHome::utility_meters`, computed from the placed machines' catalog roles), so it runs in the
 editor and an AI can read it; no penalty for consuming, just understanding what you use + make.
-- Native: `src/machines.rs` (`UtilityMeter` + `utility_meters` + `data_supply_mbps`), `src/gui/pages/construction.rs` (`draw_buildability` usage section)
+- Native: `crates/humanity-ship/src/machines.rs` (`UtilityMeter` + `utility_meters` + `data_supply_mbps`), `src/gui/pages/construction.rs` (`draw_buildability` usage section)
 
 **The day record (2026-10-22, the operator's "Do rooms not automatically calculate their volumes on
 the fly?").** The meters read the simulation: the machines' power tick (`ElectricalSystem`) records
 what every placed machine drew, an hour at a time on the game clock, as a rolling record of its last
-24 game hours (`src/systems/day_energy.rs`, `DayEnergy`), its request kept apart for the hours its
+24 game hours (`crates/humanity-systems/src/day_energy.rs`, `DayEnergy`), its request kept apart for the hours its
 island had shed it. Once a machine has run a whole game day the meters charge that day (what it drew
 plus what it asked for while shed: what the home needs); until then, and for a work station's idle
 draw or a battery, the data's figure (`MachineDef::average_load_watts`, the estimate). So a fan in a
@@ -3551,7 +3551,7 @@ Buildability energy balance, the grow-light meter, the Construction page's machi
 energy"), the Home page's Energy, Water and Air loops (a live "running" line, `HomeLoop::meter`) and
 the time away (`crafting::away::day_power_balance`). The pages say which figures are measured and which
 are estimated. Saved with the home (`WorldSave::machine_day_energy`); the time away adds nothing to it.
-- Native: `src/systems/day_energy.rs`, `src/systems/electrical.rs` (step 3b), `src/machines.rs` (`DayDraw`, `DaySource`, `MeterSource`, `day_draw`, `grid_day_draw`, `loop_meter_line`), `src/gui/pages/construction.rs`, `src/gui/pages/homes.rs`; tests `src/systems/day_energy_tests.rs`, `farming::humidity_tests::a_room_resized_changes_its_fans_day_on_the_meter`, `farming::heat_tests::the_time_away_charges_each_machine_the_day_it_drew`
+- Native: `crates/humanity-systems/src/day_energy.rs`, `crates/humanity-systems/src/electrical.rs` (step 3b), `crates/humanity-ship/src/machines.rs` (`DayDraw`, `DaySource`, `MeterSource`, `day_draw`, `grid_day_draw`, `loop_meter_line`), `src/gui/pages/construction.rs`, `src/gui/pages/homes.rs`; tests `crates/humanity-systems/src/day_energy_tests.rs`, `farming::humidity_tests::a_room_resized_changes_its_fans_day_on_the_meter`, `farming::heat_tests::the_time_away_charges_each_machine_the_day_it_drew`
 
 ### Viewport conduit-node placement + drag-a-port-to-a-node (build Phase 2, v0.629)
 The pipe GRAPH is now built in the view, not via panel dropdowns. The Conduit-nodes panel has a "Place in
@@ -3593,7 +3593,7 @@ support FITTINGS (ceiling hangers + wall gaskets) are now DEDUPED by position ac
 many pipes share a service-height run, so their brackets used to stack invisibly at the same spot,
 wasting polygons; one bracket now serves every pipe through that point. And the v0.625 port handles got
 a bolder double/triple ring so the drag-to-connect targets are obvious.
-- Native: `src/lib.rs` (`try_pick_connection` + press-chain wiring + the selected-pipe highlight + the fitting dedup `HashMap` in `rebuild_connection_objects` + bigger port rings), `src/machines.rs` (`remove_connection_between`), `src/gui/mod.rs` (`construction_connection_selected`), `src/gui/pages/construction.rs` (`draw_connection_detail` + dispatch + `clear_sel`)
+- Native: `src/lib.rs` (`try_pick_connection` + press-chain wiring + the selected-pipe highlight + the fitting dedup `HashMap` in `rebuild_connection_objects` + bigger port rings), `crates/humanity-ship/src/machines.rs` (`remove_connection_between`), `src/gui/mod.rs` (`construction_connection_selected`), `src/gui/pages/construction.rs` (`draw_connection_detail` + dispatch + `clear_sel`)
 
 ### Viewport drag-to-connect (machine ports) + array-member move (v0.625)
 The panel dropdowns ("pick from, pick to, Connect") were a confusing way to wire machines, so wiring is
@@ -3605,7 +3605,7 @@ doesn't. Release to create the connection (`add_connection`, oriented supply->de
 panel stays as a fallback. Also fixed: dragging a machine that is part of an ARRAY (e.g. a grain tray)
 now WORKS -- the first drag explodes that array into individual instances (`detach_array_member`, ids +
 positions preserved so nothing jumps), since array cells had no editable offset before.
-- Native: `src/lib.rs` (`port_pick` built in `rebuild_machine_objects`; `port_gizmo_pos`; `try_pick_port` + `port_drop_target` + `machine_has_port`; the release-handler wiring; port-gizmo + rubber-band render; `ObjectGrab::Machine` detach-on-drag), `src/machines.rs` (`detach_array_member`), `src/gui/pages/construction.rs` (the "drag a port handle" tip)
+- Native: `src/lib.rs` (`port_pick` built in `rebuild_machine_objects`; `port_gizmo_pos`; `try_pick_port` + `port_drop_target` + `machine_has_port`; the release-handler wiring; port-gizmo + rubber-band render; `ObjectGrab::Machine` detach-on-drag), `crates/humanity-ship/src/machines.rs` (`detach_array_member`), `src/gui/pages/construction.rs` (the "drag a port handle" tip)
 
 ### Build-editor click fix + lock/list footgun guards (v0.623 + v0.624)
 **v0.624 (the real root cause):** entering build mode never rebuilt the machine PICK VOLUMES
@@ -3648,7 +3648,7 @@ A text-command console, the discoverable act surface for both a human and an AI.
 ### Live Home JSON Introspection (AI read surface) (v0.576)
 Every rebuild writes a machine-readable snapshot of the live home so an AI can READ what the operator is
 building, to `debug/home_snapshot.json`.
-- Native: `src/ship/home_structure.rs` (`HomeStructure::to_introspection_json`), written by `src/lib.rs` (`rebuild_homestead`)
+- Native: `crates/humanity-ship/src/home_structure.rs` (`HomeStructure::to_introspection_json`), written by `src/lib.rs` (`rebuild_homestead`)
 
 ### CAD Dimension Overlay and Wall Wireframe (v0.545, v0.594)
 A live measurement overlay: wall lengths, corner angles, and the angle where a custom wall meets the box
@@ -3695,10 +3695,10 @@ decision-briefs Brief 1) generalized it into a whole vessel:
   Settings "Show hull" toggle; purely visual (no exterior collision - bay doors/EVA are follow-ups).
   Dev pin: showcase `{"hull":"0"}` hides it as H does (released with "1" before every other vantage;
   the ship-first-street vantage uses it to see the homes along First Street, 2026-10-05).
-- Native: `src/ship/ship_structure.rs` (zones + corridors, load/save/adopt, merged meshes),
-  `src/ship/home_structure.rs` (the per-zone body incl. shell cuts), `src/ship/hull.rs` (profile +
-  loft + greebles), `src/ship/wall_collision.rs` (`ship_wall_segments` + shell-cut gaps),
-  `src/machines.rs` (per-zone clamping)
+- Native: `crates/humanity-ship/src/ship_structure.rs` (zones + corridors, load/save/adopt, merged meshes),
+  `crates/humanity-ship/src/home_structure.rs` (the per-zone body incl. shell cuts), `crates/humanity-ship/src/hull.rs` (profile +
+  loft + greebles), `crates/humanity-ship/src/wall_collision.rs` (`ship_wall_segments` + shell-cut gaps),
+  `crates/humanity-ship/src/machines.rs` (per-zone clamping)
 - Data: `data/blueprints/ship_structure.ron` (the seed ship: home + Commons + gallery),
   `data/blueprints/hull_profile.ron` (silhouette stations, margin, greebles - screenshot-tunable)
 
@@ -3706,45 +3706,45 @@ decision-briefs Brief 1) generalized it into a whole vessel:
 Walls are corner-node segment chains with per-wall material, per-wall thickness (down to a 1 mm screen),
 and stackable surface LAYERS. The wall material picker shows real engineering values (density, tensile
 strength, cost/kg, renewable) while you build.
-- Native: `src/ship/home_structure.rs` (`InteriorWall`, `SurfaceLayer`, `WallMaterial`, `wall_materials`)
+- Native: `crates/humanity-ship/src/home_structure.rs` (`InteriorWall`, `SurfaceLayer`, `WallMaterial`, `wall_materials`)
 - Data: `data/blueprints/wall_materials.ron` (8 materials: Steel, Concrete, Oak, Tempered glass, Aluminum, Pine, Granite, HDPE)
 
 ### Mitred Corners and Wall Joins (v0.549, v0.558, v0.566, v0.574)
 Clean mitred corners where walls meet; round corner columns at 3+-wall joins; mid-span T-junction
 clipping so a thick wall doesn't spear through another; corner-node snapping to a shared 5 cm grid.
-- Native: `src/ship/home_structure.rs` (`wall_end_miter`, `clip_end_to_walls`, `corner_column`, `quantize_corner`, `CORNER_GRID`)
+- Native: `crates/humanity-ship/src/home_structure.rs` (`wall_end_miter`, `clip_end_to_walls`, `corner_column`, `quantize_corner`, `CORNER_GRID`)
 
 ### Doors and Windows (openings) (v0.533 - v0.578)
 Doors and windows are openings placed on still-solid walls, each with a position/width/sill/height,
 draggable opening gizmos + edge resize handles, and a data-driven animation STYLE: swing, slide, iris,
 rotate, fold, energy, nanowall, fixed. Doors carry auto-open vs manual states + an interaction distance,
 and an optional control panel.
-- Native: `src/ship/home_structure.rs` (`Opening`, `OpeningKind`; `style` is a data-driven String), `src/systems/door_anim.rs` (style to `PanelMotion`), `src/ship/door_panels.rs` (`panel_placements`, `PanelPlacement`)
+- Native: `crates/humanity-ship/src/home_structure.rs` (`Opening`, `OpeningKind`; `style` is a data-driven String), `crates/humanity-systems/src/door_anim.rs` (style to `PanelMotion`), `crates/humanity-ship/src/door_panels.rs` (`panel_placements`, `PanelPlacement`)
 - Editor: `src/gui/pages/construction.rs` (`OPENING_STYLES` const)
 
 ### Door Control Panels (v0.567)
 Walk up to a manual door and press E at its control panel to open it; the panel mounts beside the door at
 hand height.
-- Native: `src/ship/door_panels.rs` (`control_panel_pos`), `src/systems/interaction.rs`
+- Native: `crates/humanity-ship/src/door_panels.rs` (`control_panel_pos`), `crates/humanity-systems/src/interaction.rs`
 
 ### Door Locks (v0.570)
 Data-driven locks on a door; a door is passable only when every lock is Unlocked or Broken. Lock
 interactions: KeyItem, Code (keypad), Knob, Crank (emergency no-power override), Biometric, Panel. Defeat
 methods: Lockpick, HackPanel, ShootOut, BlowOpen, CutPower. Power-dependent flag per lock.
-- Native: `src/ship/lock_types.rs` (`LockType`, `LockInteraction`, `DefeatMethod`, `LockState`), `src/ship/home_structure.rs` (`LockInstance`)
+- Native: `crates/humanity-ship/src/lock_types.rs` (`LockType`, `LockInteraction`, `DefeatMethod`, `LockState`), `crates/humanity-ship/src/home_structure.rs` (`LockInstance`)
 - Data: `data/blueprints/lock_types.ron` (metal_key, keypad, knob, crank, biometric)
 
 ### Per-Home Lights (v0.571 - v0.576)
 Data-driven placeable lights; the renderer evaluates up to 8 point lights. Add lights from a picker,
 click a light to edit it, drag light gizmos (RGB range sphere + diamond). Energy doors emit light
 (emissive-as-light). Sun/global-illumination off toggle.
-- Native: `src/ship/home_structure.rs` (`PlacedLight`), `src/renderer/light.rs` (loads the registry), editor in `src/gui/pages/construction.rs` (`draw_lights_editor`, `draw_light_detail`)
+- Native: `crates/humanity-ship/src/home_structure.rs` (`PlacedLight`), `src/renderer/light.rs` (loads the registry), editor in `src/gui/pages/construction.rs` (`draw_lights_editor`, `draw_light_detail`)
 - Data: `data/lighting/light_types.ron` (ceiling_panel, warm_lamp, cool_panel, spotlight, strip; kinds Point/Spot/Bar)
 
 ### Wall and Door Collision (v0.556)
 Geometric first-person collision against walls (substepped so a sprinter can't tunnel a thin wall); door
 apertures are walk-through gaps, window spans stay solid (glass blocks).
-- Native: `src/ship/wall_collision.rs` (`WallSegment`, `wall_segments`, `resolve`)
+- Native: `crates/humanity-ship/src/wall_collision.rs` (`WallSegment`, `wall_segments`, `resolve`)
 
 ---
 
@@ -3757,35 +3757,35 @@ Add a buildable by adding one `.ron` line; no code.
 Each piece has an id/label/category, a `kind` (drives behaviour) and a `shape` (placeholder geometry),
 size, color, and step count. Kinds: Wall, Stairs (also Ramp via shape), Ladder, Elevator, Teleporter,
 Train, Road, Deck. Shapes: Box, Steps, Ramp, Ladder, Frame, Slab.
-- Native: `src/ship/structure.rs` (`StructureType`, `StructureKind`, `MeshShape`, `structure_types`, `structure_mesh`, `walk_surface`)
+- Native: `crates/humanity-ship/src/structure.rs` (`StructureType`, `StructureKind`, `MeshShape`, `structure_types`, `structure_mesh`, `walk_surface`)
 - Data: `data/blueprints/structure_types.ron`
 
 ### Walkable Stairs / Ramps / Decks (v0.584, v0.588 - v0.589)
 Walk UP stairs and ramps (a ground-height sampler lifts you step to step); a floor/deck piece for
 multi-level builds; "place at height" so a deck sits at the top of a staircase.
-- Native: `src/ship/structure.rs` (`walk_surface`, `in_footprint`), placement in `src/lib.rs`
+- Native: `crates/humanity-ship/src/structure.rs` (`walk_surface`, `in_footprint`), placement in `src/lib.rs`
 
 ### Ladder Climb (v0.589)
 Stand at a ladder and hold Space to climb (Shift to descend), step off onto a deck.
-- Native: `src/lib.rs` (ladder-climb state), `src/ship/structure.rs` (`StructureKind::Ladder`)
+- Native: `src/lib.rs` (ladder-climb state), `crates/humanity-ship/src/structure.rs` (`StructureKind::Ladder`)
 
 ### Elevator Ride (v0.590)
 A moving car that carries the player between levels; wait in the shaft to recall it.
-- Native: `src/lib.rs` (elevator-car state), `src/ship/structure.rs` (`StructureKind::Elevator`)
+- Native: `src/lib.rs` (elevator-car state), `crates/humanity-ship/src/structure.rs` (`StructureKind::Elevator`)
 
 ### Teleporters (v0.584)
 Step through a teleport arch to jump to its paired pad (pair set in the detail panel).
-- Native: `src/ship/structure.rs` (`StructureKind::Teleporter`), pairing via `PlacedStructure.pair`
+- Native: `crates/humanity-ship/src/structure.rs` (`StructureKind::Teleporter`), pairing via `PlacedStructure.pair`
 
 ### Train / Rail Line (v0.592)
 Pair two train platforms and a rail track connects them.
-- Native: `src/ship/structure.rs` (`StructureKind::Train`)
+- Native: `crates/humanity-ship/src/structure.rs` (`StructureKind::Train`)
 
 ### Roads as a Node Graph (v0.585 - v0.591)
 Roads are a node graph (nodes + edges); each edge is a road-class ribbon with a fixed top-to-bottom
 material STACK (wearing course down to subgrade). Edge centerlines curve through the graph via
 Catmull-Rom splines. Draggable road-node gizmos + per-node detail panels.
-- Native: `src/ship/home_structure.rs` (`RoadNode`, `RoadEdge`, `road_edge_centerline`), `src/ship/structure.rs` (`RoadType`, `road_types`)
+- Native: `crates/humanity-ship/src/home_structure.rs` (`RoadNode`, `RoadEdge`, `road_edge_centerline`), `crates/humanity-ship/src/structure.rs` (`RoadType`, `road_types`)
 - Editor: `src/gui/pages/construction.rs` (`draw_roads_editor`, `draw_road_node_detail`)
 - Data: `data/blueprints/road_types.ron` (footpath, residential, highway, runway)
 
@@ -3805,7 +3805,7 @@ Solar panels follow the sun where they stand: the home's longitude aboard (BUG-0
 on the ground (v0.1413.0), and on the ground under the weather's clouds (v0.1418.0: Kasten and Czeplak's
 `1 - 0.75 (N/8)^3.4`, a quarter under a full overcast, `solar::cloud_light_share`). Panels aboard are above the
 weather.
-- Native: `src/systems/electrical.rs` (`ElectricalSystem`, `integrate_battery`, `PowerStatus`), `src/systems/solar.rs` (`SolarSystem`)
+- Native: `crates/humanity-systems/src/electrical.rs` (`ElectricalSystem`, `integrate_battery`, `PowerStatus`), `crates/humanity-systems/src/solar.rs` (`SolarSystem`)
 - Data: `data/electrical.ron`
 - ECS: `PowerGenerator`, `PowerConsumer`, `Battery`, `PowerCircuit` (island) components
 
@@ -3820,16 +3820,16 @@ blueprint (400 W, `generates`) offsets the draw one for one aboard, and powers a
 its own island, which the reactor never reaches. In a server's shared world the power a home
 draws and returns is reported to that server's fleet ledger (built 2026-10-04, see "Fleet
 ledger"; designed in docs/design/ship-life-support.md section 8).
-- Native: `src/systems/ship_power.rs` (`ShipFeed`, `ShipSupplyLedger`, `feed_watts`, `site_island`), `src/systems/electrical.rs` (`ShipFeedReading`), `src/systems/construction/mod.rs` (`wire_built_generators`), `src/engine/home_spawn.rs` (`spawn_home_feed_taps`), `src/systems/crafting/away.rs` (`meter_away_reactor`)
+- Native: `crates/humanity-systems/src/ship_power.rs` (`ShipFeed`, `ShipSupplyLedger`, `feed_watts`, `site_island`), `crates/humanity-systems/src/electrical.rs` (`ShipFeedReading`), `crates/humanity-systems/src/construction/mod.rs` (`wire_built_generators`), `src/engine/home_spawn.rs` (`spawn_home_feed_taps`), `crates/humanity-systems/src/crafting/away.rs` (`meter_away_reactor`)
 - Data: `data/ship_power.ron`, `data/blueprints/basic.ron` (`solar_panel`)
-- Tests: `src/systems/ship_power_tests.rs`
+- Tests: `crates/humanity-systems/src/ship_power_tests.rs`
 
 ### Home Machine Layout
 The data-driven machine layout for the 3D home: a catalog of machine types, placed instances + arrays
 (row x col grids), connections, conduit nodes/edges, and self-sufficiency loops. Machines carry a power
 role (Solar / Generator / Consumer / Battery) and stat readouts; positioned by absolute box-home
 coordinates. Editable live in the construction editor (place / move / wire / inspect).
-- Native: `src/machines.rs` (`MachineHome`, `MachineDef`, `MachineInstance`, `MachineArray`, `MachineConnection`, `MachinePower`, `HomeLoop`, `placements`)
+- Native: `crates/humanity-ship/src/machines.rs` (`MachineHome`, `MachineDef`, `MachineInstance`, `MachineArray`, `MachineConnection`, `MachinePower`, `HomeLoop`, `placements`)
 - Data: `data/machines/home.ron`
 - Editor: `src/gui/pages/construction.rs` (`draw_machine_detail`)
 
@@ -3849,7 +3849,7 @@ the live save's start and household (`persistence::live_save::ActiveHome`) at ev
 call site. Chosen in Settings > Gameplay > "Where you live", which replaced "Home Design"
 (Family / Solo, one setting per install in `AppConfig.home_variant`, now gone). Takes effect the
 next time you enter the world, not live mid-session.
-- Native: `src/machines.rs` (`home_ron_path`), `src/save_load.rs` (`ActiveHome`), `src/ship/starts.rs` (`Starts::household`), `src/gui/pages/where_you_live.rs` (`draw_settings_section`), `src/gui/pages/settings.rs` (`draw_gameplay_content`)
+- Native: `crates/humanity-ship/src/machines.rs` (`home_ron_path`), `src/save_load.rs` (`ActiveHome`), `crates/humanity-ship/src/starts.rs` (`Starts::household`), `src/gui/pages/where_you_live.rs` (`draw_settings_section`), `src/gui/pages/settings.rs` (`draw_gameplay_content`)
 - Data: `data/machines/home_solo.ron`, `data/machines/cabin.ron`, `data/homes/starts.ron`
 
 ### The Home page as cards that use the width (2026-10-30)
@@ -3870,7 +3870,7 @@ size); the ideal loops the same, or a table, each loop's
 arithmetic (`balance`) and assumptions now shown in its fold (both were in the data and invisible);
 the traded loops edged in the warning colour, why behind a fold; the bill of materials in columns;
 each room a card. The web Home page mirrors the ideal loops (cards or a table).
-- Native: `src/gui/pages/homes.rs` (`draw`, `draw_page`, `draw_design`, the readout cards, `room_card`), `src/gui/pages/home_loops.rs` (`draw_home_loops`, `gauge_for`, `draw_outline`, `draw_cannot_close`), `src/gui/pages/herd.rs` (`draw_card`, the cards and the table), `src/systems/animal_care.rs` (`HerdRow`'s columns, `needs_parts`), `src/gui/widgets/cards.rs` (`Grid`, `status_badge`, `plain_badge`, `gauge`, `fold`, `clamped`), `src/gui/widgets/view_toggle.rs`, `src/gui/widgets/data_table.rs`
+- Native: `src/gui/pages/homes.rs` (`draw`, `draw_page`, `draw_design`, the readout cards, `room_card`), `src/gui/pages/home_loops.rs` (`draw_home_loops`, `gauge_for`, `draw_outline`, `draw_cannot_close`), `src/gui/pages/herd.rs` (`draw_card`, the cards and the table), `crates/humanity-systems/src/animal_care.rs` (`HerdRow`'s columns, `needs_parts`), `src/gui/widgets/cards.rs` (`Grid`, `status_badge`, `plain_badge`, `gauge`, `fold`, `clamped`), `src/gui/widgets/view_toggle.rs`, `src/gui/widgets/data_table.rs`
 - Web: `web/pages/home.html`, `web/shared/view-toggle.js`, `web/shared/list-views.css`
 - Tests: `gui::widgets::cards::tests`, `gui::widgets::view_toggle::tests::a_click_on_table_shows_the_table`, `gui::widgets::data_table::tests`, `gui::pages::home_loops::tests`, `systems::animal_care::tests::the_walk_up_lines_and_the_animals_card_say_it_plainly`, `scripts/tests/view-toggle-web.test.js`; snapshots `homes`, `homes_wide`, `homes_narrow_tables`
 
@@ -3902,7 +3902,7 @@ connection dangles to a missing machine), Conduits (per power run, validate the 
 the cheapest copper against the load + run length: ampacity + voltage drop), and Power circuit (union-find
 over the power graph: every electrical LOAD must share a wired component with real generation; a battery
 is storage, not a source).
-- Native: `src/machines.rs` (`buildability_report`, `power_circuit_check`, `electrical_islands`, `BuildabilityReport`, `CheckStatus`), `src/gui/pages/construction.rs` (`draw_buildability`)
+- Native: `crates/humanity-ship/src/machines.rs` (`buildability_report`, `power_circuit_check`, `electrical_islands`, `BuildabilityReport`, `CheckStatus`), `src/gui/pages/construction.rs` (`draw_buildability`)
 
 ---
 
@@ -3922,7 +3922,7 @@ buildability check sizes each data run (bandwidth + range via `check_data_link`)
 exactly like a wired one wherever its bandwidth and range suffice. (Until 2026-09-27 it also warned that
 a wireless link's RF can harm a grow; that warning went with the crop harm, see below.) The seed home
 wires its uplink to its server over Cat6.
-- Native: `crates/humanity-core/src/utilities.rs` (`Port.mbps`, `Port::data_in`/`data_out`), `src/machines.rs` (`data_demand_mbps`, the "Data links" check), `src/gui/pages/construction.rs` (the "data" kind + the data-medium picker)
+- Native: `crates/humanity-core/src/utilities.rs` (`Port.mbps`, `Port::data_in`/`data_out`), `crates/humanity-ship/src/machines.rs` (`data_demand_mbps`, the "Data links" check), `src/gui/pages/construction.rs` (the "data" kind + the data-medium picker)
 - Data: `data/machines/home.ron` (`network_uplink`, `home_server`, a `data` connection on `eth_cat6`)
 
 ### Telecom RF -> Plant Harm (v0.620) -- REMOVED 2026-09-27
@@ -3932,7 +3932,7 @@ assume no wi-fi crop harm at this time" on the evidence in
 garden at the distances plants sit from one), and the harm was removed that day: the FarmingSystem's
 home-RF drain, the `RfEmitter` component and its spawn, `MachineDef.rf_emission`, and the Data-links RF
 warning. The `wifi_router` stays as a powered network device (8 W, a wireless data port).
-- Test: `powered_wifi_router_leaves_crop_health_unchanged` (`src/systems/farming/mod.rs`)
+- Test: `powered_wifi_router_leaves_crop_health_unchanged` (`crates/humanity-systems/src/farming/mod.rs`)
 - Data: `data/machines/home.ron` (`wifi_router`, placed as `router_1` in the study)
 
 ### Data / Telecom Media, Stage 1 (v0.619)
@@ -3974,14 +3974,14 @@ connection's `spec`; the Conduits buildability check then validates it (over-amp
 power role; fluid ports declared); `MachineConnection` gained `spec: Option<String>` (a pinned cable id,
 else auto-pick). The Conduits + Power circuit buildability checks consume these. The seed `home.ron` is a
 physically connected network (PV + wind + generator to battery bus to loads).
-- Native: `src/machines.rs` (`MachineDef::derive_ports`, `MachineConnection.spec`), `crates/humanity-core/src/utilities.rs`
+- Native: `crates/humanity-ship/src/machines.rs` (`MachineDef::derive_ports`, `MachineConnection.spec`), `crates/humanity-core/src/utilities.rs`
 
 ### Runtime Power-Flow Gating (v0.607)
 Each spawned power entity carries a `PowerCircuit { island }` from `MachineHome::electrical_islands`, so
 `ElectricalSystem` balances + sheds PER ISLAND instead of summing the whole world. A load on an
 unconnected circuit is shed (no magic transmission). Entities without the component fall into one shared
 bucket (the old global behaviour, for tests/legacy).
-- Native: `crates/humanity-core/src/ecs/components.rs` (`PowerCircuit`), `src/machines.rs` (`electrical_islands`, `power_component_roots`), `src/systems/electrical.rs`
+- Native: `crates/humanity-core/src/ecs/components.rs` (`PowerCircuit`), `crates/humanity-ship/src/machines.rs` (`electrical_islands`, `power_component_roots`), `crates/humanity-systems/src/electrical.rs`
 
 ### Live Water / Plumbing Sim + Power Coupling (v0.608)
 The water mirror of the electrical sim, and the first POWER -> WATER consequence chain. A machine's
@@ -3990,7 +3990,7 @@ water producers/consumers derive from its PORTS (`flow_lpm`); a cistern's capaci
 cistern per island and publishes a live `WaterStatus` (production, demand, stored, days autonomy). A
 producer/consumer flagged `needs_power` only flows while the SAME entity is powered -- cut the power and
 the pump stops, the cistern drains. Shown on the Home page next to Live power.
-- Native: `src/systems/plumbing.rs` (`PlumbingSystem`, `WaterStatus`), `crates/humanity-core/src/ecs/components.rs` (`WaterTank`, `WaterProducer`, `WaterConsumer`, `PlumbingCircuit`), `src/machines.rs` (`water_islands`, `MachineStorage`, `water_production_lpm`/`water_demand_lpm`/`water_capacity_l`), `src/gui/pages/homes.rs` (Live water card)
+- Native: `crates/humanity-systems/src/plumbing.rs` (`PlumbingSystem`, `WaterStatus`), `crates/humanity-core/src/ecs/components.rs` (`WaterTank`, `WaterProducer`, `WaterConsumer`, `PlumbingCircuit`), `crates/humanity-ship/src/machines.rs` (`water_islands`, `MachineStorage`, `water_production_lpm`/`water_demand_lpm`/`water_capacity_l`), `src/gui/pages/homes.rs` (Live water card)
 - Data: `data/machines/home.ron` (cistern storage + rain inflow, pump water-out, tower/irrigation water-in)
 
 ### Live Air / Atmosphere Sim + power -> air -> Vitals (v0.617 - v0.618)
@@ -4001,7 +4001,7 @@ occupancy (a ~3-person household) steadily drains O2 + raises CO2; a powered `ai
 derived from an Air-OUT port, gated on its PowerConsumer) offsets it. Cut the grid -> the recycler sheds ->
 O2 falls -> unbreathable -> the inside-homestead `EnvironmentContext.oxygenated` flips off -> the FoodSystem
 drains the player's `Vitals.oxygen` -> hypoxia. So **power -> air -> Vitals** runs end to end.
-- Native: `src/systems/atmosphere.rs` (`AtmosphereSystem`, `AirStatus`, `HomeAir`, `AirScrubber`, the occupancy/scrubber dynamics), `src/lib.rs` (`spawn_home_air_space`, the AirScrubber spawn from an Air-OUT port, `EnvironmentContext.oxygenated = breathable`), `src/gui/pages/homes.rs` (Live air card)
+- Native: `crates/humanity-systems/src/atmosphere.rs` (`AtmosphereSystem`, `AirStatus`, `HomeAir`, `AirScrubber`, the occupancy/scrubber dynamics), `src/lib.rs` (`spawn_home_air_space`, the AirScrubber spawn from an Air-OUT port, `EnvironmentContext.oxygenated = breathable`), `src/gui/pages/homes.rs` (Live air card)
 - Data: `data/machines/home.ron` (`air_recycler`: a critical-priority power consumer + an Air-OUT port, wired to the battery bus)
 
 ### Water to Food Coupling (v0.611)
@@ -4010,13 +4010,13 @@ The downstream end of the power to water to food consequence chain. The `Farming
 crops up, so they dehydrate and lose health (existing crop water-stress logic). Cut the power, the well
 pump sheds, the cistern drains over days, then the garden starts to wilt. Absent water system / no
 cistern = water available (un-plumbed homes + tests unchanged).
-- Native: `src/systems/farming/mod.rs` (the `water_available` gate on the per-area irrigation top-up)
+- Native: `crates/humanity-systems/src/farming/mod.rs` (the `water_available` gate on the per-area irrigation top-up)
 
 ### Node-Based Conduits (v0.535, v0.581)
 Conduit junction nodes + auto-routed edges in the editor (draggable node gizmos), plus the
 Manhattan/service-height auto-router that runs pipes up to the ceiling and down to the fixture
 (auto-placing brackets, elbows, and wall-passthrough gaskets).
-- Native: `src/machines.rs` (`ConduitNode`, `ConduitEdge`, `ConduitEnd`), `src/ship/conduits.rs` (`ConduitKind`, `ConduitRoute`, `route_conduit`)
+- Native: `crates/humanity-ship/src/machines.rs` (`ConduitNode`, `ConduitEdge`, `ConduitEnd`), `crates/humanity-ship/src/conduits.rs` (`ConduitKind`, `ConduitRoute`, `route_conduit`)
 - Editor: `src/gui/pages/construction.rs` (`draw_conduit_node_detail`)
 
 ---
@@ -4080,7 +4080,7 @@ raw food eaten while still ill does not start it over (`again_adds_h`, 0 for foo
 poisoning) and the player is told the time it still has to run. The body's needs,
 its health and the illness's countdown are exact at any frame rate (BUG-164,
 `change_exactly` and f64 effect timers).
-- Code: `src/systems/illness.rs`, `src/systems/treatment.rs`, `src/systems/food.rs`
+- Code: `crates/humanity-systems/src/illness.rs`, `crates/humanity-systems/src/treatment.rs`, `crates/humanity-systems/src/food.rs`
 - Data: `data/medical/illnesses.ron`, `data/medical/treatments.ron`
 
 ### Wounds and healing (first-hour audit S8, 2026-10-12)
@@ -4098,9 +4098,9 @@ The HUD shows a row per wound and illness with what helps; the Inventory's Statu
 section says how each passes. Wounds are status effects, so the save keeps them.
 MedicalSystem, its `MedicalConditions` component and the never-read
 `data/medical.ron` were deleted.
-- Code: `src/systems/wounds.rs` (data and rules), applied in `src/systems/food.rs`'s
-  body pass; injuries from `src/systems/combat/mod.rs` and `src/systems/fire.rs`;
-  tests `src/systems/wounds_tests.rs`
+- Code: `crates/humanity-systems/src/wounds.rs` (data and rules), applied in `crates/humanity-systems/src/food.rs`'s
+  body pass; injuries from `crates/humanity-systems/src/combat/mod.rs` and `crates/humanity-systems/src/fire.rs`;
+  tests `crates/humanity-systems/src/wounds_tests.rs`
 - Data: `data/medical/wounds.ron`, the `wound` rows of `data/status_effects.csv`,
   `cares` in `data/medical/treatments.ron`
 
@@ -4121,12 +4121,12 @@ body was placed (a teleport, driving, the rig's camera hold) hurt nobody; a step
 and the game's own jump are well under the first harm. The HUD row reads "Broken
 Ankle: from a fall; you hobble". Letting go of a ladder's keys part way up now
 holds on there (it used to drop you); stepping away from it is a fall.
-- Code: `src/systems/falls.rs` (data, `FallWatch`, `player_landed`); the landing
+- Code: `crates/humanity-systems/src/falls.rs` (data, `FallWatch`, `player_landed`); the landing
   aboard in `CameraController::update_first_person` (`src/renderer/camera.rs`), on
   a planet in `surface_move::radial_step` (`RadialStep::impact_m_s`) handed to
   `CameraController::surface_step`; lib.rs takes it once a frame
-  (`take_landing`); the injury in `Wounds::take_injuries` (`src/systems/wounds.rs`);
-  tests in `src/systems/wounds_tests.rs`
+  (`take_landing`); the injury in `Wounds::take_injuries` (`crates/humanity-systems/src/wounds.rs`);
+  tests in `crates/humanity-systems/src/wounds_tests.rs`
 - Data: `data/medical/falls.ron` (speeds, harm, sources), the `sprained_ankle`,
   `broken_ankle` and `broken_leg` rows of `data/medical/wounds.ron` and
   `data/status_effects.csv` (which replaced the never-applied `broken_bone`)
@@ -4275,7 +4275,7 @@ The one-panel inventory redesign's reusable primitives: a nested expandable row,
 a collapsible section disclosure, item swatch tiles, and the recursive nested-container renderer (person
 to shirt to pocket to wallet spatial inventory) with cross-container item transfer that persists across
 restart.
-- Native: `src/gui/widgets/mod.rs` (`expandable_row`, `row_cell`, `section_disclosure`), `src/gui/pages/inventory.rs` (`draw_container`, `item_tile`), `src/gui/mod.rs` (`Place`), `src/systems/inventory/placed.rs` (`PlacedItem`)
+- Native: `src/gui/widgets/mod.rs` (`expandable_row`, `row_cell`, `section_disclosure`), `src/gui/pages/inventory.rs` (`draw_container`, `item_tile`), `src/gui/mod.rs` (`Place`), `crates/humanity-systems/src/inventory/placed.rs` (`PlacedItem`)
 
 ---
 
@@ -4488,7 +4488,7 @@ timed in parts so a spike names its cause: a home rebuild (`cpu.home_rebuild.*`,
 - Native: `crates/humanity-core/src/frame_costs.rs` (`note_spike`, `spikes()`, `SPIKE_OVER_MS`, `SPIKES_KEPT`;
   `spikes` in `snapshot_json`, read by the dev MCP's `game_frame_costs`), the timers in
   `src/engine/home_meshes.rs` (`RebuildParts`), `src/gui/screen_surface.rs`
-  (`note_first_turn`), `src/persistence.rs` and `src/save_load.rs`; test
+  (`note_first_turn`), `crates/humanity-systems/src/persistence.rs` and `src/save_load.rs`; test
   `a_slow_frame_is_kept_with_what_made_it_slow`; the survey that used them:
   `docs/design/sim-frame-cost.md`, "Survey 2"
 
@@ -4501,4 +4501,4 @@ the real Dead marker), Hostile toggle (maps to "predator", the behavior that act
 hunts the player), size, tint, despawn; the AI is only touched if the toggle is
 actually flipped (opening the editor never rewrites predator/guard behaviors).
 - Native: `src/gui/pages/dev.rs`, `src/lib.rs` (spawn/editor consumers),
-  `src/systems/livestock.rs` (`spawn_creature_at`)
+  `crates/humanity-systems/src/livestock.rs` (`spawn_creature_at`)

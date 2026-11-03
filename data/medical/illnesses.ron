@@ -1,6 +1,6 @@
 // What an illness does to the body, and what helps (BUG-162, 2026-10-05).
-// Read by src/systems/illness.rs; the food system applies it every tick
-// (src/systems/food.rs). Disk first, with a copy built into the game as the
+// Read by crates/humanity-systems/src/illness.rs; the food system applies it every tick
+// (crates/humanity-systems/src/food.rs). Disk first, with a copy built into the game as the
 // fallback.
 //
 // An ILLNESS is a status effect of type "disease" in data/status_effects.csv.
@@ -18,7 +18,7 @@
 // Library's When Food or Water Makes You Sick, from the CDC, NIDDK and the
 // FDA). So an illness here does no harm of its own: it takes water, and harm
 // comes only through dehydration, when the Hydration bar runs empty because
-// the player did not drink enough (src/systems/food.rs). Nobody in the game
+// the player did not drink enough (crates/humanity-systems/src/food.rs). Nobody in the game
 // is a baby, old or already ill yet, so the faster, more dangerous course
 // they would have is not modelled (docs/BUGS.md, BUG-162).
 //
@@ -61,7 +61,7 @@
             // cause of vomiting and diarrhoea from food.
             //
             // Water lost a day while it lasts, on top of the 2.5 L a resting
-            // body loses anyway (src/systems/food.rs, HYDRATION_PER_LITRE). A
+            // body loses anyway (crates/humanity-systems/src/food.rs, HYDRATION_PER_LITRE). A
             // GAME CHOICE for a moderate bout in an adult. Real losses run
             // from little more than a normal day's in a mild bout to far more
             // in cholera, the heaviest kind of watery diarrhoea; this sits

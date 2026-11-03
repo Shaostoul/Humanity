@@ -43,7 +43,7 @@ seed_source,companion_plants,adverse_plants,harvest_item
   traditional but unproven, leave it out and say so.
 - **harvest_item**: must match a real id in `data/items.csv`. **A bad id does NOT fail
   loudly.** `resolve_harvest_item` logs a warning and then falls through to a prefix
-  search over `vegetable_/fruit_/grain_` (`src/systems/farming/mod.rs`), so the harvest
+  search over `vegetable_/fruit_/grain_` (`crates/humanity-systems/src/farming/mod.rs`), so the harvest
   still yields something, possibly the wrong item, and the only trace is a log line
   nobody reads. Grep `data/items.csv` and confirm the exact id before using it. All 134
   current values resolve; keep it that way.

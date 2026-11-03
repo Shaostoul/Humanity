@@ -1228,7 +1228,7 @@ from the same federal guidance as part two of this document.
 ## What the simulation models, and what it does not
 
 The game's wounds are in `data/medical/wounds.ron`, applied by
-`src/systems/wounds.rs` (since 12 October 2026), and they follow the
+`crates/humanity-systems/src/wounds.rs` (since 12 October 2026), and they follow the
 shape of this document: the bleeding is short, and the danger after it is
 a wound going bad.
 

@@ -24,7 +24,7 @@
 // (https://us.towergarden.com/products/tower-garden-timer, read 2026-09-27): "Select I for Indoor
 // use (5 min on, 45 min off)", "Select O for Outdoor use (3 min on, 12 min off)". The homes'
 // towers are indoors, and data/machines/home.ron and home_solo.ron charge their pumps on the
-// indoor setting; src/machines.rs holds these notes to it.
+// indoor setting; crates/humanity-ship/src/machines.rs holds these notes to it.
 //
 // The medicinal notes are CULINARY and TRADITIONAL/folk uses, not medical advice.
 // No em-dashes (the strings render in-app, where em-dashes are banned).

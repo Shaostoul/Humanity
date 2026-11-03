@@ -2,16 +2,16 @@
 //! (`gui::return_to_storage`).
 
 use humanity_core::ecs::systems::System;
-use crate::systems::food::spoilage_tests::age_of;
-use crate::systems::food::spoilage_tests::barn;
-use crate::systems::food::spoilage_tests::player;
-use crate::systems::food::spoilage_tests::store;
-use crate::systems::food::spoilage_tests::vessel;
-use crate::systems::inventory::Inventory;
-use crate::systems::inventory::TransferOp;
-use crate::systems::inventory::containers::Container;
-use crate::systems::inventory::containers::ContainerRegistry;
-use crate::systems::inventory::placed::PlacedItem;
+use humanity_systems::food::fixtures::spoilage::age_of;
+use humanity_systems::food::fixtures::spoilage::barn;
+use humanity_systems::food::fixtures::spoilage::player;
+use humanity_systems::food::fixtures::spoilage::store;
+use humanity_systems::food::fixtures::spoilage::vessel;
+use humanity_systems::inventory::Inventory;
+use humanity_systems::inventory::TransferOp;
+use humanity_systems::inventory::containers::Container;
+use humanity_systems::inventory::containers::ContainerRegistry;
+use humanity_systems::inventory::placed::PlacedItem;
 use std::sync::Mutex;
 
 /// MOVING FOOD KEEPS ITS AGE (first-hour audit S6): out of the Barn into the backpack (the
@@ -27,7 +27,7 @@ fn moving_food_keeps_its_age() {
     let mut data = store();
     data.insert("inventory_transfer_ops", Mutex::new(Vec::<TransferOp>::new()));
     data.insert("inventory_transfer_returns", Mutex::new(Vec::<(String, u32)>::new()));
-    let mut inv_sys = crate::systems::inventory::InventorySystem::new();
+    let mut inv_sys = humanity_systems::inventory::InventorySystem::new();
     let mut world = hecs::World::new();
     let p = player(&mut world, Inventory::new(8));
     let stored = PlacedItem { age_s: 5000.0, ..barn("bread_0", 3) };

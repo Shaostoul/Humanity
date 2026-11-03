@@ -79,7 +79,7 @@
 // food store of its own (data/food/ship_stores.ron), reached by a corridor from the street at
 // z 790. It is there for the design's rule that every home is within five minutes' walk of a
 // mess hall (docs/design/ship-homes-and-logistics.md section 2.9; the test
-// `every_home_reaches_a_mess_hall_within_five_minutes` in src/ship/ship_structure.rs): at 1.4 m/s,
+// `every_home_reaches_a_mess_hall_within_five_minutes` in crates/humanity-ship/src/ship_structure.rs): at 1.4 m/s,
 // p5 to p12 are 5.0 to 13.3 minutes from the Commons' mess hall along the street, and with the
 // South Commons every home is within 4.6 minutes (p5) of one of the two.
 //

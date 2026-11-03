@@ -13,7 +13,7 @@ use egui::RichText;
 
 use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState, HintDisplay};
-use crate::systems::time;
+use humanity_systems::time;
 
 /// How long a day of `hours` takes in real time at `speed`, in words.
 pub fn day_in_real_time(hours: u32, speed: f32) -> String {

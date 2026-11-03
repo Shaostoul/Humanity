@@ -358,7 +358,7 @@ pub enum SimMode {
     Skip,
 }
 
-/// The quest objective kinds (src/systems/quests/objectives.rs) that can tick a step.
+/// The quest objective kinds (crates/humanity-systems/src/quests/objectives.rs) that can tick a step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SimKind {

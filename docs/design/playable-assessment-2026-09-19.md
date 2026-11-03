@@ -53,7 +53,7 @@ increments in v0.745 to v0.759, and 24 of 42 systems are registered and ticking
 not happen is the layer between the working simulation and the person.
 
 One number frames it. Since the design bible was written on 2026-07-07 this repo
-has taken **1,755 commits. 22 touched `src/systems/`. 294 touched
+has taken **1,755 commits. 22 touched `crates/humanity-systems/src/`. 294 touched
 `src/renderer/`.** The gameplay ladder has not been the work for two and a half
 months. That was a defensible choice and the renderer arc produced real wins,
 but it is why the question is being asked now.
@@ -67,16 +67,16 @@ consequence, and has a reason to repeat it. These do:
 
 | Loop | The player action | Where it lives |
 |---|---|---|
-| **Drone mining** | Commission a drone at an asteroid, ore is delivered home | `src/systems/mining.rs`, asteroids `src/lib.rs:1353-1397` |
-| **Smelt and craft** | Crafting page, 444 recipes, skill-gated and station-gated | `src/systems/crafting/mod.rs:865-885` |
-| **Farming** | Plant a tower, bed or field, water, fertilize, harvest | `src/systems/farming/mod.rs` |
-| **Eat, drink, breathe, keep warm** | Vitals drain, food restores, five ways to die | `src/systems/food.rs:500-586` |
+| **Drone mining** | Commission a drone at an asteroid, ore is delivered home | `crates/humanity-systems/src/mining.rs`, asteroids `src/lib.rs:1353-1397` |
+| **Smelt and craft** | Crafting page, 444 recipes, skill-gated and station-gated | `crates/humanity-systems/src/crafting/mod.rs:865-885` |
+| **Farming** | Plant a tower, bed or field, water, fertilize, harvest | `crates/humanity-systems/src/farming/mod.rs` |
+| **Eat, drink, breathe, keep warm** | Vitals drain, food restores, five ways to die | `crates/humanity-systems/src/food.rs:500-586` |
 | **Death and respawn** | Die at 0 HP, "YOU DIED" with a named cause, respawn | `src/gui/pages/hud.rs:13`, `src/lib.rs:12306-12345` |
-| **Power, water, air** | Cut the power, watch the pump stop and the air foul | `src/systems/electrical.rs`, `plumbing.rs`, `atmosphere.rs` |
+| **Power, water, air** | Cut the power, watch the pump stop and the air foul | `crates/humanity-systems/src/electrical.rs`, `plumbing.rs`, `atmosphere.rs` |
 | **Livestock** | Walk to a chicken, press E, get an egg and farming XP | `src/lib.rs:11672-11760` |
-| **Build a structure** | Crafting page, Structures, Build; materials consumed, scaffold rises | `src/gui/pages/crafting.rs:381`, `src/systems/construction/mod.rs:116-240` |
+| **Build a structure** | Crafting page, Structures, Build; materials consumed, scaffold rises | `src/gui/pages/crafting.rs:381`, `crates/humanity-systems/src/construction/mod.rs:116-240` |
 | **Buy and sell** | Walk to a trading post, Trade, buy at 1.25x and sell at 0.5x | `src/gui/pages/vendor.rs:19`, `src/lib.rs:12002-12055` |
-| **Quests** | Browse, accept; all six objective types have live emitters | `src/gui/pages/quests.rs:118`, `src/systems/quests/mod.rs:267-293` |
+| **Quests** | Browse, accept; all six objective types have live emitters | `src/gui/pages/quests.rs:118`, `crates/humanity-systems/src/quests/mod.rs:267-293` |
 | **Gear and abilities** | Equip moves the item, armour mitigates, keys 1-9 cast | `src/lib.rs:12161-12260`, `src/gui/pages/hud.rs:670-760` |
 
 Content behind them: 867 items, 444 recipes, 189 plants, 92 creatures, 110
@@ -109,7 +109,7 @@ it.
 
 **2.3 What you build does not persist.** `src/save_load.rs` contains zero
 references to `Structure` or `Construction`; `WorldSave.constructions` is
-labelled dormant schema at `src/persistence.rs:55-57` and is never written. Also
+labelled dormant schema at `crates/humanity-systems/src/persistence.rs:55-57` and is never written. Also
 unsaved: vitals and player position (`src/save_load.rs:133` says so in a
 comment), machine state, battery charge, water level, livestock, and the garden
 tuning sliders (a `thread_local GardenEditState`,
@@ -124,8 +124,8 @@ nothing else. The crafting station gate reads `placed_machine_types` from
 unlock smelting. The construction sink terminates in a decorative box.
 
 **2.5 Crop pacing makes an evening's play impossible.** A game day is 1,200 real
-seconds (`src/systems/time.rs:63`) and growth is `growth_days * SECONDS_PER_DAY`
-(`src/systems/farming/mod.rs:1041`). The fastest crop in `data/plants.csv` is
+seconds (`crates/humanity-systems/src/time.rs:63`) and growth is `growth_days * SECONDS_PER_DAY`
+(`crates/humanity-systems/src/farming/mod.rs:1041`). The fastest crop in `data/plants.csv` is
 oyster mushroom at 14 days: **4.7 real hours**. The median is 120 days, 40 real
 hours. The nutrient slider caps at 1.5x (`:1060`). There is no away-time growth.
 The only escape is the 1x to 600x clock slider on the weather panel
@@ -140,7 +140,7 @@ commented out. Consistent with combat being deferred, but it means the only
 stakes are environmental.
 
 **2.7 The ore runs out, then comes back.** Three asteroids are hardcoded at
-`src/lib.rs:1353-1397` with finite ore; `src/systems/mining.rs:284-292` despawns
+`src/lib.rs:1353-1397` with finite ore; `crates/humanity-systems/src/mining.rs:284-292` despawns
 a depleted one and nothing respawns it. They are spawned unconditionally at
 startup and are not in `WorldSave`, so they return fresh every relaunch. Within a
 session the faucet dries up; across sessions it is unlimited. Neither behaviour
@@ -165,15 +165,15 @@ because most of it got wired in July.
   comment in `data/economy.ron:19`.
 - `data/enchantments.csv`, 134 rows. `grep -rn "enchant" src/ --include=*.rs`
   returns nothing at all.
-- `src/systems/self_sufficiency.rs` plus `data/food/crop_nutrition.ron`: built
+- `crates/humanity-systems/src/self_sufficiency.rs` plus `data/food/crop_nutrition.ron`: built
   and tested, zero consumers. The Home page still shows hand-typed kcal strings.
 - `data/biomes.ron`, 16 biomes with real precipitation and temperature, still
   orphaned while the weather tables stay hardcoded.
 - `data/behaviors.ron` and `config/flow_field.toml` are read by
-  `src/systems/ai/behavior.rs:3` and `flow_field.rs:3`. **Neither file exists.**
+  `crates/humanity-systems/src/ai/behavior.rs:3` and `flow_field.rs:3`. **Neither file exists.**
   Both modules are 26 lines of type declarations with zero call sites.
 
-**A registered, ticking, entirely dead system.** `src/systems/interaction.rs` is
+**A registered, ticking, entirely dead system.** `crates/humanity-systems/src/interaction.rs` is
 registered at `src/lib.rs:1242`. It queries `Interactable`, which is never
 attached to any entity anywhere in `src/`. It writes an `interaction_prompt`
 DataStore slot that nothing reads. Its trigger branch is a `log::debug!`. Every
@@ -213,7 +213,7 @@ relay's `task_create`/`task_update`/`task_delete` handlers are never called from
 native, so a task you make vanishes on the next list response.
 `src/gui/pages/profile.rs` says the Body, Interests, Social Links and Private
 Notes sections are "stored locally and never shared" (`:184`); they appear in
-neither `src/config.rs` nor `src/persistence.rs` and reset every launch.
+neither `src/config.rs` nor `crates/humanity-systems/src/persistence.rs` and reset every launch.
 `src/gui/pages/recovery.rs` is entirely inert and is the **default landing of
 the Platform tab** (`src/gui/pages/platform.rs:70`).
 `src/gui/pages/notes.rs` and `calendar.rs` have no storage at all, and notes
@@ -241,7 +241,7 @@ inside it.
   330 m². The other 4,565 m² is one continuous open volume.
 - **The machines in that volume are a demo grid and the room labels are
   decorative.** In zone mode `MachineHome::placements`
-  (`src/machines.rs:1609-1617`) ignores `inst.room` entirely and uses absolute
+  (`crates/humanity-ship/src/machines.rs:1609-1617`) ignores `inst.room` entirely and uses absolute
   x/z clamped into the zone. So 17 crafting stations labelled `room: "study"`
   sit in three straight rows on open floor at z 21.4, 22.6 and 24.6
   (`data/machines/home.ron:2735-2890`), and the whole power and water plant is
@@ -300,7 +300,7 @@ Add a `model` column to `plants.csv` so every tomato cultivar can point at
 
 ### 4.4 "The cabling and plumbing needs work aesthetically"
 
-**What exists.** A genuinely good router. `src/ship/conduits.rs:103` runs a
+**What exists.** A genuinely good router. `crates/humanity-ship/src/conduits.rs:103` runs a
 Manhattan path, places brackets every 1.5 m and at bends, adds elbows for rigid
 kinds, gaskets where a run crosses a wall, and dedupes overlapping fittings
 (`src/engine/home_meshes.rs:1133-1141`). It is unit-tested. There is real
@@ -363,7 +363,7 @@ player is not alone in a city, even with placeholder behaviour.
 ### 4.6 "The residential module isn't properly built, just kinda scattered about"
 
 **What exists.** One residential district, `ship_structure.ron:951`: `res-1`, 120
-by 200 by 4 metres. It is filled by `src/ship/home_structure.rs:1001`
+by 200 by 4 metres. It is filled by `crates/humanity-ship/src/home_structure.rs:1001`
 `tile_home_clones`, which bakes the player's own home shell once and stamps it
 into every slot, then stamps a corridor segment between adjacent slots. With a 55
 by 89 m home and a 2 m gap that is a 2 by 2 grid: four identical copies of the
@@ -375,13 +375,13 @@ fillers.
 > kept as written.** `tile_home_clones`, its corridor connectors and
 > `home_design_roster()` are gone. A residential zone draws nothing: its homes
 > are the ship's plots, and every plot but the player's own is drawn as the
-> shipped homestead (`src/ship/neighbours.rs`, the shell baked by
+> shipped homestead (`crates/humanity-ship/src/neighbours.rs`, the shell baked by
 > `HomeStructure::bake_shell_groups`), render only. See
 > [ship-homes-and-logistics.md](ship-homes-and-logistics.md), section 7.
 
 **What is missing.**
 - **The clones have no collision.** `ship_wall_segments`
-  (`src/ship/wall_collision.rs:145-156`) builds colliders only from
+  (`crates/humanity-ship/src/wall_collision.rs:145-156`) builds colliders only from
   `zone.body.walls`; the macro zone list and all tiled clone geometry produce no
   segments. You walk through every residential building.
 - **The clones are empty shells** by explicit design (`home_structure.rs:993-1000`
@@ -403,10 +403,10 @@ section 6's ordering.
 
 ### 4.7 "We haven't been able to build any multiple storied spaceship interiors"
 
-**More exists than the complaint implies.** `src/ship/layout.rs` has a real
+**More exists than the complaint implies.** `crates/humanity-ship/src/layout.rs` has a real
 `ShipDef { decks }` with `Direction::Up | Down` and BFS pathfinding across decks,
 and `data/ships/starter_fleet.ron` is a genuine two-deck ship.
-`src/ship/fibonacci.rs:212` has `RoomConfig.level` with storey stacking at `:528`
+`crates/humanity-ship/src/fibonacci.rs:212` has `RoomConfig.level` with storey stacking at `:528`
 and a guard test at `:2081` proving rooms on different storeys are not adjacent.
 The construction editor has a working storey selector
 (`src/gui/pages/construction.rs:59-120`). Vertical movement all works: ladder
@@ -420,11 +420,11 @@ the step-up footing sampler (`:3570-3625`).
    touches it. `data/ships/layout_medium.ron` is a *third*, incompatible schema
    with every room at y = 0.
 2. **Interior walls have no base Y.** `InteriorWall { a: (f32,f32), b: (f32,f32),
-   height, ... }` (`src/ship/home_structure.rs:171-193`) is 2-D endpoints plus a
+   height, ... }` (`crates/humanity-ship/src/home_structure.rs:171-193`) is 2-D endpoints plus a
    height rising from the zone floor. **You cannot author a wall on an upper
    storey.**
 3. **Collision is flattened to one plane.** `ship_segments_impl`
-   (`src/ship/wall_collision.rs:145-156`) uses `zone.origin.0` and `.2` and never
+   (`crates/humanity-ship/src/wall_collision.rs:145-156`) uses `zone.origin.0` and `.2` and never
    `.1`. Stack two zones and the upper deck's walls block the lower deck.
 4. **The footing sampler is single-storey by construction.**
    `src/lib.rs:3568-3575` takes the first `room_bounds` entry whose XZ box
@@ -474,13 +474,13 @@ and XP progress) and that survives a restart.
 the whole multiplayer story:
 
 1. **`WorldSave` is native-gated because of one GUI type.**
-   `src/persistence.rs:53` holds `placed_items: Vec<crate::gui::PlacedItem>`, and
+   `crates/humanity-systems/src/persistence.rs:53` holds `placed_items: Vec<crate::gui::PlacedItem>`, and
    `crate::gui` is native-only, so `src/lib.rs:104` gates the whole module. **A
    dedicated server cannot hold a player's home even in principle.** Nothing else
    in `WorldSave` is native-specific. Moving one type out of `gui` is the highest
    capability-per-line change in the repo.
 2. **All 47 gameplay system modules already compile into the relay binary.**
-   `src/systems/mod.rs` has no feature gates. They take
+   `crates/humanity-systems/src/lib.rs` has no feature gates. They take
    `(&mut hecs::World, dt, &DataStore)`, no GPU, no egui. They are client-only for
    two non-design reasons: the relay has no `SystemRunner` host, and no protocol
    message could carry their state.
@@ -538,7 +538,7 @@ This is most of the win and none of it is speculative.
    hour spent on models, textures or plant art reaches nobody who downloads the
    game. It is two lines and 269 MB of download.
 1. **Persist the world.** Write `Structure` and `Construction` into `WorldSave`
-   (the field exists, `src/persistence.rs:24`), plus vitals, player position,
+   (the field exists, `crates/humanity-systems/src/persistence.rs:24`), plus vitals, player position,
    machine state, livestock and the garden sliders. Today a session's building
    work is thrown away at exit with no warning, which converts every other loop
    from progress into play-acting. Contained in `src/save_load.rs`.
@@ -630,7 +630,7 @@ undo any of it; it is to stop adding to it until Tier A holds.
 
 Also not foundation: registering more of the 18 dormant systems. Each should wait
 for the increment that gives it a visible consequence, which is what
-`DEFERRED_SYSTEMS` already says. And `src/systems/interaction.rs` should be
+`DEFERRED_SYSTEMS` already says. And `crates/humanity-systems/src/interaction.rs` should be
 deleted or given its consumer; a registered system that ticks and does nothing is
 worse than an absent one.
 
@@ -657,7 +657,7 @@ home's footprint is the acre and it is correct, and NPCs come after the loops.
    it, and it does not rewrite `growth_days`. `plants.csv` keeps its real
    agricultural numbers, so 1x stays a truthful mode and the figures stay
    teachable at every rung. Implemented in
-   `src/systems/farming/mod.rs` (`DEFAULT_CROP_GROWTH_SPEED`,
+   `crates/humanity-systems/src/farming/mod.rs` (`DEFAULT_CROP_GROWTH_SPEED`,
    `clamp_growth_speed`), applied as one more factor beside health, nutrient and
    climate, published from `lib.rs` as `crop_growth_speed`, and exposed in
    Settings > Gameplay. Tier A item 3 is unblocked.

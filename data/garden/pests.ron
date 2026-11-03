@@ -1,5 +1,5 @@
 // Garden pests and integrated pest management (2026-09-26, gardening depth).
-// Read by src/systems/farming/pests.rs, which carries the model and the
+// Read by crates/humanity-systems/src/farming/pests.rs, which carries the model and the
 // reasoning; this file carries the pests, the controls, the numbers and where
 // each one came from. Sources were read on 2026-09-26. The same day the
 // greenhouse air became real (data/garden/humidity.ron) and three diseases

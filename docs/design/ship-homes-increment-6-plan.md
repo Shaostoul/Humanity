@@ -6,7 +6,7 @@ Date: 2026-10-12. Read against main at 7b2a09394 (v0.1487.1 plus the 5b Wave 1 m
 
 - **Much of the mess hall is already built** (section 1.1): the `mess_hall` zone type and the mess hall volume (increment 3), the relay's free, metered crew meal (`take_meal`, one a meal time, a "used" line in the fleet ledger), and the game eating it as a Basic Ration. What is missing is any way to take a meal in the world (today only Inventory > The fleet's button within 5 m), tables, a counter, water, and meals offline.
 - **Not built at all:** starts as data, a cabin, a start in `game_join`, any home choice, and the operator's 2026-10-04 rule that server worlds start every player fresh (today one save, offline_home.json, is shared by your home and every server: showroom.rs:38-39 says so).
-- **Starts are data.** NEW data/homes/starts.ron (Cabin, Apartment not offered yet, Homestead the default), read by the relay and the game through NEW src/ship/starts.rs. A row holds the design, plot kind, household sizes (the old Family/Solo choice, now per start), engagement defaults per domain, shared places, kit, storage seed, opening quest, whether the home has its own air, and which homestead world content it carries.
+- **Starts are data.** NEW data/homes/starts.ron (Cabin, Apartment not offered yet, Homestead the default), read by the relay and the game through NEW crates/humanity-ship/src/starts.rs. A row holds the design, plot kind, household sizes (the old Family/Solo choice, now per start), engagement defaults per domain, shared places, kit, storage seed, opening quest, whether the home has its own air, and which homestead world content it carries.
 - **The Cabin.** NEW data/homes/shipped/cabin.ron (and the player's own copy data/homes/cabin.ron): one room 3.0 x 2.5 m = 7.5 m2 (the UK space standard's single bedroom), 2.6 m high, door in the west wall. NEW data/machines/cabin.ron: bed, nightstand, wardrobe, desk, chair, wall screen. Sixteen cabin plots c1..c16 stand east of First Street, each opening on a new block hall zone `cabins-1` (with the block's shared washroom), reached from First Street.
 - **A block is a zone, not a parent plot** (resolved in 3.3): a walkable shared hall cannot sit inside any plot (validate refuses a zone overlapping a plot), and a parent plot's own door tube would overlap its cabins' tubes.
 - **Zone types** `recreation`, `cabin_block`, `apartment_block`, `street` join `mess_hall` (built) in data/blueprints/zone_types.ron.
@@ -69,7 +69,7 @@ Date: 2026-10-12. Read against main at 7b2a09394 (v0.1487.1 plus the 5b Wave 1 m
 - Furniture machine types exist in home.ron's catalog with Kenney CC0 models: `dining_table` :1561, `chair` :1541, `couch` :1521, `bed` :1459 (a double-bed model), `nightstand` :1481, `wardrobe` :1501, `desk` :1621, `wall_screen` :2340 (no model, no power). Models on disk: assets/models/furniture/ (15 pieces; no single bed, no counter).
 - data/machines/ship.ron (the Commons' rows) has an EMPTY catalog on purpose (:17-22) and three power rows from the family home's `battery_7` (:123-126). Only home.ron names it (`ship_machines`); `merge_ship_machines` machines.rs:1187-1203; `split_for_save` sends every connection touching a ship row back to ship.ron (machines.rs ~:1253-1275).
 - The pinned machine card grows a Trade button for a trading post (lib.rs:14086-14100 sets `machine_card_vendor`; hud.rs:1813-1823 draws it).
-- Water: a bottle is filled at a water tank's walk-up card (src/systems/fluids.rs:1-17). A home with no tank has no way to drink after its kit.
+- Water: a bottle is filled at a water tank's walk-up card (crates/humanity-systems/src/fluids.rs:1-17). A home with no tank has no way to drink after its kit.
 - The game's stores list comes only from the welcome's snapshot (fleet.rs `stores_in` :323-339).
 
 ### 1.7 The opening
@@ -117,11 +117,11 @@ Date: 2026-10-12. Read against main at 7b2a09394 (v0.1487.1 plus the 5b Wave 1 m
 
 ## 3. The design
 
-### 3.1 data/homes/starts.ron and src/ship/starts.rs
+### 3.1 data/homes/starts.ron and crates/humanity-ship/src/starts.rs
 Read by the relay (`GameWorld::new`) and the game, disk first, built-in copy (`embedded_data::STARTS_RON`) through `load_data_or_embedded`.
 
 ```rust
-// src/ship/starts.rs (compiled into the relay too: no native-only crates)
+// crates/humanity-ship/src/starts.rs (compiled into the relay too: no native-only crates)
 pub const STARTS_FILE: &str = "homes/starts.ron";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Engagement { Direct, Trade, Automation, Cooperative, Background } // engagement-modes.md
@@ -356,14 +356,14 @@ One widget, NEW src/gui/pages/where_you_live.rs, theme tokens only (`text_primar
 
 ### Wave 0: the contract (one builder, merges first). Player-visible: nothing yet; the game and the server agree on what a Cabin and a Homestead are.
 Files:
-- NEW src/ship/starts.rs and src/ship/mod.rs (3.1, wire shapes and words); NEW data/homes/starts.ron.
+- NEW crates/humanity-ship/src/starts.rs and crates/humanity-ship/src/lib.rs (3.1, wire shapes and words); NEW data/homes/starts.ron.
 - NEW data/homes/shipped/cabin.ron, data/homes/cabin.ron, data/machines/cabin.ron, data/places/cabin_seed.json (3.2).
 - crates/humanity-core/src/embedded_data.rs: `STARTS_RON`, `HOME_CABIN_RON` and its `SHIPPED_HOMES` row, `MACHINES_CABIN_RON`, `PLACES_CABIN_SEED_JSON`, `get_embedded` arms (with `own_home_text` for homes/cabin.ron), the EMBEDDED list.
-- src/persistence.rs: the fields of 3.6, `ShipPlace`, `ShipMeals`, `SaveSlot`, `slot_path`; `new_offline` defaults.
+- crates/humanity-systems/src/persistence.rs: the fields of 3.6, `ShipPlace`, `ShipMeals`, `SaveSlot`, `slot_path`; `new_offline` defaults.
 - src/save_load.rs: `ActiveHome` thread-local with `active_home()`/`set_active_home()`; `active_home_path` reads it; `starting_kit(data_dir, start)`; `SHIP_MEALS_KEY`.
-- src/machines.rs: `home_ron_path` from `ActiveHome` and starts.ron.
+- crates/humanity-ship/src/machines.rs: `home_ron_path` from `ActiveHome` and starts.ron.
 - data/world/player.ron: `starting_items` removed (now the homestead row's kit); its readers (save_load test, tests/recipe_sources_lint.rs, quests' `every_shipped_home_has_what_the_starter_quests_need`) read the kit.
-- src/ship/ship_structure.rs: `default_plot_of_kind`.
+- crates/humanity-ship/src/ship_structure.rs: `default_plot_of_kind`.
 - src/gui/mod.rs: `save_slot: SaveSlot`, `home_answer: Option<HomeAnswer>`, `machine_card_meal: bool` and defaults.
 - NEW src/engine/save_slot.rs with the signatures 1C and 2A fill (`wanted`, `fresh_save`, `follow`, `home_for`, `on_game_message`, `enter_pairing`, `choose_on_server`), as no-op stubs; src/engine/mod.rs.
 - src/gui/pages/showroom.rs one line (`load_homes` reads `start` for the detail).
@@ -382,7 +382,7 @@ Tests:
 ### Wave 1 (seven lanes in parallel)
 
 **1A The ship and its furniture (data).** Player-visible: a row of sixteen cabins with its hall and washroom stands across First Street, the mess hall has tables and a serving counter, the Commons a corner with couches and a screen, and a second mess hall halfway down the street.
-Files: data/blueprints/ship_structure.ron, zone_types.ron; data/machines/ship.ron, home.ron (the three power rows); data/food/ship_stores.ron (second store; stale comment); data/ships/room_equipment.ron; src/machines.rs (`split_for_save`, tests); scripts/tests/fixtures/door-points-p1.json; tests in src/ship/ship_structure.rs, neighbours.rs, door_points.rs, ship_space.rs, src/ship/starts.rs, src/relay/handlers/ship_world.rs, game_interest.rs; tests/visual/vantages.json (`ship-cabin-row`, `mess-hall-counter`).
+Files: data/blueprints/ship_structure.ron, zone_types.ron; data/machines/ship.ron, home.ron (the three power rows); data/food/ship_stores.ron (second store; stale comment); data/ships/room_equipment.ron; crates/humanity-ship/src/machines.rs (`split_for_save`, tests); scripts/tests/fixtures/door-points-p1.json; tests in crates/humanity-ship/src/ship_structure.rs, neighbours.rs, door_points.rs, ship_space.rs, crates/humanity-ship/src/starts.rs, src/relay/handlers/ship_world.rs, game_interest.rs; tests/visual/vantages.json (`ship-cabin-row`, `mess-hall-counter`).
 Tests:
 - ship_structure.rs `the_shipped_ship_has_a_cabin_block_beside_first_street`: c1..c16 each take the shipped cabin through their own door into `cabins-1`, the hall is reached from First Street, `validate` passes, the built-in copy is the same ship; the twelve-homes test filters to homesteads. Red with c7's door lat 1 m off: "plot 'c7' door lat ... does not meet the cabin design's door".
 - ship_structure.rs `every_home_reaches_a_mess_hall_within_five_minutes` (design 2.9): along the corridor graph from each plot's door to the nearest `mess_hall` volume at 1.4 m/s. Red on the ship without the South Commons: "p8's door is 9.6 minutes from the nearest mess hall".
@@ -410,7 +410,7 @@ Tests:
 - Checks: `just verify-relay`; `cargo check --features relay --no-default-features`; `just rig-tests`.
 
 **1C Save slots (the core).** Player-visible: nothing new yet; the game can keep a separate save for each server, made fresh.
-Files: src/engine/save_slot.rs (`wanted`, `fresh_save`, the swap's save half: `write_active`, `take_up`), src/save_load.rs (`apply_onto_running_world`, `spawn_fresh_player`, `fresh_asteroids`, the apply's kind gate admits "server", Restore reloads the active slot by path, `ShipMeals` round trip), NEW data/asteroids/belt.ron with its built-in copy in crates/humanity-core/src/embedded_data.rs, src/systems/machine_levels.rs (`reset_all`).
+Files: src/engine/save_slot.rs (`wanted`, `fresh_save`, the swap's save half: `write_active`, `take_up`), src/save_load.rs (`apply_onto_running_world`, `spawn_fresh_player`, `fresh_asteroids`, the apply's kind gate admits "server", Restore reloads the active slot by path, `ShipMeals` round trip), NEW data/asteroids/belt.ron with its built-in copy in crates/humanity-core/src/embedded_data.rs, crates/humanity-systems/src/machine_levels.rs (`reset_all`).
 Tests:
 - `a_fresh_server_save_carries_only_the_look`: from an offline world with a full backpack, skills, 50,000 CR, an own home, quests done, crops, a vehicle, a drone and a charged battery, the fresh save holds the cabin kit only, no skills, the default credits, no own home, the cabin opening active, no crops, vehicles or drone, the fresh asteroids, a fresh body, and the same name, look and outfit. Red with the inventory copied: "the offline backpack's 7 gold ingots came into the server's save".
 - `the_slot_follows_the_pairing_not_a_step_out`: home:, server:, empty, no identity; a server pairing with `copresence_solo` set by Dev travel stays the server slot. Red with `wanted` reading `copresence_solo`.
@@ -421,7 +421,7 @@ Tests:
 - `the_ship_meals_meter_round_trips`. Red with it not written.
 
 **1D The mess hall serves (game).** Player-visible: pressing E at the mess hall's counter gives a free crew meal and fills your bottles, offline too.
-Files: NEW src/engine/mess_hall.rs, NEW src/systems/ship_meals.rs (+ mod lines), src/gui/pages/hud.rs, src/gui/pages/fleet_ledger.rs, src/engine/fleet.rs, src/lib.rs (the card flag only).
+Files: NEW src/engine/mess_hall.rs, NEW crates/humanity-systems/src/ship_meals.rs (+ mod lines), src/gui/pages/hud.rs, src/gui/pages/fleet_ledger.rs, src/engine/fleet.rs, src/lib.rs (the card flag only).
 Tests:
 - ship_meals.rs `the_counter_serves_a_meal_offline_once_a_meal_time`: eaten, food up, taken 1; again: not yet, with minutes; after the interval: served. Red with no interval check.
 - mess_hall.rs `in_the_shared_world_the_counter_asks_the_server`: one `game_interact take_meal` for the nearest store in reach; none in reach gives the walk-closer sentence; no local meal while joined. Red with the offline path taken while joined ("a meal not on the ledger").
@@ -443,7 +443,7 @@ Files: NEW web/chat/chat-home.js, web/chat/index.html, web/chat/chat-ui.js, web/
 Tests: renders a held home, the choices with free counts, and each refusal from synthetic answers; [Choose] sends `game_choose_home` with the start id; every start name and sentence shown is the answer's (a test answer with renamed starts shows the new names). Red with a hard-coded "Cabin".
 
 **1G The Cabin's opening.** Player-visible: a Cabin player's first minutes say: check yourself, find the mess hall and eat, see the recreation room, go home.
-Files: data/quests/getting_started.ron, data/entities/destinations.ron, src/systems/quests/mod.rs, src/systems/quests/opening_tests.rs.
+Files: data/quests/getting_started.ron, data/entities/destinations.ron, crates/humanity-systems/src/quests/mod.rs, crates/humanity-systems/src/quests/opening_tests.rs.
 Tests:
 - `the_cabin_opening_walks_on_this_data`: the five steps with the real systems on the shipped ship, standing in the mess hall, eating, the recreation room, the cabin door. Red with `NearestVolume` unresolved.
 - `the_mess_hall_is_the_nearest_one`: from c1 the Commons' mess hall, from p11 the South Commons'. Red with the first volume taken.
@@ -452,7 +452,7 @@ Tests:
 ### Wave 2 (two lanes, after Wave 1 and 5b's 2A and 3A merge)
 
 **2A The session and the home (glue).** Player-visible: on a server you start fresh in the home you chose, and your own home and things are waiting when you go back to it.
-Files: src/lib.rs (boot slot before :1417; the fresh spawn and asteroids through save_load; the opening by start; `save_slot::follow` after `follow_server`; the picker's Enter makes no `launcher_pending_load` for a server pairing; :14562-14620 replaced by `apply_onto_running_world`), src/gui/mod.rs (drop `home_plots`, `settings.home_variant`), src/config.rs (drop `home_variant`, `home_plots`, `RememberedPlot`), src/gui/connections.rs (erase sets the server save aside), src/engine/save_slot.rs (`follow`, `home_for`, `on_game_message`, `enter_pairing`, `choose_on_server`), src/engine/net_route.rs (the hook), src/engine/home_plot.rs (`add_join_fields`, `plan_welcome`, `apply_welcome_home`, `boot_plot`, `assemble_for_boot`, `remember_plot` gone, `bring_home_back`, `JoinGate::slot_ready`, `guest_arrival`), src/engine/world_load.rs (home content by start), src/engine/own_home.rs (server slots), src/ship/ship_space.rs and src/engine/survival_env.rs (`own_air`), src/gui/pages/main_menu.rs tests.
+Files: src/lib.rs (boot slot before :1417; the fresh spawn and asteroids through save_load; the opening by start; `save_slot::follow` after `follow_server`; the picker's Enter makes no `launcher_pending_load` for a server pairing; :14562-14620 replaced by `apply_onto_running_world`), src/gui/mod.rs (drop `home_plots`, `settings.home_variant`), src/config.rs (drop `home_variant`, `home_plots`, `RememberedPlot`), src/gui/connections.rs (erase sets the server save aside), src/engine/save_slot.rs (`follow`, `home_for`, `on_game_message`, `enter_pairing`, `choose_on_server`), src/engine/net_route.rs (the hook), src/engine/home_plot.rs (`add_join_fields`, `plan_welcome`, `apply_welcome_home`, `boot_plot`, `assemble_for_boot`, `remember_plot` gone, `bring_home_back`, `JoinGate::slot_ready`, `guest_arrival`), src/engine/world_load.rs (home content by start), src/engine/own_home.rs (server slots), crates/humanity-ship/src/ship_space.rs and src/engine/survival_env.rs (`own_air`), src/gui/pages/main_menu.rs tests.
 Tests:
 - home_plot.rs `a_welcome_of_another_kind_builds_that_kinds_home_and_keeps_the_plot`. Red on today's code: "gave up plot c2: plot 'c2' takes a cabin home, not a homestead".
 - home_plot.rs `the_join_names_the_saves_start`. Red without the field.

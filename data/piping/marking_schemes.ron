@@ -1,5 +1,5 @@
 // Pipe marking schemes (2026-10-04): which coloured bands a pipe carries to say
-// WHAT FLOWS INSIDE IT, scheme by scheme. Read by src/ship/pipe_marking.rs (disk
+// WHAT FLOWS INSIDE IT, scheme by scheme. Read by crates/humanity-ship/src/pipe_marking.rs (disk
 // first, the copy built into the exe if this file is missing or does not parse).
 //
 // The research behind every row is docs/reference/findings/2026-10-04-pipe-marking-standards.md.

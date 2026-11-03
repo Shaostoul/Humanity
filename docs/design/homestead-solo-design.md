@@ -377,7 +377,7 @@ Honest gaps to author, following the schema patterns in the files above —
    `calories_per_100g`, `protein_g/fat_g/carbs_g` (USDA magnitude per 100 g
    edible), and `grams_per_yield_unit` (the bridge normalizing plants.csv's
    abstract yield units into real mass). Loaded by
-   `src/systems/self_sufficiency.rs` (`CropNutrition::from_ron` + the pure
+   `crates/humanity-systems/src/self_sufficiency.rs` (`CropNutrition::from_ron` + the pure
    `food_supply_kcal_per_day`). Every plant_id is cross-checked against
    plants.csv by a unit test; the potato bridge is calibrated to land
    within 2x of home.ron's "+120 kcal/d per bed" claim (924 vs 960 kcal for
@@ -394,7 +394,7 @@ Honest gaps to author, following the schema patterns in the files above —
    **Wired 2026-09-26:** the typed food strings are gone from both home
    files. Every grow machine's food line (walk-up card, construction editor,
    garden overview) and the Home page's food total are computed from the
-   crops the showcase plants (`src/systems/grow_machines.rs`). Per machine:
+   crops the showcase plants (`crates/humanity-systems/src/grow_machines.rs`). Per machine:
    potato bed 61.5, grain tray (rice) 41.0, oilseed bed 23.8, mushroom rack
    198.0, variety tower 148.6, apothecary tower 232.5, grain field 54.1,
    legume field 63.2 kcal/day. The solo home totals 2,729 kcal/day computed
@@ -416,7 +416,7 @@ Honest gaps to author, following the schema patterns in the files above —
    **`data/self_sufficiency/location.ron`** (the reference location
    "Silverdale, WA": sun-hours summer/winter, annual rainfall, heating/
    cooling degree-days — real Kitsap County values). Loaded by
-   `src/systems/self_sufficiency.rs` (`ComponentOutputs`/`Location`
+   `crates/humanity-systems/src/self_sufficiency.rs` (`ComponentOutputs`/`Location`
    loaders + the pure `household_energy_balance`). Every component id is
    cross-checked against the home.ron catalog by a unit test; all figures
    were verified to AGREE with the home.ron catalog stats + this doc's
@@ -426,7 +426,7 @@ Honest gaps to author, following the schema patterns in the files above —
 
 5. ~~**Grow-light energy meter (flagged in the doc, not built).**~~
    **CLOSED (v0.664, 2026-07-01).** `MachineHome::grow_light_report`
-   (src/machines.rs) computes the placed grow lights' draw (fixture watts
+   (crates/humanity-ship/src/machines.rs) computes the placed grow lights' draw (fixture watts
    x `GROW_LIGHT_DUTY_HOURS` = 14 h/day, the mid-range of the 12-16 h crop
    photoperiod) against the home's free headroom (generation minus all
    non-grow-light demand) and verdicts it green (within headroom) / amber

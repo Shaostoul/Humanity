@@ -36,7 +36,7 @@
 //                                   the player sees the gift, worth 0 so it never moves
 //                                   the balance (the review of 2026-10-04, finding 5);
 //                 "power_drawn"     electricity the ship's reactor supplied their home
-//                                   (src/systems/ship_power.rs meters it; the game reports
+//                                   (crates/humanity-systems/src/ship_power.rs meters it; the game reports
 //                                   it while the player is in the shared world);
 //                 "power_returned"  surplus electricity their home sent back to the ship.
 //               Each row says:

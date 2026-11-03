@@ -1,5 +1,5 @@
 // Plant nutrients as N, P2O5 and K2O (2026-09-26, gardening depth rung 3).
-// Read by src/systems/farming/soil.rs, which carries the model and the
+// Read by crates/humanity-systems/src/farming/soil.rs, which carries the model and the
 // reasoning; this file carries the numbers and where each one came from.
 //
 // UNITS. Every nutrient amount in the simulation is GRAMS of N, P2O5 and K2O,
@@ -25,7 +25,7 @@
 // The expected harvest is the middle of the crop's plants.csv yield range (per
 // PLANT since 2026-09-26) times the items.csv mass of what it harvests into,
 // times the plants in the unit (one in a tower cup, as many as fit at the
-// crop's spacing in a bed plot: src/systems/farming/units.rs and
+// crop's spacing in a bed plot: crates/humanity-systems/src/farming/units.rs and
 // data/garden/yields.ron), so a crop that yields more takes more out, and the
 // index sets how rich that harvest is in each nutrient relative to a tomato.
 // For the tomato itself, one high-tunnel plant's 18 to 45 fruit of 0.2 kg is
@@ -348,7 +348,7 @@
 // based upon the number of persons and days that it has been collected from,
 // as this gives a better indication of the nutrient content than the volume"
 // (Jonsson et al. 2004, below, p. 7). Where the household's urine comes from
-// in the game: src/systems/food.rs, the Compost action.
+// in the game: crates/humanity-systems/src/food.rs, the Compost action.
 //
 // Source for N and P: Jonsson, H., Richert Stintzing, A., Vinneras, B. and
 // Salomon, E. (2004), "Guidelines on the Use of Urine and Faeces in Crop

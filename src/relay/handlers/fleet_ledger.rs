@@ -10,7 +10,7 @@
 //!     way a player draws on the stores), and the electricity the ship's reactor supplies their
 //!     home while they are in the shared world (`power_report`). Those two are everything the
 //!     code has the fleet supply a player today: the reactor feeds every home past what it
-//!     makes (src/systems/ship_power.rs, "essentially provide unlimited (at least to start)",
+//!     makes (crates/humanity-systems/src/ship_power.rs, "essentially provide unlimited (at least to start)",
 //!     metered), and the mess hall's stores feed everyone aboard. Air and water are made in
 //!     each home by its own machines (the reactor powering them is the power line); nothing
 //!     else is handed to a player by the fleet.
@@ -229,7 +229,7 @@ impl LedgerData {
     /// copy when the file is missing or this version cannot read it, BUG-163).
     fn load_goods() -> HashMap<String, Good> {
         let data = std::path::Path::new("data");
-        match humanity_core::embedded_data::load_data_or_embedded(data, "trade_goods.ron", crate::systems::economy::TradeGoodsRegistry::from_ron) {
+        match humanity_core::embedded_data::load_data_or_embedded(data, "trade_goods.ron", humanity_systems::economy::TradeGoodsRegistry::from_ron) {
             Ok(reg) => reg.goods.into_iter().map(|(id, g)| (id, Good { name: g.name, base_value: f64::from(g.base_value) })).collect(),
             Err(e) => {
                 tracing::error!("{e}; the fleet has no prices, so it takes no gives");

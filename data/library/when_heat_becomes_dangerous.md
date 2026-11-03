@@ -505,19 +505,19 @@ rest of this guide.
   model of human heat regulation: you make heat, more when you walk or
   sprint, and lose it to the air, to your surroundings and by sweating, and
   humid air slows the evaporation of sweat in the model as it does in life
-  (`src/systems/body_heat.rs`). In the open, the sun's heat counts and a
+  (`crates/humanity-systems/src/body_heat.rs`). In the open, the sun's heat counts and a
   roof you have built shades you. [Heat and How It
   Moves](/library#heat-and-how-it-moves) describes the model and the HUD's
   "feels" line.
 - **Sweat costs water.** The water you sweat out comes off your Hydration
   on top of the ordinary daily drain, at about 20 points for every litre
-  (`src/systems/food.rs`), and the Vitals drain slider (Settings >
+  (`crates/humanity-systems/src/food.rs`), and the Vitals drain slider (Settings >
   Gameplay) scales it like your other needs.
 - **The conditions.** The game names two heat conditions, from the core
   temperature it shows you: Heat Exhaustion above 39 C, which slows you to
   80 percent of your speed, and Heatstroke above 40 C, which halves your
   speed and drains your health (`data/status_effects.csv`,
-  `src/systems/body_heat.rs`). Under Realistic, a core of 41 C would take
+  `crates/humanity-systems/src/body_heat.rs`). Under Realistic, a core of 41 C would take
   your health from full to nothing in an hour, and 42 C in half an hour.
 - **The default is gentler.** Settings > Gameplay > Body heat starts on
   Forgiving, which uses the same weather, clothes and shelter but shows
@@ -528,7 +528,7 @@ rest of this guide.
   passes about 43 C; the harm then comes far more slowly than under
   Realistic. A real core of 44 C, which empties a full health bar in about
   15 minutes under Realistic, reads 40.4 C under Forgiving and takes about
-  5 hours (`src/systems/body_heat.rs`, and the rule as the setting explains
+  5 hours (`crates/humanity-systems/src/body_heat.rs`, and the rule as the setting explains
   it in the game; the conversions and times are our arithmetic). Realistic
   shows the real balance.
 - **Body heat runs in every play mode,** the default Normal among them;
@@ -546,7 +546,7 @@ What the game leaves out, so you do not learn it from the game: there is
 no heat index or HeatRisk forecast and no heat alert; no weather event in
 the game is a heat wave (`data/weather/events.ron`), and the game's
 disaster system, which lists one, is not registered, so it never runs
-(`src/systems/disasters.rs`); there is no heat rash, cramp, fainting or
+(`crates/humanity-systems/src/disasters.rs`); there is no heat rash, cramp, fainting or
 sunburn (the Sunburn row in `data/status_effects.csv` is applied by
 nothing); there are no medicines that change your response to heat, no
 cars that heat up, and nothing you can do for anyone else's heat illness.
@@ -738,14 +738,14 @@ were read on 4 October 2026 and are cited with the date they carry.
   and the record high of 38.9 C for the Bremerton station, from NOAA's
   1991 to 2020 normals and daily record).
 - The body heat model, its thresholds, its Forgiving and Realistic modes
-  and its harm rates: `src/systems/body_heat.rs`; sweat taken from
-  Hydration: `src/systems/food.rs`; the Heat Exhaustion, Heatstroke and
+  and its harm rates: `crates/humanity-systems/src/body_heat.rs`; sweat taken from
+  Hydration: `crates/humanity-systems/src/food.rs`; the Heat Exhaustion, Heatstroke and
   Sunburn rows: `data/status_effects.csv`; the setting: Settings >
   Gameplay > Body heat, whose explanation is built from the same constants
   (`body_heat_hint` in `src/gui/pages/settings.rs`). The weather events,
   none of them a heat wave: `data/weather/events.ron`; the unregistered
-  disaster system: `src/systems/disasters.rs`. The body saved with the
-  game: `BodySave` in `src/persistence.rs` and `restore_body` in
+  disaster system: `crates/humanity-systems/src/disasters.rs`. The body saved with the
+  game: `BodySave` in `crates/humanity-systems/src/persistence.rs` and `restore_body` in
   `src/save_load.rs`; the "Start every session from the default home"
   setting: `src/config.rs`.
 - [Heat and How It Moves](/library#heat-and-how-it-moves), [How Your Body

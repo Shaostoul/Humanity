@@ -815,7 +815,7 @@ function judgeEditorClose({ buildSpot, held, camera, nudged, seen }) {
 // ── Door points and routes (increment 2, "Meet in the Commons") ─────────────
 //
 // The game reports the ship's places and every corridor's door points, from its
-// own corridor geometry (debug/door_points_request.json, src/ship/door_points.rs):
+// own corridor geometry (debug/door_points_request.json, crates/humanity-ship/src/door_points.rs):
 //   { ship_hash, places: [{ id, kind, purpose, min, max, door, door_local, own }],
 //     doors: [{ from, to, axis, lat, mouths: [a, b], steps: [inFrom, inTo], tube: [min, max] }] }
 // A route is planned on that and nothing else, so no corridor maths lives here:
@@ -1049,7 +1049,7 @@ const STOREY_SLACK_M = 0.05;
  * up there stands over the heads of the people below: its upper hall's south wall runs along z 40.5,
  * across the middle of the ground hall. The door points flattened every storey's walls into one
  * plan, so the rig's map put that wall across the ground hall. The game now reports the walls by
- * storey (src/ship/door_points.rs `StoreyWalls`), each list the walls that stop a body standing on
+ * storey (crates/humanity-ship/src/door_points.rs `StoreyWalls`), each list the walls that stop a body standing on
  * that floor by the game's own knee-to-eye rule, so the rig never re-derives it. Pure.
  */
 function storeyWalls(report, floorY = 0) {

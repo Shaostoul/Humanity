@@ -121,7 +121,7 @@ fn bits(v: Vec3) -> [u32; 3] {
 /// render frame (relative to the ship frame's origin, turned into the hull's
 /// axes while riding), the same field of view, and the canvas's aspect.
 pub(crate) fn render_camera(pose: &MapPose, me: &MapSelf, aspect: f32) -> Camera {
-    let to_render = |v: DVec3| crate::station::to_hull(me.aboard, me.ship_rot, v);
+    let to_render = |v: DVec3| humanity_ship::station::to_hull(me.aboard, me.ship_rot, v);
     let eye = to_render(pose.eye - me.ship_pos_m).as_vec3();
     let fwd = to_render(pose.forward).normalize().as_vec3();
     let up = to_render(pose.up).normalize().as_vec3();

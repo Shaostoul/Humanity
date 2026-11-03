@@ -209,7 +209,7 @@ pub const HOME_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_RO
 /// neighbour's cabin is drawn as it, and a game with no data/homes/cabin.ron of its own starts its
 /// cabin from it (`own_home_text`).
 pub const HOME_CABIN_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/cabin.ron"));
-/// The starts (ship homes increment 6, src/ship/starts.rs): the kinds of home a new player can
+/// The starts (ship homes increment 6, crates/humanity-ship/src/starts.rs): the kinds of home a new player can
 /// start in. Built in so a fresh install or a throwaway relay still offers them.
 pub const STARTS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/starts.ron"));
 pub const GROW_MEDIA_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/grow_media.ron"));
@@ -271,7 +271,7 @@ pub const SHIP_HOUSEHOLD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_RO
 // ── Lookup helper ───────────────────────────────────────────────────
 
 /// The SHIPPED design of a home kind (ship homes increment 2): what a neighbour's plot of that
-/// kind is drawn as (`HomeDesign::built_in`, src/ship/neighbours.rs). Never a fallback: the disk
+/// kind is drawn as (`HomeDesign::built_in`, crates/humanity-ship/src/neighbours.rs). Never a fallback: the disk
 /// copy of a design is this player's own home, so this read never looks at the disk. The
 /// shipped designs live in their own folder, data/homes/shipped/, which the game never writes
 /// and build.rs FINGERPRINT_INPUTS stamps (BUG-133: a rig must not judge an exe whose built-in
@@ -286,7 +286,7 @@ pub fn shipped_home_design(kind: &str) -> Option<&'static str> {
 pub const SHIPPED_HOMES: &[(&str, &str)] = &[("homestead", HOME_HOMESTEAD_RON), ("cabin", HOME_CABIN_RON)];
 
 /// Where a home kind's shipped design lives under data/, for the test that the game never
-/// saves over it (src/ship/ship_structure.rs). The same file `shipped_home_design` embeds.
+/// saves over it (crates/humanity-ship/src/ship_structure.rs). The same file `shipped_home_design` embeds.
 pub const SHIPPED_HOMES_DIR: &str = "homes/shipped";
 
 /// The first words of the paragraph that opens every shipped home design, saying it is the

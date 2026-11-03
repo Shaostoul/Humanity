@@ -41,9 +41,9 @@
 //!   is exact only if nothing hand-encodes in between.
 
 use humanity_core::vertex::Vertex;
-use crate::terrain::plant_mesh::{Organ, PlantMeshBuilder};
+use humanity_terrain::plant_mesh::{Organ, PlantMeshBuilder};
 use super::tree_mesh::{self, ClusterCards};
-use crate::terrain::tree_registry::{CardFootprint, ClusterLayer, ATLAS_COLS, ATLAS_ROWS};
+use humanity_terrain::tree_registry::{CardFootprint, ClusterLayer, ATLAS_COLS, ATLAS_ROWS};
 use super::Renderer;
 use wgpu::util::DeviceExt;
 
@@ -414,12 +414,12 @@ impl Renderer {
         if let Some(dir) = dump_dir {
             let _ = std::fs::create_dir_all(dir);
         }
-        let reg = crate::terrain::tree_registry::registry();
+        let reg = humanity_terrain::tree_registry::registry();
         let mut report = BakeReport::default();
         for (i, t) in reg.trees.iter().enumerate() {
             for v in 0..t.variants.max(1) {
                 report.stems += 1;
-                let Some(tile) = crate::terrain::tree_registry::tile_of(i, v) else {
+                let Some(tile) = humanity_terrain::tree_registry::tile_of(i, v) else {
                     log::error!("[Bake] {} v{v}: no atlas tile (registry overflows the atlas)", t.id);
                     continue;
                 };
@@ -518,7 +518,7 @@ impl Renderer {
                     continue;
                 };
                 self.copy_tile_into_atlas(&targets.color, tile);
-                crate::terrain::tree_registry::set_card_footprint(tile, fp);
+                humanity_terrain::tree_registry::set_card_footprint(tile, fp);
                 report.tiles_baked += 1;
                 if let Some(dir) = dump_dir {
                     let path = dir.join(format!("tile{tile:02}_{}_v{v}.png", t.id));
@@ -910,7 +910,7 @@ impl Renderer {
     /// species' own geometry could disagree with the near model it hands off
     /// to, which is the one defect this whole layer exists to avoid.
     pub fn bake_cluster_sprites(&self, dump_dir: Option<&std::path::Path>) -> Vec<ClusterSpriteImage> {
-        let reg = crate::terrain::tree_registry::registry();
+        let reg = humanity_terrain::tree_registry::registry();
         if !reg.trees.iter().any(|t| t.clusters.is_some()) {
             return Vec::new();
         }
@@ -2654,7 +2654,7 @@ pub mod leaf_shape {
     /// One place, so the GPU baker and the CPU twin below can never disagree
     /// about what was baked.
     pub fn sprite_geometry(
-        def: &crate::terrain::tree_registry::TreeDef,
+        def: &humanity_terrain::tree_registry::TreeDef,
         layer: ClusterLayer,
         height_m: f32,
     ) -> Option<PlantMeshBuilder> {
@@ -2817,7 +2817,7 @@ pub fn rasterize_packed_ortho(vertices: &[Vertex], indices: &[u32], px: u32) -> 
 /// `bake_px` is the supersampled render size and must be a whole multiple of
 /// `sprite_px`, exactly as `CLUSTER_BAKE_PX` is of `CLUSTER_SPRITE_PX`.
 pub fn cpu_cluster_sprite(
-    def: &crate::terrain::tree_registry::TreeDef,
+    def: &humanity_terrain::tree_registry::TreeDef,
     layer: ClusterLayer,
     bake_px: u32,
     sprite_px: u32,
@@ -2946,7 +2946,7 @@ pub fn dump_cluster_sprites_cpu(
 ) -> Vec<(String, &'static str, f32, usize)> {
     let _ = std::fs::create_dir_all(dir);
     let mut rows = Vec::new();
-    for t in crate::terrain::tree_registry::registry().trees.iter() {
+    for t in humanity_terrain::tree_registry::registry().trees.iter() {
         if t.clusters.is_none() {
             continue;
         }
@@ -3208,10 +3208,10 @@ mod tests {
     /// ATLAS_COLS/ATLAS_ROWS and the shader's three literals together.
     #[test]
     fn atlas_grid_holds_the_registry_with_headroom() {
-        let used = crate::terrain::tree_registry::tiles_in_use();
+        let used = humanity_terrain::tree_registry::tiles_in_use();
         let cap = ATLAS_COLS * ATLAS_ROWS;
         assert!(used <= cap, "registry needs {used} tiles, atlas holds {cap}");
-        assert_eq!(cap, crate::terrain::tree_registry::ATLAS_TILES);
+        assert_eq!(cap, humanity_terrain::tree_registry::ATLAS_TILES);
         // Encoding headroom: the card packs |uv.x| = (1 + tile) + u01 * 0.5,
         // so the tile index must stay an exact integer in f32 and the 0.5
         // fraction must survive. 48.5 is nowhere near the 2^24 ceiling.
@@ -3979,7 +3979,7 @@ mod tests {
     /// that must not move.
     #[test]
     fn reshaping_a_sprite_keeps_every_leaf_where_the_generator_put_it() {
-        let reg = crate::terrain::tree_registry::registry();
+        let reg = humanity_terrain::tree_registry::registry();
         let t = reg
             .trees
             .iter()
@@ -4040,7 +4040,7 @@ mod tests {
     /// turn a cherry blossom into confetti.
     #[test]
     fn the_reshape_refuses_a_mesh_that_is_not_blades() {
-        let reg = crate::terrain::tree_registry::registry();
+        let reg = humanity_terrain::tree_registry::registry();
         let t = reg.trees.iter().find(|t| t.id == "sakura").expect("sakura ships");
         let blossom = tree_mesh::cluster_sprite_geometry(t, ClusterLayer::Blossom, t.height_m)
             .expect("sakura carries a blossom layer");
@@ -4103,7 +4103,7 @@ mod tests {
             dump_cluster_sprites_cpu(&dir, CLUSTER_BAKE_PX, CLUSTER_SPRITE_PX)
         } else {
             let mut rows = Vec::new();
-            for t in crate::terrain::tree_registry::registry().trees.iter() {
+            for t in humanity_terrain::tree_registry::registry().trees.iter() {
                 if t.clusters.is_none() {
                     continue;
                 }
@@ -4124,7 +4124,7 @@ mod tests {
             rows.len()
         );
         for (id, layer, cov, tris) in &rows {
-            let t = crate::terrain::tree_registry::registry()
+            let t = humanity_terrain::tree_registry::registry()
                 .trees
                 .iter()
                 .find(|t| &t.id == id)
@@ -4207,7 +4207,7 @@ mod tests {
         // One thread a species: the same bakes and the same numbers, in the same order, with the
         // wait spread over the cores. One after another, unoptimised, this took 336 s and was the
         // whole suite's critical path (measured 2026-10-18; the suite took 240 to 300 s).
-        let species: Vec<_> = crate::terrain::tree_registry::registry().trees.iter().filter(|t| t.clusters.is_some()).collect();
+        let species: Vec<_> = humanity_terrain::tree_registry::registry().trees.iter().filter(|t| t.clusters.is_some()).collect();
         let rows: Vec<_> = std::thread::scope(|scope| {
             let bakes: Vec<_> = species
                 .iter()
@@ -4583,7 +4583,7 @@ mod canopy_parity_tests {
     fn card_layer_shading_normals_have_no_net_direction() {
         use crate::renderer::tree_mesh;
         let mut checked = 0usize;
-        for def in crate::terrain::tree_registry::registry().trees.iter().filter(|t| t.clusters.is_some()) {
+        for def in humanity_terrain::tree_registry::registry().trees.iter().filter(|t| t.clusters.is_some()) {
             let built = tree_mesh::build_tree_and_cards(def, def.height_m, 0x51F0_A11C);
             for layer in &built.cards {
                 let vs = &layer.mesh.vertices;
@@ -4656,7 +4656,7 @@ mod canopy_parity_tests {
     #[test]
     fn canopy_kernel_matches_the_near_crown() {
         use crate::renderer::tree_mesh;
-        let reg = crate::terrain::tree_registry::registry();
+        let reg = humanity_terrain::tree_registry::registry();
         assert!(!reg.is_empty(), "no species registry - the parity has nothing to measure");
 
         // Sun straight up, viewer sweeping from head-on to across: the

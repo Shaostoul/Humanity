@@ -13,8 +13,8 @@ Every source file under `src/` and `web/` has a line in **`docs/ai/code-map.md`*
 | Path | What to know |
 |------|------|
 | `src/media/system.rs` | Plays an MP4 (H.264/AAC and more) through Windows Media Foundation, its functions LOADED AT RUN TIME, never linked: a Windows "N" edition must still start |
-| `src/persistence.rs` + `src/engine/save_slot.rs` | `SaveSlot` + `slot_path`: your own home, or one save per server and identity (file layout: `docs/ai/storage.md`, the desktop's data folder). A server's save starts FRESH (only name, look and outfit cross); an erased account's save is set aside, never deleted |
-| `src/ship/starts.rs` + `data/homes/starts.ron` | The starts (Cabin, Apartment not offered yet, Homestead the default) as data, read by relay AND game; the `game_home_request` / `game_choose_home` / `game_home` wire shapes |
+| `crates/humanity-systems/src/persistence.rs` + `src/engine/save_slot.rs` | `SaveSlot` + `slot_path`: your own home, or one save per server and identity (file layout: `docs/ai/storage.md`, the desktop's data folder). A server's save starts FRESH (only name, look and outfit cross); an erased account's save is set aside, never deleted |
+| `crates/humanity-ship/src/starts.rs` + `data/homes/starts.ron` | The starts (Cabin, Apartment not offered yet, Homestead the default) as data, read by relay AND game; the `game_home_request` / `game_choose_home` / `game_home` wire shapes |
 | `crates/humanity-protocol/src/profile_copy.rs` | The profile copy other servers keep (BUG-191); web mirror `web/shared/profile-copy.js` |
 | `src/gui/pages/where_you_live.rs` | "Choose where you live"; web mirror `web/chat/chat-home.js` |
 | `web/shared/shell.js` | The nav-injection IIFE, loaded near the top of every page, before the page's own scripts |

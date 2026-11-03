@@ -13,17 +13,17 @@ pub(crate) fn bridge(state: &mut crate::engine::state::EngineState) {
 
 /// The bridge on its two halves, so it is tested without an engine.
 pub(crate) fn bridge_gui(gui: &mut GuiState, data: &DataStore) {
-    crate::systems::mining::publish_mode(data, gui.settings.drone_realistic);
+    humanity_systems::mining::publish_mode(data, gui.settings.drone_realistic);
     if let Some(req) = gui.pending_drone_request.take() {
-        crate::systems::mining::request(data, req);
+        humanity_systems::mining::request(data, req);
     }
-    gui.drone_readout = crate::systems::mining::readout(data);
+    gui.drone_readout = humanity_systems::mining::readout(data);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::systems::mining::{DroneReadout, DroneRequest, Mode, MODE_KEY, READOUT_KEY, REQUEST_KEY};
+    use humanity_systems::mining::{DroneReadout, DroneRequest, Mode, MODE_KEY, READOUT_KEY, REQUEST_KEY};
     use std::sync::Mutex;
 
     /// The panel's Repair reaches the drone system, the Settings mode reaches the

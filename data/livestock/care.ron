@@ -1,5 +1,5 @@
 // What each kept animal eats and drinks a day, and what going without does
-// (2026-10-12, first-hour audit S6). Read by src/systems/animal_care.rs; the
+// (2026-10-12, first-hour audit S6). Read by crates/humanity-systems/src/animal_care.rs; the
 // livestock system feeds and waters every animal of a species listed here,
 // every tick, on the game clock (1x is real time, so the amounts are per real
 // day). A species not listed here needs nothing. Disk first, with a copy

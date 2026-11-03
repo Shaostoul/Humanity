@@ -1,5 +1,5 @@
 // Harvested once, or picked over a season (2026-09-26, gardening depth).
-// Read by src/systems/farming/picking.rs, which carries the model; this file
+// Read by crates/humanity-systems/src/farming/picking.rs, which carries the model; this file
 // carries the crops, the numbers and where each came from. Every source below
 // was read on 2026-09-26.
 //

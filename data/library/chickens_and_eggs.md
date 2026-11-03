@@ -702,15 +702,15 @@ updated in place. Web pages and documents were read on 4 October 2026.
 - The homestead's hens: `data/entities/livestock.ron` (three chickens
   near `grain_field_1`) and the `chicken` row of `data/creatures.csv` (its
   `renewable_product` of `egg_0:1:300`); the collect prompt and the herd's
-  timers in `src/systems/livestock.rs`, `src/engine/world_load.rs` and
+  timers in `crates/humanity-systems/src/livestock.rs`, `src/engine/world_load.rs` and
   `src/lib.rs` (the "[E] collect" prompt); predators within 12 metres in
-  `src/systems/livestock.rs`.
+  `crates/humanity-systems/src/livestock.rs`.
 - The game clock and its default Realistic speed (`DEFAULT_TIME_SPEED` in
-  `src/systems/time.rs`).
+  `crates/humanity-systems/src/time.rs`).
 - Eggs as food: the `eggs` and `omelette` profiles in
   `data/food_system.ron` (spoilage 504 hours; raw risk 0.15) and
   `data/food/item_profiles.ron`; spoilage and food poisoning in
-  `src/systems/food.rs`; the egg recipes in `data/recipes.csv`.
+  `crates/humanity-systems/src/food.rs`; the egg recipes in `data/recipes.csv`.
 - The Play mode setting and free materials (`PlayMode` and
   `play_mode_allows` in `src/config.rs`; the Creative mode switch on the
   Inventory page, `src/gui/pages/inventory.rs`); the "Start every session

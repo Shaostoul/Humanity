@@ -508,7 +508,7 @@ them.
   Collecting from these, like collecting eggs or berries, counts toward
   the Farming skill. The Mining skill grows only from the mining drones
   that fly to asteroids, and they bring back metal ores and graphite,
-  not stone or clay (`src/systems/mining.rs`).
+  not stone or clay (`crates/humanity-systems/src/mining.rs`).
 - **What you can make.** Cut Stone at a workbench turns one Raw Stone
   into two Stone Bricks and trains Woodworking; Fire Brick in a kiln
   turns 8 Raw Clay and 1 coal into 4 Stone Bricks and trains
@@ -719,16 +719,16 @@ is updated in place. Web pages and documents were read on 4 October
 - Where they are found: the `stone_outcrop`, `clay_pit` and `sand_pit`
   rows of `data/creatures.csv`, placed by `data/entities/wild_spawns.ron`;
   walk-up collection and its Farming experience in `src/lib.rs`; the
-  regrow timer in `src/systems/livestock.rs`.
-- The Mining skill and the asteroid drones: `src/systems/mining.rs`, with
+  regrow timer in `crates/humanity-systems/src/livestock.rs`.
+- The Mining skill and the asteroid drones: `crates/humanity-systems/src/mining.rs`, with
   the test asteroids' ores in `src/lib.rs`.
 - The recipes `cut_stone`, `fire_brick`, `make_cement`, `make_concrete`
   and `build_kiln` in `data/recipes.csv`; the Stone Foundation and Stone
   Wall in `data/blueprints/basic.ron`, built through
-  `src/systems/construction/mod.rs`.
+  `crates/humanity-systems/src/construction/mod.rs`.
 - The Play mode setting (`PlayMode` and `play_mode_allows` in
   `src/config.rs`) and the creative-mode checks in
-  `src/systems/crafting/mod.rs`; the "Start every session from the
+  `crates/humanity-systems/src/crafting/mod.rs`; the "Start every session from the
   default home" setting (`src/config.rs`, `src/save_load.rs`).
 - [What Soil Is](what_soil_is.md), [Your Soil,
   Specifically](your_soil_specifically.md), [Ratios and

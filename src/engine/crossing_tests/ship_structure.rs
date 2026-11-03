@@ -1,7 +1,7 @@
 //! From ship/ship_structure.rs (`storey_fields_tests`): an older game is refused as another ship, by
 //! the engine's welcome check (`home_plot::plan_welcome`).
 
-use crate::ship::ship_structure::*;
+use humanity_ship::ship_structure::*;
 use glam::Vec3;
 
 /// AN OLDER GAME IS REFUSED AS ANOTHER SHIP (ship homes increment 7): growing the homestead

@@ -90,7 +90,7 @@ game is running and watch the plants change live.
 For the curious, here is what happens under the hood. When the game starts,
 it reads `plants.csv` right away: the startup code in
 `src/engine/registries.rs` (a function called `load_data_registries`) hands
-the file to `PlantRegistry::from_csv` in `src/systems/farming/mod.rs`, and
+the file to `PlantRegistry::from_csv` in `crates/humanity-systems/src/farming/mod.rs`, and
 the result is stored in the game's data store under the name
 `plant_registry`. The file is read by a shared parser (`parse_csv` in
 `crates/humanity-core/src/data_parse.rs`) that skips the `#` comment lines and matches values to

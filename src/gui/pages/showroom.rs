@@ -85,7 +85,7 @@ struct HereCard {
     waiting_since: Option<Instant>,
     /// The answer as it stood when the request or the Choose went out: one that differs is its
     /// reply.
-    before: Option<crate::ship::starts::HomeAnswer>,
+    before: Option<humanity_ship::starts::HomeAnswer>,
     /// A Choose that could not be sent, in the sentence that says why.
     note: Option<String>,
 }
@@ -239,11 +239,11 @@ fn draw_picker(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// which carry the SAME `WorldSave.name`), newest kept, so a row name is a
 /// usable id.
 fn load_homes(state: &mut GuiState) {
-    let dir = crate::persistence::saves_dir();
+    let dir = humanity_systems::persistence::saves_dir();
     // Your own home's save, if it has one (the new-home row offers the choice only while it has
     // none), and the connected server's card asks the server afresh each time the picker opens.
-    let own = crate::persistence::slot_path(&dir, &crate::persistence::SaveSlot::Offline);
-    let own = own.exists().then(|| crate::persistence::load_world(&own).map(|s| s.name).unwrap_or_default());
+    let own = humanity_systems::persistence::slot_path(&dir, &humanity_systems::persistence::SaveSlot::Offline);
+    let own = own.exists().then(|| humanity_systems::persistence::load_world(&own).map(|s| s.name).unwrap_or_default());
     OWN_HOME.with(|o| *o.borrow_mut() = own);
     HERE.with(|h| *h.borrow_mut() = HereCard::default());
     let mut homes: Vec<crate::gui::LauncherHome> = Vec::new();
@@ -253,7 +253,7 @@ fn load_homes(state: &mut GuiState) {
             if path.extension().and_then(|x| x.to_str()) != Some("json") {
                 continue;
             }
-            let Ok(save) = crate::persistence::load_world(&path) else {
+            let Ok(save) = humanity_systems::persistence::load_world(&path) else {
                 continue;
             };
             if save.name.trim().is_empty() {
@@ -804,7 +804,7 @@ fn remember_new_home(state: &GuiState) -> Option<wyl::Choice> {
         return None;
     }
     let choice = wyl::draft_choice(wyl::starts());
-    crate::persistence::live_save::choose_new_home(&choice.start, &choice.household);
+    humanity_systems::persistence::live_save::choose_new_home(&choice.start, &choice.household);
     log::info!("Characters: a new home, a {} ({})", choice.start, choice.household);
     Some(choice)
 }

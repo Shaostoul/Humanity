@@ -472,7 +472,7 @@ The game has a little of this, mostly in what crafting leaves behind.
   material to your pack, and what does not fit there to storage, with a
   message saying so. A campfire is the one exception: it gives back its
   stones and only the whole logs it has not burned
-  (`src/systems/construction/fires.rs`). The code says plainly that this is a game
+  (`crates/humanity-systems/src/construction/fires.rs`). The code says plainly that this is a game
   choice, because nothing models what dismantling breaks; in real life,
   an earlier study cited by the FPL paper above found that taking
   buildings apart cost their lumber about a grade
@@ -679,7 +679,7 @@ is updated in place. Other pages and documents were read on 4 October
 
 - Taking a piece down, where its materials go back to, and the
   game-choice note on dismantling: `src/engine/build_place.rs`. Where
-  building takes its materials from: `src/systems/construction/mod.rs`. Byproducts and their recipes:
+  building takes its materials from: `crates/humanity-systems/src/construction/mod.rs`. Byproducts and their recipes:
   `data/recipes.csv` (Saw Planks, Saw Planks by Hand, Make Charcoal
   from Slabs, Tan Leather, Compost Fertilizer, Compost Sawdust and Bran,
   Pour Slag Concrete) and `data/items.csv` (the byproduct and salvage
@@ -688,10 +688,10 @@ is updated in place. Other pages and documents were read on 4 October
   drop them: `data/items.csv`, `data/creatures.csv`; what spawns by
   itself: `data/entities/wild_spawns.ron`; the Lens in `data/npcs.ron`.
   The vendor's refusal of
-  defective goods: `src/systems/economy/mod.rs`.
+  defective goods: `crates/humanity-systems/src/economy/mod.rs`.
 - Play mode and free materials: `PlayMode` and `play_mode_allows` in
   `src/config.rs`, and the creative checks in
-  `src/systems/crafting/mod.rs`. The "Start every session from the
+  `crates/humanity-systems/src/crafting/mod.rs`. The "Start every session from the
   default home" setting: `src/config.rs`, `src/save_load.rs`.
 - The guides linked above, in particular [Repairing a
   Building](/library#repairing-a-building), [What Not to Compost, Burn or Pour

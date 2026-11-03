@@ -16,13 +16,13 @@ use std::sync::{Arc, Mutex};
 
 use super::*;
 use humanity_core::ecs::systems::System;
-use crate::systems::farming::{self, step_tests, FarmingSystem};
+use humanity_systems::farming::{self, fixtures::step, FarmingSystem};
 
 /// The step_tests garden (every regime crossed, no air), the game's shared farm at an hour's
 /// interval, and no feeder setting: the feeder's opened bags are not saved (a reload loses at most
 /// one part-used item of each kind), which these tests are not about.
 fn farm_home() -> (humanity_core::hot_reload::data_store::DataStore, hecs::World, farming::Shared) {
-    let (mut data, world) = step_tests::garden(false);
+    let (mut data, world) = step::garden(false);
     // The farm clock's channels as the game registers them at boot (the load's hand-over arrives
     // through one of them), then an hour's interval.
     farming::clock::register(&mut data);
@@ -36,11 +36,11 @@ fn farm_home() -> (humanity_core::hot_reload::data_store::DataStore, hecs::World
 }
 
 fn clock_now(data: &humanity_core::hot_reload::data_store::DataStore) -> f64 {
-    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().elapsed_seconds
+    data.get::<Mutex<humanity_systems::time::GameTime>>("game_time").unwrap().lock().unwrap().elapsed_seconds
 }
 
 fn set_clock(data: &humanity_core::hot_reload::data_store::DataStore, t: f64) {
-    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().set_elapsed(t);
+    data.get::<Mutex<humanity_systems::time::GameTime>>("game_time").unwrap().lock().unwrap().set_elapsed(t);
 }
 
 fn tick(data: &humanity_core::hot_reload::data_store::DataStore, world: &mut hecs::World, shared: &farming::Shared, dt: f32) {
@@ -50,15 +50,15 @@ fn tick(data: &humanity_core::hot_reload::data_store::DataStore, world: &mut hec
 
 /// How two ends differ by more than `tol` (relative, or absolute for a value under 1): every stage
 /// must be the same.
-fn apart(a: &step_tests::Ended, b: &step_tests::Ended, tol: f64) -> Vec<String> {
-    let (stages, worst) = step_tests::compare(a, b);
+fn apart(a: &step::Ended, b: &step::Ended, tol: f64) -> Vec<String> {
+    let (stages, worst) = step::compare(a, b);
     let mut out = stages;
     out.extend(worst.into_iter().filter(|(_, w)| w.abs > tol && w.rel > tol).map(|(k, w)| format!("{k}: {} ({} relative) at {}", w.abs, w.rel, w.at)));
     out
 }
 
 /// No difference at all: every stage the same and every quantity to the bit.
-fn same(a: &step_tests::Ended, b: &step_tests::Ended) -> Vec<String> {
+fn same(a: &step::Ended, b: &step::Ended) -> Vec<String> {
     apart(a, b, 0.0)
 }
 
@@ -80,11 +80,11 @@ fn a_save_keeps_what_each_area_owes_and_a_load_owes_it_again() {
     let owed = farming::owed(&data).expect("the game's farm is in the store");
     assert!(owed.areas.values().any(|s| *s > 100.0), "areas owe time between their turns: {owed:?}");
 
-    let before = step_tests::ended_by_place(&world);
+    let before = step::ended_by_place(&world);
     let root = humanity_core::test_temp::dir("farm_owed_save");
     let path = root.join("saves").join(persistence::OFFLINE_SAVE_FILE);
     save_home_at(&path, &world, &[], &data, true, None);
-    let moved = same(&before, &step_tests::ended_by_place(&world));
+    let moved = same(&before, &step::ended_by_place(&world));
     assert!(moved.is_empty(), "the save moved the garden: {moved:?}");
     assert_eq!(farming::owed(&data).as_ref(), Some(&owed), "the save moved the farm's clock");
     let saved = persistence::load_world(&path).expect("the save reads back");
@@ -98,7 +98,7 @@ fn a_save_keeps_what_each_area_owes_and_a_load_owes_it_again() {
     shared2.lock().unwrap().tick(&mut world2, 0.0, &data2);
     // The first world, brought to now.
     farming::settle(&mut world, &data, 0.0);
-    let differ = apart(&step_tests::ended_by_place(&world), &step_tests::ended_by_place(&world2), 1e-12);
+    let differ = apart(&step::ended_by_place(&world), &step::ended_by_place(&world2), 1e-12);
     assert!(differ.is_empty(), "the loaded garden's first frame is not the saved one brought to now: {differ:?}");
 }
 
@@ -129,11 +129,11 @@ fn a_settle_between_a_load_and_the_farms_next_tick_advances_nothing() {
     }
     apply_save_to_world(&mut world, &saved);
     resume_home(&mut world, &data, &saved, false, 1.0, None);
-    let loaded = step_tests::ended_by_place(&world);
+    let loaded = step::ended_by_place(&world);
     assert!(!farming::settle_needed(&data, 0.0), "a settle with the hand-over still waiting would advance nothing");
     farming::settle(&mut world, &data, 0.0);
     farming::settle_areas(&mut world, &data, &["bed_a".to_string(), "bed_b".to_string()], 1.0);
-    let moved = same(&loaded, &step_tests::ended_by_place(&world));
+    let moved = same(&loaded, &step::ended_by_place(&world));
     assert!(moved.is_empty(), "a settle before the farm's next tick moved the loaded garden: {moved:?}");
     assert_eq!(farming::owed(&data).as_ref(), Some(&saved.farm_owed), "a save before the tick writes the loaded debts");
 }

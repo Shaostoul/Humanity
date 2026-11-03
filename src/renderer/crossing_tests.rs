@@ -3,8 +3,8 @@
 //! so each moved up WHOLE to the lowest crate that may use everything it reaches. Nothing in a test
 //! changed but its paths. From terrain/far_trees.rs: the canopy constants match the shader.
 
-use crate::terrain::far_trees::*;
-use crate::terrain::far_trees::FAR_CARD_SHADE_BIT;
+use humanity_terrain::far_trees::*;
+use humanity_terrain::far_trees::FAR_CARD_SHADE_BIT;
 
 /// The tint and the tone range live in TWO languages. The shader applies
 /// them to the imagery fetch, this module bakes them into the fallback

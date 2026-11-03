@@ -769,19 +769,19 @@ were read on 3 October 2026.
 
 ### Inside this project
 
-- Tool wear and grades: `src/systems/crafting/tools.rs`,
-  `src/systems/crafting/quality.rs`, `data/crafting/tools.ron`, the
+- Tool wear and grades: `crates/humanity-systems/src/crafting/tools.rs`,
+  `crates/humanity-systems/src/crafting/quality.rs`, `data/crafting/tools.ron`, the
   `durability` column of `data/items.csv`, and the `quality_levels` in
   `data/manufacturing.ron`; "Uses left" on the Inventory page
-  (`src/gui/pages/inventory.rs`). Hoe wear: `src/systems/farming/weeds.rs`
+  (`src/gui/pages/inventory.rs`). Hoe wear: `crates/humanity-systems/src/farming/weeds.rs`
   and `data/garden/weeds.ron`. Soap wear when cleaning a container:
-  `src/systems/inventory/containers.rs`. Row cover wear:
-  `src/systems/farming/pests.rs` and `data/garden/pests.ron`.
+  `crates/humanity-systems/src/inventory/containers.rs`. Row cover wear:
+  `crates/humanity-systems/src/farming/pests.rs` and `data/garden/pests.ron`.
 - The Play mode setting and which modes make materials free
   (`PlayMode` and `play_mode_allows` in `src/config.rs`), and the
-  creative-mode checks around tool wear (`src/systems/crafting/mod.rs`),
-  hoe wear (`src/systems/farming/weeds.rs`) and row cover pieces
-  (`src/systems/farming/pests.rs`).
+  creative-mode checks around tool wear (`crates/humanity-systems/src/crafting/mod.rs`),
+  hoe wear (`crates/humanity-systems/src/farming/weeds.rs`) and row cover pieces
+  (`crates/humanity-systems/src/farming/pests.rs`).
 - The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`).
 - [Working Out Why Something Broke](working_out_why_something_broke.md),

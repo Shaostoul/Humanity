@@ -462,13 +462,13 @@ The game makes canned food, but not by pressure canning.
   (`data/crafting/tools.ron`). Can Food and Cook Stew need Cooking level
   2; Cook Soup is a level-1 recipe, and the game's skill gate starts at
   level 2, so anyone can make it (`src/gui/pages/crafting.rs`,
-  `src/systems/crafting/mod.rs`).
+  `crates/humanity-systems/src/crafting/mod.rs`).
 - **Under the default settings.** In the Normal play mode, where the game
   starts (Settings > Gameplay > Play mode), the Craft button waits until
   the parts are in your backpack, or in your home's storage while you are
   at home, and the knife is in your backpack, and the craft then uses up
   its parts and wears the knife by one use (`src/gui/pages/crafting.rs`,
-  `src/systems/crafting/mod.rs`); a new character's starting kit holds
+  `crates/humanity-systems/src/crafting/mod.rs`); a new character's starting kit holds
   the Utility Knife (`data/world/player.ron`). In Creative, and in Dev if
   you choose it, a craft uses up none of its parts and wears no tool
   while the Inventory page's Creative mode switch is on, though the
@@ -643,7 +643,7 @@ were read on 4 October 2026.
   `data/machines/home.ron`; the starting kit: `data/world/player.ron`.
   The Crafting page's checks and its "Dev: stock all materials" button:
   `src/gui/pages/crafting.rs`; the craft rules, the skill gate from level
-  2, and the skill experience a craft earns: `src/systems/crafting/mod.rs`;
+  2, and the skill experience a craft earns: `crates/humanity-systems/src/crafting/mod.rs`;
   the "Dev: max skills" button: `src/gui/pages/profile.rs`. The unread
   toxin record: `data/chemistry/toxins.csv`. The canning row no code reads
   yet: `data/food_system.ron`.

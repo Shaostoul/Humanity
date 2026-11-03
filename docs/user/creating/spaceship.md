@@ -62,7 +62,7 @@ Right now the game loads one ship file: `data/ships/starter_fleet.ron`. That fil
 
 **Want a completely separate ship file instead?** You can create one (for example `data/ships/my_ship.ron`) with the same shape as above, and there are other examples to study in the same folder: `layout_medium.ron`, `bridge.ron`, and `reactor.ron`. But be aware: today the game only loads `starter_fleet.ron`. A new file will not appear in the game until a small code change tells the game to load it. If that is your goal, ask a programmer (or an AI assistant) to add a load site like `GameWorld::load_starter_ship` in `src/relay/handlers/game_state.rs`, and to register the file in `crates/humanity-core/src/embedded_data.rs` so a copy ships inside the game program as a fallback.
 
-**One thing that is NOT this file:** `data/blueprints/ship_structure.ron` also describes a ship, but it is the ship you build inside the game with the structure editor (handled by `src/ship/ship_structure.rs`). The game writes that file for you. Do not edit it by hand as a way to make a new ship.
+**One thing that is NOT this file:** `data/blueprints/ship_structure.ron` also describes a ship, but it is the ship you build inside the game with the structure editor (handled by `crates/humanity-ship/src/ship_structure.rs`). The game writes that file for you. Do not edit it by hand as a way to make a new ship.
 
 ## Seeing it in the game
 
@@ -119,4 +119,4 @@ Every field in a ship file, in plain words. Words in `quotes` are free text you 
 - `connects_to`: the `id` of the room this door leads to, in quotes.
 - `direction`: which wall the door sits on. One of: `north`, `south`, `east`, `west`, `up`, `down`. (`up` and `down` connect decks, like a ladder or lift.)
 
-For the exact technical definition of every field, the source of truth is the `ShipDef` structure in `src/ship/layout.rs`. For the project's rule that content like ships must live in data files rather than code, see `docs/design/infinite-of-x.md`.
+For the exact technical definition of every field, the source of truth is the `ShipDef` structure in `crates/humanity-ship/src/layout.rs`. For the project's rule that content like ships must live in data files rather than code, see `docs/design/infinite-of-x.md`.

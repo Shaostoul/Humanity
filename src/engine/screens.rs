@@ -30,7 +30,7 @@
 use crate::engine::state::{EngineState, SceneDrawLists};
 use crate::gui::screen_surface::{turn_plan, LoadState, ScreenProvider, ScreenSource, ScreenSurface, ScreenWorld, Turn, SURFACE_FORMAT};
 use crate::gui::GuiPage;
-use crate::machines::{CameraPose, PlacedMachine};
+use humanity_ship::machines::{CameraPose, PlacedMachine};
 use crate::renderer::mesh::Mesh;
 use humanity_core::vertex::Vertex;
 use crate::renderer::RenderObject;

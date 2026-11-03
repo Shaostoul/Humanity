@@ -176,7 +176,7 @@ faster or slower. That is none of the lettered options below exactly: it is
 real-length hours with a configurable day, and one speed control over all of
 it. The brief as written follows, for the record.
 
-**How it was built (2026-09-27, `src/systems/time.rs`).** One game clock.
+**How it was built (2026-09-27, `crates/humanity-systems/src/time.rs`).** One game clock.
 An hour is 3,600 game seconds; a day is `hours_per_day` of them (Settings,
 default 24, 12 to 48); a year is `days_per_year` days (Settings, default
 365, 28 to 1,000; the operator did not choose the year, 365 is the agent's

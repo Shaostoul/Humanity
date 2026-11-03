@@ -1,7 +1,7 @@
 //! From systems/ship_meals_tests.rs: the mess hall counter's rules are the server's (the ship's
 //! stores and the fleet ledger).
 
-use crate::systems::ship_meals::MealRules;
+use humanity_systems::ship_meals::MealRules;
 
 /// THE BUILT-IN RULES ARE THE SERVER'S: the counter reads the same two files the relay does, and
 /// both read them the same (the meal time from ship_stores.ron, the meal from the ledger's meal

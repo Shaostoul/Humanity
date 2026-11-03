@@ -648,9 +648,9 @@ Regulations on 3 October 2026; the eCFR is updated in place.
 
 - The Construction page's Buildability section
   (`src/gui/pages/construction.rs`) and the checks behind it
-  (`src/machines.rs`), run over the home in `data/machines/home.ron`.
-- Load shedding in the electrical simulation (`src/systems/electrical.rs`).
-- Tool wear: `src/systems/crafting/tools.rs`, `data/crafting/tools.ron`
+  (`crates/humanity-ship/src/machines.rs`), run over the home in `data/machines/home.ron`.
+- Load shedding in the electrical simulation (`crates/humanity-systems/src/electrical.rs`).
+- Tool wear: `crates/humanity-systems/src/crafting/tools.rs`, `data/crafting/tools.ron`
   and the `durability` column of `data/items.csv`.
 - [Keeping Records](keeping_records.md), [Units and Converting
   Them](units_and_converting_them.md) and [Pests and

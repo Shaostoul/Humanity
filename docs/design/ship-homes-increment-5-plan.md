@@ -21,9 +21,9 @@ Date: 2026-10-05. Read against main at 2405e95d2 (v0.1462.x). Sources: docs/desi
 
 ### 1.1 Plots, frames and the ship
 - Twelve homestead plots, 55 x 3 x 89 m, pN at (0, 0, 99(N-1)): data/blueprints/ship_structure.ron:1019 onward. Commons zone origin (65,0,20), 34 x 8 x 55 m (ship_structure.ron:69-76); First Street `street-1` (ship_structure.ron:985).
-- `Plot` with `aabb()`: src/ship/ship_structure.rs:252-290. `PlotArrival`/`ShipPlots` (relay's view: id, kind, origin, size; `plot()`): ship_structure.rs:591-640. `HOME_ZONE_ID`: :50. `home_plot()`: :1314-1318. `home_is_away()` (guest): :1666-1668. `ship_file()`: :1930.
-- Places already named exactly like frames: src/ship/door_points.rs:28-47 (`"zone:<id>"` / `"plot:<id>"`, box min/max, `own`) and `door_points()` :96-141 (zones minus `home`, then plots). The relay's room exits already use `plot:<id>` (src/relay/handlers/ship_world.rs:116-121).
-- Neighbours are render-only default shells, no collision, doors that never open for you: src/ship/neighbours.rs:1-38 (finding (a) above).
+- `Plot` with `aabb()`: crates/humanity-ship/src/ship_structure.rs:252-290. `PlotArrival`/`ShipPlots` (relay's view: id, kind, origin, size; `plot()`): ship_structure.rs:591-640. `HOME_ZONE_ID`: :50. `home_plot()`: :1314-1318. `home_is_away()` (guest): :1666-1668. `ship_file()`: :1930.
+- Places already named exactly like frames: crates/humanity-ship/src/door_points.rs:28-47 (`"zone:<id>"` / `"plot:<id>"`, box min/max, `own`) and `door_points()` :96-141 (zones minus `home`, then plots). The relay's room exits already use `plot:<id>` (src/relay/handlers/ship_world.rs:116-121).
+- Neighbours are render-only default shells, no collision, doors that never open for you: crates/humanity-ship/src/neighbours.rs:1-38 (finding (a) above).
 
 ### 1.2 The relay's plot table and world
 - Table `game_plots (world_id, plot_id, owner_did, assigned_at)`, own batch: src/relay/storage/mod.rs:716-728. Functions: `plot_owner_id` (DID from key) src/relay/storage/plots.rs:35-40, `claim_plot` :50-87, `release_plot` :96-113, `plot_holder(world, plot)` :119-128 (the permit check needs it), `release_plot_by_id` :135-143.
@@ -42,8 +42,8 @@ Date: 2026-10-05. Read against main at 2405e95d2 (v0.1462.x). Sources: docs/desi
 ### 1.4 Building on the client
 - E/F keys, ghost, gates: src/engine/build_place.rs: `key()` :75-118 (BuildRequest pushed :109-114), `frame()` :123-198 with the plot gate :155-161 whose Dev exemption is `play_mode.allows(ShipStructureEditing)` (:159), `refused_off_plot` :204-210, `PLOT_EDGE_EPS_M = 0.15` :216, `outside_own_plot` :226-231 (guest: everything refused), `off_plot_hint` :235-241, `build_refusal` (materials, at the crosshair) :270-312, `take_down` :386-408, `apply_take_down` :416-445, `built_piece_segments` (pieces are solid) :466-491, plot test :529-571.
 - Ghost pose: src/engine/planet_build.rs `ghost()` :243-286 (`placement_pose` :283). Drawing every Structure/Construction aboard: `push_render_objects` :427-500. Dev verb `dev_build` :502-566.
-- ConstructionSystem: src/systems/construction/mod.rs: `Blueprint` :24-79, `BuildRequest` :161-189, `Construction.builder_key` :371-377, `Structure.uid` :380-391, tick :417-603 (occupied :438-445, materials taken from pack then storage :447-520, scaffold spawn :522-537, completion with quest event/XP/sound :550-581, `assign_uids` :585).
-- Placement: src/systems/construction/placement.rs: `GRID_M` :38, `LEVEL_TOLERANCE_M` :67, `SAME_BOX_M` :70, `quarter_turn` :73-75, `world_aabb` :149-159, `rest_height` :176-206, `placement_pose` :211-226, `level_top` :237-263, `occupied` :269-283. `assign_uids`: uses.rs:224-237; `first_in_view` (take-down target) uses.rs:163.
+- ConstructionSystem: crates/humanity-systems/src/construction/mod.rs: `Blueprint` :24-79, `BuildRequest` :161-189, `Construction.builder_key` :371-377, `Structure.uid` :380-391, tick :417-603 (occupied :438-445, materials taken from pack then storage :447-520, scaffold spawn :522-537, completion with quest event/XP/sound :550-581, `assign_uids` :585).
+- Placement: crates/humanity-systems/src/construction/placement.rs: `GRID_M` :38, `LEVEL_TOLERANCE_M` :67, `SAME_BOX_M` :70, `quarter_turn` :73-75, `world_aabb` :149-159, `rest_height` :176-206, `placement_pose` :211-226, `level_top` :237-263, `occupied` :269-283. `assign_uids`: uses.rs:224-237; `first_in_view` (take-down target) uses.rs:163.
 - Save separation seams: src/save_load.rs extract constructions :227-275, apply wipe :570-581.
 - Home moves carry pieces (must not carry shared ones): src/engine/home_plot.rs `forget_shared_world` :498-528, `carry_saved_pieces` :954-982, `carry_built_pieces` :1120-1163, `built_positions` :1165-1182, `home_things_json` (rig) :1379-1403, `apply_welcome_home` :744-841, `GUEST_NO_EDITOR` :191.
 - Editor: `toggle_build_editor` src/engine/editor.rs:2017-2114 (guest refusal :2024-2029), `autosave_ship_structure` :317-349. Ship-scope gates: src/gui/pages/construction/ship_tools.rs :21-67 (zone selector pinned + hint), :207-220 (corridors), :439-442 (plots and districts); src/gui/pages/construction.rs `sync_ship_machine_lock` :659-685.
@@ -81,7 +81,7 @@ Date: 2026-10-05. Read against main at 2405e95d2 (v0.1462.x). Sources: docs/desi
 
 | Doc statement | Today | Replace with |
 |---|---|---|
-| shared-building.md: frame `"home"`, "site == None, station_off = 0 aboard" (§1, §2, §6) | Since 1a/1b aboard pieces are in SHIP metres; the home is assembled on its plot | Frames `plot:<id>` (plot-local pose) and `zone:<id>`; the client converts with the frame's origin (new src/ship/build_frames.rs) |
+| shared-building.md: frame `"home"`, "site == None, station_off = 0 aboard" (§1, §2, §6) | Since 1a/1b aboard pieces are in SHIP metres; the home is assembled on its plot | Frames `plot:<id>` (plot-local pose) and `zone:<id>`; the client converts with the frame's origin (new crates/humanity-ship/src/build_frames.rs) |
 | shared-building.md §6 co-op trust: anyone builds anywhere, takes anything down, remover keeps materials | Operator 2026-10-03: build only in your own home | `may_build`/`may_remove` (§3.3 below); materials still on the client's word until holdings (increment 8) |
 | shared-building.md Piece object carries `owner` DID and `owner_name` to everyone; `game_unbuilt.by` | Increment 4 review P7: nobody is told who lives where (game_interest.rs:79-95) | No owner on the wire; per-recipient `mine`; table stores `owner_did` only (no name) |
 | shared-building.md: "a reach check needs the anti-teleport freeze fixed first (msg_handlers.rs:3285-3295)" | Increment 4 replaced the 100 m rule with move_check.rs | Reach check now possible; not needed for increment 5 (later) |
@@ -104,7 +104,7 @@ Date: 2026-10-05. Read against main at 2405e95d2 (v0.1462.x). Sources: docs/desi
 
 ## 3. The design against today's code
 
-### 3.1 Frames (new src/ship/build_frames.rs, compiled into relay and game)
+### 3.1 Frames (new crates/humanity-ship/src/build_frames.rs, compiled into relay and game)
 - `BuildFrame { id: String /* "plot:p3" | "zone:commons" */, kind: Plot|Zone, origin: Vec3, size: Vec3 }`; `BuildFrames::of_ship(&ShipStructure)` = every zone except `home` (`HOME_ZONE_ID`) plus every plot, mirroring door_points.rs:96-138; `frame_at(ship_point)` (the frame whose floor box holds the piece's centre); `to_local(pose)`, `to_ship(pose)`; `floor_distance(frame, point)` for interest.
 - A piece belongs to the frame holding its centre and its whole turned footprint must lie in [0, size] on x and z with 0.15 m slack (`PLOT_EDGE_EPS_M`, moved from build_place.rs:216 into the shared contract so client and relay use one rule). Height is not bounded by the plot (a roof stands at 3.0-3.2 m on a 3 m plot); y sanity bounds -1..40 m local.
 - Plot origins are integral, so plot-local x/z sit on the 1 m grid; the relay still checks the grid in ship metres (origin + local) so a later non-integral origin cannot break it.
@@ -168,14 +168,14 @@ Logs for the rig, never a key: `Game: built piece {id} {bp} on {frame}`, `Game: 
 
 ## 4. Waves
 
-Shared-file ownership (each owned by exactly one wave): src/lib.rs 2B; src/relay/storage/mod.rs 1A; src/relay/relay.rs 2A; message routing: relay.rs 2A and src/engine/net_route.rs 2B (src/net/protocol.rs untouched); src/relay/handlers/msg_handlers.rs 2A; game_state.rs 2A; src/relay/features.rs 2A; src/engine/ipc.rs 2B; src/engine/home_plot.rs 1B; src/config.rs 1C; CLAUDE.md 0; Justfile and scripts/verify-copresence.js 3A; src/gui/mod.rs and frame_ws_poll.rs nobody. Two files are edited by two waves in sequence, never in parallel: src/systems/construction/mod.rs (0 fields, then 1B tick) and src/engine/build_place.rs (1C one line, then 2B routing).
+Shared-file ownership (each owned by exactly one wave): src/lib.rs 2B; src/relay/storage/mod.rs 1A; src/relay/relay.rs 2A; message routing: relay.rs 2A and src/engine/net_route.rs 2B (src/net/protocol.rs untouched); src/relay/handlers/msg_handlers.rs 2A; game_state.rs 2A; src/relay/features.rs 2A; src/engine/ipc.rs 2B; src/engine/home_plot.rs 1B; src/config.rs 1C; CLAUDE.md 0; Justfile and scripts/verify-copresence.js 3A; src/gui/mod.rs and frame_ws_poll.rs nobody. Two files are edited by two waves in sequence, never in parallel: crates/humanity-systems/src/construction/mod.rs (0 fields, then 1B tick) and src/engine/build_place.rs (1C one line, then 2B routing).
 
 Budget after all waves: relay.rs about 6,366/6,400; msg_handlers.rs about 4,642/4,660 (keep every edit a one-line call); lib.rs about 16,442/16,700.
 
 Each test below is red on the code before its wave; for new functions the red statement names the guarded line whose removal fails it, as every test in this repo records.
 
 ### Wave 0: the contract (one builder, merges first)
-Files: NEW src/systems/construction/shared.rs; src/systems/construction/mod.rs (`pub mod shared;`, `Blueprint.shared` with serde default, `BuildRequest.shared_frame` + `.shared(frame)`); data/blueprints/basic.ron (`shared: true` on wood_foundation, stone_foundation, wood_wall, stone_wall, metal_wall, wood_wall_window, roof; lines 6-17); NEW src/ship/build_frames.rs + src/ship/mod.rs; crates/humanity-protocol/src/pq_crypto.rs (`PLOT_PERMIT_DOMAIN`, `plot_permit_preimage`, `build_plot_permit`, `verify_plot_permit` beside the friend cert); CLAUDE.md Cryptography table (one "Plot permits" row, required in the same commit).
+Files: NEW crates/humanity-systems/src/construction/shared.rs; crates/humanity-systems/src/construction/mod.rs (`pub mod shared;`, `Blueprint.shared` with serde default, `BuildRequest.shared_frame` + `.shared(frame)`); data/blueprints/basic.ron (`shared: true` on wood_foundation, stone_foundation, wood_wall, stone_wall, metal_wall, wood_wall_window, roof; lines 6-17); NEW crates/humanity-ship/src/build_frames.rs + crates/humanity-ship/src/lib.rs; crates/humanity-protocol/src/pq_crypto.rs (`PLOT_PERMIT_DOMAIN`, `plot_permit_preimage`, `build_plot_permit`, `verify_plot_permit` beside the friend cert); CLAUDE.md Cryptography table (one "Plot permits" row, required in the same commit).
 Delivers: SharedPiece, wire structs, SharedBuildIntent + channel name, `validate_pose`, `same_box`, `box_inside_frame`, caps, reason/why codes and their sentences, frames and conversions, permit mint/verify.
 Tests:
 - `every_shareable_pose_the_placer_makes_passes_validate_pose` (each shared blueprint x 4 turns x grid points, empty and stacked): red with the yaw check inverted.
@@ -196,7 +196,7 @@ Tests:
 - fixture test on tests/fixtures/relay/relay_v0_1456.sql (opens, admin true, verified false, `world_pieces` exists and takes a row): red with the ALTER removed.
 - account.rs `an_erase_takes_the_accounts_pieces_and_the_export_lists_them`: red with the del line removed; the existing left-rows pin goes red until the EXISTS line is added.
 - server_settings: a headless grid test (or snapshot) that the column is drawn and toggles the draft: red before the checkbox.
-1B Client save and world seams. Files: src/systems/construction/mod.rs (tick: divert after materials, `spent`, refusal before spend for non-shareable or missing channel, reward gate), src/systems/construction/uses.rs (assign_uids), src/systems/construction/placement.rs (`placement_pose_where`), src/save_load.rs (:236-275, :574-581), src/engine/home_plot.rs (carry, built_positions, `forget_shared_world_keeping_home` despawns SharedPiece).
+1B Client save and world seams. Files: crates/humanity-systems/src/construction/mod.rs (tick: divert after materials, `spent`, refusal before spend for non-shareable or missing channel, reward gate), crates/humanity-systems/src/construction/uses.rs (assign_uids), crates/humanity-systems/src/construction/placement.rs (`placement_pose_where`), src/save_load.rs (:236-275, :574-581), src/engine/home_plot.rs (carry, built_positions, `forget_shared_world_keeping_home` despawns SharedPiece).
 Tests:
 - `a_shared_build_spends_once_pushes_an_intent_and_spawns_nothing`: red today (a local scaffold spawns).
 - `a_shared_request_for_a_piece_that_is_not_shareable_spends_nothing`: red with the check after the spend.

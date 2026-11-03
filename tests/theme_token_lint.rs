@@ -94,7 +94,7 @@ const LEGACY_OFFENDERS: &[&str] = &[
 ];
 
 /// Directories scanned for violations. Anything outside these trees
-/// (e.g. `src/relay/`, `crates/humanity-core/src/ecs/`, `src/systems/`) doesn't render UI
+/// (e.g. `src/relay/`, `crates/humanity-core/src/ecs/`, `crates/humanity-systems/src/`) doesn't render UI
 /// and is exempt.
 const SCAN_DIRS: &[&str] = &["src/gui", "src/renderer"];
 

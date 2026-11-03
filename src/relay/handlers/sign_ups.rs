@@ -233,7 +233,7 @@ pub async fn refused_erased_join(state: &Arc<RelayState>, my_key: &str) -> bool 
     let denied = serde_json::json!({
         "type": "game_join_denied",
         "reason": "account_erased",
-        "message": crate::ship::ship_structure::ERASED_SENTENCE,
+        "message": humanity_ship::ship_structure::ERASED_SENTENCE,
         "chat_unaffected": true,
     });
     crate::relay::handlers::msg_handlers::send_game_private(state, my_key, &denied).await;

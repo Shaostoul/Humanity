@@ -1,7 +1,7 @@
 //! From systems/farming/soil_ph_tests.rs: a unit's pH through a save and load (`save_load`).
 
-use crate::systems::farming::soil_ph::{self, NITRIFICATION};
-use crate::systems::farming::soil_ph_tests::*;
+use humanity_systems::farming::soil_ph::{self, NITRIFICATION};
+use humanity_systems::farming::fixtures::soil_ph::*;
 
 /// A unit's pH and what is still reacting come back after a save; a save
 /// from before pH existed loads with none, and its units read the bed's
@@ -10,7 +10,7 @@ use crate::systems::farming::soil_ph_tests::*;
 #[cfg(feature = "native")]
 #[test]
 fn ph_survives_a_save_and_old_saves_read_the_default() {
-    use crate::persistence::WorldSave;
+    use humanity_systems::persistence::WorldSave;
     use crate::save_load::{apply_save_to_world, extract_world_save};
     let data = store(true);
     let ph = shipped();

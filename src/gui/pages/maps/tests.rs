@@ -125,7 +125,7 @@ fn format_geo_quadrants() {
 }
 
 // `shipped_seattle_region_is_real` moved to
-// `crate::terrain::osm_region` (v0.1148) along with the parser it
+// `humanity_terrain::osm_region` (v0.1148) along with the parser it
 // exercises. It is the same assertions on the same shipped file.
 
 /// Independent check of the SHIPPED stars-map.bin against known

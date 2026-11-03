@@ -649,16 +649,16 @@ public domain. Web pages were read on 3 October 2026.
 
 - The Waste meter, the Unsanitary effect and the Compost action:
   `WASTE_RISE_PER_SEC`, `WASTE_PER_MEAL`, `UNSANITARY_THRESHOLD` and
-  `WASTE_PER_FERTILIZER` in `src/systems/food.rs`; the `unsanitary` row
+  `WASTE_PER_FERTILIZER` in `crates/humanity-systems/src/food.rs`; the `unsanitary` row
   of `data/status_effects.csv`; the "Compost and draw off urine" button
   in `src/gui/pages/inventory.rs`; `fertilizer_0` in `data/items.csv` and
   `data/garden/nutrients.ron`. The meter and the urine tank saved with
   the game: `BodySave` and `urine_tank_person_days` in
-  `src/persistence.rs`, restored in `src/save_load.rs`.
+  `crates/humanity-systems/src/persistence.rs`, restored in `src/save_load.rs`.
 - The Composter recipes: `craft_fertilizer`, `compost_bran`,
   `compost_pomace` and `compost_apple_pomace` in `data/recipes.csv`.
 - The waste categories nothing uses yet: `data/waste_management.ron` and
-  `src/systems/waste.rs`, which is not registered with the game's
+  `crates/humanity-systems/src/waste.rs`, which is not registered with the game's
   systems.
 - The Play mode setting (`PlayMode` and `play_mode_allows` in
   `src/config.rs`) and the "Start every session from the default home"

@@ -15,10 +15,10 @@
 #     TransactionLog stores the last N transactions for audit/display.
 #
 #   Systems:
-#     src/systems/economy/       -- Passive income ticks, earning payouts
+#     crates/humanity-systems/src/economy/       -- Passive income ticks, earning payouts
 #     src/relay/storage/trading.rs -- P2P and marketplace transactions (there is
 #     #                                  no client-side trading system; it is relay-side)
-#     src/systems/inventory/     -- Item value lookups via trade_goods.ron
+#     crates/humanity-systems/src/inventory/     -- Item value lookups via trade_goods.ron
 #
 #   Server:
 #     src/relay/storage/trading.rs     -- Marketplace listings, order matching

@@ -28,12 +28,12 @@ use crate::engine::home_meshes::rebuild_homestead;
 use crate::engine::state::EngineState;
 use crate::gui::pages::construction::storeys::{choose_storey, editor_cut_of, select_slab, storey_cut_key_of};
 use crate::gui::GuiState;
-use crate::ship::home_structure::{
+use humanity_ship::home_structure::{
     storey_index, wall_in_storey, FloorSlab, HomeStructure, InteriorWall, Storey,
     STOREY_EPS,
 };
-use crate::ship::ship_structure::{zone_body, zone_body_mut, ShipStructure};
-use crate::ship::storey_edits::{add_floor_slab, new_slab_top, CutAway, EditStorey, SlabDraw};
+use humanity_ship::ship_structure::{zone_body, zone_body_mut, ShipStructure};
+use humanity_ship::storey_edits::{add_floor_slab, new_slab_top, CutAway, EditStorey, SlabDraw};
 
 /// How near a room's floor must be to the storey's floor to be on it (metres). A room's floor is
 /// its storey's floor exactly (`detect_rooms`), so this only absorbs float error.
@@ -213,7 +213,7 @@ pub(crate) fn seed_build_avatar(state: &mut EngineState) {
 /// boxes kept out (ship/standing.rs `nearest_standing_clear_of`, `solid_keep_outs`); a spot that is
 /// one is written as it is.
 pub(crate) fn spawn_from_avatar(g: &GuiState) -> Option<(f32, f32)> {
-    use crate::ship::standing::{nearest_standing_clear_of, solid_keep_outs};
+    use humanity_ship::standing::{nearest_standing_clear_of, solid_keep_outs};
     let spot = g.build_char_pos?;
     let hs = zone_body(&g.ship_structure, g.construction_zone)?;
     let k = EditStorey::of(hs, g.construction_storeys.chosen).index;
@@ -443,7 +443,7 @@ pub(crate) fn wanted_cuts(state: &EngineState) -> Cuts {
 /// The shell meshes for `wanted_cuts` (`rebuild_homestead` draws them): the editor's cut-away
 /// ship, the Maps page's level, or None for the whole ship. The rooms are the caller's to keep
 /// whole (a cut changes the picture only).
-pub(crate) fn wanted_cut_meshes(state: &EngineState) -> Option<crate::ship::fibonacci::HomesteadMeshes> {
+pub(crate) fn wanted_cut_meshes(state: &EngineState) -> Option<humanity_ship::fibonacci::HomesteadMeshes> {
     if state.gui_state.construction_active {
         return editor_cut_away(state).map(|cut| cut.generate_meshes());
     }

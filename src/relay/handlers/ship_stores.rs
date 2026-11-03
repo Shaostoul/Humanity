@@ -58,7 +58,7 @@ use std::sync::Arc;
 
 use super::game_state::GameWorld;
 use super::ship_world::{plot_at, room_point};
-use crate::ship::moves::INTERACT_REACH_M;
+use humanity_ship::moves::INTERACT_REACH_M;
 use crate::relay::relay::RelayState;
 
 /// One store of the ship (data/food/ship_stores.ron).
@@ -211,16 +211,16 @@ pub fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
 
 /// Whether a player whose eyes are at `player` can use the store at `store` (take a meal, give to
 /// the fleet), and if not, the refusal: `too_far` with how far it is and whether it is on their
-/// floor (`same_floor`). The shared reach rule (src/ship/moves.rs `in_reach`): within
+/// floor (`same_floor`). The shared reach rule (crates/humanity-ship/src/moves.rs `in_reach`): within
 /// `INTERACT_REACH_M` (5 m) in a straight line AND on the player's storey, so a store on the floor
 /// above, 2.3 m over their eyes, is out of reach (ship homes increment 7). The interaction and
 /// entity-detail handlers (msg_handlers.rs) use the same rule.
 pub fn store_out_of_reach(player: [f32; 3], store: [f32; 3]) -> Option<serde_json::Value> {
     let (eye, at) = (glam::Vec3::from(player), glam::Vec3::from(store));
-    if crate::ship::moves::in_reach(eye, at, INTERACT_REACH_M) {
+    if humanity_ship::moves::in_reach(eye, at, INTERACT_REACH_M) {
         return None;
     }
-    Some(serde_json::json!({ "distance": distance(player, store), "same_floor": crate::ship::moves::on_my_storey(eye.y, at.y) }))
+    Some(serde_json::json!({ "distance": distance(player, store), "same_floor": humanity_ship::moves::on_my_storey(eye.y, at.y) }))
 }
 
 const SECONDS_PER_DAY: f64 = 86_400.0;
@@ -513,7 +513,7 @@ pub(crate) fn meals_every(world: &mut GameWorld, hours: f64) {
 /// tell apart), sets it for that.
 #[cfg(test)]
 pub(crate) fn at_simplified_speed(world: &mut GameWorld) {
-    world.time_scale = f64::from(crate::systems::time::SIMPLIFIED_TIME_SPEED);
+    world.time_scale = f64::from(humanity_systems::time::SIMPLIFIED_TIME_SPEED);
 }
 
 #[cfg(test)]
@@ -674,14 +674,14 @@ mod tests {
         let store = stores(&world)[0];
         let at = world.entities[&store].position;
         world.spawn_player("e11e00ad", [at[0] + 1.0, 1.7, at[2]]);
-        world.entities.get_mut(&store).unwrap().position = [at[0], at[1] + crate::ship::moves::STOREY_M, at[2]];
+        world.entities.get_mut(&store).unwrap().position = [at[0], at[1] + humanity_ship::moves::STOREY_M, at[2]];
         let up = take_meal(&mut world, "e11e00ad", store);
         assert_eq!(up["error"], "too_far", "a store one storey up was in reach: {up}");
         assert_eq!(up["same_floor"], false, "{up}");
         world.entities.get_mut(&store).unwrap().position = at;
         let here = take_meal(&mut world, "e11e00ad", store);
         assert_eq!(here["success"], true, "a store on your floor: {here}");
-        let upstairs = world.spawn_player("e11e00ae", [at[0] - 1.0, 1.7 + crate::ship::moves::STOREY_M, at[2]]);
+        let upstairs = world.spawn_player("e11e00ae", [at[0] - 1.0, 1.7 + humanity_ship::moves::STOREY_M, at[2]]);
         let down = take_meal(&mut world, "e11e00ae", store);
         assert_eq!(down["error"], "too_far", "the store under an upstairs player's feet: {down}");
         let _ = upstairs;

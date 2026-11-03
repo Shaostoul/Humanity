@@ -11,7 +11,7 @@
 #   weight cap).
 # clo: the garment's thermal insulation (1 clo = 0.155 m2 K/W), added to the
 #   everyday outfit the player always wears (trousers and a long-sleeve shirt,
-#   0.61 clo) by the body heat model (src/systems/body_heat.rs, 2026-09-27).
+#   0.61 clo) by the body heat model (crates/humanity-systems/src/body_heat.rs, 2026-09-27).
 #   Garment insulation is summed, the method the tables are built for.
 #   Sources, row by row:
 #   jacket_light_0 0.36 = ASHRAE garment table, single-breasted coat (thin).

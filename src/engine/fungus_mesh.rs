@@ -42,7 +42,7 @@ use glam::{Quat, Vec3};
 
 use crate::engine::plant_layout::{plot_plants, SHELF_POST_R};
 use humanity_core::vertex::Vertex;
-use crate::terrain::plant_mesh::{
+use humanity_terrain::plant_mesh::{
     BagCut, FruitHabit, FungusFruit, FungusSubstrate, FungusVisualDef, Organ, PlantMeshBuilder,
 };
 
@@ -1205,7 +1205,7 @@ fn noise3(p: Vec3, seed: u64) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::terrain::plant_mesh::PlantVisualRegistry;
+    use humanity_terrain::plant_mesh::PlantVisualRegistry;
 
     /// The shipped fungi, so the tests draw what the game draws.
     fn shipped() -> PlantVisualRegistry {

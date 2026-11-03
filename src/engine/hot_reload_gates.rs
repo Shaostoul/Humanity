@@ -47,7 +47,7 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
     // whenever growth actually moved. Only for a home whose start carries the
     // showcase garden (ship homes increment 6: a cabin has no garden, and the
     // grow machines it sees are the Commons').
-    if crate::engine::save_slot::live_carries(crate::ship::starts::HomeContent::ShowcaseGarden) {
+    if crate::engine::save_slot::live_carries(humanity_ship::starts::HomeContent::ShowcaseGarden) {
         crate::engine::ipc::auto_seed_showcase(state);
     }
     crate::engine::home_meshes::rebuild_plant_meshes(state);

@@ -117,7 +117,7 @@ it was written by an older version of the game) is set aside for that run, and
 the copy built into the game is used in its place.
 
 For the curious: the code that does this is `QuestRegistry::load` in
-`src/systems/quests/mod.rs`. It reads each of the game's own quest files from
+`crates/humanity-systems/src/quests/mod.rs`. It reads each of the game's own quest files from
 `data/quests/` (or its built-in copy), then every other `*.ron` file there,
 parses each one as a list of quest definitions, and merges them all into one
 registry keyed by quest id. It runs at app startup and again on every world

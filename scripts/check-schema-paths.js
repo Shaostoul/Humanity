@@ -4,7 +4,7 @@
 // WHY THIS EXISTS
 // schemas/ is what an agent or a contributor reads to learn what a row IS, and
 // most of the files explain themselves by pointing at the code that consumes
-// them ("Combat system -- src/systems/combat/ ..."). On 2026-09-15, SIXTEEN of
+// them ("Combat system -- crates/humanity-systems/src/combat/ ..."). On 2026-09-15, SIXTEEN of
 // the thirty schema files still pointed at `native/src/`, `server/src/` or
 // `crates/`, none of which have existed since the unified-binary merge in
 // v0.90.0.

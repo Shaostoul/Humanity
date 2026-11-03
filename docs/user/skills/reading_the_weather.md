@@ -616,23 +616,23 @@ were read on 4 October 2026.
 
 ### Inside this project
 
-- The weather system: `src/systems/weather.rs` (the conditions, the
+- The weather system: `crates/humanity-systems/src/weather.rs` (the conditions, the
   seasonal odds in `pick_condition`, changes every 6 to 18 game hours
   over half an hour, a random wind direction at each change, the air at
   the player from the climate model, the weather starting clear on each
-  launch) and `src/systems/body_environment.rs`; extreme events in
-  `data/weather/events.ron` and `src/systems/weather_events.rs`, rolled
+  launch) and `crates/humanity-systems/src/body_environment.rs`; extreme events in
+  `data/weather/events.ron` and `crates/humanity-systems/src/weather_events.rs`, rolled
   every 18 game hours with a 35 percent chance; the tornado warning in
   `src/lib.rs`; the climate model in `data/environment/climate.ron`.
 - The weather line: `hud_weather_text` and `weather_line` in
   `src/gui/pages/hud.rs`; the F11 panel in `src/gui/pages/weather_panel.rs`.
 - Wind, rain, wet clothes and shelter in the body heat model:
-  `src/systems/body_heat.rs` and `src/engine/survival_env.rs`; the Body
+  `crates/humanity-systems/src/body_heat.rs` and `src/engine/survival_env.rs`; the Body
   heat setting (Forgiving by default) in `src/config.rs` and
   `src/gui/pages/settings.rs`.
 - The game clock, its default Realistic speed (`DEFAULT_TIME_SPEED`) and
   the season as each quarter of the game year (`Season::from_day`), in
-  `src/systems/time.rs`; the "Start every session from the default home"
+  `crates/humanity-systems/src/time.rs`; the "Start every session from the default home"
   setting, which leaves the clock at the default home's (`src/config.rs`,
   `apply_identity` in `src/save_load.rs`).
 - [The Climate Where You Live](the_climate_where_you_live.md), [The

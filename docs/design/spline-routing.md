@@ -52,7 +52,7 @@ And, on snapping to surfaces:
 > The we could add the ability to add anchors or remove anchors to keep cables/hoses/whatever
 > anchored with like those ramps so they can be driven over safely with heavy machinery/vehicals.
 
-Earlier words this plan keeps, as recorded in the code (`src/ship/conduits.rs`, v0.535): "the
+Earlier words this plan keeps, as recorded in the code (`crates/humanity-ship/src/conduits.rs`, v0.535): "the
 straight lines that pass through everything for the pipes is wrong. We want realistic routed
 pipes/conduits ... copper pipes for all potable water ... rigid tubes ... flexible tubes are hoses
 and power extension cords ... automatically procedurally draw their support structures, mounting
@@ -96,20 +96,20 @@ Read before designing (all checked 2026-11-01 on main at `0d9526099`):
 
 | What | Where | This plan |
 |---|---|---|
-| Routing: up from each end to a per-storey service height, across in Manhattan legs, down; risers through slabs; ends kept under the real ceiling | `src/engine/home_meshes.rs` `route_run`, `run_site`; `src/ship/conduits.rs` `route_conduit`, `add_slab_passthroughs` | Replaced by the auto-router (8.4), which keeps the rule that a rigid run never cuts diagonally through a room (R26 now gives it a source) |
+| Routing: up from each end to a per-storey service height, across in Manhattan legs, down; risers through slabs; ends kept under the real ceiling | `src/engine/home_meshes.rs` `route_run`, `run_site`; `crates/humanity-ship/src/conduits.rs` `route_conduit`, `add_slab_passthroughs` | Replaced by the auto-router (8.4), which keeps the rule that a rigid run never cuts diagonally through a room (R26 now gives it a source) |
 | The drawn pipes: one cached unit cylinder per straight leg, hangers and wall gaskets deduped by position, the selected machine's flow beads | `rebuild_connection_objects` (about line 2668), `connection_objects`, `connection_flow_paths` | Replaced by swept meshes merged per cell (9); the dedup idea survives as shared anchors (12) |
-| `ConduitKind`, a closed enum of four kinds with a fixed radius each and `for_resource` choosing copper for potable water | `src/ship/conduits.rs` | Removed: behaviour, size and look become material rows (5.3); the potable rule becomes a rule row (7.1) |
-| Pipe materials (the look) and marker bands per ISO 14726 at each end, past each bend and every 6.1 m | `data/piping/pipe_materials.ron`, `marking_schemes.ron`, `src/ship/pipe_materials.rs`, `pipe_marking.rs`, `src/engine/pipe_markers.rs` | Kept and extended: the material file becomes the one catalog (5.3); bands are placed by arc length on the curve (9.2) |
+| `ConduitKind`, a closed enum of four kinds with a fixed radius each and `for_resource` choosing copper for potable water | `crates/humanity-ship/src/conduits.rs` | Removed: behaviour, size and look become material rows (5.3); the potable rule becomes a rule row (7.1) |
+| Pipe materials (the look) and marker bands per ISO 14726 at each end, past each bend and every 6.1 m | `data/piping/pipe_materials.ron`, `marking_schemes.ron`, `crates/humanity-ship/src/pipe_materials.rs`, `pipe_marking.rs`, `src/engine/pipe_markers.rs` | Kept and extended: the material file becomes the one catalog (5.3); bands are placed by arc length on the curve (9.2) |
 | Ports with anchors, watts, flow, Mbps; the cable registry with AWG, ampacity, ohm per metre, bandwidth, range, RF emission; `check_cable`, `check_data_link`, the auto-pickers | `crates/humanity-core/src/utilities.rs`, `data/utilities/conduits.ron` | Kept; the cable rows merge into the material catalog as its size rows; the checks run on the real routed length (10) |
-| Connections and the junction-node graph: `MachineConnection {from, to, kind, spec}`, `ConduitNode {id, pos, tier, kind, grid_tie}`, `ConduitEdge` | `src/machines.rs` | Replaced by `runs` (5.1, 5.5); nodes become features (11) |
+| Connections and the junction-node graph: `MachineConnection {from, to, kind, spec}`, `ConduitNode {id, pos, tier, kind, grid_tie}`, `ConduitEdge` | `crates/humanity-ship/src/machines.rs` | Replaced by `runs` (5.1, 5.5); nodes become features (11) |
 | Per-connection cable picker, superconductor bulk upgrade | `src/gui/pages/construction.rs` `draw_machines_and_connections` | Grows into the material and size picker for every run (15) |
 | Drag-to-connect, port node gizmos, clickable pipes (picked by sampling each polyline every 0.35 m) | `src/engine/editor.rs` `try_pick_port`, `try_pick_connection`; `src/lib.rs` | Kept as gestures; the gizmos and the rubber band become AR items (16); picking becomes per-run capsules by arc length (9.3) |
-| Electrical and water islands that tick: `ElectricalSystem` balances and sheds per island, `PlumbingSystem` flows and fills tanks per island, power cuts stop pumps | `src/systems/electrical.rs`, `src/systems/plumbing.rs`, `MachineHome::electrical_islands` | Kept; islands come from runs and features, and line losses and pressure join them (10) |
-| An orthogonal "up-over-down" router with per-content lanes, never called by anything | `src/systems/construction/routing.rs`, `data/routing_rules.ron` | Deleted in the auto-route rung; its lane order (power highest, waste lowest) becomes a rule row with a real source (R28, R29, R32 in place of an unread "NEC 300.4") |
-| Road splines: uniform Catmull-Rom, 8 samples an edge, 2D, which "can overshoot slightly" | `src/ship/home_structure.rs` `road_edge_centerline`; `docs/design/structure-pieces.md` | Moves onto the shared curve core in a late rung (18) |
-| Locks with a no-power `Crank` override, `HackPanel` and `CutPower` defeats, a `power_dependent` flag nothing reads yet; door control panels | `src/ship/lock_types.rs`, `data/blueprints/lock_types.ron`, `docs/design/locks.md` | The tapping rungs build on them (13) |
+| Electrical and water islands that tick: `ElectricalSystem` balances and sheds per island, `PlumbingSystem` flows and fills tanks per island, power cuts stop pumps | `crates/humanity-systems/src/electrical.rs`, `crates/humanity-systems/src/plumbing.rs`, `MachineHome::electrical_islands` | Kept; islands come from runs and features, and line losses and pressure join them (10) |
+| An orthogonal "up-over-down" router with per-content lanes, never called by anything | `crates/humanity-systems/src/construction/routing.rs`, `data/routing_rules.ron` | Deleted in the auto-route rung; its lane order (power highest, waste lowest) becomes a rule row with a real source (R28, R29, R32 in place of an unread "NEC 300.4") |
+| Road splines: uniform Catmull-Rom, 8 samples an edge, 2D, which "can overshoot slightly" | `crates/humanity-ship/src/home_structure.rs` `road_edge_centerline`; `docs/design/structure-pieces.md` | Moves onto the shared curve core in a late rung (18) |
+| Locks with a no-power `Crank` override, `HackPanel` and `CutPower` defeats, a `power_dependent` flag nothing reads yet; door control panels | `crates/humanity-ship/src/lock_types.rs`, `data/blueprints/lock_types.ron`, `docs/design/locks.md` | The tapping rungs build on them (13) |
 | A fire suppressor component, garden irrigation | `ecs::components::FireSuppressor`, `Irrigator` | Sprinkler and drip features drive them (11) |
-| Shared building: relay-held records per frame, sequence numbers, snapshots in parts, no builder on the wire | `src/systems/construction/shared.rs`, `docs/design/shared-building.md` | Runs in shared frames follow the same pattern (14) |
+| Shared building: relay-held records per frame, sequence numbers, snapshots in parts, no builder on the wire | `crates/humanity-systems/src/construction/shared.rs`, `docs/design/shared-building.md` | Runs in shared frames follow the same pattern (14) |
 
 ## 4. The HUD question, answered
 
@@ -802,7 +802,7 @@ Runs are gameplay state; the shape of a flexible run is not.
 
 - **What syncs.** In a shared frame (a plot others can see, the ship's shared spaces), each run is a
   **relay-held record**, the shared-building pattern (`docs/design/shared-building.md`,
-  `src/systems/construction/shared.rs`): `game_run_put` (the whole saved run, on commit), `game_run_remove`,
+  `crates/humanity-systems/src/construction/shared.rs`): `game_run_put` (the whole saved run, on commit), `game_run_remove`,
   `game_run_state` (a feature's discrete state: a valve turned, a breaker tripped; damage started or
   repaired), a snapshot in parts on entering a frame, a sequence number per change, permission by
   plot and household permit as for pieces, and **no builder on the wire** (the

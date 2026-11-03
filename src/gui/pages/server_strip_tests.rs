@@ -155,7 +155,7 @@ fn the_strip_shows_on_the_four_pages_and_no_other() {
 #[test]
 fn switching_from_the_strip_parks_and_unparks() {
     let mut state = two_servers();
-    state.home_answer = Some(crate::ship::starts::HomeAnswer { plot: None, starts: Vec::new(), chose: false, refused: None, message: String::new() });
+    state.home_answer = Some(humanity_ship::starts::HomeAnswer { plot: None, starts: Vec::new(), chose: false, refused: None, message: String::new() });
     let (ctx, mut theme) = ctx_and_theme();
     let page = GuiPage::ServerSettings;
     let out = settled(&ctx, &mut theme, &mut state, page);

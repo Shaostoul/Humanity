@@ -21,7 +21,7 @@ use egui::RichText;
 use humanity_core::cosmos::find_body;
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
-use crate::station::orbit::{self, PeriodSpec, StationDef};
+use humanity_ship::station::orbit::{self, PeriodSpec, StationDef};
 
 use super::format_with_commas;
 
@@ -70,7 +70,7 @@ pub fn station_row(def: &StationDef) -> StationRow {
 
 /// Every station in `data_dir/stations`, in id order.
 pub fn station_rows(data_dir: &std::path::Path) -> Vec<StationRow> {
-    crate::station::load_all(data_dir).iter().map(station_row).collect()
+    humanity_ship::station::load_all(data_dir).iter().map(station_row).collect()
 }
 
 /// The row's second line: "35,870 km up · synchronous over one place".

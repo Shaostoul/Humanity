@@ -530,7 +530,7 @@ leaves the chemistry out.
   years for honey, 30 days for jerky, dried meat and dried fruit
   (`data/food_system.ron`, mapped to items in
   `data/food/item_profiles.ron`). Once spoiled, a food always gives you
-  Food Poisoning when eaten (`src/systems/food.rs`).
+  Food Poisoning when eaten (`crates/humanity-systems/src/food.rs`).
 - **The Freezer is the only cold store.** Food in the home's storage and
   vessels ages in the home's air, at room temperature, except in the
   Freezer, which keeps its food frozen (`keeps_zone` in
@@ -541,7 +541,7 @@ leaves the chemistry out.
   In the Normal play mode, where the game starts (Settings > Gameplay >
   Play mode), a craft uses up its ingredients and wears any tool it needs,
   such as the Utility Knife for Can Food and Make Jerky
-  (`src/systems/crafting/mod.rs`, `data/crafting/tools.ron`). None of
+  (`crates/humanity-systems/src/crafting/mod.rs`, `data/crafting/tools.ron`). None of
   them has a salt ratio, an acid, a temperature, a time or a seal to get
   right, and Can Food makes potatoes and carrots, low-acid vegetables,
   into canned food at a stove ([Pressure Canning](pressure_canning.md)
@@ -551,14 +551,14 @@ leaves the chemistry out.
   refrigeration 4 times, freezing 20, canning 100, drying 20, salting 15,
   smoking 10, vacuum sealing 5 and irradiation 50. The game loads that
   list but nothing uses it (`data/food_system.ron`,
-  `src/systems/food.rs`), and its smoking
+  `crates/humanity-systems/src/food.rs`), and its smoking
   row credits smoke with antimicrobial compounds and drying where the
   Pacific Northwest guide says smoke is no preservative on its own.
 - **Under the default settings.** In Normal, only the Dev play mode's
   tools take you off the ship, so the food you carry ages at the ship's
   room temperature (`src/config.rs`, `src/engine/survival_env.rs`). The
   clock runs at the Realistic time speed, a game second to a real second,
-  unless you change Settings > Gameplay > Time (`src/systems/time.rs`),
+  unless you change Settings > Gameplay > Time (`crates/humanity-systems/src/time.rs`),
   and with "Start every session from the default home" off, as it is by
   default, your stores and their ages are kept between launches.
 
@@ -730,13 +730,13 @@ were read on 5 October 2026.
 ### Inside this project
 
 - The spoilage clock, its temperature zones and the preservation methods
-  nothing uses: `data/food_system.ron`, `src/systems/food.rs`; which
+  nothing uses: `data/food_system.ron`, `crates/humanity-systems/src/food.rs`; which
   items use which clock: `data/food/item_profiles.ron`; the Freezer:
   `data/containers/types.csv`; the recipes and their tools:
   `data/recipes.csv`, `data/crafting/tools.ron`,
-  `src/systems/crafting/mod.rs`; the play mode, the air aboard and the
+  `crates/humanity-systems/src/crafting/mod.rs`; the play mode, the air aboard and the
   time speed: `src/config.rs`, `src/engine/survival_env.rs`,
-  `src/systems/time.rs`.
+  `crates/humanity-systems/src/time.rs`.
 - [Why Canning Has Rules](why_canning_has_rules.md), [Keeping What You
   Grew](keeping_what_you_grew.md), [Water-Bath
   Canning](water_bath_canning.md), [Pressure Canning](pressure_canning.md),

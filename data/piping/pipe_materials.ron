@@ -6,7 +6,7 @@
 // that was data/utilities/conduits.ron (v0.604) merged in here as size rows of their materials,
 // keeping every id. Read by crates/humanity-core/src/run_materials.rs (disk first, the copy built
 // into the exe if this file is missing or does not parse), which the cable and data checks
-// (humanity_core::utilities) and the pipe looks (src/ship/pipe_materials.rs) both read.
+// (humanity_core::utilities) and the pipe looks (crates/humanity-ship/src/pipe_materials.rs) both read.
 //
 // The pipe body shows its real material everywhere between the marker bands; what flows inside is
 // said by the bands alone (data/piping/marking_schemes.ron). No marking standard colours the wall
@@ -30,7 +30,7 @@
 // FIELD REFERENCE
 //   tags[]      the construction words a material may carry and a rule may name (armour, shield,
 //               fibre...): id, meaning. A tag used anywhere and not declared here fails the test.
-//   kinds[]     which material each of today's four drawn conduit kinds (src/ship/conduits.rs,
+//   kinds[]     which material each of today's four drawn conduit kinds (crates/humanity-ship/src/conduits.rs,
 //               ConduitKind::id) is drawn in. WHICH kind carries a given content is decided there,
 //               including the potable-water rule recorded in that file. These rows go when rung 1
 //               gives every run its own material (no source: they are a mapping, not a fact).

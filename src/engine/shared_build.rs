@@ -1,6 +1,6 @@
 //! The pieces the server keeps, the game's side (ship homes increment 5, "building only on your
 //! own plot", 2026-10-05; docs/design/ship-homes-increment-5-plan.md sections 3.4 and 3.5). The
-//! contract both sides compile is src/systems/construction/shared.rs; the relay's side is
+//! contract both sides compile is crates/humanity-systems/src/construction/shared.rs; the relay's side is
 //! src/relay/handlers/shared_build.rs.
 //!
 //! WHAT IT IS. In a server's shared world, the shell pieces a player builds aboard (foundations,
@@ -76,11 +76,11 @@ use crate::engine::build_place;
 use crate::engine::state::EngineState;
 use crate::gui::GuiState;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::ship::build_frames::{parse_frame_id, BuildFrame, BuildFrames, FrameKind};
-use crate::ship::ship_structure::ShipStructure;
-use crate::systems::construction::shared::{self, msg, Action, FromRelay, OutQueue, Piece, Ranks, Reason, SharedBuildIntent, SharedPiece, Spent, ToRelay};
+use humanity_ship::build_frames::{parse_frame_id, BuildFrame, BuildFrames, FrameKind};
+use humanity_ship::ship_structure::ShipStructure;
+use humanity_systems::construction::shared::{self, msg, Action, FromRelay, OutQueue, Piece, Ranks, Reason, SharedBuildIntent, SharedPiece, Spent, ToRelay};
 use humanity_core::build_permission::Why;
-use crate::systems::construction::{Blueprint, BlueprintRegistry, BuildRequest, Construction, PlanetSite, Structure};
+use humanity_systems::construction::{Blueprint, BlueprintRegistry, BuildRequest, Construction, PlanetSite, Structure};
 use glam::{Mat4, Vec2, Vec3};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
@@ -942,7 +942,7 @@ fn refund_build(cx: &mut Ctx, intent: &SharedBuildIntent, line: String) {
 /// loose in the home. Returns what came back by the items' names, "6 Wood Plank" (empty for
 /// nothing).
 fn give_back(cx: &mut Ctx, spent: &Spent) -> String {
-    use crate::systems::inventory::{placed::PlacedItem, ItemRegistry, TransferOp};
+    use humanity_systems::inventory::{placed::PlacedItem, ItemRegistry, TransferOp};
     if let Some(chan) = cx.data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops") {
         let mut c = chan.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         for (id, qty) in spent.pack.iter().filter(|(_, q)| *q > 0) {
@@ -951,13 +951,13 @@ fn give_back(cx: &mut Ctx, spent: &Spent) -> String {
     }
     let items = cx.data.get::<ItemRegistry>("item_registry");
     let name_of = |id: &str| items.and_then(|r| r.items.get(id).map(|d| d.name.clone())).unwrap_or_else(|| id.to_string());
-    let away = crate::systems::construction::uses::planet_store_paths(cx.world);
+    let away = humanity_systems::construction::uses::planet_store_paths(cx.world);
     let elsewhere = |c: &str| away.iter().any(|p| c == p || c.strip_prefix(p.as_str()).is_some_and(|rest| rest.starts_with('/')));
     for (id, qty) in spent.storage.iter().filter(|(_, q)| *q > 0) {
         let pool = &mut cx.gui.placed_items;
         match pool.iter_mut().find(|p| p.key == *id && p.wear == 0 && p.quality == 0 && !elsewhere(&p.container)) {
             Some(p) => {
-                p.age_s = crate::systems::inventory::blend_age(p.age_s, p.qty, 0.0, *qty);
+                p.age_s = humanity_systems::inventory::blend_age(p.age_s, p.qty, 0.0, *qty);
                 p.qty += qty;
             }
             None => pool.push(PlacedItem { key: id.clone(), name: name_of(id), qty: *qty, container: "Home".to_string(), ..Default::default() }),
@@ -1306,7 +1306,7 @@ pub(crate) fn piece_rows(world: &hecs::World, registry: Option<&BlueprintRegistr
 
 /// The backpack, item by item (the probe's `pack`).
 pub(crate) fn pack_counts(world: &hecs::World) -> BTreeMap<String, u32> {
-    use crate::systems::inventory::Inventory;
+    use humanity_systems::inventory::Inventory;
     let mut out = BTreeMap::new();
     let mut q = world.query::<(&Inventory, &humanity_core::ecs::components::Controllable)>();
     if let Some((_e, (inv, _))) = q.iter().next() {
@@ -1322,9 +1322,9 @@ pub(crate) fn pack_counts(world: &hecs::World) -> BTreeMap<String, u32> {
 /// not the home's). A build pays from it once the backpack runs short, and what a take-down gives
 /// back lands in it when the backpack has no room (the "Take to backpack" channel sends what does
 /// not fit back to storage, lib.rs), so what came back is the backpack's and this together.
-pub(crate) fn storage_counts(world: &hecs::World, placed: &[crate::systems::inventory::placed::PlacedItem]) -> BTreeMap<String, u32> {
-    let away = crate::systems::construction::uses::planet_store_paths(world);
-    crate::systems::inventory::placed::stock_counts(placed, &away).into_iter().filter(|(_, n)| *n > 0).collect()
+pub(crate) fn storage_counts(world: &hecs::World, placed: &[humanity_systems::inventory::placed::PlacedItem]) -> BTreeMap<String, u32> {
+    let away = humanity_systems::construction::uses::planet_store_paths(world);
+    humanity_systems::inventory::placed::stock_counts(placed, &away).into_iter().filter(|(_, n)| *n > 0).collect()
 }
 
 /// This frame's pieces with their screen boxes, for each recorded frame (engine/ipc.rs).

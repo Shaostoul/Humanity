@@ -6,11 +6,11 @@ use std::sync::Mutex;
 use humanity_core::ecs::components::PowerConsumer;
 use humanity_core::ecs::systems::System;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
-use crate::systems::farming::heat_tests::*;
-use crate::systems::farming::humidity::{self, AirMap, GrowRoom};
-use crate::systems::farming::lighting::GrowPlot;
-use crate::systems::farming::*;
+use humanity_systems::atmosphere::{EnclosedSpace, HomeAir};
+use humanity_systems::farming::fixtures::heat::*;
+use humanity_systems::farming::humidity::{self, AirMap, GrowRoom};
+use humanity_systems::farming::lighting::GrowPlot;
+use humanity_systems::farming::*;
 
 /// THE TIME AWAY CHARGES EACH MACHINE THE DAY IT REALLY DREW (the second seam
 /// review of BUG-155, 2026-10-05; the day record, 2026-10-22). While the
@@ -45,10 +45,10 @@ use crate::systems::farming::*;
 #[cfg(feature = "native")]
 #[test]
 fn the_time_away_charges_each_machine_the_day_it_drew() {
-    use crate::machines::MachineInstance;
-    use crate::machines::day_energy;
+    use humanity_ship::machines::MachineInstance;
+    use humanity_ship::machines::day_energy;
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
-    let tent = crate::systems::grow_machines::load_grow_media(&root.join("data"))
+    let tent = humanity_systems::grow_machines::load_grow_media(&root.join("data"))
         .into_iter()
         .find_map(|m| m.enclosure)
         .expect("the shipped fruiting tent");
@@ -58,10 +58,10 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
     let rack = GrowPlot { id: "rack_a".into(), pos: [60.0, 0.0, 5.0], enclosure: Some(tent.clone()), ..Default::default() };
     let mut data = store(vec![greenhouse], vec![bed, rack]);
     day_energy::register(&mut data);
-    data.insert("power_status", Mutex::new(crate::systems::electrical::PowerStatus::default()));
+    data.insert("power_status", Mutex::new(humanity_systems::electrical::PowerStatus::default()));
 
     // The shipped family home, with the two heaters placed in it and spawned.
-    let mut home = crate::systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
+    let mut home = humanity_systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let def = home.catalog.get("heater").expect("home.ron catalogs the heater").clone();
     let mut world = hecs::World::new();
     let empty = std::collections::HashMap::new();
@@ -84,7 +84,7 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
         humanity_core::ecs::components::PowerCircuit { island: 0 },
     ));
     let mut sys = FarmingSystem::new();
-    let mut power = crate::systems::electrical::ElectricalSystem::new(std::path::Path::new("data"));
+    let mut power = humanity_systems::electrical::ElectricalSystem::new(std::path::Path::new("data"));
     // 26 game hours, a tick a tenth of one (5 s at the store's 72x): the day the
     // record keeps starts after the heaters have settled.
     for _ in 0..260 {
@@ -102,7 +102,7 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
     let _ = std::fs::remove_dir_all(&dir);
     let path = dir.join("saves").join("offline_home.json");
     crate::save_load::save_home_at(&path, &world, &[], &data, true, None);
-    let saved = crate::persistence::load_world(&path).expect("the save reads back");
+    let saved = humanity_systems::persistence::load_world(&path).expect("the save reads back");
     let _ = std::fs::remove_dir_all(&dir);
     let day = |id: &str| saved.machine_day_energy.day_of(id, "heater").map(|d| d.average_w());
     let tent_day = day("heater_tent").unwrap_or_else(|| panic!("the save has heater_tent's day: {:?}", day("heater_tent")));
@@ -116,15 +116,15 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
     save.timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() - 3600;
     let mut away_data = DataStore::new();
     away_data.insert("auto_mine_order", Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
-    crate::systems::crafting::register(&mut away_data);
-    crate::systems::livestock::register(&mut away_data);
+    humanity_systems::crafting::register(&mut away_data);
+    humanity_systems::livestock::register(&mut away_data);
     day_energy::register(&mut away_data);
     let mut fresh = hecs::World::new();
     crate::save_load::apply_save_to_world(&mut fresh, &save);
     crate::save_load::resume_home(&mut fresh, &away_data, &save, true, 1.0, Some(&home));
     assert_eq!(day_energy::snapshot(&away_data).machines, save.machine_day_energy.machines, "the record comes back with the home");
-    let work = crate::systems::crafting::away::take(&away_data).expect("an hour away handed to the machines");
-    let meter = crate::systems::crafting::away::day_power_balance(&home, &Default::default());
+    let work = humanity_systems::crafting::away::take(&away_data).expect("an hour away handed to the machines");
+    let meter = humanity_systems::crafting::away::day_power_balance(&home, &Default::default());
     for (mode, (away, full)) in ["Station-supplied", "Realistic"].iter().zip(work.power_balance_w.iter().zip(meter.iter())) {
         let better = f64::from(away - full);
         assert!(
@@ -154,25 +154,25 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
 fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     // The quest's step.
-    let quests: Vec<crate::systems::quests::QuestDef> =
+    let quests: Vec<humanity_systems::quests::QuestDef> =
         ron::from_str(&std::fs::read_to_string(root.join("data/quests/farming.ron")).unwrap()).expect("farming.ron parses");
     let q = quests.iter().find(|q| q.id == "farming_greenhouse").expect("the Greenhouse Construction quest");
     let step = q
         .steps
         .iter()
-        .find(|s| matches!(&s.objective, crate::systems::quests::QuestObjective::Craft { recipe_id, .. } if recipe_id == "build_heater"))
+        .find(|s| matches!(&s.objective, humanity_systems::quests::QuestObjective::Craft { recipe_id, .. } if recipe_id == "build_heater"))
         .expect("a step that crafts the heater");
     assert_eq!(step.description, "Build a space heater to warm a grow room's air");
     // The recipe makes the item the machine is placed from.
     let recipes = std::fs::read_to_string(root.join("data/recipes.csv")).unwrap();
     let row = recipes.lines().find(|l| l.starts_with("build_heater,")).expect("the Build Heater recipe");
     assert_eq!(row.split(',').nth(4), Some("heater_0:1"), "{row}");
-    assert_eq!(crate::machines::placement_item_id("heater"), "heater_0");
+    assert_eq!(humanity_ship::machines::placement_item_id("heater"), "heater_0");
     let d = air();
     for file in ["home.ron", "home_solo.ron"] {
-        let home = crate::systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+        let home = humanity_systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
         let def = home.catalog.get("heater").unwrap_or_else(|| panic!("{file} catalogs the heater"));
-        let Some(crate::machines::MachinePower::Consumer { watts, .. }) = def.power else { panic!("{file}: the heater is a Consumer") };
+        let Some(humanity_ship::machines::MachinePower::Consumer { watts, .. }) = def.power else { panic!("{file}: the heater is a Consumer") };
         assert_eq!(def.heats_w, watts, "{file}: a resistance heater's heat is its draw");
         assert!(f64::from(def.heat_setpoint_c) > d.room_temp_c, "{file}: set above the rooms' own {} C", d.room_temp_c);
         // Nothing else in the catalog heats but the heat pump and the wood
@@ -186,7 +186,7 @@ fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
         // Spawned as the engine spawns it, in a powered grow room.
         let data = one_room("room-a", 2.0, 2.0);
         let mut world = hecs::World::new();
-        let inst = crate::machines::MachineInstance {
+        let inst = humanity_ship::machines::MachineInstance {
             id: "heater_t".into(),
             machine: "heater".into(),
             room: "room-a".into(),
@@ -210,17 +210,17 @@ fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
 }
 
 /// The shipped catalog `file`'s machine `id`.
-fn shipped(file: &str, id: &str) -> crate::machines::MachineDef {
+fn shipped(file: &str, id: &str) -> humanity_ship::machines::MachineDef {
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
-    let home = crate::systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+    let home = humanity_systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
     home.catalog.get(id).unwrap_or_else(|| panic!("{file} catalogs `{id}`")).clone()
 }
 
 /// The shipped container registry, which gives the stove its box.
-fn shipped_containers() -> crate::systems::inventory::containers::ContainerRegistry {
+fn shipped_containers() -> humanity_systems::inventory::containers::ContainerRegistry {
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let read = |rel: &str| std::fs::read(root.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
-    crate::systems::inventory::containers::ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
+    humanity_systems::inventory::containers::ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
         .expect("container types")
         .with_contact_rules(&read("containers/materials.csv"), &read("containers/content_traits.ron"), &read("food/item_profiles.ron"))
         .expect("contact rules")
@@ -237,8 +237,8 @@ fn spawn_shipped(world: &mut hecs::World, machine: &str, id: &str, at: [f32; 3])
 /// engine spawns it, a stove with its box: for a shipped machine whose data a
 /// test changes first.
 #[cfg(feature = "native")]
-fn spawn_def(world: &mut hecs::World, def: &crate::machines::MachineDef, machine: &str, id: &str, at: [f32; 3]) -> hecs::Entity {
-    let inst = crate::machines::MachineInstance {
+fn spawn_def(world: &mut hecs::World, def: &humanity_ship::machines::MachineDef, machine: &str, id: &str, at: [f32; 3]) -> hecs::Entity {
+    let inst = humanity_ship::machines::MachineInstance {
         id: id.into(),
         machine: machine.into(),
         room: String::new(),
@@ -261,8 +261,8 @@ fn spawn_def(world: &mut hecs::World, def: &crate::machines::MachineDef, machine
 /// Put `n` Wood Logs into the stove's box through the box's own Store rule.
 #[cfg(feature = "native")]
 fn load_logs(world: &mut hecs::World, data: &DataStore, stove: hecs::Entity, n: u32) {
-    use crate::systems::inventory::containers::{Container, StoreOutcome};
-    let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry").unwrap();
+    use humanity_systems::inventory::containers::{Container, StoreOutcome};
+    let items = data.get::<humanity_systems::inventory::ItemRegistry>("item_registry").unwrap();
     let reg = shipped_containers();
     let mut c = world.get::<&mut Container>(stove).expect("the stove has its box");
     let out = reg.try_store(&mut c, "wood_log_0", items.class_for("wood_log_0"), items.volume_for("wood_log_0"), n);
@@ -272,7 +272,7 @@ fn load_logs(world: &mut hecs::World, data: &DataStore, stove: hecs::Entity, n: 
 /// The wood still in a stove's box, kg: its logs less what has burned of the
 /// one at the front.
 fn wood_kg(world: &hecs::World, stove: hecs::Entity) -> f64 {
-    let c = world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap();
+    let c = world.get::<&humanity_systems::inventory::containers::Container>(stove).unwrap();
     let s = world.get::<&humanity_core::ecs::components::FuelStove>(stove).unwrap();
     let log = if c.current_content_item.as_deref() == Some("wood_log_0") { 8.0 } else { 0.0 };
     f64::from(c.current_qty) * log - s.burned_kg
@@ -343,25 +343,25 @@ fn a_heat_pump_delivers_its_cop_times_its_draw_and_is_charged_only_its_draw() {
     let mut map = AirMap::new(&world, &data, &d);
     for (source_c, cop) in [(19.85, 4.54), (8.3, 4.54), (0.0, 2.63 + (4.54 - 2.63) * 8.3 / 16.6), (-8.3, 2.63), (-15.0, 2.2), (-30.0, 1.89)] {
         map.home_own_c = source_c;
-        let h = crate::systems::farming::heat::heaters(&world, &map, &Default::default());
+        let h = humanity_systems::farming::heat::heaters(&world, &map, &Default::default());
         assert_eq!(h.len(), 1);
         assert!((h[0].heat_w - 620.0 * cop).abs() < 1e-3, "drawing from {source_c} C: {} W of heat, by the sheet {} W", h[0].heat_w, 620.0 * cop);
-        assert_eq!((h[0].watts, h[0].kind), (620.0, crate::systems::farming::heat::HeaterKind::HeatPump), "its draw stays 620 W");
+        assert_eq!((h[0].watts, h[0].kind), (620.0, humanity_systems::farming::heat::HeaterKind::HeatPump), "its draw stays 620 W");
     }
 
     // The bill is its draw, never its heat: a day of it recorded by the power tick.
     let mut rec = DataStore::new();
-    crate::machines::day_energy::register(&mut rec);
+    humanity_ship::machines::day_energy::register(&mut rec);
     for _ in 0..24 {
-        crate::machines::day_energy::record_world(&world, &rec, 3600.0);
+        humanity_ship::machines::day_energy::record_world(&world, &rec, 3600.0);
     }
-    let saved = crate::machines::day_energy::snapshot(&rec);
+    let saved = humanity_ship::machines::day_energy::snapshot(&rec);
     let pump_day = saved.day_of("heat_pump_t", "heat_pump").map(|d| d.average_w());
     assert!(pump_day.is_some_and(|w| (w - 620.0).abs() < 1e-6), "its day is its draw: {pump_day:?}");
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
-    let mut home = crate::systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
-    let without = crate::systems::crafting::away::day_power_balance(&home, &Default::default());
-    home.instances.push(crate::machines::MachineInstance {
+    let mut home = humanity_systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
+    let without = humanity_systems::crafting::away::day_power_balance(&home, &Default::default());
+    home.instances.push(humanity_ship::machines::MachineInstance {
         id: "heat_pump_t".into(),
         machine: "heat_pump".into(),
         room: String::new(),
@@ -370,13 +370,13 @@ fn a_heat_pump_delivers_its_cop_times_its_draw_and_is_charged_only_its_draw() {
         zone: "home".into(),
         screen_source: None,
     });
-    let meter = crate::systems::crafting::away::day_power_balance(&home, &Default::default());
-    let away = crate::systems::crafting::away::day_power_balance(&home, &saved);
+    let meter = humanity_systems::crafting::away::day_power_balance(&home, &Default::default());
+    let away = humanity_systems::crafting::away::day_power_balance(&home, &saved);
     for i in 0..2 {
         assert!((f64::from(without[i] - meter[i]) - 620.0).abs() < 0.05, "mode {i}: the meter charges it {} W", without[i] - meter[i]);
         assert!((f64::from(without[i] - away[i]) - 620.0).abs() < 0.05, "mode {i}: the time away charges it {} W", without[i] - away[i]);
     }
-    assert_eq!(home.catalog["heat_pump"].average_load_watts(crate::machines::MeterBasis::default(), false), 620.0);
+    assert_eq!(home.catalog["heat_pump"].average_load_watts(humanity_ship::machines::MeterBasis::default(), false), 620.0);
 }
 
 /// A WOOD STOVE WARMS THE AIR WHILE IT HAS WOOD AND STOPS WHEN ITS BOX IS EMPTY
@@ -415,7 +415,7 @@ fn a_wood_stove_warms_the_air_while_it_has_wood_and_stops_when_its_box_is_empty(
     // 4.07 as the data's f32 carries it.
     let rate = f64::from(4.07_f32);
     assert!((wood_kg(&world, stove) - (8.0 - rate)).abs() < 1e-9, "an hour burned 4.07 kg: {} kg left", wood_kg(&world, stove));
-    assert_eq!(world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap().current_qty, 1, "the log is still burning");
+    assert_eq!(world.get::<&humanity_systems::inventory::containers::Container>(stove).unwrap().current_qty, 1, "the log is still burning");
     world.spawn((crop(&data, "lettuce", "bed_a", 0),));
     let line = |world: &hecs::World| humidity::GuiView::new(world, &data).areas.iter().find(|(a, _, _)| a == "bed_a").map(|l| l.1.clone()).unwrap();
     let burning = line(&world);
@@ -423,7 +423,7 @@ fn a_wood_stove_warms_the_air_while_it_has_wood_and_stops_when_its_box_is_empty(
 
     run(&mut sys, &mut world, &data, 20, 5.0);
     {
-        let c = world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap();
+        let c = world.get::<&humanity_systems::inventory::containers::Container>(stove).unwrap();
         assert!(c.current_qty == 0 && c.current_content_item.is_none(), "after 3 hours the box still holds {:?} x {}", c.current_content_item, c.current_qty);
     }
     assert_eq!(wood_kg(&world, stove), 0.0);
@@ -435,7 +435,7 @@ fn a_wood_stove_warms_the_air_while_it_has_wood_and_stops_when_its_box_is_empty(
 }
 
 /// A WOOD STOVE BURNS THE SAME WOOD AT 30 AND AT 240 FRAMES A SECOND
-/// (2026-10-20), the way a fire does (src/systems/fire.rs, BUG-164's note):
+/// (2026-10-20), the way a fire does (crates/humanity-systems/src/fire.rs, BUG-164's note):
 /// the wood stove with two Wood Logs (16 kg) in the greenhouse, run three
 /// game hours at 30 frames a second and at 240, burns the same wood to a
 /// billionth of a kilogram, 3 x 4.07 = 12.21 kg by hand, and warms the air
@@ -461,7 +461,7 @@ fn a_wood_stove_burns_the_same_wood_at_30_and_240_frames_a_second() {
         run(&mut sys, &mut world, &data, ticks, 1.0 / fps);
         let at3 = (wood_kg(&world, stove), room(&world, "room-greenhouse").warmed_k);
         run(&mut sys, &mut world, &data, ticks * 2 / 3, 1.0 / fps);
-        let c = world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap();
+        let c = world.get::<&humanity_systems::inventory::containers::Container>(stove).unwrap();
         ends.push((at3, c.current_qty, wood_kg(&world, stove)));
     }
     let ((wood30, warm30), qty30, end30) = ends[0];
@@ -494,8 +494,8 @@ struct SealedHomes {
 /// 3,447 W a degree, so 13,040 W never brings it to 24 C.
 #[cfg(feature = "native")]
 fn burn_a_log_in_a_sealed_home(air: humanity_core::ecs::components::CombustionAir) -> SealedHomes {
-    use crate::systems::life_support::{LifeSupportData, DATA_KEY, LIFE_SUPPORT_RON};
-    use crate::systems::ship_power::{ShipSupplyLedger, LEDGER_KEY, OXYGEN, PLAYER_HOME};
+    use humanity_systems::life_support::{LifeSupportData, DATA_KEY, LIFE_SUPPORT_RON};
+    use humanity_systems::ship_power::{ShipSupplyLedger, LEDGER_KEY, OXYGEN, PLAYER_HOME};
     let mut def = shipped("home.ron", "wood_stove");
     def.burns_fuel.as_mut().expect("the wood stove burns fuel").combustion_air = air;
     let mut homes = Vec::new();
@@ -514,7 +514,7 @@ fn burn_a_log_in_a_sealed_home(air: humanity_core::ecs::components::CombustionAi
         run(&mut sys, &mut world, &data, 10, 5.0);
         let burned = stove.map_or(0.0, |s| 8.0 - wood_kg(&world, s));
         let panel = humidity::GuiView::new(&world, &data).home.into_iter().map(|(l, _)| l).collect::<Vec<_>>().join(" / ");
-        let ship = crate::systems::ship_power::tally(&data, PLAYER_HOME, OXYGEN).drawn;
+        let ship = humanity_systems::ship_power::tally(&data, PLAYER_HOME, OXYGEN).drawn;
         homes.push((memory(&world).home_air, burned, panel, ship));
     }
     let (stoved, burned, panel, ship_o2_kg) = homes.pop().unwrap();

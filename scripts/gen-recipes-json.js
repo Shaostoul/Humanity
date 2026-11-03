@@ -47,7 +47,7 @@ function splitRow(line) {
 
 // Hand tools each recipe needs (data/crafting/tools.ron, 2026-09-26). The
 // file's shape is fixed and simple, so it is read with two patterns; the
-// resolution mirrors ToolRules::tools_for in src/systems/crafting/tools.rs:
+// resolution mirrors ToolRules::tools_for in crates/humanity-systems/src/crafting/tools.rs:
 // a per-recipe list overrides the rules, the first rule matching the station
 // (and the category, when it names one) applies, a recipe made by hand
 // matches no rule, and a recipe never needs a tool it makes.

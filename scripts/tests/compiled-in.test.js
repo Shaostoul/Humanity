@@ -16,7 +16,7 @@
 //   UNCLASSIFIED     assets/icon.png
 //                    embedded-only read: src/lib.rs:961 fn resumed (include_bytes! in fn resumed). ...
 //   UNCLASSIFIED     data/blueprints/structure_types.ron
-//                    embedded-only read: src/ship/structure.rs:89 fn structure_types ...
+//                    embedded-only read: crates/humanity-ship/src/structure.rs:89 fn structure_types ...
 //   UNCLASSIFIED     data/items.csv
 //                    embedded-only read: src/gui/pages/inventory.rs:396 fn lookup_item_details (::ITEMS_CSV) ...
 //   ... (26 in all), and PROBLEMS:
@@ -306,7 +306,7 @@ test("RULES: a test-support gate is test code; the same shape with another featu
 //   UNCLASSIFIED     data/ground/materials.ron
 //                    ... fn material_table never calls note_builtin_copy("ground/materials.ron", ..)
 //                    to say so at run time ...   (the loader the critic broke on purpose)
-//   PROBLEMS: src/ship/hull.rs:167 (fn load): get_embedded(HULL_PROFILE_REL) reads an embedded
+//   PROBLEMS: crates/humanity-ship/src/hull.rs:167 (fn load): get_embedded(HULL_PROFILE_REL) reads an embedded
 //   copy chosen at run time, and its fn does not both read the disk before it and call
 //   note_builtin_copy(HULL_PROFILE_REL, ..) ...; FALLBACK_SITES: src/assets/mod.rs::parse_embedded_csv
 //   serves the built-in copy but never calls note_builtin_copy ...

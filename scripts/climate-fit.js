@@ -5,7 +5,7 @@
  * Derives Earth's Layer 1 climate coefficients in data/environment/climate.ron
  * from a public reanalysis, so every number in that row can be reproduced
  * rather than taken on trust. Design: docs/design/environment-fields.md,
- * "Layer 1 as built". CPU model: src/systems/env_layer1.rs.
+ * "Layer 1 as built". CPU model: crates/humanity-systems/src/env_layer1.rs.
  *
  * SOURCE: NCEP/NCAR Reanalysis 1 (Kalnay et al. 1996, "The NCEP/NCAR 40-Year
  * Reanalysis Project", Bull. Amer. Meteor. Soc. 77:437-471), long-term monthly

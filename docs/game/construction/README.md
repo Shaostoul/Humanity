@@ -30,7 +30,7 @@ implements.
 ## Interfaces
 
 Construction consumes:
-- Blueprint definitions (`Blueprint` in `src/systems/construction/mod.rs`): id, name,
+- Blueprint definitions (`Blueprint` in `crates/humanity-systems/src/construction/mod.rs`): id, name,
   category, bill-of-materials, build_time, size, snap_to tags, health, provides
 - Material strength properties (`data/materials.csv`) for structural analysis
 - Routing rules (`data/routing_rules.ron`) for utility-run lane assignment

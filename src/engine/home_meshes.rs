@@ -9,7 +9,7 @@ use crate::engine::home_spawn::spawn_home_machine_entity;
 use crate::engine::state::{EngineState, GrowSpot};
 use crate::renderer::mesh::Mesh;
 use crate::renderer::RenderObject;
-use crate::ship::ship_structure::{zone_body, ShipStructure};
+use humanity_ship::ship_structure::{zone_body, ShipStructure};
 
 /// The glass roof's (metallic, roughness, emissive): the roof, and a glass floor slab drawn like
 /// it (ship homes increment 7). Its colour and shader type are `home_structure::GLASS_ROOF_RGBA`
@@ -20,7 +20,7 @@ const GLASS_ROOF_LOOK: (f32, f32, f32) = (0.0, 0.05, 0.0);
 /// and the same look a solid slab's underside is drawn in (`home_structure::OPAQUE_CEILING_RGBA`,
 /// uploaded through the floors with the same metallic and roughness).
 const OPAQUE_CEILING_LOOK: ([f32; 4], f32, f32, f32) =
-    (crate::ship::home_structure::OPAQUE_CEILING_RGBA, 0.0, 0.8, crate::ship::home_structure::OPAQUE_CEILING_TYPE as f32);
+    (humanity_ship::home_structure::OPAQUE_CEILING_RGBA, 0.0, 0.8, humanity_ship::home_structure::OPAQUE_CEILING_TYPE as f32);
 
 /// A mesh slot and its material slot, as the renderer numbers them.
 pub(crate) type Slot = (usize, usize);
@@ -147,7 +147,7 @@ pub(crate) fn assign_slots(
 /// `apply_homestead_meshes` keeps their slots: the opaque floors; the combined walls; the wall
 /// materials with the glass floor slabs after them; the trim; the windows; the mirrors; the glass
 /// roofs' ceilings; the opaque roofs' ceilings. A combined family needs one mesh, or none when empty.
-pub(crate) fn shell_family_needs(m: &crate::ship::fibonacci::HomesteadMeshes) -> [usize; 8] {
+pub(crate) fn shell_family_needs(m: &humanity_ship::fibonacci::HomesteadMeshes) -> [usize; 8] {
     let one = |b: &(Vec<humanity_core::vertex::Vertex>, Vec<u32>)| usize::from(!b.0.is_empty());
     let glass = m.floors.iter().filter(|f| !is_opaque_floor(f.2)).count();
     [
@@ -210,7 +210,7 @@ fn fill_one(r: &mut crate::renderer::Renderer, slots: &[Slot], mesh: &(Vec<human
 /// spares (`HomeDraw::spare`) for the next family that needs more, their meshes freed, where they
 /// used to be orphaned. A per-frame rebuild during a room drag, or the editor's cut-away shown and
 /// hidden again and again, never grows the renderer's lists (`assign_slots`).
-pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::ship::fibonacci::HomesteadMeshes) {
+pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanity_ship::fibonacci::HomesteadMeshes) {
     // These meshes are the whole ship unless `rebuild_homestead` says otherwise after this. A world
     // load ends here, so the editor's cut-away, if it is open on a storey with another over it, is
     // drawn again on the next frame (`HomeDraw::view_stale`).
@@ -285,7 +285,7 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::
     let opaque_look = (ocol, omet, orough, otype, 0.0);
     let ceiling_look = if roof_glass {
         // Glass roof emissive zeroed (v0.780), the same night-glow fix as the windows.
-        (crate::ship::home_structure::GLASS_ROOF_RGBA, gmet, grough, crate::ship::home_structure::GLASS_ROOF_TYPE as f32, gemis)
+        (humanity_ship::home_structure::GLASS_ROOF_RGBA, gmet, grough, humanity_ship::home_structure::GLASS_ROOF_TYPE as f32, gemis)
     } else {
         opaque_look
     };
@@ -309,12 +309,12 @@ pub(crate) fn rebuild_hull(state: &mut EngineState) {
     // hot-reload poll sees hull_profile.ron change, which clears the cache
     // and calls back in here (v0.770) - silhouette tuning without relaunch.
     if state.hull_profile.is_none() {
-        state.hull_profile = crate::ship::hull::HullProfile::load(&state.data_dir);
+        state.hull_profile = humanity_ship::hull::HullProfile::load(&state.data_dir);
     }
     let meshes = match (state.gui_state.ship_structure.as_ref(), state.hull_profile.as_ref()) {
-        (Some(ship), Some(profile)) => crate::ship::hull::generate_hull(ship, profile),
+        (Some(ship), Some(profile)) => humanity_ship::hull::generate_hull(ship, profile),
         // No ship (legacy fibonacci layout) or no parseable profile: no hull.
-        _ => crate::ship::hull::HullMeshes::default(),
+        _ => humanity_ship::hull::HullMeshes::default(),
     };
     let prior: Vec<Slot> = state.homestead_hull.into_iter().collect();
     let need = usize::from(!meshes.plating.0.is_empty());
@@ -326,7 +326,7 @@ pub(crate) fn rebuild_hull(state: &mut EngineState) {
     // Hull plating colors from the same wall-material palette as zone shells, so the
     // profile's `material` id means the same thing everywhere.
     let mat_id = state.hull_profile.as_ref().map_or(1, |p| p.material);
-    let color = crate::ship::home_structure::HomeStructure::material_color(mat_id);
+    let color = humanity_ship::home_structure::HomeStructure::material_color(mat_id);
     state.homestead_hull = fill_one(&mut state.renderer, &slots[0], &meshes.plating, (color, 0.35, 0.55, mat_id as f32, 0.0));
 }
 
@@ -345,8 +345,8 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     if let Some(ship) = state.gui_state.ship_structure.as_mut() {
         for zone in ship.zones.iter_mut() {
             for wall in zone.body.walls.iter_mut() {
-                wall.a = crate::ship::home_structure::quantize_corner(wall.a);
-                wall.b = crate::ship::home_structure::quantize_corner(wall.b);
+                wall.a = humanity_ship::home_structure::quantize_corner(wall.a);
+                wall.b = humanity_ship::home_structure::quantize_corner(wall.b);
             }
         }
     }
@@ -377,7 +377,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
             None => ship.generate_meshes(),
         }
     } else if let Some(layout) = state.homestead_layout.clone() {
-        crate::ship::fibonacci::generate_from_layout(&layout)
+        humanity_ship::fibonacci::generate_from_layout(&layout)
     } else {
         return;
     };
@@ -386,11 +386,11 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // Rebuild the wall collision segments from the live ship (v0.556; per-zone offsets v0.754)
     // so editing a wall updates what the player walks into. Empty for the legacy AABB layout.
     state.wall_colliders = match &state.gui_state.ship_structure {
-        Some(ship) => crate::ship::wall_collision::ship_wall_segments(ship),
+        Some(ship) => humanity_ship::wall_collision::ship_wall_segments(ship),
         None => Vec::new(),
     };
     state.sight_colliders = match &state.gui_state.ship_structure {
-        Some(ship) => crate::ship::wall_collision::ship_sight_segments(ship),
+        Some(ship) => humanity_ship::wall_collision::ship_sight_segments(ship),
         None => Vec::new(),
     };
     parts.part("cpu.home_rebuild.colliders");
@@ -426,7 +426,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // moved/resized/added/removed room is tracked live, not just on restart. (v0.459)
     // (Machine placement + pipes + hologram/spawn still resolve at load_world; they refresh
     // on the next relaunch -- a follow-up will make them live too.)
-    let room_types = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+    let room_types = humanity_ship::room_types::RoomTypeRegistry::load(&state.data_dir);
     // The function join (rooms.ron) and the boxes the grow rooms' air is published from
     // (RoomTypeRegistry::room_bounds, shared with world entry and the life-support tests).
     state.gui_state.room_bounds = room_types.room_bounds(&room_info);
@@ -519,8 +519,8 @@ pub(crate) fn open_plots_changed(state: &mut EngineState) {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else {
         return;
     };
-    state.wall_colliders = crate::ship::wall_collision::ship_wall_segments(ship);
-    let placements = crate::ship::door_panels::ship_panel_placements(ship);
+    state.wall_colliders = humanity_ship::wall_collision::ship_wall_segments(ship);
+    let placements = humanity_ship::door_panels::ship_panel_placements(ship);
     let auto = auto_room_lights(Some(ship), state.gui_state.room_bounds.iter().map(|r| ((r.min + r.max) * 0.5, r.max - r.min)));
     state.room_lights = home_lights(Some(ship), auto, state.gui_state.gi_enabled);
     if !swap_door_placements(&mut state.door_panels, placements) {
@@ -534,8 +534,8 @@ pub(crate) fn open_plots_changed(state: &mut EngineState) {
 /// Put `placements` in place of the doors' placements, each door keeping its open fraction, when
 /// the count is the same (true); else change nothing (false). `open_plots_changed`.
 fn swap_door_placements(
-    doors: &mut [(crate::ship::door_panels::PanelPlacement, f32)],
-    placements: Vec<crate::ship::door_panels::PanelPlacement>,
+    doors: &mut [(humanity_ship::door_panels::PanelPlacement, f32)],
+    placements: Vec<humanity_ship::door_panels::PanelPlacement>,
 ) -> bool {
     if placements.len() != doors.len() {
         return false;
@@ -567,7 +567,7 @@ pub(crate) fn machine_mesh(device: &wgpu::Device, shape: &str, size: (f32, f32, 
 /// world load and the editor's rebuild.
 pub(crate) fn machine_body_mesh(
     device: &wgpu::Device,
-    grow_media: &[crate::systems::grow_machines::GrowMedium],
+    grow_media: &[humanity_systems::grow_machines::GrowMedium],
     machine_type: &str,
     shape: &str,
     size: (f32, f32, f32),
@@ -600,14 +600,14 @@ pub(crate) fn machine_body_mesh(
 pub(crate) fn hangar_placement(state: &EngineState) -> Option<(Vec3, f32)> {
     use std::collections::HashMap;
     let home = state.gui_state.home_machines.as_ref()?;
-    let rooms: HashMap<String, crate::machines::RoomGeom> = state
+    let rooms: HashMap<String, humanity_ship::machines::RoomGeom> = state
         .gui_state
         .room_bounds
         .iter()
         .map(|rb| {
             (
                 rb.id.clone(),
-                crate::machines::RoomGeom {
+                humanity_ship::machines::RoomGeom {
                     center_x: (rb.min.x + rb.max.x) * 0.5,
                     center_z: (rb.min.z + rb.max.z) * 0.5,
                     floor_y: rb.min.y,
@@ -634,7 +634,7 @@ pub(crate) fn hangar_placement(state: &EngineState) -> Option<(Vec3, f32)> {
 /// `home_machines`). `None` before the room geometry exists. Used by the
 /// world load to build the in-world screens once the machines are placed,
 /// without duplicating the resolve at that call site.
-pub(crate) fn current_placements(state: &EngineState) -> Option<Vec<crate::machines::PlacedMachine>> {
+pub(crate) fn current_placements(state: &EngineState) -> Option<Vec<humanity_ship::machines::PlacedMachine>> {
     if state.gui_state.room_bounds.is_empty() {
         return None;
     }
@@ -644,17 +644,17 @@ pub(crate) fn current_placements(state: &EngineState) -> Option<Vec<crate::machi
 /// `current_placements` without its wait for the room geometry: what the world load places (a
 /// zone home places every machine in its zone whatever the rooms; a room layout skips a machine
 /// whose room is not there, as `MachineHome::placements` says). None without a machine layout.
-pub(crate) fn placements_now(state: &EngineState) -> Option<Vec<crate::machines::PlacedMachine>> {
+pub(crate) fn placements_now(state: &EngineState) -> Option<Vec<humanity_ship::machines::PlacedMachine>> {
     use std::collections::HashMap;
     let home = state.gui_state.home_machines.as_ref()?;
-    let rooms: HashMap<String, crate::machines::RoomGeom> = state
+    let rooms: HashMap<String, humanity_ship::machines::RoomGeom> = state
         .gui_state
         .room_bounds
         .iter()
         .map(|rb| {
             (
                 rb.id.clone(),
-                crate::machines::RoomGeom {
+                humanity_ship::machines::RoomGeom {
                     center_x: (rb.min.x + rb.max.x) * 0.5,
                     center_z: (rb.min.z + rb.max.z) * 0.5,
                     floor_y: rb.min.y,
@@ -691,25 +691,25 @@ pub(crate) struct GizmoRoom {
 /// keeps under (`gizmo_room`). Increment 7 follow-ups, 2026-10-21: in the double-height greenhouse
 /// there is no slab, so the ceiling is the roof at 6 m, where the service level of its storey
 /// (`service_levels`, one per storey of the whole home) says 2.75.
-pub(crate) fn lowest_ceiling_above(slabs: &[crate::ship::home_structure::FloorSlab], height: f32, origin: Vec3, p: Vec3) -> f32 {
+pub(crate) fn lowest_ceiling_above(slabs: &[humanity_ship::home_structure::FloorSlab], height: f32, origin: Vec3, p: Vec3) -> f32 {
     let (x, y, z) = (p.x - origin.x, p.y - origin.y, p.z - origin.z);
     origin.y
         + slabs
             .iter()
-            .filter(|s| s.contains(x, z) && s.underside() > y + crate::ship::home_structure::STOREY_EPS)
+            .filter(|s| s.contains(x, z) && s.underside() > y + humanity_ship::home_structure::STOREY_EPS)
             .map(|s| s.underside())
             .fold(height, f32::min)
 }
 
 /// The machine's foot: where it stands (a sphere's placement is its centre, a radius over it).
-fn machine_foot(p: &crate::machines::PlacedMachine) -> Vec3 {
+fn machine_foot(p: &humanity_ship::machines::PlacedMachine) -> Vec3 {
     let foot = if p.shape == "sphere" { p.pos.1 - p.size.0 } else { p.pos.1 };
     Vec3::new(p.pos.0, foot, p.pos.2)
 }
 
 /// The `GizmoRoom` of machine `p` aboard `ship`: None when its foot is in no zone (the gizmos
 /// then ring it as they always did).
-pub(crate) fn gizmo_room(ship: Option<&ShipStructure>, p: &crate::machines::PlacedMachine) -> Option<GizmoRoom> {
+pub(crate) fn gizmo_room(ship: Option<&ShipStructure>, p: &humanity_ship::machines::PlacedMachine) -> Option<GizmoRoom> {
     let foot = machine_foot(p);
     let (o, body) = zone_holding(ship?, foot)?;
     let inset = body.shell_resolved_thickness() * 0.5 + GIZMO_WALL_CLEAR_M;
@@ -734,7 +734,7 @@ pub(crate) fn gizmo_room(ship: Option<&ShipStructure>, p: &crate::machines::Plac
 /// mushroom room's fan stood 2.91 m up under 2.75) has its ring under it instead, where it was
 /// drawn on the floor above.
 /// A run ends at its machine's gizmo (`conduit_runs`), so the runs follow.
-pub(crate) fn port_gizmo_pos(p: &crate::machines::PlacedMachine, i: usize, n: usize, room: Option<GizmoRoom>) -> Vec3 {
+pub(crate) fn port_gizmo_pos(p: &humanity_ship::machines::PlacedMachine, i: usize, n: usize, room: Option<GizmoRoom>) -> Vec3 {
     let mut at = if n <= 1 {
         Vec3::new(p.pos.0, p.top_y + GIZMO_RISE_M, p.pos.2)
     } else {
@@ -755,13 +755,13 @@ pub(crate) fn port_gizmo_pos(p: &crate::machines::PlacedMachine, i: usize, n: us
 /// AutoRefine/Container roles), despawns removed ones, and updates the
 /// Transform of survivors so behaviors anchored to the machine's pose
 /// (the assembler's factory pad) follow a move. Idempotent + cheap.
-pub(crate) fn sync_machine_entities(state: &mut EngineState, placements: &[crate::machines::PlacedMachine]) {
+pub(crate) fn sync_machine_entities(state: &mut EngineState, placements: &[humanity_ship::machines::PlacedMachine]) {
     use humanity_core::ecs::components::{MachineInstanceId, Transform};
     let Some(home) = state.gui_state.home_machines.as_ref() else { return };
     let all = home.all_instances();
     let power_islands = home.electrical_islands(&all);
     let water_islands = home.water_islands(&all);
-    let inst_by_id: std::collections::HashMap<&str, &crate::machines::MachineInstance> =
+    let inst_by_id: std::collections::HashMap<&str, &humanity_ship::machines::MachineInstance> =
         all.iter().map(|i| (i.id.as_str(), i)).collect();
     let placed_ids: std::collections::HashSet<&str> =
         placements.iter().map(|p| p.id.as_str()).collect();
@@ -783,7 +783,7 @@ pub(crate) fn sync_machine_entities(state: &mut EngineState, placements: &[crate
     }
     let containers = state
         .data_store
-        .get::<crate::systems::inventory::containers::ContainerRegistry>("container_registry");
+        .get::<humanity_systems::inventory::containers::ContainerRegistry>("container_registry");
     for p in placements {
         let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
         if let Some(&e) = existing.get(&p.id) {
@@ -818,14 +818,14 @@ pub(crate) fn sync_machine_entities(state: &mut EngineState, placements: &[crate
 pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
     use std::collections::HashMap;
     state.home_draw.edits += 1; // the plan tiles look for what moved (engine/map_tiles.rs)
-    let rooms: HashMap<String, crate::machines::RoomGeom> = state
+    let rooms: HashMap<String, humanity_ship::machines::RoomGeom> = state
         .gui_state
         .room_bounds
         .iter()
         .map(|rb| {
             (
                 rb.id.clone(),
-                crate::machines::RoomGeom {
+                humanity_ship::machines::RoomGeom {
                     center_x: (rb.min.x + rb.max.x) * 0.5,
                     center_z: (rb.min.z + rb.max.z) * 0.5,
                     floor_y: rb.min.y,
@@ -943,7 +943,7 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
 /// that frame cost about 100 ms against the 23 of a later edit. Built here by both, the first
 /// rebuild finds the lists in step and takes the move path, and the home looks the same before and
 /// after an edit.
-pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[crate::machines::PlacedMachine]) {
+pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humanity_ship::machines::PlacedMachine]) {
     use std::collections::HashMap;
     // Reuse the machines' mesh/material SLOTS
     // (replace in place) instead of clear()+re-add, so a single add/remove doesn't orphan the
@@ -1092,7 +1092,7 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[crate:
 /// A grow machine is one a grow medium (data/garden/grow_media.ron) matches;
 /// a medium's `plots` divides a bed, tray, rack or field into plots.
 pub(crate) fn publish_grow_plots(state: &mut EngineState) {
-    use crate::systems::farming::lighting::GrowPlot;
+    use humanity_systems::farming::lighting::GrowPlot;
     use std::collections::HashMap;
     let tower_cfgs = crate::gui::load_tower_configs(&humanity_core::storage::data_dir());
     let mut plots: Vec<GrowPlot> = Vec::new();
@@ -1113,7 +1113,7 @@ pub(crate) fn publish_grow_plots(state: &mut EngineState) {
             pos: g.pos.to_array(),
             footprint_m2: footprint,
             cups: tower_cfg.map_or(0, |t| t.slots),
-            outdoors: crate::systems::farming::is_field_area(&g.ty) || crate::systems::farming::is_field_area(&g.id),
+            outdoors: humanity_systems::farming::is_field_area(&g.ty) || humanity_systems::farming::is_field_area(&g.id),
             enclosure: medium.enclosure.clone(),
         });
         if tower_cfg.is_none() {
@@ -1200,10 +1200,10 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
                 &mut state.data_store,
                 &mut state.gui_state.placed_items,
                 &mut state.gui_state.home_stock,
-                crate::systems::farming::clock::LOOK_FRESH_S,
+                humanity_systems::farming::clock::LOOK_FRESH_S,
             );
         } else {
-            let frustum = crate::terrain::planet_chunks::FrustumPlanes::from_view_proj(&state.camera.view_projection_matrix().as_dmat4());
+            let frustum = humanity_terrain::planet_chunks::FrustumPlanes::from_view_proj(&state.camera.view_projection_matrix().as_dmat4());
             let in_sight = areas_in_sight(&state.grow_positions, &frustum);
             crate::engine::stock_piles::settle_farm_areas(
                 &mut state.game_world.world,
@@ -1211,7 +1211,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
                 &mut state.gui_state.placed_items,
                 &mut state.gui_state.home_stock,
                 &in_sight,
-                crate::systems::farming::clock::LOOK_FRESH_S,
+                humanity_systems::farming::clock::LOOK_FRESH_S,
             );
         }
     }
@@ -1305,7 +1305,7 @@ const SIGHT_MARGIN_M: f32 = 3.0;
 /// counts as in sight). By the machine's instance id, which its crops carry, and, for the first
 /// placed column of each tower design, the design's id too: crops planted by the design (the
 /// Garden page's Plant button) dress that column (`plan_plant_groups`).
-pub(crate) fn areas_in_sight(spots: &[GrowSpot], frustum: &crate::terrain::planet_chunks::FrustumPlanes) -> Vec<String> {
+pub(crate) fn areas_in_sight(spots: &[GrowSpot], frustum: &humanity_terrain::planet_chunks::FrustumPlanes) -> Vec<String> {
     let mut out = Vec::new();
     let mut seen_type: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for g in spots {
@@ -1336,7 +1336,7 @@ pub(crate) fn areas_in_sight(spots: &[GrowSpot], frustum: &crate::terrain::plane
 fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool) {
     use crate::engine::plant_layout::plot_rects;
     use crate::engine::plant_pass::{CropDraw, GroupJob, GroupLayout, Helix, Job, WorkerMsg};
-    use crate::systems::farming::units;
+    use humanity_systems::farming::units;
     use std::collections::{HashMap, HashSet};
     use std::hash::{Hash, Hasher};
 
@@ -1347,7 +1347,7 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
     let (stage_map, plot_plant_count) = {
         let plant_reg = state
             .data_store
-            .get::<crate::systems::farming::PlantRegistry>("plant_registry");
+            .get::<humanity_systems::farming::PlantRegistry>("plant_registry");
         let plot_areas = state.data_store.get::<HashMap<String, f32>>(units::PLOT_AREA_KEY);
         let mut stages: HashMap<String, Vec<String>> = HashMap::new();
         let mut counts: HashMap<(String, String), u32> = HashMap::new();
@@ -1420,7 +1420,7 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
             0.0,
             0.9,
             20.0,
-            crate::terrain::plant_mesh::PLANT_RIGID_FLAG,
+            humanity_terrain::plant_mesh::PLANT_RIGID_FLAG,
         ));
     }
     // Everything the worker has already sent is in hand before deciding
@@ -1733,7 +1733,7 @@ fn upload_plant_group(
     let Some(plant_material) = pass.material else { return 0 };
     // Each finished mesh with its material: the shared procedural plant
     // material, or a stage model's textured one.
-    let mut built: Vec<(&crate::terrain::plant_mesh::PlantMeshBuilder, usize)> = Vec::new();
+    let mut built: Vec<(&humanity_terrain::plant_mesh::PlantMeshBuilder, usize)> = Vec::new();
     if !g.procedural.vertices.is_empty() {
         built.push((&g.procedural, plant_material));
     }
@@ -1877,7 +1877,7 @@ pub(crate) struct PlantPass {
 /// tower configs, parsed, with the stamps of the files they came from.
 struct PlanInputs {
     stamps: [FileStamp; 2],
-    visuals: std::sync::Arc<crate::terrain::plant_mesh::PlantVisualRegistry>,
+    visuals: std::sync::Arc<humanity_terrain::plant_mesh::PlantVisualRegistry>,
     /// Hash of the recipes' text: part of every machine's signature, so an
     /// edit to the file replants the whole garden.
     vis_hash: u64,
@@ -1897,7 +1897,7 @@ fn file_stamp(path: &std::path::Path) -> FileStamp {
 fn read_plan_inputs(dir: &std::path::Path, stamps: [FileStamp; 2]) -> PlanInputs {
     use std::hash::{Hash, Hasher};
     let vis_text = std::fs::read_to_string(dir.join("plants_visual.ron")).unwrap_or_default();
-    let visuals = crate::terrain::plant_mesh::PlantVisualRegistry::from_ron(&vis_text).unwrap_or_default();
+    let visuals = humanity_terrain::plant_mesh::PlantVisualRegistry::from_ron(&vis_text).unwrap_or_default();
     let mut vh = std::collections::hash_map::DefaultHasher::new();
     vis_text.hash(&mut vh);
     PlanInputs {
@@ -2309,7 +2309,7 @@ pub(crate) fn push_grow_enclosures(state: &mut EngineState, transparent: &mut Ve
 /// the ceiling its pipes hang from: the underside of the floor slabs over it, or the roof for the
 /// top storey). Ship homes increment 7: pipes run under their own storey's ceiling, never through
 /// the floor above. A body with no slab has the one level it always had, floor to roof.
-pub(crate) fn service_levels(body: &crate::ship::home_structure::HomeStructure, origin: Vec3) -> Vec<(f32, f32)> {
+pub(crate) fn service_levels(body: &humanity_ship::home_structure::HomeStructure, origin: Vec3) -> Vec<(f32, f32)> {
     let storeys = body.storeys();
     storeys
         .iter()
@@ -2333,7 +2333,7 @@ pub(crate) fn service_levels(body: &crate::ship::home_structure::HomeStructure, 
 /// like the bedroom that have nothing to do with it. The service height is 0.3 m under the
 /// ceiling, never under 0.6 m over the floor.
 pub(crate) fn run_level(levels: &[(f32, f32)], foot_a: f32, foot_b: f32) -> (f32, f32) {
-    let on = |y: f32| levels.iter().rposition(|(floor, _)| *floor <= y + crate::ship::home_structure::STOREY_EPS).unwrap_or(0);
+    let on = |y: f32| levels.iter().rposition(|(floor, _)| *floor <= y + humanity_ship::home_structure::STOREY_EPS).unwrap_or(0);
     let (floor, ceiling) = levels.get(on(foot_a).min(on(foot_b))).copied().unwrap_or((0.0, 3.0));
     ((ceiling - 0.3).max(floor + 0.6), ceiling)
 }
@@ -2360,8 +2360,8 @@ pub(crate) struct ConduitRun {
 /// floor of the storey it stands on; a node (it carries no zone) is clamped into the ship's box.
 pub(crate) fn conduit_runs(
     ship: Option<&ShipStructure>,
-    home: &crate::machines::MachineHome,
-    placements: &[crate::machines::PlacedMachine],
+    home: &humanity_ship::machines::MachineHome,
+    placements: &[humanity_ship::machines::PlacedMachine],
     port_pick: &[(String, usize, humanity_core::utilities::Port, Vec3)],
 ) -> Vec<ConduitRun> {
     use std::collections::HashMap;
@@ -2400,9 +2400,9 @@ pub(crate) fn conduit_runs(
         .collect();
     let placement_tuples: Vec<(String, (f32, f32, f32), f32)> =
         placements.iter().map(|p| (p.id.clone(), p.pos, storey_floor[p.id.as_str()])).collect();
-    let end_id = |e: &crate::machines::ConduitEnd| match e {
-        crate::machines::ConduitEnd::Machine(id) => id.clone(),
-        crate::machines::ConduitEnd::Node(id) => format!("node:{id}"),
+    let end_id = |e: &humanity_ship::machines::ConduitEnd| match e {
+        humanity_ship::machines::ConduitEnd::Machine(id) => id.clone(),
+        humanity_ship::machines::ConduitEnd::Node(id) => format!("node:{id}"),
     };
     for e in &home.conduit_edges {
         if let (Some(a), Some(b)) =
@@ -2427,9 +2427,9 @@ pub(crate) struct RunSite {
     origin: Vec3,
     /// The home zone's box: (width, height, depth), metres.
     size: (f32, f32, f32),
-    slabs: Vec<crate::ship::home_structure::FloorSlab>,
+    slabs: Vec<humanity_ship::home_structure::FloorSlab>,
     shell_mat: u32,
-    walls: Vec<crate::ship::home_structure::InteriorWall>,
+    walls: Vec<humanity_ship::home_structure::InteriorWall>,
 }
 
 impl RunSite {
@@ -2473,7 +2473,7 @@ pub(crate) fn run_site(ship: Option<&ShipStructure>) -> RunSite {
         };
     };
     let home = &ship.zones[ship.home_zone_index()];
-    let mut walls: Vec<crate::ship::home_structure::InteriorWall> = Vec::new();
+    let mut walls: Vec<humanity_ship::home_structure::InteriorWall> = Vec::new();
     for z in &ship.zones {
         let (ox, oy, oz) = z.origin;
         walls.extend(z.body.walls.iter().cloned().map(|mut w| {
@@ -2515,8 +2515,8 @@ const END_UNDER_CEILING_M: f32 = 0.05;
 ///   service level: in the double-height greenhouse, open to its 6 m roof, the runs to the air
 ///   handlers g1 and g2 (hung 2.7 m up) ended at the level's 2.70 m, at the bottom of the unit,
 ///   short of its port; they rise to the port now, by a riser from the service height.
-pub(crate) fn route_run(site: &RunSite, run: &ConduitRun) -> (crate::ship::conduits::ConduitRoute, f32, f32) {
-    use crate::ship::conduits::{add_slab_passthroughs, route_conduit, ConduitKind};
+pub(crate) fn route_run(site: &RunSite, run: &ConduitRun) -> (humanity_ship::conduits::ConduitRoute, f32, f32) {
+    use humanity_ship::conduits::{add_slab_passthroughs, route_conduit, ConduitKind};
     let kind = ConduitKind::for_resource(&run.kind);
     let (service_y, ceiling) = run_level(&site.levels, run.foot_a, run.foot_b);
     // Each end, kept under the ceiling over it from its floor.
@@ -2596,8 +2596,8 @@ pub(crate) fn parts_under_cut(points: &[Vec3], cut: impl Into<crate::engine::edi
 /// the viewport's drag-to-connect and the runs' ends (`conduit_runs`). Keyed by id (placements
 /// may skip a machine whose catalog entry is missing), the type looked up by id.
 pub(crate) fn port_picks(
-    home: &crate::machines::MachineHome,
-    placements: &[crate::machines::PlacedMachine],
+    home: &humanity_ship::machines::MachineHome,
+    placements: &[humanity_ship::machines::PlacedMachine],
     ship: Option<&ShipStructure>,
 ) -> Vec<(String, usize, humanity_core::utilities::Port, Vec3)> {
     let type_by_id: std::collections::HashMap<String, String> = home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect();
@@ -2617,14 +2617,14 @@ pub(crate) fn port_picks(
 
 /// The zone of `ship` whose box holds `p` (world metres): its origin and its body. A home put away
 /// holds nothing aboard.
-fn zone_holding(ship: &ShipStructure, p: Vec3) -> Option<(Vec3, &crate::ship::home_structure::HomeStructure)> {
+fn zone_holding(ship: &ShipStructure, p: Vec3) -> Option<(Vec3, &humanity_ship::home_structure::HomeStructure)> {
     ship.zones.iter().enumerate().filter(|(zi, _)| !ship.is_away_home(*zi)).find_map(|(_, z)| {
         let (o, b) = (z.origin_vec(), &z.body);
         let inside = p.x >= o.x
             && p.x <= o.x + b.width
             && p.z >= o.z
             && p.z <= o.z + b.depth
-            && p.y >= o.y - crate::ship::home_structure::STOREY_EPS
+            && p.y >= o.y - humanity_ship::home_structure::STOREY_EPS
             && p.y <= o.y + b.height.max(1.0);
         inside.then_some((o, b))
     })
@@ -2638,7 +2638,7 @@ pub(crate) fn storey_floor_at(ship: Option<&ShipStructure>, p: Vec3, fallback: f
         return fallback;
     };
     let storeys = body.storeys();
-    o.y + storeys[crate::ship::home_structure::storey_index(&storeys, p.y - o.y)].floor
+    o.y + storeys[humanity_ship::home_structure::storey_index(&storeys, p.y - o.y)].floor
 }
 
 /// The ceiling over a room centred at `center` whose box tops out at `top` (world metres, ship homes
@@ -2651,7 +2651,7 @@ pub(crate) fn ceiling_over(ship: &ShipStructure, center: Vec3, top: f32) -> f32 
     };
     body.floors
         .iter()
-        .filter(|s| (o.y + s.top - top).abs() < crate::ship::home_structure::STOREY_EPS && s.contains(center.x - o.x, center.z - o.z))
+        .filter(|s| (o.y + s.top - top).abs() < humanity_ship::home_structure::STOREY_EPS && s.contains(center.x - o.x, center.z - o.z))
         .map(|s| o.y + s.underside())
         .fold(top, f32::min)
 }
@@ -2673,14 +2673,14 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     // pipes is not rebuilt every frame by `pipe_markers::rebuild_if_mode_changed`.
     let marking_mode = crate::engine::pipe_markers::wanted_mode(state);
     state.pipe_markers.built_mode = Some(marking_mode);
-    let rooms: HashMap<String, crate::machines::RoomGeom> = state
+    let rooms: HashMap<String, humanity_ship::machines::RoomGeom> = state
         .gui_state
         .room_bounds
         .iter()
         .map(|rb| {
             (
                 rb.id.clone(),
-                crate::machines::RoomGeom {
+                humanity_ship::machines::RoomGeom {
                     center_x: (rb.min.x + rb.max.x) * 0.5,
                     center_z: (rb.min.z + rb.max.z) * 0.5,
                     floor_y: rb.min.y,
@@ -2765,7 +2765,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     let mut bands = crate::engine::pipe_markers::BandBatch::default();
     for (run, content) in runs.iter().zip(&contents) {
         let (from_id, to_id, kind_str) = (&run.from, &run.to, &run.kind);
-        let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
+        let kind = humanity_ship::conduits::ConduitKind::for_resource(kind_str);
         let (route, service_y, ceiling) = route_run(&site, run);
         let parts = parts_under_cut(&route.points, cut.clone());
         // Stash the routed path + the from/to ids, so the SELECTED machine's connections animate
@@ -2783,7 +2783,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
         // material (findings F28); what the run carries is said by its marker bands below. Until
         // then (v0.623) the whole run was painted, faintly glowing, in its utility colour.
         // `body_look` is the one place that choice is made, so its test checks what is drawn.
-        let body = crate::ship::pipe_materials::pipe_materials().body_look(kind_str);
+        let body = humanity_ship::pipe_materials::pipe_materials().body_look(kind_str);
         let pipe_mat = match state.connection_mats.get(&body.key) {
             Some(&m) => m,
             None => {
@@ -2835,7 +2835,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
                 }
             };
             match f.kind {
-                crate::ship::conduits::FittingKind::Bracket => {
+                humanity_ship::conduits::FittingKind::Bracket => {
                     // Ceiling hanger (a thin post up to the ceiling) for the horizontal service
                     // runs, which hang at the service height; the vertical drops and risers are
                     // held at their ends, so skip them (a riser to a machine upstairs climbs past
@@ -2852,7 +2852,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
                         ));
                     }
                 }
-                crate::ship::conduits::FittingKind::Passthrough => {
+                humanity_ship::conduits::FittingKind::Passthrough => {
                     // A short gasket collar straddling the wall at the crossing.
                     state.connection_objects.push((
                         cyl,
@@ -2862,7 +2862,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
                         Vec3::new(2.4, 0.24, 2.4),
                     ));
                 }
-                crate::ship::conduits::FittingKind::Elbow => {}
+                humanity_ship::conduits::FittingKind::Elbow => {}
             }
         }
     }
@@ -2879,7 +2879,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
 pub(crate) fn rebuild_door_panels(state: &mut EngineState) {
     // v0.754: every zone's doors, at world positions (per-zone origin offsets).
     let placements = match &state.gui_state.ship_structure {
-        Some(ship) => crate::ship::door_panels::ship_panel_placements(ship),
+        Some(ship) => humanity_ship::door_panels::ship_panel_placements(ship),
         None => Vec::new(),
     };
     if placements.len() == state.door_panels.len() {
@@ -2929,14 +2929,14 @@ fn note_landing_doors(state: &mut EngineState) {
 /// (`door_anim::auto_open_target`). A door at no landing (`landing` None) or at one with the car
 /// there opens as it always has.
 pub(crate) fn door_target(
-    p: &crate::ship::door_panels::PanelPlacement,
+    p: &humanity_ship::door_panels::PanelPlacement,
     open: f32,
     locked_now: bool,
     manual_open: bool,
     landing: Option<bool>,
     dist: f32,
 ) -> f32 {
-    let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
+    let operable = !p.is_window && humanity_systems::door_anim::is_operable(&p.style);
     if !operable || locked_now || landing == Some(false) {
         0.0
     } else if !p.auto_open {
@@ -2944,7 +2944,7 @@ pub(crate) fn door_target(
         if manual_open { 1.0 } else { 0.0 }
     } else {
         // Proximity + hysteresis (v0.540, pure + tested in door_anim since v0.795).
-        crate::systems::door_anim::auto_open_target(dist, p.open_dist, open)
+        humanity_systems::door_anim::auto_open_target(dist, p.open_dist, open)
     }
 }
 
@@ -2969,7 +2969,7 @@ pub(crate) fn elevator_car_poses(
     cut: impl Into<crate::engine::editor::Cuts>,
 ) -> Vec<(Vec3, Quat, Vec3)> {
     let cut = cut.into();
-    crate::ship::lifts::lifts(ship)
+    humanity_ship::lifts::lifts(ship)
         .into_iter()
         .filter_map(|lift| {
             let top = lift.base.y + cars.get(&lift.key).map_or(0.0, |e| e.0);
@@ -3019,8 +3019,8 @@ pub(crate) fn push_home_machines(state: &EngineState, out: &mut Vec<RenderObject
 /// locks is locked iff any live lock is not open; an empty lock list falls back to the legacy
 /// `panel.locked` bool, so v0.567 doors are unchanged. `live` is `door_locks[i]`.
 pub(crate) fn door_locked_now(
-    panel: &crate::ship::door_panels::PanelPlacement,
-    live: Option<&Vec<crate::ship::lock_types::LockState>>,
+    panel: &humanity_ship::door_panels::PanelPlacement,
+    live: Option<&Vec<humanity_ship::lock_types::LockState>>,
 ) -> bool {
     if panel.locks.is_empty() {
         return panel.locked;
@@ -3084,7 +3084,7 @@ pub(crate) fn open_plot_lights(ship: &ShipStructure) -> Vec<crate::renderer::lig
     let Some(lit) = ship.open.lit.as_deref().filter(|p| ship.open.plots.contains(*p)) else {
         return Vec::new();
     };
-    let view = crate::ship::neighbours::neighbour_view(ship);
+    let view = humanity_ship::neighbours::neighbour_view(ship);
     match view.design_lights_of(lit) {
         Some((lights, origin)) => placed_room_lights(lights, origin),
         None => Vec::new(),
@@ -3095,7 +3095,7 @@ pub(crate) fn open_plot_lights(ship: &ShipStructure) -> Vec<crate::renderer::lig
 /// draws, offset by `o`, the body's origin: a point, a spot, or a strip's line segments, each
 /// resolved through light_types.ron with its per-instance overrides. A light of an unknown type
 /// is left out. `home_lights` for each zone, `open_plot_lights` for an open plot's design.
-fn placed_room_lights(lights: &[crate::ship::home_structure::PlacedLight], o: Vec3) -> Vec<crate::renderer::light::RoomLight> {
+fn placed_room_lights(lights: &[humanity_ship::home_structure::PlacedLight], o: Vec3) -> Vec<crate::renderer::light::RoomLight> {
     use crate::renderer::light::{LightKind, RoomLight};
     lights.iter().filter(|l| l.on).filter_map(move |l| {
         let t = crate::renderer::light::light_type(&l.type_id)?;
@@ -3296,7 +3296,7 @@ pub(crate) fn render_door_panels(
         // An operable DOOR opens on approach; a window or a "fixed"-styled opening stays shut
         // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
         // chase an open target it can never animate to).
-        let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
+        let operable = !p.is_window && humanity_systems::door_anim::is_operable(&p.style);
         // Is the door LOCKED right now (v0.570)? Live lock states if present, else the legacy bool.
         let locked_now = door_locked_now(p, locks_live.get(di));
         let drawn = !cut.hides(p.center);
@@ -3332,9 +3332,9 @@ pub(crate) fn render_door_panels(
             for (li, lock) in p.locks.iter().enumerate() {
                 let st = locks_live.get(di).and_then(|v| v.get(li)).copied().unwrap_or(lock.state);
                 let lm = match st {
-                    crate::ship::lock_types::LockState::Locked => energy_locked_mat,
-                    crate::ship::lock_types::LockState::Unlocked => energy_open_mat,
-                    crate::ship::lock_types::LockState::Broken => slab_mat,
+                    humanity_ship::lock_types::LockState::Locked => energy_locked_mat,
+                    humanity_ship::lock_types::LockState::Unlocked => energy_open_mat,
+                    humanity_ship::lock_types::LockState::Broken => slab_mat,
                 };
                 transparent.push(RenderObject { fade: 0.0,
                     position: Vec3::new(lock.pos.x, lock.pos.y - 0.05, lock.pos.z),
@@ -3347,7 +3347,7 @@ pub(crate) fn render_door_panels(
         }
         // Nearest actor's HORIZONTAL distance -- eye/body height must not count, or a tall
         // camera would never trigger a short door.
-        let dist = crate::ship::door_panels::door_actor_distance(p, camera_actor, &others, &animals);
+        let dist = humanity_ship::door_panels::door_actor_distance(p, camera_actor, &others, &animals);
         let landing = match ship {
             Some(ship) if landing_doors.get(di).copied().unwrap_or(false) => {
                 crate::engine::footing::lift_landing_open(ship, cars, p.center)
@@ -3358,7 +3358,7 @@ pub(crate) fn render_door_panels(
         // Frame-rate-independent exponential ease toward the target: smooth open/close, ~0.4 s
         // to settle, no snapping (v0.540, pure + tested in door_anim since v0.795).
         let open_before = *open;
-        *open = crate::systems::door_anim::ease_open(*open, target, dt);
+        *open = humanity_systems::door_anim::ease_open(*open, target, dt);
         // Door SFX (v0.983): fire on the swing's START edges - rising off
         // fully-closed plays the open sound, dropping off fully-open plays
         // the close. Mid-swing reversals stay quiet (no re-trigger spam when
@@ -3375,7 +3375,7 @@ pub(crate) fn render_door_panels(
                 sfx.push(("sfx.door_close", "audio/sfx/door_close.ogg"));
             }
         }
-        let m = crate::systems::door_anim::panel_motion(&p.style, *open, p.size.x, p.size.y);
+        let m = humanity_systems::door_anim::panel_motion(&p.style, *open, p.size.x, p.size.y);
         if m.hidden || !drawn {
             continue;
         }

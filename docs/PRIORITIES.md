@@ -337,7 +337,7 @@ Maps increment 2 (v0.1539.0), the sky bodies list (v0.1540.0), recovery through 
 
 **Also queued (operator's question, 2026-10-21: "Do rooms not automatically calculate their
 volumes on the fly?").** They do (the flood fill, live), but the static power meters charge a
-controller-driven machine its hand-measured `average_watts` (src/machines.rs `average_load_watts`),
+controller-driven machine its hand-measured `average_watts` (crates/humanity-ship/src/machines.rs `average_load_watts`),
 re-measured by a person whenever a room changes; a player's own rooms will never have one. Make the
 meters read the simulation's actual duty over the last game day (the data figure only as a
 first-day estimate), and stop hand-quoting room volumes in data comments and Library guides
@@ -878,7 +878,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   survey regions without
   terrain tiles the ground draws at 54 m triangles while buildings stand on the finest
   ground (BUG-156's note); far trees should re-ground on the patch drawn under them;
-  src/systems/fire.rs takes fire damage per frame in f32 (BUG-164's note; DONE 2026-10-20,
+  crates/humanity-systems/src/fire.rs takes fire damage per frame in f32 (BUG-164's note; DONE 2026-10-20,
   acd8a17e2: a fire's tick is its exact dose, the same at 30 and 240 frames a second); every
   drink gives 30 points whatever its volume (DONE 2026-10-20, 0800f1a5b: a drink puts back
   the water it carries, from its litres in item_profiles.ron); (Bleeding, bites and burns are wounds since S8,
@@ -939,7 +939,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   2.6 L an hour, built at a workbench and placed from the Power tab, its drum taking only
   Diesel; no design doc named another consumer, and a diesel tractor or boat waits on vehicles
   burning fuel at all); food still gives a flat 10 Hydration for produce and 3 for the
-  rest, and its satiation is per item whatever the item weighs (src/systems/food.rs
+  rest, and its satiation is per item whatever the item weighs (crates/humanity-systems/src/food.rs
   `consume`), the same defect the drinks had (DONE 2026-10-20, commit "Food feeds and waters
   by what it weighs": each food's grams eaten in item_profiles.ron `portions`, its items.csv
   weight less USDA SR28's refuse; each profile's USDA water_g; Satiation at a day's 2,000 kcal
@@ -1107,7 +1107,7 @@ materials (v0.1455.0), and a hand craft draws on the home's storage
 class (everything is built at `workbench_0`), and the `assemble_*` kit
 recipes given real bills of materials too. BUG-146 (a better craft grade
 looped at the vendor) is fixed, merging in v0.1463.0: a grade's price is
-capped by what its parts cost at the post (`src/systems/economy/parts.rs`);
+capped by what its parts cost at the post (`crates/humanity-systems/src/economy/parts.rs`);
 a price that falls with the post's stock was not enough on its own, since
 the first sales still paid in full, but could sit on top later. Smaller:
 `craft_optical_fiber` makes copper wire (no optical fibre item), sterile
@@ -1516,7 +1516,7 @@ them up.
    not sit inside each other, and checking our own middle bands against the
    printed ISO 14726 Table 3. The data row `pex_half` in
    `data/utilities/conduits.ron` is a potable PEX line recorded as copper, which
-   contradicts the copper-only-for-drinking-water rule in `src/ship/conduits.rs`
+   contradicts the copper-only-for-drinking-water rule in `crates/humanity-ship/src/conduits.rs`
    (2026-06-25); it goes with the plastics increment.) A third, lower: does multiplayer enforce
    anything, or is it co-operative trust until launch. NOTE that the report's
    question 2 ("do the 3D models ship with the release") is ANSWERED: they do,

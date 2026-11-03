@@ -1,6 +1,6 @@
 // THE SHIPPED DEFAULT of the homestead (ship homes increment 2 review, finding 5). Compiled
 // into the exe (crates/humanity-core/src/embedded_data.rs `shipped_home_design`) and never written by the game: a
-// neighbour's plot is drawn as it (src/ship/neighbours.rs), and a game with no
+// neighbour's plot is drawn as it (crates/humanity-ship/src/neighbours.rs), and a game with no
 // data/homes/homestead.ron of its own starts its home from it. YOUR home is
 // data/homes/homestead.ron, which every editor Save rewrites; it starts as a copy of this file
 // WITHOUT this paragraph (crates/humanity-core/src/embedded_data.rs `own_home_text` drops everything from the first

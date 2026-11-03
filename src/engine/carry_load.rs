@@ -23,8 +23,8 @@
 use humanity_core::ecs::components::Controllable;
 use crate::engine::state::EngineState;
 use crate::renderer::camera::CameraController;
-use crate::systems::encumbrance::{self as enc, CarryInput, CarryMode, CarryState};
-use crate::systems::inventory::Inventory;
+use humanity_systems::encumbrance::{self as enc, CarryInput, CarryMode, CarryState};
+use humanity_systems::inventory::Inventory;
 
 /// The gravity the player's walk is applying, m/s^2: the planet surface's at
 /// the player's altitude while a surface is engaged (lib.rs captures it as

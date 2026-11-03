@@ -1,5 +1,5 @@
 // Pollination decides how much fruit and seed a crop sets (2026-09-26,
-// gardening depth). Read by src/systems/farming/pollination.rs, which carries
+// gardening depth). Read by crates/humanity-systems/src/farming/pollination.rs, which carries
 // the model; this file carries the crops, the numbers and where each came
 // from. Every source below was read on 2026-09-26.
 //

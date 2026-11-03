@@ -285,6 +285,14 @@ test("the workspace's members, each package's test program, and one summary line
     ],
   };
   assert.deepStrictEqual(P.membersOf(meta), ["humanity-engine", "humanity-core"], "a member with no library has no lib tests");
+  const withPaths = {
+    ...meta,
+    packages: meta.packages.map((p) => ({ ...p, manifest_path: `/r${p.name === "humanity-engine" ? "" : p.name === "tool" ? "/tools" : "/crates/humanity-core"}/Cargo.toml` })),
+  };
+  const dirs = P.memberDirs(withPaths);
+  assert.deepStrictEqual([...dirs.keys()], ["humanity-engine", "humanity-core"], "each member with a library has a folder, and only those");
+  assert.strictEqual(dirs.get("humanity-engine").replace(/\\/g, "/"), "/r", "the root package runs from the repo root");
+  assert.strictEqual(dirs.get("humanity-core").replace(/\\/g, "/"), "/r/crates/humanity-core", "a crate's program runs from its own folder, as cargo test runs it");
   assert.strictEqual(P.packageName("path+file:///C:/x/crates/humanity-core#0.1547.0"), "humanity-core");
   assert.strictEqual(P.packageName("path+file:///C:/x#humanity-engine@0.1547.0"), "humanity-engine");
   assert.strictEqual(P.packageName("humanity-protocol 0.1547.0 (path+file:///C:/x/crates/humanity-protocol)"), "humanity-protocol");

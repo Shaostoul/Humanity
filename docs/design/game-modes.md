@@ -172,7 +172,7 @@ problem (do not force everyone through electrical engineering; do not shallow th
 sim for everyone). `grep -i engagementmode src/` returns nothing. It is entirely
 unbuilt, and it is the most load-bearing unbuilt design in the repo.
 *Since ship homes increment 6 (2026-10-12) one piece exists as data: each start's
-default per domain (data/homes/starts.ron `engagement`; src/ship/starts.rs `Engagement`,
+default per domain (data/homes/starts.ron `engagement`; crates/humanity-ship/src/starts.rs `Engagement`,
 `EngagementDefaults`), the Cabin's all Background and the Homestead's all Direct. It is
 shown in words on each "Choose where you live" row ("Food: free crew meals in the mess
 hall."), and nothing simulates by it yet.*

@@ -29,7 +29,7 @@ const sp = require("../second-player.js");
 const { bankedAllowanceM } = require("../lib/copresence-judge.js");
 const fs = require("fs");
 const path = require("path");
-// The relay's own rules for moving aboard (data/ship/shared_world.ron, src/ship/moves.rs).
+// The relay's own rules for moving aboard (data/ship/shared_world.ron, crates/humanity-ship/src/moves.rs).
 const RULES = fs.readFileSync(path.join(__dirname, "..", "..", "data", "ship", "shared_world.ron"), "utf8");
 const ON_FOOT_MPS = Number(RULES.match(/on_foot_mps:\s*([0-9.]+)/)[1]);
 
@@ -470,11 +470,11 @@ test("--forwarded-for takes an address and only an address", () => {
 // ── Building in the shared world (ship homes increment 5, 2026-10-05) ──────────────────────────
 // verify-copresence --build has scripted players build and take down pieces through the relay, so
 // the walker sends `game_build` / `game_unbuild` exactly as the contract has them
-// (src/systems/construction/shared.rs `ToRelay`), with a pose the relay's own checks pass: on the
+// (crates/humanity-systems/src/construction/shared.rs `ToRelay`), with a pose the relay's own checks pass: on the
 // metre grid, a whole quarter turn as the game's placement makes it, and the blueprint's own size.
 
 const REPO = path.join(__dirname, "..", "..");
-const SHARED_RS = fs.readFileSync(path.join(REPO, "src", "systems", "construction", "shared.rs"), "utf8");
+const SHARED_RS = fs.readFileSync(path.join(REPO, "crates", "humanity-systems", "src", "construction", "shared.rs"), "utf8");
 // The household permit's wire shape lives in the core since the crate split's rung 0 (2026-10-31).
 const PERMIT_RS = fs.readFileSync(path.join(REPO, "crates", "humanity-core", "src", "build_permission.rs"), "utf8");
 /** The field names of one variant of the wire enums in shared.rs, by its serde type string. */
@@ -549,12 +549,12 @@ test("build and unbuild commands parse", () => {
   assert.deepEqual(un, { type: "game_unbuild", req_id: 10, piece_id: 12 });
 });
 
-// THE TURN IS THE GAME'S OWN (src/systems/construction/placement.rs `quarter_turn`): the relay
+// THE TURN IS THE GAME'S OWN (crates/humanity-systems/src/construction/placement.rs `quarter_turn`): the relay
 // refuses a turn more than half a degree off a whole quarter, and keeps the one the placement
 // makes, so a scripted build turned the other way round would come back as a different turn.
 // Red first, 2026-10-05, before the function existed: "TypeError: sp.quarterTurn is not a function".
 test("quarter turns match placement::quarter_turn", () => {
-  const src = fs.readFileSync(path.join(REPO, "src", "systems", "construction", "placement.rs"), "utf8");
+  const src = fs.readFileSync(path.join(REPO, "crates", "humanity-systems", "src", "construction", "placement.rs"), "utf8");
   assert.match(
     src,
     /pub fn quarter_turn\(quarter_turns: u8\) -> Quat \{\s*Quat::from_rotation_y\(f32::from\(quarter_turns % 4\) \* std::f32::consts::FRAC_PI_2\)\s*\}/,
@@ -1292,12 +1292,12 @@ test("the walker's public key line is read whole, and never from the shortened o
 // ── Where it lives, and a meal (ship homes increment 6, 2026-10-12) ─────────────────────────────
 // verify-copresence --starts has a walker join as a Cabin, ask where it lives, and eat at the mess
 // hall (docs/design/ship-homes-increment-6-plan.md section 6, steps 3 and 7). Its messages are the
-// contract's: the game_home wire of src/ship/starts.rs, and the relay's take_meal
+// contract's: the game_home wire of crates/humanity-ship/src/starts.rs, and the relay's take_meal
 // (src/relay/handlers/ship_stores.rs, fleet_ledger.rs).
 
-const STARTS_RS = fs.readFileSync(path.join(REPO, "src", "ship", "starts.rs"), "utf8");
+const STARTS_RS = fs.readFileSync(path.join(REPO, "crates", "humanity-ship", "src", "starts.rs"), "utf8");
 const SHIP_STORES_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "ship_stores.rs"), "utf8");
-const MOVES_RS = fs.readFileSync(path.join(REPO, "src", "ship", "moves.rs"), "utf8");
+const MOVES_RS = fs.readFileSync(path.join(REPO, "crates", "humanity-ship", "src", "moves.rs"), "utf8");
 // The standing eye height is the body's, in the core, since the crate split's rung 0 (2026-10-31).
 const COMPONENTS_RS = fs.readFileSync(path.join(REPO, "crates", "humanity-core", "src", "ecs", "components.rs"), "utf8");
 const FLEET_LEDGER_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "fleet_ledger.rs"), "utf8");
@@ -1397,7 +1397,7 @@ test("a game_home answer is logged in the lines a rig reads", () => {
 // nearestStore taking the first store in reach (`if (d <= reach && !best)`). FAILED at "the nearer
 // of the two": actual [11, 4], expected [12, 3].
 test("take-meal goes to the nearest food store in reach, and its answer is logged", () => {
-  // The relay's reach rule (src/ship/moves.rs `in_reach`, ship homes increment 7): its numbers.
+  // The relay's reach rule (crates/humanity-ship/src/moves.rs `in_reach`, ship homes increment 7): its numbers.
   for (const [name, file, re] of [
     ["INTERACT_REACH_M", MOVES_RS, /pub const INTERACT_REACH_M: f32 = ([0-9.]+);/],
     ["STOREY_M", MOVES_RS, /pub const STOREY_M: f32 = ([0-9.]+);/],

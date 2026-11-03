@@ -41,7 +41,7 @@
         // walks to (wolf_ridge in destinations.ron), inside First Street (x
         // 65-75). Each sits wholly inside its room or zone, scatter radius and
         // all (quest_ore_comes_from_nodes_a_player_can_walk_to in
-        // src/systems/quests/mod.rs). Three outcrops at 2 samples each cover
+        // crates/humanity-systems/src/quests/mod.rs). Three outcrops at 2 samples each cover
         // the 5 in one visit, three veins at 1 each the 3. Appended last on
         // purpose: a row's index turns its scatter (engine/world_load.rs), so
         // a row inserted above would move every row below it.

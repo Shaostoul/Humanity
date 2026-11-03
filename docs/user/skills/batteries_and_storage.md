@@ -552,7 +552,7 @@ The homes in this project run on real battery banks, and since 27 September
   `home_solo.ron`): the family home has eight of them (32 kWh), the one-person
   home two (8 kWh). Capacity and power are separate numbers in the game, as they
   are in a real battery.
-- **The night.** Every tick, `src/systems/electrical.rs` works out each wired
+- **The night.** Every tick, `crates/humanity-systems/src/electrical.rs` works out each wired
   circuit on its own: its supply is what its generators make plus what each of
   its banks can give, up to that bank's discharge limit and the energy it
   holds. Loads are fed most important first, and what the supply cannot carry
@@ -723,11 +723,11 @@ taken from them is restated here in our own words.
 
 ### Inside this project
 
-- `src/systems/electrical.rs`: the power balance, load shedding, the
+- `crates/humanity-systems/src/electrical.rs`: the power balance, load shedding, the
   batteries carrying the night, and the backstop generator.
 - `crates/humanity-core/src/ecs/components.rs` (`Battery`), and the battery banks in
   `data/machines/home.ron` and `data/machines/home_solo.ron`.
-- `src/machines.rs`: the Buildability night check and the power meter;
+- `crates/humanity-ship/src/machines.rs`: the Buildability night check and the power meter;
   `src/gui/pages/homes.rs`: the Live power card.
 - [Ship Life Support](../../design/ship-life-support.md), section 7: the
   meter's supply side and the homes' energy budgets.

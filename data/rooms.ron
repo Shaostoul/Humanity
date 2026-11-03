@@ -139,7 +139,7 @@
     // The two rooms the homestead's upper floor frees downstairs (ship homes increment 7,
     // docs/design/homestead-upper-floor.md section 4). The second bedroom is not a "bedroom":
     // that type carries the standing mirror's `customize_appearance`, and the home has exactly
-    // one appearance room (src/ship/room_types.rs).
+    // one appearance room (crates/humanity-ship/src/room_types.rs).
     "dining": (
         name: "Dining Room",
         purpose: "A table to eat at together, chairs round it and a sideboard",

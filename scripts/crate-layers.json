@@ -18,11 +18,7 @@
     {
       "name": "humanity-ship",
       "why": "The home's structure, its machines and the station's orbit: what the simulation runs on.",
-      "paths": [
-        "ship",
-        "machines",
-        "station"
-      ],
+      "dir": "crates/humanity-ship",
       "uses": [
         "humanity-core"
       ]
@@ -30,9 +26,7 @@
     {
       "name": "humanity-terrain",
       "why": "Planets: shape, heights, oceans, the chunk meshes as plain data. 23k lines edited twice in 30 days, so it compiles once and stays cached.",
-      "paths": [
-        "terrain"
-      ],
+      "dir": "crates/humanity-terrain",
       "uses": [
         "humanity-core"
       ]
@@ -40,12 +34,7 @@
     {
       "name": "humanity-systems",
       "why": "The simulation: farming, building, crafting, food, weather, creatures, walking on a planet.",
-      "paths": [
-        "systems",
-        "persistence",
-        "surface_walk",
-        "surface_move"
-      ],
+      "dir": "crates/humanity-systems",
       "uses": [
         "humanity-core",
         "humanity-ship",

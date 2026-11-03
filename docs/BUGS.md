@@ -16,16 +16,16 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 - **Status**: Fixed
 - **Version Fixed**: v0.654.0
 - **Reported**: operator, in-game screenshot ("Looks like the floors for the mirrored homes aren't rendering and some of the other stuff in the home").
-- **Root cause**: `ClonableHomeDesign::bake_local_groups` (`src/ship/home_structure.rs`), which bakes the geometry `tile_home_clones` stamps into every residential-zone slot, extracted ONLY `HomesteadMeshes::material_walls` from the generated mesh -- `floors`, `ceilings`, and `trim` (separate fields on the same struct) were never pulled in, so every home clone besides the one the player is actively editing rendered walls with nothing else. The function's own doc comment already described the intent ("an opaque roof reads better en masse"), but the actual ceiling/floor extraction was simply never written.
-- **Fix**: `bake_local_groups` now also folds in floors (opaque only, alpha/material_type dropped -- the cloned-home colour bucket has no per-group material slot, the same simplification `material_walls` already accepted) and an always-opaque ceiling + trim (fixed colours matching `src/lib.rs`'s non-glass ceiling/trim materials, since a clone has no independent "is my roof glass" state). Windows and mirrors remain excluded (semi-transparent geometry needs an alpha-aware colour bucket the current flat-RGB scheme doesn't have; a real gap but not what "the floor is missing" was about) and logged as a known follow-up. New test `cloned_home_design_includes_floor_and_ceiling_not_just_walls`, confirmed via revert-and-retest (fails against the reverted code -- only the wall colour bucket present, no ceiling). Files: `src/ship/home_structure.rs`.
+- **Root cause**: `ClonableHomeDesign::bake_local_groups` (`crates/humanity-ship/src/home_structure.rs`), which bakes the geometry `tile_home_clones` stamps into every residential-zone slot, extracted ONLY `HomesteadMeshes::material_walls` from the generated mesh -- `floors`, `ceilings`, and `trim` (separate fields on the same struct) were never pulled in, so every home clone besides the one the player is actively editing rendered walls with nothing else. The function's own doc comment already described the intent ("an opaque roof reads better en masse"), but the actual ceiling/floor extraction was simply never written.
+- **Fix**: `bake_local_groups` now also folds in floors (opaque only, alpha/material_type dropped -- the cloned-home colour bucket has no per-group material slot, the same simplification `material_walls` already accepted) and an always-opaque ceiling + trim (fixed colours matching `src/lib.rs`'s non-glass ceiling/trim materials, since a clone has no independent "is my roof glass" state). Windows and mirrors remain excluded (semi-transparent geometry needs an alpha-aware colour bucket the current flat-RGB scheme doesn't have; a real gap but not what "the floor is missing" was about) and logged as a known follow-up. New test `cloned_home_design_includes_floor_and_ceiling_not_just_walls`, confirmed via revert-and-retest (fails against the reverted code -- only the wall colour bucket present, no ceiling). Files: `crates/humanity-ship/src/home_structure.rs`.
 
 ### BUG-044: Spoiled food had zero gameplay consequence -- tracked but never checked when eaten
 - **Status**: Fixed
 - **Version Fixed**: v0.646.0 (pending release)
 - **Reported**: found during the 2026-07-01 overnight autonomous-loop broader stub-completion sweep (repo-wide TODO scan), not operator-reported.
-- **Root cause**: `src/systems/food.rs`'s spoilage pass (§3 of `FoodSystem::tick`) correctly ages every food item in every inventory and flips a per-slot `spoiled: bool` once `spoilage_timer >= max_freshness` -- but the EAT handler (§1, drains `consume_request`) resolved nutrition purely from the item's static `NutritionProfile` (by item_id) and never consulted the spoilage side-table at all. A player could eat a fully-spoiled item with full nutrition and zero risk, forever, as long as the item_id's own `raw_consumption_risk` was 0 (true for all cooked/canned/preserved food). The `TODO: Replace item with "spoiled_food" variant or reduce nutrition value` comment right at the spoiled-flip site documented the gap but nothing implemented it.
-- **Fix**: the EAT handler now looks up the eaten item's inventory slot, checks `self.spoilage.get(&(entity_bits, slot_idx))` for `spoiled`, and if true applies a `nutrition_mult` of `0.25` to both satiation and hydration gain AND guarantees `food_poisoning` regardless of the profile's own `raw_consumption_risk`. Fresh food is unaffected (`nutrition_mult = 1.0`, existing risk-roll logic unchanged). New test `eating_spoiled_food_poisons_and_reduces_nutrition` (`src/systems/food.rs::nutrition_tests`), confirmed to actually catch the bug via a temporary revert-and-retest (fails against the reverted code with the exact expected wrong behavior -- no poisoning, full nutrition). Files: `src/systems/food.rs`.
-- **Follow-up fix (same night, adversarial review caught it before the operator woke up)**: the initial fix found the eaten item's slot via `inv.slots.iter().position(...)` (first matching slot, forward order), but `Inventory::remove_item` (the fn that ACTUALLY consumes the item, `src/systems/inventory/mod.rs`) removes from the LAST matching slot backward (`.iter_mut().rev()`, to preserve earlier stacks) -- a real, reachable mismatch whenever the same item_id occupies two separate slots (a normal outcome of `add_item` splitting a stack once the first slot fills). A fresh stack in an earlier slot + a spoiled stack in a later slot meant the spoilage check inspected the fresh slot while `remove_item` actually consumed from the spoiled one -- full nutrition, no poisoning, the exact bug this fix was written to prevent (and the reverse also occurred: an unwarranted penalty on food that wasn't the one eaten). Fixed by making the slot search match `remove_item`'s own order (`.iter().enumerate().rev().find(...)`). New regression test `spoilage_check_matches_the_slot_remove_item_actually_consumes`, confirmed via revert-and-retest (fails against the forward-search version with the exact expected wrong outcome). Caught by an independent adversarial-review agent pass over the night's full diff before any code shipped further -- see `docs/history/2026-07-01-night-loop-plan.md` cycle 12.
+- **Root cause**: `crates/humanity-systems/src/food.rs`'s spoilage pass (§3 of `FoodSystem::tick`) correctly ages every food item in every inventory and flips a per-slot `spoiled: bool` once `spoilage_timer >= max_freshness` -- but the EAT handler (§1, drains `consume_request`) resolved nutrition purely from the item's static `NutritionProfile` (by item_id) and never consulted the spoilage side-table at all. A player could eat a fully-spoiled item with full nutrition and zero risk, forever, as long as the item_id's own `raw_consumption_risk` was 0 (true for all cooked/canned/preserved food). The `TODO: Replace item with "spoiled_food" variant or reduce nutrition value` comment right at the spoiled-flip site documented the gap but nothing implemented it.
+- **Fix**: the EAT handler now looks up the eaten item's inventory slot, checks `self.spoilage.get(&(entity_bits, slot_idx))` for `spoiled`, and if true applies a `nutrition_mult` of `0.25` to both satiation and hydration gain AND guarantees `food_poisoning` regardless of the profile's own `raw_consumption_risk`. Fresh food is unaffected (`nutrition_mult = 1.0`, existing risk-roll logic unchanged). New test `eating_spoiled_food_poisons_and_reduces_nutrition` (`crates/humanity-systems/src/food.rs::nutrition_tests`), confirmed to actually catch the bug via a temporary revert-and-retest (fails against the reverted code with the exact expected wrong behavior -- no poisoning, full nutrition). Files: `crates/humanity-systems/src/food.rs`.
+- **Follow-up fix (same night, adversarial review caught it before the operator woke up)**: the initial fix found the eaten item's slot via `inv.slots.iter().position(...)` (first matching slot, forward order), but `Inventory::remove_item` (the fn that ACTUALLY consumes the item, `crates/humanity-systems/src/inventory/mod.rs`) removes from the LAST matching slot backward (`.iter_mut().rev()`, to preserve earlier stacks) -- a real, reachable mismatch whenever the same item_id occupies two separate slots (a normal outcome of `add_item` splitting a stack once the first slot fills). A fresh stack in an earlier slot + a spoiled stack in a later slot meant the spoilage check inspected the fresh slot while `remove_item` actually consumed from the spoiled one -- full nutrition, no poisoning, the exact bug this fix was written to prevent (and the reverse also occurred: an unwarranted penalty on food that wasn't the one eaten). Fixed by making the slot search match `remove_item`'s own order (`.iter().enumerate().rev().find(...)`). New regression test `spoilage_check_matches_the_slot_remove_item_actually_consumes`, confirmed via revert-and-retest (fails against the forward-search version with the exact expected wrong outcome). Caught by an independent adversarial-review agent pass over the night's full diff before any code shipped further -- see `docs/history/2026-07-01-night-loop-plan.md` cycle 12.
 
 ### BUG-043: Livestream "peak viewer count" was recorded wrong -- fed the live count at the wrong moment, not the actual peak
 - **Status**: Fixed
@@ -1313,7 +1313,7 @@ things at once: coverage climbs toward the storm floor, and the cloud LAYOUT
 cross-fades between two unrelated spatial patterns. The second one is the
 "morphing" he reported.
 
-**Root cause:** `src/systems/weather.rs` carries ONE condition for the whole
+**Root cause:** `crates/humanity-systems/src/weather.rs` carries ONE condition for the whole
 body, with no latitude, longitude or extent. A global fact applied to a visible
 hemisphere paints the hemisphere, so the only lever available was to turn it
 down as the visible area grows. The ramp was itself the fix for an earlier
@@ -2061,7 +2061,7 @@ count exists for (a decoder that never wakes, a stale generation) deliver a hand
 and never reach 30, so they still fail, at the deadline. Same class as BUG-094.
 
 The same afternoon `synthetic_tile_samples_through_the_global_grid`
-(src/terrain/terrain_tiles.rs) reported "tile never arrived". It gave its loader
+(crates/humanity-terrain/src/terrain_tiles.rs) reported "tile never arrived". It gave its loader
 thread 5 s, and it wrote its tile to a FIXED path under the system temp directory,
 `hos_tile_test`, which every test process on the machine shares: with several
 worktree agents running `cargo test` at once, another run could rewrite or delete
@@ -3068,7 +3068,7 @@ handled: if it is ever seen, the fix is to update the app.
 
 **Found by** the Library writer checking the "Force, Levers and Mechanical
 Advantage" guide's game tie-in against the code. The inventory system computes
-the real limit and an encumbered flag (src/systems/inventory/mod.rs ~1251-1258:
+the real limit and an encumbered flag (crates/humanity-systems/src/inventory/mod.rs ~1251-1258:
 `weight_capacity + carry_bonus`, where the bonus is the equipped outfit's
 `carry_capacity`, e.g. a backpack), but:
 - the Inventory page's Weight tile reads its own `max_carry_weight`, a fixed
@@ -3087,7 +3087,7 @@ advisory.
 jumping in nonzero G based on weight/mass. We can obviously carry heavier in
 low-g to zero-g but, mass still applies."
 
-**Fixed (2026-10-04):** the rules live in `src/systems/encumbrance.rs` and
+**Fixed (2026-10-04):** the rules live in `crates/humanity-systems/src/encumbrance.rs` and
 `src/engine/carry_load.rs` applies them each frame.
 - The Weight tile reads the inventory system's own numbers (`GuiState::carry`):
   the pack's 50 kg plus the worn gear's `carry_capacity` (the system now records
@@ -3625,7 +3625,7 @@ it does (buy logs, saw planks, build a bow; buy copper ore, smelt, make servo
 motors, build a light mech that sold for 4000 from 1317 of goods).
 
 **Fix:** test `no_recipe_resells_for_more_than_its_inputs_cost`
-(`src/systems/economy/mod.rs`) works out every item's cheapest cost, buying
+(`crates/humanity-systems/src/economy/mod.rs`) works out every item's cheapest cost, buying
 it or crafting it from cheaper inputs with byproducts credited, through the
 runtime's own loaders and the vendor's own price functions, and names every
 recipe whose outputs sell for more; it also fails on a cycle of recipes that
@@ -3663,7 +3663,7 @@ price), not in lowering every price below 0.4x its parts.
 
 **Fix:** the trading post pays a better grade its multiple of the standard
 price only up to a ceiling set by what the good's parts cost there
-(`src/systems/economy/parts.rs`). At a grade whose multiple is m it pays
+(`crates/humanity-systems/src/economy/parts.rs`). At a grade whose multiple is m it pays
 the smaller of m times the standard price and the parts' price less the
 standard good's shortfall divided by m. Made from parts bought at the post,
 a standard good comes back (parts minus standard) short of what the parts
@@ -3701,7 +3701,7 @@ curve could sit on top of it later. The economy has no realism modes to
 pair it with; Creative and Dev crafting take no inputs, so selling what
 they make stays free money by those modes' design, as before.
 
-**Tests** (in `src/systems/economy/parts.rs` unless named):
+**Tests** (in `crates/humanity-systems/src/economy/parts.rs` unless named):
 - `no_grade_sells_back_for_more_than_its_parts_cost`: for all 350 recipes
   whose inputs the post sells or can be made from them (78 of them make a
   graded good it buys) and every grade, ungraded and the six of
@@ -3813,7 +3813,7 @@ included, is built at `workbench_0`.
 the automation path, which already counts home storage.
 
 **Fix:** a hand craft draws on the home's storage too, the way the machines
-and the build menu already did (`src/systems/crafting/home_store.rs`): the
+and the build menu already did (`crates/humanity-systems/src/crafting/home_store.rs`): the
 backpack first, then home storage, then the tanks for tap water, spending
 exactly what the recipe needs. What the backpack cannot take of the result
 goes to home storage with the crafter's grade (a new channel beside the
@@ -3828,7 +3828,7 @@ and storage, what is missing, and where the result will go. Found on the
 way: the `home_stock` mirror counted chests built on a planet, so the home's
 machines and the build menu could draw on what was on Earth; they are left
 out now (`inventory::placed::stock_counts`, `uses::planet_store_paths`).
-Tests in `src/systems/crafting/home_store_tests.rs`, each seen red.
+Tests in `crates/humanity-systems/src/crafting/home_store_tests.rs`, each seen red.
 
 **Review fixes (same day):** a result bigger than the whole backpack (a pod)
 that finishes, or is asked for, where home storage does not count no longer
@@ -4053,7 +4053,7 @@ microseconds as in an empty folder).
 **Seen (code reading, by the check of the heat, fire and fuel guides; confirmed by the
 orchestrator):** `data/abilities.csv` row `campfire` is described as "Build a campfire that
 provides warmth light and slow healing". It is a non-offensive ability, so casting it
-(`src/systems/abilities.rs`, the self-castable arm) spends 15 energy and restores its
+(`crates/humanity-systems/src/abilities.rs`, the self-castable arm) spends 15 energy and restores its
 `healing_base` of 3 health, and nothing else: no fire is placed, nothing warms or lights,
 and the `campfire_warmth` status effect (`data/status_effects.csv`) is applied by no code.
 For a new character it sorts first among castable abilities, so it sits in hotbar slot 1.
@@ -4074,7 +4074,7 @@ source the body heat model sees. Step by step:
    are the 15 energy spent and the cooldown started. No heal: `healing_base` is 0.
 3. Finished, it is lit with its own three logs (2 h), burns them down on the game clock,
    and goes out; E at it puts another log from the pack on (it holds four) and relights
-   it when out (`src/systems/construction/fires.rs`). Its fuel is saved with it and burns
+   it when out (`crates/humanity-systems/src/construction/fires.rs`). Its fuel is saved with it and burns
    down while the game is closed.
 4. While it burns it radiates 16 kW (a Forest Service campground fire ring's burn rate,
    NIST's effective heat of combustion and radiative fraction for wood; the sources are
@@ -4085,7 +4085,7 @@ source the body heat model sees. Step by step:
 
 Tests, each seen red on the code before the fix:
 `the_campfire_ability_builds_a_campfire_outdoors_from_the_pack`,
-`a_campfire_cast_that_cannot_build_spends_nothing` (`src/systems/abilities.rs`);
+`a_campfire_cast_that_cannot_build_spends_nothing` (`crates/humanity-systems/src/abilities.rs`);
 `a_campfire_by_a_cold_night_keeps_a_body_warmer_than_one_20_m_away` and
 `an_out_campfire_gives_no_heat` (`src/engine/survival_env.rs`); with the fire's own
 burning, fuel, take-down and warmth tests in `fires.rs`.
@@ -4129,7 +4129,7 @@ what the Library guides promise, all fixed the same day:**
 
 Tests, each seen red on the code before the fix: `a_roof_is_never_built_over_a_campfire` (the
 roof's build answered "Building Wood Roof..."), `a_campfire_is_never_built_under_a_roof_going_up`
-(the campfire's answered "Building Campfire...") (`src/systems/construction/mod.rs`);
+(the campfire's answered "Building Campfire...") (`crates/humanity-systems/src/construction/mod.rs`);
 `a_wall_between_a_fire_and_a_person_stops_its_warmth` ("behind the wall: 82.5 W/m2",
 `fires.rs`); `an_outdoors_piece_hears_its_outdoors_refusal_before_the_plot_rule` and
 `a_campfire_cast_outside_your_plot_hears_the_outdoors_words` (`src/engine/build_place.rs`,
@@ -4151,21 +4151,21 @@ ability is always refused; it can be used only where the Dev travel tools reach 
 ## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen (the same check, confirmed):** the generator burns whatever flammable-class item is
-in its drum (`src/systems/electrical.rs`, `fuel_ok`: any item whose class is
+in its drum (`crates/humanity-systems/src/electrical.rs`, `fuel_ok`: any item whose class is
 "flammable"). Crude Oil, Glue and Paint are all that class (`data/items.csv`), the drum
 accepts them, and the Store button offers them, so the house runs on a can of paint. A real
 generator burns the fuel its engine is made for (gasoline, diesel or propane), and the fuels
 guide teaches exactly that.
 
 **Fix:** a generator names the fuels its engine burns, as data: `fuels` on its `Generator`
-power role (`src/machines.rs`; item ids from `data/items.csv`). Both homes'
+power role (`crates/humanity-ship/src/machines.rs`; item ids from `data/items.csv`). Both homes'
 `generator_portable` names `fuel_refined_0`: its own item calls it a "Gasoline electric
 generator", the game has no gasoline item, and Refined Fuel, the fuel refinery's product, is
 the one that stands for it. The spawn puts the list on the generator's entity
 (`ecs::components::BurnsFuels`, `src/engine/home_spawn.rs`), and from there only those fuels
-run it (`src/systems/electrical.rs`), its drum takes only those whatever asks (the Store
-action in `src/lib.rs`, harvest surplus in `src/systems/farming/mod.rs` and a machine's own
-craft output in `src/systems/crafting/mod.rs`, all through `containers::vessel_takes_item`),
+run it (`crates/humanity-systems/src/electrical.rs`), its drum takes only those whatever asks (the Store
+action in `src/lib.rs`, harvest surplus in `crates/humanity-systems/src/farming/mod.rs` and a machine's own
+craft output in `crates/humanity-systems/src/crafting/mod.rs`, all through `containers::vessel_takes_item`),
 and its Store buttons offer only those (`containers::store_offers`, the card's list moved
 out of `src/lib.rs`). A fuelled generator whose data names no fuel burns nothing and its
 drum takes nothing, with a warning at spawn: no fuel can safely be assumed for it, and
@@ -4198,7 +4198,7 @@ the middle of UGA Bulletin 792's 70 to 80 F days), heating only while the electr
 powers it and drawing its watts for the share of the time it runs. Its heat goes into the
 air it stands in, a grow room's or fruiting tent's own, else the home's own air, through a
 linear heat balance stepped with the airs' water and gases in the farming tick
-(`src/systems/farming/heat.rs`; numbers and sources in `data/garden/humidity.ron`, THE
+(`crates/humanity-systems/src/farming/heat.rs`; numbers and sources in `data/garden/humidity.ron`, THE
 HEAT): `C dtheta/dt = Q - G (theta - theta_around) - G_coil theta`, with G = U x walls and
 ceiling (U 6.24 W/(m2 K), single glass, UGA B792's R 0.91, a labelled game choice for every
 grow room) plus the room's air changes x its heat capacity (FAO-56's cp), and an air
@@ -4241,7 +4241,7 @@ EPA-certified Drolet Escape 1800, 13,040 W on 4.07 kg of Wood Logs an hour from 
 firebox, which takes only Wood Logs; its fire takes its oxygen from the home's air and its
 exhaust goes up a flue that is not itself modelled), both in both homes' catalogs, built at
 a workbench and placed from the Life support tab. The never-registered `HvacSystem`
-(`src/systems/hvac.rs`), superseded by this, was deleted the same day.
+(`crates/humanity-systems/src/hvac.rs`), superseded by this, was deleted the same day.
 
 **Review fixes (2026-10-05, the second seam review of the day's merges):**
 - *The time away charged a placed heater its full 1,500 W every hour.* While the player
@@ -4321,7 +4321,7 @@ trees. The level of detail played no part: with no tile tier installed every dra
 and the harvest were at depth 13 (the base-only cap, 54 m triangles), and the finest
 ground differed from the drawn face under the trees by -0.3 to +1.0 m.
 
-**Cause:** `DrawnPatchSurface` (`src/terrain/drawn_surface.rs`), the sampler everything that
+**Cause:** `DrawnPatchSurface` (`crates/humanity-terrain/src/drawn_surface.rs`), the sampler everything that
 stands on the ground goes through (the near-tree harvest's bases, the grass harvest's
 bases, the walk clamp, and `planet_build::Ground`, so `stand` and building on a planet),
 carried its own copy of the elevation formula, written in v0.1091, before the region water
@@ -4350,7 +4350,7 @@ two settles and the walk-in) read every on-screen tree (53, 53, 53 and 56) at -0
 floating, and the eye at 1.750 m above it.
 
 **Tests, each seen red first** (`terrain::drawn_surface::region_tests`, the new file
-`src/terrain/drawn_surface_region_tests.rs`: the shipped Silverdale region and DEM, published
+`crates/humanity-terrain/src/drawn_surface_region_tests.rs`: the shipped Silverdale region and DEM, published
 under a test lock, `water_carve::PublishedForTest`, and measured against the real built
 patch mesh):
 - `the_drawn_surface_is_the_drawn_mesh_inside_a_dem_region`: red at 45.04 m off the built mesh
@@ -4389,9 +4389,9 @@ vantage list.
 ## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (FIXED v0.1462.0, found 2026-10-05)
 
 **Seen (by the leaving-the-ship design proposal, confirmed):** `data/docking.ron` writes
-`docking_ports: [...]` and `docking_procedures: [...]`, but `src/systems/docking.rs` reads
+`docking_ports: [...]` and `docking_procedures: [...]`, but `crates/humanity-systems/src/docking.rs` reads
 `ports` and `procedures`; `data/transportation.ron` writes `space: [...]`, but
-`src/systems/transportation.rs` reads `space_infrastructure`. Every one of those loader
+`crates/humanity-systems/src/transportation.rs` reads `space_infrastructure`. Every one of those loader
 fields is `#[serde(default)]`, so each mismatched list loads as EMPTY with no error and no
 warning: the ports, procedures and space infrastructure written in the data never reach
 the game. Three module headers also name data files that do not exist (`data/vehicles.csv`,
@@ -4752,9 +4752,9 @@ hold's effect on a live capture is unmeasured until the next `--plots` run with 
   `let _ = widgets::compact_button(ui, theme, "Use", ...)`), so a Bandage, Medkit, Advanced
   Medkit or Antibiotics does nothing when used.
 - data/status_effects.csv's `dispel_type` column (food poisoning's is "medicine") is not a
-  field of `StatusEffectDef` (src/systems/status_effects.rs), so nothing removes an effect.
+  field of `StatusEffectDef` (crates/humanity-systems/src/status_effects.rs), so nothing removes an effect.
 - Food Poisoning takes 3 health every 15 s for 5,400 s (`data/status_effects.csv`; the tick
-  in src/systems/food.rs): from full health it kills in about 8 minutes 20 seconds unless
+  in crates/humanity-systems/src/food.rs): from full health it kills in about 8 minutes 20 seconds unless
   Well Fed (1 health a second) or the First Aid ability (35) outpaces it. Under the default
   Simplified death mode a respawn clears it.
 
@@ -4771,8 +4771,8 @@ opposite: an eight-minute death with medicine in the pack that cannot be taken.
   own; `speed:0.85` while it lasts) with a row in the new `data/medical/illnesses.ron`: it
   takes 1.5 L of water a day from Hydration on top of the usual 2.5 L (a labelled game choice
   under WHO's 2 L a day of rehydration solution for an adult with cholera), on the game clock,
-  scaled by the Vitals drain slider, and passes by itself (`src/systems/illness.rs`, applied in
-  `src/systems/food.rs`). Every `disease` effect now counts game seconds
+  scaled by the Vitals drain slider, and passes by itself (`crates/humanity-systems/src/illness.rs`, applied in
+  `crates/humanity-systems/src/food.rs`). Every `disease` effect now counts game seconds
   (`StatusEffects::tick_with`). Harm comes only through the existing dehydration drain, and a
   death while it was taking water reads "dehydration from Food Poisoning". While an illness
   takes water a drink keeps only a share of its water: oral rehydration solution all,
@@ -4794,7 +4794,7 @@ opposite: an eight-minute death with medicine in the pack that cannot be taken.
   Infected Wound, Plague), so not Food Poisoning; the Antidote ends `toxin` (Poisoned); the
   other twelve say why the game has no use for them yet (pain, venom, fractures, transfusion,
   a stopped heart, vitamins...). The Use button shows only for items with a row
-  (`treatment::has_use`) and rides the new `use_item_request` channel (`src/systems/treatment.rs`;
+  (`treatment::has_use`) and rides the new `use_item_request` channel (`crates/humanity-systems/src/treatment.rs`;
   `src/lib.rs` touched only in the inventory-action bridge beside Drink).
 - **The data and the code agree.** `dispel_type`, which nothing read, is gone from the CSV;
   `StatusEffectDef` declares every column and refuses a row with an unknown one
@@ -4802,7 +4802,7 @@ opposite: an eight-minute death with medicine in the pack that cannot be taken.
   on, and the CSV header says so.
 
 Tests, each seen red on the code before the fix (main at ee2947a79, with this change's new
-data but the old Food Poisoning row): in `src/systems/illness_tests.rs`,
+data but the old Food Poisoning row): in `crates/humanity-systems/src/illness_tests.rs`,
 `an_untreated_healthy_adult_with_food_poisoning_is_alive_after_an_hour` (it killed),
 `food_poisoning_takes_the_water_its_data_says`, `while_ill_oral_rehydration_solution_puts_back_more_than_water`,
 `drinking_through_food_poisoning_keeps_a_body_from_harm`,
@@ -4827,7 +4827,7 @@ Bad, Helping Your Neighbours After a Disaster).
   pain, fractures, venom, allergy and transfusion have no model at all.
 - No effect stacks (`stackable`, `max_stacks`) and damage has no type (`damage_type`).
 - Every drink restores the same 30 Hydration points whatever its volume (`DRINK_HYDRATION`,
-  src/systems/food.rs), so the litre of rehydration solution counts no more than a 500 mL
+  crates/humanity-systems/src/food.rs), so the litre of rehydration solution counts no more than a 500 mL
   bottle; at 20 points a litre it would be 20. A drink-volume fix changes the whole thirst
   economy and is its own change.
 
@@ -4836,7 +4836,7 @@ Bad, Helping Your Neighbours After a Disaster).
 **Seen (the second seam review of the 2026-10-05 merges, item 2; confirmed on the operator's
 machine):** BUG-162 removed the `dispel_type` column from `data/status_effects.csv` and made a
 status effect row refuse a column it does not declare (`deny_unknown_fields`,
-`src/systems/status_effects.rs`). An installed game writes its data folder once, on its first
+`crates/humanity-systems/src/status_effects.rs`). An installed game writes its data folder once, on its first
 run (`storage::extract_data_if_needed`), and an update replaces only the exe, so the folder
 keeps the files of the version that first ran. The one on the operator's machine,
 `%APPDATA%\HumanityOS\data`, written on 2026-07-11, still has `dispel_type`. The shared CSV
@@ -5006,7 +5006,7 @@ point: thirst takes 0.0000096 of a point a frame at 60 frames a second, hunger 0
 starving 0.0000014 of health. An f32 between 64 and 128 moves in steps of 0.0000076, so
 every frame's change was rounded to a whole number of steps, or to none. An effect's time
 left was an f32 too, and at two days (172,800 s) it moves in steps of 1/64 s. Through the
-real FoodSystem tick, from a full stomach (`src/systems/food_frame_rate_tests.rs`), on main
+real FoodSystem tick, from a full stomach (`crates/humanity-systems/src/food_frame_rate_tests.rs`), on main
 at 347c8f77b:
 - "Forgiving at 60 frames a second, 10 game minutes: satiation fell 0.0000, its rate says
   0.0992; Hydration fell 0.2747, its rate says 0.3472; energy fell 0.8240, its rate says
@@ -5043,7 +5043,7 @@ the rounding is far below the change, which is how it went unseen (the illness t
 600 s; the water tanks' BUG-096 was the same defect).
 
 **Fix (2026-10-05): every per-frame change to the body is worked out in f64, and nothing
-f32 rounding holds back is lost** (`src/systems/food.rs`, the EXACT AT ANY FRAME RATE note).
+f32 rounding holds back is lost** (`crates/humanity-systems/src/food.rs`, the EXACT AT ANY FRAME RATE note).
 - An effect's time left is an f64 (`ActiveEffect::remaining`, `crates/humanity-core/src/ecs/components.rs`);
   `StatusEffects::apply` takes any duration that converts to f64, `tick_with` takes each
   frame's step off the f64, and `StatusEffects::remaining` reads it. A save written with the
@@ -5057,7 +5057,7 @@ f32 rounding holds back is lost** (`src/systems/food.rs`, the EXACT AT ANY FRAME
   (hunger), Hydration (the day's thirst, an illness's water and sweat), energy, oxygen
   (breath, both ways), the waste meter, and Health (starving, drying out, suffocation, heat
   and cold, a hard burn, and every effect's damage and healing).
-- `Illnesses::water_l` works in f64 (`src/systems/illness.rs`).
+- `Illnesses::water_l` works in f64 (`crates/humanity-systems/src/illness.rs`).
 - Checked and left as they were, because they had no such flaw: the body heat model (its
   state is f64 since 2026-09-27; its per-frame sweat and harm are amounts, not sums, and now
   land through the carry), the spoilage clocks (f64), the urine tank (f64), the conditions'
@@ -5078,7 +5078,7 @@ this does not start it over. It still passes on its own in about 2 hours.";
 `Illnesses::again`, `Illnesses::again_notice`). The two Library guides say so.
 
 **Tests:**
-- `src/systems/food_frame_rate_tests.rs`, through the real FoodSystem tick at 1/60, 1/144
+- `crates/humanity-systems/src/food_frame_rate_tests.rs`, through the real FoodSystem tick at 1/60, 1/144
   and 1/240 of a game second at time speed 1, from a full stomach: six ten-minute runs that
   always run (both Illness modes at each rate: satiation, Hydration with the body heat
   model's own sweat, energy and the waste meter each within one percent of its rate, a
@@ -5097,7 +5097,7 @@ this does not start it over. It still passes on its own in about 2 hours.";
   hours, both modes, the fresh-course cap); `save_load::body_tests::a_body_saved_with_f32_timers_still_loads`.
 
 **Left, and since fixed:**
-- `src/systems/fire.rs` took a fire's damage from Health each frame in f32 (1 a second at
+- `crates/humanity-systems/src/fire.rs` took a fire's damage from Health each frame in f32 (1 a second at
   full intensity). At full intensity that is hundreds of f32 steps a frame, so the error is
   under 0.1 percent; on a fire burning down to a twentieth of its intensity it nears 2
   percent. FIXED in two steps. The first-hour audit's S8 (2026-10-12,
@@ -5273,7 +5273,7 @@ frame's list again only after a gap in its `seq` or a build left unanswered. So:
   `game_frame_out_of_view` (it used to send `game_frame_out_of_view` alone), so a build or
   take-down whose answer was lost can always be settled (BUG-168).
 
-**Wire change (both sides, `src/systems/construction/shared.rs`):** new relay-to-game message
+**Wire change (both sides, `crates/humanity-systems/src/construction/shared.rs`):** new relay-to-game message
 `game_pieces_check {frames: {"plot:p1": 4, ...}, ranks: {can_edit_ship, take_down_any}}`
 (`FromRelay::Check`, `msg::PIECES_CHECK`), every 5 s; and `game_pieces_request` for a frame out
 of view is answered with `game_pieces` (all parts) followed by `game_frame_out_of_view`. A game

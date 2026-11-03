@@ -6,7 +6,7 @@ a ship to a fleet crossing interstellar distances.
 
 **Status:** Proposal (2026-05-09)
 **Affects:** `src/gui/pages/maps.rs`, `src/gui/pages/inventory.rs`,
-`crates/humanity-core/src/ecs/`, `src/systems/`, `src/renderer/floating_origin.rs`,
+`crates/humanity-core/src/ecs/`, `crates/humanity-systems/src/`, `src/renderer/floating_origin.rs`,
 `src/relay/handlers/game_state.rs`, `data/star_systems/`, `data/galaxy/`,
 `data/ships/`
 **Supersedes:** the Sol-hardcoded `data/solar_system/bodies.json` schema.
@@ -462,7 +462,7 @@ data/galaxy/
   rogue_density.json     # tunable parameters: bodies-per-ly³, types
 
 data/ships/
-  pioneer.ron            # ship layout (existing convention from src/ship/)
+  pioneer.ron            # ship layout (existing convention from crates/humanity-ship/src/)
   freighter_class.ron
   fighter_class.ron
   emergency_pod.ron      # default escape vessel
@@ -1063,7 +1063,7 @@ play at 1 h/s, watch it unfold. From FPS mode, the next event shows
 as a HUD badge.
 
 Eclipses also drive **gameplay**: the day/night system already exists
-(`src/systems/time.rs`); an eclipse darkens the sky over the umbra
+(`crates/humanity-systems/src/time.rs`); an eclipse darkens the sky over the umbra
 path. The ECS reads the cosmos sim_time → checks if Earth's player
 position is under the Moon's shadow → applies a sky-darkening
 modulation. Players in the umbra at the right sim_time see totality
@@ -1695,7 +1695,7 @@ Phase 1 status (2026-05-09):
   street); continues to apply on top of this model
 - `docs/design/infinite-of-x.md`, design rule this whole doc is in service of
 - `src/renderer/floating_origin.rs`, existing floating origin
-- `src/ship/`, ship layout parser (Fibonacci spiral generator)
+- `crates/humanity-ship/src/`, ship layout parser (Fibonacci spiral generator)
 - `crates/humanity-core/src/ecs/`, hecs ECS where the position component will live
 - `data/solar_system/bodies.json`, current single-system data, slated for
   restructure in Phase 1

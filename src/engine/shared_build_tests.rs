@@ -2,8 +2,8 @@
 //! before it passed; the failure is in its comment.
 
 use super::*;
-use crate::systems::construction::placement;
-use crate::systems::inventory::{placed::PlacedItem, Inventory, ItemRegistry, TransferOp};
+use humanity_systems::construction::placement;
+use humanity_systems::inventory::{placed::PlacedItem, Inventory, ItemRegistry, TransferOp};
 use glam::Quat;
 use std::sync::Mutex;
 
@@ -506,7 +506,7 @@ fn my_piece_is_confirmed_by_its_req_id_and_by_a_snapshot() {
 #[test]
 fn our_take_down_gives_the_materials_back_once_and_what_the_pack_cannot_hold_lands_in_storage() {
     use humanity_core::ecs::systems::System;
-    use crate::systems::inventory::InventorySystem;
+    use humanity_systems::inventory::InventorySystem;
     let mut g = Game::at("p1");
     g.data.insert("inventory_transfer_returns", Mutex::new(Vec::<(String, u32)>::new()));
     g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
@@ -1227,7 +1227,7 @@ impl Game {
 
     /// The plots open to this game now, standing at `at` (ship metres; None: not aboard), its
     /// permits read against `now_s`: what `household_world::apply_open` sets on the ship each frame.
-    fn open_at(&mut self, at: Option<Vec3>, now_s: u64) -> crate::ship::ship_structure::OpenPlots {
+    fn open_at(&mut self, at: Option<Vec3>, now_s: u64) -> humanity_ship::ship_structure::OpenPlots {
         let held = self.held();
         let ship = self.gui.ship_structure.clone().expect("a ship");
         open_for(&mut self.gui.household, &held, &ship, at, now_s)
@@ -1323,7 +1323,7 @@ fn each_held_permit_is_checked_after_a_welcome_and_the_answer_opens_its_plot() {
     assert_eq!(g.verdict("ada", "p1"), Some(Verdict::Works));
     assert_eq!(g.verdict("cy", "p3"), Some(Verdict::Refused(Why::PermitNotFromHolder)));
     let ship = g.gui.ship_structure.as_mut().unwrap();
-    let shut_to_me = |s: &ShipStructure| crate::ship::door_panels::neighbour_panel_placements(s).iter().filter(|p| !p.others_only).count();
+    let shut_to_me = |s: &ShipStructure| humanity_ship::door_panels::neighbour_panel_placements(s).iter().filter(|p| !p.others_only).count();
     assert_eq!(shut_to_me(&*ship), 0, "every neighbour's door is shut to this player before");
     assert!(set_open(ship, open.clone()), "the ship takes it");
     assert!(shut_to_me(&*ship) > 0, "p1's corridor doors open for this player now");

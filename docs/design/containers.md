@@ -90,7 +90,7 @@ any cleaning, liners, or fluids measured in litres.
   what is filed in the Barn shows as crates on their decks; each water tank
   shows its level. `src/engine/stock_piles.rs`; details in the gap doc.
 - **3d, first rung (2026-09-26):** `data/containers/fluids.ron` and
-  `src/systems/fluids.rs`. A recipe that needs a measure of tap water
+  `crates/humanity-systems/src/fluids.rs`. A recipe that needs a measure of tap water
   (`water_purified_0`, 1 L) draws it from the home tanks when the backpack
   has none, and the Crafting page counts the tanks too; a water tank's card
   fills the empty bottles and jerrycans you carry and pours full ones back;

@@ -421,7 +421,7 @@ wood stove puts into the air it stands in aboard.
   between you and the fire stops all of it, and an open doorway lets it
   through. In
   life the warmth lands on the side of you facing the fire; the game's
-  body has one skin, so it spreads it all round (`src/systems/construction/fires.rs`;
+  body has one skin, so it spreads it all round (`crates/humanity-systems/src/construction/fires.rs`;
   [Making and Controlling Fire](making_and_controlling_fire.md) has the
   rest).
 - **Indoors aboard.** Inside your home aboard the station the air is
@@ -436,7 +436,7 @@ wood stove puts into the air it stands in aboard.
   into the air it stands in, and that air settles where the heater's
   watts and the heat it loses balance: by conduction through its walls
   and ceiling, and by convection with the air it trades with the air
-  around it (`src/systems/farming/heat.rs`). Its thermostat stops it at
+  around it (`crates/humanity-systems/src/farming/heat.rs`). Its thermostat stops it at
   24 C. In a fruiting tent it holds 24 C, running about an eighth of the
   time. The home's grow rooms are far bigger, and in them it runs flat
   out and never gets there: it holds a room 10 m by 10 m and 3 m tall
@@ -458,7 +458,7 @@ wood stove puts into the air it stands in aboard.
   box, about 4 kg an hour at its full 13,040 W, and stops when the box is
   empty. Its fire takes its oxygen from your home's sealed air, and its
   smoke goes up the flue, out of the home
-  (`src/systems/farming/heat.rs`; the numbers and their sources are in
+  (`crates/humanity-systems/src/farming/heat.rs`; the numbers and their sources are in
   `data/machines/home.ron`).
 - **Two modes.** Settings > Gameplay > Body heat. Forgiving, the default,
   runs the same physics but your temperature swings half as far from
@@ -604,22 +604,22 @@ public domain. Web pages and documents were read on 3 and 4 October 2026.
 
 ### Inside this project
 
-- The body heat model: `src/systems/body_heat.rs` (the two-node model,
+- The body heat model: `crates/humanity-systems/src/body_heat.rs` (the two-node model,
   activity levels, the 0.61 clo everyday outfit, wind, wet clothing,
   shivering, the sun and sky, the Forgiving and Realistic modes), fed by
   `src/engine/survival_env.rs` (indoors aboard, outdoors, the roof and
   walls of a shelter, the sky's radiation) and run by
-  `src/systems/food.rs` (sweat costs water). Clothing insulation: the
+  `crates/humanity-systems/src/food.rs` (sweat costs water). Clothing insulation: the
   `clo` column of `data/equipment.csv`. The conditions and their speed
   penalties: `data/status_effects.csv`. The setting: Settings > Gameplay
   > Body heat (`src/gui/pages/settings.rs`). The HUD's weather, "feels"
   and shelter lines: `src/gui/pages/hud.rs`; shelter: 
-  `src/systems/construction/uses.rs`.
-- A heater's heat in a room: `src/systems/farming/heat.rs` (the balance of
+  `crates/humanity-systems/src/construction/uses.rs`.
+- A heater's heat in a room: `crates/humanity-systems/src/farming/heat.rs` (the balance of
   each air the home keeps), its numbers and sources in
   `data/garden/humidity.ron` (THE HEAT), the heater in
   `data/machines/home.ron` (`heater`), and its tests in
-  `src/systems/farming/heat_tests.rs`.
+  `crates/humanity-systems/src/farming/heat_tests.rs`.
 - [Insulation and Heat Loss](insulation_and_heat_loss.md), [Heating
   Water](heating_water.md), [Firewood](firewood.md), [Cold and
   Hypothermia](cold_and_hypothermia.md), [Treating

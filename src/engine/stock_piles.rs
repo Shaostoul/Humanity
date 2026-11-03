@@ -16,7 +16,7 @@
 
 use glam::{Quat, Vec3};
 
-use crate::systems::inventory::placed::PlacedItem;
+use humanity_systems::inventory::placed::PlacedItem;
 use crate::renderer::RenderObject;
 
 /// One storage crate: 0.6 x 0.4 x 0.4 m, 96 L (a common plastic tote size).
@@ -146,8 +146,8 @@ pub fn pile_positions(zones: &[(Vec3, Vec3)], count: u32) -> Vec<Vec3> {
 /// zone (min corner `origin`, extent `size`): the same cells and deck levels
 /// the mesh bake uses, lowest deck of every rack first, then the next deck
 /// up, each deck filled from its back edge forward.
-pub fn rack_slots(origin: Vec3, size: Vec3, filler: &crate::ship::structure::ZoneFiller) -> Vec<Vec3> {
-    use crate::ship::structure::{rack_deck_levels, RACK_DECK_M, RACK_POST_M};
+pub fn rack_slots(origin: Vec3, size: Vec3, filler: &humanity_ship::structure::ZoneFiller) -> Vec<Vec3> {
+    use humanity_ship::structure::{rack_deck_levels, RACK_DECK_M, RACK_POST_M};
     let (fw, fd) = filler.footprint;
     let cells = filler.cells(origin.x, origin.z, size.x, size.z);
     let levels = rack_deck_levels(filler.built_height(size.y));
@@ -233,7 +233,7 @@ pub(crate) fn receive_machine_outputs(state: &mut crate::engine::state::EngineSt
         .unwrap_or_default();
     let hand_made: Vec<(String, u32, u8)> = state
         .data_store
-        .get::<std::sync::Mutex<Vec<(String, u32, u8)>>>(crate::systems::crafting::home_store::HAND_MADE_TO_STORAGE)
+        .get::<std::sync::Mutex<Vec<(String, u32, u8)>>>(humanity_systems::crafting::home_store::HAND_MADE_TO_STORAGE)
         .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
         .unwrap_or_default();
     if made.is_empty() && hand_made.is_empty() {
@@ -241,11 +241,11 @@ pub(crate) fn receive_machine_outputs(state: &mut crate::engine::state::EngineSt
     }
     let rooms = storage_room_labels(state);
     let container = store_path(&state.gui_state.places, &rooms).unwrap_or_else(|| "Home".to_string());
-    let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    let reg = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
     // A machine turns out standard goods (2026-09-26, crafting::quality).
     let standard = state
         .data_store
-        .get::<crate::systems::crafting::quality::QualityLevels>("quality_levels")
+        .get::<humanity_systems::crafting::quality::QualityLevels>("quality_levels")
         .map_or(0, |l| l.standard());
     let made = made.into_iter().map(|(id, qty)| {
         let quality = if reg.map_or(false, |r| r.durability_for(&id) > 0) { standard } else { 0 };
@@ -258,7 +258,7 @@ pub(crate) fn receive_machine_outputs(state: &mut crate::engine::state::EngineSt
             .find(|p| p.key == id && p.container == container && p.wear == 0 && p.quality == quality)
         {
             // What was just made is fresh: the entry takes the average age (S6).
-            p.age_s = crate::systems::inventory::blend_age(p.age_s, p.qty, 0.0, qty);
+            p.age_s = humanity_systems::inventory::blend_age(p.age_s, p.qty, 0.0, qty);
             p.qty += qty;
         } else {
             let name = reg.and_then(|r| r.items.get(&id).map(|d| d.name.clone())).unwrap_or_else(|| id.clone());
@@ -278,7 +278,7 @@ pub(crate) fn receive_machine_outputs(state: &mut crate::engine::state::EngineSt
 /// own air does to it is not modelled per chest yet.
 pub(crate) fn age_home_storage(state: &mut crate::engine::state::EngineState) {
     use std::sync::Mutex;
-    let key = crate::systems::food::STORAGE_AGING_KEY;
+    let key = humanity_systems::food::STORAGE_AGING_KEY;
     if state.data_store.get::<Mutex<f64>>(key).is_none() {
         state.data_store.insert(key, Mutex::new(0.0_f64));
         return;
@@ -288,11 +288,11 @@ pub(crate) fn age_home_storage(state: &mut crate::engine::state::EngineState) {
         .get::<Mutex<f64>>(key)
         .and_then(|m| m.lock().ok().map(|mut owed| std::mem::take(&mut *owed)))
         .unwrap_or(0.0);
-    let food = crate::systems::food::consume_kinds();
-    crate::systems::inventory::placed::age_food(&mut state.gui_state.placed_items, secs, |k| food.contains_key(k));
+    let food = humanity_systems::food::consume_kinds();
+    humanity_systems::inventory::placed::age_food(&mut state.gui_state.placed_items, secs, |k| food.contains_key(k));
     // And in a pack left where the player fell (2026-10-04, systems::death_pack), at the same
     // rate: aboard that is the ship's air; on a planet, the planet chest's known gap above.
-    crate::systems::death_pack::age_food(&mut state.game_world.world, secs, |k| food.contains_key(k));
+    humanity_systems::death_pack::age_food(&mut state.game_world.world, secs, |k| food.contains_key(k));
 }
 
 /// Home storage for this tick (v0.737 for the automated machines; the build
@@ -313,10 +313,10 @@ pub(crate) fn publish_home_stock(state: &mut crate::engine::state::EngineState) 
 pub(crate) fn publish_stock(
     world: &hecs::World,
     data: &mut humanity_core::hot_reload::data_store::DataStore,
-    placed: &[crate::systems::inventory::placed::PlacedItem],
+    placed: &[humanity_systems::inventory::placed::PlacedItem],
 ) -> std::collections::HashMap<String, u32> {
-    let away = crate::systems::construction::uses::planet_store_paths(world);
-    let stock = crate::systems::inventory::placed::stock_counts(placed, &away);
+    let away = humanity_systems::construction::uses::planet_store_paths(world);
+    let stock = humanity_systems::inventory::placed::stock_counts(placed, &away);
     data.insert("home_stock", std::sync::Mutex::new(stock.clone()));
     stock
 }
@@ -335,7 +335,7 @@ pub(crate) fn take_consumed_home_stock(
 pub(crate) fn take_stock(
     world: &hecs::World,
     data: &humanity_core::hot_reload::data_store::DataStore,
-    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    placed: &mut Vec<humanity_systems::inventory::placed::PlacedItem>,
     before: &std::collections::HashMap<String, u32>,
 ) {
     let after = match data
@@ -345,8 +345,8 @@ pub(crate) fn take_stock(
         Some(a) => a,
         None => return,
     };
-    let away = crate::systems::construction::uses::planet_store_paths(world);
-    crate::systems::inventory::placed::take_consumed(placed, before, &after, &away);
+    let away = humanity_systems::construction::uses::planet_store_paths(world);
+    humanity_systems::inventory::placed::take_consumed(placed, before, &after, &away);
 }
 
 /// Bring the farm within `within_s` game seconds of now from OUTSIDE the systems tick (2026-10-31,
@@ -366,7 +366,7 @@ pub(crate) fn take_stock(
 pub(crate) fn settle_farm(
     world: &mut hecs::World,
     data: &mut humanity_core::hot_reload::data_store::DataStore,
-    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    placed: &mut Vec<humanity_systems::inventory::placed::PlacedItem>,
     home_stock: &mut std::collections::HashMap<String, u32>,
     within_s: f64,
 ) {
@@ -378,7 +378,7 @@ pub(crate) fn settle_farm(
 pub(crate) fn settle_farm_areas(
     world: &mut hecs::World,
     data: &mut humanity_core::hot_reload::data_store::DataStore,
-    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    placed: &mut Vec<humanity_systems::inventory::placed::PlacedItem>,
     home_stock: &mut std::collections::HashMap<String, u32>,
     areas: &[String],
     within_s: f64,
@@ -389,12 +389,12 @@ pub(crate) fn settle_farm_areas(
 fn settle_farm_of(
     world: &mut hecs::World,
     data: &mut humanity_core::hot_reload::data_store::DataStore,
-    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    placed: &mut Vec<humanity_systems::inventory::placed::PlacedItem>,
     home_stock: &mut std::collections::HashMap<String, u32>,
     areas: Option<&[String]>,
     within_s: f64,
 ) {
-    use crate::systems::farming;
+    use humanity_systems::farming;
     let settle = |world: &mut hecs::World, data: &humanity_core::hot_reload::data_store::DataStore| match areas {
         None => farming::settle(world, data, within_s),
         Some(a) => farming::settle_areas(world, data, a, within_s),
@@ -455,7 +455,7 @@ fn home_storage_slots(state: &crate::engine::state::EngineState, count: u32) -> 
         if left == 0 {
             break;
         }
-        match crate::ship::structure::zone_filler(&z.type_id).filter(|f| f.mesh_kind == "rack") {
+        match humanity_ship::structure::zone_filler(&z.type_id).filter(|f| f.mesh_kind == "rack") {
             Some(f) => out.extend(rack_slots(origin, size, f).into_iter().take(left as usize)),
             None => out.extend(pile_positions(&[(origin, size)], left)),
         }
@@ -497,7 +497,7 @@ pub(crate) fn push_render_objects(state: &mut crate::engine::state::EngineState,
     let volumes = {
         let reg = state
             .data_store
-            .get::<crate::systems::inventory::ItemRegistry>("item_registry");
+            .get::<humanity_systems::inventory::ItemRegistry>("item_registry");
         let stock: Vec<PlacedItem> = state
             .gui_state
             .placed_items
@@ -564,7 +564,7 @@ pub(crate) fn push_render_objects(state: &mut crate::engine::state::EngineState,
         .unwrap_or_default();
     let gauges: Vec<(String, humanity_core::ecs::components::Transform, f32, bool)> = {
         use humanity_core::ecs::components::{MachineInstanceId, Transform, WaterTank};
-        use crate::systems::inventory::containers::Container;
+        use humanity_systems::inventory::containers::Container;
         let w = &state.game_world.world;
         let level = |have: f32, cap: f32| if cap > 0.0 { (have / cap).clamp(0.0, 1.0) } else { 0.0 };
         let mut v: Vec<(String, Transform, f32, bool)> = w
@@ -719,20 +719,20 @@ mod tests {
     /// covers the first quest's 1 ingot and a little more".
     #[test]
     fn the_starting_barn_holds_coal_for_the_first_ingot() {
-        use crate::systems::quests::objectives::QuestObjective;
+        use humanity_systems::quests::objectives::QuestObjective;
         let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-        let home = crate::systems::grow_machines::load_home(&crate::persistence::live_save::active_home_machines_path(&root)).expect("home.ron");
+        let home = humanity_systems::grow_machines::load_home(&humanity_systems::persistence::live_save::active_home_machines_path(&root)).expect("home.ron");
         let recipe_id = home.catalog.get("smelter").and_then(|d| d.auto_recipe.clone()).expect("the smelter runs a recipe");
-        let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("recipes.csv")).unwrap()).unwrap();
+        let recipes = humanity_systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("recipes.csv")).unwrap()).unwrap();
         let smelt = recipes.recipes.get(&recipe_id).expect("the smelter's recipe");
         let coal_per_batch = smelt.inputs.iter().find(|(id, _)| id == "coal_0").map(|(_, q)| *q).expect("it burns coal");
         let ingots_per_batch = smelt.outputs.iter().find(|(id, _)| id == "iron_ingot_0").map(|(_, q)| *q).expect("it makes iron");
-        let quests = crate::systems::quests::QuestRegistry::from_ron_dir(&root.join("quests"));
+        let quests = humanity_systems::quests::QuestRegistry::from_ron_dir(&root.join("quests"));
         let first_steps = quests.get("gs_first_steps").expect("First Steps");
         let ingots: u32 = first_steps
             .steps
             .iter()
-            .find_map(|s: &crate::systems::quests::QuestStep| match &s.objective {
+            .find_map(|s: &humanity_systems::quests::QuestStep| match &s.objective {
                 QuestObjective::Make { item_id, quantity } if item_id == "iron_ingot_0" => Some(*quantity),
                 _ => None,
             })
@@ -756,7 +756,7 @@ mod tests {
     /// first.
     #[test]
     fn crates_sit_on_the_racks_that_were_built() {
-        use crate::ship::structure::{rack_deck_levels, zone_filler, RACK_DECK_M};
+        use humanity_ship::structure::{rack_deck_levels, zone_filler, RACK_DECK_M};
         let f = zone_filler("storage").expect("storage filler in zone_filler.ron");
         assert_eq!(f.mesh_kind, "rack");
         let (origin, size) = (Vec3::new(40.0, 0.0, 73.0), Vec3::new(15.0, 3.0, 16.0));
@@ -806,13 +806,13 @@ mod settle_farm_tests {
     use super::{publish_stock, settle_farm, take_stock};
     use humanity_core::ecs::systems::System;
     use humanity_core::hot_reload::data_store::DataStore;
-    use crate::systems::farming::{self, FarmingSystem};
-    use crate::systems::inventory::placed::PlacedItem;
+    use humanity_systems::farming::{self, FarmingSystem};
+    use humanity_systems::inventory::placed::PlacedItem;
 
     /// The garden, the game's shared farm at an hour's interval, nothing fed yet, and 500 of each
     /// fertilizer in a container.
     fn home() -> (DataStore, hecs::World, farming::Shared, Vec<String>, Vec<PlacedItem>) {
-        let (mut data, world) = farming::step_tests::garden(false);
+        let (mut data, world) = farming::fixtures::step::garden(false);
         data.insert(farming::clock::INTERVAL_KEY, Mutex::new(3600.0_f64));
         data.insert("garden_nutrient", Mutex::new(HashMap::<String, f32>::new()));
         let mut sys = FarmingSystem::new();
@@ -836,7 +836,7 @@ mod settle_farm_tests {
     /// tick, what they drew taken out of the containers.
     fn frame(data: &mut DataStore, world: &mut hecs::World, shared: &farming::Shared, placed: &mut Vec<PlacedItem>, dt: f32) {
         {
-            let gt = data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap();
+            let gt = data.get::<Mutex<humanity_systems::time::GameTime>>("game_time").unwrap();
             let mut g = gt.lock().unwrap();
             let t = g.elapsed_seconds + f64::from(dt) * f64::from(g.time_scale);
             g.set_elapsed(t);

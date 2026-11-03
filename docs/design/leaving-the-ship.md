@@ -70,19 +70,19 @@ so: docs/user/skills/floating_and_boats.md:536-539, navigating_without_instrumen
 
 | Piece | Where | What it gives a trip |
 |---|---|---|
-| The ship's orbit | data/stations/home.ron:33-45 (Synchronous, over longitude -122.3, nadir-pointing); src/station/orbit.rs:175-209 (closed-form Kepler), driven by the game clock through `sim_seconds` (:67) | where every trip starts; a propagator that already handles ellipses (eccentricity clamped to 0.95 at :183; a transfer ellipse from this orbit is about 0.73, computed) |
+| The ship's orbit | data/stations/home.ron:33-45 (Synchronous, over longitude -122.3, nadir-pointing); crates/humanity-ship/src/station/orbit.rs:175-209 (closed-form Kepler), driven by the game clock through `sim_seconds` (:67) | where every trip starts; a propagator that already handles ellipses (eccentricity clamped to 0.95 at :183; a transfer ellipse from this orbit is about 0.73, computed) |
 | A descent with no loading screen | src/engine/frame_lock.rs:10 (surface mode below 10 km), :32 (co-rotation below 100 km), :40 (eased to the inertial frame up to 1,000 km); the chunked-LOD Earth; leaving and boarding the ship by its bounds (src/lib.rs:3379-3445) | a camera that already goes from the ship to the grass, flown today by Dev travel and the rigs |
 | Silverdale | data/locales/silverdale_wa/locale.json:16-26 (centre and bounds); data/maps/regions/silverdale.bin and silverdale.dem.bin (real roads, buildings and terrain, built when the camera comes within 40 km, src/engine/region_meshes.rs:28) | the place to land |
 | Life on the ground | src/engine/survival_env.rs:217-256 (outside: the weather's air at the player, wind, rain or snow, shelters), :145-153 (breathable only where the body's air allows it) | rain, cold, wind and shelter, all live once fly mode is off |
-| Building on a planet | src/engine/planet_build.rs; src/systems/construction/site.rs (a build site pinned to the ground, pieces within 1 km join it, :60); kept in the save (the site round-trip test in src/save_load.rs) | building down there already works; on a planet you build from what you carry (src/systems/crafting/home_store.rs:13-16) |
+| Building on a planet | src/engine/planet_build.rs; crates/humanity-systems/src/construction/site.rs (a build site pinned to the ground, pieces within 1 km join it, :60); kept in the save (the site round-trip test in src/save_load.rs) | building down there already works; on a planet you build from what you carry (crates/humanity-systems/src/crafting/home_store.rs:13-16) |
 | The home keeps running | src/lib.rs:6629-6638 (every system ticks each frame, wherever the player stands); offline catch-up on the next launch (src/config.rs:649-652) | nothing at home pauses while you are away |
 | Death on a planet | [death-and-your-pack.md](death-and-your-pack.md), lines 38-53 | a Realistic death leaves the pack on the planet's ground; you wake in the respawner aboard (line 22) |
 | The way home on screen | BUG-148, fixed in v0.1459.0 (docs/BUGS.md:3466): the Home Station marker shows from the ground | you can always see where the ship is |
 | Dev travel | src/gui/pages/dev.rs:233-393; src/lib.rs:5819-6091 | the placement maths for "stand on the ground at this latitude and longitude" (lib.rs:5988-6091) |
-| Vehicles | src/systems/vehicles/mod.rs (deploy :243, summon :327, a drive on real seconds :368); data/vehicles/kits.ron (pickup, rover, 1975 Nova, 6 to 12 m/s) | seats (`VehicleSeat`), entering and leaving, a vehicle that follows a route |
+| Vehicles | crates/humanity-systems/src/vehicles/mod.rs (deploy :243, summon :327, a drive on real seconds :368); data/vehicles/kits.ron (pickup, rover, 1975 Nova, 6 to 12 m/s) | seats (`VehicleSeat`), entering and leaving, a vehicle that follows a route |
 | Spacecraft as goods | data/items.csv:365 (Spacecraft Pod, 2,000 kg), :404 (Shuttle, 8,000 kg); data/recipes.csv:557 and :562 (real bills of materials since v0.1455.0) | names and bills a transport can use |
 | G on the body | data/ship/flight.ron:72-79 (crew: safe to 1.5 g, harmed from 4 g at 2 health a second); the felt g reaches the survival context (src/engine/survival_env.rs:165-169) | a place for an entry's g to land on the body |
-| The clock | [decision-briefs.md](decision-briefs.md), lines 200-211 (motion you watch stays on real seconds) and 222-231 (a shared world runs at 1x); sleep holds the clock at 7,200x (src/systems/sleep.rs:36) and is refused in a shared world (:164-170) | the rule for who may wait a trip out |
+| The clock | [decision-briefs.md](decision-briefs.md), lines 200-211 (motion you watch stays on real seconds) and 222-231 (a shared world runs at 1x); sleep holds the clock at 7,200x (crates/humanity-systems/src/sleep.rs:36) and is refused in a shared world (:164-170) | the rule for who may wait a trip out |
 | Departures, as a design | [ship-homes-and-logistics.md](ship-homes-and-logistics.md), section 3 (a departure is a record; boarding in person) and section 5.10 (the next departure computed from a start time plus a headway, never stored; arrivals on the server's wall clock) | the shape the shuttle's timetable takes |
 | The fleet ledger | ship-homes-and-logistics.md, increment 3, "The fleet ledger, as built" (`data/ship/fleet_ledger.ron`) | where a free seat's real cost can show |
 | The descent ladder | tests/visual/vantages.json, `ladder`: one boot, one Silverdale column, 16 rungs from 12,000 km down to 0.3 km, with checks for pops at known boundaries; 43 more vantages at Silverdale's latitude, from the ground to 12,000 km | the rig proof for a descent mostly exists already |
@@ -96,15 +96,15 @@ so: docs/user/skills/floating_and_boats.md:536-539, navigating_without_instrumen
   built": the districts are not rooms).
 - **No vehicle that flies.** kits.ron has no spacecraft row; data/items.csv has no engine,
   thruster, parachute, heat shield or propellant item; `PropulsionDef` and `ShipSystems` are used
-  by nothing (src/systems/vehicles/propulsion.rs:9, ships.rs:9); of the vehicle, docking and
+  by nothing (crates/humanity-systems/src/vehicles/propulsion.rs:9, ships.rs:9); of the vehicle, docking and
   transportation systems only `VehicleSystem` is registered (src/lib.rs:1321).
 - **No route, timetable, seat or trip.**
 - **No planet on the relay.** Its world is the ship file in ship metres (src/relay/handlers/game_state.rs:751-785,
   ship_world.rs). The game joins the shared world only while aboard (src/engine/home_plot.rs:236-247),
   and Dev travel steps out of it first (src/lib.rs:5882-5885, 5994-5997).
 - **Weather differs per player.** Each game rolls its weather from its own computer's random
-  source (src/systems/weather.rs:311, rolls at :322 and :396-418), on top of a climate that is a
-  pure function of place and season (src/systems/env_layer1.rs). Two players in one place would
+  source (crates/humanity-systems/src/weather.rs:311, rolls at :322 and :396-418), on top of a climate that is a
+  pure function of place and season (crates/humanity-systems/src/env_layer1.rs). Two players in one place would
   see different rain.
 - **Dev's Land does not land.** Its Earth target is a coordinate written in code, the Oahu coast
   (src/lib.rs:6012-6016), 1.5 km up (:6017), with fly mode on (:6066-6068), and fly mode
@@ -117,10 +117,10 @@ so: docs/user/skills/floating_and_boats.md:536-539, navigating_without_instrumen
 
 ### 2.1 Where the ship is (computed)
 
-- The home's orbit is synchronous with the solar day (src/station/orbit.rs:59; src/lib.rs:3362),
+- The home's orbit is synchronous with the solar day (crates/humanity-ship/src/station/orbit.rs:59; src/lib.rs:3362),
   so it sits 42,241 km from Earth's centre, 35,870 km up, moving at 3.07 km/s. A real
   geostationary orbit keeps the sidereal day and sits at 42,164 km; the game's 77 km difference is
-  deliberate (the test comment at src/station/orbit.rs:312-319).
+  deliberate (the test comment at crates/humanity-ship/src/station/orbit.rs:312-319).
 - From the ship, Earth is 17.4 degrees across.
 - From Silverdale (47.64 N) the ship stands due south, 35.3 degrees up, 38,240 km away. Even the
   planned 2 km drum ([habitat-generation.md](habitat-generation.md), lines 18-29) is 11 arc-seconds
@@ -257,8 +257,8 @@ loading screen, a teleport, an invented drive.
 - **Board in person:** stand in the boarding circle at departure time (ship-homes section 3). Until
   the hangar opens, the circle is a marked spot at the Commons' arrival point (its `spawn`,
   data/blueprints/ship_structure.ron:950), as a data row, so moving it later is a data edit.
-- **Take what you carry:** the backpack, 50 kg and 65 L (src/systems/inventory/mod.rs:219;
-  src/systems/encumbrance.rs). Bulk goods ride as cargo later (ship-homes section 5).
+- **Take what you carry:** the backpack, 50 kg and 65 L (crates/humanity-systems/src/inventory/mod.rs:219;
+  crates/humanity-systems/src/encumbrance.rs). Bulk goods ride as cargo later (ship-homes section 5).
 
 ### 4.3 The trip down, phase by phase
 
@@ -292,15 +292,15 @@ At the Simplified clock speed a solo player can pick (72x), the coast is 4.4 min
 
 ### 4.5 The clock rule
 
-- **Above the air, the game clock**, exactly like the ship's own orbit (src/station/orbit.rs:67).
+- **Above the air, the game clock**, exactly like the ship's own orbit (crates/humanity-ship/src/station/orbit.rs:67).
   Undocking, the burns, the coasts and the waits all count on it.
 - **In the air, real seconds**, because you watch it, the rule for a summoned vehicle's drive
   ([decision-briefs.md](decision-briefs.md), lines 200-211).
 - **Who may wait it out:** in your own world, "Wait until arrival" holds the clock fast through
-  the part above the air, the mechanism sleep already uses (src/systems/sleep.rs:36). Those 6 to 7
+  the part above the air, the mechanism sleep already uses (crates/humanity-systems/src/sleep.rs:36). Those 6 to 7
   hours then pass in about 3 real seconds, and they cost what those hours cost: crops grow, the
   body gets hungry and thirsty, the day moves on. In a shared world nobody can hold the host's clock, the
-  same reason sleep is refused there (src/systems/sleep.rs:164-170): you ride along, or sign off and
+  same reason sleep is refused there (crates/humanity-systems/src/sleep.rs:164-170): you ride along, or sign off and
   arrive anyway (section 6).
 - **A trip always costs its true time on the game clock**; how much of it you sit through is your
   choice where the rules allow, and not where they do not.
@@ -347,7 +347,7 @@ At the Simplified clock speed a solo player can pick (72x), the coast is 4.4 min
 
 - **Your home keeps running.** Every system ticks each frame wherever you stand (src/lib.rs:6629-6638):
   crops grow, machines run, the reactor meters. On the ground your home's storage is out of reach
-  (src/systems/crafting/home_store.rs:13-16). In a shared world your home is still your own game's;
+  (crates/humanity-systems/src/crafting/home_store.rs:13-16). In a shared world your home is still your own game's;
   the relay keeps your plot as it does whenever you are away (ship-homes question 19). Sign off
   mid-trip and the offline catch-up runs the home forward at your next launch (src/config.rs:649-652).
 - **Your body keeps its needs.** Hunger, thirst and tiredness run on the clock through the trip; you
@@ -395,7 +395,7 @@ same landing-site rows (question 11).
 - Its world is the ship: the ship file's zones are its rooms, positions are ship metres, a player's
   entity carries health, stamina, an empty inventory, experience, quests and their plot
   (src/relay/handlers/game_state.rs:751-785; ship_world.rs).
-- It checks every move against a speed allowance and declared jumps (src/ship/moves.rs;
+- It checks every move against a speed allowance and declared jumps (crates/humanity-ship/src/moves.rs;
   src/relay/handlers/move_check.rs), and tells only the players who have a mover in view
   (src/relay/handlers/game_interest.rs).
 - It knows nothing of planets. The game stays joined only while aboard (src/engine/home_plot.rs:236-247),
@@ -436,7 +436,7 @@ The budgets are measured on the operator's machine with the rigs' frame costs at
 ladder's rungs before increment 2 ships (CLAUDE.md, "Compute and bandwidth are a hard budget").
 
 **Precision:** a place on the ground is a build-site frame: an f64 origin in the body's frame,
-positions as small f32 offsets from it (the `PlanetSite` rule, src/systems/construction/site.rs).
+positions as small f32 offsets from it (the `PlanetSite` rule, crates/humanity-systems/src/construction/site.rs).
 Planet-scale coordinates never cross the wire as f32.
 
 ### 6.4 Privacy
@@ -473,7 +473,7 @@ What changes (all new):
   Appendix B.
 - `scripts/plan-surface-route.js`: regenerates those numbers (the scratch versions used for this
   document are the start of it).
-- `src/systems/trips.rs`, pure and in every feature set (as `death_pack.rs` is): the route loaded
+- `crates/humanity-systems/src/trips.rs`, pure and in every feature set (as `death_pack.rs` is): the route loaded
   from disk first with a built-in copy, the next departure, a trip's state (booked, riding a phase,
   arrived), phases advancing on their clock, the boarding check, and the waiting rule.
 - `src/engine/trip.rs`: "Book a seat" on the Maps page's Silverdale card; the trip card while riding
@@ -498,7 +498,7 @@ Proof (each test seen red first):
 - `the_field_is_open_ground`: the circle touches no building outline or road in silverdale.bin and
   stands above the water in silverdale.dem.bin. Red: the field moved onto a building.
 - `the_coast_takes_what_kepler_says`: the coast phase's length equals half the period of the
-  transfer ellipse from the ship's radius (from MU_EARTH and the 86,400 s day, src/station/orbit.rs:55
+  transfer ellipse from the ship's radius (from MU_EARTH and the 86,400 s day, crates/humanity-ship/src/station/orbit.rs:55
   and :59) to the low orbit, within 1 percent, computed in the test by its own formula rather than
   the module's.
 - `a_trip_moves_only_with_its_clock`: game-clock phases advance with the game clock, air phases with
@@ -518,7 +518,7 @@ Proof (each test seen red first):
 
 What changes:
 - **The camera rides the real trajectory.** Above the air from closed-form conics
-  (src/station/orbit.rs `propagate`), placed in the Earth-centred f64 frame the way Dev travel moves
+  (crates/humanity-ship/src/station/orbit.rs `propagate`), placed in the Earth-centred f64 frame the way Dev travel moves
   the ship frame, with the frame lock taking over through its existing bands. In the air from an entry
   profile stored with the route (height, downrange, speed, flight-path angle, g and heating against
   time), integrated at development time from a point mass with drag and lift (Allen and Eggers'
@@ -669,19 +669,19 @@ Each has a recommendation.
 
 - **docking.ron's ports and procedures would load empty:** the file calls them `docking_ports` and
   `docking_procedures` (data/docking.ron:11, :213), the loader reads `ports` and `procedures`
-  (src/systems/docking.rs:26, :29). The system is not registered anyway.
+  (crates/humanity-systems/src/docking.rs:26, :29). The system is not registered anyway.
 - **transportation.ron's space list would load empty:** the file calls it `space`
-  (data/transportation.ron:142), the loader reads `space_infrastructure` (src/systems/transportation.rs:22).
+  (data/transportation.ron:142), the loader reads `space_infrastructure` (crates/humanity-systems/src/transportation.rs:22).
   The system is never constructed (ship-homes section 5.1).
 - **Three module headers name data files that do not exist:** data/vehicles.csv
-  (src/systems/vehicles/mod.rs:4), data/ship_classes.csv (ships.rs:3), data/propulsion.csv
+  (crates/humanity-systems/src/vehicles/mod.rs:4), data/ship_classes.csv (ships.rs:3), data/propulsion.csv
   (propulsion.rs:3; also noted in [gravity-and-movement.md](gravity-and-movement.md), lines 247-254).
 - **Dev's Land writes Earth's target in code** (src/lib.rs:6012-6016), against the locale rule
   (locale.json:2).
 - **The Shuttle item is "Personnel transport between stations"** (data/items.csv:404), and the
   Spacecraft Pod's bill (data/recipes.csv:562) has no engine, propellant, parachute or heat-shield part,
   because none exists as an item; its ceramic plates are the nearest thing to a heat shield.
-- **Weather is rolled per game** from the computer's random source (src/systems/weather.rs:311); a
+- **Weather is rolled per game** from the computer's random source (crates/humanity-systems/src/weather.rs:311); a
   shared place needs it seeded (increment 5).
 - **Lore against code:** the lore's present is after the fleet's departure, the code's ship is over
   Silverdale (question 1). A question, not a bug.
@@ -689,9 +689,9 @@ Each has a recommendation.
 ## Appendix B: the arithmetic
 
 **Inputs.**
-- Earth's gravitational parameter 3.986004418e14 m3/s2 (src/station/orbit.rs:55); Earth's radius
+- Earth's gravitational parameter 3.986004418e14 m3/s2 (crates/humanity-ship/src/station/orbit.rs:55); Earth's radius
   6,371 km (the game's).
-- The ship's period: 86,400 s, synchronous with the solar day (src/station/orbit.rs:59; src/lib.rs:3362).
+- The ship's period: 86,400 s, synchronous with the solar day (crates/humanity-ship/src/station/orbit.rs:59; src/lib.rs:3362).
 - The air begins at 120 km (Soyuz's entry interface is 122 km, ESA).
 - A survivable entry angle: 5 to 8 degrees below the horizon, 6.5 nominal (assumption, Apollo-class).
 - Silverdale: 47.6445 N, 122.6949 W (locale.json:16-19); the ship over 122.3 W (data/stations/home.ron:42).

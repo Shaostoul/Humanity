@@ -41,10 +41,10 @@ use crate::gui::{BuildPlacing, GuiPage, GuiState};
 use humanity_core::hot_reload::data_store::DataStore;
 use humanity_core::input::bindings::{pretty_key_name, GameAction};
 use humanity_core::ecs::components::Transform;
-use crate::ship::build_frames::{plot_frame_id, BuildFrames};
-use crate::ship::wall_collision::WallSegment;
-use crate::systems::construction::shared::{self as contract, Action, Reason, SharedPiece};
-use crate::systems::construction::{doorway, placement, BlueprintRegistry, BuildRequest, DoorOpen, PlanetSite, Structure};
+use humanity_ship::build_frames::{plot_frame_id, BuildFrames};
+use humanity_ship::wall_collision::WallSegment;
+use humanity_systems::construction::shared::{self as contract, Action, Reason, SharedPiece};
+use humanity_systems::construction::{doorway, placement, BlueprintRegistry, BuildRequest, DoorOpen, PlanetSite, Structure};
 use glam::Vec3;
 
 /// What a key press does to the piece in hand.
@@ -214,7 +214,7 @@ pub(crate) fn place_at(state: &mut EngineState, blueprint_id: &str, x: f32, z: f
 /// outdoors, which the build itself refuses aboard first, with its outdoors
 /// reason (`cast_spot`, the BUG-153 review).
 fn publish_cast_spot(state: &mut EngineState) {
-    use crate::systems::abilities::{AbilityRegistry, BuildSpot, BUILD_SPOT_SLOT};
+    use humanity_systems::abilities::{AbilityRegistry, BuildSpot, BUILD_SPOT_SLOT};
     let Some((id, _)) = state.gui_state.pending_cast.as_ref() else { return };
     let builds = state
         .data_store
@@ -276,7 +276,7 @@ pub(crate) fn cast_spot(
 /// the order is tested whole.
 pub(crate) fn place_refusal_hint(
     name: &str,
-    not_outdoors: Option<crate::systems::construction::NotOutdoors>,
+    not_outdoors: Option<humanity_systems::construction::NotOutdoors>,
     roofs_over: Option<&str>,
     where_refused: Option<&str>,
 ) -> Option<String> {
@@ -284,7 +284,7 @@ pub(crate) fn place_refusal_hint(
         return Some(format!("Placing {name}: {}   [Esc] done", why.reason()));
     }
     if let Some(fire) = roofs_over {
-        return Some(format!("Placing {name}: {}   [Esc] done", crate::systems::construction::roof_over_fire_reason(fire)));
+        return Some(format!("Placing {name}: {}   [Esc] done", humanity_systems::construction::roof_over_fire_reason(fire)));
     }
     where_refused.map(|words| format!("Placing {name}: {words}   [Esc] done"))
 }
@@ -336,8 +336,8 @@ pub(crate) fn frame(state: &mut EngineState) {
         (Ok(g), Some(bp)) => {
             let world = &state.game_world.world;
             (
-                crate::systems::construction::outdoors_refusal(bp, world, &state.data_store, g.site.as_ref(), &g.pose),
-                crate::systems::construction::roofs_over_outdoors_piece(bp, world, registry, g.site.as_ref(), &g.pose),
+                humanity_systems::construction::outdoors_refusal(bp, world, &state.data_store, g.site.as_ref(), &g.pose),
+                humanity_systems::construction::roofs_over_outdoors_piece(bp, world, registry, g.site.as_ref(), &g.pose),
             )
         }
         _ => (None, None),
@@ -409,7 +409,7 @@ pub(crate) fn frame(state: &mut EngineState) {
 /// false), and `outside_own_plot`. A planet build, a ghost that could not be placed at all, and
 /// `ship_scope` (the Dev mode, offline) are never refused here.
 pub(crate) fn refused_off_plot(
-    ship: Option<&crate::ship::ship_structure::ShipStructure>,
+    ship: Option<&humanity_ship::ship_structure::ShipStructure>,
     ship_scope: bool,
     placed: &Result<planet_build::Ghost, planet_build::CannotBuild>,
 ) -> bool {
@@ -435,7 +435,7 @@ pub(crate) fn refused_off_plot_here(gui: &GuiState, placed: &Result<planet_build
 /// assembled ship, where there is no plot to bound against (the legacy layout). TRUE everywhere
 /// aboard while the home is put away (a guest, ship homes increment 2): a guest has no plot of
 /// this ship to build on. The Dev-mode exemption is `refused_off_plot`'s.
-pub(crate) fn outside_own_plot(ship: Option<&crate::ship::ship_structure::ShipStructure>, pose: &Transform) -> bool {
+pub(crate) fn outside_own_plot(ship: Option<&humanity_ship::ship_structure::ShipStructure>, pose: &Transform) -> bool {
     let Some(s) = ship else { return false };
     let Some(plot) = s.home_plot() else { return s.home_is_away() };
     let frames = BuildFrames::of_ship(s);
@@ -468,12 +468,12 @@ pub(crate) fn off_plot_reason(guest: bool) -> &'static str {
 /// ConstructionSystem applies to a planet build).
 fn carried_short(state: &EngineState, blueprint_id: &str) -> Option<(String, u32)> {
     use humanity_core::ecs::components::Controllable;
-    use crate::systems::inventory::{Inventory, ItemRegistry};
+    use humanity_systems::inventory::{Inventory, ItemRegistry};
     let bp = state.data_store.get::<BlueprintRegistry>("blueprint_registry")?.get(blueprint_id)?;
     let world = &state.game_world.world;
     let mut q = world.query::<(&Inventory, &Controllable)>();
     let (_e, (inv, _)) = q.iter().next()?;
-    let (id, more) = crate::systems::construction::materials_short(bp, |id| inv.count_item(id), None)?;
+    let (id, more) = humanity_systems::construction::materials_short(bp, |id| inv.count_item(id), None)?;
     let name = state
         .data_store
         .get::<ItemRegistry>("item_registry")
@@ -496,23 +496,23 @@ pub(crate) fn build_refusal(
     on_planet: bool,
 ) -> Option<String> {
     use humanity_core::ecs::components::Controllable;
-    use crate::systems::inventory::{Inventory, ItemRegistry};
+    use humanity_systems::inventory::{Inventory, ItemRegistry};
     let bp = data.get::<BlueprintRegistry>("blueprint_registry")?.get(blueprint_id)?;
     let mut q = world.query::<(&Inventory, &Controllable)>();
     let (_e, (pack, _)) = q.iter().next()?;
     // Aboard, the home's storage counts while it is in reach; not for a guest,
     // whose home is put away, and never on a planet (its storage is in orbit).
-    let away = if on_planet { None } else { crate::systems::crafting::home_store::HomeStore::here(data).not_here };
+    let away = if on_planet { None } else { humanity_systems::crafting::home_store::HomeStore::here(data).not_here };
     let storage_counts = !on_planet && away.is_none();
     let stock = data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock");
     let stored = |id: &str| stock.and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0))).unwrap_or(0);
     let stores: Option<&dyn Fn(&str) -> u32> = if storage_counts { Some(&stored) } else { None };
-    let missing = crate::systems::construction::materials_missing(bp, |id| pack.count_item(id), stores);
+    let missing = humanity_systems::construction::materials_missing(bp, |id| pack.count_item(id), stores);
     if missing.is_empty() {
         return None;
     }
     // Worded as the build's own refusal words it (`construction::missing_list`).
-    let list = crate::systems::construction::missing_list(&missing, data.get::<ItemRegistry>("item_registry"));
+    let list = humanity_systems::construction::missing_list(&missing, data.get::<ItemRegistry>("item_registry"));
     Some(if on_planet {
         format!("Not enough to build the {} here: carry {list} (on a planet you build from what you carry)", bp.name)
     } else if let Some(why) = away {
@@ -570,14 +570,14 @@ const TAKE_DOWN_REACH_M: f32 = 8.0;
 /// Pure over the world and the placed items, so it is tested without a window.
 pub(crate) fn take_down_plan(
     world: &hecs::World,
-    placed: &[crate::systems::inventory::placed::PlacedItem],
+    placed: &[humanity_systems::inventory::placed::PlacedItem],
     registry: Option<&BlueprintRegistry>,
     eye: Vec3,
     forward: Vec3,
     frame: Option<&PlanetSite>,
-    blockers: crate::ship::sight::ReachBlockers<'_>,
+    blockers: humanity_ship::sight::ReachBlockers<'_>,
 ) -> Result<(hecs::Entity, String, Vec<(String, u32)>), String> {
-    let Some(e) = crate::systems::construction::uses::first_in_view(world, registry, eye, forward, TAKE_DOWN_REACH_M, frame, blockers) else {
+    let Some(e) = humanity_systems::construction::uses::first_in_view(world, registry, eye, forward, TAKE_DOWN_REACH_M, frame, blockers) else {
         return Err("Nothing built in reach to take down".to_string());
     };
     let (id, uid) = match world.get::<&Structure>(e) {
@@ -586,14 +586,14 @@ pub(crate) fn take_down_plan(
     };
     let bp = registry.and_then(|r| r.get(&id));
     let name = bp.map_or_else(|| id.clone(), |b| b.name.clone());
-    let path = crate::systems::construction::uses::storage_path(uid);
+    let path = humanity_systems::construction::uses::storage_path(uid);
     if uid != 0 && placed.iter().any(|it| it.container == path && it.qty > 0) {
         return Err(format!("Empty the {name} before taking it down"));
     }
     // A fire gives back its stones and only the logs it has not burned
     // (BUG-153), so burning logs and taking the ring down cannot make logs.
-    let fuel = world.get::<&crate::systems::construction::fires::FireFuel>(e).ok().map(|f| *f);
-    let back = bp.map(|b| crate::systems::construction::fires::materials_back(b, fuel.as_ref())).unwrap_or_default();
+    let fuel = world.get::<&humanity_systems::construction::fires::FireFuel>(e).ok().map(|f| *f);
+    let back = bp.map(|b| humanity_systems::construction::fires::materials_back(b, fuel.as_ref())).unwrap_or_default();
     Ok((e, name, back))
 }
 
@@ -679,15 +679,15 @@ pub(crate) fn take_down_piece(state: &mut EngineState, piece_id: u64) -> String 
 /// blueprint's whole price, which is what was paid for it, as a refused build gives back what it
 /// took. A shared piece never burns, so both are its materials in full.
 pub(crate) fn kept_piece_back(world: &hecs::World, registry: Option<&BlueprintRegistry>, e: hecs::Entity) -> (String, Vec<(String, u32)>) {
-    let id = match (world.get::<&Structure>(e), world.get::<&crate::systems::construction::Construction>(e)) {
+    let id = match (world.get::<&Structure>(e), world.get::<&humanity_systems::construction::Construction>(e)) {
         (Ok(s), _) => s.blueprint_id.clone(),
         (_, Ok(c)) => c.blueprint_id.clone(),
         _ => String::new(),
     };
     let bp = registry.and_then(|r| r.get(&id));
     let name = bp.map_or_else(|| id.clone(), |b| b.name.clone());
-    let fuel = world.get::<&crate::systems::construction::fires::FireFuel>(e).ok().map(|f| *f);
-    let materials = bp.map(|b| crate::systems::construction::fires::materials_back(b, fuel.as_ref())).unwrap_or_default();
+    let fuel = world.get::<&humanity_systems::construction::fires::FireFuel>(e).ok().map(|f| *f);
+    let materials = bp.map(|b| humanity_systems::construction::fires::materials_back(b, fuel.as_ref())).unwrap_or_default();
     (name, materials)
 }
 
@@ -704,7 +704,7 @@ pub(crate) fn apply_take_down(
     name: &str,
     materials: &[(String, u32)],
 ) -> String {
-    use crate::systems::inventory::{ItemRegistry, TransferOp};
+    use humanity_systems::inventory::{ItemRegistry, TransferOp};
     if let Some(chan) = data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops") {
         if let Ok(mut c) = chan.lock() {
             for (id, qty) in materials {
@@ -771,7 +771,7 @@ pub(crate) fn built_piece_segments(
 pub(crate) fn built_piece_boxes(world: &hecs::World, registry: Option<&BlueprintRegistry>, frame: Option<&PlanetSite>) -> Vec<(Vec3, Vec3)> {
     let mut out = Vec::new();
     for (_e, (s, tf, site, open)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&DoorOpen>)>().iter() {
-        if !crate::systems::construction::site::in_frame(site, frame) {
+        if !humanity_systems::construction::site::in_frame(site, frame) {
             continue;
         }
         let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| doorway::piece_parts(bp, tf, open.is_some()));
@@ -786,7 +786,7 @@ pub(crate) fn built_piece_boxes(world: &hecs::World, registry: Option<&Blueprint
 /// A piece lower than this (m above the feet) is stepped over, not walked into:
 /// a foundation or a floor tile. The sweep's knee (`wall_collision::KNEE_M`), which
 /// every segment follows since ship homes increment 7.
-const STEP_OVER_M: f32 = crate::ship::wall_collision::KNEE_M;
+const STEP_OVER_M: f32 = humanity_ship::wall_collision::KNEE_M;
 
 /// The blocking segment for a box on the ground: along its longer side, inset
 /// by half its thickness at each end, with that half thickness as the radius,
@@ -797,7 +797,7 @@ fn segment_of_box(lo: Vec3, hi: Vec3) -> WallSegment {
     let (half_x, half_z) = ((hi.x - lo.x) * 0.5, (hi.z - lo.z) * 0.5);
     // The segment stands as tall as the box (ship homes increment 7's `WallSegment::y0`/`y1`).
     let (y0, y1) = (lo.y, hi.y);
-    let kind = crate::ship::wall_collision::SegmentKind::Wall;
+    let kind = humanity_ship::wall_collision::SegmentKind::Wall;
     if half_x >= half_z {
         let run = half_x - half_z;
         WallSegment { a: (cx - run, cz), b: (cx + run, cz), half_thickness: half_z, y0, y1, kind }
@@ -825,7 +825,7 @@ mod tests {
     /// foundation; dropping `!ship_scope` from `refused_off_plot` fails the Dev line.
     #[test]
     fn a_piece_goes_aboard_only_inside_your_own_plot() {
-        use crate::ship::ship_structure::ShipStructure;
+        use humanity_ship::ship_structure::ShipStructure;
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let world = hecs::World::new();
@@ -894,8 +894,8 @@ mod tests {
     /// you can build only inside your own plot (your home)   [Esc] done".
     #[test]
     fn an_outdoors_piece_hears_its_outdoors_refusal_before_the_plot_rule() {
-        use crate::ship::ship_structure::ShipStructure;
-        use crate::systems::construction::{outdoors_refusal, NotOutdoors};
+        use humanity_ship::ship_structure::ShipStructure;
+        use humanity_systems::construction::{outdoors_refusal, NotOutdoors};
         let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let data = catalog();
         let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
@@ -934,8 +934,8 @@ mod tests {
     #[test]
     fn a_campfire_cast_outside_your_plot_hears_the_outdoors_words() {
         use humanity_core::ecs::components::Controllable;
-        use crate::systems::construction::{begin_build, NotOutdoors};
-        use crate::systems::inventory::Inventory;
+        use humanity_systems::construction::{begin_build, NotOutdoors};
+        use humanity_systems::inventory::Inventory;
         let data = catalog();
         let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
         let words = format!("The Campfire is not built here: {}", NotOutdoors::Aboard.reason());
@@ -971,7 +971,7 @@ mod tests {
     /// Dev mode was let build in the Commons".
     #[test]
     fn dev_in_a_shared_world_builds_only_on_its_own_plot() {
-        use crate::ship::ship_structure::ShipStructure;
+        use humanity_ship::ship_structure::ShipStructure;
         let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let data = catalog();
         let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
@@ -1082,8 +1082,8 @@ mod tests {
     #[test]
     fn a_short_build_is_refused_at_the_crosshair_by_name() {
         use humanity_core::ecs::components::Controllable;
-        use crate::systems::crafting::home_store::HOME_STORAGE_HERE;
-        use crate::systems::inventory::{Inventory, ItemRegistry};
+        use humanity_systems::crafting::home_store::HOME_STORAGE_HERE;
+        use humanity_systems::inventory::{Inventory, ItemRegistry};
         use std::sync::Mutex;
         let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
@@ -1124,7 +1124,7 @@ mod tests {
 #[cfg(test)]
 mod collision_tests {
     use super::*;
-    use crate::ship::wall_collision::{resolve, PLAYER_RADIUS};
+    use humanity_ship::wall_collision::{resolve, PLAYER_RADIUS};
     use glam::Quat;
 
     fn place(world: &mut hecs::World, reg: &BlueprintRegistry, id: &str, x: f32, z: f32, turns: u8) {
@@ -1234,7 +1234,7 @@ mod collision_tests {
         let (foundation, chest) = (top_at(0.0), top_at(6.0));
         assert!(foundation > 0.0 && foundation <= crate::engine::footing::STEP_UP_M, "the foundation's top is {foundation}");
         assert!(chest > crate::engine::footing::STEP_UP_M, "the chest's top is {chest}");
-        let room = crate::ship::room_types::RoomBounds {
+        let room = humanity_ship::room_types::RoomBounds {
             id: "room".into(),
             min: Vec3::new(-10.0, 0.0, -10.0),
             max: Vec3::new(10.0, 3.0, 10.0),
@@ -1248,7 +1248,7 @@ mod collision_tests {
         let rooms = [room];
         let cars = ElevatorCars::new();
         let f = Footing { rooms: &rooms, ship: None, cars: &cars, built: &boxes };
-        let eye = crate::ship::wall_collision::EYE_HEIGHT_M;
+        let eye = humanity_ship::wall_collision::EYE_HEIGHT_M;
         assert_eq!(f.floor_under(Vec3::new(1.0, eye, 1.0), 0.0), Some(foundation), "walking onto the foundation");
         assert_eq!(f.floor_under(Vec3::new(6.0, eye, 0.0), 0.0), Some(0.0), "from the floor, the chest's top");
         assert_eq!(f.floor_under(Vec3::new(6.0, chest + eye, 0.0), chest), Some(chest), "standing on the chest");
@@ -1271,7 +1271,7 @@ mod collision_tests {
 #[cfg(test)]
 mod take_down_tests {
     use super::*;
-    use crate::systems::construction::placement;
+    use humanity_systems::construction::placement;
 
     fn place(world: &mut hecs::World, reg: &BlueprintRegistry, id: &str, x: f32, z: f32, turns: u8, uid: u32) -> hecs::Entity {
         let bp = reg.get(id).unwrap();
@@ -1285,7 +1285,7 @@ mod take_down_tests {
     /// assertion.
     #[test]
     fn a_take_down_removes_the_piece_and_queues_its_materials() {
-        use crate::systems::inventory::TransferOp;
+        use humanity_systems::inventory::TransferOp;
         let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let mut world = hecs::World::new();
         let wall = place(&mut world, &reg, "wood_wall", 0.0, 0.0, 1, 1);
@@ -1318,11 +1318,11 @@ mod take_down_tests {
 
         let mut stores = hecs::World::new();
         let chest = place(&mut stores, &reg, "storage_chest", 0.0, 0.0, 0, 7);
-        let held = vec![crate::systems::inventory::placed::PlacedItem {
+        let held = vec![humanity_systems::inventory::placed::PlacedItem {
             key: "wood_plank_0".into(),
             name: "Wood Plank".into(),
             qty: 3,
-            container: crate::systems::construction::uses::storage_path(7),
+            container: humanity_systems::construction::uses::storage_path(7),
             ..Default::default()
         }];
         let at_chest = Vec3::new(0.0, 0.5, -2.0);
@@ -1340,10 +1340,10 @@ mod shared_world_tests {
     use humanity_core::ecs::components::Controllable;
     use humanity_core::ecs::systems::System;
     use crate::engine::shared_build::{on_message, tick_core, welcome, Ctx, SharedBuild};
-    use crate::ship::ship_structure::ShipStructure;
-    use crate::systems::construction::shared::{FromRelay, Piece};
-    use crate::systems::construction::{Construction, ConstructionSystem};
-    use crate::systems::inventory::{Inventory, ItemRegistry, TransferOp};
+    use humanity_ship::ship_structure::ShipStructure;
+    use humanity_systems::construction::shared::{FromRelay, Piece};
+    use humanity_systems::construction::{Construction, ConstructionSystem};
+    use humanity_systems::inventory::{Inventory, ItemRegistry, TransferOp};
     use std::sync::Mutex;
 
     /// The relay's clock, Unix seconds.

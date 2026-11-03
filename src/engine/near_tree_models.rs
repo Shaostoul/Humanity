@@ -87,7 +87,7 @@ pub(crate) fn ensure_near_tree_models(
     // card cache entry (i.e. once, at world entry,
     // and again only if new species stream in).
     let need_sprites = {
-        crate::terrain::tree_registry::registry().trees.iter().any(|t| {
+        humanity_terrain::tree_registry::registry().trees.iter().any(|t| {
             t.is_procedural()
                 && t.clusters.is_some()
                 && !decoration_mesh_cache.contains_key(
@@ -102,7 +102,7 @@ pub(crate) fn ensure_near_tree_models(
     };
     {
         use crate::renderer::tree_mesh;
-        let reg = crate::terrain::tree_registry::registry();
+        let reg = humanity_terrain::tree_registry::registry();
         for t in reg.trees.iter().filter(|t| t.is_procedural()) {
             for v in 0..t.variants.max(1) {
                 let key = format!("proc:{}_v{v}", t.id);
@@ -253,7 +253,7 @@ pub(crate) fn ensure_near_tree_models(
                 hi = hi.max(v.position[1]);
             }
             let model_h = (hi - lo).max(1.0e-3);
-            let target_h = crate::terrain::tree_registry::registry()
+            let target_h = humanity_terrain::tree_registry::registry()
                 .trees
                 .iter()
                 .find(|t| t.model == base)
@@ -380,7 +380,7 @@ pub(crate) fn ensure_near_tree_models(
                         .and_then(|i| stem[i + 2..].parse::<u32>().ok())
                     {
                         let va = vn.saturating_sub(1);
-                        let reg = crate::terrain::tree_registry::registry();
+                        let reg = humanity_terrain::tree_registry::registry();
                         if let Some(t) =
                             reg.trees.iter().find(|t| t.model == base)
                         {
@@ -388,7 +388,7 @@ pub(crate) fn ensure_near_tree_models(
                             if !decoration_mesh_cache
                                 .contains_key(&key)
                             {
-                                let mut b = crate::terrain::plant_mesh::PlantMeshBuilder::new();
+                                let mut b = humanity_terrain::plant_mesh::PlantMeshBuilder::new();
                                 crate::renderer::tree_mesh::build_tree(
                                     &mut b,
                                     t,

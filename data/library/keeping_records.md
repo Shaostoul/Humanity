@@ -535,9 +535,9 @@ the current text if it matters to you.
 ### Inside this project
 
 - The Live power card on the Homes page (`src/gui/pages/homes.rs`) and
-  the ship supply ledger it reads (`src/systems/ship_power.rs`).
+  the ship supply ledger it reads (`crates/humanity-systems/src/ship_power.rs`).
 - Settings > Data > Save snapshots (`src/gui/pages/settings.rs`) and the
-  snapshot rules in `src/persistence.rs`.
+  snapshot rules in `crates/humanity-systems/src/persistence.rs`.
 - Settings > Gameplay > "Start every session from the default home"
   (`src/gui/pages/settings.rs`), and what it keeps and drops when the
   home is saved and loaded (`src/save_load.rs`).

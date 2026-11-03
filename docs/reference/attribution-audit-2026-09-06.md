@@ -954,7 +954,7 @@ Two facts that keep it out of an attribution audit regardless of that wording:
 (a) nutrition composition figures are uncopyrightable facts carrying no
 attribution obligation (the claim concedes this), and (b) the table is dead
 data at runtime, `CropNutrition::load`
-(`src/systems/self_sufficiency.rs:189`) and both `food_supply_kcal_per_day`
+(`crates/humanity-systems/src/self_sufficiency.rs:189`) and both `food_supply_kcal_per_day`
 call sites (`:266`, `:278`) sit inside the `#[cfg(test)]` module spanning
 `:180-295`, with no production caller in `src/`.
 `docs/design/gameplay-loop-map.md:95` states it directly: the scoring "is

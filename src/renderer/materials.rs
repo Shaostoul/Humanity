@@ -288,7 +288,7 @@ impl Renderer {
     /// trunk_color. Emissive is 0 - type 22 does not repurpose params.w (its
     /// wind class is implied by the type in the vertex shader), so the normal
     /// emissive meaning of that slot is left alone.
-    pub fn bark_material(&mut self, def: &crate::terrain::tree_registry::TreeDef) -> usize {
+    pub fn bark_material(&mut self, def: &humanity_terrain::tree_registry::TreeDef) -> usize {
         if let Some(&idx) = self.bark_materials.get(&def.id) {
             return idx;
         }

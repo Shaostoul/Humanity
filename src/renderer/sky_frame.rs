@@ -216,7 +216,7 @@ mod tests {
         let sun = model_sun(n);
         let spin = humanity_core::dev_travel::planet_spin_from_time(hour, (-sun.z).atan2(sun.x));
         let turn = DQuat::from_rotation_y(spin);
-        let up = turn * crate::terrain::osm_region::latlon_to_dir_f64(lat, lon);
+        let up = turn * humanity_terrain::osm_region::latlon_to_dir_f64(lat, lon);
         let east = DVec3::Y.cross(up).normalize();
         let north = up.cross(east);
         let w = equatorial_to_world(sun, n) * star;

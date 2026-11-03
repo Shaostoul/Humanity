@@ -108,7 +108,7 @@ fn held(gs: &mut GuiState, from: &str, plot: &str, expiry: u64, verdict: Option<
 }
 
 /// A ship with these plots (only their ids matter to the card).
-fn ship(ids: &[&str]) -> crate::ship::ship_structure::ShipStructure {
+fn ship(ids: &[&str]) -> humanity_ship::ship_structure::ShipStructure {
     let plots = ids
         .iter()
         .map(|id| {
@@ -116,7 +116,7 @@ fn ship(ids: &[&str]) -> crate::ship::ship_structure::ShipStructure {
             ron::from_str(&text).expect("a plot")
         })
         .collect();
-    crate::ship::ship_structure::ShipStructure { plots, ..Default::default() }
+    humanity_ship::ship_structure::ShipStructure { plots, ..Default::default() }
 }
 
 /// A hex serial from `n`.

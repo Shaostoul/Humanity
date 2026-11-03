@@ -1,12 +1,12 @@
 //! Building in the shared world, the relay's side (ship homes increment 5, "building only on your
 //! own plot", 2026-10-05; docs/design/ship-homes-increment-5-plan.md sections 3.2 and 3.3). The
 //! wire and the rules for a proper piece are the contract the relay and the game both compile,
-//! src/systems/construction/shared.rs; this file is what the relay does with them.
+//! crates/humanity-systems/src/construction/shared.rs; this file is what the relay does with them.
 //!
 //! WHAT THE RELAY KEEPS. Every shell piece built in the shared world (a foundation, a wall, a
 //! window wall, a roof: the blueprints data/blueprints/basic.ron marks `shared: true`) is one row
 //! of `world_pieces` (storage/world_pieces.rs) and one entry in the [`PieceBook`] on the game
-//! world, filed under its FRAME (src/ship/build_frames.rs: a plot, `plot:p3`, or one of the ship's
+//! world, filed under its FRAME (crates/humanity-ship/src/build_frames.rs: a plot, `plot:p3`, or one of the ship's
 //! shared spaces, `zone:commons`) with its pose measured from the frame's corner. The row is
 //! written BEFORE anyone is told, so nobody is ever shown a piece the relay could not bring back
 //! after a restart. Each frame counts its changes (`seq`: up by one for each piece built or taken
@@ -73,11 +73,11 @@ use humanity_core::ecs::components::Transform;
 use humanity_protocol::pq_crypto::{verify_plot_permit, PlotPermitError};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::{NewPiece, Storage, StoredPiece};
-use crate::ship::build_frames::{plot_frame_id, BuildFrame, BuildFrames, FrameKind};
-use crate::ship::ship_structure::ShipStructure;
-use crate::systems::construction::shared::{self, Action, FromRelay, Ranks, Reason, Refusal, ToRelay};
+use humanity_ship::build_frames::{plot_frame_id, BuildFrame, BuildFrames, FrameKind};
+use humanity_ship::ship_structure::ShipStructure;
+use humanity_systems::construction::shared::{self, Action, FromRelay, Ranks, Reason, Refusal, ToRelay};
 use humanity_core::build_permission::{Permit, Why};
-use crate::systems::construction::BlueprintRegistry;
+use humanity_systems::construction::BlueprintRegistry;
 use glam::{Quat, Vec3};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;

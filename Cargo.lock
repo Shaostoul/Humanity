@@ -3105,6 +3105,9 @@ dependencies = [
  "html5ever",
  "humanity-core",
  "humanity-protocol",
+ "humanity-ship",
+ "humanity-systems",
+ "humanity-terrain",
  "image",
  "js-sys",
  "keyring",
@@ -3195,6 +3198,49 @@ dependencies = [
  "sha2",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "humanity-ship"
+version = "0.1547.0"
+dependencies = [
+ "glam",
+ "hecs",
+ "humanity-core",
+ "log",
+ "ron",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "humanity-systems"
+version = "0.1547.0"
+dependencies = [
+ "blake3",
+ "glam",
+ "hecs",
+ "humanity-core",
+ "humanity-ship",
+ "humanity-terrain",
+ "log",
+ "rand 0.9.5",
+ "rapier3d",
+ "ron",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "humanity-terrain"
+version = "0.1547.0"
+dependencies = [
+ "glam",
+ "humanity-core",
+ "log",
+ "noise",
+ "ron",
+ "serde",
 ]
 
 [[package]]

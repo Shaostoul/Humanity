@@ -12,11 +12,11 @@
 #                data/ships/*.ron (RoomDef.room_type maps to these ids)
 #                data/blueprints/ship_structure.ron (a Zone's optional `room_type`
 #                  names the key the room it covers takes its function from)
-#                src/ship/fibonacci.rs (room_color fallback, room generation)
-#                src/ship/layout.rs (RoomType enum for ship rooms)
-#                src/ship/room_types.rs (RoomTypeRegistry: the purpose / actions /
+#                crates/humanity-ship/src/fibonacci.rs (room_color fallback, room generation)
+#                crates/humanity-ship/src/layout.rs (RoomType enum for ship rooms)
+#                crates/humanity-ship/src/room_types.rs (RoomTypeRegistry: the purpose / actions /
 #                  access join for the walkable world and the zone detail panel)
-#                src/ship/home_structure.rs (Zone::room_type, room_actions_for)
+#                crates/humanity-ship/src/home_structure.rs (Zone::room_type, room_actions_for)
 # References: data/items.csv (equipment list entries)
 #             data/sounds.toml (ambient_sound ids)
 #             data/materials.csv (default_material ids)
@@ -259,7 +259,7 @@ the functional metadata (equipment, power, tags)."""
 
 ship_layouts = """
 Ship layout files (data/ships/*.ron) use the RoomType enum in
-src/ship/layout.rs. The room type ids in data/rooms.ron should include
+crates/humanity-ship/src/layout.rs. The room type ids in data/rooms.ron should include
 entries for all ship RoomType variants (bridge, quarters, cargo,
 engineering, medbay, hydroponics, armory, hangar) so that ship rooms
 can look up their metadata from the same data file."""
@@ -278,7 +278,7 @@ enters a room and crossfades to the new room's sound when they move
 to a different room."""
 
 power_system = """
-The power routing system (src/relay/storage/ and src/systems/) sums
+The power routing system (src/relay/storage/ and crates/humanity-systems/src/) sums
 power_draw_watts across all rooms connected to an electrical grid.
 Negative values (reactor rooms) contribute generation capacity.
 If total draw exceeds generation, rooms are deprioritized by tag

@@ -488,7 +488,7 @@ The game has fibre, rope and cloth as materials and ingredients.
 
 **Clothes and the cold.** The game's body heat model counts the warmth
 of what you wear, garment by garment, and soaked clothes keep only
-about 70 percent of their insulation in it (`src/systems/body_heat.rs`, with
+about 70 percent of their insulation in it (`crates/humanity-systems/src/body_heat.rs`, with
 each garment's insulation in `data/equipment.csv`). It treats every
 fabric alike, though: wet wool and wet cotton lose the same share.
 
@@ -631,16 +631,16 @@ is updated in place. Web pages and documents were read on 4 October
   `data/entities/wild_spawns.ron`; the sheep in
   `data/entities/livestock.ron` and their wool in `data/creatures.csv`;
   walk-up collection and its Farming experience in `src/lib.rs`.
-- Clothing warmth and wet clothes: `src/systems/body_heat.rs`
+- Clothing warmth and wet clothes: `crates/humanity-systems/src/body_heat.rs`
   (`WET_INSULATION_LOSS`) and the `clo` column of `data/equipment.csv`.
 - The recipes `bundle_cotton`, `bundle_flax`, `bundle_hemp`,
   `bundle_jute`, `extract_fiber`, `make_rope`, `spin_thread`,
   `weave_cloth`, `build_hammock` and the `sew_` recipes in
   `data/recipes.csv`; skill experience for a finished craft in
-  `src/systems/crafting/mod.rs`.
+  `crates/humanity-systems/src/crafting/mod.rs`.
 - The Play mode setting (`PlayMode` and `play_mode_allows` in
   `src/config.rs`), the creative-mode checks in
-  `src/systems/crafting/mod.rs`, the Creative mode switch on the
+  `crates/humanity-systems/src/crafting/mod.rs`, the Creative mode switch on the
   Inventory page (`src/gui/pages/inventory.rs`), and the "Start every
   session from the default home" setting (`src/config.rs`,
   `src/save_load.rs`).

@@ -67,7 +67,7 @@
 // HOW IT BUILDS (ship homes increment 5, 2026-10-05: building only on your own
 // plot). A line on its input asks it to build or take down a piece in the
 // shared world, the way the desktop app does when a player presses E or F there
-// (src/systems/construction/shared.rs, the contract both the relay and the game
+// (crates/humanity-systems/src/construction/shared.rs, the contract both the relay and the game
 // compile):
 //   build wood_wall@plot:p1:46,0.2,36,1    game_build: the blueprint, its frame
 //                                         (plot:<id> or zone:<id>), x,y,z metres
@@ -189,17 +189,17 @@ const SEED_CONTEXT = "hum/second-player/seed/v1";
 // height. Fixed, so a person learns to recognise it.
 const LOOK = { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height: 1.0 };
 const CHAT_CHANNEL = "general";
-// A start id the relay reads from a join or a choice (src/ship/starts.rs `is_start_id`): 1 to 32
+// A start id the relay reads from a join or a choice (crates/humanity-ship/src/starts.rs `is_start_id`): 1 to 32
 // of a-z, 0-9, - and _. A row of data/homes/starts.ron: "cabin", "homestead".
 const START_ID_RULE = /^[a-z0-9_-]{1,32}$/;
 // How near a player stands to take a meal from a food store, metres, and on their own floor (ship
-// homes increment 7): the relay's reach rule, src/ship/moves.rs `in_reach`, with its INTERACT_REACH_M,
-// STOREY_M and STOREY_BAND_BELOW_M, and src/surface_walk.rs EYE_HEIGHT_M (a test holds them equal).
+// homes increment 7): the relay's reach rule, crates/humanity-ship/src/moves.rs `in_reach`, with its INTERACT_REACH_M,
+// STOREY_M and STOREY_BAND_BELOW_M, and crates/humanity-systems/src/surface_walk.rs EYE_HEIGHT_M (a test holds them equal).
 const INTERACT_REACH_M = 5;
 const STOREY_M = 3;
 const STOREY_BAND_BELOW_M = 0.5;
 const EYE_HEIGHT_M = 1.7;
-// The game_home wire (src/ship/starts.rs HOME_REQUEST, CHOOSE_HOME, HOME_ANSWER; a test reads them).
+// The game_home wire (crates/humanity-ship/src/starts.rs HOME_REQUEST, CHOOSE_HOME, HOME_ANSWER; a test reads them).
 const HOME_REQUEST = "game_home_request";
 const CHOOSE_HOME = "game_choose_home";
 const HOME_ANSWER = "game_home";
@@ -885,7 +885,7 @@ function homePlotLine(welcome) {
 // the patterns below, which scripts/verify-copresence.js --starts reads.
 
 /** "home: c1 cabin; free cabin 15, homestead 12" or "home: none; free ...": a `game_home` answer
- *  (src/ship/starts.rs HomeAnswer). Groups: the plot ("none" for none), its kind, the free list. */
+ *  (crates/humanity-ship/src/starts.rs HomeAnswer). Groups: the plot ("none" for none), its kind, the free list. */
 const HOME_RE = /\bhome: (\S+?)(?: (\S+))?; free (.*)$/;
 /** "home chosen: c2 cabin". Groups: the plot, its kind. */
 const HOME_CHOSEN_RE = /\bhome chosen: (\S+) (\S+)$/;
@@ -952,7 +952,7 @@ function isFoodStore(e) {
 }
 
 /** True when a thing whose point is at height `thingY` stands on the storey of a person whose eyes
- *  are at `eyeY`: from half a metre under their feet to 2.5 m over them (src/ship/moves.rs
+ *  are at `eyeY`: from half a metre under their feet to 2.5 m over them (crates/humanity-ship/src/moves.rs
  *  `on_my_storey`, the relay's rule). Pure. */
 function onMyStorey(eyeY, thingY) {
   const rise = thingY - (eyeY - EYE_HEIGHT_M);
@@ -1196,7 +1196,7 @@ function sayInChat(client, identity, name, text, log) {
 
 // ── Building in the shared world (ship homes increment 5, 2026-10-05) ────────
 //
-// The messages, their fields and their rules are the contract's, src/systems/construction/
+// The messages, their fields and their rules are the contract's, crates/humanity-systems/src/construction/
 // shared.rs (`ToRelay`, `FromRelay`, `Permit`); the tests in scripts/tests/second-player.test.js
 // read that file and hold the messages here to it.
 
@@ -1205,7 +1205,7 @@ function sayInChat(client, identity, name, text, log) {
 const BLUEPRINTS_RON = path.join(REPO, "data", "blueprints", "basic.ron");
 /** A blueprint id as the contract caps it (shared.rs MAX_BLUEPRINT_ID_LEN, 64 bytes). */
 const BLUEPRINT_ID_RULE = /^[a-z0-9_]{1,64}$/;
-/** A frame of the ship (src/ship/build_frames.rs): a plot or a shared space, by its id, at most
+/** A frame of the ship (crates/humanity-ship/src/build_frames.rs): a plot or a shared space, by its id, at most
  *  shared.rs MAX_FRAME_LEN (64) bytes in all. A planet site (`site:`) is not built through here. */
 const FRAME_RULE = /^(plot|zone):[A-Za-z0-9_-]{1,59}$/;
 /** A plot's own id, as a permit names it (`p3`, never `plot:p3`; shared.rs `Permit::plot`). */
@@ -1319,7 +1319,7 @@ function readBlueprints(text) {
 }
 
 /** A whole quarter turn about the vertical as a quaternion [x, y, z, w], exactly as the game's
- *  placement makes it (src/systems/construction/placement.rs `quarter_turn`: glam's
+ *  placement makes it (crates/humanity-systems/src/construction/placement.rs `quarter_turn`: glam's
  *  `Quat::from_rotation_y((t % 4) as f32 * FRAC_PI_2)`, which is (0, sin(a/2), 0, cos(a/2)),
  *  all in f32). The relay keeps exactly this turn for a build within half a degree of it. */
 function quarterTurn(t) {
@@ -1382,7 +1382,7 @@ function parseCommand(line) {
     const m = words.length === 2 ? words[1].match(/^([^@]+)@(.+):([^:]+)$/) : null;
     if (!m || !BLUEPRINT_ID_RULE.test(m[1])) throw new Error(wants);
     const [, blueprint, frame, nums] = m;
-    if (!FRAME_RULE.test(frame)) throw new Error(`the frame must be plot:<id> or zone:<id> (src/ship/build_frames.rs), got "${frame}"`);
+    if (!FRAME_RULE.test(frame)) throw new Error(`the frame must be plot:<id> or zone:<id> (crates/humanity-ship/src/build_frames.rs), got "${frame}"`);
     const v = nums.split(",").map((s) => s.trim());
     if (v.length !== 4 || !v.every((s) => s !== "" && Number.isFinite(Number(s)))) throw new Error(wants);
     const [x, y, z, t] = v.map(Number);
@@ -1471,7 +1471,7 @@ function unbuildMessage(cmd, reqId) {
 // msg_handlers.rs `perception_rate_allows`, PERCEPTION_MIN_INTERVAL_MS) and answers one that comes
 // sooner `rate_limited`, keeping nothing. The game paces itself under that (src/engine/
 // shared_build.rs `send_next`), and so does this walker, with the contract's own numbers
-// (src/systems/construction/shared.rs). The first --build run (2026-10-05) is why: the rig asks
+// (crates/humanity-systems/src/construction/shared.rs). The first --build run (2026-10-05) is why: the rig asks
 // for the builder's wall the moment its foundation is kept, the walker sent it a few milliseconds
 // later, and the relay turned it away, so the wall the rig was to watch go up never existed.
 

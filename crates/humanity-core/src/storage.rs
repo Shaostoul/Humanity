@@ -40,17 +40,30 @@ pub mod refresh;
 /// The resolved data directory, set once at startup (from `find_data_dir`, lib.rs) so cached
 /// loaders (laws, glossary, garden, homes) read the SAME CWD-independent path the main
 /// app uses, instead of a bare relative "data" that only resolves when the process CWD
-/// happens to contain data/. Falls back to "data" if never set (tests/snapshots, which
-/// run from the repo root). In the core since the crate split's backlog (2026-10-31): about 50
-/// files below the engine read it.
+/// happens to contain data/. Falls back to "data" if never set (tests/snapshots). In the core
+/// since the crate split's backlog (2026-10-31): about 50 files below the engine read it.
 pub static DATA_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 /// The resolved data dir (or "data" if not yet set).
+///
+/// In a test build, "data" when the working directory holds one, else the repo's own data/. Cargo
+/// starts each test program in its own package's folder, and since the crate split's rung 2
+/// (2026-11-02) the simulation's tests live in crates/humanity-systems/ and the like, where no
+/// data/ sits: `cargo test` (`just verify-relay`) ran them on no data at all, and four of them,
+/// whose notices are read from data/i18n/en.json in the server build, failed. scripts/lib-tests.js
+/// starts every program from the repo root, which hid it. No product build carries this branch.
 pub fn data_dir() -> PathBuf {
-    DATA_DIR
-        .get()
-        .cloned()
-        .unwrap_or_else(|| PathBuf::from("data"))
+    if let Some(dir) = DATA_DIR.get() {
+        return dir.clone();
+    }
+    let here = PathBuf::from("data");
+    #[cfg(any(test, feature = "test-support"))]
+    {
+        if !here.is_dir() {
+            return Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+        }
+    }
+    here
 }
 
 /// The four storage states. See the module docs for what each means.

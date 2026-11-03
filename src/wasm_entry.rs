@@ -18,13 +18,13 @@ use humanity_core::input::InputState;
 use crate::renderer::camera::{Camera, CameraController, CameraMode};
 use crate::renderer::mesh::Mesh;
 use crate::renderer::{RenderObject, Renderer};
-use crate::systems::crafting::CraftingSystem;
-use crate::systems::farming::FarmingSystem;
-use crate::systems::interaction::InteractionSystem;
-use crate::systems::inventory::InventorySystem;
-use crate::systems::inventory::containers::ContainerCompatibilitySystem;
-use crate::systems::player::PlayerControllerSystem;
-use crate::systems::time::TimeSystem;
+use humanity_systems::crafting::CraftingSystem;
+use humanity_systems::farming::FarmingSystem;
+use humanity_systems::interaction::InteractionSystem;
+use humanity_systems::inventory::InventorySystem;
+use humanity_systems::inventory::containers::ContainerCompatibilitySystem;
+use humanity_systems::player::PlayerControllerSystem;
+use humanity_systems::time::TimeSystem;
 
 /// WASM entry point — called automatically when the module loads.
 #[wasm_bindgen(start)]

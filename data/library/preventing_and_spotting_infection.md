@@ -485,7 +485,7 @@ happens to you.
   bites gives for bites not treated, against about 1 in 16 cleaned and
   cared for. A Bandage, a Medkit or Antiseptic cleans and covers your
   wounds; a wound you get afterwards needs the same, and the game says so
-  (`data/medical/wounds.ron`, `src/systems/wounds.rs`). The Infection and
+  (`data/medical/wounds.ron`, `crates/humanity-systems/src/wounds.rs`). The Infection and
   Plague conditions in `data/status_effects.csv` are given to nobody yet.
 - **An Infected Wound** takes your health slowly over days and stops you
   healing until Antibiotics end it; in the Realistic mode, left alone, it
@@ -494,7 +494,7 @@ happens to you.
   Wound, Infection and Plague, and nothing else, so they do not touch the
   game's Food Poisoning, which carries no such tag. Used with nothing to
   treat, they stay in your pack and the game says why
-  (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
+  (`data/medical/treatments.ron`, `crates/humanity-systems/src/treatment.rs`,
   `src/gui/pages/inventory.rs`).
 - **Antibiotics are bought, not brewed.** No recipe makes them: the
   trading post sells them (`data/trade_goods.ron`), and the Full Medkit
@@ -512,7 +512,7 @@ happens to you.
   Matter](/library#the-germs-that-matter)).
 - **The Medicine skill rises by crafting.** Crafting a recipe trains the
   skill that recipe names, and the medical recipes name Medicine
-  (`src/systems/crafting/mod.rs`). The Profile page's "Dev: max skills"
+  (`crates/humanity-systems/src/crafting/mod.rs`). The Profile page's "Dev: max skills"
   button, which sets every skill to its maximum, shows only in the Dev
   play mode (Settings > Gameplay > Play mode), not in Normal, where the
   game starts (`src/gui/pages/profile.rs`).
@@ -705,16 +705,16 @@ were read on 5 October 2026.
 ### Inside this project
 
 - Wounds going bad, cleaning and covering, and healing by itself:
-  `data/medical/wounds.ron`, applied by `src/systems/food.rs` through
-  `src/systems/wounds.rs` (the old catalogue `data/medical.ron` and its
+  `data/medical/wounds.ron`, applied by `crates/humanity-systems/src/food.rs` through
+  `crates/humanity-systems/src/wounds.rs` (the old catalogue `data/medical.ron` and its
   never-run system were deleted on 12 October 2026). The Infected Wound,
   Infection and Plague conditions, and the tag that marks them as caused
   by bacteria: `data/status_effects.csv`. The medical items and the Use button:
   `data/items.csv` and `src/gui/pages/inventory.rs`; what each item does:
-  `data/medical/treatments.ron` and `src/systems/treatment.rs`. Where the
+  `data/medical/treatments.ron` and `crates/humanity-systems/src/treatment.rs`. Where the
   game's antibiotics come from: `data/trade_goods.ron`, and the note in
   `data/recipes.csv` on the recipe it no longer has. Skills from crafting and
-  the Dev button: `src/systems/crafting/mod.rs` and
+  the Dev button: `crates/humanity-systems/src/crafting/mod.rs` and
   `src/gui/pages/profile.rs`. What is saved: `src/save_load.rs`.
 - [Bleeding and Wounds](/library#bleeding-and-wounds), [How Your Body
   Works](/library#how-your-body-works), [The Germs That

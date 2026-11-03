@@ -3610,12 +3610,12 @@ pub async fn handle_game_interact(
     };
 
     // Within the reach of every interaction (5 m) and on the player's storey: the shared reach
-    // rule (src/ship/moves.rs `in_reach`, ship homes increment 7), so nothing on the floor above
+    // rule (crates/humanity-ship/src/moves.rs `in_reach`, ship homes increment 7), so nothing on the floor above
     // or below is in reach through the slab between.
     let (eye, at) = (glam::Vec3::from(player_pos), glam::Vec3::from(target.position));
-    if !crate::ship::moves::in_reach(eye, at, crate::ship::moves::INTERACT_REACH_M) {
+    if !humanity_ship::moves::in_reach(eye, at, humanity_ship::moves::INTERACT_REACH_M) {
         let dist = eye.distance(at);
-        let same_floor = crate::ship::moves::on_my_storey(eye.y, at.y);
+        let same_floor = humanity_ship::moves::on_my_storey(eye.y, at.y);
         drop(world);
         send_game_private(state, my_key, &serde_json::json!({
             "type": "game_interact_result",
@@ -3848,10 +3848,10 @@ pub async fn handle_game_query_entity(
         }
     };
 
-    // Within 20 m and on the player's storey (the shared reach rule, src/ship/moves.rs
+    // Within 20 m and on the player's storey (the shared reach rule, crates/humanity-ship/src/moves.rs
     // `in_reach`, ship homes increment 7): what stands on another floor is out of range.
     let (eye, at) = (glam::Vec3::from(player_pos), glam::Vec3::from(target.position));
-    if !crate::ship::moves::in_reach(eye, at, ENTITY_DETAIL_RANGE_M) {
+    if !humanity_ship::moves::in_reach(eye, at, ENTITY_DETAIL_RANGE_M) {
         drop(world);
         send_game_private(state, my_key, &serde_json::json!({
             "type": "game_entity_detail",

@@ -6,9 +6,9 @@ use std::sync::Mutex;
 use humanity_core::ecs::components::{Irrigator, PowerConsumer};
 use humanity_core::ecs::systems::System;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::farming::humidity::{self, GrowRoom};
-use crate::systems::farming::humidity_tests::*;
-use crate::systems::farming::*;
+use humanity_systems::farming::humidity::{self, GrowRoom};
+use humanity_systems::farming::fixtures::humidity::*;
+use humanity_systems::farming::*;
 
 /// A ROOM RESIZED CHANGES ITS FAN'S DAY ON THE METER, WITH NO DATA EDIT
 /// (2026-10-22, the operator's "Do rooms not automatically calculate their
@@ -37,13 +37,13 @@ use crate::systems::farming::*;
 #[test]
 fn a_room_resized_changes_its_fans_day_on_the_meter() {
     use humanity_core::ecs::components::{PowerCircuit, PowerGenerator};
-    use crate::machines::{DaySource, MachineInstance, MachinePower, MeterBasis};
+    use humanity_ship::machines::{DaySource, MachineInstance, MachinePower, MeterBasis};
     let mut data = store(0.5, 1.0, 0.0);
     data.insert(units::PLOT_AREA_KEY, HashMap::from([("bed_a".to_string(), 1.0_f32)]));
-    crate::machines::day_energy::register(&mut data);
-    data.insert("power_status", Mutex::new(crate::systems::electrical::PowerStatus::default()));
+    humanity_ship::machines::day_energy::register(&mut data);
+    data.insert("power_status", Mutex::new(humanity_systems::electrical::PowerStatus::default()));
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
-    let mut home = crate::systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
+    let mut home = humanity_systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let fan_def = home.catalog["exhaust_fan"].clone();
     let Some(MachinePower::Consumer { average_watts: Some(estimate), .. }) = fan_def.power else { panic!("the shipped fan carries its data's day") };
     let inst = MachineInstance { id: "fan_t".into(), machine: "exhaust_fan".into(), room: "room-a".into(), offset: (5.0, 2.2, 9.5), rotation: 0.0, zone: "home".into(), screen_source: None };
@@ -57,7 +57,7 @@ fn a_room_resized_changes_its_fans_day_on_the_meter() {
     home.instances.push(inst);
     world.spawn((PowerGenerator { output_watts: 10_000.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 0 }));
     let fan = world.query::<(&humanity_core::ecs::components::MachineInstanceId, &PowerConsumer)>().iter().find(|(_, (id, _))| id.0 == "fan_t").map(|(e, _)| e).unwrap();
-    let mut power = crate::systems::electrical::ElectricalSystem::new(std::path::Path::new("data"));
+    let mut power = humanity_systems::electrical::ElectricalSystem::new(std::path::Path::new("data"));
     let mut sys = FarmingSystem::new();
     // Two game days, a tick 2 s at the store's 72x (144 game s, 25 to the hour), and the mean
     // of the draw each power tick recorded over the second, which is the record's day.
@@ -74,7 +74,7 @@ fn a_room_resized_changes_its_fans_day_on_the_meter() {
         sum / 600.0
     };
     let fan_on_meter = |data: &DataStore| {
-        let recorded = crate::machines::day_energy::snapshot(data);
+        let recorded = humanity_ship::machines::day_energy::snapshot(data);
         let meter = home.utility_meters(4.5, MeterBasis { life_support_on_grid: false, recorded: Some(&recorded) });
         let power = meter.into_iter().find(|m| m.utility == "power").expect("a power meter");
         power.sources.into_iter().find(|s| s.id == "fan_t").expect("the fan is on the meter").draw

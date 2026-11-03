@@ -25,7 +25,7 @@ use egui::{Context, RichText};
 
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
-use crate::systems::weather::WeatherCondition;
+use humanity_systems::weather::WeatherCondition;
 
 #[cfg(test)]
 thread_local! {
@@ -297,7 +297,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 if crate::gui::widgets::slider(ui, theme,
                         egui::Slider::new(
                             &mut state.settings.time_speed,
-                            crate::systems::time::MIN_TIME_SPEED..=crate::systems::time::MAX_TIME_SPEED,
+                            humanity_systems::time::MIN_TIME_SPEED..=humanity_systems::time::MAX_TIME_SPEED,
                         )
                             .text("Time speed")
                             .logarithmic(true)
@@ -305,7 +305,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                     )
                     .changed()
                 {
-                    state.settings.time_speed = crate::systems::time::clamp_time_speed(state.settings.time_speed);
+                    state.settings.time_speed = humanity_systems::time::clamp_time_speed(state.settings.time_speed);
                     state.settings_dirty = true;
                 }
                 ui.label(

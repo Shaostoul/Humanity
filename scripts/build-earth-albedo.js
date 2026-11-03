@@ -15,7 +15,7 @@
 // Layout of the source (and therefore of the output): equirectangular,
 // row 0 = northernmost band, col 0 = westernmost (lon -180), i.e. exactly
 // the registration the elevation grid uses (scripts/build-earth-heightmap.js
-// / src/terrain/planet_heightmap.rs), so the colors line up with the real
+// / crates/humanity-terrain/src/planet_heightmap.rs), so the colors line up with the real
 // elevation data with zero remapping.
 //
 // Processing:
@@ -28,7 +28,7 @@
 //      averaging is the physically correct box filter. The ratio (1.318x)
 //      is fractional, so edge texels contribute partial-coverage weights.
 //   3. WRITE the "HOSALB1" container consumed by
-//      src/terrain/planet_albedo.rs:
+//      crates/humanity-terrain/src/planet_albedo.rs:
 //        bytes 0..7   magic b"HOSALB1"
 //        bytes 7..11  u32 LE width
 //        bytes 11..15 u32 LE height

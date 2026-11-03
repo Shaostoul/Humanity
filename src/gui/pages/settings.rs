@@ -3156,10 +3156,10 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             // by kilometres with the warning still silent. The engine measures
             // the reach every selection; print it.
             let requested = state.settings.veg_tree_card_m;
-            let reach = crate::terrain::far_trees::measured_card_reach_m();
+            let reach = humanity_terrain::far_trees::measured_card_reach_m();
             if reach.is_finite() {
                 let effective =
-                    crate::terrain::far_trees::effective_card_far_m(requested, reach);
+                    humanity_terrain::far_trees::effective_card_far_m(requested, reach);
                 widgets::setting_hint(ui, theme, hint, &format!(
                     "Effective right now: {effective:.0} m of the {requested:.0} m asked for. Ground carrying silhouette cards reaches {reach:.0} m from where you are standing, measured on the terrain actually drawn this frame."
                 ));
@@ -3182,7 +3182,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // was rewritten to 0.1 at the next boot. The number box beside each
         // slider is there so exactly 0 can be TYPED, not just dragged to; the
         // range constants are the same ones the terrain code counts with.
-        if widgets::labeled_slider_entry(ui, theme, "Trees: forest density", &mut state.settings.tree_density, crate::terrain::planet_chunks::TREE_DENSITY_MIN..=crate::terrain::planet_chunks::TREE_DENSITY_MAX, crate::terrain::planet_chunks::TREE_DENSITY_MAX, 0.01) {
+        if widgets::labeled_slider_entry(ui, theme, "Trees: forest density", &mut state.settings.tree_density, humanity_terrain::planet_chunks::TREE_DENSITY_MIN..=humanity_terrain::planet_chunks::TREE_DENSITY_MAX, humanity_terrain::planet_chunks::TREE_DENSITY_MAX, 0.01) {
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "How many trees grow per patch of land. 1.0 is dense forest, 0.6 is open woodland, 0 is NO TREES AT ALL (the cheapest setting: no tree cards are baked and no tree models are placed). Rebuilds terrain as you move, so the change appears patch by patch.");
@@ -3227,7 +3227,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "The hard ceiling on how many tufts one harvest may produce. It exists so a bad combination of distance and ground cover cannot lock the game up; it is exposed so raising it is your decision rather than a code change. COST: memory and harvest time, both straight-line with the number. Grass stops looking better long before this stops rising.");
-        if widgets::labeled_slider_entry(ui, theme, "Grass: ground cover", &mut state.settings.grass_density, crate::terrain::grass::GRASS_COVER_MIN..=crate::terrain::grass::GRASS_COVER_MAX, crate::terrain::grass::GRASS_COVER_MAX, 0.02) {
+        if widgets::labeled_slider_entry(ui, theme, "Grass: ground cover", &mut state.settings.grass_density, humanity_terrain::grass::GRASS_COVER_MIN..=humanity_terrain::grass::GRASS_COVER_MAX, humanity_terrain::grass::GRASS_COVER_MAX, 0.02) {
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "How much grass is on the ground. 1.0 is a real lawn or pasture; 3.0 is deep meadow you wade through; below 0.5 the ground starts showing between tufts; 0 is NO GRASS AT ALL (nothing is harvested or drawn, so the draw-distance and instance-cap controls above cost nothing). This is about how the world LOOKS, not how fast it runs.");
@@ -3808,8 +3808,8 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
-        widgets::setting_hint(ui, theme, hint, &crate::systems::illness::mode_hint());
-        widgets::setting_hint(ui, theme, hint, &crate::systems::wounds::mode_hint());
+        widgets::setting_hint(ui, theme, hint, &humanity_systems::illness::mode_hint());
+        widgets::setting_hint(ui, theme, hint, &humanity_systems::wounds::mode_hint());
         // Farm animals (2026-10-12, first-hour audit S6, systems::animal_care; the dual-mode
         // house rule): what neglect does to them. The hint's numbers come from the data.
         ui.add_space(theme.spacing_sm);
@@ -3823,7 +3823,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
-        widgets::setting_hint(ui, theme, hint, &crate::systems::animal_care::mode_hint());
+        widgets::setting_hint(ui, theme, hint, &humanity_systems::animal_care::mode_hint());
         // Carrying weight (BUG-136, systems::encumbrance; the dual-mode house rule).
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Carrying weight").color(theme.text_secondary()));
@@ -3877,7 +3877,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
-        widgets::setting_hint(ui, theme, hint, &crate::systems::mining::mode_hint());
+        widgets::setting_hint(ui, theme, hint, &humanity_systems::mining::mode_hint());
         // Survival bars on the HUD (2026-09-25): the simple and full modes of
         // the same readout, plus the default that shows a need when it matters.
         ui.add_space(theme.spacing_sm);
@@ -4026,7 +4026,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         ui.add_space(theme.spacing_xs);
         // The explanation is built from the scheme's data (its name, the marker interval, the
         // colours), so it cannot drift from what the pipes show (2026-10-04 review).
-        widgets::setting_hint(ui, theme, hint, crate::ship::pipe_marking::settings_hint_text());
+        widgets::setting_hint(ui, theme, hint, humanity_ship::pipe_marking::settings_hint_text());
         ui.horizontal(|ui| {
             for (full, label) in [(false, "Simplified"), (true, "Full")] {
                 let selected = state.settings.pipe_marking_full == full;
@@ -4434,7 +4434,7 @@ fn storage_path_row(ui: &mut egui::Ui, theme: &Theme, label: &str, path: &std::p
 
 /// The snapshot listing as cached in egui temp memory: (egui time it was read,
 /// every slot with its snapshots newest first).
-type SnapshotListing = (f64, Vec<(String, Vec<crate::persistence::SaveSnapshot>)>);
+type SnapshotListing = (f64, Vec<(String, Vec<humanity_systems::persistence::SaveSnapshot>)>);
 
 /// "12 min ago" for a snapshot row. A snapshot stamped in the future (the
 /// clock was set back since) reads as "just now" rather than a negative age.
@@ -4464,7 +4464,7 @@ fn snapshot_size(bytes: u64) -> String {
 /// game (`restore_snapshot_into_game`, below). Native only: game saves
 /// live on this device, and the website has no game save to mirror.
 fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::persistence;
+    use humanity_systems::persistence;
     let hint = state.settings.hint_display;
     ui.label(RichText::new("Save snapshots").color(theme.text_secondary()).strong());
     ui.add_space(theme.spacing_xs);
@@ -4501,7 +4501,7 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     };
 
-    if crate::persistence::live_save::restored_save_waiting() {
+    if humanity_systems::persistence::live_save::restored_save_waiting() {
         ui.add_space(theme.spacing_xs);
         ui.label(
             RichText::new("A restored save is waiting: it loads when you enter the world, and the game does not save over it until then.")
@@ -4512,8 +4512,8 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.add_space(theme.spacing_xs);
     if widgets::secondary_button(ui, theme, "Snapshot now") {
-        use crate::persistence::live_save::SnapshotNow;
-        let line = match crate::persistence::live_save::snapshot_active_home_now() {
+        use humanity_systems::persistence::live_save::SnapshotNow;
+        let line = match humanity_systems::persistence::live_save::snapshot_active_home_now() {
             Ok(SnapshotNow::Kept(_)) => "Kept a snapshot of your home as it was last saved.".to_string(),
             // Not an error: the newest copy already holds this save, and a
             // second identical copy would only push the oldest one out.
@@ -4541,7 +4541,7 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let confirming: Option<std::path::PathBuf> = ui.data_mut(|d| d.get_temp(confirm_id));
     let now_ms = persistence::now_ms();
     let saves = persistence::saves_dir();
-    let active = crate::persistence::live_save::active_home_path();
+    let active = humanity_systems::persistence::live_save::active_home_path();
     // Deferred so the rows never mutate state while they are drawn.
     let mut restore: Option<(std::path::PathBuf, std::path::PathBuf)> = None;
     let mut cancel = false;
@@ -4629,7 +4629,7 @@ pub(crate) fn restore_snapshot_into_game(
     snapshot: &std::path::Path,
     save_path: &std::path::Path,
 ) -> Result<String, String> {
-    use crate::persistence;
+    use humanity_systems::persistence;
     // Settings names each slot's save saves/<slot>.json; a server's save lives in saves/servers/
     // (ship homes increment 6), and its snapshot goes back THERE, never beside your own home.
     let save_path = &match (save_path.parent(), save_path.file_stem().and_then(|s| s.to_str())) {
@@ -4637,12 +4637,12 @@ pub(crate) fn restore_snapshot_into_game(
         _ => save_path.to_path_buf(),
     };
     let restored = persistence::restore_snapshot(snapshot, save_path, persistence::now_ms())?;
-    let active = crate::persistence::live_save::active_home();
+    let active = humanity_systems::persistence::live_save::active_home();
     if *save_path == active.path {
-        crate::persistence::live_save::hold_saves_for_restore();
+        humanity_systems::persistence::live_save::hold_saves_for_restore();
         // Loaded by its PATH (`take_pending_load`): a server's save is not among the saves the
         // picker finds by name, and two saves can carry one name.
-        crate::persistence::live_save::reload_after_restore(save_path.clone());
+        humanity_systems::persistence::live_save::reload_after_restore(save_path.clone());
         // Your own home is also found by its name, by the loader lib.rs has until it takes the
         // path (the same save: `take_pending_load` drops this when it takes the path).
         if !active.is_server() {
@@ -4703,7 +4703,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
         if let Some(p) = humanity_core::storage::writable_data_dir() {
             storage_path_row(ui, theme, "Game data (modding)", &p);
         }
-        storage_path_row(ui, theme, "Saves", &crate::persistence::saves_dir());
+        storage_path_row(ui, theme, "Saves", &humanity_systems::persistence::saves_dir());
         storage_path_row(ui, theme, "Settings + identity", &crate::config::AppConfig::config_path());
 
         // Move-my-files (v0.742, the second v0.707 follow-up): switch modes
@@ -5082,7 +5082,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 /// Vegetation LOD settings the engine does not read at all yet, with the UI
 /// label to name in the warning. They save and reload correctly; they simply do
 /// not reach the renderer until their consumer lands in `src/lib.rs` and
-/// `src/terrain/grass.rs`. Empty this list in the same change that wires them.
+/// `crates/humanity-terrain/src/grass.rs`. Empty this list in the same change that wires them.
 const VEG_AWAITING_WIRING: &[(&str, &str)] = &[];
 
 
@@ -5106,7 +5106,7 @@ const GRASS_CLUMP_COMPLEMENT_MEAN: f32 = 0.615;
 /// Closed form because the ramp is piecewise linear, which makes this exact
 /// rather than a sampled sum.
 pub fn grass_ramp_area_m2(near: f32, mid: f32, far: f32) -> f32 {
-    let frac = crate::terrain::grass::GRASS_MID_FRACTION;
+    let frac = humanity_terrain::grass::GRASS_MID_FRACTION;
     let n = near.max(0.0);
     let m = mid.max(n + 0.001);
     let f = far.max(m + 0.001);
@@ -5132,13 +5132,13 @@ pub fn grass_peak_at_cover(cover: f32) -> f32 {
     // ONE formula (2026-09-18): this used to be a copy of the terrain
     // module's arithmetic, which is exactly how an estimate and the thing it
     // estimates drift apart. The pure form now lives beside the live one.
-    crate::terrain::grass::grass_peak_per_m2_at(cover)
+    humanity_terrain::grass::grass_peak_per_m2_at(cover)
 }
 
 /// Estimated grass instances DRAWN at a given draw distance and coverage:
 /// tussocks plus the realised filler class.
 pub fn grass_drawn_estimate(far_m: f32, cover: f32) -> f32 {
-    use crate::terrain::grass::{GRASS_FILLER_FRACTION, GRASS_MID_M, GRASS_NEAR_M};
+    use humanity_terrain::grass::{GRASS_FILLER_FRACTION, GRASS_MID_M, GRASS_NEAR_M};
     let filler = 1.0 + GRASS_FILLER_FRACTION * GRASS_CLUMP_COMPLEMENT_MEAN;
     grass_peak_at_cover(cover) * filler * grass_ramp_area_m2(GRASS_NEAR_M, GRASS_MID_M, far_m)
 }
@@ -5153,7 +5153,7 @@ pub fn grass_drawn_estimate(far_m: f32, cover: f32) -> f32 {
 /// shipped settings the stretched model predicts ~18k and the shifted model
 /// ~31k, and the engine logs ~31k.
 pub fn grass_harvest_estimate(far_m: f32, cover: f32) -> f32 {
-    use crate::terrain::grass::{
+    use humanity_terrain::grass::{
         GRASS_FILLER_FRACTION, GRASS_HARVEST_MARGIN_M, GRASS_MID_M, GRASS_NEAR_M,
     };
     let margin = GRASS_HARVEST_MARGIN_M as f32;
@@ -5171,8 +5171,8 @@ pub fn grass_harvest_estimate(far_m: f32, cover: f32) -> f32 {
 /// the walk runs INLINE on the frame thread once per few metres of movement,
 /// which is why a big number here reads as a stutter rather than a lower FPS.
 pub fn grass_harvest_walk_multiple(far_m: f32) -> f32 {
-    let margin = crate::terrain::grass::GRASS_HARVEST_MARGIN_M as f32;
-    let base = crate::terrain::grass::GRASS_FAR_M + margin;
+    let margin = humanity_terrain::grass::GRASS_HARVEST_MARGIN_M as f32;
+    let base = humanity_terrain::grass::GRASS_FAR_M + margin;
     let r = far_m.max(0.0) + margin;
     (r * r) / (base * base).max(1.0)
 }
@@ -5187,7 +5187,7 @@ pub fn grass_harvest_walk_multiple(far_m: f32) -> f32 {
 /// halvings of a 250 m range settle to well under a millimetre and this runs
 /// only while the warning is on screen.
 pub fn grass_far_within_cap(cap: f32, cover: f32) -> f32 {
-    let mid_m = crate::terrain::grass::GRASS_MID_M;
+    let mid_m = humanity_terrain::grass::GRASS_MID_M;
     let mut lo = mid_m + 1.0;
     let mut hi = crate::config::GRASS_FAR_MAX_M;
     if grass_harvest_estimate(lo, cover) >= cap {
@@ -5219,7 +5219,7 @@ pub fn grass_far_within_cap(cap: f32, cover: f32) -> f32 {
 /// about 27 C or 43 C, which is much later, and then comes far slower than
 /// half. Pinned by `body_heat_hint_tests`.
 pub(crate) fn body_heat_hint() -> String {
-    use crate::systems::body_heat::{Mode, HEAT_STROKE_C, MODERATE_HYPOTHERMIA_C};
+    use humanity_systems::body_heat::{Mode, HEAT_STROKE_C, MODERATE_HYPOTHERMIA_C};
     let (cold, heat) = (MODERATE_HYPOTHERMIA_C, HEAT_STROKE_C);
     // What a Forgiving body reads where the real balance is at the cold line,
     // and where the real balance is when the reading reaches each line.
@@ -5245,8 +5245,8 @@ pub(crate) fn body_heat_hint() -> String {
 /// with the time a pack stays read from the rules it describes (data/world/death.ron, through
 /// `systems::death_pack::DeathRules`), so the two cannot drift. `interact` is the key E is
 /// bound to.
-pub(crate) fn death_hint(rules: &crate::systems::death_pack::DeathRules, interact: &str) -> String {
-    let keep = crate::systems::death_pack::minutes_words(rules.keep_minutes_of_play);
+pub(crate) fn death_hint(rules: &humanity_systems::death_pack::DeathRules, interact: &str) -> String {
+    let keep = humanity_systems::death_pack::minutes_words(rules.keep_minutes_of_play);
     format!(
         "What dying costs. Either way you wake in the respawner with full health. Simplified: \
          you keep everything you carried, and nothing is lost. Realistic: everything in your \
@@ -5281,7 +5281,7 @@ pub(crate) fn thousands(v: f32) -> String {
 mod veg_lod_range_tests {
     use super::*;
     use crate::config;
-    use crate::terrain::grass;
+    use humanity_terrain::grass;
 
     /// The cost model has to predict the two numbers the shipped code already
     /// reports, or every warning built on it is decoration.
@@ -5459,14 +5459,14 @@ mod veg_lod_range_tests {
         wild.grass_density = 7.0;
         wild.grass_detail = 7.0;
         wild.apply_to_gui_state(&mut state);
-        assert_eq!(state.settings.tree_density, crate::terrain::planet_chunks::TREE_DENSITY_MAX);
-        assert_eq!(state.settings.grass_density, crate::terrain::grass::GRASS_COVER_MAX);
+        assert_eq!(state.settings.tree_density, humanity_terrain::planet_chunks::TREE_DENSITY_MAX);
+        assert_eq!(state.settings.grass_density, humanity_terrain::grass::GRASS_COVER_MAX);
         assert_eq!(state.settings.grass_detail, 1.0);
 
         // The Settings sliders offer the same floor the config accepts: the
         // page must not show a range the boot path would then refuse.
-        assert_eq!(crate::terrain::planet_chunks::TREE_DENSITY_MIN, 0.0);
-        assert_eq!(crate::terrain::grass::GRASS_COVER_MIN, 0.0);
+        assert_eq!(humanity_terrain::planet_chunks::TREE_DENSITY_MIN, 0.0);
+        assert_eq!(humanity_terrain::grass::GRASS_COVER_MIN, 0.0);
         // And the cost rows on the page stay finite at 0 cover: the estimate
         // helpers are what the hint text prints while the player drags.
         for far in [13.0_f32, 22.0, 80.0, config::GRASS_FAR_MAX_M] {
@@ -5474,7 +5474,7 @@ mod veg_lod_range_tests {
             assert_eq!(grass_harvest_estimate(far, 0.0), 0.0);
         }
         let within = grass_far_within_cap(config::GRASS_HARVEST_CAP_DEFAULT, 0.0);
-        assert!(within.is_finite() && within >= crate::terrain::grass::GRASS_MID_M + 1.0);
+        assert!(within.is_finite() && within >= humanity_terrain::grass::GRASS_MID_M + 1.0);
     }
 
     /// The help text makes two SEPARATE cost claims and they scale
@@ -5561,8 +5561,8 @@ mod veg_lod_range_tests {
         // reason, as `frame_loop_source` above it.
         format!(
             "{}\n{}",
-            crate::terrain::planet_chunks::frame_loop_source(),
-            crate::terrain::grass::coverage_path_source()
+            humanity_terrain::planet_chunks::frame_loop_source(),
+            humanity_terrain::grass::coverage_path_source()
         )
     }
 
@@ -5616,7 +5616,7 @@ mod veg_lod_range_tests {
         ] {
             assert!(
                 lib.contains(&format!("crate::config::{konst}")),
-                "the engine (the frame loop plus src/terrain/grass.rs) no longer clamps {field}                  against config::{konst}. If it went back to a literal, the control's                  ceiling and the renderer's can drift apart again - which is exactly                  how the 300-400 m band of this slider was unreachable for releases                  without anyone noticing."
+                "the engine (the frame loop plus crates/humanity-terrain/src/grass.rs) no longer clamps {field}                  against config::{konst}. If it went back to a literal, the control's                  ceiling and the renderer's can drift apart again - which is exactly                  how the 300-400 m band of this slider was unreachable for releases                  without anyone noticing."
             );
         }
     }
@@ -5678,7 +5678,7 @@ mod veg_lod_range_tests {
 #[cfg(test)]
 mod body_heat_hint_tests {
     use super::body_heat_hint;
-    use crate::systems::body_heat::{self, Mode};
+    use humanity_systems::body_heat::{self, Mode};
 
     #[test]
     fn the_body_heat_hint_says_what_the_code_does() {

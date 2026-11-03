@@ -674,7 +674,7 @@ what they do, as numbers in the garden's soil.
   over the mulch's life (150 garden days for sawdust, 1,095 for bark),
   and bank it to come back as the mulch rots, on compost's schedule
   (`data/garden/weeds.ron`; `crop_tick` in
-  `src/systems/farming/weeds.rs`). Under mulch on an empty bed, nothing
+  `crates/humanity-systems/src/farming/weeds.rs`). Under mulch on an empty bed, nothing
   is taken. That is the immobilisation this guide describes. It runs while Settings >
   Gameplay > "Garden pests, diseases and weeds" is not Off; its default
   is Gentle.
@@ -888,20 +888,20 @@ the same day, and the eCFR is updated in place.
 - Legume nitrogen fixation: the `n_fixed_pct` column of
   `data/plants.csv`; `legume_harvest_n_share` in
   `data/garden/nutrients.ron`; `soil_draw` and `legume_credit_n` in
-  `src/systems/farming/soil.rs`, and `vacate_unit` in
-  `src/systems/farming/mod.rs`.
+  `crates/humanity-systems/src/farming/soil.rs`, and `vacate_unit` in
+  `crates/humanity-systems/src/farming/mod.rs`.
 - Compost's slow nitrogen: `fertilizers` and `organic_n_release` in
   `data/garden/nutrients.ron`; `release_organic` in
-  `src/systems/farming/soil.rs`; the Composter's compost is the
+  `crates/humanity-systems/src/farming/soil.rs`; the Composter's compost is the
   `fertilizer_0` item, shown as "Fertilizer", in `data/items.csv`.
 - Mulch nitrogen tie-up: `n_tie_g_per_kg` in `data/garden/weeds.ron`
   (whose header says it comes "from the soil of each planted unit
-  under it") and `crop_tick` in `src/systems/farming/weeds.rs`.
+  under it") and `crop_tick` in `crates/humanity-systems/src/farming/weeds.rs`.
 - Bt: the `bt_spray` control in `data/garden/pests.ron`.
 - The Play mode setting and which modes make materials free
   (`PlayMode` and `play_mode_allows` in `src/config.rs`), and the
-  creative-mode checks in `src/systems/farming/mod.rs`,
-  `src/systems/farming/soil_ph.rs` and `src/systems/farming/weeds.rs`.
+  creative-mode checks in `crates/humanity-systems/src/farming/mod.rs`,
+  `crates/humanity-systems/src/farming/soil_ph.rs` and `crates/humanity-systems/src/farming/weeds.rs`.
 - The "Start every session from the default home" setting
   (`fresh_world_each_launch` in `src/config.rs`; `apply_identity` in
   `src/save_load.rs`, which restores only name, look and outfit).

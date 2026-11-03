@@ -71,7 +71,7 @@ Also: `world_load.rs` mixes GPU uploads (48 `add_mesh` sites) with building the 
 room bounds, machines, air space, door panels); `rig_walk::HELD` times keys with `Instant`; seven
 process-wide statics (`rig_walk::HELD`, `ipc::REMOTE_RECORDING`, `save_load::LAST_SAVE_SECS`,
 `DATA_DIR`, `storage::MODE`, `frame_costs`, save_load's thread-locals) make it one sim per process.
-The ECS systems themselves are already clean: `src/systems/` reads the wall clock once outside
+The ECS systems themselves are already clean: `crates/humanity-systems/src/` reads the wall clock once outside
 tests (`economy/mod.rs:388`), and most slow models are exact over any step length
 (`humidity::step_vapour`, `pests`, `fire::burn_step`, `life_support`; `body_heat` splits long steps
 into 10 s pieces; crops age by `planted_at` against game time). The trouble is in lib.rs.
@@ -212,5 +212,5 @@ tree); 6 to 9 can run in parallel afterwards. First real value (game-week soaks)
 
 Critical files: `src/lib.rs`, `src/engine/state.rs`, `src/engine/ipc.rs`,
 `src/engine/world_load.rs`, `src/engine/home_meshes.rs`; also `src/main.rs`, `crates/humanity-core/src/ecs/systems.rs`,
-`src/engine/rig_walk.rs`, `src/systems/time.rs`, `src/save_load.rs`, `tests/engine_wiring_lint.rs`,
+`src/engine/rig_walk.rs`, `crates/humanity-systems/src/time.rs`, `src/save_load.rs`, `tests/engine_wiring_lint.rs`,
 `scripts/lib/machine-guard.js`.

@@ -307,7 +307,7 @@ function readConst(text, name) {
 function readTreeData(repo, readFile = (p) => require("fs").readFileSync(p, "utf8")) {
   const rd = (...p) => readFile(path.join(repo, ...p));
   const camera = rd("src", "renderer", "camera.rs");
-  const walls = rd("src", "ship", "wall_collision.rs");
+  const walls = rd("crates", "humanity-ship", "src", "wall_collision.rs");
   return {
     home: readHomeDesign(rd("data", "homes", "homestead.ron")),
     types: FJ.readStructureTypes(rd("data", "blueprints", "structure_types.ron")),
@@ -422,7 +422,7 @@ function buildPlan(tree) {
   const eye = tree.eye_m;
   const radius = tree.radius_m;
   if (!(eye > 0) || !(radius > 0) || !(tree.head_m > 0)) {
-    problems.push("could not read EYE_HEIGHT_M and PLAYER_RADIUS (src/ship/wall_collision.rs) or HEAD_ABOVE_EYE_M (src/renderer/camera.rs)");
+    problems.push("could not read EYE_HEIGHT_M and PLAYER_RADIUS (crates/humanity-ship/src/wall_collision.rs) or HEAD_ABOVE_EYE_M (src/renderer/camera.rs)");
   }
   const piece = (id, kind) => {
     const s = home.structures.find((x) => x.id === id);

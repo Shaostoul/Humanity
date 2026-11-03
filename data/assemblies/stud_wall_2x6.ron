@@ -2,7 +2,7 @@
 //
 // The player draws a line. This file says what a real wall made along that line
 // is actually built from, in what order, and why that order. The generator in
-// src/ship/assembly.rs expands the line plus this recipe into an ordered list of
+// crates/humanity-ship/src/assembly.rs expands the line plus this recipe into an ordered list of
 // placement steps, and that one list is used four ways:
 //   instant mode folds every step at once to make the mesh,
 //   animated mode plays the same steps over time,

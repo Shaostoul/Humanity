@@ -423,7 +423,7 @@ description = "watch: ticked by a game event (kind, target); read: the player co
 type = "enum"
 values = ["gather", "craft", "make", "harvest", "build", "travel", "talk", "eat", "plant", "view"]
 required = false
-description = "The quest objective kind that ticks it (src/systems/quests/objectives.rs)."
+description = "The quest objective kind that ticks it (crates/humanity-systems/src/quests/objectives.rs)."
 
 [fields."steps[].sim.target"]
 type = "string"

@@ -623,8 +623,8 @@ nothing else in this guide.
 - **Air pressure and height.** On a planet, the air's pressure falls as
   you climb, worked out from each world's sea-level pressure in
   `data/environment/climate.ron` (Earth's is 101.325 kPa), and the body
-  heat model uses it (`src/systems/env_layer1.rs`,
-  `src/engine/survival_env.rs`, `src/systems/body_heat.rs`).
+  heat model uses it (`crates/humanity-systems/src/env_layer1.rs`,
+  `src/engine/survival_env.rs`, `crates/humanity-systems/src/body_heat.rs`).
 - **The home's air.** The Homes page's Live air card shows the sealed
   home's oxygen, carbon dioxide, temperature and pressure, the pressure in
   atmospheres (`src/gui/pages/homes.rs`).
@@ -840,11 +840,11 @@ second time, were read on 5 October 2026.
 ### Inside this project
 
 - Air pressure with height on each world: `data/environment/climate.ron`
-  read by `src/systems/env_layer1.rs`; the pressure in the body's
+  read by `crates/humanity-systems/src/env_layer1.rs`; the pressure in the body's
   surroundings in `src/engine/survival_env.rs` and its use in
-  `src/systems/body_heat.rs`. The Live air card: `src/gui/pages/homes.rs`.
+  `crates/humanity-systems/src/body_heat.rs`. The Live air card: `src/gui/pages/homes.rs`.
   Breathing under the sea surface: the outside air counts as breathable
-  by height alone (`src/systems/body_environment.rs`).
+  by height alone (`crates/humanity-systems/src/body_environment.rs`).
 - [Moving Water Without Power](/library#moving-water-without-power), [Heating
   Water](/library#heating-water), [Why Canning Has
   Rules](/library#why-canning-has-rules), [Keeping What You

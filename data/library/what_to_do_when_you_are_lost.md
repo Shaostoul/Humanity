@@ -751,10 +751,10 @@ facts are used here and the wording is not.
   `src/gui/pages/hud.rs`). Vitals drain, Body
   heat, Time and the other Gameplay settings (`src/gui/pages/settings.rs`,
   `src/gui/pages/settings_time.rs`); the vitals drain on the game clock
-  (`src/systems/food.rs`, `src/systems/time.rs`); the body heat model, its
+  (`crates/humanity-systems/src/food.rs`, `crates/humanity-systems/src/time.rs`); the body heat model, its
   Forgiving mode's shown temperature and harm below a shown 32 C, and
   shelter, which counts only built pieces and walls only under a roof
-  (`src/systems/body_heat.rs`, `src/systems/construction/uses.rs`); the
+  (`crates/humanity-systems/src/body_heat.rs`, `crates/humanity-systems/src/construction/uses.rs`); the
   weather reaching the body only with fly mode off
   (`src/engine/survival_env.rs`); the fatigued and hypothermia conditions
   (`data/status_effects.csv`). The Flare, Radio, Walkie Talkie,
@@ -762,7 +762,7 @@ facts are used here and the wording is not.
   some are recipe parts in `data/recipes.csv`), none given an effect by
   game code. The Thunderstorm weather event, with rain, wind and cloud
   but no hazard (`data/weather/events.ron`), and the lightning in
-  `src/systems/disasters.rs`, which no code registers, so it never runs.
+  `crates/humanity-systems/src/disasters.rs`, which no code registers, so it never runs.
   The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`).
 - [Knowing Which Way Is North](/library#knowing-which-way-is-north), [Reading a

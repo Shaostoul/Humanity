@@ -54,7 +54,7 @@ planet-wide artifact for a descent artifact.
 
 ## The real root: the weather model has no space in it
 
-`src/systems/weather.rs` carries ONE condition for the whole body:
+`crates/humanity-systems/src/weather.rs` carries ONE condition for the whole body:
 
 ```rust
 pub struct Weather {

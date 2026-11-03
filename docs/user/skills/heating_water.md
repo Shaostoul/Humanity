@@ -505,7 +505,7 @@ their numbers come from the sources in this guide.
 - **Their energy** is the RECS average for a household of that size that
   heats with electricity: 3.9 kWh a day for one person (1,427 kWh a year)
   and 9.5 kWh a day for three (3,482 kWh a year), and a test in
-  `src/machines.rs` holds them to it. The Construction page's power meter
+  `crates/humanity-ship/src/machines.rs` holds them to it. The Construction page's power meter
   charges it, and in the family home the water heater is the largest load on
   the home's own supply. The family home's heating element is 2 kW, on a 30
   amp circuit.
@@ -664,7 +664,7 @@ taken from them is restated here in our own words.
 - `data/machines/home_solo.ron` and `data/machines/home.ron`: the water
   heaters, the fixtures' hot shares and the RECS energy figures, each with
   its source quoted.
-- `src/machines.rs`: the tests that hold the heaters to RECS and the
+- `crates/humanity-ship/src/machines.rs`: the tests that hold the heaters to RECS and the
   fixtures to their measured hot shares.
 - [Ship Life Support](../../design/ship-life-support.md): the homes' power
   meter and the heat-against-RECS comparison.

@@ -3,15 +3,15 @@
 //! said is in its comment.
 
 use super::*;
-use crate::station::orbit;
+use humanity_ship::station::orbit;
 
 /// A feed for the shipped home station at game second `t` (the default
 /// 24-hour day), placed exactly the way the frame loop places it
 /// (`orbit::propagate` of `over_its_longitude`, `orbit::attitude`), shifted
 /// by `origin` (to put the whole thing 1 AU out).
 pub(crate) fn feed_at(t: f64, origin: DVec3) -> MapSelf {
-    let def = crate::station::default_home();
-    let day = crate::systems::time::EARTH_DAY_S;
+    let def = humanity_ship::station::default_home();
+    let day = humanity_systems::time::EARTH_DAY_S;
     let (pos, vel) = orbit::propagate(
         &orbit::over_its_longitude(&def.orbit, 1.0),
         orbit::MU_EARTH,

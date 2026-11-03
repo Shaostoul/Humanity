@@ -564,13 +564,13 @@ web pages and documents on 4 October 2026.
 
 ### Inside this project
 
-- Skill experience: `src/systems/crafting/mod.rs` (`credit_craft`, 10
-  plus 5 per recipe level), `src/systems/construction/mod.rs`
-  (Shelter Building for a finished structure), `src/systems/farming/mod.rs`,
-  `src/systems/mining.rs`, `src/systems/quests/mod.rs`,
-  `src/systems/combat/mod.rs` (the player's killing blow, 10 points to
+- Skill experience: `crates/humanity-systems/src/crafting/mod.rs` (`credit_craft`, 10
+  plus 5 per recipe level), `crates/humanity-systems/src/construction/mod.rs`
+  (Shelter Building for a finished structure), `crates/humanity-systems/src/farming/mod.rs`,
+  `crates/humanity-systems/src/mining.rs`, `crates/humanity-systems/src/quests/mod.rs`,
+  `crates/humanity-systems/src/combat/mod.rs` (the player's killing blow, 10 points to
   Melee Combat for kinetic damage or Ranged Combat for any other) and
-  `src/systems/abilities.rs` (5 points to the skill an ability needs);
+  `crates/humanity-systems/src/abilities.rs` (5 points to the skill an ability needs);
   the skill
   list in `data/skills/skills.csv`, where Leadership is defined but
   nothing in `src/` awards it experience.

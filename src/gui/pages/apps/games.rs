@@ -463,7 +463,7 @@ const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "Jun
 /// A Unix time as a date, "21 September 2026" (`short`: "21 Sep 2026"). The stores record these
 /// in UTC, and the app writes its other dates in UTC too.
 pub(crate) fn day_words(unix: u64, short: bool) -> String {
-    let (y, m, d) = crate::persistence::civil_from_days((unix / 86_400) as i64);
+    let (y, m, d) = humanity_systems::persistence::civil_from_days((unix / 86_400) as i64);
     let month = MONTHS[(m as usize).clamp(1, 12) - 1];
     if short {
         format!("{d} {} {y}", &month[..3])

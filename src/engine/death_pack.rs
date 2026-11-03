@@ -19,7 +19,7 @@ use glam::{DQuat, DVec3, Quat, Vec3};
 
 use crate::engine::state::EngineState;
 use crate::renderer::RenderObject;
-use crate::systems::death_pack::{self as dp, items_words, minutes_words, DeathMode, DeathNote, Landing, LeftPack, PackEvent, PackPlace, PackSpot};
+use humanity_systems::death_pack::{self as dp, items_words, minutes_words, DeathMode, DeathNote, Landing, LeftPack, PackEvent, PackPlace, PackSpot};
 
 /// What the engine keeps for the packs (`EngineState::death_packs`).
 #[derive(Default)]
@@ -281,7 +281,7 @@ pub(crate) fn activate(state: &mut EngineState) -> bool {
         return false;
     }
     let Some((pack, _)) = target(state) else { return false };
-    let items = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    let items = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
     let Some(r) = dp::take_back(&mut state.game_world.world, pack, items) else { return false };
     state.gui_state.pending_toasts.push((take_back_words(r), crate::gui::ToastKind::Info));
     if r.taken > 0 {

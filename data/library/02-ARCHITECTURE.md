@@ -8,7 +8,8 @@
 ## One workspace, one binary
 
 HumanityOS is a **Cargo workspace**: the root package `humanity-engine` at `src/` and the
-crates cut out of it so far, `crates/humanity-core/` and `crates/humanity-protocol/` (the
+crates cut out of it so far, `crates/humanity-core/`, `crates/humanity-protocol/`,
+`crates/humanity-ship/`, `crates/humanity-terrain/` and `crates/humanity-systems/` (the
 crate split, `docs/design/crate-split.md`; ten crates by layer are planned, each with a card
 in `docs/crates/`). Everything compiles into one binary, `HumanityOS`. **Feature flags**
 decide what is included:
@@ -38,8 +39,8 @@ HumanityOS --headless     # relay server only (--features relay --no-default-fea
 | `src/renderer/` | wgpu PBR rendering: camera, sky, bloom, particles, hologram. |
 | `src/gui/` | egui immediate-mode UI: theme, widgets, pages. |
 | `crates/humanity-core/src/ecs/` | The hecs ECS: components, the `System` trait, the `SystemRunner`. |
-| `src/systems/` | 15-plus game systems (farming, crafting, AI, vehicles, weather, ...). |
-| `src/terrain/`, `src/ship/`, `crates/humanity-core/src/physics/`, `crates/humanity-core/src/audio/` | World, ship layouts, rapier3d physics, kira audio. |
+| `crates/humanity-systems/src/` | 15-plus game systems (farming, crafting, AI, vehicles, weather, ...). |
+| `crates/humanity-terrain/src/`, `crates/humanity-ship/src/`, `crates/humanity-core/src/physics/`, `crates/humanity-core/src/audio/` | World, ship layouts, rapier3d physics, kira audio. |
 | `src/assets/` | Data loading (CSV/TOML/RON/GLTF) with hot-reload. |
 | `src/net/` | Multiplayer networking: WebSocket client, protocol, ECS sync. |
 

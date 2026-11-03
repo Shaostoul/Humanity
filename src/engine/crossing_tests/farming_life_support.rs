@@ -6,12 +6,12 @@ use std::collections::HashMap;
 use humanity_core::ecs::components::{AirHandler, Co2Scrubber, CropInstance, PowerConsumer, SoilMemory};
 use humanity_core::ecs::systems::System;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::atmosphere::EnclosedSpace;
-use crate::systems::farming::humidity;
-use crate::systems::farming::life_support_tests::*;
-use crate::systems::farming::lighting::GrowPlot;
-use crate::systems::farming::*;
-use crate::systems::life_support::{self, LifeSupportData};
+use humanity_systems::atmosphere::EnclosedSpace;
+use humanity_systems::farming::humidity;
+use humanity_systems::farming::fixtures::life_support::*;
+use humanity_systems::farming::lighting::GrowPlot;
+use humanity_systems::farming::*;
+use humanity_systems::life_support::{self, LifeSupportData};
 
 /// A shipped home's garden at full planting, built the way the engine builds
 /// it: the rooms the engine publishes, through the same two calls (the ship's
@@ -30,15 +30,15 @@ use crate::systems::life_support::{self, LifeSupportData};
 fn shipped_home(file: &str) -> (DataStore, hecs::World) {
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let data_dir = root.join("data");
-    let home = crate::systems::grow_machines::load_home(&data_dir.join("machines").join(file)).expect("home parses");
-    let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
+    let home = humanity_systems::grow_machines::load_home(&data_dir.join("machines").join(file)).expect("home parses");
+    let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
     // The machines below stand at their zone-local offsets, which are their ship
     // positions (and so in the rooms' frame) because the home stands on p1, at the origin.
     let hz = &ship.zones[ship.home_zone_index()];
     assert_eq!(hz.origin, (0.0, 0.0, 0.0), "the shipped home stands at the ship's origin");
-    let room_types = crate::ship::room_types::RoomTypeRegistry::load(&data_dir);
+    let room_types = humanity_ship::room_types::RoomTypeRegistry::load(&data_dir);
     let rooms = room_types.room_bounds(&ship.generate_meshes().room_info);
-    let model = crate::systems::grow_machines::GrowFoodModel::load(&data_dir).expect("grow model");
+    let model = humanity_systems::grow_machines::GrowFoodModel::load(&data_dir).expect("grow model");
     let all: Vec<_> = home.all_instances().into_iter().filter(|i| i.zone == "home").collect();
     let mut plots = Vec::new();
     let mut areas = HashMap::new();
@@ -79,8 +79,8 @@ fn shipped_home(file: &str) -> (DataStore, hecs::World) {
     }
     // As big as the shipped home (ship homes increment 4: each home its own air), the shipped
     // design and not this checkout's own home, which a Save can change.
-    let shipped = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped homestead");
-    let home_m3 = crate::ship::ship_space::home_air_volume_m3(&shipped.body);
+    let shipped = humanity_ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped homestead");
+    let home_m3 = humanity_ship::ship_space::home_air_volume_m3(&shipped.body);
     crate::engine::home_spawn::spawn_home_air_space(&mut world, crate::engine::home_spawn::home_metabolic_kcal(&home), home_m3);
     for (area, plant, slot) in sow {
         world.spawn((crop(&data, &plant, &area, slot, 0.0),));
@@ -121,7 +121,7 @@ struct HomeDay {
     mushroom_room_ppm: (f64, f64),
     mushroom_room_rh: (f64, f64),
     /// The day record the machines' draw wrote over the two days (2026-10-22).
-    recorded: crate::machines::day_energy::DayEnergy,
+    recorded: humanity_ship::machines::day_energy::DayEnergy,
 }
 
 /// Run a shipped home a game day to settle, then one to measure, each tick
@@ -141,7 +141,7 @@ fn settle_home_with(file: &str, tweak: impl Fn(&mut LifeSupportData), tweak_worl
     data.insert(life_support::DATA_KEY, ld);
     // The day record the meters read (2026-10-22), written each tick as the machines' power
     // tick writes it, over the tick's game seconds.
-    crate::machines::day_energy::register(&mut data);
+    humanity_ship::machines::day_energy::register(&mut data);
     let d = air();
     let mut sys = FarmingSystem::new();
     let dt = 6.0_f32;
@@ -149,7 +149,7 @@ fn settle_home_with(file: &str, tweak: impl Fn(&mut LifeSupportData), tweak_worl
     for tick in 0..per_day {
         advance(&data, f64::from(dt));
         sys.tick(&mut world, dt, &data);
-        crate::machines::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
+        humanity_ship::machines::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
         if tick == 0 {
             tweak_world(&mut world);
         }
@@ -174,7 +174,7 @@ fn settle_home_with(file: &str, tweak: impl Fn(&mut LifeSupportData), tweak_worl
     for _ in 0..per_day {
         advance(&data, f64::from(dt));
         sys.tick(&mut world, dt, &data);
-        crate::machines::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
+        humanity_ship::machines::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
         let m = memory(&world);
         let n = per_day as f64;
         day.greenhouse_rh += m.rooms.get("room-greenhouse").map_or(0.0, |a: &RoomAir| d.rh_of(a.vapour_g_m3, d.room_temp_c)) / n;
@@ -241,7 +241,7 @@ fn settle_home_with(file: &str, tweak: impl Fn(&mut LifeSupportData), tweak_worl
     }
     println!("  {file} ledger {:?}", m.home_air.ledger);
     println!("{file}: {day:#?}");
-    day.recorded = crate::machines::day_energy::snapshot(&data);
+    day.recorded = humanity_ship::machines::day_energy::snapshot(&data);
     day
 }
 
@@ -289,7 +289,7 @@ fn the_shipped_homes_hold_their_air_and_return_their_water() {
     let d = air();
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
     let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-    let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
+    let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
     let home_rooms = ship.zones[ship.home_zone_index()].body.detect_rooms().len();
     for file in ["home.ron", "home_solo.ron"] {
         let day = settle_home(file, |_| {});
@@ -309,7 +309,7 @@ fn the_shipped_homes_hold_their_air_and_return_their_water() {
         assert!((day.returned_l - into_air).abs() < 0.01 * into_air, "{file}: {} L returned of {into_air} L put in the air", day.returned_l);
         // The mushrooms' air (2026-09-27).
         assert!(day.tents_co2_ppm.1 < d.fruiting_co2_limit_ppm, "{file}: tents at {:?} ppm, over the {}", day.tents_co2_ppm, d.fruiting_co2_limit_ppm);
-        let home = crate::systems::grow_machines::load_home(&root.join(file)).expect("home parses");
+        let home = humanity_systems::grow_machines::load_home(&root.join(file)).expect("home parses");
         let room_set = f64::from(home.catalog["room_co2_fan"].co2_setpoint_ppm);
         // The room under its fan's setpoint, with 2% for an evening peak its S6
         // cannot hold flat out (it held 600 at the family home's, the home's air
@@ -317,7 +317,7 @@ fn the_shipped_homes_hold_their_air_and_return_their_water() {
         assert!(day.mushroom_room_ppm.1 <= room_set * 1.02, "{file}: the mushroom room at {:?} ppm, over its fan's {room_set}", day.mushroom_room_ppm);
         // The static meter's average draws are the measured ones.
         for (id, def) in &home.catalog {
-            let Some(crate::machines::MachinePower::Consumer { average_watts: Some(avg), .. }) = def.power else { continue };
+            let Some(humanity_ship::machines::MachinePower::Consumer { average_watts: Some(avg), .. }) = def.power else { continue };
             let (total, units) = day.by_type.get(id).copied().unwrap_or_default();
             assert!(units > 0, "{file}: `{id}` carries average_watts but none is placed");
             let measured = total / units as f64;
@@ -335,8 +335,8 @@ fn the_shipped_homes_hold_their_air_and_return_their_water() {
             let recorded: f64 = placed.iter().filter(|i| &i.machine == id).filter_map(|i| day.recorded.day_of(&i.id, &i.machine)).map(|d| d.average_w()).sum();
             assert!((recorded - total).abs() <= 1e-6 * total.max(1.0), "{file}: `{id}`'s units recorded {recorded} W over the day, the day averaged {total} W");
         }
-        let power = |recorded: Option<&crate::machines::day_energy::DayEnergy>| {
-            let basis = crate::machines::MeterBasis { life_support_on_grid: true, recorded };
+        let power = |recorded: Option<&humanity_ship::machines::day_energy::DayEnergy>| {
+            let basis = humanity_ship::machines::MeterBasis { life_support_on_grid: true, recorded };
             home.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").expect("a power meter")
         };
         let (with_record, estimated) = (power(Some(&day.recorded)), power(None));

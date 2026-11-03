@@ -24,7 +24,7 @@
 //!   4. every recipe `category` has exactly one Crafting-sidebar entry in
 //!      data/crafting/categories.json, and no sidebar entry is empty;
 //!   5. every plant in plants.csv has its `seed_<plant>_0` item, because
-//!      src/systems/farming/mod.rs plants from and harvests back to that id;
+//!      crates/humanity-systems/src/farming/mod.rs plants from and harvests back to that id;
 //!   6. every data/world/showcase.ron `bed_crops` entry names a real machine
 //!      type and a real plant, so no grow surface is silently left bare.
 //!
@@ -753,7 +753,7 @@ fn every_recipe_category_has_exactly_one_sidebar_entry() {
     );
 }
 
-/// src/systems/farming/mod.rs plants from `seed_<plant>_0` and a survival
+/// crates/humanity-systems/src/farming/mod.rs plants from `seed_<plant>_0` and a survival
 /// harvest gives two of it back, so a plant without that item can never be
 /// planted and its harvest never reaches anyone.
 #[test]

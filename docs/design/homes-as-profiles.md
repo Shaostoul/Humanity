@@ -49,9 +49,9 @@ run it" is one continuous arc through one interface.
 
 | Concept here | Existing code it builds on |
 |---|---|
-| A home (save profile) | `saves/` named save slots (profile, inventory, farm, quests, skills, world) in the local data dir; `src/persistence.rs` |
+| A home (save profile) | `saves/` named save slots (profile, inventory, farm, quests, skills, world) in the local data dir; `crates/humanity-systems/src/persistence.rs` |
 | The homestead contents/layout | the `Place` container spine (`data/places/seed.json` -> `GuiState.places`), rendered as the inventory `tree_list` |
-| A "design" / blueprint | the ship/room layout system (`src/ship/`, RON layouts) + the Fibonacci spiral-deck generator referenced in the renderer |
+| A "design" / blueprint | the ship/room layout system (`crates/humanity-ship/src/`, RON layouts) + the Fibonacci spiral-deck generator referenced in the renderer |
 | Server home | the server-authoritative relay multiplayer (already partially live: avatars, position sync, shared quests, world persistence in `src/relay/storage/game_persistence.rs`) |
 | Real home (last) | the device-mesh + in-app-ops direction (`docs/design/device-mesh.md`, `docs/design/in-app-ops.md`); a real home surfaces a monitoring/automation dashboard instead of (or beside) the sim |
 

@@ -477,11 +477,11 @@ the public domain. Web pages were read on 3 October 2026.
 - The Planet view's footer: `draw_planet_view` in
   `src/gui/pages/maps/planet_view.rs`; the two regions, `data/maps/regions/`.
 - Metres per degree: `M_PER_DEG_LAT` and `M_PER_DEG_LON_EQUATOR` in
-  `src/terrain/osm_region.rs`; the regions built into the 3D Earth
+  `crates/humanity-terrain/src/osm_region.rs`; the regions built into the 3D Earth
   within 40 kilometres (`BUILD_RANGE_M` in `src/engine/region_meshes.rs`).
 - Time by longitude: `local_hour`, `solar_hour_at` and
-  `home_longitude_deg` in `src/systems/time.rs`, used by the solar panels
-  (`src/systems/solar.rs`), the grow lights and the crops; the home's
+  `home_longitude_deg` in `crates/humanity-systems/src/time.rs`, used by the solar panels
+  (`crates/humanity-systems/src/solar.rs`), the grow lights and the crops; the home's
   longitude comes from the home station's orbit,
   `mean_anomaly_at_epoch_deg: -122.3` in `data/stations/home.ron`.
 - The GPS Device item, `gps_device_0` in `data/items.csv`, which no game

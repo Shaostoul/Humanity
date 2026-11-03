@@ -3,7 +3,7 @@
 //! passed; the failure is in its comment.
 
 use super::*;
-use crate::ship::ship_structure::{HomeDesign, OpenPlots};
+use humanity_ship::ship_structure::{HomeDesign, OpenPlots};
 
 fn data_dir() -> std::path::PathBuf {
     std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
@@ -87,7 +87,7 @@ fn the_open_plot_you_stand_in_is_lit_and_on_nobodys_meter() {
 /// Seen red 2026-10-20 with the tolerance at 0.5: "left: 0.5, right: 0.6".
 #[test]
 fn a_doors_storey_tolerance_is_the_step_up() {
-    assert_eq!(crate::ship::door_panels::DOOR_STOREY_TOLERANCE_M, crate::engine::footing::STEP_UP_M);
+    assert_eq!(humanity_ship::door_panels::DOOR_STOREY_TOLERANCE_M, crate::engine::footing::STEP_UP_M);
 }
 
 /// PIPES RUN UNDER EACH STOREY'S OWN CEILING (ship homes increment 7, plan section 3: conduits per
@@ -104,7 +104,7 @@ fn a_doors_storey_tolerance_is_the_step_up() {
 /// it was: "a run between the storeys runs at 5.7 under 6, want 2.45 under 2.75".
 #[test]
 fn pipes_run_under_each_storeys_own_ceiling() {
-    let mut body: crate::ship::home_structure::HomeStructure = ron::from_str("(width: 10.0, depth: 10.0, height: 6.0)").unwrap();
+    let mut body: humanity_ship::home_structure::HomeStructure = ron::from_str("(width: 10.0, depth: 10.0, height: 6.0)").unwrap();
     let flat = service_levels(&body, Vec3::ZERO);
     assert_eq!(flat, vec![(0.0, 6.0)], "a body with no slab has one level, floor to roof");
     let (sy, ceiling) = run_level(&flat, 0.0, 0.0);
@@ -153,10 +153,10 @@ fn a_machines_pipes_and_a_rooms_light_keep_to_their_storey() {
 
 /// The shipped homestead's elevator (elevator-1, at (31, 0, 26) of the home zone): its key in
 /// `ElevatorCars`.
-fn homestead_lift(ship: &ShipStructure) -> crate::ship::lifts::LiftKey {
+fn homestead_lift(ship: &ShipStructure) -> humanity_ship::lifts::LiftKey {
     let hz = ship.home_zone_index();
     let at = ship.zones[hz].origin_vec() + Vec3::new(31.0, 0.0, 26.0);
-    crate::ship::lifts::lifts(ship)
+    humanity_ship::lifts::lifts(ship)
         .into_iter()
         .find(|l| l.key.0 == ship.zones[hz].id && (l.base - at).length() < 0.01)
         .expect("the homestead's elevator-1 at (31, 0, 26)")
@@ -236,7 +236,7 @@ fn an_elevators_landing_door_opens_only_with_the_car_there() {
     use crate::engine::footing::{lift_landing_open, ElevatorCars};
     let ship = ship("p1");
     let o = ship.zones[ship.home_zone_index()].origin_vec();
-    let doors = crate::ship::door_panels::ship_panel_placements(&ship);
+    let doors = humanity_ship::door_panels::ship_panel_placements(&ship);
     let u11 = doors
         .iter()
         .find(|p| !p.is_window && (p.center - (o + Vec3::new(31.0, 3.0, 26.9))).length() < 0.2)
@@ -259,7 +259,7 @@ fn an_elevators_landing_door_opens_only_with_the_car_there() {
     // A door at no landing, and every door's other rules, as before.
     let ordinary = doors
         .iter()
-        .find(|p| !p.is_window && p.auto_open && crate::systems::door_anim::is_operable(&p.style) && lift_landing_open(&ship, &cars, p.center).is_none())
+        .find(|p| !p.is_window && p.auto_open && humanity_systems::door_anim::is_operable(&p.style) && lift_landing_open(&ship, &cars, p.center).is_none())
         .expect("an ordinary auto door");
     assert_eq!(door_target(ordinary, 0.0, false, false, None, at_door), 1.0, "an ordinary door opens for a body at it");
     assert_eq!(door_target(ordinary, 0.0, true, false, None, at_door), 0.0, "a locked door stays shut");
@@ -279,7 +279,7 @@ fn an_elevators_landing_door_opens_only_with_the_car_there() {
 fn the_elevator_car_is_drawn_to_its_footprint() {
     use crate::engine::footing::ElevatorCars;
     let ship = ship("p1");
-    let lifts = crate::ship::lifts::lifts(&ship);
+    let lifts = humanity_ship::lifts::lifts(&ship);
     let mut cars = ElevatorCars::new();
     let poses = elevator_car_poses(&ship, &cars, None);
     assert_eq!(poses.len(), lifts.len(), "one car per elevator");
@@ -296,7 +296,7 @@ fn the_elevator_car_is_drawn_to_its_footprint() {
         assert!((pos.x - lift.base.x).abs() < 1e-5 && (pos.z - lift.base.z).abs() < 1e-5, "elevator {:?}: the car is off its shaft", lift.key);
     }
     let hz = ship.home_zone_index();
-    let cut = crate::ship::storey_edits::cut_away_of(&ship, hz, 0);
+    let cut = humanity_ship::storey_edits::cut_away_of(&ship, hz, 0);
     assert!(cut.is_some(), "the homestead's ground storey has the upper floor over it");
     let key = homestead_lift(&ship);
     cars.insert(key.clone(), (3.0, 3.0, false));
@@ -309,7 +309,7 @@ fn the_elevator_car_is_drawn_to_its_footprint() {
 /// household's machine layout placed, and every run of it (`conduit_runs`).
 fn shipped_runs() -> (ShipStructure, Vec<ConduitRun>) {
     let ship = ship("p1");
-    let home = crate::systems::grow_machines::load_home(&data_dir().join("machines/home.ron")).expect("the household's machines load");
+    let home = humanity_systems::grow_machines::load_home(&data_dir().join("machines/home.ron")).expect("the household's machines load");
     let placements = home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
     let picks = port_picks(&home, &placements, Some(&ship));
     let runs = conduit_runs(Some(&ship), &home, &placements, &picks);
@@ -397,12 +397,12 @@ fn the_cut_away_leaves_out_the_runs_over_it() {
     let (ship, runs) = shipped_runs();
     let site = run_site(Some(&ship));
     let hz = ship.home_zone_index();
-    let cut = crate::ship::storey_edits::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
+    let cut = humanity_ship::storey_edits::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
     let (o, body) = (ship.zones[hz].origin_vec(), &ship.zones[hz].body);
     // Over the cut in the home's box, and the edge round it the cut takes with it (a door in the
     // shell stands on its edge; a wall unit's port gizmos stood past it, the study's uplink and
     // router risers at x 55.05, until `gizmo_room` kept them in), by the numbers, not by `hides`.
-    let m = crate::ship::storey_edits::CUT_EDGE_M;
+    let m = humanity_ship::storey_edits::CUT_EDGE_M;
     let over = |p: Vec3| {
         p.y > cut.cut_y + 1e-3 && p.x >= o.x - m && p.x <= o.x + body.width + m && p.z >= o.z - m && p.z <= o.z + body.depth + m
     };
@@ -442,7 +442,7 @@ fn the_cut_away_leaves_out_the_runs_over_it() {
     assert!(drawn_over < 0.01, "the cut-away draws {drawn_over:.2} m of runs over its cut (of {whole_over:.1} m)");
     // Per riser: the centimetre kept clear, and a centimetre's sample either side of the cut.
     let slack = risers as f32 * 0.012;
-    let kept_clear = risers as f32 * crate::ship::home_structure::STOREY_EPS + slack;
+    let kept_clear = risers as f32 * humanity_ship::home_structure::STOREY_EPS + slack;
     assert!(
         drawn_under <= whole_under + slack + 0.01 && drawn_under >= whole_under - kept_clear,
         "the cut-away draws {drawn_under:.2} m of runs under its cut, of {whole_under:.2} m ({risers} risers through it)"
@@ -450,8 +450,8 @@ fn the_cut_away_leaves_out_the_runs_over_it() {
 }
 
 /// The household's machines of `file` (under data/machines/) placed on `ship`.
-fn shipped_placements(ship: &ShipStructure, file: &str) -> (crate::machines::MachineHome, Vec<crate::machines::PlacedMachine>) {
-    let home = crate::systems::grow_machines::load_home(&data_dir().join("machines").join(file)).expect("the household's machines load");
+fn shipped_placements(ship: &ShipStructure, file: &str) -> (humanity_ship::machines::MachineHome, Vec<humanity_ship::machines::PlacedMachine>) {
+    let home = humanity_systems::grow_machines::load_home(&data_dir().join("machines").join(file)).expect("the household's machines load");
     let placements = home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
     (home, placements)
 }
@@ -528,7 +528,7 @@ fn world_entries_again_and_again_keep_the_machines_slots() {
 #[test]
 fn the_cut_away_is_drawn_again_after_a_world_load() {
     let ship = ship("p1");
-    let want = crate::ship::storey_edits::cut_away_of(&ship, ship.home_zone_index(), 0);
+    let want = humanity_ship::storey_edits::cut_away_of(&ship, ship.home_zone_index(), 0);
     assert!(want.is_some(), "the homestead's ground storey has the upper floor over it");
     let mut draw = HomeDraw::default();
     assert!(draw.view_stale(want), "the editor opened on the ground storey: its cut-away is to be drawn");
@@ -556,7 +556,7 @@ fn the_cut_away_leaves_out_the_plants_and_tents_over_it() {
     let ship = ship("p1");
     let hz = ship.home_zone_index();
     let o = ship.zones[hz].origin_vec();
-    let cut = crate::ship::storey_edits::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
+    let cut = humanity_ship::storey_edits::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
     let greenhouse = o + Vec3::new(30.0, 0.0, 60.0);
     let bedroom = o + Vec3::new(38.0, 3.0, 34.0);
     let plants = vec![(1, 7, greenhouse), (2, 7, bedroom)];
@@ -648,7 +648,7 @@ fn a_hanger_reaches_the_ceiling_over_it() {
     let (mut problems, mut in_greenhouse) = (Vec::new(), 0usize);
     for run in &runs {
         let (route, service_y, ceiling) = route_run(&site, run);
-        for f in route.fittings.iter().filter(|f| matches!(f.kind, crate::ship::conduits::FittingKind::Bracket) && (f.at.y - service_y).abs() <= 0.1) {
+        for f in route.fittings.iter().filter(|f| matches!(f.kind, humanity_ship::conduits::FittingKind::Bracket) && (f.at.y - service_y).abs() <= 0.1) {
             let top = site.hanger_top(f.at, ceiling);
             if !ceilings.iter().any(|c| (c - top).abs() < 1e-4) {
                 problems.push(format!("{} {} -> {}: a hanger at {:?} reaches {:.2}, no ceiling", run.kind, run.from, run.to, f.at - o, top - o.y));
@@ -715,7 +715,7 @@ fn a_run_to_a_unit_hung_in_a_double_height_room_ends_at_its_port() {
 /// camera is not in sight".
 #[test]
 fn the_areas_in_sight_are_the_machines_in_the_view() {
-    use crate::terrain::planet_chunks::FrustumPlanes;
+    use humanity_terrain::planet_chunks::FrustumPlanes;
     let spot = |ty: &str, id: &str, z: f32| GrowSpot { ty: ty.into(), id: id.into(), pos: Vec3::new(0.0, 0.0, z), yaw: 0.0, top_y: 2.0, size: (1.0, 2.0, 1.0) };
     let spots = vec![spot("aeroponic_tower_nutrition", "ntower_0", -20.0), spot("raised_bed", "raised_bed_1", 20.0)];
     let eye = Vec3::new(0.0, 1.7, 0.0);

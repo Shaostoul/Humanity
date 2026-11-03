@@ -1,8 +1,8 @@
 //! From terrain/far_trees.rs's tests: the far trees' clamp at the shipped card default of the
 //! settings (`config::AppConfig`).
 
-use crate::terrain::far_trees::*;
-use crate::terrain::far_trees::tests::forest_def;
+use humanity_terrain::far_trees::*;
+use humanity_terrain::far_trees::fixtures::forest_def;
 use glam::DVec3;
 
 /// A warning nobody can trigger is decoration; one that fires on a fresh
@@ -27,7 +27,7 @@ use glam::DVec3;
 #[cfg(feature = "native")]
 #[test]
 fn the_clamp_is_quiet_at_the_shipped_card_default_and_bites_at_the_ceiling() {
-    use crate::terrain::planet_chunks::{
+    use humanity_terrain::planet_chunks::{
         select_patches, ChunkParams, RadialBand, MAX_BUILD_REQUESTS, TILE_MAX_PATCH_DEPTH,
     };
     let def = forest_def();

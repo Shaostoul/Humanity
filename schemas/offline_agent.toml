@@ -77,19 +77,19 @@
 # Connection to game systems:
 #   ECS (crates/humanity-core/src/ecs/) -- OfflineAgent is a component. The offline
 #     simulation system ticks agents via the System trait.
-#   AI system (src/systems/ai/) -- reuses NPC behavior trees for
+#   AI system (crates/humanity-systems/src/ai/) -- reuses NPC behavior trees for
 #     offline agents. The agent uses the same decision-making as NPCs but
 #     with player-configured priorities.
-#   Farming system (src/systems/farming/) -- offline agents tend crops,
+#   Farming system (crates/humanity-systems/src/farming/) -- offline agents tend crops,
 #     harvest, replant based on task_priority_list.
-#   Crafting system (src/systems/crafting/) -- agents craft items if
+#   Crafting system (crates/humanity-systems/src/crafting/) -- agents craft items if
 #     assigned and resources are available.
-#   Inventory system (src/systems/inventory/) -- resource consumption
+#   Inventory system (crates/humanity-systems/src/inventory/) -- resource consumption
 #     and production flow through the same inventory as active play.
-#   Skills system (src/systems/skills/) -- XP gain at reduced rate.
-#   Combat system (src/systems/combat/) -- resolved if risk settings
+#   Skills system (crates/humanity-systems/src/skills/) -- XP gain at reduced rate.
+#   Combat system (crates/humanity-systems/src/combat/) -- resolved if risk settings
 #     allow and threats appear. Agent fights or flees per risk_tolerance.
-#   Persistence (src/persistence.rs) -- offline event log and state
+#   Persistence (crates/humanity-systems/src/persistence.rs) -- offline event log and state
 #     are saved with the world. Resuming loads the summary.
 #
 # File format: one offline agent config per player save. The schema below

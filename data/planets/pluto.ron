@@ -4,7 +4,7 @@
 // haze is far too thin to draw), no water, no procedural polar caps -- the
 // real bright regions come from the albedo map.
 // Procedural surface fields are consumed by terrain::planet_surface; see
-// src/terrain/planet.rs::PlanetDef for the full field list + defaults.
+// crates/humanity-terrain/src/planet.rs::PlanetDef for the full field list + defaults.
 (
     name: "Pluto",
     radius: 1188300.0,

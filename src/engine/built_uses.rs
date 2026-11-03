@@ -12,7 +12,7 @@
 //! calls `frame` once per frame and `activate` from the E chain.
 
 use crate::engine::state::EngineState;
-use crate::systems::construction::{uses, BlueprintRegistry, DoorOpen, Structure};
+use humanity_systems::construction::{uses, BlueprintRegistry, DoorOpen, Structure};
 
 /// How far away a built structure can be used from, metres: the same reach
 /// the home machines' walk-up cards use.
@@ -29,10 +29,10 @@ pub(crate) fn frame(state: &mut EngineState) {
     crate::gui::sync_built_stores(&mut state.gui_state.places, &stores);
     // A fire's line names its fuel and how it is burning (BUG-153).
     let prompt = target(state).map(|(e, u, name)| match u {
-        uses::StructureUse::Tend => crate::systems::construction::fires::tend_prompt(
+        uses::StructureUse::Tend => humanity_systems::construction::fires::tend_prompt(
             &state.game_world.world,
             state.data_store.get::<BlueprintRegistry>("blueprint_registry"),
-            state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
+            state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry"),
             e,
         ),
         _ => u.prompt(&name),
@@ -50,7 +50,7 @@ pub(crate) fn frame(state: &mut EngineState) {
 /// stands in, and nothing of the home's, which is in orbit. Anywhere else:
 /// none. Power follows the same place (`station_unpowered_at`).
 pub(crate) fn publish_stations(state: &mut EngineState) {
-    use crate::systems::construction::StationsWhere;
+    use humanity_systems::construction::StationsWhere;
     let here = match crate::engine::planet_build::player_frame(state) {
         Some(f) => f.site.map_or(StationsWhere::Home, StationsWhere::Site),
         None => StationsWhere::Nowhere,
@@ -76,7 +76,7 @@ pub(crate) fn publish_stations(state: &mut EngineState) {
     let mut unpowered = std::collections::HashSet::new();
     if let Some(frame) = here.frame() {
         for (_e, mt) in world.query::<&humanity_core::ecs::components::MachineType>().iter() {
-            if crate::systems::crafting::CraftingSystem::station_unpowered_at(world, &mt.0, frame).is_some() {
+            if humanity_systems::crafting::CraftingSystem::station_unpowered_at(world, &mt.0, frame).is_some() {
                 unpowered.insert(mt.0.clone());
             }
         }
@@ -91,7 +91,7 @@ pub(crate) fn publish_stations(state: &mut EngineState) {
     let home_away = state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away());
     let storage_here = here == StationsWhere::Home && !home_away;
     state.data_store.insert(
-        crate::systems::crafting::home_store::HOME_STORAGE_HERE,
+        humanity_systems::crafting::home_store::HOME_STORAGE_HERE,
         std::sync::Mutex::new(storage_here),
     );
     state.gui_state.home_storage_here = storage_here;
@@ -110,12 +110,12 @@ pub(crate) fn publish_stations(state: &mut EngineState) {
 pub(crate) fn station_types_here(
     world: &hecs::World,
     registry: Option<&BlueprintRegistry>,
-    here: &crate::systems::construction::StationsWhere,
+    here: &humanity_systems::construction::StationsWhere,
     machines: &[(&str, &str)],
-    ship: Option<&crate::ship::ship_structure::ShipStructure>,
+    ship: Option<&humanity_ship::ship_structure::ShipStructure>,
 ) -> std::collections::HashSet<String> {
-    use crate::ship::ship_structure::HOME_ZONE_ID;
-    use crate::systems::construction::{built_station_types_where, StationsWhere};
+    use humanity_ship::ship_structure::HOME_ZONE_ID;
+    use humanity_systems::construction::{built_station_types_where, StationsWhere};
     let away = ship.is_some_and(|s| s.home_is_away());
     // Where the put-away home is kept: a piece standing over it was built in
     // that home and went away with it (home_plot::carry_built_pieces).
@@ -141,8 +141,8 @@ pub(crate) fn station_types_here(
 mod tests {
     use super::*;
     use humanity_core::ecs::components::Transform;
-    use crate::ship::ship_structure::{ShipStructure, HOME_AWAY_ORIGIN, HOME_ZONE_ID};
-    use crate::systems::construction::{Structure, StationsWhere};
+    use humanity_ship::ship_structure::{ShipStructure, HOME_AWAY_ORIGIN, HOME_ZONE_ID};
+    use humanity_systems::construction::{Structure, StationsWhere};
     use glam::Vec3;
 
     fn shipped_blueprints() -> BlueprintRegistry {
@@ -200,12 +200,12 @@ mod tests {
     /// Some(Store)\", \"the pantry's door shut: take down finds a piece\"]".
     #[test]
     fn a_shut_home_door_stops_e_and_take_down() {
-        use crate::systems::construction::uses::{first_in_view, looked_at};
+        use humanity_systems::construction::uses::{first_in_view, looked_at};
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).unwrap();
         assert_eq!(ship.zones[ship.home_zone_index()].origin, (0.0, 0.0, 0.0), "the home on p1 stands at the ship's origin");
-        let walls = crate::ship::wall_collision::ship_wall_segments(&ship);
-        let placements = crate::ship::door_panels::ship_panel_placements(&ship);
+        let walls = humanity_ship::wall_collision::ship_wall_segments(&ship);
+        let placements = humanity_ship::door_panels::ship_panel_placements(&ship);
         let pantry = placements
             .iter()
             .position(|p| !p.is_window && (p.center - Vec3::new(36.45, 0.0, 43.0)).length() < 0.2)
@@ -213,7 +213,7 @@ mod tests {
         let reg = shipped_blueprints();
         let bp = reg.get("storage_chest").expect("a storage chest in basic.ron");
         let mut world = hecs::World::new();
-        let tf = crate::systems::construction::placement::placement_pose(bp, Vec3::new(36.45, 0.0, 45.0), 0, &world, &reg, None);
+        let tf = humanity_systems::construction::placement::placement_pose(bp, Vec3::new(36.45, 0.0, 45.0), 0, &world, &reg, None);
         world.spawn((tf, Structure { blueprint_id: "storage_chest".into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }));
         let eye = Vec3::new(36.45, 1.7, 41.5);
         let dir = (Vec3::new(36.45, 0.8, 45.0) - eye).normalize();
@@ -221,7 +221,7 @@ mod tests {
         for pantry_open in [false, true] {
             let panels: Vec<_> = placements.iter().enumerate().map(|(i, p)| (p.clone(), if i == pantry && pantry_open { 1.0 } else { 0.0 })).collect();
             let shut: Vec<_> = shut_door_segments(&panels, &[]).collect();
-            let here = crate::ship::sight::ReachBlockers { walls: &walls, doors: &shut, ship: Some(&ship) };
+            let here = humanity_ship::sight::ReachBlockers { walls: &walls, doors: &shut, ship: Some(&ship) };
             let what = if pantry_open { "the pantry's door open" } else { "the pantry's door shut" };
             let e = looked_at(&world, Some(&reg), eye, dir, REACH_M, None, here).map(|h| h.1);
             if e.is_some() != pantry_open {
@@ -258,7 +258,7 @@ mod tests {
         use std::sync::Mutex;
         let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
-            let home = crate::systems::grow_machines::load_home(&dir.join(file)).expect("the home parses");
+            let home = humanity_systems::grow_machines::load_home(&dir.join(file)).expect("the home parses");
             let mut sleepers: Vec<&str> = home
                 .catalog
                 .iter()
@@ -269,7 +269,7 @@ mod tests {
             assert_eq!(sleepers, vec!["bed"], "{file}: the machines E sleeps you in");
             assert!(home.all_instances().iter().any(|i| i.machine == "bed"), "{file}: a bed is placed");
         }
-        let home = crate::systems::grow_machines::load_home(&dir.join("home.ron")).unwrap();
+        let home = humanity_systems::grow_machines::load_home(&dir.join("home.ron")).unwrap();
         let label = |machine: &str, name: &str| crate::gui::MachineLabel {
             pos: Vec3::ZERO,
             foot_y: 0.0,
@@ -284,18 +284,18 @@ mod tests {
 
         // E at it asks for the night in the Bed, as a built bed does.
         let mut data = humanity_core::hot_reload::data_store::DataStore::new();
-        data.insert(crate::systems::sleep::REQUEST_SLOT, Mutex::new(None::<String>));
+        data.insert(humanity_systems::sleep::REQUEST_SLOT, Mutex::new(None::<String>));
         assert!(use_machine_label(&data, &bed), "E at the bed is used, not opened");
-        let asked = data.get::<Mutex<Option<String>>>(crate::systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap().clone();
+        let asked = data.get::<Mutex<Option<String>>>(humanity_systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap().clone();
         assert_eq!(asked.as_deref(), Some("Bed"), "the sleep request, by the bed's name");
 
         // Any other machine still opens and closes its card.
         let nightstand = label("nightstand", "Nightstand");
-        *data.get::<Mutex<Option<String>>>(crate::systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap() = None;
+        *data.get::<Mutex<Option<String>>>(humanity_systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap() = None;
         assert!(!use_machine_label(&data, &nightstand), "a nightstand is opened");
         assert_eq!(nightstand.prompt(false), "[E] open Nightstand");
         assert_eq!(nightstand.prompt(true), "[E] close Nightstand");
-        assert!(data.get::<Mutex<Option<String>>>(crate::systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap().is_none());
+        assert!(data.get::<Mutex<Option<String>>>(humanity_systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap().is_none());
     }
 }
 
@@ -342,11 +342,11 @@ fn target(state: &EngineState) -> Option<(hecs::Entity, uses::StructureUse, Stri
 /// walk meets (`EngineState::wall_colliders`, ship frame, the frame the camera walks in), the doors
 /// shut now as the walk meets them (`EngineState::shut_doors`, the increment 7 follow-ups of
 /// 2026-10-21) and the ship's floor slabs; at a planet site, nothing of the home's.
-pub(crate) fn reach_blockers(state: &EngineState, aboard: bool) -> crate::ship::sight::ReachBlockers<'_> {
+pub(crate) fn reach_blockers(state: &EngineState, aboard: bool) -> humanity_ship::sight::ReachBlockers<'_> {
     if !aboard {
         return Default::default();
     }
-    crate::ship::sight::ReachBlockers { walls: &state.wall_colliders, doors: &state.shut_doors, ship: state.gui_state.ship_structure.as_ref() }
+    humanity_ship::sight::ReachBlockers { walls: &state.wall_colliders, doors: &state.shut_doors, ship: state.gui_state.ship_structure.as_ref() }
 }
 
 /// THE HOME'S DOORS THAT ARE SHUT NOW, as the walk meets them (lib.rs, the wall sweep): every door
@@ -356,15 +356,15 @@ pub(crate) fn reach_blockers(state: &EngineState, aboard: bool) -> crate::ship::
 /// (`wall_collision::door_panel_segment`), so a door shut on one storey is no wall on another.
 /// A window is not here: its wall's span is solid to the walk without it.
 pub(crate) fn shut_door_segments<'a>(
-    panels: &'a [(crate::ship::door_panels::PanelPlacement, f32)],
-    locks: &'a [Vec<crate::ship::lock_types::LockState>],
-) -> impl Iterator<Item = crate::ship::wall_collision::WallSegment> + 'a {
+    panels: &'a [(humanity_ship::door_panels::PanelPlacement, f32)],
+    locks: &'a [Vec<humanity_ship::lock_types::LockState>],
+) -> impl Iterator<Item = humanity_ship::wall_collision::WallSegment> + 'a {
     panels.iter().enumerate().filter_map(move |(i, (p, open))| {
         let locked = crate::engine::home_meshes::door_locked_now(p, locks.get(i));
         if p.is_window || (*open >= 0.5 && !locked) {
             return None;
         }
-        Some(crate::ship::wall_collision::door_panel_segment(p.center, p.rotation, p.size))
+        Some(humanity_ship::wall_collision::door_panel_segment(p.center, p.rotation, p.size))
     })
 }
 
@@ -384,7 +384,7 @@ pub(crate) fn refresh_shut_doors(state: &mut EngineState) {
 /// as a bed you built does. Only sleeping acts at a machine: a machine's storage is used
 /// through its card, so any other use leaves E opening the card. Which machines carry it is
 /// data, so a bunk or a hammock in a home is a data edit.
-pub(crate) fn machine_use(def: &crate::machines::MachineDef) -> Option<uses::StructureUse> {
+pub(crate) fn machine_use(def: &humanity_ship::machines::MachineDef) -> Option<uses::StructureUse> {
     def.provides
         .as_deref()
         .and_then(uses::StructureUse::from_provides)
@@ -408,7 +408,7 @@ pub(crate) fn use_machine(state: &mut EngineState) -> bool {
 pub(crate) fn use_machine_label(data: &humanity_core::hot_reload::data_store::DataStore, label: &crate::gui::MachineLabel) -> bool {
     match label.on_use {
         Some(uses::StructureUse::Sleep) => {
-            crate::systems::sleep::request(data, &label.name);
+            humanity_systems::sleep::request(data, &label.name);
             true
         }
         _ => false,
@@ -440,13 +440,13 @@ pub(crate) fn activate(state: &mut EngineState) -> bool {
                 state.pending_sfx.push(("sfx.door_open", "audio/sfx/door_open.ogg"));
             }
         }
-        uses::StructureUse::Sleep => crate::systems::sleep::request(&state.data_store, &name),
+        uses::StructureUse::Sleep => humanity_systems::sleep::request(&state.data_store, &name),
         // A fire (BUG-153): put a log from the pack on it, or say why not.
         uses::StructureUse::Tend => {
-            let msg = crate::systems::construction::fires::add_fuel(
+            let msg = humanity_systems::construction::fires::add_fuel(
                 &mut state.game_world.world,
                 state.data_store.get::<BlueprintRegistry>("blueprint_registry"),
-                state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
+                state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry"),
                 e,
             );
             state.gui_state.pending_notices.push(msg);

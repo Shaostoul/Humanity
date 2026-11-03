@@ -58,7 +58,7 @@
 //! marker is impossible and a capture always matches the frame it copies.
 
 use super::{pipeline, Material, RenderObject, Renderer};
-use crate::terrain::planet::PlanetDef;
+use humanity_terrain::planet::PlanetDef;
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
 

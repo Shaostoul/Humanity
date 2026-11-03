@@ -121,11 +121,11 @@ CARTO's CDN at run time while the native Planet view reads installed region file
 | Real body positions and orbits | `crates/humanity-core/src/cosmos.rs` (`sol_bodies`, `body_world_position_3d_au`, `sample_orbit_points`), `data/star_systems/sol.json` (70 bodies) |
 | The ship's position and attitude | `station::orbit::{propagate, over_its_longitude, attitude}`, `data/stations/*.ron`, `state.station_world_pos/rot` |
 | The real Earth, Moon, Mars, Pluto | albedo bins in `data/planets/`, the celestial pass with atmosphere and clouds (`src/renderer/celestial.rs`), vantage `blue-marble-12000km` (30 fps floor) |
-| The real ship | `ShipStructure` zones, corridors and plots (`src/ship/ship_structure.rs`), the hull wrap (`src/ship/hull.rs`, `data/blueprints/hull_profile.ron`), rebuilt live on edits (`rebuild_hull`) |
+| The real ship | `ShipStructure` zones, corridors and plots (`crates/humanity-ship/src/ship_structure.rs`), the hull wrap (`crates/humanity-ship/src/hull.rs`, `data/blueprints/hull_profile.ron`), rebuilt live on edits (`rebuild_hull`) |
 | Rendering from another camera | `render_view_onto` + `ViewPasses`, the camera's `Projection::Orthographic` (`src/renderer/camera.rs:554`) for plan views |
 | Storeys and rooms | increment 7's `FloorSlab` and `HomeStructure::storeys()`, `detect_rooms`, the `room_types` registry |
-| Places and ways through the ship | `src/ship/door_points.rs`, `src/ship/transit.rs`, `src/ship/ship_space.rs` |
-| Surface maps | `src/terrain/osm_region.rs`, `data/maps/regions/` (Seattle Center, Silverdale), `src/engine/region_meshes.rs` |
+| Places and ways through the ship | `crates/humanity-ship/src/door_points.rs`, `crates/humanity-ship/src/transit.rs`, `crates/humanity-ship/src/ship_space.rs` |
+| Surface maps | `crates/humanity-terrain/src/osm_region.rs`, `data/maps/regions/` (Seattle Center, Silverdale), `src/engine/region_meshes.rs` |
 | Stars and the Milky Way | `src/renderer/stars.rs` (HYG catalog, galaxy glow), `data/stars-map.bin` |
 | Labels that never overlap | `src/gui/widgets/label_placer.rs` (+ `web/shared/label-placer.js`) |
 | A marker in the world | `GuiState::target_markers` (drawn by the HUD) |
@@ -597,7 +597,7 @@ measurements: "Increment 2 as built" at the end of this section).
   coverage test both fail otherwise).
 
 Files: `crates/humanity-core/src/cosmos.rs` and BUG-140's followers (`src/engine/frame_lock.rs`,
-`src/station/orbit.rs`, `src/renderer/hologram.rs`, `crates/humanity-core/src/dev_travel.rs`), new
+`crates/humanity-ship/src/station/orbit.rs`, `src/renderer/hologram.rs`, `crates/humanity-core/src/dev_travel.rs`), new
 `src/gui/pages/maps/bodies.rs`, `maps/orbits.rs`, `maps/belts.rs`,
 `src/gui/pages/maps/system_view.rs`, `data/star_systems/sol.json`, new
 `data/maps/layers.ron`, `reference_orbits.ron`, `lagrange_pairs.ron`,
@@ -768,7 +768,7 @@ as built" below).
 
 Built as planned above, with these differences, each for a stated reason.
 
-- **The levels are data** (`src/ship/levels.rs`, new). A ship's levels are the distinct
+- **The levels are data** (`crates/humanity-ship/src/levels.rs`, new). A ship's levels are the distinct
   storey floors of every body standing in it (`standing_bodies`: each zone, and each
   neighbour's home as the game draws it, its kind's shipped design on its plot), in ship
   metres, each ending at the next floor up or the ship's highest top. The shipped ship has
@@ -910,7 +910,7 @@ captured, no panics.
   presence), a route along doors, corridors, stairs, lifts and rail, the time on foot at
   1.4 m/s and by rail, and "Guide me", which puts the destination in
   `target_markers` so the HUD points the way in the world.
-- Files: new `src/ship/route.rs` (over `door_points`, `transit`, storeys), new
+- Files: new `crates/humanity-ship/src/route.rs` (over `door_points`, `transit`, storeys), new
   `src/gui/pages/maps/search.rs`, `src/gui/pages/hud.rs`.
 - Proof: route lengths on the shipped ship (front door to the Commons, p2 to street-1);
   a rig walk that follows the marker from the front door arrives at the Commons.
@@ -929,7 +929,7 @@ Proof: a close vantage per body; memory with every body loaded at once under a s
 
 ### Increment 6: one sky clock
 
-The eleven wall-clock sites become one `sky_seconds(state)` in `src/systems/time.rs`,
+The eleven wall-clock sites become one `sky_seconds(state)` in `crates/humanity-systems/src/time.rs`,
 which the map can override while it is open, so a scrubbed date moves the real globes
 and the ship in the world layer too. A lint (the `rig_pin_lint` pattern) fails on a new
 `946_728_000` outside the clock module. Proof: the map at six months ahead shows Earth on
@@ -942,7 +942,7 @@ the far side of the Sun with the world layer on.
   as the orthographic mode of the same camera; the level picker for OSM buildings and
   below-ground levels; ground translucency inside a rectangle.
 - Files: `scripts/fetch-osm-region.mjs` (level, layer, tunnel tags; a new region format
-  version), `src/terrain/osm_region.rs`, `src/engine/region_meshes.rs`,
+  version), `crates/humanity-terrain/src/osm_region.rs`, `src/engine/region_meshes.rs`,
   `src/gui/pages/maps/planet_view.rs`, the planet chunk shader behind its own switch.
 - Proof: vantages `maps-silverdale-from-ship` (zoom from the ship down to Silverdale in
   one camera) and `maps-under-seattle` (a tunnel shown under translucent ground).

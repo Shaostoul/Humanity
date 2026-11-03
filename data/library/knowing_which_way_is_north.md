@@ -708,7 +708,7 @@ the public domain. Web pages were read on 3 October 2026.
 - The compass strip at the top of the screen: `src/gui/pages/hud.rs`
   (the N, E, S and W letters placed from the camera's yaw), drawn from
   `state.camera.yaw` in `src/lib.rs`; on a planet's surface the yaw is
-  measured in `tangent_basis` in `src/surface_walk.rs`, built from the
+  measured in `tangent_basis` in `crates/humanity-systems/src/surface_walk.rs`, built from the
   world's vertical axis. A body's magnetic field strength:
   `magnetic_field_t` in `data/star_systems/sol.json`, read by
   `crates/humanity-core/src/cosmos.rs`.

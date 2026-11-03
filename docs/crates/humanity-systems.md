@@ -12,41 +12,42 @@ core, ship and terrain, draws nothing, and the server compiles it too.
 ## At a glance (generated)
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
-- **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
-  - no gate (every build): `systems/`, `persistence.rs` + `persistence/`, `surface_walk.rs`, `surface_move.rs`
-- **Size:** 79,445 lines in 145 files, 12,943 of them in 35 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `surface_walk.rs` 462 of 474.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 5.
-- **May use** (the plan): core, ship, terrain. **Uses today** (references in non-test code): core 437, ship 26, terrain 7.
-- **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 554, gui 157, relay 10.
+- **Owns** all of `crates/humanity-systems/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
+  - no gate (every build): `crates/humanity-systems/src/surface_walk.rs`, `crates/humanity-systems/src/surface_move.rs`, `crates/humanity-systems/src/persistence.rs` + `crates/humanity-systems/src/persistence/`, `crates/humanity-systems/src/time.rs`, `crates/humanity-systems/src/farming/`, `crates/humanity-systems/src/construction/`, `crates/humanity-systems/src/door_anim.rs`, `crates/humanity-systems/src/inventory/`, `crates/humanity-systems/src/encumbrance.rs`, `crates/humanity-systems/src/machine_levels.rs`, `crates/humanity-systems/src/combat/`, `crates/humanity-systems/src/quests/`, `crates/humanity-systems/src/crafting/`, `crates/humanity-systems/src/vehicles/`, `crates/humanity-systems/src/livestock.rs`, `crates/humanity-systems/src/animal_care.rs`, `crates/humanity-systems/src/abilities.rs`, `crates/humanity-systems/src/ai/`, `crates/humanity-systems/src/skills/`, `crates/humanity-systems/src/ecology.rs`, `crates/humanity-systems/src/economy/`, `crates/humanity-systems/src/player.rs`, `crates/humanity-systems/src/interaction.rs`, `crates/humanity-systems/src/weather.rs`, `crates/humanity-systems/src/weather_events.rs`, `crates/humanity-systems/src/hydrology.rs`, `crates/humanity-systems/src/atmosphere.rs`, `crates/humanity-systems/src/body_environment.rs`, `crates/humanity-systems/src/env_layer1.rs`, `crates/humanity-systems/src/precipitation.rs`, `crates/humanity-systems/src/disasters.rs`, `crates/humanity-systems/src/electrical.rs`, `crates/humanity-systems/src/plumbing.rs`, `crates/humanity-systems/src/solar.rs`, `crates/humanity-systems/src/fire.rs`, `crates/humanity-systems/src/status_effects.rs`, `crates/humanity-systems/src/flight.rs`, `crates/humanity-systems/src/food.rs`, `crates/humanity-systems/src/body_heat.rs`, `crates/humanity-systems/src/illness.rs`, `crates/humanity-systems/src/treatment.rs`, `crates/humanity-systems/src/wounds.rs`, `crates/humanity-systems/src/falls.rs`, `crates/humanity-systems/src/sleep.rs`, `crates/humanity-systems/src/death_pack.rs`, `crates/humanity-systems/src/fluids.rs`, `crates/humanity-systems/src/mining.rs`, `crates/humanity-systems/src/governance.rs`, `crates/humanity-systems/src/docking.rs`, `crates/humanity-systems/src/aging.rs`, `crates/humanity-systems/src/creative_arts.rs`, `crates/humanity-systems/src/geology.rs`, `crates/humanity-systems/src/oceanography.rs`, `crates/humanity-systems/src/astronomy.rs`, `crates/humanity-systems/src/manufacturing.rs`, `crates/humanity-systems/src/waste.rs`, `crates/humanity-systems/src/genetics.rs`, `crates/humanity-systems/src/transportation.rs`, `crates/humanity-systems/src/offline.rs`, `crates/humanity-systems/src/self_sufficiency.rs`, `crates/humanity-systems/src/grow_machines.rs`, `crates/humanity-systems/src/life_support.rs`, `crates/humanity-systems/src/ship_power.rs`, `crates/humanity-systems/src/ship_meals.rs`
+  - test builds only: `crates/humanity-systems/src/day_energy_tests.rs`, `crates/humanity-systems/src/crossing_tests/`
+- **Size:** 79,628 lines in 147 files, 12,177 of them in 35 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-systems/src/surface_walk.rs` 462 of 474.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 7, `test-support` 6.
+- **May use** (the plan): core, ship, terrain. **Uses today** (references in non-test code): core 463, ship 26, terrain 7.
+- **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 555, gui 162, relay 10.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 853 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 853 tests, and this runs exactly them, checked against every test's name:
 
 ```
-just test-lib --crate humanity-engine systems:: persistence:: surface_walk:: surface_move:: --skip gui::crossing_tests::surface_move:: --skip relay::storage::game_persistence::
+just test-lib --crate humanity-systems
 ```
 
-**Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
+**Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name, inside `humanity_systems::`):
 
 | Item | References | From |
 |---|---:|---|
-| `systems::inventory::ItemRegistry` | 25 | engine 25 |
-| `systems::inventory::placed::PlacedItem` | 21 | engine 13, gui 8 |
-| `systems::weather::WeatherCondition` | 15 | engine 12, gui 3 |
+| `inventory::ItemRegistry` | 25 | engine 25 |
+| `inventory::placed::PlacedItem` | 21 | engine 13, gui 8 |
+| `weather::WeatherCondition` | 15 | engine 12, gui 3 |
 | `persistence::live_save::active_home` | 13 | engine 9, gui 4 |
+| `construction` | 11 | engine 11 |
 | `persistence::saves_dir` | 11 | engine 6, gui 4, relay 1 |
-| `systems::construction` | 11 | engine 11 |
-| `systems::construction::BlueprintRegistry` | 10 | engine 9, relay 1 |
-| `systems::inventory::Inventory` | 10 | engine 10 |
+| `construction::BlueprintRegistry` | 10 | engine 9, relay 1 |
+| `inventory::Inventory` | 10 | engine 10 |
+| `inventory::containers::Container` | 9 | engine 9 |
 | `persistence::slot_path` | 9 | engine 8, gui 1 |
-| `systems::inventory::containers::Container` | 9 | engine 9 |
+| `inventory` | 7 | engine 6, gui 1 |
+| `inventory::TransferOp` | 7 | gui 5, engine 2 |
 | `persistence::live_save::active_home_machines_path` | 7 | engine 7 |
-| `systems::inventory` | 7 | engine 6, gui 1 |
-| `systems::inventory::TransferOp` | 7 | gui 5, engine 2 |
-| `systems::time::GameTime` | 7 | engine 7 |
-| `persistence::now_ms` | 6 | gui 5, engine 1 |
+| `time::GameTime` | 7 | engine 7 |
+| `construction::uses::planet_store_paths` | 6 | engine 6 |
 
-And 352 more items, 553 references (`node scripts/crate-cards.js --interface humanity-systems` lists them all).
+And 353 more items, 559 references (`node scripts/crate-cards.js --interface humanity-systems` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -55,8 +56,8 @@ And 352 more items, 553 references (`node scripts/crate-cards.js --interface hum
   and arguments, never English, because the word source is native-only and this crate also compiles
   into the server. Source: [PRIORITIES.md](../PRIORITIES.md), TIER 0 NOW item 3 ("systems speak in
   keys and arguments"), and [CLAUDE.md](../../CLAUDE.md), "One word source".
-- **Every system runs, or says why not.** Each `impl System` under `src/systems/` is registered in
-  `src/lib.rs` or listed in `DEFERRED_SYSTEMS` with a reason. Source:
+- **Every system runs, or says why not.** Each `impl System` in this crate is registered in the
+  engine's `src/lib.rs` or listed in `DEFERRED_SYSTEMS` with a reason. Source:
   [engine_wiring_lint.rs](../../tests/engine_wiring_lint.rs) (in `just lints`).
 - **Teaching data is checked like code.** Recipes, food handling and plant facts teach real skills:
   "Every fact here still needs the teaching-data refutation pass before the chains that use it
@@ -73,7 +74,7 @@ And 352 more items, 553 references (`node scripts/crate-cards.js --interface hum
 - **A step never depends on the frame rate.** Doses, needs and falls are exact per tick, the same at
   30 and 240 frames a second. Source: [BUGS.md](../BUGS.md), BUG-164 and BUG-209.
 - **The farming golden state stays bit for bit** through every speed change and every rung of the
-  split (`systems/farming/golden_tests.rs`). Source: [crate-split.md](../design/crate-split.md),
+  split (`farming/golden_tests.rs`). Source: [crate-split.md](../design/crate-split.md),
   "Costs and risks", and [sim-frame-cost.md](../design/sim-frame-cost.md), "Proof first".
 - **The save shape changes outright** (no migration code before v1.0, except version-tagged
   blueprint schemas that must keep loading old player saves), and every save is written crash-safe
@@ -85,9 +86,12 @@ And 352 more items, 553 references (`node scripts/crate-cards.js --interface hum
 ## How to test it
 
 - **Its lib tests:** the `just test-lib` line in At a glance. The golden state alone:
-  `just test-lib systems::farming::golden_tests::`.
-- **The server's battery:** `just verify-relay` (CLAUDE.md names `src/systems/` as shared code whose
-  tests run there too).
+  `just test-lib --crate humanity-systems farming::golden_tests::`.
+- **The server's battery:** `just verify-relay`, which runs this crate's tests in the server's
+  feature set (no `native`).
+- **Where its tests start:** in `crates/humanity-systems/`, under `cargo test` and `just test-lib`
+  alike, where no data/ sits. Name the data folder `humanity_core::storage::data_dir()` (a test
+  build resolves it to the repo's) or `env!("HUMANITY_REPO_ROOT")`, never a bare `"data"`.
 - **After editing `data/`:** `just validate-data`; then `just lints` for the wiring, recipe-source
   and byproduct lints.
 - **In the running game:** `just verify-falls` (falls hurt as `falls.rs` and
@@ -116,8 +120,11 @@ And 352 more items, 553 references (`node scripts/crate-cards.js --interface hum
   lights). Source: [BUGS.md](../BUGS.md), BUG-153, "Still open".
 - **The headless sim runner** will run this crate faster than real time without a GPU. Source:
   [headless-sim-runner.md](../design/headless-sim-runner.md) (PRIORITIES TIER 0, NEXT).
-- **Rung 2 cuts systems** after ship and terrain; its test code's wrong-way references (At a
-  glance) move first. Source: [crate-split.md](../design/crate-split.md), "Order of work".
+- **A crate of its own since rung 2 (2026-11-02):** `crates/humanity-systems/`, the old
+  `systems` module as the crate root, with `persistence`, `surface_walk` and `surface_move` under it.
+  The domains inside it (farming, construction, crafting, food) as crates side by side: not now,
+  revisited with rung 2's measurements. Source: [crate-split.md](../design/crate-split.md), "The
+  questions the operator asked" and "Order of work".
 
 ## Requests from other crates
 

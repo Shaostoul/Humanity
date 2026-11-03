@@ -10,7 +10,7 @@
 // meal is eaten in the game (a Basic Ration, src/engine/fleet.rs `on_meal`, since the fleet
 // ledger), and since increment 6 it is taken at the mess hall's serving counter, which stands
 // 1.1 m behind each store's spot (data/machines/ship.ron; the test
-// `every_fleet_store_has_its_serving_counter` in src/machines.rs).
+// `every_fleet_store_has_its_serving_counter` in crates/humanity-ship/src/machines.rs).
 //
 // TWO STORES since increment 6: the Commons' mess hall, and the South Commons' halfway down
 // First Street (data/blueprints/ship_structure.ron), so every home is within five minutes' walk

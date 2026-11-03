@@ -51,7 +51,7 @@ Strategy, cheap to expensive:
 ## Caves, tunnels, Agartha
 
 The engine ALREADY has the right second representation: the voxel asteroids
-(sparse octree, `src/terrain/`). Caves and tunnels are not a heightmap
+(sparse octree, `crates/humanity-terrain/src/`). Caves and tunnels are not a heightmap
 feature and should not pretend to be:
 - **Hybrid carving**: local voxel/SDF volumes embedded in the heightmap
   world where digging/caves happen (mines, lava tubes, bunkers). The

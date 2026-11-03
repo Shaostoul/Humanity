@@ -673,7 +673,7 @@ October 2026.
   fly mode off, the leftover distance dropped at each step, and steps
   over 2 metres in one frame ignored): `src/lib.rs`; the 0.35 metre
   standing gate and the settle rate of 4 a second that make a steep
-  descent count as airborne (`GROUNDED_REACH_M` in `src/surface_move.rs`,
+  descent count as airborne (`GROUNDED_REACH_M` in `crates/humanity-systems/src/surface_move.rs`,
   `SURFACE_SETTLE_RATE` in `src/engine/frame_lock.rs`); the footstep
   sounds: `data/sounds.toml`. The walking
   speed (5 metres a second, `CameraController::new` in `src/lib.rs`), the
@@ -684,7 +684,7 @@ October 2026.
   (`data/status_effects.csv`) and the hiking boots
   (`data/equipment.csv`), and the Carrying weight setting, which
   slows an overloaded walker only in its Realistic mode
-  (`src/systems/encumbrance.rs`, `src/engine/carry_load.rs`). The
+  (`crates/humanity-systems/src/encumbrance.rs`, `src/engine/carry_load.rs`). The
   compass strip, the Compass and GPS
   Device items and the Navigation skill, as described in [Knowing Which
   Way Is North](knowing_which_way_is_north.md) and

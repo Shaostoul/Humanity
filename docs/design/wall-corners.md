@@ -8,7 +8,7 @@
 
 ## Diagnosis (from an investigation agent, verified by hand)
 
-The miter is `wall_end_miter` (`src/ship/home_structure.rs` ~622). For a wall W ending at corner `c`
+The miter is `wall_end_miter` (`crates/humanity-ship/src/home_structure.rs` ~622). For a wall W ending at corner `c`
 next to wall B, it cuts W's two footprint edges against B's two faces and returns (left, right).
 
 For EQUAL thickness the result is the correct flush miter: left = inner-corner (W_inner ∩ B_inner),

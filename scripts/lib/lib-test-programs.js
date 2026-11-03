@@ -21,6 +21,21 @@ function membersOf(meta) {
     .map((p) => p.name);
 }
 
+/** The folder of each member that has a library (Map: package name -> folder), from `cargo
+ * metadata`'s JSON: where `cargo test` starts that member's test program, and the
+ * CARGO_MANIFEST_DIR it gives it. */
+function memberDirs(meta) {
+  const path = require("path");
+  const byId = new Map(meta.packages.map((p) => [p.id, p]));
+  return new Map(
+    meta.workspace_members
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .filter((p) => p.targets.some((t) => t.kind.includes("lib")) && p.manifest_path)
+      .map((p) => [p.name, path.dirname(p.manifest_path)]),
+  );
+}
+
 /** A package's name from a cargo package id, in any of the forms cargo has used:
  * `path+file:///C:/x/crates/humanity-core#0.1.0` (the folder is the name), `...#humanity-core@0.1.0`,
  * or the old `humanity-core 0.1.0 (path+file:///...)`. */
@@ -83,4 +98,4 @@ function combinedSummary(runs) {
   return `test result: ${ok ? "ok" : "FAILED"}. ${keys.map((k) => `${total[k]} ${k}`).join("; ")} (${parts.join(", ")})`;
 }
 
-module.exports = { membersOf, packageName, testPrograms, combinedSummary };
+module.exports = { membersOf, memberDirs, packageName, testPrograms, combinedSummary };

@@ -44,7 +44,7 @@ use crate::engine::state::{EngineState, SceneDrawLists};
 use crate::gui::screen_surface::{notice, ScreenProvider, ScreenSurface, WorldRender, WorldRenderState};
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
-use crate::machines::CameraPose;
+use humanity_ship::machines::CameraPose;
 use crate::renderer::camera::Camera;
 use crate::renderer::RenderObject;
 use std::time::{Duration, Instant};
@@ -305,7 +305,7 @@ mod tests {
     use super::*;
     use crate::engine::screens::{camera_posts_from, provider_for};
     use crate::gui::screen_surface::ScreenSource;
-    use crate::machines::{PlacedMachine, ZoneRect, CAMERA_FOV_RANGE_DEG, CAMERA_PITCH_LIMIT_DEG};
+    use humanity_ship::machines::{PlacedMachine, ZoneRect, CAMERA_FOV_RANGE_DEG, CAMERA_PITCH_LIMIT_DEG};
     use glam::{Quat, Vec3};
 
     /// A placed camera post, the way `MachineHome::placements` builds one.
@@ -327,7 +327,7 @@ mod tests {
             model: None,
             screen: None,
             camera,
-            camera_px: crate::machines::CAMERA_PX_DEFAULT,
+            camera_px: humanity_ship::machines::CAMERA_PX_DEFAULT,
         }
     }
 
@@ -583,12 +583,12 @@ mod tests {
     fn shipped_homes_place_a_camera_post_and_the_console_screens_name_it() {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
-            let home = crate::systems::grow_machines::load_home(&data.join(file)).unwrap_or_else(|| panic!("{file} parses"));
+            let home = humanity_systems::grow_machines::load_home(&data.join(file)).unwrap_or_else(|| panic!("{file} parses"));
             let def = home.catalog.get("camera_post").unwrap_or_else(|| panic!("{file} catalogs a camera_post"));
             assert!(def.camera.is_some(), "{file}: camera_post has a camera");
             assert_eq!(def.category, "Displays", "{file}: the post sits with the displays in the palette");
         }
-        let home = crate::systems::grow_machines::load_home(&data.join("home.ron")).expect("home.ron parses");
+        let home = humanity_systems::grow_machines::load_home(&data.join("home.ron")).expect("home.ron parses");
         let zones = [ZoneRect { id: "home".into(), origin: (0.0, 0.0, 0.0), size: (55.0, 89.0, 3.0) }];
         let placements = home.placements(&Default::default(), Some(&zones));
         let posts = camera_posts_from(&placements);

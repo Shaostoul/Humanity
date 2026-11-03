@@ -1,0 +1,462 @@
+//! Planetary surface FPS math (task #76 increment 1) - pure helpers for the
+//! surface-oriented camera and the stand/walk ground clamp.
+//!
+//! WHY: away from the ship the camera's "up" is world-Y, so at a tilted point
+//! on the globe the horizon tilts and the player floats. On a planet surface
+//! "down" must point at the body's CENTER (the gravity well). These helpers
+//! build a TANGENT-frame camera basis whose up is the local radial (the
+//! direction from the body centre to the camera): yaw then spins around the
+//! radial and pitch tilts toward/away from the ground, so looking down points
+//! at the planet centre and the horizon is level regardless of where on the
+//! sphere you stand.
+//!
+//! Everything here is pure glam (no GPU, no winit, no cfg gate), so it
+//! compiles in every feature set and is fully unit-tested headless. The main
+//! loop (native `lib.rs`) and the camera (`renderer::camera`) call in; they
+//! own the state (which body, current spin, ship_world_pos) while this module
+//! owns the geometry.
+//!
+//! The camera's aim in that tangent frame (the basis, the forward a yaw and
+//! pitch give, and the angles back from a direction) is `humanity_core::camera_angles`,
+//! in the core since the crate split's rung 0: the renderer's camera aims with
+//! it, and the renderer may not reach into the simulation.
+
+use glam::DVec3;
+
+use humanity_terrain::drawn_surface::DrawnPatchSurface;
+use humanity_terrain::ocean_mask::OceanMask;
+use humanity_terrain::planet::PlanetDef;
+use humanity_terrain::planet_chunks::{DetailNoise, ElevationSource};
+use humanity_terrain::terrain_tiles::TerrainTiles;
+
+// Standing eye height above the ground (metres): the radial distance the
+// stand/walk clamp rests the camera at above the sampled ground radius. The
+// body's, `ecs::components::EYE_HEIGHT_M`, since the crate split's rung 0.
+#[cfg(test)]
+use humanity_core::ecs::components::EYE_HEIGHT_M;
+
+/// Clearance above the ground when the only reference available is the
+/// elevation FIELD (v0.889, and since v0.1108 the FALLBACK ONLY).
+///
+/// The field is not the mesh: the clamp samples the full-detail elevation,
+/// but the patch actually DRAWN under the player is a lattice of that field
+/// linearly interpolated, and on a ridge the drawn chord can sit above the
+/// fine model - the "seeing through the Earth while standing on it" clip.
+/// With the drawn depth UNKNOWN (before the first patch selection, on a
+/// planet with no chunk state, while the LOD ladder is still climbing from
+/// depth 1 during world entry) the mismatch is unbounded: at depth 5 a
+/// triangle is 1.7 km across and its chord can miss a peak by hundreds of
+/// metres, so this stays generous. It is NOT the standing case any more -
+/// see `DRAWN_CLEARANCE_M`.
+pub const LOD_CLEARANCE_M: f64 = 2.5;
+
+/// Clearance above the DRAWN patch surface (v0.1108).
+///
+/// THE 2.5 m STILT. Until now both the rest height and the floor were
+/// `ground + eye + LOD_CLEARANCE_M`, so the eye sat 4.2 m above a sward of
+/// 0.24-0.52 m blades: a first-floor window, not a pair of eyes. Every
+/// ground-cover figure computed against 1.7 m was inflated ~2.5x with it,
+/// which is why no amount of grass tuning ever made the near field read.
+///
+/// Standing on the DRAWN surface dissolves the problem instead of trading
+/// against it. `DrawnPatchSurface` reproduces `build_patch_mesh` exactly -
+/// same lattice, same depth-gated elevation, same flat triangle - so the
+/// mismatch the old slop covered is gone by construction, and this residual
+/// only has to absorb the ONE-LEVEL uncertainty in the drawn depth (the
+/// depth proxy is last frame's selection, and an LOD crossfade draws the
+/// coarser patch for another 0.30 s).
+///
+/// MEASURED, so the number is not a guess (`drawn_ground_beats_the_field`,
+/// five real sites x 1,681 samples each at depths 13/17/20):
+///   * drawn vs field, the disagreement the 2.5 m was covering: worst
+///     +0.46 m, i.e. the old constant was ~5x oversized;
+///   * drawn(depth) vs drawn(depth-1), the residual this constant covers:
+///     worst 0.58 m at depth 13, 0.46 m at 17, 0.32 m at 20.
+///
+/// 5 cm rather than 60 cm because a wrong-by-one-level depth CANNOT put the
+/// eye underground: the worst gap measured is 0.58 m against a 1.7 m eye, so
+/// even a two-level miss leaves a metre of headroom (the
+/// `eye_never_sinks_below_the_drawn_ground` gate proves it by deliberately
+/// clamping with the wrong depth). This is numerical slop, not LOD slop.
+pub const DRAWN_CLEARANCE_M: f64 = 0.05;
+
+/// Altitude (metres above the ground) past which the clamp stops consulting
+/// the drawn surface and goes back to the field sample.
+///
+/// NOT a fidelity knob - a blast-radius bound on a known cost (see the note
+/// in `walk_ground_radius`). Standing on the drawn triangle matters when your
+/// feet are on it; 40 m up in the flight band the clamp is only a floor you
+/// are nowhere near, and paying 0.6 ms a frame to place it to the centimetre
+/// is pure waste.
+///
+/// It CANNOT pop, and that is a property of the number, not an argument: the
+/// two floors differ by `LOD_CLEARANCE_M - DRAWN_CLEARANCE_M` = 2.45 m, and
+/// switching between them is only visible to a camera sitting ON the floor.
+/// At 40 m the floor is ~38 m below the camera, so neither `clamp_above_ground`
+/// (a max), `settle_radius` (armed within 0.5 m of rest) nor the grounded test
+/// (within 0.35 m) can be touching it. `switching_ground_reference_cannot_pop`
+/// holds the margin.
+pub const DRAWN_GROUND_MAX_ALT_M: f64 = 40.0;
+
+/// WHERE THE PLAYER STANDS: the radius of the ground under `unit_dir`, and
+/// the clearance that belongs with that reference. Returns
+/// `(ground_radius_m, clearance_m)` for `rest_radius` / `clamp_above_ground`.
+///
+/// Prefers the DRAWN patch surface - the triangle you can actually see -
+/// falling back to `field_r` (the caller's elevation-field sample, i.e.
+/// `engine::frame_lock::ground_radius_m`) whenever the drawn mesh cannot be
+/// reproduced or cannot matter:
+///   * `drawn_depth == 0`: no patch selection yet, so which mesh is drawn
+///     here is unknown;
+///   * no planet def / heightmap / detail noise: not a chunked planet;
+///   * a water world whose connected-ocean mask has not loaded: the patch
+///     builder is then drawing the SEA-CLAMPED surface while the field
+///     reports true bathymetry, and taking the drawn value would stand a
+///     diver on the water instead of the seafloor. Above sea level the two
+///     displacement formulas agree exactly, so this only ever costs the
+///     brief window before the mask arrives;
+///   * `alt_m` above `DRAWN_GROUND_MAX_ALT_M`: flying, not standing.
+pub fn walk_ground_radius(
+    field_r: f64,
+    def: Option<&PlanetDef>,
+    hm: Option<&humanity_terrain::planet_heightmap::PlanetHeightmap>,
+    detail: Option<&DetailNoise>,
+    tiles: Option<&TerrainTiles>,
+    ocean: Option<&OceanMask>,
+    drawn_depth: u8,
+    alt_m: f64,
+    unit_dir: DVec3,
+) -> (f64, f64) {
+    let fallback = (field_r, LOD_CLEARANCE_M);
+    if drawn_depth == 0 || alt_m > DRAWN_GROUND_MAX_ALT_M || unit_dir.length_squared() < 0.5 {
+        return fallback;
+    }
+    let (Some(d), Some(h), Some(dn)) = (def, hm, detail) else {
+        return fallback;
+    };
+    if d.has_water && ocean.is_none() {
+        return fallback;
+    }
+    // Same source the patch builder was handed this frame, so this IS the
+    // mesh under the player and not a second opinion about it.
+    //
+    // KNOWN COST, measured not guessed (`drawn_lookup_cost`, release):
+    // 604.6 us per call, of which 597.1 us is `DrawnPatchSurface::new`
+    // allocating and zeroing a 65,536-slot (~2.6 MB) vertex memo and 0.25 us
+    // is the actual query. That memo exists for the grass/tree HARVESTS, which
+    // ask it thousands of questions; the clamp asks one, so 99.96% of the cost
+    // is a page-fault storm for nothing. The fix is a single-shot constructor
+    // with a small memo in `terrain::drawn_surface` (filed as a wiring request
+    // rather than done here - that file is another lane's), which takes this
+    // to 0.25 us. Until then `DRAWN_GROUND_MAX_ALT_M` bounds who pays it to a
+    // camera actually near the ground. Do NOT "fix" it by caching a stale
+    // offset off the field sample: that trades away the exactness this whole
+    // change exists for.
+    let src = ElevationSource::Heightmap { hm: h, detail: dn, tiles, ocean };
+    let r = DrawnPatchSurface::new_single_shot(d, &src, drawn_depth).radius_at(unit_dir);
+    if r.is_finite() && r > 0.0 {
+        (r, DRAWN_CLEARANCE_M)
+    } else {
+        fallback
+    }
+}
+
+/// Radial distance the camera rests at when standing: the ground radius plus
+/// one eye height plus the clearance that belongs with that ground reference.
+/// `clearance` comes from `walk_ground_radius` alongside the radius itself -
+/// the two are a pair and passing one without the other is the v0.889 /
+/// v0.1108 bug in both directions.
+pub fn rest_radius(ground_r: f64, eye_height: f64, clearance: f64) -> f64 {
+    ground_r + eye_height + clearance
+}
+
+/// Never sink below standing height: clamp a radial distance so the eye stays
+/// at least `eye_height` (+ `clearance`) above the ground radius. Shares the
+/// floor with `rest_radius` so settle never fights the clamp.
+pub fn clamp_above_ground(r: f64, ground_r: f64, eye_height: f64, clearance: f64) -> f64 {
+    r.max(ground_r + eye_height + clearance)
+}
+
+/// Ease a radial distance toward its rest height (gravity): exponential decay
+/// at `rate` per second, clamped so the result is never below `rest` (you
+/// settle onto the ground, you do not tunnel through it). If already at or
+/// below rest, snap up to rest.
+/// NOTE v0.1005: this is now only the GROUNDED fine-tune (breathing terrain
+/// under a standing player). Airborne motion is real ballistics via
+/// `vertical_step` below - the operator's "falls extremely fast... not
+/// remotely like gravity" was this exponential snap being applied to
+/// kilometre falls.
+pub fn settle_radius(current: f64, rest: f64, dt: f64, rate: f64) -> f64 {
+    if current <= rest {
+        return rest;
+    }
+    let eased = rest + (current - rest) * (-rate * dt.max(0.0)).exp();
+    eased.max(rest)
+}
+
+/// Human terminal velocity in a thick atmosphere (m/s, belly-to-earth).
+/// The free-fall clamp `vertical_step` applies; powered descent (thrust
+/// down) may exceed it deliberately.
+pub const TERMINAL_FALL_MPS: f64 = 55.0;
+
+/// How hard vertical thrust pulls the velocity toward its target, as a
+/// multiple of the local gravity (with a floor so tiny bodies still feel
+/// responsive). ~3g reaches a 50 m/s climb in under 2 s while still
+/// reading as a spool-up rather than a teleport.
+pub const THRUST_ACCEL_G_MULT: f64 = 3.0;
+pub const THRUST_ACCEL_MIN: f64 = 20.0;
+/// The ramp must also SCALE with the commanded rate (v0.1006, operator:
+/// "space bar seems fixed speed now... the mouse wheel doesn't seem to
+/// work"): a fixed 3g toward a geared 400 m/s target made the gear
+/// irrelevant for the first half minute. Whatever the target, the spool
+/// reaches it in about this many seconds.
+pub const THRUST_RAMP_S: f64 = 1.5;
+
+/// One step of real vertical ballistics (v0.1005, operator: "It's not
+/// remotely like gravity. The up speed is super slow while the down speed
+/// is always very fast").
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VerticalStep {
+    pub r: f64,
+    pub v_r: f64,
+    /// Landed on (or resting at) standing height this step.
+    pub grounded: bool,
+}
+
+/// Integrate the walk band's radial motion for one frame.
+///
+/// - `thrust_mps`: target vertical rate from input (+ = climb from Space,
+///   - = powered descent from Shift, 0 = no vertical input). The velocity
+///   RAMPS toward it at ~3g (a jetpack spool, not a teleport), and the
+///   same ramp brakes a fall when you thrust against it.
+/// - No input: gravity `g` accelerates the fall, clamped at `terminal`
+///   (real free-fall: ~4.5 s and 55 m/s from a 100 m drop, minutes from
+///   the band ceiling - not the old fixed-rate snap).
+/// - Landing at `rest` zeroes the velocity; standing there stays put.
+pub fn vertical_step(
+    r: f64,
+    v_r: f64,
+    rest: f64,
+    g: f64,
+    dt: f64,
+    thrust_mps: f64,
+    terminal: f64,
+) -> VerticalStep {
+    let dt = dt.max(0.0);
+    let g = g.max(0.0);
+    let mut v = v_r;
+    let mut r_new;
+    if thrust_mps.abs() > 1e-9 {
+        // Powered: ramp toward the commanded rate from EITHER side (also
+        // how an upward burn arrests a fall). The rate scales with the
+        // command so a geared-up target is reached in ~THRUST_RAMP_S
+        // seconds instead of pinning everything to the 3g floor.
+        let accel = (g * THRUST_ACCEL_G_MULT)
+            .max(THRUST_ACCEL_MIN)
+            .max(thrust_mps.abs() / THRUST_RAMP_S.max(1e-6));
+        let dv = accel * dt;
+        if v < thrust_mps {
+            v = (v + dv).min(thrust_mps);
+        } else {
+            v = (v - dv).max(thrust_mps);
+        }
+        r_new = r + v * dt;
+    } else {
+        // Free fall, terminal-velocity clamped. (An upward coast also
+        // decays through zero into a fall - the ballistic arc.)
+        //
+        // The EXACT parabola over the frame (BUG-209, 2026-10-20): height
+        // r + v dt - g dt^2 / 2 and speed v - g dt, entering the terminal clamp
+        // at the moment the speed reaches it. The step it replaces was
+        // semi-implicit Euler (the speed first, then the height from the new
+        // speed), which dropped the body further than the speed it had reached,
+        // so a landing read sqrt(N/(N+1)) of the true speed after N frames of
+        // fall: 2% low over a 2.6 m drop at 30 fps, and the frame rate picked
+        // the wound (`a_planet_fall_lands_at_its_real_speed_at_any_frame_rate`).
+        let vt = -terminal.abs();
+        if v <= vt {
+            // At or past terminal (a powered descent can exceed it): held there.
+            v = vt;
+            r_new = r + v * dt;
+        } else {
+            let v_free = v - g * dt;
+            if v_free >= vt {
+                r_new = r + v * dt - 0.5 * g * dt * dt;
+                v = v_free;
+            } else {
+                // Reaches terminal part way through the frame (g > 0 here,
+                // since v_free < v): the parabola to that moment, then steady.
+                let t1 = (v - vt) / g;
+                r_new = r + v * t1 - 0.5 * g * t1 * t1 + vt * (dt - t1);
+                v = vt;
+            }
+        }
+    }
+    let mut grounded = false;
+    if r_new <= rest {
+        r_new = rest;
+        // Ground stops downward motion; an upward thrust may lift off the
+        // same frame it starts, so never clamp a positive velocity.
+        if v < 0.0 {
+            v = 0.0;
+        }
+        grounded = v <= 0.0;
+    }
+    VerticalStep { r: r_new, v_r: v, grounded }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ground_clamp_never_sinks_below_standing_height() {
+        let ground = 6.371e6;
+        let eye = EYE_HEIGHT_M;
+        // Both clearances, because both are live: DRAWN_CLEARANCE_M whenever
+        // the drawn patch depth is known (the standing case) and
+        // LOD_CLEARANCE_M as the unknown-depth fallback.
+        for slop in [DRAWN_CLEARANCE_M, LOD_CLEARANCE_M] {
+            let floor = ground + eye + slop;
+            // Below ground snaps up to standing height.
+            assert_eq!(clamp_above_ground(ground - 100.0, ground, eye, slop), floor);
+            // Above the floor is left alone.
+            assert_eq!(
+                clamp_above_ground(ground + 50.0, ground, eye, slop),
+                ground + 50.0
+            );
+            // Rest and clamp share the floor so settle never fights the clamp.
+            assert_eq!(rest_radius(ground, eye, slop), floor);
+        }
+        // The standing floor is a BODY HEIGHT off the ground, not a storey
+        // (v0.1108): 1.75 m, not 4.20 m.
+        assert!(
+            rest_radius(ground, eye, DRAWN_CLEARANCE_M) - ground < 2.0,
+            "the standing eye is back on a stilt"
+        );
+    }
+
+    #[test]
+    fn free_fall_accelerates_at_g_and_caps_at_terminal() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        let mut r = rest + 10_000.0;
+        let mut v = 0.0;
+        let dt = 1.0 / 60.0;
+        // After 2 s of free fall: v ~ -g*t (well under terminal).
+        for _ in 0..120 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 0.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+        }
+        assert!((v + 9.81 * 2.0).abs() < 0.5, "2 s fall should be ~ -19.6 m/s, got {v}");
+        // Long fall: clamps at terminal, never faster.
+        for _ in 0..1200 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 0.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            assert!(v >= -TERMINAL_FALL_MPS - 1e-9, "fell past terminal: {v}");
+        }
+        assert!((v + TERMINAL_FALL_MPS).abs() < 1e-6, "did not reach terminal: {v}");
+    }
+
+    #[test]
+    fn hundred_metre_drop_takes_real_seconds_not_a_snap() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        let mut r = rest + 100.0;
+        let mut v = 0.0;
+        let dt = 1.0 / 60.0;
+        let mut t = 0.0;
+        while r > rest {
+            let s = vertical_step(r, v, rest, 9.81, dt, 0.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            t += dt;
+            assert!(t < 30.0, "fall never landed");
+        }
+        // sqrt(2h/g) = 4.52 s; discrete integration lands within half a second.
+        assert!((4.0..5.0).contains(&t), "100 m drop took {t:.2} s, expected ~4.5 s");
+    }
+
+    #[test]
+    fn thrust_ramps_to_target_and_release_goes_ballistic() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        let mut r = rest;
+        let mut v = 0.0;
+        let dt = 1.0 / 60.0;
+        // Hold Space (target 50 m/s): the ramp reaches the target in ~1.7 s
+        // at 3g and NEVER exceeds it.
+        let mut t = 0.0;
+        while v < 50.0 - 1e-6 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 50.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            t += dt;
+            assert!(v <= 50.0 + 1e-9, "overshot the commanded climb: {v}");
+            assert!(t < 5.0, "ramp never reached the target");
+        }
+        assert!((1.0..3.0).contains(&t), "3g spool to 50 m/s took {t:.2} s");
+        // Release: the coast decays through zero into a fall (ballistic arc),
+        // and the peak sits above the release height.
+        let release_r = r;
+        let mut peak = r;
+        for _ in 0..1200 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 0.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            peak = peak.max(r);
+            if s.grounded {
+                break;
+            }
+        }
+        assert!(peak > release_r + 50.0, "no ballistic coast above release point");
+        assert!((r - rest).abs() < 1e-6, "arc never landed");
+        assert_eq!(v, 0.0, "landing must zero the velocity");
+    }
+
+    #[test]
+    fn upward_burn_arrests_a_fall() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        // Falling at terminal from 2 km up: thrust up must brake the fall
+        // long before the ground.
+        let mut r = rest + 2_000.0;
+        let mut v = -TERMINAL_FALL_MPS;
+        let dt = 1.0 / 60.0;
+        for _ in 0..600 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 10.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            if v >= 10.0 - 1e-6 {
+                break;
+            }
+        }
+        assert!(v >= 10.0 - 1e-6, "burn never arrested the fall: v={v}");
+        assert!(r > rest + 500.0, "braked too late: {r}");
+    }
+
+    #[test]
+    fn standing_on_ground_stays_grounded_and_still() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        let s = vertical_step(rest, 0.0, rest, 9.81, 1.0 / 60.0, 0.0, TERMINAL_FALL_MPS);
+        assert_eq!(s.r, rest);
+        assert_eq!(s.v_r, 0.0);
+        assert!(s.grounded);
+        // Lifting off from the ground works the same frame thrust starts.
+        let s2 = vertical_step(rest, 0.0, rest, 9.81, 1.0, 5.0, TERMINAL_FALL_MPS);
+        assert!(s2.r > rest && s2.v_r > 0.0 && !s2.grounded);
+    }
+
+    #[test]
+    fn settle_eases_down_and_clamps_to_rest() {
+        let rest = 6.371e6 + EYE_HEIGHT_M;
+        // From 50 m up, one step eases toward rest but never past it.
+        let mut r = rest + 50.0;
+        for _ in 0..600 {
+            r = settle_radius(r, rest, 1.0 / 60.0, 4.0);
+            assert!(r >= rest, "settle tunneled below the ground: {r} < {rest}");
+        }
+        // After ~10 s of easing at rate 4 it is essentially resting.
+        assert!((r - rest) < 1e-3, "did not settle: {r} vs {rest}");
+        // A camera already below ground snaps up to rest immediately.
+        assert_eq!(settle_radius(rest - 500.0, rest, 0.016, 4.0), rest);
+    }
+}

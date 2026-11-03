@@ -60,7 +60,7 @@ fn garden(crops: usize, groups: usize) -> GuiState {
             health: 90.0,
             mature,
             tower_id: Some(format!("ntower_{}", i % groups)),
-            picking: crate::systems::farming::picking::PickRow {
+            picking: humanity_systems::farming::picking::PickRow {
                 card: if bearing.is_some() { "picked 2 times".into() } else { String::new() },
                 bearing_next_in: bearing,
             },
@@ -73,7 +73,7 @@ fn garden(crops: usize, groups: usize) -> GuiState {
         };
         s.garden_pests.outlook.insert(
             bits,
-            crate::systems::farming::outlook::CropOutlook { tile: tile.into(), ripens: "45 days".into(), ..Default::default() },
+            humanity_systems::farming::outlook::CropOutlook { tile: tile.into(), ripens: "45 days".into(), ..Default::default() },
         );
     }
     s
@@ -355,7 +355,7 @@ fn machine_types_match_every_placed_machine() {
         }
         // Through the simulation's loader, as everything above the ship must (crate split rung 0,
         // grow_machines::nothing_above_the_ship_loads_a_home_without_its_food).
-        let Some(home) = crate::systems::grow_machines::load_home(&path) else { continue };
+        let Some(home) = humanity_systems::grow_machines::load_home(&path) else { continue };
         homes += 1;
         let all = home.instance_types();
         let mut ids: Vec<&str> = all.keys().map(String::as_str).collect();
@@ -422,9 +422,9 @@ fn towers(slots: usize) -> GuiState {
                 tower_slot: Some(k as u32),
                 ..Default::default()
             });
-            s.garden_pests.outlook.insert(bits, crate::systems::farming::outlook::CropOutlook { tile: "45 days".into(), ..Default::default() });
+            s.garden_pests.outlook.insert(bits, humanity_systems::farming::outlook::CropOutlook { tile: "45 days".into(), ..Default::default() });
         }
-        s.garden_pests.weeds.push(crate::systems::farming::weeds::WeedAreaRow {
+        s.garden_pests.weeds.push(humanity_systems::farming::weeds::WeedAreaRow {
             area: id,
             level: 0.1,
             line: "Weeds 10%".into(),
@@ -461,7 +461,7 @@ fn a_group_changed_off_screen_is_laid_out_again_when_it_returns() {
     // The changes, far below the view.
     let c = state.crops.iter_mut().find(|c| c.tower_id.as_deref() == Some("t30") && c.tower_slot == Some(3)).unwrap();
     c.stage = "fruiting".into();
-    c.picking = crate::systems::farming::picking::PickRow { card: "picked once".into(), bearing_next_in: Some(2.0) };
+    c.picking = humanity_systems::farming::picking::PickRow { card: "picked once".into(), bearing_next_in: Some(2.0) };
     let tile = state.garden_pests.outlook.get(&c.entity_bits).map_or(String::new(), |o| o.tile.clone());
     c.tile_key = super::crop_tile_key(c, &tile);
     state.garden_pests.weeds[31].line = "Weeds 64% · sawdust mulch, 80 garden days left · seed in the soil 1.4x a typical field's · \

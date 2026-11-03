@@ -6,8 +6,8 @@ use glam::{Quat, Vec3};
 use crate::engine::geom::{light_ring_pick_tolerance, light_ring_radius, ray_aabb_hit, ray_ring_closest, snap_node_position, snap_to_alignment};
 use crate::engine::home_meshes::{rebuild_homestead, rebuild_machine_objects};
 use crate::engine::state::*;
-use crate::ship::ship_structure::{zone_body, zone_body_mut, zone_origin};
-use crate::ship::storey_edits::{new_guard_on_storey, new_wall_on_storey, EditStorey};
+use humanity_ship::ship_structure::{zone_body, zone_body_mut, zone_origin};
+use humanity_ship::storey_edits::{new_guard_on_storey, new_wall_on_storey, EditStorey};
 
 // STOREYS (ship homes increment 7): the storey the editor works on, the cut-away above it, the
 // floor pick and placing on it, and the floor-slab tools. A child file of this module.
@@ -353,13 +353,13 @@ pub(crate) fn autosave_ship_structure(state: &mut EngineState, force: bool) {
 /// `construction_rooms` index resolved (so a drag writes the offset back to the mirror).
 /// Empty when nothing is selected. (v0.468)
 pub(crate) fn selected_room_handles(state: &EngineState)
-    -> Vec<(usize, crate::ship::fibonacci::OpeningHandle)> {
+    -> Vec<(usize, humanity_ship::fibonacci::OpeningHandle)> {
     let Some(sel) = state.gui_state.construction_selected_room else { return Vec::new(); };
     let Some(sel_room) = state.gui_state.construction_rooms.get(sel) else { return Vec::new(); };
     let sel_id = sel_room.id.clone();
     let Some(layout) = &state.homestead_layout else { return Vec::new(); };
-    let positions = crate::ship::fibonacci::resolve_positions(layout);
-    crate::ship::fibonacci::opening_handles(layout, &positions)
+    let positions = humanity_ship::fibonacci::resolve_positions(layout);
+    humanity_ship::fibonacci::opening_handles(layout, &positions)
         .into_iter()
         .filter(|h| layout.rooms.get(h.room_index).map_or(false, |r| r.id == sel_id))
         .map(|h| (sel, h)) // all belong to the selected room -> selected mirror index
@@ -378,7 +378,7 @@ pub(crate) fn try_begin_room_grab(state: &mut EngineState) {
     //    nearest of {Move, and -- for a placed resizable opening -- the edge handles}. (v0.469)
     let handles = selected_room_handles(state);
     // (ri, handle, role, dist)
-    let mut best_h: Option<(usize, crate::ship::fibonacci::OpeningHandle, GizmoRole, f32)> = None;
+    let mut best_h: Option<(usize, humanity_ship::fibonacci::OpeningHandle, GizmoRole, f32)> = None;
     for (ri, h) in &handles {
         let denom = dir.dot(h.n);
         if denom.abs() < 1e-6 { continue; } // ray parallel to the wall face
@@ -501,8 +501,8 @@ pub(crate) fn active_zone_id(state: &EngineState) -> String {
 /// "smelter_0", "Smelter"), the same convention the recipes' stations and the Structures
 /// blueprints ("solar_panel" costs one "solar_panel_0") already use. None when items.csv has no
 /// such row: nothing can be made, bought or carried to place one.
-pub(crate) fn machine_item(machine_type: &str, items: Option<&crate::systems::inventory::ItemRegistry>) -> Option<String> {
-    let id = crate::machines::placement_item_id(machine_type);
+pub(crate) fn machine_item(machine_type: &str, items: Option<&humanity_systems::inventory::ItemRegistry>) -> Option<String> {
+    let id = humanity_ship::machines::placement_item_id(machine_type);
     items.is_some_and(|r| r.items.contains_key(&id)).then_some(id)
 }
 
@@ -514,9 +514,9 @@ pub(crate) fn machine_item(machine_type: &str, items: Option<&crate::systems::in
 /// reach where the player is): Ok(Some(item id)) once taken. `label` is the machine's name.
 pub(crate) fn pay_for_machine(
     world: &mut hecs::World,
-    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    placed: &mut Vec<humanity_systems::inventory::placed::PlacedItem>,
     storage: bool,
-    items: Option<&crate::systems::inventory::ItemRegistry>,
+    items: Option<&humanity_systems::inventory::ItemRegistry>,
     free: bool,
     machine_type: &str,
     label: &str,
@@ -544,20 +544,20 @@ pub(crate) fn pay_for_machine(
 /// (without the chests built on a planet) when `storage` (it is in reach where they stand).
 pub(crate) fn count_available(
     world: &hecs::World,
-    placed: &[crate::systems::inventory::placed::PlacedItem],
+    placed: &[humanity_systems::inventory::placed::PlacedItem],
     storage: bool,
     item: &str,
 ) -> u32 {
     use humanity_core::ecs::components::Controllable;
-    use crate::systems::inventory::Inventory;
+    use humanity_systems::inventory::Inventory;
     let pack: u32 = world
         .query::<(&Inventory, &Controllable)>()
         .iter()
         .next()
         .map_or(0, |(_e, (inv, _))| inv.count_item(item));
     let home = if storage {
-        let away = crate::systems::construction::uses::planet_store_paths(world);
-        crate::systems::inventory::placed::stock_counts(placed, &away).get(item).copied().unwrap_or(0)
+        let away = humanity_systems::construction::uses::planet_store_paths(world);
+        humanity_systems::inventory::placed::stock_counts(placed, &away).get(item).copied().unwrap_or(0)
     } else {
         0
     };
@@ -571,13 +571,13 @@ pub(crate) fn count_available(
 /// (engine/own_home.rs `settle_restore`) both take through here.
 pub(crate) fn take_one(
     world: &mut hecs::World,
-    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    placed: &mut Vec<humanity_systems::inventory::placed::PlacedItem>,
     storage: bool,
     item: &str,
 ) -> bool {
     use humanity_core::ecs::components::Controllable;
-    use crate::systems::inventory::placed::{stock_counts, take_consumed};
-    use crate::systems::inventory::Inventory;
+    use humanity_systems::inventory::placed::{stock_counts, take_consumed};
+    use humanity_systems::inventory::Inventory;
     let player = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e);
     if let Some(mut pack) = player.and_then(|p| world.get::<&mut Inventory>(p).ok()) {
         if pack.count_item(item) > 0 {
@@ -586,7 +586,7 @@ pub(crate) fn take_one(
         }
     }
     if storage {
-        let away = crate::systems::construction::uses::planet_store_paths(world);
+        let away = humanity_systems::construction::uses::planet_store_paths(world);
         let have = stock_counts(placed, &away).get(item).copied().unwrap_or(0);
         if have > 0 {
             let before: std::collections::HashMap<String, u32> = [(item.to_string(), have)].into_iter().collect();
@@ -602,8 +602,8 @@ pub(crate) fn take_one(
 /// it is in reach where the player stands (`HomeStore::here`), the item registry.
 fn pay_for_editor_machine(state: &mut EngineState, machine_type: &str, label: &str) -> Result<Option<String>, String> {
     let free = state.gui_state.settings.play_mode.allows(crate::config::Capability::FreeResources);
-    let storage = crate::systems::crafting::home_store::HomeStore::here(&state.data_store).reachable();
-    let items = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    let storage = humanity_systems::crafting::home_store::HomeStore::here(&state.data_store).reachable();
+    let items = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
     pay_for_machine(&mut state.game_world.world, &mut state.gui_state.placed_items, storage, items, free, machine_type, label)
 }
 
@@ -664,7 +664,7 @@ pub(crate) fn try_place_held_machine(state: &mut EngineState) {
             if let Some(item) = paid {
                 home.paid.insert(id.clone(), item);
             }
-            home.instances.push(crate::machines::MachineInstance {
+            home.instances.push(humanity_ship::machines::MachineInstance {
                 id,
                 machine: mtype,
                 room: room_id,
@@ -693,7 +693,7 @@ pub(crate) fn try_place_held_light(state: &mut EngineState) {
     let zo = active_zone_origin(state);
     let (lx, lz) = (hit.x - zo.x, hit.z - zo.z);
     let storey = edit_storey(state);
-    let Some(hs) = crate::ship::ship_structure::zone_body_mut(
+    let Some(hs) = humanity_ship::ship_structure::zone_body_mut(
         &mut state.gui_state.ship_structure,
         state.gui_state.construction_zone,
     ) else {
@@ -703,7 +703,7 @@ pub(crate) fn try_place_held_light(state: &mut EngineState) {
     // under the ceiling over that spot (the slab above, else the roof).
     let es = storey.unwrap_or_else(|| EditStorey::of(hs, 0));
     let y = light_height_on_storey(hs, es, lx, lz, &tid);
-    hs.lights.push(crate::ship::home_structure::PlacedLight {
+    hs.lights.push(humanity_ship::home_structure::PlacedLight {
         type_id: tid,
         pos: (lx, y, lz),
         dir: (0.0, -1.0, 0.0),
@@ -712,7 +712,7 @@ pub(crate) fn try_place_held_light(state: &mut EngineState) {
         intensity: None,
         range: None,
         path: Vec::new(),
-        subdivision: crate::ship::home_structure::default_strip_subdivision(),
+        subdivision: humanity_ship::home_structure::default_strip_subdivision(),
     });
     state.gui_state.construction_light_selected = Some(hs.lights.len() - 1);
     state.gui_state.construction_structure_dirty = true;
@@ -726,7 +726,7 @@ pub(crate) fn try_place_structure(state: &mut EngineState) {
     let Some(tid) = state.gui_state.construction_structure_type.clone() else {
         return;
     };
-    if crate::ship::structure::structure_type(&tid).is_none() {
+    if humanity_ship::structure::structure_type(&tid).is_none() {
         return;
     }
     let Some(hit) = cursor_storey_hit(state) else {
@@ -737,7 +737,7 @@ pub(crate) fn try_place_structure(state: &mut EngineState) {
     let floor_y = hit.y; // the floor of the storey being edited (increment 7)
     let place_y = floor_y + state.gui_state.construction_structure_place_y.max(0.0);
     if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
-        hs.structures.push(crate::ship::home_structure::PlacedStructure {
+        hs.structures.push(humanity_ship::home_structure::PlacedStructure {
             id: hs.next_structure_id(&tid),
             type_id: tid,
             pos: (hx - zo.x, place_y - zo.y, hz - zo.z),
@@ -1164,7 +1164,7 @@ pub(crate) fn try_pick_wall(state: &mut EngineState) -> bool {
     let cap = if es.has_above() { es.storey.top } else { f32::INFINITY };
     let mut best: Option<(usize, f32)> = None; // (wall index, ray t)
     for (i, w) in hs.walls.iter().enumerate() {
-        if !crate::ship::home_structure::wall_in_storey(&storeys, w, es.index) {
+        if !humanity_ship::home_structure::wall_in_storey(&storeys, w, es.index) {
             continue;
         }
         if let Some(t) = ray_hits_wall(w, zo, origin, dir, cap) {
@@ -1353,7 +1353,7 @@ pub(crate) fn try_pick_light_ring(state: &mut EngineState) -> bool {
 /// rotated bounding box so clicking the visible body (the elevator frame, the stair mass) selects
 /// it. Returns true so the click doesn't also pick a wall / grab a room.
 pub(crate) fn try_pick_structure(state: &mut EngineState) -> bool {
-    use crate::ship::structure::{rotated_half_extents, structure_type, StructureKind};
+    use humanity_ship::structure::{rotated_half_extents, structure_type, StructureKind};
     let zo = active_zone_origin(state); // pieces are zone-local; test in world (v0.754)
     let band = storey_pick_band(state); // the pieces standing on the storey being edited (increment 7)
     let pieces: Vec<(usize, Vec3, Vec3)> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
@@ -1752,7 +1752,7 @@ pub(crate) fn apply_object_drag(state: &mut EngineState) {
 /// dragged away mid-frame) only means that corridor's mesh skips a rebuild -- the Corridors
 /// panel shows the honest reason -- never a crash.
 pub(crate) fn apply_corridor_mouth_drag(state: &mut EngineState, ci: usize, hx: f32, hz: f32) {
-    use crate::ship::ship_structure::CorridorAxis;
+    use humanity_ship::ship_structure::CorridorAxis;
     let grid = state.gui_state.construction_grid_snap;
     let Some(ship) = state.gui_state.ship_structure.as_mut() else {
         return;
@@ -1841,7 +1841,7 @@ pub(crate) fn apply_light_aim_drag(state: &mut EngineState, li: usize, axis_idx:
 /// `zo` is the owning zone's world origin (body coords are zone-local, v0.754). (v0.546) An
 /// opening's sill is from its wall's base, so an upstairs door's handle is upstairs (increment 7);
 /// `opening_gizmos_on_storey` keeps to one storey.
-pub(crate) fn opening_gizmos(hs: &crate::ship::home_structure::HomeStructure, zo: Vec3) -> Vec<((usize, usize), Vec3)> {
+pub(crate) fn opening_gizmos(hs: &humanity_ship::home_structure::HomeStructure, zo: Vec3) -> Vec<((usize, usize), Vec3)> {
     let mut out = Vec::new();
     for (wi, wall) in hs.walls.iter().enumerate() {
         let (ax, az) = wall.a;
@@ -1908,7 +1908,7 @@ pub(crate) fn apply_opening_drag(state: &mut EngineState) {
 /// left/right (mid-height) resize width, top/bottom (mid-width) resize height. Returns
 /// ((wall, opening, edge), pos) with edge 0=left 1=right 2=top 3=bottom. `zo` is the owning
 /// zone's world origin (v0.754).
-pub(crate) fn opening_resize_handles(hs: &crate::ship::home_structure::HomeStructure, zo: Vec3) -> Vec<((usize, usize, u8), Vec3)> {
+pub(crate) fn opening_resize_handles(hs: &humanity_ship::home_structure::HomeStructure, zo: Vec3) -> Vec<((usize, usize, u8), Vec3)> {
     let mut out = Vec::new();
     for (wi, wall) in hs.walls.iter().enumerate() {
         let (ax, az) = wall.a;
@@ -2087,7 +2087,7 @@ pub(crate) fn toggle_build_editor(state: &mut EngineState) {
         // panel shows the purpose + actions the pick resolves to. Loaded here,
         // on editor entry, for the box home too (the legacy-layout branch
         // below only fills the Add-Room picker's id list).
-        let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+        let reg = humanity_ship::room_types::RoomTypeRegistry::load(&state.data_dir);
         let mut keys: Vec<String> = reg.types.keys().cloned().collect();
         keys.sort();
         state.gui_state.construction_room_types = keys;
@@ -2097,7 +2097,7 @@ pub(crate) fn toggle_build_editor(state: &mut EngineState) {
             // editing one room no longer reshuffles the auto-laid-out
             // others (the operator's "I felt lost as the rooms rearranged
             // themselves"). The whole home becomes an explicit floor plan.
-            let resolved = crate::ship::fibonacci::resolve_positions(layout);
+            let resolved = humanity_ship::fibonacci::resolve_positions(layout);
             state.gui_state.construction_rooms = layout.rooms.iter()
                 .enumerate()
                 .map(|(i, rc)| {
@@ -2111,7 +2111,7 @@ pub(crate) fn toggle_build_editor(state: &mut EngineState) {
                         walls: [w.north, w.south, w.west, w.east],
                         wall_offsets: w.offsets,
                         openings: rc.openings.iter().map(|o| {
-                            use crate::ship::fibonacci::OpeningKind as OK;
+                            use humanity_ship::fibonacci::OpeningKind as OK;
                             crate::gui::EditorOpening {
                                 kind: match o.kind {
                                     OK::Door => crate::gui::EditorOpeningKind::Door,
@@ -2175,8 +2175,8 @@ mod autosave_tests {
 mod machine_cost_tests {
     use super::{machine_item, pay_for_machine};
     use humanity_core::ecs::components::Controllable;
-    use crate::systems::inventory::placed::PlacedItem;
-    use crate::systems::inventory::{Inventory, ItemRegistry};
+    use humanity_systems::inventory::placed::PlacedItem;
+    use humanity_systems::inventory::{Inventory, ItemRegistry};
 
     fn items() -> ItemRegistry {
         ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).unwrap()

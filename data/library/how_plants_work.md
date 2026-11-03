@@ -1828,5 +1828,5 @@ with a guess.
 - `data/plants.csv`, the crop definition file described in Part 9,
   read at 189 rows and 26 columns, including its header comment block
   and its `growth_days` convention note.
-- `src/systems/farming/mod.rs`, the `PlantDef` structure that the file
+- `crates/humanity-systems/src/farming/mod.rs`, the `PlantDef` structure that the file
   is loaded into, read to confirm what each column is used for.

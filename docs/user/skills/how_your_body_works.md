@@ -634,7 +634,7 @@ timescales, and leaves out nearly everything that can go wrong inside one.
 - **First Aid.** The First Aid ability puts 35 health back at once for 15
   energy and can be used again 10 seconds later, cast with its button on
   the Profile page or a number key on the HUD (`data/abilities.csv`,
-  `src/systems/abilities.rs`); real first aid restores nothing instantly,
+  `crates/humanity-systems/src/abilities.rs`); real first aid restores nothing instantly,
   as [First Aid Until Help Arrives](first_aid_until_help_arrives.md)
   explains.
 - **Thirst and hunger run on real time.** With the default Vitals drain
@@ -654,7 +654,7 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   in food counts toward thirst, about a quarter of a litre in that
   cucumber and a tenth in the loaf (`portions` in the same file: each
   item's weight less the peel, core, shell or bone USDA counts as waste).
-  The numbers are in `src/systems/food.rs`, and the slowdowns in
+  The numbers are in `crates/humanity-systems/src/food.rs`, and the slowdowns in
   `data/status_effects.csv`.
 - **Tiredness and sleep.** Energy runs down through the waking day, and
   after about sixteen waking hours it falls below a quarter and you are
@@ -687,8 +687,8 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   are still ill does not start it over: it passes when it was going to,
   and the game tells you so ([When Food or Water Makes You
   Sick](when_food_or_water_makes_you_sick.md) has the detail;
-  `data/medical/illnesses.ron`, `src/systems/illness.rs`,
-  `src/systems/food.rs`).
+  `data/medical/illnesses.ron`, `crates/humanity-systems/src/illness.rs`,
+  `crates/humanity-systems/src/food.rs`).
 - **Wounds, and healing by itself.** A creature's bite takes health and
   leaves Bleeding, which stops on its own in about ten minutes, and a Bite
   Wound that heals over days; a wound nobody cleans and covers can go bad
@@ -702,7 +702,7 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   whole, close to how long an ordinary wound takes to close; in
   Forgiving, the default, about three days. The HUD names each wound and
   illness and what helps (`data/medical/wounds.ron`,
-  `src/systems/wounds.rs`; [Bleeding and Wounds](bleeding_and_wounds.md)
+  `crates/humanity-systems/src/wounds.rs`; [Bleeding and Wounds](bleeding_and_wounds.md)
   has the detail).
 - **Falls.** A landing hurts by how fast the ground stops you, so the
   same drop is gentler where gravity is weaker. In the Realistic mode, on
@@ -713,7 +713,7 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   if from about half the height. Landing in water hurts nobody in the
   game, though in life a high fall into water can kill too
   (`data/medical/falls.ron`, with the sources for each height,
-  `src/systems/falls.rs`).
+  `crates/humanity-systems/src/falls.rs`).
 - **Medical items.** In the Inventory, a medical item shows a Use
   button. A Bandage, a Medkit and an Advanced Medkit put back 5, 30 and
   50 health, stop Bleeding, and clean and cover your wounds, as
@@ -722,7 +722,7 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   would do nothing for you, because you are not hurt or because the game
   does not model what it is for (pain, setting a broken bone, a stopped heart),
   stays in your pack and the game says why (`data/medical/treatments.ron`,
-  `src/systems/treatment.rs`). If you do die, the default Death setting,
+  `crates/humanity-systems/src/treatment.rs`). If you do die, the default Death setting,
   Simplified, takes nothing from you, and the Respawn button brings you
   back at full health with every condition gone (Settings > Gameplay >
   Death; `src/config.rs`, `src/lib.rs`).
@@ -908,43 +908,43 @@ Grouped by what kind of authority each one is. Web pages were read on
 - The vitals and their clocks: `SATIATION_DECAY_PER_SEC`,
   `HYDRATION_DECAY_PER_SEC`, the starve and dehydrate damage rates,
   `ENERGY_DECAY_PER_SEC`, the oxygen drain and the thresholds in
-  `src/systems/food.rs`; the conditions and their slowdowns in
-  `data/status_effects.csv`; sleep in `src/systems/sleep.rs`; body heat in
-  `src/systems/body_heat.rs`; raw and spoiled food in
+  `crates/humanity-systems/src/food.rs`; the conditions and their slowdowns in
+  `data/status_effects.csv`; sleep in `crates/humanity-systems/src/sleep.rs`; body heat in
+  `crates/humanity-systems/src/body_heat.rs`; raw and spoiled food in
   `data/food_system.ron`.
 - The Inventory readings (`src/gui/pages/inventory.rs`) and the Settings >
   Gameplay controls: Vitals drain, Body heat, Illness and injury, and "Survival bars
   on the HUD" (`src/gui/pages/settings.rs`, `HudVitals` in `src/config.rs`; which
   rows "When low" shows: `vital_rows` in `src/gui/pages/hud.rs`).
 - Acceleration: the crew tolerance row (1.5 g safe, 2 health a second at
-  4 g) in `data/ship/flight.ron`, `harm_per_sec` in `src/systems/flight.rs`,
-  the harm in `src/systems/food.rs`, and the High Gravity row in
+  4 g) in `data/ship/flight.ron`, `harm_per_sec` in `crates/humanity-systems/src/flight.rs`,
+  the harm in `crates/humanity-systems/src/food.rs`, and the High Gravity row in
   `data/status_effects.csv`.
 - Health, vitals and conditions saved with the game: `BodySave` in
-  `src/persistence.rs` and `restore_body` in `src/save_load.rs`. The
+  `crates/humanity-systems/src/persistence.rs` and `restore_body` in `src/save_load.rs`. The
   bedroom's bed, which sleeps you as a built bed does: its
   `provides: Some("rest")` in `data/machines/home.ron` and
   `home_solo.ron`, used in `src/engine/built_uses.rs`. The Play mode and
   the "Start every session from the default home" setting:
   `src/config.rs`.
 - The First Aid ability: `data/abilities.csv`, cast by
-  `src/systems/abilities.rs` from its button in `src/gui/pages/profile.rs`
+  `crates/humanity-systems/src/abilities.rs` from its button in `src/gui/pages/profile.rs`
   or the HUD's number keys in `src/lib.rs`.
 - Food Poisoning: its course and tags in `data/status_effects.csv`, the
   water it takes, what each drink puts back while you are ill and what
   you are told in `data/medical/illnesses.ron`, applied each tick in
-  `src/systems/food.rs` through `src/systems/illness.rs` (an illness
+  `crates/humanity-systems/src/food.rs` through `crates/humanity-systems/src/illness.rs` (an illness
   counts game time); the Illness setting (`illness_realistic` in
   `src/config.rs`). Wounds and healing by itself: `data/medical/wounds.ron`,
-  applied each tick in `src/systems/food.rs` through
-  `src/systems/wounds.rs`, a bite's wounds given by
-  `src/systems/combat/mod.rs` (Well Fed no longer heals, since 12 October
+  applied each tick in `crates/humanity-systems/src/food.rs` through
+  `crates/humanity-systems/src/wounds.rs`, a bite's wounds given by
+  `crates/humanity-systems/src/combat/mod.rs` (Well Fed no longer heals, since 12 October
   2026: `data/status_effects.csv`). Falls: `data/medical/falls.ron`,
-  `src/systems/falls.rs`, the landing aboard in `src/renderer/camera.rs`
-  and on a planet in `src/surface_move.rs`. The
+  `crates/humanity-systems/src/falls.rs`, the landing aboard in `src/renderer/camera.rs`
+  and on a planet in `crates/humanity-systems/src/surface_move.rs`. The
   medical items' Use button in `src/gui/pages/inventory.rs`, what each
   item does in `data/medical/treatments.ron`, applied by
-  `src/systems/treatment.rs`. The Death setting (`death_realistic` in
+  `crates/humanity-systems/src/treatment.rs`. The Death setting (`death_realistic` in
   `src/config.rs`) and the respawn that restores full health and clears
   every condition (`src/lib.rs`).
 - The disease rows that nothing applies yet: `data/status_effects.csv`.

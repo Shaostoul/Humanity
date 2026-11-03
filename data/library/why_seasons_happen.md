@@ -366,7 +366,7 @@ modelled closely; some of it is not modelled at all, and the list below says
 which.
 
 - **The game year.** A game day is 24 hours by default and a game year 365
-  game days, four equal seasons starting with Spring (`src/systems/time.rs`);
+  game days, four equal seasons starting with Spring (`crates/humanity-systems/src/time.rs`);
   both are settings. An hour is always an hour: at normal speed a game day
   takes a real day, and one time-speed setting runs everything faster. The
   seasons are read as the astronomical ones: Spring begins at the March
@@ -375,7 +375,7 @@ which.
   length was settled on 27 September 2026
   ([Decision Briefs](https://github.com/Shaostoul/Humanity/blob/main/docs/design/decision-briefs.md), Brief 6).
 - **The air by latitude and season.** Environment Layer 1
-  (`src/systems/env_layer1.rs`, with each world's numbers in
+  (`crates/humanity-systems/src/env_layer1.rs`, with each world's numbers in
   `data/environment/climate.ron` and the design in
   [Environment Fields](https://github.com/Shaostoul/Humanity/blob/main/docs/design/environment-fields.md), "Layer 1 as
   built") gives the air temperature anywhere on Earth for any fraction of the
@@ -412,16 +412,16 @@ which.
   temperature for the whole planet, not Layer 1 at their own position: Earth's
   four-step seasonal table, 15 C in Spring, 30 C in Summer, 12 C in Autumn and
   minus 2 C in Winter, the values the game's farming balance was tuned against
-  (`src/systems/body_environment.rs`, with the weather's deviation on top). A
+  (`crates/humanity-systems/src/body_environment.rs`, with the weather's deviation on top). A
   field in the tropics and a field in Norway get the same seasons, and the
   change comes in steps at each season's start, with no lag.
 
 What the game simplifies, so you do not learn it from the game:
 
 - **The day never changes length.** The gameplay sun rises at 6:00 and sets at
-  18:00 by the home's clock on every day of the year and at every latitude (`src/systems/time.rs`
-  and `src/systems/solar.rs`), and the garden counts every day as half
-  daylight (`DAYLIGHT_FRACTION` in `src/systems/farming/mod.rs`, held to the
+  18:00 by the home's clock on every day of the year and at every latitude (`crates/humanity-systems/src/time.rs`
+  and `crates/humanity-systems/src/solar.rs`), and the garden counts every day as half
+  daylight (`DAYLIGHT_FRACTION` in `crates/humanity-systems/src/farming/mod.rs`, held to the
   sun's curve by a test). There is no midnight sun and no polar night.
 - **The sun's height never changes with the season.** The home's solar panels
   make the same power at noon in Winter as in Summer. The Construction page's
@@ -532,13 +532,13 @@ taken from them is restated here in our own words.
 
 ### Inside this project
 
-- `src/systems/env_layer1.rs` and `data/environment/climate.ron`: Layer 1,
+- `crates/humanity-systems/src/env_layer1.rs` and `data/environment/climate.ron`: Layer 1,
   the seasonal air by latitude, land and sea, and where each number came from;
   [Environment Fields](https://github.com/Shaostoul/Humanity/blob/main/docs/design/environment-fields.md), "Layer 1 as
   built".
-- `src/systems/time.rs`: the year and day lengths and the gameplay sun;
-  `src/systems/solar.rs`: the panels' sun curve.
-- `src/systems/body_environment.rs` and `src/systems/weather.rs`: the global
+- `crates/humanity-systems/src/time.rs`: the year and day lengths and the gameplay sun;
+  `crates/humanity-systems/src/solar.rs`: the panels' sun curve.
+- `crates/humanity-systems/src/body_environment.rs` and `crates/humanity-systems/src/weather.rs`: the global
   reference temperature crops and water read.
 - [Decision Briefs](https://github.com/Shaostoul/Humanity/blob/main/docs/design/decision-briefs.md), Brief 6: how long a day
   is.

@@ -1,5 +1,5 @@
 // Ship life support (2026-09-26): the home's AIR and the garden's WATER as
-// closed loops. Read by src/systems/life_support.rs, which carries the model;
+// closed loops. Read by crates/humanity-systems/src/life_support.rs, which carries the model;
 // the design, with every mass balance worked, is docs/design/ship-life-support.md.
 // This file carries the numbers and where each one came from. Every source
 // below was read on 2026-09-26.

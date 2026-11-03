@@ -1,5 +1,5 @@
 // Grow lights light the plots near them (2026-09-26, gardening depth).
-// Read by src/systems/farming/lighting.rs, which carries the model; this file
+// Read by crates/humanity-systems/src/farming/lighting.rs, which carries the model; this file
 // carries the numbers and where each came from. Sources read on 2026-09-26.
 //
 // THE MODEL. A powered grow light puts out PPF = watts x ppe_umol_per_j

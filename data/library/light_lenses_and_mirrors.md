@@ -578,9 +578,9 @@ pages were read on 3 October 2026.
   `assets/shaders/pbr/20-surface-detail.wgsl`.
 - The grow lights: `data/garden/lighting.ron` (the 100 watt example and
   the 3 metre reach, marked as a game estimate) and
-  `src/systems/farming/lighting.rs`.
+  `crates/humanity-systems/src/farming/lighting.rs`.
 - The solar panels: `sun_factor` and `cloud_light_share` in
-  `src/systems/solar.rs`.
+  `crates/humanity-systems/src/solar.rs`.
 - The Mirror, Binoculars, Telescope and Microscope: `mirror_0`,
   `binoculars_0`, `telescope_0` and `microscope_0` in `data/items.csv`,
   and `craft_mirror`, `craft_binoculars`, `build_telescope` and

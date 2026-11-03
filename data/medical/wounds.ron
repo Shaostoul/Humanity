@@ -1,6 +1,6 @@
 // Wounds, and how a body heals (first-hour audit S8, 2026-10-12). Read by
-// src/systems/wounds.rs; the food system, which owns the body's meters,
-// applies it every tick (src/systems/food.rs). Disk first, with a copy built
+// crates/humanity-systems/src/wounds.rs; the food system, which owns the body's meters,
+// applies it every tick (crates/humanity-systems/src/food.rs). Disk first, with a copy built
 // into the game as the fallback.
 //
 // A WOUND is a status effect of type "wound" in data/status_effects.csv. Its
@@ -13,13 +13,13 @@
 // player is told.
 //
 // WHAT HURTS YOU TODAY, AND WHAT IT LEAVES:
-// - A creature's bite (the combat system, src/systems/combat/mod.rs): the bite
+// - A creature's bite (the combat system, crates/humanity-systems/src/combat/mod.rs): the bite
 //   itself takes health at once, and it leaves the wounds in `bite`.
-// - Fire (src/systems/fire.rs): every second in a fire takes health, and the
+// - Fire (crates/humanity-systems/src/fire.rs): every second in a fire takes health, and the
 //   longer the exposure the deeper the burn (`burns`). Nothing in the game
 //   lights a fire you can stand in yet (the fire system is not running), so
 //   burns arrive with the fire props (docs/design/fire-props-and-combustion.md).
-// - A fall (2026-10-20, src/systems/falls.rs): a landing takes health by how
+// - A fall (2026-10-20, crates/humanity-systems/src/falls.rs): a landing takes health by how
 //   fast the floor stopped you, and past a threshold leaves a Sprained Ankle,
 //   a Broken Ankle or a Broken Leg (below), by the speeds in
 //   data/medical/falls.ron.

@@ -33,7 +33,7 @@ and the Library; he is weighing an Overview page instead, or as well (section 5.
 - **The website's frame.** `web/shared/shell.js` on every page (41 of 42; `mission.html` is a
   forwarder): a fixed top menu with a spacer under it, a collapsible footer fixed to the bottom
   (`.site-footer`, folded by default, its toggle tab peeking above it), and the help button.
-- **What the game tracks about a body** (`src/systems/`, shown by the HUD, `pages/hud.rs`
+- **What the game tracks about a body** (`crates/humanity-systems/src/`, shown by the HUD, `pages/hud.rs`
   `vital_rows`): Food (`satiation`), Water (`hydration`), Energy (the sleep need: it drains over
   about sixteen waking hours and a night in a bed restores it, `systems/sleep.rs`), Air, Body
   temperature (`systems/body_heat.rs`), Shelter, Waste, Health (`player_health`), each wound and

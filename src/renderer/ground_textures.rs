@@ -1416,7 +1416,7 @@ mod tests {
 
     /// Earth's def, straight off disk. Panics loudly rather than skipping: a
     /// checkout without it cannot verify anything this module claims.
-    fn earth_def() -> crate::terrain::planet::PlanetDef {
+    fn earth_def() -> humanity_terrain::planet::PlanetDef {
         let p = repo_file("data/planets/earth.ron");
         let text = std::fs::read_to_string(&p)
             .unwrap_or_else(|e| panic!("{} must be readable ({e})", p.display()));
@@ -1427,8 +1427,8 @@ mod tests {
     /// pushed through the shipped bake. `grade_albedo` is the single source of
     /// truth the texture bake itself uses, so this cannot drift from it.
     fn graded_sample_at(
-        al: &crate::terrain::planet_albedo::PlanetAlbedo,
-        def: &crate::terrain::planet::PlanetDef,
+        al: &humanity_terrain::planet_albedo::PlanetAlbedo,
+        def: &humanity_terrain::planet::PlanetDef,
         lat: f32,
         lon: f32,
     ) -> ([f32; 3], [f32; 3]) {
@@ -1452,7 +1452,7 @@ mod tests {
         // Well above sea level and clear of the shore de-blue band, which is
         // the regime every walkable land fragment is in.
         let sea = def.sea_level.clamp(0.0, 1.0);
-        let graded = crate::terrain::planet_surface::grade_albedo(
+        let graded = humanity_terrain::planet_surface::grade_albedo(
             def,
             raw,
             sea + 0.05,
@@ -1483,7 +1483,7 @@ mod tests {
     fn imagery_classifier_puts_the_right_material_under_each_biome() {
         let def = earth_def();
         let al_rel = def.albedo.clone().expect("earth.ron must ship an albedo grid");
-        let al = crate::terrain::planet_albedo::PlanetAlbedo::load(&repo_file(&format!(
+        let al = humanity_terrain::planet_albedo::PlanetAlbedo::load(&repo_file(&format!(
             "data/{al_rel}"
         )))
         .expect("the shipped Earth albedo grid must load");
@@ -1535,7 +1535,7 @@ mod tests {
     fn the_snow_gate_does_not_switch_off_the_desert() {
         let def = earth_def();
         let al_rel = def.albedo.clone().expect("earth.ron must ship an albedo grid");
-        let al = crate::terrain::planet_albedo::PlanetAlbedo::load(&repo_file(&format!(
+        let al = humanity_terrain::planet_albedo::PlanetAlbedo::load(&repo_file(&format!(
             "data/{al_rel}"
         )))
         .expect("the shipped Earth albedo grid must load");
@@ -1562,7 +1562,7 @@ mod tests {
     /// material six months later.
     #[test]
     fn ground_ungrade_exactly_inverts_the_shipped_bake() {
-        use crate::terrain::planet_surface as ps;
+        use humanity_terrain::planet_surface as ps;
         // The closed form squares the graded luminance to undo the shadow
         // lift, which is only the inverse of a SQUARE ROOT.
         assert!(
@@ -1638,7 +1638,7 @@ mod tests {
                 continue;
             }
             let Ok(text) = std::fs::read_to_string(&path) else { continue };
-            let Ok(def) = ron::from_str::<crate::terrain::planet::PlanetDef>(&text) else {
+            let Ok(def) = ron::from_str::<humanity_terrain::planet::PlanetDef>(&text) else {
                 continue;
             };
             checked += 1;

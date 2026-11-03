@@ -30,7 +30,7 @@ punishment. At 1x, real agricultural time, the fastest crop in `plants.csv`
 takes about 4.7 hours, which nobody will sit through. With offline progression
 the wait happens while you are at work, and 1x becomes the setting for long-form
 play. The two features are designed together: see the growth multiplier in
-`src/systems/farming/mod.rs` (`DEFAULT_CROP_GROWTH_SPEED`).
+`crates/humanity-systems/src/farming/mod.rs` (`DEFAULT_CROP_GROWTH_SPEED`).
 
 It is a TOGGLE, on every mode: single player, multiplayer and MMO.
 
@@ -318,7 +318,7 @@ itself, so shaping the starting home keeps working. Revisit at launch.
 
 ## Related
 
-- Crop growth multiplier: `src/systems/farming/mod.rs`, Settings > Gameplay.
+- Crop growth multiplier: `crates/humanity-systems/src/farming/mod.rs`, Settings > Gameplay.
 - `docs/design/playable-assessment-2026-09-19.md` section 7, question 1.
 - Timetable-shaped chores rather than countdown timers:
   `docs/design/crowd-simulation.md` rung 3, the same refactor.

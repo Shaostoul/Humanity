@@ -635,7 +635,7 @@ test("respawn: judged like a rejoin, under its own check ids", () => {
 // ── Routes through the ship's doors (increment 2, "Meet in the Commons") ─────
 //
 // The rig walks the game and the walker on the door points the game reports
-// (src/ship/door_points.rs). These tests route on a copy of that report for the
+// (crates/humanity-ship/src/door_points.rs). These tests route on a copy of that report for the
 // shipped ship, seen from p1 (fixtures/door-points-p1.json); the Rust test
 // door_points::the_rigs_fixture_is_what_the_game_reports keeps the copy true.
 const { doorRoute, routeClear, routeWalls, groundWalls, farPlaces, farthestFrom, placeAt, judgeMeet, judgeReboot, inViewM, FAR_VIEW_MARGIN_M, farPlacesAlong, farPlaceInView } = require("../lib/copresence-judge.js");
@@ -871,7 +871,7 @@ test("routes: the shipped meeting's routes and view cross no wall; a wall moved 
 // SHIP HOMES INCREMENT 7 (2026-10-21): the homestead's upper floor. Its upper hall's south wall
 // (U3, base 3.0) runs along z 40.5, over the middle of the ground hall a player walks in from the
 // door, and the door points flattened every storey's walls into one plan, so the rig's map put
-// that wall across the ground hall. The report now carries the walls by storey (src/ship/
+// that wall across the ground hall. The report now carries the walls by storey (crates/humanity-ship/src/
 // door_points.rs `StoreyWalls`, by the game's own knee-to-eye rule), and a ground route reads the
 // ground storey's. Seen red 2026-10-21 with the readers as they were (the flattened list, the
 // report before storeys): "a ground route across the hall crossed [32,40.5,55,40.5]".

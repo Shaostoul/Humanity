@@ -741,7 +741,7 @@ The game has one illness you can catch, and no germs.
   ends it ([When Food or Water Makes You
   Sick](/library#when-food-or-water-makes-you-sick) has the detail;
   `data/food_system.ron`, `data/food/item_profiles.ron`,
-  `src/systems/food.rs`, `data/status_effects.csv`,
+  `crates/humanity-systems/src/food.rs`, `data/status_effects.csv`,
   `data/medical/illnesses.ron`).
 - **All water is safe.** Every water you can drink in the game is safe.
   The abilities list includes Purify Water, but it is shown locked, with
@@ -1033,12 +1033,12 @@ were read on 5 October 2026.
   `data/locales/silverdale_wa/water.json`, shown in [Where Water
   Goes](/library#where-water-goes).
 - Food Poisoning, its causes and the raw-food chances:
-  `src/systems/food.rs`, `data/food_system.ron`,
+  `crates/humanity-systems/src/food.rs`, `data/food_system.ron`,
   `data/food/item_profiles.ron` and `data/status_effects.csv`; the water
   it takes and the Illness modes: `data/medical/illnesses.ron` and
-  `src/systems/illness.rs`. Water's profile: `data/food_system.ron`. The
+  `crates/humanity-systems/src/illness.rs`. Water's profile: `data/food_system.ron`. The
   abilities and which can be cast: `data/abilities.csv`,
-  `src/systems/abilities.rs` and `src/lib.rs`. The Soap Bar, and which
+  `crates/humanity-systems/src/abilities.rs` and `src/lib.rs`. The Soap Bar, and which
   items have a Use button: `data/items.csv`, `data/medical/treatments.ron`
   and `src/gui/pages/inventory.rs`. What is saved: `src/save_load.rs`.
 - [Handwashing and Hygiene](/library#handwashing-and-hygiene), [Toilets and

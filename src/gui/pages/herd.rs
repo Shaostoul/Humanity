@@ -15,7 +15,7 @@ use humanity_core::i18n::{t, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, cards, data_table, view_toggle};
 use crate::gui::GuiState;
-use crate::systems::animal_care::HerdRow;
+use humanity_systems::animal_care::HerdRow;
 
 /// Where the Animals card keeps its view (a snapshot sets it to show the table).
 pub const VIEW_ID: &str = "homes_herd_view";

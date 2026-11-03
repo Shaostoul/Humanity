@@ -29,13 +29,13 @@
 
 use crate::engine::state::EngineState;
 use crate::gui::GuiState;
-use crate::persistence::live_save::{
+use humanity_systems::persistence::live_save::{
     active_home, active_home_machines_path, choice_for, choose_new_home, forget_choice, remember_choice,
     restored_save_waiting, set_active_home, slot_for, ActiveHome, Choice,
 };
-use crate::persistence::{SaveSlot, SavedHome, ShipPlace, WorldSave};
-use crate::ship::ship_structure::{HomeDesign, ShipStructure};
-use crate::ship::starts::{HomeAnswer, Start, Starts};
+use humanity_systems::persistence::{SaveSlot, SavedHome, ShipPlace, WorldSave};
+use humanity_ship::ship_structure::{HomeDesign, ShipStructure};
+use humanity_ship::starts::{HomeAnswer, Start, Starts};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
@@ -127,7 +127,7 @@ pub struct Boot {
 /// your own home is live; `follow` tries the server's again once the world is up.
 pub fn boot(saves_dir: &Path, data_dir: &Path, config: Option<&crate::config::AppConfig>) -> Boot {
     let slot = boot_slot(config);
-    let offline_path = crate::persistence::slot_path(saves_dir, &SaveSlot::Offline);
+    let offline_path = humanity_systems::persistence::slot_path(saves_dir, &SaveSlot::Offline);
     let offline = read_save(&offline_path);
     if matches!(slot, SaveSlot::Server { .. }) {
         let starts = Starts::load(data_dir);
@@ -146,8 +146,8 @@ pub fn boot(saves_dir: &Path, data_dir: &Path, config: Option<&crate::config::Ap
         None => ActiveHome {
             slot: SaveSlot::Offline,
             path: offline_path,
-            start: crate::persistence::default_start(),
-            household: crate::persistence::default_household(),
+            start: humanity_systems::persistence::default_start(),
+            household: humanity_systems::persistence::default_household(),
             server: String::new(),
             ship_place: None,
         },
@@ -161,7 +161,7 @@ fn read_save(path: &Path) -> Option<WorldSave> {
     if !path.exists() {
         return None;
     }
-    crate::persistence::load_world(path).map_err(|e| log::warn!("{}: {e}", path.display())).ok()
+    humanity_systems::persistence::load_world(path).map_err(|e| log::warn!("{}: {e}", path.display())).ok()
 }
 
 /// The join gate's word (lib.rs, `home_plot::JoinGate::slot_ready`): the live save is the one this
@@ -246,12 +246,12 @@ pub fn open_slot(
     household: Option<&str>,
     look: &Look,
 ) -> Result<(WorldSave, PathBuf, bool), String> {
-    let path = crate::persistence::slot_path(saves_dir, slot);
+    let path = humanity_systems::persistence::slot_path(saves_dir, slot);
     match std::fs::read(&path) {
         Ok(bytes) => match serde_json::from_slice::<WorldSave>(&bytes) {
             Ok(save) => return Ok((save, path, false)),
             Err(e) => {
-                let aside = path.with_extension(format!("unreadable-{}.json", crate::persistence::now_ms()));
+                let aside = path.with_extension(format!("unreadable-{}.json", humanity_systems::persistence::now_ms()));
                 std::fs::rename(&path, &aside)
                     .map_err(|re| format!("{} is not a save this version reads ({e}), and could not be set aside: {re}", path.display()))?;
                 log::warn!("{} is not a save this version reads ({e}); set aside as {}, and a fresh one made", path.display(), aside.display());
@@ -267,7 +267,7 @@ pub fn open_slot(
     let start = start.unwrap_or(starts.default.as_str());
     let household = household.unwrap_or("");
     let save = fresh_save(data_dir, starts, start, household, server, look);
-    crate::persistence::save_world(&path, &save)?;
+    humanity_systems::persistence::save_world(&path, &save)?;
     log::info!("Made a fresh {} save of a {} ({})", save.kind, save.start, save.household);
     Ok((save, path, true))
 }
@@ -318,7 +318,7 @@ pub(crate) fn take_up(
         &mut state.game_world.world,
         &mut state.data_store,
         &mut state.gui_state,
-        &crate::persistence::saves_dir(),
+        &humanity_systems::persistence::saves_dir(),
         &state.data_dir,
         &starts,
         slot,
@@ -428,8 +428,8 @@ thread_local! {
 /// the live save as it was, says so once, and is tried again after `SWAP_RETRY_SECS`.
 pub(crate) fn follow(state: &mut EngineState) {
     let want = wanted(&state.gui_state);
-    let saves = crate::persistence::saves_dir();
-    let unmade = |slot: &SaveSlot| !crate::persistence::slot_path(&saves, slot).exists();
+    let saves = humanity_systems::persistence::saves_dir();
+    let unmade = |slot: &SaveSlot| !humanity_systems::persistence::slot_path(&saves, slot).exists();
     let chosen = choice_for(&want).filter(|_| unmade(&want));
     let swap = want != state.gui_state.save_slot;
     if !swap && chosen.is_none() {
@@ -488,7 +488,7 @@ fn known_home(gui: &GuiState, slot: &SaveSlot) -> Option<Choice> {
 /// slot has no save yet (its fresh save would otherwise know no place). Nothing for a choice with
 /// no place: `open_slot` makes that save itself.
 fn write_chosen(saves_dir: &Path, data_dir: &Path, slot: &SaveSlot, choice: &Choice, look: &Look) -> Result<(), String> {
-    let path = crate::persistence::slot_path(saves_dir, slot);
+    let path = humanity_systems::persistence::slot_path(saves_dir, slot);
     if path.exists() || choice.place.is_none() {
         return Ok(());
     }
@@ -498,7 +498,7 @@ fn write_chosen(saves_dir: &Path, data_dir: &Path, slot: &SaveSlot, choice: &Cho
     };
     let mut save = fresh_save(data_dir, &Starts::load(data_dir), &choice.start, &choice.household, server, look);
     save.ship_place = choice.place.clone();
-    crate::persistence::save_world(&path, &save)?;
+    humanity_systems::persistence::save_world(&path, &save)?;
     log::info!("Made a fresh {} save of a {} ({}), on the plot chosen there", save.kind, save.start, save.household);
     Ok(())
 }
@@ -530,7 +530,7 @@ pub(crate) fn build_home(state: &mut EngineState) -> Result<(), String> {
     state.gui_state.ship_structure = Some(ship);
     crate::engine::home_plot::publish_home_frame(state);
     crate::engine::home_meshes::rebuild_homestead(state);
-    crate::systems::machine_levels::land_held(&mut state.game_world.world);
+    humanity_systems::machine_levels::land_held(&mut state.game_world.world);
     let snap = crate::engine::editor::editor_snapshot(state);
     crate::engine::home_plot::history_after_move(&mut state.construction_history, snap);
     crate::engine::world_load::refresh_home_content(state);
@@ -602,7 +602,7 @@ pub fn live_own_air() -> bool {
 /// Whether the live save's start carries `content` of the homestead's world (`Start::home_content`:
 /// the showcase garden's first planting, engine/hot_reload_gates.rs), from the starts file read
 /// once per run: asked every frame.
-pub fn live_carries(content: crate::ship::starts::HomeContent) -> bool {
+pub fn live_carries(content: humanity_ship::starts::HomeContent) -> bool {
     start_row(crate::gui::pages::where_you_live::starts(), &active_home().start).home_content.contains(&content)
 }
 
@@ -780,7 +780,7 @@ pub fn after_choice(live: bool, exists: bool, joined: bool, last_welcome: Option
 /// from now on (`after_choice`). The live save keeps the place at once in every case.
 pub(crate) fn took_home(state: &mut EngineState, slot: &SaveSlot, choice: Choice) {
     let live = state.gui_state.save_slot == *slot;
-    let path = crate::persistence::slot_path(&crate::persistence::saves_dir(), slot);
+    let path = humanity_systems::persistence::slot_path(&humanity_systems::persistence::saves_dir(), slot);
     if live {
         let mut active = active_home();
         active.ship_place = choice.place.clone();
@@ -788,12 +788,12 @@ pub(crate) fn took_home(state: &mut EngineState, slot: &SaveSlot, choice: Choice
     }
     match after_choice(live, path.exists(), state.game_joined, state.last_welcome) {
         AfterChoice::Wait => remember_choice(slot, choice),
-        AfterChoice::WriteInto => match crate::persistence::load_world(&path) {
+        AfterChoice::WriteInto => match humanity_systems::persistence::load_world(&path) {
             Ok(mut save) => {
                 save.start = choice.start.clone();
                 save.household = choice.household.clone();
                 save.ship_place = choice.place.clone();
-                if let Err(e) = crate::persistence::save_world(&path, &save) {
+                if let Err(e) = humanity_systems::persistence::save_world(&path, &save) {
                     log::warn!("Where you live: the home chosen could not be written into the save there: {e}");
                 }
             }
@@ -835,7 +835,7 @@ pub(crate) fn enter_pairing(state: &mut EngineState, pairing: &str) -> Result<()
 pub fn enter_pairing_gui(gui: &mut GuiState, pairing: &str) -> Result<(), String> {
     match pairing {
         "home" => {
-            let own = read_save(&crate::persistence::slot_path(&crate::persistence::saves_dir(), &SaveSlot::Offline));
+            let own = read_save(&humanity_systems::persistence::slot_path(&humanity_systems::persistence::saves_dir(), &SaveSlot::Offline));
             gui.launcher_where_kind = crate::gui::LauncherWhere::Home;
             gui.launcher_selected_world = own.as_ref().map(|s| s.name.clone()).unwrap_or_default();
             if own.is_none() {

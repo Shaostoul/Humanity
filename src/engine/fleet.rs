@@ -51,7 +51,7 @@
 use crate::engine::state::EngineState;
 use crate::gui::pages::fleet_ledger::{FleetLedger, FleetStore, FleetTotals};
 use crate::gui::GuiState;
-use crate::systems::inventory::{FleetHeld, Inventory, TradeSettlements, TransferOp};
+use humanity_systems::inventory::{FleetHeld, Inventory, TradeSettlements, TransferOp};
 
 /// Real seconds between power reports (the server refuses one under its own minimum, 30 s in
 /// data/ship/fleet_ledger.ron).
@@ -152,7 +152,7 @@ pub(crate) fn on_game_message(state: &mut EngineState, v: &serde_json::Value) ->
 pub(crate) fn on_meal(state: &mut EngineState, v: &serde_json::Value) {
     let item = v.get("meal_item").and_then(|x| x.as_str()).filter(|_| v.get("success").and_then(|s| s.as_bool()) == Some(true));
     let eaten = item.is_some_and(|item| {
-        let max_stack = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry").map_or(99, |r| r.max_stack_for(item));
+        let max_stack = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry").map_or(99, |r| r.max_stack_for(item));
         feed(&mut state.game_world.world, &mut state.gui_state, item, max_stack)
     });
     let said = meal_sentence(v, eaten);
@@ -319,7 +319,7 @@ pub(crate) fn settle_listed(world: &mut hecs::World, home: &str, gives: &[serde_
 pub(crate) fn on_welcome(state: &mut EngineState, v: &serde_json::Value) {
     let fleet = &mut state.gui_state.fleet;
     fleet.stores = stores_in(v);
-    let t = crate::systems::ship_power::tally(&state.data_store, crate::systems::ship_power::PLAYER_HOME, crate::systems::ship_power::POWER);
+    let t = humanity_systems::ship_power::tally(&state.data_store, humanity_systems::ship_power::PLAYER_HOME, humanity_systems::ship_power::POWER);
     fleet.power_baseline = Some((t.drawn, t.returned));
     fleet.power_timer = 0.0;
     fleet.ledger = None;
@@ -439,7 +439,7 @@ pub(crate) fn tick(state: &mut EngineState, real_dt: f32) {
     let p = state.camera.position;
     state.gui_state.fleet.my_position = Some([p.x, p.y, p.z]);
     if state.gui_state.fleet.prices.is_empty() {
-        if let Some(reg) = state.data_store.get::<crate::systems::economy::TradeGoodsRegistry>("trade_goods_registry") {
+        if let Some(reg) = state.data_store.get::<humanity_systems::economy::TradeGoodsRegistry>("trade_goods_registry") {
             state.gui_state.fleet.prices = reg.goods.iter().map(|(id, g)| (id.clone(), f64::from(g.base_value))).collect();
         }
     }
@@ -456,7 +456,7 @@ pub(crate) fn tick(state: &mut EngineState, real_dt: f32) {
         return;
     }
     fleet.power_timer = 0.0;
-    let t = crate::systems::ship_power::tally(&state.data_store, crate::systems::ship_power::PLAYER_HOME, crate::systems::ship_power::POWER);
+    let t = humanity_systems::ship_power::tally(&state.data_store, humanity_systems::ship_power::PLAYER_HOME, humanity_systems::ship_power::POWER);
     let Some(msg) = power_report(&mut fleet.power_baseline, t.drawn, t.returned) else { return };
     if let Some(ws) = state.gui_state.ws_client.as_ref() {
         ws.send(&msg.to_string());

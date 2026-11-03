@@ -1532,7 +1532,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     // Trades with the Trade page closed (2026-10-02): the list on every
     // connect, confirmations the backpack no longer covers withdrawn, and a
     // completed trade a save load undid settled again into the loaded home.
-    let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    let reg = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
     let known = |id: &str| reg.map_or(true, |r| r.items.contains_key(id));
     crate::gui::pages::trade::tick(&mut state.gui_state, &mut state.game_world.world, known);
 }
@@ -1541,7 +1541,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
 /// was a trade wrapper. `known` says whether this game has an item, so a
 /// line naming one it does not know is not added to the backpack.
 fn route_trade(state: &mut EngineState, val: &serde_json::Value) -> bool {
-    let reg = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    let reg = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
     let known = |id: &str| reg.map_or(true, |r| r.items.contains_key(id));
     crate::gui::pages::trade::route_trade_frame(&mut state.gui_state, &mut state.game_world.world, known, val)
 }

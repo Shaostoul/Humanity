@@ -23,7 +23,7 @@ point, displaced radially). That gives mountains, valleys, and trenches at
 - Vertical-to-negative cliff profiles (Dover's chalk faces).
 - Digging (removing material needs a volumetric representation).
 
-The voxel asteroids (`src/terrain/` sparse octree) already do volumetric
+The voxel asteroids (`crates/humanity-terrain/src/` sparse octree) already do volumetric
 terrain, but in a local Cartesian frame, planet-scale needs the icosphere
 frame.
 

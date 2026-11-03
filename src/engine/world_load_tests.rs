@@ -4,7 +4,7 @@
 
 use super::*;
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::ship::starts::Starts;
+use humanity_ship::starts::Starts;
 use std::collections::HashMap;
 
 fn repo_data() -> std::path::PathBuf {
@@ -17,11 +17,11 @@ fn registries() -> DataStore {
     let root = repo_data();
     let read = |f: &str| std::fs::read(root.join(f)).unwrap_or_else(|e| panic!("{f}: {e}"));
     let mut data = DataStore::new();
-    data.insert("creature_registry", crate::systems::livestock::CreatureRegistry::from_csv(&read("creatures.csv")).unwrap());
-    data.insert("item_registry", crate::systems::inventory::ItemRegistry::from_csv(&read("items.csv")).unwrap());
-    data.insert("livestock_spawn_list", crate::systems::livestock::LivestockSpawnList::from_ron(&read("entities/livestock.ron")).unwrap());
-    data.insert("wild_spawn_list", crate::systems::livestock::WildSpawnList::from_ron(&read("entities/wild_spawns.ron")).unwrap());
-    crate::systems::livestock::register(&mut data);
+    data.insert("creature_registry", humanity_systems::livestock::CreatureRegistry::from_csv(&read("creatures.csv")).unwrap());
+    data.insert("item_registry", humanity_systems::inventory::ItemRegistry::from_csv(&read("items.csv")).unwrap());
+    data.insert("livestock_spawn_list", humanity_systems::livestock::LivestockSpawnList::from_ron(&read("entities/livestock.ron")).unwrap());
+    data.insert("wild_spawn_list", humanity_systems::livestock::WildSpawnList::from_ron(&read("entities/wild_spawns.ron")).unwrap());
+    humanity_systems::livestock::register(&mut data);
     data
 }
 
@@ -46,7 +46,7 @@ fn a_cabin_home_spawns_none_of_the_homesteads_world() {
     let data = registries();
     // Every machine the herd is placed near, standing in the home.
     let anchors: HashMap<String, Vec3> = data
-        .get::<crate::systems::livestock::LivestockSpawnList>("livestock_spawn_list")
+        .get::<humanity_systems::livestock::LivestockSpawnList>("livestock_spawn_list")
         .expect("the herd's list")
         .animals
         .iter()
@@ -72,7 +72,7 @@ fn a_cabin_home_spawns_none_of_the_homesteads_world() {
 /// comes (`replace_home_air`), while a homestead's is made again at its own size.
 #[test]
 fn a_home_on_the_ships_air_has_no_air_space_of_its_own() {
-    use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
+    use humanity_systems::atmosphere::{EnclosedSpace, HomeAir};
     let mut world = hecs::World::new();
     replace_home_air(&mut world, true, 2_000.0, 14_685.0);
     let volumes: Vec<f32> = world.query::<(&HomeAir, &EnclosedSpace)>().iter().map(|(_, (_, s))| s.volume_m3).collect();

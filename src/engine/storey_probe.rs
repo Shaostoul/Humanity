@@ -24,10 +24,10 @@
 //! (`home_session.home.box.min`) for the home's own metres.
 
 use crate::engine::footing::ElevatorCars;
-use crate::ship::lifts::lifts;
+use humanity_ship::lifts::lifts;
 use crate::engine::state::EngineState;
-use crate::ship::room_types::RoomBounds;
-use crate::ship::ship_structure::ShipStructure;
+use humanity_ship::room_types::RoomBounds;
+use humanity_ship::ship_structure::ShipStructure;
 
 /// The room the HUD names, as the probe reports it: its id (the zone's, `room-upper-hall`), the
 /// name the HUD shows, and its floor (the box's foot, world metres). Null outside every room.

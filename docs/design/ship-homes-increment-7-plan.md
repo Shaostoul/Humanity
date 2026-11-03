@@ -22,7 +22,7 @@ that walks up the stairs into the upstairs bedroom.
 
 ## 1. What the code assumes today (from the surveys, file:line)
 
-- **The body is one box.** `HomeStructure` is width x depth x `height` (src/ship/home_structure.rs
+- **The body is one box.** `HomeStructure` is width x depth x `height` (crates/humanity-ship/src/home_structure.rs
   232-236); the homestead's `height` is 3.0 (data/homes/homestead.ron:63), its glass roof. Mesh
   generation draws ONE floor quad at y 0 and ONE ceiling at `height` (home_structure.rs 774-776).
 - **Walls have no base.** `InteriorWall` is two (x, z) ends and a height from the floor (168-194);
@@ -31,15 +31,15 @@ that walks up the stairs into the upstairs bedroom.
 - **Room detection is 2-D.** `detect_rooms` (1357-1476) is one flood fill, every wall blocking at
   every height, each room 0..`height`; it feeds DDGI, the lamps, footing, the HUD and the editor.
   `name_rooms_from_zones` (1488-1531) contains by x/z.
-- **Collision is one plane.** `WallSegment` has no y (src/ship/wall_collision.rs 1-11, 19-25,
+- **Collision is one plane.** `WallSegment` has no y (crates/humanity-ship/src/wall_collision.rs 1-11, 19-25,
   127-129); door collision ignores y (src/lib.rs 5287-5307); doors auto-open by horizontal distance
-  (src/ship/door_panels.rs 124-137, src/systems/door_anim.rs 97-110).
+  (crates/humanity-ship/src/door_panels.rs 124-137, crates/humanity-systems/src/door_anim.rs 97-110).
 - **Footing takes the first room by x/z** (src/engine/footing.rs 46-49) though stairs, ramps and
   the existing `deck` piece already step by height (`STEP_UP_M` from the floor stood on).
 - **The elevator has two stops 3 m apart** (footing.rs 24-30, lib.rs 3617-3678 with `_h` unused,
   the car drawn `anim * 3.0` at lib.rs 7913); only a person at the base can call it.
 - **Teleports set x and z only** (src/engine/move_check.rs 137-149; `transit_link_at`
-  src/ship/transit.rs 85-89 has no y). Every placement (`put_player_at`, `stand_player_at`,
+  crates/humanity-ship/src/transit.rs 85-89 has no y). Every placement (`put_player_at`, `stand_player_at`,
   src/engine/home_plot.rs 1413-1528) re-seats the floor from the old floor. The editor close
   stands you at the zone floor + 1.7 (lib.rs 6990-7027) and the relay insists on it
   (`editor_off_floor`, src/relay/handlers/move_check.rs 110-115, 228).
@@ -49,7 +49,7 @@ that walks up the stairs into the upstairs bedroom.
   planet has `planet_build::built_floor_radius`).
 - **Plots are 3 m tall** (data/blueprints/ship_structure.ron 1173..1327, all twelve homestead
   plots 55 x 3 x 89); `design_fits_plot` refuses a taller home (ship_structure.rs 924-933) and
-  neighbours stop drawing it (src/ship/neighbours.rs 149-151). A neighbour's shell bake drops zones
+  neighbours stop drawing it (crates/humanity-ship/src/neighbours.rs 149-151). A neighbour's shell bake drops zones
   (home_structure.rs 1183-1228).
 - **Light crosses storeys.** Point, spot and strip lights have no occlusion (the light loop in
   assets/shaders/pbr/80-fragment-shared.wgsl 274-345), and the home is not in the sun shadow map, so
@@ -176,7 +176,7 @@ that walks up the stairs into the upstairs bedroom.
     and both walk legs step off it. The ladder leg now climbs through the hatch and steps onto the
     upper floor across the gate (no fall, no wound); the stairs-down leg walks the 16 risers.
     scripts/verify-falls.js's header holds the red and green runs. The rig's door points report
-    the walls by storey too (src/ship/door_points.rs `StoreyWalls`), so the upper hall's south wall
+    the walls by storey too (crates/humanity-ship/src/door_points.rs `StoreyWalls`), so the upper hall's south wall
     no longer crosses the ground hall in verify-copresence's map.
 
 ## 8. Placements stand only where a person can stand (the review's fix, 2026-10-21)
@@ -188,7 +188,7 @@ the close stood the player on the storey they had left from, and `editor_pick_at
 onto any slab top there, glass or not, inside a room or not. The avatar itself was drawn and grabbed
 on the ground floor while it was dragged on the chosen storey's plane. What changed:
 
-- **Where a person can stand** is one pure rule, `src/ship/standing.rs`: at least 2.0 m of room over
+- **Where a person can stand** is one pure rule, `crates/humanity-ship/src/standing.rs`: at least 2.0 m of room over
   the floor (`moves::STANDING_ROOM_M`); on the ground storey, anywhere on the body's floor clear of
   the shell; above it, over a SOLID slab of that storey's floor, inside a zone of that storey, the
   whole body (0.45 m round) over solid floor and clear of the room's walls. Never a glass lid, a

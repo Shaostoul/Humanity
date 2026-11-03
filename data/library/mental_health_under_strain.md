@@ -925,10 +925,10 @@ advice.
   modifiers, personality traits); its system was removed on 2 July 2026
   (`tests/engine_wiring_lint.rs`), and no code in `src/` reads the file.
   The Medicine skill trained by crafting medical recipes:
-  `data/recipes.csv` and `src/systems/crafting/mod.rs`. The Leadership
+  `data/recipes.csv` and `crates/humanity-systems/src/crafting/mod.rs`. The Leadership
   skill: `data/skills/skills.csv`; nothing in `src/` or the game's data
   awards it experience, and the "Dev: max skills" button
-  (`src/gui/pages/profile.rs`, `src/systems/skills/mod.rs`) sets every
+  (`src/gui/pages/profile.rs`, `crates/humanity-systems/src/skills/mod.rs`) sets every
   skill to its top level, shown in Dev play mode with dev cheats on
   (`src/config.rs`, `cheats_enabled` in `data/gui/theme.ron`).
 - The Apps page's Help part: `src/gui/pages/apps.rs`, reading

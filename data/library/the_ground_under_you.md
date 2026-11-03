@@ -505,7 +505,7 @@ slope debris have been added.
   a carbon-rich one) placed for the mining loop during development. It
   brings back ores such as iron, nickel, copper and graphite, and every
   unit of ore it delivers adds one point of experience to your Mining
-  skill (`src/systems/mining.rs`).
+  skill (`crates/humanity-systems/src/mining.rs`).
 
 **Settings that change this.** Settings > Gameplay > "Start every session
 from the default home" is off by default, so the asteroids stay as you
@@ -706,13 +706,13 @@ the same day, and the eCFR is updated in place.
 - The game's Earth: `data/planets/earth.ron`,
   `data/planets/earth_heightmap.bin`, built by
   `examples/build_earth_grid.rs` from NOAA's ETOPO 2022, and loaded by
-  `src/terrain/planet_heightmap.rs`; the optional finer tiles in
-  `src/terrain/terrain_tiles.rs`.
+  `crates/humanity-terrain/src/planet_heightmap.rs`; the optional finer tiles in
+  `crates/humanity-terrain/src/terrain_tiles.rs`.
 - Ground surface materials: `data/ground/materials.ron`.
 - The unused geology data: `data/geology.ron` and
-  `src/systems/geology.rs`, whose system is not started anywhere in the
+  `crates/humanity-systems/src/geology.rs`, whose system is not started anywhere in the
   current build.
-- Mining: `src/systems/mining.rs` (drones, delivery, and one Mining
+- Mining: `crates/humanity-systems/src/mining.rs` (drones, delivery, and one Mining
   experience point per ore unit), the test asteroids spawned in
   `src/lib.rs`, and the Mining section of `src/gui/pages/inventory.rs`.
 - The "Start every session from the default home" setting

@@ -1561,7 +1561,7 @@ test("10m R3: a pass of mine still on its way goes too when my other device with
 // control at its end (a friend's plain DM is stored and notified, a stranger's is a request), so
 // the checks can be seen to fail. Seen red: see "Red first, 2026-10-12" at the top of this file.
 
-/** A permit note's text, the shape the desktop app sends (src/systems/construction/shared.rs Permit). */
+/** A permit note's text, the shape the desktop app sends (crates/humanity-systems/src/construction/shared.rs Permit). */
 function permitNoteText(marker, issuer, plot, serial) {
   return marker + JSON.stringify({
     issuer, server: SERVER, plot, grantee: "did:hum:7Wq2nXhVbA1kPz9cR3tYfE", serial,

@@ -109,7 +109,7 @@ pub(super) fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &
         // The home's origin is its PLOT's (increment 1a of
         // docs/design/ship-homes-and-logistics.md): it is never saved, so it is shown, not
         // edited. Move a home by moving its plot (Plots, below the corridors).
-        let plot_of_home = if z.id == crate::ship::ship_structure::HOME_ZONE_ID { home_plot_id.clone() } else { None };
+        let plot_of_home = if z.id == humanity_ship::ship_structure::HOME_ZONE_ID { home_plot_id.clone() } else { None };
         if let Some(plot) = plot_of_home {
             ui.label(
                 RichText::new(format!(
@@ -222,7 +222,7 @@ fn pinned_zone_hint(mode: crate::config::PlayMode, in_shared_world: bool) -> &'s
 /// and shows the error verbatim on failure. Creating/deleting flags
 /// `construction_structure_dirty`, the same live rebuild every zone edit takes.
 pub(super) fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::ship::ship_structure::ShipCorridor;
+    use humanity_ship::ship_structure::ShipCorridor;
     // PLAY-MODE SCOPE (task #50): corridors are whole-ship superstructure --
     // outside the Dev play mode, and in a shared world even in it
     // (`config::ship_editing_for`, ship homes increment 5), they are read-only
@@ -478,10 +478,10 @@ pub(super) fn draw_plots_and_districts(ui: &mut egui::Ui, theme: &Theme, state: 
     let door_zones: Vec<String> = ship
         .zones
         .iter()
-        .filter(|z| z.id != crate::ship::ship_structure::HOME_ZONE_ID)
+        .filter(|z| z.id != humanity_ship::ship_structure::HOME_ZONE_ID)
         .map(|z| z.id.clone())
         .collect();
-    let plots: Vec<crate::ship::ship_structure::Plot> = ship.plots.clone();
+    let plots: Vec<humanity_ship::ship_structure::Plot> = ship.plots.clone();
     let plot_ids: Vec<String> = plots.iter().map(|p| p.id.clone()).collect();
     // "Add plot" copies the last plot of your home's kind (since ship homes increment 6 the file
     // ends with the cabins, whose hall is full; a homestead's copy goes on down First Street),
@@ -597,7 +597,7 @@ pub(super) fn draw_plots_and_districts(ui: &mut egui::Ui, theme: &Theme, state: 
         .as_ref()
         .map(|s| s.districts.iter().map(|d| (d.id.clone(), d.type_id.clone(), d.origin, d.size)).collect())
         .unwrap_or_default();
-    let types = crate::ship::structure::zone_types();
+    let types = humanity_ship::structure::zone_types();
     egui::CollapsingHeader::new(RichText::new(format!("Districts ({})", districts.len())).strong().color(theme.text_primary()))
         .id_salt("ship_districts")
         .default_open(false)
@@ -686,7 +686,7 @@ pub(super) fn draw_plots_and_districts(ui: &mut egui::Ui, theme: &Theme, state: 
         }
         Some(Act::AddDistrict(t)) => {
             // A new district starts past everything else on the ship, at the type's size.
-            let size = crate::ship::structure::zone_type(&t).map(|zt| zt.default_size).unwrap_or((20.0, 4.0, 20.0));
+            let size = humanity_ship::structure::zone_type(&t).map(|zt| zt.default_size).unwrap_or((20.0, 4.0, 20.0));
             let origin = ship.next_free_origin(10.0);
             ship.add_district(&t, origin, size);
         }
@@ -757,7 +757,7 @@ mod tests {
         ctx.style_mut(|s| s.animation_time = 0.0);
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut state = GuiState::default();
-        state.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles"));
+        state.ship_structure = Some(humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles"));
 
         state.settings.play_mode = crate::config::PlayMode::Normal;
         let out = frame(&ctx, &theme, &mut state, Vec::new());
@@ -810,7 +810,7 @@ mod tests {
         theme.apply_to_egui(&ctx);
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut state = GuiState::default();
-        state.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles"));
+        state.ship_structure = Some(humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles"));
         let ship = state.ship_structure.as_ref().unwrap();
         let home = ship.home_zone_index();
         let commons = ship.zones.iter().position(|z| z.id == "commons").expect("the Commons");
@@ -844,7 +844,7 @@ mod tests {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut state = GuiState::default();
         state.settings.play_mode = crate::config::PlayMode::Dev;
-        state.home_machines = crate::systems::grow_machines::load_home(&data.join("machines").join("home.ron"));
+        state.home_machines = humanity_systems::grow_machines::load_home(&data.join("machines").join("home.ron"));
         let locked = |s: &GuiState| s.home_machines.as_ref().expect("the machines load").is_locked("aqua_c1");
         super::super::sync_ship_machine_lock(&mut state);
         assert!(!locked(&state), "offline, the Dev mode edits the Commons' fish tank");

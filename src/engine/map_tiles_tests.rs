@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::gui::pages::maps::tile_grid::keys_covering;
-use crate::ship::levels::{level_cuts, ship_levels};
+use humanity_ship::levels::{level_cuts, ship_levels};
 
 fn shipped() -> ShipStructure {
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");

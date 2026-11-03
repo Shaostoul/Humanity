@@ -1307,7 +1307,7 @@ not quoted beyond short attributed phrases):
 **Local simulation data**, referenced by record id:
 
 - `data/medical/wounds.ron`, `healing` (Hungry and Thirsty halve the
-  healing rate), and `src/systems/food.rs` (the Satiation bar and
+  healing rate), and `crates/humanity-systems/src/food.rs` (the Satiation bar and
   starving)
 - `data/food/crop_nutrition.ron`, all per-crop figures in Part two
 - `data/plants.csv`, the yield ranges used in the per-plant arithmetic

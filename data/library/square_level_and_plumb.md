@@ -450,7 +450,7 @@ have the geometry done for you:
   experience in the Shelter Building skill.
 
 The rules for these pieces are in
-`src/systems/construction/placement.rs`.
+`crates/humanity-systems/src/construction/placement.rs`.
 
 **The construction editor for your home** works differently, and is
 closer to real layout:
@@ -599,10 +599,10 @@ were read on 3 October 2026.
 
 ### Inside this project
 
-- Building placement: `src/systems/construction/placement.rs` (the 1
+- Building placement: `crates/humanity-systems/src/construction/placement.rs` (the 1
   metre grid, quarter turns, resting on the pieces below, and levelling
   touching walls within 0.3 m), `src/engine/build_place.rs` (the
-  placing keys), `src/systems/construction/mod.rs` (Shelter Building
+  placing keys), `crates/humanity-systems/src/construction/mod.rs` (Shelter Building
   experience on completion) and `data/blueprints/basic.ron` (the sizes
   of every piece). The home construction editor: `src/engine/editor.rs`
   (`try_place_wall_node`, corners on a 0.25 m snap),

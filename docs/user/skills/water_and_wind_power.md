@@ -506,12 +506,12 @@ The game has wind power, simplified, and no water power.
   the spread of wind speeds that small turbines are rated by, and gets
   about 4.4 watts on average, 0.11 kWh a day. Its stat line in the game
   says so: "+0.11 kWh/d here: the wind averages 2.4 m/s, under the 3.1 it
-  starts at". The calculation is in `src/machines.rs`, and a test there
+  starts at". The calculation is in `crates/humanity-ship/src/machines.rs`, and a test there
   holds the data to it. That is about 40 kWh a year, the same size as the
   DOE formula's 29 kWh a year above.
 - **It feeds its own circuit.** Like every generator in the game, it
   powers only the loads wired to the same circuit
-  (`src/systems/electrical.rs`); [Batteries and
+  (`crates/humanity-systems/src/electrical.rs`); [Batteries and
   Storage](batteries_and_storage.md) describes the rest.
 
 What the game simplifies, so you do not learn it from the game: there is
@@ -659,8 +659,8 @@ data were read on 4 October 2026.
 - The wind turbine: `wind_turbine_small` in `data/machines/home.ron` and
   `data/machines/home_solo.ron`, whose comments quote the maker's manual
   and the airport wind; the recalculation and its test in
-  `src/machines.rs`; generators feeding their own circuit in
-  `src/systems/electrical.rs`.
+  `crates/humanity-ship/src/machines.rs`; generators feeding their own circuit in
+  `crates/humanity-systems/src/electrical.rs`.
 - The Silverdale water record, `data/locales/silverdale_wa/water.json`,
   and the distance from Silverdale to Bremerton's airport (about 11
   miles), `data/locales/silverdale_wa/climate.json`.

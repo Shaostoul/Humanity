@@ -549,7 +549,7 @@ The game's craftsmanship is hand work, and no tool in it can hurt you.
   In the Normal play mode, where the game starts, the craft then uses up
   the parts and wears each tool by one use; in Creative, and in Dev if
   you choose it, it uses nothing up and wears no tool while the Inventory
-  page's Creative mode switch is on (`src/systems/crafting/mod.rs`). The
+  page's Creative mode switch is on (`crates/humanity-systems/src/crafting/mod.rs`). The
   page's "Dev: stock all materials" button, shown only in Dev and while
   the dev cheats switch is on, as it is by default, puts a full stack
   of every recipe's parts in your backpack, but no tools; the starting
@@ -715,7 +715,7 @@ regulations were read in the eCFR's text in force on 1 October 2026.
 - Hand tools and their wear: `data/crafting/tools.ron`, the `durability`
   column of `data/items.csv` (and the soldering iron's "Electric
   solder-melting tip" description), and the craft rules in
-  `src/systems/crafting/mod.rs` (no inputs taken and no tool worn in the
+  `crates/humanity-systems/src/crafting/mod.rs` (no inputs taken and no tool worn in the
   Creative and Dev modes); the Crafting page, `src/gui/pages/crafting.rs`
   (its Craft button needs the parts in the backpack or home storage and
   the tools in the backpack in every mode, and its "Dev: stock all
@@ -725,7 +725,7 @@ regulations were read in the eCFR's text in force on 1 October 2026.
   outline, `data/home_outline.json`, shown on the Home page.
 - The electric stations and the sawmill: `data/machines/home.ron`; the
   power check for a station, `station_unpowered_at` in
-  `src/systems/crafting/mod.rs`.
+  `crates/humanity-systems/src/crafting/mod.rs`.
 - [Working with Wood](/library#working-with-wood),
   [Sharpening](/library#sharpening), [Hand
   Tools](/library#hand-tools), [Nails, Screws and

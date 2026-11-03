@@ -179,7 +179,7 @@ const MAX_OBJECTS: usize = 16384;
 /// same fade encoding the classic path smuggles through model[0].w).
 #[derive(Clone, Copy, Debug)]
 pub struct PatchDraw {
-    pub slot: crate::terrain::planet_chunks::PatchSlot,
+    pub slot: humanity_terrain::planet_chunks::PatchSlot,
     pub position: Vec3,
     pub fade: f32,
 }
@@ -1744,8 +1744,8 @@ impl Renderer {
         let tree_atlas_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Tree Card Sprite Atlas"),
             size: wgpu::Extent3d {
-                width: crate::terrain::tree_registry::ATLAS_COLS * billboard_bake::ATLAS_TILE_PX,
-                height: crate::terrain::tree_registry::ATLAS_ROWS * billboard_bake::ATLAS_TILE_PX,
+                width: humanity_terrain::tree_registry::ATLAS_COLS * billboard_bake::ATLAS_TILE_PX,
+                height: humanity_terrain::tree_registry::ATLAS_ROWS * billboard_bake::ATLAS_TILE_PX,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -1766,8 +1766,8 @@ impl Renderer {
             // v0.1040: 128x256 - cascade A (64 m tile) in rows [0,128),
             // cascade B (256 m tile) in rows [128,256).
             size: wgpu::Extent3d {
-                width: crate::terrain::ocean_fft::FFT_N as u32,
-                height: crate::terrain::ocean_fft::FFT_TEX_H as u32,
+                width: humanity_terrain::ocean_fft::FFT_N as u32,
+                height: humanity_terrain::ocean_fft::FFT_TEX_H as u32,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -2133,7 +2133,7 @@ impl Renderer {
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
-            sea_crest_m: crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M,
+            sea_crest_m: humanity_terrain::ocean_waves::MAX_WAVE_HEIGHT_M,
             ocean_event_rows: [[0.0; 4]; 14],
             underwater_ext: 0.0,
             water_caster_mats: Vec::new(),
@@ -2317,7 +2317,7 @@ impl Renderer {
         &mut self,
         vertices: &[humanity_core::vertex::Vertex],
         indices: &[u32],
-    ) -> Option<crate::terrain::planet_chunks::PatchSlot> {
+    ) -> Option<humanity_terrain::planet_chunks::PatchSlot> {
         let _cost = frame_costs::stage("cpu.patch_upload");
         if self.patch_arena.is_none() {
             self.patch_arena = Some(patch_arena::PatchArena::new(
@@ -2332,7 +2332,7 @@ impl Renderer {
     }
 
     /// Return a patch's arena ranges to the free lists (eviction).
-    pub fn patch_arena_release(&mut self, slot: crate::terrain::planet_chunks::PatchSlot) {
+    pub fn patch_arena_release(&mut self, slot: humanity_terrain::planet_chunks::PatchSlot) {
         if let Some(arena) = self.patch_arena.as_mut() {
             arena.release(slot);
         }
@@ -2355,12 +2355,12 @@ impl Renderer {
         // the harvest responds instantly - while the OLD mesh stayed on screen
         // until the next restart. That is a bug shaped exactly like the fix,
         // which is the kind that survives longest.
-        let key = crate::terrain::planet_chunks::grass_detail_key();
+        let key = humanity_terrain::planet_chunks::grass_detail_key();
         if self.grass_mesh.is_some() && self.grass_mesh_key == key {
             return;
         }
         let first = self.grass_mesh.is_none();
-        let (builder, stats) = crate::terrain::planet_chunks::grass_tiller_mesh();
+        let (builder, stats) = humanity_terrain::planet_chunks::grass_tiller_mesh();
         self.grass_mesh = Some(Mesh::from_vertices(
             &self.device,
             &builder.vertices,
@@ -2422,7 +2422,7 @@ impl Renderer {
     /// per frame while FFT-ocean mode is on; ~512 KB, no rebuild.
     pub fn upload_water_fft(&self, a: &[[f32; 4]], b: &[[f32; 4]]) {
         let _cost = frame_costs::stage("cpu.water_upload");
-        let n = crate::terrain::ocean_fft::FFT_N as u32;
+        let n = humanity_terrain::ocean_fft::FFT_N as u32;
         debug_assert_eq!(a.len(), (n * n) as usize);
         debug_assert_eq!(b.len(), (n * n) as usize);
         for (texels, row0) in [(a, 0u32), (b, n)] {

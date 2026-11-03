@@ -21,7 +21,7 @@ use egui::RichText;
 
 use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState};
-use crate::systems::time;
+use humanity_systems::time;
 
 /// The crop the explanation names: a fast, familiar one.
 const EXAMPLE_CROP: &str = "lettuce";

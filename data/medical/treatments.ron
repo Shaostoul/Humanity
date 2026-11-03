@@ -1,6 +1,6 @@
 // What the Inventory's Use button does with each medical item (BUG-162,
-// 2026-10-05). Read by src/systems/treatment.rs; the food system applies a
-// Use to the player (src/systems/food.rs, the use_item_request channel). Disk
+// 2026-10-05). Read by crates/humanity-systems/src/treatment.rs; the food system applies a
+// Use to the player (crates/humanity-systems/src/food.rs, the use_item_request channel). Disk
 // first, with a copy built into the game as the fallback.
 //
 // Every items.csv row in category "medical" has an entry here, every item

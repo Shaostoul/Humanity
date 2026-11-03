@@ -1,7 +1,7 @@
-// Falls: how hard a landing hurts (2026-10-20). Read by src/systems/falls.rs
+// Falls: how hard a landing hurts (2026-10-20). Read by crates/humanity-systems/src/falls.rs
 // beside data/medical/wounds.ron (`Wounds::load` reads both); the food system,
 // which owns the body's meters, applies a landing in its body pass
-// (src/systems/food.rs, through `Wounds::take_injuries`). Disk first, with a
+// (crates/humanity-systems/src/food.rs, through `Wounds::take_injuries`). Disk first, with a
 // copy built into the game as the fallback.
 //
 // IMPACT SPEED, NOT HEIGHT. Every number below is the speed, in metres a
@@ -23,7 +23,7 @@
 // hurts nobody here, though in life a high fall into water injures and kills
 // too (Warner and Demling: falls onto softer surfaces, "including water, are
 // better tolerated", not harmless). Dev flight never injures, nor does the
-// landing after a teleport (src/systems/falls.rs, `FallWatch`).
+// landing after a teleport (crates/humanity-systems/src/falls.rs, `FallWatch`).
 //
 // TWO MODES, the Settings > Gameplay > Illness and injury setting
 // (`illness_realistic`, systems::illness::Mode), which wounds already follow.

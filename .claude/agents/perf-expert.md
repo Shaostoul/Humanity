@@ -53,7 +53,7 @@ stacked), or CPU simulation.
 **2. N instances, the infinite-of-x question.** Cost of drawing it ten thousand times.
 - **Draw submission.** Are they batched or instanced, or is it one draw each? Live
   example: the water shell is drawn as many separate alpha-blended patches, capped by
-  WATER_MAX_LEAVES = 1024 in src/terrain/planet_chunks.rs. Do NOT confuse that with
+  WATER_MAX_LEAVES = 1024 in crates/humanity-terrain/src/planet_chunks.rs. Do NOT confuse that with
   MAX_CHUNK_LEAVES = 640, which is the LAND patch cap per planet per frame; they are
   different constants and the water one is larger. Instancing is usually the single
   biggest win here.

@@ -1714,16 +1714,16 @@ mod tests {
     /// increment 6: the ship holds cabins too, which only a join or a choice asking for a cabin
     /// is given, so the tests written for a ship of homesteads count the homesteads.)
     fn ship_plot_ids() -> Vec<String> {
-        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data"))
+        let ship = humanity_ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data"))
             .expect("the ship file loads");
-        let kind = crate::ship::starts::Starts::load(std::path::Path::new("data")).default_start().plot_kind.clone();
+        let kind = humanity_ship::starts::Starts::load(std::path::Path::new("data")).default_start().plot_kind.clone();
         ship.plots.iter().filter(|p| p.kind == kind).map(|p| p.id.clone()).collect()
     }
 
     /// Where the game puts a player whose home stands on plot `id`: 1a's
     /// assembly at that plot, then its spawn (ship metres, eye height).
     fn game_spawn_on(id: &str) -> [f32; 3] {
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(std::path::Path::new("data"), Some(id))
+        let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(std::path::Path::new("data"), Some(id))
             .unwrap_or_else(|e| panic!("the home assembles on {id}: {e}"));
         let s = ship.home_spawn_world().expect("the home design has a spawn");
         [s.x, s.y, s.z]
@@ -1757,14 +1757,14 @@ mod tests {
 
     /// The ship hash this relay and the game both compute from data/.
     fn our_ship_hash() -> String {
-        crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).expect("the ship loads").ship_hash
+        humanity_ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).expect("the ship loads").ship_hash
     }
 
     /// The two plot fields a real game puts in its `game_join`
     /// (engine/home_plot.rs `add_join_fields`): this ship's hash, and the
     /// shipped home design's door, plot-local.
     fn game_join_fields() -> Value {
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(std::path::Path::new("data"), None)
+        let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(std::path::Path::new("data"), None)
             .expect("the ship assembles");
         let (x, z) = ship.home_arrival_local().expect("the shipped home names its door");
         serde_json::json!({ "ship_hash": ship.ship_hash(), "home_spawn": [x, z] })
@@ -1915,7 +1915,7 @@ mod tests {
             assert!(dist(at, want) < 1e-3, "on {plot} the relay spawned at {at:?}, the game stands at {want:?}");
         }
         // The plot record matches the ship file's, and the ship is named.
-        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
+        let ship = humanity_ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
         let rec = ship.plots.iter().find(|p| p.id == ids[1]).unwrap();
         let hp = &wb["home_plot"];
         assert_eq!(hp["kind"], rec.kind.as_str());
@@ -2029,7 +2029,7 @@ mod tests {
 
         // The Commons: the shared zone whose purpose says so, at its spawn or
         // its middle, at eye height (the same rule the game uses).
-        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
+        let ship = humanity_ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
         let commons = ship.zones.iter().find(|z| z.purpose == "commons").expect("the ship has a Commons");
         let (lx, lz) = commons.body.spawn.unwrap_or((commons.body.width * 0.5, commons.body.depth * 0.5));
         let want = [commons.origin.0 + lx, commons.origin.1 + 1.7, commons.origin.2 + lz];
@@ -2046,7 +2046,7 @@ mod tests {
     /// The Commons arrival a guest is spawned at: the Commons' own spawn, at eye height (the rule
     /// `ShipStructure::guest_spawn` and the game share).
     fn commons_arrival() -> [f32; 3] {
-        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
+        let ship = humanity_ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
         let g = ship.guest_spawn().expect("the ship has a Commons");
         [g.x, g.y, g.z]
     }
@@ -2383,7 +2383,7 @@ mod tests {
         assert_eq!(q["home_plot"], "p1", "their quest names their plot: {q}");
         assert_eq!(q["total_rooms"], 9, "eight rooms and home: {q}");
 
-        let plots = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().plots;
+        let plots = humanity_ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().plots;
         let commons = (65.0, 20.0, 99.0, 75.0);
         let crew: Vec<&Value> = w["world_snapshot"].as_array().unwrap().iter().filter(|e| e["components"].get("dialog").is_some()).collect();
         assert!(crew.len() >= 5, "the welcome carries the crew: {}", crew.len());
@@ -2686,7 +2686,7 @@ mod tests {
     async fn game_moves_go_only_to_the_players_who_have_them_in_view() {
         let path = plots_db("in_view");
         let (state, port, server) = relay_on(&path).await;
-        state.game_world.write().await.rules.delivery = crate::ship::moves::DeliveryRules { in_view_m: 50.0, out_of_view_m: 60.0 };
+        state.game_world.write().await.rules.delivery = humanity_ship::moves::DeliveryRules { in_view_m: 50.0, out_of_view_m: 60.0 };
         let (mut a, _) = bind_socket(&state, port, [103u8; 32], Some("ViewA"), 1).await;
         let (mut b, b_key) = bind_socket(&state, port, [104u8; 32], Some("ViewB"), 1).await;
         let (mut chat, _) = bind_socket(&state, port, [105u8; 32], Some("OnlyChat"), 1).await;
@@ -2699,7 +2699,7 @@ mod tests {
         let to_chat: Vec<Value> = game_messages_for(&mut chat, 300).await.into_iter().filter(|g| g["type"] == "game_position_update" || g["type"] == "game_npc_update").collect();
         assert!(to_chat.is_empty(), "a socket that is only chatting was sent game moves: {to_chat:?}");
 
-        state.game_world.write().await.rules.delivery = crate::ship::moves::DeliveryRules { in_view_m: 250.0, out_of_view_m: 300.0 };
+        state.game_world.write().await.rules.delivery = humanity_ship::moves::DeliveryRules { in_view_m: 250.0, out_of_view_m: 300.0 };
         let next = [door_b[0], door_b[1], door_b[2] + 1.0];
         step_applied(&mut b, next, 0).await;
         let came = next_game_of(&mut a, &["game_in_view"]).await.expect("the mover came into view");
@@ -2864,7 +2864,7 @@ mod tests {
             game_reply_after_join(&mut other, "PlotOtherShip", serde_json::json!({ "ship_hash": "0123456789abcdef" }), "game_join_denied").await;
         let denied = denied.unwrap_or_else(|| panic!("no game_join_denied for PlotOtherShip; game messages seen: {seen:?}"));
         assert_eq!(denied["reason"], "other_ship");
-        assert_eq!(denied["message"], crate::ship::ship_structure::OTHER_SHIP_SENTENCE);
+        assert_eq!(denied["message"], humanity_ship::ship_structure::OTHER_SHIP_SENTENCE);
         assert_eq!(denied["ship"]["hash"], ours.as_str(), "it names this relay's ship, so the game can say why");
         assert!(state.game_world.read().await.find_player_entity(&other_key).is_none(), "nothing was spawned for it");
         // (The watcher also hears its OWN join, broadcast to everyone just after its
@@ -2880,7 +2880,7 @@ mod tests {
         // No ship named: a guest in the Commons, no plot claimed.
         let w = welcome_after_join_with(&mut script, "PlotScripted", serde_json::json!({ "ship_hash": null, "home_spawn": null })).await;
         assert_eq!(welcome_plot(&w), None, "a join naming no ship holds a plot: {:?}", welcome_plot(&w));
-        let g = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().guest_spawn.unwrap();
+        let g = humanity_ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().guest_spawn.unwrap();
         let at = relay_position(&state, &script_key).await;
         assert!(dist(at, [g.x, g.y, g.z]) < 1e-3, "in the Commons, at {at:?}");
         // So the next plot is still free for a game naming this ship.
@@ -3068,7 +3068,7 @@ mod tests {
         let (denied, seen) = game_reply_after_join(&mut game, "PlotNoShipGame", serde_json::json!({}), "game_join_denied").await;
         let denied = denied.unwrap_or_else(|| panic!("no game_join_denied for a game on a relay with no ship; game messages seen: {seen:?}"));
         assert_eq!(denied["reason"], "no_ship", "a relay with no ship says why: {:?}", denied["reason"]);
-        assert_eq!(denied["message"], crate::ship::ship_structure::NO_SHIP_SENTENCE);
+        assert_eq!(denied["message"], humanity_ship::ship_structure::NO_SHIP_SENTENCE);
         assert!(state.game_world.read().await.find_player_entity(&game_key).is_none(), "nothing was spawned for it");
         let w = welcome_after_join_with(&mut script, "PlotNoShipScript", serde_json::json!({ "ship_hash": null, "home_spawn": null })).await;
         assert_eq!(welcome_plot(&w), None, "a scripted player is a guest");
@@ -3101,7 +3101,7 @@ mod tests {
             let (denied, seen) = game_reply_after_join(&mut game, "PlotEmptyHash", serde_json::json!({ "ship_hash": "" }), "game_join_denied").await;
             let denied = denied.unwrap_or_else(|| panic!("no game_join_denied for an empty ship hash (a relay with no ship: {no_ship}); game messages seen: {seen:?}"));
             assert_eq!(denied["reason"], "no_ship_named", "an empty ship hash is refused as no ship named (a relay with no ship: {no_ship}): {:?}", denied["reason"]);
-            assert_eq!(denied["message"], crate::ship::ship_structure::OWN_SHIP_SENTENCE);
+            assert_eq!(denied["message"], humanity_ship::ship_structure::OWN_SHIP_SENTENCE);
             assert!(state.game_world.read().await.find_player_entity(&key).is_none(), "nothing was spawned for it");
             if !no_ship {
                 let ship = state.game_world.read().await.ship_plots.ship_id.clone();
@@ -3174,7 +3174,7 @@ mod tests {
         let told = next_game_of(&mut holder, &["game_join_denied"]).await;
         let told = told.unwrap_or_else(|| panic!("the erasing game was never told it left the shared world"));
         assert_eq!(told["reason"], "account_erased");
-        assert_eq!(told["message"], crate::ship::ship_structure::ERASED_SENTENCE);
+        assert_eq!(told["message"], humanity_ship::ship_structure::ERASED_SENTENCE);
         let heard = game_messages_for(&mut other, 800).await;
         assert!(
             heard.iter().all(|g| g["type"] != "game_join_denied"),
@@ -3724,7 +3724,7 @@ mod tests {
         let (denied, seen) = game_reply_after_join(&mut stays, "TwoDevices", serde_json::json!({}), "game_join_denied").await;
         let denied = denied.unwrap_or_else(|| panic!("no game_join_denied for the erased account; game messages seen: {seen:?}"));
         assert_eq!(denied["reason"], "account_erased");
-        assert_eq!(denied["message"], crate::ship::ship_structure::ERASED_SENTENCE);
+        assert_eq!(denied["message"], humanity_ship::ship_structure::ERASED_SENTENCE);
         assert!(state.game_world.read().await.find_player_entity(&key).is_none(), "nothing was spawned");
         assert_eq!(state.db.plot_holder(&ship, &ids[0]).unwrap(), None, "no plot was claimed");
 
@@ -3818,7 +3818,7 @@ mod tests {
     async fn a_join_that_names_its_door_arrives_there() {
         let path = plots_db("own_door");
         let (state, port, server) = relay_on(&path).await;
-        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
+        let ship = humanity_ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
         let (mut a, a_key) = bind_socket(&state, port, [94u8; 32], Some("PlotOwnDoor"), 1).await;
         let (mut b, b_key) = bind_socket(&state, port, [95u8; 32], Some("PlotWildDoor"), 1).await;
 
@@ -4172,7 +4172,7 @@ mod tests {
     /// scale a game sends with it.
     fn blueprint_size(blueprint: &str) -> [f32; 3] {
         let text = std::fs::read_to_string("data/blueprints/basic.ron").expect("basic.ron reads");
-        let reg = crate::systems::construction::BlueprintRegistry::from_ron(text.as_bytes()).expect("basic.ron parses");
+        let reg = humanity_systems::construction::BlueprintRegistry::from_ron(text.as_bytes()).expect("basic.ron parses");
         reg.get(blueprint).map_or([1.0, 1.0, 1.0], |b| b.size)
     }
 
@@ -4181,7 +4181,7 @@ mod tests {
     fn build_msg(req_id: u32, frame: &str, blueprint: &str, at: [f32; 3], turns: u8) -> Value {
         serde_json::json!({
             "type": "game_build", "req_id": req_id, "frame": frame, "blueprint_id": blueprint, "position": at,
-            "rotation": crate::systems::construction::placement::quarter_turn(turns).to_array(), "scale": blueprint_size(blueprint),
+            "rotation": humanity_systems::construction::placement::quarter_turn(turns).to_array(), "scale": blueprint_size(blueprint),
         })
     }
 
@@ -4273,7 +4273,7 @@ mod tests {
 
     /// The rows the relay keeps in `frame`.
     fn rows_in(state: &std::sync::Arc<crate::relay::relay::RelayState>, frame: &str) -> Vec<u64> {
-        let ship = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).expect("the ship loads").ship_id;
+        let ship = humanity_ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).expect("the ship loads").ship_id;
         state.db.load_world_pieces(&ship).unwrap().iter().filter(|p| p.frame == frame).map(|p| p.piece_id).collect()
     }
 
@@ -4287,7 +4287,7 @@ mod tests {
 
     /// The one sentence shared.rs keeps for a refusal, as a relay sends it.
     fn sentence(action: &str, piece: &str, reason: &str, why: Option<&str>) -> String {
-        use crate::systems::construction::shared::{refusal_message, Action, Reason};
+        use humanity_systems::construction::shared::{refusal_message, Action, Reason};
         use humanity_core::build_permission::Why;
         let action: Action = serde_json::from_value(serde_json::json!(action)).unwrap();
         let reason: Reason = serde_json::from_value(serde_json::json!(reason)).unwrap();
@@ -4491,7 +4491,7 @@ mod tests {
 
     /// The `game_permit_status` a permit that does not work is answered with: `why` and its words.
     fn permit_refused(req_id: u32, plot: &str, why: &str) -> Value {
-        use crate::systems::construction::shared::{why_words, Action, Reason};
+        use humanity_systems::construction::shared::{why_words, Action, Reason};
         use humanity_core::build_permission::Why;
         let w: Why = serde_json::from_value(serde_json::json!(why)).unwrap();
         let message = why_words(Action::Build, Reason::NotAllowed, Some(w));

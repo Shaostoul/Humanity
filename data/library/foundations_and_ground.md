@@ -539,7 +539,7 @@ The game has foundations, but not ground that matters to them.
   over a foundation rests on its top.
 - **A foundation is optional.** A wall, a roof or a bed placed where
   there is no foundation simply stands on the floor or the ground
-  (`src/systems/construction/placement.rs`).
+  (`crates/humanity-systems/src/construction/placement.rs`).
 - **The ground does nothing to it.** On a planet, a piece is set at the
   height of the ground where you aim, on the metre grid. Nothing is dug,
   levelled or packed underneath, so on sloping ground part of a 4 metre
@@ -717,10 +717,10 @@ documents were read on 4 October 2026.
 
 - The foundations and their sizes and materials: `data/blueprints/basic.ron`.
   Resting on a foundation, standing on the floor without one, and
-  levelling walls: `src/systems/construction/placement.rs`. Building on a
+  levelling walls: `crates/humanity-systems/src/construction/placement.rs`. Building on a
   planet's ground, and the refusal on water: `src/engine/planet_build.rs`
-  and `src/systems/construction/site.rs`. Materials taken in every play
-  mode: `src/systems/construction/mod.rs`. Play mode: `src/config.rs`
+  and `crates/humanity-systems/src/construction/site.rs`. Materials taken in every play
+  mode: `crates/humanity-systems/src/construction/mod.rs`. Play mode: `src/config.rs`
   (`PlayMode`, `play_mode_allows`); the "Start every session from the
   default home" setting: `src/config.rs` and `src/save_load.rs`.
 - [How a Building Stands Up](/library#how-a-building-stands-up), [Framing a

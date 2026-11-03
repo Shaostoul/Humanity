@@ -79,7 +79,7 @@ fn demo_state() -> GuiState {
     // the home machine layout; load the seed home.ron directly (same as
     // snapshot_construction) so the closed loops render adjacent to the
     // "What one home cannot close" panel (which self-loads its own RON).
-    s.homestead_loops = crate::systems::grow_machines::load_home(
+    s.homestead_loops = humanity_systems::grow_machines::load_home(
         &data.join("machines").join("home.ron"),
     )
     .map(|h| h.loops)
@@ -92,8 +92,8 @@ fn demo_state() -> GuiState {
     s.library = lib.sections;
     s.library_tags = lib.tag_groups;
     s.curriculum = crate::gui::load_curriculum(data);
-    s.garden_areas = crate::gui::load_garden_areas(&crate::persistence::live_save::active_home_machines_path(data), data);
-    s.grow_media = crate::gui::load_grow_media(data);
+    s.garden_areas = crate::gui::load_garden_areas(&humanity_systems::persistence::live_save::active_home_machines_path(data), data);
+    s.grow_media = humanity_systems::grow_machines::load_grow_media(data);
     // The app loads the donate FAQ at startup (lib.rs); without it the Donate
     // snapshot ended on a "Frequently Asked Questions" heading over nothing.
     s.donate_faq = crate::gui::load_donate_faq(data);
@@ -132,7 +132,7 @@ fn demo_state() -> GuiState {
         shelter_note: String::new(),
         effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0), ("Bite Wound".into(), 777_600.0)],
         // A bite wound nobody has cleaned yet (2026-10-12): the Status section's wound line.
-        care: vec![crate::systems::wounds::CareLine {
+        care: vec![humanity_systems::wounds::CareLine {
             kind: "Wound",
             name: "Bite Wound".into(),
             short: "needs cleaning and covering".into(),
@@ -168,16 +168,16 @@ fn demo_state() -> GuiState {
     // seeds have no row there, so they count as nothing) against the 50 kg,
     // 65 L pack at 1 g. Without it the snapshot read "0.0 / 50.0 kg" beside
     // a full list.
-    s.carry = crate::systems::encumbrance::evaluate(
-        crate::systems::encumbrance::CarryInput {
+    s.carry = humanity_systems::encumbrance::evaluate(
+        humanity_systems::encumbrance::CarryInput {
             carried_kg: 30.7,
             capacity_kg: 50.0,
             bonus_kg: 0.0,
             volume_l: 11.85,
             volume_capacity_l: 65.0,
         },
-        crate::systems::encumbrance::ONE_G_M_S2,
-        crate::systems::encumbrance::CarryMode::Forgiving,
+        humanity_systems::encumbrance::ONE_G_M_S2,
+        humanity_systems::encumbrance::CarryMode::Forgiving,
     );
 
     // ── Garden: planted crops in towers ──
@@ -957,7 +957,7 @@ fn settings_panel(
             shelter_note: "Out of the rain; 100% of the wind gets in".into(),
             effects: Vec::new(),
             // A bleeding bite (2026-10-12): the HUD's wound row.
-            care: vec![crate::systems::wounds::CareLine {
+            care: vec![humanity_systems::wounds::CareLine {
                 kind: "Wound",
                 name: "Bleeding".into(),
                 short: "a Bandage stops it".into(),
@@ -987,7 +987,7 @@ fn settings_panel(
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_death_screen_realistic() {
     render_page_png("death_screen_realistic", 1280, 720, |ctx, theme, state| {
-        use crate::systems::death_pack::{DeathNote, Landing};
+        use humanity_systems::death_pack::{DeathNote, Landing};
         state.player_death_cause = Some("hypothermia".into());
         state.death_pack.note = Some(DeathNote::Left {
             items: 14,
@@ -2025,17 +2025,17 @@ fn snapshot_household() {
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_where_you_live() {
     use crate::gui::pages::where_you_live as wyl;
-    use crate::ship::starts::{HomeAnswer, HomeRefusal, Starts};
+    use humanity_ship::starts::{HomeAnswer, HomeRefusal, Starts};
     let starts = Starts::load(std::path::Path::new("data"));
     let held = wyl::tests::held_answer(&starts);
     let full = HomeAnswer {
         refused: Some(HomeRefusal::Full),
-        message: crate::ship::starts::refusal_words(HomeRefusal::Full, starts.get("homestead").unwrap(), None, &["Cabin"]),
+        message: humanity_ship::starts::refusal_words(HomeRefusal::Full, starts.get("homestead").unwrap(), None, &["Cabin"]),
         ..wyl::tests::guest_answer(&starts)
     };
     render_page_png("where_you_live", 1280, 780, |ctx, theme, state| {
         let theme: &Theme = theme;
-        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::offline());
+        humanity_systems::persistence::live_save::set_active_home(humanity_systems::persistence::live_save::ActiveHome::offline());
         wyl::reset_draft();
         let caption = |ui: &mut egui::Ui, theme: &Theme, text: &str| {
             ui.label(egui::RichText::new(text).size(theme.font_size_small).italics().color(theme.text_muted()));
@@ -3563,7 +3563,7 @@ fn snapshot_inventory_garden() {
                     progress: (i % 5) as f32 / 4.0,
                     mature: i % 11 == 0,
                     tower_id: Some(format!("ntower_{}", i % 40)),
-                    picking: crate::systems::farming::picking::PickRow {
+                    picking: humanity_systems::farming::picking::PickRow {
                         card: String::new(),
                         bearing_next_in: (i % 13 == 3).then_some(1.5),
                     },
@@ -3572,7 +3572,7 @@ fn snapshot_inventory_garden() {
                 let tile = ["needs water", "45 days", ""][i % 3];
                 state.garden_pests.outlook.insert(
                     bits,
-                    crate::systems::farming::outlook::CropOutlook { tile: tile.into(), ..Default::default() },
+                    humanity_systems::farming::outlook::CropOutlook { tile: tile.into(), ..Default::default() },
                 );
             }
         }
@@ -3854,7 +3854,7 @@ fn snapshot_planet_tuner() {
         state.active_dev_section = "planet_tuner".into();
         state.settings.play_mode = crate::config::PlayMode::Dev;
         theme.cheats_enabled = true;
-        let def: crate::terrain::planet::PlanetDef = ron::from_str(
+        let def: humanity_terrain::planet::PlanetDef = ron::from_str(
             r#"(
                 name: "Mars",
                 radius: 3389500.0,
@@ -3892,8 +3892,8 @@ fn snapshot_planet_tuner() {
 /// Sample rows for the Home page's Animals card, in the words `systems::animal_care::herd_rows`
 /// writes (its test pins them): a fed hen, a hen with an egg to collect, a hungry goat, a sheep,
 /// and a hen that starved.
-fn sample_herd() -> Vec<crate::systems::animal_care::HerdRow> {
-    use crate::systems::animal_care::HerdRow;
+fn sample_herd() -> Vec<humanity_systems::animal_care::HerdRow> {
+    use humanity_systems::animal_care::HerdRow;
     let row = |title: &str, kind: &str, condition: &str, product: &str, ready: bool, feed: &str, water: &str, alert: bool| HerdRow {
         title: title.into(),
         status: if product.is_empty() { format!("{condition}.") } else { format!("{condition}. {product}.") },
@@ -3931,7 +3931,7 @@ fn homes_state(state: &mut GuiState) {
         state.herd = sample_herd();
     }
     if state.home_machines.is_none() {
-        state.home_machines = crate::systems::grow_machines::load_home(&std::path::Path::new("data").join("machines").join("home.ron"));
+        state.home_machines = humanity_systems::grow_machines::load_home(&std::path::Path::new("data").join("machines").join("home.ron"));
     }
 }
 
@@ -3983,9 +3983,9 @@ fn snapshot_homes_narrow_tables() {
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_construction() {
     render_page_png("construction", 1280, 1200, |ctx, theme, state| {
-        use crate::ship::fibonacci::WallKind;
+        use humanity_ship::fibonacci::WallKind;
         if state.home_machines.is_none() {
-            state.home_machines = crate::systems::grow_machines::load_home(
+            state.home_machines = humanity_systems::grow_machines::load_home(
                 &std::path::Path::new("data").join("machines").join("home.ron"),
             );
         }
@@ -3994,7 +3994,7 @@ fn snapshot_construction() {
         // the editor (lib.rs), and the Add-room picker's default, the first
         // key. Unseeded, the picker drew as an empty box.
         if state.construction_room_types.is_empty() {
-            let reg = crate::ship::room_types::RoomTypeRegistry::load(std::path::Path::new("data"));
+            let reg = humanity_ship::room_types::RoomTypeRegistry::load(std::path::Path::new("data"));
             let mut keys: Vec<String> = reg.types.keys().cloned().collect();
             keys.sort();
             state.construction_add_type = keys.first().cloned().unwrap_or_default();
@@ -4033,21 +4033,21 @@ fn snapshot_construction() {
 fn snapshot_construction_storeys() {
     render_page_png("construction_storeys", 1280, 1200, |ctx, theme, state| {
         if state.ship_structure.is_none() {
-            let body: crate::ship::home_structure::HomeStructure = ron::from_str(
+            let body: humanity_ship::home_structure::HomeStructure = ron::from_str(
                 "(width: 20.0, depth: 14.0, height: 6.0, \
                  walls: [(a: (0.0, 7.0), b: (20.0, 7.0), height: 3.0), (a: (10.0, 0.0), b: (10.0, 7.0), base: 3.0, height: 3.0)], \
                  floors: [(a: (0.0, 0.0), b: (14.0, 7.0), top: 3.0, label: Some(\"Upper floor\")), \
                           (a: (14.0, 0.0), b: (20.0, 7.0), top: 3.0, material: Glass)])",
             )
             .expect("the snapshot's home parses");
-            let zone = crate::ship::ship_structure::ShipZone {
+            let zone = humanity_ship::ship_structure::ShipZone {
                 id: "home".into(),
                 label: "Player Home".into(),
                 purpose: "residence".into(),
                 origin: (0.0, 0.0, 0.0),
                 body,
             };
-            state.ship_structure = Some(crate::ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
+            state.ship_structure = Some(humanity_ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
         }
         state.construction_active = true;
         state.construction_storeys.chosen = 1;
@@ -4149,7 +4149,7 @@ fn snapshot_showroom_picker() {
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_picker_where_you_live() {
     use crate::gui::pages::where_you_live as wyl;
-    let starts = crate::ship::starts::Starts::load(std::path::Path::new("data"));
+    let starts = humanity_ship::starts::Starts::load(std::path::Path::new("data"));
     let guest = wyl::tests::guest_answer(&starts);
     wyl::reset_draft();
     let (ws, _sent) = crate::net::ws_client::WsClient::recording();
@@ -4203,7 +4203,7 @@ fn snapshot_picker_where_you_live() {
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_picker_new_home() {
     use crate::gui::pages::where_you_live as wyl;
-    let starts = crate::ship::starts::Starts::load(std::path::Path::new("data"));
+    let starts = humanity_ship::starts::Starts::load(std::path::Path::new("data"));
     // Pick the Cabin on the choice the way a person does: a click on its row (the draft is the
     // widget's own, shared with the picker on this thread).
     wyl::reset_draft();
@@ -4313,7 +4313,7 @@ fn crafting_names_tools_like_parts() {
     assert!(!recipe.tools.is_empty(), "the pod needs hand tools");
     state.craft_selected = Some(idx);
     state.home_storage_here = true;
-    state.stations_where = crate::systems::construction::StationsWhere::Home;
+    state.stations_where = humanity_systems::construction::StationsWhere::Home;
     for (id, need) in &recipe.inputs {
         state.home_stock.insert(id.clone(), *need);
     }
@@ -4376,13 +4376,13 @@ page_snapshot!(snapshot_wallet, "wallet", wallet, 1280, 900);
 page_snapshot!(snapshot_quests, "quests", quests, 1280, 900);
 
 /// The shipped quests (data/quests), for the Quests page's snapshots.
-fn shipped_quests() -> crate::systems::quests::QuestRegistry {
-    crate::systems::quests::QuestRegistry::from_ron_dir(std::path::Path::new("data/quests"))
+fn shipped_quests() -> humanity_systems::quests::QuestRegistry {
+    humanity_systems::quests::QuestRegistry::from_ron_dir(std::path::Path::new("data/quests"))
 }
 
 /// The words a snapshot reads without the game's registries: the front door opens on the
 /// Commons, and an item or skill id reads as its words ("iron_ingot_0" is "Iron Ingot").
-fn snapshot_words<R>(f: impl FnOnce(&crate::systems::quests::chain::Words) -> R) -> R {
+fn snapshot_words<R>(f: impl FnOnce(&humanity_systems::quests::chain::Words) -> R) -> R {
     let step = |d: &str| d.replace("{front_door_opens_on}", "the Commons");
     let name = |id: &str| {
         id.trim_end_matches(|c: char| c.is_ascii_digit() || c == '_')
@@ -4394,18 +4394,18 @@ fn snapshot_words<R>(f: impl FnOnce(&crate::systems::quests::chain::Words) -> R)
             .collect::<Vec<_>>()
             .join(" ")
     };
-    f(&crate::systems::quests::chain::Words { step: &step, item: &name, skill: &name })
+    f(&humanity_systems::quests::chain::Words { step: &step, item: &name, skill: &name })
 }
 
 /// A quest under way at `step` (0-based), its card made the way the quest mirror makes it.
-fn snapshot_quest(reg: &crate::systems::quests::QuestRegistry, id: &str, step: usize) -> GuiQuest {
-    let active = crate::systems::quests::ActiveQuest { quest_id: id.into(), current_step: step, progress: Default::default() };
+fn snapshot_quest(reg: &humanity_systems::quests::QuestRegistry, id: &str, step: usize) -> GuiQuest {
+    let active = humanity_systems::quests::ActiveQuest { quest_id: id.into(), current_step: step, progress: Default::default() };
     snapshot_words(|w| GuiQuest::active(Some(reg), &active, w))
 }
 
 /// After the habitat: the opening, Toolsmith and Build First Habitat finished, every quest that
 /// needs the habitat under way (finishing it starts them all), Start Farming on its second step.
-fn after_the_habitat(reg: &crate::systems::quests::QuestRegistry) -> crate::systems::quests::QuestTracker {
+fn after_the_habitat(reg: &humanity_systems::quests::QuestRegistry) -> humanity_systems::quests::QuestTracker {
     let mut branches: Vec<&str> = reg
         .quests
         .values()
@@ -4413,10 +4413,10 @@ fn after_the_habitat(reg: &crate::systems::quests::QuestRegistry) -> crate::syst
         .map(|q| q.id.as_str())
         .collect();
     branches.sort();
-    crate::systems::quests::QuestTracker {
+    humanity_systems::quests::QuestTracker {
         active_quests: branches
             .into_iter()
-            .map(|id| crate::systems::quests::ActiveQuest {
+            .map(|id| humanity_systems::quests::ActiveQuest {
                 quest_id: id.into(),
                 current_step: usize::from(id == "tutorial_farming_basics"),
                 progress: Default::default(),
@@ -4441,9 +4441,9 @@ fn snapshot_quests_branches() {
 }
 
 /// The chain window open on `focus` over the Quests page, as `reveal` shows it.
-fn quest_chain_png(name: &str, h: u32, tracker: crate::systems::quests::QuestTracker, focus: &str, reveal: crate::systems::quests::chain::Reveal) {
+fn quest_chain_png(name: &str, h: u32, tracker: humanity_systems::quests::QuestTracker, focus: &str, reveal: humanity_systems::quests::chain::Reveal) {
     let reg = shipped_quests();
-    let view = snapshot_words(|w| crate::systems::quests::chain::build(&reg, &tracker, focus, reveal, w)).expect("the chain");
+    let view = snapshot_words(|w| humanity_systems::quests::chain::build(&reg, &tracker, focus, reveal, w)).expect("the chain");
     render_page_png(name, 1280, h, |ctx, theme, state| {
         state.quest_chain_open = Some(focus.to_string());
         state.quest_chain = Some(view.clone());
@@ -4452,9 +4452,9 @@ fn quest_chain_png(name: &str, h: u32, tracker: crate::systems::quests::QuestTra
 }
 
 /// The operator's own step, 2026-10-30: First Steps on its second step of eight.
-fn on_the_second_step() -> crate::systems::quests::QuestTracker {
-    crate::systems::quests::QuestTracker {
-        active_quests: vec![crate::systems::quests::ActiveQuest { quest_id: "gs_first_steps".into(), current_step: 1, progress: Default::default() }],
+fn on_the_second_step() -> humanity_systems::quests::QuestTracker {
+    humanity_systems::quests::QuestTracker {
+        active_quests: vec![humanity_systems::quests::ActiveQuest { quest_id: "gs_first_steps".into(), current_step: 1, progress: Default::default() }],
         completed_quests: Vec::new(),
     }
 }
@@ -4464,7 +4464,7 @@ fn on_the_second_step() -> crate::systems::quests::QuestTracker {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_quests_chain_first_steps() {
-    quest_chain_png("quests_chain_first_steps", 900, on_the_second_step(), "gs_first_steps", crate::systems::quests::chain::Reveal::Learned);
+    quest_chain_png("quests_chain_first_steps", 900, on_the_second_step(), "gs_first_steps", humanity_systems::quests::chain::Reveal::Learned);
 }
 
 /// The chain window in normal play mid-chain: Start Farming opened after the habitat, the
@@ -4472,7 +4472,7 @@ fn snapshot_quests_chain_first_steps() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_quests_chain_branches() {
-    quest_chain_png("quests_chain_branches", 1100, after_the_habitat(&shipped_quests()), "tutorial_farming_basics", crate::systems::quests::chain::Reveal::Learned);
+    quest_chain_png("quests_chain_branches", 1100, after_the_habitat(&shipped_quests()), "tutorial_farming_basics", humanity_systems::quests::chain::Reveal::Learned);
 }
 
 /// The chain window in the Dev view on the operator's step: every quest and step of the chain,
@@ -4480,7 +4480,7 @@ fn snapshot_quests_chain_branches() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_quests_chain_dev() {
-    quest_chain_png("quests_chain_dev", 1400, on_the_second_step(), "gs_first_steps", crate::systems::quests::chain::Reveal::All);
+    quest_chain_png("quests_chain_dev", 1400, on_the_second_step(), "gs_first_steps", humanity_systems::quests::chain::Reveal::All);
 }
 page_snapshot!(snapshot_calendar, "calendar", calendar, 1280, 900);
 page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);

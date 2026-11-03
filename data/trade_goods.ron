@@ -46,7 +46,7 @@
 //
 // A hand-made good of a better grade (data/manufacturing.ron) fetches its
 // grade's multiple of the 0.5x price, but never more than its parts cost at
-// the vendor (BUG-146, 2026-10-05, src/systems/economy/parts.rs), so no grade
+// the vendor (BUG-146, 2026-10-05, crates/humanity-systems/src/economy/parts.rs), so no grade
 // loops either; the test no_grade_sells_back_for_more_than_its_parts_cost
 // checks every recipe at every grade. A base value here can therefore rise to
 // the BUG-145 limit without opening a loop at any grade.
@@ -172,7 +172,7 @@
     // (data/recipes.csv) crushes and strains into five jars of honey and a block of beeswax. base_value 29:
     // A GAME CHOICE, what this file values its honey and wax at (five honey_0 at 5, one beeswax_0 at 4), so a
     // frame costs about what is in it. The post sells it for 37 and buys its honey and wax back for 12, so
-    // buying frames to sell what they make never pays (src/systems/economy/parts.rs checks every recipe).
+    // buying frames to sell what they make never pays (crates/humanity-systems/src/economy/parts.rs checks every recipe).
     (id: "honeycomb_0",       name: "Honeycomb",          category: "food_raw",        base_value: 29,   weight_kg: 3.05,  description: "One deep hive frame's capped comb, for crushing and straining"),
     (id: "salt_food_0",       name: "Salt",               category: "food_raw",        base_value: 2,    weight_kg: 0.5,   description: "Mineral salt for preservation and flavor"),
     (id: "sugar_0",           name: "Sugar",              category: "food_raw",        base_value: 3,    weight_kg: 0.5,   description: "Refined cane sugar"),

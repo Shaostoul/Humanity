@@ -246,7 +246,7 @@ mod tests {
         // An eccentric orbit, the ship well past periapsis: a ring sampled
         // evenly round the ellipse would pass hundreds of km from it.
         let (pos, vel) = (DVec3::new(1.0e7, 0.0, 0.0), DVec3::new(2000.0, 0.0, 6000.0));
-        let ring = orbit_ring(pos, vel, crate::station::orbit::MU_EARTH, 192);
+        let ring = orbit_ring(pos, vel, humanity_ship::station::orbit::MU_EARTH, 192);
         let miss = ring.iter().map(|p| p.distance(pos)).fold(f64::MAX, f64::min);
         assert!(miss == 0.0, "on an eccentric orbit the ring misses the ship by {:.1} km", miss / 1000.0);
     }

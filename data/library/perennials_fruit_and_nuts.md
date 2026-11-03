@@ -733,12 +733,12 @@ taken from them is restated here in our own words.
 
 - `data/plants.csv`: days to first harvest, the pH windows and the yields
   of every perennial.
-- `data/garden/soil_ph.ron` and `src/systems/farming/soil_ph.rs`: the soil
+- `data/garden/soil_ph.ron` and `crates/humanity-systems/src/farming/soil_ph.rs`: the soil
   pH model, lime, wood ash and garden sulfur.
 - `data/garden/harvest_windows.ron`, `data/garden/yields.ron` and
   `data/garden/pollination.ron`: the strawberry's picking window, yield and
   pollination.
-- `src/systems/farming/picking.rs`: why every other crop is harvested once.
+- `crates/humanity-systems/src/farming/picking.rs`: why every other crop is harvested once.
 - [The Growing Calendar](/library#the-growing-calendar), [Choosing Where to
   Build](/library#choosing-where-to-build), [Testing and Correcting
   Soil](/library#testing-and-correcting-soil), [Pests and

@@ -426,7 +426,7 @@ The game has two ways to trade, and both teach something.
   poor hammer fetches 2 there, a standard one 7, a good one 10, an
   excellent one 12 and a masterwork 14. Other players are free to pay
   more for fine work. The grades are in `data/manufacturing.ron` and the
-  rule in `src/systems/economy/parts.rs`. Condition is part of value, in
+  rule in `crates/humanity-systems/src/economy/parts.rs`. Condition is part of value, in
   the game as in life.
 - **Trades with other players.** When you are connected to a server,
   the Trade page lets you trade items directly with another player.
@@ -458,8 +458,8 @@ by supply and demand; there is no haggling, no written agreement, no
 trading of work, no measuring or weighing, and no tax. The Trading
 skill exists in the skill list, but nothing in the game levels it yet.
 
-The trading post's prices are in `src/systems/economy/mod.rs`,
-`src/systems/economy/parts.rs` (what a better grade fetches) and
+The trading post's prices are in `crates/humanity-systems/src/economy/mod.rs`,
+`crates/humanity-systems/src/economy/parts.rs` (what a better grade fetches) and
 `src/gui/pages/vendor.rs`, and the player-to-player trade in
 `src/gui/pages/trade.rs` and `src/relay/storage/trading.rs`.
 
@@ -593,12 +593,12 @@ public domain. Web pages were read on 3 October 2026.
 ### Inside this project
 
 - The trading post: `data/trade_goods.ron` (base values and the
-  125 and 50 percent rule), `src/systems/economy/mod.rs`,
+  125 and 50 percent rule), `crates/humanity-systems/src/economy/mod.rs`,
   `src/gui/pages/vendor.rs`, and the `trading_post` machine in
   `data/machines/home.ron`. Quality grades: `data/manufacturing.ron`
-  and `src/systems/crafting/quality.rs`; what the post pays for a
+  and `crates/humanity-systems/src/crafting/quality.rs`; what the post pays for a
   better grade, and the parts' price that limits it,
-  `src/systems/economy/parts.rs`.
+  `crates/humanity-systems/src/economy/parts.rs`.
 - Player-to-player trades: `src/gui/pages/trade.rs`,
   `src/gui/trade_types.rs` and `src/relay/storage/trading.rs` (any
   change to an offer clears both confirmations).

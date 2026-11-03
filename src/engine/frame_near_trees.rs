@@ -59,8 +59,8 @@ use crate::assets::AssetManager;
 use crate::engine::near_tree_models::ensure_near_tree_models;
 use crate::gui::GuiState;
 use crate::renderer::{RenderObject, Renderer};
-use crate::terrain::planet::PlanetDef;
-use crate::terrain::planet_chunks as chunks;
+use humanity_terrain::planet::PlanetDef;
+use humanity_terrain::planet_chunks as chunks;
 use glam::{DQuat, DVec3, Quat, Vec3};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -87,7 +87,7 @@ pub(crate) struct NearTreeState<'a> {
     pub gui_state: &'a GuiState,
     /// Surface imagery, used to tint harvested trees to their ground.
     pub planet_albedos:
-        &'a HashMap<String, Arc<crate::terrain::planet_albedo::PlanetAlbedo>>,
+        &'a HashMap<String, Arc<humanity_terrain::planet_albedo::PlanetAlbedo>>,
     /// Session clock, for the fade-in and the harvest rate limiter.
     pub start_time: &'a Instant,
     /// THE SET: the trees standing around the player, distance-sorted.
@@ -130,9 +130,9 @@ pub(crate) struct NearTreeView<'a> {
     pub veg_harvest_density: f32,
     /// Elevation sources for the harvest walk: the base heightmap, the
     /// streamed high-detail tiles, and the connected-ocean mask.
-    pub hm: &'a crate::terrain::planet_heightmap::PlanetHeightmap,
-    pub tiles_ref: Option<&'a crate::terrain::terrain_tiles::TerrainTiles>,
-    pub ocean_ref: Option<&'a crate::terrain::ocean_mask::OceanMask>,
+    pub hm: &'a humanity_terrain::planet_heightmap::PlanetHeightmap,
+    pub tiles_ref: Option<&'a humanity_terrain::terrain_tiles::TerrainTiles>,
+    pub ocean_ref: Option<&'a humanity_terrain::ocean_mask::OceanMask>,
 }
 
 /// Harvest the near-field tree set if the gate says to, then plan and push
@@ -230,7 +230,7 @@ if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
     let since_last_s = state.start_time.elapsed().as_secs_f32()
         - *state.near_tree_born_s;
     let recompute_why =
-        crate::terrain::near_tree_gate::near_tree_recompute_reason(
+        humanity_terrain::near_tree_gate::near_tree_recompute_reason(
             moved,
             tree_draw_depth,
             *state.near_tree_depth,
@@ -439,7 +439,7 @@ if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
         // stem + _bark pair they always had.
         let va = (tr.variant % 3) as usize;
         let tdef =
-            crate::terrain::tree_registry::registry()
+            humanity_terrain::tree_registry::registry()
                 .get(tr.species as usize);
         let procedural =
             tdef.map(|t| t.is_procedural()).unwrap_or(false);

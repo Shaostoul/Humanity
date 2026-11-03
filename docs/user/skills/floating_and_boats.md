@@ -775,16 +775,16 @@ facts are used here and the wording is not.
 
 - Standing on and diving under the sea surface, the swim speed (2.5
   metres a second with fly mode off, the walking speed of 5 with it on),
-  and the wave-height function (`src/lib.rs`, `src/surface_move.rs`,
-  `src/terrain/ocean_waves.rs`, `src/terrain/ocean_fft.rs`); the Dev
+  and the wave-height function (`src/lib.rs`, `crates/humanity-systems/src/surface_move.rs`,
+  `crates/humanity-terrain/src/ocean_waves.rs`, `crates/humanity-terrain/src/ocean_fft.rs`); the Dev
   page's travel and Land on surface buttons turning fly mode on, F9 and
   the Fly mode box turning it off (`src/lib.rs`,
   `src/gui/pages/dev.rs`), and the HUD's movement line reading FLY
   meanwhile (`movement_line` in `src/gui/pages/hud.rs`); oxygen falling
   only where the air
-  is not breathable (`src/systems/food.rs`, `src/engine/survival_env.rs`,
-  `src/systems/body_environment.rs`); clothing wetted only by falling rain
-  and snow (`src/systems/body_heat.rs`), and the weather reaching the body
+  is not breathable (`crates/humanity-systems/src/food.rs`, `src/engine/survival_env.rs`,
+  `crates/humanity-systems/src/body_environment.rs`); clothing wetted only by falling rain
+  and snow (`crates/humanity-systems/src/body_heat.rs`), and the weather reaching the body
   only with fly mode off (`src/engine/survival_env.rs`). The Raft, Canoe,
   Rowboat, Sailboat, Motorboat and Submarine items, and the recipes for
   the first four with their Shelter Building levels (`data/items.csv`,
@@ -796,20 +796,20 @@ facts are used here and the wording is not.
   (`src/gui/pages/crafting.rs`), which stocks one stack of every recipe
   input and no tools; the craft itself, which uses up its parts and
   wears its tools in the Normal play mode and neither in Creative or Dev
-  (`src/systems/crafting/mod.rs`); the trading post's goods
+  (`crates/humanity-systems/src/crafting/mod.rs`); the trading post's goods
   (`data/trade_goods.ron`); the home's sawmill, which runs Saw
   Planks by itself (`data/machines/home.ron`, `data/recipes.csv`), and
   automated machines taking their inputs from home storage only, never
-  the backpack, in every play mode (`src/systems/crafting/mod.rs`); "Dev:
+  the backpack, in every play mode (`crates/humanity-systems/src/crafting/mod.rs`); "Dev:
   max skills"
   (`src/gui/pages/profile.rs`); skills starting at level 0
-  (`src/systems/skills/`); the default home's stock
+  (`crates/humanity-systems/src/skills/`); the default home's stock
   (`data/places/seed.json`); a boat too big for the backpack going to
   home storage, which counts only aboard, with your own home on the ship
-  (`src/systems/crafting/mod.rs`, `src/systems/crafting/home_store.rs`);
+  (`crates/humanity-systems/src/crafting/mod.rs`, `crates/humanity-systems/src/crafting/home_store.rs`);
   the drivable vehicles (`data/vehicles/kits.ron`); the Thunderstorm
   weather event, with no hazard (`data/weather/events.ron`), and the
-  lightning in `src/systems/disasters.rs`, which no code registers. The
+  lightning in `crates/humanity-systems/src/disasters.rs`, which no code registers. The
   Play mode and "Start every session from the default home" settings
   (`src/config.rs`, `src/save_load.rs`).
 - [Reading the Tide](reading_the_tide.md), [Cold and

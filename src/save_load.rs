@@ -23,13 +23,13 @@
 //! offline catch-up are `resume_home` below.
 
 use humanity_core::ecs::components::Controllable;
-use crate::persistence::live_save::{self, active_home, active_home_path, release_restore_hold, restored_save_waiting};
+use humanity_systems::persistence::live_save::{self, active_home, active_home_path, release_restore_hold, restored_save_waiting};
 // The save-slot tests below reach these through `use super::*`.
 #[cfg(test)]
-use crate::persistence::live_save::ActiveHome;
-use crate::persistence::{self, WorldSave};
-use crate::systems::inventory::Inventory;
-use crate::systems::skills::{PlayerSkills, SkillProgress};
+use humanity_systems::persistence::live_save::ActiveHome;
+use humanity_systems::persistence::{self, WorldSave};
+use humanity_systems::inventory::Inventory;
+use humanity_systems::skills::{PlayerSkills, SkillProgress};
 #[cfg(test)]
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -216,7 +216,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             Option<&NotTheHomes>,
         )>()
         .iter()
-        .map(|(_e, (v, t, mark))| crate::persistence::VehicleSave {
+        .map(|(_e, (v, t, mark))| humanity_systems::persistence::VehicleSave {
             item_id: v.item_id.clone(),
             position: t.position.to_array(),
             yaw: t.rotation.to_euler(glam::EulerRot::YXZ).0,
@@ -234,14 +234,14 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // The body and the home's urine tank (first-hour audit S1, 2026-10-04): quitting used
     // to heal and refill everything.
     save.body = body_of(world);
-    save.urine_tank_person_days = crate::systems::food::urine_tank_level(world);
+    save.urine_tank_person_days = humanity_systems::food::urine_tank_level(world);
     // The packs left where the player fell (the Death setting's Realistic mode, 2026-10-04),
     // each with what it holds and the play time it has counted.
-    save.left_packs = crate::systems::death_pack::packs(world);
+    save.left_packs = humanity_systems::death_pack::packs(world);
     // Quests (v0.748, ladder rung 4): the tracker round-trips, so progress
     // and completions survive restarts (was: reset fresh every session).
     for (_e, (tracker, _ctrl)) in world
-        .query::<(&crate::systems::quests::QuestTracker, &Controllable)>()
+        .query::<(&humanity_systems::quests::QuestTracker, &Controllable)>()
         .iter()
     {
         save.quests = Some(tracker.clone());
@@ -281,7 +281,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // A piece the server keeps (`SharedPiece`, ship homes increment 5,
     // 2026-10-05) is never saved: it is the server's, shown here, and every
     // welcome brings it afresh.
-    use crate::systems::construction::{fires::FireFuel, shared::SharedPiece, Construction, DoorOpen, PlanetSite, Structure};
+    use humanity_systems::construction::{fires::FireFuel, shared::SharedPiece, Construction, DoorOpen, PlanetSite, Structure};
     let pose = |t: &humanity_core::ecs::components::Transform| {
         (t.position.to_array(), t.rotation.to_array(), t.scale.to_array())
     };
@@ -294,7 +294,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         .iter()
     {
         let (position, rotation, scale) = pose(t);
-        save.constructions.push(crate::persistence::ConstructionSave {
+        save.constructions.push(humanity_systems::persistence::ConstructionSave {
             blueprint_id: s.blueprint_id.clone(),
             position,
             rotation,
@@ -315,7 +315,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         .iter()
     {
         let (position, rotation, scale) = pose(t);
-        save.constructions.push(crate::persistence::ConstructionSave {
+        save.constructions.push(humanity_systems::persistence::ConstructionSave {
             blueprint_id: c.blueprint_id.clone(),
             position,
             rotation,
@@ -335,9 +335,9 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // flight with its cargo (2026-09-27, offline progression). Each was
     // rebuilt fresh at every launch: every animal ready again, every asteroid
     // full again, and the ore in a flying drone's hold gone.
-    save.herd = crate::systems::livestock::herd_timers(world);
+    save.herd = humanity_systems::livestock::herd_timers(world);
     // And how each is kept: fed, watered, how long it has gone short (S6, 2026-10-12).
-    save.herd_care = crate::systems::animal_care::herd_care(world);
+    save.herd_care = humanity_systems::animal_care::herd_care(world);
     save.asteroids = Some(
         world
             .query::<&humanity_core::ecs::components::AsteroidBody>()
@@ -353,14 +353,14 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // What the home's machines hold (2026-09-27): each bank's charge, each
     // tank's litres, each vessel's contents, with any saved contents still
     // held for world entry (systems::machine_levels).
-    save.machine_levels = crate::systems::machine_levels::levels(world);
+    save.machine_levels = humanity_systems::machine_levels::levels(world);
     // The relay trades this backpack has settled (2026-10-02), in the same
     // save as the backpack they changed.
     save.settled_trades = settled_trades(world);
     // And the home's id with the fleet, and the gives whose items have left
     // the backpack and wait for a server's answer (2026-10-04, engine/fleet.rs):
     // saved with the backpack they left, so a give is never in two places.
-    if let Some((_e, (ts, _))) = world.query::<(&crate::systems::inventory::TradeSettlements, &Controllable)>().iter().next() {
+    if let Some((_e, (ts, _))) = world.query::<(&humanity_systems::inventory::TradeSettlements, &Controllable)>().iter().next() {
         save.home_id = ts.home_id.clone();
         save.fleet_held = ts.fleet_held.clone();
     }
@@ -378,7 +378,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
 /// That stays until a per-identity trade ledger exists.
 fn settled_trades(world: &hecs::World) -> Vec<String> {
     world
-        .query::<(&crate::systems::inventory::TradeSettlements, &Controllable)>()
+        .query::<(&humanity_systems::inventory::TradeSettlements, &Controllable)>()
         .iter()
         .next()
         .map(|(_e, (ts, _))| ts.settled.iter().cloned().collect())
@@ -401,7 +401,7 @@ fn settled_trades(world: &hecs::World) -> Vec<String> {
 /// afresh against the one just loaded.
 fn restore_settled_trades(world: &mut hecs::World, save: &WorldSave, rewound: bool) {
     let ids = &save.settled_trades;
-    use crate::systems::inventory::TradeSettlements;
+    use humanity_systems::inventory::TradeSettlements;
     let Some(player) = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e) else {
         return;
     };
@@ -513,7 +513,7 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         inv.ensure_slots(save.inventory.len());
         for (i, (item_id, qty)) in save.inventory.iter().enumerate() {
             let (wear, quality) = save.inventory_state.get(i).copied().unwrap_or((0, 0));
-            let mut stack = crate::systems::inventory::ItemStack::new(item_id.clone(), *qty, (*qty).max(99));
+            let mut stack = humanity_systems::inventory::ItemStack::new(item_id.clone(), *qty, (*qty).max(99));
             stack.wear = wear;
             stack.quality = quality;
             stack.age_s = save.inventory_age.get(i).copied().filter(|a| a.is_finite()).unwrap_or(0.0);
@@ -542,17 +542,17 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     }
     // The body as it was left, and the home's urine tank (first-hour audit S1).
     restore_body(world, save.body.as_ref());
-    crate::systems::food::set_urine_tank(world, save.urine_tank_person_days);
+    humanity_systems::food::set_urine_tank(world, save.urine_tank_person_days);
     // The packs left where the player fell, as saved: authoritative like the backpack they
     // came out of, and not advanced by the time away (a pack counts only play).
-    crate::systems::death_pack::restore(world, &save.left_packs);
+    humanity_systems::death_pack::restore(world, &save.left_packs);
     // Settled trades (2026-10-02) travel with the backpack just rebuilt.
     restore_settled_trades(world, save, true);
     // Quests (v0.748): a saved tracker replaces the fresh spawn default
     // (which auto-accepted gs_first_steps); None keeps the fresh start.
     if let Some(saved) = &save.quests {
         for (_e, (tracker, _ctrl)) in
-            world.query_mut::<(&mut crate::systems::quests::QuestTracker, &Controllable)>()
+            world.query_mut::<(&mut humanity_systems::quests::QuestTracker, &Controllable)>()
         {
             *tracker = saved.clone();
             break;
@@ -635,7 +635,7 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // Authoritative over the player's OWN pieces only: a piece the server
     // keeps (`SharedPiece`, ship homes increment 5, 2026-10-05) was never in
     // any save, so it stays as the server last said, once.
-    use crate::systems::construction::{shared::SharedPiece, Construction, Structure};
+    use humanity_systems::construction::{shared::SharedPiece, Construction, Structure};
     let existing: Vec<hecs::Entity> = world
         .query_mut::<hecs::Without<hecs::Or<&Structure, &Construction>, &SharedPiece>>()
         .into_iter()
@@ -677,11 +677,11 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         }
         // A door that was left open is open again.
         if b.open && b.building.is_none() {
-            let _ = world.insert_one(piece, crate::systems::construction::DoorOpen);
+            let _ = world.insert_one(piece, humanity_systems::construction::DoorOpen);
         }
         // A built fire comes back with the fuel it had (BUG-153).
         if let (Some(fire_s), None) = (b.fire_s, b.building) {
-            let _ = world.insert_one(piece, crate::systems::construction::fires::FireFuel { seconds_left: fire_s.max(0.0) });
+            let _ = world.insert_one(piece, humanity_systems::construction::fires::FireFuel { seconds_left: fire_s.max(0.0) });
         }
         // Not the home's, though it stands where the home stood (ship homes 1b, round 4).
         if b.outside_home {
@@ -726,8 +726,8 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // save does not list keeps its spawn level as the save's field promises,
     // not the level of the world the save was applied over: a server's fresh
     // save lists none, and kept your own home's charged banks and full drums.
-    crate::systems::machine_levels::reset_all(world);
-    crate::systems::machine_levels::restore(world, &save.machine_levels);
+    humanity_systems::machine_levels::reset_all(world);
+    humanity_systems::machine_levels::restore(world, &save.machine_levels);
 }
 
 /// Whether `apply_save_to_world` puts this save on the world: your own home's ("offline") and a
@@ -750,11 +750,11 @@ pub fn applies_progress(save: &WorldSave, fresh_world_each_launch: bool) -> bool
 /// since what you carry depends on where you live). A start that is not in the file is logged
 /// and gets the default start's kit.
 pub fn starting_kit(data_dir: &std::path::Path, start: &str) -> Vec<(String, u32)> {
-    let starts = crate::ship::starts::Starts::load(data_dir);
+    let starts = humanity_ship::starts::Starts::load(data_dir);
     match starts.get(start) {
         Some(s) => s.kit.clone(),
         None => {
-            log::warn!("starting kit: no start '{start}' in {}; the default start's kit", crate::ship::starts::STARTS_FILE);
+            log::warn!("starting kit: no start '{start}' in {}; the default start's kit", humanity_ship::starts::STARTS_FILE);
             starts.default_start().kit.clone()
         }
     }
@@ -765,20 +765,20 @@ pub fn starting_kit(data_dir: &std::path::Path, start: &str) -> Vec<(String, u32
 /// the start's kit in the backpack and the start's opening quest accepted (ship homes increment 6:
 /// the startup spawn in lib.rs, and every fresh save, `engine::save_slot::fresh_save`). Returns it.
 pub fn spawn_fresh_player(world: &mut hecs::World, data_dir: &std::path::Path, start: &str) -> hecs::Entity {
-    let starts = crate::ship::starts::Starts::load(data_dir);
+    let starts = humanity_ship::starts::Starts::load(data_dir);
     let row = starts.get(start).unwrap_or_else(|| {
-        log::warn!("new character: no start '{start}' in {}; the default start", crate::ship::starts::STARTS_FILE);
+        log::warn!("new character: no start '{start}' in {}; the default start", humanity_ship::starts::STARTS_FILE);
         starts.default_start()
     });
     spawn_player_of_start(world, row)
 }
 
 /// `spawn_fresh_player` for a start already in hand.
-pub fn spawn_player_of_start(world: &mut hecs::World, start: &crate::ship::starts::Start) -> hecs::Entity {
+pub fn spawn_player_of_start(world: &mut hecs::World, start: &humanity_ship::starts::Start) -> hecs::Entity {
     use humanity_core::ecs::components::{Appearance, Controllable, Health, Name, Outfit, StatusEffects, Transform, Velocity, Vitals, Wallet};
     // The opening the start gives a new character (a homestead's First Steps; none for a start
     // whose opening has not been written: never another start's).
-    let mut quests = crate::systems::quests::QuestTracker::default();
+    let mut quests = humanity_systems::quests::QuestTracker::default();
     if let Some(opening) = &start.opening {
         quests.accept_quest(opening);
     }
@@ -847,7 +847,7 @@ pub fn start_places(data_dir: &std::path::Path, start: &str) -> Vec<crate::gui::
         #[serde(default)]
         entities: Vec<crate::gui::Place>,
     }
-    let starts = crate::ship::starts::Starts::load(data_dir);
+    let starts = humanity_ship::starts::Starts::load(data_dir);
     let row = starts.get(start).unwrap_or_else(|| starts.default_start());
     if row.storage.trim().is_empty() {
         return Vec::new();
@@ -920,10 +920,10 @@ pub fn identity_only_save(existing: Option<WorldSave>, world: &hecs::World) -> W
 /// home. A save that keeps only the character leaves the save's own home as it was on disk.
 pub fn save_active_home(
     world: &mut hecs::World,
-    placed: &[crate::systems::inventory::placed::PlacedItem],
+    placed: &[humanity_systems::inventory::placed::PlacedItem],
     data: &humanity_core::hot_reload::data_store::DataStore,
     keep_progress: bool,
-    own_home: Option<&crate::persistence::SavedHome>,
+    own_home: Option<&humanity_systems::persistence::SavedHome>,
 ) {
     // The garden is written as it stands, each grow area at its own last turn of the farm's clock,
     // with what each still owes (`WorldSave::farm_owed`, written in `save_home_at`), which the load
@@ -946,10 +946,10 @@ pub fn save_active_home(
 pub(crate) fn save_home_at(
     path: &std::path::Path,
     world: &hecs::World,
-    placed: &[crate::systems::inventory::placed::PlacedItem],
+    placed: &[humanity_systems::inventory::placed::PlacedItem],
     data: &humanity_core::hot_reload::data_store::DataStore,
     keep_progress: bool,
-    own_home: Option<&crate::persistence::SavedHome>,
+    own_home: Option<&humanity_systems::persistence::SavedHome>,
 ) {
     if restored_save_waiting() {
         // Settings > Data restored a snapshot over the active home and asked
@@ -984,28 +984,28 @@ pub(crate) fn save_home_at(
     save.home = own_home.cloned();
     // The world clock, from the TimeSystem's DataStore export. Crop
     // planted_at values are only meaningful against it.
-    save.game_time = crate::systems::time::elapsed_now(data);
+    save.game_time = humanity_systems::time::elapsed_now(data);
     // And what each grow area and the air still owe on the farm's own clock (clock::Owed): the
     // garden above is each area as its last turn left it. No farm in this store (a headless
     // tool's save): nothing owed.
-    save.farm_owed = crate::systems::farming::owed(data).unwrap_or_default();
+    save.farm_owed = humanity_systems::farming::owed(data).unwrap_or_default();
     save.progress_saved = true;
     // Craft batches in flight, from the CraftingSystem's export (the list
     // lives inside the system). Their inputs are already spent.
     save.crafts = data
-        .get::<std::sync::Mutex<Vec<crate::systems::crafting::CraftSave>>>("active_crafts_export")
+        .get::<std::sync::Mutex<Vec<humanity_systems::crafting::CraftSave>>>("active_crafts_export")
         .and_then(|m| m.lock().ok().map(|v| v.clone()))
         .unwrap_or_default();
     // The drone's standing order lives in the DataStore (2026-09-27).
-    save.mining_order = crate::systems::mining::standing_order(data);
+    save.mining_order = humanity_systems::mining::standing_order(data);
     // And so does the drone itself between trips: its charge and its wear
     // (first-hour audit S5, 2026-10-12).
-    save.mining_drone = crate::systems::mining::unit(data);
+    save.mining_drone = humanity_systems::mining::unit(data);
     // So does the ship supply ledger (systems::ship_power): the reactor's kWh.
-    save.ship_supply = crate::systems::ship_power::ledger(data);
+    save.ship_supply = humanity_systems::ship_power::ledger(data);
     // And the record of what each machine drew over its last game day (2026-10-22,
     // systems::day_energy), which the meters and the time away read.
-    save.machine_day_energy = crate::machines::day_energy::for_save(world, data);
+    save.machine_day_energy = humanity_ship::machines::day_energy::for_save(world, data);
     // And the mess hall's meter on this computer (ship homes increment 6): the meals and water
     // the ship's stores gave this save away from a server. With no meter registered (nothing has
     // counted this session) the save keeps the one it had, rather than writing it back to zero.
@@ -1016,14 +1016,14 @@ pub(crate) fn save_home_at(
     // Before world entry the herd is not spawned yet and its saved timers
     // are still waiting for it: keep those rather than forget them.
     if save.herd.is_empty() {
-        save.herd = crate::systems::livestock::pending_herd(data).unwrap_or_default();
+        save.herd = humanity_systems::livestock::pending_herd(data).unwrap_or_default();
     }
     // Their care the same way, and the herd's dead, which live in the DataStore
     // (a corpse is despawned; its slot must not come back).
     if save.herd_care.is_empty() {
-        save.herd_care = crate::systems::animal_care::pending_care(data).unwrap_or_default();
+        save.herd_care = humanity_systems::animal_care::pending_care(data).unwrap_or_default();
     }
-    save.herd_lost = crate::systems::animal_care::lost(data);
+    save.herd_lost = humanity_systems::animal_care::lost(data);
     let _write = humanity_core::frame_costs::stage("cpu.save.write");
     if let Err(e) = persistence::save_world(path, &save) {
         log::error!("save_active_home failed: {e}");
@@ -1286,7 +1286,7 @@ pub fn catch_up_world(
     // timestamp 0 = never stamped by a save, so there is no "away" to measure.
     // A clock set backwards gives zero, never negative growth.
     let away_secs = if offline_progression && save.timestamp > 0 {
-        now.saturating_sub(save.timestamp) as f64 * f64::from(crate::systems::time::clamp_time_speed(time_speed))
+        now.saturating_sub(save.timestamp) as f64 * f64::from(humanity_systems::time::clamp_time_speed(time_speed))
     } else {
         0.0
     };
@@ -1311,7 +1311,7 @@ pub fn catch_up_world(
         // does (FIRES, below). A scaffold the server keeps (`SharedPiece`,
         // ship homes increment 5) grows by the server's clock, from when the
         // server took it, never by this save's time away.
-        use crate::systems::construction::{shared::SharedPiece, Construction};
+        use humanity_systems::construction::{shared::SharedPiece, Construction};
         let mut finished_away: Vec<(hecs::Entity, f32)> = Vec::new();
         for (e, c) in world.query_mut::<hecs::Without<&mut Construction, &SharedPiece>>() {
             let ago = c.progress as f64 + away_secs - c.build_time as f64;
@@ -1322,12 +1322,12 @@ pub fn catch_up_world(
             builds_advanced += 1;
         }
         for (e, ago) in finished_away {
-            let _ = world.insert_one(e, crate::systems::construction::FinishedWhileAway { seconds_ago: ago });
+            let _ = world.insert_one(e, humanity_systems::construction::FinishedWhileAway { seconds_ago: ago });
         }
         // FIRES (BUG-153): a campfire left burning burns down while the game
         // is closed, as it would in life. Its fuel was spent when it went on
         // the fire, so this only takes away burning the player paid for.
-        crate::systems::construction::fires::burn(world, away_secs.min(f64::from(f32::MAX)) as f32);
+        humanity_systems::construction::fires::burn(world, away_secs.min(f64::from(f32::MAX)) as f32);
     }
     let crafts_advanced = if away_secs > 0.0 { save.crafts.len() } else { 0 };
     Resumed { clock, away_secs, crops_aged, builds_advanced, crafts_advanced, ..Default::default() }
@@ -1338,7 +1338,7 @@ pub fn catch_up_world(
 /// delivery path, vehicle pad and machine vessel included). Their inputs were
 /// spent when they started, so finishing them offline spends nothing; this is
 /// the design doc's "reserve inputs up front" rule, already true of crafting.
-pub fn restored_crafts(save: &WorldSave, away_secs: f64) -> Vec<crate::systems::crafting::CraftSave> {
+pub fn restored_crafts(save: &WorldSave, away_secs: f64) -> Vec<humanity_systems::crafting::CraftSave> {
     save.crafts
         .iter()
         .map(|c| {
@@ -1386,7 +1386,7 @@ pub fn away_notice(r: &Resumed) -> Option<String> {
     if parts.is_empty() {
         return None;
     }
-    let list = crate::systems::crafting::away::join_list(&parts);
+    let list = humanity_systems::crafting::away::join_list(&parts);
     Some(format!("While you were away ({span}), {list}."))
 }
 
@@ -1433,44 +1433,44 @@ pub fn resume_home(
     save: &WorldSave,
     offline_progression: bool,
     time_speed: f32,
-    home: Option<&crate::machines::MachineHome>,
+    home: Option<&humanity_ship::machines::MachineHome>,
 ) -> Resumed {
     let mut r = catch_up_world(world, save, offline_progression, time_speed, now_secs());
-    crate::systems::time::request_restore_elapsed(data, r.clock);
+    humanity_systems::time::request_restore_elapsed(data, r.clock);
     // SOIL pH: what was still reacting when the player left kept reacting.
     // Handed over, not stepped here: the farming tick applies it under the
     // player's own Soil pH switch, which reaches the DataStore only after
     // this runs (farming::soil_ph::hand_away_secs).
-    crate::systems::farming::soil_ph::hand_away_secs(data, r.away_secs);
+    humanity_systems::farming::soil_ph::hand_away_secs(data, r.away_secs);
     // THE FARM'S CLOCK (2026-10-31, farming::clock): the crops are as the save left them, each
     // grow area at its own last turn, at the clock it restored, so every area starts its turns
     // again from now owing what it owed when the save was written (`WorldSave::farm_owed`), not
     // what it owed before the load.
-    crate::systems::farming::clock::hand_over_resume(data, save.farm_owed.clone());
+    humanity_systems::farming::clock::hand_over_resume(data, save.farm_owed.clone());
     // THE DRONE: its standing order is the player's own setting, so it comes
     // back whether or not the time away counts; then the trip in flight and
     // any the order sends finish in the time away, out of the asteroid's real
     // ore, and each haul lands in home storage as it would have (BUG-150).
-    crate::systems::mining::set_standing_order(data, save.mining_order.clone());
+    humanity_systems::mining::set_standing_order(data, save.mining_order.clone());
     // The drone itself comes back as saved, its charge and its wear (a save
     // from before gets a new drone), and its dock charges it through the time
     // away on the power the home could spare it: the ship's reactor where the
     // home is tied to it, else the home's own day surplus (first-hour audit S5).
-    crate::systems::mining::set_unit(data, save.mining_drone.clone());
+    humanity_systems::mining::set_unit(data, save.mining_drone.clone());
     // THE SHIP SUPPLY LEDGER comes back as saved; the time away adds to it
     // when the machines take it (crafting::away::meter_away_reactor).
-    crate::systems::ship_power::restore(data, &save.ship_supply);
+    humanity_systems::ship_power::restore(data, &save.ship_supply);
     // THE MESS HALL'S METER (ship homes increment 6) comes back as saved: meals are not taken
     // while you are away.
     restore_ship_meals(data, &save.ship_meals);
     // THE DAY RECORD (2026-10-22, machines::day_energy): what each machine drew over its
     // last game day comes back as saved; the time away adds nothing to it, and charges
     // each machine that day (an estimate for one that had not run a whole one).
-    crate::machines::day_energy::restore(data, &save.machine_day_energy);
-    let balance_w = home.map_or([0.0; 2], |h| crate::systems::crafting::away::day_power_balance(h, &save.machine_day_energy));
-    let dock_spare_w = crate::systems::ship_power::feed_watts(data)
-        .unwrap_or_else(|| f64::from(balance_w[usize::from(crate::systems::life_support::is_realistic(data))].max(0.0)));
-    let drone_away = crate::systems::mining::advance_away(world, data, r.away_secs, dock_spare_w);
+    humanity_ship::machines::day_energy::restore(data, &save.machine_day_energy);
+    let balance_w = home.map_or([0.0; 2], |h| humanity_systems::crafting::away::day_power_balance(h, &save.machine_day_energy));
+    let dock_spare_w = humanity_systems::ship_power::feed_watts(data)
+        .unwrap_or_else(|| f64::from(balance_w[usize::from(humanity_systems::life_support::is_realistic(data))].max(0.0)));
+    let drone_away = humanity_systems::mining::advance_away(world, data, r.away_secs, dock_spare_w);
     // What the dock took is the home's spare power the machines no longer have
     // (in Station-supplied the reactor covers it, metered through the same balance).
     let dock_w = if r.away_secs > 0.0 { (drone_away.drawn_wh * 3600.0 / r.away_secs) as f32 } else { 0.0 };
@@ -1481,20 +1481,20 @@ pub fn resume_home(
     // nothing when it does not count), onto the herd now or at world entry.
     // An animal that had stopped making anything for want of feed or water
     // when the game was saved makes only its share while away (S6).
-    let shares = crate::systems::animal_care::away_shares(data, &save.herd_care);
+    let shares = humanity_systems::animal_care::away_shares(data, &save.herd_care);
     r.animals_ready = data
-        .get::<crate::systems::livestock::CreatureRegistry>("creature_registry")
-        .map_or(0, |reg| crate::systems::livestock::readied_by_away(&save.herd, r.away_secs, reg, &shares));
-    let timers = crate::systems::livestock::timers_after_away(&save.herd, r.away_secs, &shares);
-    crate::systems::livestock::restore_herd(world, data, timers);
+        .get::<humanity_systems::livestock::CreatureRegistry>("creature_registry")
+        .map_or(0, |reg| humanity_systems::livestock::readied_by_away(&save.herd, r.away_secs, reg, &shares));
+    let timers = humanity_systems::livestock::timers_after_away(&save.herd, r.away_secs, &shares);
+    humanity_systems::livestock::restore_herd(world, data, timers);
     // And how each is kept, the herd's dead, and the time away the character
     // fed them through: the first livestock tick takes that feed out of home
     // storage (systems::animal_care).
-    crate::systems::animal_care::restore(world, data, save.herd_care.clone(), save.herd_lost.clone(), r.away_secs);
+    humanity_systems::animal_care::restore(world, data, save.herd_care.clone(), save.herd_lost.clone(), r.away_secs);
     // AUTOMATED MACHINES: handed the time away with what each was busy with
     // at the save, the home's spare power and the drone's hauls; the
     // CraftingSystem runs them through it once they exist (crafting::away).
-    let work = (r.away_secs > 0.0).then(|| crate::systems::crafting::away::AwayWork {
+    let work = (r.away_secs > 0.0).then(|| humanity_systems::crafting::away::AwayWork {
         secs: r.away_secs,
         busy: save
             .crafts
@@ -1505,12 +1505,12 @@ pub fn resume_home(
         power_balance_w: balance_w,
         hauls,
     });
-    crate::systems::crafting::away::hand_over(data, work);
+    humanity_systems::crafting::away::hand_over(data, work);
     // Craft batches go through the CraftingSystem's restore channel, which
     // it consumes after its rewind drop, so a character select replaces the
     // live batches with the saved ones instead of losing both.
     if let Some(slot) = data
-        .get::<std::sync::Mutex<Option<Vec<crate::systems::crafting::CraftSave>>>>("restore_active_crafts")
+        .get::<std::sync::Mutex<Option<Vec<humanity_systems::crafting::CraftSave>>>>("restore_active_crafts")
     {
         if let Ok(mut s) = slot.lock() {
             *s = Some(restored_crafts(save, r.away_secs));
@@ -1850,7 +1850,7 @@ mod tests {
     /// every tool and erased its grade.
     #[test]
     fn carried_tools_keep_their_wear_and_grade_across_a_save() {
-        use crate::systems::inventory::Inventory;
+        use humanity_systems::inventory::Inventory;
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(8);
         inv.add_item_q("hammer_0", 1, 1, 6);
@@ -2073,7 +2073,7 @@ mod tests {
     /// stashed after the empty save stayed beside the rewound backpack.
     #[test]
     fn a_pool_saved_empty_comes_back_empty() {
-        let plank = crate::systems::inventory::placed::PlacedItem {
+        let plank = humanity_systems::inventory::placed::PlacedItem {
             key: "wood_plank_0".into(),
             name: "Wood Plank".into(),
             qty: 5,
@@ -2100,14 +2100,14 @@ mod tests {
     fn placed_items_persist_and_old_saves_default_empty() {
         let mut save = WorldSave::new_offline("Test", "homestead");
         save.placed_items = Some(vec![
-            crate::systems::inventory::placed::PlacedItem {
+            humanity_systems::inventory::placed::PlacedItem {
                 key: "ice_axe_0".into(),
                 name: "Ice Axe".into(),
                 qty: 1,
                 container: "1/0/0".into(),
                 ..Default::default()
             },
-            crate::systems::inventory::placed::PlacedItem {
+            humanity_systems::inventory::placed::PlacedItem {
                 key: "iron_ore_0".into(),
                 name: "Iron Ore".into(),
                 qty: 5,
@@ -2216,7 +2216,7 @@ mod tests {
     /// and state, and re-applying replaces rather than duplicates.
     #[test]
     fn builds_survive_the_save_round_trip() {
-        use crate::systems::construction::{Construction, Structure};
+        use humanity_systems::construction::{Construction, Structure};
         let tf = |x: f32| humanity_core::ecs::components::Transform {
             position: glam::Vec3::new(x, 0.0, 3.0),
             rotation: glam::Quat::from_rotation_y(0.5),
@@ -2285,8 +2285,8 @@ mod tests {
     #[test]
     fn shared_pieces_never_enter_the_save_and_survive_a_save_load() {
         use humanity_core::ecs::components::Transform;
-        use crate::systems::construction::shared::SharedPiece;
-        use crate::systems::construction::{Construction, Structure};
+        use humanity_systems::construction::shared::SharedPiece;
+        use humanity_systems::construction::{Construction, Structure};
         let tf = |x: f32| Transform { position: glam::Vec3::new(x, 0.0, 140.0), rotation: glam::Quat::IDENTITY, scale: glam::Vec3::new(4.0, 3.0, 0.2) };
         let kept = |piece_id: u64, mine: bool| SharedPiece { piece_id, frame: "plot:p2".into(), mine };
         let mut world = hecs::World::new();
@@ -2321,7 +2321,7 @@ mod tests {
     /// first assertion.
     #[test]
     fn an_open_door_stays_open_across_a_save() {
-        use crate::systems::construction::{DoorOpen, Structure};
+        use humanity_systems::construction::{DoorOpen, Structure};
         let piece = |uid: u32| Structure {
             blueprint_id: "wood_wall_door".to_string(),
             health: 150.0,
@@ -2346,7 +2346,7 @@ mod tests {
             fresh.query::<(&Structure, Option<&DoorOpen>)>().iter().map(|(_e, (s, o))| (s.uid, o.is_some())).collect();
         states.sort();
         assert_eq!(states, vec![(1, true), (2, false)]);
-        let old: crate::persistence::ConstructionSave = serde_json::from_str(
+        let old: humanity_systems::persistence::ConstructionSave = serde_json::from_str(
             r#"{"blueprint_id":"wood_wall_door","position":[0,0,0],"rotation":[0,0,0,1],"health":150}"#,
         )
         .unwrap();
@@ -2362,7 +2362,7 @@ mod tests {
     /// assertion fails.
     #[test]
     fn a_fire_keeps_its_fuel_across_a_save_and_burns_down_while_away() {
-        use crate::systems::construction::{fires::FireFuel, Structure};
+        use humanity_systems::construction::{fires::FireFuel, Structure};
         let piece = |id: &str, uid: u32| Structure { blueprint_id: id.to_string(), health: 30.0, max_health: 30.0, provides: None, uid };
         let tf = |x: f32| humanity_core::ecs::components::Transform { position: glam::Vec3::new(x, 0.0, 0.0), ..Default::default() };
         let mut world = hecs::World::new();
@@ -2402,10 +2402,10 @@ mod tests {
     #[test]
     fn a_campfire_finished_while_away_has_burned_since() {
         use humanity_core::ecs::systems::System;
-        use crate::systems::construction::{fires::FireFuel, BlueprintRegistry, ConstructionSystem, Structure};
+        use humanity_systems::construction::{fires::FireFuel, BlueprintRegistry, ConstructionSystem, Structure};
         let mut save = WorldSave::new_offline("t", "homestead");
         save.timestamp = 1_000;
-        save.constructions = vec![crate::persistence::ConstructionSave {
+        save.constructions = vec![humanity_systems::persistence::ConstructionSave {
             blueprint_id: "campfire".to_string(),
             position: [0.0; 3],
             rotation: [0.0, 0.0, 0.0, 1.0],
@@ -2416,7 +2416,7 @@ mod tests {
             building: Some((1.0, 5.0)),
             uid: 0,
             open: false,
-            site: Some(crate::systems::construction::PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) }),
+            site: Some(humanity_systems::construction::PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) }),
             outside_home: false,
             fire_s: None,
         }];
@@ -2453,8 +2453,8 @@ mod tests {
     #[test]
     fn a_turned_wall_is_saved_turned_and_comes_back_turned() {
         use humanity_core::ecs::components::{Controllable, Transform};
-        use crate::systems::construction::{placement, BlueprintRegistry, BuildRequest, ConstructionSystem, Structure};
-        use crate::systems::inventory::Inventory;
+        use humanity_systems::construction::{placement, BlueprintRegistry, BuildRequest, ConstructionSystem, Structure};
+        use humanity_systems::inventory::Inventory;
         use humanity_core::ecs::systems::System;
         let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let wall = reg.get("wood_wall").unwrap().clone();
@@ -2504,7 +2504,7 @@ mod tests {
     #[test]
     fn a_planet_pieces_site_round_trips_a_save() {
         use humanity_core::ecs::components::Transform;
-        use crate::systems::construction::{Construction, PlanetSite, Structure};
+        use humanity_systems::construction::{Construction, PlanetSite, Structure};
         // A site in Silverdale, WA: an origin 6,366 km from Earth's centre
         // with metre-scale detail the f64 must keep exactly.
         let site = PlanetSite {
@@ -2562,7 +2562,7 @@ mod tests {
     /// it afresh, and the first assertion after the restart fails.
     #[test]
     fn a_built_chest_keeps_its_contents_through_a_restart() {
-        use crate::systems::construction::{uses, BlueprintRegistry, Structure};
+        use humanity_systems::construction::{uses, BlueprintRegistry, Structure};
         let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(
             env!("HUMANITY_REPO_ROOT"),
             "/data/blueprints/basic.ron"
@@ -2588,7 +2588,7 @@ mod tests {
         // under the chest's path), then the home is saved as on exit.
         let path = uses::built_stores(&world, Some(&reg))[0].0.clone();
         let mut save = extract_world_save(&world);
-        save.placed_items = Some(vec![crate::systems::inventory::placed::PlacedItem {
+        save.placed_items = Some(vec![humanity_systems::inventory::placed::PlacedItem {
             key: "wood_plank_0".into(),
             name: "Wood Plank".into(),
             qty: 5,
@@ -2615,10 +2615,10 @@ mod tests {
     /// own tick does the completion (quest event, XP) rather than this pass.
     #[test]
     fn offline_catch_up_finishes_scaffolds_without_skipping_completion() {
-        use crate::systems::construction::Construction;
+        use humanity_systems::construction::Construction;
         let mut save = WorldSave::new_offline("t", "homestead");
         save.timestamp = 1_000;
-        save.constructions = vec![crate::persistence::ConstructionSave {
+        save.constructions = vec![humanity_systems::persistence::ConstructionSave {
             blueprint_id: "wooden_door".to_string(),
             position: [0.0; 3],
             rotation: [0.0, 0.0, 0.0, 1.0],
@@ -2652,7 +2652,7 @@ mod tests {
     #[test]
     fn restored_crafts_count_down_by_the_time_away() {
         let mut save = WorldSave::new_offline("t", "homestead");
-        let batch = |t: f32| crate::systems::crafting::CraftSave {
+        let batch = |t: f32| humanity_systems::crafting::CraftSave {
             recipe_id: "smelt_iron".to_string(),
             time_remaining: t,
             auto: true,
@@ -2719,7 +2719,7 @@ mod tests {
         let mut world = hecs::World::new();
         world.spawn((
             humanity_core::ecs::components::Transform { position: glam::Vec3::new(20.0, 0.0, 129.0), rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
-            crate::systems::construction::Structure { blueprint_id: "chest".into(), health: 1.0, max_health: 1.0, provides: None, uid: 9 },
+            humanity_systems::construction::Structure { blueprint_id: "chest".into(), health: 1.0, max_health: 1.0, provides: None, uid: 9 },
         ));
         let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         let p2 = [[0.0, 0.0, 99.0], [55.0, 12.0, 188.0]];
@@ -2832,7 +2832,7 @@ mod tests {
         let cabin = starting_kit(&dir, "cabin");
         assert!(cabin.iter().any(|(id, _)| id == "water_purified_0") && !cabin.iter().any(|(id, _)| id.starts_with("seed_")), "{cabin:?}");
         assert_eq!(starting_kit(&dir, "palace"), kit, "an unknown start carries the default's kit");
-        let items = crate::systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(
+        let items = humanity_systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(
             env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
@@ -2863,7 +2863,7 @@ mod tests {
     /// "the save holds the drone" (left: None).
     #[test]
     fn the_drones_charge_and_wear_survive_a_save() {
-        use crate::systems::mining::{DroneSpec, DroneUnit, SPEC_KEY, UNIT_KEY};
+        use humanity_systems::mining::{DroneSpec, DroneUnit, SPEC_KEY, UNIT_KEY};
         use std::sync::Mutex;
         let spec = DroneSpec::from_ron(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/mining/drone.ron"))).unwrap();
         let with = |u: DroneUnit| {
@@ -2887,11 +2887,11 @@ mod tests {
 
         let fresh = with(DroneUnit::new(&spec));
         resume_home(&mut hecs::World::new(), &fresh, &save, false, 1.0, None);
-        assert_eq!(crate::systems::mining::unit(&fresh), Some(used), "resumed as it was left");
+        assert_eq!(humanity_systems::mining::unit(&fresh), Some(used), "resumed as it was left");
 
         save.mining_drone = None;
         resume_home(&mut hecs::World::new(), &fresh, &save, false, 1.0, None);
-        assert_eq!(crate::systems::mining::unit(&fresh), Some(DroneUnit::new(&spec)), "a save from before: a new drone");
+        assert_eq!(humanity_systems::mining::unit(&fresh), Some(DroneUnit::new(&spec)), "a save from before: a new drone");
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -2918,7 +2918,7 @@ mod tests {
             target_pos: [0.0; 3],
         },));
         world.spawn((
-            crate::systems::livestock::HerdSlot("chicken#0".into()),
+            humanity_systems::livestock::HerdSlot("chicken#0".into()),
             humanity_core::ecs::components::Harvestable { resource: "egg_0".into(), amount: 1.0, regrow_time: 300.0, time_since_harvest: 40.0 },
         ));
         let mut save = extract_world_save(&world);
@@ -2954,17 +2954,17 @@ mod tests {
     /// care waits for the herd: None".
     #[test]
     fn the_herds_care_and_its_dead_go_through_the_save_file() {
-        use crate::systems::animal_care::{self as care, AnimalCare, CareSave, LostAnimal};
+        use humanity_systems::animal_care::{self as care, AnimalCare, CareSave, LostAnimal};
         use std::sync::Mutex;
         let root = std::env::temp_dir().join(format!("hos_herd_care_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let path = root.join("saves").join("offline_home.json");
         let mut data = humanity_core::hot_reload::data_store::DataStore::new();
-        crate::systems::livestock::register(&mut data);
+        humanity_systems::livestock::register(&mut data);
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(16), Controllable));
         world.spawn((
-            crate::systems::livestock::HerdSlot("goat#0".into()),
+            humanity_systems::livestock::HerdSlot("goat#0".into()),
             AnimalCare { hungry_h: 30.0, trough_kg: 0.5, ..Default::default() },
         ));
         let starved = LostAnimal { slot: "chicken#2".into(), cause: "starved".into() };
@@ -2977,7 +2977,7 @@ mod tests {
 
         // The next launch, before world entry.
         let mut data = humanity_core::hot_reload::data_store::DataStore::new();
-        crate::systems::livestock::register(&mut data);
+        humanity_systems::livestock::register(&mut data);
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(16), Controllable));
         apply_save_to_world(&mut world, &save);
@@ -3004,17 +3004,17 @@ mod tests {
         let mut data = DataStore::new();
         let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let read = |f: &str| std::fs::read(root.join(f)).unwrap();
-        data.insert("recipe_registry", crate::systems::crafting::RecipeRegistry::from_csv(&read("recipes.csv")).unwrap());
-        data.insert("item_registry", crate::systems::inventory::ItemRegistry::from_csv(&read("items.csv")).unwrap());
-        data.insert("creature_registry", crate::systems::livestock::CreatureRegistry::from_csv(&read("creatures.csv")).unwrap());
+        data.insert("recipe_registry", humanity_systems::crafting::RecipeRegistry::from_csv(&read("recipes.csv")).unwrap());
+        data.insert("item_registry", humanity_systems::inventory::ItemRegistry::from_csv(&read("items.csv")).unwrap());
+        data.insert("creature_registry", humanity_systems::livestock::CreatureRegistry::from_csv(&read("creatures.csv")).unwrap());
         data.insert("auto_mine_order", Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
         data.insert("player_notices", Mutex::new(Vec::<String>::new()));
         // The smelter's coal waits in home storage, the only store the home's
         // machines draw on (BUG-150); the drone files each haul there too.
         data.insert("home_stock", Mutex::new(std::collections::HashMap::from([("coal_0".to_string(), 3u32)])));
         data.insert("home_stock_outputs", Mutex::new(Vec::<(String, u32)>::new()));
-        crate::systems::crafting::register(&mut data);
-        crate::systems::livestock::register(&mut data);
+        humanity_systems::crafting::register(&mut data);
+        humanity_systems::livestock::register(&mut data);
 
         let mut save = WorldSave::new_offline("t", "homestead");
         save.timestamp = now_secs() - 3600;
@@ -3030,10 +3030,10 @@ mod tests {
         let r = resume_home(&mut world, &data, &save, true, 1.0, None);
         assert_eq!((r.drone_hauls, r.animals_ready), (3, 1));
         assert!((r.away_secs - 3600.0).abs() <= 2.0, "{}", r.away_secs);
-        let pending = crate::systems::livestock::pending_herd(&data).expect("waits for the herd");
+        let pending = humanity_systems::livestock::pending_herd(&data).expect("waits for the herd");
         assert!(pending[0].1 >= 96_600.0, "{pending:?}");
 
-        humanity_core::ecs::systems::System::tick(&mut crate::systems::crafting::CraftingSystem::new(), &mut world, 0.0, &data);
+        humanity_core::ecs::systems::System::tick(&mut humanity_systems::crafting::CraftingSystem::new(), &mut world, 0.0, &data);
         let ingots: u32 = data
             .get::<Mutex<Vec<(String, u32)>>>("home_stock_outputs")
             .unwrap()
@@ -3071,8 +3071,8 @@ mod tests {
         use humanity_core::hot_reload::data_store::DataStore;
         let mut data = DataStore::new();
         data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
-        crate::systems::crafting::register(&mut data);
-        crate::systems::livestock::register(&mut data);
+        humanity_systems::crafting::register(&mut data);
+        humanity_systems::livestock::register(&mut data);
         let mut save = WorldSave::new_offline("t", "homestead");
         save.timestamp = now_secs() - 3600;
         save.asteroids = Some(vec![rock(6.0)]);
@@ -3100,20 +3100,20 @@ mod tests {
             world.query::<&humanity_core::ecs::components::Drone>().iter().map(|(_, d)| d.clone()).collect();
         assert_eq!(drones.len(), 1, "the drone is still out");
         assert_eq!((drones[0].phase_time, drones[0].cargo.clone()), (1.0, flying.cargo.clone()), "where it was, hold and all");
-        assert_eq!(crate::systems::livestock::pending_herd(&data), Some(vec![("chicken#0".to_string(), 100.0)]));
-        assert_eq!(crate::systems::mining::standing_order(&data), save.mining_order, "the order is the player's own setting");
-        assert!(crate::systems::crafting::away::take(&data).is_none(), "nothing handed to the machines");
+        assert_eq!(humanity_systems::livestock::pending_herd(&data), Some(vec![("chicken#0".to_string(), 100.0)]));
+        assert_eq!(humanity_systems::mining::standing_order(&data), save.mining_order, "the order is the player's own setting");
+        assert!(humanity_systems::crafting::away::take(&data).is_none(), "nothing handed to the machines");
     }
 
     /// The machine catalog the game ships (data/machines/home.ron).
-    fn shipped_home() -> crate::machines::MachineHome {
+    fn shipped_home() -> humanity_ship::machines::MachineHome {
         let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home.ron");
-        crate::systems::grow_machines::load_home(&path).expect("home.ron parses")
+        humanity_systems::grow_machines::load_home(&path).expect("home.ron parses")
     }
 
-    fn shipped_containers() -> crate::systems::inventory::containers::ContainerRegistry {
+    fn shipped_containers() -> humanity_systems::inventory::containers::ContainerRegistry {
         let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("containers");
-        crate::systems::inventory::containers::ContainerRegistry::from_bytes(
+        humanity_systems::inventory::containers::ContainerRegistry::from_bytes(
             &std::fs::read(root.join("types.csv")).unwrap(),
             &std::fs::read(root.join("content_classes.ron")).unwrap(),
         )
@@ -3125,14 +3125,14 @@ mod tests {
     /// container registry, so no vessels) or at world entry (with it).
     fn spawn_machines(
         world: &mut hecs::World,
-        home: &crate::machines::MachineHome,
-        containers: Option<&crate::systems::inventory::containers::ContainerRegistry>,
+        home: &humanity_ship::machines::MachineHome,
+        containers: Option<&humanity_systems::inventory::containers::ContainerRegistry>,
     ) {
         let empty = std::collections::HashMap::new();
         for (id, machine) in
             [("bank_0", "battery_bank"), ("tank_0", "water_tank"), ("genset_0", "generator_portable"), ("silo_0", "grain_silo")]
         {
-            let inst = crate::machines::MachineInstance {
+            let inst = humanity_ship::machines::MachineInstance {
                 id: id.to_string(),
                 machine: machine.to_string(),
                 room: "room-plant".to_string(),
@@ -3191,8 +3191,8 @@ mod tests {
 
         let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
-        crate::systems::crafting::register(&mut data);
-        crate::systems::livestock::register(&mut data);
+        humanity_systems::crafting::register(&mut data);
+        humanity_systems::livestock::register(&mut data);
         let r = resume_home(&mut fresh, &data, &save, true, 1.0, None);
         assert!(r.away_secs >= 3600.0, "an hour away counted: {}", r.away_secs);
         assert_eq!(bank_and_tank(&fresh), (0.85, 0.2), "not advanced by the time away");
@@ -3210,8 +3210,8 @@ mod tests {
     #[test]
     fn a_vessels_contents_survive_a_save_and_wait_for_world_entry() {
         use humanity_core::ecs::components::{HomeMachine, MachineInstanceId};
-        use crate::systems::machine_levels::{self, HeldMachineLevels};
-        use crate::systems::inventory::containers::Container;
+        use humanity_systems::machine_levels::{self, HeldMachineLevels};
+        use humanity_systems::inventory::containers::Container;
         let (home, reg) = (shipped_home(), shipped_containers());
         let mut world = hecs::World::new();
         spawn_machines(&mut world, &home, Some(&reg));
@@ -3274,7 +3274,7 @@ mod tests {
         spawn_machines(&mut fresh, &home, None);
         apply_save_to_world(&mut fresh, &save);
         assert_eq!(bank_and_tank(&fresh), (0.5, 0.5), "the spawn levels");
-        assert_eq!(fresh.query::<&crate::systems::machine_levels::HeldMachineLevels>().iter().count(), 0);
+        assert_eq!(fresh.query::<&humanity_systems::machine_levels::HeldMachineLevels>().iter().count(), 0);
     }
 
     #[test]
@@ -3304,7 +3304,7 @@ mod tests {
     /// t-1 (the first assert), so a restart would settle it again.
     #[test]
     fn settled_trades_ride_the_save_with_the_backpack() {
-        use crate::systems::inventory::{TradeSettlements, TransferOp};
+        use humanity_systems::inventory::{TradeSettlements, TransferOp};
         let player = |world: &mut hecs::World| {
             world.spawn((
                 Controllable,
@@ -3386,7 +3386,7 @@ mod tests {
     /// carries the home's id / left: \"\" / right: \"home-a\"".
     #[test]
     fn fleet_held_gives_and_the_home_id_ride_the_save() {
-        use crate::systems::inventory::{FleetHeld, TradeSettlements};
+        use humanity_systems::inventory::{FleetHeld, TradeSettlements};
         let player = |world: &mut hecs::World| {
             world.spawn((
                 Controllable,

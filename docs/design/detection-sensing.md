@@ -63,7 +63,7 @@ stealth at MMO scale without a physics bill. Likely a hybrid: analytic point-to-
   a powered router's RF on an ECS entity, was removed on 2026-09-27 together with the Wi-Fi crop harm it
   served (`docs/reference/findings/2026-09-27-wifi-and-plants.md`); a sensing layer adds its own
   signature component when it is built, reading the medium's `rf_emission`.
-- `AtmosphereSystem` (`src/systems/atmosphere.rs`) owns air + (future) wind, which the smell/pheromone
+- `AtmosphereSystem` (`crates/humanity-systems/src/atmosphere.rs`) owns air + (future) wind, which the smell/pheromone
   dispersion needs.
 - `Weather` (wind speed/direction) feeds smell dispersion direction.
 - Light level (renderer / time-of-day / the per-home lights) feeds the sight + light-source channels.

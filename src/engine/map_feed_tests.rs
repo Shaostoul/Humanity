@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::gui::MapVerb;
-use crate::station::orbit;
+use humanity_ship::station::orbit;
 
 fn inputs(pos: DVec3, vel: DVec3, rot: DQuat) -> FeedInputs<'static> {
     FeedInputs {
@@ -40,7 +40,7 @@ fn inputs(pos: DVec3, vel: DVec3, rot: DQuat) -> FeedInputs<'static> {
 /// ship: it is 1000.000 m from the pose the frame computed".
 #[test]
 fn the_feed_copies_the_frames_pose_and_never_recomputes_it() {
-    let def = crate::station::default_home();
+    let def = humanity_ship::station::default_home();
     let (pos, vel) = orbit::propagate(
         &orbit::over_its_longitude(&def.orbit, 2.0),
         orbit::MU_EARTH,
@@ -110,7 +110,7 @@ fn you_face_where_the_camera_looks() {
 /// handling: "the request to stop following was undone by the opening".
 #[test]
 fn opening_the_page_frames_you_and_requests_come_after() {
-    let def = crate::station::default_home();
+    let def = humanity_ship::station::default_home();
     let (pos, vel) = orbit::propagate(&def.orbit, orbit::MU_EARTH, orbit::REAL_SECONDS_PER_DAY, 0.0, 86_400.0);
     let rot = orbit::attitude(&def.attitude, pos, vel);
     let mut maps = MapsState::default();

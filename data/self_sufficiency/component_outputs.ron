@@ -5,7 +5,7 @@
 // machine in data/machines/home.ron's catalog: an output figure + its assumptions, so the
 // self-sufficiency score is COMPUTED from a queryable data file instead of parsed out of the
 // hand-typed stat strings baked into home.ron. Every `id` here MUST be a machine in the
-// home.ron catalog (enforced by a unit test). Loaded by src/systems/self_sufficiency.rs.
+// home.ron catalog (enforced by a unit test). Loaded by crates/humanity-systems/src/self_sufficiency.rs.
 // Data-driven (infinite-of-X): tune a number or add a machine here, no code change.
 //
 // FIELDS:
@@ -23,7 +23,7 @@
 // (data/machines/home.ron quotes every source beside the machine): the solar panel's PVWatts
 // yield at location.ron's Silverdale, WA, less a battery round trip, and the wind turbine's
 // average in the site's measured wind. `household_energy_supply_sums_kwh_per_day_components` in
-// src/systems/self_sufficiency.rs holds them to the catalog.
+// crates/humanity-systems/src/self_sufficiency.rs holds them to the catalog.
 //
 // HISTORY: until 2026-09-27 the panel read 1.44 kWh/day (400 W x a generic 4.5 sun-hours x
 // 0.80, no place attached) and the turbine 0.7 (an unsourced 19% capacity factor). The

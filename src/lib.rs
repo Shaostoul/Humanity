@@ -8,25 +8,10 @@
 
 pub mod renderer;
 pub mod assets;
-pub mod terrain;
-pub mod ship;
-// Data-driven machine layout for the 3D home (pure data, relay-safe). The renderer
-// placement lives in load_world (native); the structs + RON loader compile everywhere.
-pub mod machines;
+// The ship (with the machines and the station), the terrain and the simulation (with the save's
+// shape and walking on a planet) are crates of their own since the crate split's rung 2
+// (2026-11-02): humanity_ship, humanity_terrain and humanity_systems.
 
-
-/// Crewed stations: the homestead as a real orbiting, pointed object.
-pub mod station;
-/// Planetary-surface FPS math (task #76 increment 1): tangent-frame camera
-/// basis (up = local radial) + stand/walk ground clamp. Pure glam, ungated
-/// like `dev_travel`, so its unit tests run under every feature set. See
-/// `src/surface_walk.rs`.
-pub mod surface_walk;
-/// The player's surface MOVEMENT MODEL (v0.1109): walk vs dev flight, the
-/// tangential/radial wish split, and the per-mode vertical integration. Split
-/// out of the frame-lock block in lib.rs so it is testable headless; ungated
-/// like `surface_walk`. See `src/surface_move.rs`.
-pub mod surface_move;
 /// Extracted satellites of the native main loop (pure math, parsers, data
 /// registries, home spawn helpers) - see docs/dev/code-structure-plan.md.
 #[cfg(feature = "native")]
@@ -52,16 +37,6 @@ pub mod relay;
 /// sapling into a mature tree - the architecture differs, not just the size.
 #[cfg(feature = "native")]
 const MAX_MODEL_STRETCH: f32 = 3.0;
-
-
-
-pub mod systems;
-
-// The save format and where saves live compile into the relay too
-// (2026-09-28): a server that holds a shared world needs the same save
-// shape the desktop app writes. save_load (applying a save to the local
-// world) stays native below.
-pub mod persistence;
 
 // How-to (docs/design/how-to.md, 2026-10-23): the model, loader, checker and runs, compiled into
 // the relay too (it will host shared how-tos); gated on `relay` for its hash's ciborium and blake3,
@@ -162,20 +137,20 @@ mod native_app {
     use crate::renderer::camera::{Camera, CameraController};
     use crate::renderer::mesh::Mesh;
     use crate::renderer::{RenderObject, Renderer};
-    use crate::ship::ship_structure::{zone_body, zone_body_mut};
-    use crate::ship::storey_edits::EditStorey;
-    use crate::systems::crafting::CraftingSystem;
-    use crate::systems::farming::FarmingSystem;
-    use crate::systems::food::FoodSystem;
-    use crate::systems::mining::DroneSystem;
-    use crate::systems::skills::{PlayerSkills, SkillRegistry, SkillSystem, SkillXPEvent};
-    use crate::systems::quests::{QuestRegistry, QuestSystem, QuestTracker};
-    use crate::systems::interaction::InteractionSystem;
-    use crate::systems::inventory::{Inventory, InventorySystem, ItemRegistry};
-    use crate::systems::inventory::containers::ContainerCompatibilitySystem;
-    use crate::systems::player::PlayerControllerSystem;
-    use crate::systems::time::{GameTime, TimeSystem};
-    use crate::systems::weather::{Weather, WeatherSystem};
+    use humanity_ship::ship_structure::{zone_body, zone_body_mut};
+    use humanity_ship::storey_edits::EditStorey;
+    use humanity_systems::crafting::CraftingSystem;
+    use humanity_systems::farming::FarmingSystem;
+    use humanity_systems::food::FoodSystem;
+    use humanity_systems::mining::DroneSystem;
+    use humanity_systems::skills::{PlayerSkills, SkillRegistry, SkillSystem, SkillXPEvent};
+    use humanity_systems::quests::{QuestRegistry, QuestSystem, QuestTracker};
+    use humanity_systems::interaction::InteractionSystem;
+    use humanity_systems::inventory::{Inventory, InventorySystem, ItemRegistry};
+    use humanity_systems::inventory::containers::ContainerCompatibilitySystem;
+    use humanity_systems::player::PlayerControllerSystem;
+    use humanity_systems::time::{GameTime, TimeSystem};
+    use humanity_systems::weather::{Weather, WeatherSystem};
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Instant;
@@ -1029,7 +1004,7 @@ mod native_app {
             // tolerance list means nothing is ever harmed.
             data_store.insert(
                 "flight_data",
-                crate::systems::flight::FlightData::load(&data_dir),
+                humanity_systems::flight::FlightData::load(&data_dir),
             );
             // GameTime lives behind a Mutex in the DataStore so TimeSystem (which
             // only gets &DataStore in tick) can write the advanced time each frame
@@ -1037,13 +1012,13 @@ mod native_app {
             // interior-mutability pattern as interaction_prompt below.
             data_store.insert(
                 "game_time",
-                std::sync::Mutex::new(crate::systems::time::GameTime::default()),
+                std::sync::Mutex::new(humanity_systems::time::GameTime::default()),
             );
             // Weather behind a Mutex (the TimeSystem/game_time pattern): WeatherSystem
             // writes it each tick; the survival env (exposed temp) + HUD read it.
             data_store.insert(
                 "weather",
-                std::sync::Mutex::new(crate::systems::weather::Weather::default()),
+                std::sync::Mutex::new(humanity_systems::weather::Weather::default()),
             );
             // Live weather control (v0.1050, F11 panel): the GUI publishes the
             // operator's picks here and WeatherSystem consumes them, since the
@@ -1051,25 +1026,25 @@ mod native_app {
             // from the GUI. Same Mutex-slot pattern as time_set_hour_request.
             data_store.insert(
                 "weather_control",
-                std::sync::Mutex::new(crate::systems::weather::WeatherControl::default()),
+                std::sync::Mutex::new(humanity_systems::weather::WeatherControl::default()),
             );
             // Live home electrical readout (gen/use/balance watts): ElectricalSystem writes
             // it each tick, the HUD + Home page read it. Same Mutex pattern as game_time.
             data_store.insert(
                 "power_status",
-                std::sync::Mutex::new(crate::systems::electrical::PowerStatus::default()),
+                std::sync::Mutex::new(humanity_systems::electrical::PowerStatus::default()),
             );
             // What each machine drew over its last game day (2026-10-22): ElectricalSystem records it.
-            crate::machines::day_energy::register(&mut data_store);
+            humanity_ship::machines::day_energy::register(&mut data_store);
             // Live home WATER readout (production/demand/stored L): PlumbingSystem writes it each tick.
             data_store.insert(
                 "water_status",
-                std::sync::Mutex::new(crate::systems::plumbing::WaterStatus::default()),
+                std::sync::Mutex::new(humanity_systems::plumbing::WaterStatus::default()),
             );
             // Live home AIR readout (O2/CO2/pressure): AtmosphereSystem writes it from the home space. (v0.617)
             data_store.insert(
                 "air_status",
-                std::sync::Mutex::new(crate::systems::atmosphere::AirStatus::default()),
+                std::sync::Mutex::new(humanity_systems::atmosphere::AirStatus::default()),
             );
             system_runner.register(TimeSystem::new());
             // WeatherSystem ticks after TimeSystem (reads the exported season) and
@@ -1078,15 +1053,15 @@ mod native_app {
             // SolarSystem scales solar PowerGenerators by the time of day, then
             // ElectricalSystem sums supply/demand and sheds load. These tick the LIVE
             // home power sim against the machine entities spawned in load_world (v0.437).
-            system_runner.register(crate::systems::solar::SolarSystem::new());
-            system_runner.register(crate::systems::electrical::ElectricalSystem::new(&data_dir));
+            system_runner.register(humanity_systems::solar::SolarSystem::new());
+            system_runner.register(humanity_systems::electrical::ElectricalSystem::new(&data_dir));
             // PlumbingSystem ticks AFTER electrical so it sees this frame's shed state -- a pump/purifier
             // shed in a power deficit stops producing water THIS tick (the power -> water chain). (v0.608)
-            system_runner.register(crate::systems::plumbing::PlumbingSystem::new());
+            system_runner.register(humanity_systems::plumbing::PlumbingSystem::new());
             // AtmosphereSystem (v0.617): ticks the home's sealed air space + publishes AirStatus. Earth-
             // like for now (Stage 1); occupancy + powered scrubbers + the power -> air -> Vitals
             // consequence are Stage 2.
-            system_runner.register(crate::systems::atmosphere::AtmosphereSystem::new());
+            system_runner.register(humanity_systems::atmosphere::AtmosphereSystem::new());
             system_runner.register(PlayerControllerSystem);
             data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
             // GUI -> ECS command channels (interior-mutable; the main loop writes
@@ -1138,11 +1113,11 @@ mod native_app {
                 std::sync::Mutex::new(Option::<f32>::None),
             );
             // The one game clock's settings and its speed hold (2026-09-27).
-            crate::systems::time::insert_slots(&mut data_store);
+            humanity_systems::time::insert_slots(&mut data_store);
             // Craft batches in flight both ways, and the time away handed to
             // the automated machines (systems::crafting::register).
-            crate::systems::crafting::register(&mut data_store);
-            crate::systems::livestock::register(&mut data_store); // the herd's saved timers until world entry
+            humanity_systems::crafting::register(&mut data_store);
+            humanity_systems::livestock::register(&mut data_store); // the herd's saved timers until world entry
             // Absolute clock restore from a save (2026-09-25, offline
             // progression): see systems::time::request_restore_elapsed.
             data_store.insert(
@@ -1176,17 +1151,17 @@ mod native_app {
             );
             // Garden pests (2026-09-26, systems::farming::pests): the data, the
             // Settings severity, and the Garden panel's control buttons.
-            data_store.insert("garden_pests", crate::systems::farming::pests::PestData::load());
-            data_store.insert("garden_lighting", crate::systems::farming::lighting::LightingData::load());
-            data_store.insert("garden_pest_severity", std::sync::Mutex::new(crate::systems::farming::pests::DEFAULT_PEST_SEVERITY));
+            data_store.insert("garden_pests", humanity_systems::farming::pests::PestData::load());
+            data_store.insert("garden_lighting", humanity_systems::farming::lighting::LightingData::load());
+            data_store.insert("garden_pest_severity", std::sync::Mutex::new(humanity_systems::farming::pests::DEFAULT_PEST_SEVERITY));
             data_store.insert("pest_control_request", std::sync::Mutex::new(Option::<(String, String)>::None));
-            crate::systems::farming::soil_ph::register(&mut data_store); // soil pH: data, Settings switch, Lime/Sulfur
-            crate::systems::farming::pollination::register(&mut data_store); // pollination data, Settings mode, Hand-pollinate
-            crate::systems::farming::picking::register(&mut data_store); // harvest windows, Settings picking mode, Clear
-            crate::systems::farming::humidity::register(&mut data_store); // greenhouse air: its data and the home's room boxes
-            crate::systems::life_support::register(&mut data_store); // ship life support: the home's air and water loops
-            crate::systems::mining::register(&mut data_store); // the mining drone's running costs: its data, its state, the Mining panel's requests (first-hour audit S5)
-            crate::systems::farming::weeds::register(&mut data_store); // weeds: their data and the Hoe / Mulch request
+            humanity_systems::farming::soil_ph::register(&mut data_store); // soil pH: data, Settings switch, Lime/Sulfur
+            humanity_systems::farming::pollination::register(&mut data_store); // pollination data, Settings mode, Hand-pollinate
+            humanity_systems::farming::picking::register(&mut data_store); // harvest windows, Settings picking mode, Clear
+            humanity_systems::farming::humidity::register(&mut data_store); // greenhouse air: its data and the home's room boxes
+            humanity_systems::life_support::register(&mut data_store); // ship life support: the home's air and water loops
+            humanity_systems::mining::register(&mut data_store); // the mining drone's running costs: its data, its state, the Mining panel's requests (first-hour audit S5)
+            humanity_systems::farming::weeds::register(&mut data_store); // weeds: their data and the Hoe / Mulch request
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
             // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
@@ -1195,7 +1170,7 @@ mod native_app {
             data_store.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
             data_store.insert(
                 "inventory_transfer_ops",
-                std::sync::Mutex::new(Vec::<crate::systems::inventory::TransferOp>::new()),
+                std::sync::Mutex::new(Vec::<humanity_systems::inventory::TransferOp>::new()),
             );
             // One-line notices from the sim systems for the player (2026-09-25):
             // a finished craft waiting for room, an empty cistern at watering.
@@ -1262,9 +1237,9 @@ mod native_app {
             // Blueprint building (v0.746, ladder rung 2): the Crafting page's
             // Structures section queues builds (engine/build_place.rs, E while placing);
             // ConstructionSystem drains them + reports one honest status line.
-            data_store.insert("build_request", std::sync::Mutex::new(Vec::<crate::systems::construction::BuildRequest>::new()));
+            data_store.insert("build_request", std::sync::Mutex::new(Vec::<humanity_systems::construction::BuildRequest>::new()));
             data_store.insert("build_status", std::sync::Mutex::new(String::new()));
-            data_store.insert(crate::systems::construction::shared::OUT_CHANNEL, crate::systems::construction::shared::OutQueue::default()); // paid-for shared builds, sent by engine::shared_build
+            data_store.insert(humanity_systems::construction::shared::OUT_CHANNEL, humanity_systems::construction::shared::OutQueue::default()); // paid-for shared builds, sent by engine::shared_build
             // World rewind signal (v0.679 review fix): raised right after
             // apply_save_to_world rewinds the live world (launcher character
             // pick); CraftingSystem drops its in-flight batches so a rewound
@@ -1272,7 +1247,7 @@ mod native_app {
             data_store.insert("abort_active_crafts", std::sync::Mutex::new(false));
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
-            data_store.insert(crate::systems::sleep::REQUEST_SLOT, std::sync::Mutex::new(None::<String>));
+            data_store.insert(humanity_systems::sleep::REQUEST_SLOT, std::sync::Mutex::new(None::<String>));
             // Sanitation: compost accumulated waste -> fertilizer (FoodSystem);
             // fertilize a crop by entity bits (FarmingSystem).
             data_store.insert("compost_request", std::sync::Mutex::new(false));
@@ -1302,17 +1277,17 @@ mod native_app {
                 std::sync::Mutex::new(Vec::<(String, String)>::new()),
             );
             // Game events for the notices (notifications rung 3): systems::push_game_event.
-            data_store.insert(crate::systems::GAME_EVENTS_KEY, std::sync::Mutex::new(Vec::<(String, String)>::new()));
+            data_store.insert(humanity_systems::GAME_EVENTS_KEY, std::sync::Mutex::new(Vec::<(String, String)>::new()));
             system_runner.register(InteractionSystem::new());
             // The farm on its own clock (2026-10-31, docs/design/farm-clock.md rung 2): the one
             // FarmingSystem also sits in the DataStore, so what reads the garden outside the
             // ECS tick (the Garden page's data, the plant meshes, the save) brings it up to now
             // first (`farming::settle`); its interval channel starts at the default until the
             // Settings value reaches it below, each frame.
-            crate::systems::farming::clock::register(&mut data_store);
-            let farm: crate::systems::farming::Shared = std::sync::Arc::new(std::sync::Mutex::new(FarmingSystem::new()));
-            data_store.insert(crate::systems::farming::SHARED_KEY, farm.clone());
-            system_runner.register(crate::systems::farming::SharedFarm(farm));
+            humanity_systems::farming::clock::register(&mut data_store);
+            let farm: humanity_systems::farming::Shared = std::sync::Arc::new(std::sync::Mutex::new(FarmingSystem::new()));
+            data_store.insert(humanity_systems::farming::SHARED_KEY, farm.clone());
+            system_runner.register(humanity_systems::farming::SharedFarm(farm));
             system_runner.register(InventorySystem::new());
             // Enforces typed-container / content-class compatibility (wrong
             // material damages then breaks the vessel). Reads the
@@ -1325,12 +1300,12 @@ mod native_app {
             // turned on, per the afternoon audit) -- nothing calls queue_build() yet, so
             // this ticks as a safe no-op until a GUI/economy-automation caller is wired in
             // a later cycle; that's the honest current state, not a regression.
-            system_runner.register(crate::systems::construction::ConstructionSystem::new());
+            system_runner.register(humanity_systems::construction::ConstructionSystem::new());
             // ManufacturingSystem: ProductionFacility entities -> timed recipe -> output_count.
             // Loads data/manufacturing.ron itself. Registered 2026-07-01 (same "coded but
             // never turned on" story as ConstructionSystem) -- safe no-op until something
             // spawns a ProductionFacility entity.
-            system_runner.register(crate::systems::manufacturing::ManufacturingSystem::new(&data_dir));
+            system_runner.register(humanity_systems::manufacturing::ManufacturingSystem::new(&data_dir));
             // FoodSystem: nutrition (eat -> Vitals + buffs), hunger/thirst decay,
             // and spoilage. Reads consume_request + status_effect_registry from the
             // DataStore. Loads food_system.ron from the data dir at construction.
@@ -1342,10 +1317,10 @@ mod native_app {
             // arm drains deploy_kit_request (kit item -> real Vehicle entity in the
             // world). The enter/exit/mech arms it also carries are dormant until
             // Stage 3 wires an interaction that publishes their commands.
-            system_runner.register(crate::systems::vehicles::VehicleSystem::new());
+            system_runner.register(humanity_systems::vehicles::VehicleSystem::new());
             // LivestockSystem (v0.751, ladder rung 7): ages every Harvestable
             // toward ready and ambles the farm animals around their anchors.
-            system_runner.register(crate::systems::livestock::LivestockSystem::new());
+            system_runner.register(humanity_systems::livestock::LivestockSystem::new());
             // AbilitySystem (v0.753, ladder rung 8): drains ability_request
             // casts (validate skill gate + energy cost + cooldown, apply the
             // self-scoped effect) and publishes live cooldowns for the GUI.
@@ -1358,30 +1333,30 @@ mod native_app {
                 "ability_cooldowns",
                 std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
             );
-            system_runner.register(crate::systems::abilities::AbilitySystem::new());
+            system_runner.register(humanity_systems::abilities::AbilitySystem::new());
             // CombatSystem (v0.760, combat arc): drains damage_events hits
             // (armor mitigation, death, loot rolls into loot_drops, corpse
             // decay). Offensive ability casts are its first damage source.
             data_store.insert(
                 "damage_events",
                 std::sync::Mutex::new(
-                    Vec::<(u64, crate::systems::combat::damage::DamageEvent)>::new(),
+                    Vec::<(u64, humanity_systems::combat::damage::DamageEvent)>::new(),
                 ),
             );
             data_store.insert(
                 "loot_drops",
                 std::sync::Mutex::new(Vec::<(String, u32)>::new()),
             );
-            system_runner.register(crate::systems::combat::CombatSystem::new());
+            system_runner.register(humanity_systems::combat::CombatSystem::new());
             // AISystem (v0.761, combat arc): the behavior state machine for
             // AI creatures - predators hunt prey INCLUDING the player and
             // their bites ride the damage_events channel above.
-            system_runner.register(crate::systems::ai::AISystem::new());
+            system_runner.register(humanity_systems::ai::AISystem::new());
             // EconomySystem (v0.747, ladder rung 3, FIRST registration): pays the
             // passive income (1 CR per game day) into every Wallet — economy.ron's
             // "nobody is ever stuck at zero". Vendor buy/sell runs in the frame
             // bridge (one-shot GUI ops), not here.
-            system_runner.register(crate::systems::economy::EconomySystem::new());
+            system_runner.register(humanity_systems::economy::EconomySystem::new());
             // SkillSystem ticks LAST so it drains the xp_grants the action systems
             // pushed THIS frame (craft → recipe skill, harvest → farming, mine → mining)
             // and applies level-ups before the frame's ECS→GUI sync reads them.
@@ -1399,9 +1374,9 @@ mod native_app {
             // the save's meals land in it (engine/mess_hall.rs).
             let boot_config = crate::config::AppConfig::load_if_exists();
             crate::save_load::register_ship_meals(&mut data_store);
-            let boot = crate::engine::save_slot::boot(&crate::persistence::saves_dir(), &data_dir, boot_config.as_ref());
+            let boot = crate::engine::save_slot::boot(&humanity_systems::persistence::saves_dir(), &data_dir, boot_config.as_ref());
             let (boot_slot, home_save) = (boot.slot, boot.save);
-            crate::save_load::spawn_fresh_player(&mut game_world.world, &data_dir, &crate::persistence::live_save::active_home().start);
+            crate::save_load::spawn_fresh_player(&mut game_world.world, &data_dir, &humanity_systems::persistence::live_save::active_home().start);
             // A new world's asteroids for the mining loop (finite ore; DroneSystem deletes one when
             // mined out), from data/asteroids/belt.ron. A save's replace them.
             crate::save_load::fresh_asteroids(&mut game_world.world, &data_dir);
@@ -1464,7 +1439,7 @@ mod native_app {
             gui_state.keymaps = crate::gui::pages::keymap::load_keymaps(&data_dir);
             gui_state.map_planets = crate::gui::load_planets();
             // The places the live save's start holds (a cabin its own, data/homes/starts.ron).
-            gui_state.places = crate::save_load::start_places(&data_dir, &crate::persistence::live_save::active_home().start);
+            gui_state.places = crate::save_load::start_places(&data_dir, &humanity_systems::persistence::live_save::active_home().start);
             // Organize-layer inventory pool: restore the SAVED container contents if the
             // active home has any (transfers persisted, v0.517), else seed from the
             // places spine (every leaf item tagged with its container path). The live
@@ -1476,15 +1451,15 @@ mod native_app {
             // Load the home's machine layout ONCE: both the Home-page self-sufficiency
             // loops AND the construction editor's editable machine layout come from it
             // (v0.519: machine placement). See docs/design/home-design.md.
-            gui_state.home_machines = crate::systems::grow_machines::load_home(&crate::persistence::live_save::active_home_machines_path(&data_dir));
+            gui_state.home_machines = humanity_systems::grow_machines::load_home(&humanity_systems::persistence::live_save::active_home_machines_path(&data_dir));
             gui_state.homestead_loops = gui_state
                 .home_machines
                 .as_ref()
                 .map(|h| h.loops.clone())
                 .unwrap_or_default();
             gui_state.tower_configs = crate::gui::load_tower_configs(&data_dir);
-            gui_state.garden_areas = crate::gui::load_garden_areas(&crate::persistence::live_save::active_home_machines_path(&data_dir), &data_dir);
-            gui_state.grow_media = crate::gui::load_grow_media(&data_dir);
+            gui_state.garden_areas = crate::gui::load_garden_areas(&humanity_systems::persistence::live_save::active_home_machines_path(&data_dir), &data_dir);
+            gui_state.grow_media = humanity_systems::grow_machines::load_grow_media(&data_dir);
             let lib = crate::gui::load_library(&data_dir);
             gui_state.library = lib.sections;
             gui_state.library_tags = lib.tag_groups;
@@ -1595,7 +1570,7 @@ mod native_app {
                     .is_some();
                 if !has_vehicles {
                     if let Some(kits) = data_store
-                        .get::<crate::systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
+                        .get::<humanity_systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
                     {
                         let starters: Vec<_> = kits.starters().cloned().collect();
                         for (i, def) in starters.iter().enumerate() {
@@ -1722,8 +1697,8 @@ mod native_app {
                     );
                     // The player's modes before the time-away catch-up below, which charges the drone
                     // (and decides whether the ship powers it) by them (first-hour audit S5).
-                    crate::systems::mining::publish_mode(&data_store, gui_state.settings.drone_realistic);
-                    crate::systems::life_support::publish(&data_store, gui_state.garden_pests.life_support_realistic);
+                    humanity_systems::mining::publish_mode(&data_store, gui_state.settings.drone_realistic);
+                    humanity_systems::life_support::publish(&data_store, gui_state.garden_pests.life_support_realistic);
                     let resumed = crate::save_load::resume_home(
                         &mut game_world.world,
                         &data_store,
@@ -1824,14 +1799,14 @@ mod native_app {
                 star_renderer: None,
                 star_preload_rx,
                 planet_defs_preload_rx,
-                terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles::new(
+                terrain_tiles: humanity_terrain::terrain_tiles::TerrainTiles::new(
                     data_dir.join("planets/earth_tiles"),
                 ),
                 region_meshes: Default::default(),
                 // Connected-ocean mask (v0.876): bathymetric terrain + the
                 // water shell need it; absent/corrupt file = the pre-v0.876
                 // clamped sea sphere, never a crash.
-                ocean_mask: match crate::terrain::ocean_mask::OceanMask::load(
+                ocean_mask: match humanity_terrain::ocean_mask::OceanMask::load(
                     &data_dir.join("planets/earth_ocean_mask.bin"),
                 ) {
                     Ok(m) => Some(m),
@@ -1856,14 +1831,14 @@ mod native_app {
                 current_sim_t: 0.0,
                 station_world_pos: glam::DVec3::ZERO,
                 station_world_rot: glam::DQuat::IDENTITY,
-                station_def: crate::station::default_home(),
+                station_def: humanity_ship::station::default_home(),
                 station_ride: false,
                 station_spawn_snap: false,
                 station_off: Vec3::ZERO,
                 aboard_station: false,
                 planet_body_frame: None,
-                flight_data: crate::systems::flight::FlightData::load(&data_dir),
-                flight: crate::systems::flight::FlightState::default(),
+                flight_data: humanity_systems::flight::FlightData::load(&data_dir),
+                flight: humanity_systems::flight::FlightState::default(),
                 surface_walk_band: false,
                 surface_owns_translation: false,
                 planet_defs: std::collections::HashMap::new(),
@@ -2733,11 +2708,11 @@ mod native_app {
                                     // which is harmless (Talk objectives latch at 1)
                                     // and lets a later-accepted quest complete on
                                     // the next chat.
-                                    crate::systems::quests::push_quest_event(
+                                    humanity_systems::quests::push_quest_event(
                                         &state.data_store,
                                         format!(
                                             "talk_{}",
-                                            crate::systems::quests::npc_talk_key(
+                                            humanity_systems::quests::npc_talk_key(
                                                 &state.gui_state.npc_talk_name
                                             )
                                         ),
@@ -2767,8 +2742,8 @@ mod native_app {
                                 if locked {
                                     if let Some(live) = state.door_locks.get_mut(cp) {
                                         for s in live.iter_mut() {
-                                            if *s == crate::ship::lock_types::LockState::Locked {
-                                                *s = crate::ship::lock_types::LockState::Unlocked;
+                                            if *s == humanity_ship::lock_types::LockState::Locked {
+                                                *s = humanity_ship::lock_types::LockState::Unlocked;
                                             }
                                         }
                                     }
@@ -3146,7 +3121,7 @@ mod native_app {
                                     // Dropped on a CONDUIT NODE (v0.629): branch this machine onto the
                                     // main-line node (a graph edge machine -> node, routed as a real pipe).
                                     if let Some(home) = state.gui_state.home_machines.as_mut() {
-                                        use crate::machines::ConduitEnd;
+                                        use humanity_ship::machines::ConduitEnd;
                                         if home.add_conduit_edge(ConduitEnd::Machine(src_id.clone()), ConduitEnd::Node(node_id), util.id()) {
                                             state.gui_state.construction_machines_dirty = true;
                                         }
@@ -3344,7 +3319,7 @@ mod native_app {
                     // attitude that rotates once per orbit - which is how real
                     // crewed stations fly and what sweeps the sun across the deck.
                     {
-                        use crate::station::orbit;
+                        use humanity_ship::station::orbit;
                         // The F11 station card writes attitude here. Applied before
                         // propagation so a change takes effect on the same frame it is
                         // made - dragging a trim slider should move the light now, not
@@ -3372,11 +3347,11 @@ mod native_app {
                         }
                         let (game_elapsed, game_day_s) = state
                             .data_store
-                            .get::<std::sync::Mutex<crate::systems::time::GameTime>>(
+                            .get::<std::sync::Mutex<humanity_systems::time::GameTime>>(
                                 "game_time",
                             )
                             .and_then(|m| m.lock().ok().map(|g| (g.elapsed_seconds, g.seconds_per_day())))
-                            .unwrap_or((0.0, crate::systems::time::EARTH_DAY_S));
+                            .unwrap_or((0.0, humanity_systems::time::EARTH_DAY_S));
                         // The parent rotation period is the SOLAR day, not the
                         // sidereal one, because this engine defines a planet's spin
                         // relative to the sun (planet_spin_from_time is
@@ -3412,7 +3387,7 @@ mod native_app {
                         // Aboard is inside the ship's bounds (ship homes increment 4,
                         // ship/ship_space.rs): a 400 m sphere let go of a player a fifth of
                         // the way along the first drum.
-                        let aboard = crate::ship::ship_space::aboard_at(state.aboard_bounds, cam_world - new_pos);
+                        let aboard = humanity_ship::ship_space::aboard_at(state.aboard_bounds, cam_world - new_pos);
                         // Departure is measured against where the station was when the
                         // frame was last synced to it, NOT against where it has since
                         // moved. Two different things break if you get this wrong:
@@ -3433,7 +3408,7 @@ mod native_app {
                         //
                         // Measuring against prev_pos answers only "did the player move
                         // relative to the home", which is the actual question.
-                        let departed = !crate::ship::ship_space::aboard_at(state.aboard_bounds, cam_world - prev_pos)
+                        let departed = !humanity_ship::ship_space::aboard_at(state.aboard_bounds, cam_world - prev_pos)
                             && prev_pos != glam::DVec3::ZERO;
                         let was_riding = state.station_ride;
 
@@ -3491,7 +3466,7 @@ mod native_app {
                             // "one sunrise per game day" is the useful fact.
                             let period_game_h = period_s
                                 / (orbit::REAL_SECONDS_PER_DAY / game_day_s)
-                                / crate::systems::time::SECONDS_PER_HOUR;
+                                / humanity_systems::time::SECONDS_PER_HOUR;
                             state.gui_state.station_readout = format!(
                                 "{}: {:.0} km up, one orbit every {:.1} game hours.",
                                 state.station_def.name, alt_km, period_game_h
@@ -3574,7 +3549,7 @@ mod native_app {
                             .unwrap_or_default();
                         let mult = state
                             .data_store
-                            .get::<crate::systems::status_effects::StatusEffectRegistry>(
+                            .get::<humanity_systems::status_effects::StatusEffectRegistry>(
                                 "status_effect_registry",
                             )
                             .map(|reg| reg.net_stat_multiplier(ids.iter().map(|s| s.as_str()), "speed"))
@@ -3592,7 +3567,7 @@ mod native_app {
                             .unwrap_or_default();
                         let gear_mult = state
                             .data_store
-                            .get::<crate::systems::economy::EquipmentRegistry>("equipment_registry")
+                            .get::<humanity_systems::economy::EquipmentRegistry>("equipment_registry")
                             .map(|reg| {
                                 reg.net_stat_multiplier(worn.iter().map(|s| s.as_str()), "speed")
                             })
@@ -3673,7 +3648,7 @@ mod native_app {
                     let built_aboard = if state.aboard_station {
                         crate::engine::build_place::built_piece_boxes(
                             &state.game_world.world,
-                            state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
+                            state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry"),
                             None,
                         )
                     } else {
@@ -3734,7 +3709,7 @@ mod native_app {
                         // the same footing as above, read where the walls and the shut gates will
                         // have held the body (`footing::Footing::along`), with the walls only
                         // where the sweep below applies them (not in the build editor).
-                        let walls: &[crate::ship::wall_collision::WallSegment] =
+                        let walls: &[humanity_ship::wall_collision::WallSegment] =
                             if state.gui_state.construction_active { &[] } else { &state.wall_colliders[..] };
                         let gates = if state.gui_state.construction_active {
                             Vec::new()
@@ -3976,7 +3951,7 @@ mod native_app {
                                             .surface_altitude_m
                                             .map_or(false, |a| a < 4000.0) =>
                                 {
-                                    use crate::systems::weather::WeatherCondition as WC;
+                                    use humanity_systems::weather::WeatherCondition as WC;
                                     // Rain or snow: the air at the player decides (systems::precipitation).
                                     let (r, s) = fall.emitters();
                                     let storm_boost =
@@ -4109,7 +4084,7 @@ mod native_app {
                             vec![("rain".into(), want_rain), ("snow".into(), want_snow)];
                         if let Some(reg) = state
                             .data_store
-                            .get::<crate::systems::weather_events::WeatherEventRegistry>(
+                            .get::<humanity_systems::weather_events::WeatherEventRegistry>(
                                 "weather_event_registry",
                             )
                         {
@@ -4509,7 +4484,7 @@ mod native_app {
                         // 2.45 m. That is the operator's "look up and I fall,
                         // look level and I float". See surface_move::
                         // ground_sample_dir for the full derivation.
-                        let ground_dir = crate::surface_move::ground_sample_dir(
+                        let ground_dir = humanity_systems::surface_move::ground_sample_dir(
                             anchor_pre,
                             state.frame_lock_anchor,
                             state.camera.surface_mode,
@@ -4520,7 +4495,7 @@ mod native_app {
                         // tens of metres under your boots. Built once here and
                         // reused by the clamp below.
                         let detail = def.map(|d| {
-                            crate::terrain::planet_chunks::DetailNoise::new(d.terrain_seed)
+                            humanity_terrain::planet_chunks::DetailNoise::new(d.terrain_seed)
                         });
                         let ground_r = ground_radius_m(
                             def,
@@ -4686,11 +4661,11 @@ mod native_app {
                             // descends, no separate descend key needed.
                             let dir0 = anchor.normalize_or_zero();
                             // ── MOVEMENT MODEL (v0.1109) ── Walk or dev
-                            // flight; see src/surface_move.rs for the report
+                            // flight; see crates/humanity-systems/src/surface_move.rs for the report
                             // this split exists for. It is a VIEW of the
                             // existing dev-flight flag (F9 / Dev page), so
                             // the HUD word and the physics read one bit.
-                            let move_mode = crate::surface_move::MoveMode::from_dev_flight(
+                            let move_mode = humanity_systems::surface_move::MoveMode::from_dev_flight(
                                 state.gui_state.dev_hover,
                             );
                             // v0.1006 (operator: "I'm flying perpendicularly
@@ -4725,9 +4700,9 @@ mod native_app {
                             // the analog share so W still flies where you
                             // look. See surface_move::split_wish.
                             let (tangential, radial_wish) =
-                                crate::surface_move::split_wish(wish_unrot, dir0, move_mode);
+                                humanity_systems::surface_move::split_wish(wish_unrot, dir0, move_mode);
                             // A carried load scales (an overload stops) the Space jump, BUG-136.
-                            let radial_wish = crate::surface_move::carry_gated_radial(
+                            let radial_wish = humanity_systems::surface_move::carry_gated_radial(
                                 radial_wish, move_mode, in_walk_band, submerged, state.controller.jump_scale);
                             // ── Unified flight speed (v0.880, operator stuck
                             // at the 100 km boundary + "speed resets") ──
@@ -4766,7 +4741,7 @@ mod native_app {
                                 .max(0.0) as f64
                                 * surface_mult
                                 // A carried load slows WALKING only (BUG-136).
-                                * crate::surface_move::carry_walk_factor(state.controller.carry_speed_factor,
+                                * humanity_systems::surface_move::carry_walk_factor(state.controller.carry_speed_factor,
                                     move_mode, state.controller.fly_mode, in_walk_band, submerged);
                             let step_cap = if in_walk_band && !state.controller.fly_mode {
                                 // Walking: the 50x gear clamp above already
@@ -4810,13 +4785,13 @@ mod native_app {
                             // root of every "I move parallel to the Earth
                             // on takeoff" report. Same deliberate-input
                             // dead zone as the radial axis.
-                            if tangential.length() > crate::surface_move::RADIAL_WISH_EPS {
+                            if tangential.length() > humanity_systems::surface_move::RADIAL_WISH_EPS {
                                 let before = anchor;
                                 anchor += tangential.normalize() * step;
                                 // Built pieces are solid on the ground too (2026-09-28); fly mode stays noclip.
                                 if !state.controller.fly_mode {
                                     let eye_h = state.controller.eye_height();
-                                    let reg = state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry");
+                                    let reg = state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry");
                                     anchor = crate::engine::planet_build::collide_on_site(&state.game_world.world, reg, &lock_body, before, anchor, eye_h);
                                 }
                             }
@@ -4853,7 +4828,7 @@ mod native_app {
                             // which is sampled before this frame's step and can
                             // carry a different ground definition (v0.1109.4).
                             let alt_over_ground = anchor.length() - field_r;
-                            let (g0, clearance) = crate::surface_walk::walk_ground_radius(
+                            let (g0, clearance) = humanity_systems::surface_walk::walk_ground_radius(
                                 field_r,
                                 def,
                                 hm,
@@ -4907,11 +4882,11 @@ mod native_app {
                                             .as_ref()
                                             .filter(|_| state.gui_state.settings.water_fft)
                                         {
-                                            crate::terrain::ocean_fft::wave_height_shoaled_fft_m(
+                                            humanity_terrain::ocean_fft::wave_height_shoaled_fft_m(
                                                 p, t, depth_m, fft,
                                             )
                                         } else {
-                                            crate::terrain::ocean_waves::wave_height_shoaled_m(
+                                            humanity_terrain::ocean_waves::wave_height_shoaled_m(
                                                 p, t, depth_m,
                                             )
                                         }
@@ -4928,7 +4903,7 @@ mod native_app {
                                             wave + pin
                                                 .events
                                                 .ride_height_m(pin.frame.project(p))
-                                                * crate::terrain::ocean_waves::shoal_factor_at(
+                                                * humanity_terrain::ocean_waves::shoal_factor_at(
                                                     depth_m,
                                                     state.renderer.sea_crest_m,
                                                 ) as f64
@@ -4937,7 +4912,7 @@ mod native_app {
                                         };
                                         g = g.max(
                                             d.radius
-                                                + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64
+                                                + humanity_terrain::ocean_waves::SURFACE_LIFT_M as f64
                                                 + wave,
                                         );
                                     }
@@ -4955,7 +4930,7 @@ mod native_app {
                                 if let Some(d) = def {
                                     if g < d.radius - 60.0 {
                                         g = d.radius
-                                            + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
+                                            + humanity_terrain::ocean_waves::SURFACE_LIFT_M as f64;
                                     }
                                 }
                             }
@@ -5023,7 +4998,7 @@ mod native_app {
                             let built_top = if state.controller.fly_mode {
                                 None
                             } else {
-                                let reg = state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry");
+                                let reg = state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry");
                                 crate::engine::planet_build::built_floor_radius(
                                     &state.game_world.world,
                                     reg,
@@ -5036,7 +5011,7 @@ mod native_app {
                             // the same floor by construction, so radial_step
                             // only needs this one number: over the terrain, or
                             // over the built top when that is higher.
-                            let rest = crate::surface_move::walk_rest(g, clearance, built_top);
+                            let rest = humanity_systems::surface_move::walk_rest(g, clearance, built_top);
                             // Band entry / teleport never inherits a stale
                             // fall speed from a previous surface session.
                             if just_engaged {
@@ -5062,7 +5037,7 @@ mod native_app {
                                 .unwrap_or(9.81)
                                 .max(0.01);
                             state.gui_state.surface_gravity_now = Some(g_now as f32);
-                            let vs = crate::surface_move::radial_step(
+                            let vs = humanity_systems::surface_move::radial_step(
                                 move_mode,
                                 in_walk_band,
                                 submerged,
@@ -5296,15 +5271,15 @@ mod native_app {
                         // Built pieces are solid too (2026-09-28, build_place::built_piece_segments).
                         doors.extend(crate::engine::build_place::built_piece_segments(
                             &state.game_world.world,
-                            state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
+                            state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry"),
                             None,
                             state.camera.position,
                             state.controller.eye_height(),
                         ));
-                        let resolved = crate::ship::wall_collision::resolve(
+                        let resolved = humanity_ship::wall_collision::resolve(
                             prev_cam_pos,
                             state.camera.position,
-                            crate::ship::wall_collision::PLAYER_RADIUS,
+                            humanity_ship::wall_collision::PLAYER_RADIUS,
                             &state.wall_colliders,
                             &doors,
                         );
@@ -5343,7 +5318,7 @@ mod native_app {
                             };
                             let def = state
                                 .data_store
-                                .get::<crate::systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
+                                .get::<humanity_systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
                                 .and_then(|r| r.get_vehicle(&item_id).cloned());
                             let speed = def.as_ref().map(|d| d.speed_mps).unwrap_or(6.0);
                             let cab_h = def
@@ -5495,9 +5470,9 @@ mod native_app {
                         let blockers = &mut state.gui_state.sight_blockers;
                         blockers.walls.extend(state.sight_colliders.iter().map(|s| s.moved(off)));
                         if let Some(ship) = state.gui_state.ship_structure.as_ref() {
-                            blockers.slabs.extend(crate::ship::sight::ship_solid_slabs(ship).map(|b| b.moved(off)));
+                            blockers.slabs.extend(humanity_ship::sight::ship_solid_slabs(ship).map(|b| b.moved(off)));
                             // The placed boxes and stairs, by their solids (2026-10-22).
-                            blockers.pieces.extend(crate::ship::sight::ship_solid_pieces(ship).map(|p| p.moved(off)));
+                            blockers.pieces.extend(humanity_ship::sight::ship_solid_pieces(ship).map(|p| p.moved(off)));
                         }
                         for (i, (p, open)) in state.door_panels.iter().enumerate() {
                             // Same blocking rule as the collision doors, except
@@ -5508,7 +5483,7 @@ mod native_app {
                             }
                             // From its sill to its head, as the walk's door: a door shut
                             // upstairs hides nothing on the ground floor.
-                            blockers.walls.push(crate::ship::wall_collision::door_panel_segment(p.center + off, p.rotation, p.size));
+                            blockers.walls.push(humanity_ship::wall_collision::door_panel_segment(p.center + off, p.rotation, p.size));
                         }
                     }
 
@@ -5525,13 +5500,13 @@ mod native_app {
                         let off = state.station_off;
                         let feet = state.camera.position.y - state.controller.eye_height();
                         let ship = state.gui_state.ship_structure.as_ref();
-                        state.gui_state.targeted_machine = crate::ship::sight::walk_up_target(
+                        state.gui_state.targeted_machine = humanity_ship::sight::walk_up_target(
                             state.camera.position,
                             feet,
                             state.camera.forward(),
                             state.gui_state.machine_labels.iter().map(|l| (l.pos + off, l.foot_y + off.y)),
                             &state.gui_state.sight_blockers,
-                            |p, foot| ship.and_then(|s| crate::ship::sight::storey_floor(s, p - off, foot)).map(|f| f + off.y),
+                            |p, foot| ship.and_then(|s| humanity_ship::sight::storey_floor(s, p - off, foot)).map(|f| f + off.y),
                         );
                     }
 
@@ -5616,7 +5591,7 @@ mod native_app {
                         // The prompt and, for a cared-for animal, how it is and what it
                         // needs (2026-10-12, first-hour S6, systems::animal_care::walk_up_lines).
                         let (prompt, care) = match best {
-                            Some((e, _)) => crate::systems::animal_care::walk_up_lines(&state.game_world.world, e, &state.data_store),
+                            Some((e, _)) => humanity_systems::animal_care::walk_up_lines(&state.game_world.world, e, &state.data_store),
                             None => (String::new(), String::new()),
                         };
                         state.gui_state.livestock_prompt = prompt;
@@ -5758,7 +5733,7 @@ mod native_app {
                     crate::engine::death_pack::frame(state);
                     // A landing hard enough to hurt becomes the player's injury (falls, 2026-10-20).
                     if let Some(impact) = state.controller.take_landing() {
-                        crate::systems::falls::player_landed(&mut state.game_world.world, impact);
+                        humanity_systems::falls::player_landed(&mut state.game_world.world, impact);
                     }
 
                     // Per-body environment snapshot (artificial-planet
@@ -5822,7 +5797,7 @@ mod native_app {
                     }
                     // Use: the clicked medical item to FoodSystem's use channel (BUG-162).
                     if let Some(item_id) = state.gui_state.pending_use_item.take() {
-                        crate::systems::treatment::request_use(&mut state.data_store, item_id);
+                        humanity_systems::treatment::request_use(&mut state.data_store, item_id);
                     }
                     // Gardening: bridge plant/water/harvest/dev-grow to FarmingSystem.
                     if let Some(seed_id) = state.gui_state.pending_plant_seed.take() {
@@ -6061,7 +6036,7 @@ mod native_app {
                             let altitude_km = 1.5_f64;
                             // The target body's own turn (its lat/lon are on ITS ground).
                             let rot = crate::engine::planet_build::body_world_rot(&target, state.current_spin, state.current_sim_t);
-                            let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat, lon);
+                            let unit = humanity_terrain::planet_heightmap::latlon_to_dir(lat, lon);
                             let world_dir = rot
                                 * glam::DVec3::new(unit.x as f64, unit.y as f64, unit.z as f64);
                             let dir_out = world_dir.normalize_or_zero();
@@ -6176,10 +6151,10 @@ mod native_app {
                             let items = state.data_store.get::<ItemRegistry>("item_registry");
                             if let Some(reg) = state
                                 .data_store
-                                .get::<crate::systems::livestock::CreatureRegistry>("creature_registry")
+                                .get::<humanity_systems::livestock::CreatureRegistry>("creature_registry")
                             {
                                 if let Some(def) = reg.get(&def_id) {
-                                    let e = crate::systems::livestock::spawn_creature_at(
+                                    let e = humanity_systems::livestock::spawn_creature_at(
                                         &mut state.game_world.world,
                                         def,
                                         items,
@@ -6522,14 +6497,14 @@ mod native_app {
                         }
                     }
                     // Garden updates (Settings > Gameplay, 2026-10-31, farming::clock): how often the farm advances.
-                    crate::systems::farming::clock::publish(&state.data_store, f64::from(state.gui_state.settings.garden_update_s));
-                    crate::systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
-                    crate::systems::farming::humidity::publish_room_bounds(&state.data_store, &state.gui_state.room_bounds); // grow rooms' air
+                    humanity_systems::farming::clock::publish(&state.data_store, f64::from(state.gui_state.settings.garden_update_s));
+                    humanity_systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
+                    humanity_systems::farming::humidity::publish_room_bounds(&state.data_store, &state.gui_state.room_bounds); // grow rooms' air
                     let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
-                    crate::systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
-                    crate::systems::farming::picking::publish(&state.data_store, gp.picking_realistic, gp.clear_pending.take());
-                    crate::systems::life_support::publish(&state.data_store, gp.life_support_realistic); // ship life support: who powers the air machines
-                    crate::systems::farming::weeds::publish(&state.data_store, gp.weed_pending.take()); // Hoe / Mulch -> sim
+                    humanity_systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
+                    humanity_systems::farming::picking::publish(&state.data_store, gp.picking_realistic, gp.clear_pending.take());
+                    humanity_systems::life_support::publish(&state.data_store, gp.life_support_realistic); // ship life support: who powers the air machines
+                    humanity_systems::farming::weeds::publish(&state.data_store, gp.weed_pending.take()); // Hoe / Mulch -> sim
                     if let Some(req) = state.gui_state.garden_pests.pending.take() {
                         if let Some(m) = state.data_store.get::<std::sync::Mutex<Option<(String, String)>>>("pest_control_request") {
                             if let Ok(mut s) = m.lock() {
@@ -6540,7 +6515,7 @@ mod native_app {
                     // The one game clock's settings -> the TimeSystem (2026-09-27):
                     // hours in a day, days in a year, the time speed. Clamped inside.
                     let s = &state.gui_state.settings;
-                    crate::systems::time::publish_settings(&state.data_store, s.hours_per_day, s.days_per_year, s.time_speed);
+                    humanity_systems::time::publish_settings(&state.data_store, s.hours_per_day, s.days_per_year, s.time_speed);
                     // Backpack <-> container transfers: drain the GUI's pending ops into
                     // the InventorySystem channel (it applies them to the player backpack).
                     if !state.gui_state.pending_inventory_transfers.is_empty() {
@@ -6549,7 +6524,7 @@ mod native_app {
                         state.gui_state.inflight_take_origins.extend(origins);
                         if let Some(slot) = state
                             .data_store
-                            .get::<std::sync::Mutex<Vec<crate::systems::inventory::TransferOp>>>("inventory_transfer_ops")
+                            .get::<std::sync::Mutex<Vec<humanity_systems::inventory::TransferOp>>>("inventory_transfer_ops")
                         {
                             if let Ok(mut s) = slot.lock() {
                                 s.extend(ops);
@@ -6689,7 +6664,7 @@ mod native_app {
                     // of the placed containers (v0.737; planet chests excluded).
                     crate::engine::stock_piles::take_consumed_home_stock(state, &home_stock_before);
                     // Home > Animals: each farm animal, how it is and what it needs (first-hour S6).
-                    state.gui_state.herd = crate::systems::animal_care::herd_rows(&state.game_world.world, &state.data_store);
+                    state.gui_state.herd = humanity_systems::animal_care::herd_rows(&state.game_world.world, &state.data_store);
                     crate::engine::stock_piles::receive_machine_outputs(state);
                     crate::engine::stock_piles::age_home_storage(state); // stored food spoils too (S6)
                     // A death the tick recorded, and the packs Realistic deaths leave (before the
@@ -6714,7 +6689,7 @@ mod native_app {
                         let origin = origins.iter().find(|o| o.key == key).cloned();
                         let name = state
                             .data_store
-                            .get::<crate::systems::inventory::ItemRegistry>("item_registry")
+                            .get::<humanity_systems::inventory::ItemRegistry>("item_registry")
                             .and_then(|r| r.items.get(&key).map(|d| d.name.clone()))
                             .unwrap_or_else(|| key.clone());
                         let msg = crate::gui::return_to_storage(
@@ -6824,7 +6799,7 @@ mod native_app {
                                     });
                                     // Our ship and our own door, for the plot (increment 1b).
                                     // Never a join without a ship (round 4).
-                                    if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref(), &crate::persistence::live_save::active_home().start) {
+                                    if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref(), &humanity_systems::persistence::live_save::active_home().start) {
                                         if let Some(ref ws) = state.gui_state.ws_client {
                                             ws.send(&join.to_string());
                                         }
@@ -7040,7 +7015,7 @@ mod native_app {
                             state.gui_state.ship_structure.as_ref().and_then(|s| s.home_plot()).map(|p| p.aabb()),
                         );
                         if state.game_joined && close.at != state.construction_return_pos {
-                            crate::engine::move_check::declare(state, crate::ship::moves::MoveDecl::Editor);
+                            crate::engine::move_check::declare(state, humanity_ship::moves::MoveDecl::Editor);
                         }
                         state.camera.position = close.at;
                         crate::engine::home_plot::reseat_floor(state);
@@ -7129,7 +7104,7 @@ mod native_app {
                             // "Pin" seeds Some([0,0,0]); turn that into the room's CURRENT
                             // resolved (computed) position so pinning freezes-in-place rather
                             // than teleporting to the origin.
-                            let resolved = crate::ship::fibonacci::resolve_positions(layout);
+                            let resolved = humanity_ship::fibonacci::resolve_positions(layout);
                             let resolved_by_id: std::collections::HashMap<String, Vec3> = layout
                                 .rooms
                                 .iter()
@@ -7152,10 +7127,10 @@ mod native_app {
                                     }
                                 }
                                 // Map the editor's placed openings to engine Openings (v0.469).
-                                let er_openings: Vec<crate::ship::fibonacci::Opening> = er.openings.iter().map(|eo| {
+                                let er_openings: Vec<humanity_ship::fibonacci::Opening> = er.openings.iter().map(|eo| {
                                     use crate::gui::EditorOpeningKind as EK;
-                                    use crate::ship::fibonacci::OpeningKind as OK;
-                                    crate::ship::fibonacci::Opening {
+                                    use humanity_ship::fibonacci::OpeningKind as OK;
+                                    humanity_ship::fibonacci::Opening {
                                         wall: eo.wall as u8,
                                         kind: match eo.kind { EK::Door => OK::Door, EK::Airlock => OK::Airlock, EK::Window => OK::Window },
                                         u: eo.u, v: eo.v, w: eo.w, h: eo.h, profile: None,
@@ -7172,14 +7147,14 @@ mod native_app {
                                     rc.position = pos;
                                     rc.dimensions = er.dimensions;
                                 } else {
-                                    layout.rooms.push(crate::ship::fibonacci::RoomConfig {
+                                    layout.rooms.push(humanity_ship::fibonacci::RoomConfig {
                                         id: er.id.clone(),
                                         position: pos,
                                         dimensions: er.dimensions,
                                         material_type: er.material_type,
                                         color: er.color,
                                         wall_height: 0.0, // global default_wall_height owns Y
-                                        walls: crate::ship::fibonacci::WallSet {
+                                        walls: humanity_ship::fibonacci::WallSet {
                                             north: er.walls[0],
                                             south: er.walls[1],
                                             west: er.walls[2],
@@ -7298,7 +7273,7 @@ mod native_app {
                         } else {
                             if save_structure {
                                 if let Some(layout) = &state.homestead_layout {
-                                    match crate::ship::fibonacci::save_layout(layout) {
+                                    match humanity_ship::fibonacci::save_layout(layout) {
                                         Ok(()) => log::info!("Construction: layout saved to RON"),
                                         Err(e) => log::warn!("Construction: save failed: {e}"),
                                     }
@@ -7309,7 +7284,7 @@ mod native_app {
                             // file the AI edits -- home-design parity).
                             if save_machines {
                                 if let Some(home) = &state.gui_state.home_machines {
-                                    let path = crate::persistence::live_save::active_home_machines_path(&state.data_dir);
+                                    let path = humanity_systems::persistence::live_save::active_home_machines_path(&state.data_dir);
                                     match home.save(&path) {
                                         Ok(()) => {
                                             log::info!("Construction: machine layout saved to {}", path.display());
@@ -7810,7 +7785,7 @@ mod native_app {
                                         Some(&m) => m,
                                         None => {
                                             // The pipes' band colour in linear light (2026-10-04 review).
-                                            let fill = crate::machines::MachineHome::gizmo_colours(&kind, [1.0; 4]).fill;
+                                            let fill = humanity_ship::machines::MachineHome::gizmo_colours(&kind, [1.0; 4]).fill;
                                             let m = state.renderer.add_material_full(fill, 0.0, 0.4, 0.0, 2.0);
                                             state.connection_mats.insert(key, m);
                                             m
@@ -7970,9 +7945,9 @@ mod native_app {
                                 .as_ref()
                                 .map_or(true, |(k, _, _)| k != &key);
                             if need {
-                                if let Some(ty) = crate::ship::structure::structure_type(&tid) {
+                                if let Some(ty) = humanity_ship::structure::structure_type(&tid) {
                                     let (verts, indices) =
-                                        crate::ship::structure::structure_mesh(ty, Vec3::ZERO, yaw.to_radians());
+                                        humanity_ship::structure::structure_mesh(ty, Vec3::ZERO, yaw.to_radians());
                                     let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
                                     let color = [ty.color.0, ty.color.1, ty.color.2, 0.45];
                                     let slot = state
@@ -8196,7 +8171,7 @@ mod native_app {
                                 h.walls
                                     .iter()
                                     .enumerate()
-                                    .filter(|(_, w)| crate::ship::home_structure::storey_index(&storeys, w.base) == es.index)
+                                    .filter(|(_, w)| humanity_ship::home_structure::storey_index(&storeys, w.base) == es.index)
                                     .map(|(i, w)| (i, (w.a.0 + w.b.0) * 0.5 + zo.x, zo.y + w.base, (w.a.1 + w.b.1) * 0.5 + zo.z))
                                     .collect()
                             })
@@ -8720,8 +8695,8 @@ mod native_app {
                                 crate::renderer::line::push_polyline(&mut ring_lines, &ring, col);
                             }
                             for (i, ps) in hs.structures.iter().enumerate() {
-                                let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) else { continue };
-                                if ty.kind == crate::ship::structure::StructureKind::Wall || !es.shows(ps.pos.1) {
+                                let Some(ty) = humanity_ship::structure::structure_type(&ps.type_id) else { continue };
+                                if ty.kind == humanity_ship::structure::StructureKind::Wall || !es.shows(ps.pos.1) {
                                     continue;
                                 }
                                 let (w, h, d) = ty.size;
@@ -8800,7 +8775,7 @@ mod native_app {
                             for z in hs.zones.iter().filter(|z| es.shows(z.origin.1)) {
                                 let (ox, oy, oz) = (z.origin.0 + zo.x, z.origin.1 + zo.y, z.origin.2 + zo.z);
                                 let (sw, sh, sd) = z.size;
-                                let c = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
+                                let c = humanity_ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
                                 // The SELECTED zone draws bright white so you see which the panel edits. (v0.634)
                                 let col = if sel_zone == Some(z.id.as_str()) { [1.0, 1.0, 1.0, 1.0] } else { [c.0, c.1, c.2, 0.9] };
                                 let (x1, y1, z1) = (ox + sw, oy + sh, oz + sd);
@@ -8814,8 +8789,8 @@ mod native_app {
                             }
                             // Rail-link gizmo (v0.592): a line between PAIRED train platforms (j>i dedup).
                             for (i, ps) in hs.structures.iter().enumerate() {
-                                let is_train = crate::ship::structure::structure_type(&ps.type_id)
-                                    .map_or(false, |t| t.kind == crate::ship::structure::StructureKind::Train);
+                                let is_train = humanity_ship::structure::structure_type(&ps.type_id)
+                                    .map_or(false, |t| t.kind == humanity_ship::structure::StructureKind::Train);
                                 if !is_train {
                                     continue;
                                 }
@@ -8871,7 +8846,7 @@ mod native_app {
                             // band colour (ISO 14726's black for waste) is too dark to see.
                             let gizmo_light = {
                                 let c = state.theme.text_secondary();
-                                let l = crate::ship::pipe_materials::srgb_to_linear;
+                                let l = humanity_ship::pipe_materials::srgb_to_linear;
                                 [l(c.r()), l(c.g()), l(c.b()), 1.0]
                             };
                             {
@@ -8889,7 +8864,7 @@ mod native_app {
                                         if mid != sel_id {
                                             continue;
                                         }
-                                        let col = crate::machines::MachineHome::gizmo_colours(port.utility.id(), gizmo_light).outline;
+                                        let col = humanity_ship::machines::MachineHome::gizmo_colours(port.utility.id(), gizmo_light).outline;
                                         // 4 CARDINAL ARROWS around the central node sphere (v0.627): arrows
                                         // pointing IN (heads near the sphere) = an INPUT/draw port; pointing
                                         // OUT = an OUTPUT/supply port; both heads = bidirectional. Far more
@@ -8920,7 +8895,7 @@ mod native_app {
                                     }
                                 }
                                 if let Some((src_id, util, _pdir, wp)) = state.construction_port_drag.clone() {
-                                    let c = crate::machines::MachineHome::gizmo_colours(util.id(), gizmo_light).outline;
+                                    let c = humanity_ship::machines::MachineHome::gizmo_colours(util.id(), gizmo_light).outline;
                                     // A conduit NODE under the cursor takes precedence (v0.629): dropping
                                     // there branches the machine onto the main line, always valid.
                                     let node_center = port_drop_node_target(state).and_then(|nid| {
@@ -9402,7 +9377,7 @@ mod native_app {
                             .settings
                             .planet_max_subdiv
                             .round()
-                            .clamp(0.0, crate::terrain::planet::MAX_SKY_SUBDIVISION as f32)
+                            .clamp(0.0, humanity_terrain::planet::MAX_SKY_SUBDIVISION as f32)
                             as u32;
                         let viewport_h = state.renderer.surface_size().1 as f32;
                         let fov_deg = state.camera.fov_degrees;
@@ -9483,7 +9458,7 @@ mod native_app {
                             // body has to be counter-rotated into it. This is the single
                             // place a celestial position becomes a render position, so
                             // Sun, Earth, Moon and planets are all covered here at once.
-                            let render_off = crate::station::to_hull(
+                            let render_off = humanity_ship::station::to_hull(
                                 state.station_ride,
                                 state.station_world_rot,
                                 rel_earth_m - state.ship_world_pos,
@@ -9573,13 +9548,13 @@ mod native_app {
                             // Projected on-screen size (of the floored disc,
                             // since that is what actually rasterizes) drives
                             // the subdivision level.
-                            let px = crate::terrain::planet::projected_pixel_diameter(
+                            let px = humanity_terrain::planet::projected_pixel_diameter(
                                 visual_scale as f64,
                                 dist,
                                 viewport_h,
                                 fov_deg,
                             );
-                            let level = crate::terrain::planet::lod_level_for_pixels(
+                            let level = humanity_terrain::planet::lod_level_for_pixels(
                                 px,
                                 px_per_level,
                                 max_level,
@@ -9678,7 +9653,7 @@ mod native_app {
                             // architecture: terrain::planet_chunks.
                             let chunk_activation_px = px_per_level
                                 * (1u32
-                                    << (crate::terrain::planet_chunks::CHUNK_ACTIVATION_LADDER_LEVEL
+                                    << (humanity_terrain::planet_chunks::CHUNK_ACTIVATION_LADDER_LEVEL
                                         - 1)) as f32;
                             // Engage on EITHER trigger: the pixel rung (the
                             // planet visually dominates -- resolution/FOV
@@ -9696,7 +9671,7 @@ mod native_app {
                                 && (px > chunk_activation_px || dist < radius_m * 1.5);
                             let mut chunked_drawn = false;
                             if chunked_on {
-                                use crate::terrain::planet_chunks as chunks;
+                                use humanity_terrain::planet_chunks as chunks;
                                 let d = def.expect("chunked_on implies def");
                                 let hm = state
                                     .planet_heightmaps
@@ -9719,7 +9694,7 @@ mod native_app {
                                 // Camera frustum, rebuilt in f64 from the one
                                 // celestial projection (camera.rs) or culling
                                 // would disagree with what actually rasterizes.
-                                let proj_d = crate::terrain::celestial_projection::celestial_projection_f64(
+                                let proj_d = humanity_terrain::celestial_projection::celestial_projection_f64(
                                     fov_deg.max(1.0) as f64,
                                     state.camera.aspect.max(0.01) as f64,
                                 );
@@ -9734,11 +9709,11 @@ mod native_app {
                                 // measured band for tight culling.
                                 let band = chunks::RadialBand {
                                     min_r_m: d.radius
-                                        * crate::terrain::planet_surface::displaced_radius_f64(
+                                        * humanity_terrain::planet_surface::displaced_radius_f64(
                                             d, 0.0,
                                         ),
                                     max_r_m: d.radius
-                                        * crate::terrain::planet_surface::displaced_radius_f64(
+                                        * humanity_terrain::planet_surface::displaced_radius_f64(
                                             d, 1.0,
                                         ),
                                 };
@@ -9752,7 +9727,7 @@ mod native_app {
                                 if b.id == "earth" {
                                     let u = cam_local.normalize();
                                     let (tla, tlo) =
-                                        crate::terrain::planet_heightmap::dir_to_latlon_deg(
+                                        humanity_terrain::planet_heightmap::dir_to_latlon_deg(
                                             u.as_vec3(),
                                         );
                                     state.terrain_tiles.ensure_region(tla, tlo);
@@ -9944,7 +9919,7 @@ mod native_app {
                                 // walk never built. Travels with the parked
                                 // selection too (Selection is cloned whole),
                                 // so a stationary camera keeps its reading.
-                                crate::terrain::far_trees::publish_card_reach_m(
+                                humanity_terrain::far_trees::publish_card_reach_m(
                                     selection.stats.card_reach_m as f32,
                                 );
                                 let now_drawn: std::collections::HashSet<chunks::PatchId> =
@@ -10492,7 +10467,7 @@ mod native_app {
                                 // the same frame.
                                 let grass_on = chunked_drawn
                                     && above_ground < 60.0
-                                    && crate::terrain::grass::grass_layer_on(
+                                    && humanity_terrain::grass::grass_layer_on(
                                         state.gui_state.settings.grass_density,
                                         state.gui_state.settings.grass_detail,
                                     );
@@ -10729,7 +10704,7 @@ mod native_app {
                                     }
                                     if state.far_tree_pending.is_none()
                                         && (cam_local - state.far_tree_built_cam).length()
-                                            > crate::terrain::far_trees::FAR_TREE_REBUILD_M
+                                            > humanity_terrain::far_trees::FAR_TREE_REBUILD_M
                                     {
                                         if let Some(hm) = state.planet_heightmaps.get(&b.id) {
                                             let (tx, rx) = std::sync::mpsc::channel();
@@ -10742,7 +10717,7 @@ mod native_app {
                                             let cam = cam_local;
                                             std::thread::spawn(move || {
                                                 let _ = tx.send(
-                                                    crate::terrain::far_trees::build_far_tree_sheet(
+                                                    humanity_terrain::far_trees::build_far_tree_sheet(
                                                         &def,
                                                         &hm,
                                                         albedo.as_deref(),
@@ -10762,7 +10737,7 @@ mod native_app {
                                     let sheet_fresh = (cam_local
                                         - state.far_tree_built_cam)
                                         .length()
-                                        < crate::terrain::far_trees::FAR_TREE_REBUILD_M * 3.0;
+                                        < humanity_terrain::far_trees::FAR_TREE_REBUILD_M * 3.0;
                                     if let (Some(mi), true) = (state.far_tree_mesh, sheet_fresh)
                                     {
                                         let anchor_render =
@@ -10883,12 +10858,12 @@ mod native_app {
                                 // recency guard freezes and the drain
                                 // stalls two batches in.
                                 if cs.total_bytes
-                                    > crate::terrain::planet_chunks::PATCH_CACHE_WARM_BYTES
+                                    > humanity_terrain::planet_chunks::PATCH_CACHE_WARM_BYTES
                                 {
                                     cs.frame += 1;
                                 }
                                 let evicted = cs.collect_evictions(
-                                    crate::terrain::planet_chunks::PATCH_CACHE_WARM_BYTES,
+                                    humanity_terrain::planet_chunks::PATCH_CACHE_WARM_BYTES,
                                 );
                                 if !evicted.is_empty() {
                                     cs.sel_dirty = true;
@@ -10965,7 +10940,7 @@ mod native_app {
                                         let lvl = level;
                                         std::thread::spawn(move || {
                                             let data =
-                                                crate::terrain::planet_surface::build_surface_mesh(
+                                                humanity_terrain::planet_surface::build_surface_mesh(
                                                     &d2,
                                                     hm2.as_deref(),
                                                     al2.as_deref(),
@@ -11013,7 +10988,7 @@ mod native_app {
                                                 .get(&b.id)
                                                 .map(|a| a.as_ref());
                                             let data =
-                                                crate::terrain::planet_surface::build_surface_mesh(
+                                                humanity_terrain::planet_surface::build_surface_mesh(
                                                     d, hm, al, lvl,
                                                 );
                                             let mesh = Mesh::from_planet_surface(
@@ -11039,10 +11014,10 @@ mod native_app {
                                         let hm = state.planet_heightmaps.get(&b.id).map(|a| a.as_ref());
                                         let al = state.planet_albedos.get(&b.id).map(|a| a.as_ref());
                                         let data =
-                                            crate::terrain::planet_surface::build_surface_mesh(d, hm, al, level);
+                                            humanity_terrain::planet_surface::build_surface_mesh(d, hm, al, level);
                                         Mesh::from_planet_surface(&state.renderer.device, &data)
                                     } else {
-                                        let mut ico = crate::terrain::icosphere::Icosphere::new();
+                                        let mut ico = humanity_terrain::icosphere::Icosphere::new();
                                         ico.subdivide_n(level);
                                         Mesh::from_icosphere(&state.renderer.device, &ico, 1.0)
                                     };
@@ -11201,7 +11176,7 @@ mod native_app {
                                         dist / 1000.0,
                                         px,
                                         level,
-                                        crate::terrain::icosphere::Icosphere::face_count_at_level(level),
+                                        humanity_terrain::icosphere::Icosphere::face_count_at_level(level),
                                         def.is_some()
                                     ));
                                 }
@@ -11302,7 +11277,7 @@ mod native_app {
                                 };
                                 // Into the render frame like every body (HULL FRAME site
                                 // 1): aboard, a ring in the world's axes missed its body.
-                                let w = crate::station::to_hull(state.station_ride, state.station_world_rot, p + off_d);
+                                let w = humanity_ship::station::to_hull(state.station_ride, state.station_world_rot, p + off_d);
                                 [w.x as f32, w.y as f32, w.z as f32]
                             };
                             for si in 0..n.saturating_sub(1) {
@@ -11336,7 +11311,7 @@ mod native_app {
                         // station and let the direction follow": the sun is 1 AU away, so
                         // a whole geosynchronous circle moves this vector by 0.03 degrees.
                         // The change comes entirely from the hull TURNING under it.
-                        let sun_dir = crate::station::to_hull(
+                        let sun_dir = humanity_ship::station::to_hull(
                             state.station_ride,
                             state.station_world_rot,
                             (sun_rel_earth_m - state.ship_world_pos).normalize_or_zero(),
@@ -11356,10 +11331,10 @@ mod native_app {
                         let (light_dir, light_color) = if state.gui_state.construction_active
                             && state.gui_state.construction_sun_override
                         {
-                            let dir = crate::systems::time::TimeSystem::sun_direction(
+                            let dir = humanity_systems::time::TimeSystem::sun_direction(
                                 state.gui_state.construction_sun_override_hour,
                             );
-                            (dir, crate::systems::time::TimeSystem::sun_color(
+                            (dir, humanity_systems::time::TimeSystem::sun_color(
                                 state.gui_state.construction_sun_override_hour,
                             ))
                         } else {
@@ -11537,7 +11512,7 @@ mod native_app {
                                     let shell_r_m = d.radius * (1.0 + d.atmosphere_scale.max(0.005) as f64 * 2.0);
                                     let cam_r = ((state.frame_lock_anchor.length() / shell_r_m.max(1.0)) as f32).clamp(rp, 1.0);
                                     let up_w = crate::engine::planet_build::frame_body_rot(state) * state.frame_lock_anchor.normalize_or_zero();
-                                    let up = crate::station::to_hull(state.station_ride, state.station_world_rot, up_w);
+                                    let up = humanity_ship::station::to_hull(state.station_ride, state.station_world_rot, up_w);
                                     crate::renderer::key_lights::CameraAir { cam_r, rp, h, color: ac, up }
                                 });
                             for (m, p2) in crate::renderer::key_lights::sky_body_params(&body_draws, air.as_ref()) {
@@ -11585,15 +11560,15 @@ mod native_app {
                                 )
                                 .1;
                             }
-                            crate::terrain::planet_chunks::GRASS_DENSITY_BITS.store(
+                            humanity_terrain::planet_chunks::GRASS_DENSITY_BITS.store(
                                 state.gui_state.settings.grass_density.to_bits(),
                                 std::sync::atomic::Ordering::Relaxed,
                             );
-                            crate::terrain::grass::GRASS_FAR_BITS.store(
+                            humanity_terrain::grass::GRASS_FAR_BITS.store(
                                 state.gui_state.settings.grass_far_m.to_bits(),
                                 std::sync::atomic::Ordering::Relaxed,
                             );
-                            crate::terrain::planet_chunks::GRASS_DETAIL_BITS.store(
+                            humanity_terrain::planet_chunks::GRASS_DETAIL_BITS.store(
                                 state.gui_state.settings.grass_detail.to_bits(),
                                 std::sync::atomic::Ordering::Relaxed,
                             );
@@ -11984,7 +11959,7 @@ mod native_app {
                     // Bridge player health and inventory from ECS
                     let now_s = state
                         .data_store
-                        .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+                        .get::<std::sync::Mutex<humanity_systems::time::GameTime>>("game_time")
                         .and_then(|m| m.lock().ok().map(|t| t.elapsed_seconds as f64))
                         .unwrap_or(0.0);
                     for (_entity, (health, _ctrl)) in state.game_world.world.query::<(&Health, &Controllable)>().iter() {
@@ -12027,20 +12002,20 @@ mod native_app {
                                 .map(|c| c.def_id.clone())
                                 .unwrap_or_default();
                             let items = state.data_store.get::<ItemRegistry>("item_registry");
-                            let outcome = crate::systems::livestock::collect_into_pack(
+                            let outcome = humanity_systems::livestock::collect_into_pack(
                                 &mut state.game_world.world,
                                 animal,
                                 player,
                                 items,
                             );
-                            if let crate::systems::livestock::CollectOutcome::Took { fresh, .. } = &outcome {
+                            if let humanity_systems::livestock::CollectOutcome::Took { fresh, .. } = &outcome {
                                 // Collect SFX (v0.983): eggs, milk, berries,
                                 // stone - every successful [E] gather clicks.
                                 state.pending_sfx.push(("sfx.inventory_pickup", "audio/ui/inventory_pickup.ogg"));
                                 // One yield earns its XP and its quest event once,
                                 // however many presses it takes to carry it off.
                                 if *fresh {
-                                    crate::systems::skills::award_skill_xp(&state.data_store, "farming", 5);
+                                    humanity_systems::skills::award_skill_xp(&state.data_store, "farming", 5);
                                     if let Some(events) =
                                         state.data_store.get::<std::sync::Mutex<Vec<String>>>("quest_events")
                                     {
@@ -12050,7 +12025,7 @@ mod native_app {
                                     }
                                 }
                             }
-                            notice = crate::systems::livestock::collect_notice(&outcome, &animal_name, items);
+                            notice = humanity_systems::livestock::collect_notice(&outcome, &animal_name, items);
                         }
                         state.gui_state.livestock_notice = notice;
                         state.gui_state.livestock_notice_at = now_s;
@@ -12085,7 +12060,7 @@ mod native_app {
                                 .and_then(|id| {
                                     let def = state
                                         .data_store
-                                        .get::<crate::systems::economy::EquipmentRegistry>(
+                                        .get::<humanity_systems::economy::EquipmentRegistry>(
                                             "equipment_registry",
                                         )?
                                         .get(id)?;
@@ -12102,7 +12077,7 @@ mod native_app {
                                 })
                                 .unwrap_or(("Bare hands".to_string(), 3.0, 1.5));
                             let status = match state.targeted_livestock {
-                                Some(target) => crate::systems::combat::player_swing(
+                                Some(target) => humanity_systems::combat::player_swing(
                                     &mut state.game_world.world,
                                     &state.data_store,
                                     target,
@@ -12194,7 +12169,7 @@ mod native_app {
                     if state.gui_state.blueprints.is_empty() {
                         if let Some(reg) = state
                             .data_store
-                            .get::<crate::systems::construction::BlueprintRegistry>(
+                            .get::<humanity_systems::construction::BlueprintRegistry>(
                                 "blueprint_registry",
                             )
                         {
@@ -12243,7 +12218,7 @@ mod native_app {
                         if let (Some(goods), Some(items)) = (
                             state
                                 .data_store
-                                .get::<crate::systems::economy::TradeGoodsRegistry>(
+                                .get::<humanity_systems::economy::TradeGoodsRegistry>(
                                     "trade_goods_registry",
                                 ),
                             state.data_store.get::<ItemRegistry>("item_registry"),
@@ -12283,14 +12258,14 @@ mod native_app {
                             player,
                             state
                                 .data_store
-                                .get::<crate::systems::economy::TradeGoodsRegistry>(
+                                .get::<humanity_systems::economy::TradeGoodsRegistry>(
                                     "trade_goods_registry",
                                 ),
                         ) {
                             let items = state.data_store.get::<ItemRegistry>("item_registry");
                             let qlevels = state
                                 .data_store
-                                .get::<crate::systems::crafting::quality::QualityLevels>("quality_levels");
+                                .get::<humanity_systems::crafting::quality::QualityLevels>("quality_levels");
                             let result = (|| -> Result<String, String> {
                                 let mut inv = state
                                     .game_world
@@ -12303,7 +12278,7 @@ mod native_app {
                                     .get::<&mut humanity_core::ecs::components::Wallet>(e)
                                     .map_err(|_| "no wallet".to_string())?;
                                 if let Some((id, qty)) = vendor_ops.0 {
-                                    crate::systems::economy::vendor_buy(
+                                    humanity_systems::economy::vendor_buy(
                                         &mut inv,
                                         &mut wallet.credits,
                                         goods,
@@ -12312,7 +12287,7 @@ mod native_app {
                                         qty,
                                     )
                                 } else if let Some((id, qty, grade)) = vendor_ops.1 {
-                                    crate::systems::economy::vendor_sell(
+                                    humanity_systems::economy::vendor_sell(
                                         &mut inv,
                                         &mut wallet.credits,
                                         goods,
@@ -12373,7 +12348,7 @@ mod native_app {
                     if state.gui_state.active_page == GuiPage::Profile || state.world_loaded {
                         if let Some(reg) = state
                             .data_store
-                            .get::<crate::systems::abilities::AbilityRegistry>("ability_registry")
+                            .get::<humanity_systems::abilities::AbilityRegistry>("ability_registry")
                         {
                             let cooldowns = state
                                 .data_store
@@ -12455,7 +12430,7 @@ mod native_app {
                             player,
                             state
                                 .data_store
-                                .get::<crate::systems::economy::EquipmentRegistry>(
+                                .get::<humanity_systems::economy::EquipmentRegistry>(
                                     "equipment_registry",
                                 ),
                         ) {
@@ -12485,7 +12460,7 @@ mod native_app {
                         }
                         let equip_reg = state
                             .data_store
-                            .get::<crate::systems::economy::EquipmentRegistry>(
+                            .get::<humanity_systems::economy::EquipmentRegistry>(
                                 "equipment_registry",
                             );
                         let items = state.data_store.get::<ItemRegistry>("item_registry");
@@ -12653,7 +12628,7 @@ mod native_app {
                     // Bridge player vitals + active status effects from ECS for the HUD.
                     {
                         let fx_registry = state.data_store.get::<
-                            crate::systems::status_effects::StatusEffectRegistry,
+                            humanity_systems::status_effects::StatusEffectRegistry,
                         >("status_effect_registry");
                         for (_entity, (vitals, effects, _ctrl)) in state
                             .game_world
@@ -12685,8 +12660,8 @@ mod native_app {
                                     "environment_context",
                                 )
                                 .map(|e| {
-                                    let ex = crate::systems::body_heat::Exposure::from_context(e);
-                                    (e.sealed, e.oxygenated, e.ambient_temp_c, crate::systems::body_heat::operative_c(&ex, e.activity_met))
+                                    let ex = humanity_systems::body_heat::Exposure::from_context(e);
+                                    (e.sealed, e.oxygenated, e.ambient_temp_c, humanity_systems::body_heat::operative_c(&ex, e.activity_met))
                                 })
                                 .unwrap_or((true, true, 20.0, 20.0));
                             state.gui_state.vitals.sealed = sealed;
@@ -12706,7 +12681,7 @@ mod native_app {
                                 .collect();
                             // Each wound and illness, with what helps (first-hour audit S8,
                             // systems::wounds): the HUD's rows and the Inventory's lines.
-                            state.gui_state.vitals.care = crate::systems::wounds::care_lines(effects, fx_registry);
+                            state.gui_state.vitals.care = humanity_systems::wounds::care_lines(effects, fx_registry);
                         }
                     }
                     humanity_core::frame_costs::span("cpu.span.mirror_skills");
@@ -12764,7 +12739,7 @@ mod native_app {
                         {
                             // The step as the player reads it (the own front door named, 2026-10-04),
                             // the chain and the rewards: gui/quest_types.rs.
-                            crate::systems::quests::chain::with_store_words(&state.data_store, |w| {
+                            humanity_systems::quests::chain::with_store_words(&state.data_store, |w| {
                                 for active in &tracker.active_quests {
                                     state.gui_state.quests.push(crate::gui::GuiQuest::active(quest_reg, active, w));
                                 }
@@ -12778,9 +12753,9 @@ mod native_app {
                             if !crate::engine::screens::page_drawn(state.gui_state.active_page, &state.screens.framed_pages, GuiPage::Quests) {
                                 state.gui_state.quest_chain_open = None;
                             }
-                            let reveal = if state.gui_state.dev_cheats_active(&state.theme) { crate::systems::quests::chain::Reveal::All } else { crate::systems::quests::chain::Reveal::Learned };
+                            let reveal = if state.gui_state.dev_cheats_active(&state.theme) { humanity_systems::quests::chain::Reveal::All } else { humanity_systems::quests::chain::Reveal::Learned };
                             state.gui_state.quest_chain = state.gui_state.quest_chain_open.as_deref().zip(quest_reg).and_then(|(id, reg)| {
-                                crate::systems::quests::chain::with_store_words(&state.data_store, |w| crate::systems::quests::chain::build(reg, tracker, id, reveal, w))
+                                humanity_systems::quests::chain::with_store_words(&state.data_store, |w| humanity_systems::quests::chain::build(reg, tracker, id, reveal, w))
                             });
                             // Available quests (v0.748, ladder rung 4): accept-able
                             // content the chaining alone never reached — quests with
@@ -12790,8 +12765,8 @@ mod native_app {
                             if let Some(reg) = quest_reg {
                                 // Another start's opening is never offered (increment 6: each start
                                 // has its own, and none has a prerequisite).
-                                let my_start = crate::persistence::live_save::active_home().start;
-                                let openings = crate::ship::starts::opening_quests(&state.data_dir);
+                                let my_start = humanity_systems::persistence::live_save::active_home().start;
+                                let openings = humanity_ship::starts::opening_quests(&state.data_dir);
                                 let mut avail: Vec<crate::gui::GuiAvailableQuest> = reg
                                     .quests
                                     .values()
@@ -12833,7 +12808,7 @@ mod native_app {
                     {
                         let plant_reg = state
                             .data_store
-                            .get::<crate::systems::farming::PlantRegistry>("plant_registry");
+                            .get::<humanity_systems::farming::PlantRegistry>("plant_registry");
                         // One-time tower compatibility (operator: "make sure they
                         // grow together"): the shared reservoir pH / temperature /
                         // humidity window per tower. Static (tower configs + the
@@ -12846,7 +12821,7 @@ mod native_app {
                                 // The pH each tower's solution is held at (its
                                 // grow medium in soil_ph.ron), the same setpoint
                                 // the farming model grows it at.
-                                let ph = crate::systems::farming::soil_ph::SoilPhData::load();
+                                let ph = humanity_systems::farming::soil_ph::SoilPhData::load();
                                 state.gui_state.tower_compat = towers
                                     .iter()
                                     .map(|t| {
@@ -12907,7 +12882,7 @@ mod native_app {
                         // Keep mining the drone ended by itself (a trip came back
                         // empty, or its asteroid is gone) unticks the box to match
                         // (first-hour audit 2026-10-04, Friction 5).
-                        let has_order = crate::systems::mining::standing_order(&state.data_store).is_some();
+                        let has_order = humanity_systems::mining::standing_order(&state.data_store).is_some();
                         crate::gui::pages::inventory::sync_keep_mining(&mut state.gui_state, has_order);
                         // World vehicles (Stage 3, v0.680): name + distance from the
                         // player + transit state, for the Inventory Vehicles section.
@@ -13050,7 +13025,7 @@ mod native_app {
                         let [paint_mat, glass_mat, rubber_mat] = state.vehicle_mats.unwrap();
                         if let Some(kits) = state
                             .data_store
-                            .get::<crate::systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
+                            .get::<humanity_systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
                         {
                             for (_e, (veh, tf)) in state
                                 .game_world
@@ -13225,20 +13200,20 @@ mod native_app {
                             if a.length_squared() > 1.0 {
                                 let d = a.normalize();
                                 let (_, lon) =
-                                    crate::terrain::planet_heightmap::dir_to_latlon_deg(
+                                    humanity_terrain::planet_heightmap::dir_to_latlon_deg(
                                         glam::Vec3::new(d.x as f32, d.y as f32, d.z as f32),
                                     );
-                                Some(crate::systems::time::local_hour(
+                                Some(humanity_systems::time::local_hour(
                                     gt.hour as f64, lon as f64, gt.hours_per_day,
                                 ) as f32)
                             } else if state.aboard_station
-                                && state.data_store.get::<f64>(crate::systems::time::HOME_LONGITUDE_KEY).is_some()
+                                && state.data_store.get::<f64>(humanity_systems::time::HOME_LONGITUDE_KEY).is_some()
                             {
                                 // Aboard the home: the deck's own time, the
                                 // clock its panels and crops follow (BUG-090).
-                                Some(crate::systems::time::local_hour(
+                                Some(humanity_systems::time::local_hour(
                                     gt.hour as f64,
-                                    crate::systems::time::home_longitude_deg(&state.data_store),
+                                    humanity_systems::time::home_longitude_deg(&state.data_store),
                                     gt.hours_per_day,
                                 ) as f32)
                             } else {
@@ -13354,7 +13329,7 @@ mod native_app {
                         } else {
                             state
                                 .data_store
-                                .get::<crate::systems::weather_events::WeatherEventRegistry>(
+                                .get::<humanity_systems::weather_events::WeatherEventRegistry>(
                                     "weather_event_registry",
                                 )
                                 .and_then(|r| r.events.iter().find(|e| e.id == w.event_id))
@@ -13385,14 +13360,14 @@ mod native_app {
                         } else {
                             state
                                 .data_store
-                                .get::<crate::systems::weather_events::WeatherEventRegistry>(
+                                .get::<humanity_systems::weather_events::WeatherEventRegistry>(
                                     "weather_event_registry",
                                 )
                                 .and_then(|r| r.events.iter().find(|e| e.id == w.event_id))
                                 .filter(|e| {
                                     matches!(
                                         e.wind_profile,
-                                        crate::systems::weather_events::WindProfile::Vortex { .. }
+                                        humanity_systems::weather_events::WindProfile::Vortex { .. }
                                     )
                                 })
                                 .map(|e| e.hazard.radius_m)
@@ -13410,7 +13385,7 @@ mod native_app {
                                         (us % 6283) as f64 / 1000.0;
                                     let dist = 200.0 + (us / 7 % 400) as f64;
                                     let c =
-                                        crate::systems::weather_events::place_event_core(
+                                        humanity_systems::weather_events::place_event_core(
                                             anchor, bearing, dist,
                                         );
                                     log::info!(
@@ -13421,7 +13396,7 @@ mod native_app {
                                 });
                                 let dist = (anchor - core).length();
                                 let (near, inside) =
-                                    crate::systems::weather_events::hazard_proximity(
+                                    humanity_systems::weather_events::hazard_proximity(
                                         dist, radius_m,
                                     );
                                 if near != state.event_hazard_near {
@@ -13464,7 +13439,7 @@ mod native_app {
                         // Trains mode: fixed amplitude sum, so the crest is the
                         // old constant and every bound behaves as before.
                         state.renderer.sea_crest_m =
-                            crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M;
+                            humanity_terrain::ocean_waves::MAX_WAVE_HEIGHT_M;
                     }
                     if state.gui_state.settings.water_fft {
                         let ocean_seed = state
@@ -13489,7 +13464,7 @@ mod native_app {
                         // a regime flip rolls the ocean over.
                         // The wind AT THE PLAYER, the same one the sea
                         // state's shading reads (2026-09-28).
-                        let wind_target = crate::systems::weather::ocean_fft_wind_target(
+                        let wind_target = humanity_systems::weather::ocean_fft_wind_target(
                             state.sea_state_override,
                             state.gui_state.weather.as_ref().map(|w| w.wind_at_player),
                         );
@@ -13527,7 +13502,7 @@ mod native_app {
                         {
                             let w = state.ocean_fft_wind.clamp(0.2, 30.0);
                             state.ocean_fft = Some(
-                                crate::terrain::ocean_fft::OceanCascades::build(
+                                humanity_terrain::ocean_fft::OceanCascades::build(
                                     w, 0.6, 200_000.0, ocean_seed,
                                 ),
                             );
@@ -13550,7 +13525,7 @@ mod native_app {
                             // sea instead of a worst case. A calm day keeps
                             // exactly the old tight numbers.
                             state.renderer.sea_crest_m =
-                                crate::terrain::ocean_fft::crest_estimate_m(c.total_rms());
+                                humanity_terrain::ocean_fft::crest_estimate_m(c.total_rms());
                         }
                     }
 
@@ -13571,19 +13546,19 @@ mod native_app {
                             // west of the player, 900 m, matching the west-looking
                             // ocean vantages): deterministic for the probe rig,
                             // the operator.
-                            let core = crate::systems::weather_events::place_event_core(
+                            let core = humanity_systems::weather_events::place_event_core(
                                 anchor, bearing, dist_m,
                             );
                             let frame =
-                                crate::terrain::ocean_events::OceanEventFrame::at(core);
+                                humanity_terrain::ocean_events::OceanEventFrame::at(core);
                             // The soliton's travel direction points from the
                             // event toward the player, so its wall faces the
                             // camera.
                             let toward = frame.project(anchor);
-                            match crate::terrain::ocean_events::dev_pin_events(&req, toward) {
+                            match humanity_terrain::ocean_events::dev_pin_events(&req, toward) {
                                 Some(events) => {
                                     state.ocean_event_pin = Some(
-                                        crate::terrain::ocean_events::PinnedOceanEvents {
+                                        humanity_terrain::ocean_events::PinnedOceanEvents {
                                             events,
                                             frame,
                                         },
@@ -13618,7 +13593,7 @@ mod native_app {
                     // Mutex). Drives the HUD power line that swings with day/night.
                     if let Some(ps) = state
                         .data_store
-                        .get::<std::sync::Mutex<crate::systems::electrical::PowerStatus>>("power_status")
+                        .get::<std::sync::Mutex<humanity_systems::electrical::PowerStatus>>("power_status")
                         .and_then(|m| m.lock().ok())
                     {
                         state.gui_state.power_generation = ps.generation;
@@ -13630,14 +13605,14 @@ mod native_app {
                         state.gui_state.power_ship = ps.ship;
                     }
                     // The machines' day record (2026-10-22), copied when an hour completes.
-                    if crate::machines::day_energy::revision(&state.data_store) != state.gui_state.machine_day_energy.revision {
-                        state.gui_state.machine_day_energy = crate::machines::day_energy::snapshot(&state.data_store);
+                    if humanity_ship::machines::day_energy::revision(&state.data_store) != state.gui_state.machine_day_energy.revision {
+                        state.gui_state.machine_day_energy = humanity_ship::machines::day_energy::snapshot(&state.data_store);
                     }
 
                     // Bridge the live home WATER readout (PlumbingSystem writes it via Mutex). (v0.608)
                     if let Some(ws) = state
                         .data_store
-                        .get::<std::sync::Mutex<crate::systems::plumbing::WaterStatus>>("water_status")
+                        .get::<std::sync::Mutex<humanity_systems::plumbing::WaterStatus>>("water_status")
                         .and_then(|m| m.lock().ok())
                     {
                         state.gui_state.water_production_lpm = ws.production_lpm;
@@ -13647,12 +13622,12 @@ mod native_app {
                         state.gui_state.water_days_autonomy = ws.days_autonomy;
                     }
                     if state.gui_state.quality_levels.levels.is_empty() {
-                        if let Some(q) = state.data_store.get::<crate::systems::crafting::quality::QualityLevels>("quality_levels") {
+                        if let Some(q) = state.data_store.get::<humanity_systems::crafting::quality::QualityLevels>("quality_levels") {
                             state.gui_state.quality_levels = q.clone();
                         }
                     }
                     if state.gui_state.tap_litres.is_empty() {
-                        if let Some(ft) = state.data_store.get::<crate::systems::fluids::FluidTable>("fluid_table") {
+                        if let Some(ft) = state.data_store.get::<humanity_systems::fluids::FluidTable>("fluid_table") {
                             state.gui_state.tap_litres = ft.tap.clone();
                         }
                     }
@@ -13660,7 +13635,7 @@ mod native_app {
                     // Bridge the live home AIR readout (AtmosphereSystem writes it via Mutex). (v0.617)
                     if let Some(asr) = state
                         .data_store
-                        .get::<std::sync::Mutex<crate::systems::atmosphere::AirStatus>>("air_status")
+                        .get::<std::sync::Mutex<humanity_systems::atmosphere::AirStatus>>("air_status")
                         .and_then(|m| m.lock().ok())
                     {
                         state.gui_state.air_o2_pct = asr.o2_pct;
@@ -13682,7 +13657,7 @@ mod native_app {
                         // `kinds`; keeps the RON author's icon choice when a row
                         // already exists.
                         fn patch_stat(
-                            stats: &mut Vec<crate::machines::MachineStat>,
+                            stats: &mut Vec<humanity_ship::machines::MachineStat>,
                             kinds: &[&str],
                             new_kind: &str,
                             value: String,
@@ -13692,7 +13667,7 @@ mod native_app {
                                 row.value = value;
                                 row.status = status.to_string();
                             } else {
-                                stats.push(crate::machines::MachineStat {
+                                stats.push(humanity_ship::machines::MachineStat {
                                     kind: new_kind.to_string(),
                                     value,
                                     status: status.to_string(),
@@ -13707,7 +13682,7 @@ mod native_app {
                         );
                         let item_reg = state
                             .data_store
-                            .get::<crate::systems::inventory::ItemRegistry>("item_registry");
+                            .get::<humanity_systems::inventory::ItemRegistry>("item_registry");
                         let mut live: std::collections::HashMap<String, LiveStats> =
                             std::collections::HashMap::new();
                         for (_e, (mid, tank, bat, cont)) in state
@@ -13717,7 +13692,7 @@ mod native_app {
                                 &MachineInstanceId,
                                 Option<&WaterTank>,
                                 Option<&Battery>,
-                                Option<&crate::systems::inventory::containers::Container>,
+                                Option<&humanity_systems::inventory::containers::Container>,
                             )>()
                             .iter()
                         {
@@ -13839,7 +13814,7 @@ mod native_app {
                             if let Some(cur) = &current {
                                 if let Some(reg) = state
                                     .data_store
-                                    .get::<crate::systems::crafting::RecipeRegistry>("recipe_registry")
+                                    .get::<humanity_systems::crafting::RecipeRegistry>("recipe_registry")
                                 {
                                     if let Some(station) =
                                         reg.recipes.get(cur).and_then(|r| r.required_station.clone())
@@ -13863,17 +13838,17 @@ mod native_app {
                             let take = std::mem::take(&mut state.gui_state.machine_card_take_pending);
                             let item_reg = state
                                 .data_store
-                                .get::<crate::systems::inventory::ItemRegistry>("item_registry");
+                                .get::<humanity_systems::inventory::ItemRegistry>("item_registry");
                             let mut cont_entity: Option<hecs::Entity> = None;
                             let mut contents: Option<(String, u32)> = None;
                             // The whole container, for what it remembers (2026-09-26).
-                            let mut cont_snapshot: Option<crate::systems::inventory::containers::Container> = None;
+                            let mut cont_snapshot: Option<humanity_systems::inventory::containers::Container> = None;
                             for (e, (id, c)) in state
                                 .game_world
                                 .world
                                 .query::<(
                                     &MachineInstanceId,
-                                    &crate::systems::inventory::containers::Container,
+                                    &humanity_systems::inventory::containers::Container,
                                 )>()
                                 .iter()
                             {
@@ -13895,7 +13870,7 @@ mod native_app {
                             // (the refinery's drum, 2026-10-20), that recipe's
                             // feedstock: it takes and offers only those.
                             let fuels = cont_entity.and_then(|e| {
-                                crate::systems::inventory::containers::vessel_takes(
+                                humanity_systems::inventory::containers::vessel_takes(
                                     &state.game_world.world,
                                     &state.data_store,
                                     e,
@@ -13907,7 +13882,7 @@ mod native_app {
                                 if let Some(e) = cont_entity {
                                     let water_ok = state
                                         .data_store
-                                        .get::<std::sync::Mutex<crate::systems::plumbing::WaterStatus>>("water_status")
+                                        .get::<std::sync::Mutex<humanity_systems::plumbing::WaterStatus>>("water_status")
                                         .and_then(|m| m.lock().ok().map(|ws| ws.capacity_l <= 0.0 || ws.stored_l > ws.capacity_l * 0.02))
                                         .unwrap_or(true);
                                     if !water_ok {
@@ -13917,13 +13892,13 @@ mod native_app {
                                         ));
                                     } else {
                                         // Water, and soap for a food residue (2026-09-26).
-                                        let toast = match crate::systems::inventory::containers::clean_container(&mut state.game_world.world, &state.data_store, e) {
+                                        let toast = match humanity_systems::inventory::containers::clean_container(&mut state.game_world.world, &state.data_store, e) {
                                             Ok((l, None)) => (format!("Cleaned with {l:.0} L of water."), crate::gui::ToastKind::Success),
                                             Ok((l, Some(a))) => (format!("Washed with {l:.0} L of water and your {a}."), crate::gui::ToastKind::Success),
                                             Err(m) => (m, crate::gui::ToastKind::Info),
                                         };
                                         state.gui_state.pending_toasts.push(toast);
-                                        cont_snapshot = state.game_world.world.get::<&crate::systems::inventory::containers::Container>(e).ok().map(|c| (*c).clone());
+                                        cont_snapshot = state.game_world.world.get::<&humanity_systems::inventory::containers::Container>(e).ok().map(|c| (*c).clone());
                                     }
                                 }
                             }
@@ -13934,7 +13909,7 @@ mod native_app {
                                     let age = cont_snapshot.as_ref().map_or(0.0, |c| c.content_age_s); // food keeps its age (S6)
                                     let mut taken = 0u32;
                                     for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
-                                        &mut crate::systems::inventory::Inventory,
+                                        &mut humanity_systems::inventory::Inventory,
                                         &humanity_core::ecs::components::Controllable,
                                     )>() {
                                         let overflow =
@@ -13943,7 +13918,7 @@ mod native_app {
                                         break;
                                     }
                                     if taken > 0 {
-                                        if let Ok(mut c) = state.game_world.world.get::<&mut crate::systems::inventory::containers::Container>(e) {
+                                        if let Ok(mut c) = state.game_world.world.get::<&mut humanity_systems::inventory::containers::Container>(e) {
                                             c.current_qty -= taken;
                                             c.used_liters =
                                                 (c.used_liters - taken as f32 * unit_vol).max(0.0);
@@ -13972,7 +13947,7 @@ mod native_app {
                                 .gui_state
                                 .machine_card_store_pending
                                 .take()
-                                .filter(|i| crate::systems::inventory::containers::vessel_takes_item(fuels.as_ref(), i));
+                                .filter(|i| humanity_systems::inventory::containers::vessel_takes_item(fuels.as_ref(), i));
                             if let (Some(e), Some(item)) = (cont_entity, store) {
                                 let unit_vol =
                                     item_reg.map(|r| r.volume_for(&item)).unwrap_or(0.0);
@@ -13981,7 +13956,7 @@ mod native_app {
                                     .unwrap_or_else(|| "solid".to_string());
                                 let mut have = 0u32;
                                 for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
-                                    &crate::systems::inventory::Inventory,
+                                    &humanity_systems::inventory::Inventory,
                                     &humanity_core::ecs::components::Controllable,
                                 )>() {
                                     have = inv.count_item(&item);
@@ -13991,16 +13966,16 @@ mod native_app {
                                     let mut stored = 0u32;
                                     if let Some(creg) = state
                                         .data_store
-                                        .get::<crate::systems::inventory::containers::ContainerRegistry>(
+                                        .get::<humanity_systems::inventory::containers::ContainerRegistry>(
                                             "container_registry",
                                         )
                                     {
                                         if let Ok(mut c) = state
                                             .game_world
                                             .world
-                                            .get::<&mut crate::systems::inventory::containers::Container>(e)
+                                            .get::<&mut humanity_systems::inventory::containers::Container>(e)
                                         {
-                                            if let crate::systems::inventory::containers::StoreOutcome::Stored { quantity } =
+                                            if let humanity_systems::inventory::containers::StoreOutcome::Stored { quantity } =
                                                 creg.try_store(&mut c, &item, &class, unit_vol, have)
                                             {
                                                 stored = quantity;
@@ -14016,14 +13991,14 @@ mod native_app {
                                     if stored > 0 {
                                         let mut age = 0.0;
                                         for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
-                                            &mut crate::systems::inventory::Inventory,
+                                            &mut humanity_systems::inventory::Inventory,
                                             &humanity_core::ecs::components::Controllable,
                                         )>() {
                                             age = inv.remove_item_aged(&item, stored).1;
                                             break;
                                         }
                                         // Food goes into the vessel at the age it had (S6).
-                                        if let Ok(mut c) = state.game_world.world.get::<&mut crate::systems::inventory::containers::Container>(e) {
+                                        if let Ok(mut c) = state.game_world.world.get::<&mut humanity_systems::inventory::containers::Container>(e) {
                                             c.arrived_aged(stored, age);
                                         }
                                         log::info!("[Machines] stored {stored}x {item} into {mid}");
@@ -14042,23 +14017,23 @@ mod native_app {
                                 cont_snapshot.as_ref(),
                                 state
                                     .data_store
-                                    .get::<crate::systems::inventory::containers::ContainerRegistry>(
+                                    .get::<humanity_systems::inventory::containers::ContainerRegistry>(
                                         "container_registry",
                                     ),
                             ) {
                                 for (_pe, (inv, _c)) in state.game_world.world.query::<(
-                                    &crate::systems::inventory::Inventory,
+                                    &humanity_systems::inventory::Inventory,
                                     &humanity_core::ecs::components::Controllable,
                                 )>().iter() {
                                     let pack = inv.summary();
-                                    storable = crate::systems::inventory::containers::store_offers(
+                                    storable = humanity_systems::inventory::containers::store_offers(
                                         creg,
                                         item_reg,
                                         c,
                                         fuels.as_ref(),
                                         &pack,
                                     );
-                                    refused = crate::systems::inventory::containers::refused_note(
+                                    refused = humanity_systems::inventory::containers::refused_note(
                                         creg,
                                         item_reg,
                                         c,
@@ -14093,9 +14068,9 @@ mod native_app {
                                 }
                                 if parts.is_empty() { None } else { Some(parts.join(" ")) }
                             });
-                            // Fill and pour at a water tank (2026-09-26): src/systems/fluids.rs.
-                            if let Some(ft) = state.data_store.get::<crate::systems::fluids::FluidTable>("fluid_table") {
-                                use crate::systems::fluids::{apply_action, card_actions};
+                            // Fill and pour at a water tank (2026-09-26): crates/humanity-systems/src/fluids.rs.
+                            if let Some(ft) = state.data_store.get::<humanity_systems::fluids::FluidTable>("fluid_table") {
+                                use humanity_systems::fluids::{apply_action, card_actions};
                                 if let Some(key) = state.gui_state.machine_card_fluid_pending.take() {
                                     let toast = match apply_action(ft, &mut state.game_world.world, item_reg, &mid, &key) {
                                         Ok(m) => (m, crate::gui::ToastKind::Success),
@@ -14153,7 +14128,7 @@ mod native_app {
                                             row.value = val;
                                             row.status = "ok".to_string();
                                         } else {
-                                            lbl.stats.push(crate::machines::MachineStat {
+                                            lbl.stats.push(humanity_ship::machines::MachineStat {
                                                 kind: "progress".to_string(),
                                                 value: val,
                                                 status: "ok".to_string(),
@@ -14735,10 +14710,10 @@ mod native_app {
                                 // Vegetation LOD (v0.923): the tree-card far
                                 // cutoff slider applies live.
                                 state.renderer.tree_card_far_m =
-                                    crate::terrain::far_trees::effective_card_far_m(
+                                    humanity_terrain::far_trees::effective_card_far_m(
                                         state.gui_state.settings.veg_tree_card_m
                                             .clamp(100.0, crate::config::TREE_CARD_MAX_M),
-                                        crate::terrain::far_trees::measured_card_reach_m(),
+                                        humanity_terrain::far_trees::measured_card_reach_m(),
                                     );
                                 // v0.907: the lighting-pass knobs from
                                 // Settings > Planets apply every frame.
@@ -15092,7 +15067,7 @@ mod native_app {
                                 // ghost-markers half of the vanishing-home bug).
                                 state.gui_state.station_off = state.station_off;
                                 // Where the compass's N goes: true north, aboard too.
-                                state.gui_state.compass_north_yaw = crate::station::compass_north_yaw(
+                                state.gui_state.compass_north_yaw = humanity_ship::station::compass_north_yaw(
                                     state.camera.surface_mode,
                                     state.station_ride,
                                     state.station_world_rot,
@@ -15424,18 +15399,18 @@ mod native_app {
                                     }
                                 }
                                 if let Some(hold) = state.gui_state.time_scale_request.take() {
-                                    crate::systems::time::request_speed_hold(&state.data_store, hold);
+                                    humanity_systems::time::request_speed_hold(&state.data_store, hold);
                                 }
                                 if weather_changed {
                                     if let Some(m) = state
                                         .data_store
-                                        .get::<std::sync::Mutex<crate::systems::weather::WeatherControl>>(
+                                        .get::<std::sync::Mutex<humanity_systems::weather::WeatherControl>>(
                                             "weather_control",
                                         )
                                     {
                                         if let Ok(mut c) = m.lock() {
                                             c.manual = state.gui_state.weather_manual.then(|| {
-                                                crate::systems::weather::ManualWeather {
+                                                humanity_systems::weather::ManualWeather {
                                                     condition: state.gui_state.weather_pick_condition,
                                                     intensity: state.gui_state.weather_pick_intensity,
                                                     wind_speed: state.gui_state.weather_pick_wind,

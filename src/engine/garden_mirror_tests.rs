@@ -26,7 +26,7 @@ use humanity_core::ecs::components::{CropInstance, MachineInstanceId, Pollinator
 use humanity_core::ecs::systems::System;
 use crate::gui::{GardenPests, GuiCrop};
 use humanity_core::hot_reload::data_store::DataStore;
-use crate::systems::farming::{self, step_tests, FarmingSystem};
+use humanity_systems::farming::{self, fixtures::step, FarmingSystem};
 
 /// The page's data as one text: every crop's row (its tile key included) and every per-area list,
 /// the outlook sorted by crop.
@@ -59,7 +59,7 @@ fn first_difference(a: &str, b: &str) -> String {
 /// The garden: the step_tests one with its air, every Garden dataset and setting registered as at
 /// boot, the farm's change numbers, a bumblebee hive beside the greenhouse bed, at `interval_s`.
 fn garden(interval_s: f64) -> (DataStore, hecs::World, FarmingSystem) {
-    let (mut data, mut world) = step_tests::garden(true);
+    let (mut data, mut world) = step::garden(true);
     farming::soil_ph::register(&mut data);
     farming::pollination::register(&mut data);
     farming::picking::register(&mut data);
@@ -76,11 +76,11 @@ fn garden(interval_s: f64) -> (DataStore, hecs::World, FarmingSystem) {
 }
 
 fn clock_now(data: &DataStore) -> f64 {
-    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().elapsed_seconds
+    data.get::<Mutex<humanity_systems::time::GameTime>>("game_time").unwrap().lock().unwrap().elapsed_seconds
 }
 
 fn set_clock(data: &DataStore, t: f64) {
-    data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().set_elapsed(t);
+    data.get::<Mutex<humanity_systems::time::GameTime>>("game_time").unwrap().lock().unwrap().set_elapsed(t);
 }
 
 fn frame(data: &DataStore, world: &mut hecs::World, sys: &mut FarmingSystem, dt: f32) {
@@ -303,7 +303,7 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
 
     // (e) The tanks run dry: nothing waters automatically any more.
     {
-        let ws = data.get::<Mutex<crate::systems::plumbing::WaterStatus>>("water_status").unwrap();
+        let ws = data.get::<Mutex<humanity_systems::plumbing::WaterStatus>>("water_status").unwrap();
         let mut w = ws.lock().unwrap();
         w.capacity_l = 1000.0;
         w.stored_l = 0.0;
@@ -375,7 +375,7 @@ fn every_stamped_entry_reaches_the_rows_when_published_again() {
         d.insert("garden_nutrients", nd);
     });
     case(&mut data, "item_registry", "items.csv published again (every mass doubled: a harvest twice the weight takes twice the nutrients)", &|d| {
-        let mut items = d.get::<crate::systems::inventory::ItemRegistry>("item_registry").unwrap().clone();
+        let mut items = d.get::<humanity_systems::inventory::ItemRegistry>("item_registry").unwrap().clone();
         for item in items.items.values_mut() {
             item.mass_kg *= 2.0;
         }

@@ -39,7 +39,7 @@
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiItemSlot, GuiState, GuiTrade, GuiTradeItem};
-use crate::systems::inventory::{Inventory, TradeSettlements, TransferOp};
+use humanity_systems::inventory::{Inventory, TradeSettlements, TransferOp};
 use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Vec2};
 
 /// Colour for a relay trade status string.
@@ -1442,7 +1442,7 @@ pub(crate) mod trade_moves_tests {
         let p = world.spawn((
             humanity_core::ecs::components::Controllable,
             Inventory::new(16),
-            crate::systems::skills::PlayerSkills::new(),
+            humanity_systems::skills::PlayerSkills::new(),
             humanity_core::ecs::components::Name("Bob".to_string()),
             humanity_core::ecs::components::Appearance::default(),
             humanity_core::ecs::components::Outfit::default(),
@@ -1463,7 +1463,7 @@ pub(crate) mod trade_moves_tests {
     /// Frames of the main loop, in its order: the systems tick (the
     /// InventorySystem applies queued trade moves), then the relay pump ends
     /// with `tick`.
-    pub(crate) fn frames(n: usize, gs: &mut GuiState, world: &mut hecs::World, inv: &mut crate::systems::inventory::InventorySystem) {
+    pub(crate) fn frames(n: usize, gs: &mut GuiState, world: &mut hecs::World, inv: &mut humanity_systems::inventory::InventorySystem) {
         use humanity_core::ecs::systems::System;
         let data = humanity_core::hot_reload::data_store::DataStore::new();
         for _ in 0..n {

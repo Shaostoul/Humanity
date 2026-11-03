@@ -8,7 +8,7 @@
 //! nothing.
 //!
 //! This lint makes that gap IMPOSSIBLE to reintroduce silently:
-//!   * Every `impl System for X` under `src/systems/` must be EITHER registered in
+//!   * Every `impl System for X` under `crates/humanity-systems/src/` must be EITHER registered in
 //!     `src/lib.rs` (the native runtime runner) OR listed in `DEFERRED_SYSTEMS`
 //!     with a written reason. A new system that's neither fails the build.
 //!   * The core runtime registries + game_time must stay wired into `src/lib.rs`.
@@ -82,7 +82,7 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // applied by the registered FoodSystem, which owns the body.
     ("TransportationSystem", "scaffold; needs a transit network"),
     // HvacSystem was DELETED (2026-10-05): never registered, superseded by the farming air
-    // step's heat model (src/systems/farming/heat.rs, BUG-155).
+    // step's heat model (crates/humanity-systems/src/farming/heat.rs, BUG-155).
     // PlumbingSystem is now REGISTERED (v0.608): the live home water sim, coupled to power. It ticks
     // against WaterTank/WaterProducer/WaterConsumer/PlumbingCircuit entities, so it left this allowlist.
 ];
@@ -135,10 +135,10 @@ fn leading_ident(s: &str) -> String {
         .collect()
 }
 
-/// All `impl System for X` type names found under src/systems/.
+/// All `impl System for X` type names found under crates/humanity-systems/src/ (the simulation's crate).
 fn implemented_systems() -> BTreeSet<String> {
     let mut files = Vec::new();
-    collect_rs_files(&manifest_dir().join("src").join("systems"), &mut files);
+    collect_rs_files(&manifest_dir().join("crates").join("humanity-systems").join("src"), &mut files);
     let mut set = BTreeSet::new();
     for f in files {
         let src = fs::read_to_string(&f).unwrap_or_default();
@@ -198,7 +198,7 @@ fn every_implemented_system_is_registered_or_deferred() {
 
     assert!(
         !implemented.is_empty(),
-        "scan found no `impl System for` under src/systems/ — the scanner path is wrong"
+        "scan found no `impl System for` under crates/humanity-systems/src/ — the scanner path is wrong"
     );
 
     // (1) Every implemented system must be registered, deferred, or net-path.

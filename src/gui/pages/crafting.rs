@@ -6,7 +6,7 @@ use crate::gui::{GuiState, GuiRecipe};
 use humanity_core::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
-use crate::systems::crafting::home_store::Draw;
+use humanity_systems::crafting::home_store::Draw;
 use std::cell::RefCell;
 
 // Crafting categories are loaded from `data/crafting/categories.json` into
@@ -801,7 +801,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
     // Expected grade of a hand-made durable good (2026-09-26): the band the
     // crafter's skill lands in, give or take the random spread.
     if recipe.graded && !state.quality_levels.levels.is_empty() {
-        use crate::systems::crafting::quality::{score, skill_factor};
+        use humanity_systems::crafting::quality::{score, skill_factor};
         let (lvl, max) = recipe
             .skill_required
             .as_ref()
@@ -852,7 +852,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             match &state.stations_where {
                 // A station built on a planet is not on the home's grid
                 // (construction::wire_built_stations), so say so.
-                crate::systems::construction::StationsWhere::Site(_) => {
+                humanity_systems::construction::StationsWhere::Site(_) => {
                     tf("crafting.no_power_site", &[("station", &station)])
                 }
                 _ => tf("crafting.no_power", &[("station", &station)]),
@@ -869,7 +869,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
                 .find(|b| b.stations.iter().any(|s| s == machine_type))
                 .map(|b| b.name.clone());
             let station = machine_type.replace('_', " ");
-            use crate::systems::construction::StationsWhere;
+            use humanity_systems::construction::StationsWhere;
             match (&state.stations_where, buildable) {
                 (StationsWhere::Site(_), Some(name)) => {
                     tf("crafting.needs_station_site_build", &[("station", &station), ("name", &name)])
@@ -962,6 +962,6 @@ fn count_in_inventory(state: &GuiState, item_id: &str) -> u32 {
 
 /// Why home storage does not count where the player is, or None.
 fn storage_not_here(state: &GuiState) -> Option<&'static str> {
-    use crate::systems::crafting::home_store::{not_here_reason, words};
+    use humanity_systems::crafting::home_store::{not_here_reason, words};
     not_here_reason(&state.stations_where, state.home_storage_here).map(words)
 }

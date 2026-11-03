@@ -319,7 +319,7 @@ fn garden_medium_editor(
     ui: &mut egui::Ui,
     theme: &Theme,
     machine_id: &str,
-    medium: Option<&crate::gui::GrowMedium>,
+    medium: Option<&humanity_systems::grow_machines::GrowMedium>,
     state: &GuiState,
 ) {
     let Some(medium) = medium else {
@@ -358,17 +358,17 @@ fn garden_medium_editor(
     // The data-driven controls (sliders/crop field/toggles, keyed by the registry).
     for control in &medium.controls {
         match control {
-            crate::gui::GrowControl::Slider { key, label } => {
+            humanity_systems::grow_machines::GrowControl::Slider { key, label } => {
                 let v = cfg.values.entry(key.clone()).or_insert(0.5);
                 widgets::labeled_slider(ui, theme, label, v, 0.0..=1.0);
             }
-            crate::gui::GrowControl::Crop { label, hint } => {
+            humanity_systems::grow_machines::GrowControl::Crop { label, hint } => {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(label).color(theme.text_secondary()).size(theme.font_size_small));
                     ui.add(egui::TextEdit::singleline(&mut cfg.crop).desired_width(220.0).hint_text(hint.as_str()));
                 });
             }
-            crate::gui::GrowControl::Toggle { key, label } => {
+            humanity_systems::grow_machines::GrowControl::Toggle { key, label } => {
                 let t = cfg.toggles.entry(key.clone()).or_insert(true);
                 widgets::toggle(ui, theme, label, t);
             }
@@ -566,7 +566,7 @@ fn draw_container(
     theme: &Theme,
     place: &crate::gui::Place,
     inv: &[Option<crate::gui::GuiItemSlot>],
-    placed: &[crate::systems::inventory::placed::PlacedItem],
+    placed: &[humanity_systems::inventory::placed::PlacedItem],
     path: &str,
     sel_slot: Option<usize>,
     sel_placed: Option<usize>,
@@ -860,7 +860,7 @@ fn draw_item_card(
     theme: &Theme,
     item: &crate::gui::GuiItemSlot,
     acts: Option<&mut ItemCardActions>,
-    quality_levels: &crate::systems::crafting::quality::QualityLevels,
+    quality_levels: &humanity_systems::crafting::quality::QualityLevels,
 ) {
     let details = lookup_item_details(&item.item_id);
     ui.add_space(theme.spacing_xs);
@@ -946,7 +946,7 @@ fn draw_item_card(
         // What is eaten or drunk comes from the food data, the same source
         // the food system uses (2026-09-26); it used to be guessed from the
         // id and offered Drink on the water pump and empty bottles.
-        let kind = crate::systems::food::consume_kinds().get(&item.item_id).copied();
+        let kind = humanity_systems::food::consume_kinds().get(&item.item_id).copied();
         let is_drink = kind == Some(true);
         let is_food = kind == Some(false);
         let is_seed = details.as_ref().map(|d| d.subcategory == "seed").unwrap_or(false)
@@ -974,7 +974,7 @@ fn draw_item_card(
             if widgets::compact_button(ui, theme, "Plant", widgets::ButtonVariant::Primary) {
                 acts.plant = Some(item.item_id.clone());
             }
-        } else if crate::systems::treatment::has_use(&item.item_id) {
+        } else if humanity_systems::treatment::has_use(&item.item_id) {
             // Use (BUG-162): offered only for an item with a row in
             // data/medical/treatments.ron, which says what it does. It used
             // to show on every other item and discard its click.
@@ -1134,7 +1134,7 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         with_mining_edit(|m| m.open = None);
         return;
     };
-    let cap = crate::systems::mining::DRONE_CAPACITY;
+    let cap = humanity_systems::mining::DRONE_CAPACITY;
     let drone_active = state.drone_active;
     let mut draft = with_mining_edit(|m| m.draft.entry(ast_id.clone()).or_default().clone());
     let mut launch = false;
@@ -1212,7 +1212,7 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 let note = if worn {
                     Some("The drone is due for its service: Repair it from the Mining panel first.".to_string())
                 } else if r.pack_wh < r.trip_wh - 1e-3 {
-                    let when = r.ready_in_s.map(crate::systems::mining::duration_words);
+                    let when = r.ready_in_s.map(humanity_systems::mining::duration_words);
                     Some(match (r.realistic, when) {
                         (false, Some(w)) => format!("Its battery is charging: it takes off by itself in {w}."),
                         (false, None) => "Its battery is charging: it takes off by itself when it holds a trip.".to_string(),
@@ -1339,8 +1339,8 @@ pub(crate) fn draw_drone_rows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
 
 /// The drone's running costs, as rows: the energy a trip takes, the wear left before
 /// its service and what the service takes (first-hour audit S5).
-fn drone_cost_rows(ui: &mut egui::Ui, theme: &Theme, r: &crate::systems::mining::DroneReadout) {
-    use crate::systems::mining::kwh;
+fn drone_cost_rows(ui: &mut egui::Ui, theme: &Theme, r: &humanity_systems::mining::DroneReadout) {
+    use humanity_systems::mining::kwh;
     widgets::detail_row(ui, theme, "Each trip", &format!("{} from the home's power (a full battery)", kwh(r.trip_wh)));
     widgets::detail_row(
         ui,
@@ -1361,7 +1361,7 @@ fn drone_cost_rows(ui: &mut egui::Ui, theme: &Theme, r: &crate::systems::mining:
 /// doing, the energy a trip takes, its wear, what its service takes, Repair, and a
 /// Launch waiting for the battery with its Cancel. Nothing without the drone's data.
 fn draw_docked_drone(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::systems::mining::{kwh, DroneRequest};
+    use humanity_systems::mining::{kwh, DroneRequest};
     let Some(r) = state.drone_readout.clone() else { return };
     let mut req: Option<DroneRequest> = None;
     ui.horizontal_wrapped(|ui| {
@@ -1499,7 +1499,7 @@ pub(crate) struct GardenActions {
     /// Soil pH amendment (farming::soil_ph): (area, amendment id).
     soil_ph: Option<(String, String)>,
     /// Hand-pollinate an area, or introduce a colony in a hive (farming::pollination).
-    pollinate: Option<crate::systems::farming::pollination::Request>,
+    pollinate: Option<humanity_systems::farming::pollination::Request>,
     /// Clear a ripe picked plant from its plot (farming::picking).
     clear_crop: Option<u64>,
     fertilize_crop: Option<u64>,
@@ -1995,7 +1995,7 @@ pub(crate) fn draw_garden_section(
                             ui.horizontal_wrapped(|ui| {
                                 ui.label(RichText::new(&p.waiting).size(theme.font_size_small).color(theme.warning()));
                                 if widgets::compact_button(ui, theme, "Hand-pollinate", widgets::ButtonVariant::Secondary) {
-                                    act.pollinate = Some(crate::systems::farming::pollination::Request::Hand(area_tag.to_string()));
+                                    act.pollinate = Some(humanity_systems::farming::pollination::Request::Hand(area_tag.to_string()));
                                 }
                             });
                         }
@@ -2004,7 +2004,7 @@ pub(crate) fn draw_garden_section(
                                 let col = if h.needs_colony { theme.warning() } else { theme.text_secondary() };
                                 ui.label(RichText::new(&h.line).size(theme.font_size_small).color(col));
                                 if h.needs_colony && widgets::compact_button(ui, theme, "Introduce colony", widgets::ButtonVariant::Secondary) {
-                                    act.pollinate = Some(crate::systems::farming::pollination::Request::Colony(h.id.clone()));
+                                    act.pollinate = Some(humanity_systems::farming::pollination::Request::Colony(h.id.clone()));
                                 }
                             });
                         }
@@ -2159,7 +2159,7 @@ pub(crate) fn draw_garden_section(
                                 // when its next pick comes (farming::picking).
                                 let (status, scol) = match crop {
                                     Some(c) => {
-                                        let word = crate::systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, false);
+                                        let word = humanity_systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, false);
                                         let col = if c.dead { theme.danger() } else if c.mature { theme.accent() } else { theme.text_secondary() };
                                         (word, col)
                                     }
@@ -2214,7 +2214,7 @@ pub(crate) fn draw_garden_section(
                                 // A plant between picks: the tile's short "next 1.5d"
                                 // in full on hover.
                                 let hover = match crop.filter(|c| !c.dead && !c.mature && c.picking.bearing_next_in.is_some()) {
-                                    Some(c) => format!("Slot {} · {name} · {}", s + 1, crate::systems::farming::picking::stage_word(false, false, &c.stage, &c.picking, true)),
+                                    Some(c) => format!("Slot {} · {name} · {}", s + 1, humanity_systems::farming::picking::stage_word(false, false, &c.stage, &c.picking, true)),
                                     None => match crop.and_then(|c| outlook_here.get(&c.entity_bits)).filter(|o| !o.grown && !o.ripens.is_empty()) {
                                         // Its wait in full (farming::outlook, 2026-10-12).
                                         Some(o) => format!("Slot {} · {name} · ripe in {}", s + 1, o.ripens),
@@ -2299,7 +2299,7 @@ pub(crate) fn draw_garden_section(
                                                         );
                                                         ui.end_row();
                                                     };
-                                                let stage = crate::systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, true);
+                                                let stage = humanity_systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, true);
                                                 stat(ui, "Stage", stage);
                                                 stat(ui, "Plants", c.plants.to_string());
                                                 stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
@@ -2433,7 +2433,7 @@ fn garden_slot_spec<'a>(
 /// `draw_garden_section`: a line added there and not hashed here keeps a stale height.
 fn slot_tile_key(
     crop: Option<&crate::gui::GuiCrop>,
-    outlook: &std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook, widgets::offscreen::KeyBuild>,
+    outlook: &std::collections::HashMap<u64, humanity_systems::farming::outlook::CropOutlook, widgets::offscreen::KeyBuild>,
 ) -> u64 {
     use std::hash::Hasher;
     match crop {
@@ -2457,7 +2457,7 @@ pub(crate) fn crop_tile_key(c: &crate::gui::GuiCrop, outlook_tile: &str) -> u64 
     let mut h = widgets::offscreen::KeyHasher::default();
     h.write_u8(1);
     // The very word the tile prints, hashed without building it.
-    let _ = crate::systems::farming::picking::write_stage_word(&mut h, c.dead, c.mature, &c.stage, &c.picking, false);
+    let _ = humanity_systems::farming::picking::write_stage_word(&mut h, c.dead, c.mature, &c.stage, &c.picking, false);
     if outlook_tile.is_empty() {
         h.write_u8(0);
     } else {
@@ -2476,10 +2476,10 @@ fn hash_area_lines(
     h: &mut widgets::offscreen::KeyHasher,
     ph: Option<(f32, f32)>,
     ph_amendments: &[(String, String)],
-    pollinate: Option<&crate::systems::farming::pollination::AreaRow>,
+    pollinate: Option<&humanity_systems::farming::pollination::AreaRow>,
     air: Option<&(String, String, u8)>,
-    weeds: Option<&crate::systems::farming::weeds::WeedAreaRow>,
-    cover: Option<&crate::systems::farming::pests::CoverRow>,
+    weeds: Option<&humanity_systems::farming::weeds::WeedAreaRow>,
+    cover: Option<&humanity_systems::farming::pests::CoverRow>,
     pests: Option<&crate::gui::GuiAreaPests>,
 ) {
     use std::fmt::Write as _;
@@ -2567,7 +2567,7 @@ fn rows_by_area<'a, T>(
 /// names them (each array cell "<prefix>_<n>"), and as its map would hold them (a later entry
 /// with the same id wins), without copying every machine in the home: the Garden section built
 /// that whole list every frame just to title its groups (2026-10-31).
-fn machine_types_of(home: &crate::machines::MachineHome, ids: &[&str]) -> std::collections::HashMap<String, String> {
+fn machine_types_of(home: &humanity_ship::machines::MachineHome, ids: &[&str]) -> std::collections::HashMap<String, String> {
     let wanted: std::collections::HashSet<&str> = ids.iter().copied().collect();
     let mut out = std::collections::HashMap::new();
     for inst in &home.instances {
@@ -2793,7 +2793,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 state.on_screen("vitals");
                 // Body temperature + seal status as a readout line under the grid.
                 let temp = state.vitals.body_temp_c;
-                use crate::systems::body_heat::{HEAT_EXHAUSTION_C, HYPOTHERMIA_C};
+                use humanity_systems::body_heat::{HEAT_EXHAUSTION_C, HYPOTHERMIA_C};
                 let temp_col = if temp < HYPOTHERMIA_C || temp > HEAT_EXHAUSTION_C {
                     theme.danger()
                 } else if temp < 36.0 || temp > 38.0 {
@@ -3038,7 +3038,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if let Some((i, target)) = places_out.stash_slot.take() {
                     if let Some(Some(it)) = state.inventory_items.get(i) {
                         let it = it.clone();
-                        state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
+                        state.pending_inventory_transfers.push(humanity_systems::inventory::TransferOp {
                             item_id: it.item_id.clone(),
                             qty: it.quantity,
                             add: false,
@@ -3047,7 +3047,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             age_s: it.age_s,
                         });
                         // Food goes into storage at the age it had (first-hour audit S6).
-                        state.placed_items.push(crate::systems::inventory::placed::PlacedItem {
+                        state.placed_items.push(humanity_systems::inventory::placed::PlacedItem {
                             key: it.item_id,
                             name: it.name,
                             qty: it.quantity,
@@ -3063,7 +3063,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
                 if let Some(idx) = places_out.take_placed.take() {
                     if let Some(pi) = state.placed_items.get(idx).cloned() {
-                        state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
+                        state.pending_inventory_transfers.push(humanity_systems::inventory::TransferOp {
                             item_id: pi.key,
                             qty: pi.qty,
                             add: true,
@@ -3114,7 +3114,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         });
                         if let Some(target) = stash_to {
-                            state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
+                            state.pending_inventory_transfers.push(humanity_systems::inventory::TransferOp {
                                 item_id: it.item_id.clone(),
                                 qty: it.quantity,
                                 add: false,
@@ -3123,7 +3123,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 age_s: it.age_s,
                             });
                             // Food goes into storage at the age it had (first-hour audit S6).
-                            state.placed_items.push(crate::systems::inventory::placed::PlacedItem {
+                            state.placed_items.push(humanity_systems::inventory::placed::PlacedItem {
                                 key: it.item_id.clone(),
                                 name: it.name.clone(),
                                 qty: it.quantity,
@@ -3182,7 +3182,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         });
                         if take_to_backpack {
                             // Food arrives in the backpack as old as it was in storage (S6).
-                            state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
+                            state.pending_inventory_transfers.push(humanity_systems::inventory::TransferOp {
                                 item_id: pi.key.clone(),
                                 qty: pi.qty,
                                 add: true,
@@ -3543,7 +3543,7 @@ mod drone_row_tests {
     /// energy a trip takes is drawn".
     #[test]
     fn the_docked_drone_row_shows_its_costs_and_repairs() {
-        use crate::systems::mining::{DroneReadout, DroneRequest, ServicePart};
+        use humanity_systems::mining::{DroneReadout, DroneRequest, ServicePart};
         let (ctx, theme) = ctx_and_theme();
         let mut gs = GuiState::default();
         let out = frame(&ctx, &theme, &mut gs, Vec::new());

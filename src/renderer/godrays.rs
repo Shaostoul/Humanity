@@ -226,7 +226,7 @@ impl GodrayPass {
                     1.0,
                     0.86,
                     0.62,
-                    crate::terrain::celestial_projection::celestial_depth_at(crate::terrain::celestial_projection::CELESTIAL_SKY_M),
+                    humanity_terrain::celestial_projection::celestial_depth_at(humanity_terrain::celestial_projection::CELESTIAL_SKY_M),
                 ],
             }),
         );

@@ -627,7 +627,7 @@ The game has one illness that comes from food, and none from water.
 
 - **Food Poisoning.** Eating a spoiled food always gives it, and some
   foods eaten as they are carry a chance of it: raw meat 40 percent, raw
-  fish 25, eggs 15, fresh milk 5, raw vegetables 2 (`src/systems/food.rs`,
+  fish 25, eggs 15, fresh milk 5, raw vegetables 2 (`crates/humanity-systems/src/food.rs`,
   `data/food_system.ron`). [Microbes, Good and
   Bad](/library#microbes-good-and-bad) explains the spoilage clock behind it.
   It starts the moment you eat, not hours later. The game tells you then
@@ -650,7 +650,7 @@ The game has one illness that comes from food, and none from water.
   Hydration bar in a little over a day, while a bottle of water every six
   hours keeps a healthy adult safe through all of it
   (`data/medical/illnesses.ron`, `data/status_effects.csv`,
-  `src/systems/illness.rs`, `src/systems/food.rs`). If it does kill you,
+  `crates/humanity-systems/src/illness.rs`, `crates/humanity-systems/src/food.rs`). If it does kill you,
   the death screen says "dehydration from Food Poisoning".
 - **What to drink.** While you are ill, a drink of oral rehydration
   solution puts back all of its water, plain water and most other drinks
@@ -670,7 +670,7 @@ The game has one illness that comes from food, and none from water.
   Antibiotics end only the effects the game marks as caused by bacteria,
   and if you press their Use button while you have Food Poisoning, they
   stay in your pack and the game tells you why, and what helps instead
-  (`data/medical/treatments.ron`, `src/systems/treatment.rs`).
+  (`data/medical/treatments.ron`, `crates/humanity-systems/src/treatment.rs`).
 - **Nobody is more at risk.** Every character is a healthy adult. The
   game has no babies, older people or anyone already ill, so the faster,
   more dangerous course this guide warns about for them is not in it, and
@@ -686,8 +686,8 @@ The game has one illness that comes from food, and none from water.
   bottles that were already drinking water into Purified Water, which the
   game treats the same (`data/containers/fluids.ron`,
   `data/food_system.ron`, `data/food/item_profiles.ron`,
-  `data/machines/home.ron`, `src/machines.rs`,
-  `src/engine/home_spawn.rs`, `src/systems/plumbing.rs`,
+  `data/machines/home.ron`, `crates/humanity-ship/src/machines.rs`,
+  `src/engine/home_spawn.rs`, `crates/humanity-systems/src/plumbing.rs`,
   `data/recipes.csv`). Other drinks are another matter: fresh milk
   carries the 5 percent chance above, and juice 1 percent.
 - **The water supply and the power.** Under the default ship life
@@ -696,7 +696,7 @@ The game has one illness that comes from food, and none from water.
   home's water keeps coming. In Realistic, a water pump that loses its
   power stops filling the tanks, and they run down whenever the home uses
   more water than still comes in (`src/config.rs`,
-  `src/systems/plumbing.rs`, `src/systems/ship_power.rs`).
+  `crates/humanity-systems/src/plumbing.rs`, `crates/humanity-systems/src/ship_power.rs`).
 - **Nobody catches it from anyone.** Illness does not pass between
   people, and the game's catalogue of illnesses, from a cold to
   parasites, is not given to anyone (`data/status_effects.csv`).
@@ -966,23 +966,23 @@ were read on 5 October 2026.
 ### Inside this project
 
 - Food Poisoning, its causes and effects, the Hydration bar and the
-  Drink button: `src/systems/food.rs`, `data/food_system.ron`,
+  Drink button: `crates/humanity-systems/src/food.rs`, `data/food_system.ron`,
   `data/status_effects.csv`; the water it takes, its course in each
   Illness mode, what each drink puts back while you are ill, and what you
-  are told: `data/medical/illnesses.ron` and `src/systems/illness.rs`;
+  are told: `data/medical/illnesses.ron` and `crates/humanity-systems/src/illness.rs`;
   the Illness setting: `src/config.rs`, `src/gui/pages/settings.rs`,
   `src/engine/survival_env.rs`; the rehydration salts and their recipe:
   `data/items.csv`, `data/recipes.csv`, `data/world/player.ron`,
   `data/trade_goods.ron`; the medical items' Use button and what each item
   does: `src/gui/pages/inventory.rs`, `data/medical/treatments.ron`,
-  `src/systems/treatment.rs`; the home's water, its tanks and what fills
+  `crates/humanity-systems/src/treatment.rs`; the home's water, its tanks and what fills
   them: `data/containers/fluids.ron`, `data/machines/home.ron`,
-  `src/machines.rs`, `src/engine/home_spawn.rs`,
-  `src/systems/plumbing.rs`; the Purify Water recipe and its items:
+  `crates/humanity-ship/src/machines.rs`, `src/engine/home_spawn.rs`,
+  `crates/humanity-systems/src/plumbing.rs`; the Purify Water recipe and its items:
   `data/recipes.csv`, `data/food/item_profiles.ron`; the status-effect
   modifiers the game applies: `src/lib.rs`,
-  `src/systems/status_effects.rs`; ship life support and the reactor's
-  feed: `src/config.rs`, `src/systems/ship_power.rs`; the body saved with
+  `crates/humanity-systems/src/status_effects.rs`; ship life support and the reactor's
+  feed: `src/config.rs`, `crates/humanity-systems/src/ship_power.rs`; the body saved with
   the game: `src/save_load.rs`.
 - [Microbes, Good and Bad](/library#microbes-good-and-bad), [Telling Spoiled
   From Safe](/library#telling-spoiled-from-safe), [Making Water Safe to

@@ -2,7 +2,7 @@
 // docs/design/ship-homes-increment-6-plan.md section 3.1; the kinds themselves are
 // docs/design/ship-homes-and-logistics.md section 1.2b). Read by the relay (which plot kind a
 // player who asks for this start is given) and by the game (which design it builds, which
-// household file it loads, what a new character carries), both through src/ship/starts.rs,
+// household file it loads, what a new character carries), both through crates/humanity-ship/src/starts.rs,
 // disk first, else the copy built into the exe (crates/humanity-core/src/embedded_data.rs STARTS_RON).
 //
 // A start is how much space you hold and how much looking after it needs. It never changes how
@@ -31,7 +31,7 @@
 //               the decoration plants, the showcase garden's first planting, the hologram).
 //
 // Design, plots, machines, kit, storage, opening and shared places are checked for OFFERED rows
-// only (src/ship/starts.rs tests): a row not offered yet may name a design nobody has built. The
+// only (crates/humanity-ship/src/starts.rs tests): a row not offered yet may name a design nobody has built. The
 // other kinds of section 1.2b (Townhouse, House, Smallholding, Farm) join as rows when each has a
 // design and plots; no code changes.
 

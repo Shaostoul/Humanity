@@ -554,9 +554,9 @@ is 0.19, and the step between them is assumption.
 ## 8. The test itself (phase 2)
 
 ### 8.1 The rule: the game's own systems, never a separate model
-The test runs `src/systems/life_support.rs`, `farming/` (humidity, soil, crops),
+The test runs `crates/humanity-systems/src/life_support.rs`, `farming/` (humidity, soil, crops),
 `grow_machines.rs`, `electrical.rs`, `ship_power.rs`, the plumbing system and the machines' meters
-(`src/machines.rs`), on the shipped homes, the way
+(`crates/humanity-ship/src/machines.rs`), on the shipped homes, the way
 `the_shipped_homes_hold_their_air_and_return_their_water` already does (life_support_tests.rs
 `shipped_home`). The larger scales cannot run every machine, so they run an **aggregate tier**: a
 ledger per zone with a population count (the `population: u64` per zone that
@@ -652,7 +652,7 @@ From headless-sim-runner.md, in the order this test needs it:
    home-year affordable.
 
 ### 8.5 How the data loads
-One module, `src/systems/closed_loop/` (data.rs, report.rs, aggregate.rs): serde structs mirroring
+One module, `crates/humanity-systems/src/closed_loop/` (data.rs, report.rs, aggregate.rs): serde structs mirroring
 `schemas/closed_loop.toml` field for field, `ron::from_str` on each file the way
 `data/life_support.ron` is loaded, a loader test that refuses any unknown source id, any figure
 without a read date or a check, and any research option without a readiness level, and the eight
@@ -954,7 +954,7 @@ recorded here rather than changed.
    `data/ship_power.ron` carries 35 MWe per reactor, from trade press, with the instruction to
    "replace this with their net figure when one is" read. The IAEA status report (klt40s-iaea) now
    read gives 30 MW net (2 x 30 of 2 x 35 gross), so the game hands its loads 17% more than the plant
-   delivers. Not changed here because `src/systems/ship_power_tests.rs` asserts the 35,000,000 W
+   delivers. Not changed here because `crates/humanity-systems/src/ship_power_tests.rs` asserts the 35,000,000 W
    exactly, and this plan edits no code: the change is the data file to 30,000,000 W net, that
    assertion, and the "13,000 homes" line beside it (about 11,500 at 30 MW), in one commit by the
    ship-power lane. No home comes near either ceiling, so nothing a player sees changes yet.
@@ -972,7 +972,7 @@ made between the stars is new matter, which is the raw chemistry entry's point m
 
 In order; each is a rung of the whole plan above, not a throwaway.
 
-1. **The loader** (`src/systems/closed_loop/data.rs`): serde structs per `schemas/closed_loop.toml`;
+1. **The loader** (`crates/humanity-systems/src/closed_loop/data.rs`): serde structs per `schemas/closed_loop.toml`;
    the eight files into `crates/humanity-core/src/embedded_data.rs`; `every_closed_loop_figure_is_sourced`, seen red on a
    deliberate break. Relay-gated `#[cfg(feature = "native")]` only if it touches native-only code (it
    should not).

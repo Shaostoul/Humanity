@@ -35,8 +35,8 @@ use crate::gui::GuiState;
 use crate::renderer::camera::Camera;
 use crate::renderer::mesh::Mesh;
 use crate::renderer::{RenderObject, Renderer};
-use crate::terrain::planet::PlanetDef;
-use crate::terrain::planet_chunks as chunks;
+use humanity_terrain::planet::PlanetDef;
+use humanity_terrain::planet_chunks as chunks;
 use glam::{DQuat, DVec3, Quat, Vec3};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -59,7 +59,7 @@ pub(crate) struct WaterShellState<'a> {
     pub planet_water_materials: &'a mut HashMap<String, usize>,
     /// Bathymetry, read to place the sea floor under each water patch.
     pub planet_heightmaps:
-        &'a HashMap<String, Arc<crate::terrain::planet_heightmap::PlanetHeightmap>>,
+        &'a HashMap<String, Arc<humanity_terrain::planet_heightmap::PlanetHeightmap>>,
     /// Mesh slots freed by evicted patches, reused before allocating new ones.
     pub planet_patch_free_slots: &'a mut Vec<usize>,
     /// Read for `surface_mode` (the parked-selection fast path).
@@ -111,7 +111,7 @@ pub(crate) fn push_water_shells(
     view: WaterView,
     b: &humanity_core::cosmos::SolBody,
     d: &PlanetDef,
-    om: &crate::terrain::ocean_mask::OceanMask,
+    om: &humanity_terrain::ocean_mask::OceanMask,
     celestial_transparent: &mut Vec<RenderObject>,
 ) {
     // Unpack the view under the names the moved code already used, so the body

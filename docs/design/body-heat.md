@@ -1,7 +1,7 @@
 # Body heat
 
-Written 2026-09-27. Code: `src/systems/body_heat.rs` (the model and its
-tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals pass that
+Written 2026-09-27. Code: `crates/humanity-systems/src/body_heat.rs` (the model and its
+tests in `body_heat_tests.rs`), `crates/humanity-systems/src/food.rs` (the vitals pass that
 runs it), `src/engine/survival_env.rs` (the inputs).
 
 ## Why

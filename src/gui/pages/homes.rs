@@ -284,19 +284,19 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let grown_kcal = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
     // Each loop's live daily energy (2026-10-22): the machines as they ran over their last
     // game day, by the meter the Construction page shows.
-    let basis = crate::machines::MeterBasis {
+    let basis = humanity_ship::machines::MeterBasis {
         life_support_on_grid: state.garden_pests.life_support_realistic,
         recorded: Some(&state.machine_day_energy),
     };
     let metered: Vec<Option<String>> = state
         .homestead_loops
         .iter()
-        .map(|l| l.meter.zip(state.home_machines.as_ref()).and_then(|(m, h)| h.loop_meter_line(m, crate::machines::METER_SUN_HOURS, basis)))
+        .map(|l| l.meter.zip(state.home_machines.as_ref()).and_then(|(m, h)| h.loop_meter_line(m, humanity_ship::machines::METER_SUN_HOURS, basis)))
         .collect();
     // The power meter's make and use, kWh a day: the Energy loop's gauge (its words say they are
     // this meter's figures).
     let power_meter = state.home_machines.as_ref().and_then(|h| {
-        h.utility_meters(crate::machines::METER_SUN_HOURS, basis).into_iter().find(|m| m.utility == "power").map(|m| (m.generation, m.demand))
+        h.utility_meters(humanity_ship::machines::METER_SUN_HOURS, basis).into_iter().find(|m| m.utility == "power").map(|m| (m.generation, m.demand))
     });
     let now = HomeNow {
         power: LivePower {
@@ -349,7 +349,7 @@ struct LivePower {
     capacity_wh: f32,
     autonomy: f32,
     /// The ship's reactor feed and its metered totals (systems::ship_power).
-    ship: crate::systems::electrical::ShipFeedReading,
+    ship: humanity_systems::electrical::ShipFeedReading,
 }
 
 /// Live WATER readout from the running sim (PlumbingSystem -> WaterStatus -> GuiState), passed into
@@ -380,7 +380,7 @@ struct HomeNow<'a> {
     power: LivePower,
     water: LiveWater,
     air: LiveAir,
-    loops: &'a [crate::machines::HomeLoop],
+    loops: &'a [humanity_ship::machines::HomeLoop],
     metered: &'a [Option<String>],
     grown_kcal: f32,
     power_meter: Option<(f32, f32)>,
@@ -906,7 +906,7 @@ fn self_sufficiency_kit(bom: &[(String, u32)]) -> Vec<(&'static str, u32)> {
 /// in the Station-supplied mode what it supplies now and what the home has drawn
 /// from it in all, metered; in the Realistic mode a line saying the home runs on
 /// its own. Shown whatever the balance: using ship power is never a fault.
-fn ship_power_rows(ui: &mut egui::Ui, theme: &Theme, ship: crate::systems::electrical::ShipFeedReading) {
+fn ship_power_rows(ui: &mut egui::Ui, theme: &Theme, ship: humanity_systems::electrical::ShipFeedReading) {
     if !ship.fed {
         ui.label(RichText::new(t("home.off_reactor")).size(theme.font_size_small).color(theme.text_muted()));
         return;

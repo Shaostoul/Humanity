@@ -86,28 +86,28 @@
 
 use humanity_core::ecs::components::Transform;
 use crate::engine::state::{ConstructionHistory, EditorSnapshot, EngineState};
-use crate::persistence::ShipPlace;
-use crate::ship::ship_structure::ShipStructure;
-use crate::ship::starts::Starts;
+use humanity_systems::persistence::ShipPlace;
+use humanity_ship::ship_structure::ShipStructure;
+use humanity_ship::starts::Starts;
 use glam::Vec3;
 
 /// The sentence a player reads when the server's ship is not theirs (one copy, shared with
 /// the relay, which refuses such a join with it).
-pub(crate) const SHIP_MISMATCH: &str = crate::ship::ship_structure::OTHER_SHIP_SENTENCE;
+pub(crate) const SHIP_MISMATCH: &str = humanity_ship::ship_structure::OTHER_SHIP_SENTENCE;
 
 /// The sentence a player reads when the server has no ship at all (relay reason "no_ship").
-pub(crate) const NO_SHIP: &str = crate::ship::ship_structure::NO_SHIP_SENTENCE;
+pub(crate) const NO_SHIP: &str = humanity_ship::ship_structure::NO_SHIP_SENTENCE;
 
 /// The sentence a player reads when their OWN ship did not load (the ship file and the copy
 /// built into the app both failed, and the legacy layout is showing): there is nowhere aboard
 /// to stand and no ship to name in a join. One copy, shared with the relay, which refuses a
 /// join naming an empty ship with it (reason "no_ship_named"). Round 4 of the 1b review: this
 /// case used to read "this server has a different ship from yours".
-pub(crate) const OWN_SHIP: &str = crate::ship::ship_structure::OWN_SHIP_SENTENCE;
+pub(crate) const OWN_SHIP: &str = humanity_ship::ship_structure::OWN_SHIP_SENTENCE;
 
 /// The sentence a player reads when their account on the server was erased while their figure
 /// stood in its shared world (relay reason "account_erased"). One copy, shared with the relay.
-pub(crate) const ERASED: &str = crate::ship::ship_structure::ERASED_SENTENCE;
+pub(crate) const ERASED: &str = humanity_ship::ship_structure::ERASED_SENTENCE;
 
 /// What a `game_join_denied` from the relay means for the shared world (net_route.rs), by its
 /// `reason`: the sentence to refuse it with, kept under the HUD, with no retry on that server
@@ -155,7 +155,7 @@ pub(crate) fn other_ship_sentence(theirs: Option<&str>, built_in: Option<&str>, 
 /// through `built_in_ship_file`, so the log says the built-in copy was read and why (BUG-133:
 /// a rig refuses a run that logs it; no rig run is ever refused a ship).
 pub(crate) fn other_ship_sentence_here(data_dir: &std::path::Path, theirs: Option<&str>) -> String {
-    let file = data_dir.join(crate::ship::ship_structure::SHIP_FILE);
+    let file = data_dir.join(humanity_ship::ship_structure::SHIP_FILE);
     let ours_from = file.exists().then_some(file.as_path());
     let built_in = ours_from
         .and(theirs)
@@ -170,8 +170,8 @@ pub(crate) const WELCOME_WITHOUT_PLOT_ID: &str = "Not joining the shared world: 
 
 /// How far the game may stand from where the relay holds the player before a welcome stands
 /// them back there, metres, whatever else it says: one place for the game and the relay since
-/// increment 4 (src/ship/moves.rs), whose speed check grants a reconnect at most this.
-pub(crate) use crate::ship::moves::FAR_FROM_HELD_M;
+/// increment 4 (crates/humanity-ship/src/moves.rs), whose speed check grants a reconnect at most this.
+pub(crate) use humanity_ship::moves::FAR_FROM_HELD_M;
 
 /// A plot box, (min, max) in ship metres.
 pub(crate) type PlotBox = (Vec3, Vec3);
@@ -222,7 +222,7 @@ pub(crate) const GUEST_ARRIVAL_START: &str = "This server has no home plot free 
 /// know is named by its id, and anything that is not a start id is left out, so a server can never
 /// add words of its own. Pure.
 pub(crate) fn guest_arrival(welcome: &serde_json::Value, starts: &Starts) -> String {
-    let id_of = |v: &serde_json::Value| v.as_str().filter(|s| crate::ship::starts::is_start_id(s)).map(str::to_string);
+    let id_of = |v: &serde_json::Value| v.as_str().filter(|s| humanity_ship::starts::is_start_id(s)).map(str::to_string);
     let name = |id: &str| starts.get(id).map(|s| s.name.to_lowercase()).unwrap_or_else(|| id.replace(['_', '-'], " "));
     let mut said = GUEST_ARRIVAL_START.to_string();
     match welcome.get("home_full").and_then(id_of) {
@@ -237,7 +237,7 @@ pub(crate) fn guest_arrival(welcome: &serde_json::Value, starts: &Starts) -> Str
         .map(|f| {
             let mut ids: Vec<String> = f
                 .iter()
-                .filter(|(id, n)| crate::ship::starts::is_start_id(id) && n.as_u64().is_some_and(|n| n > 0))
+                .filter(|(id, n)| humanity_ship::starts::is_start_id(id) && n.as_u64().is_some_and(|n| n > 0))
                 .map(|(id, _)| id.clone())
                 .collect();
             ids.sort_by_key(|id| starts.starts.iter().position(|s| &s.id == id).unwrap_or(usize::MAX));
@@ -290,7 +290,7 @@ pub(crate) struct OtherKind<'a> {
     /// The starts file: which start a plot of that kind is (`Starts::for_plot_kind`).
     pub starts: &'a Starts,
     /// The character's own home (`own_home::in_effect`), used when it is of that kind.
-    pub own: Option<&'a crate::persistence::SavedHome>,
+    pub own: Option<&'a humanity_systems::persistence::SavedHome>,
     /// The Dev mode: the data file's design.
     pub dev: bool,
     /// A server's save: the shipped design.
@@ -376,7 +376,7 @@ impl<'a> WelcomeContext<'a> {
             starts: crate::gui::pages::where_you_live::starts(),
             own: crate::engine::own_home::in_effect(&state.gui_state),
             dev: crate::engine::own_home::authors_data_files(state.gui_state.settings.play_mode),
-            server: crate::persistence::live_save::active_home().is_server(),
+            server: humanity_systems::persistence::live_save::active_home().is_server(),
         };
         WelcomeContext {
             arrived_on: state.home_arrived_on.as_deref(),
@@ -472,7 +472,7 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
 /// on a server, the data file offline), and the player stood where the relay holds them, else at
 /// its door. Err (the plot cannot be placed, and goes back) when the context builds no other kind
 /// or this app has no start or home for that kind. Pure.
-fn other_kind_move(ship: &ShipStructure, plot: &crate::ship::ship_structure::Plot, held: Option<Vec3>, ctx: &WelcomeContext) -> Result<WelcomeHome, String> {
+fn other_kind_move(ship: &ShipStructure, plot: &humanity_ship::ship_structure::Plot, held: Option<Vec3>, ctx: &WelcomeContext) -> Result<WelcomeHome, String> {
     let o = ctx.other_kind.ok_or("nothing here builds another kind of home")?;
     let start = o.starts.for_plot_kind(&plot.kind).ok_or_else(|| format!("this app has no start whose home goes on a {} plot", plot.kind))?;
     let household = o.starts.household(&start.id, "").id.clone();
@@ -502,8 +502,8 @@ pub(crate) fn off_neighbours_ground(ship: &ShipStructure, at: Option<Vec3>) -> O
         // From the plot (end_from) to its street (end_to): one step past the street's mouth.
         Ok(g) => {
             let out = (g.end_to - g.end_from).normalize_or_zero();
-            let eye = Vec3::Y * crate::ship::ship_structure::SPAWN_EYE_HEIGHT_M;
-            Some(g.end_to + out * crate::ship::door_points::STEP_IN_M + eye)
+            let eye = Vec3::Y * humanity_ship::ship_structure::SPAWN_EYE_HEIGHT_M;
+            Some(g.end_to + out * humanity_ship::door_points::STEP_IN_M + eye)
         }
         // A plot with no corridor to a street (it cannot be on this ship's ground then): as asked.
         Err(_) => Some(p),
@@ -516,7 +516,7 @@ pub(crate) fn off_neighbours_ground(ship: &ShipStructure, at: Option<Vec3>) -> O
 /// `stand_where_held`. Pure.
 ///
 /// A guest has no plot, so it never stands on one: every plot is a neighbour's, drawn with no
-/// collision (src/ship/neighbours.rs), and a shared zone's wall is solid across a neighbour's
+/// collision (crates/humanity-ship/src/neighbours.rs), and a shared zone's wall is solid across a neighbour's
 /// corridor, so a guest left on a plot cannot walk back out (and has no Respawn button while
 /// alive). Increment 2 review, findings 1 and 9: a guest whose connection dropped got its home
 /// back on the default plot and walked into it, and its welcome inside the grace (`stand` false:
@@ -548,7 +548,7 @@ pub(crate) fn on_plot_ground(ship: &ShipStructure, p: Vec3) -> bool {
 /// The plot whose ground `p` stands on (`on_plot_ground`): the one whose box it is over, else the
 /// one whose door corridor it is in. Household permits (ship homes 5b, engine/household.rs
 /// `open_for`) keep the plot a player stands in walkable, and lit, by it. Pure.
-pub(crate) fn plot_ground_of(ship: &ShipStructure, p: Vec3) -> Option<&crate::ship::ship_structure::Plot> {
+pub(crate) fn plot_ground_of(ship: &ShipStructure, p: Vec3) -> Option<&humanity_ship::ship_structure::Plot> {
     ship.plots
         .iter()
         .find(|plot| over_plot(p, plot.aabb()))
@@ -557,8 +557,8 @@ pub(crate) fn plot_ground_of(ship: &ShipStructure, p: Vec3) -> Option<&crate::sh
 
 /// True when `p` stands inside corridor tube `g` across the floor (x and z), with a centimetre of
 /// slack, the way `over_plot` tests a plot. Pure.
-pub(crate) fn in_corridor(g: &crate::ship::ship_structure::CorridorGeom, p: Vec3) -> bool {
-    use crate::ship::ship_structure::CorridorAxis;
+pub(crate) fn in_corridor(g: &humanity_ship::ship_structure::CorridorGeom, p: Vec3) -> bool {
+    use humanity_ship::ship_structure::CorridorAxis;
     let (along, across) = match g.axis {
         CorridorAxis::X => (p.x, p.z),
         CorridorAxis::Z => (p.z, p.x),
@@ -636,7 +636,7 @@ pub(crate) fn add_join_fields(join: &mut serde_json::Value, ship: Option<&ShipSt
     if let Some((x, z)) = ship.home_arrival_local() {
         obj.insert("home_spawn".into(), serde_json::json!([x, z]));
     }
-    if crate::ship::starts::is_start_id(start) {
+    if humanity_ship::starts::is_start_id(start) {
         obj.insert("start".into(), serde_json::json!(start));
     }
     true
@@ -672,7 +672,7 @@ fn forget_shared_world_keeping_home(state: &mut EngineState) {
     state.gui_state.copresence_active = false;
     // The speed check's books of that session (engine/move_check.rs, increment 4 review M2, M6).
     state.moves.forget_session();
-    crate::systems::time::release_host_clock(&state.data_store);
+    humanity_systems::time::release_host_clock(&state.data_store);
     state.gui_state.copresence_names.clear();
     let pieces = forget_shared_entities(&mut state.game_world.world);
     if pieces > 0 {
@@ -687,7 +687,7 @@ fn forget_shared_world_keeping_home(state: &mut EngineState) {
 /// many pieces the server keeps were taken down. Pure on the world.
 pub(crate) fn forget_shared_entities(world: &mut hecs::World) -> usize {
     use crate::net::sync::{RemoteNpc, RemotePlayer};
-    use crate::systems::construction::shared::SharedPiece;
+    use humanity_systems::construction::shared::SharedPiece;
     let figures: Vec<hecs::Entity> = world.query::<hecs::Or<&RemotePlayer, &RemoteNpc>>().iter().map(|(e, _)| e).collect();
     let pieces: Vec<hecs::Entity> = world.query::<&SharedPiece>().iter().map(|(e, _)| e).collect();
     let taken = pieces.len();
@@ -805,7 +805,7 @@ pub(crate) fn respawn_through_relay(state: &mut EngineState) {
 /// world load or a welcome with a plot).
 fn bring_home_back(state: &mut EngineState) {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else { return };
-    match home_back_from_away(ship, crate::persistence::live_save::active_home().ship_place.as_ref()) {
+    match home_back_from_away(ship, humanity_systems::persistence::live_save::active_home().ship_place.as_ref()) {
         None => {}
         Some(Ok(back)) => {
             log::info!("Co-presence: out of the shared world; our home comes back from where it was put away, onto plot {:?}", back.home_plot().map(|p| &p.id));
@@ -842,7 +842,7 @@ pub(crate) fn home_back_from_away(ship: &ShipStructure, place: Option<&ShipPlace
 /// no ship (the legacy layout shows).
 pub(crate) fn assemble_for_boot(data_dir: &std::path::Path, gui: &crate::gui::GuiState) -> Result<ShipStructure, String> {
     let file = ShipStructure::load_ship_file(data_dir)?;
-    let active = crate::persistence::live_save::active_home();
+    let active = humanity_systems::persistence::live_save::active_home();
     let starts = Starts::load(data_dir);
     let own = crate::engine::own_home::in_effect(gui);
     let dev = crate::engine::own_home::authors_data_files(gui.settings.play_mode);
@@ -1109,7 +1109,7 @@ pub(crate) fn still_not_the_homes(mark: Option<&NotTheHomes>, at: Vec3) -> bool 
 /// The pieces the server keeps (`shared::SharedPiece`) were never in the save and are not the
 /// home's: they are neither carried nor marked.
 pub(crate) fn carry_saved_pieces(world: &mut hecs::World, saved: Option<[[f32; 3]; 2]>, home: Option<PlotBox>) -> (usize, usize, usize) {
-    use crate::systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
+    use humanity_systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
     let (Some(s), Some(home)) = (saved, home) else { return (0, 0, 0) };
     let saved: PlotBox = (Vec3::from_array(s[0]), Vec3::from_array(s[1]));
     // Not the home's: over the home now, and not in the home's box when saved (planet pieces
@@ -1239,8 +1239,8 @@ pub(crate) type MachineShift = ((f32, f32), Vec3);
 /// Every machine whose position changed between two placements of the same machines (by id),
 /// with where it stood and how far it went. The home's machines go with the home; the ship's
 /// (the Commons rows) stay, and so are not listed. Pure.
-pub(crate) fn machine_shifts(before: &[crate::machines::PlacedMachine], after: &[crate::machines::PlacedMachine]) -> Vec<MachineShift> {
-    let after: std::collections::HashMap<&str, &crate::machines::PlacedMachine> = after.iter().map(|m| (m.id.as_str(), m)).collect();
+pub(crate) fn machine_shifts(before: &[humanity_ship::machines::PlacedMachine], after: &[humanity_ship::machines::PlacedMachine]) -> Vec<MachineShift> {
+    let after: std::collections::HashMap<&str, &humanity_ship::machines::PlacedMachine> = after.iter().map(|m| (m.id.as_str(), m)).collect();
     before
         .iter()
         .filter_map(|b| {
@@ -1284,7 +1284,7 @@ pub(crate) fn over_plot(p: Vec3, plot: PlotBox) -> bool {
 /// are kept: the pieces are moved, not built again. Returns (pieces, vehicles) moved. Pure on the
 /// world.
 pub(crate) fn carry_built_pieces(world: &mut hecs::World, from: PlotBox, delta: Vec3) -> (usize, usize) {
-    use crate::systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
+    use humanity_systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
     if delta == Vec3::ZERO {
         return (0, 0);
     }
@@ -1316,7 +1316,7 @@ pub(crate) fn carry_built_pieces(world: &mut hecs::World, from: PlotBox, delta: 
     }
     // A pack left where the player fell in the home goes with the home, as a chest built in it
     // does (2026-10-04, systems::death_pack).
-    crate::systems::death_pack::carry_aboard(world, |p| over_plot(p, from), delta);
+    humanity_systems::death_pack::carry_aboard(world, |p| over_plot(p, from), delta);
     (pieces, vehicles)
 }
 
@@ -1326,7 +1326,7 @@ pub(crate) fn carry_built_pieces(world: &mut hecs::World, from: PlotBox, delta: 
 /// not the home's, and stand in whichever plot or shared space they were built in. Pure on the
 /// world.
 pub(crate) fn built_positions(world: &hecs::World) -> (Vec<Vec3>, Vec<Vec3>) {
-    use crate::systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
+    use humanity_systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
     let pieces = world
         .query::<hecs::Without<(&Transform, hecs::Or<&Structure, &Construction>, Option<&PlanetSite>), &SharedPiece>>()
         .iter()
@@ -1432,7 +1432,7 @@ pub(crate) fn put_player_at(state: &mut EngineState, at: Vec3) {
 pub(crate) fn floor_for_placement(state: &EngineState, at: Vec3) -> Option<f32> {
     let built = crate::engine::build_place::built_piece_boxes(
         &state.game_world.world,
-        state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
+        state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry"),
         None,
     );
     let footing = crate::engine::footing::Footing {
@@ -1517,10 +1517,10 @@ pub(crate) fn editor_pick_at(
     storey: usize,
     zone: usize,
     zone_origin: Vec3,
-    body: &crate::ship::home_structure::HomeStructure,
+    body: &humanity_ship::home_structure::HomeStructure,
     eye_height: f32,
 ) -> EditorPick {
-    use crate::ship::standing::{nearest_standing_clear_of, stands_at, standing_on_clear_of};
+    use humanity_ship::standing::{nearest_standing_clear_of, stands_at, standing_on_clear_of};
     let storeys = body.storeys();
     let k = storey.min(storeys.len() - 1);
     let storey_floor = zone_origin.y + storeys[k].floor;
@@ -1564,13 +1564,13 @@ pub(crate) fn editor_pick_at(
 fn editor_shafts(
     footing: &crate::engine::footing::Footing,
     zone: usize,
-    body: &crate::ship::home_structure::HomeStructure,
+    body: &humanity_ship::home_structure::HomeStructure,
     floor: f32,
     xz: (f32, f32),
-) -> (Option<(f32, f32)>, Vec<crate::ship::standing::KeepOut>) {
-    use crate::ship::home_structure::STOREY_EPS;
-    use crate::ship::standing::{KeepOut, NoStanding, STAND_CLEAR_M};
-    use crate::ship::structure::{frame_post_width, structure_type, StructureKind};
+) -> (Option<(f32, f32)>, Vec<humanity_ship::standing::KeepOut>) {
+    use humanity_ship::home_structure::STOREY_EPS;
+    use humanity_ship::standing::{KeepOut, NoStanding, STAND_CLEAR_M};
+    use humanity_ship::structure::{frame_post_width, structure_type, StructureKind};
     let mut on_car = None;
     let mut shafts = Vec::new();
     // The cars are keyed by the zone's id and the elevator's own (`ship::lifts::LiftKey`).
@@ -1604,9 +1604,9 @@ fn editor_shafts(
 /// The sentence for a build spot that was no place to stand (`editor_pick_at`): `moved` when the
 /// player was stood at the nearest place on that storey instead, else they stay where they were.
 /// None for a spot only too near a wall or an edge, which is moved half a metre without a word.
-fn editor_spot_note(why: &crate::ship::standing::NoStanding, k: usize, moved: bool) -> Option<String> {
-    use crate::ship::standing::NoStanding;
-    let storey = crate::ship::storey_edits::storey_name(k).to_lowercase();
+fn editor_spot_note(why: &humanity_ship::standing::NoStanding, k: usize, moved: bool) -> Option<String> {
+    use humanity_ship::standing::NoStanding;
+    let storey = humanity_ship::storey_edits::storey_name(k).to_lowercase();
     let what = match why {
         NoStanding::GlassRoof(Some(label)) => format!("on a glass roof ({label}), and nobody stands on a roof"),
         NoStanding::GlassRoof(None) => "on a glass roof, and nobody stands on a roof".to_string(),
@@ -1634,7 +1634,7 @@ fn editor_spot_note(why: &crate::ship::standing::NoStanding, k: usize, moved: bo
 /// saved spawn (v0.557's fallback), on its ground floor.
 pub(crate) fn editor_close_pick(state: &EngineState) -> (Option<Vec3>, Option<String>) {
     let g = &state.gui_state;
-    let body = crate::ship::ship_structure::zone_body(&g.ship_structure, g.construction_zone);
+    let body = humanity_ship::ship_structure::zone_body(&g.ship_structure, g.construction_zone);
     let (Some(xz), Some(body)) = (g.build_char_pos, body) else {
         let spawn = g.ship_structure.as_ref().and_then(|s| {
             let home = &s.zones[s.home_zone_index()];
@@ -1645,10 +1645,10 @@ pub(crate) fn editor_close_pick(state: &EngineState) -> (Option<Vec3>, Option<St
         });
         return (spawn, None);
     };
-    let storey = crate::ship::storey_edits::EditStorey::of(body, g.construction_storeys.chosen).index;
+    let storey = humanity_ship::storey_edits::EditStorey::of(body, g.construction_storeys.chosen).index;
     let built = crate::engine::build_place::built_piece_boxes(
         &state.game_world.world,
-        state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
+        state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry"),
         None,
     );
     let footing = crate::engine::footing::Footing {
@@ -1771,7 +1771,7 @@ pub(crate) fn stand_player_at(world: &mut hecs::World, s: Standing, at: Vec3) {
 /// ship, and where the home's own things are (`home_things_json`), so a rig can check where the
 /// game put its camera, its home and the other players.
 pub(crate) fn probe_json(ship: Option<&ShipStructure>) -> (serde_json::Value, serde_json::Value) {
-    let plot_json = |p: &crate::ship::ship_structure::Plot| {
+    let plot_json = |p: &humanity_ship::ship_structure::Plot| {
         serde_json::json!({
             "id": p.id,
             "kind": p.kind,
@@ -1794,7 +1794,7 @@ pub(crate) fn home_things_json(state: &EngineState) -> serde_json::Value {
     let animals: Vec<serde_json::Value> = state
         .game_world
         .world
-        .query::<(&humanity_core::ecs::components::Creature, &crate::systems::livestock::HerdSlot)>()
+        .query::<(&humanity_core::ecs::components::Creature, &humanity_systems::livestock::HerdSlot)>()
         .iter()
         .map(|(_, (c, _))| v(c.anchor))
         .collect();
@@ -2457,7 +2457,7 @@ mod tests {
     /// field moved by Vec3(0.0, 0.0, 0.0)".
     #[test]
     fn what_was_anchored_to_a_home_machine_goes_with_it() {
-        let home = crate::systems::grow_machines::load_home(&crate::persistence::live_save::active_home_machines_path(&data_dir())).expect("the machines load");
+        let home = humanity_systems::grow_machines::load_home(&humanity_systems::persistence::live_save::active_home_machines_path(&data_dir())).expect("the machines load");
         let place = |plot: &str| {
             let ship = ShipStructure::load_and_assemble_shipped(&data_dir(), Some(plot)).unwrap();
             home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()))
@@ -2491,7 +2491,7 @@ mod tests {
     /// Commons, a Dev-built piece and a vehicle; and a piece built on a planet whose site-local
     /// pose happens to read as a point inside p1.
     fn built_world() -> hecs::World {
-        use crate::systems::construction::{Construction, PlanetSite, Structure};
+        use humanity_systems::construction::{Construction, PlanetSite, Structure};
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
         let built = |id: &str, uid: u32| Structure { blueprint_id: id.into(), health: 42.0, max_health: 100.0, provides: None, uid };
         let vehicle = || humanity_core::ecs::components::Vehicle { item_id: "truck_pickup_0".into() };
@@ -2517,7 +2517,7 @@ mod tests {
     /// vehicle were in the home: left: (0, 0), right: (2, 1)".
     #[test]
     fn what_the_player_built_and_parked_in_the_home_goes_with_it() {
-        use crate::systems::construction::{Construction, PlanetSite, Structure};
+        use humanity_systems::construction::{Construction, PlanetSite, Structure};
         let p1 = booted().home_plot().unwrap().aabb();
         let mut w = built_world();
         let delta = Vec3::new(0.0, 0.0, 99.0);
@@ -2555,7 +2555,7 @@ mod tests {
     /// A piece the server keeps (ship homes increment 5): a finished wall, or a scaffold when
     /// `going_up`, at (x, z) on the deck, kept in `frame`.
     fn kept_piece(w: &mut hecs::World, x: f32, z: f32, frame: &str, piece_id: u64, going_up: bool) -> hecs::Entity {
-        use crate::systems::construction::{shared::SharedPiece, Construction, Structure};
+        use humanity_systems::construction::{shared::SharedPiece, Construction, Structure};
         let tf = Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::new(4.0, 3.0, 0.2) };
         let marker = SharedPiece { piece_id, frame: frame.into(), mine: true };
         if going_up {
@@ -2584,7 +2584,7 @@ mod tests {
     /// right: (1, 0)".
     #[test]
     fn a_home_move_carries_private_pieces_and_leaves_shared_ones() {
-        use crate::systems::construction::Structure;
+        use humanity_systems::construction::Structure;
         let ship = booted();
         let hash = ship.ship_hash();
         let moved = match plan_welcome(Some(&ship), &welcome_at(Some("p2"), &hash, Some(P2_DOOR.into())), &arriving(P1_DOOR)) {
@@ -2634,7 +2634,7 @@ mod tests {
     /// gone: left: 2, right: 0".
     #[test]
     fn leaving_the_shared_world_takes_shared_pieces_down() {
-        use crate::systems::construction::shared::SharedPiece;
+        use humanity_systems::construction::shared::SharedPiece;
         let mut w = built_world();
         let before = w.len();
         kept_piece(&mut w, 30.0, 40.0, "plot:p1", 42, false);
@@ -2682,7 +2682,7 @@ mod tests {
     /// "loaded at a boot on p1, the chest stands at Vec3(20.0, 0.0, 129.0), outside the home".
     #[test]
     fn the_save_records_where_its_home_stood_and_loads_into_the_home_on_any_plot() {
-        use crate::systems::construction::Structure;
+        use humanity_systems::construction::Structure;
         let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
@@ -2748,7 +2748,7 @@ mod tests {
         let mut w = hecs::World::new();
         w.spawn((
             Transform { position: Vec3::new(20.0, 0.0, 30.0), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE },
-            crate::systems::construction::Structure { blueprint_id: "chest".into(), health: 1.0, max_health: 1.0, provides: None, uid: 3 },
+            humanity_systems::construction::Structure { blueprint_id: "chest".into(), health: 1.0, max_health: 1.0, provides: None, uid: 3 },
         ));
         ship.default_plot = Some("p2".into());
         assert_eq!(home_box_change(Some(frame.home), home_box(&ship)), HomeBoxChange::Same, "the home did not move");
@@ -2850,7 +2850,7 @@ mod tests {
                     let away = away.unwrap();
                     assert!(away.home_is_away());
                     let home = &away.zones[away.home_zone_index()];
-                    assert_eq!(home.origin, crate::ship::ship_structure::HOME_AWAY_ORIGIN, "kept where homes are put away");
+                    assert_eq!(home.origin, humanity_ship::ship_structure::HOME_AWAY_ORIGIN, "kept where homes are put away");
                     assert_eq!(away.neighbour_plots().count(), away.plots.len(), "every plot is drawn as a neighbour's");
                     assert_eq!(away.ship_hash(), ship.ship_hash(), "putting the home away is not a new ship");
                     assert!(door.is_some_and(|d| (d - COMMONS).length() < 1e-4), "Respawn is the Commons: {door:?}");
@@ -2879,7 +2879,7 @@ mod tests {
         let away = ship.put_home_away().unwrap();
         let p1 = home_box(&ship).unwrap();
         let kept = home_box(&away).expect("a home put away has a box: where it is kept");
-        let delta = Vec3::from(crate::ship::ship_structure::HOME_AWAY_ORIGIN);
+        let delta = Vec3::from(humanity_ship::ship_structure::HOME_AWAY_ORIGIN);
         assert_eq!(home_box_change(Some(p1), Some(kept)), HomeBoxChange::Carry { from: p1, delta }, "putting the home away carries nothing: Republish");
         for p in &ship.plots {
             let (lo, hi) = p.aabb();
@@ -2941,14 +2941,14 @@ mod tests {
         let place = crate::engine::save_slot::place_on(Some(&ship), &plot).expect("a place on our ship");
         assert_eq!((place.ship_id.as_str(), place.ship_hash.as_str(), place.plot.as_str()), ("mothership-1", hash.as_str(), "p2"));
         // The save carries it: this server's save, written and read back.
-        let slot = crate::persistence::SaveSlot::Server { server: SERVER.into(), identity: "ab".repeat(32) };
-        let mut save = crate::persistence::WorldSave::new_offline("x", "homestead");
+        let slot = humanity_systems::persistence::SaveSlot::Server { server: SERVER.into(), identity: "ab".repeat(32) };
+        let mut save = humanity_systems::persistence::WorldSave::new_offline("x", "homestead");
         save.kind = "server".into();
         save.ship_place = Some(place.clone());
-        let back: crate::persistence::WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        let back: humanity_systems::persistence::WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
         assert_eq!(back.ship_place.as_ref(), Some(&place));
         // The next boot of that save.
-        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::of_save(slot.clone(), std::path::PathBuf::from("unused.json"), &back));
+        humanity_systems::persistence::live_save::set_active_home(humanity_systems::persistence::live_save::ActiveHome::of_save(slot.clone(), std::path::PathBuf::from("unused.json"), &back));
         let gui = crate::gui::GuiState::default();
         let built = assemble_for_boot(&data_dir(), &gui).unwrap();
         assert_eq!(built.home_plot().map(|p| p.id.as_str()), Some("p2"), "the next boot built the home on {:?}, the save stands on p2", built.home_plot().map(|p| &p.id));
@@ -2956,11 +2956,11 @@ mod tests {
         assert!(matches!(plan_welcome(Some(&built), &w, &arriving(P2_DOOR)), WelcomeHome::Stay { .. }), "a returning player's welcome is a Stay");
         // Taken on another ship: not trusted.
         let mut elsewhere = back.clone();
-        elsewhere.ship_place = Some(crate::persistence::ShipPlace { ship_hash: "0123456789abcdef".into(), ..place });
-        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::of_save(slot, std::path::PathBuf::from("unused.json"), &elsewhere));
+        elsewhere.ship_place = Some(humanity_systems::persistence::ShipPlace { ship_hash: "0123456789abcdef".into(), ..place });
+        humanity_systems::persistence::live_save::set_active_home(humanity_systems::persistence::live_save::ActiveHome::of_save(slot, std::path::PathBuf::from("unused.json"), &elsewhere));
         let built = assemble_for_boot(&data_dir(), &gui).unwrap();
         assert_eq!(built.home_plot().map(|p| p.id.as_str()), Some("p1"), "a place on another ship was trusted");
-        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::offline());
+        humanity_systems::persistence::live_save::set_active_home(humanity_systems::persistence::live_save::ActiveHome::offline());
     }
 
     /// A WELCOME OF ANOTHER KIND BUILDS THAT KIND'S HOME AND KEEPS THE PLOT (increment 6, plan
@@ -2980,7 +2980,7 @@ mod tests {
         let ship = booted();
         let hash = ship.ship_hash();
         let c2 = ship.plots.iter().find(|p| p.id == "c2").expect("the ship has c2").clone();
-        let cabin = crate::ship::ship_structure::HomeDesign::built_in("cabin").expect("the cabin is built in");
+        let cabin = humanity_ship::ship_structure::HomeDesign::built_in("cabin").expect("the cabin is built in");
         let c2_door = ShipStructure::plot_spawn(&c2, &cabin);
         let w = welcome_at(Some("c2"), &hash, Some(c2_door.into()));
         match plan_welcome(Some(&ship), &w, &arriving(P1_DOOR)) {
@@ -3303,7 +3303,7 @@ mod tests {
         let mut w = hecs::World::new();
         w.spawn((
             Transform { position: at, rotation: glam::Quat::IDENTITY, scale: Vec3::ONE },
-            crate::systems::construction::Structure { blueprint_id: "chest".into(), health: 1.0, max_health: 1.0, provides: None, uid: 5 },
+            humanity_systems::construction::Structure { blueprint_id: "chest".into(), health: 1.0, max_health: 1.0, provides: None, uid: 5 },
         ));
         w
     }
@@ -3644,13 +3644,13 @@ mod tests {
 mod storey_tests {
     use super::*;
     use crate::engine::footing::test_aboard::*;
-    use crate::ship::home_structure::HomeStructure;
-    use crate::ship::standing::standing_on;
-    use crate::ship::wall_collision::EYE_HEIGHT_M as EYE;
+    use humanity_ship::home_structure::HomeStructure;
+    use humanity_ship::standing::standing_on;
+    use humanity_ship::wall_collision::EYE_HEIGHT_M as EYE;
 
     /// The shipped homestead assembled on p1 (55 x 6 x 89 at the ship's origin), as the only zone
     /// of a ship, with its rooms and footing as the game makes them; and p1's box.
-    fn homestead_on_p1() -> (Aboard, crate::ship::ship_space::Aabb) {
+    fn homestead_on_p1() -> (Aboard, humanity_ship::ship_space::Aabb) {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
         let plot = ship.home_plot().expect("the home on p1").aabb();
@@ -3794,9 +3794,9 @@ mod storey_tests {
     }
 
     /// Stairs-1 of the shipped homestead: its type and its pose in the home's own frame.
-    fn stairs_1(body: &HomeStructure) -> (&'static crate::ship::structure::StructureType, (f32, f32, f32), f32) {
+    fn stairs_1(body: &HomeStructure) -> (&'static humanity_ship::structure::StructureType, (f32, f32, f32), f32) {
         let ps = body.structures.iter().find(|p| p.id == "stairs-1").expect("the homestead has stairs-1");
-        let ty = crate::ship::structure::structure_type(&ps.type_id).expect("stairs is a known type");
+        let ty = humanity_ship::structure::structure_type(&ps.type_id).expect("stairs is a known type");
         (ty, ps.pos, ps.rot_deg.to_radians())
     }
 
@@ -3823,7 +3823,7 @@ mod storey_tests {
         let zone = w.ship.zones[0].clone();
         let (o, body) = (zone.origin_vec(), zone.body);
         let (ty, pos, yaw) = stairs_1(&body);
-        let tread = |x: f32, z: f32| crate::ship::structure::walk_surface(ty, pos, yaw, x, z);
+        let tread = |x: f32, z: f32| humanity_ship::structure::walk_surface(ty, pos, yaw, x, z);
         assert_eq!(tread(38.89, 38.65), Some(1.5), "step 8 of stairs-1 is 1.5 m up");
         let (spot, k) = crate::engine::editor::avatar_seed(&body, o, o + Vec3::new(38.89, 1.5 + EYE, 38.65), EYE);
         assert_eq!(k, 0, "the avatar of a player on step 8 is on the ground storey");
@@ -3859,9 +3859,9 @@ mod storey_tests {
     /// in the platform's box: true, beyond the walls: false".
     #[test]
     fn closing_the_editor_inside_a_built_box_stands_you_outside_it_or_on_its_top() {
-        use crate::ship::ship_structure::ShipZone;
+        use humanity_ship::ship_structure::ShipZone;
         for roofed in [true, false] {
-            let body = crate::ship::standing::tests::walled_platform(roofed);
+            let body = humanity_ship::standing::fixtures::walled_platform(roofed);
             let zone = ShipZone { id: "home".into(), label: String::new(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body: body.clone() };
             let mut w = Aboard::of(ShipStructure { zones: vec![zone], ..Default::default() });
             let pick = editor_pick_at(&w.footing(), (4.0, 5.0), 0, 0, Vec3::ZERO, &body, EYE);
@@ -3945,9 +3945,9 @@ mod storey_tests {
     /// [4, 2.3000002, 5], feet 0.60".
     #[test]
     fn closing_the_editor_never_steps_you_onto_a_piece_by_accident() {
-        use crate::ship::ship_structure::ShipZone;
+        use humanity_ship::ship_structure::ShipZone;
         for roofed in [true, false] {
-            let body = crate::ship::standing::tests::step_high_platform(roofed);
+            let body = humanity_ship::standing::fixtures::step_high_platform(roofed);
             let zone = ShipZone { id: "home".into(), label: String::new(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body: body.clone() };
             let mut w = Aboard::of(ShipStructure { zones: vec![zone], ..Default::default() });
             let pick = editor_pick_at(&w.footing(), (4.0, 5.0), 0, 0, Vec3::ZERO, &body, EYE);

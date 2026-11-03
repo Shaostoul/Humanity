@@ -390,7 +390,7 @@ mod sky_body_tests {
     /// Moon is lit at strength 0.000, colour [0.0, 0.0, 0.0]: drawn black".
     #[test]
     fn from_the_ground_at_night_the_moon_is_lit_by_the_sun_and_the_ground_is_not() {
-        let earth: crate::terrain::planet::PlanetDef =
+        let earth: humanity_terrain::planet::PlanetDef =
             ron::from_str(humanity_core::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses");
         let ac = earth.atmosphere_color.expect("Earth has air");
         let (rp, h) = atmosphere::shell_packing(earth.atmosphere_scale, earth.scale_height_or_default(), earth.radius);
@@ -444,7 +444,7 @@ mod sky_body_tests {
     /// 0 given a sun".
     #[test]
     fn each_drawn_material_takes_the_sun_its_bodies_need() {
-        let earth: crate::terrain::planet::PlanetDef =
+        let earth: humanity_terrain::planet::PlanetDef =
             ron::from_str(humanity_core::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses");
         let (rp, h) = atmosphere::shell_packing(earth.atmosphere_scale, earth.scale_height_or_default(), earth.radius);
         let air = CameraAir { cam_r: rp, rp, h, color: earth.atmosphere_color.unwrap(), up: DVec3::Y };
@@ -601,7 +601,7 @@ mod sky_dome_tests {
         DVec3::new(e.cos() * a.cos(), e.sin(), -e.cos() * a.sin())
     }
 
-    fn earth() -> crate::terrain::planet::PlanetDef {
+    fn earth() -> humanity_terrain::planet::PlanetDef {
         ron::from_str(humanity_core::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses")
     }
 

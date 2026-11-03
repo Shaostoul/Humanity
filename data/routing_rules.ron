@@ -6,7 +6,7 @@
 // for the drip reasoning in findings 28, 29 and 32 of
 // docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md; NEC 300.4, cited here until
 // 2026-11-02, is protection against physical damage and says nothing of order (finding 45). Data-driven (infinite-of-X): retune here, no recompile. Loaded by
-// src/systems/construction/routing.rs::RoutingRules::load.
+// crates/humanity-systems/src/construction/routing.rs::RoutingRules::load.
 //
 // Pipe COLOUR is not set here and never followed ASME A13.1, though this header said so
 // until 2026-10-04. A pipe's body draws its material (data/piping/pipe_materials.ron) and

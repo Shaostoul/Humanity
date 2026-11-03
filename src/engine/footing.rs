@@ -25,13 +25,13 @@ use std::collections::HashMap;
 
 use glam::Vec3;
 
-use crate::ship::room_types::RoomBounds;
+use humanity_ship::room_types::RoomBounds;
 use crate::renderer::camera::{Underfoot, HEAD_ABOVE_EYE_M};
-use crate::ship::home_structure::STOREY_EPS;
-use crate::ship::lifts::{lifts, LiftKey};
-use crate::ship::ship_structure::ShipStructure;
-use crate::ship::structure::{self, StructureKind};
-use crate::ship::wall_collision::{self, WallSegment, EYE_HEIGHT_M};
+use humanity_ship::home_structure::STOREY_EPS;
+use humanity_ship::lifts::{lifts, LiftKey};
+use humanity_ship::ship_structure::ShipStructure;
+use humanity_ship::structure::{self, StructureKind};
+use humanity_ship::wall_collision::{self, WallSegment, EYE_HEIGHT_M};
 
 /// The highest a body steps up in one go, metres (v0.584): onto a stair tread or a platform,
 /// never up the side of a tall box (you use the stairs). Measured from the floor the body rests
@@ -603,7 +603,7 @@ mod tests {
     use super::*;
     use humanity_core::input::bindings::GameAction as A;
     use crate::renderer::camera::{Camera, CameraController, SPRINT_FACTOR, STEP_DOWN_M, WALK_SPEED_MPS, WALK_SUBSTEP_M};
-    use crate::ship::ship_structure::ShipZone;
+    use humanity_ship::ship_structure::ShipZone;
     use humanity_core::physics::landing::drop_height_m;
 
     /// The homestead's gravity (data/game.csv `gravity_m_s2`).
@@ -1028,7 +1028,7 @@ mod tests {
 pub(crate) mod test_aboard {
     use super::*;
     use crate::renderer::camera::{Camera, CameraController, WALK_SPEED_MPS};
-    use crate::ship::ship_structure::ShipZone;
+    use humanity_ship::ship_structure::ShipZone;
 
     /// The homestead's gravity (data/game.csv `gravity_m_s2`).
     pub(crate) const G: f32 = 9.81;
@@ -1113,7 +1113,7 @@ pub(crate) mod test_aboard {
         /// `HomeDesign::built_in`) as the only zone of a ship, at the origin, so its own metres
         /// are world metres: its upper floor, stair, elevator and ladder hatch as built.
         pub(crate) fn homestead() -> Self {
-            let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the homestead is built in");
+            let design = humanity_ship::ship_structure::HomeDesign::built_in("homestead").expect("the homestead is built in");
             let zone = ShipZone { id: "home".into(), label: String::new(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body: design.body };
             Self::of(ShipStructure { zones: vec![zone], ..Default::default() })
         }
@@ -1488,8 +1488,8 @@ mod storey_tests {
         assert!(feet(&ctl, &cam) < up - 0.3, "Shift on the ladder at {up} m left the feet at {}", feet(&ctl, &cam));
     }
 
-    fn piece(id: &str, ty: &str, pos: (f32, f32, f32)) -> crate::ship::home_structure::PlacedStructure {
-        crate::ship::home_structure::PlacedStructure { id: id.into(), type_id: ty.into(), pos, rot_deg: 0.0, pair: None }
+    fn piece(id: &str, ty: &str, pos: (f32, f32, f32)) -> humanity_ship::home_structure::PlacedStructure {
+        humanity_ship::home_structure::PlacedStructure { id: id.into(), type_id: ty.into(), pos, rot_deg: 0.0, pair: None }
     }
 
     /// THE LADDER IS CHOSEN BY HEIGHT. With a second ladder upstairs (ladder-2 on slab 4 at (6, 3,
@@ -1906,7 +1906,7 @@ mod storey_tests {
     /// (elevator-2 took elevator-1's car at the top, and elevator-1 lost it).
     #[test]
     fn an_edit_that_removes_an_earlier_piece_leaves_each_elevator_its_own_car() {
-        use crate::ship::home_structure::PlacedStructure;
+        use humanity_ship::home_structure::PlacedStructure;
         let mut w = Aboard::two_storeys();
         let body = &mut w.ship.zones[0].body;
         body.structures.insert(0, PlacedStructure { id: "handrail-1".into(), type_id: "handrail".into(), pos: (11.0, 0.0, 11.0), rot_deg: 0.0, pair: None });

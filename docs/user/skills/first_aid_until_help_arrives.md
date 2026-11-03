@@ -783,7 +783,7 @@ spot, and little else of what this guide is about.
   abilities includes First Aid, marked as a real ability rather than a
   fantasy one: for 15 energy it puts 35 health back immediately, and it
   can be used again 10 seconds later (`data/abilities.csv`,
-  `src/systems/abilities.rs`). You use it with its Cast button on the
+  `crates/humanity-systems/src/abilities.rs`). You use it with its Cast button on the
   Profile page, or with the number keys 1 to 9 on the HUD, which cast the
   first nine abilities you are able to use (`src/gui/pages/profile.rs`,
   `src/lib.rs`). The same list holds fantasy healing spells, such as Heal
@@ -798,14 +798,14 @@ spot, and little else of what this guide is about.
   it; a fire leaves a burn that is red skin, blistered or deep by how long
   you stood in it (no fire in the game burns anyone yet). The HUD names
   each wound and what helps, and the Inventory says how it passes
-  (`data/medical/wounds.ron`, `src/systems/wounds.rs`; [Bleeding and
+  (`data/medical/wounds.ron`, `crates/humanity-systems/src/wounds.rs`; [Bleeding and
   Wounds](bleeding_and_wounds.md) has the detail). A body that is fed,
   watered and unhurt heals by itself, slowly, faster asleep. Since 20
   October 2026 a fall hurts too, by how fast you land: in the Realistic
   mode, on Earth, about 2 m leaves a sprained ankle, about 3 m a broken
   ankle, about 6 m a broken leg, each slowing your walking for weeks, and
   about 15 m kills; Forgiving, the default, needs about twice the height
-  (`data/medical/falls.ron`, `src/systems/falls.rs`). The game cannot
+  (`data/medical/falls.ron`, `crates/humanity-systems/src/falls.rs`). The game cannot
   tell you to keep still or call for help, and there is no doctor to set a
   bone, so a break heals by itself. There are no concussions or severe
   bleeding: the Concussion condition in `data/status_effects.csv` is
@@ -823,18 +823,18 @@ spot, and little else of what this guide is about.
   heals by itself). Pressing Use on one, or on a medkit when you are not
   hurt, keeps it in your pack and tells you why in plain words. An item
   is used up only when it helps
-  (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
+  (`data/medical/treatments.ron`, `crates/humanity-systems/src/treatment.rs`,
   `src/gui/pages/inventory.rs`). Like First Aid, a medkit restores
   health at once, which real first aid does not.
 - **The Medicine skill.** Crafting a recipe trains the skill that recipe
-  names (`src/systems/crafting/mod.rs`), and the medical recipes name
+  names (`crates/humanity-systems/src/crafting/mod.rs`), and the medical recipes name
   Medicine. So in the game, Medicine rises by making supplies, not by
   helping anyone, and a high Medicine level says nothing about whether you
   can do CPR (our reading). The Profile page's "Dev: max skills" button,
   which sets every skill, Medicine included, to its maximum in one click,
   shows only in the Dev play mode (Settings > Gameplay > Play mode), not
   in Normal, where the game starts (`src/gui/pages/profile.rs`,
-  `src/systems/skills/mod.rs`).
+  `crates/humanity-systems/src/skills/mod.rs`).
 - **Your body carries over.** Your health, your vitals and the conditions
   on you are saved with your game, so quitting heals nothing
   (`src/save_load.rs`), and with Settings > Gameplay > "Start every
@@ -1089,19 +1089,19 @@ were read on 4 October 2026 and are cited with the date they carry.
 
 - The death screen and Respawn button: `src/gui/pages/hud.rs`; the Death
   setting's two modes: `data/world/death.ron` and
-  `src/systems/death_pack.rs`. The First Aid ability and the fantasy
+  `crates/humanity-systems/src/death_pack.rs`. The First Aid ability and the fantasy
   healing spells: `data/abilities.csv`, cast by
-  `src/systems/abilities.rs` (35 health for 15 energy, 10 seconds between
+  `crates/humanity-systems/src/abilities.rs` (35 health for 15 energy, 10 seconds between
   casts; Heal and Holy Light 50 and 55 health for 30 energy, open from the
   start because a level-1 skill gate is always met), listed with a Cast
   button in `src/gui/pages/profile.rs` and bound
   to the HUD's number keys in `src/lib.rs`. The "Dev: max skills" button:
-  `src/gui/pages/profile.rs`, applied in `src/systems/skills/mod.rs`. The
+  `src/gui/pages/profile.rs`, applied in `crates/humanity-systems/src/skills/mod.rs`. The
   wounds and healing by itself: `data/medical/wounds.ron`, applied each
-  tick by `src/systems/food.rs` through `src/systems/wounds.rs`, a bite's
-  wounds given by `src/systems/combat/mod.rs`; a fall's, by its landing
+  tick by `crates/humanity-systems/src/food.rs` through `crates/humanity-systems/src/wounds.rs`, a bite's
+  wounds given by `crates/humanity-systems/src/combat/mod.rs`; a fall's, by its landing
   speed, in `data/medical/falls.ron` (the sources for each height are in
-  the file) and `src/systems/falls.rs`; the Concussion condition in
+  the file) and `crates/humanity-systems/src/falls.rs`; the Concussion condition in
   `data/status_effects.csv`, applied by no code.
   (The old medical catalogue, `data/medical.ron`, and its never-run
   system were deleted on 12 October 2026.) The medical items in
@@ -1109,9 +1109,9 @@ were read on 4 October 2026 and are cited with the date they carry.
   Inventory's Use button (`src/gui/pages/inventory.rs`), and what each
   item does when used, the health it restores, the conditions it ends
   and what it says when it cannot help, in `data/medical/treatments.ron`,
-  applied by `src/systems/treatment.rs`. Skill experience from crafting:
-  `src/systems/crafting/mod.rs`. The body saved with the game: `BodySave`
-  in `src/persistence.rs` and `restore_body` in `src/save_load.rs`; the
+  applied by `crates/humanity-systems/src/treatment.rs`. Skill experience from crafting:
+  `crates/humanity-systems/src/crafting/mod.rs`. The body saved with the game: `BodySave`
+  in `crates/humanity-systems/src/persistence.rs` and `restore_body` in `src/save_load.rs`; the
   "Start every session from the default home" setting: `src/config.rs`.
 - [How Your Body Works](how_your_body_works.md), [Bleeding and
   Wounds](bleeding_and_wounds.md), [Treating Burns](treating_burns.md),

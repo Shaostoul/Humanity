@@ -1,0 +1,1459 @@
+//! Inventory system — slot-based item storage with stack limits.
+//!
+//! Item definitions loaded from `data/items.csv`.
+//! Systems process pending inventory operations each tick.
+
+pub mod items;
+pub mod containers;
+pub mod placed;
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
+
+/// Default max stack size when item definition doesn't specify one.
+const DEFAULT_MAX_STACK: u32 = 99;
+
+/// A stack of identical items in an inventory slot.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemStack {
+    /// Item definition ID from items.csv.
+    pub item_id: String,
+    /// Current quantity in this stack.
+    pub quantity: u32,
+    /// Maximum items per stack (from item def or default 99).
+    pub max_stack: u32,
+    /// Uses worn off the item on top of this stack (2026-09-26, tool wear):
+    /// when it reaches the item's items.csv durability, one breaks.
+    #[serde(default)]
+    pub wear: u32,
+    /// Grade of a crafted durable good (2026-09-26): index + 1 into
+    /// `crafting::quality::QualityLevels`, 0 = ungraded. Stacks of one item
+    /// only merge when their grades match.
+    #[serde(default)]
+    pub quality: u8,
+    /// How long this stack of FOOD has aged (2026-10-04, first-hour audit S6), in game
+    /// seconds at room temperature: the FoodSystem adds the time it spends wherever it is
+    /// kept, scaled by the temperature zone there (`food::FoodData::spoilage_multiplier_at`),
+    /// and it is spoiled once this reaches its profile's `spoilage_rate_hours`. It is the
+    /// stack's own clock: moving it to another slot, into storage or a vessel and back keeps
+    /// it, and the save keeps it. Items joining a stack give it the count-weighted average
+    /// age (`blend_age`), so no age is made or lost. Always 0 for what is not food.
+    #[serde(default)]
+    pub age_s: f64,
+}
+
+/// The age of `a_qty` items aged `a_age` and `b_qty` aged `b_age` once they share a stack
+/// (2026-10-04, first-hour audit S6): the count-weighted average, so a merge makes no age and
+/// loses none (a fresh loaf joining three old ones takes a share of their age, and they a
+/// share of its freshness). With no items at all, `b_age`.
+pub fn blend_age(a_age: f64, a_qty: u32, b_age: f64, b_qty: u32) -> f64 {
+    let total = f64::from(a_qty) + f64::from(b_qty);
+    if total <= 0.0 {
+        return b_age;
+    }
+    (a_age * f64::from(a_qty) + b_age * f64::from(b_qty)) / total
+}
+
+/// The mean age of `count` items whose ages add up to `age_sum`; 0 for none.
+fn mean_age(age_sum: f64, count: u32) -> f64 {
+    if count == 0 {
+        0.0
+    } else {
+        age_sum / f64::from(count)
+    }
+}
+
+/// One backpack <-> home-storage move from the GUI (2026-09-26): what,
+/// how many, which way, and the wear and grade the item carries so both
+/// survive storage.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TransferOp {
+    pub item_id: String,
+    pub qty: u32,
+    /// True = into the backpack (from storage); false = out of it.
+    pub add: bool,
+    pub wear: u32,
+    pub quality: u8,
+    /// How long the items have aged, for food (2026-10-04, first-hour audit S6): food taken
+    /// from storage arrives in the backpack as old as it was there. 0 for fresh goods.
+    pub age_s: f64,
+}
+
+/// The player's record of finished P2P trades (2026-10-02), a component on
+/// the player entity beside its `Inventory`. A trade the relay completes is
+/// settled in each player's own game: what they offered leaves the backpack,
+/// what the other side offered arrives (`gui::pages::trade::settle_completed`
+/// queues it here, the InventorySystem applies it).
+///
+/// WHY a component and not a set in the Trade page: the settled set has to
+/// travel with the backpack it changed. It is saved in the same WorldSave as
+/// the inventory (`settled_trades`), so a restart can neither settle a trade
+/// twice (the save says it is done) nor lose one (a save from before the
+/// items moved does not list it either, and the relay's trade list settles it
+/// again). The old in-memory set lived only as long as the process.
+///
+/// KNOWN GAP (2026-10-02): settled ids live per SAVE, so a completed trade can
+/// replay into a different home of the same identity (one whose save does not
+/// list it); that stays until a per-identity trade ledger exists.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TradeSettlements {
+    /// Trades whose items this game has moved, by the relay's trade id. Per
+    /// save, not per identity: see the known gap above.
+    pub settled: std::collections::BTreeSet<String>,
+    /// Trades queued to settle on the InventorySystem's next tick, with their
+    /// backpack moves. Deliberately NOT saved: a trade still waiting here has
+    /// not changed the backpack yet, so it must settle again after a restart.
+    pub pending: Vec<(String, Vec<TransferOp>)>,
+    /// The id this backpack's home goes by with a fleet (2026-10-04, the fleet
+    /// ledger's review): sent with every give, so a server hands back only THIS
+    /// home's gives to settle again after a save load (engine/fleet.rs). Saved
+    /// with the backpack (WorldSave.home_id); made the first time it is needed.
+    pub home_id: String,
+    /// Gives to a fleet whose items have LEFT the backpack and wait for that
+    /// server's answer (engine/fleet.rs). Saved with the backpack
+    /// (WorldSave.fleet_held), so a give is never in two places: in flight it
+    /// is here, not in the backpack, so it cannot also be traded, stored, eaten
+    /// or given again; a refusal puts it back.
+    pub fleet_held: Vec<FleetHeld>,
+    /// A save was just put back over the backpack (save_load restores it):
+    /// the fleet's record of this home's gives must be asked for again, to
+    /// settle any the save does not list. Not saved.
+    pub fleet_recheck: bool,
+}
+
+/// A give to a server's fleet whose items have left the backpack and wait for
+/// that server to record it or refuse it (2026-10-04, engine/fleet.rs).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct FleetHeld {
+    /// The game's id for the give (the server records a give once per id).
+    pub give_id: String,
+    /// The server whose fleet it was given to, as this game addresses it: it
+    /// is sent there and nowhere else.
+    pub server: String,
+    /// The fleet store it was handed in at (the shared world's entity id).
+    pub store: u64,
+    pub item_id: String,
+    /// The item's name, for the panel.
+    pub name: String,
+    pub qty: u32,
+    pub wear: u32,
+    pub quality: u8,
+    /// The game was in Creative mode, which makes things from nothing: the
+    /// fleet records the gift but does not count it.
+    #[serde(default)]
+    pub creative: bool,
+    /// How long the items had aged, for food (2026-10-04, first-hour audit S6): a give the
+    /// fleet refuses comes back into the backpack as old as it left.
+    #[serde(default)]
+    pub age_s: f64,
+}
+
+impl TradeSettlements {
+    /// True once a trade is settled or queued to settle.
+    pub fn knows(&self, trade_id: &str) -> bool {
+        self.settled.contains(trade_id) || self.pending.iter().any(|(id, _)| id == trade_id)
+    }
+}
+
+impl ItemStack {
+    pub fn new(item_id: String, quantity: u32, max_stack: u32) -> Self {
+        Self {
+            item_id,
+            quantity,
+            max_stack,
+            wear: 0,
+            quality: 0,
+            age_s: 0.0,
+        }
+    }
+
+    /// How many more items can fit in this stack.
+    pub fn space_remaining(&self) -> u32 {
+        self.max_stack.saturating_sub(self.quantity)
+    }
+
+    /// Whether this stack is full.
+    pub fn is_full(&self) -> bool {
+        self.quantity >= self.max_stack
+    }
+}
+
+/// Inventory component — attach to any entity that can hold items.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Inventory {
+    /// Ordered list of item slots (Some = occupied, None = empty).
+    pub slots: Vec<Option<ItemStack>>,
+    /// Maximum number of slots.
+    pub max_slots: usize,
+    /// Current total weight of all items in kg (recalculated each tick).
+    pub weight_current: f32,
+    /// Maximum carry capacity in kg.
+    pub weight_capacity: f32,
+    /// Current total storage volume of all items in LITERS (recalculated each
+    /// tick alongside weight). Material-storage Stage A (v0.726): "the real
+    /// limit of a container is its volume; slots are for bandolier-likes."
+    /// serde(default) so pre-v0.726 saved inventories load as 0 and the next
+    /// tick fills the real number.
+    #[serde(default)]
+    pub volume_current_l: f32,
+    /// Maximum storage volume in liters. Stage A tracks + displays it;
+    /// Stage A slice 2 turns it into a hard add/craft gate.
+    #[serde(default = "default_volume_capacity")]
+    pub volume_capacity_l: f32,
+    /// What worn gear adds to `weight_capacity`, kg at 1 g (the equipped
+    /// outfit's `carry_capacity`, e.g. a large backpack's 25), recalculated
+    /// each tick beside the weight. serde(default): an older save loads as 0
+    /// and the next tick fills it.
+    #[serde(default)]
+    pub carry_bonus_kg: f32,
+    /// True when weight_current is over the limit where the player stands:
+    /// `weight_capacity + carry_bonus_kg` at 1 g, scaled by the local gravity
+    /// (`systems::encumbrance`, BUG-136). What that does to movement is
+    /// `engine::carry_load`'s; this flag is the inventory's own record of it.
+    pub encumbered: bool,
+}
+
+/// Default backpack volume: 65 L — the classic large expedition pack (the
+/// mountaineering pack in the default home is literally "65 L").
+fn default_volume_capacity() -> f32 {
+    65.0
+}
+
+impl Inventory {
+    pub fn new(max_slots: usize) -> Self {
+        Self {
+            slots: vec![None; max_slots],
+            max_slots,
+            weight_current: 0.0,
+            weight_capacity: 50.0,
+            volume_current_l: 0.0,
+            volume_capacity_l: default_volume_capacity(),
+            carry_bonus_kg: 0.0,
+            encumbered: false,
+        }
+    }
+
+    /// Grow the inventory to at least `min_slots` total slots (never shrinks; existing
+    /// contents are preserved). Used by dev/creative provisioning to fit a full
+    /// material set in one pass without overflowing a default-sized inventory.
+    pub fn ensure_slots(&mut self, min_slots: usize) {
+        if min_slots > self.max_slots {
+            self.slots.resize(min_slots, None);
+            self.max_slots = min_slots;
+        }
+    }
+
+    /// Volume-gated add (material-storage Stage A slice 2, v0.727): caps the
+    /// accepted quantity by the inventory's remaining VOLUME before the slot
+    /// pass — "the real limit of a container is its volume". Tracks
+    /// `volume_current_l` incrementally so several adds within one tick can't
+    /// overshoot (the per-tick recalc trues it up afterwards).
+    ///
+    /// `unit_volume_l <= 0.0` (unknown/legacy item) skips the volume gate and
+    /// behaves exactly like `add_item` — which also remains the right primitive
+    /// for bandolier-like BY-COUNT holders and for restore paths (loading a
+    /// save must never drop items).
+    ///
+    /// Returns the number NOT added (volume overflow + slot overflow).
+    pub fn add_item_volume_gated(
+        &mut self,
+        item_id: &str,
+        quantity: u32,
+        max_stack: u32,
+        unit_volume_l: f32,
+    ) -> u32 {
+        self.add_item_volume_gated_q(item_id, quantity, max_stack, unit_volume_l, 0)
+    }
+
+    /// `add_item_volume_gated` for items of grade `quality` (0 = ungraded).
+    pub fn add_item_volume_gated_q(
+        &mut self,
+        item_id: &str,
+        quantity: u32,
+        max_stack: u32,
+        unit_volume_l: f32,
+        quality: u8,
+    ) -> u32 {
+        self.add_item_volume_gated_aged(item_id, quantity, max_stack, unit_volume_l, quality, 0.0)
+    }
+
+    /// `add_item_volume_gated_q` for items that have aged `age_s` (food, 2026-10-04,
+    /// `add_item_aged`): what a vessel or home storage hands back keeps its age.
+    pub fn add_item_volume_gated_aged(
+        &mut self,
+        item_id: &str,
+        quantity: u32,
+        max_stack: u32,
+        unit_volume_l: f32,
+        quality: u8,
+        age_s: f64,
+    ) -> u32 {
+        if unit_volume_l <= 0.0 {
+            return self.add_item_aged(item_id, quantity, max_stack, quality, age_s);
+        }
+        let remaining_l = (self.volume_capacity_l - self.volume_current_l).max(0.0);
+        let fits = (remaining_l / unit_volume_l).floor() as u32;
+        let accepted = quantity.min(fits);
+        // VOLUME is the real limit (v0.735, operator: "still limited number of
+        // slots instead of volume"): when the volume gate accepts, grow slots
+        // so the slot grid never blocks a volume-legal add. Bandolier-like
+        // by-count holders use the raw add_item and keep fixed slots.
+        if accepted > 0 {
+            let occupied = self.slots.iter().filter(|s| s.is_some()).count();
+            let worst_case_new = (accepted as usize).div_ceil(max_stack.max(1) as usize);
+            self.ensure_slots(occupied + worst_case_new);
+        }
+        let slot_overflow = self.add_item_aged(item_id, accepted, max_stack, quality, age_s);
+        let added = accepted - slot_overflow;
+        self.volume_current_l += added as f32 * unit_volume_l;
+        (quantity - accepted) + slot_overflow
+    }
+
+    /// Add items to the inventory, stacking where possible.
+    /// Returns the number of items that could NOT be added (overflow).
+    pub fn add_item(&mut self, item_id: &str, quantity: u32, max_stack: u32) -> u32 {
+        self.add_item_q(item_id, quantity, max_stack, 0)
+    }
+
+    /// `add_item` for items of grade `quality` (0 = ungraded): they only
+    /// join a stack of the same grade.
+    pub fn add_item_q(&mut self, item_id: &str, quantity: u32, max_stack: u32, quality: u8) -> u32 {
+        self.add_item_aged(item_id, quantity, max_stack, quality, 0.0)
+    }
+
+    /// `add_item_q` for items that have aged `age_s` game seconds (food, 2026-10-04,
+    /// first-hour audit S6): a stack they join takes the count-weighted average age
+    /// (`blend_age`), a stack they start has theirs. Everything else adds fresh (age 0).
+    pub fn add_item_aged(&mut self, item_id: &str, mut quantity: u32, max_stack: u32, quality: u8, age_s: f64) -> u32 {
+        // First pass: fill existing stacks of the same item and grade
+        for slot in self.slots.iter_mut() {
+            if quantity == 0 {
+                break;
+            }
+            if let Some(stack) = slot {
+                if stack.item_id == item_id && stack.quality == quality && !stack.is_full() {
+                    let can_add = stack.space_remaining().min(quantity);
+                    stack.age_s = blend_age(stack.age_s, stack.quantity, age_s, can_add);
+                    stack.quantity += can_add;
+                    quantity -= can_add;
+                }
+            }
+        }
+
+        // Second pass: place remainder in empty slots
+        for slot in self.slots.iter_mut() {
+            if quantity == 0 {
+                break;
+            }
+            if slot.is_none() {
+                let stack_qty = quantity.min(max_stack);
+                let mut stack = ItemStack::new(item_id.to_string(), stack_qty, max_stack);
+                stack.quality = quality;
+                stack.age_s = age_s;
+                *slot = Some(stack);
+                quantity -= stack_qty;
+            }
+        }
+
+        quantity // overflow
+    }
+
+    /// Remove items from the inventory.
+    /// Returns the number of items that could NOT be removed (insufficient).
+    pub fn remove_item(&mut self, item_id: &str, mut quantity: u32) -> u32 {
+        // Remove from last-to-first to preserve earlier stacks
+        for slot in self.slots.iter_mut().rev() {
+            if quantity == 0 {
+                break;
+            }
+            if let Some(stack) = slot {
+                if stack.item_id == item_id {
+                    let can_remove = stack.quantity.min(quantity);
+                    stack.quantity -= can_remove;
+                    quantity -= can_remove;
+                    if stack.quantity == 0 {
+                        *slot = None;
+                    }
+                }
+            }
+        }
+
+        quantity // deficit
+    }
+
+    /// Add like `add_item_volume_gated`, and give the added item the wear it
+    /// carried in storage (2026-09-26): a worn tool put away and taken back
+    /// comes back as worn as it left. The wear goes on a stack this add
+    /// created (a tool's stack is one item), else on the last stack of it.
+    /// Food keeps the age it had in storage the same way (`age_s`, 2026-10-04).
+    /// Returns the number NOT added.
+    pub fn add_item_worn(
+        &mut self,
+        item_id: &str,
+        quantity: u32,
+        max_stack: u32,
+        unit_volume_l: f32,
+        wear: u32,
+        quality: u8,
+        age_s: f64,
+    ) -> u32 {
+        let before: Vec<bool> = self.slots.iter().map(|s| s.is_some()).collect();
+        let overflow = self.add_item_volume_gated_aged(item_id, quantity, max_stack, unit_volume_l, quality, age_s);
+        if wear > 0 && overflow < quantity {
+            let new_stack = self
+                .slots
+                .iter()
+                .enumerate()
+                .position(|(i, s)| {
+                    !before.get(i).copied().unwrap_or(false)
+                        && s.as_ref().is_some_and(|st| st.item_id == item_id && st.quality == quality)
+                });
+            let idx = new_stack.or_else(|| {
+                self.slots
+                    .iter()
+                    .rposition(|s| s.as_ref().is_some_and(|st| st.item_id == item_id && st.quality == quality))
+            });
+            if let Some(stack) = idx.and_then(|i| self.slots[i].as_mut()) {
+                stack.wear = stack.wear.max(wear);
+            }
+        }
+        overflow
+    }
+
+    /// Remove like `remove_item`, but take first from the stack worn by
+    /// `wear` (2026-09-26), so the tool that leaves the backpack is the one
+    /// the player picked and its wear goes with it. Returns the deficit.
+    pub fn remove_worn(&mut self, item_id: &str, quantity: u32, wear: u32, quality: u8) -> u32 {
+        // Every stack worn and graded like the picked one first, then any
+        // stack of that grade, and only then anything (2026-09-26: taking
+        // from a single matching stack and then "any" swapped grades when
+        // the picked grade spanned several stacks).
+        let left = self.take_where(quantity, |st| st.item_id == item_id && st.wear == wear && st.quality == quality);
+        let left = self.take_where(left, |st| st.item_id == item_id && st.quality == quality);
+        if left > 0 {
+            return self.remove_item(item_id, left);
+        }
+        0
+    }
+
+    /// Remove like `remove_item` and say how old what left was (2026-10-04, first-hour audit
+    /// S6): (the deficit, the count-weighted mean age of the items taken; 0 when none were).
+    /// The machine card's Store puts that age into the vessel.
+    pub fn remove_item_aged(&mut self, item_id: &str, quantity: u32) -> (u32, f64) {
+        let (left, age_sum) = self.take_where_aged(quantity, |st| st.item_id == item_id);
+        (left, mean_age(age_sum, quantity - left))
+    }
+
+    /// `remove_worn` that also says how old what left was (`remove_item_aged`): a give to the
+    /// fleet holds its items at their age. The same three passes as `remove_worn`.
+    pub fn remove_worn_aged(&mut self, item_id: &str, quantity: u32, wear: u32, quality: u8) -> (u32, f64) {
+        let (left, a) = self.take_where_aged(quantity, |st| st.item_id == item_id && st.wear == wear && st.quality == quality);
+        let (left, b) = self.take_where_aged(left, |st| st.item_id == item_id && st.quality == quality);
+        let (left, c) = self.take_where_aged(left, |st| st.item_id == item_id);
+        (left, mean_age(a + b + c, quantity - left))
+    }
+
+    /// Remove `quantity` of `item_id` of grade `quality` only (2026-09-26,
+    /// the vendor sells one grade). Returns the deficit.
+    pub fn remove_graded(&mut self, item_id: &str, quantity: u32, quality: u8) -> u32 {
+        self.take_where(quantity, |st| st.item_id == item_id && st.quality == quality)
+    }
+
+    /// Take up to `quantity` from the stacks `pick` matches, last first.
+    /// Returns what could not be taken.
+    fn take_where(&mut self, quantity: u32, pick: impl Fn(&ItemStack) -> bool) -> u32 {
+        self.take_where_aged(quantity, pick).0
+    }
+
+    /// `take_where`, also returning the sum of the taken items' ages (each item's stack age
+    /// once per item), for the mean age of what left (2026-10-04, first-hour audit S6).
+    fn take_where_aged(&mut self, mut quantity: u32, pick: impl Fn(&ItemStack) -> bool) -> (u32, f64) {
+        let mut age_sum = 0.0;
+        for slot in self.slots.iter_mut().rev() {
+            if quantity == 0 {
+                break;
+            }
+            if let Some(stack) = slot {
+                if pick(stack) {
+                    let take = stack.quantity.min(quantity);
+                    age_sum += stack.age_s * f64::from(take);
+                    stack.quantity -= take;
+                    quantity -= take;
+                    if stack.quantity == 0 {
+                        *slot = None;
+                    }
+                }
+            }
+        }
+        (quantity, age_sum)
+    }
+
+    /// Check if the inventory contains at least `quantity` of the given item.
+    pub fn has_item(&self, item_id: &str, quantity: u32) -> bool {
+        self.count_item(item_id) >= quantity
+    }
+
+    /// One use of the tool `item_id` (2026-09-26): wears the stack of it that
+    /// remove_item takes from first (the last one). When the uses reach
+    /// `durability`, one breaks: it is removed and the next starts fresh.
+    /// Returns true when one broke. A durability of 0 never wears.
+    /// `durability_of` gives the uses a tool of a grade lasts (a masterwork
+    /// hammer outlasts a poor one; 2026-09-26, quality).
+    pub fn wear_item(&mut self, item_id: &str, durability_of: impl Fn(u8) -> u32) -> bool {
+        let Some(stack) = self.slots.iter_mut().rev().flatten().find(|s| s.item_id == item_id) else {
+            return false;
+        };
+        let durability = durability_of(stack.quality);
+        if durability == 0 {
+            return false;
+        }
+        stack.wear += 1;
+        if stack.wear < durability {
+            return false;
+        }
+        stack.wear = 0;
+        self.remove_item(item_id, 1);
+        true
+    }
+
+    /// Remove like `remove_item` and say which grades left (2026-09-26): a
+    /// list of (grade, count), for pricing a sale by grade.
+    pub fn remove_item_report(&mut self, item_id: &str, mut quantity: u32) -> Vec<(u8, u32)> {
+        let mut out: Vec<(u8, u32)> = Vec::new();
+        for slot in self.slots.iter_mut().rev() {
+            if quantity == 0 {
+                break;
+            }
+            if let Some(stack) = slot {
+                if stack.item_id == item_id {
+                    let take = stack.quantity.min(quantity);
+                    stack.quantity -= take;
+                    quantity -= take;
+                    match out.iter_mut().find(|(q, _)| *q == stack.quality) {
+                        Some(e) => e.1 += take,
+                        None => out.push((stack.quality, take)),
+                    }
+                    if stack.quantity == 0 {
+                        *slot = None;
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Count total quantity of an item across all stacks.
+    pub fn count_item(&self, item_id: &str) -> u32 {
+        self.slots
+            .iter()
+            .filter_map(|s| s.as_ref())
+            .filter(|s| s.item_id == item_id)
+            .map(|s| s.quantity)
+            .sum()
+    }
+
+    /// Transfer items from this inventory to another.
+    /// Returns the number of items that could NOT be transferred.
+    pub fn transfer_to(
+        &mut self,
+        target: &mut Inventory,
+        item_id: &str,
+        quantity: u32,
+        max_stack: u32,
+    ) -> u32 {
+        let available = self.count_item(item_id).min(quantity);
+        if available == 0 {
+            return quantity;
+        }
+
+        // Try to add to target first
+        let overflow = target.add_item(item_id, available, max_stack);
+        let actually_transferred = available - overflow;
+
+        // Remove only what was successfully added
+        if actually_transferred > 0 {
+            self.remove_item(item_id, actually_transferred);
+        }
+
+        quantity - actually_transferred
+    }
+
+    /// Number of occupied slots.
+    pub fn used_slots(&self) -> usize {
+        self.slots.iter().filter(|s| s.is_some()).count()
+    }
+
+    /// Number of empty slots.
+    pub fn empty_slots(&self) -> usize {
+        self.max_slots - self.used_slots()
+    }
+
+    /// All distinct item IDs and their total quantities.
+    pub fn summary(&self) -> HashMap<String, u32> {
+        let mut map = HashMap::new();
+        for slot in self.slots.iter().flatten() {
+            *map.entry(slot.item_id.clone()).or_insert(0) += slot.quantity;
+        }
+        map
+    }
+}
+
+/// Pending inventory operation — queued for processing by InventorySystem.
+#[derive(Debug, Clone)]
+pub enum InventoryOp {
+    /// Add items to an entity's inventory.
+    Add {
+        item_id: String,
+        quantity: u32,
+    },
+    /// Remove items from an entity's inventory.
+    Remove {
+        item_id: String,
+        quantity: u32,
+    },
+}
+
+/// Item definition loaded from items.csv — cached in DataStore as "item_defs".
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemDef {
+    pub id: String,
+    pub name: String,
+    /// Mass per unit in kilograms (from items.csv weight_kg column).
+    pub mass_kg: f32,
+    /// Effective storage volume per unit in LITERS (items.csv volume_l,
+    /// generated by scripts/gen-item-volumes.js from mass / material density
+    /// with a per-category packing fraction). Material-storage Stage A
+    /// (v0.726): "the real limit of a container is its volume" — this is the
+    /// number volume-capped storage counts against. 0.0 = unknown (legacy row).
+    pub volume_l: f32,
+    /// Content class from items.csv (solid / dry_goods / water / ore ...) —
+    /// what typed containers whitelist against (containers.rs). Default
+    /// "solid" when the column is absent. (v0.729)
+    pub content_class: String,
+    pub stackable: bool,
+    pub max_stack: u32,
+    /// Uses before one of these wears out (items.csv durability; 0 = never).
+    pub durability: u32,
+}
+
+/// Registry of all item definitions, keyed by item ID.
+#[derive(Debug, Clone, Default)]
+pub struct ItemRegistry {
+    pub items: HashMap<String, ItemDef>,
+}
+
+impl ItemRegistry {
+    /// Look up max stack size for an item, defaulting to 99 if unknown.
+    pub fn max_stack_for(&self, item_id: &str) -> u32 {
+        self.items
+            .get(item_id)
+            .map(|def| def.max_stack)
+            .unwrap_or(DEFAULT_MAX_STACK)
+    }
+
+    /// Uses before one unit wears out (0 = never, or unknown).
+    pub fn durability_for(&self, item_id: &str) -> u32 {
+        self.items.get(item_id).map(|d| d.durability).unwrap_or(0)
+    }
+
+    /// Look up mass in kg for one unit of an item, defaulting to 0 if unknown.
+    pub fn mass_for(&self, item_id: &str) -> f32 {
+        self.items
+            .get(item_id)
+            .map(|def| def.mass_kg)
+            .unwrap_or(0.0)
+    }
+
+    /// Look up storage volume in liters for one unit, 0.0 if unknown. (v0.726)
+    pub fn volume_for(&self, item_id: &str) -> f32 {
+        self.items
+            .get(item_id)
+            .map(|def| def.volume_l)
+            .unwrap_or(0.0)
+    }
+
+    /// Look up the content class for typed-container compatibility,
+    /// defaulting to "solid" for unknown items. (v0.729)
+    pub fn class_for(&self, item_id: &str) -> &str {
+        self.items
+            .get(item_id)
+            .map(|def| def.content_class.as_str())
+            .unwrap_or("solid")
+    }
+
+    /// Build the item registry from raw `items.csv` bytes.
+    ///
+    /// Uses the shared CSV loader (skips `#` comments, header-mapped, row-resilient
+    /// so one malformed row never blanks the catalog; the game's own loader
+    /// instead sets aside a data folder copy with such a row and uses the copy
+    /// built into the exe, BUG-163). Only the columns the
+    /// registry needs are deserialized; the rest of items.csv (category,
+    /// subcategory, base_material, durability, description, content_class) is
+    /// ignored. This is the constructor the runtime calls to populate
+    /// `DataStore["item_registry"]` — before v0.323 the CSV was loaded then
+    /// discarded, so item-name/stack/mass lookups silently fell back to defaults.
+    pub fn from_csv(data: &[u8]) -> Result<Self, String> {
+        let rows: Vec<ItemRow> = humanity_core::data_parse::parse_csv(data)?;
+        let mut items = HashMap::new();
+        for row in rows {
+            let max_stack = row.stack_size.max(1);
+            items.insert(
+                row.id.clone(),
+                ItemDef {
+                    id: row.id,
+                    name: row.name,
+                    mass_kg: row.weight_kg,
+                    volume_l: row.volume_l,
+                    content_class: if row.content_class.is_empty() {
+                        "solid".to_string()
+                    } else {
+                        row.content_class
+                    },
+                    stackable: max_stack > 1,
+                    max_stack,
+                    durability: row.durability,
+                },
+            );
+        }
+        Ok(Self { items })
+    }
+}
+
+/// One row of `items.csv` — only the columns `ItemRegistry` consumes. Extra
+/// columns are ignored by the header-mapped CSV deserializer.
+#[derive(Debug, Deserialize)]
+struct ItemRow {
+    id: String,
+    name: String,
+    #[serde(default)]
+    weight_kg: f32,
+    /// Storage volume in liters (v0.726, material-storage Stage A). Default 0
+    /// so a mod's items.csv without the column still parses.
+    #[serde(default)]
+    volume_l: f32,
+    /// Typed-container content class (v0.729). Empty -> "solid".
+    #[serde(default)]
+    content_class: String,
+    #[serde(default = "default_item_stack")]
+    stack_size: u32,
+    /// Uses before it wears out (tools; 0 = never).
+    #[serde(default)]
+    durability: u32,
+}
+
+fn default_item_stack() -> u32 {
+    DEFAULT_MAX_STACK
+}
+
+#[cfg(test)]
+mod item_registry_csv_tests {
+    use super::*;
+
+    #[test]
+    fn from_csv_parses_items_stack_and_mass() {
+        // Header order differs from the real file + carries extra columns: the
+        // loader maps by header name and ignores the unknown ones.
+        let csv = b"id,name,category,weight_kg,stack_size,content_class\n\
+                    iron_ore_0,Iron Ore,material,2.5,50,ore\n\
+                    sword_0,Iron Sword,tool,3.0,1,none\n";
+        let reg = ItemRegistry::from_csv(csv).expect("parse");
+        assert_eq!(reg.items.len(), 2);
+        let ore = reg.items.get("iron_ore_0").expect("ore present");
+        assert_eq!(ore.name, "Iron Ore");
+        assert_eq!(ore.max_stack, 50);
+        assert!(ore.stackable);
+        assert!((reg.mass_for("iron_ore_0") - 2.5).abs() < 1e-6);
+        let sword = reg.items.get("sword_0").expect("sword present");
+        assert_eq!(sword.max_stack, 1);
+        assert!(!sword.stackable, "stack_size 1 is not stackable");
+    }
+
+    #[test]
+    fn from_csv_parses_volume_and_defaults_to_zero() {
+        // Stage A (v0.726): volume_l is parsed when present; absent column
+        // (older/modded CSVs) defaults to 0 = no volume gate. content_class
+        // (v0.729) parses when present and defaults to "solid".
+        let with = b"id,name,weight_kg,stack_size,volume_l,content_class\niron_ore_0,Iron Ore,4.5,20,0.95,ore\n";
+        let reg = ItemRegistry::from_csv(with).expect("parse");
+        assert!((reg.volume_for("iron_ore_0") - 0.95).abs() < 1e-6);
+        assert_eq!(reg.class_for("iron_ore_0"), "ore");
+        let without = b"id,name,weight_kg,stack_size\niron_ore_0,Iron Ore,4.5,20\n";
+        let reg2 = ItemRegistry::from_csv(without).expect("parse");
+        assert_eq!(reg2.volume_for("iron_ore_0"), 0.0);
+        assert_eq!(reg2.volume_for("nonexistent"), 0.0);
+        assert_eq!(reg2.class_for("iron_ore_0"), "solid", "absent column -> solid");
+        assert_eq!(reg2.class_for("nonexistent"), "solid");
+    }
+
+    /// Duplicate ids that exist in shipped data RIGHT NOW and have not been
+    /// resolved yet, as (path relative to `data/`, duplicated id).
+    ///
+    /// This list is a countdown, not a parking lot. Two properties keep it
+    /// honest: a duplicate id that is NOT listed here fails the test, and a
+    /// listed id that is no longer duplicated ALSO fails the test (telling you
+    /// to delete the line). So it can only shrink.
+    ///
+    /// Empty since 2026-09-25: the three duplicated recipe ids (craft_compass,
+    /// craft_binoculars, refine_fuel) were resolved, keeping the iron-needle
+    /// compass (copper is not magnetic), the plastic-bodied binoculars and the
+    /// mass-conserving refine_fuel; tests/recipe_sources_lint.rs now refuses a
+    /// duplicate recipe id as well.
+    const KNOWN_DUPLICATES: &[(&str, &str)] = &[];
+
+    /// Every id-keyed CSV under `data/` must have UNIQUE ids.
+    ///
+    /// Registries load rows into a `HashMap` keyed by id (`ItemRegistry::from_csv`
+    /// above, `PlantRegistry::from_csv`, `RecipeRegistry::from_csv`, ...), so a
+    /// repeated id is not an error and not a warning: the LAST row silently
+    /// overwrites the earlier one and a whole definition vanishes from the game.
+    ///
+    /// `data/items.csv` shipped FIVE of these undetected (backpack_small_0,
+    /// backpack_large_0, flashlight_0, binoculars_0, compass_0 -- each defined
+    /// twice, with different mass, volume, stack size and category).
+    ///
+    /// It is worse than "one definition wins", because the two readers of
+    /// items.csv disagree about WHICH one wins: the registry keeps the LAST
+    /// row, while the Inventory page's `lookup_item_details`
+    /// (src/gui/pages/inventory.rs) returns the FIRST match. A duplicated item
+    /// therefore SHOWS the player one weight and volume and does its storage
+    /// math with another.
+    ///
+    /// The files are discovered, not listed, so a new id-keyed CSV is covered
+    /// the day it is added with no test edit. A file whose header does not
+    /// start with an `id` column is skipped (it is keyed on something else).
+    /// Runs in `just validate-data`.
+    #[test]
+    fn shipped_id_keyed_csvs_have_no_duplicate_ids() {
+        /// First comma-separated field, trimmed of spaces and CSV quotes.
+        fn first_field(line: &str) -> &str {
+            line.split(',').next().unwrap_or("").trim().trim_matches('"')
+        }
+
+        fn collect_csvs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+            paths.sort();
+            for path in paths {
+                if path.is_dir() {
+                    collect_csvs(&path, out);
+                } else if path.extension().and_then(|e| e.to_str()) == Some("csv") {
+                    out.push(path);
+                }
+            }
+        }
+
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+        let mut files = Vec::new();
+        collect_csvs(&data_dir, &mut files);
+
+        let mut failures: Vec<String> = Vec::new();
+        let mut matched_known: Vec<(String, String)> = Vec::new();
+        let mut id_keyed_files = 0usize;
+
+        for path in &files {
+            let bytes = std::fs::read(path).unwrap_or_else(|e| {
+                panic!("read {}: {e}", path.display());
+            });
+            let text = String::from_utf8_lossy(&bytes);
+            let rel = path
+                .strip_prefix(&data_dir)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .replace('\\', "/");
+
+            // Mirror humanity_core::data_parse::parse_csv: '#' comment lines are
+            // stripped BEFORE the csv reader sees the file, so the first
+            // surviving non-blank line is the header row.
+            let mut rows = text
+                .lines()
+                .enumerate()
+                .filter(|(_, l)| !l.trim_start().starts_with('#') && !l.trim().is_empty());
+            let Some((_, header)) = rows.next() else {
+                continue;
+            };
+            if first_field(header) != "id" {
+                continue; // keyed on something else (elements.csv, game.csv, ...)
+            }
+            id_keyed_files += 1;
+
+            // id -> (1-based file line number, full row text) of its FIRST definition.
+            let mut first_seen: HashMap<&str, (usize, &str)> = HashMap::new();
+            for (idx, line) in rows {
+                let id = first_field(line);
+                if id.is_empty() {
+                    continue;
+                }
+                let line_no = idx + 1;
+                if let Some((prev_no, prev_line)) = first_seen.insert(id, (line_no, line)) {
+                    if KNOWN_DUPLICATES.iter().any(|(f, k)| *f == rel && *k == id) {
+                        matched_known.push((rel.clone(), id.to_string()));
+                        continue;
+                    }
+                    failures.push(format!(
+                        "  data/{rel}: id '{id}' is defined TWICE.\n\
+                         \x20   line {prev_no}: {prev_line}\n\
+                         \x20   line {line_no}: {line}",
+                    ));
+                }
+            }
+        }
+
+        // The discovery itself must not silently match nothing -- a check that
+        // cannot fail is worse than no check.
+        assert!(
+            id_keyed_files >= 15,
+            "\n\nDuplicate-id scan found only {id_keyed_files} id-keyed CSV file(s) under \
+             data/ (expected 20+). The scan is broken or data/ moved, so this test is \
+             currently protecting nothing. Fix the walk in \
+             crates/humanity-systems/src/inventory/mod.rs::shipped_id_keyed_csvs_have_no_duplicate_ids.\n"
+        );
+
+        // A resolved entry must be REMOVED from the list, or the list rots into
+        // a permanent hole.
+        for (file, id) in KNOWN_DUPLICATES {
+            if !matched_known.iter().any(|(f, i)| f == file && i == id) {
+                failures.push(format!(
+                    "  data/{file}: '{id}' is listed in KNOWN_DUPLICATES but is NOT \
+                     duplicated any more. Delete that line from KNOWN_DUPLICATES in \
+                     crates/humanity-systems/src/inventory/mod.rs."
+                ));
+            }
+        }
+
+        assert!(
+            failures.is_empty(),
+            "\n\nDuplicate ids in shipped data. The loaders key on id in a HashMap, so \
+             the LAST row silently wins and the other definition disappears from the \
+             game with no warning. Worse, src/gui/pages/inventory.rs::lookup_item_details \
+             shows the player the FIRST row, so the item's displayed weight/volume and \
+             its real storage math come from different definitions.\n\n{}\n\n\
+             Fix: delete the row the game is NOT using (normally the EARLIER one, since \
+             the later row is what loads today), or give one of them a distinct id and \
+             repoint whatever references it. Re-check with `just validate-data`.\n",
+            failures.join("\n\n")
+        );
+    }
+}
+
+#[cfg(test)]
+mod volume_gate_tests {
+    use super::*;
+
+    /// Stage A slice 2 (v0.727): the volume gate caps an add at the remaining
+    /// litres and reports the rest as overflow; the raw add_item stays
+    /// ungated (bandolier-likes + save restore).
+    #[test]
+    fn volume_gate_caps_adds_and_reports_overflow() {
+        let mut inv = Inventory::new(16);
+        inv.volume_capacity_l = 10.0;
+        // 2 L per unit -> only 5 fit by volume even though slots allow more.
+        let overflow = inv.add_item_volume_gated("crate_0", 8, 99, 2.0);
+        assert_eq!(overflow, 3, "3 of 8 must not fit in 10 L at 2 L each");
+        assert_eq!(inv.count_item("crate_0"), 5);
+        assert!((inv.volume_current_l - 10.0).abs() < 1e-6);
+        // Full by volume: nothing more fits, even with free slots.
+        let overflow2 = inv.add_item_volume_gated("crate_0", 1, 99, 2.0);
+        assert_eq!(overflow2, 1);
+        assert_eq!(inv.count_item("crate_0"), 5);
+    }
+
+    #[test]
+    fn zero_volume_items_bypass_the_gate() {
+        let mut inv = Inventory::new(4);
+        inv.volume_capacity_l = 1.0;
+        // unit_volume 0 (unknown/legacy or by-count holder) = pure slot logic.
+        let overflow = inv.add_item_volume_gated("chip_0", 10, 10, 0.0);
+        assert_eq!(overflow, 0);
+        assert_eq!(inv.count_item("chip_0"), 10);
+        assert_eq!(inv.volume_current_l, 0.0, "no volume accrues for 0-vol items");
+    }
+
+    #[test]
+    fn volume_legal_adds_grow_slots() {
+        // v0.735: VOLUME is the real limit — a volume-legal add grows the
+        // slot grid instead of overflowing on slot count ("slots are for
+        // bandolier-likes"). One slot, stack of 5, 9 items at 1 L each into
+        // 100 L: all 9 land across grown slots; volume charged for 9.
+        let mut inv = Inventory::new(1);
+        inv.volume_capacity_l = 100.0;
+        let overflow = inv.add_item_volume_gated("box_0", 9, 5, 1.0);
+        assert_eq!(overflow, 0, "volume-legal add must not slot-overflow");
+        assert_eq!(inv.count_item("box_0"), 9);
+        assert!(inv.max_slots >= 2, "slots grew to fit");
+        assert!((inv.volume_current_l - 9.0).abs() < 1e-6);
+        // The RAW add_item keeps fixed-slot semantics (bandolier-likes).
+        let mut fixed = Inventory::new(1);
+        let raw_overflow = fixed.add_item("shell_0", 9, 5);
+        assert_eq!(raw_overflow, 4, "raw add_item still slot-bound");
+    }
+}
+
+#[cfg(test)]
+mod grade_tests {
+    use super::*;
+
+    /// Putting away a stack of one grade takes that grade even when it spans
+    /// several stacks (2026-09-26: 5 standard shirts stashed from a pack of
+    /// standard x5, standard x1 and excellent x2 used to take the excellent).
+    #[test]
+    fn putting_away_takes_the_picked_grade_across_stacks() {
+        let mut inv = Inventory::new(8);
+        inv.add_item_q("shirt_0", 5, 5, 3);
+        inv.add_item_q("shirt_0", 1, 5, 3);
+        inv.add_item_q("shirt_0", 2, 5, 5);
+        inv.slots.swap(1, 2);
+        assert_eq!(inv.remove_worn("shirt_0", 5, 0, 3), 0);
+        let left: Vec<(u8, u32)> = inv.slots.iter().flatten().map(|s| (s.quality, s.quantity)).collect();
+        assert_eq!(left.iter().filter(|(q, _)| *q == 5).map(|(_, n)| n).sum::<u32>(), 2, "the excellent shirts stay: {left:?}");
+        assert_eq!(left.iter().filter(|(q, _)| *q == 3).map(|(_, n)| n).sum::<u32>(), 1, "one standard left: {left:?}");
+    }
+
+    /// Grades never share a stack, and a tool lasts the uses its grade
+    /// gives it (2026-09-26, crafting::quality).
+    #[test]
+    fn grades_keep_their_own_stacks_and_their_own_tool_life() {
+        let mut inv = Inventory::new(8);
+        inv.add_item_q("nail_0", 10, 99, 3);
+        inv.add_item_q("nail_0", 10, 99, 4);
+        inv.add_item("nail_0", 5, 99);
+        let stacks = inv.slots.iter().flatten().filter(|s| s.item_id == "nail_0").count();
+        assert_eq!(stacks, 3, "standard, good and ungraded nails stay apart");
+        assert_eq!(inv.count_item("nail_0"), 25, "a recipe still counts them all");
+
+        // A tool whose grade gives it one use breaks on its first.
+        let mut inv = Inventory::new(4);
+        inv.add_item_q("hammer_0", 1, 1, 1);
+        assert!(inv.wear_item("hammer_0", |q| if q == 1 { 1 } else { 200 }), "defective: breaks at once");
+        inv.add_item_q("hammer_0", 1, 1, 6);
+        assert!(!inv.wear_item("hammer_0", |q| if q == 1 { 1 } else { 200 }), "masterwork: keeps going");
+    }
+}
+
+#[cfg(test)]
+mod transfer_tests {
+    use super::*;
+    use humanity_core::ecs::components::Controllable;
+    use humanity_core::ecs::systems::System;
+    use humanity_core::hot_reload::data_store::DataStore;
+
+    /// Backpack <-> container transfer: the GUI pushes (item_id, qty, is_add) into the
+    /// inventory_transfer_ops channel; InventorySystem applies them to the player's
+    /// backpack. is_add=true adds (container -> backpack), false removes (backpack ->
+    /// container).
+    #[test]
+    fn transfer_channel_adds_and_removes_from_backpack() {
+        let mut data = DataStore::new();
+        let reg =
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size\niron_ore_0,Iron Ore,2.5,50\n")
+                .expect("registry");
+        data.insert("item_registry", reg);
+        data.insert(
+            "inventory_transfer_ops",
+            std::sync::Mutex::new(Vec::<TransferOp>::new()),
+        );
+
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        let mut sys = InventorySystem::new();
+
+        let push = |data: &DataStore, op: TransferOp| {
+            data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops")
+                .unwrap()
+                .lock()
+                .unwrap()
+                .push(op);
+        };
+
+        // Container -> backpack: add 5.
+        push(&data, TransferOp { item_id: "iron_ore_0".into(), qty: 5, add: true, ..Default::default() });
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
+            5,
+            "transfer add put 5 iron_ore into the backpack"
+        );
+
+        // Backpack -> container: remove 3.
+        push(&data, TransferOp { item_id: "iron_ore_0".into(), qty: 3, add: false, ..Default::default() });
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
+            2,
+            "transfer remove took 3 back out, leaving 2"
+        );
+
+        // The channel is drained each tick (no double-apply).
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
+            2,
+            "ops are drained; a tick with no new ops changes nothing"
+        );
+    }
+
+    /// A worn tool keeps its wear through storage (2026-09-26): taking a
+    /// worn hammer out of storage gives the backpack a hammer that worn, and
+    /// putting it away takes THAT hammer (not a fresh one beside it).
+    #[test]
+    fn a_worn_tool_keeps_its_wear_through_storage() {
+        let mut data = DataStore::new();
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size,volume_l,durability\nhammer_0,Hammer,0.8,1,0.3,200\n").unwrap(),
+        );
+        data.insert("inventory_transfer_ops", std::sync::Mutex::new(Vec::<TransferOp>::new()));
+        data.insert("inventory_transfer_returns", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        // A fresh hammer in slot 1, slot 0 free: the worn one comes back into
+        // slot 0, BEFORE it, where a plain last-to-first removal would miss it.
+        inv.add_item("rope_0", 1, 1);
+        inv.add_item("hammer_0", 1, 1);
+        inv.remove_item("rope_0", 1);
+        let player = world.spawn((inv, Controllable));
+        let mut sys = InventorySystem::new();
+        let push = |op: TransferOp| {
+            data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().push(op);
+        };
+        let wears = |world: &hecs::World| {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            let mut w: Vec<u32> = inv.slots.iter().flatten().filter(|s| s.item_id == "hammer_0").map(|s| s.wear).collect();
+            w.sort();
+            w
+        };
+        push(TransferOp { item_id: "hammer_0".into(), qty: 1, add: true, wear: 150, ..Default::default() });
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(wears(&world), vec![0, 150], "the stored hammer comes back worn");
+        push(TransferOp { item_id: "hammer_0".into(), qty: 1, add: false, wear: 150, ..Default::default() });
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(wears(&world), vec![0], "putting it away takes the worn one, not the fresh one");
+    }
+
+    /// A transfer into a full backpack (2026-09-25): what does not fit is
+    /// reported on the returns channel instead of being dropped, because the
+    /// GUI has already taken it out of its container. Before this the
+    /// overflow from `add_item_volume_gated` was ignored and the items were
+    /// gone.
+    #[test]
+    fn transfer_overflow_is_returned_not_destroyed() {
+        let mut data = DataStore::new();
+        let reg = ItemRegistry::from_csv(
+            b"id,name,weight_kg,stack_size,volume_l\nbarrel_0,Barrel,20,5,40\n",
+        )
+        .expect("registry");
+        data.insert("item_registry", reg);
+        data.insert(
+            "inventory_transfer_ops",
+            std::sync::Mutex::new(Vec::<TransferOp>::new()),
+        );
+        data.insert(
+            "inventory_transfer_returns",
+            std::sync::Mutex::new(Vec::<(String, u32)>::new()),
+        );
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        let mut sys = InventorySystem::new();
+        // 40 L each against the backpack's volume: some fit, the rest must come back.
+        data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .push(TransferOp { item_id: "barrel_0".into(), qty: 5, add: true, ..Default::default() });
+        sys.tick(&mut world, 1.0, &data);
+        let held = world.get::<&Inventory>(player).unwrap().count_item("barrel_0");
+        let returned: Vec<(String, u32)> = data
+            .get::<std::sync::Mutex<Vec<(String, u32)>>>("inventory_transfer_returns")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert!(held < 5, "the backpack cannot hold all five 40 L barrels (held {held})");
+        assert_eq!(returned, vec![("barrel_0".to_string(), 5 - held)], "every barrel is accounted for");
+    }
+
+    /// A finished trade's queued moves (2026-10-02) apply on the tick, and the
+    /// trade is recorded settled in the same step; a removal the backpack can
+    /// no longer cover is said, where `remove_worn`'s deficit used to be
+    /// dropped without a word. Seen red: with the settlement pass taken out of
+    /// `tick`, the hammer never arrived and t-1 never reached `settled`; with
+    /// the notice push removed, the notice assert failed.
+    #[test]
+    fn queued_trade_moves_apply_and_settle_together() {
+        let mut data = DataStore::new();
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("rope_0", 1, 99);
+        let mut ts = TradeSettlements::default();
+        ts.pending.push((
+            "t-1".into(),
+            vec![
+                TransferOp { item_id: "rope_0".into(), qty: 2, add: false, ..Default::default() },
+                TransferOp { item_id: "hammer_0".into(), qty: 1, add: true, wear: 40, ..Default::default() },
+            ],
+        ));
+        let player = world.spawn((inv, Controllable, ts));
+        InventorySystem::new().tick(&mut world, 1.0, &data);
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!((inv.count_item("rope_0"), inv.count_item("hammer_0")), (0, 1));
+        let ts = world.get::<&TradeSettlements>(player).unwrap();
+        assert!(ts.pending.is_empty() && ts.settled.contains("t-1"), "{:?}", *ts);
+        let notices = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        assert_eq!(notices.len(), 1, "the rope that was not there is said: {notices:?}");
+        assert!(notices[0].contains("1 x rope_0"), "{notices:?}");
+    }
+
+    /// BUG-136: the tick records the worn gear's carry bonus (the Inventory
+    /// page and the movement read it from here) and the `encumbered` flag
+    /// follows the local gravity the engine publishes. 31 ore at 2.5 kg is
+    /// 77.5 kg against 50 + 25 (a large backpack): over at 1 g, well under on
+    /// Mars. Seen red with the tick as it was (bonus never stored, flag
+    /// against the 1 g sum regardless of gravity): "assertion `left == right`
+    /// failed: the backpack's 25 kg is recorded; left: 0.0, right: 25.0".
+    #[test]
+    fn the_carry_bonus_is_recorded_and_the_limit_follows_gravity() {
+        use crate::encumbrance as enc;
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/equipment.csv");
+        let equipment =
+            crate::economy::EquipmentRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap();
+        let mut data = DataStore::new();
+        data.insert("equipment_registry", equipment);
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size\niron_ore_0,Iron Ore,2.5,50\n").unwrap(),
+        );
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("iron_ore_0", 31, 50);
+        let mut outfit = humanity_core::ecs::components::Outfit::default();
+        outfit.equipped.insert("back".into(), "backpack_large_0".into());
+        let player = world.spawn((inv, outfit, Controllable));
+        let mut sys = InventorySystem::new();
+
+        sys.tick(&mut world, 1.0, &data);
+        {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            assert_eq!(inv.carry_bonus_kg, 25.0, "the backpack's 25 kg is recorded");
+            assert!((inv.weight_current - 77.5).abs() < 1e-3);
+            assert!(inv.encumbered, "77.5 kg is over 75 kg at 1 g (no gravity published = 1 g)");
+        }
+        data.insert(enc::LOCAL_G_KEY, 3.72_f32);
+        sys.tick(&mut world, 1.0, &data);
+        assert!(!world.get::<&Inventory>(player).unwrap().encumbered, "on Mars the limit is 198 kg");
+    }
+}
+
+/// Apply one backpack move to `inv` (2026-10-02, shared by the storage
+/// transfers and trade settlements). An add is volume-gated, and what does not
+/// fit is pushed to `inventory_transfer_returns` (2026-09-25: the GUI has
+/// already taken it out of its container, so a dropped overflow was an item
+/// destroyed; the main loop puts it back where it came from and says so). A
+/// removal takes the stack worn and graded as asked first. Returns how many a
+/// removal could NOT take because the backpack did not hold them (0 for adds).
+fn apply_transfer(inv: &mut Inventory, op: &TransferOp, registry: Option<&ItemRegistry>, data: &DataStore) -> u32 {
+    if !op.add {
+        return inv.remove_worn(&op.item_id, op.qty, op.wear, op.quality);
+    }
+    let max_stack = registry.map(|r| r.max_stack_for(&op.item_id)).unwrap_or(DEFAULT_MAX_STACK);
+    // Volume-gated (Stage A slice 2): a full backpack refuses the transfer
+    // instead of over-filling.
+    let unit_vol = registry.map(|r| r.volume_for(&op.item_id)).unwrap_or(0.0);
+    let overflow = inv.add_item_worn(&op.item_id, op.qty, max_stack, unit_vol, op.wear, op.quality, op.age_s);
+    if overflow > 0 {
+        if let Some(ret) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("inventory_transfer_returns") {
+            if let Ok(mut r) = ret.lock() {
+                r.push((op.item_id.clone(), overflow));
+            }
+        }
+    }
+    0
+}
+
+/// Manages inventory components and processes queued operations.
+pub struct InventorySystem {
+    /// Pending operations to process next tick (entity-indexed).
+    pending_ops: Vec<(hecs::Entity, InventoryOp)>,
+}
+
+impl InventorySystem {
+    pub fn new() -> Self {
+        Self {
+            pending_ops: Vec::new(),
+        }
+    }
+
+    /// Queue an inventory operation for the next tick.
+    pub fn queue_op(&mut self, entity: hecs::Entity, op: InventoryOp) {
+        self.pending_ops.push((entity, op));
+    }
+}
+
+impl System for InventorySystem {
+    fn name(&self) -> &str {
+        "InventorySystem"
+    }
+
+    fn tick(&mut self, world: &mut hecs::World, _dt: f32, data: &DataStore) {
+        // Drain pending operations
+        let ops: Vec<_> = self.pending_ops.drain(..).collect();
+
+        // Get item registry for stack size and mass lookups
+        let registry = data.get::<ItemRegistry>("item_registry");
+
+        // GUI-driven backpack transfers: move items in/out of the player's backpack to
+        // the organize-layer container pool. Drain the channel + apply each op to the
+        // Controllable (player) inventory. (item_id, quantity, is_add): is_add adds to
+        // the backpack (container -> backpack); else removes (backpack -> container).
+        if let Some(slot) = data
+            .get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops")
+        {
+            let xfers: Vec<TransferOp> =
+                slot.lock().map(|mut g| std::mem::take(&mut *g)).unwrap_or_default();
+            if !xfers.is_empty() {
+                if let Some((_e, (inv, _))) = world
+                    .query_mut::<(&mut Inventory, &humanity_core::ecs::components::Controllable)>()
+                    .into_iter()
+                    .next()
+                {
+                    for op in xfers {
+                        let short = apply_transfer(inv, &op, registry, data);
+                        if short > 0 {
+                            // The GUI's backpack view was a frame behind the
+                            // backpack (2026-10-02: this used to be dropped
+                            // without a word).
+                            log::warn!("Backpack transfer: {short} x {} were not in the backpack", op.item_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Finished P2P trades queued by the relay bridge (2026-10-02): apply
+        // each trade's moves and record it settled IN THE SAME STEP, so a save
+        // never holds a trade marked settled whose items have not moved.
+        for (_e, (inv, _c, ts)) in
+            world.query_mut::<(&mut Inventory, &humanity_core::ecs::components::Controllable, &mut TradeSettlements)>()
+        {
+            for (trade_id, moves) in std::mem::take(&mut ts.pending) {
+                for op in &moves {
+                    let short = apply_transfer(inv, op, registry, data);
+                    // The relay holds no inventories, so it cannot keep offered
+                    // items in escrow: the other player receives them whether or
+                    // not they were still here. Say so rather than pretend.
+                    if short > 0 {
+                        let name = registry
+                            .and_then(|r| r.items.get(&op.item_id))
+                            .map_or(op.item_id.as_str(), |d| d.name.as_str());
+                        if let Some(n) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+                            if let Ok(mut n) = n.lock() {
+                                n.push(format!(
+                                    "Trade: {short} x {name} had already left your backpack, so it could not be taken; the other player still receives it."
+                                ));
+                            }
+                        }
+                    }
+                }
+                ts.settled.insert(trade_id);
+            }
+            break;
+        }
+
+        for (entity, op) in ops {
+            let mut inventory = match world.get::<&mut Inventory>(entity) {
+                Ok(inv) => inv,
+                Err(_) => {
+                    log::warn!("InventoryOp on entity without Inventory component");
+                    continue;
+                }
+            };
+
+            match op {
+                InventoryOp::Add { item_id, quantity } => {
+                    let max_stack = registry
+                        .map(|r| r.max_stack_for(&item_id))
+                        .unwrap_or(DEFAULT_MAX_STACK);
+                    let overflow = inventory.add_item(&item_id, quantity, max_stack);
+                    if overflow > 0 {
+                        log::debug!(
+                            "Inventory full: {} of {} could not be added",
+                            overflow,
+                            item_id
+                        );
+                    }
+                }
+                InventoryOp::Remove { item_id, quantity } => {
+                    let deficit = inventory.remove_item(&item_id, quantity);
+                    if deficit > 0 {
+                        log::debug!(
+                            "Insufficient items: {} more {} needed",
+                            deficit,
+                            item_id
+                        );
+                    }
+                }
+            }
+        }
+
+        // Recalculate total weight, volume and encumbrance for all inventories.
+        // Worn gear can RAISE the carry cap (v0.750, ladder rung 8): a large
+        // backpack's carry_capacity:25:add means 25 more comfortable kg.
+        let equipment = data
+            .get::<crate::economy::EquipmentRegistry>("equipment_registry");
+        // The limit follows gravity (BUG-136): the engine publishes the
+        // player's local gravity each frame; absent (headless, the relay) is 1 g.
+        use crate::encumbrance as enc;
+        let local_g = data.get::<f32>(enc::LOCAL_G_KEY).copied().unwrap_or(enc::ONE_G_M_S2);
+        for (_entity, (inventory, outfit)) in world
+            .query_mut::<(&mut Inventory, Option<&humanity_core::ecs::components::Outfit>)>()
+        {
+            let mut total_weight: f32 = 0.0;
+            let mut total_volume: f32 = 0.0;
+            for slot in &inventory.slots {
+                if let Some(stack) = slot {
+                    let unit_mass = registry
+                        .map(|r| r.mass_for(&stack.item_id))
+                        .unwrap_or(0.0);
+                    total_weight += unit_mass * stack.quantity as f32;
+                    // Storage volume (material-storage Stage A, v0.726).
+                    let unit_vol = registry
+                        .map(|r| r.volume_for(&stack.item_id))
+                        .unwrap_or(0.0);
+                    total_volume += unit_vol * stack.quantity as f32;
+                }
+            }
+            inventory.weight_current = total_weight;
+            inventory.volume_current_l = total_volume;
+
+            let carry_bonus = match (equipment, outfit) {
+                (Some(reg), Some(o)) => reg
+                    .stat_add_total(o.equipped.values().map(|s| s.as_str()), "carry_capacity")
+                    .max(0.0),
+                _ => 0.0,
+            };
+            inventory.carry_bonus_kg = carry_bonus;
+            let was_encumbered = inventory.encumbered;
+            let limit_here = enc::limit_here_kg(inventory.weight_capacity + carry_bonus, local_g);
+            inventory.encumbered = enc::overload_ratio(total_weight, limit_here) > 1.0;
+
+            // Log encumbrance state transitions
+            if inventory.encumbered && !was_encumbered {
+                log::debug!(
+                    "Encumbered! {:.1}/{:.1} kg",
+                    total_weight,
+                    limit_here.unwrap_or(0.0)
+                );
+            } else if !inventory.encumbered && was_encumbered {
+                log::debug!(
+                    "No longer encumbered: {:.1}/{:.1} kg",
+                    total_weight,
+                    limit_here.unwrap_or(0.0)
+                );
+            }
+        }
+    }
+}

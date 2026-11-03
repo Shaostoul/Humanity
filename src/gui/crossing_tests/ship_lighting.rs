@@ -1,7 +1,7 @@
 //! From ship/ship_structure.rs (`lighting_watts_tests`): the shipped lights draw real watts through
 //! the renderer's light types.
 
-use crate::ship::ship_structure::*;
+use humanity_ship::ship_structure::*;
 
 /// v0.967 (homestead increment 5): the shipped structure's switched-on
 /// lights must sum to a sane, NONZERO wattage through the shipped

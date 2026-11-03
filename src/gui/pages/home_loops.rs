@@ -50,12 +50,12 @@ pub enum GaugeKind {
 /// A loop's gauge: the food loop's grown calories against its need, or, for the loop the power
 /// meter reads (`meter: Some(Power)`), what the meter says the home makes against what it uses.
 /// None for a loop whose numbers are only in its words (the page never invents one).
-pub fn gauge_for(l: &crate::machines::HomeLoop, grown_kcal: f32, power: Option<(f32, f32)>) -> Option<Gauge> {
+pub fn gauge_for(l: &humanity_ship::machines::HomeLoop, grown_kcal: f32, power: Option<(f32, f32)>) -> Option<Gauge> {
     if let Some(need) = l.food_demand_kcal.filter(|d| *d > 0.0) {
         return Some(Gauge { have: grown_kcal.max(0.0), need, kind: GaugeKind::Food });
     }
     match (l.meter, power) {
-        (Some(crate::machines::LoopMeter::Power), Some((make, uses))) if uses > 0.0 => Some(Gauge { have: make.max(0.0), need: uses, kind: GaugeKind::Power }),
+        (Some(humanity_ship::machines::LoopMeter::Power), Some((make, uses))) if uses > 0.0 => Some(Gauge { have: make.max(0.0), need: uses, kind: GaugeKind::Power }),
         _ => None,
     }
 }
@@ -99,7 +99,7 @@ fn title_row(ui: &mut Ui, theme: &Theme, name: &str, pills: &[(&str, Color32)]) 
 /// The Closed-loop self-sufficiency group: its heading with how many close, then a card a loop.
 /// `metered[i]` is loop i's live line (homes.rs works it out), `power` the power meter's (make,
 /// use) in kWh a day when the home has one.
-pub fn draw_home_loops(ui: &mut Ui, theme: &Theme, loops: &[crate::machines::HomeLoop], metered: &[Option<String>], grown_kcal: f32, power: Option<(f32, f32)>) {
+pub fn draw_home_loops(ui: &mut Ui, theme: &Theme, loops: &[humanity_ship::machines::HomeLoop], metered: &[Option<String>], grown_kcal: f32, power: Option<(f32, f32)>) {
     if loops.is_empty() {
         return;
     }
@@ -414,8 +414,8 @@ pub fn draw_cannot_close(ui: &mut Ui, theme: &Theme, cc: &CannotCloseData) {
 mod tests {
     use super::*;
 
-    fn home_loops() -> Vec<crate::machines::HomeLoop> {
-        crate::systems::grow_machines::load_home(&std::path::Path::new("data").join("machines").join("home.ron")).map(|h| h.loops).unwrap_or_default()
+    fn home_loops() -> Vec<humanity_ship::machines::HomeLoop> {
+        humanity_systems::grow_machines::load_home(&std::path::Path::new("data").join("machines").join("home.ron")).map(|h| h.loops).unwrap_or_default()
     }
 
     /// THE GAUGES SAY ONLY WHAT IS KNOWN: the food loop's is the grown calories against its stated
@@ -428,10 +428,10 @@ mod tests {
         let food = loops.iter().find(|l| l.food_demand_kcal.is_some()).expect("a food loop");
         let g = gauge_for(food, 6020.0, Some((11.0, 24.0))).expect("food has a gauge");
         assert_eq!((g.have, g.need, g.kind), (6020.0, 6600.0, GaugeKind::Food));
-        let energy = loops.iter().find(|l| l.meter == Some(crate::machines::LoopMeter::Power)).expect("a loop the power meter reads");
+        let energy = loops.iter().find(|l| l.meter == Some(humanity_ship::machines::LoopMeter::Power)).expect("a loop the power meter reads");
         assert_eq!(gauge_for(energy, 0.0, Some((11.0, 24.0))), Some(Gauge { have: 11.0, need: 24.0, kind: GaugeKind::Power }));
         assert_eq!(gauge_for(energy, 0.0, None), None, "no meter, no gauge");
-        for l in loops.iter().filter(|l| l.food_demand_kcal.is_none() && l.meter != Some(crate::machines::LoopMeter::Power)) {
+        for l in loops.iter().filter(|l| l.food_demand_kcal.is_none() && l.meter != Some(humanity_ship::machines::LoopMeter::Power)) {
             assert_eq!(gauge_for(l, 6020.0, Some((11.0, 24.0))), None, "{} has only words", l.name);
         }
         assert_eq!(gauge_words(Gauge { have: 11.0, need: 24.0, kind: GaugeKind::Power }), "Makes 11.0 of the 24.0 kWh/day it uses (46%)");

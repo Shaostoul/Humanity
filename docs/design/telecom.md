@@ -147,7 +147,7 @@ reports are small, close-range (under about half a metre), unreplicated and most
 systematic reviewers, and other studies found nothing or the opposite.
 
 Removed with it: `RF_HARM_THRESHOLD`, `RF_HEALTH_PENALTY` and the home-RF sum in
-`src/systems/farming/mod.rs`; the `RfEmitter` component and its spawn; `MachineDef.rf_emission`;
+`crates/humanity-systems/src/farming/mod.rs`; the `RfEmitter` component and its spawn; `MachineDef.rf_emission`;
 and the Data-links buildability warning that a wireless link "can harm a nearby grow". A Wi-Fi link
 now passes that check exactly like a wired one wherever its bandwidth and range suffice. What stays:
 the `wifi_router` as a powered network device, and the data medium's `rf_emission` in

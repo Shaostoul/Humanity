@@ -70,13 +70,13 @@ lower; all are near-free):
 - **Time-budget the synchronous terrain build loop (interim fix).** (R1#1, R4#1
   interim) `src/lib.rs:15524-15570` builds up to `terrain_builds_per_frame` (default
   64, `src/config.rs:642`, `src/gui/mod.rs:6661`) patch meshes inline on the frame
-  thread; each `build_patch_mesh` (`src/terrain/planet_chunks.rs:1219`) is 0.3-1 ms,
+  thread; each `build_patch_mesh` (`crates/humanity-terrain/src/planet_chunks.rs:1219`) is 0.3-1 ms,
   so a descent frame can spend 20-60 ms building. Interim fix: replace the count
   budget with a time budget (stop after 2-3 ms spent this frame), or drop the default
   to ~8. SMALL. HOT FILE (lib.rs). The full fix is the worker pool under Large arcs.
 - **Fix cache byte accounting to use real mesh size.** (R4#4) `src/lib.rs:15562-15568`
   inserts every patch at the constant `PATCH_MESH_BYTES` (38 KB,
-  `src/terrain/planet_chunks.rs:163`), but vegetation-baked patches are ~1.8x larger,
+  `crates/humanity-terrain/src/planet_chunks.rs:163`), but vegetation-baked patches are ~1.8x larger,
   so the 1.5 GB cap can be 2-3 GB of real VRAM. Fix: compute bytes from
   `vertices.len() * 32 + indices.len() * 4` at insert. Two lines. SMALL. HOT FILE
   (lib.rs) but trivial.
@@ -107,7 +107,7 @@ lower; all are near-free):
   `src/renderer/ssao.rs:138-151` rebuild bind groups every frame; the depth view only
   changes on resize. Cache and invalidate on resize. SMALL. ISOLATED.
 - **Departure eviction actually reclaims, and eviction stops being O(cache) per
-  victim.** (R4#3) `collect_evictions` (`src/terrain/planet_chunks.rs:1884-1905`)
+  victim.** (R4#3) `collect_evictions` (`crates/humanity-terrain/src/planet_chunks.rs:1884-1905`)
   refuses victims used in the last 120 frames, and the departure shrink
   (`src/lib.rs:15802-15833`) advances the frame by 1 before calling it, so the shrink
   to 64 MB no-ops and a departed planet parks hundreds of MB of VRAM. Each eviction is
@@ -156,7 +156,7 @@ MEDIUM proper:
 - **Reuse the LOD selection when the camera is static; cache PatchBounds.** (R1#6,
   R4#8) `select_patches_sticky` runs in full twice per frame (terrain + water shell,
   `src/lib.rs:15493-15500`, :15703-15710), visiting 25-35k nodes and recomputing
-  camera-independent `PatchBounds` (`src/terrain/planet_chunks.rs:685-713`) per
+  camera-independent `PatchBounds` (`crates/humanity-terrain/src/planet_chunks.rs:685-713`) per
   visit, then rebuilds the `last_drawn` HashSet from scratch. Skip selection entirely
   under a camera-pose epsilon with no outstanding builds; cache bounds per PatchId;
   double-buffer the drawn sets. Several ms per frame at high budget; parked-camera
@@ -197,7 +197,7 @@ MEDIUM proper:
 - **Vegetation interim: bake trees only at depth 15-16 and grass only at 18.** (R4#5
   interim) Deep patches (depth 17-20) currently re-scan ~700 candidates to keep ~0
   and re-bake the same tree into up to 6 cached meshes
-  (`src/terrain/planet_chunks.rs:1429-1625`). Depth-limiting the bake cuts build cost
+  (`crates/humanity-terrain/src/planet_chunks.rs:1429-1625`). Depth-limiting the bake cuts build cost
   at walking depths and shrinks cache bytes. MEDIUM. ISOLATED (planet_chunks.rs).
   Full fix under Large arcs.
 
@@ -206,7 +206,7 @@ MEDIUM proper:
 - **Worker-pool terrain mesh building.** (R1#1, R4#1) Move `build_patch_mesh` (pure
   CPU by design) to a small thread pool; the frame thread only uploads finished
   vertex data, capped per frame. Also hoist the per-tap tile HashMap ref across the
-  16 taps of one bicubic sample (`src/terrain/terrain_tiles.rs:237-262`). This is the
+  16 taps of one bicubic sample (`crates/humanity-terrain/src/terrain_tiles.rs:237-262`). This is the
   best single explanation for surface FPS and descent hitches; the time-budget quick
   fix above buys breathing room until this lands. LARGE. HOT FILE (lib.rs build loop)
   plus planet_chunks.rs.
@@ -214,7 +214,7 @@ MEDIUM proper:
   separate micro-draws per frame, twice with shadows on, each with dynamic-offset
   bind plus VB/IB rebind (`src/renderer/mod.rs:2179-2207`, :2108-2132). Staged plan:
   (a) drop per-patch index buffers, they are pure identity 0..n
-  (`src/terrain/planet_chunks.rs:1365, 1388, 1455, 1661`), use `draw(0..n)`, saving
+  (`crates/humanity-terrain/src/planet_chunks.rs:1365, 1388, 1455, 1661`), use `draw(0..n)`, saving
   ~11% patch memory and ~12k binds per frame (SMALL-MEDIUM on its own); (b) merge
   built same-depth sibling quads, up to 4x fewer draws; (c) shared slab
   vertex/index buffer plus `multi_draw_indexed_indirect`

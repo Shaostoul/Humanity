@@ -1131,11 +1131,11 @@ fn default_godray_intensity() -> f32 { 0.55 }
 /// inside every shadow, and no way to change it.
 fn default_shadow_strength() -> f32 { 1.0 }
 fn default_sun_aperture_mm() -> f32 { crate::renderer::sun_disc::DEFAULT_APERTURE_MM }
-fn default_time_speed() -> f32 { crate::systems::time::DEFAULT_TIME_SPEED }
-fn default_hours_per_day() -> u32 { crate::systems::time::DEFAULT_HOURS_PER_DAY }
-fn default_days_per_year() -> u32 { crate::systems::time::DEFAULT_DAYS_PER_YEAR }
-fn default_pest_severity() -> f32 { crate::systems::farming::pests::DEFAULT_PEST_SEVERITY }
-fn default_garden_update_s() -> f32 { crate::systems::farming::clock::DEFAULT_INTERVAL_S as f32 }
+fn default_time_speed() -> f32 { humanity_systems::time::DEFAULT_TIME_SPEED }
+fn default_hours_per_day() -> u32 { humanity_systems::time::DEFAULT_HOURS_PER_DAY }
+fn default_days_per_year() -> u32 { humanity_systems::time::DEFAULT_DAYS_PER_YEAR }
+fn default_pest_severity() -> f32 { humanity_systems::farming::pests::DEFAULT_PEST_SEVERITY }
+fn default_garden_update_s() -> f32 { humanity_systems::farming::clock::DEFAULT_INTERVAL_S as f32 }
 // ── Vegetation LOD ceilings (v0.1109) ──────────────────────────────────────
 // The OUTER limit of each vegetation-LOD control, in ONE place, because the
 // same number has to be known by three files: the Settings number box (so it
@@ -1177,7 +1177,7 @@ pub const GRASS_HARVEST_CAP_MAX: f32 = 2_000_000.0;
 fn default_tree_model_distance() -> f32 { 120.0 }
 fn default_near_tree_budget() -> f32 { NEAR_TREE_BUDGET_DEFAULT }
 /// The shipped ramp end, so the default is the shipped picture exactly.
-fn default_grass_far_m() -> f32 { crate::terrain::grass::GRASS_FAR_M }
+fn default_grass_far_m() -> f32 { humanity_terrain::grass::GRASS_FAR_M }
 fn default_grass_harvest_cap() -> f32 { GRASS_HARVEST_CAP_DEFAULT }
 fn default_tree_density() -> f32 { 0.6 }
 /// 1.0 = a real turf (LAI ~3.3). This is COVERAGE, not quality.
@@ -1853,7 +1853,7 @@ impl AppConfig {
         };
         state.settings.planet_max_subdiv = self
             .planet_max_subdiv
-            .clamp(0.0, crate::terrain::planet::MAX_SKY_SUBDIVISION as f32);
+            .clamp(0.0, humanity_terrain::planet::MAX_SKY_SUBDIVISION as f32);
         // Planet LOD knobs (v0.887 fix, operator: "my settings changes for
         // some of the graphics aren't actually saving"): these three SAVED
         // since v0.873 but were never applied at load, so every boot reset
@@ -1873,7 +1873,7 @@ impl AppConfig {
         // the mid anchor would invert the last leg of the ramp.
         state.settings.grass_far_m = self
             .grass_far_m
-            .clamp(crate::terrain::grass::GRASS_MID_M + 1.0, GRASS_FAR_MAX_M);
+            .clamp(humanity_terrain::grass::GRASS_MID_M + 1.0, GRASS_FAR_MAX_M);
         state.settings.grass_harvest_cap =
             self.grass_harvest_cap.clamp(1000.0, GRASS_HARVEST_CAP_MAX);
         // ZERO MEANS OFF for all three vegetation knobs (2026-09-18). These
@@ -1884,12 +1884,12 @@ impl AppConfig {
         // constants are the ones the terrain code counts with, so the config
         // cannot admit a value the streams would refuse.
         state.settings.tree_density = self.tree_density.clamp(
-            crate::terrain::planet_chunks::TREE_DENSITY_MIN,
-            crate::terrain::planet_chunks::TREE_DENSITY_MAX,
+            humanity_terrain::planet_chunks::TREE_DENSITY_MIN,
+            humanity_terrain::planet_chunks::TREE_DENSITY_MAX,
         );
         state.settings.grass_density = self.grass_density.clamp(
-            crate::terrain::grass::GRASS_COVER_MIN,
-            crate::terrain::grass::GRASS_COVER_MAX,
+            humanity_terrain::grass::GRASS_COVER_MIN,
+            humanity_terrain::grass::GRASS_COVER_MAX,
         );
         state.settings.grass_detail = self.grass_detail.clamp(0.0, 1.0);
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, TREE_CARD_MAX_M);
@@ -1904,13 +1904,13 @@ impl AppConfig {
         // Clamped on the way IN, not only in the UI: a hand-edited config with 0
         // would freeze the world, and a huge value would ripen the whole garden
         // the instant the save loaded.
-        state.settings.time_speed = crate::systems::time::clamp_time_speed(self.time_speed);
-        state.settings.hours_per_day = crate::systems::time::clamp_hours_per_day(self.hours_per_day);
-        state.settings.days_per_year = crate::systems::time::clamp_days_per_year(self.days_per_year);
+        state.settings.time_speed = humanity_systems::time::clamp_time_speed(self.time_speed);
+        state.settings.hours_per_day = humanity_systems::time::clamp_hours_per_day(self.hours_per_day);
+        state.settings.days_per_year = humanity_systems::time::clamp_days_per_year(self.days_per_year);
         state.settings.pest_severity = self.pest_severity.clamp(0.0, 1.0);
         // Clamped on the way in like the clock: a hand-edited config past an hour (the longest
         // choice), or not a number, is taken as the nearest choice allows.
-        state.settings.garden_update_s = crate::systems::farming::clock::clamp_choice(f64::from(self.garden_update_s)) as f32;
+        state.settings.garden_update_s = humanity_systems::farming::clock::clamp_choice(f64::from(self.garden_update_s)) as f32;
         state.garden_pests.soil_ph_off = !self.soil_ph;
         state.garden_pests.pollination_off = !self.pollination;
         state.garden_pests.picking_realistic = self.picking_realistic;
@@ -2804,7 +2804,7 @@ mod pbkdf2_migration_tests {
         // v0.1109 vegetation LOD ranges: the DEFAULTS must be the shipped
         // engine constants exactly, so exposing them changed no picture.
         assert_eq!(c.near_tree_budget, NEAR_TREE_BUDGET_DEFAULT);
-        assert_eq!(c.grass_far_m, crate::terrain::grass::GRASS_FAR_M);
+        assert_eq!(c.grass_far_m, humanity_terrain::grass::GRASS_FAR_M);
         assert_eq!(c.grass_harvest_cap, GRASS_HARVEST_CAP_DEFAULT);
         assert!(c.planet_atmo_scatter);
         assert!(c.planet_surface_detail);

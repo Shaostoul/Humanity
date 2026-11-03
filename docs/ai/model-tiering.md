@@ -15,7 +15,7 @@ The answer is not "never use them", it is HARD SCOPE WALLS. The tiers:
 | Tier | Use for | Never for |
 |------|---------|-----------|
 | Fable | Renderer/shader work, f64/f32 precision discipline, relay + crypto, cross-file surgery in lib.rs, architecture, incident response, verifying+merging everything below | bulk data entry it can delegate |
-| Opus | Feature work in self-contained modules (a new GUI page, a new system in src/systems/), test-writing, web-page mirrors, doc restructuring, review passes over Sonnet output | megashader, relay storage schema, crypto, lib.rs hot regions |
+| Opus | Feature work in self-contained modules (a new GUI page, a new system in crates/humanity-systems/src/), test-writing, web-page mirrors, doc restructuring, review passes over Sonnet output | megashader, relay storage schema, crypto, lib.rs hot regions |
 | Sonnet | DATA POPULATION (the big one - see packages below), i18n translations, doc drafting from templates, CSV/RON/JSON authoring against existing schemas, changelog summaries | ANY .rs/.wgsl edit, ANY schema change |
 
 Two mechanics enforce this cheaply:

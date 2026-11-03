@@ -1,7 +1,7 @@
 //! What the dev IPC reports of the player's body (2026-10-20): health, the wounds on it, and the
 //! landings the walk handed to it. Permanent dev tooling.
 //!
-//! WHY IT EXISTS. Falls (src/systems/falls.rs) shipped with unit tests and nothing that looked at
+//! WHY IT EXISTS. Falls (crates/humanity-systems/src/falls.rs) shipped with unit tests and nothing that looked at
 //! the running game: `player_landed` wrote no log line and no probe said what health or wounds
 //! the player had, so a rig could not see a fall reach the body at all. This is what
 //! scripts/verify-falls.js reads (judged by scripts/lib/falls-judge.js):
@@ -23,7 +23,7 @@
 //! the question a rig asks is what the body itself holds.
 
 use humanity_core::ecs::components::{Controllable, Dead, Health, StatusEffects};
-use crate::systems::status_effects::StatusEffectRegistry;
+use humanity_systems::status_effects::StatusEffectRegistry;
 
 /// The player's health now: the one Controllable with a Health that is not dead. None with no
 /// living player (before the world loads, on the death screen).
@@ -35,7 +35,7 @@ pub(crate) fn health(world: &hecs::World) -> Option<(f32, f32)> {
         .map(|(_, (_, h, _))| (h.current, h.max))
 }
 
-/// The wounds on the player now (`wound` rows of status_effects.csv, src/systems/wounds.rs): each
+/// The wounds on the player now (`wound` rows of status_effects.csv, crates/humanity-systems/src/wounds.rs): each
 /// one's id, the name the game shows for it and the seconds it has left (game seconds, as a
 /// wound counts them). Without a registry nothing can be told to be a wound, so the list is
 /// empty and `registry` in `body_json` says so.
@@ -50,7 +50,7 @@ pub(crate) fn wounds(world: &hecs::World, registry: Option<&StatusEffectRegistry
         .iter()
         .filter_map(|a| {
             let def = reg.get(&a.id)?;
-            (def.kind == crate::systems::wounds::WOUND).then(|| {
+            (def.kind == humanity_systems::wounds::WOUND).then(|| {
                 serde_json::json!({ "id": a.id, "name": def.name, "remaining_s": a.remaining })
             })
         })

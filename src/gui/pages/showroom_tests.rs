@@ -6,17 +6,17 @@
 //! comment.
 
 use super::*;
-use crate::persistence::live_save;
+use humanity_systems::persistence::live_save;
 use crate::gui::screen_surface::find_text_in_shapes;
-use crate::persistence::SaveSlot;
-use crate::ship::starts::{HomeAnswer, Starts};
+use humanity_systems::persistence::SaveSlot;
+use humanity_ship::starts::{HomeAnswer, Starts};
 use std::path::Path;
 
 // ── The data ─────────────────────────────────────────────────────────────────────────────────────
 
 /// The repo's starts file, as the game reads it.
 fn the_starts() -> Starts {
-    Starts::parse(&std::fs::read(Path::new("data").join(crate::ship::starts::STARTS_FILE)).expect("data/homes/starts.ron"))
+    Starts::parse(&std::fs::read(Path::new("data").join(humanity_ship::starts::STARTS_FILE)).expect("data/homes/starts.ron"))
         .expect("the starts file keeps its rules")
 }
 
@@ -164,9 +164,9 @@ fn the_pickers_hint_says_each_server_keeps_its_own_save() {
     assert!(WHO_HINT.contains("your own home keeps yours"), "{WHO_HINT}");
     let dir = Path::new("saves-anywhere");
     let me = "ab".repeat(32);
-    let own = crate::persistence::slot_path(dir, &SaveSlot::Offline);
-    let a = crate::persistence::slot_path(dir, &SaveSlot::Server { server: "https://a.example".into(), identity: me.clone() });
-    let b = crate::persistence::slot_path(dir, &SaveSlot::Server { server: "https://b.example".into(), identity: me });
+    let own = humanity_systems::persistence::slot_path(dir, &SaveSlot::Offline);
+    let a = humanity_systems::persistence::slot_path(dir, &SaveSlot::Server { server: "https://a.example".into(), identity: me.clone() });
+    let b = humanity_systems::persistence::slot_path(dir, &SaveSlot::Server { server: "https://b.example".into(), identity: me });
     assert_eq!(own.file_name().and_then(|n| n.to_str()), Some("offline_home.json"), "{}", own.display());
     assert!(a != b && a != own && b != own, "three worlds, three saves: {} {} {}", own.display(), a.display(), b.display());
     for server in [&a, &b] {

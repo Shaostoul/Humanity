@@ -382,15 +382,15 @@ pub struct GameWorld {
     /// a game, which names its ship, is then refused at the join with its own reason
     /// ("no_ship", home_plots.rs `refused_join`), and a join naming no ship (a scripted
     /// player) spawns where `default_spawn_position` says, with no plot.
-    pub ship_plots: crate::ship::ship_structure::ShipPlots,
+    pub ship_plots: humanity_ship::ship_structure::ShipPlots,
     /// How fast a person may move aboard and who is in view of whom (increment 4,
-    /// data/ship/shared_world.ron; src/ship/moves.rs).
-    pub rules: crate::ship::moves::SharedWorldRules,
+    /// data/ship/shared_world.ron; crates/humanity-ship/src/moves.rs).
+    pub rules: humanity_ship::moves::SharedWorldRules,
     /// Each player's allowance and corrections, by entity id (move_check.rs). Never saved.
     pub moves: HashMap<u64, super::move_check::MoveState>,
-    /// The ship file's transit links in its shared zones (src/ship/transit.rs), what a declared
+    /// The ship file's transit links in its shared zones (crates/humanity-ship/src/transit.rs), what a declared
     /// jump there is checked against. Empty on today's ship, which has no teleporter aboard.
-    pub transit: Vec<crate::ship::transit::TransitLink>,
+    pub transit: Vec<humanity_ship::transit::TransitLink>,
     /// Each vehicle's own speed, metres a second, by its item id (data/vehicles/kits.ron): what a
     /// move declared as driving may go at, when faster than on foot.
     pub vehicle_speeds: HashMap<String, f32>,
@@ -401,9 +401,9 @@ pub struct GameWorld {
     /// (ship homes increment 5, shared_build.rs). Each piece is its own database row.
     pub pieces: super::shared_build::PieceBook,
     /// The kinds of home a player can start in (ship homes increment 6, data/homes/starts.ron,
-    /// src/ship/starts.rs): which kind of plot a join's `start` asks for, and the words a
+    /// crates/humanity-ship/src/starts.rs): which kind of plot a join's `start` asks for, and the words a
     /// `game_home` answer offers each kind in. The same file the game reads.
-    pub starts: crate::ship::starts::Starts,
+    pub starts: humanity_ship::starts::Starts,
 }
 
 /// Where a joining player lives and arrives (increment 1b): their plot (None for a guest,
@@ -412,7 +412,7 @@ pub struct GameWorld {
 /// and how many of each kind are free (`add_to_welcome`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct HomeAssignment {
-    pub plot: Option<crate::ship::ship_structure::PlotArrival>,
+    pub plot: Option<humanity_ship::ship_structure::PlotArrival>,
     pub spawn: [f32; 3],
     /// The start the plot held is (`start_of_kind`), "" for a guest.
     pub start: String,
@@ -462,7 +462,7 @@ impl HomeAssignment {
 /// The start a plot of `kind` holds: the first offered start of that kind (`Starts::for_plot_kind`),
 /// else the first start of that kind at all, else the kind itself (a plot kind no start names yet,
 /// which nobody can ask for).
-pub fn start_of_kind(starts: &crate::ship::starts::Starts, kind: &str) -> String {
+pub fn start_of_kind(starts: &humanity_ship::starts::Starts, kind: &str) -> String {
     starts
         .for_plot_kind(kind)
         .or_else(|| starts.starts.iter().find(|s| s.plot_kind == kind))
@@ -512,27 +512,29 @@ pub enum JoinRefusal {
     NoShipNamed,
 }
 
-impl crate::ship::ship_structure::ShipPlots {
-    /// Why a join is refused at the join, None when it is not: one naming an empty ship
-    /// (`NoShipNamed`, whatever this relay has), one naming a ship this relay does not have
-    /// (`OtherShip`), or one naming a ship when this relay has none (`NoShip`). A join without
-    /// a `ship_hash` at all (a scripted player) is never refused here.
-    pub fn join_refusal(&self, join: &JoinHome) -> Option<JoinRefusal> {
-        let theirs = join.ship_hash.as_deref()?;
-        if theirs.is_empty() {
-            Some(JoinRefusal::NoShipNamed)
-        } else if self.ship_hash.is_empty() {
-            Some(JoinRefusal::NoShip)
-        } else {
-            (theirs != self.ship_hash).then_some(JoinRefusal::OtherShip)
-        }
-    }
+// The two below are functions of the relay and not methods of `ShipPlots`, the ship's type: the join
+// they judge is the relay's, and once the ship is a crate of its own (the crate split's rung 2,
+// 2026-11-02) only it may define methods on its types.
 
-    /// True when a join names this very ship: only such a join holds a plot. Never for an
-    /// empty hash, on either side.
-    pub fn is_this_ship(&self, join: &JoinHome) -> bool {
-        !self.ship_hash.is_empty() && join.ship_hash.as_deref() == Some(self.ship_hash.as_str())
+/// Why a join is refused at the join, None when it is not: one naming an empty ship
+/// (`NoShipNamed`, whatever this relay has), one naming a ship this relay does not have
+/// (`OtherShip`), or one naming a ship when this relay has none (`NoShip`). A join without
+/// a `ship_hash` at all (a scripted player) is never refused here.
+pub fn join_refusal(plots: &humanity_ship::ship_structure::ShipPlots, join: &JoinHome) -> Option<JoinRefusal> {
+    let theirs = join.ship_hash.as_deref()?;
+    if theirs.is_empty() {
+        Some(JoinRefusal::NoShipNamed)
+    } else if plots.ship_hash.is_empty() {
+        Some(JoinRefusal::NoShip)
+    } else {
+        (theirs != plots.ship_hash).then_some(JoinRefusal::OtherShip)
     }
+}
+
+/// True when a join names this very ship: only such a join holds a plot. Never for an
+/// empty hash, on either side.
+pub fn is_this_ship(plots: &humanity_ship::ship_structure::ShipPlots, join: &JoinHome) -> bool {
+    !plots.ship_hash.is_empty() && join.ship_hash.as_deref() == Some(plots.ship_hash.as_str())
 }
 
 impl JoinHome {
@@ -546,7 +548,7 @@ impl JoinHome {
             [x, z] => Some((x.as_f64()? as f32, z.as_f64()? as f32)),
             _ => None,
         });
-        let start = raw.get("start").and_then(|v| v.as_str()).filter(|s| crate::ship::starts::is_start_id(s)).map(str::to_string);
+        let start = raw.get("start").and_then(|v| v.as_str()).filter(|s| humanity_ship::starts::is_start_id(s)).map(str::to_string);
         JoinHome { ship_hash, door, start }
     }
 }
@@ -576,14 +578,14 @@ impl GameWorld {
             fleet_power_last: HashMap::new(),
             npc_broadcast_accum: 0.0,
             ship_plots: Default::default(),
-            rules: crate::ship::moves::SharedWorldRules::load(std::path::Path::new("data")),
+            rules: humanity_ship::moves::SharedWorldRules::load(std::path::Path::new("data")),
             moves: HashMap::new(),
             transit: Vec::new(),
             vehicle_speeds: super::move_check::vehicle_speeds(std::path::Path::new("data")),
             interest: Default::default(),
             pieces: Default::default(),
             // Before the ship, whose load counts each start's plots (increment 6).
-            starts: crate::ship::starts::Starts::load(std::path::Path::new("data")),
+            starts: humanity_ship::starts::Starts::load(std::path::Path::new("data")),
         };
         world.load_ship();
         world.load_chores();
@@ -638,9 +640,9 @@ impl GameWorld {
     /// refused with reason "no_ship" (home_plots.rs `refused_join`), and a join naming no ship
     /// spawns with no plot.
     fn load_ship(&mut self) {
-        match crate::ship::ship_structure::ShipStructure::ship_for_relay(std::path::Path::new("data")) {
+        match humanity_ship::ship_structure::ShipStructure::ship_for_relay(std::path::Path::new("data")) {
             Ok(ship) => {
-                let p = crate::ship::ship_structure::ShipPlots::of_ship(&ship);
+                let p = humanity_ship::ship_structure::ShipPlots::of_ship(&ship);
                 tracing::info!("Game: ship {} ({}) has {} plot(s)", p.ship_id, p.ship_hash, p.plots.len());
                 // Each start a player may ask for, and how many plots of its kind the ship has
                 // (increment 6): a start whose kind has no plot here can never be given.
@@ -1155,7 +1157,7 @@ impl GameWorld {
         let mut full = None;
         let held = if all.is_empty() {
             None
-        } else if !sp.is_this_ship(join) {
+        } else if !is_this_ship(sp, join) {
             tracing::info!("Game: {} names no ship (or not ours, {}); a guest, no plot claimed", crate::relay::handlers::federation::key_in_log(&owner_key), sp.ship_hash);
             None
         } else {

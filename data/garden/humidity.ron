@@ -1,5 +1,5 @@
 // Greenhouse humidity (2026-09-26, gardening depth: the air the crops grow in).
-// Read by src/systems/farming/humidity.rs, which carries the model and the
+// Read by crates/humanity-systems/src/farming/humidity.rs, which carries the model and the
 // reasoning; this file carries the numbers and where each one came from.
 // Every source below was read on 2026-09-26.
 //
@@ -37,7 +37,7 @@
 // both sides: the irrigation draws the crops' litres a day (and the
 // humidifiers'), the air handlers hand back the litres a day their coils
 // condense, and each side applies them on its own clock, so a day's water
-// balances on each (src/systems/farming/life_support_tests.rs proves it).
+// balances on each (crates/humanity-systems/src/farming/life_support_tests.rs proves it).
 //
 // SOURCES (cited by short name in the entries):
 //   FAO-56     Allen, R.G., Pereira, L.S., Raes, D. and Smith, M., "Crop
@@ -229,7 +229,7 @@
     // had when it was a 3 m room. So it trades 0.25 of its box an hour, half an
     // air change of its lowest storey, as that wall did; at 0.5 of its
     // whole box it put twice the water into the house and the house's air
-    // handlers held 53% instead of 50% (src/systems/farming/
+    // handlers held 53% instead of 50% (crates/humanity-systems/src/farming/
     // life_support_tests.rs, the_shipped_homes_hold_their_air_and_return_their_water).
     // Every room a storey tall or less leaks 0.5, as before.
     //
@@ -586,7 +586,7 @@
     // it exchanges: in a tent, the tent's air with its room; in a room, the room's
     // air with the home's. Each machine's catalog entry gives the fan's product
     // and the setpoint's reasoning; the balance they hold is measured by
-    // src/systems/farming/life_support_tests.rs and quoted in
+    // crates/humanity-systems/src/farming/life_support_tests.rs and quoted in
     // docs/design/ship-life-support.md.
 
     // -- THE HEAT: A HEATER IN A ROOM (2026-10-05, BUG-155) ----------------------------
@@ -598,7 +598,7 @@
     // data/machines/home.ron) puts its watts into the air it stands in: a grow
     // room's or a fruiting tent's own air, or, in any other room, the home's own
     // air, which is one air for the whole home, as its water and its gases are.
-    // src/systems/farming/heat.rs is the model; src/systems/farming/heat_tests.rs
+    // crates/humanity-systems/src/farming/heat.rs is the model; crates/humanity-systems/src/farming/heat_tests.rs
     // measures what follows. Since 2026-10-20 two more machines heat an air the
     // same way, on the same thermostat: a heat pump (`heat_cop`), whose heat is its
     // draw times its coefficient of performance at the station air's temperature,
@@ -682,7 +682,7 @@
     // greenhouse-sized room, 44.5 x 21 m and 6 m tall (1,720.5 m2 of walls and
     // roof losing 10,736 W a degree, and its leakage, half an air change of its
     // lowest 3 m an hour, 473 W), it adds 0.134 C.
-    // src/systems/farming/heat_tests.rs measures both, and the thermostat holding
+    // crates/humanity-systems/src/farming/heat_tests.rs measures both, and the thermostat holding
     // 24 C in a small room. The same arithmetic gives the rest: in the family
     // home's own air (its walls and roof those of one storey holding all of it,
     // home_storey_m below), a few hundredths of a degree; and in a mushroom rack's 1.73 m3 fruiting tent,

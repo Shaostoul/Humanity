@@ -14,11 +14,11 @@ use crate::updater::UpdateState;
 /// stays. None (no note worked out yet) reads as nothing lost. `key` is the Interact key as
 /// the player has it bound.
 pub(crate) fn death_screen_lines(
-    note: Option<&crate::systems::death_pack::DeathNote>,
-    rules: &crate::systems::death_pack::DeathRules,
+    note: Option<&humanity_systems::death_pack::DeathNote>,
+    rules: &humanity_systems::death_pack::DeathRules,
     key: &str,
 ) -> Vec<String> {
-    use crate::systems::death_pack::{items_words, minutes_words, DeathNote, Landing};
+    use humanity_systems::death_pack::{items_words, minutes_words, DeathNote, Landing};
     match note {
         None | Some(DeathNote::NothingLost) => vec![
             "You wake in the respawner. Nothing was lost, but the body remembers: keep fed, \
@@ -1062,7 +1062,7 @@ pub fn draw(
 /// IPC's storey probe asks that same function (engine/storey_probe.rs), so `just verify-storeys`
 /// reads the name the HUD shows, not a copy of the rule. The walk-up station E opens (lib.rs, the
 /// wardrobe and the mirror) asks this one: a shaft opens no page.
-pub(crate) fn room_at(rooms: &[crate::ship::room_types::RoomBounds], eye: Vec3) -> Option<&crate::ship::room_types::RoomBounds> {
+pub(crate) fn room_at(rooms: &[humanity_ship::room_types::RoomBounds], eye: Vec3) -> Option<&humanity_ship::room_types::RoomBounds> {
     let inside = rooms.iter().find(|r| {
         eye.x >= r.min.x && eye.x <= r.max.x && eye.y >= r.min.y && eye.y <= r.max.y && eye.z >= r.min.z && eye.z <= r.max.z
     });
@@ -1076,7 +1076,7 @@ pub(crate) fn room_at(rooms: &[crate::ship::room_types::RoomBounds], eye: Vec3) 
 
 /// The room on the storey of `eye` (a box whose heights hold it) nearest to it across the floor,
 /// if that is within `reach` metres (0 inside the box).
-fn room_near(rooms: &[crate::ship::room_types::RoomBounds], eye: Vec3, reach: f32) -> Option<&crate::ship::room_types::RoomBounds> {
+fn room_near(rooms: &[humanity_ship::room_types::RoomBounds], eye: Vec3, reach: f32) -> Option<&humanity_ship::room_types::RoomBounds> {
     rooms
         .iter()
         .filter(|r| eye.y >= r.min.y && eye.y <= r.max.y)
@@ -1098,11 +1098,11 @@ fn room_near(rooms: &[crate::ship::room_types::RoomBounds], eye: Vec3, reach: f3
 /// middle of the car, past `ROOM_EDGE_SLACK_M`. In the car at the bottom it named the service way
 /// it stands in; it names the elevator the whole ride now.
 pub(crate) fn room_card_at<'a>(
-    rooms: &'a [crate::ship::room_types::RoomBounds],
-    ship: Option<&crate::ship::ship_structure::ShipStructure>,
+    rooms: &'a [humanity_ship::room_types::RoomBounds],
+    ship: Option<&humanity_ship::ship_structure::ShipStructure>,
     keys: &humanity_core::input::bindings::Keybinds,
     eye: Vec3,
-) -> Option<std::borrow::Cow<'a, crate::ship::room_types::RoomBounds>> {
+) -> Option<std::borrow::Cow<'a, humanity_ship::room_types::RoomBounds>> {
     if let Some(card) = ship.and_then(|s| lift_card(s, rooms, keys, eye)) {
         return Some(std::borrow::Cow::Owned(card));
     }
@@ -1121,16 +1121,16 @@ const LIFT_STOP_ROOM_M: f32 = 2.0;
 /// Sprint, Shift, down one). An elevator with one stop goes nowhere, so its card says only its
 /// name. Its box is the shaft's, for the probe's floor; it opens no page.
 pub(crate) fn lift_card(
-    ship: &crate::ship::ship_structure::ShipStructure,
-    rooms: &[crate::ship::room_types::RoomBounds],
+    ship: &humanity_ship::ship_structure::ShipStructure,
+    rooms: &[humanity_ship::room_types::RoomBounds],
     keys: &humanity_core::input::bindings::Keybinds,
     eye: Vec3,
-) -> Option<crate::ship::room_types::RoomBounds> {
+) -> Option<humanity_ship::room_types::RoomBounds> {
     use humanity_core::input::bindings::{pretty_key_name, GameAction};
-    use crate::ship::home_structure::{storey_index, STOREY_EPS};
-    for lift in crate::ship::lifts::lifts(ship) {
+    use humanity_ship::home_structure::{storey_index, STOREY_EPS};
+    for lift in humanity_ship::lifts::lifts(ship) {
         let base = (lift.base.x, lift.base.y, lift.base.z);
-        if !crate::ship::structure::in_footprint(lift.ty, base, lift.yaw, eye.x, eye.z) {
+        if !humanity_ship::structure::in_footprint(lift.ty, base, lift.yaw, eye.x, eye.z) {
             continue;
         }
         // Keyed by the zone's id since the elevator-key follow-up (`ship::lifts::LiftKey`).
@@ -1154,7 +1154,7 @@ pub(crate) fn lift_card(
         let rides = lift.stops.len() > 1;
         let (w, _, d) = lift.ty.size;
         let half = 0.5 * w.hypot(d);
-        return Some(crate::ship::room_types::RoomBounds {
+        return Some(humanity_ship::room_types::RoomBounds {
             id: format!("lift-{}-{}", lift.key.0, lift.key.1),
             min: Vec3::new(lift.base.x - half, lift.base.y, lift.base.z - half),
             max: Vec3::new(lift.base.x + half, top, lift.base.z + half),
@@ -1473,7 +1473,7 @@ pub(crate) fn movement_line(
     on_surface: bool,
     away: bool,
 ) -> Option<(String, bool)> {
-    use crate::surface_move::MoveMode;
+    use humanity_systems::surface_move::MoveMode;
     let flying = fly_mode || (on_surface && hover);
     if !(flying || on_surface || speed_mult > 1.0) {
         return None;
@@ -1531,7 +1531,7 @@ pub(crate) struct VitalRow {
 /// 35 C, heat exhaustion above 39 C; `systems::body_heat`).
 const BODY_TEMP_OK: (f32, f32) = (36.0, 37.8);
 const BODY_TEMP_DANGER: (f32, f32) =
-    (crate::systems::body_heat::HYPOTHERMIA_C, crate::systems::body_heat::HEAT_EXHAUSTION_C);
+    (humanity_systems::body_heat::HYPOTHERMIA_C, humanity_systems::body_heat::HEAT_EXHAUSTION_C);
 
 /// Which survival rows the HUD draws for these vitals in this mode. Pure, so
 /// the choice is tested without a painter. Fill needs (food, water, energy)
@@ -1668,11 +1668,11 @@ fn job_shadowed(
 /// labelled on the ground, an upstairs wall's length and corners too, and its doors at their
 /// height over the ground rather than over their own floor.
 pub(crate) fn overlay_storeys(
-    hs: &crate::ship::home_structure::HomeStructure,
+    hs: &humanity_ship::home_structure::HomeStructure,
     editing: bool,
     chosen: usize,
-) -> Vec<(crate::ship::home_structure::Storey, Vec<usize>)> {
-    use crate::ship::home_structure::{storey_index, wall_in_storey};
+) -> Vec<(humanity_ship::home_structure::Storey, Vec<usize>)> {
+    use humanity_ship::home_structure::{storey_index, wall_in_storey};
     let storeys = hs.storeys();
     if editing && storeys.len() > 1 {
         let k = chosen.min(storeys.len() - 1);
@@ -1692,9 +1692,9 @@ pub(crate) fn overlay_storeys(
 /// Storey by storey since the increment 7 follow-ups (`overlay_storeys`): each label stands on
 /// its own floor, and with the editor on one storey of several only that storey is labelled.
 pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &GuiState, view_proj: Mat4) {
-    let Some(hs) = crate::ship::ship_structure::zone_body(&state.ship_structure, state.construction_zone) else { return };
+    let Some(hs) = humanity_ship::ship_structure::zone_body(&state.ship_structure, state.construction_zone) else { return };
     // The ACTIVE zone's world origin (v0.754): body coords are zone-local, labels paint in world.
-    let zo = crate::ship::ship_structure::zone_origin(&state.ship_structure, state.construction_zone);
+    let zo = humanity_ship::ship_structure::zone_origin(&state.ship_structure, state.construction_zone);
     let screen = ctx.screen_rect();
     let groups = overlay_storeys(hs, state.construction_active, state.construction_storeys.chosen);
     let norm = |dx: f32, dz: f32| -> Option<(f32, f32)> {
@@ -1828,7 +1828,7 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
             let (ux, uz) = (wdx / wlen, wdz / wlen);
             for op in &wall.openings {
                 let bottom = wall.base + op.sill;
-                if bottom < storey.floor - crate::ship::home_structure::STOREY_EPS || bottom >= storey.top {
+                if bottom < storey.floor - humanity_ship::home_structure::STOREY_EPS || bottom >= storey.top {
                     continue;
                 }
                 let s = op.at + op.width * 0.5;
@@ -2213,13 +2213,13 @@ mod crosshair_tests {
 #[cfg(test)]
 mod room_card_tests {
     use super::room_at;
-    use crate::ship::room_types::RoomBounds;
+    use humanity_ship::room_types::RoomBounds;
     use glam::Vec3;
 
     /// The shipped homestead's rooms as the HUD holds them (engine/world_load.rs builds
     /// `RoomBounds` the same way from `detect_rooms`), in the home's own coordinates.
     fn homestead_rooms() -> Vec<RoomBounds> {
-        let design = crate::ship::ship_structure::HomeDesign::built_in_ref("homestead").expect("the homestead is built in");
+        let design = humanity_ship::ship_structure::HomeDesign::built_in_ref("homestead").expect("the homestead is built in");
         design
             .body
             .detect_rooms()
@@ -2282,7 +2282,7 @@ mod room_card_tests {
     #[test]
     fn the_room_card_names_the_elevator_the_whole_ride() {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+        let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
         let o = ship.zones[ship.home_zone_index()].origin_vec();
         let rooms: Vec<RoomBounds> = ship
             .generate_meshes()
@@ -2326,9 +2326,9 @@ mod cut_away_label_tests {
     use glam::{Mat4, Vec3};
 
     /// The shipped ship with the home on p1.
-    fn shipped() -> crate::ship::ship_structure::ShipStructure {
+    fn shipped() -> humanity_ship::ship_structure::ShipStructure {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-        crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles")
+        humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles")
     }
 
     /// A machine's label as the world load makes it: its anchor 0.4 m over its top, its foot.
@@ -2407,7 +2407,7 @@ mod cut_away_label_tests {
     /// the ground storey labels 25 walls standing upstairs" (left: 25, right: 0).
     #[test]
     fn the_overlay_labels_the_storey_being_edited() {
-        let design = crate::ship::ship_structure::HomeDesign::built_in_ref("homestead").expect("the homestead is built in");
+        let design = humanity_ship::ship_structure::HomeDesign::built_in_ref("homestead").expect("the homestead is built in");
         let hs = &design.body;
         let storeys = hs.storeys();
         assert_eq!(storeys.len(), 2, "the homestead has two storeys");
@@ -2511,7 +2511,7 @@ mod crew_label_tests {
     /// returning `weather_line(w)` in both cases fails the first assertion.
     #[test]
     fn indoors_the_line_is_the_home_air_not_the_weather() {
-        let w = sky("Clear", 22.0, (-4.0, 0.0), crate::systems::precipitation::Falling::NONE, "");
+        let w = sky("Clear", 22.0, (-4.0, 0.0), humanity_systems::precipitation::Falling::NONE, "");
         let mut v = vitals(90.0, 90.0, 90.0, 100.0, true, 36.8, 10.0);
         v.air_c = 20.0;
         assert_eq!(hud_weather_text(&v, &w), "Indoors 20C, still air");
@@ -2525,7 +2525,7 @@ mod crew_label_tests {
     /// outside fails the first assertion.
     #[test]
     fn outside_the_line_says_what_the_air_feels_like() {
-        let w = sky("Clear", 20.0, (0.0, 0.0), crate::systems::precipitation::Falling::NONE, "");
+        let w = sky("Clear", 20.0, (0.0, 0.0), humanity_systems::precipitation::Falling::NONE, "");
         let mut v = vitals(90.0, 90.0, 90.0, 100.0, false, 36.8, 10.0);
         v.feels_c = 35.0;
         assert_eq!(hud_weather_text(&v, &w), format!("{}  feels 35C", weather_line(&w)));
@@ -2575,7 +2575,7 @@ mod crew_label_tests {
     fn wounds_and_illness_get_a_row_naming_what_helps() {
         use crate::config::HudVitals;
         use humanity_core::ecs::components::StatusEffects;
-        let reg = crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
+        let reg = humanity_systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
             env!("HUMANITY_REPO_ROOT"),
             "/data/status_effects.csv"
         )))
@@ -2583,7 +2583,7 @@ mod crew_label_tests {
         let mut fine = vitals(90.0, 90.0, 90.0, 100.0, true, 36.8, 10.0);
         let mut fx = StatusEffects::default();
         fx.apply("bleeding", 300.0);
-        fine.care = crate::systems::wounds::care_lines(&fx, Some(&reg));
+        fine.care = humanity_systems::wounds::care_lines(&fx, Some(&reg));
         let rows = vital_rows(&fine, HudVitals::WhenLow);
         assert_eq!(labels(&rows), vec!["Wound"], "a bleeding player sees it on the HUD");
         assert_eq!(rows[0].text, "Bleeding: a Bandage stops it");
@@ -2592,7 +2592,7 @@ mod crew_label_tests {
 
         fx.remove("bleeding");
         fx.apply("food_poisoning", 7_200.0);
-        fine.care = crate::systems::wounds::care_lines(&fx, Some(&reg));
+        fine.care = humanity_systems::wounds::care_lines(&fx, Some(&reg));
         let rows = vital_rows(&fine, HudVitals::WhenLow);
         assert_eq!((labels(&rows), rows[0].text.as_str()), (vec!["Ill"], "Food Poisoning: drink while it lasts"));
     }
@@ -2663,7 +2663,7 @@ mod crew_label_tests {
         assert!(vital_rows(&v, HudVitals::Off).is_empty());
     }
 
-    fn sky(condition: &str, temp: f32, wind: (f32, f32), falling: crate::systems::precipitation::Falling, event: &str) -> crate::gui::GuiWeather {
+    fn sky(condition: &str, temp: f32, wind: (f32, f32), falling: humanity_systems::precipitation::Falling, event: &str) -> crate::gui::GuiWeather {
         crate::gui::GuiWeather {
             condition: condition.into(),
             intensity: falling.total(),
@@ -2685,7 +2685,7 @@ mod crew_label_tests {
     /// and no phase) prints "❄ Snow -12C 2m/s" for the first case.
     #[test]
     fn the_weather_line_reads_the_air_at_the_player() {
-        use crate::systems::precipitation::Falling;
+        use humanity_systems::precipitation::Falling;
         let snowing = sky("Snow", -12.4, (-6.0, -6.0), Falling { rain: 0.0, snow: 0.7 }, "");
         assert_eq!(weather_line(&snowing), "❄ Snow -12C  wind 8 m/s from NE");
         let mixed = sky("Rain", 1.0, (0.0, 3.0), Falling { rain: 0.3, snow: 0.3 }, "");
@@ -2716,7 +2716,7 @@ mod crew_label_tests {
 mod carry_line_tests {
     use crate::gui::screen_surface::find_text_in_shapes;
     use crate::gui::GuiState;
-    use crate::systems::encumbrance::{evaluate, CarryInput, CarryMode, ONE_G_M_S2};
+    use humanity_systems::encumbrance::{evaluate, CarryInput, CarryMode, ONE_G_M_S2};
 
     /// Two settle frames of the HUD alone, returning the second's shapes.
     fn hud_shapes(state: &GuiState) -> Vec<egui::epaint::ClippedShape> {

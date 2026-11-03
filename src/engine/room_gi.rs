@@ -32,9 +32,9 @@ use crate::engine::state::EngineState;
 use crate::renderer::room_probes::{
     merge_slabs, OccluderSlab, RoomBox, FACE_FLOOR, FACE_LID, FACE_NEG_X, FACE_NEG_Z, FACE_POS_X, FACE_POS_Z,
 };
-use crate::ship::fibonacci::RoomInfo;
-use crate::ship::home_structure::{FloorSlab, HomeStructure, OPAQUE_CEILING_RGBA, ROOM_DIVIDER_MIN_M, STOREY_EPS};
-use crate::ship::ship_structure::ShipStructure;
+use humanity_ship::fibonacci::RoomInfo;
+use humanity_ship::home_structure::{FloorSlab, HomeStructure, OPAQUE_CEILING_RGBA, ROOM_DIVIDER_MIN_M, STOREY_EPS};
+use humanity_ship::ship_structure::ShipStructure;
 
 /// The glass material a glass floor slab is made of (`FloorSlab` carries only
 /// Solid or Glass): the clear glass of the shell roof, `roof_is_glass`'s id.
@@ -120,7 +120,7 @@ pub(crate) fn before_scene(state: &mut EngineState) {
     let sky_up = state.renderer.sky_view_uniform.is_some().then(|| {
         let up = state.renderer.aerial_up;
         let up = DVec3::new(up[0] as f64, up[1] as f64, up[2] as f64);
-        crate::station::to_hull(state.station_ride, state.station_world_rot, up).as_vec3()
+        humanity_ship::station::to_hull(state.station_ride, state.station_world_rot, up).as_vec3()
     });
     let eye = state.camera.effective_position();
     state.renderer.update_room_gi(state.station_off, eye, sky_up);
@@ -370,7 +370,7 @@ mod tests {
         let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
         // The SHIPPED design (data/homes/shipped/), never the checkout's data/homes/homestead.ron,
         // which is the developer's own home and an editor Save rewrites.
-        let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
+        let design = humanity_ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
         let ship = ship_file.assemble(design, "p1").expect("it assembles at p1");
         let meshes = ship.generate_meshes();
         let boxes = room_boxes(Some(&ship), &meshes.room_info);
@@ -404,7 +404,7 @@ mod tests {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
         let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
-        let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
+        let design = humanity_ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
         let ship = ship_file.assemble(design, "p1").expect("it assembles at p1");
         let meshes = ship.generate_meshes();
         let boxes = room_boxes(Some(&ship), &meshes.room_info);
@@ -481,7 +481,7 @@ mod tests {
             let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
             let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
             let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
-            let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
+            let design = humanity_ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
             ship_file.assemble(design, "p1").expect("it assembles at p1")
         };
         let lights = crate::engine::home_meshes::home_lights(Some(&ship), Vec::new(), true);
@@ -552,7 +552,7 @@ mod tests {
 
     use crate::renderer::light::RoomLight;
     use crate::renderer::room_probes::{layered_rows, light_anchor, light_irradiance, slabs_touched, sun_blocked_by_slabs};
-    use crate::ship::ship_structure::ShipZone;
+    use humanity_ship::ship_structure::ShipZone;
 
     /// The two-storey test ship: one zone, 10 x 10 x 6 m, a glass roof, a
     /// SOLID slab over the north half (z 0..5) at 3.0, a GLASS slab over the
@@ -704,8 +704,8 @@ mod tests {
     /// rooms and their boxes. No upstairs zones: the layout lane writes those;
     /// this is the slab layer the light work has to handle.
     fn homestead_with_the_upper_floor() -> (ShipStructure, Vec<(RoomInfo, RoomBox)>) {
-        use crate::ship::home_structure::{FloorSlab, SlabMaterial};
-        let mut design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
+        use humanity_ship::home_structure::{FloorSlab, SlabMaterial};
+        let mut design = humanity_ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
         let layout: [(f32, f32, f32, f32, bool); 19] = [
             (0.0, 0.0, 20.0, 22.0, true),
             (20.0, 0.0, 55.0, 22.0, false),

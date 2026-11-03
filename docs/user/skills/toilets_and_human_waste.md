@@ -685,20 +685,20 @@ skips everything in between.
   Waste reading rises slowly while you live, filling in about three days
   of game time, and each solid meal adds to it. Above 75 you get the
   Unsanitary effect, which slows you a little. The HUD shows the reading
-  when it passes half full (`src/systems/food.rs`,
+  when it passes half full (`crates/humanity-systems/src/food.rs`,
   `data/status_effects.csv`, `src/gui/pages/hud.rs`).
 - **One button empties it.** The Inventory page's Compost and draw off
   urine button turns every 25 points of Waste into one bag of Fertilizer
   at once and empties the reading. That is the same Fertilizer the home's
   Composter makes from plant material, and the garden uses it the same
-  way (`src/systems/food.rs`, `data/garden/nutrients.ron`).
+  way (`crates/humanity-systems/src/food.rs`, `data/garden/nutrients.ron`).
 - **Urine collects in an unseen tank.** While you live, your urine fills
   a tank at one person-day a day. No machine in the home stands for it,
   because the home has no urine-diverting toilet yet, and no screen shows
   its level. It holds about two weeks, and the overflow is lost. The same
   button draws off each whole person-day as one Stored Urine, which the
   garden can use as quick nitrogen, but never on a crop within a month
-  of its harvest (`src/systems/food.rs`, `data/items.csv`,
+  of its harvest (`crates/humanity-systems/src/food.rs`, `data/items.csv`,
   `data/garden/nutrients.ron`, `data/home_outline.json`).
 - **The house has a toilet and a septic tank.** In the default home the
   toilet is one of the machines that draws on the home's water, 42
@@ -1027,7 +1027,7 @@ were read on 5 October 2026.
   Health District's telephone number:
   `data/locales/silverdale_wa/locale.json`.
 - The Waste reading, the Unsanitary effect, the Compost and draw off
-  urine button, the urine tank and its size: `src/systems/food.rs`,
+  urine button, the urine tank and its size: `crates/humanity-systems/src/food.rs`,
   `src/gui/pages/inventory.rs`, `src/gui/pages/hud.rs` and
   `data/status_effects.csv`. Stored Urine and its month before harvest:
   `data/items.csv` and `data/garden/nutrients.ron`. The urine-diverting

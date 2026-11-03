@@ -172,7 +172,7 @@ pub fn local_offset_secs(unix_secs: i64) -> i64 {
     {
         use windows::Win32::Foundation::SYSTEMTIME;
         use windows::Win32::System::Time::SystemTimeToTzSpecificLocalTime;
-        let (y, m, d) = crate::persistence::civil_from_days(unix_secs.div_euclid(86_400));
+        let (y, m, d) = humanity_systems::persistence::civil_from_days(unix_secs.div_euclid(86_400));
         let s = unix_secs.rem_euclid(86_400);
         let utc = SYSTEMTIME {
             wYear: y as u16,
@@ -190,7 +190,7 @@ pub fn local_offset_secs(unix_secs: i64) -> i64 {
         if unsafe { SystemTimeToTzSpecificLocalTime(None, &utc, &mut local) }.is_err() {
             return 0;
         }
-        let local_secs = crate::persistence::days_from_civil(local.wYear as i64, local.wMonth as i64, local.wDay as i64) * 86_400
+        let local_secs = humanity_systems::persistence::days_from_civil(local.wYear as i64, local.wMonth as i64, local.wDay as i64) * 86_400
             + local.wHour as i64 * 3600
             + local.wMinute as i64 * 60
             + local.wSecond as i64;
@@ -236,7 +236,7 @@ fn ts_parts(ts_ms: u64) -> (i32, u32, u32, i64, i64, i64, u64) {
     let hour = secs_in_day / 3_600;
     let minute = (secs_in_day % 3_600) / 60;
     let second = secs_in_day % 60;
-    let (year, month, day) = crate::persistence::civil_from_days(days);
+    let (year, month, day) = humanity_systems::persistence::civil_from_days(days);
     (year as i32, month, day, hour, minute, second, millis)
 }
 
@@ -324,8 +324,8 @@ mod tests {
     #[test]
     fn the_date_arithmetic_round_trips() {
         for days in [-719_468i64, -1, 0, 19_000, 20_385, 2_932_896] {
-            let (y, m, d) = crate::persistence::civil_from_days(days);
-            assert_eq!(crate::persistence::days_from_civil(y, m as i64, d as i64), days);
+            let (y, m, d) = humanity_systems::persistence::civil_from_days(days);
+            assert_eq!(humanity_systems::persistence::days_from_civil(y, m as i64, d as i64), days);
         }
     }
 }

@@ -34,9 +34,9 @@ minigame teaches the same buildable-thing literacy as the plumbing and electrica
 - **Power loop (live, v0.437):** the turret is already a `PowerConsumer`; firing could spike
   its draw and visibly dent the live power balance / drain the batteries. Defense vs. power
   is a real tradeoff the player feels.
-- **Mining loop (`src/systems/mining.rs`):** the drone hangar is right beside the turret;
+- **Mining loop (`crates/humanity-systems/src/mining.rs`):** the drone hangar is right beside the turret;
   threats could target the drone or the hull. Ammo/charge is crafted from mined materials.
-- **Combat system (`src/systems/combat.rs`, written, unregistered):** the damage/health and
+- **Combat system (`crates/humanity-systems/src/combat.rs`, written, unregistered):** the damage/health and
   projectile bones may be reusable for threats and turret fire.
 - **Interaction ([E], registered):** walk-up-and-operate matches the operable-machines arc.
 - **Skills/quests:** a Gunnery / Defense skill line; quests to survive waves or build the

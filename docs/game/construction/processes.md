@@ -14,7 +14,7 @@ All processes must declare:
 - explanation obligations
 
 > **Grounding note (2026-06-30):** processes below are named to track the real
-> `ConstructionSystem::tick` implementation in `src/systems/construction/mod.rs`, plus the
+> `ConstructionSystem::tick` implementation in `crates/humanity-systems/src/construction/mod.rs`, plus the
 > analysis/routing helpers in `structural.rs` and `routing.rs`. Where a process is design
 > intent beyond what ships today, it is marked "not yet implemented."
 

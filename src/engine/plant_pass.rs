@@ -23,7 +23,7 @@ use glam::{Quat, Vec3};
 use crate::assets::GltfCpuMesh;
 use crate::engine::fungus_mesh::{self, Growth};
 use crate::engine::plant_layout::{bake_copy, plot_draw_cap, plot_plants, PlotRect};
-use crate::terrain::plant_mesh::{build_plant, generic_visual, PlantMeshBuilder, PlantVisualRegistry};
+use humanity_terrain::plant_mesh::{build_plant, generic_visual, PlantMeshBuilder, PlantVisualRegistry};
 
 /// The part of a tower's config its plants are placed from.
 #[derive(Debug, Clone, Copy)]

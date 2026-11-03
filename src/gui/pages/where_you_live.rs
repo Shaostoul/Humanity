@@ -37,8 +37,8 @@ use egui::{Color32, RichText};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Button};
 use crate::gui::{GuiState, HintDisplay};
-use crate::persistence::SaveSlot;
-use crate::ship::starts::{Engagement, EngagementDefaults, HomeAnswer, Start, Starts};
+use humanity_systems::persistence::SaveSlot;
+use humanity_ship::starts::{Engagement, EngagementDefaults, HomeAnswer, Start, Starts};
 
 // ── The words this file owns ─────────────────────────────────────────────────────────────────────
 
@@ -163,7 +163,7 @@ pub fn shared_line(shared: &[String]) -> Option<String> {
     let names: Vec<String> = shared
         .iter()
         .map(|id| {
-            let label = crate::ship::structure::zone_type(id).map(|z| z.label.clone()).unwrap_or_else(|| id.replace(['_', '-'], " "));
+            let label = humanity_ship::structure::zone_type(id).map(|z| z.label.clone()).unwrap_or_else(|| id.replace(['_', '-'], " "));
             format!("the {}", mid_sentence(&label))
         })
         .collect();
@@ -266,9 +266,9 @@ pub fn draft_household(starts: &Starts, start: &str) -> String {
 /// Make `household` the live save's household (Settings' sub-choice). The save writes it at its
 /// next save; the world loads its household file the next time it is entered. Never AppConfig.
 pub fn set_household(household: &str) {
-    let mut active = crate::persistence::live_save::active_home();
+    let mut active = humanity_systems::persistence::live_save::active_home();
     active.household = household.to_string();
-    crate::persistence::live_save::set_active_home(active);
+    humanity_systems::persistence::live_save::set_active_home(active);
 }
 
 // ── Asking the server (the save slot's questions on the GUI state) ───────────────────────────────
@@ -281,7 +281,7 @@ pub fn set_household(household: &str) {
 /// server card's Choose is made while paired with your own home). None without an identity or a
 /// server.
 pub fn server_slot(gui: &GuiState) -> Option<SaveSlot> {
-    match crate::persistence::live_save::slot_for("", &gui.profile_public_key, &gui.active_server_key(), false) {
+    match humanity_systems::persistence::live_save::slot_for("", &gui.profile_public_key, &gui.active_server_key(), false) {
         SaveSlot::Offline => None,
         slot => Some(slot),
     }
@@ -293,7 +293,7 @@ pub fn server_slot(gui: &GuiState) -> Option<SaveSlot> {
 pub fn ask_where_you_live(gui: &GuiState) -> bool {
     match gui.ws_client.as_ref() {
         Some(ws) if ws.is_connected() && gui.ws_identified => {
-            ws.send(&serde_json::json!({ "type": crate::ship::starts::HOME_REQUEST }).to_string());
+            ws.send(&serde_json::json!({ "type": humanity_ship::starts::HOME_REQUEST }).to_string());
             true
         }
         _ => false,
@@ -328,7 +328,7 @@ pub fn choose_on_server(gui: &GuiState, start: &str) -> Result<(), String> {
     let Some(ws) = gui.ws_client.as_ref().filter(|w| w.is_connected() && gui.ws_identified) else {
         return Err("Connect to this server in Chat first.".into());
     };
-    ws.send(&serde_json::json!({ "type": crate::ship::starts::CHOOSE_HOME, "start": row.id }).to_string());
+    ws.send(&serde_json::json!({ "type": humanity_ship::starts::CHOOSE_HOME, "start": row.id }).to_string());
     let household = draft_household(starts, &row.id);
     ASKED.with(|a| *a.borrow_mut() = Some((row.id.clone(), household)));
     log::info!("Where you live: asked this server for a {}", row.id);
@@ -507,7 +507,7 @@ pub fn draw_settings_section(ui: &mut egui::Ui, theme: &Theme, state: &GuiState)
 pub(crate) fn draw_settings_section_with(ui: &mut egui::Ui, theme: &Theme, hint: HintDisplay, starts: &Starts) {
     ui.label(RichText::new(HEADING).color(theme.text_secondary()).strong());
     ui.add_space(theme.spacing_xs);
-    let active = crate::persistence::live_save::active_home();
+    let active = humanity_systems::persistence::live_save::active_home();
     ui.label(RichText::new(live_in_line(starts, &active.start, &active.household)).color(theme.text_primary()));
     let start = start_of(starts, &active.start);
     if start.households.len() > 1 {
@@ -527,7 +527,7 @@ pub fn draw_home_line(ui: &mut egui::Ui, theme: &Theme) {
 
 /// [`draw_home_line`] over a given starts file.
 pub(crate) fn draw_home_line_with(ui: &mut egui::Ui, theme: &Theme, starts: &Starts) {
-    let active = crate::persistence::live_save::active_home();
+    let active = humanity_systems::persistence::live_save::active_home();
     widgets::card(ui, theme, |ui| {
         ui.set_min_width(ui.available_width());
         widgets::subsection_label(ui, theme, HEADING);

@@ -29,9 +29,9 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets::label_placer::LabelPlacer;
 use crate::gui::widgets::level_picker::{self, PickerClick, PickerLevel};
 use crate::gui::GuiState;
-use crate::ship::room_types::RoomBounds;
-use crate::ship::home_structure::{storey_index, wall_in_storey};
-use crate::ship::levels::{self, ShipLevel};
+use humanity_ship::room_types::RoomBounds;
+use humanity_ship::home_structure::{storey_index, wall_in_storey};
+use humanity_ship::levels::{self, ShipLevel};
 
 use super::camera::{MapAnchor, MapProjector, MapScene, PITCH_LIMIT_RAD};
 use super::world_layer::WorldDrawn;
@@ -335,7 +335,7 @@ fn draw_you_here(paint: &egui::Painter, theme: &Theme, at: Pos2, ahead: Pos2) {
 
 /// With no world drawn: every body's walls on `level` (`wall_in_storey`) and its outline as lines
 /// on its floor, for each body big enough on screen to read.
-fn draw_walls(paint: &egui::Painter, theme: &Theme, proj: &MapProjector, me: &MapSelf, ship: &crate::ship::ship_structure::ShipStructure, level: &ShipLevel, floor: f64) {
+fn draw_walls(paint: &egui::Painter, theme: &Theme, proj: &MapProjector, me: &MapSelf, ship: &humanity_ship::ship_structure::ShipStructure, level: &ShipLevel, floor: f64) {
     let stroke = Stroke::new(1.5_f32, theme.map_room_edge());
     let line = |a: (f64, f64), b: (f64, f64)| {
         if let (Some((p, _)), Some((q, _))) = (proj.project(me.ship_to_world(DVec3::new(a.0, floor, a.1))), proj.project(me.ship_to_world(DVec3::new(b.0, floor, b.1)))) {

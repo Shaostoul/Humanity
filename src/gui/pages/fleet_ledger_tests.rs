@@ -158,7 +158,7 @@ fn one_give_waits_at_a_time() {
 /// up (3.0 m), right over the player's head and inside 5 m, is not one they can take a meal from or
 /// give to, and the panel says it is on another floor; a store on their floor 4 m away is the one
 /// the panel picks, though the one upstairs is nearer through the slab; and upstairs, the store
-/// under their feet is out of reach. The relay applies the same rule (src/ship/moves.rs `in_reach`).
+/// under their feet is out of reach. The relay applies the same rule (crates/humanity-ship/src/moves.rs `in_reach`).
 ///
 /// Seen red 2026-10-20 on the reach before storeys (the 5 m sphere): "a store one storey up was
 /// in reach: Err(\"Not connected to the server.\")" (the reach check passed it, and only the
@@ -343,11 +343,11 @@ fn out_of_the_world_the_ledger_is_from_the_last_visit() {
 fn away_from_a_server_the_panel_counts_the_meals_here() {
     let (ctx, theme) = ctx_and_theme();
     let mut gs = GuiState::default();
-    gs.fleet.meals_here = Some(crate::persistence::ShipMeals { taken: 3, next_at_game_s: 0.0, water_l: 1.5 });
+    gs.fleet.meals_here = Some(humanity_systems::persistence::ShipMeals { taken: 3, next_at_game_s: 0.0, water_l: 1.5 });
     let want = "On this computer the ship's stores have fed you 3 meals and 1.5 L of water.";
     let out = frame(&ctx, &theme, &mut gs);
     assert!(find_text_in_shapes(&out.shapes, want).is_some(), "away from a server the panel says {want:?}");
-    assert_eq!(meals_here_sentence(&crate::persistence::ShipMeals { taken: 1, next_at_game_s: 0.0, water_l: 20.0 }), "On this computer the ship's stores have fed you 1 meal and 20 L of water.");
+    assert_eq!(meals_here_sentence(&humanity_systems::persistence::ShipMeals { taken: 1, next_at_game_s: 0.0, water_l: 20.0 }), "On this computer the ship's stores have fed you 1 meal and 20 L of water.");
     gs.copresence_active = true;
     let out = frame(&ctx, &theme, &mut gs);
     assert!(find_text_in_shapes(&out.shapes, "On this computer").is_none(), "in the shared world the ledger says it");

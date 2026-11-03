@@ -726,11 +726,11 @@ were read on 3 October 2026.
   `craft_bolts`, and the recipes that use them, such as `build_chair` and
   `build_sawmill`, in `data/recipes.csv`; no recipe uses `screw_box_0`).
 - Which tools each craft needs: `data/crafting/tools.ron` and
-  `src/systems/crafting/tools.rs`; skill experience for a finished craft
-  in `src/systems/crafting/mod.rs`.
+  `crates/humanity-systems/src/crafting/tools.rs`; skill experience for a finished craft
+  in `crates/humanity-systems/src/crafting/mod.rs`.
 - The Play mode setting and free materials (`PlayMode` and
   `play_mode_allows` in `src/config.rs`, the creative checks in
-  `src/systems/crafting/mod.rs`, the Creative mode switch on the
+  `crates/humanity-systems/src/crafting/mod.rs`, the Creative mode switch on the
   Inventory page in `src/gui/pages/inventory.rs`, off by default in
   `src/gui/mod.rs` because Normal is the default play mode, and forced
   off in Normal in `src/lib.rs`); the "Start every session from the

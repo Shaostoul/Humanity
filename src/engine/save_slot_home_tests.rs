@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::engine::home_plot::{add_join_fields, join_step, JoinGate, JoinStep};
-use crate::ship::starts::{HeldHome, HomeAnswer};
+use humanity_ship::starts::{HeldHome, HomeAnswer};
 
 fn data_dir() -> PathBuf {
     Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
@@ -14,8 +14,8 @@ fn data_dir() -> PathBuf {
 fn data_store() -> humanity_core::hot_reload::data_store::DataStore {
     let mut data = humanity_core::hot_reload::data_store::DataStore::new();
     data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
-    crate::systems::crafting::register(&mut data);
-    crate::systems::livestock::register(&mut data);
+    humanity_systems::crafting::register(&mut data);
+    humanity_systems::livestock::register(&mut data);
     data
 }
 
@@ -28,7 +28,7 @@ fn plot_of(ship: &ShipStructure) -> Option<String> {
 }
 
 /// A SERVER'S HOME IS THE SHIPPED DESIGN, NEVER THE DISK FILE (plan 3.7). Everyone on a server
-/// draws your home there as the design shipped with the app (src/ship/neighbours.rs), and an
+/// draws your home there as the design shipped with the app (crates/humanity-ship/src/neighbours.rs), and an
 /// offline Dev session can rewrite data/homes/homestead.ron; so outside the Dev mode a server's save
 /// builds the shipped design whatever that file holds, while your own home builds the file's
 /// (here with one wall more than the shipped one), and the Dev mode builds the file it authors.
@@ -141,7 +141,7 @@ fn switching_servers_swaps_saves_before_the_join() {
     };
     let join_start = || {
         let mut join = serde_json::json!({ "type": "game_join" });
-        assert!(add_join_fields(&mut join, Some(&ship), &crate::persistence::live_save::active_home().start));
+        assert!(add_join_fields(&mut join, Some(&ship), &humanity_systems::persistence::live_save::active_home().start));
         join["start"].clone()
     };
 
@@ -202,7 +202,7 @@ fn the_look_crosses_at_every_entry() {
     // Only the look: the backpack is the server save's (the Cabin's water), not your own home's.
     let cabin_kit: Vec<String> = starts.get("cabin").unwrap().kit.iter().map(|(id, _)| id.clone()).collect();
     let carried: Vec<String> = world
-        .get::<&crate::systems::inventory::Inventory>(player)
+        .get::<&humanity_systems::inventory::Inventory>(player)
         .unwrap()
         .slots
         .iter()
@@ -270,7 +270,7 @@ fn a_cabin_chosen_from_home_is_the_servers_fresh_save_on_its_plot() {
     remember_choice(&slot, choice.clone());
     assert_eq!(choice_for(&slot), Some(choice.clone()));
     write_chosen(&saves, &data_dir, &slot, &choice, &Look::default()).unwrap();
-    let save = crate::persistence::load_world(&crate::persistence::slot_path(&saves, &slot)).unwrap();
+    let save = humanity_systems::persistence::load_world(&humanity_systems::persistence::slot_path(&saves, &slot)).unwrap();
     assert_eq!((save.kind.as_str(), save.start.as_str(), save.household.as_str()), ("server", "cabin", "solo"));
     assert_eq!(save.ship_place, choice.place);
     let starts = Starts::load(&data_dir);

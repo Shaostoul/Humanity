@@ -566,7 +566,7 @@ front of you, and doing it yourself beside it is good practice.
   no yearly average output is credited with its peak output for a
   representative day of 4.5 hours of full sun. The machines, their
   draws and the averages it starts from come from `data/machines/home.ron`;
-  what each one drew is recorded as the game runs (`src/systems/day_energy.rs`). Before you read the meter,
+  what each one drew is recorded as the game runs (`crates/humanity-systems/src/day_energy.rs`). Before you read the meter,
   add up a few machines yourself and see how close you get.
 - **The Buildability checks on the same page do the comparison for
   you.** The "Energy balance" check sets what the home makes in a day
@@ -685,7 +685,7 @@ public domain.
 ### Inside this project
 
 - The Construction page, Buildability and "Usage + self-sufficiency"
-  (`src/gui/pages/construction.rs`, `src/machines.rs`), and the machines
+  (`src/gui/pages/construction.rs`, `crates/humanity-ship/src/machines.rs`), and the machines
   they count, `data/machines/home.ron`.
 - The live weather panel (`src/gui/pages/weather_panel.rs`), which sets
   the wind the ocean is built from.

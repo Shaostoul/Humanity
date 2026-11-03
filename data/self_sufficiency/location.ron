@@ -3,7 +3,7 @@
 // that self-sufficiency is gated by WHERE you are: "the same design is self-sufficient in one
 // place and fails in another." This is the location the homestead design is scored FOR, the
 // hook the eventual Place lat/long selector will drive. Loaded by
-// src/systems/self_sufficiency.rs. Data-driven (infinite-of-X): a second location is another
+// crates/humanity-systems/src/self_sufficiency.rs. Data-driven (infinite-of-X): a second location is another
 // file / another row; nothing here is hardcoded in Rust.
 //
 // Silverdale, WA (Kitsap County, Puget Sound; ~47.6 N, near Bremerton) -- the operator's own

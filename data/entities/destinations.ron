@@ -9,7 +9,7 @@
 // below have a FLOOR, and `radius` is measured across the floor only while
 // the player stands on that floor's storey (ship homes increment 7, 2026-10-20:
 // feet from half a metre under the floor to half a metre under the place's
-// top, src/ship/moves.rs `stands_in_storey_of`): a place on an upper floor is
+// top, crates/humanity-ship/src/moves.rs `stands_in_storey_of`): a place on an upper floor is
 // never reached by standing under it.
 //
 // A place that is not a fixed point names what it resolves to in `at`

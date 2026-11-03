@@ -2,7 +2,7 @@
 // verify-falls: proves in the RUNNING game that falls hurt the player the way the code and
 // data/medical/falls.ron say (2026-10-20, `just verify-falls`).
 //
-// Falls shipped in v0.1527.0 (src/systems/falls.rs) with unit tests over the walk, the watch and
+// Falls shipped in v0.1527.0 (crates/humanity-systems/src/falls.rs) with unit tests over the walk, the watch and
 // the body pass, and nothing that looked at the game: `player_landed` logged nothing and no probe
 // said what health or wounds the player had, so a landing that never reached the body would have
 // left everything green. This boots the release binary in its own portable rig (.probe-rig/falls,
@@ -56,7 +56,7 @@
 // writes health per frame, and in its done JSON the home session's vitals (health, wounds by id
 // and name) and a `falls` block (landings handed to the body, the last one's speed, the mode,
 // gravity, flight, aboard). The showcase `illness` verb sets Settings > Gameplay > Illness and
-// injury as its radio does. The run.log's "[Falls]" lines (src/systems/falls.rs player_landed)
+// injury as its radio does. The run.log's "[Falls]" lines (crates/humanity-systems/src/falls.rs player_landed)
 // are kept in the manifest.
 //
 // ON A PLANET'S GROUND (the second increment, 2026-10-20). A planet has its own walk
@@ -309,7 +309,7 @@ const EYE_M = 1.7;
  *  (6.26) and short of its broken ankle (7.73) in Realistic, under its first harm at 70% in
  *  Forgiving (4.97). */
 const PLANET_RISE_M = 2.6;
-/** The planet climb's thrust (src/surface_walk.rs `vertical_step`): it ramps to the climb rate at
+/** The planet climb's thrust (crates/humanity-systems/src/surface_walk.rs `vertical_step`): it ramps to the climb rate at
  *  max(3 g, 20 m/s^2, rate / 1.5 s). */
 const THRUST_ACCEL_G_MULT = 3.0;
 const THRUST_ACCEL_MIN = 20.0;

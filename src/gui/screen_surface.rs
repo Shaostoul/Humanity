@@ -45,7 +45,7 @@ use super::dispatch::{draw_tool_page, page_from_id};
 use super::theme::Theme;
 use super::widgets::image_cache::ImageCache;
 use super::{GuiPage, GuiState};
-use crate::machines::CameraPose;
+use humanity_ship::machines::CameraPose;
 use crate::renderer::camera::Camera;
 use std::time::{Duration, Instant};
 
@@ -1890,7 +1890,7 @@ mod tests {
     /// `pages::profile::draw` and this fails, naming `standing_mirror`.
     #[test]
     fn no_page_drawn_on_a_wall_screen_changes_the_app_page() {
-        let home = crate::systems::grow_machines::load_home(std::path::Path::new(
+        let home = humanity_systems::grow_machines::load_home(std::path::Path::new(
             "data/machines/home.ron",
         ))
         .expect("the shipped home loads");
@@ -1962,7 +1962,7 @@ mod tests {
     /// left: None, right: Some(\"62.0 / 75.0 kg\")" (it drew 62.0 / 50.0 kg).
     #[test]
     fn the_weight_tile_draws_the_systems_limit_and_why() {
-        use crate::systems::encumbrance::{evaluate, CarryInput, CarryMode, ONE_G_M_S2};
+        use humanity_systems::encumbrance::{evaluate, CarryInput, CarryMode, ONE_G_M_S2};
         let mut theme = load_theme();
         let mut state = inventory_state();
         let mut core = ScreenCore::new("test_screen", "inventory", 1280, 1700, &theme);

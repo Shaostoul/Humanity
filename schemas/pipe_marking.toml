@@ -6,8 +6,8 @@
 #                                    sizes and their specs (spline routing rung 0, 2026-11-02; the
 #                                    cable registry data/utilities/conduits.ron merged in)
 #
-# Read by src/ship/pipe_marking.rs and crates/humanity-core/src/run_materials.rs (whose ConduitKind
-# view is src/ship/pipe_materials.rs) (disk first, the copy built
+# Read by crates/humanity-ship/src/pipe_marking.rs and crates/humanity-core/src/run_materials.rs (whose ConduitKind
+# view is crates/humanity-ship/src/pipe_materials.rs) (disk first, the copy built
 # into the exe if the file is missing or does not parse). Drawn by src/engine/pipe_markers.rs
 # and src/engine/home_meshes.rs. The research every mapping cites is
 # docs/reference/findings/2026-10-04-pipe-marking-standards.md.
@@ -16,7 +16,7 @@
 # Hot-reloadable: No (read once at first use; restart to apply an edit)
 # Referenced by: the connection kinds in data/machines/*.ron and the media a machine type's
 #   `outlet_media` names there (a marking row's `content`)
-# References: the conduit kinds in src/ship/conduits.rs (a material row's `kind`)
+# References: the conduit kinds in crates/humanity-ship/src/conduits.rs (a material row's `kind`)
 #
 # THE RULE THESE FILES ENCODE: every published marking scheme marks the CONTENT (water, fuel,
 # air), never the pipe's material (finding F28). So a pipe's body is drawn in its material, and
@@ -124,7 +124,7 @@ examples = ["(id: \"unarmoured\", meaning: \"No metal armour over the cable.\")"
 [fields.kinds]
 type = "list"
 required = true
-description = "One row per conduit kind (src/ship/conduits.rs ConduitKind::id): kind, material. Which kind carries a content is decided in code, including the potable-water rule recorded there. A mapping, not a fact: no source. Removed by spline routing rung 1 with ConduitKind."
+description = "One row per conduit kind (crates/humanity-ship/src/conduits.rs ConduitKind::id): kind, material. Which kind carries a content is decided in code, including the potable-water rule recorded there. A mapping, not a fact: no source. Removed by spline routing rung 1 with ConduitKind."
 examples = ["(kind: \"rigid_copper\", material: \"copper_l_drawn\")"]
 
 [fields.materials]

@@ -3,7 +3,7 @@
 **Status (2026-10-05): BUILT, in a different shape, as ship homes increment 5 ("building
 only on your own plot"). For the design as built read
 [ship-homes-increment-5-plan.md](ship-homes-increment-5-plan.md), and for the messages
-exactly, `src/systems/construction/shared.rs` (the contract the relay and the game both
+exactly, `crates/humanity-systems/src/construction/shared.rs` (the contract the relay and the game both
 compile).** This document is the FIRST design, kept for its reasoning: why these seven
 blueprints, the seams that keep shared pieces out of the save, the budget. Where the two
 disagree, the plan and the code are right. The differences that matter:
@@ -39,7 +39,7 @@ enforced rules, and where players meet. The design ships the reversible default
 messages or the table (section 6).
 
 Read with: `docs/design/homes-as-profiles.md` (Server homes), `docs/design/game-modes.md`,
-`src/systems/construction/shared.rs` (the contract).
+`crates/humanity-systems/src/construction/shared.rs` (the contract).
 
 ## 0. In one paragraph
 
@@ -76,7 +76,7 @@ Why these seven:
 ## 2. Wire messages
 
 **What is sent now (as built, 2026-10-05).** The plan's section 3.2, defined exactly by
-`ToRelay`, `FromRelay` and `Piece` in `src/systems/construction/shared.rs`; every message is
+`ToRelay`, `FromRelay` and `Piece` in `crates/humanity-systems/src/construction/shared.rs`; every message is
 `__game__:` JSON with its `type`:
 - game to relay: `game_build` {`req_id`, `frame`, `blueprint_id`, `position`, `rotation`,
   `scale`, `permit` only on someone else's plot}; `game_unbuild` {`req_id`, `piece_id`,
@@ -208,7 +208,7 @@ The owner always comes from the bound socket key. The two-phase identify (v0.274
 
 ## 4. Client side
 
-**Wave 0 contract: `src/systems/construction/shared.rs`.** It compiles into both the relay and the native build, and holds:
+**Wave 0 contract: `crates/humanity-systems/src/construction/shared.rs`.** It compiles into both the relay and the native build, and holds:
 - `SharedPiece` (an ECS component): as built `{ piece_id: u64, frame: String, mine: bool }`. This design also gave it `owner` and `owner_name`; as built the game is never told who built a piece, only whether it is its player's own;
 - the serde `Piece` wire struct;
 - `SharedBuildIntent { blueprint_id, pose: Transform, spent: Vec<(String, u32)> }`;
@@ -365,8 +365,8 @@ None of these changes a message.
 ## 8. Files, grouped so builders do not share a file
 
 **Wave 0, the contract** (one builder, small, merges first):
-- NEW `src/systems/construction/shared.rs`, with its tests
-- `src/systems/construction/mod.rs`: `pub mod shared;`, `Blueprint.shared`, `BuildRequest.shared`
+- NEW `crates/humanity-systems/src/construction/shared.rs`, with its tests
+- `crates/humanity-systems/src/construction/mod.rs`: `pub mod shared;`, `Blueprint.shared`, `BuildRequest.shared`
 - `data/blueprints/basic.ron`: seven `shared: true` flags
 
 **Wave 1, in parallel:**
@@ -379,11 +379,11 @@ None of these changes a message.
   - `src/relay/handlers/msg_handlers.rs` (one call after 3099)
   - `src/relay/features.rs` (tests)
 - **B, client world and save:**
-  - `src/systems/construction/mod.rs` (the divert at 489-504, `spent` at 470-487, the reward gate at 537-547)
-  - `src/systems/construction/uses.rs` (224-237)
-  - `src/systems/construction/placement.rs` (the rest/level filter)
+  - `crates/humanity-systems/src/construction/mod.rs` (the divert at 489-504, `spent` at 470-487, the reward gate at 537-547)
+  - `crates/humanity-systems/src/construction/uses.rs` (224-237)
+  - `crates/humanity-systems/src/construction/placement.rs` (the rest/level filter)
   - `src/save_load.rs` (163-200, 419-428, tests)
-  - `src/persistence.rs:73-75` (the stale "dormant" comment)
+  - `crates/humanity-systems/src/persistence.rs:73-75` (the stale "dormant" comment)
 - **C, client net and engine:**
   - NEW `src/net/shared_build.rs`
   - `src/net/mod.rs`
