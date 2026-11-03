@@ -701,6 +701,7 @@ async function loadChat(me, opts = {}) {
   run("shared/file-transfer.js");
   run("shared/profile-changes.js");
   run("shared/profile-copy.js"); // as web/chat/index.html loads it (BUG-191)
+  run("shared/privacy-tiers.js"); // the privacy levels (BUG-237), as web/chat/index.html loads it
   run("shared/drop-overlay.js"); // files dragged from the computer onto the page (2026-10-17)
   run("shared/upload-window.js"); // the window a drop on a channel opens (2026-10-17)
   run("shared/key-card.js");

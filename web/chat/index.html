@@ -779,6 +779,10 @@
        the words my key signs, the limits and the time on it, held to the relay's builder. Before
        chat-profile.js, which signs it when the server asks. -->
   <script src="/shared/profile-copy.js?v=1"></script>
+  <!-- privacy-tiers.js: the privacy levels (BUG-237, 2026-11-03): what each sets and how a choice
+       is kept, shared with Settings > Privacy. Before chat-privacy.js, which draws the first-connect
+       chooser and tells each server the presence choice. -->
+  <script src="/shared/privacy-tiers.js?v=1"></script>
   <!-- key-card.js: key cards (2026-10-22): a person's Kyber768 key signed by their own identity,
        the words signed, the check, and the pin rule, held to the relay's builder. Before crypto.js,
        which signs my own card, and chat-key-cards.js, which checks everyone else's. -->
@@ -842,8 +846,8 @@
   <script src="/chat/chat-profile.js?v=12"></script>
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
-       (profile privacy merge) loaded first. -->
-  <script src="/chat/chat-privacy.js?v=19"></script>
+       (profile privacy merge) and /shared/privacy-tiers.js loaded first. -->
+  <script src="/chat/chat-privacy.js?v=20"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins

@@ -1,9 +1,12 @@
 //! Privacy tiers (operator direction, 2026-08-23): every user chooses
 //! exactly how private to be, ONCE, up front — and the default is
 //! maximum privacy. Tiers are DATA (`data/gui/privacy_tiers.json`, per
-//! the infinite-of-x rule): four presets from "Private" (hidden
-//! presence, unlisted directory — the default) to "Spotlight" (maximum
-//! discoverability, for streamers who WANT to be found).
+//! the infinite-of-x rule): presets from "Private" (hidden presence,
+//! unlisted directory — the default) to "Open" (seen online, listed).
+//! (A fourth, "Spotlight", promised to show a live stream to viewers and
+//! carried a `promote_streaming` field nothing read; it was taken out until
+//! that is built, BUG-238, 2026-11-03. tests/settings_used_lint.rs fails on
+//! a tier switch that this app or the website does not read.)
 //!
 //! A tier is a preset over two real switches, both individually
 //! overridable afterwards in Settings → Privacy:
@@ -34,8 +37,6 @@ pub struct PrivacyTier {
     pub hide_presence: bool,
     #[serde(default)]
     pub directory_unlisted: bool,
-    #[serde(default)]
-    pub promote_streaming: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,29 +50,51 @@ struct TierFile {
 
 fn default_version() -> u32 { 1 }
 
+/// The levels in a privacy-levels file, or why it is refused. A level's `name`, `tagline` and
+/// `description` are KEYS in data/i18n/en.json (2026-11-03, BUG-237: the website draws the same
+/// cards from the same file, in the same words), so a file with a missing key is refused whole,
+/// as `gui::navigation` refuses a menu row: a key shown as itself is worse than the fallback.
+fn parse_tiers(text: &str) -> Result<(String, Vec<PrivacyTier>), String> {
+    let f = serde_json::from_str::<TierFile>(text).map_err(|e| format!("not readable: {e}"))?;
+    if f.tiers.is_empty() {
+        return Err("no levels".into());
+    }
+    for tier in &f.tiers {
+        for key in [&tier.name, &tier.tagline, &tier.description] {
+            if !humanity_core::i18n::has(key) {
+                return Err(format!("level {}: \"{key}\" is not a key in data/i18n/en.json", tier.id));
+            }
+        }
+    }
+    if !f.tiers.iter().any(|t| t.id == f.default_tier) {
+        return Err(format!("the default level \"{}\" is not one of its levels", f.default_tier));
+    }
+    Ok((f.default_tier, f.tiers))
+}
+
+/// The one level used when the file is missing or refused: the most private (fail-private).
+fn fallback_tiers() -> (String, Vec<PrivacyTier>) {
+    (
+        "private".to_string(),
+        vec![PrivacyTier {
+            id: "private".into(),
+            name: "privacy.tier_private_name".into(),
+            tagline: "privacy.tier_private_tagline".into(),
+            description: "privacy.tier_private_description".into(),
+            hide_presence: true,
+            directory_unlisted: true,
+        }],
+    )
+}
+
 /// Load tiers from data (cached on GuiState after first use).
 pub fn load_tiers() -> (String, Vec<PrivacyTier>) {
     let path = std::path::Path::new("data/gui/privacy_tiers.json");
-    match std::fs::read_to_string(path)
-        .ok()
-        .and_then(|s| serde_json::from_str::<TierFile>(&s).ok())
-    {
-        Some(f) if !f.tiers.is_empty() => (f.default_tier, f.tiers),
-        _ => {
-            // Fail-private fallback if the data file is missing/broken:
-            // one tier, maximum privacy.
-            (
-                "private".to_string(),
-                vec![PrivacyTier {
-                    id: "private".into(),
-                    name: "Private".into(),
-                    tagline: "Maximum privacy.".into(),
-                    description: "You never appear online and are not listed in the public directory.".into(),
-                    hide_presence: true,
-                    directory_unlisted: true,
-                    promote_streaming: false,
-                }],
-            )
+    match std::fs::read_to_string(path).map_err(|e| e.to_string()).and_then(|s| parse_tiers(&s)) {
+        Ok(levels) => levels,
+        Err(why) => {
+            log::warn!("data/gui/privacy_tiers.json refused ({why}); using the one Private level");
+            fallback_tiers()
         }
     }
 }
@@ -79,15 +102,25 @@ pub fn load_tiers() -> (String, Vec<PrivacyTier>) {
 fn ensure_tiers_loaded(state: &mut GuiState) {
     if state.privacy_tiers_cache.is_empty() {
         let (default_id, tiers) = load_tiers();
+        // A last level the file no longer has (Spotlight, taken out 2026-11-03, BUG-238)
+        // pre-selects the default: picked, not applied, until the person presses the button.
+        let chosen = &state.settings.privacy_tier;
+        let known = tiers.iter().any(|t| &t.id == chosen);
         state.privacy_tiers_cache = tiers;
         if state.privacy_tier_selection.is_empty() {
-            state.privacy_tier_selection = if state.settings.privacy_tier.is_empty() {
-                default_id
-            } else {
-                state.settings.privacy_tier.clone()
-            };
+            state.privacy_tier_selection = if known { chosen.clone() } else { default_id };
         }
     }
+}
+
+/// The words of the level last used (`settings.privacy_tier`), or None when none was chosen or
+/// the file no longer has it.
+fn current_tier_name(state: &GuiState) -> Option<&'static str> {
+    state
+        .privacy_tiers_cache
+        .iter()
+        .find(|t| t.id == state.settings.privacy_tier)
+        .map(|t| humanity_core::i18n::t_dyn(&t.name))
 }
 
 /// Apply a tier: server-side presence flag + directory listing + local
@@ -118,7 +151,7 @@ pub fn apply_tier(state: &mut GuiState, tier_id: &str) {
     crate::config::AppConfig::from_gui_state(state).save();
 }
 
-/// One selectable tier card. Returns true when clicked.
+/// One selectable tier card. Returns true when clicked. Its words are keys (the levels' file).
 fn tier_card(ui: &mut egui::Ui, theme: &Theme, tier: &PrivacyTier, selected: bool) -> bool {
     let width = ui.available_width();
     let resp = Frame::NONE
@@ -134,19 +167,19 @@ fn tier_card(ui: &mut egui::Ui, theme: &Theme, tier: &PrivacyTier, selected: boo
             ui.set_min_width(width - theme.card_padding as f32 * 2.0);
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new(&tier.name)
+                    RichText::new(humanity_core::i18n::t_dyn(&tier.name))
                         .size(theme.font_size_body)
                         .color(theme.text_primary())
                         .strong(),
                 );
                 ui.label(
-                    RichText::new(&tier.tagline)
+                    RichText::new(humanity_core::i18n::t_dyn(&tier.tagline))
                         .size(theme.font_size_small)
                         .color(theme.text_secondary()),
                 );
             });
             ui.label(
-                RichText::new(&tier.description)
+                RichText::new(humanity_core::i18n::t_dyn(&tier.description))
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -244,8 +277,16 @@ pub fn draw_privacy_tier_modal(ctx: &egui::Context, theme: &Theme, state: &mut G
 ///   to anyone who asks for it by name (handlers/profile.rs `handle_profile_request`,
 ///   storage/profile.rs `get_public_profile`: bio, links, pictures always; pronouns, location
 ///   and website unless kept for friends).
+/// - kept for friends (BUG-239, 2026-11-03, `privacy.kept_for_friends`, the website's Profile page
+///   shows the same key under its locks): `handle_profile_request` shows such a field only to
+///   someone presenting a friendship pass its owner gave them on this server, not withdrawn
+///   (handlers/friend_passes.rs `friend_pass`). Each app gives one to every mutual follow and with
+///   each contact request it sends (engine/reach.rs `contact_request_puts`; the web's
+///   chat-dm-store.js `passesOwed`), and Unfollow and Block withdraw it. Following itself is held
+///   in each app since the server's follows table went (2026-08-24).
 /// - channel posts: public in a channel open to Anyone (BUG-223, docs/design/chat-access.md).
-/// The website's Settings > Privacy says the same, from the same keys.
+/// The website's Settings > Privacy says the same, from the same keys, and since BUG-237
+/// (2026-11-03) has the same level cards and both switches (web/pages/settings-privacy.js).
 pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(
         RichText::new(t("privacy.title"))
@@ -258,10 +299,11 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     if let Some(tier_id) = draw_tier_chooser(ui, theme, state, t("privacy.apply_tier"), "privacy.apply_tier_hint") {
         apply_tier(state, &tier_id);
     }
-    if !state.settings.privacy_tier.is_empty() {
+    // The level's own words, not its id ("Private", not "private"); the website shows the same.
+    if let Some(name) = current_tier_name(state) {
         ui.add_space(theme.spacing_xs);
         ui.label(
-            RichText::new(tf("privacy.current_tier", &[("tier", &state.settings.privacy_tier)]))
+            RichText::new(tf("privacy.current_tier", &[("tier", &name)]))
                 .size(theme.font_size_small)
                 .color(theme.text_secondary()),
         );
@@ -304,6 +346,7 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     for words in [
         t_marked("privacy.seen_people"),
         t_marked("privacy.seen_profile"),
+        t_marked("privacy.kept_for_friends"),
         t_marked("privacy.seen_posts"),
         t_marked("privacy.seen_no_switch"),
     ] {
@@ -321,5 +364,46 @@ pub(crate) fn send_presence_flag(state: &GuiState) {
                 "hide_presence": !state.settings.online_status_visible,
             }).to_string());
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shipped levels load as written (not the fallback), each word a key en.json has, and the
+    /// default is the most private. Seen red, 2026-11-03, with the Private level's name key
+    /// misspelt in the file: parse_tiers refused it ("privacy.tier_privat_name" is not a key).
+    #[test]
+    fn the_shipped_levels_load_in_words_by_key() {
+        let text = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/gui/privacy_tiers.json"));
+        let (default_id, tiers) = parse_tiers(text).expect("the shipped levels are accepted");
+        assert_eq!(default_id, "private");
+        let ids: Vec<&str> = tiers.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["private", "balanced", "open"], "Spotlight is gone until it is built (BUG-238)");
+        assert!(tiers[0].hide_presence && tiers[0].directory_unlisted, "the default hides presence and leaves the directory");
+        for t in &tiers {
+            for key in [&t.name, &t.tagline, &t.description] {
+                assert_ne!(humanity_core::i18n::t_dyn(key), key.as_str(), "{key} has words");
+            }
+        }
+    }
+
+    /// A level whose words are missing, or a default that is not a level, refuses the file whole;
+    /// the fallback is one Private level, in words that exist.
+    #[test]
+    fn a_file_with_a_missing_key_is_refused_whole() {
+        let level = |name: &str| format!(
+            r#"{{"id":"private","name":"{name}","tagline":"privacy.tier_private_tagline","description":"privacy.tier_private_description","hide_presence":true,"directory_unlisted":true}}"#
+        );
+        let file = |default: &str, name: &str| format!(r#"{{"default_tier":"{default}","tiers":[{}]}}"#, level(name));
+        assert!(parse_tiers(&file("private", "privacy.tier_private_name")).is_ok(), "the good file, as a control");
+        let why = parse_tiers(&file("private", "privacy.no_such_key")).unwrap_err();
+        assert!(why.contains("privacy.no_such_key"), "{why}");
+        assert!(parse_tiers(&file("loud", "privacy.tier_private_name")).is_err(), "a default that is not a level");
+        assert!(parse_tiers(r#"{"default_tier":"private","tiers":[]}"#).is_err(), "no levels");
+        let (id, tiers) = fallback_tiers();
+        assert_eq!((id.as_str(), tiers.len()), ("private", 1));
+        assert!(tiers[0].hide_presence && tiers[0].directory_unlisted);
+        assert!(humanity_core::i18n::has(&tiers[0].name) && humanity_core::i18n::has(&tiers[0].description));
     }
 }

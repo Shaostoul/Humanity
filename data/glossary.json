@@ -1570,6 +1570,11 @@
       "category": "platform",
       "definition": "A short code you generate and hand to someone so you can connect without either of you typing a long key. It works once, expires after 24 hours, and redeeming it makes the two of you follow each other."
     },
+    "friendship pass": {
+      "term": "Friendship Pass",
+      "category": "platform",
+      "definition": "A note your app signs with your key and gives to a friend, naming the server you both use. Their app shows it when it asks for something only your friends may have, such as what you keep for friends on your profile, and the server checks it. Your app gives one to each person you follow who follows you back, and with each contact request you send. Unfollow and Block take it back, and the server stops counting it."
+    },
     "link_code": {
       "term": "Device Link Code",
       "category": "platform",

@@ -72,6 +72,23 @@
 //!   "font_size: bound in src/gui/pages/settings.rs, read by nothing but its control, its save
 //!   and its load".
 //!
+//! THE PRIVACY LEVELS' SWITCHES (BUG-238, 2026-11-03). A privacy level
+//! (`data/gui/privacy_tiers.json`) is not a Settings-page control, so the scan above never saw the
+//! Spotlight level's `promote_streaming`: in the file, on the desktop's `PrivacyTier`, read by
+//! nothing in either app, behind the words "your live-stream status shown so viewers can find
+//! you". `every_privacy_level_switch_is_read_by_both_apps` holds every true/false field a level
+//! carries to a `.field` read in BOTH apps where levels are used: a src/ file naming
+//! `PrivacyTier` (outside test code; the field must be on the struct too, or serde drops it) and
+//! a web/ script naming `privacy_tiers.json` (outside comments and strings). The section above
+//! that test says exactly what counts.
+//! SEEN RED, 2026-11-03, with `promote_streaming` restored (the Spotlight level back in the file
+//! with `"promote_streaming": true`, and `pub promote_streaming: bool` back on `PrivacyTier`
+//! with `promote_streaming: false` in its fallback): it failed "promote_streaming: read by
+//! nothing in the desktop app (no `.field` in a src/ file that names PrivacyTier); read by nothing
+//! on the website (no `.field` in a web/ script that loads privacy_tiers.json)". With the field in
+//! the file alone: "not a field of PrivacyTier in src/gui/pages/privacy.rs, so the desktop app
+//! drops it as it loads the file".
+//!
 //! Std-only (no crate imports), about a second: `just lints` runs it, and CI. By hand:
 //!   CARGO_MANIFEST_DIR=<repo> rustc --test --edition 2021 tests/settings_used_lint.rs
 
@@ -1199,4 +1216,323 @@ fn the_scanner_tells_reads_from_controls() {
     // A local of another kind with the same name hides the settings one.
     let shadow = file("fn f() { let s = &state.settings; { let s = other(); s.fov; } s.fov; }", false);
     assert_eq!(shadow, vec![("fov".into(), Kind::Read)], "only the outer s.fov reads the settings");
+}
+
+// ── The privacy levels' switches (BUG-238, 2026-11-03) ──────────────────────────────────────────
+//
+// A privacy level (`data/gui/privacy_tiers.json`, the file both apps read) is a preset over
+// switches, and its words say what each does. The scan above cannot see them: a level's field
+// is not a setting bound to a control. So the Spotlight level's `promote_streaming`, behind the
+// words "your live-stream status shown so viewers can find you the moment you go live", sat in
+// the file and on the desktop's `PrivacyTier`, and nothing in either app read it. This check:
+// every true/false field a level carries in that file is a switch, and BOTH apps must read it
+// where levels are used (a level the website applies differently from the desktop is the same
+// promise broken in one of the two).
+// - THE DESKTOP: it is a field of `pub struct PrivacyTier` (src/gui/pages/privacy.rs; serde
+//   ignores a field the struct lacks, so one only in the file is read by nothing), and some
+//   src/ file that names `PrivacyTier` reads it as `.field` outside test code. Its declaration
+//   (`pub field: bool`) and a struct literal's `field: true` are not reads.
+// - THE WEBSITE: some web/ script that names the levels' file (`privacy_tiers.json`) reads it
+//   as `.field` in code: comments and the inside of strings do not count (code inside a
+//   template's `${ }` does).
+
+/// The levels' file, and the desktop file that declares a level.
+const TIERS_FILE: &str = "data/gui/privacy_tiers.json";
+const TIER_STRUCT_FILE: &str = "src/gui/pages/privacy.rs";
+
+/// The keys whose value is `true` or `false`, anywhere in `json` (a JSON text). Strings are read
+/// with their escapes, so a description holding `"x": true` as words is not a key.
+fn json_bool_keys(json: &str) -> BTreeSet<String> {
+    let b: Vec<char> = json.chars().collect();
+    let n = b.len();
+    let mut out = BTreeSet::new();
+    let mut i = 0;
+    while i < n {
+        if b[i] != '"' {
+            i += 1;
+            continue;
+        }
+        let mut j = i + 1;
+        let mut s = String::new();
+        while j < n && b[j] != '"' {
+            if b[j] == '\\' {
+                j += 1;
+            }
+            if j < n {
+                s.push(b[j]);
+            }
+            j += 1;
+        }
+        let mut k = j + 1;
+        while k < n && b[k].is_whitespace() {
+            k += 1;
+        }
+        if k < n && b[k] == ':' {
+            k += 1;
+            while k < n && b[k].is_whitespace() {
+                k += 1;
+            }
+            let rest: String = b[k..(k + 5).min(n)].iter().collect();
+            if rest.starts_with("true") || rest.starts_with("false") {
+                out.insert(s);
+            }
+        }
+        i = j + 1;
+    }
+    out
+}
+
+/// The field names of `pub struct <name>` in `src`.
+fn struct_fields(src: &str, name: &str) -> BTreeSet<String> {
+    let Some(start) = src.find(&format!("pub struct {name}")) else { return BTreeSet::new() };
+    let end = src[start..].find("\n}").map(|e| start + e).unwrap_or(src.len());
+    src[start..end]
+        .lines()
+        .filter_map(|l| l.trim().strip_prefix("pub ").and_then(|r| r.split_once(':')).map(|(n, _)| n.trim().to_string()))
+        .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_alphanumeric() || c == '_'))
+        .collect()
+}
+
+/// Where `f` reads `.field` outside test code, as line numbers.
+fn rust_dot_reads(f: &SrcFile, field: &str) -> Vec<usize> {
+    (1..f.toks.len()).filter(|&i| !f.test[i] && is_id(&f.toks, i, field) && is_p(&f.toks, i - 1, '.')).map(|i| f.toks[i].line).collect()
+}
+
+/// `src` (JavaScript) with its comments and the inside of its strings turned to spaces, newlines
+/// kept so a line number still points at the line. A template literal is a string, except the
+/// code inside its `${ }`.
+fn js_code(src: &str) -> String {
+    let b: Vec<char> = src.chars().collect();
+    let n = b.len();
+    let blank = |c: char| if c == '\n' { '\n' } else { ' ' };
+    let mut out: Vec<char> = Vec::with_capacity(n);
+    let mut depth = 0usize; // `{ }` nesting in code
+    let mut resume: Vec<usize> = Vec::new(); // the depths at which a `${ }` closes back into its template
+    let mut in_template = false;
+    let mut i = 0;
+    while i < n {
+        let c = b[i];
+        if in_template {
+            if c == '\\' {
+                out.push(' ');
+                if i + 1 < n {
+                    out.push(blank(b[i + 1]));
+                }
+                i += 2;
+            } else if c == '`' {
+                out.push(' ');
+                in_template = false;
+                i += 1;
+            } else if c == '$' && i + 1 < n && b[i + 1] == '{' {
+                out.push(' ');
+                out.push(' ');
+                resume.push(depth);
+                depth += 1;
+                in_template = false;
+                i += 2;
+            } else {
+                out.push(blank(c));
+                i += 1;
+            }
+            continue;
+        }
+        if c == '/' && i + 1 < n && b[i + 1] == '/' {
+            while i < n && b[i] != '\n' {
+                out.push(' ');
+                i += 1;
+            }
+        } else if c == '/' && i + 1 < n && b[i + 1] == '*' {
+            out.push(' ');
+            out.push(' ');
+            i += 2;
+            while i < n && !(b[i] == '*' && i + 1 < n && b[i + 1] == '/') {
+                out.push(blank(b[i]));
+                i += 1;
+            }
+            if i < n {
+                out.push(' ');
+                out.push(' ');
+                i += 2;
+            }
+        } else if c == '\'' || c == '"' {
+            out.push(' ');
+            i += 1;
+            while i < n && b[i] != c && b[i] != '\n' {
+                if b[i] == '\\' && i + 1 < n {
+                    out.push(' ');
+                    out.push(blank(b[i + 1]));
+                    i += 2;
+                    continue;
+                }
+                out.push(' ');
+                i += 1;
+            }
+            if i < n && b[i] == c {
+                out.push(' ');
+                i += 1;
+            }
+        } else if c == '`' {
+            out.push(' ');
+            in_template = true;
+            i += 1;
+        } else if c == '{' {
+            depth += 1;
+            out.push(c);
+            i += 1;
+        } else if c == '}' {
+            depth = depth.saturating_sub(1);
+            if resume.last() == Some(&depth) {
+                resume.pop();
+                in_template = true;
+                out.push(' ');
+            } else {
+                out.push(c);
+            }
+            i += 1;
+        } else {
+            out.push(c);
+            i += 1;
+        }
+    }
+    out.into_iter().collect()
+}
+
+/// Where `code` (from [`js_code`]) reads `.field`: a `.` after a name, `)` or `]`, then the
+/// field's name whole. As line numbers.
+fn js_dot_reads(code: &str, field: &str) -> Vec<usize> {
+    let mut out = Vec::new();
+    let pat = format!(".{field}");
+    let id = |c: char| c == '_' || c == '$' || c.is_alphanumeric();
+    for (n, line) in code.lines().enumerate() {
+        let mut from = 0;
+        while let Some(at) = line[from..].find(&pat).map(|a| a + from) {
+            let before = line[..at].chars().last();
+            let after = line[at + pat.len()..].chars().next();
+            if before.map(|c| id(c) || c == ')' || c == ']').unwrap_or(false) && !after.map(id).unwrap_or(false) {
+                out.push(n + 1);
+            }
+            from = at + pat.len();
+        }
+    }
+    out
+}
+
+/// Every .js file under web/, by its path from the repo.
+fn web_scripts() -> BTreeMap<String, String> {
+    fn walk_js(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = fs::read_dir(dir) else { return };
+        let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+        paths.sort();
+        for p in paths {
+            if p.is_dir() {
+                walk_js(&p, out);
+            } else if p.extension().and_then(|e| e.to_str()) == Some("js") {
+                out.push(p);
+            }
+        }
+    }
+    let mut paths = Vec::new();
+    walk_js(&repo().join("web"), &mut paths);
+    paths.iter().filter_map(|p| fs::read_to_string(p).ok().map(|t| (rel_of(p), t.replace("\r\n", "\n")))).collect()
+}
+
+/// For each switch a level carries: where the desktop reads it, and where the website does.
+struct TierScan {
+    switches: BTreeSet<String>,
+    declared: BTreeSet<String>,
+    desktop: BTreeMap<String, Vec<String>>,
+    website: BTreeMap<String, Vec<String>>,
+}
+
+fn tier_scan() -> TierScan {
+    let tiers = fs::read_to_string(repo().join(TIERS_FILE)).unwrap_or_else(|e| panic!("read {TIERS_FILE}: {e}"));
+    let switches = json_bool_keys(&tiers);
+    let texts = all_texts();
+    let declared = struct_fields(&texts[TIER_STRUCT_FILE], "PrivacyTier");
+    let tests = test_module_files(&texts);
+    let mut desktop: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (rel, text) in &texts {
+        if tests.contains(rel) || !text.contains("PrivacyTier") {
+            continue;
+        }
+        let f = parse(rel, text);
+        for s in &switches {
+            for line in rust_dot_reads(&f, s) {
+                desktop.entry(s.clone()).or_default().push(format!("{rel}:{line}"));
+            }
+        }
+    }
+    let mut website: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (rel, text) in web_scripts() {
+        if !text.contains("privacy_tiers.json") {
+            continue;
+        }
+        let code = js_code(&text);
+        for s in &switches {
+            for line in js_dot_reads(&code, s) {
+                website.entry(s.clone()).or_default().push(format!("{rel}:{line}"));
+            }
+        }
+    }
+    TierScan { switches, declared, desktop, website }
+}
+
+/// THE CHECK: every switch a privacy level carries is applied by both apps.
+#[test]
+fn every_privacy_level_switch_is_read_by_both_apps() {
+    let s = tier_scan();
+    assert!(s.switches.contains("hide_presence"), "sanity: {TIERS_FILE} has no hide_presence; the reader broke ({:?})", s.switches);
+    let mut broken = Vec::new();
+    for sw in &s.switches {
+        let mut why = Vec::new();
+        if !s.declared.contains(sw) {
+            why.push(format!("not a field of PrivacyTier in {TIER_STRUCT_FILE}, so the desktop app drops it as it loads the file"));
+        } else if !s.desktop.contains_key(sw) {
+            why.push("read by nothing in the desktop app (no `.field` in a src/ file that names PrivacyTier)".to_string());
+        }
+        if !s.website.contains_key(sw) {
+            why.push("read by nothing on the website (no `.field` in a web/ script that loads privacy_tiers.json)".to_string());
+        }
+        if !why.is_empty() {
+            broken.push(format!("  {sw}: {}", why.join("; ")));
+        }
+    }
+    assert!(
+        broken.is_empty(),
+        "\n\nA privacy level in {TIERS_FILE} carries a switch that an app does not apply:\n\n{}\n\n\
+         A level's words promise what its switches do (BUG-238: Spotlight promised to show a live \
+         stream to viewers, and its promote_streaming was read by nothing). Apply the switch in \
+         both apps where a level is applied (the desktop's `apply_tier` in \
+         src/gui/pages/privacy.rs; on the website, the script that loads privacy_tiers.json), \
+         or take it, and the words that promise it, out of the file.\n",
+        broken.join("\n")
+    );
+}
+
+/// The levels' scan, each rule able to fail, on small sources.
+#[test]
+fn the_level_scan_tells_reads_from_declarations() {
+    // Keys with true/false values; a string value, and words inside a string, are not.
+    let keys = json_bool_keys(r#"{"tiers":[{"id":"a","name":"say \"x\": true","on":true,"off" : false,"n":1}]}"#);
+    assert_eq!(keys.into_iter().collect::<Vec<_>>(), vec!["off".to_string(), "on".to_string()]);
+    // The struct's fields, a reader, and what is not a read: the declaration and a literal.
+    let src = "pub struct PrivacyTier {\n    pub id: String,\n    #[serde(default)]\n    pub on: bool,\n}\n\
+               fn fallback() -> PrivacyTier { PrivacyTier { id: String::new(), on: true } }\n\
+               fn apply(t: &PrivacyTier) { send(t.on); }\n\
+               #[cfg(test)] mod tests { fn x(t: &PrivacyTier) { t.off; } }";
+    assert_eq!(struct_fields(src, "PrivacyTier").into_iter().collect::<Vec<_>>(), vec!["id".to_string(), "on".to_string()]);
+    let f = parse("x.rs", src);
+    assert_eq!(rust_dot_reads(&f, "on"), vec![7], "only t.on in apply reads it");
+    assert!(rust_dot_reads(&f, "off").is_empty(), "a read in test code is not one");
+    // JavaScript: a read in code and inside a template's ${ }; none in a comment or a string.
+    let js = "// tier.c in a comment\nconst a = tier.on;\nconst s = 'tier.off';\nconst t = `x ${tier.mid} y.end`;\n/* tier.block */ f(x).sw;\nconst q = tier.onward;";
+    let code = js_code(js);
+    assert_eq!(code.lines().count(), js.lines().count(), "line numbers are kept");
+    assert_eq!(js_dot_reads(&code, "on"), vec![2], "tier.on; not tier.onward");
+    assert!(js_dot_reads(&code, "off").is_empty(), "words in a string");
+    assert!(js_dot_reads(&code, "c").is_empty(), "a comment");
+    assert_eq!(js_dot_reads(&code, "mid"), vec![4], "code inside ${{ }}");
+    assert!(js_dot_reads(&code, "end").is_empty(), "the template's own words");
+    assert!(js_dot_reads(&code, "block").is_empty(), "a block comment");
+    assert_eq!(js_dot_reads(&code, "sw"), vec![5], "after a call's )");
 }

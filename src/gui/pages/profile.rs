@@ -215,7 +215,9 @@ pub(crate) fn bio_refusal(bio: &str) -> Option<String> {
 fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("Network Profile").size(theme.font_size_title).color(theme.text_primary()));
     ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("Your public-facing profile shown to other users.").color(theme.text_muted()).size(theme.font_size_small));
+    // Who sees it, in the website's Profile page's words (BUG-239, 2026-11-03): everyone on a server
+    // the person uses, and the linked servers' copy while they are listed.
+    ui.label(RichText::new(humanity_core::i18n::t("profile.network_seen_by")).color(theme.text_muted()).size(theme.font_size_small));
     ui.add_space(theme.spacing_md);
 
     widgets::card(ui, theme, |ui| {

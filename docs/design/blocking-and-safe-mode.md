@@ -265,8 +265,11 @@ in `web/chat/chat-ui.js`); native says nothing.
 **[Today]**
 
 - **Privacy tiers** (`data/gui/privacy_tiers.json`; native
-  `src/gui/pages/privacy.rs`; web `web/chat/chat-privacy.js`): Private
-  (default), Balanced, Open, Spotlight, each a preset over two switches:
+  `src/gui/pages/privacy.rs`; web `web/shared/privacy-tiers.js`, drawn by
+  `web/chat/chat-privacy.js` and, since BUG-237, Settings > Privacy
+  `web/pages/settings-privacy.js`): Private
+  (default), Balanced, Open (Spotlight was taken out on 2026-11-03 until
+  showing a live stream to viewers is built, BUG-238), each a preset over two switches:
   `hide_presence` (relay `privacy_update`; never shown online, no last-seen
   stored) and the directory listing.
 - **Directory opt-out is shipped, not deferred.** `members.rs`

@@ -717,7 +717,10 @@
         <div class="section-header personal">
           <div>
             <h2><span data-icon="dot-green" data-size="16"></span> Network Profile</h2>
-            <p>Visible to people you follow and who follow you back (friends).</p>
+            <!-- BUG-239 (2026-11-03): this said "Visible to people you follow and who follow you back
+                 (friends)". The profile is seen by everyone on a server the person uses (the relay's
+                 get_public_profile); only the fields locked below are kept for friends. -->
+            <p data-i18n="profile.network_seen_by">Everyone on a server you use can see this profile. While you are in the public member directory, the servers it is linked with keep a copy too, without what you keep for friends.</p>
           </div>
         </div>
 
@@ -765,7 +768,11 @@
               <input type="url" id="f-website" maxlength="256" placeholder="https://yoursite.com">
             </div>
           </div>
-          <p class="privacy-note">🌐 Public = visible to everyone, here and on the servers this one is linked with &nbsp;&middot;&nbsp; 🔒 Friends = visible only to people you follow who follow you back.</p>
+          <!-- The locks' words (BUG-239, 2026-11-03), the same key the desktop's Settings > Privacy shows
+               for "kept for friends": who holds a friendship pass is who sees a locked field (the relay's
+               handle_profile_request checks the owner's pass, handlers/friend_passes.rs). -->
+          <p class="privacy-note">🌐 <span data-i18n="profile.lock_public_note">Public: everyone on this server can see it, and the servers this one is linked with too while you are in the public member directory.</span></p>
+          <p class="privacy-note">🔒 <span data-i18n="privacy.kept_for_friends">Kept for friends: only someone holding a <span data-term="friendship pass">friendship pass</span> from you sees it, on the server where you gave the pass. Your app gives one to each person you follow who follows you back, and with each contact request you send. Unfollow and Block take it back.</span></p>
         </div>
 
         <div class="prof-card">
@@ -811,7 +818,9 @@
         <div class="section-header personal">
           <div>
             <h2><span data-icon="dot-green" data-size="16"></span> Interests</h2>
-            <p>Shared with friends to help match you with others who have similar interests.</p>
+            <!-- This said "Shared with friends to help match you"; nothing on this tab leaves the
+                 browser (saveAll keeps it in this page's own store; the chat sends none of it). -->
+            <p data-i18n="profile.interests_kept_here">Kept on this device only: nothing on this tab is sent to any server.</p>
           </div>
         </div>
 

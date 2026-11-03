@@ -818,21 +818,24 @@ layout choice.
 
 ### Privacy Tiers + Presence Privacy (both clients, 2026-08-23)
 Every user chooses how visible to be, once, at first connect; the DEFAULT is
-maximum privacy, and "Spotlight" is maximum publicity by explicit choice (for
-streamers). Tiers are data (`data/gui/privacy_tiers.json`), presets over two
+maximum privacy (Private, Balanced, Open; a fourth, "Spotlight", promised to show a
+live stream to viewers and was taken out until that is built, BUG-238). Tiers are data (`data/gui/privacy_tiers.json`, their words keys in en.json), presets over two
 real switches: server-enforced presence hiding (never online, no last_seen
 WRITTEN, no join/leave/typing signals; new members join hidden until they
 choose) and the public member-directory listing (profile privacy JSON). Both
-individually overridable in the desktop's Settings -> Privacy, which says (since
+individually overridable in Settings > Privacy in both apps (the website since 2026-11-03,
+BUG-237: the level cards, both switches, and its own signed-in connection that tells this server
+the presence choice at once; the chat tells each server it connects to). Settings > Privacy says (since
 2026-11-03, BUG-235) what each switch hides and what none of them hides: the
 name, key and role in a server's people list, the profile on that server, and
-channel posts. The website's Settings > Privacy shows the same words
-(`privacy.*` keys). Web additionally nudges an
-unwrapped seed into the passphrase-protection flow after the chooser, and has
-a fail-closed "relay my calls" toggle (callers cannot learn your IP).
+channel posts, in the same words in both apps (`privacy.*` keys). Web additionally nudges an
+unwrapped seed into the passphrase-protection flow after the chooser. (Its old "relay my calls"
+switch is gone: calls go through the server by default, chosen under Settings > Safety > Calls and
+voice rooms, docs/user/privacy.md.)
 - Native: `src/gui/pages/privacy.rs` (modal + Settings section), relay `privacy_update`
-- Web: `web/chat/chat-privacy.js`
+- Web: `web/shared/privacy-tiers.js` (the levels, what each sets, how a choice is kept), `web/chat/chat-privacy.js` (the first-connect chooser, the presence choice told on every connect), `web/pages/settings-privacy.js` (Settings > Privacy); tests `scripts/tests/privacy-web.test.js`
 - Server: `src/relay/storage/members.rs` (hide_presence), roster masking in `handlers/broadcast.rs`
+- Who sees a field kept for friends, in one key both apps show (BUG-239, 2026-11-03): `privacy.kept_for_friends` (the holder of a friendship pass from you, on that server: every mutual follow, and each person you send a contact request), in both apps' Settings > Privacy and under the website's Profile locks; `profile.network_seen_by` on both Network Profiles; glossary entry "friendship pass"
 
 ### Account Export + Erase (both clients, 2026-08-23)
 Self-service data sovereignty: download everything the server stores about you

@@ -2305,7 +2305,10 @@ window.HOS_I18N_EN = {
     "slot_waiting": "waiting: {{crate}} ({{kind}}) in {{place}}, needs {{gb}} GB, since {{ago}}"
   },
   "profile": {
-    "bio_over_limit": "Your bio is {{n}} characters and the limit is {{limit}}. Shorten the part shown in red, then save again."
+    "bio_over_limit": "Your bio is {{n}} characters and the limit is {{limit}}. Shorten the part shown in red, then save again.",
+    "network_seen_by": "Everyone on a server you use can see this profile. While you are in the public member directory, the servers it is linked with keep a copy too, without what you keep for friends.",
+    "lock_public_note": "Public: everyone on this server can see it, and the servers this one is linked with too while you are in the public member directory.",
+    "interests_kept_here": "Kept on this device only: nothing on this tab is sent to any server."
   },
   "dev": {
     "journal_marked": "Marked #{{n}}. A Claude session can read what happened around it (the play journal).",
@@ -3096,11 +3099,11 @@ window.HOS_I18N_EN = {
   "privacy": {
     "title": "Privacy",
     "intro": "Direct messages are [[end-to-end encrypted|e2ee]] whatever you choose here, and the server keeps no record of who you message. A direct message you send carries your signature, so the person you sent it to can prove to others that you wrote it. The choices below decide what other people can see about you.",
-    "apply_tier": "Apply tier",
+    "apply_tier": "Use this privacy level",
     "apply_tier_hint": "Uses the privacy level you picked above. It sets both switches below at once.",
-    "current_tier": "Current tier: {{tier}}",
-    "switches_title": "Fine-grained switches",
-    "switches_intro": "A tier is just a preset over these. Changing one moves you off the preset, which is fine.",
+    "current_tier": "Privacy level last used: {{tier}}",
+    "switches_title": "The two privacy switches",
+    "switches_intro": "A privacy level only sets these two switches, and you can change either one on its own.",
     "directory_label": "List me in the public member directory",
     "directory_does": "On: you are in this server's member directory and its search, and a signed copy of your profile (without what you keep for friends) is kept by this server and passed to the servers it is linked with, where anyone can look it up by your [[public key]]. Off: you are left out of the directory and its search, every linked server drops its copy, and looking up your key finds nothing. Off does not hide your name or your profile from the people on a server you use.",
     "presence_label": "Show others when I am online",
@@ -3116,13 +3119,28 @@ window.HOS_I18N_EN = {
     "modal_apply": "Use this privacy level",
     "modal_apply_hint": "Uses the privacy level you picked. It sets whether others see you online and whether you are in the member directory.",
     "web_section_desc": "What other people can see about you, and where each choice is made.",
-    "web_switches_title": "The two privacy switches",
-    "web_where": "On the website, the privacy level you picked the first time you opened the chat set both switches. The directory switch is also on your Profile page. The desktop app's Settings > Privacy has both.",
+    "web_where": "The directory switch is also on your Profile page. What you choose here is kept in this browser, and the chat tells each server you use the next time it connects to it.",
     "web_reach": "Who can message you, call you or send you trade requests is chosen with the Safety button under your name in the chat.",
     "web_modal_intro": "Direct messages are end-to-end encrypted whatever you pick, and this server keeps no record of who you message.",
-    "web_modal_scope": "This only decides whether others can see you online and find you in directories. The directory switch is also on your Profile page, and the desktop app's Settings > Privacy can change both.",
-    "web_level_set": "Privacy level set to {{level}}. The directory switch is also on your Profile page.",
-    "tier_card_hint": "Picks this privacy level. The button below the levels puts it into effect."
+    "web_modal_scope": "This only decides whether others can see you online and find you in the member directory. You can change it any time in Settings > Privacy, and set each switch on its own.",
+    "web_level_set": "Privacy level set to {{level}}. You can change it any time in Settings > Privacy.",
+    "tier_card_hint": "Picks this privacy level. The button below the levels puts it into effect.",
+    "tier_private_name": "Private",
+    "tier_private_tagline": "The most private level, and the default.",
+    "tier_private_description": "You never appear online: the server keeps no last-seen time for you and sends no typing, joining or leaving signals. You are not in the public member directory. Friends can still message you.",
+    "tier_balanced_name": "Balanced",
+    "tier_balanced_tagline": "Seen online, not in the directory.",
+    "tier_balanced_description": "The people on a server you use can see when you are online. You are not in the public member directory.",
+    "tier_open_name": "Open",
+    "tier_open_tagline": "Seen online, and in the directory.",
+    "tier_open_description": "The people on a server you use can see when you are online, and you are in the public member directory, so people looking for you can find you.",
+    "web_saved_sending": "Saved in this browser. Telling this server...",
+    "web_presence_hidden_done": "This server has it: you no longer appear online there.",
+    "web_presence_shown_done": "This server has it: the people there can see when you are online.",
+    "web_not_sent": "Saved in this browser, but this page could not tell the server: {{why}} The chat tells it the next time it connects.",
+    "web_no_identity": "Saved in this browser. This page cannot sign in for you (your key is locked, or not in this browser yet), so the chat tells your server the next time it connects.",
+    "web_directory_saved": "Saved in this browser. The chat sends your directory choice to the server: at once if it is open in another tab, otherwise the next time you open it.",
+    "kept_for_friends": "Kept for friends: only someone holding a [[friendship pass]] from you sees it, on the server where you gave the pass. Your app gives one to each person you follow who follows you back, and with each contact request you send. Unfollow and Block take it back."
   },
   "video": {
     "file_mp4": "an MP4 file",
