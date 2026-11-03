@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="/shared/theme.css?v=4">
   <link rel="stylesheet" href="/chat/base.css?v=4">
   <link rel="stylesheet" href="/chat/layout.css?v=9">
-  <link rel="stylesheet" href="/chat/sidebar.css?v=7">
+  <link rel="stylesheet" href="/chat/sidebar.css?v=8">
   <link rel="stylesheet" href="/chat/messages.css?v=10">
   <!-- A file's type, always shown just before its name (2026-10-17): the badge /shared/file-risk.js draws. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
@@ -87,8 +87,11 @@
         if (hasBackup || hasLegacy || hasWrapped) return;
         // A visitor with no key reads the channels anyone may read first (2026-11-02,
         // docs/design/chat-access.md section 7): /chat/read, whose one button, Choose a name
-        // to join in, opens the welcome step and comes back here.
-        location.replace('/chat/read');
+        // to join in, opens the welcome step and comes back here. A link to a channel keeps its
+        // channel (2026-11-03): /chat#fire-disciples reads /chat/read#fire-disciples. A hash holding
+        // '=' is no channel (#dm=<key>, a device link) and is not carried.
+        var hash = location.hash && location.hash.indexOf('=') === -1 ? location.hash : '';
+        location.replace('/chat/read' + hash);
       } catch (e) {
         // localStorage blocked, let chat handle it, no redirect.
       }
@@ -822,18 +825,20 @@
   <script src="/chat/chat-files-card.js?v=3"></script>
   <!-- Who can read and post in a channel (2026-11-02): the twin of the relay's rules; before app.js. -->
   <script src="/shared/chat-access.js?v=2"></script>
-  <script src="/chat/app.js?v=38"></script>
+  <!-- Links to channels (2026-11-03): which channel /chat#<channel> names, and a channel's address. -->
+  <script src="/shared/chat-links.js?v=1"></script>
+  <script src="/chat/app.js?v=39"></script>
   <script src="/chat/chat-messages.js?v=25"></script>
-  <script src="/chat/chat-dms.js?v=23"></script>
+  <script src="/chat/chat-dms.js?v=24"></script>
   <script src="/chat/chat-social.js?v=22"></script>
-  <script src="/chat/chat-groups-p2p.js?v=20"></script>
+  <script src="/chat/chat-groups-p2p.js?v=21"></script>
   <script src="/shared/over-limit.js?v=1"></script>
   <!-- notify-rules.js: THE notification rule, shared with Node tests and twin of the desktop's
        src/notifications/decide.rs (2026-10-30, docs/design/notifications.md); chat-notify.js: the
        chat's use of it and the server row's Mute bell. Both before chat-ui.js, whose
        notifyNewMessage and renderServerList ask them. -->
   <script src="/shared/notify-rules.js?v=2"></script>
-  <script src="/chat/chat-notify.js?v=3"></script>
+  <script src="/chat/chat-notify.js?v=4"></script>
   <script src="/chat/chat-ui.js?v=26"></script>
   <script src="/chat/chat-voice-rooms.js?v=10"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>

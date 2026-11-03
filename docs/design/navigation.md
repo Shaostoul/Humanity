@@ -626,6 +626,13 @@ replace), Maps, Profile, the Market. A full-screen popup on the phone pushes a s
 address change, so the phone's back gesture closes it. The phone's back then walks exactly the
 steps the desktop does, which is what makes the narrow three-column pages work (section 5).
 
+**Already built for the chat (2026-11-03, `docs/design/chat-channels.md` section 7):** the address
+shows the channel open (`/chat#<id>`) and a conversation, a group or the scratch pad leaves it at
+`/chat`; every switch REPLACES the address through one function, `syncChatAddress` in
+`web/chat/app.js` (the read view's twin is `showInAddress` in `web/chat/read.js`), and a
+`hashchange` opens its channel. This rung turns those two into `hosHistory.go` with `push`, and
+the `hashchange` listener into `hosHistory.on`.
+
 ### 10.4 Escape from then on
 
 One press does the first of these that applies:

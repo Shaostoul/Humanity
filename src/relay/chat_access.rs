@@ -153,18 +153,40 @@ fn refuse(status: StatusCode, words: &str, read: ReadLevel) -> Response {
     (status, Json(json!({ "error": words, "read_level": read.as_str() }))).into_response()
 }
 
-/// For a request without a member's signature: when `channel` reads at Anyone, the time it opened
-/// (only posts after it are answered); otherwise the refusal.
-fn open_to_visitors(db: &Storage, channel: &str) -> Result<i64, Response> {
-    let (read, _, since) = levels(db, channel);
-    if read == ReadLevel::Anyone {
-        Ok(since)
-    } else {
-        Err(refuse(
+/// The channel a visitor's word names (2026-11-03, a link to a channel, `/chat#fire-disciples`): its
+/// id and levels. The word is the channel's id, else the same id or the channel's shown name
+/// written in any case (an admin can rename what a channel shows; the link a person holds may
+/// carry either). The common case, an id as the server keeps it, is one primary-key read; only a
+/// miss reads the channel list.
+fn visitor_channel(db: &Storage, word: &str) -> Option<(String, ReadLevel, i64)> {
+    if let Some((read, _, since)) = db.channel_access(word) {
+        return Some((word.to_string(), read, since));
+    }
+    let want = word.trim().to_lowercase();
+    let (id, _, _, _) = db
+        .list_channels()
+        .unwrap_or_default()
+        .into_iter()
+        .find(|(id, name, _, _)| id.to_lowercase() == want || name.trim().to_lowercase() == want)?;
+    db.channel_access(&id).map(|(read, _, since)| (id, read, since))
+}
+
+/// For a request without a member's signature: when the channel `word` names reads at Anyone, its
+/// id and the time it opened (only posts after it are answered); otherwise the refusal. A channel
+/// for members (or for verified people) answers 401 with its level and nothing else of it, not its
+/// id, not its words; a word that names no channel here answers 404, so a visitor holding a link to
+/// one is told it is not there instead of being told to sign in for something that does not exist.
+/// That tells a visitor whether the name in the link they hold is a channel here, and no more:
+/// what any key is told anyway, since every signed-in socket is sent the whole channel list.
+fn open_to_visitors(db: &Storage, word: &str) -> Result<(String, i64), Response> {
+    match visitor_channel(db, word) {
+        Some((id, ReadLevel::Anyone, since)) => Ok((id, since)),
+        Some((_, read, _)) => Err(refuse(
             StatusCode::UNAUTHORIZED,
             "This channel is for people with a name on this server: sign in to the chat to read it.",
             read,
-        ))
+        )),
+        None => Err((StatusCode::NOT_FOUND, Json(json!({ "error": "There is no channel by that name on this server." }))).into_response()),
     }
 }
 
@@ -264,7 +286,7 @@ fn for_visitors(mut msg: RelayMessage) -> RelayMessage {
 pub async fn get_messages(State(state): State<Arc<RelayState>>, Query(q): Query<crate::relay::api::MessagesQuery>) -> Response {
     let channel = q.channel.as_deref().unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL);
     match open_to_visitors(&state.db, channel) {
-        Ok(since) => messages(&state.db, channel, q.after, q.limit, since, true),
+        Ok((id, since)) => messages(&state.db, &id, q.after, q.limit, since, true),
         Err(refusal) => refusal,
     }
 }
@@ -307,7 +329,7 @@ fn pins(db: &Storage, channel: &str, since: i64, visitor: bool) -> Response {
 pub async fn get_pins(State(state): State<Arc<RelayState>>, Query(q): Query<crate::relay::api::PinsQuery>) -> Response {
     let channel = q.channel.as_deref().unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL);
     match open_to_visitors(&state.db, channel) {
-        Ok(since) => pins(&state.db, channel, since, true),
+        Ok((id, since)) => pins(&state.db, &id, since, true),
         Err(refusal) => refusal,
     }
 }
@@ -350,7 +372,7 @@ fn reactions(db: &Storage, channel: &str, limit: Option<usize>, since: i64, visi
 pub async fn get_reactions(State(state): State<Arc<RelayState>>, Query(q): Query<crate::relay::api::ReactionsQuery>) -> Response {
     let channel = q.channel.as_deref().unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL);
     match open_to_visitors(&state.db, channel) {
-        Ok(since) => reactions(&state.db, channel, q.limit, since, true),
+        Ok((id, since)) => reactions(&state.db, &id, q.limit, since, true),
         Err(refusal) => refusal,
     }
 }

@@ -101,6 +101,8 @@ function openDmConversation(partnerKey, partnerName) {
 
   // Update channel header.
   renderDmHeader();
+  // The address names no one (app.js syncChatAddress, docs/design/navigation.md 10.1): /chat.
+  if (typeof syncChatAddress === 'function') syncChatAddress();
 
   // Clear messages area and set DM context (crimson tint + red stripes).
   const msgsEl = document.getElementById('messages');

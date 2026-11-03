@@ -101,6 +101,8 @@ pub(crate) mod dm_rows;
 /// THE room row of the sidebar, one drawer for a room under any server, active or not (BUG-242).
 /// See `chat/channel_row.rs`.
 mod channel_row;
+// Links to channels (2026-11-03): Copy link, and a channel link opening here, not in the browser.
+pub(crate) mod channel_link;
 /// Mute server and Mute room, and a server row's muted mark (2026-10-30,
 /// docs/design/notifications.md). See `chat/mute_menu.rs`.
 mod mute_menu;
@@ -495,6 +497,18 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 .size(theme.font_size_small)
                                 .color(theme.text_muted()),
                         );
+                    }
+                    // Copy link at the header's end (2026-11-03, chat/channel_link.rs): this
+                    // channel's address on this server, to send to someone. Only for a channel the
+                    // server lists (not the scratch pad, which is this device's alone).
+                    if state.chat_channels.iter().any(|c| c.id == state.chat_active_channel) {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let copy = humanity_core::i18n::t("chat.copy_link");
+                            if widgets::Button::ghost(copy).hint("chat.copy_link_hint").show(ui, theme) {
+                                let (server, id) = (state.active_server(), state.chat_active_channel.clone());
+                                channel_link::copy_channel_link(ui.ctx(), state, &server, &id);
+                            }
+                        });
                     }
                 }
             });

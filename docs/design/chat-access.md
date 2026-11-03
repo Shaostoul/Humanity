@@ -206,6 +206,11 @@ it (`noindex`): visitors may read, a search index does not get people's words. T
 always has a key, so it has no such view: it signs in, and what it may read follows its member's
 rank.
 
+A link to a channel (2026-11-03, `docs/design/chat-channels.md` section 7) keeps its channel: `/chat#fire-disciples`
+reads `/chat/read#fire-disciples`, which opens that channel when anyone may read it and otherwise
+says, from the server's answer, that it is for people with a name here (or for verified people),
+or that there is no such channel, naming no other. With no link the view opens #global.
+
 ## 8. Enforcement (all of it on the server)
 
 - **Storage.** `channels.read_level`, `channels.post_level` and `channels.anyone_since`, added by
@@ -217,7 +222,11 @@ rank.
   needs. A member reads with `POST` on the same routes, signed with their Dilithium3 key over
   `chat_read\n<what>\n<channel>` and the time (fresh for five minutes, used once), the house
   pattern for a signed request; a verified channel refuses an unverified member with 403.
-  `GET /api/channels` lists the Anyone channels for the read-only view.
+  `GET /api/channels` lists the Anyone channels for the read-only view, and `GET /api/server-info`
+  (public too) lists only those (2026-11-03; it listed every channel id before). A request without
+  a signature names its channel by id, or by the same id or its shown name in any case; a channel
+  that does not exist answers 404 (it answered 401 "for members" before, the missing-channel
+  default), so a visitor holding a link is told it is not there.
 - **The socket.** Each line (chat, a federated line, an edit, a reaction, a pin, link previews)
   goes only to sockets whose rank may read its channel; the search and a thread's replies are
   filtered the same way; the pins and reactions sent at sign-in are #global's only when the

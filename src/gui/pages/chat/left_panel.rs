@@ -1127,6 +1127,9 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             // Mute room and its level (rung 2): a parked server's room has the
                             // active one's right-click, keyed by this server (chat/mute_menu.rs).
                             out.row.context_menu(|ui| {
+                                // Copy link: the room's address on ITS server (chat/channel_link.rs).
+                                super::channel_link::copy_link_item(ui, state, &server.url, &ch.id);
+                                ui.separator();
                                 super::mute_menu::room_items(ui, theme, state, &server.url, &ch.id);
                                 ui.separator();
                                 super::mute_menu::level_items(ui, theme, state, &server.url, &ch.id);
@@ -1677,13 +1680,9 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                                 c.unread = false;
                             }
                         }
-                        // Right-click: copy channel link
+                        // Right-click: Copy link (the room's address on this server, chat/channel_link.rs).
                         out.row.context_menu(|ui| {
-                            let link = format!("https://united-humanity.us/chat/{}", ch.name);
-                            if ui.button("Copy Channel Link").clicked() {
-                                ui.ctx().copy_text(link);
-                                ui.close_menu();
-                            }
+                            super::channel_link::copy_link_item(ui, state, &url, &ch.id);
                             // Mute room (2026-10-30, chat/mute_menu.rs).
                             ui.separator();
                             super::mute_menu::room_items(ui, theme, state, &url, &ch.id);

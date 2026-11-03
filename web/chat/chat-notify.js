@@ -792,6 +792,11 @@
 
   function roomMenu(room) {
     return function (menu) {
+      // Copy link first (2026-11-03): the room's address on this server (app.js copyChannelLink).
+      if (typeof copyChannelLink === 'function') {
+        item(menu, 'chat.copy_link', 'chat.copy_link_hint', function () { copyChannelLink(room); });
+        menu.appendChild(document.createElement('hr'));
+      }
       muteItems(menu, roomMuted(room), 'notifications.mute_room', 'notifications.unmute_room', 'notifications.unmute_hint', function (s) { setMute('rooms', server() + '|' + room, s); });
       var sep = document.createElement('hr');
       menu.appendChild(sep);

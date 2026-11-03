@@ -203,7 +203,62 @@ voice, height and steps, at 100% and 200% Font Size, whichever server is active)
 (`scripts/tests/chat-channels-web.test.js`), each seen red first; the pictures are the
 `chat_rooms_home_active` and `chat_rooms_second_active` snapshots.
 
-## 7. Open, for the operator
+## 7. A link to a channel (2026-11-03)
+
+The operator: "Can we make it so I can link people to specific channels like
+https://united-humanity.us/chat#global or https://united-humanity.us/chat#fire-disciples", and
+the same day: "I think we need to also fix the default channel to go to global".
+
+**A channel's address is `https://<its server>/chat#<its id>`.** The rules are one file a side,
+held to the same answers by `scripts/tests/fixtures/chat-links-v1.json`: `web/shared/chat-links.js`
+(`HosChatLinks`) and `src/gui/pages/chat/channel_link.rs`. A link's word names the channel whose id
+it is, else the one whose shown name it is, either in any case (an admin can rename what a channel
+shows; public.guide shows id `general` as "global" until its next release). `#profile`, `#joined`
+and anything holding `=` (`#dm=<key>`, a device link) are not channel words.
+
+| Who follows the link | What happens |
+|---|---|
+| A person signed in on the website | The chat waits for the server's channel list, then opens the channel. The address keeps showing the channel open, and every switch replaces it (`history.replaceState`, `syncChatAddress` in `web/chat/app.js`, the one place navigation rung 5 turns into steps, `docs/design/navigation.md` 10.3). An edited address switches channel; a link in a message to this server's own chat switches in place. |
+| A visitor with no key | `/chat` sends them to `/chat/read` with the hash kept. A channel anyone may read opens its tab. For any other, the read view asks `GET /api/messages`: 401 and its level says "#x is for people with a name on this server" (or verified people), with Choose a name to join in, which carries the channel through the welcome step to the chat (`sessionStorage` `hos_chat_link`, read once); 404 says there is no such channel. No tab opens and nothing is drawn in either case. |
+| The desktop app, a link clicked anywhere in its window | A link to the server the app is on, or to a saved server, opens the channel on the Chat page (a saved server is switched to first, as its room row does; one being dialled keeps the link until its channel list comes, `GuiState::chat_link_pending`). A link to a server not saved here opens the browser, as before: the app does not dial a server because a message pointed at it. In the world the channel changes and the app does not take the player out of it. |
+
+**A link naming no channel there says so** ("There is no channel #x on this server.") and opens no
+other channel in its place: the website's chat and the desktop app stay in the channel they were
+in, the read view opens no tab.
+
+**A direct message is never in the address** (navigation.md 10.1: the address is seen, shared in
+screenshots and synced by browsers): a conversation, a group and the scratch pad leave the address
+at `/chat`. `#dm=<key>` stays the explicit conversation link it was (the Market's Message Seller);
+it opens the conversation and the key leaves the address at once. The desktop app opens it too.
+
+**What a visitor learns of a members' channel.** `GET /api/channels` lists only the channels anyone
+may read, and `GET /api/server-info`, which listed every channel id to anyone, now lists the same
+ones. A visitor's read of a channel that is not open to everyone answers 401 with its level and
+nothing else of it (not its id, not its words); one that does not exist answers 404 (before,
+both answered 401 "for members", the missing-channel default). So a visitor learns whether the
+name in the link they already hold is a channel here, and its level, and no other channel's
+name. Every signed-in socket is sent the whole channel list regardless of rank
+(`build_channel_list`), so this tells a visitor nothing a fresh key would not; whether a members'
+channel's name should be kept from keys without a name is an open question (section 8).
+
+**Copy link** is the first item of a room's right-click (every server's rooms, each with its own
+server's address: the desktop's old "Copy Channel Link" always built
+`https://united-humanity.us/chat/<name>`, which opens nothing) and sits at the end of the channel's
+header, in both apps. It copies the address and says what was copied; on a server with no public
+address (localhost, 127.x, a home network: `is_public_host`) it copies the same address and says
+the link opens only on this computer or its home network.
+
+**#global by default.** With no link and nothing saved, every entry point lands on #global
+(`MAIN_CHANNEL`), else the first room listed: the website chat's first open, the read view (which
+opened `channels[0]`, #announcements, until this change), the desktop's first open, a switch to a
+server being dialled, and a room that is gone. A switch on the website (the server strip) is a
+link to the other server's `/chat` with no channel, so it lands there the same way.
+
+Held by `scripts/tests/chat-links-web.test.js` (seven tests), `src/relay/chat_access_tests.rs`
+`a_visitor_holding_a_link_is_told_whether_the_channel_is_for_members_or_not_there` and
+`src/gui/pages/chat/channel_link_tests.rs`, each seen red first.
+
+## 8. Open, for the operator
 
 - **#feedback's levels.** Anyone reads it and people with a name post. Opening posting to people
   without a name would gather more but invites spam; keeping reading open is what lets
@@ -212,3 +267,19 @@ voice, height and steps, at 100% and 200% Font Size, whichever server is active)
   order, with #feedback after #global. An admin reorders them in Server Settings.
 - **public.guide's #general.** It becomes #global when the next release reaches it; until then the
   two servers' main rooms do not link (section 2).
+- **Members' channel names for a key with no name (section 7).** Every signed-in socket is sent the
+  whole channel list, names and levels, whatever its rank. The recommendation is to leave it: a
+  name costs nothing to choose, so hiding the list from a nameless key keeps nothing from anyone
+  who wants it, and a name in the sidebar with its Members badge is how a newcomer learns the room
+  is there to join. A channel whose very name is private wants a level of its own (a list only its
+  readers see), not this.
+- **A channel link from an unverified member (section 7).** Below Verified a link is drawn as plain
+  words (`docs/design/chat-access.md` section 5), so a member's link to one of this server's own
+  channels is not clickable. The recommendation: draw a link to this server's own chat as a link
+  from anyone, since it opens nothing outside the app and is how people point each other at a room.
+
+## 9. Not done here
+
+- The server cog's "Copy Invite Link" (chat/left_panel.rs) and Server Settings' invite link
+  (server_settings.rs) still build `https://united-humanity.us/chat`, whichever server they are
+  for: the same defect Copy link had, left for its own change.

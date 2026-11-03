@@ -1345,6 +1345,8 @@ pub struct ServerInfoResponse {
     pub name: String,
     pub description: String,
     pub version: &'static str,
+    /// The ids of the channels anyone may read, in the sidebar's order (a members' channel is
+    /// left out: this answer goes to anyone who asks).
     pub channels: Vec<String>,
     pub users_online: usize,
     /// Players currently in the shared GAME world (v0.776). users_online counts
@@ -1390,9 +1392,12 @@ pub async fn get_server_info(
     State(state): State<Arc<RelayState>>,
 ) -> Json<ServerInfoResponse> {
     let (pk, _) = state.db.get_or_create_server_keypair().unwrap_or_default();
+    // Only the channels anyone may read (2026-11-03): this answer is public, and a members'
+    // channel's name is for its members (docs/design/chat-access.md), as GET /api/channels lists.
     let channels: Vec<String> = state.db.list_channels()
         .unwrap_or_default()
         .into_iter()
+        .filter(|(_, _, _, read)| *read == humanity_protocol::chat_access::ReadLevel::Anyone)
         .map(|(id, _, _, _)| id)
         .collect();
     let users_online = state.peers.read().await.len();

@@ -141,7 +141,7 @@ test("2. a visitor without a name reads the channels anyone may read, as plain w
   assert.ok(/<meta name="robots" content="noindex/.test(READ_HTML), "search engines are asked not to keep people's words");
   // /chat sends a browser with no key here.
   const index = fs.readFileSync(path.join(WEB, "chat", "index.html"), "utf8");
-  assert.ok(index.includes("location.replace('/chat/read')"), "/chat sends a visitor with no key to the read-only view");
+  assert.ok(index.includes("location.replace('/chat/read' + hash)"), "/chat sends a visitor with no key to the read-only view (a link's channel kept: chat-links-web.test.js 6)");
 });
 
 test("2b. an empty channel and a server with none say so", async () => {

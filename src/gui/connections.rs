@@ -336,6 +336,7 @@ impl GuiState {
         self.history_rx = None;
         self.chat_reply_to = None;
         self.chat_edit_target = None;
+        self.chat_link_pending = None; // a link waits for its own server's channel list (chat/channel_link.rs)
         self.chat_search_results.clear();
         // Trades are per server (2026-10-02): a switch re-fetches its own.
         self.trades.clear();

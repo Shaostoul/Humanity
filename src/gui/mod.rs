@@ -668,6 +668,8 @@ pub struct GuiState {
     pub federation_links: crate::gui::pages::chat::FederationLinks,
     pub chat_channels: Vec<ChatChannel>,
     pub chat_active_channel: String,
+    /// A link's channel waiting for its server's channel list (chat/channel_link.rs, 2026-11-03).
+    pub chat_link_pending: Option<String>,
     pub chat_users: Vec<ChatUser>,
     pub chat_dms: Vec<ChatDm>,
     pub chat_servers: Vec<ChatServer>,
@@ -3262,6 +3264,7 @@ impl Default for GuiState {
             federation_links: Default::default(),
             chat_channels: Vec::new(),
             chat_active_channel: humanity_protocol::chat_access::MAIN_CHANNEL.to_string(),
+            chat_link_pending: None,
             chat_users: Vec::new(),
             chat_dms: Vec::new(),
             chat_servers: Vec::new(),

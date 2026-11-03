@@ -158,6 +158,16 @@ Real-time text chat with channels, threads, and message history.
   `# name` and its level badge, eye and node-graph, then the unread dot and the muted mark at fixed
   places on the right; a line of the body text tall. The website's rooms keep the same voice column
   (`web/chat/chat-ui.js` `.ch-voice-slot`).
+- **Links to chat channels (2026-11-03, docs/design/chat-channels.md section 7):** `https://<server>/chat#<channel>`
+  opens that channel (its id, else its shown name, any case; `web/shared/chat-links.js` and
+  `src/gui/pages/chat/channel_link.rs`, one fixture). The website's address always shows the channel
+  open (a DM, a group or the scratch pad never), an edited address switches channel, and a link in a
+  message to this server's chat opens in place. A visitor's link keeps its channel to `/chat/read`,
+  which opens it or says it is for members (or verified people) or not there (the relay's 401 or
+  404). Copy link on every room's right-click and in the channel header, in both apps, copies the
+  room's address on its own server. The desktop opens a link to its own or a saved server's
+  channel in the app instead of the browser. With no link and nothing saved, every entry point
+  lands on #global.
 - **How much of a message the DM list shows (2026-11-03, desktop):** Names only, Name and one line
   (the default) or Name and two lines, in Settings > Privacy and the DMs header's cog; the levels are
   data (`data/gui/dm_preview.json`), the choice is `config.json` `dm_preview_lines`

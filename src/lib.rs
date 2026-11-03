@@ -15456,6 +15456,9 @@ mod native_app {
                                     &mut state.gui_state.debug_log,
                                     &mut state.gui_state.debug_console_visible,
                                 );
+                                // Last: a link to a channel on this or a saved server, clicked
+                                // anywhere this frame, opens here instead of in the browser.
+                                crate::gui::pages::chat::channel_link::open_in_app(ctx, &mut state.gui_state);
                             });
                             // Quit from the main menu hub or the updater's Restart to Apply
                             // (first-hour audit 2026-10-04, Blocker 5): the save the close

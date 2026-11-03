@@ -199,7 +199,13 @@ window.HOS_I18N_EN = {
     "dm_preview_one": "Name and one line",
     "dm_preview_one_hint": "Shows each person's name and the start of their last message on one line. Anyone who can see your screen can read it.",
     "dm_preview_two": "Name and two lines",
-    "dm_preview_two_hint": "Shows each person's name and up to two lines of their last message. Anyone who can see your screen can read them."
+    "dm_preview_two_hint": "Shows each person's name and up to two lines of their last message. Anyone who can see your screen can read them.",
+    "copy_link": "Copy link",
+    "copy_link_hint": "Copies the address of this channel so you can send it to someone. Opening it takes them straight to this channel.",
+    "copy_link_done": "Copied {{link}}",
+    "copy_link_done_private": "Copied {{link}}. This server has no public address, so the link opens only on this computer or on its home network.",
+    "copy_link_prompt": "Copy this channel's address:",
+    "link_no_channel": "There is no channel #{{name}} on this server."
   },
   "settings": {
     "language": "Language",
@@ -3112,7 +3118,10 @@ window.HOS_I18N_EN = {
     "empty": "Nothing has been posted here since it was opened to everyone.",
     "no_channels": "This server has no channel anyone may read. Choose a name to join in and see the rest.",
     "failed": "The server did not answer. Try Refresh in a moment.",
-    "messages_label": "Posts in this channel"
+    "messages_label": "Posts in this channel",
+    "link_members": "#{{name}} is for people with a name on this server. Choose a name to join in to read it.",
+    "link_verified": "#{{name}} is for [[verified|verified_member]] people on this server. Choose a name to join in; an admin of this server verifies people.",
+    "link_missing": "There is no channel #{{name}} on this server."
   },
   "admin": {
     "channels_title": "Channels: who can read and who can post",

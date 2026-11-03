@@ -156,6 +156,21 @@
 }
 #channel-header .ch-back:hover,
 #channel-header .ch-back:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+/* Copy link (2026-11-03, app.js copyChannelLink): native's ghost button at the header's end. */
+#channel-header .ch-copy-link {
+  float: right;
+  margin-left: var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+#channel-header .ch-copy-link:hover,
+#channel-header .ch-copy-link:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 
 .peer {
   font-size: var(--text-sm);

@@ -283,6 +283,60 @@ fn a_visitor_reads_an_anyone_channel_since_it_opened_without_keys() {
     });
 }
 
+/// A LINK TO A CHANNEL, FOR A VISITOR (2026-11-03, the operator: "Can we make it so I can link
+/// people to specific channels like https://united-humanity.us/chat#global or
+/// https://united-humanity.us/chat#fire-disciples"). The read view asks GET /api/messages for the
+/// channel the link names, and the server says which of three it is:
+/// - an Anyone channel is read by its id, the same id in another case, or its shown name (an admin
+///   can rename what a channel shows; `general` shown as "global" on a server not yet upgraded);
+/// - a Members or Verified channel, by its id or its shown name, answers 401 with its level and
+///   nothing else of it (not its id: the visitor holds only the name in their link);
+/// - a word that names no channel answers 404, so the visitor is told it is not there.
+/// And GET /api/server-info, as public as /api/channels, lists only the Anyone channels.
+///
+/// Seen red 2026-11-03, one break at a time: with `visitor_channel` reading the id alone, "a shown
+/// name in another case opens the channel: GARDEN" (left: 404, right: 200); with no 404 (a missing
+/// channel read as Members, as before), "messages: a channel that is not here is not there" (left:
+/// 401, right: 404); with server-info listing every channel, "server-info names no members'
+/// channel" (left: ["announcements", "local", "global", "feedback", "lounge", "vip",
+/// "fire-disciples", "garden"]).
+#[test]
+fn a_visitor_holding_a_link_is_told_whether_the_channel_is_for_members_or_not_there() {
+    on_a_big_stack(|| async {
+        let r = relay("access_links").await;
+        let (_, ann) = keypair(1);
+        r.state.db.register_name("ann", &ann).unwrap();
+        r.state.db.create_channel("fire-disciples", "Fire Disciples", None, "test", PostLevel::Members).unwrap();
+        r.state.db.create_channel("garden", "Garden Club", None, "test", PostLevel::Members).unwrap();
+        r.state.db.set_channel_access("garden", ReadLevel::Anyone, PostLevel::Members).unwrap();
+        let (_, _, since) = r.state.db.channel_access("garden").unwrap();
+        store(&r, "garden", &ann, "beans are up", (since + 1) as u64);
+
+        for word in ["garden", "GARDEN", "Garden%20Club", "garden%20club"] {
+            let (status, body) = visitor_read(&r, "messages", word).await;
+            assert_eq!(status, 200, "a shown name in another case opens the channel: {word} {body}");
+            assert_eq!(contents(&body), vec!["beans are up"], "{word}");
+        }
+        for word in ["fire-disciples", "Fire-Disciples", "Fire%20Disciples"] {
+            let (status, body) = visitor_read(&r, "messages", word).await;
+            assert_eq!(status, 401, "a members' channel says it is for members: {word} {body}");
+            assert_eq!(body["read_level"], "members", "{word}");
+            assert!(!body.to_string().contains("fire-disciples"), "and does not name its id: {body}");
+        }
+        let (status, body) = visitor_read(&r, "messages", "vip").await;
+        assert_eq!((status, body["read_level"].as_str()), (401, Some("verified")), "a verified channel says so: {body}");
+        for what in ["messages", "pins", "reactions"] {
+            let (status, body) = visitor_read(&r, what, "nowhere").await;
+            assert_eq!(status, 404, "{what}: a channel that is not here is not there: {body}");
+            assert!(body["error"].is_string() && body.get("read_level").is_none(), "{what}: said in words, with no level: {body}");
+        }
+
+        let info = reqwest::get(format!("{}/api/server-info", r.base())).await.unwrap().json::<Value>().await.unwrap();
+        let ids: Vec<&str> = info["channels"].as_array().unwrap().iter().map(|c| c.as_str().unwrap()).collect();
+        assert_eq!(ids, vec!["announcements", "global", "feedback", "garden"], "server-info names no members' channel");
+    });
+}
+
 /// THE LIVE FEED, THE POST LEVEL, ONE LINK AND NO ATTACHMENT BELOW VERIFIED. Over real sockets:
 /// - a socket that chose no name is sent #global's lines (Anyone) but not #lounge's (Members);
 /// - a member's line in #announcements (Moderators and admins) is refused, `post_level`, and not

@@ -422,6 +422,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 );
                             }
                             carry_channel_marks(&old_channels, &mut state.gui_state.chat_channels);
+                            // A link's channel waiting for this list opens first (chat/channel_link.rs).
+                            let now = state.egui_ctx.input(|i| i.time);
+                            crate::gui::pages::chat::channel_link::open_pending(&mut state.gui_state, now);
                             // The room open here may be gone (deleted, or renamed by the server).
                             crate::gui::pages::chat::land_if_room_gone(&mut state.gui_state);
                         }

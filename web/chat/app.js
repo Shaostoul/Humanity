@@ -878,26 +878,142 @@ function onIdentityConfirmed() {
     if (/^[0-9a-fA-F]{16,8192}$/.test(dmKey) && dmKey !== myKey) pendingDmFromLink = dmKey;
   }
 
-  // ── URL hash channel navigation ──
-  // If URL has #channelname, switch to that channel (e.g. /chat#dev -> dev)
-  if (location.hash && location.hash !== '#profile') {
-    const hashChannel = location.hash.slice(1).toLowerCase();
-    if (hashChannel) {
-      activeChannel = hashChannel;
-      localStorage.setItem('humanity_channel', hashChannel);
-      history.replaceState(null, '', location.pathname); // clean the hash
-    }
-  }
+  // A link to a channel, /chat#fire-disciples (2026-11-03): opened once this server's channel
+  // list is here (openChannelLink), so it is matched by the channel's id, else its shown name.
+  // A visitor who chose a name from the read view comes back with the channel they were reading
+  // (read.js, Choose a name to join in), kept for this tab only and read once.
+  let linked = window.HosChatLinks ? HosChatLinks.wordOf(location.hash) : '';
+  try {
+    const carried = sessionStorage.getItem('hos_chat_link');
+    if (carried !== null) sessionStorage.removeItem('hos_chat_link');
+    if (!linked && carried && window.HosChatLinks) linked = HosChatLinks.wordOf(carried);
+  } catch (e) { /* storage off */ }
+  if (linked) pendingChannelLink = linked;
 
   // Don't load history here, wait for channel_list to arrive,
   // then switchChannel will load it.
   // If channel_list already arrived, load now.
   if (channelList.length > 0) {
-    switchChannel(activeChannel);
-  } else {
+    if (!openChannelLink(false)) switchChannel(activeChannel);
+  } else if (!pendingChannelLink) {
     // Fallback: load history for current channel, then reactions.
     loadHistory().then(() => loadReactionsForChannel(activeChannel));
   }
+}
+
+// ── Links to channels: the address shows the channel open here (2026-11-03) ──
+// The operator: "Can we make it so I can link people to specific channels like
+// https://united-humanity.us/chat#global or https://united-humanity.us/chat#fire-disciples"
+// /chat#<channel> opens that channel (its id, else its shown name, in any case:
+// web/shared/chat-links.js), and the address keeps showing the channel open, so the address is
+// always a link to it. A direct message, a group and the scratch pad are never in the address
+// (docs/design/navigation.md 10.1: the address is seen, shared in screenshots and synced by
+// browsers); `#dm=<key>` stays the explicit conversation link it was. Each switch REPLACES the
+// address (history.replaceState) for now: navigation rung 5 turns a switch into a step of its own
+// through web/shared/history.js (navigation.md 10.3), and syncChatAddress is the one place that
+// changes. The desktop's twin: src/gui/pages/chat/channel_link.rs.
+
+/** The channel word a link asked for, waiting for this server's channel list ('' when none). */
+let pendingChannelLink = '';
+
+/** The hash the address shows now: '#<channel id>' in one of this server's channels, '' in a
+ *  direct message, a group, the scratch pad, or before the channel list has come. */
+function chatAddressHash() {
+  if (typeof HosChatLinks === 'undefined') return '';
+  if (activeDmPartner || (typeof activeGroupId !== 'undefined' && activeGroupId) || window.activeP2pGroup) return '';
+  if (isScratchPad() || !channelList.some((c) => c.id === activeChannel)) return '';
+  return HosChatLinks.hashOf(activeChannel);
+}
+
+/** Make the address show the view open now (chatAddressHash), replacing it, not adding a step.
+ *  While a link waits for the channel list the address keeps the link as it came. */
+function syncChatAddress() {
+  if (pendingChannelLink || typeof HosChatLinks === 'undefined') return;
+  const want = chatAddressHash();
+  if ((location.hash || '') === want) return;
+  try {
+    history.replaceState(history.state, '', location.pathname + location.search + want);
+  } catch (e) { /* no history here (a test, an old browser): the address stays as it is */ }
+}
+
+/**
+ * Open the channel a link asked for (`pendingChannelLink`) once this server's channel list is
+ * here: the channel it names, or, when it names none here, say so and stay where I am: a link to a
+ * channel that is not here never opens another one in its place without a word. True when it
+ * opened the channel. `already` is for a link followed with the chat open
+ * (an edited address, a link in a message): naming the channel already open loads nothing again.
+ */
+function openChannelLink(already) {
+  const word = pendingChannelLink;
+  if (!word || !channelList.length || typeof HosChatLinks === 'undefined') return false;
+  pendingChannelLink = '';
+  const ch = HosChatLinks.find(word, channelList);
+  if (!ch) {
+    addNotice(window.i18n ? i18n.t('chat.link_no_channel', { name: word }) : word, 'yellow', 15);
+    syncChatAddress();
+    return false;
+  }
+  if (already && ch.id === activeChannel && chatAddressHash()) {
+    syncChatAddress();
+    return true;
+  }
+  switchChannel(ch.id);
+  return true;
+}
+
+/** Follow a link to this server's chat with the chat already open: a channel opens here, a
+ *  conversation link opens the conversation (and leaves the address showing no one). */
+function followChatLink(link) {
+  if (!link) return;
+  if (link.dm) {
+    syncChatAddress();
+    if (link.dm === myKey) return;
+    pendingDmFromLink = link.dm;
+    if (identityConfirmed && dmFetchSent && typeof openDmFromLink === 'function') openDmFromLink();
+    return;
+  }
+  pendingChannelLink = link.channel;
+  if (identityConfirmed) openChannelLink(true);
+}
+
+// Someone edits the address, or follows an in-page #link: the channel it names opens. A hash naming
+// no channel (one the Account button's #profile handler above already took, or one cleared by
+// hand) puts the channel open back in the address.
+window.addEventListener('hashchange', () => {
+  if (typeof HosChatLinks === 'undefined') return;
+  const link = HosChatLinks.parse(location.origin + '/chat' + location.hash);
+  if (link) followChatLink(link);
+  else syncChatAddress();
+});
+
+// A link in a message to this server's own chat (https://<this server>/chat#<channel>) opens it
+// here instead of in a second tab, as the desktop app does with its own servers' links. A click
+// with a modifier key, or a link to another server, opens as any link does.
+document.getElementById('messages').addEventListener('click', (e) => {
+  const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+  if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || (e.button || 0) !== 0) return;
+  const link = typeof HosChatLinks !== 'undefined' ? HosChatLinks.parse(a.href) : null;
+  if (!link || link.origin !== location.origin) return;
+  e.preventDefault();
+  followChatLink(link);
+}, true);
+
+/**
+ * Copy channel `id`'s address on this server, https://<this server>/chat#<id> (the page's own
+ * address is the server's), and say what was copied. On a server with no public address
+ * (localhost, a home network) it says the link opens only on this computer or its network.
+ */
+async function copyChannelLink(id) {
+  if (typeof HosChatLinks === 'undefined' || !id) return;
+  const url = HosChatLinks.link(location.origin, id);
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (e) {
+    window.prompt(window.i18n ? i18n.t('chat.copy_link_prompt') : '', url);
+    return;
+  }
+  const key = HosChatLinks.isPublicHost(location.host) ? 'chat.copy_link_done' : 'chat.copy_link_done_private';
+  addNotice(window.i18n ? i18n.t(key, { link: url }) : url, 'green', 8);
 }
 
 // ── Reading a channel (chat access levels, 2026-11-02, docs/design/chat-access.md) ──
@@ -1380,6 +1496,13 @@ async function handleMessage(msg) {
       updateChannelList(msg.channels || []);
       updateChannelHeader();
       updateInputForChannel();
+      // A link the chat was opened with (/chat#fire-disciples) opens its channel now that the list
+      // is here; one naming no channel says so, and the channel open here loads instead.
+      if (pendingChannelLink) {
+        if (!openChannelLink(false) && identityConfirmed) switchChannel(activeChannel);
+      } else {
+        syncChatAddress();
+      }
       // Sealed-sender DMs: channel_list only arrives on a BOUND socket,
       // so this is the reliable moment to load the local history store
       // and fetch our server mailbox (once per connection).
@@ -2722,6 +2845,7 @@ function switchChannel(channelId) {
   if (typeof renderGroupList === 'function') renderGroupList(); // Deselect active group
   updateChannelHeader();
   updateInputForChannel();
+  syncChatAddress(); // the address shows this channel (the scratch pad: no channel, so /chat)
 
   // ── Scratch Pad: drawn from the encrypted DM store, never the server (10n N8) ──
   if (channelId === SCRATCH_PAD_ID) {
@@ -2782,7 +2906,13 @@ function updateChannelHeader() {
   const ch = channelList.find(c => c.id === activeChannel);
   if (ch) {
     const lock = HosChatAccess.staffOnly(ch) ? ' ' + hosIcon('lock', 14) : '';
-    header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">${esc(ch.description)}</span>` : ''}`;
+    // Copy link at the header's end, as native's (chat.rs, the channel header): the channel's
+    // address on this server, to send to someone (copyChannelLink).
+    const T = (k) => (window.i18n ? i18n.t(k) : '');
+    const copy = `<button type="button" class="ch-copy-link" data-i18n="chat.copy_link" data-i18n-tip="chat.copy_link_hint" data-tip-desc="${esc(T('chat.copy_link_hint'))}">${esc(T('chat.copy_link'))}</button>`;
+    header.innerHTML = `${copy}<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">${esc(ch.description)}</span>` : ''}`;
+    const copyBtn = header.querySelector('.ch-copy-link');
+    if (copyBtn) copyBtn.onclick = () => copyChannelLink(ch.id);
     header.style.display = 'block';
     if (window.twemoji) twemoji.parse(header);
   } else {
