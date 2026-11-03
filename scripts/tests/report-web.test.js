@@ -332,6 +332,10 @@ async function loadChat(opts = {}) {
   ctx.self = ctx;
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
+  // The words first, as shell.js loads them on every page before anything is shown
+  // (chat-privacy.js asks for the privacy explanation by key since BUG-235's fix, 2026-11-03).
+  run("shared/i18n-en.js");
+  run("shared/i18n.js");
   // In index.html's order.
   run("shared/events.js");
   run("shared/friend-pass.js");

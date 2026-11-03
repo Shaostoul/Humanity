@@ -7,7 +7,7 @@
       "id": "private",
       "name": "Private",
       "tagline": "Maximum privacy. The default.",
-      "description": "You never appear online, no last-seen time is stored on the server, no typing or join signals are sent, and you are not listed in the public member directory. Friends can still reach you (friend codes work, and your messages are end-to-end encrypted like everyone's). Reading websites inside the app is a separate switch (Settings > Privacy > Read websites inside HumanityOS), off by default whatever tier you pick.",
+      "description": "You never appear online, no last-seen time is stored on the server, no typing or join signals are sent, and you are not listed in the public member directory. Friends can still reach you (friend codes work, and your direct messages are end-to-end encrypted like everyone's). Reading websites inside the app is a separate switch (Settings > Privacy > Read websites inside HumanityOS), off by default whatever tier you pick.",
       "hide_presence": true,
       "directory_unlisted": true
     },

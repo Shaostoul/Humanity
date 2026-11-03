@@ -69,7 +69,6 @@ const PRIVATE_KEYS = new Set([
   "donate_btc_address",
   "donate_addresses",
   "default_character",
-  "profile_visible",
   "online_status_visible",
 ]);
 const PRIVATE_PATTERN =

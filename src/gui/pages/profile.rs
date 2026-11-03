@@ -246,15 +246,23 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         // and the copy of your profile other servers keep is withdrawn: the server asks
         // this app to sign a blank copy that replaces it on every linked server (BUG-191,
         // own_profile.rs `take_own_copy`).
+        // The words are Settings > Privacy's for the same switch (one source, BUG-235's fix,
+        // 2026-11-03). This line used to say "left out of this server's member list", and the
+        // chat's people list still names an unlisted person (storage/pins.rs
+        // `list_all_users_with_keys` reads no privacy map): only the member directory leaves
+        // them out.
         ui.add_space(theme.spacing_sm);
-        ui.checkbox(
-            &mut state.profile_directory_listed,
-            "List me in the public member directory",
-        );
-        ui.label(
-            RichText::new("Off: you are left out of this server's member list, and your profile is not passed on to the servers this one is linked with.")
-                .color(theme.text_muted())
-                .size(theme.font_size_small),
+        {
+            use crate::gui::widgets::Hint;
+            ui.checkbox(&mut state.profile_directory_listed, humanity_core::i18n::t("privacy.directory_label"))
+                .hint("privacy.directory_does");
+        }
+        widgets::glossary_words(
+            ui,
+            theme,
+            humanity_core::i18n::t_marked("privacy.directory_does"),
+            theme.font_size_small,
+            theme.text_muted(),
         );
 
         // Online status

@@ -252,12 +252,13 @@ fn every_setting_the_ui_exposes_is_persisted() {
 /// return of `widgets::toggle`, so nothing ever asked for a write.
 #[test]
 fn privacy_toggles_mark_settings_dirty() {
-    // profile_visible stays in settings.rs; online_status_visible moved to
-    // pages/privacy.rs (2026-08-23, privacy tiers) where the SAME toggle is
-    // now also server-enforced via privacy_update. Each is checked where it
-    // actually renders.
-    let checks: [(&str, &str, &str); 2] = [
-        ("profile_visible", "src/gui/pages/settings.rs", "fn draw_privacy_content"),
+    // online_status_visible moved to pages/privacy.rs (2026-08-23, privacy
+    // tiers) where the SAME toggle is now also server-enforced via
+    // privacy_update; it is checked where it actually renders. (The other
+    // privacy toggle this checked, profile_visible, was removed 2026-11-03,
+    // BUG-235: it was saved and dirtied faithfully and read by nothing.
+    // tests/settings_used_lint.rs is the check for that shape.)
+    let checks: [(&str, &str, &str); 1] = [
         ("online_status_visible", "src/gui/pages/privacy.rs", "fn draw_privacy_content"),
     ];
     for (field, file, anchor) in checks {

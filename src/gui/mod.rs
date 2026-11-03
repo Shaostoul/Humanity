@@ -4600,8 +4600,8 @@ pub struct SettingsState {
     // Wallet: no Settings fields - the live selector state is
     // GuiState::wallet_network (shared by the Wallet page and Settings >
     // Wallet; v0.980 removed the dead duplicates nothing read).
-    // Privacy
-    pub profile_visible: bool,
+    // Privacy (the "Profile Visible to Others" `profile_visible` was removed 2026-11-03, BUG-235:
+    // nothing read it)
     pub online_status_visible: bool,
     /// Chosen privacy tier id (data/gui/privacy_tiers.json). Empty =
     /// never chosen; the first-connect modal asks once. (2026-08-23)
@@ -4743,7 +4743,6 @@ impl Default for SettingsState {
             drone_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
-            profile_visible: true,
             online_status_visible: true,
             privacy_tier: String::new(),
             warnings_on_messages: true,

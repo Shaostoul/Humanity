@@ -799,7 +799,11 @@ streamers). Tiers are data (`data/gui/privacy_tiers.json`), presets over two
 real switches: server-enforced presence hiding (never online, no last_seen
 WRITTEN, no join/leave/typing signals; new members join hidden until they
 choose) and the public member-directory listing (profile privacy JSON). Both
-individually overridable in Settings -> Privacy. Web additionally nudges an
+individually overridable in the desktop's Settings -> Privacy, which says (since
+2026-11-03, BUG-235) what each switch hides and what none of them hides: the
+name, key and role in a server's people list, the profile on that server, and
+channel posts. The website's Settings > Privacy shows the same words
+(`privacy.*` keys). Web additionally nudges an
 unwrapped seed into the passphrase-protection flow after the chooser, and has
 a fail-closed "relay my calls" toggle (callers cannot learn your IP).
 - Native: `src/gui/pages/privacy.rs` (modal + Settings section), relay `privacy_update`

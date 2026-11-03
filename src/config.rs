@@ -353,13 +353,12 @@ pub struct AppConfig {
     pub nav_display_mode: crate::gui::NavDisplayMode,
     // ── Settings that the UI exposed but never saved (fixed v0.1066) ──
     // Each of these had a working control that took effect immediately and
-    // then silently reverted to its default on the next launch. The two
-    // visibility flags are the sharp ones: someone who turned themselves
-    // private was public again next time they opened the app, with no
-    // indication it had happened.
-    /// Show your profile to other members.
-    #[serde(default = "default_true")]
-    pub profile_visible: bool,
+    // then silently reverted to its default on the next launch. The online
+    // status flag was the sharp one: someone who turned themselves private
+    // was public again next time they opened the app, with no indication it
+    // had happened. (`profile_visible`, "Profile Visible to Others", stood
+    // beside it until 2026-11-03: saved and loaded, read by nothing, so it
+    // hid nothing (BUG-235). Removed; an old config's field is ignored.)
     /// Show when you are online.
     #[serde(default = "default_true")]
     pub online_status_visible: bool,
@@ -1541,7 +1540,6 @@ impl AppConfig {
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             nav_display_mode: state.nav_display_mode,
-            profile_visible: state.settings.profile_visible,
             online_status_visible: state.settings.online_status_visible,
             privacy_tier: state.settings.privacy_tier.clone(),
             warnings_on_messages: state.settings.warnings_on_messages,
@@ -1745,7 +1743,6 @@ impl AppConfig {
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.nav_display_mode = self.nav_display_mode;
-        state.settings.profile_visible = self.profile_visible;
         state.settings.online_status_visible = self.online_status_visible;
         state.settings.privacy_tier = self.privacy_tier.clone();
         state.settings.warnings_on_messages = self.warnings_on_messages;
@@ -2359,13 +2356,16 @@ mod play_mode_tests {
     fn settings_that_used_to_vanish_now_round_trip() {
         // These seven had working controls that took effect immediately and
         // then silently reverted on the next launch (audit 2026-07-30). The
-        // two visibility flags are the sharp ones: someone who made themselves
-        // private came back public with no indication it had happened.
+        // online status flag is the sharp one: someone who made themselves
+        // private came back public with no indication it had happened. (The
+        // profile_visible flag this test also held was removed 2026-11-03,
+        // BUG-235: it round-tripped faithfully and nothing ever read it, so
+        // "a private profile must STAY private" passed while no profile was
+        // ever private. tests/settings_used_lint.rs now catches that shape.)
         let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
         let old: AppConfig = serde_json::from_str(minimal).unwrap();
         // Defaults must match Settings::default() in src/gui/mod.rs so an
         // existing install sees no behaviour change on upgrade.
-        assert!(old.profile_visible, "profile stays visible by default");
         assert!(old.online_status_visible, "online status stays visible by default");
         assert!(old.dark_mode, "dark mode is the default");
         assert_eq!(old.font_size, 100.0, "Font Size starts at the designed size (percent)");
@@ -2376,16 +2376,21 @@ mod play_mode_tests {
 
         // And a non-default choice must survive a write/read cycle.
         let mut c = old.clone();
-        c.profile_visible = false;
         c.online_status_visible = false;
         c.font_size = 150.0;
         c.onboarding_quest_progress.insert("water:collect-rain".into(), true);
         let json = serde_json::to_string(&c).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
-        assert!(!back.profile_visible, "a private profile must STAY private");
         assert!(!back.online_status_visible, "hidden online status must STAY hidden");
         assert_eq!(back.font_size, 150.0);
         assert_eq!(back.onboarding_quest_progress.get("water:collect-rain"), Some(&true));
+
+        // A config written before BUG-235's removal still carries the field: it loads, the
+        // field is ignored (no compatibility code, CLAUDE.md), and the next save drops it.
+        let with_old_field = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false,"profile_visible":false,"online_status_visible":false}"#;
+        let loaded: AppConfig = serde_json::from_str(with_old_field).expect("an old config with profile_visible still loads");
+        assert!(!loaded.online_status_visible, "the settings beside it still load");
+        assert!(!serde_json::to_string(&loaded).unwrap().contains("profile_visible"), "the next save drops it");
     }
 
     /// The readable-web opt-in (2026-09-16) must default OFF for a config

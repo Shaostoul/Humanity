@@ -1149,54 +1149,60 @@
 
     <!-- Privacy -->
     <section class="settings-section" id="sec-privacy">
-      <h1>Privacy</h1>
-      <p class="section-desc">Control who can see your information and contact you.</p>
+      <h1 data-i18n="privacy.title">Privacy</h1>
+      <p class="section-desc" data-i18n="privacy.web_section_desc">What other people can see about you, and where each choice is made.</p>
+      <!-- BUG-235 (2026-11-03): this section held five switches that were saved in the browser and
+           read by nothing: Who Can Message Me, Show Online Status, Read Receipts, Show in Discovery
+           and Local-Only Storage. A person who picked "Nobody" or turned their status off was told
+           they were protected and was not. They are gone; these words say what the real switches
+           do (the same keys as the desktop app's Settings > Privacy, src/gui/pages/privacy.rs) and
+           what none of them hides. -->
+      <p class="section-desc" data-i18n="privacy.intro">Direct messages are <span data-term="e2ee">end-to-end encrypted</span> whatever you choose here, and the server keeps no record of who you message. A direct message you send carries your signature, so the person you sent it to can prove to others that you wrote it. The choices below decide what other people can see about you.</p>
 
       <div class="settings-group">
-        <div class="settings-group-title">Visibility</div>
+        <div class="settings-group-title" data-i18n="privacy.web_switches_title">The two privacy switches</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Who Can Message Me</strong>
-            <span>Restrict incoming direct messages</span>
+            <strong data-i18n="privacy.presence_label">Show others when I am online</strong>
+            <span data-i18n="privacy.presence_does">Off: you never appear online, the server keeps no last-seen time for you, and no typing, joining or leaving signals are sent. You still appear in the people list, shown as offline, and friends can still message you.</span>
           </div>
-          <select class="setting-select" id="pref-who-dm" onchange="savePref()">
-            <option value="everyone">Everyone</option>
-            <option value="friends">Friends Only</option>
-            <option value="nobody">Nobody</option>
-          </select>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Show Online Status</strong>
-            <span>Let others see when you're online</span>
+            <strong data-i18n="privacy.directory_label">List me in the public member directory</strong>
+            <span data-i18n="privacy.directory_does">On: you are in this server's member directory and its search, and a signed copy of your profile (without what you keep for friends) is kept by this server and passed to the servers it is linked with, where anyone can look it up by your <span data-term="public key">public key</span>. Off: you are left out of the directory and its search, every linked server drops its copy, and looking up your key finds nothing. Off does not hide your name or your profile from the people on a server you use.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-show-online" checked onchange="savePref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Read Receipts</strong>
-            <span>Let senders see when you've read their messages</span>
+            <span data-i18n="privacy.web_where">On the website, the privacy level you picked the first time you opened the chat set both switches. The directory switch is also on your Profile page. The desktop app's Settings &gt; Privacy has both.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-read-receipts" checked onchange="savePref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Show in Discovery</strong>
-            <span>Allow others to find your profile in search</span>
+            <span data-i18n="privacy.web_reach">Who can message you, call you or send you trade requests is chosen with the Safety button under your name in the chat.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-discoverable" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="privacy.seen_title">What everyone on a server you use can always see</div>
+        <div class="setting-row">
+          <div class="setting-label"><span data-i18n="privacy.seen_people">Your name, your <span data-term="public key">public key</span> and your role, in that server's people list, whether you are in its directory or not.</span></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label"><span data-i18n="privacy.seen_profile">Your profile there: your name, bio, picture, banner and links. Your pronouns, location and website too, unless you keep them for friends with the lock beside each on the website's Profile page.</span></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label"><span data-i18n="privacy.seen_posts">What you post in a <span data-term="channel">channel</span>, with your name and the time. A channel open to Anyone can be read by anyone on the internet, even without signing up; other channels only by the members they let in. A <span data-term="federation">federated</span> channel's posts also go to the servers this one is linked with.</span></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label"><strong data-i18n="privacy.seen_no_switch">No switch here hides these from the people on a server you use.</strong></div>
         </div>
       </div>
 
       <div class="settings-group">
         <div class="settings-group-title">Data</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Local-Only Storage</strong>
-            <span>Keep skills, inventory, and logbook data on this device only</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-local-only" checked onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Usage analytics</strong>

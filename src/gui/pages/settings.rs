@@ -4277,13 +4277,10 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     // Calls and voice rooms (10p, 2026-10-22): how they connect, and who sees the person's address.
     widgets::card(ui, theme, |ui| calls::draw_calls(ui, theme, state));
     ui.add_space(theme.spacing_sm);
-    widgets::card(ui, theme, |ui| {
-        if widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(ui, theme, hint, "Whether other players can open and view your profile page.");
-    });
-    ui.add_space(theme.spacing_sm);
+    // (A "Profile Visible to Others" toggle stood here until 2026-11-03, BUG-235: saved, loaded
+    // and read by nothing, so turning it off hid nothing. Removed; the privacy card above now
+    // says what each switch hides and what stays visible. A real one is a design question:
+    // docs/BUGS.md BUG-235.)
     // The readable web (2026-09-16): in-app fetching of websites is an
     // explicit opt-in, OFF by default and separate from the tier presets,
     // so choosing a tier never quietly turns web access on. The hint says

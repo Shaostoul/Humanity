@@ -1167,6 +1167,17 @@ fn snapshot_chat_muted_server() {
     });
 }
 
+// Settings > Privacy (BUG-235, 2026-11-03): the tier chooser, the two switches each with what it
+// hides, then what everyone on a server you use can always see; then Files in messages, Calls and
+// voice rooms, and Read websites. No "Profile Visible to Others" toggle: it hid nothing.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_privacy() {
+    render_page_png("settings_privacy", 960, 2000, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_privacy_content);
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_settings_full() {

@@ -71,7 +71,12 @@ async function applyPrivacyTier(tierId) {
   // 3) Persist the choice; the modal never re-asks.
   localStorage.setItem('humanity_privacy_tier', tier.id);
   if (typeof addSystemMessage === 'function') {
-    addSystemMessage('Privacy level set to <strong>' + esc(tier.name) + '</strong>. Change it any time from the account menu.');
+    // "Change it any time from the account menu" stood here until 2026-11-03 (BUG-235's
+    // review): the account menu has no privacy level, and the website never asks again once
+    // one is chosen. The directory switch is the one the website can change later.
+    // (shell.js loads the words before anything here runs; a test page that has not loaded them
+    // gets the level's name alone.)
+    addSystemMessage(esc(window.i18n ? i18n.t('privacy.web_level_set', { level: tier.name }) : tier.name));
   }
 }
 
@@ -96,9 +101,13 @@ async function reassertPrivacyTier() {
  */
 function privacyExplanationText() {
   const signed = typeof REPORT_PRIVACY_SENTENCE === 'string' ? ' ' + REPORT_PRIVACY_SENTENCE : '';
-  return 'Your messages are end-to-end encrypted whatever you pick, and this server keeps no record of who you message.'
-    + signed
-    + ' This only controls whether others can see you online and find you in directories. You can change it any time.';
+  // "Direct messages", not "your messages" (2026-11-03): channel posts are public (BUG-223). And
+  // no "You can change it any time": once chosen, the website never shows this choice again;
+  // the scope sentence says where each switch can be changed later.
+  const words = window.i18n
+    ? [i18n.t('privacy.web_modal_intro'), i18n.t('privacy.web_modal_scope')]
+    : ['', ''];
+  return (words[0] + signed + ' ' + words[1]).trim();
 }
 
 /** First-connect chooser. Called from app.js once identity is confirmed. */

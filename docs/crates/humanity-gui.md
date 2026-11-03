@@ -97,7 +97,8 @@ And 256 more items, 348 references (`node scripts/crate-cards.js --interface hum
   the run still exits 0, so read the output and open the PNGs.
 - **`just lints`:** `theme_token_lint`, `theme_editor_coverage`, `icon_glyph_lint`,
   `page_registry_lint` (every page in [PAGES.md](../PAGES.md)), `page_parity_lint`,
-  `settings_persistence_lint` (a setting survives a restart), `i18n_lint`, `terminology_lint`,
+  `settings_persistence_lint` (a setting survives a restart), `settings_used_lint` (a setting the
+  Settings page binds is read by something other than its control, save and load), `i18n_lint`, `terminology_lint`,
   `emdash_lint`, `snapshot_recipe_lint`.
 - **The website's twins, in `just rig-tests`:** [i18n-web.test.js](../../scripts/tests/i18n-web.test.js),
   [hints-web.test.js](../../scripts/tests/hints-web.test.js),
