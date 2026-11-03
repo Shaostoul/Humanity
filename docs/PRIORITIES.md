@@ -199,9 +199,11 @@ In order:
     source-walking tool reading the crates (four lints and the warnings ratchet were blind to them
     until planted violations showed it), the same 5,586 lib tests and 3,201 relay tests as before.
     Build times unchanged, as planned (the engine is still about 96% of the lines; quiet-machine
-    numbers in crate-split.md). Rung 2 (`humanity-ship`, `humanity-terrain`, then
-    `humanity-systems`), where the gains start, IN FLIGHT since 2026-11-02 (an agent, its own
-    worktree; the operator's PC is free for its timings that day).
+    numbers in crate-split.md). Rung 2 DONE 2026-11-02 (63abd9039): `humanity-ship`,
+    `humanity-terrain` and `humanity-systems` cut; the engine 96% -> 75% of the lines; an engine edit
+    checks in 14 s (was 18) and builds its tests in 42 s (was 55). Next: rung 3 (`humanity-relay`,
+    `humanity-net`, `humanity-renderer`, about 207,000 of the engine's 496,000 lines; rung 2's
+    report lists eight things to do first, in crate-split.md).
 11. **The farm on its own clock (planned 2026-10-30, `docs/design/farm-clock.md`).** The operator
     asked for the farm to update on a configurable interval and for crops to be computed only when
     looked at. Rung 1 DONE 2026-10-30 (50864e49d: every step exact, `step_path.rs`, proven by
@@ -300,6 +302,17 @@ In order:
     rule). Next: rung 1, the run model, after crate split rung 2 lands (both move ship code). Three questions for him in the design's section 19 (is the
     AR layer a visor the character wears; copper-only drinking water now that material changes;
     which way a powered door fails on power loss), each with a recommendation.
+
+16. **The operator's 2026-11-02 direction (the journal has his words):** the Characters page
+    evened out and tasks rung 1 (Mine, BUG-217) DONE; the website's front door ADOPTED and being
+    built (docs/design/front-door.md: no chat on the web, a Signed mark on update cards and on
+    Devlog, robots.txt and a noindex header on /api/); then CHAT ACCESS (a read and a post level per
+    channel; no account reads public channels, a chosen name types and shares one link, verified
+    shares files; new channels members-only by default), then the DOUBLE TOP MENU (primary
+    categories as pages, a secondary row, one/two/three-column page layouts, layers: primary 10,
+    secondary 20, the warning 21, the footer 30, content 40+; designed for both apps before it is
+    built; docs/design/top-menu-and-game-pages.md holds the options it replaces), then BUG-225 (Font
+    Size does nothing), then spline rung 1. Open for him: AI training crawlers in robots.txt.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches

@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
-  "current_focus": "2026-11-02 evening: crate split rung 2 in final gates; then merge Characters (a07b48f5) and tasks (ac989b74, after its unreadable-file fix), each merging main to pick up rung 2's paths. Then BUG-225 (font size) and spline rung 1. Open for the operator: the top-menu plan's A/B/C/D, the front door (adopt, column, signed mark route), his display scaling, the quest-chain review. The other session's web chat store fix (branch claude/zealous-raman-7aba0c) becomes BUG-224 when it merges. The batch since v0.1547.0 is unreleased.",
+  "current_focus": "2026-11-02 night: in flight: the front door build (agent). Queued, one at a time: chat access levels, the double top menu design (both apps; his layer order), BUG-225 (Font Size), spline rung 1, crate split rung 3. Open for the operator: AI training crawlers in robots.txt; the top-menu plan is superseded by his double-menu direction. The other session's web chat store fix (branch claude/zealous-raman-7aba0c) becomes BUG-224 when it merges. The batch since v0.1547.0 is unreleased.",
   "open_questions_for_human": [
     {
       "date": "2026-08-25",
@@ -925,6 +925,11 @@
       "date": "2026-11-02",
       "decision": "Front door ADOPTED (\"Let's do it.\"), standard column; no chat on the web front page (\"It's not worth the hassle... The app has the footer chat\"); the signed mark kept and added to Devlog (\"Keep and update devlog too.\"); the release-signature route decided by the orchestrator: the updater's verify half moves to a relay-linkable crate (humanity-protocol likely). His screen: 100% scaling, about 4 feet away at a sit/stand desk; phone OnePlus 9 Pro (about 412x915 CSS). Build brief: scratchpad orch-frontdoor-build-brief.txt.",
       "why": "At 4 feet the 100% page's text is about 2.5 times larger to his eye than at the 10-foot TV guideline, so 100% is fine for him; BUG-225 (Font Size does nothing) still gets fixed. The Devlog's per-visitor GitHub API calls leak visitors' addresses: it reads our endpoint instead."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Merged and pushed: crate split rung 2 (63abd9039, CI green, the relay built on GitHub in 5 min 19 s), the Characters relayout + top-menu plan (c6905e97e), tasks rung 1 Mine / BUG-217 (4ef35d96d). The combined tree rechecked on main: warnings 0 native and relay, lints, rig-tests 1,437, the full lib tests 5,414 passed.",
+      "why": "Rung 2 first so the two Rust branches resolved its path renames once each on their own side. Next: the front door build (in flight), then chat access, then the double-top-menu design, then BUG-225, then spline rung 1; one agent at a time at the weekly pace."
     }
   ],
   "active_scopes_to_avoid": [
