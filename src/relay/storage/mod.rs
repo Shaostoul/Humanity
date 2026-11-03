@@ -2399,6 +2399,21 @@ impl Storage {
             ) WITHOUT ROWID;"
         )?;
 
+        // Release signatures the server checked itself (2026-11-02, storage/front_door.rs,
+        // docs/design/front-door.md section 3.1): one row per release version, written only after
+        // both signatures over the manifest verified against the project's compiled-in release
+        // keys, so the website can mark that release Signed. A new table in a batch of its own,
+        // naming only its own CREATE TABLE columns (BUG-046 concerns ALTER-added columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS release_signatures (
+                version         TEXT PRIMARY KEY,
+                manifest_sha256 TEXT NOT NULL,
+                manifest        TEXT NOT NULL,
+                signature       TEXT NOT NULL,
+                checked_at      INTEGER NOT NULL
+            ) WITHOUT ROWID;"
+        )?;
+
         // Phase 0 substrate: generic post-quantum signed objects.
         // Every higher-level domain (signed_profiles, vouches, VCs, governance proposals,
         // recovery shares, etc.) is a projection of this table.
@@ -3020,6 +3035,9 @@ mod groups_p2p;
 mod signed_profiles;
 // Key cards: each person's Kyber768 key signed by their own identity (2026-10-22).
 pub mod key_cards;
+/// The website's front door: the release posts in #announcements and the release signatures the
+/// server checked itself (2026-11-02, docs/design/front-door.md).
+pub mod front_door;
 mod trust_score;
 mod notification_prefs;
 mod trading;

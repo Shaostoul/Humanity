@@ -38,3 +38,8 @@ Justfile    text eol=lf
 # some with no zero byte for git to see them as binary by, and both apps' tests
 # compare them byte for byte. Never normalise any of them.
 tests/fixtures/describe/** -text
+
+# The real signed release pairs (tests/fixtures/release/, release-manifest.json and its
+# .sig.json as `just sign-release` uploaded them, read 2026-11-02): the signatures cover the
+# manifest's exact bytes, so a line-ending rewrite would make the real pair fail to verify.
+tests/fixtures/release/** -text

@@ -1,8 +1,0 @@
-{
-  "_comment": "Which releases are signed, for the front door prototype's signed-card dressing (docs/design/front-door.md, section 3.1). A release counts as signed here when its GitHub release carries both files `just sign-release` uploads, release-manifest.json and release-manifest.json.sig.json (the same test src/updater.rs uses to decide which releases to offer; the desktop then checks both signatures before installing). Read from the GitHub releases API on 2026-11-02, by hand, for the prototype only: signed_at is when the signature file was uploaded. It stands in for the `signed` field the real /api/front-door answer would give each update, which the relay would learn by checking the signatures itself. The visitor's browser never asks GitHub.",
-  "read": "2026-11-02",
-  "signed": [
-    { "version": "0.1547.0", "signed_at": "2026-10-28T05:17:46Z" },
-    { "version": "0.1543.0", "signed_at": "2026-10-23T08:09:24Z" }
-  ]
-}

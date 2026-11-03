@@ -46,6 +46,10 @@ pub mod profile_copy;
 /// trusted people, the one-time key a new device asks with, and the code that names an ask.
 /// Shared by the relay and the desktop app; web/shared/recovery.js is its twin.
 pub mod recovery;
+/// Checking that the project's release keys made a release (moved from the app's release_update on
+/// 2026-11-02): the desktop updater checks a download by it, and the server checks a signed pair by
+/// it before the website marks that release Signed (docs/design/front-door.md, section 3.1).
+pub mod release_signature;
 pub mod signing;
 pub mod solana_rpc;
 /// HEIF still picture (HEIC, AVIF) metadata removal in place: the Exif and

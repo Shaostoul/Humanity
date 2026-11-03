@@ -73,6 +73,18 @@ release. The updater now trusts that release. A release that hasn't been signed
 is simply invisible to auto-update (not offered), which also means a stray or
 malicious tag is never auto-installed.
 
+**The website's Signed mark (2026-11-02).** As its last step, `just sign-release`
+sends the same two files to the live server (`POST /api/release-signature`,
+`scripts/send-release-signature.js`). The server checks both signatures against
+the release keys compiled into it (the same check the updater makes,
+`crates/humanity-protocol/src/release_signature.rs`) and keeps the pair only if
+both verify; from then on that release's card on the front page and its entry on
+the Devlog say "Signed". No secret is sent: only these keys make a pair that
+passes. If that step fails (the server is down, say), the release is still signed
+on GitHub; mark it later with `just send-release-signatures v0.418.0`. Once, after
+the route first deploys, `just send-release-signatures --backfill` sends every
+release already signed on GitHub. `--server <url>` sends to another server.
+
 ## Notes / future hardening
 
 - The local-build launcher (`find_newer_exe` in `main.rs`) is hardened too

@@ -1248,6 +1248,48 @@ Aggregated population, infrastructure, economy, resources, social, activity metr
 
 ## Web Tools and Utilities
 
+### The front door (the website's front page, 2026-11-02)
+A title screen with tools in it, adopted by the operator on 2026-11-02 ("Let's do it"), in place of the
+seven-screen picture-book page: the mission in a line, what HumanityOS is (the tools and the game), one
+search box that reads plain words, "New here? Start here", eight buttons to the in-depth areas, one row
+of update cards (as many as fit at 220 px, at most nine; a swipe row on a phone), and Start here's one
+question, "What brought you here?", with one first thing to open for each answer and its quest chain
+sharing the Onboarding page's ticks. The standard 1,100 px column. No chat on the page (the operator:
+"Let's exclude it from the front page"); the Chat button opens the chat. The welcome step for a
+visitor the chat sent here (`?welcome=1`) is part of it, and follows only a `?return=` of this site
+(BUG-227).
+- A signed release's card is dressed its own way: the theme's verified colour on its band, a faint wash,
+  and a "Signed" mark with its hint (the operator: "when I sign its widget dressing is slightly
+  different"). The server decides "signed" by checking the release's signatures itself.
+- Web: `web/pages/index.html`, `web/pages/index-app.js`; the rules and the card: `web/shared/front-door.js`,
+  `web/shared/update-card.css`
+- Data (rows, not code): `data/front_door/config.json` (the card rule's numbers), `destinations.json` (the
+  buttons, each with the desktop page it opens), `goals.json` (Start here), `search_words.json` (words
+  that mean the same: "diarrhea" finds the guide that says "diarrhoea")
+- Server: `GET /api/front-door`, `GET /api/releases` (the Devlog), `POST /api/release-signature`
+  (`src/relay/front_door.rs`, table `release_signatures` in `src/relay/storage/front_door.rs`); the check
+  is `crates/humanity-protocol/src/release_signature.rs`, the desktop updater's own; `just sign-release`
+  sends each signed pair, `just send-release-signatures` retries or backfills
+- Tests: `scripts/tests/front-door-web.test.js`, `src/relay/front_door_tests.rs`,
+  `crates/humanity-protocol/src/release_signature_tests.rs`
+- Not yet: the desktop's Humanity overview sharing the buttons and the card (design rung 5)
+- Design: `docs/design/front-door.md`
+
+### Devlog (every release, one card each)
+The update cards a page at a time from this server's `GET /api/releases`, signed releases marked as on the
+front door. Since 2026-11-02 it never asks GitHub's API from the visitor's browser (which sent every
+visitor's address to GitHub); each card's Release notes link opens that release's notes on GitHub.
+- Web: `web/pages/devlog.html`, `web/pages/devlog-app.js`
+
+### robots.txt and the sitemap (2026-11-02)
+Search engines kept off the server's API, the uploads, the release binaries and a person's own pages,
+and pointed at the public pages; every `/api/` answer, uploaded file and Files item page also carries
+`X-Robots-Tag: noindex` (`src/relay/mod.rs` `keep_out_of_search`). AI training crawlers are treated like
+any other until the operator decides (the comment in robots.txt says where the line goes).
+- Web: `web/robots.txt`, `web/sitemap.xml` (written by `node scripts/gen-sitemap.js` from
+  `data/site/public_pages.json`), placed at the web root by `scripts/sync-web-root.sh`
+- Test: `scripts/tests/robots-web.test.js`
+
 ### File Browser/Editor
 Tree navigator for data/ directory. Built-in viewers for text, JSON, CSV, markdown, images, audio, video.
 - Web: `web/pages/files.html`, `web/pages/files-app.js`

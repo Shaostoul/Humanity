@@ -1,0 +1,42 @@
+# robots.txt for the HumanityOS website (2026-11-02; docs/design/front-door.md 4.5;
+# held by scripts/tests/robots-web.test.js). scripts/sync-web-root.sh puts it at the web root.
+#
+# The public pages are CC0: anyone may read, copy and index them, and /sitemap.xml lists them
+# (data/site/public_pages.json). Kept out: the server's API (people's posts, names and keys, the
+# app's internals), the files people uploaded, the release binaries, and the pages that are a
+# person's own (their settings, identity, profile, notes, wallet) or the admins' and developers'.
+# robots.txt only ASKS a crawler not to fetch. The server also answers every /api/ request, every
+# uploaded file and a Files item's page with "X-Robots-Tag: noindex", which keeps a linked address
+# out of a search index even so (src/relay/mod.rs, keep_out_of_search).
+#
+# AI training crawlers are treated like every other crawler: the operator has not decided
+# otherwise. To keep them off the whole site, add a group like this ABOVE "User-agent: *" (one
+# User-agent line per crawler; the names are each company's own):
+#   User-agent: GPTBot
+#   User-agent: ClaudeBot
+#   User-agent: Google-Extended
+#   User-agent: CCBot
+#   Disallow: /
+
+User-agent: *
+Disallow: /api/
+Disallow: /ws
+Disallow: /uploads/
+Disallow: /releases/
+Disallow: /chat
+Disallow: /settings
+Disallow: /identity
+Disallow: /recovery
+Disallow: /profile
+Disallow: /notes
+Disallow: /wallet
+Allow: /wallet-guide
+Disallow: /admin
+Disallow: /ops
+Disallow: /dev
+Allow: /devlog
+Disallow: /bugs
+Disallow: /widgets
+Allow: /
+
+Sitemap: https://united-humanity.us/sitemap.xml

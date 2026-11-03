@@ -1,0 +1,25 @@
+{
+  "version": "0.1543.0",
+  "artifacts": [
+    {
+      "name": "HumanityOS-windows-x64.exe",
+      "sha256": "28264394f182ed292b1861ca2d19e3087629def86cbd2dd51a955403d903ba45",
+      "size": 94520320
+    },
+    {
+      "name": "HumanityOS-linux-x64",
+      "sha256": "1edd67d31773ea1cd4cb797201b5906cb922d2f006a4e04e6cf00713697361d4",
+      "size": 113791904
+    },
+    {
+      "name": "HumanityOS-macos-arm64",
+      "sha256": "718c2a92eec4f54a2f73b59f02b5b3c0e8c4a2a172ae890d044042016ae7e8e3",
+      "size": 90707808
+    },
+    {
+      "name": "HumanityOS-macos-x64",
+      "sha256": "023506b257ebdf6f2018b81b83fb374cf6e40bf8c6273e5366451b6adbf60cd2",
+      "size": 97243608
+    }
+  ]
+}

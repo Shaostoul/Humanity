@@ -301,7 +301,7 @@ impl Updater {
         // invisible to auto-update rather than erroring. The download path still
         // verifies the signature as the authoritative gate (defense in depth).
         // Until provisioning, every release is eligible (legacy behaviour).
-        let require_manifest = crate::release_update::embedded_pubkeys().is_provisioned();
+        let require_manifest = humanity_protocol::release_signature::embedded_pubkeys().is_provisioned();
         let eligible = |r: &ReleaseInfo| -> bool {
             !r.prerelease
                 && !r.draft
@@ -589,7 +589,7 @@ fn download_and_apply(
     // empty), we log a loud warning and fall back to the legacy behaviour so
     // the app keeps working during that one-time provisioning window.
     let asset_name = url.rsplit('/').next().unwrap_or_default().to_string();
-    if crate::release_update::embedded_pubkeys().is_provisioned() {
+    if humanity_protocol::release_signature::embedded_pubkeys().is_provisioned() {
         let (Some(murl), Some(surl)) = (manifest_url.as_deref(), sig_url.as_deref()) else {
             let _ = std::fs::remove_file(&update_path);
             return Err(
@@ -606,18 +606,18 @@ fn download_and_apply(
             let _ = std::fs::remove_file(&update_path);
             format!("Could not fetch the release signature: {e}")
         })?;
-        match crate::release_update::verify_release_artifact(
+        match humanity_protocol::release_signature::verify_release_artifact(
             &manifest_bytes,
             &sig_bytes,
             &asset_name,
             version,
             &digest_hex,
         ) {
-            Ok(crate::release_update::VerifyOutcome::Verified) => {
+            Ok(humanity_protocol::release_signature::VerifyOutcome::Verified) => {
                 humanity_core::debug::push_debug("Updater: release signature VERIFIED.".to_string());
             }
             // Unreachable: we already confirmed the pubkeys are provisioned.
-            Ok(crate::release_update::VerifyOutcome::Unprovisioned) => {}
+            Ok(humanity_protocol::release_signature::VerifyOutcome::Unprovisioned) => {}
             Err(e) => {
                 let _ = std::fs::remove_file(&update_path);
                 humanity_core::debug::push_debug(format!("Updater: VERIFICATION FAILED: {e}"));
@@ -860,6 +860,44 @@ fn is_newer(latest: &str, current: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn release(tag: &str, signed: bool) -> ReleaseInfo {
+        let asset = |name: &str| ReleaseAsset { name: name.to_string(), browser_download_url: format!("https://example.invalid/{tag}/{name}"), size: 1 };
+        let mut assets = vec![
+            asset("HumanityOS-windows-x64.exe"),
+            asset("HumanityOS-linux-x64"),
+            asset("HumanityOS-macos-arm64"),
+            asset("HumanityOS-macos-x64"),
+        ];
+        if signed {
+            assets.push(asset(MANIFEST_NAME));
+            assets.push(asset("release-manifest.json.sig.json"));
+        }
+        ReleaseInfo { tag_name: tag.to_string(), name: tag.to_string(), body: String::new(), published_at: String::new(), assets, prerelease: false, draft: false }
+    }
+
+    /// AN UNSIGNED RELEASE IS NEVER OFFERED (the 2026-06-12 audit's rule, checked again after the
+    /// verification moved to humanity_protocol::release_signature on 2026-11-02): with the release
+    /// keys compiled in, a newer release without the signed manifest is passed over for the newest
+    /// one that has it, and with no signed release newer than this build nothing is offered.
+    ///
+    /// Seen red 2026-11-02 with `require_manifest` forced to false in evaluate_update: "the unsigned
+    /// v0.1549.0 was offered: Available { version: \"v0.1549.0\", ... }".
+    #[test]
+    fn an_unsigned_release_is_never_offered() {
+        assert!(humanity_protocol::release_signature::embedded_pubkeys().is_provisioned(), "the release keys are compiled in");
+        let mut u = Updater::new("0.1546.0");
+        u.channel = UpdateChannel::AlwaysLatest;
+        u.available_releases = vec![release("v0.1549.0", false), release("v0.1548.0", false), release("v0.1547.0", true), release("v0.1543.0", true)];
+        u.evaluate_update();
+        match &u.state {
+            UpdateState::Available { version, .. } => assert_eq!(version, "v0.1547.0", "the unsigned {version} was offered: {:?}", u.state),
+            other => panic!("the signed v0.1547.0 was not offered: {other:?}"),
+        }
+        u.available_releases = vec![release("v0.1549.0", false), release("v0.1543.0", true)];
+        u.evaluate_update();
+        assert!(matches!(u.state, UpdateState::UpToDate), "only an unsigned release is newer, so nothing is offered: {:?}", u.state);
+    }
 
     #[test]
     fn test_is_newer() {

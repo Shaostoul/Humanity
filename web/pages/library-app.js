@@ -376,6 +376,26 @@
       if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
       if (ev.key === '/') { ev.preventDefault(); input.focus(); input.select(); }
     });
+
+    // ?q= (2026-11-02): the front door's "Search the whole Library for ..." hands its words here
+    // (docs/design/front-door.md, section 5), and the search runs as though they had been typed,
+    // over the full text the front door never fetches. At most 200 characters are taken.
+    var handed = handedQuery(location.search);
+    if (handed) {
+      input.value = handed;
+      searchQuery = handed;
+      loadSearchIndex(renderResults);
+      if (searchIndex) renderResults();
+    }
+  }
+
+  /** The words in an address's ?q=, trimmed, or '' when there are none. */
+  function handedQuery(search) {
+    var m = /[?&]q=([^&#]*)/.exec(String(search || ''));
+    if (!m) return '';
+    var words = '';
+    try { words = decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (e) { words = ''; }
+    return words.trim().slice(0, 200);
   }
 
   /* ── Left rail: nested category tree, mirroring the native collapsing headers ── */

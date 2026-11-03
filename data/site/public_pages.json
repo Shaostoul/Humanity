@@ -1,0 +1,25 @@
+{
+  "_comment": "The website's public pages: the ones written for anyone to read, listed in /sitemap.xml so search engines find them (2026-11-02, docs/design/front-door.md 4.5). Data, not code: a page is a row. `node scripts/gen-sitemap.js` writes web/sitemap.xml from this file, and scripts/tests/robots-web.test.js fails when the two differ, when a row names a page that does not exist, or when web/robots.txt keeps a crawler off a listed page. A page that is a person's own (settings, identity, notes) or the admins' is never listed here; robots.txt keeps crawlers off those. The site is CC0, so every page here may be read, copied and indexed by anyone.",
+  "origin": "https://united-humanity.us",
+  "pages": [
+    { "path": "/", "what": "the front door" },
+    { "path": "/library", "what": "the Library: guides and references" },
+    { "path": "/how-to", "what": "the step-by-step guides" },
+    { "path": "/roadmap", "what": "what is being built" },
+    { "path": "/devlog", "what": "every release" },
+    { "path": "/download", "what": "the desktop app and the game" },
+    { "path": "/apps", "what": "the everyday tools" },
+    { "path": "/humanity", "what": "why this exists" },
+    { "path": "/governance", "what": "decide together" },
+    { "path": "/laws", "what": "the rules that apply where you live" },
+    { "path": "/accord", "what": "the Humanity Accord" },
+    { "path": "/civilization", "what": "the mission dashboard" },
+    { "path": "/rules", "what": "this server's rules and appeals" },
+    { "path": "/onboarding", "what": "the learn-by-doing chains" },
+    { "path": "/home", "what": "the ideal homestead outline" },
+    { "path": "/hi", "what": "first contact, from a business card" },
+    { "path": "/donate", "what": "how to support the project" },
+    { "path": "/wallet-guide", "what": "the wallet's help page" },
+    { "path": "/web", "what": "the reading list of other sites" }
+  ]
+}

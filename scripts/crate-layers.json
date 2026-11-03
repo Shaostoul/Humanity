@@ -9,7 +9,7 @@
     },
     {
       "name": "humanity-protocol",
-      "why": "What the app and the server both speak: keys, signatures, sealed messages, signed objects, encodings. Small, security-critical, easy to review on its own; lets net and the relay compile side by side.",
+      "why": "What the app and the server both speak: keys, signatures, sealed messages, signed objects, encodings, and the check that the project's release keys made a release (release_signature, 2026-11-02: the updater checks a download by it, the server a signed pair). Small, security-critical, easy to review on its own; lets net and the relay compile side by side.",
       "dir": "crates/humanity-protocol",
       "uses": [
         "humanity-core"
@@ -80,7 +80,7 @@
     },
     {
       "name": "humanity-gui",
-      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the updater that Settings > Updates drives and GuiState holds, and its signed-release check, release_update, which the binary's signing commands use too: native-only and never the server's, so it is the GUI's since 2026-10-31, not the relay's), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
+      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the updater that Settings > Updates drives and GuiState holds, and release_update, the binary's release-signing commands and the launcher's check of a local exe: the GUI's since 2026-10-31; the pure signature check both use moved down to humanity-protocol's release_signature on 2026-11-02, so the server can check a signed release too), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
       "paths": [
         "gui",
         "config",

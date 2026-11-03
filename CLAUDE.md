@@ -355,7 +355,8 @@ sealed-sender v2 (Kyber768 / ML-KEM-768, BLAKE3-KDF, AES-256-GCM, the sender sig
 key anything is sealed to comes ONLY from that person's key card, their Kyber768 key signed by their
 own Dilithium3 identity and checked and pinned by the sealing app, never from a server's list
 (2026-10-22, `docs/design/key-cards.md`); vaults are AES-256-GCM with PBKDF2-SHA-256 at 600,000
-rounds; Ed25519's only roles are the seed source and the Solana wallet. Moving a server: carry
+rounds; Ed25519's only roles are the seed source, the Solana wallet and one half of the hybrid release
+signature (with Dilithium3; both must verify). Moving a server: carry
 `data/backup.key` and `data/erased-accounts.key` with `relay.db`.
 
 ## Quick orientation

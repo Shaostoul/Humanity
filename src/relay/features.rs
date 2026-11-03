@@ -219,6 +219,11 @@ const ROUTE_FEATURES: &[(&str, Feature)] = &[
     ("/api/search", Feature::Chat),
     ("/api/reactions", Feature::Chat),
     ("/api/pins", Feature::Chat),
+    // The website's front door (2026-11-02, front_door.rs): its update cards and the Devlog's list
+    // are #announcements read another way, and a release's signed pair only marks those cards.
+    ("/api/front-door", Feature::Chat),
+    ("/api/releases", Feature::Chat),
+    ("/api/release-signature", Feature::Chat),
     // ── Market. `/api/trade/*` is the public ORDER BOOK (server-hosted commerce);
     //    the in-world avatar-to-avatar trade session is WS `trade_*` and belongs
     //    to Game instead — see `ws_message_feature`.
@@ -560,6 +565,11 @@ mod tests {
         assert_eq!(route_feature("/api/sellers/abc/rating"), Some(Feature::Market));
         assert_eq!(route_feature("/api/trade/orders"), Some(Feature::Market));
         assert_eq!(route_feature("/api/messages"), Some(Feature::Chat));
+        // The front door (2026-11-02). Seen red 2026-11-02 with its three rows taken out of
+        // ROUTE_FEATURES: "left: None / right: Some(Chat)".
+        assert_eq!(route_feature("/api/front-door"), Some(Feature::Chat));
+        assert_eq!(route_feature("/api/releases"), Some(Feature::Chat));
+        assert_eq!(route_feature("/api/release-signature"), Some(Feature::Chat));
         assert_eq!(route_feature("/api/tasks/7/comments"), Some(Feature::Tasks));
         assert_eq!(route_feature("/api/projects"), Some(Feature::Tasks));
         assert_eq!(route_feature("/api/upload"), Some(Feature::Uploads));

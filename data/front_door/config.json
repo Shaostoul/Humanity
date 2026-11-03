@@ -1,0 +1,10 @@
+{
+  "_comment": "The front door's numbers (docs/design/front-door.md, section 3; web/pages/index.html). card_min_px is the narrowest an update card may be before the row drops a card, chosen by the measurement in section 3 (the last 100 release headlines in the card's own font: at 220 px with five lines none is cut). As many cards as fit at card_min_px, at most card_max; below two side by side, a swipe row of card_max cards each swipe_card_px wide (at most 82% of the row). updates_url is the server's release feed (src/relay/front_door.rs); refresh_after_ms is how long a tab must have been away before the page asks it again, never on a timer. No chat slice: the operator, 2026-11-02, \"Let's exclude it from the front page.\"",
+  "card_min_px": 220,
+  "card_max": 9,
+  "card_gap_px": 12,
+  "swipe_card_px": 280,
+  "updates_url": "/api/front-door",
+  "refresh_after_ms": 600000,
+  "release_page_prefix": "https://github.com/Shaostoul/Humanity/releases/tag/"
+}

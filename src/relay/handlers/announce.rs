@@ -80,8 +80,11 @@ pub async fn announce_to(state: &Arc<RelayState>, channel: &str, content: &str) 
         message_id: None,
     };
 
-    // Persist to messages table.
-    if let Err(e) = state.db.store_message(&chat) {
+    // Persist it IN ITS CHANNEL (BUG-226, 2026-11-02): this called `store_message`, which writes no
+    // channel, so the column's default put every server announcement in #general's history while
+    // the live broadcast said #announcements; a reload showed it in the wrong room, and the front
+    // door, which reads #announcements, never saw it.
+    if let Err(e) = state.db.store_message_in_channel(&chat, channel) {
         tracing::warn!("announce: store_message failed: {e}");
     }
 

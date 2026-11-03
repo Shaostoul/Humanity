@@ -178,9 +178,8 @@ fn find_newer_exe() -> Option<std::path::PathBuf> {
                     // When signing isn't provisioned yet (embedded pubkeys
                     // empty) we keep the legacy behaviour so the dev workflow
                     // works during provisioning.
-                    use humanity_engine::release_update::{
-                        verify_file_against_sidecar, VerifyOutcome,
-                    };
+                    use humanity_engine::release_update::verify_file_against_sidecar;
+                    use humanity_protocol::release_signature::VerifyOutcome;
                     match verify_file_against_sidecar(&entry_path) {
                         Ok(VerifyOutcome::Verified) | Ok(VerifyOutcome::Unprovisioned) => {}
                         Err(e) => {

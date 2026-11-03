@@ -133,6 +133,9 @@ impl Class {
             || path == "/api/skills/search"
             || path.starts_with("/api/v2/solana/")
             || path == "/api/v2/zk/verify"
+            // A release's signed pair (front_door.rs): anyone may send one, and each costs an
+            // Ed25519 and a Dilithium3 check before a bad one is refused.
+            || path == "/api/release-signature"
             || path.starts_with("/api/v2/trust/")
             || (path.starts_with("/api/v2/proposals/") && (path.ends_with("/tally") || path.ends_with("/chain")));
         if costly {

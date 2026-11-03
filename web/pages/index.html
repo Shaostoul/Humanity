@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HumanityOS: free tools for food, water and power</title>
-  <meta name="description" content="Free, open source tools for growing your own food, collecting your own water, and making your own power, plus a space game built on the same rules. No ads, no email, no sign-up.">
+  <title data-i18n="front_door.page_title">HumanityOS: free guides and tools for food, water and power</title>
+  <meta name="description" data-i18n-content="front_door.description" content="Free guides and tools for growing food, keeping water safe, making power and helping each other, and a space game that teaches the same skills. No sign-up, no ads, nothing to buy.">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="HumanityOS: free tools for food, water and power">
-  <meta property="og:description" content="Free, open source tools for growing your own food, collecting your own water, and making your own power, plus a space game built on the same rules. No ads, no email, no sign-up.">
+  <meta property="og:title" content="HumanityOS: free guides and tools for food, water and power">
+  <meta property="og:description" data-i18n-content="front_door.description" content="Free guides and tools for growing food, keeping water safe, making power and helping each other, and a space game that teaches the same skills. No sign-up, no ads, nothing to buy.">
   <meta property="og:url" content="https://united-humanity.us">
   <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="HumanityOS: free tools for food, water and power">
-  <meta name="twitter:description" content="Free, open source tools for growing your own food, collecting your own water, and making your own power, plus a space game built on the same rules. No ads, no email, no sign-up.">
+  <meta name="twitter:title" content="HumanityOS: free guides and tools for food, water and power">
+  <meta name="twitter:description" data-i18n-content="front_door.description" content="Free guides and tools for growing food, keeping water safe, making power and helping each other, and a space game that teaches the same skills. No sign-up, no ads, nothing to buy.">
   <meta name="twitter:image" content="https://united-humanity.us/shared/social/og-banner.png">
 
   <link rel="canonical" href="https://united-humanity.us/">
@@ -33,7 +33,7 @@
         "name": "HumanityOS",
         "url": "https://united-humanity.us",
         "logo": "https://united-humanity.us/shared/icons/icon-192.png",
-        "description": "Open-source tools and guides for growing your own food, generating your own power, and collecting your own water.",
+        "description": "Open-source guides and tools for growing your own food, keeping water safe, making your own power and helping each other.",
         "sameAs": [
           "https://github.com/Shaostoul/Humanity",
           "https://git.united-humanity.us/shaostoul/Humanity",
@@ -66,684 +66,249 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/shared/theme.css">
-  <script>
-    // The landing wants the galaxy loud; every other page keeps it faint.
-    // Must run before first paint, hence inline in <head>.
-    document.documentElement.setAttribute('data-space-bright', '');
-  </script>
-
+  <link rel="stylesheet" href="/shared/update-card.css">
   <style>
-    /* ── One breath per screen: a 7-screen picture-book scroll. Each screen is
-       one idea, one image, at most one button. The page starts in cold
-       starlight (the galaxy hero) and ends in warm orange light (screen 7),
-       so the scroll itself says "coming home". Copy budget: under 150 words.
-       Design spec: 2026-07-16 landing redesign (judge-synthesized). ── */
-    body { line-height: 1.6; }
+    /* ── The front door: a title screen with tools in it (docs/design/front-door.md, adopted by the
+       operator 2026-11-02, "Let's do it"). ONE page column for everything (the title, the menu, the
+       update cards, Start here), the site's standard 1,100 px with a 16 px gutter, so every block
+       lines up with every other: "standard page width aligned with other elements". On his screen
+       (2560 x 1440 at 100%) and on a laptop the row shows four cards; on a tablet three; on a phone
+       a swipe row. No chat on this page: the operator, 2026-11-02, "Let's exclude it from the front
+       page. It's not worth the hassle." Theme tokens only: no colour is written here. ── */
+    :root { --fd-col: 1100px; --fd-gap: 12px; }
+    body { background: var(--bg); color: var(--text); line-height: 1.55; }
+    .fd { max-width: var(--fd-col); margin: 0 auto; padding: 0 16px 32px; }
 
-    .screen {
-      min-height: 100vh;
-      min-height: 100svh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 72px 24px;
-      position: relative;
+    /* The welcome step, shown only on ?welcome=1 (the chat sends a visitor with no key here). */
+    .fd-welcome { max-width: var(--fd-col); margin: 16px auto 0; padding: 0 16px; }
+    .fd-welcome[hidden] { display: none; }
+    .fd-welcome-box {
+      max-width: 720px; margin: 0 auto; padding: 24px 20px; text-align: center;
+      background: var(--bg-card); border: 1px solid var(--accent); border-radius: var(--radius-lg);
     }
-    .screen .inner { max-width: 680px; margin: 0 auto; width: 100%; }
+    .fd-welcome-kicker { color: var(--accent); font-weight: 800; font-size: 0.82rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    .fd-welcome h2 { font-size: clamp(1.4rem, 3vw, 1.9rem); font-weight: 800; color: var(--text-strong); margin: 6px 0 10px; }
+    .fd-welcome p { color: var(--text-secondary); margin: 0 0 10px; }
+    .fd-welcome-note { font-size: 0.9rem; }
+    .fd-welcome-form { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; max-width: 480px; margin: 14px auto 0; }
+    .fd-welcome-form input {
+      flex: 1; min-width: 220px; min-height: 44px; padding: 10px 14px; font: inherit; color: var(--text);
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+    }
+    .fd-welcome-form input:focus { outline: none; border-color: var(--border-focus); }
+    .fd-welcome-form button {
+      min-height: 44px; padding: 10px 22px; font: inherit; font-weight: 800; cursor: pointer;
+      background: var(--accent); color: var(--text-on-accent); border: none; border-radius: var(--radius);
+    }
+    .fd-welcome-form button:hover, .fd-welcome-form button:focus-visible { background: var(--accent-hover); outline: 2px solid var(--border-focus); outline-offset: 2px; }
+    .fd-welcome-form button[disabled] { opacity: 0.7; cursor: default; }
+    .fd-welcome-error { color: var(--danger); min-height: 1.3em; margin: 8px 0 0; font-size: 0.9rem; }
+    .fd-welcome-links { font-size: 0.88rem; margin-top: 12px; }
+    .fd-welcome-links a { color: var(--accent); }
 
-    .screen h1 {
-      font-size: clamp(1.9rem, 5.5vw, 3.4rem);
-      font-weight: 900;
-      line-height: 1.15;
-      margin: 0 0 18px;
-      text-shadow: 0 2px 24px rgba(0,0,0,0.9);
-    }
-    .screen h2 {
-      font-size: clamp(1.5rem, 4vw, 2.4rem);
-      font-weight: 800;
-      line-height: 1.2;
-      margin: 0 0 14px;
-    }
-    .screen p { color: var(--text-secondary); font-size: 1.06rem; margin: 0 0 12px; }
+    /* The title */
+    .fd-title { text-align: center; padding: 34px 0 4px; }
+    .fd-mission { color: var(--accent); font-weight: 800; font-size: 0.82rem; letter-spacing: 0.16em; text-transform: uppercase; }
+    .fd-brand { font-size: clamp(2.5rem, 6vw, 4.4rem); font-weight: 900; line-height: 1.05; color: var(--text-strong); margin: 6px 0 0; letter-spacing: -0.01em; }
+    .fd-what { font-size: clamp(1.02rem, 1.7vw, 1.28rem); color: var(--text); max-width: 46rem; margin: 14px auto 0; }
+    .fd-facts { color: var(--text-muted); font-size: 0.9rem; margin: 8px auto 0; }
 
-    /* Category-colored underline on section headings (mirrors the nav pills) */
-    .u-green::after, .u-blue::after, .u-purple::after {
-      content: '';
-      display: block;
-      width: 56px; height: 3px;
-      border-radius: 2px;
-      margin: 12px auto 0;
+    /* The search: one box, under the words, over everything else */
+    .fd-search { max-width: 720px; margin: 24px auto 0; text-align: left; }
+    .fd-search-label { display: block; font-weight: 800; font-size: 1.02rem; margin: 0 0 6px 2px; color: var(--text-strong); }
+    .fd-search-box { position: relative; }
+    .fd-search-box .pg-ico { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); display: flex; }
+    .fd-search-input {
+      width: 100%; min-height: 56px; padding: 12px 16px 12px 50px; font: inherit; font-size: 1.08rem;
+      color: var(--text); background: var(--bg-input); border: 2px solid var(--border); border-radius: var(--radius-lg);
     }
-    .u-green::after  { background: var(--nav-green); }
-    .u-blue::after   { background: var(--nav-blue); }
-    .u-purple::after { background: var(--nav-sim); }
-    /* ── The "how the software fights back" centerpiece ──
-       Denser than the one-breath screens on purpose: this is the substance,
-       so it is a natural-height section rather than a forced 100vh, and it
-       reads left-aligned like a manifesto. Each row pairs one adversary with
-       the feature that dismantles it. */
-    #how { min-height: auto; padding: 13vh 24px; justify-content: flex-start; }
-    .inner-wide { max-width: 780px; }
-    .how-lede { color: var(--text-secondary); margin: 0 auto 30px; max-width: 640px; }
-    .pillars { list-style: none; padding: 0; margin: 0 0 22px; text-align: left; display: grid; gap: 20px; }
-    .pillars li { display: grid; grid-template-columns: 118px 1fr; gap: 18px; align-items: start; }
-    .pillars .adv {
-      font-weight: 800; font-size: 0.82rem; padding-top: 3px;
-      text-transform: uppercase; letter-spacing: 0.06em;
+    .fd-search-input:focus { outline: none; border-color: var(--border-focus); }
+    .fd-results { margin-top: 8px; padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+    .fd-results[hidden] { display: none; }
+    .fd-results h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 6px 0 4px; }
+    .fd-results ul { list-style: none; margin: 0; padding: 0; }
+    .fd-results li a { display: block; padding: 6px 8px; border-radius: var(--radius); color: var(--text); text-decoration: none; }
+    .fd-results li a:hover, .fd-results li a:focus-visible { background: var(--bg-card-hover); outline: 1px solid var(--accent); }
+    .fd-r-sub { display: block; color: var(--text-muted); font-size: 0.85rem; }
+    .fd-r-planned { color: var(--text-secondary); }
+    .fd-r-more { display: inline-block; margin-top: 6px; color: var(--accent); font-weight: 700; }
+    .fd-r-none { display: block; color: var(--text-secondary); padding: 4px 0; }
+
+    /* New here? Start here */
+    .fd-start-row { text-align: center; margin: 18px 0 0; }
+    .fd-start {
+      display: inline-block; min-height: 52px; padding: 13px 34px; border-radius: var(--radius-lg);
+      background: var(--accent); color: var(--text-on-accent); font-weight: 800; font-size: 1.1rem; text-decoration: none;
     }
-    .pillars .body { color: var(--text-secondary); font-size: 1.02rem; line-height: 1.55; }
-    .pillars .body b { color: var(--text); font-weight: 700; }
-    .adv-poverty    { color: var(--nav-green); }
-    .adv-tyranny    { color: var(--nav-sim); }
-    .adv-corruption { color: var(--nav-blue); }
-    .adv-fraud      { color: var(--accent); }
-    .adv-pollution  { color: var(--nav-green); }
+    .fd-start:hover, .fd-start:focus-visible { background: var(--accent-hover); color: var(--text-on-accent); outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+    /* The title screen's menu: buttons to the in-depth areas (data/front_door/destinations.json) */
+    .fd-menu { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--fd-gap); margin: 26px 0 0; }
+    .fd-tile {
+      display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; min-height: 76px;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      color: var(--text); text-decoration: none;
+    }
+    .fd-tile:hover, .fd-tile:focus-visible { border-color: var(--accent); background: var(--bg-card-hover); outline: none; }
+    .fd-tile .pg-ico { color: var(--accent); flex-shrink: 0; display: flex; margin-top: 2px; }
+    .fd-tile-name { display: block; font-weight: 800; color: var(--text-strong); }
+    .fd-tile-line { display: block; color: var(--text-muted); font-size: 0.86rem; line-height: 1.4; }
+
+    /* The sections under the title screen: the update cards, Start here. */
+    .fd-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 30px 0 10px; }
+    .fd-head h2 { font-size: 1.18rem; font-weight: 800; color: var(--text-strong); margin: 0; }
+    .fd-head-sub { color: var(--text-muted); font-size: 0.85rem; margin-left: 10px; font-weight: 400; }
+    .fd-head a { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .fd-head a:hover, .fd-head a:focus-visible { text-decoration: underline; }
+
+    /* The update cards: one row. --fd-n is set from the row's width by the card rule
+       (web/shared/front-door.js cardLayout); below two side by side, a swipe row. */
+    .fd-cards { display: grid; grid-template-columns: repeat(var(--fd-n, 4), minmax(0, 1fr)); gap: var(--fd-gap); }
+    .fd-cards.fd-swipe { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; margin-right: -16px; padding-right: 16px; }
+    .fd-cards.fd-swipe .update-card { flex: 0 0 var(--fd-swipe-w, 280px); scroll-snap-align: start; }
+    .fd-note { color: var(--text-muted); font-size: 0.85rem; margin: 6px 0 0; }
+    .fd-note[hidden] { display: none; }
+
+    /* Start here */
+    .fd-start-intro { color: var(--text-secondary); max-width: 52rem; margin: 0; }
+    .fd-goals { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--fd-gap); margin-top: 12px; }
+    .fd-goal {
+      display: flex; gap: 10px; align-items: flex-start; text-align: left; font: inherit; color: var(--text);
+      padding: 12px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: pointer;
+    }
+    .fd-goal:hover, .fd-goal:focus-visible { border-color: var(--accent); outline: none; }
+    .fd-goal[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-dim); }
+    .fd-goal .pg-ico { color: var(--accent); display: flex; margin-top: 2px; }
+    .fd-answer {
+      margin-top: 12px; padding: 16px 18px; background: var(--bg-card); border: 1px solid var(--accent);
+      border-radius: var(--radius-lg); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px;
+    }
+    .fd-answer[hidden] { display: none; }
+    .fd-answer.fd-one { grid-template-columns: minmax(0, 1fr); }
+    .fd-answer h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 0 0 6px; }
+    .fd-answer p { color: var(--text); margin: 0; }
+    .fd-emergency { margin-top: 10px; padding: 6px 10px; background: var(--danger-bg); border-left: 3px solid var(--danger); border-radius: var(--radius); color: var(--text); font-weight: 700; }
+    .fd-open {
+      display: inline-block; margin-top: 10px; padding: 9px 20px; border-radius: var(--radius-lg);
+      background: var(--accent); color: var(--text-on-accent); font-weight: 800; text-decoration: none;
+    }
+    .fd-open:hover, .fd-open:focus-visible { background: var(--accent-hover); color: var(--text-on-accent); }
+    .fd-chain-name { font-weight: 800; color: var(--text-strong); }
+    .fd-chain-count { color: var(--accent); font-size: 0.85rem; margin-left: 8px; }
+    .fd-meter { display: flex; gap: 4px; height: 8px; margin: 8px 0; }
+    .fd-meter i { flex: 1; border-radius: 4px; background: var(--border); }
+    .fd-meter i.done { background: var(--accent); }
+    .fd-chain-next { color: var(--text-secondary); font-size: 0.92rem; }
+    .fd-chain-link { display: inline-block; margin-top: 8px; color: var(--accent); font-weight: 700; text-decoration: none; }
+    .fd-back-row { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-top: 10px; }
+    .fd-back-row[hidden] { display: none; }
+    .fd-link-btn { background: none; border: none; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer; padding: 0; text-decoration: underline; }
+
+    @media (max-width: 900px) {
+      .fd-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .fd-answer { grid-template-columns: minmax(0, 1fr); }
+    }
     @media (max-width: 560px) {
-      .pillars li { grid-template-columns: 1fr; gap: 4px; }
-      .pillars .adv { padding-top: 0; }
+      .fd-title { padding-top: 20px; }
+      .fd-tile { padding: 12px; gap: 10px; }
+      .fd-tile-line { font-size: 0.8rem; }
     }
-
-    /* ── Screen 1: the promise ──
-       No background image of its own: the sitewide space layer (shell.js)
-       shows through, boosted by data-space-bright on <html>, so there is ONE
-       continuous parallaxing sky with no seam between hero and page. Only a
-       soft scrim sits behind the text for contrast. */
-    #s1 {
-      background: radial-gradient(ellipse at center, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.55) 78%);
-    }
-    #s1 .sub {
-      color: var(--text);
-      font-size: clamp(1rem, 2.4vw, 1.25rem);
-      text-shadow: 0 1px 14px rgba(0,0,0,0.9);
-      margin-bottom: 30px;
-    }
-    .cta-big {
-      display: inline-block;
-      background: var(--accent);
-      color: var(--text-on-accent, #000);
-      font-size: 1.2rem;
-      font-weight: 800;
-      padding: 18px 44px;
-      min-height: 64px;
-      border-radius: 12px;
-      text-decoration: none;
-      box-shadow: 0 6px 28px rgba(237,140,36,0.35);
-      transition: transform 0.12s, box-shadow 0.12s;
-    }
-    .cta-big:hover { transform: translateY(-2px); box-shadow: 0 10px 34px rgba(237,140,36,0.5); color: var(--text-on-accent, #000); }
-    @media (max-width: 560px) { .cta-big { display: block; width: 100%; } }
-    .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-    .cta-see {
-      display: inline-block;
-      padding: 18px 30px;
-      min-height: 64px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      color: var(--text);
-      text-decoration: none;
-      font-size: 1.05rem;
-      font-weight: 700;
-      transition: border-color 0.12s;
-    }
-    .cta-see:hover { border-color: var(--accent); color: var(--text); }
-    @media (max-width: 560px) {
-      .cta-row { flex-direction: column; }
-      .cta-see { display: block; width: 100%; order: -1; }
-    }
-    /* Caption under the product shot. The page went from apologising for having
-       no screenshots to having one, so it should say what you are looking at. */
-    .shot-cap { color: var(--text-muted); font-size: 0.85rem; margin: 10px auto 0; max-width: 640px; }
-    #s1 .quiet { margin-top: 22px; color: var(--text-secondary); font-size: 0.95rem; }
-    #s1 .micro { margin-top: 6px; color: var(--text-muted); font-size: 0.8rem; }
-
-    /* Soft pulsing chevron pointing down (static under reduced motion) */
-    .chev {
-      position: absolute;
-      bottom: 26px; left: 50%;
-      transform: translateX(-50%);
-      color: var(--text-muted);
-      font-size: 1.4rem;
-      pointer-events: none;
-      opacity: 0.8;
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .chev { animation: chev-pulse 2.2s ease-in-out infinite; }
-      @keyframes chev-pulse {
-        0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.5; }
-        50%       { transform: translateX(-50%) translateY(7px); opacity: 0.95; }
-      }
-    }
-
-    /* ── Screen 1b: the hero shot, a clip from the game (2026-10-04). It
-       opens on the Milky Way, so it carries on from screen 1's starlight,
-       and ends in sunrise. Same frame as .shot; a video needs its own box
-       before it loads, hence the aspect ratio and the dark fill. ── */
-    .hero-clip {
-      width: 100%;
-      max-width: 960px;
-      height: auto;
-      aspect-ratio: 16 / 9;
-      background: var(--bg);
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      box-shadow: 0 10px 44px rgba(0,0,0,0.65);
-      margin: 22px auto 0;
-      display: block;
-    }
-
-    /* ── Screens 2 + 5: one big image ── */
-    .shot {
-      width: 100%;
-      max-width: 860px;
-      /* Without this the width/height ATTRIBUTES on the img act as a
-         presentational height, so a 1280x900 capture rendered 860x900 and was
-         visibly stretched. The attributes stay: with height:auto they become an
-         aspect-ratio hint that reserves the right box before the image loads,
-         which is what stops the page jumping. */
-      height: auto;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      box-shadow: 0 10px 44px rgba(0,0,0,0.65);
-      margin: 22px auto 0;
-      display: block;
-    }
-
-    /* ── Screen 3: four captioned cards (2x2, big enough to actually read) ── */
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      margin-top: 26px;
-      width: 100%;
-      max-width: 1000px;
-    }
-    @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      text-align: left;
-    }
-    .card img { width: 100%; height: 230px; object-fit: cover; object-position: left top; display: block; }
-    .card .cap { padding: 12px 14px 14px; font-size: 1rem; font-weight: 700; }
-    .card.c-green  { border-color: rgba(var(--nav-green-rgb), 0.45); }
-    .card.c-blue   { border-color: rgba(var(--nav-blue-rgb), 0.45); }
-    .card.c-red    { border-color: rgba(var(--nav-red-rgb), 0.45); }
-    .card.c-purple { border-color: rgba(var(--nav-sim-rgb), 0.45); }
-    .cards-note { margin-top: 14px; color: var(--text-muted); font-size: 0.82rem; }
-    /* ── Icon feature cards: honest placeholders until real captures exist.
-       A weak screenshot reads as clutter; a clean icon reads as a feature. ── */
-    .card .card-art {
-      height: 128px; display: flex; align-items: center; justify-content: center;
-      background: var(--bg-card-hover);
-    }
-    .card .card-art svg {
-      width: 50px; height: 50px; fill: none; stroke-width: 2.4;
-      stroke-linecap: round; stroke-linejoin: round;
-    }
-    .card.c-green  .card-art { color: var(--nav-green); }
-    .card.c-purple .card-art { color: var(--nav-sim); }
-    .card.c-blue   .card-art { color: var(--nav-blue); }
-    .card.c-red    .card-art { color: var(--nav-red); }
-    .card .cap { padding: 14px 14px 2px; }
-    .card .card-sub {
-      padding: 0 14px 15px; font-size: 0.86rem; font-weight: 400;
-      color: var(--text-secondary); line-height: 1.45;
-    }
-    /* Screen 2: one honest icon panel instead of the confusing orbital map. */
-    .game-panel {
-      display: flex; align-items: center; gap: 18px; text-align: left;
-      max-width: 560px; margin: 24px auto 0; padding: 22px 24px;
-      background: var(--bg-card); border: 1px solid rgba(var(--nav-green-rgb), 0.40);
-      border-radius: 14px;
-    }
-    .game-panel svg {
-      width: 58px; height: 58px; flex-shrink: 0; color: var(--nav-green);
-      fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round;
-    }
-    .game-panel .gp-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; }
-    .game-panel .gp-sub { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.45; }
-    @media (max-width: 480px) { .game-panel { flex-direction: column; text-align: center; } }
-    /* The panel with a real clip from the game (2026-10-02): the clip on top,
-       the words under it. Recorded by the game's own clip maker
-       (scripts/make-clips.js), so it shows the game as it is. */
-    .game-panel.has-clip { flex-direction: column; align-items: stretch; max-width: 720px; padding: 14px 14px 20px; }
-    .game-panel .gp-clip {
-      width: 100%; height: auto; aspect-ratio: 16 / 9; display: block;
-      border-radius: 10px; background: var(--bg);
-    }
-    .game-panel.has-clip .gp-text { padding: 0 8px; }
-    .game-panel .gp-cap { color: var(--text-muted); font-size: 0.8rem; margin-top: 8px; }
-
-    /* ── Screen 4: it costs nothing ── */
-    .free-list { list-style: none; margin: 20px 0 0; padding: 0; }
-    .free-list li {
-      font-size: clamp(1.15rem, 3vw, 1.6rem);
-      font-weight: 700;
-      margin: 12px 0;
-    }
-    .free-list .ck { color: var(--success); margin-right: 10px; }
-
-    /* ── Screen 5: the dream (blueprint sketch behind the words) ── */
-    #s5 { overflow: hidden; }
-    #s5 .bp {
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      background: url('/shared/landing/blueprint-interior.jpg') center / cover no-repeat;
-      opacity: 0.18;
-      pointer-events: none;
-    }
-    #s5 .inner { position: relative; }
-    #s5 .quiet-link { color: var(--accent); font-size: 0.95rem; }
-
-    /* ── Screen 6: proof bar (slim band, not a full screen) ── */
-    #s6 { min-height: 0; padding: 46px 24px; }
-    .proof {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      max-width: 980px;
-      width: 100%;
-      margin: 0 auto;
-    }
-    @media (max-width: 800px) { .proof { grid-template-columns: repeat(2, 1fr); } }
-    .proof .tile {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 10px;
-      background: rgba(0,0,0,0.35);
-    }
-    .proof .n { font-size: 1.25rem; font-weight: 800; color: var(--text); }
-    .proof .l { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
-
-    /* ── Screen 7: welcome home (warm light rising like light under a door) ── */
-    #s7 {
-      background: linear-gradient(180deg, transparent 0%, rgba(237,140,36,0.06) 55%, rgba(237,140,36,0.16) 100%);
-    }
-    .home-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 26px; }
-    .cta-second {
-      display: inline-block;
-      background: transparent;
-      color: var(--text);
-      font-size: 1.2rem;
-      font-weight: 800;
-      padding: 18px 44px;
-      min-height: 64px;
-      border-radius: 12px;
-      border: 2px solid var(--nav-sim);
-      text-decoration: none;
-      transition: background 0.12s;
-    }
-    .cta-second:hover { background: rgba(var(--nav-sim-rgb), 0.12); color: var(--text); }
-    @media (max-width: 560px) { .cta-second { display: block; width: 100%; } .home-ctas { flex-direction: column; } }
-    #s7 .donate-line { margin-top: 20px; color: var(--text-muted); font-size: 0.9rem; }
-    #s7 .donate-line a { color: var(--accent); }
-
-    /* ── Light theme: no galaxy behind the page (shell.js hides it), so the
-       dark scrim and the dark glow behind the hero text have nothing to
-       separate the text from, and only grey the page. ── */
-    :root[data-theme="light"] #s1 { background: none; }
-    :root[data-theme="light"] .screen h1,
-    :root[data-theme="light"] #s1 .sub { text-shadow: none; }
-    :root[data-theme="light"] .proof .tile { background: var(--bg-card); }
+    @media (max-width: 340px) { .fd-menu { grid-template-columns: minmax(0, 1fr); } }
   </style>
 </head>
 <body>
-  <script src="/shared/events.js?v=1"></script>
-  <script src="/shared/shell.js"></script>
-  <script src="/shared/eli5.js"></script>
-  <script src="/shared/defaults.js"></script>
-  <script src="/shared/settings.js"></script>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
+<script src="/shared/shell.js"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
 
-  <!-- v0.196.0: sign-in banner, shown only when /chat redirected here (?welcome=1) -->
-  <section id="welcome-signin" style="display: none; padding: 32px 24px; background: linear-gradient(180deg, rgba(237,140,36,0.08), transparent);">
-    <div style="max-width: 720px; margin: 0 auto; text-align: center;">
-      <div style="font-size: 0.85rem; color: var(--accent); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;">First time here?</div>
-      <h2 style="font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 12px; font-weight: 800;">Welcome to HumanityOS</h2>
-      <p style="color: var(--text-muted); margin: 0 0 8px; line-height: 1.6;">
-        A free platform where anyone can learn self-sufficiency, share knowledge, trade, and build together. No ads, no email or password, no owner.
-        Read about it below, or pick a name and jump straight into the community.
-      </p>
-      <p style="color: var(--text-muted); margin: 0 0 20px; line-height: 1.6; font-size: 0.9rem;">
-        Your "name" is just a label other members see. There's no password, no email, no profile to fill in.
-        Your computer creates a private signing key so messages prove they're yours. The key never leaves this device.
-        Next you'll be shown a 24-word recovery phrase: that phrase <strong>is</strong> your account, and it's the only way
-        back in if you lose this device, so write it down when it appears.
-      </p>
-      <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; max-width: 480px; margin: 0 auto;">
-        <input id="welcome-name" type="text" placeholder="Your chosen name (letters, numbers, _ -)"
-               style="flex: 1; min-width: 220px; padding: 12px 14px; font-size: 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text);"
-               maxlength="24" autofocus>
-        <button id="welcome-join" style="padding: 12px 22px; font-size: 1rem; font-weight: 700; border: none; border-radius: 8px; background: var(--accent); color: var(--text-on-accent, #000); cursor: pointer;">
-          Join the community
-        </button>
-      </div>
-      <p id="welcome-error" style="color: var(--danger); margin: 10px 0 0; font-size: 0.9rem; min-height: 1.2em;"></p>
-      <p style="color: var(--text-muted); margin-top: 18px; font-size: 0.85rem;">
-        Want to read more first? Scroll down, or read the <a href="/rules" style="color: var(--accent);">rules and how appeals work</a> before you join.
-        Already have an identity from another device? <a href="/identity" style="color: var(--accent);">Restore from your recovery phrase</a>
-      </p>
+<!-- The welcome step (since v0.196.0): shown only when the chat sent a visitor with no key here
+     (/?welcome=1&return=/chat). It keeps ONLY the chosen name and hands over to the chat, which
+     makes the key itself and so shows the 24-word recovery phrase (index-app.js says why). -->
+<section class="fd-welcome" id="fd-welcome" hidden aria-labelledby="fd-welcome-h">
+  <div class="fd-welcome-box">
+    <div class="fd-welcome-kicker" data-i18n="front_door.welcome_kicker">First time here?</div>
+    <h2 id="fd-welcome-h" data-i18n="front_door.welcome_title">Welcome to HumanityOS</h2>
+    <p data-i18n="front_door.welcome_intro">A free platform where anyone can learn to provide for themselves, share what they know, trade and build together. No ads, no email or password, no owner. Pick a name and go straight into the community.</p>
+    <p class="fd-welcome-note" data-i18n="front_door.welcome_name_note">Your name is just a label other members see: no password, no email, no profile to fill in. Your computer makes a private signing key so your messages prove they are yours, and the key never leaves this device. Next you are shown a 24-word recovery phrase: that phrase is your account, and the only way back in if you lose this device, so write it down when it appears.</p>
+    <div class="fd-welcome-form">
+      <input id="fd-welcome-name" type="text" maxlength="24" autocomplete="nickname"
+             data-i18n-placeholder="front_door.welcome_name_placeholder" placeholder="Your chosen name (letters, numbers, _ -)"
+             data-i18n-aria-label="front_door.welcome_name_label" aria-label="Your chosen name"
+             data-i18n-tip="front_door.welcome_name_hint" data-tip-desc="The name other members see. 1 to 24 letters, numbers, underscores or dashes.">
+      <button type="button" id="fd-welcome-join"
+              data-i18n-tip="front_door.welcome_join_hint" data-tip-desc="Saves the name on this device and opens the chat, which makes your key and shows your recovery phrase."
+              data-i18n="front_door.welcome_join">Join the community</button>
     </div>
+    <p class="fd-welcome-error" id="fd-welcome-error" role="alert"></p>
+    <p class="fd-welcome-links">
+      <span data-i18n="front_door.welcome_rules_lead">Want to read first?</span>
+      <a href="/rules" data-i18n-tip="front_door.welcome_rules_hint" data-tip-desc="Opens the rules of this server: who moderates, what they can do, and how to appeal." data-i18n="front_door.welcome_rules">The rules, and how appeals work</a>
+    </p>
+    <p class="fd-welcome-links">
+      <span data-i18n="front_door.welcome_restore_lead">Already have an account on another device?</span>
+      <a href="/identity" data-i18n-tip="front_door.welcome_restore_hint" data-tip-desc="Opens the page where you type your 24-word recovery phrase to bring your account to this device." data-i18n="front_door.welcome_restore">Restore from recovery phrase</a>
+    </p>
+  </div>
+</section>
+
+<main class="fd">
+  <!-- ══ The title screen ══ -->
+  <header class="fd-title">
+    <div class="fd-mission" data-i18n="humanity.mission">End poverty. Unite humanity.</div>
+    <h1 class="fd-brand" data-i18n="front_door.brand">HumanityOS</h1>
+    <p class="fd-what" data-i18n="front_door.what">Free guides and tools for growing food, keeping water safe, making power and helping each other, and a space game that teaches the same skills.</p>
+    <p class="fd-facts" data-i18n="front_door.facts">No sign-up, no ads, nothing to buy. <span data-term="open_source">Open source</span>, built in the open since 2019.</p>
+
+    <div class="fd-search" role="search">
+      <label class="fd-search-label" for="fd-q" data-i18n="front_door.search_label">What do you need?</label>
+      <div class="fd-search-box">
+        <span class="pg-ico" data-icon="search" data-size="20" aria-hidden="true"></span>
+        <input id="fd-q" class="fd-search-input" type="search" autocomplete="off" spellcheck="true"
+               data-i18n-placeholder="front_door.search_placeholder" placeholder="Try: cloudy water, a bulging jar lid, grow tomatoes"
+               data-i18n-tip="front_door.search_hint" data-tip-desc="Type what you need, or what is going wrong, in your own words. It looks through the step-by-step guides and the Library."
+               aria-controls="fd-results">
+      </div>
+      <div class="fd-results" id="fd-results" hidden aria-live="polite"></div>
+    </div>
+
+    <div class="fd-start-row">
+      <a class="fd-start" href="#start" id="fd-start"
+         data-i18n-tip="front_door.start_hint" data-tip-desc="Asks one question, what brought you here, and shows the first useful thing for it."
+         data-i18n="front_door.start">New here? Start here</a>
+    </div>
+  </header>
+
+  <nav class="fd-menu" id="fd-menu" data-i18n-aria-label="front_door.menu_label" aria-label="Where to go"></nav>
+
+  <!-- ══ What changed lately: one card per release, from this server (/api/front-door) ══ -->
+  <section aria-labelledby="fd-updates-h">
+    <div class="fd-head">
+      <h2 id="fd-updates-h"><span data-i18n="front_door.updates_title">What changed lately</span><span class="fd-head-sub" data-i18n="front_door.updates_from">One card per release, from the #announcements <span data-term="channel">channel</span>.</span></h2>
+      <a href="/devlog" data-i18n-tip="front_door.updates_all_hint" data-tip-desc="Opens the devlog, the full list of updates with their notes."><span data-i18n="front_door.updates_all">Every update</span> &rarr;</a>
+    </div>
+    <div class="fd-cards" id="fd-cards" role="list" data-i18n-aria-label="front_door.updates_label" aria-label="Recent updates"></div>
+    <p class="fd-note" id="fd-cards-note" hidden></p>
   </section>
 
-  <script>
-    (function welcomeBanner() {
-      var params = new URLSearchParams(location.search);
-      if (params.get('welcome') !== '1') return;
-      var sec = document.getElementById('welcome-signin');
-      if (!sec) return;
-      sec.style.display = 'block';
-      sec.scrollIntoView({ behavior: 'auto', block: 'start' });
-      var nameInput = document.getElementById('welcome-name');
-      var joinBtn = document.getElementById('welcome-join');
-      var err = document.getElementById('welcome-error');
-
-      var saved = localStorage.getItem('humanity_name');
-      if (saved) nameInput.value = saved;
-      nameInput.focus();
-
-      function setError(msg) { err.textContent = msg || ''; }
-
-      function joinChat() {
-        var name = nameInput.value.trim();
-        if (!/^[A-Za-z0-9_-]{1,24}$/.test(name)) {
-          setError('Name must be 1-24 characters: letters, numbers, _ or -.');
-          nameInput.focus();
-          return;
-        }
-        setError('');
-        joinBtn.disabled = true;
-        joinBtn.textContent = 'Taking you to chat...';
-        try {
-          // Store ONLY the chosen name and hand off. The chat app creates the
-          // identity itself, and that is what makes it report `isNew`, which is
-          // what runs the onboarding wizard that SHOWS THE 24-WORD RECOVERY
-          // PHRASE.
-          //
-          // This page used to mint the keypair here and write it to
-          // localStorage. Chat then found an existing key and reported
-          // `restored` instead of `isNew`, so a person who signed up from the
-          // landing page: (1) never saw the wizard, so never saw their phrase,
-          // (2) was told "your identity was restored from a local backup"
-          // seconds after signing up, and (3) never got the not-backed-up
-          // nudge either, because that nudge is gated behind
-          // `humanity_onboarding_done`, which only the wizard sets. Clearing
-          // browser data would then lose the identity permanently, with the
-          // person never having been shown the words that would restore it.
-          localStorage.setItem('humanity_name', name);
-          var ret = params.get('return') || '/chat';
-          location.replace(ret + '#joined');
-        } catch (e) {
-          console.error('Could not save the chosen name:', e);
-          setError('Could not save your name in this browser. Check that storage is not blocked.');
-          joinBtn.disabled = false;
-          joinBtn.textContent = 'Join the community';
-        }
-      }
-
-      joinBtn.addEventListener('click', joinChat);
-      nameInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') joinChat();
-      });
-    })();
-  </script>
-
-  <!-- ══ Screen 1: the promise ══ -->
-  <section class="screen" id="s1">
-    <div class="inner">
-      <h1>Free tools for growing food, collecting water, and making power.</h1>
-      <p class="sub">One app for what you planted, what needs doing, and what you can trade with the people on your server. It also holds a space game built on the same rules, so playing it teaches the real thing.</p>
-      <div class="cta-row">
-        <a class="cta-big" href="/download">Download free</a>
-        <a class="cta-see" href="#dawn">See what it looks like</a>
-      </div>
-      <!-- "Runs on old computers" was false and had to go: the renderer is
-           DX12-only on Windows and Vulkan/Metal elsewhere, with
-           force_fallback_adapter:false, so there is no software path at all
-           (src/renderer/mod.rs). It also confused phone readers, who took it to
-           mean the site itself was for desktops only. Real requirements live on
-           /download; the browser version is the genuine low-end answer. -->
-      <p class="micro">Windows, Mac or Linux. No ads, no email, no sign-up. Open source, and still being built in the open since 2019.</p>
+  <!-- ══ Start here: one question, answered within one click ══ -->
+  <section id="start" aria-labelledby="fd-start-h" tabindex="-1">
+    <div class="fd-head"><h2 id="fd-start-h" data-i18n="front_door.start_title">What brought you here?</h2></div>
+    <p class="fd-start-intro" data-i18n="front_door.start_intro">Pick one. The first useful thing for it is one click away, with no sign-up. What you pick, and how far you get, stays on this device.</p>
+    <div class="fd-back-row" id="fd-back" hidden>
+      <span id="fd-back-words"></span>
+      <button type="button" class="fd-link-btn" id="fd-change"
+              data-i18n-tip="front_door.start_change_hint" data-tip-desc="Shows every choice again. Your progress so far is kept."
+              data-i18n="front_door.start_change">Pick something else</button>
     </div>
-    <div class="chev" aria-hidden="true">&#9660;</div>
+    <div class="fd-goals" id="fd-goals"></div>
+    <div class="fd-answer" id="fd-answer" hidden aria-live="polite"></div>
   </section>
+</main>
 
-  <!-- ══ Screen 1b: the hero shot, the second screen down (2026-10-04) ══
-       The operator's idea: start dark on the Milky Way, then the sun comes up
-       over a real place, from Silverdale, Washington, toward Mount Rainier.
-       Recorded by the game's own clip maker (scripts/clips.json, shot
-       "silverdale-dawn"; scripts/make-clips.js), cut to 720p. Wired the way
-       the game panel's clip is: muted, preload="none" so it costs nothing
-       until it is near, played only while on screen, and never by itself for
-       reduced motion or data saver (they get the still and the controls). No
-       loop: it ends on the sunrise, and coming back to it plays it again. -->
-  <section class="screen" id="dawn">
-    <div class="inner">
-      <h2 class="u-purple">Night to sunrise over a real place.</h2>
-    </div>
-    <video class="hero-clip auto-clip" id="dawn-clip" muted playsinline preload="none"
-           width="1280" height="720"
-           poster="/shared/landing/silverdale-dawn.jpg"
-           aria-label="A time-lapse recorded in the game: the winter Milky Way stands over Mount Rainier, seen from Silverdale, Washington, then fades as dawn comes and the sun rises over Dyes Inlet">
-      <source src="/shared/landing/silverdale-dawn.mp4" type="video/mp4">
-    </video>
-    <!-- Every claim here is checkable in the game. The stars are a real star
-         catalogue placed for the date and hour (renderer/sky_frame.rs,
-         BUG-139; the sky_frame tests hold Sirius, Procyon, Orion and the rest
-         within 0.1 degree of the real sky over Silverdale that morning), and
-         this recording used the free 25-million-star catalogue from Settings,
-         which the caption says. The ground is real elevation and map data,
-         and the Earth is drawn at full size. What is NOT claimed, because it
-         is not true yet: the twilight colours (the drawn sky is black through
-         nautical twilight, BUG-141), the sun's own path (the game has no
-         axial tilt, so it rises due east), and Rainier's shape (the elevation
-         data that ships is about 5 km to a cell, so the mountain is a low
-         rounded dome). The old headline, "The real sky over a real place",
-         was false before BUG-139 and went with it. -->
-    <p class="shot-cap">Recorded in the game: night to sunrise over Silverdale, Washington, looking toward Mount Rainier. The stars stand where they really stood that morning (shown with the free 25-million-star catalogue from Settings), the ground is real map data, and the Earth is full size.</p>
-    <div class="chev" aria-hidden="true">&#9660;</div>
-  </section>
-
-  <!-- ══ Screen 2: show the tools before describing them ══ -->
-  <section class="screen" id="s2">
-    <div class="inner">
-      <h2 class="u-blue">Here is what you actually get.</h2>
-    </div>
-    <!-- A real capture of the running app, not a mockup. The page shipped with
-         no product imagery at all and a caption admitting it, which reads to a
-         stranger as "there is nothing to show yet". Regenerate with
-         `just snapshots` (headless, no GPU) whenever the UI moves. -->
-    <img class="shot" src="/shared/landing/app-tasks.png" width="1280" height="900"
-         alt="The Tasks page: a to do, in progress and done board beside step by step guides for water, power and food.">
-    <p class="shot-cap">The task board, beside step-by-step guides for water, power and food. It all lives on your own computer.</p>
-    <div class="chev" aria-hidden="true">&#9660;</div>
-  </section>
-
-  <!-- ══ Screen 3: the same app helps in real life ══ -->
-  <section class="screen" id="s3">
-    <div class="inner">
-      <h2 class="u-blue">Six things it does today.</h2>
-    </div>
-    <div class="cards">
-      <div class="card c-green">
-        <div class="card-art"><svg viewBox="0 0 48 48"><path d="M24 42 V22"/><path d="M24 23 C24 15 31 12 37 12 C37 20 30 23 24 23 Z"/><path d="M24 28 C24 22 17 20 11 20 C11 26 18 28 24 28 Z"/></svg></div>
-        <div class="cap">Grow your food</div>
-        <div class="card-sub">Track seeds, beds and harvests in the homestead you grow in the game. Advice on what to plant next where you live is not built yet.</div>
-      </div>
-      <div class="card c-purple">
-        <div class="card-art"><svg viewBox="0 0 48 48"><rect x="7" y="11" width="34" height="26" rx="2"/><line x1="18.3" y1="11" x2="18.3" y2="37"/><line x1="29.6" y1="11" x2="29.6" y2="37"/></svg></div>
-        <div class="cap">Plan your day</div>
-        <div class="card-sub">A shared board for what to do, what is in progress, and what is done. Reading it works anywhere. Adding a task needs the web page and a chat sign-in today, because the desktop app's New Task button is not wired to the server yet.</div>
-      </div>
-      <div class="card c-blue">
-        <div class="card-art"><svg viewBox="0 0 48 48"><path d="M12 18 H36 L30 12"/><path d="M36 30 H12 L18 36"/></svg></div>
-        <div class="cap">Trade with people on your server</div>
-        <!-- /api/listings returns an empty array today. Promising "real goods
-             from real people" sends people to an empty page, which reads as
-             abandonware; an honest invitation does not. -->
-        <div class="card-sub">A market for real goods and services, listed and signed by the people offering them. Money never moves through the platform.</div>
-      </div>
-      <div class="card c-red">
-        <div class="card-art"><svg viewBox="0 0 48 48"><path d="M9 11 h30 a3 3 0 0 1 3 3 v16 a3 3 0 0 1 -3 3 H20 l-8 7 v-7 H9 a3 3 0 0 1 -3 -3 V14 a3 3 0 0 1 3 -3 Z"/></svg></div>
-        <div class="cap">Talk freely</div>
-        <div class="card-sub">Community chat that no company owns or can shut off.</div>
-      </div>
-      <div class="card c-purple">
-        <div class="card-art"><svg viewBox="0 0 48 48"><path d="M10 22 h28 a2 2 0 0 1 2 2 v12 a2 2 0 0 1 -2 2 H10 a2 2 0 0 1 -2 -2 V24 a2 2 0 0 1 2 -2 Z"/><path d="M19 22 V12 h10 v10"/><path d="M20 28 h8"/></svg></div>
-        <div class="cap">Decide things together</div>
-        <div class="card-sub">See what is being proposed, how the vote is going, and what was already settled. Every vote is signed, so anyone can check the count. You can vote or make a proposal on the website or in the desktop app. A proposal marked [Demo] is an example, posted to show how it works: it changes nothing.</div>
-      </div>
-      <div class="card c-blue">
-        <div class="card-art"><svg viewBox="0 0 48 48"><path d="M24 12 V38"/><path d="M12 18 h24"/><path d="M16 18 l-5 10 h10 Z"/><path d="M32 18 l-5 10 h10 Z"/><path d="M17 38 h14"/></svg></div>
-        <div class="cap">Know the rules where you live</div>
-        <div class="card-sub">Rights and rules in plain language, traced from all of humanity down to a single county. So far that chain is worked out for one place only, Kitsap County in Washington, as a proof of the format. Every entry cites its source, most have not been checked by a person yet, and none of it is legal advice.</div>
-      </div>
-    </div>
-    <div class="game-panel has-clip">
-      <!-- A real clip, not a mock-up. It plays only while on screen, muted,
-           and never by itself for someone who asked for reduced motion or to
-           save data: they get the still and a play button. preload="none" so
-           the 1.2 MB file costs nothing until it is wanted. -->
-      <video class="gp-clip auto-clip" id="game-clip" muted loop playsinline preload="none"
-             width="1280" height="720"
-             poster="/shared/landing/game-home-flyover.jpg"
-             aria-label="A flight over a one-acre home in orbit: house, greenhouse, work wing and yard, recorded in the game">
-        <source src="/shared/landing/game-home-flyover.mp4" type="video/mp4">
-      </video>
-      <div class="gp-text">
-        <div class="gp-title">And a game built on the same rules.</div>
-        <!-- Honest about the state. The game is not playable end to end yet,
-             and a visitor who downloads on the strength of this and finds a
-             tech demo is exactly how a bad review gets written. -->
-        <div class="gp-sub">You live on a ship in space and keep it alive: grow the food, catch the water, make the power. It works the way these things work in life, not the way they usually work in games, so you can practise a system before you depend on it. Still being built, and the devlog shows what changed today.</div>
-        <div class="gp-cap">Recorded in the game as it is today: a one-acre home in orbit.</div>
-      </div>
-    </div>
-    <div class="chev" aria-hidden="true">&#9660;</div>
-  </section>
-
-  <!-- ══ Screen 3b: how the software ends the five ══ -->
-  <section class="screen" id="how">
-    <div class="inner inner-wide">
-      <h2 class="u-purple">How the software fights back.</h2>
-      <p class="how-lede">Five structures hold humanity back. Not evil people, but failure modes of systems that reward harm, hide it, or make it inescapable. Naming enemies in people breeds war; naming them in structures breeds engineering. Each is a problem with a known shape, and HumanityOS is built to answer it.</p>
-      <ul class="pillars">
-        <li>
-          <span class="adv adv-poverty">Poverty</span>
-          <div class="body"><b>Homesteading, built in.</b> The app teaches the real skills to grow food, catch water, and make power, then helps you run the real systems, for one family or a whole community. Every person who joins widens the network.</div>
-        </li>
-        <li>
-          <span class="adv adv-tyranny">Tyranny</span>
-          <div class="body"><b>You own your identity.</b> Your identity is a key kept on your device, not a login a company can suspend. No one owns the network; anyone can run a piece of it, and the desktop app keeps working when the internet doesn't. In the built-in governance, authority is granted by consent that is informed, ongoing, and revocable.</div>
-        </li>
-        <li>
-          <span class="adv adv-corruption">Corruption</span>
-          <div class="body"><b>Everything in the open.</b> 100% open source, every line inspectable. In the governance system, every power traces to a grant that is visible, limited, and revocable. Legible authority instead of hidden hands.</div>
-        </li>
-        <li>
-          <span class="adv adv-fraud">Fraud</span>
-          <div class="body"><b>Signed, not &ldquo;trust me.&rdquo;</b> Records are cryptographically signed and cannot be quietly altered. Anyone can verify what actually happened, instead of taking someone's word for it.</div>
-        </li>
-        <li>
-          <span class="adv adv-pollution">Pollution</span>
-          <div class="body"><b>Honest accounting.</b> The full cost of an action is counted, including the cost that lands on people outside the room. Waste is designed to become an input to something else.</div>
-        </li>
-      </ul>
-      <p><a class="quiet-link" href="/mission">Read the full mission &rarr;</a></p>
-    </div>
-    <div class="chev" aria-hidden="true">&#9660;</div>
-  </section>
-
-  <!-- ══ Screen 4: it costs nothing ══ -->
-  <section class="screen" id="s4">
-    <div class="inner">
-      <h2>It costs nothing.</h2>
-      <ul class="free-list">
-        <li><span class="ck">&#10003;</span>No ads.</li>
-        <li><span class="ck">&#10003;</span>No sign-up or email.</li>
-        <li><span class="ck">&#10003;</span>No subscriptions.</li>
-        <li><span class="ck">&#10003;</span>Free today, free forever.</li>
-      </ul>
-    </div>
-    <div class="chev" aria-hidden="true">&#9660;</div>
-  </section>
-
-  <!-- ══ Screen 5: the dream ══ -->
-  <section class="screen" id="s5">
-    <div class="bp" aria-hidden="true"></div>
-    <div class="inner">
-      <h2 class="u-purple">A support network for every human.</h2>
-      <p>One family homesteading becomes a neighborhood. A neighborhood becomes a region. The network has no center and no owner, so it can grow without limit. Decentralized support for every person on Earth, and eventually beyond it.</p>
-      <p><a class="quiet-link" href="/mission">See the bigger picture &rarr;</a></p>
-      <p><a class="quiet-link" href="/library#built-for-everyone-on-earth">How it can work for all eight billion of us, and one day between planets &rarr;</a></p>
-    </div>
-    <div class="chev" aria-hidden="true">&#9660;</div>
-  </section>
-
-  <!-- ══ Screen 6: proof bar ══ -->
-  <section class="screen" id="s6">
-    <div class="proof">
-      <!-- proof-versions is stamped by scripts/bump-version.js on every release,
-           proof-years is computed below, so neither can go stale by hand. -->
-      <a class="tile" href="/devlog" style="text-decoration:none;"><div class="n" id="proof-versions">1,547</div><div class="l">updates shipped &middot; devlog</div></a>
-      <div class="tile"><div class="n">100%</div><div class="l">open source</div></div>
-      <div class="tile"><div class="n" id="proof-years">7 years</div><div class="l">of work</div></div>
-      <div class="tile"><div class="n">Donations</div><div class="l">not ads</div></div>
-    </div>
-  </section>
-
-  <!-- ══ Screen 7: welcome home ══ -->
-  <section class="screen" id="s7">
-    <div class="inner">
-      <h2>Come build it with us.</h2>
-      <div class="home-ctas">
-        <a class="cta-big" href="/download">Download the app</a>
-        <!-- Goes via the welcome step deliberately: /chat bounces any visitor
-             with no key straight back here with location.replace, so linking it
-             directly sent people who read the whole page back to its top with a
-             dead back button. -->
-        <a class="cta-second" href="/?welcome=1&amp;return=/chat">Say hello in chat</a>
-      </div>
-      <p class="donate-line">Built in the open by <a href="https://github.com/Shaostoul">Shaostoul</a> since 2019, with help from anyone who shows up. Every line is public, and it runs on donations. If you can give, <a href="/donate">thank you</a>.</p>
-    </div>
-  </section>
-
-  <script>
-  // The clips from the game (the hero shot and the game panel's flyover) play
-  // while they are on screen and pause when they are not, so they never run
-  // (or download) unseen. Reduced motion or a data-saver setting leaves them
-  // still, with the browser's controls to play them by choice. A clip without
-  // `loop` that has ended starts again from the top when play() is called, so
-  // scrolling back to the hero shot shows the sunrise again.
-  (function () {
-    var clips = document.querySelectorAll('video.auto-clip');
-    if (!clips.length) return;
-    var still = (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
-      (navigator.connection && navigator.connection.saveData) ||
-      document.body.hasAttribute('data-reduced-motion');
-    if (still || !('IntersectionObserver' in window)) {
-      Array.prototype.forEach.call(clips, function (v) { v.controls = true; });
-      return;
-    }
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        var v = e.target;
-        if (e.isIntersecting) { var p = v.play(); if (p && p.catch) p.catch(function () { v.controls = true; }); }
-        else v.pause();
-      });
-    }, { threshold: 0.35 });
-    Array.prototype.forEach.call(clips, function (v) { io.observe(v); });
-  })();
-
-  // Years of work, counted from the first commit in 2019 so it never goes stale.
-  (function () {
-    var el = document.getElementById('proof-years');
-    if (!el) return;
-    var years = new Date().getFullYear() - 2019;
-    el.textContent = years + (years === 1 ? ' year' : ' years');
-  })();
-  </script>
+<script src="/shared/front-door.js"></script>
+<script src="/pages/index-app.js"></script>
 </body>
 </html>

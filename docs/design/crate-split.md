@@ -69,14 +69,14 @@ And the reasons not to split:
 | Crate | What is in it | Lines | Commits in 30 days | An edit re-checks | May use |
 |---|---|---|---|---|---|
 | `humanity-core` | the small leaves, the ECS, data loading, hot reload, storage, cosmos | 11,374 | 50 | 100% | nothing |
-| `humanity-protocol` | `relay/core`: keys, signatures, sealed messages, signed objects, encodings | 12,621 | 21 | 66% | core |
+| `humanity-protocol` | `relay/core`: keys, signatures, sealed messages, signed objects, encodings (and since 2026-11-02 `release_signature`, the release check the updater and the server share) | 12,621 | 21 | 66% | core |
 | `humanity-ship` | `ship`, `machines`, `station`: the home's structure, its machines, the orbit | 31,980 | 81 | 77% | core |
 | `humanity-terrain` | `terrain`: planets, heights, oceans, chunk meshes as plain data | 23,731 | 2 | 86% | core |
 | `humanity-systems` | `systems`, `persistence`, `surface_walk`, `surface_move`: the simulation | 78,798 | 108 | 72% | core, ship, terrain |
 | `humanity-relay` | `relay`, `how_to`: the server | 110,645 | 142 | 60% | core, protocol, ship, systems |
 | `humanity-net` | `net`: the app's side of the network | 30,691 | 58 | 47% | core, protocol |
 | `humanity-renderer` | `renderer`, `assets`: uploading and drawing | 68,820 | 37 | 53% | core, terrain |
-| `humanity-gui` | `gui`, `config`, `games`, `software`, `media`, `web_reader`, `updater` (since rung 0 part B), `release_update` (since its backlog), and the chat-safety code now in `engine/` (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; since part B also the friend choices, the pass answers, household permits and low impact) | 177,268 | 255 | 42% | all of the above |
+| `humanity-gui` | `gui`, `config`, `games`, `software`, `media`, `web_reader`, `updater` (since rung 0 part B), `release_update` (since its backlog; its pure signature check went down to the protocol on 2026-11-02), and the chat-safety code now in `engine/` (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; since part B also the friend choices, the pass answers, household permits and low impact) | 177,268 | 255 | 42% | all of the above |
 | `humanity-engine` | `engine` (THE FRAME), `lib.rs`, `save_load`, the binary | 94,250 | 242 | 15% | everything |
 
 The lines, commits and shares are the 2026-10-30 reading. After rung 0 (2026-10-31,
@@ -280,6 +280,12 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      restore are in the interface tables.
    - **`release_update` is the GUI's, not the relay's:** native-only, never called by the server,
      used by the updater and the binary.
+     **Changed 2026-11-02:** its pure verification (the file shapes, the compiled-in release keys,
+     both signatures, the downloaded binary's hash) moved down to `humanity-protocol`'s
+     `release_signature`, because the server now checks a signed release itself before the website
+     marks it Signed (`POST /api/release-signature`, docs/design/front-door.md section 3.1, decided
+     under the operator's "Keep"). The signing commands, the launcher's sidecar check and the
+     download stay in `release_update` and `updater`, still the GUI's.
    - **One cut-away box:** `ship::levels::LevelCut` is gone; `level_cuts` returns
      `ship::storey_edits::CutAway`, and engine/map_cut.rs no longer converts.
    - **Still open: the engine-folder files the plan gives the GUI** (the chat-safety files,

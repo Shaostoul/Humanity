@@ -6,7 +6,10 @@ What the app and the server must agree on, byte for byte. A crate of its own sin
 crate split (2026-11-01, `crates/humanity-protocol/`; it was `src/relay/core/`): the identity and
 its signatures, sealing to a person's key, canonical CBOR and the BLAKE3 ids of
 signed objects, the signed objects themselves (key cards, moderation, market payloads, profile
-copies, recovery through trusted people), the key derivations, and the privacy work done on a file
+copies, recovery through trusted people), the key derivations, the check that the project's
+release keys made a release (`release_signature`, 2026-11-02: the desktop updater's verify half,
+moved here so the server can check a signed release before the website marks it Signed,
+[front-door.md](../design/front-door.md) section 3.1), and the privacy work done on a file
 before it leaves a device (stripping and describing its hidden metadata). It is small and
 security-critical, so it can be reviewed on its own, and as its own crate it lets the app's network
 side (net) and the server (relay) compile side by side.
@@ -15,13 +18,13 @@ side (net) and the server (relay) compile side by side.
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-protocol/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-protocol/src/describe_metadata.rs`, `crates/humanity-protocol/src/did.rs`, `crates/humanity-protocol/src/encoding.rs`, `crates/humanity-protocol/src/error.rs`, `crates/humanity-protocol/src/hash.rs`, `crates/humanity-protocol/src/identity.rs`, `crates/humanity-protocol/src/kdf.rs`, `crates/humanity-protocol/src/key_card.rs`, `crates/humanity-protocol/src/market_payloads.rs`, `crates/humanity-protocol/src/moderation.rs`, `crates/humanity-protocol/src/merkle_disclosure.rs`, `crates/humanity-protocol/src/object.rs`, `crates/humanity-protocol/src/pq_crypto.rs`, `crates/humanity-protocol/src/profile_copy.rs`, `crates/humanity-protocol/src/recovery.rs`, `crates/humanity-protocol/src/signing.rs`, `crates/humanity-protocol/src/solana_rpc.rs`, `crates/humanity-protocol/src/strip_heif_metadata.rs`, `crates/humanity-protocol/src/strip_metadata.rs`, `crates/humanity-protocol/src/strip_video_metadata.rs`
-- **Size:** 12,539 lines in 26 files, 975 of them in 4 test files.
+  - no gate (every build): `crates/humanity-protocol/src/describe_metadata.rs`, `crates/humanity-protocol/src/did.rs`, `crates/humanity-protocol/src/encoding.rs`, `crates/humanity-protocol/src/error.rs`, `crates/humanity-protocol/src/hash.rs`, `crates/humanity-protocol/src/identity.rs`, `crates/humanity-protocol/src/kdf.rs`, `crates/humanity-protocol/src/key_card.rs`, `crates/humanity-protocol/src/market_payloads.rs`, `crates/humanity-protocol/src/moderation.rs`, `crates/humanity-protocol/src/merkle_disclosure.rs`, `crates/humanity-protocol/src/object.rs`, `crates/humanity-protocol/src/pq_crypto.rs`, `crates/humanity-protocol/src/profile_copy.rs`, `crates/humanity-protocol/src/recovery.rs`, `crates/humanity-protocol/src/release_signature.rs`, `crates/humanity-protocol/src/signing.rs`, `crates/humanity-protocol/src/solana_rpc.rs`, `crates/humanity-protocol/src/strip_heif_metadata.rs`, `crates/humanity-protocol/src/strip_metadata.rs`, `crates/humanity-protocol/src/strip_video_metadata.rs`
+- **Size:** 13,058 lines in 28 files, 1,209 of them in 5 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 3, `native` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 95, gui 48, net 31.
+- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 97, gui 53, net 31, engine 1.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 159 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 171 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-protocol
@@ -40,14 +43,14 @@ just test-lib --crate humanity-protocol
 | `key_card` | 6 | gui 2, net 2, relay 2 |
 | `pq_crypto::derive_dilithium_seed` | 6 | net 4, gui 2 |
 | `object::ObjectBuilder` | 5 | gui 3, net 2 |
-| `pq_crypto::verify_dilithium` | 5 | relay 3, gui 1, net 1 |
 | `profile_copy` | 5 | relay 4, gui 1 |
 | `did` | 4 | relay 4 |
 | `kdf::pbkdf2_sha256` | 4 | gui 2, net 2 |
+| `pq_crypto::verify_dilithium` | 4 | relay 3, net 1 |
 | `recovery` | 4 | gui 2, relay 2 |
 | `did::fingerprint_to_hex` | 3 | relay 3 |
 
-And 37 more items, 56 references (`node scripts/crate-cards.js --interface humanity-protocol` lists them all).
+And 42 more items, 65 references (`node scripts/crate-cards.js --interface humanity-protocol` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -79,6 +82,13 @@ And 37 more items, 56 references (`node scripts/crate-cards.js --interface human
   so it compiles beside the core rather than after it. The root package depends on it under the
   `relay` feature, which `native` turns on, so every change here reaches both builds. Its own
   `native` feature carries the desktop vault's key derivation (`kdf::pbkdf2_sha256`).
+- **The release check compiles the project's release public keys in**
+  (`data/release/signing_pubkeys.json`, `release_signature::embedded_pubkeys`), and its tests check
+  the REAL signed pairs of two releases against them (`tests/fixtures/release/`, kept byte for byte
+  by `.gitattributes`): if those fail, the committed keys are not the ones the operator signs
+  with, and every desktop app would refuse every update. Never regenerate the fixtures; add a newer
+  real pair beside them with `gh release download vX.Y.Z --pattern 'release-manifest.json*'`.
+  Source: [cryptography.md](../reference/cryptography.md), Release signing.
 
 ## How to test it
 

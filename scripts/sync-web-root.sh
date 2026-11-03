@@ -64,6 +64,12 @@ done
 for f in "$SRC"/web/favicon.*; do
   [ -f "$f" ] && cp "$f" "$DST/$(basename "$f")"
 done
+# The crawlers' two files (2026-11-02, docs/design/front-door.md 4.5): /robots.txt (what a search
+# engine may fetch: never /api/, the uploads or a person's own pages) and /sitemap.xml (the public
+# pages, written by scripts/gen-sitemap.js). nginx's `location /` serves both as files.
+for f in robots.txt sitemap.xml; do
+  [ -f "$SRC/web/$f" ] && cp "$SRC/web/$f" "$DST/$f"
+done
 
 # The homepage IS pages/index.html; the loop above already placed it at the
 # root. Assert rather than assume - a 404 landing page is the whole reason

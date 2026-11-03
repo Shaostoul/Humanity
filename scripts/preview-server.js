@@ -40,6 +40,9 @@ const TYPES = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.wasm': 'application/wasm',
+  // The crawlers' files at the web root (web/robots.txt, web/sitemap.xml), as nginx types them.
+  '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
 };
 
 // Map a URL path to a file on disk, mirroring nginx aliases.

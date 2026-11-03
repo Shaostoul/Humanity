@@ -1,0 +1,43 @@
+/* The update card (docs/design/front-door.md, section 3): one release, built by
+   web/shared/front-door.js updateCard, on the front page's row (web/pages/index.html) and the
+   Devlog's list (web/pages/devlog.html). Theme tokens only; no colour is written here.
+   The desktop twin, src/gui/widgets/update_card.rs, is the design's rung 5 (the Humanity
+   overview), still to be built.
+
+   About seven lines in all: the version and the date, the headline (up to five lines: at 220 px,
+   the narrowest card, none of the last 100 real headlines is cut), Release notes. */
+.update-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 12px 14px;
+  background: var(--bg-card); border: 1px solid var(--border); border-top: 3px solid var(--accent);
+  border-radius: var(--radius-lg); min-width: 0;
+}
+.update-card-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.85rem; }
+.update-card-ver { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+.update-card-date { color: var(--text-muted); white-space: nowrap; }
+.update-card-title {
+  flex: 1; margin: 0; font-size: 0.98rem; line-height: 1.45; color: var(--text);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden;
+  min-height: calc(3 * 1.45em);
+}
+.update-card-title::first-letter { text-transform: uppercase; }
+.update-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.update-card-link { font-size: 0.85rem; color: var(--accent); text-decoration: none; font-weight: 700; }
+.update-card-link:hover, .update-card-link:focus-visible { text-decoration: underline; }
+
+/* A signed release (section 3.1): the operator, 2026-11-02, "when I sign its widget dressing is
+   slightly different from the normal update ones". Its band and its mark take the theme's
+   verified colour (--badge-verified, the colour the chat gives a verified person), the card a
+   faint wash of it, and the mark says Signed in words, so the colour is never the only way to
+   tell. The mark's colour on the washed card: 5.90 to 1 dark, 4.84 to 1 light
+   (scripts/tests/contrast.test.js holds it at 4.5). A card that is not signed stays as it was. */
+.update-card.update-card-signed {
+  border-top-color: var(--badge-verified);
+  background: color-mix(in srgb, var(--badge-verified) 7%, var(--bg-card));
+}
+.update-card-signed-mark {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 8px 1px 6px; border: 1px solid var(--badge-verified); border-radius: var(--pill-radius);
+  color: var(--badge-verified); font-size: 0.75rem; font-weight: 800; cursor: help;
+}
+.update-card-signed-mark:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.update-card-signed-mark .pg-ico { display: flex; }

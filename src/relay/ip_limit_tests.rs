@@ -134,6 +134,8 @@ fn every_route_has_a_class_and_no_api_route_is_static() {
     assert_eq!(Class::of(&Method::GET, "/api/tasks"), Class::Read);
     assert_eq!(Class::of(&Method::GET, "/api/v2/solana/balance/x"), Class::Costly);
     assert_eq!(Class::of(&Method::POST, "/api/v2/zk/verify"), Class::Costly);
+    assert_eq!(Class::of(&Method::POST, "/api/release-signature"), Class::Costly, "two signature checks a request");
+    assert_eq!(Class::of(&Method::GET, "/api/front-door"), Class::Read);
     assert_eq!(Class::of(&Method::PATCH, "/api/upload/resumable/ab"), Class::Upload);
     assert_eq!(Class::of(&Method::PUT, "/api/backup-host/o/x/y"), Class::Upload, "another server's backup pieces");
     assert_eq!(Class::of(&Method::GET, "/ws/live/sub/x"), Class::Socket);

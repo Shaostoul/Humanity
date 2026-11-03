@@ -15,7 +15,7 @@ build = "../repo_root.rs"
 # The same default as the root package, so `cargo test -p humanity-protocol` tests what the app builds.
 default = ["native"]
 # The desktop vault's key derivation (kdf::pbkdf2_sha256): the server derives no vault key.
-native = ["dep:pbkdf2", "dep:sha2"]
+native = ["dep:pbkdf2"]
 # The fixtures other crates' tests share (the profile copy's cases, the HEIF test pictures, a key by
 # seed byte). A crate's #[cfg(test)] items are never compiled into another crate's tests, so a
 # dependent turns this on in its [dev-dependencies] only; no product build carries it.
@@ -40,7 +40,9 @@ rand_core_06 = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-sha2 = { workspace = true, optional = true }
+# SHA-256: the desktop vault's PBKDF2 and the release manifest's hash (release_signature.rs), which
+# the server checks too, so it is in every build.
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 

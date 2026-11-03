@@ -87,23 +87,9 @@ if (fs.existsSync(dlPath)) {
   }
 }
 
-// 7b. web/pages/index.html — the landing "updates shipped" proof tile.
-// Shows the minor number (the release counter), comma-grouped. Stamped here so
-// it can never drift the way the hand-written "860+" did (it sat 200 releases
-// stale until 2026-07-30).
-const landingPath = path.join(ROOT, 'web/pages/index.html');
-if (fs.existsSync(landingPath)) {
-  const landing = fs.readFileSync(landingPath, 'utf8');
-  const shipped = String(kind === 'minor' ? min + 1 : min).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const updated = landing.replace(
-    /(id="proof-versions">)[\d,]+(<)/,
-    `$1${shipped}$2`
-  );
-  if (updated !== landing) {
-    fs.writeFileSync(landingPath, updated, 'utf8');
-    console.log(`  updated web/pages/index.html  (proof tile -> ${shipped})`);
-  }
-}
+// (Removed 2026-11-02, step 7b: the front page's "updates shipped" proof tile. The front door that
+// replaced the page (docs/design/front-door.md) shows the releases themselves, from the server's
+// /api/front-door, so there is no number on it to stamp.)
 
 // (Removed v0.698.3: the web/activities/download.html fork is deleted. It was
 // a stale duplicate that nginx served at /download while this script kept

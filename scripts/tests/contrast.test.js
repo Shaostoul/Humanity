@@ -107,7 +107,30 @@ const PAIRS = [
   ['the warning\'s link', 'warning', ['warning_bg'], 4.5],
   ['the warning\'s glossary word', 'accent', ['warning_bg'], 4.5],
   ['the warning\'s version', 'text_muted', ['warning_bg'], 4.5],
+  // A signed release's update card (2026-11-02, web/shared/update-card.css, docs/design/front-door.md
+  // 3.1): the card takes a wash of badge_verified over bg_card (`signed_card`, derived below the
+  // way the browser's color-mix in srgb makes it, at the share the stylesheet says), and its Signed
+  // mark is badge_verified words. Seen red 2026-11-02 with the wash at 45% in update-card.css (both themes
+  // failed): "the Signed mark on a signed update card: badge_verified on signed_card is 3.07:1".
+  ['the Signed mark on a signed update card', 'badge_verified', ['signed_card', 'bg_card'], 4.5],
+  ['a signed card\'s version and Release notes link', 'accent', ['signed_card'], 4.5],
+  ['a signed card\'s date', 'text_muted', ['signed_card'], 4.5],
+  ['a signed card\'s headline', 'text_primary', ['signed_card'], 4.5],
 ];
+
+/** The colours a page mixes from two tokens, added to a palette by name: CSS color-mix(in srgb,
+ *  a p%, b) mixes the gamma-encoded channels. */
+function withMixes(palette) {
+  const mix = (a, b, p) => (palette[a] && palette[b] ? palette[a].map((c, i) => Math.round(c * p + palette[b][i] * (1 - p))) : null);
+  const out = Object.assign({}, palette);
+  // The share is read from the card's own stylesheet, so a stronger wash there is checked here.
+  const css = fs.readFileSync(path.join(process.env.HOS_WEB_DIR || path.join(ROOT, 'web'), 'shared', 'update-card.css'), 'utf8');
+  const m = /\.update-card\.update-card-signed\s*\{[^}]*color-mix\(in srgb,\s*var\(--badge-verified\)\s*([\d.]+)%,\s*var\(--bg-card\)\)/.exec(css);
+  assert.ok(m, 'update-card.css washes a signed card with color-mix(in srgb, var(--badge-verified) N%, var(--bg-card))');
+  const signed = mix('badge_verified', 'bg_card', parseFloat(m[1]) / 100);
+  if (signed) out.signed_card = signed;
+  return out;
+}
 const DARK_ONLY = [
   ['map names', 'map_label', ['map_space'], 4.5],
   ['map minor names', 'map_label_minor', ['map_space'], 4.5],
@@ -131,14 +154,14 @@ function check(palette, pairs) {
 }
 
 test('dark theme (desktop app and website): every text and control pair meets WCAG 2.1 AA', () => {
-  const dark = darkPalette();
+  const dark = withMixes(darkPalette());
   const { fails, rows } = check(dark, PAIRS.concat(DARK_ONLY));
   if (process.env.CONTRAST_REPORT) for (const [w, f, b, r] of rows) console.log(r.toFixed(2).padStart(6) + '  ' + f + ' on ' + b + '  (' + w + ')');
   assert.deepStrictEqual(fails, [], 'dark theme pairs below AA:\n' + fails.join('\n'));
 });
 
 test('light theme (website): every text and control pair meets WCAG 2.1 AA', () => {
-  const light = lightPalette(darkPalette());
+  const light = withMixes(lightPalette(darkPalette()));
   const { fails, rows } = check(light, PAIRS);
   if (process.env.CONTRAST_REPORT) for (const [w, f, b, r] of rows) console.log(r.toFixed(2).padStart(6) + '  ' + f + ' on ' + b + '  (' + w + ')');
   assert.deepStrictEqual(fails, [], 'light theme pairs below AA:\n' + fails.join('\n'));

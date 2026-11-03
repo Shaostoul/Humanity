@@ -1,12 +1,17 @@
 # The website's front door: a title screen with tools in it
 
-**Status (2026-11-02):** designed, with a prototype the operator can open on his screen and his
-phone (`web/prototypes/front-door/`, section 9). Revised the same day after his three answers:
-**no chat on the front page** (section 4), **a signed release's card dressed its own way**
-(section 3.1), and his real screen, **2560 x 1440 on a 65-inch TV** (section 3.2). Nothing here
-replaces the live front page (`web/pages/index.html`), and nothing is decided for the operator
-except where his own words say so; what is still his is in section 8. This answers decision 6 of
-[app-bottom-strip.md](app-bottom-strip.md) (section 7), the journal's open LANDING PAGE question.
+**Status (2026-11-02, evening): BUILT, rungs 1 to 4 of section 10.** The operator adopted it the
+same day ("Let's do it."; on the signed look "Keep and update devlog too."; on chat "Let's exclude
+it from the front page. It's not worth the hassle."), and it is now the live front page
+(`web/pages/index.html`), in the standard 1,100 px column, with the relay's `/api/front-door`, the
+server checking a release's signatures itself (`POST /api/release-signature`), the Devlog on the
+same cards, the Library reading `?q=`, and a `robots.txt`. What was built and how is section 12;
+the prototype (`web/prototypes/front-door/`) was deleted once the page replaced it, its findings
+kept in sections 2, 3 and 7. Earlier the same day it was revised after his three answers: **no
+chat on the front page** (section 4), **a signed release's card dressed its own way** (section
+3.1), and his real screen, **2560 x 1440 on a 65-inch TV** (section 3.2). What is still his is in
+section 8. This answers decision 6 of [app-bottom-strip.md](app-bottom-strip.md) (section 7), the
+journal's open LANDING PAGE question.
 
 ## 0. The operator's words
 
@@ -374,13 +379,13 @@ longer depends on either.
   `migration-guard` reviews it.
 - **The search** reads, on the first key and never on load: the How-to index (12.9 KB), the
   planned list (10.1 KB), the Library's manifest (66 KB, titles and tags) and the plain-words file
-  (`search-words.json`, section 7.4), about 90 KB; never the Library's 9.5 MB full-text index.
+  (`data/front_door/search_words.json`, section 7.4), about 90 KB; never the Library's 9.5 MB full-text index.
   "Search the whole Library" hands the words to `/library?q=`, which the Library page has to learn
   to read (it opens on `#slug` only today).
 - **No third party:** the front door asks nothing of GitHub or any other site, so no visitor's
   address leaves our servers (the self-hosted fonts' reasoning, `web/shared/theme.css`). The
-  Devlog page does ask GitHub's API from each visitor's browser (`web/pages/devlog-app.js`), worth
-  knowing when the cards' "Every update" link points there.
+  Devlog page asked GitHub's API from each visitor's browser (`web/pages/devlog-app.js`); since
+  the build it reads this server's `/api/releases` instead (section 12).
 
 ## 6. What the desktop's Humanity page shares with it
 
@@ -454,7 +459,7 @@ needs a key.
 
 ### 7.4 The search reads plain words
 
-`search-words.json` holds rows of words that mean the same ("diarrhea", "diarrhoea", "loose
+`data/front_door/search_words.json` (the prototype's `search-words.json`) holds rows of words that mean the same ("diarrhea", "diarrhoea", "loose
 stool"; "throw up", "vomit"; "power cut", "blackout") and a short list of small words to drop
 ("my", "is", "the"). A query becomes groups, each matched by any word in it; every group must
 match. The How-to page's own search against the prototype's, on the same data:
@@ -475,64 +480,41 @@ is English; a translation brings its own.
 ## 8. Decisions for the operator
 
 **Answered 2026-11-02:** no chat on the front page (section 4); a signed release's card dressed
-its own way (section 3.1).
+its own way (section 3.1); then, the same evening, **adopt it** ("Let's do it.") and **keep the
+signed look and put it on the Devlog too** ("Keep and update devlog too."). Under that "Keep" the
+orchestrator took the standard 1,100 px column (decision 2) and the relay checking the
+signatures itself (decision 4), as recommended. Built: section 12.
 
 Still his:
 
-1. **Adopt this as the front door**, in place of the seven-screen page? Then where the clips and
-   "How the software fights back" go (proposed: the game's page or `/download`, and the Library).
-2. **The column:** the standard 1,100 px (4 cards on his screen at any scaling and on a laptop), or
-   the wide 1,560 px (6 on his screen at 100% or 150%, 5 at 200% and on a laptop). The card rule
-   is the same either way.
-3. **The signed dressing as shown** (the verified band, the wash, the Signed mark), or another
-   look; and whether the Devlog page's list carries the same mark.
-4. **Where the server learns a release is signed:** the relay checking the signatures itself
-   (recommended), which moves the verify half of `release_update` into a crate the relay links,
-   a change to the crate split's placement; or the bot-secret fallback.
+1. **Where the old page's clips and "How the software fights back" go** (proposed: the game's page
+   or `/download`, and the Library). The front door dropped them; they are in git history
+   (`web/pages/index.html` before 2026-11-02) and their media files are still in `web/shared/landing/`.
+2. ~~The column~~: the standard 1,100 px, built. The wide one is one value, `--fd-col` in
+   `index.html`'s style, should he want six cards on his screen.
+3. ~~The signed dressing~~: as shown, built, and on the Devlog.
+4. ~~Where the server learns a release is signed~~: the relay checks the signatures itself, built
+   (section 12).
 5. **Start here's seven answers** and the first thing each opens: his eye and a reviewer's on each
    answer before it goes live (teaching data needs a refutation pass, memory
    `project_teaching_data_needs_refutation`).
-6. **The cold-reader test:** hand three people the phone with the prototype's first screen and ask
+6. **The cold-reader test:** hand three people the phone with the front page's first screen and ask
    what it is and what they would do with it; their wrong guesses locate what is still unclear.
    Only a person can run it.
 
-## 9. The prototype
+## 9. The prototype (deleted once the page replaced it)
 
-`web/prototypes/front-door/`: `index.html` and `app.js`, and its data: `config.json` (the
-numbers), `destinations.json`, `goals.json`, `search-words.json`, `signed-releases.json` (which
-releases are signed, a 2026-11-02 snapshot standing in for the endpoint), `sample-updates.json`
-(nine real announcements, shown only when the feed cannot be reached, labelled as samples). Every
-word is a key (`front_door.*` in `data/i18n/en.json`, 97 keys), every control has a hint, theme
-tokens only; the i18n, hints, accessibility and glossary web tests pass with it.
-
-**Kept off the live site:** `web/prototypes/` is outside what the deploy copies
-(`scripts/sync-web-root.sh` copies `web/pages/` and `web/shared/`), it is not a page of the
-registry, and it carries `noindex`. It posts nothing.
-
-**To open it:** `node scripts/preview-server.js 8099`, then
-`http://127.0.0.1:8099/prototypes/front-door/`. Without a relay the update cards are the samples,
-labelled so. The screenshots used a scratch server answering only the announcements history, from
-the 100 posts read from the live server on 2026-11-02. Address options: `?theme=light` (the light
-theme for this visit only, without changing the person's setting), `?col=wide`, `?measure=1` (the
-readout and the headline measurement), `?min=<px>`, `?q=<words>` (the search answering),
-`?goal=<id>` (Start here with a pick).
-
-**The screenshots** (in the session's scratchpad, prefixed `frontdoor-`):
-- his screen: `2560x1440-dark`, `2560x1440-light`, `2560x1440-wide-column-dark`,
-  `2560x1440-wide-column-light`, the update row up close (`2560x1440-cards-closeup-dark` and
-  `-light`, the wide column, both signed cards), the whole page (`2560x1440-whole-page-dark`), and
-  the same screen at 200% scaling (`2560x1440-at-200pct-dark` and `-light`);
-- a laptop: `1366x768-dark`, `1366x768-light`, `1366-whole-page-light`;
-- a phone: `390x844-dark`, `390x844-light`, `390-whole-page-dark`;
-- the search: `1366x768-search-dark` ("my jar lid is bulging"), `390x844-search-light`
-  ("diarrhea").
-
-Taken by headless Edge through its DevTools protocol, each at an exact viewport. The earlier
-2000 x 1125 set, which still showed the chat slice, was removed.
-
-**Not to be merged as is.** The real build differs: section 10.
+`web/prototypes/front-door/` was the decision aid: a copy of this page with sample cards, a
+measurement readout (`?measure=1`, the headline table of section 3) and the light theme for one
+visit (`?theme=light`), kept off the live site. It was deleted on 2026-11-02 when the real page
+took its place; its data files moved to `data/front_door/`, and what it measured is kept above
+(sections 2, 3, 3.2 and 7). Its screenshots (`frontdoor-*.png` in that session's scratchpad: his
+screen at 100% and 200%, a laptop, a phone, the search) were of the prototype; the real page's are
+`frontdoor-live-*.png` (section 12). It is in git history for anyone who wants the readout back.
 
 ## 10. What the real build takes, in rungs
+
+Rungs 1 to 4 are BUILT (2026-11-02, section 12); rung 5 is open.
 
 1. **`GET /api/front-door`, updates:** the filter and parse of section 4.4, its route in
    `features.rs`, relay tests (`just verify-relay`), the relay check.
@@ -552,8 +534,68 @@ Taken by headless Edge through its DevTools protocol, each at an exact viewport.
 
 ## 11. What could not be found out
 
-- Whether the live #announcements channel is read only (no public route lists channel flags).
-- How people read the prototype: only the cold-reader test (8.6) can say.
-- Which display scaling his PC uses on the TV, so whether he sees the 100% or the 200% shots.
-- Whether search engines have indexed `/api/messages`: the live site has no `robots.txt` (404),
-  which neither invites nor forbids it.
+- Whether the live #announcements channel is read only (no public route lists channel flags). The
+  build no longer depends on it: the filter takes only the Deploy Bot's and the server's own posts.
+- How people read the page: only the cold-reader test (8.6) can say.
+- Whether search engines have indexed `/api/messages` already: there was no `robots.txt`. Section 12
+  adds one and a `noindex` header; an address already in an index drops out when the engine next
+  reads it.
+
+## 12. As built (2026-11-02)
+
+**The server** (`src/relay/front_door.rs`, its storage `src/relay/storage/front_door.rs`):
+- `GET /api/front-door` answers `{ updates: [{ version, title, url, at, signed }] }`, the newest nine;
+  `GET /api/releases?before=<cursor>&limit=<n>` the same cards a page at a time (at most 50) with
+  `next`, for the Devlog. Both under the `chat` feature, in the Read allowance per address.
+- The filter (section 4.4): a card only from the Deploy Bot's key (`bot_deploy_bot`) or the server's
+  own; the post must read `**v<digits and dots>**: <headline>`, ending with at most one link, and
+  only to that version's own release page; any other link, or a web address in the words, and the
+  post is not shown. The card's URL is built from the version, never taken from the post; the
+  headline is plain words, cut at 280 characters. All 2,354 posts of
+  `data/announcements_archive.json` make cards (a test reads them).
+- `POST /api/release-signature { manifest, signature }` (the two files' text) keeps the pair only
+  when `humanity_protocol::release_signature::check_signed_release` passes: both signatures against
+  the compiled-in release keys, a plain version, size limits. Table `release_signatures` (version,
+  the manifest's SHA-256, both files, when checked), a new table, no ALTER. The Costly allowance
+  per address (two signature checks a request). No secret: only the project's keys make a pair
+  that passes.
+- **The verify half moved** from `src/release_update.rs` (the GUI's) to
+  `crates/humanity-protocol/src/release_signature.rs`, which the relay links; `release_update` keeps
+  the signing commands and the launcher's sidecar check, `updater` the download. The layer plan,
+  the crate cards and `docs/reference/cryptography.md` ("Release signing") say so. Its tests check
+  the REAL signed pairs of v0.1547.0 and v0.1543.0 (`tests/fixtures/release/`) against the
+  compiled-in keys.
+- `just sign-release` sends the pair as its last step (`scripts/send-release-signature.js`);
+  `just send-release-signatures vX.Y.Z` retries one, `--backfill` sends every release already
+  signed on GitHub (to run once after the route deploys).
+- Every `/api/` answer, `/uploads/` and a Files item's page carry `X-Robots-Tag: noindex`
+  (`src/relay/mod.rs` `keep_out_of_search`).
+- Found on the way, BUG-226: the server's own announcements were stored in #general, not their
+  channel, so the feed could never have seen them.
+
+**The page** (`web/pages/index.html`, `index-app.js`; the rules and the card `web/shared/front-door.js`,
+`web/shared/update-card.css`; the data `data/front_door/`): as sections 2, 3, 3.1 and 7 describe,
+in the standard column, with every word by key and every control hinted. The welcome step for
+`/?welcome=1` moved in and follows only a `?return=` of this site (BUG-227: it followed any
+address, `javascript:` included). The cards are asked for once a visit, and again only when the
+tab comes back after ten minutes.
+
+**The Devlog** (`web/pages/devlog.html`, `devlog-app.js`): the same cards a page at a time from
+`/api/releases`, never GitHub's API (which sent every visitor's address to GitHub). What it gave
+up: the release notes' full text in the page; each card's Release notes opens it on GitHub.
+
+**The Library** reads `?q=` and runs that search on open. **robots.txt and /sitemap.xml**
+(`web/robots.txt`, `scripts/gen-sitemap.js` from `data/site/public_pages.json`), put at the web
+root by `scripts/sync-web-root.sh`; no nginx change.
+
+**Measured in the built page** (headless Edge, exact viewports; a relay-only debug build of the
+branch on loopback seeded with the last 100 real announcements, the two real signed pairs sent to
+its route, which kept both): at 2560 x 1440 the whole page is one screen (1,440 px), four cards of
+258 px, v0.1547.0 signed; at 412 x 915 (his phone) a swipe row of nine cards of 280 px, the next one
+peeking, 2,100 px in all; no sideways scroll at either. Screenshots `frontdoor-live-*.png` in that
+session's scratchpad: the page, the Devlog and the search at both sizes in both themes, Start
+here with Safe water picked, and `/library?q=tomato`.
+
+**Still open:** rung 5 (the desktop's overview: the update card widget, the destinations, the
+shared search fixture); decision 8.1 (where the old page's clips go); the cold-reader test (8.6);
+Start here's answers reviewed (8.5); the How-to page reading the same plain-words file.

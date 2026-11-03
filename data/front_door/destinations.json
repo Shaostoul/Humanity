@@ -1,0 +1,13 @@
+{
+  "_comment": "The front door's title-screen buttons (docs/design/front-door.md, section 2): a button is a row. Words are keys in data/i18n/en.json; icon is a name in web/shared/icons.js. href is the page on the website; native is the desktop page the same button opens (GuiPage), for the Humanity overview that is to share this list (design section 6; null where the desktop has none). Read by web/pages/index-app.js.",
+  "destinations": [
+    {"id": "howto", "icon": "steps", "href": "/how-to", "native": "HowTo", "name": "front_door.dest_howto", "line": "front_door.dest_howto_line", "hint": "front_door.dest_howto_hint"},
+    {"id": "library", "icon": "journal", "href": "/library", "native": "Library", "name": "front_door.dest_library", "line": "front_door.dest_library_line", "hint": "front_door.dest_library_hint"},
+    {"id": "game", "icon": "rocket", "href": "/download", "native": "MainMenu", "name": "front_door.dest_game", "line": "front_door.dest_game_line", "hint": "front_door.dest_game_hint"},
+    {"id": "chat", "icon": "chat", "href": "/?welcome=1&return=/chat", "native": "Chat", "name": "front_door.dest_chat", "line": "front_door.dest_chat_line", "hint": "front_door.dest_chat_hint"},
+    {"id": "tools", "icon": "apps", "href": "/apps", "native": "Apps", "name": "front_door.dest_tools", "line": "front_door.dest_tools_line", "hint": "front_door.dest_tools_hint"},
+    {"id": "mission", "icon": "heart", "href": "/humanity", "native": "Humanity", "name": "front_door.dest_mission", "line": "front_door.dest_mission_line", "hint": "front_door.dest_mission_hint"},
+    {"id": "decide", "icon": "users", "href": "/governance", "native": "Governance", "name": "front_door.dest_decide", "line": "front_door.dest_decide_line", "hint": "front_door.dest_decide_hint"},
+    {"id": "progress", "icon": "compass", "href": "/roadmap", "native": null, "name": "front_door.dest_progress", "line": "front_door.dest_progress_line", "hint": "front_door.dest_progress_hint"}
+  ]
+}

@@ -59,6 +59,10 @@ pub mod handlers;
 /// The server capability manifest (v0.1113): which features this owner offers,
 /// and the maps the two enforcement points read. See the module docs.
 pub mod features;
+/// The website's front door (2026-11-02, docs/design/front-door.md): the update cards from
+/// #announcements, the release list the Devlog reads, and the release signatures the server
+/// checked itself before a card says Signed.
+pub mod front_door;
 pub mod transport;
 /// Live video fanout (v0.853.0). A separate BINARY WebSocket path — video never
 /// touches the chat relay. See `docs/design/streaming.md`.
@@ -256,6 +260,7 @@ async fn security_headers(
     // Defense-in-depth with the upload-side extension blocklist. (Audit
     // 2026-06-12.)
     let is_upload = req.uri().path().starts_with("/uploads");
+    let noindex = keep_out_of_search(req.uri().path());
     // A name that starts with a dot under /uploads is never served (R5, 2026-10-11): an upload
     // being copied into place has one (storage/files.rs `STAGED_PREFIX`) until it is whole and
     // counted. Matched before the path is decoded too (`%2e` is a dot).
@@ -264,7 +269,21 @@ async fn security_headers(
     }
     let mut res = next.run(req).await;
     set_security_headers(res.headers_mut(), is_upload);
+    if noindex {
+        res.headers_mut().insert("x-robots-tag", HeaderValue::from_static("noindex"));
+    }
     res
+}
+
+/// Whether an answer at `path` carries `X-Robots-Tag: noindex` (2026-11-02, the site's robots.txt,
+/// web/robots.txt). robots.txt asks a crawler not to FETCH a path, but a URL someone linked can
+/// still be listed by a search engine without being fetched; this header, on the answer itself,
+/// is what keeps it out of the index. Every /api/ answer (people's posts, keys and names, the app's
+/// internals), the files people uploaded (/uploads/), and one Files item's own page (/files/<id>):
+/// that page is for link previews, which still work (a preview reads the page, it does not list
+/// it), while a search engine does not list a person's file unless they ask for it.
+pub fn keep_out_of_search(path: &str) -> bool {
+    path.starts_with("/api/") || path == "/api" || path.starts_with("/uploads") || path.starts_with("/files/")
 }
 
 /// The headers [`security_headers`] puts on every answer. A route that set its own
@@ -1294,6 +1313,12 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/stats", get(api::get_stats))
         .route("/api/reactions", get(api::get_reactions))
         .route("/api/pins", get(api::get_pins))
+        // The website's front door (2026-11-02, front_door.rs): the update cards, the same release
+        // list a page at a time for the Devlog, and a release's signed pair, kept only when both
+        // signatures verify against the project's compiled-in release keys (no secret needed).
+        .route("/api/front-door", get(front_door::get_front_door))
+        .route("/api/releases", get(front_door::get_releases))
+        .route("/api/release-signature", post(front_door::post_release_signature).layer(axum::extract::DefaultBodyLimit::max(front_door::SIGNATURE_BODY_LIMIT)))
         // The body limit is the hard ceiling here, not axum's 2 MB default (which turned a 3 MB
         // video into "Error parsing multipart/form-data request" whatever the role allowed); the
         // handler refuses anything over the uploader's own role limit as soon as it sees the size.

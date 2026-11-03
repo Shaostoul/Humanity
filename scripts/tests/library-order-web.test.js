@@ -210,7 +210,7 @@ function storage(initial, refuse) {
 }
 
 /** Boot library.html's scripts against `manifest`, as a browser would, and wait for it to settle. */
-async function bootPage(manifest, ls) {
+async function bootPage(manifest, ls, search) {
   const doc = { activeElement: null, listeners: {} };
   const ids = {};
   for (const id of ["lib-rail", "lib-rail-wrap", "lib-content", "lib-tags", "lib-search", "lib-results"]) {
@@ -227,11 +227,16 @@ async function bootPage(manifest, ls) {
   const files = {
     "/data/library/index.json": manifest,
     "/data/curriculum/syllabus.json": { subjects: [], topics: [] },
+    // The full-text index the search reads on its first query (section 5's ?q= test).
+    "/data/library/search-index.json": { docs: [
+      { slug: "your-first-tomato", title: "Your First Tomato", text: "One plant, one pot, one sunny window: grow a tomato.", headings: [], tags: ["food"] },
+      { slug: "starting-seeds", title: "Starting Seeds", text: "Seeds want warmth and water.", headings: [], tags: [] },
+    ] },
   };
   const ctx = {
     document: doc,
     localStorage: ls,
-    location: { hash: "" },
+    location: { hash: "", search: search || "" },
     history: { pushState() {}, replaceState() {} },
     console: { log() {}, warn() {}, error() {} },
     setTimeout: (f) => setTimeout(f, 0),
@@ -254,7 +259,7 @@ async function bootPage(manifest, ls) {
   }
   (doc.listeners.DOMContentLoaded || []).forEach((f) => f());
   for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
-  return { rail: ids["lib-rail"], ctx };
+  return { rail: ids["lib-rail"], ctx, ids };
 }
 
 /** The documents the rail drew, in order, as "Shelf: Title". */
@@ -309,6 +314,26 @@ test("4c. with storage refused the page still draws, A to Z, and the chips still
   assert.deepStrictEqual(railTitles(rail, SAMPLE), AZ_TITLES);
   rail.querySelector('[data-order="suggested"]').click();
   assert.deepStrictEqual(railTitles(rail, SAMPLE), CATALOG_TITLES);
+});
+
+// 5. ?q= (2026-11-02, docs/design/front-door.md section 5): the front door's "Search the whole
+// Library for ..." opens /library?q=<words>, and the page runs that search as though the words had
+// been typed: the box holds them, the results replace the rail and name the matching document.
+// Seen red 2026-11-02 with the ?q= block taken out of wireSearch: "the box holds the handed words /
+// left: undefined / right: 'tomato window'".
+test("5. /library?q= runs the search it was handed", async () => {
+  const { ids } = await bootPage(SAMPLE, storage(), "?q=tomato%20window");
+  assert.strictEqual(ids["lib-search"].value, "tomato window", "the box holds the handed words");
+  const results = ids["lib-results"];
+  assert.strictEqual(results.hidden, false, "the results show");
+  assert.strictEqual(ids["lib-rail"].hidden, true, "in place of the rail");
+  assert.match(results.innerHTML, /data-slug="your-first-tomato"/, "the matching document is a result");
+  assert.doesNotMatch(results.innerHTML, /data-slug="starting-seeds"/, "every word must match");
+
+  const none = await bootPage(SAMPLE, storage(), "?tag=food");
+  assert.strictEqual(none.ids["lib-search"].value, undefined, "no ?q=, no search");
+  const odd = await bootPage(SAMPLE, storage(), "?q=%E0%A4%A");
+  assert.strictEqual(odd.ids["lib-search"].value, undefined, "words that cannot be read are not a search");
 });
 
 // Red first, 2026-10-10, each break made in a copy of web/pages (HOS_WEB_DIR), the rest passing:
