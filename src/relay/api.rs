@@ -2301,6 +2301,11 @@ pub async fn get_web_manifest() -> Json<WebManifest> {
 /// nothing about why: when the copy held is a withdrawal (the person went unlisted), and when the
 /// key has an account HERE that is unlisted here, at once, before any device has signed the
 /// withdrawal. Every copy held is one its owner signed, so there is no unsigned copy to tidy.
+///
+/// Unlisted here, since BUG-241 (2026-11-03): anything but `"directory": "listed"` in the
+/// account's privacy map here, an account with no profile here included (it never chose here,
+/// and the person's app shows the box for this server unticked). A copy held for a key with no
+/// account here (from a linked server) is answered as its owner chose it there.
 pub async fn get_signed_profile(
     State(state): State<Arc<RelayState>>,
     Path(key): Path<String>,
@@ -2314,11 +2319,12 @@ pub async fn get_signed_profile(
         Ok(Some(profile)) if is_withdrawal(&profile.copy()) => not_found(),
         Ok(Some(profile)) => {
             // The person's account here, if they have one: its privacy map as it is NOW (read
-            // before anything is answered, so a map that cannot be read answers nothing).
+            // before anything is answered, so a map that cannot be read answers nothing). No
+            // profile here is the empty map: never chose here, so unlisted here (BUG-241).
             let local_name = state.db.current_name_for_key(&key).ok().flatten();
             let local_privacy = match &local_name {
                 Some(name) => match state.db.get_profile_extended(name) {
-                    Ok(row) => row.map(|r| r.7),
+                    Ok(row) => Some(row.map(|r| r.7).unwrap_or_default()),
                     Err(e) => return failed(e),
                 },
                 None => None,
@@ -2689,8 +2695,9 @@ async fn admin_stats_inner(
         return Err((StatusCode::FORBIDDEN, "Admin role required.".into()));
     }
 
-    // Gather stats.
-    let user_count = state.db.get_member_count(None).unwrap_or(0);
+    // Gather stats. The admins see every member, in the public directory or not (BUG-241: since
+    // 2026-11-03 nobody is listed until they choose it), as `recent_joins` sees every join.
+    let user_count = state.db.member_total().unwrap_or(0);
     let online_count = state.peers.read().await.len();
     let total_messages = state.db.message_count().unwrap_or(0);
     let uptime_seconds = state.start_time.elapsed().as_secs();

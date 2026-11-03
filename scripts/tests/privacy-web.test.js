@@ -191,7 +191,9 @@ test("1. Settings > Privacy draws the levels in en.json's words, and takes a per
     stored: {
       humanity_privacy_tier: "spotlight", // the level taken out (BUG-238): its switches were Open's
       humanity_hide_presence: "0",
-      humanity_profile: JSON.stringify({ bio: "Gardener", location: "Lisbon", privacy: { location: "private" } }),
+      // Listed by the word (BUG-241, 2026-11-03: only "listed" lists; a Spotlight profile from
+      // before the fix, with no word, is not listed any more, test 9).
+      humanity_profile: JSON.stringify({ bio: "Gardener", location: "Lisbon", privacy: { directory: "listed", location: "private" } }),
     },
   });
   // One card per level in the file, in its order and en.json's words, and its hint by key.
@@ -256,21 +258,25 @@ test("2. Show others when I am online: kept, and one privacy_update with just th
 
 // ── 3. The directory switch on its own ───────────────────────────────────
 
-test("3. List me in the public member directory: kept in the profile the chat sends, recorded as changed, no frame from here", async () => {
+// Since BUG-241 (2026-11-03) never chosen draws unticked (a server lists only the word "listed"),
+// and each change writes its word. Seen red against main's web/ (HOS_WEB_DIR): "never chosen:
+// unticked, as every server leaves the person out" (true against false).
+test("3. List me in the public member directory: unticked until chosen; each change writes its word in the profile the chat sends, recorded as changed, no frame from here", async () => {
   const page = await settingsPage({ stored: { humanity_profile: JSON.stringify({ bio: "Gardener", socials: { github: "ann" } }) } });
-  assert.equal(page.els["privacy-directory"].checked, true, "listed: no unlisted in the profile");
+  assert.equal(page.els["privacy-directory"].checked, false, "never chosen: unticked, as every server leaves the person out");
   assert.equal(page.els["privacy-presence"].checked, false, "presence never chosen shows hidden, as the server keeps a new account");
-  page.els["privacy-directory"].checked = false;
+  page.els["privacy-directory"].checked = true;
   page.els["privacy-directory"].fire("change");
   await settle();
-  assert.deepEqual(page.stored(), { bio: "Gardener", socials: { github: "ann" }, privacy: { directory: "unlisted" } }, "unlisted, every other field kept");
+  assert.deepEqual(page.stored(), { bio: "Gardener", socials: { github: "ann" }, privacy: { directory: "listed" } }, "ticked: the word \"listed\", every other field kept");
   assert.deepEqual(JSON.parse(page.storage.getItem("humanity_profile_changes")), ["privacy:directory"], "recorded as changed for the chat");
   assert.equal(page.els["privacy-status"].textContent, fill("privacy.web_directory_saved", {}), "the page says the chat sends it");
   assert.equal(page.sockets.length, 0, "no frame from this page: the directory goes with the profile, from the chat");
-  // Back on: the key goes, the change is still recorded.
-  page.els["privacy-directory"].checked = true;
+  // Off again: the word "unlisted", so the server can tell a choice from never choosing.
+  page.els["privacy-directory"].checked = false;
   page.els["privacy-directory"].fire("change");
-  assert.deepEqual(page.stored().privacy, {}, "listed again");
+  assert.deepEqual(page.stored().privacy, { directory: "unlisted" }, "unticked: the word \"unlisted\"");
+  assert.equal(page.els["privacy-directory"].checked, false);
 });
 
 // ── 4. No readable key here ──────────────────────────────────────────────
@@ -436,4 +442,111 @@ test("8. Both apps say who sees what you keep for friends in one key, and the Pr
   assert.ok(desktop.includes('t_marked("privacy.kept_for_friends")'), "the desktop's Settings > Privacy");
   const desktopProfile = fs.readFileSync(path.join(ROOT, "src", "gui", "pages", "profile.rs"), "utf8");
   assert.ok(desktopProfile.includes('t("profile.network_seen_by")'), "the desktop's Network Profile says who sees it, in the same words");
+});
+
+// ── 9. Off until chosen, and the word written (BUG-241) ─────────────────
+
+/** The source of `function name(...) {...}` in a page's inline script, braces counted. */
+function fnSource(src, name) {
+  const start = src.indexOf("function " + name + "(");
+  assert.ok(start >= 0, "the page has " + name);
+  let depth = 0;
+  for (let i = src.indexOf("{", start); i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}" && --depth === 0) return src.slice(start, i + 1);
+  }
+  throw new Error("no end to " + name);
+}
+
+/**
+ * The website's Profile page as far as the directory box goes: the box as the browser draws it
+ * from profile.html's markup, then the page's own loadProfile, backfillFromCanonical and Save &
+ * Sync (syncNetworkProfile), run over a stand-in page with the real profile-changes.js.
+ */
+function profilePage(stored) {
+  const html = read("pages/profile.html");
+  const tag = html.match(/<input[^>]*id="f-directory-listed"[^>]*>/);
+  assert.ok(tag, "the Profile page has the directory box");
+  const storage = fakeStorage(stored);
+  const els = {};
+  const el = (id) => els[id] || (els[id] = { id, value: "", checked: false, textContent: "", style: {}, focus() {} });
+  el("f-directory-listed").checked = /\schecked(?=[\s>=\/])/.test(tag[0]);
+  // The page keeps the box in its own store and in its list of checkboxes (FIELDS, CHECKBOX_FIELDS).
+  assert.match(html, /var FIELDS = \[[\s\S]*?'directory-listed'[\s\S]*?\];/, "the page keeps the box in its store");
+  assert.match(html, /var CHECKBOX_FIELDS = \[[\s\S]*?'directory-listed'\];/, "as a checkbox");
+  const ctx = {
+    console: { log() {}, info() {}, warn() {}, error() {} },
+    localStorage: storage,
+    document: { getElementById: el },
+    setTimeout: () => 0,
+    i18n: { t: (k) => k },
+    STORE_KEY: "humanity_profile_full_v1",
+    PRIVACY_KEY: "humanity_profile_privacy",
+    PRIVACY_FIELDS: ["pronouns", "location", "website"],
+    profilePrivacy: {},
+    BIO_MAX: 280,
+    FIELDS: ["directory-listed"],
+    CHECKBOX_FIELDS: ["directory-listed"],
+    saveAll() {},
+  };
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(read("shared/profile-changes.js"), ctx, { filename: "shared/profile-changes.js" });
+  for (const name of ["loadProfile", "bareHandle", "backfillFromCanonical", "syncNetworkProfile"]) {
+    vm.runInContext(fnSource(html, name), ctx, { filename: "pages/profile.html#" + name });
+  }
+  return {
+    storage,
+    box: () => el("f-directory-listed"),
+    /** What the page does as it opens: its own store, then the canonical profile. */
+    open: () => { ctx.loadProfile(); ctx.backfillFromCanonical(); return el("f-directory-listed").checked; },
+    save: () => ctx.syncNetworkProfile(),
+    stored: () => JSON.parse(storage.getItem("humanity_profile") || "{}"),
+  };
+}
+
+// A person is in a server's public member directory only once they chose it: the word "listed"
+// in their privacy map (the relay's DIRECTORY_LISTED; storage/members.rs MEMBER_DIR_VISIBLE).
+// Every box that sets it draws unticked until then, and writes "listed" or "unlisted".
+// Seen red 2026-11-03 against main's web/ (HOS_WEB_DIR): "privacy-tiers.js writes the relay's
+// word for listed" (undefined against 'listed'); with only that line taken out, "never chosen:
+// the Profile page's box is unticked" (true against false), its markup ticking the box.
+test("9. Off until chosen: the Profile page and the levels write \"listed\" or \"unlisted\", and never chosen draws unticked (BUG-241)", async () => {
+  // One spelling of the two words, in the relay and in both of the website's scripts.
+  const rust = fs.readFileSync(path.join(ROOT, "crates", "humanity-protocol", "src", "profile_copy.rs"), "utf8");
+  const word = (name) => { const m = rust.match(new RegExp(`pub const ${name}: &str = "([^"]+)";`)); assert.ok(m, "the relay defines " + name); return m[1]; };
+  const P = require(path.join(WEB, "shared", "privacy-tiers.js"));
+  const PC = require(path.join(WEB, "shared", "profile-copy.js"));
+  assert.equal(P.LISTED, word("DIRECTORY_LISTED"), "privacy-tiers.js writes the relay's word for listed");
+  assert.equal(P.UNLISTED, word("DIRECTORY_UNLISTED"), "and for unlisted");
+  assert.deepEqual([PC.DIRECTORY_LISTED, PC.DIRECTORY_UNLISTED], [P.LISTED, P.UNLISTED], "profile-copy.js the same");
+
+  // The Profile page, never chosen (a profile with no word: new, or saved before the fix).
+  const never = profilePage({ humanity_profile: JSON.stringify({ bio: "Gardener", privacy: { location: "private" } }) });
+  assert.equal(never.open(), false, "never chosen: the Profile page's box is unticked");
+  never.save();
+  assert.equal(never.stored().privacy.directory, "unlisted", "Save & Sync with it unticked writes \"unlisted\"");
+  never.box().checked = true;
+  never.save();
+  assert.equal(never.stored().privacy.directory, "listed", "ticked: \"listed\"");
+  assert.ok(JSON.parse(never.storage.getItem("humanity_profile_changes")).includes("privacy:directory"), "recorded as changed, so the chat sends it");
+  // This browser's profile says listed: ticked, unless the page holds an unsynced choice of its own.
+  assert.equal(profilePage({ humanity_profile: JSON.stringify({ privacy: { directory: "listed" } }) }).open(), true, "listed: ticked");
+  assert.equal(
+    profilePage({ humanity_profile: JSON.stringify({ privacy: { directory: "listed" } }), humanity_profile_full_v1: JSON.stringify({ "directory-listed": false }) }).open(),
+    false, "listed, unticked on this page and not synced yet: stays unticked");
+  // Not listed there: always unticked, even with the page's own store ticked (a box from before
+  // the fix), so the page never says listed while the server leaves the person out.
+  for (const privacy of [{}, { directory: "unlisted" }]) {
+    const p = profilePage({ humanity_profile: JSON.stringify({ privacy }), humanity_profile_full_v1: JSON.stringify({ "directory-listed": true }) });
+    assert.equal(p.open(), false, "not listed (" + JSON.stringify(privacy) + "): unticked");
+  }
+
+  // The levels write the word too: Open lists, Balanced and Private write "unlisted".
+  for (const [tier, w] of [["open", "listed"], ["balanced", "unlisted"], ["private", "unlisted"]]) {
+    const chat = chatPage({});
+    await chat.ctx.applyPrivacyTier(tier);
+    assert.equal(JSON.parse(chat.storage.getItem("humanity_profile")).privacy.directory, w, tier + " writes \"" + w + "\"");
+    assert.equal(P.directoryListed(chat.storage), w === "listed", tier + ": the box reads it back");
+  }
 });

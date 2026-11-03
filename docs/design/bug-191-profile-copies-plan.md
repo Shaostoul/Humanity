@@ -187,8 +187,8 @@ pub struct PublicCopy { pub name, bio, avatar_url, banner_url, socials, pronouns
 ```
 
 **Reading the privacy map (one rule, both sides).**
-- Parse the text as JSON. If it is not an object, nothing is kept for friends and the person is listed.
-- `unlisted(map)`: `map["directory"]` is the string `"unlisted"`.
+- Parse the text as JSON. If it is not an object, nothing is kept for friends and the person is not listed.
+- `listed(map)`: `map["directory"]` is the string `"listed"`; `unlisted(map)` is its opposite. **Changed 2026-11-03 (BUG-241):** until then `unlisted(map)` was `map["directory"] == "unlisted"`, so a map without the key (a person who never chose, or one who chose listed, which both apps wrote by taking the key out) was listed. Now both apps write `"listed"` or `"unlisted"`, only `"listed"` lists, and the relay's directory query (`MEMBER_DIR_VISIBLE`) reads the same word. Safe by default: nobody's copy leaves a server until they choose it.
 - `kept_for_friends(map, f)`: `map[f]` is the string `"private"`.
 
 **`public_copy(name, bio, avatar_url, banner_url, socials, pronouns, location, website, privacy)`:**

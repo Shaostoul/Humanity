@@ -237,9 +237,10 @@ async fn everything_reaches_the_other_server() {
     // A line in A's own room never leaves A.
     post(&mut sock, 41, "local", "stays on A").await;
 
-    // A profile change, signed by her own key (a new socket: one save per 30 s per socket).
+    // A profile change, signed by her own key (a new socket: one save per 30 s per socket). She is
+    // listed (BUG-241: only the word "listed" sends a copy to the linked servers).
     let mut psock = sign_in(&a, 41, "Ann").await;
-    send(&mut psock, json!({ "type": "profile_update", "socials": "{}", "bio": "Keeps bees.", "privacy": "{}" })).await;
+    send(&mut psock, json!({ "type": "profile_update", "socials": "{}", "bio": "Keeps bees.", "privacy": "{\"directory\":\"listed\"}" })).await;
     let own = frame_where(&mut psock, "her own copy, asking to be signed", |f| f["type"] == "profile_data" && f["sign_now"] == true).await;
     let s = |k: &str| own[k].as_str().unwrap_or("").to_string();
     let copy = humanity_protocol::profile_copy::public_copy(&s("name"), &s("bio"), &s("avatar_url"), &s("banner_url"), &s("socials"), &s("pronouns"), &s("location"), &s("website"), &s("privacy"));

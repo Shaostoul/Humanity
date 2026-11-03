@@ -122,7 +122,7 @@ test("the signed words are the relay's pinned words", () => {
 test("the fixture's copies and words come out of the website's builder, and the Rust signatures verify over them", async () => {
   const me = await signer();
   assert.equal(me.key, FX.public_key, "pq.js's derivation from [7; 32] gives the fixture's key");
-  assert.equal(FX.cases.length, 4);
+  assert.equal(FX.cases.length, 5);
   for (const [i, c] of FX.cases.entries()) {
     const n = i + 1;
     const copy = PC.publicCopy(c.frame.name, c.frame, c.frame.privacy);
@@ -141,37 +141,73 @@ test("the fixture's copies and words come out of the website's builder, and the 
   assert.equal(FX.cases[0].copy.pronouns, "she/her", "case 1: pronouns marked public stay");
   assert.ok(PC.isWithdrawal(FX.cases[1].copy) && PC.unlisted(FX.cases[1].frame.privacy), "case 2: unlisted is the withdrawal");
   assert.equal(FX.cases[2].copy.socials, "{}", "case 3: links stored blank read as {}");
+  // BUG-241: only "directory": "listed" lists, so a map that is not an object and one that never
+  // chose are the withdrawal too.
+  assert.ok(PC.isWithdrawal(FX.cases[3].copy) && PC.unlisted(FX.cases[3].frame.privacy), "case 4: a map that is not an object lists nobody");
+  assert.ok(PC.isWithdrawal(FX.cases[4].copy) && PC.unlisted(FX.cases[4].frame.privacy), "case 5: never chose is the withdrawal");
 });
 
 // Seen red with `===` turned to `==` in keptForFriends: "a location whose value is a list is
 // public" failed (a list holding "private" compares equal to the word under ==; Rust's as_str
 // says it is not a word).
-test("the privacy map is read one way: only the word \"private\" keeps a field, only \"unlisted\" withdraws", () => {
+test("the privacy map is read one way: only the word \"private\" keeps a field, only \"listed\" lists", () => {
   const p = { bio: "hi", avatar_url: "https://ann.example/a.png", socials: '{"github":"ann"}', pronouns: "she/her", location: "Lisbon", website: "https://ann.example" };
+  // Listed by the word (BUG-241), so what is kept for friends shows in the copy.
   const copy = (privacy) => PC.publicCopy("Ann", p, privacy);
-  assert.equal(copy('{"location":"private","since":2019}').location, "", "a map holding a number still keeps the location");
-  assert.equal(copy('{"location":"friends"}').location, "Lisbon", "only the word \"private\" keeps a field");
-  assert.equal(copy('{"location":["private"]}').location, "Lisbon", "a location whose value is a list is public");
-  assert.equal(copy('{"location":"PRIVATE"}').location, "Lisbon", "the word in its own case only");
-  assert.deepEqual(copy('{"pronouns":"private","location":"private","website":"private"}'),
+  assert.equal(copy('{"directory":"listed","location":"private","since":2019}').location, "", "a map holding a number still keeps the location");
+  assert.equal(copy('{"directory":"listed","location":"friends"}').location, "Lisbon", "only the word \"private\" keeps a field");
+  assert.equal(copy('{"directory":"listed","location":["private"]}').location, "Lisbon", "a location whose value is a list is public");
+  assert.equal(copy('{"directory":"listed","location":"PRIVATE"}').location, "Lisbon", "the word in its own case only");
+  assert.deepEqual(copy('{"directory":"listed","pronouns":"private","location":"private","website":"private"}'),
     { name: "Ann", bio: "hi", avatar_url: "https://ann.example/a.png", banner_url: "", socials: '{"github":"ann"}', pronouns: "", location: "", website: "" },
     "all three kept for friends; name, bio, pictures and links always");
   assert.deepEqual(copy('{"directory":"unlisted","location":"public"}'), PC.withdrawal(), "unlisted is the withdrawal, whatever else the map says");
-  assert.equal(copy('{"directory":"listed"}').name, "Ann", "any other directory word lists");
-  assert.equal(copy('{"directory":["unlisted"]}').name, "Ann", "a directory that is not a word lists");
   for (const notAMap of ["[]", '["private"]', "null", "3", '"private"', "{", "", undefined, null]) {
-    const c = copy(notAMap);
-    assert.equal(c.location, "Lisbon", `a map that is not an object (${notAMap}) keeps nothing for friends`);
-    assert.equal(c.name, "Ann", `and lists the person (${notAMap})`);
+    assert.ok(!PC.keptForFriends(notAMap, "location"), `a map that is not an object (${notAMap}) keeps nothing for friends`);
+    assert.deepEqual(copy(notAMap), PC.withdrawal(), `and lists nobody (${notAMap})`);
   }
-  assert.ok(!PC.keptForFriends('{"constructor":"x"}', "constructor") && !PC.unlisted("{}"), "nothing inherited counts");
+  assert.ok(!PC.keptForFriends('{"constructor":"x"}', "constructor") && !PC.listed('{"constructor":"listed"}'), "nothing inherited counts");
   // Nothing is trimmed or re-serialized: the copy is what the server stored.
-  const raw = PC.publicCopy("Ann", { bio: " two  spaces ", socials: '{ "b":"1", "a":"2" }', location: " Lisbon " }, "{}");
+  const listedMap = '{"directory":"listed"}';
+  const raw = PC.publicCopy("Ann", { bio: " two  spaces ", socials: '{ "b":"1", "a":"2" }', location: " Lisbon " }, listedMap);
   assert.equal(raw.bio, " two  spaces ");
   assert.equal(raw.socials, '{ "b":"1", "a":"2" }', "the links' own text and key order");
   assert.equal(raw.location, " Lisbon ");
   assert.deepEqual([raw.avatar_url, raw.banner_url, raw.pronouns, raw.website], ["", "", "", ""], "an absent field is blank");
-  assert.equal(PC.publicCopy("Ann", { socials: "" }, "{}").socials, "{}", "links stored blank read as {}");
+  assert.equal(PC.publicCopy("Ann", { socials: "" }, listedMap).socials, "{}", "links stored blank read as {}");
+});
+
+// ONLY THE WORD "listed" LISTS (BUG-241, 2026-11-03), as in the relay's
+// only_the_word_listed_lists_a_person: no directory key (never chose, or a profile saved before the
+// fix, when choosing listed took the key out), "unlisted", any other word, a value that is not a
+// word and a map that is not an object all give the withdrawal. The words are the relay's own
+// constants, read out of profile_copy.rs.
+// Seen red 2026-11-03 against main's web/ (HOS_WEB_DIR): "the word that lists is the relay's
+// DIRECTORY_LISTED" failed (undefined against 'listed'); with the constants put in and unlisted
+// still reading only "unlisted": "never chose: no key in the map" failed (Ann's copy, not the
+// withdrawal).
+test("only the word \"listed\" lists a person (BUG-241): never choosing is unlisted", () => {
+  assert.equal(PC.DIRECTORY_LISTED, unescape(rustConst(RUST, "DIRECTORY_LISTED").slice(1, -1)), "the word that lists is the relay's DIRECTORY_LISTED");
+  assert.equal(PC.DIRECTORY_UNLISTED, unescape(rustConst(RUST, "DIRECTORY_UNLISTED").slice(1, -1)), "the word for unticked is the relay's DIRECTORY_UNLISTED");
+  const p = { bio: "hi", avatar_url: "https://ann.example/a.png", socials: '{"github":"ann"}', pronouns: "she/her", location: "Lisbon", website: "https://ann.example" };
+  const copy = (privacy) => PC.publicCopy("Ann", p, privacy);
+  assert.equal(copy('{"directory":"listed"}').name, "Ann", "the word \"listed\" lists");
+  assert.ok(PC.listed('{"directory":"listed","location":"private"}') && !PC.unlisted('{"directory":"listed"}'));
+  for (const [map, why] of [
+    ['{"location":"private"}', "never chose: no key in the map"],
+    ["{}", "never chose: an empty map"],
+    ['{"directory":"unlisted"}', "chose unlisted"],
+    ['{"directory":"Listed"}', "another spelling of the word"],
+    ['{"directory":"yes"}', "any other word"],
+    ['{"directory":true}', "a value that is not a word"],
+    ['{"directory":["listed"]}', "a list holding the word"],
+    ["[]", "a map that is not an object"],
+    ["not json", "text that is not JSON"],
+    ["", "nothing at all"],
+  ]) {
+    assert.deepEqual(copy(map), PC.withdrawal(), why);
+    assert.ok(PC.unlisted(map) && !PC.listed(map), `${why}: unlisted`);
+  }
 });
 
 // Seen red with chars() counting JS .length: "a bio of 280 characters outside the BMP is within"
@@ -370,7 +406,7 @@ test("nothing is sent unless the server asks, for my own copy, on the socket it 
     const { ctx, sent } = await page();
     const f = frameOf(0, 60_000);
     f.location = "x".repeat(PC.LOCATION_MAX_CHARS + 1); // over the limits: the server never asks for this
-    f.privacy = "{}";
+    f.privacy = '{"directory":"listed"}'; // listed, the location public (BUG-241: "{}" is the withdrawal now)
     ctx.ownProfileArrived(f);
     await settle();
     assert.deepEqual(sent, [], "a copy over the limits is not signed");

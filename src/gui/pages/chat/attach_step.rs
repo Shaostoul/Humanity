@@ -21,8 +21,10 @@
 //!   off unless the switch is off (then it goes exactly as it is, with `keep_metadata=1`). Under
 //!   the protected setup such a file is not sent anywhere, a DM included;
 //! - in a DM, when the other person's published setting holds files from this sender (answer 6,
-//!   their profile's `accepts_files`, asked for with `GET /api/members/{key}` when the DM is
-//!   opened): "Ann accepts files only from friends. ..." The file still goes; their app asks them.
+//!   their profile's `accepts_files`, asked for with a `profile_request` by their name when the
+//!   DM is opened, as the website asks; until BUG-241 it was `GET /api/members/{key}`, which finds
+//!   only someone listed in the public directory): "Ann accepts files only from friends. ..." The
+//!   file still goes; their app asks them.
 //!
 //! The same look and switch are drawn by the Files page's upload and Add to Media
 //! ([`draw_look`], [`Looking`]), so every upload path in the app says the same thing.
@@ -256,8 +258,9 @@ pub struct FilesFlow {
     pub(crate) accepts: std::collections::HashMap<(String, String), (String, String)>,
     /// Who was asked already (answered or not), so nobody is asked twice on one server.
     asked: std::collections::HashSet<(String, String)>,
-    /// The lookup on its way: (server, key) and the answer.
-    asking: Option<((String, String), Receiver<Option<(String, String)>>)>,
+    /// The asks on their way: (server, the name asked for, in lower case) -> the key it was asked
+    /// for (the answer names the person, not their key).
+    asking: std::collections::HashMap<(String, String), String>,
     /// The Settings > Data line after "Clear kept files".
     pub(crate) kept_note: String,
     /// Device-to-device big files: each transfer's connection and progress on this device
@@ -284,48 +287,52 @@ pub(super) fn open(state: &mut GuiState, job: AttachJob, path: &std::path::Path)
     state.files_flow.step = Some(Step { job, looking, remove, channel, opened: std::time::Instant::now(), direct: None });
 }
 
-/// The other person's published `accepts_files` and name, from their server's member answer
-/// (`GET /api/members/{key}`, which says "friends" when they have no profile). None when it does
-/// not say.
+/// The other person's published `accepts_files` and name, from their server's profile answer (a
+/// `profile_data` for their name, which says "friends" when they have no profile). None when it
+/// does not say.
 pub(crate) fn accepts_from_answer(answer: &serde_json::Value) -> Option<(String, String)> {
     let word = answer.get("accepts_files")?.as_str()?.to_string();
     let name = answer.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
     Some((name, word))
 }
 
-/// Ask this server for `peer`'s `accepts_files`, once per server and person, on a worker thread:
-/// when their DM is opened, so the answer is in before a file is picked.
+/// Ask this server for `peer`'s `accepts_files`, once per server and person, when their DM is
+/// opened, so the answer is in before a file is picked: a `profile_request` for their name on the
+/// signed-in socket, as the website asks (web/chat/chat-messages.js `askAcceptsFiles`). Every
+/// profile answer carries the word (relay handlers/profile.rs), so this works whether or not they
+/// are in the public member directory. It asked `GET /api/members/{key}` until 2026-11-03, which
+/// since BUG-241 finds only someone who chose to be listed. The answer comes back through
+/// frame_ws_poll.rs into [`take_profile_answer`]. Their name is the people list's; with no name
+/// yet, or no signed-in socket, nothing is asked and the next frame tries again.
 fn ask_accepts(state: &mut GuiState, peer: &str) {
     let server = norm_server_url(&state.server_url);
-    let k = (server.clone(), peer.to_string());
-    if server.is_empty() || peer.is_empty() || state.files_flow.asking.is_some() || !state.files_flow.asked.insert(k.clone()) {
+    if server.is_empty() || peer.is_empty() || !state.ws_identified {
         return;
     }
-    let (tx, rx) = std::sync::mpsc::channel();
-    let url = format!("{}/api/members/{peer}", state.server_url.trim_end_matches('/'));
-    std::thread::spawn(move || {
-        let answer = ureq::get(&url)
-            .timeout(std::time::Duration::from_secs(10))
-            .call()
-            .ok()
-            .and_then(|r| r.into_string().ok())
-            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
-        let _ = tx.send(answer.as_ref().and_then(accepts_from_answer));
-    });
-    state.files_flow.asking = Some((k, rx));
+    // Called every frame a DM is open: asked already is the common case, so it is checked before
+    // the people list is searched.
+    let k = (server, peer.to_string());
+    if state.files_flow.asked.contains(&k) {
+        return;
+    }
+    let Some(name) = state.chat_users.iter().find(|u| u.public_key == peer).map(|u| u.name.clone()).filter(|n| !n.trim().is_empty()) else {
+        return;
+    };
+    let Some(client) = state.ws_client.as_ref().filter(|c| c.is_connected()) else { return };
+    client.send(&serde_json::json!({ "type": "profile_request", "name": name }).to_string());
+    state.files_flow.asking.insert((k.0.clone(), name.to_lowercase()), k.1.clone());
+    state.files_flow.asked.insert(k);
 }
 
-/// Take a finished lookup.
-fn poll_accepts(state: &mut GuiState) {
-    let Some((k, rx)) = &state.files_flow.asking else { return };
-    match rx.try_recv() {
-        Ok(Some(found)) => {
-            let k = k.clone();
-            state.files_flow.accepts.insert(k, found);
-            state.files_flow.asking = None;
-        }
-        Ok(None) | Err(std::sync::mpsc::TryRecvError::Disconnected) => state.files_flow.asking = None,
-        Err(std::sync::mpsc::TryRecvError::Empty) => {}
+/// A profile answer from the server the app is on that is not this person's own (frame_ws_poll.rs,
+/// `profile_data`): when it is about someone this app asked about for a DM, their word is kept for
+/// the sender's line. Any other answer (a profile card's, say) changes nothing here.
+pub(crate) fn take_profile_answer(state: &mut GuiState, answer: &serde_json::Value) {
+    let server = norm_server_url(&state.server_url);
+    let Some(name) = answer.get("name").and_then(|n| n.as_str()) else { return };
+    let Some(peer) = state.files_flow.asking.remove(&(server.clone(), name.to_lowercase())) else { return };
+    if let Some(found) = accepts_from_answer(answer) {
+        state.files_flow.accepts.insert((server, peer), found);
     }
 }
 
@@ -367,7 +374,6 @@ fn send_step(state: &mut GuiState, step: Step, anyway: bool) {
 /// open: shown when it has something to say, else the file goes at once. Send starts the upload
 /// (chat/attach_send.rs `start`) with the switch and the person's Send anyway.
 pub(super) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    poll_accepts(state);
     if let Some(peer) = state.chat_active_channel.strip_prefix("dm:").map(str::to_string) {
         ask_accepts(state, &peer);
     }

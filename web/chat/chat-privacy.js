@@ -7,9 +7,10 @@
 // never showed the choice again). A level presets two real switches:
 //   - hide_presence  → relay `privacy_update` (server-enforced: never
 //     online, no last_seen stored, no join/leave/typing signals)
-//   - directory_unlisted → privacy.directory in the profile privacy JSON
-//     (the existing member-directory opt-out), applied by merging into
-//     the local profile store and pushing via pushProfileToRelay().
+//   - directory_unlisted → privacy.directory in the profile privacy JSON,
+//     "listed" or "unlisted" (only "listed" puts a person in the member
+//     directory, BUG-241), applied by merging into the local profile store
+//     and pushing via pushProfileToRelay().
 // The level last used ('humanity_privacy_tier') and the presence switch
 // ('humanity_hide_presence') are kept in this browser; the presence choice is
 // told to each server on every fresh connection (the flags are per server),

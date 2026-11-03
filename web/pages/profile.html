@@ -258,7 +258,7 @@
     .privacy-lock:hover { background: var(--bg-hover); color: var(--text); }
     .privacy-lock.is-private { border-color: var(--accent); color: var(--accent); }
 
-    /* ── Checkbox row (member directory opt-out) ── */
+    /* ── Checkbox row (member directory choice) ── */
     .check-row {
       display: flex;
       align-items: center;
@@ -778,13 +778,16 @@
         <div class="prof-card">
           <h3>Member Directory</h3>
           <label class="check-row" for="f-directory-listed">
-            <input type="checkbox" id="f-directory-listed" checked aria-describedby="directory-hint">
+            <!-- Unticked until the person ticks it (BUG-241, 2026-11-03): a server lists only a
+                 profile whose privacy map says "directory": "listed", which nobody has until they
+                 choose. backfillFromCanonical ticks it when this browser's profile says so. -->
+            <input type="checkbox" id="f-directory-listed" aria-describedby="directory-hint">
             <span data-i18n="privacy.directory_label">List me in the public member directory</span>
           </label>
           <!-- Settings > Privacy's words for the same switch (BUG-235, 2026-11-03). This said "join
                and chat without appearing in the member list at all", and the chat's people list
                still names an unlisted person: only the member directory leaves them out. -->
-          <p class="field-hint" id="directory-hint" data-i18n="privacy.directory_does">On: you are in this server's member directory and its search, and a signed copy of your profile (without what you keep for friends) is kept by this server and passed to the servers it is linked with, where anyone can look it up by your <span data-term="public key">public key</span>. Off: you are left out of the directory and its search, every linked server drops its copy, and looking up your key finds nothing. Off does not hide your name or your profile from the people on a server you use.</p>
+          <p class="field-hint" id="directory-hint" data-i18n="privacy.directory_does">On: you are in this server's member directory and its search, and a signed copy of your profile (without what you keep for friends) is kept by this server and passed to the servers it is linked with, where anyone can look it up by your <span data-term="public key">public key</span>. Off: you are left out of the directory and its search, every linked server drops its copy, and looking up your key finds nothing. It is off until you turn it on. Off does not hide your name or your profile from the people on a server you use.</p>
         </div>
 
         <div class="prof-card">
@@ -1274,11 +1277,13 @@
       if (val('github'))  socials.github  = bareHandle(val('github'));
 
       // Privacy map: only record fields the user explicitly set to private, plus
-      // the member-directory opt-out (unchecked = hidden from /api/members).
+      // the member-directory choice as a word, always: "listed" (in /api/members) or
+      // "unlisted". Only "listed" lists, so no word at all is never choosing, and a server
+      // leaves that person out (BUG-241, 2026-11-03).
       var privacy = {};
       PRIVACY_FIELDS.forEach(function(f) { if (profilePrivacy[f] === 'private') privacy[f] = 'private'; });
       var dir = document.getElementById('f-directory-listed');
-      if (dir && !dir.checked) privacy.directory = 'unlisted';
+      if (dir) privacy.directory = dir.checked ? 'listed' : 'unlisted';
 
       // Never cut: a bio past the limit is not saved, and the page says why (its excess is red).
       var bioChars = Array.from(val('bio')).length;
@@ -1378,9 +1383,18 @@
         var el = document.getElementById('f-' + id);
         if (el && !el.value && map[id]) el.value = map[id];
       });
-      // Directory opt-out from the canonical privacy map.
+      // The directory choice from the canonical privacy map (BUG-241): only "listed" ticks the
+      // box. Not listed there always unticks it, as "unlisted" did before, so the page never says
+      // listed while the server leaves the person out; listed there ticks it unless the page's
+      // own store holds a choice of its own (typed here, not synced yet).
       var dir = document.getElementById('f-directory-listed');
-      if (dir && canon.privacy && canon.privacy.directory === 'unlisted') dir.checked = false;
+      if (dir) {
+        var canonListed = !!(canon.privacy && canon.privacy.directory === 'listed');
+        var pageChose = false;
+        try { pageChose = (JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {})['directory-listed'] !== undefined; } catch (_) {}
+        if (!canonListed) dir.checked = false;
+        else if (!pageChose) dir.checked = true;
+      }
       // Seed the privacy locks if the page has no privacy state of its own yet.
       if (!localStorage.getItem(PRIVACY_KEY) && canon.privacy) {
         PRIVACY_FIELDS.forEach(function(f) {

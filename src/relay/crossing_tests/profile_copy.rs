@@ -103,7 +103,7 @@ fn the_shared_fixture_is_what_the_builder_makes() {
     assert!(is_key_text(&key));
 
     let cases = fx["cases"].as_array().expect("cases");
-    assert_eq!(cases.len(), 4, "four cases");
+    assert_eq!(cases.len(), 5, "five cases");
     for (i, case) in cases.iter().enumerate() {
         let frame = &case["frame"];
         assert_eq!((frame["type"].as_str(), frame["sign_now"].as_bool()), (Some("profile_data"), Some(true)), "case {i}: an own copy that asks");
@@ -126,7 +126,12 @@ fn the_shared_fixture_is_what_the_builder_makes() {
             assert!(!verify_copy(&key, &changed, at, &sig), "case {i}: one changed letter in the bio fails it");
         }
     }
-    assert!(is_withdrawal(&serde_json::from_value(cases[1]["copy"].clone()).unwrap()), "the unlisted case is the withdrawal");
+    let withdrawn = |i: usize| is_withdrawal(&serde_json::from_value(cases[i]["copy"].clone()).unwrap());
+    assert!(withdrawn(1), "the unlisted case is the withdrawal");
+    // BUG-241 (2026-11-03): only "directory": "listed" lists, so the two cases without it are too.
+    assert!(withdrawn(3), "a map that is not an object is the withdrawal");
+    assert!(withdrawn(4), "a map that never chose is the withdrawal");
+    assert!(!withdrawn(0) && !withdrawn(2), "the listed cases are not");
 
     for row in fx["next_copy_time"].as_array().expect("time rows") {
         let n = |k: &str| row[k].as_u64().unwrap();

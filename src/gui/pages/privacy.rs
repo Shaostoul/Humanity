@@ -271,8 +271,9 @@ pub fn draw_privacy_tier_modal(ctx: &egui::Context, theme: &Theme, state: &mut G
 /// page believing they are less visible than they are. The facts, and where each is enforced:
 /// - presence: relay `privacy_update` (storage/members.rs `set_hide_presence`); a hidden member
 ///   stays in the full user list, masked as offline (handlers/broadcast.rs).
-/// - the directory: `privacy.directory = "unlisted"` in the profile's privacy map leaves the
-///   person out of `/api/members` and its search (storage/members.rs `MEMBER_DIR_VISIBLE`), and
+/// - the directory: only `privacy.directory = "listed"` in the profile's privacy map puts the
+///   person in `/api/members` and its search (storage/members.rs `MEMBER_DIR_VISIBLE`; anything
+///   else, never choosing included, leaves them out since BUG-241, 2026-11-03), and being out
 ///   makes the copy for other servers the withdrawal (humanity_protocol::profile_copy), so
 ///   `GET /api/profile/{key}` answers not found.
 /// - always visible on a server the person uses: their name, key and role in the full user list
@@ -417,26 +418,28 @@ mod tests {
         (ticked("privacy.directory_label"), ticked("privacy.presence_label"))
     }
 
-    /// BEFORE THE FIRST CHOICE THE SWITCHES SAY WHAT A SERVER DOES (BUG-240, 2026-11-03). A
-    /// server keeps a new member presence-hidden until a privacy level is chosen (relay
-    /// storage/members.rs `join_server_on`, `hide_presence = 1`), so a fresh install draws "Show
-    /// others when I am online" unticked, as the website does (web/shared/privacy-tiers.js
-    /// `presenceHidden` null). The directory box stays ticked: a server lists a member who never
-    /// chose (`MEMBER_DIR_VISIBLE`, no privacy map is listed; the website's `directoryListed`
-    /// says the same), so an unticked box there would tell the person they are out of the
-    /// directory while they are in it, the dangerous direction of BUG-235. Seen red 2026-11-03
-    /// with the old default (`online_status_visible: true` in Settings::default and the config's
-    /// `default_true`): "a fresh install draws presence as hidden (GuiState::default)", left
-    /// (true, true), right (true, false).
+    /// BEFORE THE FIRST CHOICE THE SWITCHES SAY WHAT A SERVER DOES (BUG-240 and BUG-241,
+    /// 2026-11-03). A server keeps a new member presence-hidden until a privacy level is chosen
+    /// (relay storage/members.rs `join_server_on`, `hide_presence = 1`), so a fresh install draws
+    /// "Show others when I am online" unticked, as the website does (web/shared/privacy-tiers.js
+    /// `presenceHidden` null). And since BUG-241 a server lists only a member whose privacy map says
+    /// `"directory": "listed"` (`MEMBER_DIR_VISIBLE`), which nobody has until they choose it, so
+    /// the directory box is unticked too, as the website's `directoryListed` draws it; the box
+    /// still follows each server's own copy once it comes (own_profile.rs `show`).
+    /// Seen red 2026-11-03 with the old presence default (`online_status_visible: true` in
+    /// Settings::default and the config's `default_true`): "a fresh install draws presence as
+    /// hidden (GuiState::default)", left (true, true), right (true, false); and with the old
+    /// directory default (`profile_directory_listed: true`, BUG-241): left (true, false), right
+    /// (false, false).
     #[test]
     fn a_fresh_install_draws_presence_hidden_as_a_server_keeps_it() {
         let mut fresh = GuiState::default();
-        assert_eq!(drawn_switches(&mut fresh), (true, false), "a fresh install draws presence as hidden (GuiState::default)");
+        assert_eq!(drawn_switches(&mut fresh), (false, false), "a fresh install draws both switches as a server keeps a new member (GuiState::default)");
         // The way a first launch really starts: no config.json, so AppConfig's defaults applied.
         let mut first_launch = GuiState::default();
         crate::config::AppConfig::default().apply_to_gui_state(&mut first_launch);
         assert!(first_launch.settings.privacy_tier.is_empty(), "no level chosen yet");
-        assert_eq!(drawn_switches(&mut first_launch), (true, false), "a fresh install draws presence as hidden (no config.json)");
+        assert_eq!(drawn_switches(&mut first_launch), (false, false), "a fresh install draws both switches as a server keeps a new member (no config.json)");
     }
 
     /// A choice already made loads as it was: the new default reaches only a config that never

@@ -1,7 +1,7 @@
 //! Server storage for the member directory (`server_members`): joining and leaving, the paged
 //! and searchable member list, presence hiding and last seen, and the name a key goes by now.
-//! New members join with presence hidden, and a profile marked `unlisted` stays out of the
-//! public directory.
+//! New members join with presence hidden, and only a profile marked `"directory": "listed"` is in
+//! the public directory (BUG-241: nobody is in it until they choose to be).
 use super::Storage;
 use rusqlite::{params, OptionalExtension};
 
@@ -15,19 +15,22 @@ pub struct MemberRecord {
     pub last_seen: Option<String>,
 }
 
-/// Shared SQL for the public member-directory opt-out (audit 2026-06-12). A member is
-/// visible UNLESS their profile's privacy JSON sets `directory:"unlisted"`. The list,
-/// count, and single-member queries all use these SAME fragments so pagination totals
-/// stay consistent with the listing. LEFT JOIN to `profiles` (keyed by name, COLLATE
-/// NOCASE) so a member with no profile row (NULL privacy) stays listed, listed is the
-/// default and opt-out is explicit (you appear in a server's directory when you JOIN
-/// it). `json_extract` returns NULL for an absent key OR malformed JSON, both treated
-/// as listed; `save_profile_extended` already rejects invalid privacy JSON so a stored
-/// `unlisted` is always honored.
+/// Shared SQL for the public member directory (`/api/members`, its count and search, the
+/// lookup by key, the chat's member list request). A member is in it ONLY when their
+/// profile's privacy map says `"directory": "listed"`, the word both apps write when the
+/// box is ticked (`humanity_protocol::profile_copy::DIRECTORY_LISTED`, the same rule as the
+/// copy for other servers, `profile_copy::listed`). Safe by default (BUG-241, 2026-11-03):
+/// a member with no profile row (NULL privacy: they joined and never chose), a map without
+/// the key (a profile saved before the fix, when choosing listed took the key out), the word
+/// "unlisted", any other word, and malformed JSON (`json_extract` gives NULL, and NULL =
+/// 'listed' is not true) are all left out. Until 2026-11-03 no word counted as listed, so a
+/// new member was in this public list, readable without signing in, from the moment they
+/// joined. The list, count, and single-member queries all use these SAME fragments so
+/// pagination totals stay consistent with the listing. LEFT JOIN to `profiles` (keyed by
+/// name, COLLATE NOCASE). Counting every member, listed or not: `member_total`.
 const MEMBER_DIR_JOIN: &str =
     " FROM server_members m LEFT JOIN profiles p ON m.name = p.name COLLATE NOCASE ";
-const MEMBER_DIR_VISIBLE: &str =
-    "(json_extract(p.privacy, '$.directory') IS NULL OR json_extract(p.privacy, '$.directory') <> 'unlisted')";
+const MEMBER_DIR_VISIBLE: &str = "(json_extract(p.privacy, '$.directory') = 'listed')";
 
 impl Storage {
     // ── Server Membership methods ──
@@ -217,8 +220,9 @@ impl Storage {
 
     /// Get a single member by public key.
     pub fn get_member(&self, public_key: &str) -> Result<Option<MemberRecord>, rusqlite::Error> {
-        // Read-only single-row lookup. Read pool. Honors the directory opt-out: an
-        // unlisted member returns None, and get_member_by_key (api.rs) maps None -> 404.
+        // Read-only single-row lookup. Read pool. Honors the directory: a member not listed
+        // (never chose, or chose unlisted) returns None, and get_member_by_key (api.rs) maps
+        // None -> 404. For a name whatever the directory says, `current_name_for_key`.
         self.with_read_conn(|conn| {
             let sql = format!(
                 "SELECT m.public_key, m.name, m.role, m.joined_at, m.last_seen{MEMBER_DIR_JOIN}\
@@ -269,6 +273,17 @@ impl Storage {
                 conn.query_row(&sql, [], |row| row.get(0))
             }
         })
+    }
+
+    /// How many members this server has, in its directory or not (BUG-241, 2026-11-03). For the
+    /// server's own admins (the dashboard's user count; `recent_joins` sees every join too) and
+    /// for a proposal's electorate, which a privacy choice must not shrink (since the fix nobody
+    /// is in the directory until they choose it, so the directory's count would have left the
+    /// electorate at zero, and no proposal could ever reach quorum). The PUBLIC counts
+    /// (`/api/members` and its total, `/api/members/count`, `/api/server-info`) stay the
+    /// directory's, [`Storage::get_member_count`].
+    pub fn member_total(&self) -> Result<i64, rusqlite::Error> {
+        self.with_read_conn(|conn| conn.query_row("SELECT COUNT(*) FROM server_members", [], |row| row.get(0)))
     }
 
     /// Check if a public key is a server member.
@@ -417,9 +432,9 @@ pub(super) fn join_server_on(conn: &rusqlite::Connection, public_key: &str, name
 
 #[cfg(test)]
 mod directory_optout_tests {
-    //! Public member-directory opt-out (audit 2026-06-12): a member with
-    //! profile privacy `directory:"unlisted"` is hidden from /api/members,
-    //! its count, and the single-member lookup; everyone else stays listed.
+    //! The public member directory (audit 2026-06-12, made opt-in by BUG-241 on 2026-11-03):
+    //! only a member whose profile privacy says `directory:"listed"` is in /api/members, its
+    //! count, and the single-member lookup; everyone else is left out.
     //! Also proves json_extract is available in this build (first storage use).
     use super::*;
 
@@ -427,33 +442,51 @@ mod directory_optout_tests {
         Storage::open_temp("members")
     }
 
+    /// ONLY THE WORD "listed" LISTS A MEMBER (BUG-241, 2026-11-03): a member is in the public
+    /// directory (`/api/members`, its count and search, and the lookup by key) only when their
+    /// profile's privacy map says `"directory": "listed"`. No profile at all (they joined and
+    /// never chose), a map without the key (a profile saved before the fix, when choosing listed
+    /// took the key out), "unlisted", and any other word are all left out. Every member is still
+    /// a member: `member_total` counts them all, for the admins and the electorate.
+    ///
+    /// Seen red 2026-11-03 against the old fragment (no key listed): "alice (joined, no profile)
+    /// is not listed" failed.
     #[test]
-    fn unlisted_member_hidden_everywhere_else_listed() {
+    fn only_the_word_listed_lists_a_member() {
         let db = test_storage();
-        db.join_server("KEY_ALICE", "alice").unwrap();
+        db.join_server("KEY_ALICE", "alice").unwrap(); // joined, no profile row at all
         db.join_server("KEY_BOB", "bob").unwrap();
-        // alice has no profile row at all (NULL privacy) -> stays listed (default).
-        // bob opts out via profile privacy.
-        db.save_profile_extended("bob", "", "{}", "", "", "", "", "", "{\"directory\":\"unlisted\"}", None)
-            .unwrap();
-
-        let listed = db.get_members(100, 0, None).unwrap();
-        let names: Vec<String> = listed.iter().filter_map(|m| m.name.clone()).collect();
-        assert!(names.contains(&"alice".to_string()), "alice (no profile) stays listed");
-        assert!(!names.contains(&"bob".to_string()), "bob opted out -> hidden");
-        assert_eq!(db.get_member_count(None).unwrap(), 1, "count matches the listed rows");
-        assert!(db.get_member("KEY_BOB").unwrap().is_none(), "unlisted -> None (api maps to 404)");
-        assert!(db.get_member("KEY_ALICE").unwrap().is_some(), "listed -> Some");
-
-        // A member who sets privacy WITHOUT the directory key stays listed.
         db.join_server("KEY_CAROL", "carol").unwrap();
-        db.save_profile_extended("carol", "", "{}", "", "", "", "", "", "{\"location\":\"private\"}", None)
-            .unwrap();
-        assert_eq!(db.get_member_count(None).unwrap(), 2, "carol (privacy, no directory key) listed");
+        db.join_server("KEY_DAVE", "dave").unwrap();
+        db.join_server("KEY_ERIN", "erin").unwrap();
+        db.save_profile_extended("bob", "", "{}", "", "", "", "", "", "{\"directory\":\"unlisted\"}", None).unwrap();
+        db.save_profile_extended("carol", "", "{}", "", "", "", "", "", "{\"location\":\"private\"}", None).unwrap();
+        db.save_profile_extended("dave", "", "{}", "", "", "", "", "", "{\"directory\":\"listed\",\"location\":\"private\"}", None).unwrap();
+        db.save_profile_extended("erin", "", "{}", "", "", "", "", "", "{\"directory\":\"Listed\"}", None).unwrap();
 
-        // The search path honors the filter too (no surfacing an unlisted member).
-        assert!(db.get_members(100, 0, Some("bob")).unwrap().is_empty(), "search hides unlisted");
-        assert_eq!(db.get_member_count(Some("bob")).unwrap(), 0, "search count hides unlisted");
+        let names: Vec<String> = db.get_members(100, 0, None).unwrap().iter().filter_map(|m| m.name.clone()).collect();
+        assert!(!names.contains(&"alice".to_string()), "alice (joined, no profile) is not listed");
+        assert!(!names.contains(&"bob".to_string()), "bob chose unlisted");
+        assert!(!names.contains(&"carol".to_string()), "carol (a privacy map without the word) is not listed");
+        assert!(!names.contains(&"erin".to_string()), "erin (another spelling) is not listed");
+        assert_eq!(names, vec!["dave".to_string()], "only dave, who chose listed");
+        assert_eq!(db.get_member_count(None).unwrap(), 1, "the count matches the listed rows");
+        assert!(db.get_member("KEY_ALICE").unwrap().is_none(), "never chose -> None (api maps to 404)");
+        assert!(db.get_member("KEY_BOB").unwrap().is_none(), "unlisted -> None");
+        assert!(db.get_member("KEY_DAVE").unwrap().is_some(), "listed -> Some");
+
+        // The search path holds the same rule (no surfacing someone who did not choose it).
+        assert!(db.get_members(100, 0, Some("alice")).unwrap().is_empty(), "search leaves out who never chose");
+        assert_eq!(db.get_member_count(Some("alice")).unwrap(), 0, "and its count");
+        assert_eq!(db.get_members(100, 0, Some("dav")).unwrap().len(), 1, "search finds who chose");
+
+        // Every member is still one: the admins' count and the electorate's.
+        assert_eq!(db.member_total().unwrap(), 5, "member_total counts every member, listed or not");
+        // The SQL's word is the protocol's, the one both apps write.
+        assert!(
+            MEMBER_DIR_VISIBLE.contains(&format!("= '{}'", humanity_protocol::profile_copy::DIRECTORY_LISTED)),
+            "the directory query lists by profile_copy::DIRECTORY_LISTED: {MEMBER_DIR_VISIBLE}"
+        );
     }
 
     /// Presence privacy (2026-08-23): new members join hidden with no

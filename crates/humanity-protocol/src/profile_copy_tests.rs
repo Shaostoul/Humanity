@@ -28,8 +28,10 @@ fn ann() -> PublicCopy {
 /// THE PRIVACY RULE: the copy that leaves this server holds only what anyone may see. A field
 /// kept for friends is blank in it; a public one and the name, bio, avatar and links are as stored;
 /// an unlisted person's copy is the withdrawal; links stored blank read as `{}`; a map that is not
-/// an object keeps nothing for friends and lists the person. A map holding one value that is not a
-/// word still keeps a field for friends (the relay's older reading made every field public then).
+/// an object keeps nothing for friends and does not list the person (since BUG-241, 2026-11-03,
+/// only `"directory": "listed"` lists: `only_the_word_listed_lists_a_person`). A map holding one
+/// value that is not a word still keeps a field for friends (the relay's older reading made every
+/// field public then).
 ///
 /// Seen red 2026-10-12 with the `"private"` check removed from `public_copy` (every field shown):
 /// "a location kept for friends went into the copy for other servers" failed (left "Lisbon",
@@ -41,7 +43,7 @@ fn the_copy_for_other_servers_holds_only_what_anyone_may_see() {
     };
 
     // Listed, location kept for friends, pronouns marked public, website not in the map.
-    let c = copy(r#"{"location":"private","pronouns":"public"}"#);
+    let c = copy(r#"{"directory":"listed","location":"private","pronouns":"public"}"#);
     assert_eq!(c.location, "", "a location kept for friends went into the copy for other servers");
     assert_eq!((c.pronouns.as_str(), c.website.as_str()), ("she/her", "https://ann.example"), "the public fields are in it");
     assert_eq!(
@@ -49,27 +51,66 @@ fn the_copy_for_other_servers_holds_only_what_anyone_may_see() {
         ("Ann", "hi", "https://ann.example/a.png", "", r#"{"github":"ann"}"#),
         "name, bio, pictures and links always, exactly as stored"
     );
-    let c = copy(r#"{"pronouns":"private","location":"private","website":"private"}"#);
+    let c = copy(r#"{"directory":"listed","pronouns":"private","location":"private","website":"private"}"#);
     assert_eq!((c.pronouns.as_str(), c.location.as_str(), c.website.as_str()), ("", "", ""), "all three kept for friends");
-    assert_eq!(copy(r#"{"location":"private","since":2019}"#).location, "", "a map holding a number still keeps the location");
-    assert_eq!(copy(r#"{"location":"friends"}"#).location, "Lisbon", "only the word \"private\" keeps a field");
+    assert_eq!(copy(r#"{"directory":"listed","location":"private","since":2019}"#).location, "", "a map holding a number still keeps the location");
+    assert_eq!(copy(r#"{"directory":"listed","location":"friends"}"#).location, "Lisbon", "only the word \"private\" keeps a field");
 
     // Unlisted: the withdrawal, whatever else the map says.
     let w = copy(r#"{"directory":"unlisted","location":"public"}"#);
     assert_eq!(w, withdrawal(), "an unlisted person's copy is the withdrawal");
     assert!(is_withdrawal(&w) && w.socials == "{}" && w.bio.is_empty() && w.avatar_url.is_empty());
-    assert_eq!(copy(r#"{"directory":"listed"}"#).name, "Ann", "any other directory word is listed");
-    assert!(!unlisted(r#"{"directory":["unlisted"]}"#), "the word itself, not a list holding it");
+    assert_eq!(copy(r#"{"location":"public"}"#), withdrawal(), "no directory word: never chose, unlisted");
+    assert!(unlisted(r#"{"directory":["listed"]}"#), "the word itself, not a list holding it");
 
-    // Links stored blank, map "{}".
-    let c = public_copy("Ann", "", "", "", "", "they", "Porto", "", "{}");
+    // Links stored blank, listed.
+    let c = public_copy("Ann", "", "", "", "", "they", "Porto", "", r#"{"directory":"listed"}"#);
     assert_eq!((c.socials.as_str(), c.pronouns.as_str(), c.location.as_str()), ("{}", "they", "Porto"), "blank links read as {{}}");
 
-    // A map that is not an object: listed, nothing kept for friends.
+    // A map that is not an object: nothing kept for friends, and nobody listed.
     for map in ["[]", "\"private\"", "not json", ""] {
-        let c = copy(map);
-        assert_eq!(c, copy("{}"), "the map {map:?} keeps nothing and lists the person");
-        assert!(!unlisted(map) && !kept_for_friends(map, "location"));
+        assert_eq!(copy(map), withdrawal(), "the map {map:?} lists nobody");
+        assert!(unlisted(map) && !kept_for_friends(map, "location"));
+    }
+}
+
+/// ONLY THE WORD "listed" LISTS A PERSON (BUG-241, 2026-11-03). Someone is in a server's public
+/// member directory, and their copy goes to the servers it is linked with, only once they chose
+/// it: `"directory": "listed"` in their privacy map, the word both apps write when the box is
+/// ticked. Everything else is unlisted and gives the withdrawal: no `directory` key (they never
+/// chose, or a profile saved before this fix, which both apps wrote by taking the key out), the
+/// word `"unlisted"`, any other word, a value that is not a word, an empty map, and a map that is
+/// not an object. Safe by default (CLAUDE.md, 2026-10-09: "people open up what they want").
+///
+/// Seen red 2026-11-03 against the old rule (only `"unlisted"` withdrew, so no key listed; `listed`
+/// put in as its opposite to compile): "never chose: no key in the map" failed, left
+/// `PublicCopy { name: "Ann", bio: "hi", avatar_url: "https://ann.example/a.png", ... }`, right
+/// `PublicCopy { name: "", bio: "", avatar_url: "", banner_url: "", socials: "{}", ... }`.
+#[test]
+fn only_the_word_listed_lists_a_person() {
+    let copy = |privacy: &str| {
+        public_copy("Ann", "hi", "https://ann.example/a.png", "", r#"{"github":"ann"}"#, "she/her", "Lisbon", "https://ann.example", privacy)
+    };
+    assert_eq!(DIRECTORY_LISTED, "listed", "the word both apps write");
+    assert_eq!(DIRECTORY_UNLISTED, "unlisted", "the word both apps write when the box is unticked");
+    let listed_copy = copy(r#"{"directory":"listed"}"#);
+    assert_eq!(listed_copy.name, "Ann", "the word \"listed\" lists");
+    assert!(listed(r#"{"directory":"listed","location":"private"}"#) && !unlisted(r#"{"directory":"listed"}"#));
+
+    for (map, why) in [
+        (r#"{"location":"private"}"#, "never chose: no key in the map"),
+        ("{}", "never chose: an empty map"),
+        (r#"{"directory":"unlisted"}"#, "chose unlisted"),
+        (r#"{"directory":"Listed"}"#, "another spelling of the word"),
+        (r#"{"directory":"yes"}"#, "any other word"),
+        (r#"{"directory":true}"#, "a value that is not a word"),
+        (r#"{"directory":["listed"]}"#, "a list holding the word"),
+        ("[]", "a map that is not an object"),
+        ("not json", "text that is not JSON"),
+        ("", "nothing at all"),
+    ] {
+        assert_eq!(copy(map), withdrawal(), "{why}");
+        assert!(unlisted(map) && !listed(map), "{why}: unlisted");
     }
 }
 
@@ -153,11 +194,16 @@ fn a_copy_over_the_limits_or_with_a_line_break_outside_the_bio_is_refused() {
 ///
 /// Seen red 2026-10-12 with `exposes` ignoring the directory: "an unlisted person's listed copy
 /// was left out there" failed.
+///
+/// Since BUG-241 (2026-11-03) a map without `"directory": "listed"` is unlisted, so a person who
+/// was listed before (no key: choosing listed took it out) and connects with a copy out there is
+/// asked for the withdrawal; the last two rows hold that.
 #[test]
 fn the_relay_asks_for_a_copy_only_when_one_is_due() {
-    let listed = "{}";
-    let loc_private = r#"{"location":"private"}"#;
+    let listed = r#"{"directory":"listed"}"#;
+    let loc_private = r#"{"directory":"listed","location":"private"}"#;
     let unlisted_map = r#"{"directory":"unlisted"}"#;
+    let never_chose = "{}";
     let full = ann();
     let narrowed = PublicCopy { location: String::new(), ..ann() };
     let other_bio = PublicCopy { bio: "saved on another server".into(), ..ann() };
@@ -169,8 +215,9 @@ fn the_relay_asks_for_a_copy_only_when_one_is_due() {
     assert!(!exposes(&narrowed, loc_private), "the location is blank in it");
     assert!(!exposes(&w, unlisted_map), "a withdrawal shows nothing");
     assert!(!exposes(&full, listed), "nothing kept for friends");
+    assert!(exposes(&full, never_chose), "a person who never chose is not listed, so a listed copy out there exposes them");
 
-    let rows: [(Option<&PublicCopy>, &PublicCopy, bool, &str, bool, &str); 15] = [
+    let rows: [(Option<&PublicCopy>, &PublicCopy, bool, &str, bool, &str); 17] = [
         (None, &full, true, listed, true, "a first save asks"),
         (None, &full, false, listed, false, "a connect with no copy out there does not ask"),
         (None, &w, true, unlisted_map, false, "no withdrawal where nothing was passed on"),
@@ -186,6 +233,8 @@ fn the_relay_asks_for_a_copy_only_when_one_is_due() {
         (Some(&w), &full, false, listed, false, "a connect never lists a withdrawn copy again"),
         (Some(&full), &over, true, listed, false, "a copy over the limits is never asked for"),
         (None, &over, true, listed, false, "not even the first"),
+        (Some(&full), &w, false, never_chose, true, "a connect with no directory word and a copy out there withdraws it"),
+        (None, &w, true, never_chose, false, "a first save that never chose sends nothing out"),
     ];
     for (held, now, just_saved, privacy, want, why) in rows {
         assert_eq!(sign_wanted(held, now, just_saved, privacy), want, "{why}");

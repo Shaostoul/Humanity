@@ -242,9 +242,11 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         ui.add_space(theme.spacing_sm);
         field_row(ui, theme, "Avatar URL:", &mut state.profile_network_avatar);
 
-        // Member-directory opt-out (audit 2026-06-12). On = listed in this server's
-        // public member directory; off sends profile privacy directory:"unlisted" so
-        // the relay hides you from /api/members (you stay a full member, just unlisted),
+        // Member-directory choice (audit 2026-06-12; opt-in since BUG-241, 2026-11-03: unticked
+        // until the person ticks it). On sends profile privacy directory:"listed", the only word
+        // that lists you in this server's public member directory; off sends
+        // directory:"unlisted", so the relay leaves you out of /api/members (you stay a full
+        // member, just unlisted),
         // and the copy of your profile other servers keep is withdrawn: the server asks
         // this app to sign a blank copy that replaces it on every linked server (BUG-191,
         // own_profile.rs `take_own_copy`).

@@ -112,7 +112,8 @@ function buildProfileUpdate(local) {
     location:   local.location   || undefined,
     website:    local.website    || undefined,
     // privacy: per-field locks ({pronouns|location|website: "private"}) plus the
-    // member-directory opt-out ({directory: "unlisted"} hides you from /api/members).
+    // member-directory choice: {directory: "listed"} puts you in /api/members; anything else,
+    // no key included (never chose), leaves you out (BUG-241, 2026-11-03).
     privacy:    JSON.stringify(local.privacy || {}),
     // Files in messages (2026-10-11, /shared/files-in-messages.js): who I accept files from,
     // "nobody", "friends" or "anyone", so a sender's app can say so before they send one. Sent
@@ -238,8 +239,9 @@ function followOnProfilePage(before, after) {
       const typed = bare ? profileBareHandle(page[id]) : page[id];
       if (same(typed, was[key])) page[id] = now[key] || '';
     }
-    const listed = (p) => !(p && p.directory === 'unlisted');
-    const pageListed = page['directory-listed'] === undefined ? true : !!page['directory-listed'];
+    // Only the word "listed" lists (BUG-241), and the page's box starts unticked.
+    const listed = (p) => !!(p && p.directory === 'listed');
+    const pageListed = page['directory-listed'] === undefined ? false : !!page['directory-listed'];
     if (pageListed === listed(before.privacy)) page['directory-listed'] = listed(after.privacy);
     try { window.localStorage.setItem(PROFILE_PAGE_KEY, JSON.stringify(page)); } catch (e) { /* keeps nothing */ }
   }

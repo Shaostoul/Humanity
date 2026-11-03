@@ -1509,17 +1509,25 @@ mod tests {
         );
 
         let (mut tasks, _) = bind_socket(&state, port, seed, None, 1).await;
+        // The member row's own name: not `get_member`, which is the public directory's lookup and
+        // since BUG-241 (2026-11-03) finds only someone who chose to be listed.
+        let member_name = |state: &std::sync::Arc<crate::relay::relay::RelayState>| {
+            state
+                .db
+                .with_read_conn(|c| c.query_row("SELECT name FROM server_members WHERE public_key = ?1", [&key], |r| r.get::<_, Option<String>>(0)))
+                .ok()
+                .flatten()
+        };
         let settled = wait_until(|| async {
             let registered = state.peers.read().await.get(&key).and_then(|p| p.display_name.clone());
-            let member = state.db.get_member(&key).ok().flatten().and_then(|m| m.name);
-            registered.as_deref() == Some("Znew") && member.as_deref() == Some("Znew")
+            registered.as_deref() == Some("Znew") && member_name(&state).as_deref() == Some("Znew")
         })
         .await;
         assert!(
             settled,
             "registration {:?}, member {:?}",
             state.peers.read().await.get(&key).and_then(|p| p.display_name.clone()),
-            state.db.get_member(&key).ok().flatten().and_then(|m| m.name)
+            member_name(&state)
         );
 
         tasks.close(None).await.ok();

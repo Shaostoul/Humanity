@@ -12,7 +12,9 @@
 //! THE PRIVACY RULE. The copy is the profile as anyone may see it:
 //! - name, bio, avatar, banner and links always;
 //! - pronouns, location and website blank when the person keeps them for friends;
-//! - every field blank (a "withdrawal") when the person is unlisted.
+//! - every field blank (a "withdrawal") when the person is unlisted, which is everyone whose
+//!   privacy map does not say `"directory": "listed"` (they ticked the box): nobody is listed
+//!   until they choose to be (BUG-241, 2026-11-03, safe by default).
 //!
 //! A field kept for friends never leaves the server, signed or not. `accepts_files` is never in
 //! the copy: it is this server's setting.
@@ -80,7 +82,7 @@ pub struct PublicCopy {
 // ── Reading the privacy map (one rule, both sides) ──
 
 /// The privacy map as an object, or None when the text is not a JSON object (then nothing is kept
-/// for friends and the person is listed).
+/// for friends and the person is not listed).
 fn map_of(privacy: &str) -> Option<serde_json::Map<String, Value>> {
     match serde_json::from_str::<Value>(privacy) {
         Ok(Value::Object(map)) => Some(map),
@@ -88,9 +90,27 @@ fn map_of(privacy: &str) -> Option<serde_json::Map<String, Value>> {
     }
 }
 
-/// Is the person unlisted: `map["directory"]` is the string `"unlisted"`.
+/// The word under `"directory"` in a person's privacy map when they list themselves in a server's
+/// public member directory: the only word that lists (BUG-241, 2026-11-03). Both apps write it
+/// when the box is ticked (desktop pages/own_profile.rs `privacy_with_directory`, website
+/// web/shared/privacy-tiers.js `setDirectory` and web/pages/profile.html), and the relay's
+/// directory query reads it (storage/members.rs `MEMBER_DIR_VISIBLE`).
+pub const DIRECTORY_LISTED: &str = "listed";
+/// The word both apps write when the box is unticked. Any map without [`DIRECTORY_LISTED`] is
+/// unlisted, this word or not; writing it says the person chose.
+pub const DIRECTORY_UNLISTED: &str = "unlisted";
+
+/// Is the person listed: `map["directory"]` is the string `"listed"`. Nothing else lists: no key
+/// (they never chose, or a profile saved before 2026-11-03, when choosing listed took the key
+/// out), any other word, a value that is not a word, a map that is not an object. Safe by default
+/// (BUG-241): a person is in the public directory only once they chose to be.
+pub fn listed(privacy: &str) -> bool {
+    map_of(privacy).is_some_and(|m| m.get("directory").and_then(Value::as_str) == Some(DIRECTORY_LISTED))
+}
+
+/// Is the person unlisted: not [`listed`].
 pub fn unlisted(privacy: &str) -> bool {
-    map_of(privacy).is_some_and(|m| m.get("directory").and_then(Value::as_str) == Some("unlisted"))
+    !listed(privacy)
 }
 
 /// Does the person keep `field` for friends: `map[field]` is the string `"private"`. Any other

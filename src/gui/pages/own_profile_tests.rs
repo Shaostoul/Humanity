@@ -83,11 +83,60 @@ fn a_save_sends_the_whole_profile_and_keeps_the_websites_privacy_choices() {
     assert_eq!(f["banner_url"], "https://a.example/banner.png");
     assert_eq!(f["socials"], r#"{"site":"x"}"#);
     let privacy: serde_json::Value = serde_json::from_str(f["privacy"].as_str().unwrap()).unwrap();
-    assert_eq!(privacy, serde_json::json!({ "location": "friends" }), "listed now, the website's choice for location kept");
+    assert_eq!(
+        privacy,
+        serde_json::json!({ "directory": "listed", "location": "friends" }),
+        "listed now (the word, BUG-241), the website's choice for location kept"
+    );
     assert!(f.get("accepts_files").is_none(), "the stored word is left to the server");
     assert_eq!(gs.profile_network_saved_note, "Saving to the server...");
     keep_copy(&mut gs, ONE, own_copy(&anns_own_copy(), "Ann").unwrap());
     assert_eq!(gs.profile_network_saved_note, "Saved to server.", "said once the server's copy comes back");
+}
+
+/// THE DIRECTORY CHOICE IS A WORD, AND NEVER CHOSEN IS UNLISTED (BUG-241, 2026-11-03). A server
+/// lists only a privacy map saying `"directory": "listed"` (relay storage/members.rs
+/// `MEMBER_DIR_VISIBLE`, `profile_copy::listed`), so this app writes that word when the box is
+/// ticked and "unlisted" when it is not, keeping the website's per-field choices; before the fix it
+/// took the key out for listed, which a server can no longer tell from never choosing. The box
+/// starts unticked, a server's copy with no word (never chose, or saved before the fix) leaves it
+/// unticked, and a copy saying "listed" ticks it.
+///
+/// Seen red 2026-11-03 against the old code: "ticked writes the word \"listed\"" failed, left
+/// `{"location":"friends"}`, right `{"directory":"listed","location":"friends"}`.
+#[test]
+fn the_directory_choice_is_written_as_a_word_and_never_chosen_is_unlisted() {
+    let map = |s: &str| serde_json::from_str::<serde_json::Value>(s).unwrap();
+    assert_eq!(
+        map(&privacy_with_directory(r#"{"location":"friends"}"#, true)),
+        serde_json::json!({ "directory": "listed", "location": "friends" }),
+        "ticked writes the word \"listed\""
+    );
+    assert_eq!(
+        map(&privacy_with_directory(r#"{"directory":"listed","location":"friends"}"#, false)),
+        serde_json::json!({ "directory": "unlisted", "location": "friends" }),
+        "unticked writes \"unlisted\""
+    );
+    assert_eq!(map(&privacy_with_directory("not a map", true)), serde_json::json!({ "directory": "listed" }), "from a map that is not one");
+    assert_eq!(
+        (profile_copy::DIRECTORY_LISTED, profile_copy::DIRECTORY_UNLISTED),
+        ("listed", "unlisted"),
+        "the words the relay reads"
+    );
+
+    // The box: unticked until a copy says listed.
+    let (mut gs, _sent) = ann_on(ONE);
+    assert!(!gs.profile_directory_listed, "a fresh app draws the directory unticked");
+    let mut never = anns_own_copy();
+    never["privacy"] = r#"{"location":"friends"}"#.into();
+    keep_copy(&mut gs, ONE, own_copy(&never, "Ann").unwrap());
+    pump(&mut gs);
+    assert!(!gs.profile_directory_listed, "a copy with no word (never chose, or saved before the fix) leaves it unticked");
+    let mut listed = anns_own_copy();
+    listed["privacy"] = r#"{"directory":"listed"}"#.into();
+    keep_copy(&mut gs, ONE, own_copy(&listed, "Ann").unwrap());
+    pump(&mut gs);
+    assert!(gs.profile_directory_listed, "a copy saying listed ticks it");
 }
 
 /// A copy coming in fills the Profile page's fields she has not touched, and leaves an unsaved edit.
@@ -254,7 +303,8 @@ fn ann_unlocked_on(server: &str) -> (GuiState, std::sync::mpsc::Receiver<String>
 /// `signed_at` (0: none).
 fn anns_copy_asking(key: &str, signed_at: u64) -> serde_json::Value {
     let mut f = anns_own_copy();
-    f["privacy"] = r#"{"location":"private"}"#.into();
+    // Listed by the word (BUG-241: a map without it is unlisted, and its copy the withdrawal).
+    f["privacy"] = r#"{"directory":"listed","location":"private"}"#.into();
     f["target"] = key.into();
     f["signed_at"] = signed_at.into();
     f["sign_now"] = true.into();
@@ -352,7 +402,7 @@ fn the_desktop_signs_the_fixtures_copies_byte_for_byte() {
     let key = fx["public_key"].as_str().expect("the key").to_string();
     assert_eq!(key, hex::encode(crate::net::identity::pq_object_keypair(&seed).public_key()), "the fixture's key is its seed's");
     let cases = fx["cases"].as_array().expect("cases");
-    assert_eq!(cases.len(), 4, "four cases");
+    assert_eq!(cases.len(), 5, "five cases (the fifth, never chose, since BUG-241)");
     for (i, case) in cases.iter().enumerate() {
         let frame = &case["frame"];
         let now_ms = case["now_ms"].as_u64().expect("the clock");

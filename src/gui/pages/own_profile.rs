@@ -253,12 +253,12 @@ pub(crate) fn current_copy(state: &GuiState) -> Option<&ServerProfile> {
     state.own_profile.copies.get(&current_server(state))
 }
 
-/// Whether the directory choice in a privacy map is "listed" (anything but `"unlisted"`).
+/// Whether the directory choice in a privacy map is "listed": only the word `"listed"` is, the
+/// relay's rule (`profile_copy::listed`, storage/members.rs `MEMBER_DIR_VISIBLE`). No word (never
+/// chose, or a profile saved before 2026-11-03) is not (BUG-241: until then anything but
+/// `"unlisted"` was).
 fn listed_in(privacy: &str) -> bool {
-    serde_json::from_str::<serde_json::Value>(privacy)
-        .ok()
-        .and_then(|p| p.get("directory").and_then(|d| d.as_str()).map(|d| d != "unlisted"))
-        .unwrap_or(true)
+    profile_copy::listed(privacy)
 }
 
 /// Show `copy` on the Profile page: its bio, picture and directory choice go into the fields that
@@ -275,26 +275,28 @@ fn show(state: &mut GuiState, server: &str, copy: &ServerProfile) {
     if untouched(&state.profile_network_avatar, before.as_ref().map(|p| p.avatar_url.as_str())) {
         state.profile_network_avatar = copy.avatar_url.clone();
     }
-    let listed_before = before.as_ref().map(|p| listed_in(&p.privacy)).unwrap_or(true);
+    // Untouched when it still says what the last copy said, or the box's default (unticked, as a
+    // server keeps someone who never chose) when none was shown.
+    let listed_before = before.as_ref().map(|p| listed_in(&p.privacy)).unwrap_or(false);
     if state.profile_directory_listed == listed_before {
         state.profile_directory_listed = listed_in(&copy.privacy);
     }
     state.own_profile.shown = Some((server.to_string(), copy.clone()));
 }
 
-/// The server's privacy map with only the directory choice set from this device: unlisted, or the
-/// key taken out (listed). Anything else in it (a per-field choice made on the website) stays.
+/// The server's privacy map with only the directory choice set from this device, as a word:
+/// `"listed"` or `"unlisted"` (`profile_copy::DIRECTORY_LISTED`, `DIRECTORY_UNLISTED`), always
+/// written, so a server can tell a choice from never choosing; only `"listed"` lists (BUG-241,
+/// 2026-11-03: listed used to take the key out, which a server now reads as never chose).
+/// Anything else in it (a per-field choice made on the website) stays.
 pub(crate) fn privacy_with_directory(server_privacy: &str, listed: bool) -> String {
     let mut map = serde_json::from_str::<serde_json::Value>(server_privacy)
         .ok()
         .filter(|v| v.is_object())
         .unwrap_or_else(|| serde_json::json!({}));
     let obj = map.as_object_mut().expect("an object");
-    if listed {
-        obj.remove("directory");
-    } else {
-        obj.insert("directory".into(), serde_json::Value::String("unlisted".into()));
-    }
+    let word = if listed { profile_copy::DIRECTORY_LISTED } else { profile_copy::DIRECTORY_UNLISTED };
+    obj.insert("directory".into(), serde_json::Value::String(word.into()));
     map.to_string()
 }
 

@@ -105,7 +105,8 @@
     }
 
     /** Both switches as this browser keeps them; presence never chosen shows as hidden, as a
-     *  server keeps an account that never chose (fail-private). */
+     *  server keeps an account that never chose (fail-private), and the directory never chosen
+     *  shows unticked, as every server leaves that person out of it (BUG-241, 2026-11-03). */
     function renderSwitches() {
       const presence = el('privacy-presence');
       if (presence) presence.checked = P.presenceHidden(d.storage) === false;

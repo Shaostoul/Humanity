@@ -2519,7 +2519,8 @@ test("profile: a connect sends nothing unless it changed here; my own copy from 
   const ls = page.ctx.localStorage;
   const updates = () => page.sock.sent.filter((m) => m.type === "profile_update");
   const stored = () => JSON.parse(ls.getItem("humanity_profile") || "{}");
-  ls.setItem("humanity_profile", JSON.stringify({ bio: "Old bio", socials: { twitter: "old" }, location: "Lisbon", privacy: {} }));
+  // Listed by the word (BUG-241, 2026-11-03: only "listed" lists), as the page's box says.
+  ls.setItem("humanity_profile", JSON.stringify({ bio: "Old bio", socials: { twitter: "old" }, location: "Lisbon", privacy: { directory: "listed" } }));
   // The /profile page's drafts: the bio and the x link as last saved, the location being typed.
   ls.setItem("humanity_profile_full_v1", JSON.stringify({ bio: "Old bio", location: "Lisboa (typing)", twitter: "https://x.com/old", "directory-listed": true, "first-name": "Ann" }));
   ls.setItem("humanity_profile_privacy", JSON.stringify({ location: "public" }));

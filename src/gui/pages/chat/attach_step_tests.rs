@@ -109,9 +109,44 @@ fn a_photo_waits_for_send_and_a_plain_file_goes_at_once() {
     assert!(sender_line_for(&gs, "ann").unwrap().starts_with("Ann accepts files only from friends."), "the sender's line");
 }
 
-/// The member answer's word and name are what the sender's line reads (the relay's
-/// `GET /api/members/{key}`). Seen red 2026-10-11 with a missing word read as "friends": "an older
-/// server says nothing".
+/// THE WORD IS ASKED BY NAME ON THE SIGNED-IN SOCKET, AS THE WEBSITE ASKS (BUG-241, 2026-11-03).
+/// Opening a DM with Ann sends one `profile_request` for her name (every profile answer carries
+/// `accepts_files`, relay handlers/profile.rs, whether she is in the public directory or not), and
+/// her answer gives the sender's line. It asked `GET /api/members/{key}` until then, which since
+/// BUG-241 finds only someone who chose to be listed, so the line was never shown for anyone else.
+/// An answer about someone not asked about, or for another server, changes nothing.
+///
+/// Seen red 2026-11-03 against the old lookup (a GET to the server on a worker, nothing on the
+/// socket): "one profile_request for her name, on the socket" (left [], right [{"name":"Ann",
+/// "type":"profile_request"}]).
+#[test]
+fn the_word_is_asked_by_name_on_the_socket() {
+    let mut gs = app();
+    let (client, sent) = crate::net::ws_client::WsClient::recording_as("Me");
+    gs.ws_client = Some(client);
+    gs.ws_identified = true;
+    gs.chat_users = vec![crate::gui::ChatUser { name: "Ann".into(), public_key: "ann_key".into(), role: "member".into(), status: "online".into() }];
+    let asked = |sent: &std::sync::mpsc::Receiver<String>| -> Vec<serde_json::Value> {
+        sent.try_iter().map(|t| serde_json::from_str::<serde_json::Value>(&t).unwrap()).filter(|f| f["type"] == "profile_request").collect()
+    };
+    ask_accepts(&mut gs, "ann_key");
+    assert_eq!(asked(&sent), vec![serde_json::json!({ "type": "profile_request", "name": "Ann" })], "one profile_request for her name, on the socket");
+    ask_accepts(&mut gs, "ann_key");
+    assert!(asked(&sent).is_empty(), "asked once per server and person");
+
+    take_profile_answer(&mut gs, &serde_json::json!({ "type": "profile_data", "name": "Bob", "bio": "", "socials": "{}", "accepts_files": "nobody" }));
+    assert!(sender_line_for(&gs, "ann_key").is_none(), "an answer about someone not asked about changes nothing");
+    take_profile_answer(&mut gs, &serde_json::json!({ "type": "profile_data", "name": "Ann", "bio": "", "socials": "{}", "accepts_files": "friends" }));
+    assert!(
+        sender_line_for(&gs, "ann_key").is_some_and(|l| l.starts_with("Ann accepts files only from friends.")),
+        "her answer gives the sender's line: {:?}",
+        sender_line_for(&gs, "ann_key")
+    );
+}
+
+/// The member answer's word and name are what the sender's line reads (a profile answer, or the
+/// relay's `GET /api/members/{key}`, which carry the same two fields). Seen red 2026-10-11 with a
+/// missing word read as "friends": "an older server says nothing".
 #[test]
 fn the_member_answer_gives_the_word() {
     let a = serde_json::json!({ "public_key": "ann", "name": "Ann", "accepts_files": "nobody" });

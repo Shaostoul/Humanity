@@ -2044,7 +2044,7 @@ blocker:
 2. **`/api/members` directory opt-out: SHIPPED** (found stale 2026-10-09).
    `src/relay/storage/members.rs` honours `directory: "unlisted"` in
    `profiles.privacy`, and both clients have the switch (web chat-privacy.js,
-   native src/gui).
+   native src/gui). Opt-in since 2026-11-03 (BUG-241): only `"listed"` lists.
 4. **DONE v0.1470.0 (checked 2026-10-22: no Google STUN anywhere in src/ or web/; calls and
    voice rooms go through the server's own forwarder): Voice told Google the player's IP address
    (found 2026-10-05).** The original finding, for the record: WebRTC asks a STUN server

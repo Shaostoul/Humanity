@@ -221,7 +221,7 @@ in `web/chat/chat-ui.js`); native says nothing.
 | Group chats (P2P signed-object groups) | Join by pasting an invite ticket; creator may admit or remove anyone; messages are signed by their author | `src/relay/storage/groups_p2p.rs`; `web/chat/chat-groups-p2p.js` | Client hides their messages; leave the group. A creator can remove them |
 | Group invite | A ticket string passed by hand or in a DM; no push to the invitee | `createP2pInvite`, `joinP2pGroupByTicket` | Covered by DM blocking |
 | Profile view | Anyone can request your public fields by name; friends-only fields need your certificate | `handle_profile_request`, `get_public_profile` (`src/relay/storage/profile.rs`) | Withdrawing the certificate hides friends-only fields. Public fields stay public |
-| Member directory `/api/members` | Lists members unless profile privacy says `directory:"unlisted"` | `src/relay/storage/members.rs` | Not per person; use "unlisted" |
+| Member directory `/api/members` | Lists only members whose profile privacy says `directory:"listed"`; nobody is listed until they choose it (BUG-241, 2026-11-03; until then every member was listed unless they said `"unlisted"`) | `src/relay/storage/members.rs` | Not per person; leave the box unticked |
 | In-chat member list | **Every** registered name with its identity key and DM key goes to every connected client, unlisted or not; presence is masked for hidden members | `broadcast_full_user_list` (`src/relay/handlers/broadcast.rs`), `list_all_users_with_keys` (`storage/pins.rs`) | Not per person |
 | Marketplace contact | Rides sealed DMs | (DM path) | As DMs |
 | In-game trade request | Sent to anyone online with a **free-text message**, not counted against DM limits; max 10 active trades per sender; "Trade target is not online." otherwise | `handle_trade_request` (msg_handlers.rs) | Client auto-declines; relay refusal with the reach setting |
@@ -276,6 +276,8 @@ in `web/chat/chat-ui.js`); native says nothing.
   (`MEMBER_DIR_VISIBLE`) honours `directory:"unlisted"` in `get_members`,
   `get_member`, `get_member_count`, with tests; it shipped in v0.425.0
   (`git log -S MEMBER_DIR_VISIBLE`), and both clients have the toggle.
+  **Since 2026-11-03 (BUG-241) it is opt-in:** only `directory:"listed"`
+  lists, so a member who never chose is out of the directory.
   **PRIORITIES TIER 1 item 2 is stale** and should be closed, with one
   residual: the in-chat member list ignores it (table above).
 - **Per-field profile privacy** (`"location":"private"` and so on in the
@@ -621,7 +623,7 @@ privacy tiers: `data/gui/safety_presets.json`, read by both clients.
 | Who can send me trade requests | People in the shared world | Friends only | Relay (`trade_request`) |
 | Warnings on messages (section 6.3) | On for non-friends | On for everyone, friends too | Client |
 | Pictures and files from non-friends | Click to load | Never shown | Client |
-| Listed in the member directory | Off (the Private tier, today's default) | Off | Relay (exists) |
+| Listed in the member directory | Off (nobody is listed until they choose it, BUG-241; the Private tier, the default, keeps it off) | Off | Relay (exists) |
 | Shown as online | Off (Private tier) | Off | Relay (exists) |
 | Making a friend (follow back, friend code, accepting a request) | Free | Needs the parent's PIN | Client |
 | Joining a group by ticket | Free | Needs the PIN | Client |

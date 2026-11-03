@@ -11,7 +11,7 @@ Your identity (Ed25519 keys) is portable. You are never locked into a server.
 | Tier | Access |
 |------|--------|
 | **Guest** | Connected via WebSocket, can chat, no data sync, not in directory |
-| **Member** | Joined, profile syncs, appears in member directory |
+| **Member** | Joined, profile syncs; in the member directory once they choose it (off until then, BUG-241) |
 | **Contributor** | Member + can create/edit tasks in public projects |
 | **Moderator** | Existing mod role (channel management, message moderation) |
 | **Admin** | Existing admin role (server configuration, member management) |

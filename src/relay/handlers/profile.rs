@@ -355,7 +355,16 @@ pub async fn handle_profile_request(
         let socials = if socials.trim().is_empty() { "{}".to_string() } else { socials };
         let privacy = if privacy.trim().is_empty() { "{}".to_string() } else { privacy };
         let copy = public_copy(&own_name, &bio, &avatar_url, &banner_url, &socials, &pronouns, &location, &website, &privacy);
-        let ask = ask_for_copy(state, my_key, &copy, &privacy, false);
+        // No profile here: nothing to ask for. This server keeps a copy only of a profile stored
+        // here (`handle_profile_sign` drops the rest), and since BUG-241 (2026-11-03) the public
+        // copy of no profile is the withdrawal, which `sign_wanted` would ask for whenever a
+        // listed copy from another server is held, only for the signature to be dropped. The
+        // copy she chose on that server is hers to withdraw from there.
+        let ask = if stored {
+            ask_for_copy(state, my_key, &copy, &privacy, false)
+        } else {
+            CopyAsk { signed_at: state.db.get_signed_profile(my_key).ok().flatten().map_or(0, |h| h.timestamp), sign_now: false }
+        };
         let opt = |s: String| if s.is_empty() { None } else { Some(s) };
         let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
             name: own_name,

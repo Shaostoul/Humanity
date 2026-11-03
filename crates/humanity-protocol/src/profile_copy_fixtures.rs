@@ -29,7 +29,9 @@ pub struct FxCase {
     pub signed_at: u64,
 }
 
-pub fn fx_cases() -> [FxCase; 4] {
+/// Since BUG-241 (2026-11-03) only `"directory": "listed"` lists a person, so the listed cases say
+/// it, and a map without it (case 4, as every profile saved before the fix is) is the withdrawal.
+pub fn fx_cases() -> [FxCase; 5] {
     [
         FxCase {
             label: "listed; location kept for friends; pronouns marked public; a Greek bio with a line break; links in an order a re-serializer would change; the copy held is dated ahead of the clock",
@@ -40,7 +42,7 @@ pub fn fx_cases() -> [FxCase; 4] {
             pronouns: "she/her",
             location: "Lisbon",
             website: "https://ann.example",
-            privacy: r#"{"location":"private","pronouns":"public"}"#,
+            privacy: r#"{"directory":"listed","location":"private","pronouns":"public"}"#,
             signed_at: FX_NOW_MS + 90_000,
         },
         FxCase {
@@ -56,7 +58,7 @@ pub fn fx_cases() -> [FxCase; 4] {
             signed_at: FX_NOW_MS - 5_000,
         },
         FxCase {
-            label: "links stored blank (read as {}), map {}; no copy held",
+            label: "listed; links stored blank (read as {}); no copy held",
             bio: "",
             avatar_url: "",
             banner_url: "",
@@ -64,11 +66,11 @@ pub fn fx_cases() -> [FxCase; 4] {
             pronouns: "they/them",
             location: "Porto",
             website: "",
-            privacy: "{}",
+            privacy: r#"{"directory":"listed"}"#,
             signed_at: 0,
         },
         FxCase {
-            label: "a map that is not an object: listed, nothing kept for friends; the copy held has the clock's own time",
+            label: "a map that is not an object: nothing kept for friends and nobody listed, the withdrawal; the copy held has the clock's own time",
             bio: "hello",
             avatar_url: "",
             banner_url: "",
@@ -78,6 +80,18 @@ pub fn fx_cases() -> [FxCase; 4] {
             website: "https://ann.example",
             privacy: "[]",
             signed_at: FX_NOW_MS,
+        },
+        FxCase {
+            label: "never chose (map {}, as every profile saved before BUG-241 is): unlisted, the withdrawal",
+            bio: "listed by nobody's choice",
+            avatar_url: "https://ann.example/a.png",
+            banner_url: "",
+            socials: r#"{"github":"ann"}"#,
+            pronouns: "she/her",
+            location: "Lisbon",
+            website: "https://ann.example",
+            privacy: "{}",
+            signed_at: FX_NOW_MS - 1_000,
         },
     ]
 }

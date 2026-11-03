@@ -19,6 +19,12 @@ use crate::relay::relay::{FederatedConnection, Peer, RelayState};
 use crate::relay::storage::{now_millis, Storage};
 use serde_json::{json, Value};
 
+/// A privacy map that lists the person (BUG-241, 2026-11-03: only the word "listed" lists, so a
+/// test about a listed person's copy says it; before, a map without the key listed).
+const LISTED: &str = r#"{"directory":"listed"}"#;
+/// Listed, with the location kept for friends.
+const LISTED_LOCATION_PRIVATE: &str = r#"{"directory":"listed","location":"private"}"#;
+
 fn fresh_state() -> Arc<RelayState> {
     Arc::new(RelayState::new(Storage::open_temp("profile_files")))
 }
@@ -289,7 +295,7 @@ fn the_member_and_profile_lookups_carry_it() {
     use axum::response::IntoResponse;
     let st = fresh_state();
     sign_in(&st, "ann_key", "Ann");
-    send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "accepts_files": "nobody" }));
+    send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": LISTED, "accepts_files": "nobody" }));
     let now = crate::relay::storage::now_millis();
     st.db.store_signed_profile("ann_key", &signed_copy_of(&st, "Ann"), now, "sig").unwrap();
     let far = PublicCopy { name: "Far".into(), bio: "from a peer server".into(), socials: "{}".into(), ..Default::default() };
@@ -425,7 +431,7 @@ fn private_fields_stay_out_of_the_lookups() {
     use axum::response::IntoResponse;
     let st = fresh_state();
     sign_in(&st, "ann_key", "Ann");
-    send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "pronouns": "she", "privacy": "{\"location\":\"private\"}" }));
+    send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "pronouns": "she", "privacy": LISTED_LOCATION_PRIVATE }));
     let kept = signed_copy_of(&st, "Ann");
     assert_eq!(kept.location, "", "the copy for other servers leaves it out");
     let now = crate::relay::storage::now_millis();
@@ -517,7 +523,7 @@ fn a_save_asks_each_of_the_persons_devices_to_sign() {
     sign_in(&st, &ann, "Ann");
     link_device(&st, "Ann", &ann, &phone);
 
-    let sent = send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon" }));
+    let sent = send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": LISTED, "location": "Lisbon" }));
     let mut expected = vec![(None, None, None), (Some(ann.clone()), Some(true), Some(0)), (Some(phone.clone()), Some(true), Some(0))];
     expected.sort();
     let got = asks_in(&sent);
@@ -527,7 +533,7 @@ fn a_save_asks_each_of_the_persons_devices_to_sign() {
     send_sign(&st, &ann, at, &sig);
     assert!(st.db.get_signed_profile(&ann).unwrap().is_some(), "test setup: the laptop's copy is kept");
 
-    let sent = send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "accepts_files": "anyone" }));
+    let sent = send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": LISTED, "location": "Lisbon", "accepts_files": "anyone" }));
     let mut expected = vec![(None, None, None), (Some(ann.clone()), Some(false), Some(at)), (Some(phone.clone()), Some(true), Some(0))];
     expected.sort();
     assert!(asks_in(&sent) == expected, "nothing anyone may see changed: the laptop is not asked again");
@@ -567,7 +573,7 @@ fn a_signed_copy_is_kept_and_passed_on_without_what_friends_see() {
     let mut other_server = link_a_server(&st, "peer_b");
     let sent = send(&st, &ann, json!({
         "type": "profile_update", "bio": "hi", "socials": "{}", "pronouns": "she", "location": "Lisbon",
-        "privacy": "{\"location\":\"private\"}",
+        "privacy": LISTED_LOCATION_PRIVATE,
     }));
     let own = own_copy_for(&sent, &ann);
     assert_eq!(own["location"], "Lisbon", "her own copy carries it");
@@ -600,7 +606,7 @@ fn a_copy_that_does_not_match_is_not_kept_or_passed_on() {
     let ann = key_of(7);
     sign_in(&st, &ann, "Ann");
     let mut other_server = link_a_server(&st, "peer_b");
-    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}" })), &ann);
+    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": LISTED })), &ann);
 
     let (at, _) = app_signs(&own, 7, 0);
     let (_, by_someone_else) = app_signs(&own, 8, 0);
@@ -634,8 +640,8 @@ fn a_copy_nobody_asked_for_is_dropped() {
     let ann = key_of(7);
     sign_in(&st, &ann, "Ann");
     let mut other_server = link_a_server(&st, "peer_b");
-    st.db.save_profile_extended("Ann", "hi", "{}", "", "", "", "", "", "{}", None).unwrap();
-    let copy = public_copy("Ann", "hi", "", "", "{}", "", "", "", "{}");
+    st.db.save_profile_extended("Ann", "hi", "{}", "", "", "", "", "", LISTED, None).unwrap();
+    let copy = public_copy("Ann", "hi", "", "", "{}", "", "", "", LISTED);
     let at = now_millis();
     let sig = sign_copy(&[7; 32], &ann, &copy, at);
     send_sign(&st, &ann, at, &sig);
@@ -661,8 +667,8 @@ fn a_copy_for_an_older_save_does_not_use_up_the_ask() {
     let st = fresh_state();
     let ann = key_of(7);
     sign_in(&st, &ann, "Ann");
-    let first = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "first", "socials": "{}" })), &ann);
-    let second = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "second", "socials": "{}" })), &ann);
+    let first = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "first", "socials": "{}", "privacy": LISTED })), &ann);
+    let second = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "second", "socials": "{}", "privacy": LISTED })), &ann);
 
     let (at1, sig1) = app_signs(&first, 7, 0);
     send_sign(&st, &ann, at1, &sig1);
@@ -686,10 +692,10 @@ fn a_copy_dated_more_than_a_day_ahead_is_refused_with_words() {
     let ann = key_of(7);
     sign_in(&st, &ann, "Ann");
     let mut other_server = link_a_server(&st, "peer_b");
-    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}" })), &ann);
+    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": LISTED })), &ann);
 
     let ahead = now_millis() + MAX_AHEAD_MS + 60_000;
-    let copy = public_copy("Ann", "hi", "", "", "{}", "", "", "", "{}");
+    let copy = public_copy("Ann", "hi", "", "", "{}", "", "", "", LISTED);
     let told = notices(&send_sign(&st, &ann, ahead, &sign_copy(&[7; 32], &ann, &copy, ahead)), &ann);
     assert!(told.len() == 1 && told[0].contains("clock is more than a day ahead"), "the notice names the clock: {told:?}");
     assert!(st.db.get_signed_profile(&ann).unwrap().is_none(), "nothing is kept");
@@ -716,7 +722,7 @@ fn going_unlisted_signs_a_withdrawal_that_replaces_the_copy() {
     let ann = key_of(7);
     sign_in(&st, &ann, "Ann");
     let mut other_server = link_a_server(&st, "peer_b");
-    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon" })), &ann);
+    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": LISTED, "location": "Lisbon" })), &ann);
     let (at1, sig1) = app_signs(&own, 7, 0);
     send_sign(&st, &ann, at1, &sig1);
     assert_eq!(gossip_got(&mut other_server).len(), 1, "test setup: her listed copy went out");
@@ -752,7 +758,7 @@ fn a_connect_asks_only_when_the_copy_out_there_shows_more_than_allowed() {
     let st = fresh_state();
     let ann = key_of(7);
     sign_in(&st, &ann, "Ann");
-    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon" })), &ann);
+    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": LISTED, "location": "Lisbon" })), &ann);
     let (at, sig) = app_signs(&own, 7, 0);
     send_sign(&st, &ann, at, &sig);
 
@@ -763,10 +769,10 @@ fn a_connect_asks_only_when_the_copy_out_there_shows_more_than_allowed() {
     };
     assert_eq!(asked(&st), (Some(false), Some(at)), "nothing changed: not asked");
 
-    st.db.save_profile_extended("Ann", "changed elsewhere", "{}", "", "", "", "Lisbon", "", "{}", None).unwrap();
+    st.db.save_profile_extended("Ann", "changed elsewhere", "{}", "", "", "", "Lisbon", "", LISTED, None).unwrap();
     assert_eq!(asked(&st), (Some(false), Some(at)), "a benign difference asked to sign on connect");
 
-    st.db.save_profile_extended("Ann", "changed elsewhere", "{}", "", "", "", "Lisbon", "", "{\"location\":\"private\"}", None).unwrap();
+    st.db.save_profile_extended("Ann", "changed elsewhere", "{}", "", "", "", "Lisbon", "", LISTED_LOCATION_PRIVATE, None).unwrap();
     let narrowed = own_copy_for(&send(&st, &ann, ask.clone()), &ann);
     assert_eq!(narrowed["sign_now"].as_bool(), Some(true), "her location out there is now kept for friends here: asked");
     let (at2, sig2) = app_signs(&narrowed, 7, at);
@@ -901,12 +907,173 @@ fn the_lookup_answers_not_found_for_a_withdrawal_and_an_unlisted_account() {
     let ann = key_of(7);
     sign_in(&st, &ann, "Ann");
     st.db.save_profile_extended("Ann", "hi", "{}", "", "", "", "", "", "{\"directory\":\"unlisted\"}", None).unwrap();
-    st.db.store_signed_profile(&ann, &public_copy("Ann", "hi", "", "", "{}", "", "", "", "{}"), now, "sig").unwrap();
+    st.db.store_signed_profile(&ann, &public_copy("Ann", "hi", "", "", "{}", "", "", "", "{\"directory\":\"listed\"}"), now, "sig").unwrap();
     let answer = lookup(&st, &ann);
     assert_eq!(answer.0, StatusCode::NOT_FOUND, "an account unlisted here is not found");
     assert_eq!(answer.1, never_seen.1);
-    st.db.save_profile_extended("Ann", "hi", "{}", "", "", "", "", "", "{}", None).unwrap();
+    st.db.save_profile_extended("Ann", "hi", "{}", "", "", "", "", "", "{\"directory\":\"listed\"}", None).unwrap();
     assert_eq!(lookup(&st, &ann).0, StatusCode::OK, "listed again: answered");
+}
+
+// ── The public member directory lists only those who chose it (BUG-241, 2026-11-03) ──
+
+/// `GET /api/members` as anyone on the web reads it, signed in or not: its total and the names
+/// listed; `search` is its `?search=`.
+fn directory(st: &Arc<RelayState>, search: Option<&str>) -> (i64, Vec<String>) {
+    use axum::extract::{Query, State};
+    let query = crate::relay::api::MembersQuery { limit: None, offset: None, search: search.map(str::to_string) };
+    let body = block(crate::relay::api::get_members(State(st.clone()), Query(query))).0;
+    (body.total, body.members.into_iter().filter_map(|m| m.name).collect())
+}
+
+/// `GET /api/members/{key}` finds the member.
+fn member_found(st: &Arc<RelayState>, key: &str) -> bool {
+    use axum::extract::{Path, State};
+    block(crate::relay::api::get_member_by_key(State(st.clone()), Path(key.to_string()))).is_ok()
+}
+
+/// A NEW MEMBER IS IN THE PUBLIC DIRECTORY ONLY ONCE THEY CHOOSE IT. Ann signs in (which joins
+/// her to the server): `GET /api/members` (public, no sign-in) neither lists nor counts her, her
+/// key finds nothing there, while she is a member. A save that does not say "listed" (the bio
+/// alone, a per-field choice) leaves her out. Ticking the box (`"directory": "listed"`, what both
+/// apps now write) lists her, finds her by key and by search, and her copy goes to the linked
+/// server. Unticking (`"unlisted"`) takes her out again and withdraws that copy there.
+///
+/// Seen red 2026-11-03 against the old directory query (no word listed): "a new member is not in
+/// the public directory" failed, left `(1, ["Ann"])`, right `(0, [])`.
+#[test]
+fn a_new_member_is_in_the_directory_only_once_they_choose_it() {
+    let st = fresh_state();
+    let ann = key_of(7);
+    sign_in(&st, &ann, "Ann");
+    let mut other_server = link_a_server(&st, "peer_b");
+    assert_eq!(directory(&st, None), (0, vec![]), "a new member is not in the public directory");
+    assert!(!member_found(&st, &ann), "nor found there by her key");
+    assert!(st.db.is_member(&ann) && st.db.member_total().unwrap() == 1, "though she is a member");
+
+    // Saves that never chose: still out, and nothing goes to the linked server.
+    for privacy in ["{}", r#"{"location":"private"}"#] {
+        let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "privacy": privacy })), &ann);
+        assert_eq!(directory(&st, None), (0, vec![]), "a save without the word leaves her out: {privacy}");
+        assert_eq!(own["sign_now"].as_bool(), Some(false), "no copy goes out for someone who never chose: {privacy}");
+    }
+    assert!(gossip_got(&mut other_server).is_empty(), "the linked server got nothing");
+
+    // She ticks the box.
+    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "privacy": "{\"directory\":\"listed\"}" })), &ann);
+    assert_eq!(directory(&st, None), (1, vec!["Ann".to_string()]), "chose listed: listed and counted");
+    assert_eq!(directory(&st, Some("an")).1, vec!["Ann".to_string()], "found by search");
+    assert!(member_found(&st, &ann), "found by her key");
+    assert_eq!(own["sign_now"].as_bool(), Some(true), "asked to sign the copy for the linked servers");
+    let (at1, sig1) = app_signs(&own, 7, 0);
+    send_sign(&st, &ann, at1, &sig1);
+    let got = gossip_got(&mut other_server);
+    assert_eq!(got.len(), 1, "her listed copy went to the linked server");
+    assert_eq!(copy_in(&got[0]).location, "Lisbon", "with what anyone may see");
+    assert_eq!(lookup(&st, &ann).0, axum::http::StatusCode::OK, "her key finds her copy");
+
+    // She unticks it.
+    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "privacy": "{\"directory\":\"unlisted\"}" })), &ann);
+    assert_eq!(directory(&st, None), (0, vec![]), "chose unlisted: out again");
+    assert!(!member_found(&st, &ann));
+    assert_eq!(lookup(&st, &ann).0, axum::http::StatusCode::NOT_FOUND, "her key finds nothing, at once");
+    let (at2, sig2) = app_signs(&own, 7, at1);
+    send_sign(&st, &ann, at2, &sig2);
+    let got = gossip_got(&mut other_server);
+    assert_eq!(got.len(), 1, "the linked server is sent the withdrawal");
+    assert_eq!(copy_in(&got[0]), withdrawal(), "which replaces her copy there");
+}
+
+/// A PROFILE SAVED BEFORE THE WORD COUNTS AS UNLISTED. Until 2026-11-03 choosing listed took the
+/// `directory` key out, so every listed profile on a live server has none. No compatibility code
+/// (CLAUDE.md, before v1.0): such a person drops out of the directory, their key finds nothing
+/// here at once, and on their next connect (here, their own profile request, which asks the same
+/// way) their app is asked for the withdrawal, which replaces the listed copy it signed back then
+/// on every linked server. Ticking the box again lists them.
+///
+/// Seen red 2026-11-03 against the old rule (directory query and `profile_copy::unlisted`): "a
+/// profile without the word is not in the directory" failed, left `(1, ["Ann"])`, right `(0, [])`.
+#[test]
+fn a_profile_saved_before_the_word_counts_as_unlisted() {
+    let st = fresh_state();
+    let ann = key_of(7);
+    sign_in(&st, &ann, "Ann");
+    let mut other_server = link_a_server(&st, "peer_b");
+    // As it stands on a live server: the profile with no word, and the listed copy her app signed.
+    st.db.save_profile_extended("Ann", "hi", "{}", "", "", "", "Lisbon", "", "{}", None).unwrap();
+    let then = PublicCopy { name: "Ann".into(), bio: "hi".into(), socials: "{}".into(), location: "Lisbon".into(), ..Default::default() };
+    let at0 = now_millis() - 60_000;
+    st.db.store_signed_profile(&ann, &then, at0, &sign_copy(&[7; 32], &ann, &then, at0)).unwrap();
+
+    assert_eq!(directory(&st, None), (0, vec![]), "a profile without the word is not in the directory");
+    assert_eq!(lookup(&st, &ann).0, axum::http::StatusCode::NOT_FOUND, "her key finds nothing here, at once");
+
+    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_request", "name": "Ann" })), &ann);
+    assert_eq!((own["sign_now"].as_bool(), own["signed_at"].as_u64()), (Some(true), Some(at0)), "her next connect asks for the withdrawal");
+    let (at1, sig1) = app_signs(&own, 7, 0);
+    send_sign(&st, &ann, at1, &sig1);
+    let got = gossip_got(&mut other_server);
+    assert_eq!(got.len(), 1, "the withdrawal goes to the linked server");
+    assert_eq!(copy_in(&got[0]), withdrawal(), "and replaces the copy she signed back then");
+    assert_eq!(st.db.get_signed_profile(&ann).unwrap().map(|h| h.copy()), Some(withdrawal()), "held here too");
+
+    // Ticking the box again lists her.
+    send(&st, &ann, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "privacy": "{\"directory\":\"listed\"}" }));
+    assert_eq!(directory(&st, None), (1, vec!["Ann".to_string()]), "listed again once she chooses it");
+}
+
+/// THE ADMINS STILL COUNT EVERY MEMBER. The public directory leaves out whoever has not chosen it,
+/// but the server's admin dashboard (`POST /api/admin/stats`, the website's admin page and the
+/// desktop's Relay Control) counts every member, as its list of recent joins already shows every
+/// join: three members, none listed, one of them the admin asking.
+///
+/// Seen red 2026-11-03 with the dashboard on the directory's count (`get_member_count(None)`):
+/// "the dashboard counts every member" (left Number(0), right 3).
+#[test]
+fn the_admins_count_every_member_listed_or_not() {
+    use axum::extract::State;
+    let st = fresh_state();
+    let admin = key_of(5);
+    sign_in(&st, &admin, "Admin");
+    st.db.set_role(&admin, "admin").unwrap();
+    sign_in(&st, &key_of(6), "Bea");
+    sign_in(&st, &key_of(7), "Ann");
+    assert_eq!(directory(&st, None).0, 0, "test setup: nobody is in the public directory");
+    let ts = now_millis();
+    let keys = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[5; 32]));
+    let sig = hex::encode(keys.sign(format!("admin_stats\n{ts}").as_bytes()));
+    let query = crate::relay::api::AdminStatsQuery { key: admin.clone(), timestamp: ts, sig };
+    let stats = block(crate::relay::api::post_admin_stats(State(st.clone()), axum::Json(query))).expect("an admin's stats").0;
+    assert_eq!(stats["user_count"], 3, "the dashboard counts every member");
+}
+
+/// NO PROFILE HERE: NOTHING ASKED, AND HER KEY FINDS NOTHING HERE. Ann has an account here (she
+/// signed in) but has saved no profile here, and a listed copy she signed on another server is
+/// held. She never chose here, so this server leaves her out of its directory and its lookup
+/// answers not found, as her app's box for this server says (unticked); the copy stays as it is
+/// on the other servers (she chose it there). Her own request asks her to sign nothing: this
+/// server keeps a copy only of a profile stored here (`handle_profile_sign`), and since BUG-241
+/// the public copy of no profile is the withdrawal, which `sign_wanted` would ask for and the
+/// sign handler would then drop.
+///
+/// Seen red 2026-11-03 before the two changes: "her own request asks for nothing" (left
+/// Some(true), right Some(false)); with only the guard in: "her key finds nothing here" (left
+/// 200, right 404).
+#[test]
+fn no_profile_here_asks_for_no_copy_and_answers_nothing_for_her_key() {
+    let st = fresh_state();
+    let ann = key_of(7);
+    sign_in(&st, &ann, "Ann");
+    let there = PublicCopy { name: "Ann".into(), bio: "chosen on another server".into(), socials: "{}".into(), ..Default::default() };
+    let at0 = now_millis() - 60_000;
+    st.db.store_signed_profile(&ann, &there, at0, &sign_copy(&[7; 32], &ann, &there, at0)).unwrap();
+
+    let own = own_copy_for(&send(&st, &ann, json!({ "type": "profile_request", "name": "Ann" })), &ann);
+    assert_eq!(own["stored"].as_bool(), Some(false), "test setup: no profile here");
+    assert_eq!(own["sign_now"].as_bool(), Some(false), "her own request asks for nothing");
+    assert_eq!(own["signed_at"].as_u64(), Some(at0), "and still says the time of the copy held");
+    assert_eq!(lookup(&st, &ann).0, axum::http::StatusCode::NOT_FOUND, "her key finds nothing here");
+    assert_eq!(st.db.get_signed_profile(&ann).unwrap().map(|h| h.copy()), Some(there), "the copy she chose elsewhere is left as it is");
 }
 
 // ── An erase takes the copy off the linked servers (BUG-191 Wave 2B, plan section 9 decision 2) ──
@@ -934,7 +1101,7 @@ fn withdrawal_by(seed: u8, for_key: u8, signed_at: u64) -> Withdrawal {
 fn listed_and_passed_on(st: &Arc<RelayState>, other_server: &mut tokio::sync::mpsc::UnboundedReceiver<String>, seed: u8, name: &str) -> (String, u64) {
     let key = key_of(seed);
     sign_in(st, &key, name);
-    let own = own_copy_for(&send(st, &key, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon" })), &key);
+    let own = own_copy_for(&send(st, &key, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": LISTED, "location": "Lisbon" })), &key);
     let (at, sig) = app_signs(&own, seed, 0);
     send_sign(st, &key, at, &sig);
     assert_eq!(gossip_got(other_server).len(), 1, "test setup: {name}'s listed copy went out");
@@ -981,7 +1148,7 @@ fn an_erase_passes_on_only_the_persons_own_withdrawal() {
     assert_eq!(st.db.name_for_key(&bo).unwrap(), None, "Bo is erased all the same");
 
     let (cy, cy_at) = listed_and_passed_on(&st, &mut other_server, 10, "Cy");
-    let listed = public_copy("Cy", "hi", "", "", "{}", "", "Lisbon", "", "{}");
+    let listed = public_copy("Cy", "hi", "", "", "{}", "", "Lisbon", "", LISTED);
     let at = next_copy_time(now_millis(), cy_at, 0);
     erase(&st, &cy, "Cy", Some(Withdrawal { at, signature: sign_copy(&[10; 32], &cy, &listed, at) }));
     assert!(gossip_got(&mut other_server).is_empty(), "her signature over her listed copy is not a withdrawal");

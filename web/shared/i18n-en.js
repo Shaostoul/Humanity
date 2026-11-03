@@ -3105,7 +3105,7 @@ window.HOS_I18N_EN = {
     "switches_title": "The two privacy switches",
     "switches_intro": "A privacy level only sets these two switches, and you can change either one on its own.",
     "directory_label": "List me in the public member directory",
-    "directory_does": "On: you are in this server's member directory and its search, and a signed copy of your profile (without what you keep for friends) is kept by this server and passed to the servers it is linked with, where anyone can look it up by your [[public key]]. Off: you are left out of the directory and its search, every linked server drops its copy, and looking up your key finds nothing. Off does not hide your name or your profile from the people on a server you use.",
+    "directory_does": "On: you are in this server's member directory and its search, and a signed copy of your profile (without what you keep for friends) is kept by this server and passed to the servers it is linked with, where anyone can look it up by your [[public key]]. Off: you are left out of the directory and its search, every linked server drops its copy, and looking up your key finds nothing. It is off until you turn it on. Off does not hide your name or your profile from the people on a server you use.",
     "presence_label": "Show others when I am online",
     "presence_does": "Off: you never appear online, the server keeps no last-seen time for you, and no typing, joining or leaving signals are sent. You still appear in the people list, shown as offline, and friends can still message you.",
     "seen_title": "What everyone on a server you use can always see",

@@ -260,7 +260,10 @@ pub async fn tally_proposal(
                 if let Some(rules) =
                     ProposalTypeRegistry::load().and_then(|r| r.get(&p.proposal_type).cloned())
                 {
-                    let electorate = state.db.get_member_count(None).unwrap_or(0);
+                    // Every member, listed in the public directory or not (BUG-241): a privacy
+                    // choice must not move the denominator, and since 2026-11-03 nobody is listed
+                    // until they choose it.
+                    let electorate = state.db.member_total().unwrap_or(0);
                     let (quorum_met, passing) =
                         tally_verdict(&rules, t.vote_count, electorate, t.yes_weight, t.no_weight);
                     out["quorum_fraction"] = serde_json::json!(rules.quorum_fraction);
@@ -349,5 +352,48 @@ mod proposal_rules_tests {
         assert_eq!(tally_verdict(&rules, 5, 0, 5.0, 0.0), (false, true));
         // No decisive votes: not passing (all abstain).
         assert_eq!(tally_verdict(&rules, 2, 10, 0.0, 0.0), (true, false));
+    }
+
+    /// THE ELECTORATE IS EVERY MEMBER, LISTED OR NOT (BUG-241, 2026-11-03). Since the fix nobody
+    /// is in the public member directory until they choose it, so the directory's count, which
+    /// this used, left the electorate at zero on a server where nobody had listed themselves, and
+    /// then no proposal could ever reach quorum (`tally_verdict`); a privacy choice must not move
+    /// a vote's denominator either (docs/design/signing-tiers.md, B-F3). Ten members, none listed.
+    ///
+    /// Seen red 2026-11-03 with the directory's count (`get_member_count(None)`): "every member
+    /// counts, none of them listed" (left Number(0), right 10).
+    #[test]
+    fn the_electorate_is_every_member_listed_or_not() {
+        use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text};
+        use humanity_protocol::object::ObjectBuilder;
+        use humanity_protocol::pq_crypto::DilithiumKeypair;
+        let st = Arc::new(RelayState::new(crate::relay::storage::Storage::open_temp("electorate")));
+        for i in 0..10 {
+            st.db.join_server(&format!("member_key_{i}"), &format!("Member{i}")).unwrap();
+        }
+        assert_eq!(st.db.get_member_count(None).unwrap(), 0, "test setup: nobody is in the directory");
+        let now = crate::relay::storage::now_millis();
+        let payload = cbor_map(vec![
+            ("proposal_type", cbor_text("local_rule")),
+            ("scope", cbor_text("local")),
+            ("title", cbor_text("A rule")),
+            ("body", cbor_text("Its words")),
+            ("opens_at", cbor_int(now)),
+            ("closes_at", cbor_int(now + 86_400_000)),
+        ]);
+        let proposal = ObjectBuilder::new("proposal_v1")
+            .space_id("test_server")
+            .created_at(now)
+            .payload_cbor(&payload)
+            .unwrap()
+            .sign(&DilithiumKeypair::generate().unwrap())
+            .unwrap();
+        st.db.put_signed_object(&proposal, None).unwrap();
+        let id = proposal.object_id().unwrap().to_hex();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let resp = rt.block_on(tally_proposal(State(st.clone()), Path(id))).into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body: serde_json::Value = serde_json::from_slice(&rt.block_on(axum::body::to_bytes(resp.into_body(), usize::MAX)).unwrap()).unwrap();
+        assert_eq!(body["electorate"], 10, "every member counts, none of them listed");
     }
 }

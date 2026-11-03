@@ -357,7 +357,9 @@ The remaining server-held data classes and length/transport leaks, closed:
   that signature checks (`crates/humanity-protocol/src/profile_copy.rs`,
   `src/relay/handlers/profile.rs`). Pronouns, location and website are blank
   in it when you keep them for friends; name, bio, avatar, banner and links
-  are public by design. Going unlisted (the Private and Balanced tiers, or
+  are public by design. No copy goes out until you list yourself (since
+  2026-11-03, BUG-241: the directory switch is off until you turn it on).
+  Going unlisted (the Private and Balanced tiers, or
   turning off the member-list choice on your profile) makes it a withdrawal,
   every field blank, signed by your app. It replaces the copy on every
   linked server that has it; a linked server that was down gets it when its

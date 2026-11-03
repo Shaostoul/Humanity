@@ -7,9 +7,11 @@
 //  - presence (`hide_presence`): told to a server as {"type":"privacy_update","hide_presence":b}
 //    on a signed-in socket (src/relay/relay.rs RelayMessage::PrivacyUpdate), which keeps it for
 //    this account on that server (storage/members.rs set_hide_presence);
-//  - the member directory (`directory_unlisted`): privacy.directory = "unlisted" in the profile
-//    the chat sends (chat-profile.js pushProfileToRelay), recorded as changed in this browser
-//    (/shared/profile-changes.js) so it goes on top of the server's own copy.
+//  - the member directory (`directory_unlisted`): privacy.directory = "listed" or "unlisted" in
+//    the profile the chat sends (chat-profile.js pushProfileToRelay), recorded as changed in this
+//    browser (/shared/profile-changes.js) so it goes on top of the server's own copy. Only the
+//    word "listed" lists (BUG-241, 2026-11-03): a profile without it, someone who never chose, is
+//    left out of the directory, so the box draws unticked until they tick it.
 // Kept in this browser: the level last used ('humanity_privacy_tier') and the presence switch
 // ('humanity_hide_presence', "1" hidden, "0" shown). The flags are per server, so the chat tells
 // each server it connects to (reassertFrame). The directory choice lives in the profile
@@ -30,6 +32,12 @@
   const PROFILE_KEY = 'humanity_profile';
   const TIERS_URL = '/data/gui/privacy_tiers.json';
   const WORD_FIELDS = ['name', 'tagline', 'description'];
+  // The directory words, the relay's DIRECTORY_LISTED and DIRECTORY_UNLISTED
+  // (crates/humanity-protocol/src/profile_copy.rs; /shared/profile-copy.js has the same, and
+  // scripts/tests/privacy-web.test.js holds the three to one spelling). Copied, not read from
+  // profile-copy.js: Settings loads this file without it.
+  const LISTED = 'listed';
+  const UNLISTED = 'unlisted';
 
   /** The one level used when the file cannot be read or is refused: the most private. */
   function fallback() {
@@ -122,24 +130,28 @@
     } catch (e) { return {}; }
   }
 
-  /** Whether this browser's profile lists the person in the member directory (not "unlisted"). */
+  /**
+   * Whether this browser's profile lists the person in the member directory: its privacy map says
+   * "listed". Never chosen (no word, as every profile saved before 2026-11-03 is) is not listed,
+   * which is what every server does with it (BUG-241).
+   */
   function directoryListed(storage) {
     const p = storedProfile(storage);
-    return !(p.privacy && p.privacy.directory === 'unlisted');
+    return !!(p.privacy && typeof p.privacy === 'object' && p.privacy.directory === LISTED);
   }
 
   /**
    * Keep the directory choice in this browser's profile, recorded as changed (`changes`, the
-   * HosProfileChanges module) so the chat sends it on top of the server's copy. Every other
-   * field of the stored profile is kept. True when the choice changed; nothing is written when
-   * it did not.
+   * HosProfileChanges module) so the chat sends it on top of the server's copy: the word "listed"
+   * or "unlisted", always written, so the server can tell a choice from never choosing. Every
+   * other field of the stored profile is kept. True when the choice changed; nothing is written
+   * when it did not.
    */
   function setDirectory(storage, listed, changes) {
     const before = storedProfile(storage);
     const after = JSON.parse(JSON.stringify(before));
     after.privacy = after.privacy && typeof after.privacy === 'object' && !Array.isArray(after.privacy) ? after.privacy : {};
-    if (listed) delete after.privacy.directory;
-    else after.privacy.directory = 'unlisted';
+    after.privacy.directory = listed ? LISTED : UNLISTED;
     const changed = changes ? changes.changedFields(before, after) : [];
     if (!changed.length && directoryListed(storage) === !!listed) return false;
     if (changes) changes.add(storage, changed);
@@ -176,7 +188,7 @@
   }
 
   const api = {
-    TIER_KEY, PRESENCE_KEY, PROFILE_KEY, TIERS_URL, ANSWER_HIDDEN, ANSWER_SHOWN,
+    TIER_KEY, PRESENCE_KEY, PROFILE_KEY, TIERS_URL, ANSWER_HIDDEN, ANSWER_SHOWN, LISTED, UNLISTED,
     fallback, parseTiers, loadTiers, tierById, chosenTierId, presenceHidden, presenceFrame,
     reassertFrame, setPresence, directoryListed, setDirectory, applyTier, switchesMatch,
     presenceAnswer,

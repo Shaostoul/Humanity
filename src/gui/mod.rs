@@ -854,10 +854,11 @@ pub struct GuiState {
     pub profile_network_name: String,
     pub profile_network_bio: String,
     pub profile_network_avatar: String,
-    /// Whether to appear in the server's public member directory (audit 2026-06-12
-    /// opt-out). On = listed; off sends profile privacy `directory:"unlisted"`.
-    /// Defaults to listed; since 2026-10-11 the server's own copy sets it (pages/own_profile.rs
-    /// `show`) unless the person changed it since.
+    /// Whether to appear in the server's public member directory. On sends profile privacy
+    /// `directory:"listed"`, off `directory:"unlisted"`; only "listed" lists (BUG-241).
+    /// Defaults to unlisted, as every server keeps someone who never chose (2026-11-03; it
+    /// defaulted to listed while a server listed everyone); since 2026-10-11 the server's own copy
+    /// sets it (pages/own_profile.rs `show`) unless the person changed it since.
     pub profile_directory_listed: bool,
     /// Floating machine labels in the 3D home (v0.428), populated by load_world.
     pub machine_labels: Vec<MachineLabel>,
@@ -3350,7 +3351,7 @@ impl Default for GuiState {
             profile_network_name: String::new(),
             profile_network_bio: String::new(),
             profile_network_avatar: String::new(),
-            profile_directory_listed: true,
+            profile_directory_listed: false, // BUG-241: nobody is listed until they choose it
             machine_labels: Vec::new(),
             sight_blockers: Default::default(),
             targeted_machine: None,

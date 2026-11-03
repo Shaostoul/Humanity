@@ -755,6 +755,10 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             if let Some(signed) = own_profile::take_own_copy(&mut state.gui_state, &server, &val, &socket_name) {
                                 if let Some(ws) = state.gui_state.ws_client.as_ref() { ws.send(&signed); }
                             }
+                        } else {
+                            // Someone else's: the "accepts files from" word of a person whose DM
+                            // asked for it (chat/attach_step.rs `ask_accepts`, BUG-241).
+                            crate::gui::pages::chat::attach_step::take_profile_answer(&mut state.gui_state, &val);
                         }
                     }
                     Some("sync_data") | Some("sync_ack") | Some("vault_sync") => {
