@@ -100,12 +100,14 @@ test("1. the h1 and the tab's title name the host", async () => {
 // Seen red 2026-10-12 with renderTabs drawing the tabs for anyone (`const admin = true`): "a
 // member gets no tabs / actual: [FakeElement] / expected: null". The tabs are places since
 // 2026-10-19 (files-places.js): everyone has Shared on <server> and Shared files; the server's
-// data folder (since 2026-10-20, BUG-206) and Admin are an admin's alone.
+// data folder (since 2026-10-20, BUG-206) and Admin are an admin's alone. Since 2026-11-03 the places
+// come in the launcher's colours, what you share (Yours on, Your shared files) before what everyone
+// shares (files-web-places.test.js 7).
 test("2. the Admin place is an admin's alone; Admin holds the section, /files#admin opens it", async () => {
   const mounted = [];
   const placeNames = (doc) => byId(doc, "files-places").children.filter((c) => c.tagName === "BUTTON").map((t) => t.textContent);
   const member = await openPage({ hash: "#admin", mountAdmin: (c) => mounted.push(c), routes: listRoutes(listAnswer([])) });
-  assert.deepEqual(placeNames(member.doc), ["Shared on united-humanity.us", "Shared files"], "a member's places: no data folder, no Admin");
+  assert.deepEqual(placeNames(member.doc), ["Yours on united-humanity.us", "Your shared files", "Shared on united-humanity.us", "Shared files"], "a member's places, what you share then what everyone shares: no data folder, no Admin");
   assert.equal(byId(member.doc, "files-place-admin"), null, "and no Admin place, even at /files#admin");
   assert.equal(byId(member.doc, "files-main").hidden, false, "the list shows");
   assert.equal(byId(member.doc, "files-admin"), null, "and no admins' section");
@@ -113,7 +115,7 @@ test("2. the Admin place is an admin's alone; Admin holds the section, /files#ad
 
   const history = fakeHistory();
   const op = await openPage({ session: fakeSession({ role: "admin" }), history, mountAdmin: (c) => mounted.push(c), routes: listRoutes(listAnswer([])) });
-  assert.deepEqual(placeNames(op.doc), ["Shared on united-humanity.us", "Shared files", "Admin", "The server's data folder"], "an admin's places, in the desktop's order");
+  assert.deepEqual(placeNames(op.doc), ["Yours on united-humanity.us", "Your shared files", "Shared on united-humanity.us", "Shared files", "Admin", "The server's data folder"], "an admin's places, in the desktop's order (red, green, blue since 2026-11-03: the red ones are on the computer)");
   assert.equal(byId(op.doc, "files-place-shared").getAttribute("aria-current"), "page", "what is shared first");
   assert.equal(byId(op.doc, "files-main").hidden, false);
   assert.equal(byId(op.doc, "files-admin-wrap").hidden, true, "Admin waits behind its place");

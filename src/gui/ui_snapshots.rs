@@ -2806,6 +2806,32 @@ fn snapshot_files_three_pane() {
     });
 }
 
+/// THE FILES PAGE'S PLACES IN THE LAUNCHER'S RED, GREEN AND BLUE (2026-11-03, pages/files/places.rs)
+/// on the operator's screen (2560 by 1440), Yours on 127.0.0.1:9 picked: at the top of the left
+/// pane "Private, on this computer" in red over the HumanityOS folder and Your folders, "What you
+/// share" in green over Yours on 127.0.0.1:9 (picked, edged in green) and Your shared files, "What
+/// everyone shares" in blue over Shared on 127.0.0.1:9 and Shared files; under them only your own
+/// items, with no featured shelf and no filters; your landscape fitted to the middle and its details
+/// on the right. The operator: "R for private, B for servers."
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_files_places() {
+    use crate::gui::pages::files as media;
+    render_page_png("files_places", 2560, 1440, |ctx, theme, state| {
+        if state.files.server.is_empty() {
+            *state = media_panes_state(ctx, 21);
+            // Yours on <server>, its list already answered with your own items alone (so nothing is
+            // asked of the network).
+            state.files.place = media::Place::Yours;
+            state.files.list_place = media::Place::Yours;
+            let me = state.profile_public_key.clone();
+            state.files.list.items.retain(|i| i.uploader_key == me);
+        }
+        media_snapshot_pictures(ctx, state);
+        media::draw(ctx, theme, state);
+    });
+}
+
 /// The same page on a window taller than it is wide (1100 by 1500): the list, the picture and its
 /// details stacked top, middle and bottom.
 #[test]

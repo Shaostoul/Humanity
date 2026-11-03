@@ -19,7 +19,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const H = require("./files-web-harness.js");
-const { WEB, ROOT, ME, ANN, MIB, media, byId, text, respond, at, settle, listAnswer, listRoutes, openPage, aFile, fakeSession, fakeStorage } = H;
+const { WEB, ROOT, ME, ANN, MIB, media, byId, text, respond, at, settle, item, listAnswer, listRoutes, openPage, aFile, fakeSession, fakeStorage } = H;
 const FPL = require(path.join(WEB, "pages", "files-places.js"));
 const FSH = require(path.join(WEB, "pages", "files-shared.js"));
 const FFO = require(path.join(WEB, "pages", "files-folder.js"));
@@ -66,10 +66,18 @@ const routes = () => listRoutes(listAnswer([]), [[at("/api/uploads"), () => resp
 // order: Shared on, Shared files, Admin, then the rest" (and files-web-round5 2, "an admin's
 // places, in the desktop's order"); with only its old name back: "not the desktop's HumanityOS
 // folder, which is the app's own folder on the computer" (actual 'HumanityOS folder').
-test("1. the places: two for everyone, Admin and the data folder for an admin, in the desktop's order, each at its own address", () => {
-  assert.deepEqual(FPL.listed(false), ["shared", "shared-files"]);
-  assert.deepEqual(FPL.listed(true), ["shared", "shared-files", "admin", "folder"], "in the desktop's order: Shared on, Shared files, Admin, then the rest");
+// The order changed on 2026-11-03 to the launcher's red, green and blue (operator: "R for private,
+// B for servers"): what you share (Yours on, Your shared files) before what everyone shares; the
+// red places are the desktop's, on the computer. Seen red that day with `GROUPS` put back to
+// everyone's first: "green, then blue" (actual ['shared', 'shared-files', 'yours', 'your-shared-files']).
+test("1. the places: four for everyone, Admin and the data folder for an admin, in the desktop's order, each at its own address", () => {
+  assert.deepEqual(FPL.listed(false), ["yours", "your-shared-files", "shared", "shared-files"], "green, then blue");
+  assert.deepEqual(FPL.listed(true), ["yours", "your-shared-files", "shared", "shared-files", "admin", "folder"], "in the desktop's order: what you share, then Shared on, Shared files, Admin, then the rest");
   for (const place of FPL.listed(true)) assert.equal(FPL.placeOf(FPL.addressOf(place).replace("/files", "")), place, "the address names the place: " + place);
+  assert.equal(FPL.addressOf("yours"), "/files#yours");
+  assert.equal(FPL.labelOf("yours", "united-humanity.us"), "Yours on united-humanity.us", "the desktop's words");
+  assert.equal(FPL.labelOf("your-shared-files"), "Your shared files");
+  assert.equal(FPL.placeOf(""), "shared", "the page still opens on what everyone shares");
   assert.equal(FPL.addressOf("shared"), "/files", "what is shared is the page itself");
   assert.equal(FPL.placeOf("#nothing"), "shared", "an unknown hash shows what is shared");
   assert.equal(FPL.shownPlace("admin", false), "shared", "Admin is an admin's alone");
@@ -228,9 +236,11 @@ test("5a. How this page works: a toggle beside the heading, closed by default; S
   assert.equal(toggle.getAttribute("aria-expanded"), "true", "aria-expanded follows");
   assert.equal(fold.hidden, false);
   assert.deepEqual(foldParts(fold), [
-    ["Shared on united-humanity.us", "red", [PAGE_LINE]],
-    ["Shared files", "red", [FSH.WORDS.how]],
-  ], "open, each place's line under its name (a member's: the data folder is an admin's, 6)");
+    ["Yours on united-humanity.us", "green", [FPL.hintOf("yours")]],
+    ["Your shared files", "green", [FPL.hintOf("your-shared-files")]],
+    ["Shared on united-humanity.us", "blue", [PAGE_LINE]],
+    ["Shared files", "blue", [FSH.WORDS.how]],
+  ], "open, each place's line under its name, in the places' order and colours (a member's: the data folder is an admin's, 6)");
   assert.equal(storage.m.get(media.HOW_KEY), "1", "kept, under hos_files_how_open");
   assert.equal(media.HOW_KEY, "hos_files_how_open");
   toggle.click();
@@ -249,7 +259,7 @@ test("5b. How this page works survives a reload; storage refused, the page still
   const again = await openPage({ view: "panes", storage, routes: routes() });
   assert.equal(byId(again.doc, "files-how-toggle").getAttribute("aria-expanded"), "true", "it survives a reload");
   assert.equal(byId(again.doc, "files-how").hidden, false);
-  assert.equal(foldParts(byId(again.doc, "files-how")).length, 2, "open from the start, its parts drawn");
+  assert.equal(foldParts(byId(again.doc, "files-how")).length, 4, "open from the start, its parts drawn");
   byId(again.doc, "files-how-toggle").click();
   const closed = await openPage({ view: "panes", storage, routes: routes() });
   assert.equal(byId(closed.doc, "files-how-toggle").getAttribute("aria-expanded"), "false", "closed, and that is kept too");
@@ -336,7 +346,7 @@ test("6. the server's data folder is an admin's alone: a member has no such plac
   storage.setItem(media.HOW_KEY, "1");
   const admin = await openPage({ view: "panes", storage, session: fakeSession({ role: "admin" }), routes: routes() });
   assert.ok(byId(admin.doc, "files-place-folder"), "an admin has it");
-  assert.deepEqual(foldParts(byId(admin.doc, "files-how")).map((p) => p[0]), ["Shared on united-humanity.us", "Shared files", FPL.WORDS.folder], "and its line in the fold");
+  assert.deepEqual(foldParts(byId(admin.doc, "files-how")).map((p) => p[0]), ["Yours on united-humanity.us", "Your shared files", "Shared on united-humanity.us", "Shared files", "Admin", FPL.WORDS.folder], "and its line in the fold (Admin's too, as the desktop's fold has it)");
 
   // No identity in this browser: the server is not asked, and the tree says why.
   const none = await withFolder(async () => null, () => ({}));
@@ -360,4 +370,125 @@ test("6. the server's data folder is an admin's alone: a member has no such plac
   assert.deepEqual(asked.calls.map((c) => [c.url, c.init && c.init.method]), [["/api/data-files", "POST"], ["/api/data-files/read", "POST"]], "a POST to list, then one to read, the addresses bare");
   assert.deepEqual(JSON.parse(asked.calls[0].init.body), { path: "data", key: "kkkk", timestamp: 1760000000123, sig: "sig:data_files_list\ndata" }, "the listing signed over its folder (src/relay/api.rs list_purpose)");
   assert.deepEqual(JSON.parse(asked.calls[1].init.body), { path: "data/notes.txt", key: "kkkk", timestamp: 1760000000123, sig: "sig:data_files_read\ndata/notes.txt" }, "the read signed over its file (read_purpose)");
+});
+
+// ── 7. The groups, in the launcher's red, green and blue ──────────────────
+
+// The operator, 2026-11-03, on the navigation mock-up of the Files page: "I feel like that first
+// image should be ordered as your private local files files, your publicly shared files, then
+// files by friends/servers? Maintains the RGB styling. R for private, B for servers." The desktop's
+// twin is src/gui/pages/files/places_tests.rs `the_groups_draw_in_the_launchers_colours`.
+// Seen red 2026-11-03 in a copy of web/ (HOS_WEB_DIR) with the group headings given no colour
+// class (files-places.js render, `className: 'files-places-group'` alone): "Private, on this
+// computer is red, What you share green, What everyone shares blue" (actual [['Private, on this
+// computer', 'files-places-group'], ['What you share', 'files-places-group'], ...]); and with the
+// groups' order swapped (blue before green), the same assertion and 1's "green, then blue".
+test("7. the places come in three groups, red, green, blue, each heading and place in its colour token; the private group says the desktop holds it; every place has its hint", async () => {
+  const css = readText(path.join(WEB, "shared", "files-places.css"));
+  for (const [tint, token] of [["red", "--danger"], ["green", "--success"], ["blue", "--info"]]) {
+    assert.ok(css.includes(".files-places-" + tint + " { --place-tint: var(" + token + "); }"), "the " + tint + " group takes the theme's " + token + " (the launcher's)");
+    assert.ok(css.includes(".files-place-" + tint + " { --place-tint: var(" + token + "); }"), "and its places too");
+  }
+  const { doc } = await openPage({ view: "panes", routes: routes() });
+  const nav = byId(doc, "files-places");
+  const groups = nav.children.filter((c) => c.tagName === "P" && c.className.startsWith("files-places-group"));
+  assert.deepEqual(groups.map((g) => [text(g), g.className]), [
+    ["Private, on this computer", "files-places-group files-places-red"],
+    ["What you share", "files-places-group files-places-green"],
+    ["What everyone shares", "files-places-group files-places-blue"],
+  ], "Private, on this computer is red, What you share green, What everyone shares blue");
+  // In order down the list: each heading, then its places.
+  const order = nav.children.map((c) => (c.tagName === "BUTTON" ? c.id.replace("files-place-", "") : c.dataset.group || "note"));
+  assert.deepEqual(order, ["private", "note", "you-share", "yours", "your-shared-files", "everyone-shares", "shared", "shared-files"], "the groups' headings over their places");
+  assert.equal(text(nav.children[1]), FPL.WORDS.privateLine, "the private group says where its places are");
+  assert.match(FPL.WORDS.privateLine, /desktop app/);
+  for (const [id, tint] of [["yours", "green"], ["your-shared-files", "green"], ["shared", "blue"], ["shared-files", "blue"]]) {
+    const b = byId(doc, "files-place-" + id);
+    assert.ok(b.className.includes("files-place-" + tint), id + " is " + tint);
+    assert.ok(b.dataset.tipDesc && b.dataset.tipDesc === FPL.hintOf(id) && !b.dataset.tipDesc.startsWith("files."), id + " has its hint, in words");
+  }
+  assert.equal(byId(doc, "files-place-shared").getAttribute("aria-current"), "page", "the page still opens on what everyone shares");
+  for (const key of ["files.places.private", "files.places.you_share", "files.places.everyone_shares", "files.places.private_web"]) {
+    assert.notEqual(FPL.words(key), key, key + " is in en.json");
+  }
+});
+
+// ── 8. Yours on <server> ──────────────────────────────────────────────────
+
+// The desktop's twin is places_tests.rs `yours_is_your_own_items_and_your_shared_files_are_your_own_files`.
+// Seen red 2026-11-03 in a copy of web/ with files-app.js `listFilters` answering the filters picked
+// whatever the place (`return st.filters;`): "Yours is asked for by your key and nothing else"
+// (actual { by: 'b2b2...' (Ann, picked for everyone's list), limit: 48 }, expected by: 'a1a1...').
+test("8. Yours on <server>: the page's own list asked for by your key alone; no shelf, no filters, no Suggest a category; back on Shared on, everyone's with the filters as they were", async () => {
+  const mine = item({ id: 9, title: "Seedlings, day 12", uploader_key: ME, uploader_name: "You" });
+  const anns = item({ id: 3, title: "Contact staff", uploader_key: ANN, featured: "main" });
+  const lists = [];
+  const answer = (c) => { lists.push(c.body); return respond(200, listAnswer(c.body.by === ME ? [mine] : [anns, mine])); };
+  const history = fakeHistory();
+  const { doc } = await openPage({ view: "panes", history, routes: listRoutes(listAnswer([anns, mine]), [[(c) => c.url === "/api/files/list" && c.body.featured !== 1, answer]]) });
+  assert.ok(text(byId(doc, "files-grid")).includes("Contact staff"), "test setup: everyone's list first");
+  // A filter picked for everyone's list: Ann.
+  const person = byId(doc, "files-filter-person");
+  person.value = ANN;
+  person.dispatch("change");
+  await settle();
+  assert.equal(lists.at(-1).by, ANN, "test setup: Ann picked");
+
+  byId(doc, "files-place-yours").click();
+  await settle();
+  assert.deepEqual(history.calls.at(-1), ["replace", "/files#yours"], "the address names the place");
+  const { key, timestamp, sig, ...params } = lists.at(-1);
+  assert.deepEqual(params, { by: ME, limit: params.limit }, "Yours is asked for by your key and nothing else");
+  assert.ok(key && timestamp && sig, "signed, as everyone's list is");
+  assert.equal(byId(doc, "files-main").hidden, false, "in the page's own panes");
+  assert.ok(text(byId(doc, "files-grid")).includes("Seedlings, day 12"), "your item, as a row");
+  assert.ok(!text(byId(doc, "files-grid")).includes("Contact staff"), "nobody else's");
+  assert.equal(byId(doc, "files-featured").hidden, true, "no featured shelf: it is about everyone's");
+  assert.equal(byId(doc, "files-filters").hidden, true, "no filters");
+  assert.equal(byId(doc, "files-foot").hidden, true, "and no copyright foot");
+  assert.equal(byId(doc, "files-suggest-btn"), null, "no Suggest a category");
+  assert.equal(byId(doc, "files-view-panes"), null, "no Panes or Gallery switch");
+  assert.ok(byId(doc, "files-add-btn"), "Add to Files stays: it adds to yours");
+  assert.ok(byId(doc, "files-place-yours").className.includes("files-place-active"), "Yours is the place picked");
+
+  byId(doc, "files-place-shared").click();
+  await settle();
+  assert.equal(lists.at(-1).by, ANN, "everyone's list again, with the person picked as it was");
+  assert.equal(byId(doc, "files-filters").hidden, false, "the filters back");
+
+  // Opened at /files#yours with nothing of yours: said so.
+  const none = await openPage({ view: "panes", hash: "#yours", routes: listRoutes(listAnswer([])) });
+  assert.ok(text(byId(none.doc, "files-grid")).includes(FPL.words("files.places.yours_empty")), "an empty Yours says what puts something there");
+});
+
+// ── 9. Your shared files ──────────────────────────────────────────────────
+
+// Seen red 2026-11-03 in a copy of web/ with files-shared.js `pool` answering every file whatever
+// `mine`: "only your file" (actual ['bracket.glb', 'staff-head.stl']).
+test("9. Your shared files: the server's shared files, only yours, under its own heading", async () => {
+  const history = fakeHistory();
+  const { doc } = await openPage({ view: "panes", history, routes: routes() });
+  byId(doc, "files-place-your-shared-files").click();
+  await settle();
+  assert.deepEqual(history.calls.at(-1), ["replace", "/files#your-shared-files"], "the address names the place");
+  assert.equal(byId(doc, "files-main").hidden, true, "the list of what is shared goes");
+  assert.equal(byId(doc, "files-place-area").hidden, false, "and the place's panes show");
+  assert.ok(byId(doc, "files-place-left").querySelector("#files-places"), "the places at the top of its left pane");
+  const rows = byId(doc, "sfm-list").children;
+  assert.deepEqual(rows.map((r) => text(r.querySelector(".sf-name-text"))), ["bracket.glb"], "only your file");
+  assert.ok(text(byId(doc, "files-place-left")).includes(FSH.MINE_WORDS.heading), "under its own heading");
+  assert.notEqual(FSH.MINE_WORDS.heading, "files.places.your_shared_files_heading");
+  rows[0].click();
+  assert.ok(text(byId(doc, "files-place-middle")).includes("bracket.glb"), "your file chosen, in the middle");
+  assert.equal(text(byId(doc, "sfm-put")), "Put on the Files page", "with Put on the Files page: it is yours");
+
+  // Everyone's again: both files.
+  byId(doc, "files-place-shared-files").click();
+  await settle();
+  assert.equal(byId(doc, "sf-list").children.length, 2, "Shared files lists everyone's");
+
+  // Nothing of yours: said so.
+  const stranger = await openPage({ view: "panes", hash: "#your-shared-files", myKey: "c3".repeat(32), routes: routes() });
+  assert.equal(text(byId(stranger.doc, "sfm-list")), FSH.MINE_WORDS.none, "none of yours: said so");
+  assert.deepEqual(FSH.mineOf([{ uploader_key: ME }, { uploader_key: ANN }], ""), [], "an empty key is nobody's");
 });

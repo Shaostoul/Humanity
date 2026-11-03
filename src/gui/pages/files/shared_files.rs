@@ -21,9 +21,8 @@ use egui::RichText;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
+use humanity_core::i18n::t;
 
-/// The place's name in the places list.
-pub const PLACE: &str = "Shared files";
 /// The place's heading over its list, and its promise.
 pub const HEADING: &str = "Shared files on the server";
 pub const HINT: &str = "Files here are public for anyone to download. Upload to add one; remove to take it down.";
@@ -220,6 +219,37 @@ fn poll(state: &mut GuiState) {
 /// done, a row per file (a press on one shows it in the middle and on the right), the upload's
 /// step while a picked file is being looked at, and the picker.
 pub(crate) fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    draw_list_of(ui, theme, state, false);
+}
+
+/// Your shared files (2026-11-03, the green twin of this place: places.rs): the same left pane,
+/// its rows only the files shared with this person's key.
+pub(crate) fn draw_list_mine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    draw_list_of(ui, theme, state, true);
+}
+
+/// Your shared files' middle pane: the file chosen, when it is one of yours.
+pub(crate) fn draw_file_mine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    draw_file_of(ui, theme, state, true);
+}
+
+/// Your shared files' right pane: what the file chosen is, when it is one of yours.
+pub(crate) fn draw_details_mine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    draw_details_of(ui, theme, state, true);
+}
+
+/// Whether a row is this person's own (an empty key is nobody's).
+fn is_mine(row: &SharedFileRow, me: &str) -> bool {
+    !me.is_empty() && row.uploader_key == me
+}
+
+/// The rows the place lists: every file, or with `mine` only this person's.
+pub(crate) fn rows_of(state: &GuiState, mine: bool) -> Vec<SharedFileRow> {
+    let me = state.profile_public_key.as_str();
+    state.files.shared.shared_files.iter().filter(|r| !mine || is_mine(r, me)).cloned().collect()
+}
+
+fn draw_list_of(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, mine: bool) {
     poll(state);
     let server = state.server_url.clone();
     // This connection's upload token: every upload carries it (2026-10-11).
@@ -235,7 +265,7 @@ pub(crate) fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         crate::gui::drop_files::register(ui.ctx(), crate::gui::drop_files::Level::Page, DROP_TO_SHARE, move |state: &mut GuiState, paths| shared_picked(state, paths, signed_in, upload_limit));
     }
 
-    widgets::subsection_label(ui, theme, HEADING);
+    widgets::subsection_label(ui, theme, if mine { t("files.places.your_shared_files_heading") } else { HEADING });
     widgets::body_hint(ui, theme, HINT);
     if server.is_empty() {
         ui.label(
@@ -286,14 +316,15 @@ pub(crate) fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         }
     }
 
-    // The file list: a row per file, the one chosen highlighted.
-    let rows = state.files.shared.shared_files.clone();
+    // The file list: a row per file (only yours, for Your shared files), the one chosen
+    // highlighted.
+    let rows = rows_of(state, mine);
     let selected = state.files.shared.selected.clone();
     let mut picked: Option<String> = None;
     egui::ScrollArea::vertical().id_salt("shared_files_list").auto_shrink([false, false]).show(ui, |ui| {
         if rows.is_empty() {
             ui.label(
-                RichText::new("No shared files yet.")
+                RichText::new(if mine { t("files.places.your_shared_files_empty") } else { t("files.places.shared_files_empty") })
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -341,16 +372,23 @@ pub(crate) fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
 }
 
-/// The file chosen, if it is still in the list.
-fn chosen(state: &GuiState) -> Option<SharedFileRow> {
+/// The file chosen, if it is still in the list (with `mine`, in the list of yours: a file of
+/// someone else's chosen in Shared files is not shown under Your shared files).
+fn chosen(state: &GuiState, mine: bool) -> Option<SharedFileRow> {
     let url = state.files.shared.selected.as_deref()?;
-    state.files.shared.shared_files.iter().find(|r| r.url == url).cloned()
+    let me = state.profile_public_key.as_str();
+    // Found in place, not through `rows_of`, so the middle and right panes copy one row a frame, not the list.
+    state.files.shared.shared_files.iter().find(|r| r.url == url && (!mine || is_mine(r, me))).cloned()
 }
 
 /// The middle pane: the file chosen, as the chat shows a public file (its card: name, size,
 /// Download, View in 3D for a model, Play here for a video the app plays).
 pub(crate) fn draw_file(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let Some(row) = chosen(state) else {
+    draw_file_of(ui, theme, state, false);
+}
+
+fn draw_file_of(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, mine: bool) {
+    let Some(row) = chosen(state, mine) else {
         super::viewer::nothing_chosen(ui, theme, CHOOSE_LINE);
         return;
     };
@@ -365,7 +403,11 @@ pub(crate) fn draw_file(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
 /// The right pane: what the file chosen is, with Remove and Put on the Files page.
 pub(crate) fn draw_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let Some(row) = chosen(state) else {
+    draw_details_of(ui, theme, state, false);
+}
+
+fn draw_details_of(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, mine: bool) {
+    let Some(row) = chosen(state, mine) else {
         super::viewer::nothing_chosen(ui, theme, HINT);
         return;
     };

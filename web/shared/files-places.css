@@ -4,16 +4,31 @@
    (Shared files, the server's data folder), and the Shared files place's own parts (the Shared Files
    page's styles until it became a place). Theme tokens only. */
 .files-places { display: flex; flex-direction: column; gap: 2px; margin: 0 0 var(--space-md); padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border); }
-.files-places-group { margin: 0 0 var(--space-xs); font-size: var(--text-sm); font-weight: 700; color: var(--accent); }
+/* The groups in the launcher's red, green and blue (2026-11-03): private on this computer, what you
+   share, what everyone shares. Each heading and its places' active row take the group's colour, the
+   theme's danger, success and info tokens, as the desktop's places.rs `Group::color` does. */
+.files-places-red { --place-tint: var(--danger); }
+.files-places-green { --place-tint: var(--success); }
+.files-places-blue { --place-tint: var(--info); }
+.files-place-red { --place-tint: var(--danger); }
+.files-place-green { --place-tint: var(--success); }
+.files-place-blue { --place-tint: var(--info); }
+.files-places-group { display: flex; align-items: center; gap: var(--space-xs); margin: var(--space-sm) 0 var(--space-xs); font-size: var(--text-sm); font-weight: 700; color: var(--place-tint, var(--accent)); }
+.files-places-group:first-child { margin-top: 0; }
+.files-places-group::before { content: ''; flex: none; width: 0.55em; height: 0.55em; border-radius: 50%; background: var(--place-tint, var(--accent)); }
+.files-places-none { margin: 0 0 var(--space-xs); }
 .files-place {
   text-align: left; padding: var(--space-xs) var(--space-sm); border: 1px solid transparent; border-radius: var(--radius-sm);
   background: transparent; color: var(--text-muted); font: inherit; cursor: pointer;
 }
 .files-place:hover { color: var(--text); background: var(--bg-hover); }
-.files-place-active { color: var(--text); background: var(--bg-hover); border-color: var(--accent); }
+.files-place-active { color: var(--text); background: var(--bg-hover); border-color: var(--place-tint, var(--accent)); }
 /* Above the page (the Gallery, Admin): the same rows across. */
 #files-tabs-wrap > .files-places { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
 #files-tabs-wrap > .files-places .files-places-group { margin: 0 var(--space-sm) 0 0; }
+/* Across, the private group (its line saying the desktop app holds it) would wrap the row: it is
+   said in the left pane's list, not here. */
+#files-tabs-wrap > .files-places [data-group="private"], #files-tabs-wrap > .files-places .files-places-none { display: none; }
 
 .files-place-area { margin-top: var(--space-sm); }
 .files-place-area .files-pane { overflow: auto; min-width: 0; }

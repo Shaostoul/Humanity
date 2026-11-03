@@ -44,8 +44,6 @@ use crate::gui::widgets::file_views::{self, Act, Look, Notes, SortBy};
 use crate::gui::widgets::tint_section::{self, Tint};
 use crate::gui::GuiState;
 
-/// The tab's name.
-pub const TAB: &str = "Your folders";
 /// The button that adds a folder, and the folder picker's title.
 pub const ADD_FOLDER: &str = "Add a folder";
 pub const PICKER_TITLE: &str = "Your folders: choose a folder to add";
@@ -283,7 +281,7 @@ fn draw_folder_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let folders = state.settings.files_folders.clone();
     let open_root = state.files.folders.root.clone();
     let (mut add, mut open, mut remove) = (false, None, None);
-    tint_section::show(ui, theme, Tint::Red, TAB, |ui| {
+    tint_section::show(ui, theme, Tint::Red, humanity_core::i18n::t("files.places.your_folders"), |ui| {
         add = widgets::Button::primary(ADD_FOLDER).tooltip("Choose a folder on this computer to look through here. Nothing in it is sent anywhere.").show(ui, theme);
         if folders.is_empty() {
             ui.label(RichText::new(NONE_YET).size(theme.font_size_small).color(theme.text_muted()));

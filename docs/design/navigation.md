@@ -832,4 +832,10 @@ friends/servers? Maintains the RGB styling. R for private, B for servers." The R
 the launcher's (`characters-and-servers.md`: offline RED, open GREEN, closed BLUE), so the Files
 page's places go red (this computer: the HumanityOS folder, Your folders), green (what you share
 publicly), blue (what friends and servers share). That is a change to the Files page itself,
-queued as its own increment; the menus here are unchanged by it.
+queued as its own increment; the menus here are unchanged by it. **Built 2026-11-03, both apps**
+(docs/design/files-showcase.md, "The places in the launcher's red, green and blue"): red "Private,
+on this computer" (the HumanityOS folder, Your folders; desktop only), green "What you share"
+(Yours on <server>, Your shared files), blue "What everyone shares" (Shared on <server>, Shared
+files, Admin), in the launcher's own tokens; the page still opens on Shared on <server>. The
+mock-up picture itself (`nav_double_tv_hover.png`) still draws the old order until it is rendered
+again.

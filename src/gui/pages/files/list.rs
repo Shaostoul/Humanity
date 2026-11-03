@@ -19,13 +19,18 @@ use super::{filters, kinds, tiles};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
+use humanity_core::i18n::t;
 
 /// A row's small picture.
 const THUMB: Vec2 = Vec2::new(88.0, 62.0);
 
 /// The pane: everything above the rows, the rows, and what is under them. Returns the item whose
 /// row was pressed, if one was.
-pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, selected: Option<i64>) -> Option<Item> {
+///
+/// `yours` (Yours on <server>, 2026-11-03): the list is this person's own items alone
+/// (files.rs `list_filters`), so the featured shelf, the filters and the copyright foot, which are
+/// about everyone's, are not drawn; the uploads in progress and waiting are theirs, so they stay.
+pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, selected: Option<i64>, yours: bool) -> Option<Item> {
     let mut picked = None;
     egui::ScrollArea::vertical().id_salt("media_list").auto_shrink([false, false]).show(ui, |ui| {
         if !state.files.status.is_empty() {
@@ -36,6 +41,11 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, selec
         }
         super::uploading::draw_list(ui, theme, state);
         super::waiting::draw(ui, theme, state);
+        if yours {
+            draw_rows(ui, theme, state, selected, &mut picked, t("files.places.yours_empty"));
+            super::draw_more(ui, theme, state);
+            return;
+        }
         let featured = state.files.featured.clone();
         if !featured.is_empty() {
             widgets::subsection_label(ui, theme, &filters::shelf_heading(state));
@@ -48,27 +58,27 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, selec
         }
         filters::draw_filters(ui, theme, state);
         ui.add_space(theme.spacing_sm);
-        let items = state.files.list.items.clone();
-        if items.is_empty() {
-            let line = if !state.files.answered {
-                "Loading..."
-            } else if state.files.filters != Filters::default() {
-                "Nothing matches these filters."
-            } else {
-                super::EMPTY_LINE
-            };
-            ui.label(egui::RichText::new(line).size(theme.font_size_body).color(theme.text_muted()));
-        } else {
-            for item in &items {
-                if row(ui, theme, state, item, selected, "list") {
-                    picked = Some(item.clone());
-                }
-            }
-        }
+        let empty = if state.files.filters != Filters::default() { "Nothing matches these filters." } else { super::EMPTY_LINE };
+        draw_rows(ui, theme, state, selected, &mut picked, empty);
         super::draw_more(ui, theme, state);
         super::takedown::draw_foot(ui, theme, state);
     });
     picked
+}
+
+/// The list's rows, or while there are none "Loading..." until the first answer, then `empty`.
+fn draw_rows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, selected: Option<i64>, picked: &mut Option<Item>, empty: &str) {
+    let items = state.files.list.items.clone();
+    if items.is_empty() {
+        let line = if !state.files.answered { "Loading..." } else { empty };
+        ui.label(egui::RichText::new(line).size(theme.font_size_body).color(theme.text_muted()));
+        return;
+    }
+    for item in &items {
+        if row(ui, theme, state, item, selected, "list") {
+            *picked = Some(item.clone());
+        }
+    }
 }
 
 /// One row. True when it was pressed. `salt` keeps the shelf's row and the list's row of the same

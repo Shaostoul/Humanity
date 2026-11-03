@@ -2,11 +2,13 @@
 //! and what each place holds, folded behind one small toggle by the page's heading, closed until
 //! the person opens it, remembered in config.json `files_how_open`.
 //!
-//! In the fold, word for word: the page's own line (what people on the server chose to show, and
-//! that nothing from a private conversation can be there), and each place's line: Shared files'
-//! (public for anyone to download), the HumanityOS folder's (changing one changes how the app
-//! works; Save keeps the previous version) and Your folders' (nothing in them leaves this computer
-//! until you tick it, add it and upload it).
+//! In the fold, word for word, each place under its name in the places' order and colour
+//! (places.rs, red then green then blue since 2026-11-03): the HumanityOS folder's line (changing
+//! one changes how the app works; Save keeps the previous version), Your folders' (nothing in them
+//! leaves this computer until you tick it, add it and upload it), Yours on <server>'s and Your
+//! shared files' (their hints: only yours, and public), the page's own line under Shared on
+//! <server> (what people on the server chose to show, and that nothing from a private conversation
+//! can be there), Shared files' (public for anyone to download) and, for an admin, Admin's hint.
 //!
 //! Outside it, where the person acts, stays what they must see before acting: Shared files' line
 //! beside Upload a file and Remove (they are public), and the HumanityOS folder's caution beside
@@ -17,6 +19,7 @@ use super::{app_folder, places, shared_files, your_folders, Place};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::how_it_works as how;
 use crate::gui::GuiState;
+use humanity_core::i18n::t;
 
 /// The page's own line: what is shared on a server's Files page.
 pub const PAGE_LINE: &str = "Pictures, videos, 3D models and files the people on this server chose to show. Nothing is here unless the person who uploaded it put it here, and nothing from a private conversation can be.";
@@ -29,21 +32,30 @@ pub(crate) fn toggle(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 }
 
-/// The fold, when open: the page's line, then each place's.
+/// What the fold says under a place's name.
+pub(crate) fn line_of(place: Place) -> &'static str {
+    match place {
+        Place::AppFolder => app_folder::CAUTION,
+        Place::YourFolders => your_folders::HINT,
+        Place::Yours => t("files.places.yours_hint"),
+        Place::YourSharedFiles => t("files.places.your_shared_files_hint"),
+        Place::Shared => PAGE_LINE,
+        Place::SharedFiles => shared_files::HINT,
+        Place::Admin => t("files.places.admin_hint"),
+    }
+}
+
+/// The fold, when open: each place's name in its group's colour, and its line, in the places'
+/// order (the page's own line is Shared on <server>'s).
 pub(crate) fn panel(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     if !state.settings.files_how_open {
         return;
     }
-    let (server, computer) = (theme.nav_legacy_red(), theme.nav_tools());
     how::panel(ui, theme, |ui| {
-        how::part_heading(ui, theme, &places::label(state, Place::Shared), Some(server));
-        how::line(ui, theme, PAGE_LINE);
-        how::part_heading(ui, theme, shared_files::PLACE, Some(server));
-        how::line(ui, theme, shared_files::HINT);
-        how::part_heading(ui, theme, app_folder::PLACE, Some(computer));
-        how::line(ui, theme, app_folder::CAUTION);
-        how::part_heading(ui, theme, your_folders::TAB, Some(computer));
-        how::line(ui, theme, your_folders::HINT);
+        for place in places::listed(places::admin_here(state)) {
+            how::part_heading(ui, theme, &places::label(state, place), Some(places::Group::of(place).color(theme)));
+            how::line(ui, theme, line_of(place));
+        }
     });
 }
 
@@ -90,7 +102,7 @@ mod tests {
         click(&ctx, &theme, &mut state, how::LABEL);
         assert!(state.settings.files_how_open && state.settings_dirty, "opened, and kept");
         let out = settled(&ctx, &theme, &mut state);
-        for line in [PAGE_LINE, shared_files::HINT, app_folder::CAUTION, your_folders::HINT] {
+        for line in [PAGE_LINE, shared_files::HINT, app_folder::CAUTION, your_folders::HINT, line_of(Place::Yours), line_of(Place::YourSharedFiles)] {
             assert_eq!(count(&out, line), 1, "open, each once, word for word: {line}");
         }
 

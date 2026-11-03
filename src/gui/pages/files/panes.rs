@@ -124,7 +124,8 @@ pub(crate) fn show_place(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState,
     let (mut shares, defs) = if n == 3 { (three.clone(), d3.to_vec()) } else { (vec![three[0], three[1] + three[2]], vec![d3[0], d3[1] + d3[2]]) };
     let moved = widgets::panes::show(ui, theme, egui::Id::new("media_panes"), arrange, &mut shares, &defs, min, |ui, i, card| {
         if i == 0 {
-            super::places::draw(ui, theme, state);
+            // Stacked, the left pane is short: the places a line per group.
+            super::places::draw(ui, theme, state, arrange == Arrange::Down);
         }
         add(ui, state, i, card);
     });
@@ -181,8 +182,10 @@ pub(crate) fn draw_three(
 }
 
 /// What is shared on the server, in three panes: the places and the list, the item to fit, its
-/// details.
+/// details. Everyone's list (Shared on <server>) or yours alone (Yours on <server>, 2026-11-03),
+/// whichever place is shown: the same panes, the same item and its details.
 pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let yours = super::list_owner(state) == super::Place::Yours;
     let selected = state.files.item.as_ref().map(|p| p.id);
     // Shown on the page now, whatever opened it.
     if let Some(page) = state.files.item.as_mut() {
@@ -194,7 +197,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut pressed = Pressed::default();
     show_place(ui, theme, state, 3, |ui, state, i, card| {
         if i == 0 {
-            picked = list::draw(ui, theme, state, selected);
+            picked = list::draw(ui, theme, state, selected, yours);
             return;
         }
         let shown = taken.get_or_insert_with(|| item_view::take(state));

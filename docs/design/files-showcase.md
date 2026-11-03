@@ -5,8 +5,10 @@
 > between these two? Why would we not want to merge them?" and "I'd rather sync the names now while
 > no one is using HOS". The page, the developer's Files page (the data/ browser with the server's
 > Shared Files) and the website's Shared Files page are one page with PLACES at the top of its left
-> pane: Shared on <server> (what this document designs), Shared files, Admin, the HumanityOS folder
-> and Your folders. Code, routes, web files and addresses say files (`src/gui/pages/files.rs`,
+> pane, in the launcher's red, green and blue since 2026-11-03 (the last section): private on this
+> computer, the HumanityOS folder and Your folders; what you share, Yours on <server> and Your
+> shared files; what everyone shares, Shared on <server> (what this document designs), Shared files
+> and Admin. Code, routes, web files and addresses say files (`src/gui/pages/files.rs`,
 > `src/relay/files*.rs`, `/api/files/*`, `/files/<id>`, `web/pages/files.html`); the SQLite tables and
 > the JSON fields the apps exchange keep their `media` names. Below, the design as written then,
 > with its names of the time.
@@ -3125,3 +3127,64 @@ boxed areas so edit mode stands out." His monitor is 2560 by 1387: three columns
 **Built on the website in v0.1522.0** (web/pages/media-panes.js, media-sound.js): the same three
 panes, edit in place and the waveform, mirroring this. **Not built.** Live spectrum from the mixer's own output (the
 spectrum is the decoded file's, looked up by the play position).
+
+## The places in the launcher's red, green and blue (both apps, 2026-11-03)
+
+**The ask.** The operator, on the navigation mock-up of this page (`nav_double_tv_hover.png`,
+docs/design/navigation.md section 16.1): "I feel like that first image should be ordered as your
+private local files files, your publicly shared files, then files by friends/servers? Maintains the
+RGB styling. R for private, B for servers." The RGB language is the launcher's
+(docs/design/characters-and-servers.md, "Launcher color language": offline homes RED, open net
+GREEN, closed net BLUE), so the places go in the same three trust models, each group headed and
+tinted in the colour the character and server picker titles its own section in.
+
+**The order, top to bottom** (desktop `src/gui/pages/files/places.rs` `listed` and `Group`; website
+`web/pages/files-places.js` `GROUPS`):
+
+| Group | Colour (theme token) | Desktop | Website |
+|---|---|---|---|
+| Private, on this computer | RED (`danger`, the launcher's Your Homes) | HumanityOS folder, Your folders | none: both are on the computer (a web page cannot look through a folder the same way in every browser, operator 2026-10-13); the heading and one line say the desktop app holds them |
+| What you share | GREEN (`success`, the launcher's Open Net) | Yours on <server>, Your shared files | the same, at `/files#yours` and `/files#your-shared-files` |
+| What everyone shares | BLUE (`info`, the launcher's Closed Net) | Shared on <server>, Shared files, Admin (admins) | the same, and the server's data folder (admins) |
+
+Each group's heading carries its colour and a dot in it, and a place's row, when picked, is filled
+and edged in its group's colour; every place has its plain-language hint by key
+(`files.places.*_hint`). The words are keys in data/i18n/en.json (`files.places.*`); the website
+loads its English at once (`i18n-en.js` and `i18n.js` before the page's scripts). The fold of "How
+this page works" lists each place's line under its name in the same order and colours.
+
+**What "your publicly shared files" shows.** The server keeps what a person shares in two stores,
+each with its own panes, so the green group holds the green twin of each blue place, filtered to
+you, and neither needed a new server route:
+- **Yours on <server>** is the Shared on <server> list asked for with the person filter set to
+  your key and nothing else (`by=<your key>`, newest first; desktop `files.rs` `list_filters`,
+  website `listFilters`), in the same three panes with the same item and its details (Edit and
+  Remove are there because each item is yours). The featured shelf, the filters, Suggest a category,
+  the Panes or Gallery switch and the copyright foot are left out: they are about everyone's. Add to
+  Files stays. The filters picked for everyone's list are kept for when it is shown again. Moving
+  between the two asks for the other list; until it answers none of the old rows is shown, and under
+  Yours someone else's item is not left open (one being edited stays).
+- **Your shared files** is Shared files with only the rows shared with your key, under its own
+  heading ("Your files in Shared files"); a stranger's file chosen in Shared files is not shown
+  under it. Upload a file and files dropped on the page go to Shared Files there too.
+
+**What the page opens on:** Shared on <server>, as before (`Place::default`, `/files`). What the
+server's people share is what someone comes to a Files page for, the HumanityOS folder holds the
+files that make the app work (a poor first sight for someone new), and someone who has shared
+nothing would open on an empty place.
+
+**Private files kept on a server.** A person's own private files kept encrypted on a server (the
+personal backup of docs/design/two-realities.md) belong in the red group when they are built:
+private is the trust model, not where the bytes sit, and a server that cannot read them is only
+holding them. The Files page offers none today (files sent in private conversations are the chat's,
+and Settings > Data, Kept files is this device's copies of them), so nothing of it is listed.
+
+**A short left pane.** With seven places in three groups, the panes stacked on a tall window left the
+list pane no room for its rows (the panes test saw it), so when the panes are stacked the places go
+a line per group (`widgets::section_nav_wrapped`, the same chips styled as the section list's rows),
+as the website's places go across above the Gallery.
+
+**Gates.** `places_tests.rs` (the order and groups, each group drawn in the launcher's colour with the
+launcher drawn beside it and compared, Yours and Your shared files showing only yours) and
+`scripts/tests/files-web-places.test.js` 1, 7, 8 and 9, each seen red against a named break.
+Snapshot: `tests/snapshots/files_places.png` (2560 by 1440, Yours picked).

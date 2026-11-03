@@ -83,7 +83,10 @@ fn meshes_of(out: &egui::FullOutput, tex: egui::TextureId) -> Vec<egui::Rect> {
 ///
 /// Seen red 2026-10-19 with the page's arrangement fixed at Across (`panes::arrange_of` returning
 /// it whatever the shape): "a tall window stacks them: the list above the picture" (the list's row
-/// and the picture were side by side at the same height).
+/// and the picture were side by side at the same height). Seen red again 2026-11-03 when the
+/// places became three coloured groups of seven rows (places.rs) and were still drawn a row each
+/// in the stacked panes: "the model's row" (the places filled the short list pane, so no row was
+/// in view); since then a stacked left pane has them a line per group (`section_nav_wrapped`).
 #[test]
 fn the_panes_go_across_a_wide_window_and_stack_on_a_tall_one() {
     let (ctx, theme) = ctx_and_theme();

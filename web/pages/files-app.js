@@ -614,6 +614,9 @@
       filters: { category: '', kind: '', by: '', q: '', picks: false, sort: 'new' },
       shelfOf: '',              // the category whose shelf st.featured is ('' the main shelf)
       tab: FPL ? FPL.placeOf(env.hash) : env.hash === '#admin' ? 'admin' : 'shared', // the place (files-places.js)
+      // Which list st.items is (2026-11-03): 'shared', everyone's with the filters picked, or
+      // 'yours', only this person's (listFilters). Asked for again when the other one is shown.
+      listOf: FPL && FPL.placeOf(env.hash) === 'yours' ? 'yours' : 'shared',
       pushed: false,            // the open item's address was pushed here, so closing goes Back
       revealed: new Set(),      // labelled items the person clicked to show
       loading: false,
@@ -735,17 +738,20 @@
       els.main = h('div', { id: 'files-main' }, [els.members, els.actions, els.form, els.uploads, els.waiting, els.suggest,
         els.featured, els.filters, els.catDesc, els.grid, els.more, els.sentinel, els.foot, panes ? panes.el : null]);
       els.admin = h('div', { id: 'files-admin-wrap', className: 'files-admin-wrap', hidden: true });
+      /** Shared files, or with `mine` Your shared files (files-shared.js). */
+      const sharedPlace = (mine) => (FSH ? FSH.createSharedPlace({
+        h, document: doc, fetch: env.fetch, session: env.session || null, storage: env.storage || null, FormData: env.FormData || root.FormData,
+        clean: cleaner, myKey: () => myKey, sizeWords, badge: (name) => (ED ? ED.fileBadge(h, doc, name) : null),
+        typesKnown: () => !!(ED && ED.fileTypesKnown()), loadTypes: () => (ED ? ED.loadFileTypes(env.fetch) : Promise.resolve(false)),
+        mine, onPut: (put) => { st.tab = mine ? 'yours' : 'shared'; go(FPL ? FPL.addressOf(st.tab) : '/files', false); renderTabs(); if (myKey) openPutForm(put); },
+      }) : null);
       places = FPL && !framed ? FPL.createPlaces({
         h, window: env.window || null, MP, viewport, host: () => host, isAdmin, shares: (way) => st.layout[way],
         setShares: (way, shares, settled) => { st.layout[way] = shares; if (settled && MP) MP.saveLayout(env.storage, st.layout); },
         pick: (place) => { st.tab = place; go(FPL.addressOf(place), false); renderTabs(); },
         places: {
-          'shared-files': () => (FSH ? FSH.createSharedPlace({
-            h, document: doc, fetch: env.fetch, session: env.session || null, storage: env.storage || null, FormData: env.FormData || root.FormData,
-            clean: cleaner, myKey: () => myKey, sizeWords, badge: (name) => (ED ? ED.fileBadge(h, doc, name) : null),
-            typesKnown: () => !!(ED && ED.fileTypesKnown()), loadTypes: () => (ED ? ED.loadFileTypes(env.fetch) : Promise.resolve(false)),
-            onPut: (put) => { st.tab = 'shared'; go('/files', false); renderTabs(); if (myKey) openPutForm(put); },
-          }) : null),
+          'shared-files': () => sharedPlace(false),
+          'your-shared-files': () => sharedPlace(true), // only your rows; Put goes to Yours on, where the item will be
           folder: () => (root.FilesFolder ? root.FilesFolder.createFolderPlace() : null),
         },
       }) : null;
@@ -777,19 +783,9 @@
       // under the place's name (the desktop's files/how.rs panel), drawn while it is open.
       how = HOW && typeof HOW.createFold === 'function' ? HOW.createFold({
         document: doc, storage: env.storage || null, key: HOW_KEY, id: 'files-how',
-        fill: (f) => {
-          f.part(FPL ? FPL.labelOf('shared', host) : mediaOn, 'red');
-          f.line(FILES_WORDS.pageLine);
-          if (FSH) {
-            f.part(FPL ? FPL.WORDS.sharedFiles : 'Shared files', 'red');
-            f.line(FSH.WORDS.how);
-          }
-          // The server's data folder is an admin's alone (BUG-206), and so is its line.
-          if (FFO && FFO.CAUTION && isAdmin()) {
-            f.part(FPL ? FPL.WORDS.folder : FFO.PLACE, 'red');
-            f.line(FFO.CAUTION);
-          }
-        },
+        // In the places' order and colours (files-places.js fillFold); the server's data folder is an
+        // admin's alone (BUG-206), and so is its line.
+        fill: (f) => FPL && FPL.fillFold(f, { host, admin: isAdmin(), pageLine: FILES_WORDS.pageLine, sharedFilesLine: FSH ? FSH.WORDS.how : '', folderLine: FFO ? FFO.CAUTION : '' }),
       }) : null;
       env.root.replaceChildren(
         els.head = h('div', { className: 'files-head' }, [
@@ -855,9 +851,18 @@
         }
       }
     }
-    /** What the page shows now: the Gallery while it is chosen and no item is shown, else the panes. */
+    /** What the page shows now: the Gallery while it is chosen and no item is shown (never for Yours on), else the panes. */
     function viewNow() {
-      return st.layout.gallery && !st.viewer ? 'gallery' : 'panes';
+      return st.layout.gallery && !st.viewer && !yoursShown() ? 'gallery' : 'panes';
+    }
+    /** Yours on <server>: no shelf, filters or copyright foot, no Suggest or view switch (they are about everyone's). */
+    function renderYours() {
+      if (framed) return;
+      const yours = yoursShown();
+      for (const el of [els.featured, els.filters, els.foot]) if (el) el.hidden = yours;
+      if (els.catDesc) els.catDesc.hidden = yours || !els.catDesc.textContent;
+      renderActions();
+      placeView();
     }
     /**
      * Put the list's parts where the view wants them: in the left pane for the panes, on the page for
@@ -1095,9 +1100,11 @@
     // ── Actions bar ──
     function renderActions() {
       els.actions.replaceChildren();
+      // Yours on <server> keeps Add to Files; a new category and the Gallery are about everyone's.
+      const yours = yoursShown();
       // The view switch, Panes or Gallery, for anyone (signed in or not), after the page's buttons
       // (the desktop's heading row) and before the line under them.
-      const withSwitch = () => { if (!framed && MP) { renderSwitch(); els.actions.appendChild(els.viewSwitch); } };
+      const withSwitch = () => { if (!framed && MP && !yours) { renderSwitch(); els.actions.appendChild(els.viewSwitch); } };
       if (!myKey) { withSwitch(); return; }
       if (st.membersView && canUpload()) {
         els.actions.appendChild(h('button', {
@@ -1105,7 +1112,7 @@
           on: { click: () => fileInput.click() },
         }));
       }
-      if (st.membersView) {
+      if (st.membersView && !yours) {
         els.actions.appendChild(h('button', {
           type: 'button', id: 'files-suggest-btn', className: 'files-btn', text: 'Suggest a category',
           on: { click: openSuggest },
@@ -1131,7 +1138,7 @@
       const picked = st.categories.find((c) => String(c.id) === String(st.filters.category));
       const desc = picked && typeof picked.description === 'string' ? picked.description.trim() : '';
       els.catDesc.textContent = desc;
-      els.catDesc.hidden = !desc;
+      els.catDesc.hidden = !desc || yoursShown();
       const keepQ = els.search ? els.search.value : st.filters.q;
       const option = (value, text, chosen) => h('option', { value: String(value), text, selected: String(chosen) === String(value) });
       const category = h('select', { id: 'files-filter-category', className: 'files-select', attrs: { 'aria-label': 'Category' } },
@@ -1435,7 +1442,9 @@
         els.grid.appendChild(h('p', { className: 'files-empty files-warn', text: st.listError }));
       } else if (!st.items.length) {
         let words = FILES_WORDS.loading;
-        if (!st.loading) {
+        if (!st.loading && st.listOf === 'yours') {
+          words = st.membersOnlyForYou ? FILES_WORDS.membersOnlyServer : FPL.words('files.places.yours_empty');
+        } else if (!st.loading) {
           const filtered = !!(st.filters.category || st.filters.kind || st.filters.by || st.filters.q || st.filters.picks);
           words = st.membersOnlyForYou ? FILES_WORDS.membersOnlyServer : filtered ? FILES_WORDS.emptyFiltered : FILES_WORDS.empty;
         }
@@ -1519,6 +1528,21 @@
       return env.fetch('/api/files/picks', jsonPost(Object.assign({}, params, { of: myKey }, auth)));
     }
 
+    const listFilters = () => (FPL ? FPL.listFilters(st.listOf, st.filters, myKey) : st.filters);
+    const yoursShown = () => !!FPL && FPL.listOf(st.tab, isAdmin()) === 'yours';
+    /**
+     * The other list shown (Yours on <server> after everyone's, or back): the rows held go, someone
+     * else's item beside Yours closes (one being edited stays), and that list is asked for (files.rs
+     * `reload_list`).
+     */
+    function syncList() {
+      if (!FPL || framed || !FPL.showsTheList(FPL.shownPlace(st.tab, isAdmin()))) return;
+      const want = FPL.listOf(st.tab, isAdmin());
+      if (want === st.listOf) return;
+      Object.assign(st, { listOf: want, items: [], nextCursor: null, answered: false });
+      if (want === 'yours' && st.viewer && st.viewer.uploader_key !== myKey && !itemView.unsaved()) itemView.close(true);
+      load(true);
+    }
     async function load(reset) {
       const seq = ++loadSeq;
       if (reset) {
@@ -1531,10 +1555,19 @@
       st.loading = true;
       st.listError = '';
       renderGrid();
+      // Yours on <server> with no identity here: nothing is yours, and nobody else's is asked for
+      // (an empty person filter would be everyone's).
+      if (st.listOf === 'yours' && !myKey) {
+        st.loading = false;
+        st.answered = true;
+        renderAll();
+        return;
+      }
       // The upload and item windows read the list only for what its answer carries besides the items
       // (the categories, the labels, the licences, and whether this person sees the members' side): one item.
-      const params = listParams(st.filters, reset ? null : st.nextCursor, framed ? 1 : undefined);
-      const fromPicks = !!(st.filters.picks && myKey);
+      const filters = listFilters();
+      const params = listParams(filters, reset ? null : st.nextCursor, framed ? 1 : undefined);
+      const fromPicks = !!(filters.picks && myKey);
       try {
         const res = fromPicks ? await fetchPicks(params) : await fetchList(params);
         const a = await answerOf(res);
@@ -2088,10 +2121,14 @@
       if (how && how.isOpen() && howAdmin !== admin) how.render();
       howAdmin = admin;
       const tab = FPL ? FPL.shownPlace(st.tab, admin) : admin && st.tab === 'admin' ? 'admin' : 'shared';
-      els.main.hidden = tab !== 'shared';
+      // Everyone's list and Yours on <server> (the same list, yours alone) are the page's own.
+      const list = FPL ? FPL.showsTheList(tab) : tab === 'shared';
+      els.main.hidden = !list;
       els.admin.hidden = tab !== 'admin';
       if (places) {
-        places.show(tab, admin, { listPane: tab === 'shared' && st.placed === 'panes' ? els.listPane : null, top: els.tabs });
+        places.show(tab, admin, { listPane: list && st.placed === 'panes' ? els.listPane : null, top: els.tabs });
+        syncList();
+        renderYours();
         return;
       }
       els.tabs.replaceChildren();

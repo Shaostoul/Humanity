@@ -5,14 +5,17 @@
 //!
 //! What it has, top to bottom: its heading, "Files on united-humanity.us" (the server it is for,
 //! Media round 5), with the page's buttons and the view, Panes or Gallery; then three panes, whose
-//! left one starts with the PLACES (2026-10-19, files/places.rs): on the server, "Shared on
-//! <server>" (what follows), "Shared files" (the server's public file library,
+//! left one starts with the PLACES (2026-10-19, files/places.rs), in the launcher's red, green and
+//! blue since 2026-11-03 (operator: "R for private, B for servers"). RED, private, on this
+//! computer: "HumanityOS folder" (the app's own folder, to read and edit: files/app_folder.rs) and
+//! "Your folders" (folders on this computer to pick files from, files/your_folders.rs, 2026-10-18,
+//! desktop only). GREEN, what you share: "Yours on <server>" (what follows, only your own items)
+//! and "Your shared files" (your files in the server's Shared files). BLUE, what everyone shares:
+//! "Shared on <server>" (what follows), "Shared files" (the server's public file library,
 //! files/shared_files.rs) and for admins "Admin" (the admins' section, files/admin.rs, which was in
-//! Server Settings until round 5); on this computer, "HumanityOS folder" (the app's own folder, to
-//! read and edit: files/app_folder.rs) and "Your folders" (folders on this computer to pick files
-//! from, files/your_folders.rs, 2026-10-18, desktop only). The developer's Files page and the Media
-//! page became this one page on 2026-10-19 (operator: "What's the real difference between these
-//! two? Why would we not want to merge them?").
+//! Server Settings until round 5). The page opens on Shared on <server>. The developer's Files page
+//! and the Media page became this one page on 2026-10-19 (operator: "What's the real difference
+//! between these two? Why would we not want to merge them?").
 //!
 //! SHARED ON <SERVER> IS THREE PANES (2026-10-19, files/panes.rs): on the left the list
 //! (files/list.rs): the uploads in progress, each with its bar (files/uploading.rs), and the
@@ -121,8 +124,9 @@ pub(crate) mod ticket;
 pub(crate) mod takedown;
 /// A Media item posted in chat, shown as a card that opens its window (2026-10-17).
 pub(crate) mod chat_card;
-/// The places at the top of the left pane (2026-10-19): Shared on <server>, Shared files, Admin,
-/// HumanityOS folder, Your folders.
+/// The places at the top of the left pane (2026-10-19), in red, green and blue groups since
+/// 2026-11-03: HumanityOS folder, Your folders; Yours on <server>, Your shared files; Shared on
+/// <server>, Shared files, Admin.
 pub(crate) mod places;
 /// The "Shared files" place: the server's public file library, with Upload and Remove (the top
 /// half of the developer's Files page until 2026-10-19).
@@ -235,10 +239,13 @@ pub struct FilesAdmin {
     pub status: String,
 }
 
-/// The page's places (2026-10-19, files/places.rs; they were its tabs since round 5): what people
-/// chose to show on the server; the server's shared files; for admins the section that was in
-/// Server Settings (files/admin.rs); the app's own folder; and Your folders, folders on this
-/// computer to pick from (2026-10-18, files/your_folders.rs, desktop only).
+/// The page's places (2026-10-19, files/places.rs; they were its tabs since round 5), listed in
+/// the launcher's red, green and blue since 2026-11-03 (places.rs `Group`): on this computer, the
+/// app's own folder and Your folders, folders on this computer to pick from (2026-10-18,
+/// files/your_folders.rs, desktop only); what you share, your own part of the server's Files page
+/// and of its shared files; what everyone shares, the server's Files page, its shared files, and
+/// for admins the section that was in Server Settings (files/admin.rs). The page opens on what
+/// everyone shares (`Shared`), as it did before the groups.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Place {
     #[default]
@@ -247,6 +254,11 @@ pub enum Place {
     Admin,
     AppFolder,
     YourFolders,
+    /// What this person put on the server's Files page, and only that: the Shared list asked for
+    /// with the person filter set to them (`list_filters`), in the same panes.
+    Yours,
+    /// This person's own files in the server's Shared files (shared_files.rs, mine only).
+    YourSharedFiles,
 }
 
 impl Place {
@@ -279,6 +291,10 @@ pub struct FilesState {
     /// An answer has arrived (so "nothing here" can be said).
     pub answered: bool,
     pub filters: Filters,
+    /// Which of the two places that show the list it was last asked for (2026-11-03): `Shared`,
+    /// everyone's with the filters picked, or `Yours`, only this person's (`list_filters`). The
+    /// list is asked for again when the other one is shown.
+    pub list_place: Place,
     /// Bumped whenever the filters change.
     pub generation: u64,
     /// The search box (applied to `filters.q` on Enter or Search).
@@ -740,16 +756,53 @@ pub(crate) fn reload(state: &mut GuiState) {
     refresh_mine(state);
 }
 
-/// Ask for the first page again (the filters changed).
+/// Which list the page shows now: `Yours` while Yours on <server> is shown, else `Shared`
+/// (everyone's, which every other place leaves as it is).
+pub(crate) fn list_owner(state: &GuiState) -> Place {
+    if places::shown_place(state.files.place, places::admin_here(state)) == Place::Yours {
+        Place::Yours
+    } else {
+        Place::Shared
+    }
+}
+
+/// The filters the list is asked for with: for Yours on <server> only this person's items,
+/// newest first, whatever the filters picked for everyone's say (they stay for when that list is
+/// shown again); for everyone's, the filters picked.
+pub(crate) fn list_filters(state: &GuiState) -> Filters {
+    if state.files.list_place == Place::Yours {
+        Filters { by: Some(state.profile_public_key.clone()), ..Default::default() }
+    } else {
+        state.files.filters.clone()
+    }
+}
+
+/// Ask for the first page again (the filters changed, or the other list is shown).
 pub(crate) fn reload_list(state: &mut GuiState) {
     if server_here(state).is_empty() {
         return;
     }
     state.files.generation += 1;
     state.files.requested = true;
+    let owner = list_owner(state);
+    if state.files.list_place != owner {
+        // The other list: the rows the last one held are not this one's (everyone's items are not
+        // yours), so none is shown until its own answer comes. Under Yours on <server>, someone
+        // else's item is not left open beside it (one being edited stays, its changes with it).
+        state.files.list.items.clear();
+        state.files.list.next_cursor = None;
+        state.files.answered = false;
+        let me = state.profile_public_key.clone();
+        let others = owner == Place::Yours && state.files.item.as_ref().is_some_and(|p| p.edit.is_none() && p.item.as_ref().is_some_and(|i| i.uploader_key != me));
+        if others {
+            state.files.item = None;
+            state.files.open = None;
+        }
+    }
+    state.files.list_place = owner;
     // A fresh list starts with its next page askable again.
     state.files.more_paused = false;
-    let req = api::list_request(&state.files.filters, None, api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
+    let req = api::list_request(&list_filters(state), None, api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
     let generation = state.files.generation;
     spawn(state, Job::List { append: false, generation }, req);
 }
@@ -799,7 +852,7 @@ fn more(state: &mut GuiState) {
         return;
     }
     let Some(cursor) = state.files.list.next_cursor.clone() else { return };
-    let req = api::list_request(&state.files.filters, Some(&cursor), api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
+    let req = api::list_request(&list_filters(state), Some(&cursor), api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
     let generation = state.files.generation;
     spawn(state, Job::List { append: true, generation }, req);
 }
@@ -880,6 +933,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     poll_upload(ctx, state);
     if !state.files.requested && !server_here(state).is_empty() {
         reload(state);
+    } else if state.files.requested && places::shows_the_list(places::shown_place(state.files.place, places::admin_here(state))) && state.files.list_place != list_owner(state) {
+        // Yours on <server> shown after everyone's, or the other way round: that list is asked
+        // for (the item shown stays where it is).
+        reload_list(state);
     }
     if crate::engine::protected::is_on(state) {
         crate::engine::protected::ensure_preset(state);
@@ -891,9 +948,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             draw_page(ui, theme, state);
         });
 
-    // Shared files takes dropped files itself (to Shared Files); everywhere else on the page a
-    // drop opens Add to Files.
-    if places::shown_place(state.files.place, places::admin_here(state)) != Place::SharedFiles {
+    // Shared files and Your shared files take dropped files themselves (to Shared Files);
+    // everywhere else on the page a drop opens Add to Files.
+    if !places::takes_drops(places::shown_place(state.files.place, places::admin_here(state))) {
         offer_drop(ctx, state);
     }
     add::draw_dialogs(ctx, theme, state);
@@ -988,23 +1045,27 @@ pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     // Only an admin has the Admin place; anyone else on it sees what is shared, whatever the state
     // says (an admin who lost the role, or a place left set by Server Settings' "Open them").
     let place = places::shown_place(state.files.place, places::admin_here(state));
-    let on_list = place == Place::Shared;
+    // Everyone's list, and Yours on <server> (the same list, yours alone).
+    let on_list = places::shows_the_list(place);
+    let everyones = place == Place::Shared;
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new(heading(state)).size(theme.font_size_title).color(theme.text_primary()));
-        // The list's actions belong to what is shared; the other places have their own.
+        // The list's actions belong to what is shared; the other places have their own. Yours on
+        // <server> keeps Add to Files and Refresh; a new category and the Gallery are about
+        // everyone's.
         if on_list {
             ui.add_space(theme.spacing_md);
             let signed_in = signed_in_here(state);
             if signed_in && widgets::Button::primary("Add to Files").tooltip("Upload a picture, video, model or file and show it here.").show(ui, theme) {
                 add::begin_add(state);
             }
-            if signed_in && widgets::Button::secondary("Suggest a category").tooltip("Ask this server's admins for a new category.").show(ui, theme) {
+            if everyones && signed_in && widgets::Button::secondary("Suggest a category").tooltip("Ask this server's admins for a new category.").show(ui, theme) {
                 state.files.suggest = Some((String::new(), String::new()));
             }
             if widgets::Button::ghost("Refresh").show(ui, theme) {
                 reload(state);
             }
-            if !no_server {
+            if everyones && !no_server {
                 ui.add_space(theme.spacing_md);
                 panes::draw_switch(ui, theme, state);
             }
@@ -1017,8 +1078,9 @@ pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     ui.add_space(theme.spacing_sm);
 
     // The places that need a server say so without one; Your folders and the HumanityOS folder need
-    // none (Add to Files says why it cannot go without one).
-    let needs_server = matches!(place, Place::Shared | Place::Admin);
+    // none (Add to Files says why it cannot go without one), and the two shared files places say so
+    // themselves.
+    let needs_server = matches!(place, Place::Shared | Place::Yours | Place::Admin);
     match place {
         _ if no_server && needs_server => panes::draw_two(ui, theme, state, |ui, theme, _state| {
             ui.label(RichText::new("Connect to a server first (Chat page) to see its Files page.").size(theme.font_size_small).color(theme.warning()));
@@ -1031,8 +1093,10 @@ pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         Place::Shared if state.settings.files_layout.gallery => panes::draw_two(ui, theme, state, |_ui, _theme, _state| {}, |ui, theme, state| {
             egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| draw_gallery(ui, theme, state));
         }),
-        Place::Shared => panes::draw(ui, theme, state),
+        // Yours on <server> is always the panes: the Gallery is for browsing everyone's.
+        Place::Shared | Place::Yours => panes::draw(ui, theme, state),
         Place::SharedFiles => panes::draw_three(ui, theme, state, shared_files::draw_list, shared_files::draw_file, shared_files::draw_details),
+        Place::YourSharedFiles => panes::draw_three(ui, theme, state, shared_files::draw_list_mine, shared_files::draw_file_mine, shared_files::draw_details_mine),
         Place::AppFolder => panes::draw_three(ui, theme, state, app_folder::draw_tree, app_folder::draw_editor, app_folder::draw_details),
         Place::YourFolders => {
             widgets::thumbnails::next_frame();

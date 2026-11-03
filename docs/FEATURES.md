@@ -349,7 +349,7 @@ Removal (v0.709): signed `POST /api/uploads/delete` — the uploader can remove 
 own file; an admin can remove any (Dilithium-signed "delete_upload" request).
 - Server: `src/relay/api.rs` (`GET /api/uploads`, `share` query param on upload, `POST /api/uploads/delete`), `src/relay/storage/uploads.rs` (`list_shared_uploads`, `delete_shared_upload`, FIFO exemption + tests), schema `user_uploads` (+`shared`, `original_name`, `size_bytes`)
 - Web: `web/pages/shared-files.html` (browse/search/download), `web/chat/chat-messages.js` (auto-share on attach)
-- Native (v0.710): the Files page's "Shared files" place since 2026-10-19 (the developer's Files page's top half until then): list (auto-load + Refresh), Upload via the in-app file browser (share=1), Remove (own files, or any as admin), Put on the Files page; a file chosen shows in the middle as the chat shows a public file. `src/gui/pages/files/shared_files.rs`. Web: the Shared files place, `web/pages/files-shared.js` (the Shared Files page until then).
+- Native (v0.710): the Files page's "Shared files" place since 2026-10-19 (the developer's Files page's top half until then): list (auto-load + Refresh), Upload via the in-app file browser (share=1), Remove (own files, or any as admin), Put on the Files page; a file chosen shows in the middle as the chat shows a public file. `src/gui/pages/files/shared_files.rs`. Web: the Shared files place, `web/pages/files-shared.js` (the Shared Files page until then). Since 2026-11-03 its green twin "Your shared files" is the same place with only the rows shared with your key (`shared_files.rs` `draw_list_mine`, `rows_of`; web `createSharedPlace({ mine })`, ids `sfm-*`).
 
 ### Files Page, formerly the Media Page (relay 2026-10-11, native page increment 2 and round 2 2026-10-11)
 **One Files page (2026-10-19).** The operator: "What do you think about changing the name of media
@@ -357,7 +357,15 @@ to files", then "What's the real difference between these two? Why would we not 
 them? ... If we just start at the root HumanityOS folder for file browsing then we automatically
 have 'data' files and we even have mods at the top too", and "I'd rather sync the names now while
 no one is using HOS". So the Media page and the developer's Files page are one page, Files, with
-PLACES at the top of its left pane (`src/gui/pages/files/places.rs`; web `files-places.js`): Shared
+PLACES at the top of its left pane (`src/gui/pages/files/places.rs`; web `files-places.js`). **In the
+launcher's red, green and blue since 2026-11-03** (operator: "R for private, B for servers";
+docs/design/files-showcase.md, last section): RED "Private, on this computer" (the HumanityOS folder,
+Your folders; desktop only, the website says so in one line), GREEN "What you share" (Yours on
+<server>: the list with the person filter set to you, `files.rs` `list_filters`, no shelf or
+filters; Your shared files), BLUE "What everyone shares" (the rest, below), each group's heading and
+picked row in the launcher's `danger`, `success`, `info` (`places.rs` `Group::color`); every place has
+its hint by key (`files.places.*`); stacked panes draw them a line per group
+(`widgets::section_nav_wrapped`); the page still opens on Shared on <server>. Shared
 on <server> (the Media list, item and details below), Shared files (the server's public library),
 Admin (admins), the HumanityOS folder (`files/app_folder.rs`: the app's own folder, the one holding
 data/, assets/ and mods/, or for a copy installed to the person's folder its data folder, never their own files (`app_folder_for`, 2026-10-20), as a tree read folder by folder; a text file read and edited in the

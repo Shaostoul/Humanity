@@ -14,6 +14,11 @@
 // Put on the Files page on a file of your own: the Shared on <server> list's
 // form for it, public only (it is public here already).
 //
+// YOUR SHARED FILES (2026-11-03, the green twin of this place: files-places.js)
+// is the same place made with `mine`: its rows only the files shared with your
+// key, under its own heading, a stranger's file never shown in it, and its own
+// element ids (sfm-...), since both can be made on one page.
+//
 // Everything is built with createElement and textContent. A classic script in
 // the browser (FilesShared on window), a CommonJS module under Node, where
 // scripts/tests/files-web-places.test.js drives it against stand-ins.
@@ -38,6 +43,13 @@
     putTip: 'Show this file in the Shared on list too, with a title and a category.',
     yours: 'Shared by you',
   });
+  /** Your shared files' own words, by key in data/i18n/en.json (files-places.js reads them). */
+  // Asked for when the words are, so the order the page loads the two scripts in does not matter.
+  const fpl = () => (NODE ? require('./files-places.js') : root.FilesPlaces);
+  const MINE_WORDS = Object.freeze({
+    get heading() { return fpl() ? fpl().words('files.places.your_shared_files_heading') : WORDS.heading; },
+    get none() { return fpl() ? fpl().words('files.places.your_shared_files_empty') : WORDS.none; },
+  });
 
   /** "by Ann · 2.4 MB · 19/10/2026": who shared it, its size and day. */
   function subLine(f, sizeWords) {
@@ -58,25 +70,40 @@
     return typeof url === 'string' && url.startsWith('/uploads/') ? url.slice('/uploads/'.length) : '';
   }
 
+  /** The files of `key`'s own (an empty key is nobody's). */
+  function mineOf(files, key) {
+    return key ? files.filter((f) => f.uploader_key === key) : [];
+  }
+
   /**
    * env: { h, document, fetch, myKey(), onPut({filename, name}), badge(name) (an element), sizeWords(bytes),
-   *        typesKnown(), loadTypes() (the list of kinds, files-edit.js), session, storage, FormData, clean }
+   *        typesKnown(), loadTypes() (the list of kinds, files-edit.js), session, storage, FormData, clean,
+   *        mine (Your shared files: only the files shared with myKey()) }
    */
   function createSharedPlace(env) {
     const h = env.h;
+    const mine = !!env.mine;
+    // Its own ids, so Shared files and Your shared files can both be made on one page.
+    const SF = mine ? 'sfm' : 'sf';
+    const PANE = mine ? 'files-your-shared' : 'files-shared';
+    const key = () => (typeof env.myKey === 'function' ? env.myKey() || '' : '');
     const st = { files: [], q: '', selected: null, loaded: false, failed: false };
     const els = {};
-    els.uploadRoot = h('div', { id: 'sf-upload', className: 'sf-upload' });
-    els.search = h('input', { type: 'search', id: 'sf-q', className: 'files-search', placeholder: WORDS.search, attrs: { 'aria-label': WORDS.search, autocomplete: 'off' } });
+    els.uploadRoot = h('div', { id: SF + '-upload', className: 'sf-upload' });
+    els.search = h('input', { type: 'search', id: SF + '-q', className: 'files-search', placeholder: WORDS.search, attrs: { 'aria-label': WORDS.search, autocomplete: 'off' } });
     els.search.addEventListener('input', () => { st.q = els.search.value || ''; renderList(); });
-    els.list = h('div', { id: 'sf-list', className: 'sf-list' });
-    const left = h('div', { id: 'files-shared-list', className: 'files-shared-list' }, [
-      h('h2', { className: 'files-place-heading', text: WORDS.heading }),
+    els.list = h('div', { id: SF + '-list', className: 'sf-list' });
+    const left = h('div', { id: PANE + '-list', className: 'files-shared-list' }, [
+      h('h2', { className: 'files-place-heading', text: mine ? MINE_WORDS.heading : WORDS.heading }),
       h('p', { className: 'files-hint', text: WORDS.how }),
       els.uploadRoot, els.search, els.list,
     ]);
-    const middle = h('div', { id: 'files-shared-file', className: 'files-shared-file' });
-    const right = h('div', { id: 'files-shared-details', className: 'files-shared-details' });
+    const middle = h('div', { id: PANE + '-file', className: 'files-shared-file' });
+    const right = h('div', { id: PANE + '-details', className: 'files-shared-details' });
+    /** The files this place lists: every one, or for Your shared files only yours. */
+    function pool() {
+      return mine ? mineOf(st.files, key()) : st.files;
+    }
 
     // Upload a file: the Shared Files page's own module, its overlay left to the Files page (whose
     // drop goes here while this place is shown: dropDecision and takeFiles below).
@@ -88,7 +115,7 @@
       : null;
 
     function chosen() {
-      return st.selected ? st.files.find((f) => f.url === st.selected) || null : null;
+      return st.selected ? pool().find((f) => f.url === st.selected) || null : null;
     }
     function badge(name) {
       return typeof env.badge === 'function' ? env.badge(name) : null;
@@ -99,9 +126,10 @@
         els.list.replaceChildren(h('div', { className: 'sf-empty', text: st.failed ? WORDS.unreachable : WORDS.loading }));
         return;
       }
-      const shown = matching(st.files, st.q);
+      const all = pool();
+      const shown = matching(all, st.q);
       if (!shown.length) {
-        els.list.replaceChildren(h('div', { className: 'sf-empty', text: st.files.length ? WORDS.noMatch : WORDS.none }));
+        els.list.replaceChildren(h('div', { className: 'sf-empty', text: all.length ? WORDS.noMatch : mine ? MINE_WORDS.none : WORDS.none }));
         return;
       }
       els.list.replaceChildren(...shown.map((f) => h('button', {
@@ -126,17 +154,17 @@
         h('p', { className: 'sf-file-name' }, [badge(f.name), h('span', { text: f.name || '' })]),
         h('a', { className: 'files-btn files-btn-primary sf-dl', href: f.url, text: WORDS.download, attrs: { download: '' } }),
       ]));
-      const mine = typeof env.myKey === 'function' && env.myKey() && f.uploader_key === env.myKey();
+      const own = !!key() && f.uploader_key === key();
       const stored = storedOf(f.url);
       right.replaceChildren(
         h('h2', { className: 'files-place-heading', text: f.name || '' }),
         h('p', { className: 'sf-sub', text: subLine(f, env.sizeWords) }),
-        mine ? h('p', { className: 'files-hint', text: WORDS.yours }) : null,
+        own ? h('p', { className: 'files-hint', text: WORDS.yours }) : null,
         h('p', { className: 'files-hint', text: WORDS.how }),
         h('p', { className: 'sf-actions' }, [
           h('a', { className: 'files-btn sf-dl', href: f.url, text: WORDS.download, attrs: { download: '' } }),
-          mine && stored && typeof env.onPut === 'function' ? h('button', {
-            type: 'button', id: 'sf-put', className: 'files-btn sf-put', text: WORDS.put, title: WORDS.putTip,
+          own && stored && typeof env.onPut === 'function' ? h('button', {
+            type: 'button', id: SF + '-put', className: 'files-btn sf-put', text: WORDS.put, title: WORDS.putTip,
             on: { click: () => env.onPut({ filename: stored, name: f.name || '' }) },
           }) : null,
         ]),
@@ -178,7 +206,7 @@
     };
   }
 
-  const api = { WORDS, subLine, matching, storedOf, createSharedPlace };
+  const api = { WORDS, MINE_WORDS, subLine, matching, mineOf, storedOf, createSharedPlace };
   if (NODE) module.exports = api;
   else root.FilesShared = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

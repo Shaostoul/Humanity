@@ -3103,5 +3103,38 @@ window.HOS_I18N_EN = {
     "converting": "Converting it to play here: {{pct}}%",
     "convert_failed": "{{name}} could not be converted: {{error}}.",
     "stopped": "The video stopped: {{error}}"
+  },
+  "files": {
+    "places": {
+      "label": "Places",
+      "private": "Private, on this computer",
+      "you_share": "What you share",
+      "everyone_shares": "What everyone shares",
+      "app_folder": "HumanityOS folder",
+      "app_folder_hint": "The app's own folder on this computer: its data, pictures and mods, to read and change. Nothing here leaves this computer.",
+      "your_folders": "Your folders",
+      "your_folders_hint": "Folders on this computer that you added, to look through and pick files from. Nothing in them leaves this computer until you add it to Files and upload it.",
+      "yours_on": "Yours on {{host}}",
+      "yours_on_a_server": "Yours on a server",
+      "yours_on_this_server": "Yours on this server",
+      "yours_hint": "Everything you put on this server's Files page, and only yours. Open one to change it or take it down.",
+      "yours_empty": "Nothing of yours is on this server's Files page yet. Press Add to Files to put something here.",
+      "your_shared_files": "Your shared files",
+      "your_shared_files_heading": "Your files in Shared files",
+      "your_shared_files_hint": "Your own files in this server's Shared files. They are public: anyone can download them.",
+      "your_shared_files_empty": "None of your files are in this server's Shared files yet. Press Upload a file to add one.",
+      "shared_on": "Shared on {{host}}",
+      "shared_on_a_server": "Shared on a server",
+      "shared_on_this_server": "Shared on this server",
+      "shared_hint": "Pictures, videos, 3D models and files that everyone on this server chose to show.",
+      "shared_files": "Shared files",
+      "shared_files_hint": "The server's public file library: everyone's files there, for anyone to download.",
+      "admin": "Admin",
+      "admin_hint": "For this server's admins: who sees its Files page, its space, its categories and what to clear out.",
+      "server_folder": "The server's data folder",
+      "server_folder_hint": "For this server's admins: the files the server reads for its plants, recipes and maps, to read and change.",
+      "shared_files_empty": "No shared files yet.",
+      "private_web": "In the desktop app: the HumanityOS folder and Your folders, which stay on your own computer. A website cannot look through your folders the same way in every browser."
+    }
   }
 };

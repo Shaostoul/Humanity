@@ -1807,38 +1807,74 @@ pub fn section_nav(
             ui.add_space(theme.row_gap);
         }
 
-        // Section row — the active row gets a tinted fill + stroke from the accent
-        // (alpha-derived from the caller's colour, so no hardcoded palette here).
-        let is_active = item.id == active;
-        let text_color = if is_active { Color32::WHITE } else { theme.text_muted() };
-        let a = item.accent;
-        let fill = if is_active {
-            Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 30)
-        } else {
-            Color32::TRANSPARENT
-        };
-        let stroke = if is_active {
-            Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 100))
-        } else {
-            Stroke::NONE
-        };
-        let btn = egui::Button::new(
-            RichText::new(&item.label).size(theme.font_size_body).color(text_color),
-        )
-        .fill(fill)
-        .stroke(stroke)
-        .corner_radius(CornerRadius::same(4))
-        .min_size(Vec2::new(ui.available_width(), 28.0));
-        let resp = ui.add(btn);
-        let resp = match &item.hint {
-            Some(key) => resp.hint_dyn(key),
-            None => resp,
-        };
-        if resp.clicked() {
+        let width = ui.available_width();
+        if section_button(ui, theme, item, item.id == active, width).clicked() {
             clicked = Some(item.id.clone());
         }
     }
 
+    clicked
+}
+
+/// One section's row or chip in [`section_nav`] and [`section_nav_wrapped`]: the active one gets a
+/// tinted fill and stroke from the item's accent (alpha-derived from the caller's colour, so no
+/// hardcoded palette here), and its hint by key.
+fn section_button(ui: &mut Ui, theme: &Theme, item: &SectionNavItem, is_active: bool, min_width: f32) -> egui::Response {
+    let text_color = if is_active { Color32::WHITE } else { theme.text_muted() };
+    let a = item.accent;
+    let fill = if is_active {
+        Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 30)
+    } else {
+        Color32::TRANSPARENT
+    };
+    let stroke = if is_active {
+        Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 100))
+    } else {
+        Stroke::NONE
+    };
+    let btn = egui::Button::new(
+        RichText::new(&item.label).size(theme.font_size_body).color(text_color),
+    )
+    .fill(fill)
+    .stroke(stroke)
+    .corner_radius(CornerRadius::same(4))
+    .min_size(Vec2::new(min_width, 28.0));
+    let resp = ui.add(btn);
+    match &item.hint {
+        Some(key) => resp.hint_dyn(key),
+        None => resp,
+    }
+}
+
+/// [`section_nav`] laid out across, for a pane too short for a row per section (the Files page's
+/// places when its panes are stacked on a tall window, 2026-11-03): each group on a wrapped line
+/// of its own, its dot and heading in its accent first, then its sections as chips styled as
+/// `section_nav`'s rows are. Returns `Some(id)` when one is clicked. The website's twin is the
+/// `.files-places` row layout (web/shared/files-places.css).
+pub fn section_nav_wrapped(ui: &mut Ui, theme: &Theme, items: &[SectionNavItem], active: &str) -> Option<String> {
+    let mut clicked = None;
+    let mut start = 0;
+    while start < items.len() {
+        // One group: this item and those after it until the next group opens.
+        let mut end = start + 1;
+        while end < items.len() && items[end].group.is_none() {
+            end += 1;
+        }
+        ui.horizontal_wrapped(|ui| {
+            let first = &items[start];
+            if let Some(header) = &first.group {
+                let (dot_rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+                ui.painter().circle_filled(dot_rect.center(), 4.0, first.accent);
+                ui.label(RichText::new(header).size(theme.font_size_small).color(first.accent).strong());
+            }
+            for item in &items[start..end] {
+                if section_button(ui, theme, item, item.id == active, 0.0).clicked() {
+                    clicked = Some(item.id.clone());
+                }
+            }
+        });
+        start = end;
+    }
     clicked
 }
 

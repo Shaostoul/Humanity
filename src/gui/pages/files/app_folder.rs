@@ -34,9 +34,8 @@ use egui::RichText;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
+use humanity_core::i18n::t;
 
-/// The place's name in the places list.
-pub const PLACE: &str = "HumanityOS folder";
 /// What editing here means, said on the right and above the tree.
 pub const CAUTION: &str = "These are the files HumanityOS runs on. Changing one changes how the app works. Save keeps the file's previous version beside it, ending in .bak, and Put back the previous version brings it back.";
 /// The middle and right panes before a file is chosen.
@@ -265,7 +264,8 @@ pub(crate) fn draw_tree(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     if !af.tree.is_expanded(&root.to_string_lossy()) && af.children.is_empty() {
         af.tree.expand(&root.to_string_lossy());
     }
-    widgets::subsection_label(ui, theme, PLACE);
+    // The place's name, as the places list has it (files.places.app_folder).
+    widgets::subsection_label(ui, theme, t("files.places.app_folder"));
     ui.horizontal_wrapped(|ui| {
         if widgets::Button::ghost("Refresh").tooltip("Read the folders again.").show(ui, theme) {
             af.children.clear();
