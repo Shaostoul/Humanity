@@ -63,7 +63,7 @@ pub fn build_channel_list(db: &crate::relay::storage::Storage) -> Vec<ChannelInf
     let categories = db.list_categories().unwrap_or_default();
     let cat_map: std::collections::HashMap<i64, String> = categories.into_iter().map(|(id, name, _)| (id, name)).collect();
     let channels = db.list_channels_with_categories_and_voice().unwrap_or_default();
-    channels.into_iter().map(|(id, name, desc, ro, cat_id, voice_enabled)| {
+    channels.into_iter().map(|(id, name, desc, (read, post), cat_id, voice_enabled)| {
         let cat_name = cat_id.and_then(|cid| cat_map.get(&cid).cloned());
         let federated = db.is_channel_federated(&id).unwrap_or(false);
         let local_only = db.is_channel_local_only(&id).unwrap_or(false);
@@ -71,7 +71,8 @@ pub fn build_channel_list(db: &crate::relay::storage::Storage) -> Vec<ChannelInf
             id,
             name,
             description: desc,
-            read_only: ro,
+            read_level: read.as_str().to_string(),
+            post_level: humanity_protocol::chat_access::normalized_post(read, post).as_str().to_string(),
             category_id: cat_id,
             category_name: cat_name,
             federated,

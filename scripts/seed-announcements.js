@@ -49,14 +49,16 @@ if (!Array.isArray(rows)) {
 const out = [];
 out.push('BEGIN;');
 
-// 1. Recreate the announcements channel (values mirror the pre-wipe prod
-//    row: read-only, pinned near the top, voice disabled). INSERT OR
-//    IGNORE so it is harmless if the relay ever auto-creates it.
+// 1. Recreate the announcements channel (values mirror the prod row:
+//    anyone reads it, only moderators and admins post, since the whole
+//    history public, pinned near the top, voice disabled; chat access
+//    levels, docs/design/chat-access.md). INSERT OR IGNORE so it is
+//    harmless when the relay has already made it.
 out.push(
   "INSERT OR IGNORE INTO channels " +
-  "(id, name, description, created_by, created_at, read_only, position, voice_enabled) " +
+  "(id, name, description, created_by, created_at, read_level, post_level, anyone_since, position, voice_enabled) " +
   "VALUES ('announcements', 'announcements', 'Project updates and news', " +
-  "'system', 1772591873057, 1, 2, 0);"
+  "'system', 1772591873057, 'anyone', 'mods', 0, 2, 0);"
 );
 
 let n = 0;

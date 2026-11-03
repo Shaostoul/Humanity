@@ -418,7 +418,7 @@ pub(super) fn offer_drop(ctx: &egui::Context, state: &GuiState) {
     if let Some(channel) = state.chat_channels.iter().find(|c| c.id == chosen_in) {
         // A read-only channel (announcements) takes posts from admins only: for anyone else the
         // upload window opens with nothing ticked, and says so before the drop (the website's rule).
-        if channel.read_only && !crate::gui::pages::files::is_admin(state) {
+        if channel.post_level.staff_only() && !crate::gui::pages::files::is_admin(state) {
             drop_files::register(ctx, Level::Page, crate::gui::pages::files::DROP_TO_UPLOAD, |state: &mut GuiState, paths| {
                 crate::gui::pages::files::upload_dropped(state, &paths, None);
             });

@@ -89,6 +89,7 @@ pub(crate) fn redial_due(conn: &crate::gui::ServerConnection) -> bool {
 /// shape as net_route::chat_history_pump (never blocks the render thread).
 fn pump_carrier_history(state: &mut EngineState) {
     let my_key = state.gui_state.profile_public_key.clone();
+    let seed = state.gui_state.private_key_bytes.clone();
     for conn in state.gui_state.connections.iter_mut() {
         // Drain a finished fetch.
         let mut done = false;
@@ -113,15 +114,13 @@ fn pump_carrier_history(state: &mut EngineState) {
         if conn.history_rx.is_none() {
             if let Some(channel) = conn.history_queue.pop() {
                 let base = conn.display_url.trim_end_matches('/').to_string();
-                let api_url = format!("{}/api/messages?limit=50&channel={}", base, channel);
+                // Signed as this member: a channel not open to Anyone is served only so (net/chat_read.rs).
+                let (seed, key) = (seed.clone(), my_key.clone());
                 let (tx, rx) = std::sync::mpsc::channel();
                 conn.history_rx = Some(rx);
                 std::thread::spawn(move || {
-                    let result = ureq::get(&api_url)
-                        .timeout(std::time::Duration::from_secs(8))
-                        .call()
-                        .map_err(|e| e.to_string())
-                        .and_then(|resp| resp.into_string().map_err(|e| e.to_string()));
+                    let agent = ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(8)).build();
+                    let result = crate::net::chat_read::fetch_history(&agent, &base, seed.as_deref(), &key, &channel, 50);
                     let _ = tx.send((channel, result));
                 });
             }
@@ -635,7 +634,8 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                         .unwrap_or("Text")
                         .to_string(),
                     voice_enabled: ch.get("voice_enabled").and_then(|v| v.as_bool()).unwrap_or(true),
-                    read_only: ch.get("read_only").and_then(|v| v.as_bool()).unwrap_or(false),
+                    read_level: humanity_protocol::chat_access::ReadLevel::from_stored(ch.get("read_level").and_then(|v| v.as_str()).unwrap_or("")),
+                    post_level: humanity_protocol::chat_access::PostLevel::from_stored(ch.get("post_level").and_then(|v| v.as_str()).unwrap_or("")),
                     federated: ch.get("federated").and_then(|v| v.as_bool()).unwrap_or(false),
                     local_only: ch.get("local_only").and_then(|v| v.as_bool()).unwrap_or(false),
                     unread: unread_ids.contains(&id),

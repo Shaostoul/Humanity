@@ -132,6 +132,18 @@ Generic signed-object gossip + per-issuer continuous trust + dispute objects + m
 Real-time text chat with channels, threads, and message history.
 - Web: `web/chat/app.js`, `web/chat/chat-messages.js`
 - Server: `src/relay/relay.rs` (WebSocket routing), `src/relay/storage/messages.rs`
+- **Who can read and who can post (2026-11-02, docs/design/chat-access.md):** each channel has a
+  read level (Anyone, Members, Verified) and a post level (Members, Verified, Moderators and admins),
+  enforced by the relay (`src/relay/chat_access.rs`, rules shared in
+  `crates/humanity-protocol/src/chat_access.rs`, web twin `web/shared/chat-access.js`): history,
+  pins and reactions of a channel not open to Anyone only through a member's signed POST, the
+  socket's lines only to those who may read them, one link and no attachment below Verified,
+  @everyone and @here for moderators and admins, only Anyone channels federated. A visitor reads an
+  Anyone channel's posts since it opened, names only. Set in Server Settings > Channels (desktop)
+  and the admin page's Channels panel (web, registry `channels.access`); the line above the box
+  you type in and a badge beside each channel's name say who can read and post, in both apps; an
+  unverified poster's links are drawn as plain words. The website's read-only view for a visitor
+  without a name: `/chat/read` (`web/chat/read.html`).
 - **Is my line posted? (2026-10-24):** my own room line reads "Sending...", then is posted, or
   "Not sent" with why (too long for my limit, too fast, a new account's wait) and Edit and send
   again; "Not confirmed by the server yet" after 20 s. The relay names each refusal to its sender

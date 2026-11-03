@@ -2693,6 +2693,11 @@
       "category": "crypto",
       "definition": "Where your coins are kept track of. A crypto wallet is really a key: whoever holds the key can move the coins. Your HumanityOS wallet key is made from your recovery phrase and stays on your device, so nobody else can move what is in it, and if you lose both the device and the phrase, nobody can get it back for you.",
       "link": "https://en.wikipedia.org/wiki/Cryptocurrency_wallet"
+    },
+    "verified_member": {
+      "term": "Verified (chat)",
+      "category": "platform",
+      "definition": "A member an admin of this server has marked as someone they know, by pressing Verify on the person's card. Verified members can share pictures and files, post more than one link in a line, and read channels kept for verified people. There is no form or test: ask an admin of the server. Each server decides for itself, so being verified on one server says nothing on another."
     }
   }
 }

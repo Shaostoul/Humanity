@@ -430,7 +430,7 @@
   /** Is this channel listed? With the setup on, only read-only rooms are, unless the PIN showed them. */
   function protectedChannelShown(channel, state) {
     if (!state || !state.on || state.public_rooms === 'all') return true;
-    return !!(channel && channel.read_only === true);
+    return !!(channel && channel.post_level === 'mods'); // only moderators and admins post (chat-access.js)
   }
 
   /** The channels to list and how many were hidden: {shown, hidden}. */

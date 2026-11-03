@@ -393,9 +393,11 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 let voice_enabled = ch.get("voice_enabled")
                                     .and_then(|v| v.as_bool())
                                     .unwrap_or(true);
-                                let read_only = ch.get("read_only")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(false);
+                                // Who can read and post (chat/access.rs); a level the server did
+                                // not name reads as Members, the safe default.
+                                let level_word = |k: &str| ch.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let read_level = humanity_protocol::chat_access::ReadLevel::from_stored(&level_word("read_level"));
+                                let post_level = humanity_protocol::chat_access::PostLevel::from_stored(&level_word("post_level"));
                                 let federated = ch.get("federated")
                                     .and_then(|v| v.as_bool())
                                     .unwrap_or(false);
@@ -410,7 +412,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                         category,
                                         voice_joined: false,
                                         voice_enabled,
-                                        read_only,
+                                        read_level,
+                                        post_level,
                                         federated,
                                         local_only,
                                         voice_participants: Vec::new(),
@@ -681,11 +684,12 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                             category: "Text".to_string(),
                                             voice_joined: false,
                                             voice_enabled: true,
-                                            read_only: false,
                                             federated: false,
                                             local_only: false,
                                             voice_participants: roster,
                                             unread: false,
+                                            // Levels unknown until the channel list names them: Members, the safe default.
+                                            ..Default::default()
                                         },
                                     );
                                 }

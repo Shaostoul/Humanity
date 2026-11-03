@@ -19,6 +19,10 @@
 /// What a picture's or video's hidden information says, in plain words, for the attach step
 /// (2026-10-11): a port of the web's `HosStrip.describe`, held to it by shared fixtures.
 pub mod describe_metadata;
+/// Chat access levels (2026-11-02, docs/design/chat-access.md): who can read and who can post in
+/// each channel, the ranks, and the one-link rule below Verified. Shared by the relay and the
+/// desktop app; web/shared/chat-access.js is its twin.
+pub mod chat_access;
 pub mod did;
 pub mod encoding;
 pub mod error;

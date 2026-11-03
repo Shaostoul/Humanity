@@ -218,7 +218,7 @@ fn a_read_only_channel_does_not_offer_to_post_in_itself() {
     state.server_url = "http://127.0.0.1:9".into();
     state.profile_public_key = "me".into();
     state.chat_active_channel = "announcements".into();
-    state.chat_channels.push(crate::gui::ChatChannel { id: "announcements".into(), name: "announcements".into(), read_only: true, ..Default::default() });
+    state.chat_channels.push(crate::gui::ChatChannel { id: "announcements".into(), name: "announcements".into(), post_level: humanity_protocol::chat_access::PostLevel::Mods, ..Default::default() });
     state.upload_token = Some((crate::gui::pages::chat::norm_server_url("http://127.0.0.1:9"), "tok".into()));
     let frame = |state: &mut GuiState, raw: egui::RawInput| {
         ctx.run(raw, |ctx| {

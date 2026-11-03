@@ -941,7 +941,9 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
         let Some(channel) = history_channel(&state.gui_state) else {
             return; // history_fetched stays true; nothing to ask the server for here
         };
-        let api_url = format!("{}/api/messages?limit=50&channel={}", base_url, channel);
+        // Signed as this member: a channel not open to Anyone is served only so (net/chat_read.rs).
+        let seed = state.gui_state.private_key_bytes.clone();
+        let key = state.gui_state.profile_public_key.clone();
         let (tx, rx) = std::sync::mpsc::channel();
         state.gui_state.history_rx = Some(rx);
         std::thread::spawn(move || {
@@ -949,10 +951,7 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
                 .timeout_connect(std::time::Duration::from_secs(4))
                 .timeout(std::time::Duration::from_secs(8))
                 .build();
-            let result = match agent.get(&api_url).call() {
-                Ok(resp) => resp.into_string().map_err(|e| e.to_string()),
-                Err(e) => Err(e.to_string()),
-            };
+            let result = crate::net::chat_read::fetch_history(&agent, &base_url, seed.as_deref(), &key, &channel, 50);
             let _ = tx.send((channel, result));
         });
     }

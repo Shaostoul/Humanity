@@ -101,6 +101,8 @@ pub(crate) mod reply;
 mod mute_menu;
 // A line's length against the server's limit, and whether my line was posted (2026-10-24).
 pub(crate) mod line_limit;
+// Who can read and post in a channel: the line above the box, the pickers, plain links (2026-11-02).
+pub(crate) mod access;
 // The timestamp formats and formatters (moved out 2026-10-24, file-size ratchet).
 mod timestamps;
 pub use timestamps::*;
@@ -743,9 +745,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // file's address and key, never text. It has no words of its
                     // own; chat/attach_view.rs draws it under the row.
                     let enc_att = attach_view::file_in(msg);
+                    // A poster below Verified here: links, pictures and files as plain words (chat/access.rs).
+                    let plain = !access::shows_links(state, msg);
                     // Extract image URLs from the message so we can render them
                     // as inline thumbnails instead of raw /uploads/... text.
-                    let image_urls = if enc_att.is_some() {
+                    let image_urls = if enc_att.is_some() || plain {
                         Vec::new()
                     } else {
                         crate::gui::widgets::image_cache::extract_image_urls(&msg.content)
@@ -756,7 +760,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let pictures_hidden = withheld.is_some();
                     // Files posted into a public channel and Media items: a card each under the
                     // message, their bare addresses taken out of its words (chat/public_files.rs).
-                    let posted = public_files::Posted::of(state, msg, enc_att.is_some() || pictures_hidden);
+                    let posted = public_files::Posted::of(state, msg, enc_att.is_some() || pictures_hidden || plain);
                     let display_text = if let Some(rest) = withheld {
                         rest
                     } else if enc_att.is_some() {
@@ -781,8 +785,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // web client's list rendering. Width-preserving and done
                     // BEFORE parse so the inline spans below stay char-aligned.
                     let display_text = bulletize_list_lines(&display_text);
-                    let (display_text, format_spans) =
+                    let (display_text, mut format_spans) =
                         crate::gui::widgets::msg_format::parse(&display_text);
+                    if plain { format_spans.retain(|sp| !matches!(sp.kind, crate::gui::widgets::msg_format::SpanKind::Link(_))); }
                     let link_targets: Vec<String> = format_spans
                         .iter()
                         .filter_map(|sp| match &sp.kind {
@@ -1675,6 +1680,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
                 }
 
+                // Who can read this channel, and what I may post here (chat/access.rs).
+                access::draw_audience_line(ui, theme, state);
                 // How long the line is against the server's limit, near and past it, as the
                 // website's counter shows it (chat/line_limit.rs).
                 if let Some(limit) = line_limit::limit_here(state) {

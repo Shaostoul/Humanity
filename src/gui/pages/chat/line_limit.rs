@@ -137,6 +137,11 @@ pub(crate) fn status_words(msg: &ChatMessage, now_ms: u64) -> Option<String> {
             }
             "too_fast" => t("chat.line_not_sent_too_fast").to_string(),
             "new_account_wait" => t("chat.line_not_sent_new_account").to_string(),
+            // Who may post here, and below Verified one link and no files (chat_access.rs).
+            "post_level" => t("chat.line_not_sent_post_level").to_string(),
+            "mass_mention" => t("chat.line_not_sent_mass_mention").to_string(),
+            "too_many_links" => t("chat.line_not_sent_links").to_string(),
+            "attachment" => t("chat.line_not_sent_attachment").to_string(),
             _ => t("chat.line_not_sent").to_string(),
         }),
     }

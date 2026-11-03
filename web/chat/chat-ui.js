@@ -2084,7 +2084,8 @@ var federatedRetryMs = 30000;
     const channelsHtml = rooms.shown.map(ch => {
       const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
       const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-      const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
+      // The read level's badge first (chat-access.md 6.1, app.js chatLevelBadgeHtml), then eye and node-graph.
+      const badges = chatLevelBadgeHtml(ch) + (HosChatAccess.staffOnly(ch) ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
       // Mic sits LEFT of the # (native order: mic, cog, #name). Clickable -
       // joins/leaves the REAL relay voice room for the channel. "joined" reflects
       // the actual mesh connection (_currentRoomId), not the old dead per-channel

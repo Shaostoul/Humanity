@@ -186,6 +186,7 @@ Plus mirrors of native pages: `humanity.html` (the Humanity tab hub: mission + l
 
 | Name | File | Purpose |
 |------|------|---------|
+| Chat read-only view | `web/chat/read.html` | `/chat/read` (2026-11-02, docs/design/chat-access.md section 7): for a visitor with no key, where `/chat` now sends one. The channels anyone may read, each one's posts since it was opened to everyone as plain words with names only, no box to type in, and one button, Choose a name to join in (the welcome step). Asks search engines not to keep it. Native: none (the desktop app always has a key). |
 | Chat hub | `web/chat/index.html` | Cooperative chat with cryptographic identity. Its command palette also opens windows that mirror game panels on the signed-in socket, among them **Where you live** (`web/chat/chat-home.js`, ship homes increment 6, 2026-10-12): your home on this server's ship, or the kinds of home with their free counts and Choose, every word from the server's answer. |
 
 (The whole `web/activities/` directory was removed 2026-07-05: its hub + gardening

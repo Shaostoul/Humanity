@@ -1009,10 +1009,12 @@ pub struct ChatChannel {
     pub voice_joined: bool,
     /// Whether voice is enabled for this channel (shows mic icon).
     pub voice_enabled: bool,
-    /// Whether the channel is read-only for non-admins. Settable from the
-    /// Server Settings → Channels page and the chat channel-edit modal;
-    /// persisted by the relay's admin-gated `channel_update` handler.
-    pub read_only: bool,
+    /// Who can read the channel and who can post in it (docs/design/chat-access.md). Settable
+    /// from the Server Settings → Channels page and the chat channel-edit modal; persisted by
+    /// the relay's admin-gated `channel_update` handler. A post level of Mods ("only moderators
+    /// and admins") is the read-only room the protected setup lists and the sidebar's eye marks.
+    pub read_level: humanity_protocol::chat_access::ReadLevel,
+    pub post_level: humanity_protocol::chat_access::PostLevel,
     /// Whether the channel federates to peer servers. Settable from
     /// Server Settings → Channels; persisted via `channel_update`.
     pub federated: bool,
@@ -1033,7 +1035,8 @@ pub struct ChatChannel {
 pub struct ChannelDraft {
     pub name: String,
     pub description: String,
-    pub read_only: bool,
+    pub read_level: humanity_protocol::chat_access::ReadLevel,
+    pub post_level: humanity_protocol::chat_access::PostLevel,
     pub federated: bool,
     pub voice_enabled: bool,
 }

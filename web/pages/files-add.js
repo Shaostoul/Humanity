@@ -84,7 +84,7 @@
   function postChoices(channels, opts) {
     const o = opts || {};
     const fav = typeof o.isFavorite === 'function' ? o.isFavorite : () => false;
-    const usable = (Array.isArray(channels) ? channels : []).filter((c) => c && typeof c.id === 'string' && c.id && (o.admin || !c.read_only));
+    const usable = (Array.isArray(channels) ? channels : []).filter((c) => c && typeof c.id === 'string' && c.id && (o.admin || !c.read_only)); // read_only here: only moderators and admins post (post_level mods)
     const name = (c) => '#' + (c.name || c.id);
     const out = [];
     const open = usable.find((c) => c.id === o.open);
@@ -352,7 +352,7 @@
     /** The session's channel list (sent as the page signs in, and again when it changes). */
     function takeChannels(list) {
       st.channels = list.filter((c) => c && typeof c.id === 'string' && c.id)
-        .map((c) => ({ id: c.id, name: String(c.name || c.id), read_only: c.read_only === true }));
+        .map((c) => ({ id: c.id, name: String(c.name || c.id), read_only: c.post_level === 'mods' }));
       st.channelsKnown = true;
       if (st.form) renderPostRow(st.form);
     }

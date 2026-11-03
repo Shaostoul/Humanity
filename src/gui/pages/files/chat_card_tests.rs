@@ -199,6 +199,9 @@ fn a_message_holding_an_items_address_shows_its_card() {
     let theme = crate::gui::theme::load_theme();
     let mut state = with_item();
     state.chat_active_channel = "general".into();
+    // A verified poster: below Verified a line's links and files are plain words since 2026-11-02
+    // (docs/design/chat-access.md; chat/access_tests.rs holds that).
+    state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann".into(), role: "verified".into(), status: String::new() });
     state.chat_messages.push(crate::gui::ChatMessage {
         sender_name: "Ann".into(),
         sender_key: "ann".into(),

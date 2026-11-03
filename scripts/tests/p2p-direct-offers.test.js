@@ -134,6 +134,7 @@ function loadChat() {
   run("shared/events.js");
   run("shared/blake3.js");
   run("shared/file-transfer.js");
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   for (const name of ["updateUserList", "updateStats", "renderServerList", "renderGroupList", "addSystemMessage", "hosIcon", "shortKey", "esc", "playNotificationChime"]) {
     if (typeof ctx[name] !== "function") ctx[name] = () => "";

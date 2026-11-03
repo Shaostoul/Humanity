@@ -93,7 +93,7 @@ function loadChat(serverListAnswer) {
   // test loads it; chat-ui.js reads helpers the earlier scripts define.
   for (const rel of ["shared/events.js", "shared/friend-pass.js", "shared/reach.js", "shared/block.js",
     "chat/crypto.js", "chat/chat-dm-store.js", "chat/view/timestampPill.js", "chat/view/messageRow.js",
-    "chat/app.js", "chat/chat-messages.js", "chat/chat-dms.js", "chat/chat-social.js",
+    "shared/chat-access.js", "chat/app.js", "chat/chat-messages.js", "chat/chat-dms.js", "chat/chat-social.js",
     "chat/chat-groups-p2p.js", "chat/chat-ui.js"]) {
     run(rel);
   }

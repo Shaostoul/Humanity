@@ -296,6 +296,7 @@ function loadChat(opts = {}) {
   run("shared/file-transfer.js");
   // How this person's calls connect (10p); a copy of web/ from before it has none.
   if (fs.existsSync(path.join(WEB, "shared", "call-connection.js"))) run("shared/call-connection.js");
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   // Page pieces from scripts this test does not load (chat-ui.js, icons.js, hold-confirm.js).
   for (const name of ["updateUserList", "updateStats", "renderServerList", "renderGroupList", "hosIcon", "shortKey", "holdConfirm", "playNotificationChime"]) {

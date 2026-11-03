@@ -729,7 +729,7 @@ fn post_in_chat_is_a_tick_then_the_channel_greyed_while_off() {
     let mut state = page_state(demo_answer(), true);
     state.files.mine = Some(Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
     for (id, ro) in [("general", false), ("random", false), ("printing", false), ("announcements", true)] {
-        state.chat_channels.push(crate::gui::ChatChannel { id: id.into(), name: id.into(), read_only: ro, ..Default::default() });
+        state.chat_channels.push(crate::gui::ChatChannel { id: id.into(), name: id.into(), post_level: if ro { humanity_protocol::chat_access::PostLevel::Mods } else { humanity_protocol::chat_access::PostLevel::Members }, ..Default::default() });
     }
     state.chat_active_channel = "random".into();
     let server = super::server_here(&state);

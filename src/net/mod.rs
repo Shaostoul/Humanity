@@ -18,6 +18,10 @@ pub mod sync;
 pub mod ws_client;
 #[cfg(feature = "native")]
 pub mod identity;
+/// A channel's history read from a server, signed as the member reading it (2026-11-02,
+/// docs/design/chat-access.md): a channel not open to Anyone is served only that way.
+#[cfg(feature = "native")]
+pub mod chat_read;
 /// What a received file is, said before it is opened (data/safety/file_risks.json, 2026-10-17).
 #[cfg(feature = "native")]
 pub mod file_risk;

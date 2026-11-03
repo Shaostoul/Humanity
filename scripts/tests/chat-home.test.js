@@ -461,6 +461,7 @@ function loadApp(page) {
   };
   ctx.window = ctx;
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(WEB, "shared", "chat-access.js"), "utf8"), ctx, { filename: "chat-access.js" }); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   vm.runInContext(fs.readFileSync(path.join(WEB, "chat", "app.js"), "utf8"), ctx, { filename: "app.js" });
   // The page's scripts share one global scope: the window's function is the one app.js finds.
   ctx.renderWhereYouLive = page.ctx.renderWhereYouLive;

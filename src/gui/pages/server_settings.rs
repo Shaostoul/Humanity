@@ -28,6 +28,7 @@ use egui::{Align, Color32, Layout, RichText, ScrollArea, Vec2};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiPage, GuiState};
+use humanity_core::i18n::t;
 
 /// Reports the admins can check (step D, 2026-10-09): the Moderator section's Reports lists.
 pub(crate) mod reports;
@@ -79,10 +80,11 @@ const SECTION_MAX_WIDTH: f32 = 960.0;
 /// header used allocate_ui_with_layout(reservation) but the labels
 /// collapsed to text width while data rows used different widget widths,
 /// so the columns drifted.
-const CHANNEL_COL_WIDTHS: [f32; 7] = [
+const CHANNEL_COL_WIDTHS: [f32; 8] = [
     144.0, // Name
-    284.0, // Description
-    72.0,  // Read-only
+    200.0, // Description
+    110.0, // Who can read (chat/access.rs)
+    160.0, // Who can post
     60.0,  // Voice
     72.0,  // Federated
     60.0,  // Save
@@ -1549,10 +1551,13 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
          permanent, messages are kept but the channel goes away.",
     );
     ui.add_space(theme.spacing_xs);
+    widgets::body_hint(ui, theme, t("chat.level_read_hint"));
+    ui.add_space(theme.spacing_xs);
+    widgets::body_hint(ui, theme, t("chat.level_post_hint"));
+    ui.add_space(theme.spacing_xs);
     widgets::body_hint(
         ui, theme,
-        "Read-only (eye icon): only mods + admins can post; everyone can read. \
-         Voice: enables the voice-call icon next to the channel, disable to make \
+        "Voice: enables the voice-call icon next to the channel, disable to make \
          it text-only.",
     );
     ui.add_space(theme.spacing_xs);
@@ -1614,7 +1619,8 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .or_insert_with(|| crate::gui::ChannelDraft {
                 name: ch.name.clone(),
                 description: ch.description.clone(),
-                read_only: ch.read_only,
+                read_level: ch.read_level,
+                post_level: ch.post_level,
                 federated: ch.federated,
                 voice_enabled: ch.voice_enabled,
             });
@@ -1633,14 +1639,16 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 Vec2::new(CHANNEL_COL_WIDTHS[1], CHANNEL_ROW_H),
                 egui::TextEdit::singleline(&mut draft.description),
             ).changed() { row_changed = true; }
-            centered_checkbox(ui, theme, &mut draft.read_only, CHANNEL_COL_WIDTHS[2], &mut row_changed);
-            centered_checkbox(ui, theme, &mut draft.voice_enabled, CHANNEL_COL_WIDTHS[3], &mut row_changed);
+            // Who can read and who can post (chat/access.rs, the same pickers as the channel's editor).
+            row_changed |= crate::gui::pages::chat::access::read_picker(ui, &ch.id, CHANNEL_COL_WIDTHS[2] - 8.0, &mut draft.read_level);
+            row_changed |= crate::gui::pages::chat::access::post_picker(ui, &ch.id, CHANNEL_COL_WIDTHS[3] - 8.0, &mut draft.post_level);
+            centered_checkbox(ui, theme, &mut draft.voice_enabled, CHANNEL_COL_WIDTHS[4], &mut row_changed);
             if ch.local_only {
                 // Guaranteed local-only room: the Federated toggle is locked
                 // OFF. The relay refuses it anyway (v0.1132); this makes the
                 // guarantee visible instead of a silently ignored click.
                 ui.add_sized(
-                    Vec2::new(CHANNEL_COL_WIDTHS[4], CHANNEL_ROW_H),
+                    Vec2::new(CHANNEL_COL_WIDTHS[5], CHANNEL_ROW_H),
                     egui::Label::new(
                         RichText::new("local")
                             .size(theme.font_size_small)
@@ -1653,18 +1661,18 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 );
                 draft.federated = false;
             } else {
-                centered_checkbox(ui, theme, &mut draft.federated, CHANNEL_COL_WIDTHS[4], &mut row_changed);
+                centered_checkbox(ui, theme, &mut draft.federated, CHANNEL_COL_WIDTHS[5], &mut row_changed);
             }
             row_button(
-                ui, theme, CHANNEL_COL_WIDTHS[5],
+                ui, theme, CHANNEL_COL_WIDTHS[6],
                 widgets::Button::primary("Save").tooltip(
-                    "Apply this row's changes. Updates name / description / read-only / \
-                     voice / federated flags on the relay and broadcasts to all clients."
+                    "Apply this row's changes. Updates name / description / who can read / \
+                     who can post / voice / federated on the relay and broadcasts to all clients."
                 ),
                 || { save_id = Some(ch.id.clone()); },
             );
             row_button(
-                ui, theme, CHANNEL_COL_WIDTHS[6],
+                ui, theme, CHANNEL_COL_WIDTHS[7],
                 widgets::Button::danger("Delete").tooltip(
                     "Permanently delete this channel. Past messages stay in the database \
                      but the channel disappears from sidebars. Cannot be undone."
@@ -1718,12 +1726,9 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             Vec2::new(CHANNEL_COL_WIDTHS[1], CHANNEL_ROW_H),
             egui::TextEdit::singleline(&mut new_draft.description).hint_text("Description"),
         );
-        centered_checkbox(ui, theme, &mut new_draft.read_only, CHANNEL_COL_WIDTHS[2], &mut _row_changed_unused);
-        centered_checkbox(ui, theme, &mut new_draft.voice_enabled, CHANNEL_COL_WIDTHS[3], &mut _row_changed_unused);
-        centered_checkbox(ui, theme, &mut new_draft.federated, CHANNEL_COL_WIDTHS[4], &mut _row_changed_unused);
         // Create button spans the Save+Delete columns since there's only
         // one action on the new-channel row.
-        let create_w = CHANNEL_COL_WIDTHS[5] + CHANNEL_COL_WIDTHS[6] + 4.0;
+        let create_w = CHANNEL_COL_WIDTHS[6] + CHANNEL_COL_WIDTHS[7] + 4.0;
         let valid = !new_draft.name.trim().is_empty();
         ui.allocate_ui_with_layout(
             Vec2::new(create_w, CHANNEL_ROW_H),
@@ -1732,11 +1737,7 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_enabled_ui(valid, |ui| {
                     if widgets::Button::primary("Create")
                         .min_height(CHANNEL_ROW_H)
-                        .tooltip(
-                            "Create a new channel with the values typed above. All flags \
-                             default off (read-only, federated). Voice defaults on. You can \
-                             change any flag after creation by editing the row."
-                        )
+                        .tooltip(t("chat.levels_new_channel"))
                         .show(ui, theme)
                     {
                         create_clicked = true;
@@ -1758,16 +1759,10 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if create_clicked {
         let name = state.server_settings_new_channel.name.trim().to_string();
         let desc = state.server_settings_new_channel.description.trim().to_string();
-        if let Some(ref client) = state.ws_client {
-            if client.is_connected() {
-                let msg = serde_json::json!({
-                    "type": "channel_create",
-                    "name": name,
-                    "description": desc,
-                });
-                client.send(&msg.to_string());
-            }
-        }
+        // The relay's /channel-create (it never handled a `channel_create` message, so this
+        // button made nothing until 2026-11-02). It reads and posts at Members to begin with.
+        let cmd = if desc.is_empty() { format!("/channel-create {name}") } else { format!("/channel-create {name} {desc}") };
+        send_slash(state, &cmd);
         state.server_settings_new_channel = crate::gui::ChannelDraft::default();
         state.server_settings_status = format!("Channel '{}' creation requested.", name);
     }
@@ -1781,7 +1776,8 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == id) {
                 ch.name = draft.name.trim().to_string();
                 ch.description = draft.description.trim().to_string();
-                ch.read_only = draft.read_only;
+                ch.read_level = draft.read_level;
+                ch.post_level = humanity_protocol::chat_access::normalized_post(draft.read_level, draft.post_level);
                 ch.voice_enabled = draft.voice_enabled;
                 ch.federated = draft.federated;
             }
@@ -1795,7 +1791,8 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         "channel_id": id,
                         "name": draft.name.trim(),
                         "description": draft.description.trim(),
-                        "read_only": draft.read_only,
+                        "read_level": draft.read_level.as_str(),
+                        "post_level": draft.post_level.as_str(),
                         "voice_enabled": draft.voice_enabled,
                         "federated": draft.federated,
                     });
@@ -1806,15 +1803,8 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
     if let Some(id) = delete_id {
-        if let Some(ref client) = state.ws_client {
-            if client.is_connected() {
-                let msg = serde_json::json!({
-                    "type": "channel_delete",
-                    "channel_id": id,
-                });
-                client.send(&msg.to_string());
-            }
-        }
+        // The relay's /channel-delete (it never handled a `channel_delete` message either).
+        send_slash(state, &format!("/channel-delete {id}"));
         state.server_settings_status = format!("Channel deletion requested for '{}'.", id);
         state.server_settings_channel_drafts.remove(&id);
     }
@@ -2737,13 +2727,13 @@ fn centered_checkbox(
 fn channel_grid_header(ui: &mut egui::Ui, theme: &Theme) {
     // Each cell is (label, tooltip). Save and Delete columns are blank
     // headers since the buttons themselves carry their own tooltips.
-    let cells: [(&str, &str); 7] = [
+    let cells: [(&str, &str); 8] = [
         ("Name",        "The channel id used in chat (#name). Renaming updates the display \
                          label only, the underlying id stays the same so existing message \
                          references keep working."),
         ("Description", "One-line summary shown next to the channel name in the chat header."),
-        ("Read-only",   "On: only mods + admins can post here. Everyone can still read. \
-                         Useful for #announcements style channels."),
+        (t("chat.level_read_label"), t("chat.level_read_hint")),
+        (t("chat.level_post_label"), t("chat.level_post_hint")),
         ("Voice",       "On: voice icon appears next to the channel so members can join a \
                          voice call. Off: text-only, voice icon hidden."),
         ("Federated",   "On: messages gossip to peer servers, reach beyond this server, \
@@ -2758,13 +2748,12 @@ fn channel_grid_header(ui: &mut egui::Ui, theme: &Theme) {
         ui.spacing_mut().item_spacing.x = 4.0;
         for (i, (label, tip)) in cells.iter().enumerate() {
             let w = CHANNEL_COL_WIDTHS[i];
-            // Columns 2 (Read-only) and 4 (Federated) get a painted icon
-            // before the label so the flag is recognizable at a glance
-            // (operator request 2026-05-15 — eye for read-only, node-graph
-            // for federated). Other columns: plain label as before.
+            // Column 3 (who can post: the eye marks a moderators-only room in the sidebar) and
+            // 5 (Federated) get a painted icon before the label so the flag is recognizable at a
+            // glance (operator request 2026-05-15, eye and node-graph). Others: plain labels.
             let icon_fn: Option<fn(&egui::Painter, egui::Rect, Color32)> = match i {
-                2 => Some(crate::gui::widgets::icons::paint_eye),
-                4 => Some(crate::gui::widgets::icons::paint_federation),
+                3 => Some(crate::gui::widgets::icons::paint_eye),
+                5 => Some(crate::gui::widgets::icons::paint_federation),
                 _ => None,
             };
             if let Some(paint) = icon_fn {
@@ -3216,5 +3205,64 @@ mod tests {
         state.admin_erase.member_search = format!("{:064x}", 105u32)[50..].to_string(); // part of a key
         let out = members_frame(&ctx, &theme, &mut state);
         assert!(find_text_in_shapes(&out.shapes, "Walker 105").is_some(), "a part of a key finds them too");
+    }
+
+    /// One headless frame of the Channels table, wide enough for all its columns, with `events`.
+    fn channels_frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1400.0, 900.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_channels_admin(ui, theme, state));
+        })
+    }
+
+    fn click_in_channels(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) {
+        let out = channels_frame(ctx, theme, state, Vec::new());
+        let pos = find_text_in_shapes(&out.shapes, text).unwrap_or_else(|| panic!("{text:?} is drawn")).rect.center();
+        let m = egui::Modifiers::default();
+        channels_frame(ctx, theme, state, vec![egui::Event::PointerMoved(pos)]);
+        channels_frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        channels_frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+    }
+
+    /// WHO CAN READ AND WHO CAN POST, PICKED IN SERVER SETTINGS > CHANNELS (docs/design/
+    /// chat-access.md): the table names both columns; #lounge's row shows Members for each; opening
+    /// its Who can read picker the way an admin does and choosing Anyone puts Anyone in the row's
+    /// draft, and its Who can post picker takes Moderators and admins; Save applies both to the
+    /// channel (and sends them as `channel_update` when connected).
+    ///
+    /// Seen red 2026-11-02 with the read picker's list left empty (no option drawn): the click on
+    /// "Anyone" landed on the hint words that say it, and "Anyone is chosen to read" failed (left:
+    /// Members).
+    #[test]
+    fn the_channels_table_sets_who_can_read_and_who_can_post() {
+        use humanity_protocol::chat_access::{PostLevel, ReadLevel};
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut state = GuiState::default();
+        state.chat_channels.push(crate::gui::ChatChannel { id: "lounge".into(), name: "lounge".into(), ..Default::default() });
+        channels_frame(&ctx, &theme, &mut state, Vec::new());
+        let out = channels_frame(&ctx, &theme, &mut state, Vec::new());
+        assert!(find_text_in_shapes(&out.shapes, t("chat.level_read_label")).is_some(), "the Who can read column");
+        assert!(find_text_in_shapes(&out.shapes, t("chat.level_post_label")).is_some(), "the Who can post column");
+        let members = find_text_in_shapes(&out.shapes, t("chat.level_members")).expect("the row's pickers say Members");
+        assert_eq!(members.text, t("chat.level_members"), "a picker showing exactly Members (the hints above say it too)");
+
+        click_in_channels(&ctx, &theme, &mut state, t("chat.level_members")); // the first: Who can read
+        click_in_channels(&ctx, &theme, &mut state, t("chat.level_anyone"));
+        assert_eq!(state.server_settings_channel_drafts["lounge"].read_level, ReadLevel::Anyone, "Anyone is chosen to read");
+
+        click_in_channels(&ctx, &theme, &mut state, t("chat.level_members")); // now only Who can post says Members
+        click_in_channels(&ctx, &theme, &mut state, t("chat.level_mods"));
+        assert_eq!(state.server_settings_channel_drafts["lounge"].post_level, PostLevel::Mods, "Moderators and admins post");
+
+        click_in_channels(&ctx, &theme, &mut state, "Save");
+        let ch = &state.chat_channels[0];
+        assert_eq!((ch.read_level, ch.post_level), (ReadLevel::Anyone, PostLevel::Mods), "Save applies both");
     }
 }

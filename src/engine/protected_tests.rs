@@ -257,7 +257,7 @@ fn every_locked_action_needs_the_pin() {
         store.record_pass_sent("cy", SentPass { serial: "c1".repeat(16), may: "invite,message,trade,voice_message".into() });
         store.add_request(ContactRequest { key: "dana".into(), ts: 1, pass: String::new() });
     }
-    gs.chat_channels.push(crate::gui::ChatChannel { id: "lounge".into(), name: "lounge".into(), read_only: true, voice_enabled: true, ..Default::default() });
+    gs.chat_channels.push(crate::gui::ChatChannel { id: "lounge".into(), name: "lounge".into(), post_level: humanity_protocol::chat_access::PostLevel::Mods, voice_enabled: true, ..Default::default() });
     gs.settings.warnings_on_messages = true;
     protect(&mut gs, "7391", &["cy"]);
     let _ = frames(&sent);
@@ -413,7 +413,7 @@ fn never_locked_actions_go_without_the_pin() {
             store.record_pass_sent(peer, SentPass { serial: format!("{peer:0>32}"), may: "invite,message,trade,voice_message".into() });
         }
     }
-    gs.chat_channels.push(crate::gui::ChatChannel { id: "lounge".into(), name: "lounge".into(), read_only: true, voice_enabled: true, voice_joined: true, ..Default::default() });
+    gs.chat_channels.push(crate::gui::ChatChannel { id: "lounge".into(), name: "lounge".into(), post_level: humanity_protocol::chat_access::PostLevel::Mods, voice_enabled: true, voice_joined: true, ..Default::default() });
     gs.voice_active_room = Some("lounge".into());
     gs.p2p_groups.push(crate::net::api_v2::P2pGroupInfo { group_id: "g1".into(), name: "Book club".into(), members: vec![me.clone()], is_creator: false });
     protect(&mut gs, "7391", &["ben", "cy"]);
@@ -523,7 +523,7 @@ fn only_read_only_rooms_are_listed() {
     crate::config::keep_saves_off_disk();
     let (seed, me) = identity(167);
     let (mut gs, _sent) = app(&me, &seed, "protected-rooms");
-    let ch = |id: &str, read_only: bool, federated: bool| crate::gui::ChatChannel { id: id.into(), name: id.into(), read_only, federated, ..Default::default() };
+    let ch = |id: &str, read_only: bool, federated: bool| crate::gui::ChatChannel { id: id.into(), name: id.into(), post_level: if read_only { humanity_protocol::chat_access::PostLevel::Mods } else { humanity_protocol::chat_access::PostLevel::Members }, federated, ..Default::default() };
     gs.chat_channels = vec![ch("announcements", true, false), ch("general", false, false), ch("news", true, true), ch("lobby", false, true)];
     let listed = |gs: &GuiState| gs.chat_channels.iter().filter(|c| lists_channel(gs, c)).map(|c| c.id.clone()).collect::<Vec<_>>();
     assert_eq!(listed(&gs), ["announcements", "general", "news", "lobby"], "off: every room");

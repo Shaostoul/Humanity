@@ -191,6 +191,18 @@ are its own.
 
 ---
 
+## 6.1 What the roles may read and post in chat (2026-11-02)
+
+Each channel's read and post levels (docs/design/chat-access.md) are checked against a rank
+worked out from the role: `admin` and `owner` are Admin, `mod` and `moderator` Moderator,
+`verified` and `donor` Verified, and a role the admins made counts as Verified at a trust level of
+1 or more (the built-in Verified role's own trust), a Member below it
+(`humanity_protocol::chat_access::rank_for_member`). A key with no chosen name here, or a banned
+one, is a Visitor whatever its role. Below Verified a line holds one link and no attachment; below
+Moderator it holds no @everyone or @here. Becoming verified is section 11 of that design: an admin
+vouches today (the Verify button), and the request queue, the record of who verified whom and
+moderators verifying are its rung 3.
+
 ## 7. Phasing
 
 | Phase | Scope | Status |

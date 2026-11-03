@@ -1773,10 +1773,11 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                                 egui::FontId::proportional(theme.body_size),
                                 name_color,
                             );
-                            // Status icons after the name: eye = read-only,
-                            // node-graph = federated (v0.244; uses the
-                            // paint_eye/paint_federation icons added v0.240).
-                            if ch.read_only || ch.federated {
+                            // Status icons after the name: the read level's badge (globe,
+                            // person, tick: chat/access.rs, docs/design/chat-access.md 6.1),
+                            // eye = only moderators and admins post, node-graph = federated
+                            // (v0.244; paint_eye/paint_federation added v0.240).
+                            {
                                 let name_w = ui.fonts(|f| f.layout_no_wrap(
                                     name_str.clone(),
                                     egui::FontId::proportional(theme.body_size),
@@ -1784,7 +1785,13 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                                 )).size().x;
                                 let isz = (theme.body_size * 0.9).min(14.0);
                                 let mut ix = cx + 2.0 + name_w + 6.0;
-                                if ch.read_only {
+                                let badge = egui::Rect::from_min_size(egui::pos2(ix, cy - isz / 2.0), Vec2::splat(isz));
+                                super::access::paint_level_badge(ui.painter(), badge, ch.read_level, theme.text_muted());
+                                if response.hovered() && ui.rect_contains_pointer(badge) {
+                                    super::access::badge_tooltip(ui, &ch.id, ch.read_level, ch.post_level);
+                                }
+                                ix += isz + 3.0;
+                                if ch.post_level.staff_only() {
                                     let r = egui::Rect::from_min_size(
                                         egui::pos2(ix, cy - isz / 2.0),
                                         Vec2::splat(isz),

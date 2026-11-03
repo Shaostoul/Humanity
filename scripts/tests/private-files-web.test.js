@@ -143,8 +143,8 @@ const PIN = "90817263";
 const ACCEPT_ANYONE = { hos_files_in_messages: JSON.stringify({ accept: "anyone" }) };
 const MAY = "invite,message,trade,voice_message";
 const CHANNELS = [
-  { id: "general", name: "general", read_only: false },
-  { id: "announcements", name: "announcements", read_only: true },
+  { id: "general", name: "general", post_level: "members" },
+  { id: "announcements", name: "announcements", post_level: "mods" },
 ];
 
 // Some bytes that are plainly a PNG, and some that are plainly a PDF.
@@ -710,6 +710,7 @@ async function loadChat(me, opts = {}) {
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
   run("chat/chat-files-card.js"); // a Media item posted in chat, as a card (2026-10-17)
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-messages.js");
@@ -999,6 +1000,9 @@ const ELSEWHERE_VIDEO = "https://example.com/talk.webm";
 
 /** A post in the room from `who`, drawn as the page draws one; its row. */
 function postInRoom(page, who, body, ts) {
+  // A verified poster: below verified a line's links, pictures and files are plain words since
+  // 2026-11-02 (docs/design/chat-access.md; chat-access-web.test.js test 4 holds that).
+  page.fn("peerData")[who.key] = Object.assign({}, page.fn("peerData")[who.key], { role: "verified" });
   page.state.appended.length = 0;
   page.fn("addChatMessage")(who.name, body, ts, who.key, true, false, null, null, false, null);
   return page.state.appended[0];

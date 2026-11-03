@@ -97,8 +97,12 @@ async fn two_relays_handshake_chat_and_gossip() {
     // Create the channel rows first: set_channel_federated is an UPDATE and
     // returns Ok(false) on a missing row, which a bare .expect() happily
     // swallows (the check-that-cannot-fail class, caught live in this test).
-    let _ = a.db.create_channel("general", "General", None, "test", false);
-    let _ = b.db.create_channel("general", "General", None, "test", false);
+    let _ = a.db.create_channel("general", "General", None, "test", humanity_protocol::chat_access::PostLevel::Members);
+    // Open to Anyone, as a server makes its #general: only such a channel travels (chat-access.md).
+    let _ = a.db.set_channel_access("general", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
+    let _ = b.db.create_channel("general", "General", None, "test", humanity_protocol::chat_access::PostLevel::Members);
+    // Open to Anyone, as a server makes its #general: only such a channel travels (chat-access.md).
+    let _ = b.db.set_channel_access("general", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
     assert!(a.db.set_channel_federated("general", true).expect("federate a:general"), "channel row must exist on A");
     assert!(b.db.set_channel_federated("general", true).expect("federate b:general"), "channel row must exist on B");
     let now_ms = std::time::SystemTime::now()

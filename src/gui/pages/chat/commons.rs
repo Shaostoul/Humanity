@@ -191,12 +191,12 @@ pub(crate) fn commons_room_read_only(state: &GuiState, room: &str) -> Option<boo
     let is_mod = |role: &str| role == "admin" || role == "owner" || role == "moderator" || role == "mod";
     match commons_route(state, room) {
         (true, _) => {
-            let ro = state.chat_channels.iter().find(|c| c.id == room).map(|c| c.read_only).unwrap_or(false);
+            let ro = state.chat_channels.iter().find(|c| c.id == room).map(|c| c.post_level.staff_only()).unwrap_or(false);
             Some(ro && !is_mod(&viewer_role(state)))
         }
         (false, Some(i)) => {
             let conn = &state.connections[i];
-            let ro = conn.channels.iter().find(|ch| ch.id == room).map(|ch| ch.read_only).unwrap_or(false);
+            let ro = conn.channels.iter().find(|ch| ch.id == room).map(|ch| ch.post_level.staff_only()).unwrap_or(false);
             let role = conn
                 .users
                 .iter()

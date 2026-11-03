@@ -96,6 +96,7 @@ function loadChat({ confirmAnswer = true } = {}) {
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
   run("shared/events.js");
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   for (const name of ["updateUserList", "updateStats", "renderServerList", "hosIcon", "shortKey", "esc", "renderMessage"]) {
     if (typeof ctx[name] !== "function") ctx[name] = () => "";

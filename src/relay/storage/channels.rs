@@ -2,6 +2,7 @@
 //! reply threads, registered names and device keys, roles, bans, mutes, wipes, expiry, counts.
 //! A mute is its own table (`muted_members`), independent of the person's role.
 use super::Storage;
+use humanity_protocol::chat_access::{PostLevel, ReadLevel};
 use rusqlite::params;
 
 /// One banned user. Serialized over the WS protocol as part of
@@ -43,16 +44,54 @@ fn inject_message_id(msg: crate::relay::relay::RelayMessage, id: i64) -> crate::
 impl Storage {
     // ── Channel methods ──
 
-    /// Create a channel. Returns true if created, false if already exists.
-    pub fn create_channel(&self, id: &str, name: &str, description: Option<&str>, created_by: &str, read_only: bool) -> Result<bool, rusqlite::Error> {
+    /// Create a channel that reads at Members (the safe default, docs/design/chat-access.md) and
+    /// posts at `post`. Returns true if created, false if it already exists.
+    pub fn create_channel(&self, id: &str, name: &str, description: Option<&str>, created_by: &str, post: PostLevel) -> Result<bool, rusqlite::Error> {
         self.with_conn(|conn| {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis() as i64;
             let rows = conn.execute(
-                "INSERT OR IGNORE INTO channels (id, name, description, created_by, created_at, read_only) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![id, name, description, created_by, now, read_only as i32],
+                "INSERT OR IGNORE INTO channels (id, name, description, created_by, created_at, read_level, post_level) VALUES (?1, ?2, ?3, ?4, ?5, 'members', ?6)",
+                params![id, name, description, created_by, now, post.as_str()],
+            )?;
+            Ok(rows > 0)
+        })
+    }
+
+    /// A channel's read and post levels and when it last opened to Anyone (ms; 0 when never),
+    /// or None when there is no such channel. Asked for every line sent to every socket
+    /// (relay/chat_access.rs), so it is one primary-key read on the read pool.
+    pub fn channel_access(&self, id: &str) -> Option<(ReadLevel, PostLevel, i64)> {
+        self.with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT read_level, post_level, anyone_since FROM channels WHERE id = ?1",
+                params![id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)),
+            )
+        })
+        .ok()
+        .map(|(r, p, since)| (ReadLevel::from_stored(&r), PostLevel::from_stored(&p), since))
+    }
+
+    /// Set a channel's read and post levels (the post level normalized: nobody posts where they
+    /// cannot read). Opening it to Anyone from another level stamps `anyone_since` now, so a
+    /// visitor sees only what is posted from here on (design section 4.1); staying at Anyone
+    /// keeps the stamp it has. Returns false when there is no such channel.
+    pub fn set_channel_access(&self, id: &str, read: ReadLevel, post: PostLevel) -> Result<bool, rusqlite::Error> {
+        let post = humanity_protocol::chat_access::normalized_post(read, post);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        self.with_conn(|conn| {
+            let rows = conn.execute(
+                "UPDATE channels SET
+                     anyone_since = CASE WHEN ?2 = 'anyone' AND read_level <> 'anyone' THEN ?4 ELSE anyone_since END,
+                     read_level = ?2, post_level = ?3
+                 WHERE id = ?1",
+                params![id, read.as_str(), post.as_str(), now],
             )?;
             Ok(rows > 0)
         })
@@ -104,47 +143,36 @@ impl Storage {
     }
 
     /// List all channels (id, name, description, read_only, category_id).
-    pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>, bool)>, rusqlite::Error> {
+    pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>, ReadLevel)>, rusqlite::Error> {
         // Read-only: SELECT + query_map. Read pool.
         self.with_read_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0) FROM channels ORDER BY COALESCE(position, 100) ASC, created_at ASC")?;
+            let mut stmt = conn.prepare("SELECT id, name, description, read_level FROM channels ORDER BY COALESCE(position, 100) ASC, created_at ASC")?;
             let channels = stmt.query_map([], |row| {
-                let ro: i32 = row.get(3)?;
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, ro != 0))
+                let read: String = row.get(3)?;
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, ReadLevel::from_stored(&read)))
             })?.filter_map(|r| r.ok()).collect();
             Ok(channels)
         })
     }
 
-    /// List all channels with category info.
-    pub fn list_channels_with_categories(&self) -> Result<Vec<(String, String, Option<String>, bool, Option<i64>)>, rusqlite::Error> {
-        // Read-only: SELECT + query_map. Read pool.
-        self.with_read_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0), category_id FROM channels ORDER BY COALESCE(position, 100) ASC, created_at ASC")?;
-            let channels = stmt.query_map([], |row| {
-                let ro: i32 = row.get(3)?;
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, ro != 0, row.get(4)?))
-            })?.filter_map(|r| r.ok()).collect();
-            Ok(channels)
-        })
-    }
-
-    /// List all channels with category info AND the voice_enabled flag.
+    /// List all channels with category info, their read and post levels AND the voice_enabled flag.
     /// Used by `build_channel_list` so the broadcasted channel_list includes
     /// the persisted voice toggle. Tuple shape is
-    /// `(id, name, description, read_only, category_id, voice_enabled)`.
-    pub fn list_channels_with_categories_and_voice(&self) -> Result<Vec<(String, String, Option<String>, bool, Option<i64>, bool)>, rusqlite::Error> {
+    /// `(id, name, description, (read_level, post_level), category_id, voice_enabled)`.
+    pub fn list_channels_with_categories_and_voice(&self) -> Result<Vec<(String, String, Option<String>, (ReadLevel, PostLevel), Option<i64>, bool)>, rusqlite::Error> {
         // Read-only: SELECT + query_map (drives build_channel_list). Read pool.
         self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, name, description, COALESCE(read_only, 0), category_id, COALESCE(voice_enabled, 1)
+                "SELECT id, name, description, read_level, post_level, category_id, COALESCE(voice_enabled, 1)
                  FROM channels
                  ORDER BY COALESCE(position, 100) ASC, created_at ASC"
             )?;
             let channels = stmt.query_map([], |row| {
-                let ro: i32 = row.get(3)?;
-                let ve: i32 = row.get(5)?;
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, ro != 0, row.get(4)?, ve != 0))
+                let read: String = row.get(3)?;
+                let post: String = row.get(4)?;
+                let ve: i32 = row.get(6)?;
+                let (read, post) = (ReadLevel::from_stored(&read), PostLevel::from_stored(&post));
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, (read, post), row.get(5)?, ve != 0))
             })?.filter_map(|r| r.ok()).collect();
             Ok(channels)
         })
@@ -175,17 +203,6 @@ impl Storage {
             )
         })
         .ok()
-    }
-
-    /// Set the read_only flag on a channel.
-    pub fn set_channel_read_only(&self, id: &str, read_only: bool) -> Result<bool, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let rows = conn.execute(
-                "UPDATE channels SET read_only = ?1 WHERE id = ?2",
-                params![read_only as i32, id],
-            )?;
-            Ok(rows > 0)
-        })
     }
 
     /// Update a channel's display name (does NOT change the id).
@@ -229,21 +246,6 @@ impl Storage {
         })
     }
 
-    pub fn is_channel_read_only(&self, id: &str) -> Result<bool, rusqlite::Error> {
-        // Read-only flag lookup (checked on every chat send). Read pool.
-        self.with_read_conn(|conn| {
-            match conn.query_row(
-                "SELECT COALESCE(read_only, 0) FROM channels WHERE id = ?1",
-                params![id],
-                |row| row.get::<_, i32>(0),
-            ) {
-                Ok(val) => Ok(val != 0),
-                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
-                Err(e) => Err(e),
-            }
-        })
-    }
-
     /// Set a channel's sort position (lower = higher in list).
     pub fn set_channel_position(&self, id: &str, position: i32) -> Result<bool, rusqlite::Error> {
         self.with_conn(|conn| {
@@ -255,9 +257,12 @@ impl Storage {
         })
     }
 
-    /// Ensure the default "general" channel exists.
+    /// Ensure the default "general" channel exists. Made here, it reads at Anyone and posts at
+    /// Members (docs/design/chat-access.md section 4); an existing one keeps the levels it has.
     pub fn ensure_default_channel(&self) -> Result<(), rusqlite::Error> {
-        self.create_channel("general", "general", Some("General discussion"), "system", false)?;
+        if self.create_channel("general", "general", Some("General discussion"), "system", PostLevel::Members)? {
+            self.set_channel_access("general", ReadLevel::Anyone, PostLevel::Members)?;
+        }
         Ok(())
     }
 
@@ -367,7 +372,9 @@ impl Storage {
     /// Load messages for a channel after a given row ID (for API polling).
     /// When after_id == 0 (initial load), returns the most recent `limit` messages
     /// ordered oldest-first so the client can display them chronologically.
-    pub fn load_channel_messages_after(&self, channel_id: &str, after_id: i64, limit: usize) -> Result<(Vec<crate::relay::relay::RelayMessage>, i64), rusqlite::Error> {
+    /// `since_ms` leaves out every post made before that time (0 keeps all): a visitor reading a
+    /// channel opened to Anyone sees only what was posted after it opened (chat-access.md 4.1).
+    pub fn load_channel_messages_after(&self, channel_id: &str, after_id: i64, limit: usize, since_ms: i64) -> Result<(Vec<crate::relay::relay::RelayMessage>, i64), rusqlite::Error> {
         // Read-only: SELECT + query_map (API polling cursor). Read pool.
         self.with_read_conn(|conn| {
             // Initial load: get the most recent N, then reverse to oldest-first for display.
@@ -375,18 +382,18 @@ impl Storage {
             let sql = if after_id == 0 {
                 "SELECT id, raw_json FROM (
                     SELECT id, raw_json FROM messages
-                    WHERE msg_type = 'chat' AND channel_id = ?2
+                    WHERE msg_type = 'chat' AND channel_id = ?2 AND timestamp >= ?4
                     ORDER BY id DESC LIMIT ?3
                  ) sub ORDER BY id ASC"
             } else {
                 "SELECT id, raw_json FROM messages
-                 WHERE id > ?1 AND msg_type = 'chat' AND channel_id = ?2
+                 WHERE id > ?1 AND msg_type = 'chat' AND channel_id = ?2 AND timestamp >= ?4
                  ORDER BY id ASC LIMIT ?3"
             };
             let mut stmt = conn.prepare(sql)?;
             let mut messages = Vec::new();
             let mut max_id = after_id;
-            let rows = stmt.query_map(params![after_id, channel_id, limit], |row| {
+            let rows = stmt.query_map(params![after_id, channel_id, limit, since_ms], |row| {
                 let id: i64 = row.get(0)?;
                 let raw: String = row.get(1)?;
                 Ok((id, raw))
@@ -1235,14 +1242,14 @@ mod channel_message_tests {
             ids.push(db.store_message_in_channel(&chat("u", &format!("m{i}"), 100 + i as u64, "general"), "general").unwrap());
         }
         // Initial load (after_id 0): most-recent 3, oldest-first.
-        let (initial, max_initial) = db.load_channel_messages_after("general", 0, 3).unwrap();
+        let (initial, max_initial) = db.load_channel_messages_after("general", 0, 3, 0).unwrap();
         assert_eq!(initial.len(), 3);
         assert_eq!(content_and_id(&initial[0]).0, "m2");
         assert_eq!(content_and_id(&initial[2]).0, "m4");
         assert_eq!(max_initial, *ids.last().unwrap(), "max id advances to newest");
 
         // Cursor poll: only rows strictly after ids[2] → m3, m4.
-        let (after, max_after) = db.load_channel_messages_after("general", ids[2], 50).unwrap();
+        let (after, max_after) = db.load_channel_messages_after("general", ids[2], 50, 0).unwrap();
         assert_eq!(after.len(), 2);
         assert_eq!(content_and_id(&after[0]).0, "m3");
         assert_eq!(content_and_id(&after[1]).0, "m4");

@@ -167,37 +167,8 @@ pub async fn send_message(
     Ok(StatusCode::OK)
 }
 
-/// GET /api/messages — poll recent messages from the database.
-///
-/// The `after` parameter is now a database row ID (not an array index).
-/// Use the returned `cursor` as the `after` value for subsequent polls.
-pub async fn get_messages(
-    State(state): State<Arc<RelayState>>,
-    Query(params): Query<MessagesQuery>,
-) -> Json<MessagesResponse> {
-    let after = params.after.unwrap_or(0) as i64;
-    let limit = params.limit.unwrap_or(50).min(200);
-    let channel = params.channel.as_deref().unwrap_or("general");
-
-    match state.db.load_channel_messages_after(channel, after, limit) {
-        Ok((messages, cursor)) => {
-            Json(MessagesResponse { messages, cursor: cursor as usize })
-        }
-        Err(e) => {
-            tracing::error!("Failed to load messages: {e}");
-            // Fall back to in-memory.
-            let history = state.history.read().await;
-            let messages: Vec<RelayMessage> = history
-                .iter()
-                .skip(after as usize)
-                .take(limit)
-                .cloned()
-                .collect();
-            let cursor = after as usize + messages.len();
-            Json(MessagesResponse { messages, cursor })
-        }
-    }
-}
+// GET and POST /api/messages, /api/pins and /api/reactions are in chat_access.rs since 2026-11-02:
+// a channel that is not open to Anyone is read only through a member's signed POST.
 
 /// Response for GET /api/stats.
 #[derive(Debug, Serialize)]
@@ -747,32 +718,6 @@ pub struct ReactionEntry {
     pub reactor_name: String,
 }
 
-/// GET /api/reactions — load persisted reactions for a channel.
-pub async fn get_reactions(
-    State(state): State<Arc<RelayState>>,
-    Query(params): Query<ReactionsQuery>,
-) -> Json<ReactionsResponse> {
-    let channel = params.channel.as_deref().unwrap_or("general");
-    let limit = params.limit.unwrap_or(500).min(1000);
-
-    match state.db.load_channel_reactions(channel, limit) {
-        Ok(records) => {
-            let reactions = records.into_iter().map(|r| ReactionEntry {
-                target_from: r.target_from,
-                target_timestamp: r.target_timestamp,
-                emoji: r.emoji,
-                reactor_key: r.reactor_key,
-                reactor_name: r.reactor_name,
-            }).collect();
-            Json(ReactionsResponse { reactions })
-        }
-        Err(e) => {
-            tracing::error!("Failed to load reactions: {e}");
-            Json(ReactionsResponse { reactions: vec![] })
-        }
-    }
-}
-
 /// Query params for GET /api/pins.
 #[derive(Debug, Deserialize)]
 pub struct PinsQuery {
@@ -794,32 +739,6 @@ pub struct PinEntry {
     pub original_timestamp: u64,
     pub pinned_by: String,
     pub pinned_at: u64,
-}
-
-/// GET /api/pins — load pinned messages for a channel.
-pub async fn get_pins(
-    State(state): State<Arc<RelayState>>,
-    Query(params): Query<PinsQuery>,
-) -> Json<PinsResponse> {
-    let channel = params.channel.as_deref().unwrap_or("general");
-
-    match state.db.get_pinned_messages(channel) {
-        Ok(records) => {
-            let pins = records.into_iter().map(|r| PinEntry {
-                from_key: r.from_key,
-                from_name: r.from_name,
-                content: r.content,
-                original_timestamp: r.original_timestamp,
-                pinned_by: r.pinned_by,
-                pinned_at: r.pinned_at,
-            }).collect();
-            Json(PinsResponse { pins })
-        }
-        Err(e) => {
-            tracing::error!("Failed to load pins: {e}");
-            Json(PinsResponse { pins: vec![] })
-        }
-    }
 }
 
 // ── Project Board API ──

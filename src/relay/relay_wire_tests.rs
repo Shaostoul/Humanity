@@ -21,16 +21,18 @@ fn channel_update_deserializes_with_flags() {
         "channel_id": "announcements",
         "name": "announcements",
         "description": "Project updates and news",
-        "read_only": true,
+        "read_level": "anyone",
+        "post_level": "mods",
         "voice_enabled": false
     }"#;
     let msg: RelayMessage = serde_json::from_str(json).expect("channel_update must parse");
     match msg {
-        RelayMessage::ChannelUpdate { channel_id, name, description, read_only, voice_enabled, federated } => {
+        RelayMessage::ChannelUpdate { channel_id, name, description, read_level, post_level, voice_enabled, federated } => {
             assert_eq!(channel_id, "announcements");
             assert_eq!(name.as_deref(), Some("announcements"));
             assert_eq!(description.as_deref(), Some("Project updates and news"));
-            assert_eq!(read_only, Some(true));
+            assert_eq!(read_level.as_deref(), Some("anyone"));
+            assert_eq!(post_level.as_deref(), Some("mods"));
             assert_eq!(voice_enabled, Some(false));
             // Omitted fields stay None so the relay leaves them unchanged.
             assert_eq!(federated, None);

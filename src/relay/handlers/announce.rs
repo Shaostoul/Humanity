@@ -56,16 +56,16 @@ pub async fn announce_to(state: &Arc<RelayState>, channel: &str, content: &str) 
     let sig_message = format!("{}\n{}", content, timestamp);
     let signature = sign_with_server_key(&state.db, &sig_message);
 
-    // Auto-create the channel if missing. The channels table only requires
-    // an id + name; we skip if it already exists.
-    if let Err(e) = state.db.with_conn(|conn| {
-        conn.execute(
-            "INSERT OR IGNORE INTO channels (id, name, description, created_by, created_at, read_only)
-             VALUES (?1, ?2, 'System announcements', ?3, ?4, 0)",
-            rusqlite::params![channel, channel, &server_pubkey_hex, timestamp as i64],
-        )
-    }) {
-        tracing::warn!("announce: channel autocreate failed: {e}");
+    // Auto-create the channel if missing: an announcement channel anyone reads and only moderators
+    // and admins post in, as #announcements is seeded (docs/design/chat-access.md section 4). An
+    // existing channel keeps the levels it has.
+    use humanity_protocol::chat_access::{PostLevel, ReadLevel};
+    match state.db.create_channel(channel, channel, Some("System announcements"), &server_pubkey_hex, PostLevel::Mods) {
+        Ok(true) => {
+            let _ = state.db.set_channel_access(channel, ReadLevel::Anyone, PostLevel::Mods);
+        }
+        Ok(false) => {}
+        Err(e) => tracing::warn!("announce: channel autocreate failed: {e}"),
     }
 
     let chat = RelayMessage::Chat {

@@ -477,7 +477,7 @@ pub(crate) fn post_key(server: &str, channel: &str) -> String {
 pub(crate) fn post_choices(state: &GuiState) -> Vec<(String, String)> {
     let server = super::server_here(state);
     let admin = super::is_admin(state);
-    let usable: Vec<&crate::gui::ChatChannel> = state.chat_channels.iter().filter(|c| admin || !c.read_only).collect();
+    let usable: Vec<&crate::gui::ChatChannel> = state.chat_channels.iter().filter(|c| admin || !c.post_level.staff_only()).collect();
     let fav = |id: &str| crate::gui::widgets::file_picker_memory::with(|m| m.is_post_favorite(&post_key(&server, id)));
     let current = &state.chat_active_channel;
     let mut out = Vec::new();

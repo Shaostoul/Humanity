@@ -425,7 +425,7 @@ async fn the_federation_panel_the_whole_way() {
     assert_eq!(code, 200);
     assert_eq!(st.db.list_federated_servers().unwrap().len(), 1, "resumed");
 
-    st.db.create_channel("general", "general", None, "test", false).ok();
+    st.db.create_channel("general", "general", None, "test", humanity_protocol::chat_access::PostLevel::Members).ok();
     let chan = r#"{"channel":"general","federated":true}"#;
     let (code, v) = run(&st, signed_run(&ada, "federation.channel", chan, tick())).await;
     assert_eq!(code, 200, "{v}");

@@ -53,6 +53,9 @@ pub mod api_v2_solana;
 pub mod api_v2_trust;
 pub mod api_v2_zk;
 pub mod storage;
+/// Chat access levels (2026-11-02, docs/design/chat-access.md): who a key is here, which sockets
+/// a channel's lines go to, the check every line meets, and the signed history routes.
+pub mod chat_access;
 /// Continuous backup of the database: WAL shipping to a folder, a bucket or another server (2026-10-22).
 pub mod backup_stream;
 pub mod handlers;
@@ -92,6 +95,7 @@ use tower_http::cors::CorsLayer;
 use std::sync::Arc;
 
 use relay::RelayState;
+use humanity_protocol::chat_access::{PostLevel, ReadLevel};
 use serde_json;
 use rusqlite;
 
@@ -825,7 +829,10 @@ pub async fn run_relay() {
         .as_deref()
         == Some("true");
     if !already_seeded {
-        let _ = db.create_channel("announcements", "announcements", Some("Project updates and news"), "system", true);
+        // Anyone reads it; only moderators and admins post (docs/design/chat-access.md section 4).
+        if db.create_channel("announcements", "announcements", Some("Project updates and news"), "system", PostLevel::Mods).unwrap_or(false) {
+            let _ = db.set_channel_access("announcements", ReadLevel::Anyone, PostLevel::Mods);
+        }
         let _ = db.set_channel_position("announcements", 2);
         // #announcements is a read-only broadcast channel — it carries no voice
         // channel. (Without this it inherits the voice_enabled column default of
@@ -852,7 +859,7 @@ pub async fn run_relay() {
             "local",
             Some("This server only. Never bridged to other servers."),
             "system",
-            false,
+            PostLevel::Members,
         );
         let _ = db.set_channel_local_only("local", true);
         let _ = db.set_channel_position("local", 3);
@@ -1308,11 +1315,14 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/turn-credentials", get(turn::turn_credentials))
         // Bot HTTP API
         .route("/api/send", post(api::send_message))
-        .route("/api/messages", get(api::get_messages))
+        // A channel's history, pins and reactions (chat_access.rs, 2026-11-02): GET for a channel
+        // open to Anyone, a member's signed POST for any other; the Anyone channels' list.
+        .route("/api/messages", get(chat_access::get_messages).post(chat_access::post_messages))
+        .route("/api/channels", get(chat_access::get_channels))
         .route("/api/peers", get(api::get_peers))
         .route("/api/stats", get(api::get_stats))
-        .route("/api/reactions", get(api::get_reactions))
-        .route("/api/pins", get(api::get_pins))
+        .route("/api/reactions", get(chat_access::get_reactions).post(chat_access::post_reactions))
+        .route("/api/pins", get(chat_access::get_pins).post(chat_access::post_pins))
         // The website's front door (2026-11-02, front_door.rs): the update cards, the same release
         // list a page at a time for the Devlog, and a release's signed pair, kept only when both
         // signatures verify against the project's compiled-in release keys (no secret needed).

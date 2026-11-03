@@ -1,0 +1,68 @@
+{
+  "about": "Chat access levels (docs/design/chat-access.md): the answers the relay and the desktop app (crates/humanity-protocol/src/chat_access.rs) and the website (web/shared/chat-access.js) must all give. Read by both test suites; change a row only together with both rule files.",
+  "ranks": ["visitor", "member", "verified", "moderator", "admin"],
+  "roles": [
+    ["", 0, "member"],
+    ["member", 0, "member"],
+    ["unverified", 0, "member"],
+    ["muted", 0, "member"],
+    ["verified", 1, "verified"],
+    ["donor", 0, "verified"],
+    ["family", 1, "verified"],
+    ["guest", 0, "member"],
+    ["mod", 3, "moderator"],
+    ["moderator", 3, "moderator"],
+    ["admin", 4, "admin"],
+    ["owner", 0, "admin"]
+  ],
+  "reads": [
+    ["anyone", "visitor", true],
+    ["members", "visitor", false],
+    ["members", "member", true],
+    ["verified", "member", false],
+    ["verified", "verified", true],
+    ["verified", "admin", true]
+  ],
+  "normalized": [
+    ["verified", "members", "verified"],
+    ["verified", "mods", "mods"],
+    ["anyone", "members", "members"],
+    ["members", "verified", "verified"]
+  ],
+  "links": [
+    ["see https://a.example and HTTP://b.example", 2],
+    ["no link here, just www words", 0],
+    ["https://a.example/x?next=https://b.example", 2],
+    ["one http://a.example", 1]
+  ],
+  "attachments": [
+    ["look /uploads/abc.png", true],
+    ["[[hum:file:v1 {}]]", true],
+    ["the /uploads/ folder", false],
+    ["https://a.example/page", false]
+  ],
+  "mass_mentions": [
+    ["@everyone look", true],
+    ["hi @HERE, quick one", true],
+    ["thanks @hereford", false],
+    ["mail everyone@example.com", false],
+    ["@everyone_fan", false]
+  ],
+  "posts": [
+    { "read": "anyone", "post": "members", "rank": "member", "content": "one https://a.example", "refusal": null },
+    { "read": "anyone", "post": "members", "rank": "member", "content": "https://a.example https://b.example", "refusal": "too_many_links" },
+    { "read": "anyone", "post": "members", "rank": "member", "content": "/uploads/x.png", "refusal": "attachment" },
+    { "read": "anyone", "post": "members", "rank": "verified", "content": "https://a.example https://b.example /uploads/x.png", "refusal": null },
+    { "read": "anyone", "post": "mods", "rank": "member", "content": "hi", "refusal": "post_level" },
+    { "read": "anyone", "post": "mods", "rank": "verified", "content": "hi", "refusal": "post_level" },
+    { "read": "anyone", "post": "mods", "rank": "moderator", "content": "hi", "refusal": null },
+    { "read": "verified", "post": "members", "rank": "member", "content": "hi", "refusal": "post_level" },
+    { "read": "members", "post": "members", "rank": "visitor", "content": "hi", "refusal": "post_level" },
+    { "read": "anyone", "post": "members", "rank": "visitor", "content": "hi", "refusal": "post_level" },
+    { "read": "members", "post": "verified", "rank": "verified", "content": "hi", "refusal": null },
+    { "read": "anyone", "post": "members", "rank": "verified", "content": "@everyone look", "refusal": "mass_mention" },
+    { "read": "anyone", "post": "members", "rank": "member", "content": "@here https://a.example https://b.example", "refusal": "mass_mention" },
+    { "read": "anyone", "post": "members", "rank": "moderator", "content": "@everyone look", "refusal": null }
+  ],
+  "purpose": ["messages", "general", "chat_read\nmessages\ngeneral"]
+}

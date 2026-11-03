@@ -248,7 +248,8 @@ fn demo_state() -> GuiState {
         category: "Text".into(),
         voice_joined: false,
         voice_enabled: voice,
-        read_only: ro,
+        post_level: if ro { humanity_protocol::chat_access::PostLevel::Mods } else { humanity_protocol::chat_access::PostLevel::Members },
+        read_level: humanity_protocol::chat_access::ReadLevel::Anyone,
         federated: true,
         local_only: false,
         voice_participants: vec![],
@@ -1375,7 +1376,7 @@ fn snapshot_chat_protected() {
             protected_fixture(state, true);
             // The default state already lists these two; replace them rather than list each twice.
             state.chat_channels.retain(|c| c.id != "announcements" && c.id != "general");
-            state.chat_channels.push(ChatChannel { id: "announcements".into(), name: "announcements".into(), read_only: true, ..Default::default() });
+            state.chat_channels.push(ChatChannel { id: "announcements".into(), name: "announcements".into(), post_level: humanity_protocol::chat_access::PostLevel::Mods, ..Default::default() });
             state.chat_channels.push(ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
             state.chat_messages.push(ChatMessage {
                 sender_name: "Server admin".into(),

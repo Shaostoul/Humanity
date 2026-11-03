@@ -216,6 +216,8 @@ const ROUTE_FEATURES: &[(&str, Feature)] = &[
     //    server" as accepting a post, so both directions are gated.
     ("/api/send", Feature::Chat),
     ("/api/messages", Feature::Chat),
+    // The channels anyone may read, for the website's read-only view (chat_access.rs).
+    ("/api/channels", Feature::Chat),
     ("/api/search", Feature::Chat),
     ("/api/reactions", Feature::Chat),
     ("/api/pins", Feature::Chat),
@@ -686,6 +688,9 @@ mod tests {
         use std::sync::Arc;
 
         let db = crate::relay::storage::Storage::open_temp("featgate");
+        // #general as a server makes it (open to Anyone), so step 3's unsigned read is answered: a
+        // channel this server does not have reads at Members (chat_access.rs) and refuses with 401.
+        db.ensure_default_channel().expect("#general");
 
         let mut state = RelayState::new(db);
         // The owner said: chat yes, backups no.
@@ -1398,7 +1403,7 @@ mod tests {
     #[tokio::test]
     async fn closing_the_socket_in_voice_leaves_voice_while_another_stays_open() {
         let (state, port) = spawn_relay("voice_seat", Features::all_enabled()).await;
-        state.db.create_channel("lounge", "Lounge", None, "test", false).expect("a voice-enabled channel");
+        state.db.create_channel("lounge", "Lounge", None, "test", humanity_protocol::chat_access::PostLevel::Members).expect("a voice-enabled channel");
         let in_voice = |key: String| {
             let state = state.clone();
             async move {
@@ -1537,7 +1542,7 @@ mod tests {
         tag: &str,
     ) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16) {
         let (state, port) = spawn_relay(tag, Features::all_enabled()).await;
-        state.db.create_channel("lounge", "Lounge", None, "test", false).expect("a voice-enabled channel");
+        state.db.create_channel("lounge", "Lounge", None, "test", humanity_protocol::chat_access::PostLevel::Members).expect("a voice-enabled channel");
         (state, port)
     }
 

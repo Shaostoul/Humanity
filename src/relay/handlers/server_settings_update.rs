@@ -147,7 +147,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
                     "local",
                     Some("This server only. Never bridged to other servers."),
                     "system",
-                    false,
+                    humanity_protocol::chat_access::PostLevel::Members,
                 );
                 let _ = state_clone.db.set_channel_local_only("local", true);
                 let _ = state_clone.db.set_channel_position("local", 3);

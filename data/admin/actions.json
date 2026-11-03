@@ -522,9 +522,33 @@
       "chat": "/channel-delete {name}"
     },
     {
+      "id": "channels.list",
+      "label": "List channels and who can read and post in each",
+      "description": "Every channel with who can read it (anyone, members or verified) and who can post in it (members, verified, or mods: moderators and admins).",
+      "category": "channels",
+      "role": "admin",
+      "danger": "read",
+      "inputs": [],
+      "run": "here"
+    },
+    {
+      "id": "channels.access",
+      "label": "Choose who can read and post in a channel",
+      "description": "Who can read: anyone (no sign-up needed), members (a name on this server) or verified. Who can post: members, verified, or mods (moderators and admins). Nobody can post where they cannot read. Opening a channel to anyone shows visitors only what is posted from then on.",
+      "category": "channels",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [
+        { "name": "channel", "label": "The channel (its id, as in the list)", "kind": "text", "required": true, "max_len": 64 },
+        { "name": "read", "label": "Who can read", "kind": "choice", "required": true, "choices": ["anyone", "members", "verified"] },
+        { "name": "post", "label": "Who can post", "kind": "choice", "required": true, "choices": ["members", "verified", "mods"] }
+      ],
+      "run": "here"
+    },
+    {
       "id": "channels.readonly",
-      "label": "Make a channel read-only, or writable",
-      "description": "Switch whether members may post in a channel. Admins always can.",
+      "label": "Let only moderators and admins post in a channel, or members again",
+      "description": "A shortcut for Who can post: switches a channel between Moderators and admins and Members. Who can read stays as it is.",
       "category": "channels",
       "role": "admin",
       "danger": "safe",

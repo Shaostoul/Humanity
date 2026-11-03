@@ -40,7 +40,7 @@
   <link rel="stylesheet" href="/shared/upload-window.css?v=1">
   <link rel="stylesheet" href="/chat/modals.css?v=6">
   <link rel="stylesheet" href="/chat/voice.css?v=4">
-  <link rel="stylesheet" href="/chat/inputs.css?v=8">
+  <link rel="stylesheet" href="/chat/inputs.css?v=9">
   <link rel="stylesheet" href="/shared/over-limit.css?v=1">
   <!-- Vendored same-origin (twemoji 17.0.3, MIT). Was cdn.jsdelivr.net/@latest
        with no SRI: a CDN/account compromise could have injected arbitrary JS
@@ -85,8 +85,10 @@
         var hasLegacy  = !!localStorage.getItem('humanity_key');
         var hasWrapped = !!localStorage.getItem('humanity_key_wrapped');
         if (hasBackup || hasLegacy || hasWrapped) return;
-        // First-time visitor, redirect to landing.
-        location.replace('/?welcome=1&return=' + encodeURIComponent(location.pathname));
+        // A visitor with no key reads the channels anyone may read first (2026-11-02,
+        // docs/design/chat-access.md section 7): /chat/read, whose one button, Choose a name
+        // to join in, opens the welcome step and comes back here.
+        location.replace('/chat/read');
       } catch (e) {
         // localStorage blocked, let chat handle it, no redirect.
       }
@@ -424,6 +426,9 @@
              2026-10-22). The web keeps its command palette (+) at the box's start. On a phone,
              Search and Pins stay where they were (the header's search, the pin bar), so the
              box keeps the room the phone check of 2026-10-12 gave the text. -->
+        <!-- Who can read this channel, and what I may post here (chat access levels, 2026-11-02;
+             app.js renderAudienceLine, the desktop app's chat/access.rs). -->
+        <div id="chat-audience" class="chat-audience" aria-live="polite" hidden></div>
         <div id="input-area" data-tip-above>
           <div id="composer-box">
             <button id="cmd-palette-btn" onclick="toggleCmdPalette()"
@@ -728,7 +733,7 @@
        verifier, which action needs the PIN, the public-rooms filter and the words test, shared with
        Node tests. After reach.js (it builds the one reach_set), before chat-privacy.js and every
        other chat script that asks it before a locked action. -->
-  <script src="/shared/protected.js?v=4"></script>
+  <script src="/shared/protected.js?v=5"></script>
   <!-- phrase-cover.js: the recovery phrase and the device-link code start covered wherever they
        appear, until the person shows them (2026-10-16: livestreams, signing up in public). Before
        crypto.js (the device-link code), chat-profile.js and chat-onboarding.js. -->
@@ -811,8 +816,10 @@
        Open bringing up the item's own page in the upload window's frame. Before app.js and
        chat-dms.js, which ask it while they draw a message. -->
   <script src="/chat/chat-files-card.js?v=3"></script>
-  <script src="/chat/app.js?v=36"></script>
-  <script src="/chat/chat-messages.js?v=24"></script>
+  <!-- Who can read and post in a channel (2026-11-02): the twin of the relay's rules; before app.js. -->
+  <script src="/shared/chat-access.js?v=1"></script>
+  <script src="/chat/app.js?v=37"></script>
+  <script src="/chat/chat-messages.js?v=25"></script>
   <script src="/chat/chat-dms.js?v=23"></script>
   <script src="/chat/chat-social.js?v=22"></script>
   <script src="/chat/chat-groups-p2p.js?v=19"></script>
@@ -823,7 +830,7 @@
        notifyNewMessage and renderServerList ask them. -->
   <script src="/shared/notify-rules.js?v=2"></script>
   <script src="/chat/chat-notify.js?v=3"></script>
-  <script src="/chat/chat-ui.js?v=24"></script>
+  <script src="/chat/chat-ui.js?v=25"></script>
   <script src="/chat/chat-voice-rooms.js?v=9"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>

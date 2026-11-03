@@ -69,10 +69,10 @@ const LICENCES = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", 
 
 // This server's channels, as its channel_list names them (src/relay/relay.rs ChannelInfo).
 const CHANNELS = [
-  { id: "general", name: "general", read_only: false },
-  { id: "announcements", name: "announcements", read_only: true },
-  { id: "printing", name: "printing", read_only: false },
-  { id: "random", name: "random", read_only: false },
+  { id: "general", name: "general", post_level: "members" },
+  { id: "announcements", name: "announcements", post_level: "mods" },
+  { id: "printing", name: "printing", post_level: "members" },
+  { id: "random", name: "random", post_level: "members" },
 ];
 /** The server lists its channels on the page's connection, as it does when the page signs in. */
 const listChannels = (session, channels) => session.emit({ type: "frame", msg: { type: "channel_list", channels: channels || CHANNELS } });

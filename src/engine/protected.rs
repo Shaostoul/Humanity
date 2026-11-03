@@ -508,7 +508,7 @@ pub(crate) fn lists_room(gs: &GuiState, read_only: bool) -> bool {
 
 /// `lists_room` for a channel of a server's list.
 pub(crate) fn lists_channel(gs: &GuiState, ch: &crate::gui::ChatChannel) -> bool {
-    lists_room(gs, ch.read_only)
+    lists_room(gs, ch.post_level.staff_only())
 }
 
 /// `lists_room` for a Commons room (one bridged room carried by several servers): read-only when
@@ -517,7 +517,7 @@ pub(crate) fn lists_commons_room(gs: &GuiState, name: &str) -> bool {
     if gs.protected.setup.lists_room(false) {
         return true;
     }
-    let read_only = gs.chat_channels.iter().chain(gs.connections.iter().flat_map(|c| c.channels.iter())).any(|c| c.id == name && c.read_only);
+    let read_only = gs.chat_channels.iter().chain(gs.connections.iter().flat_map(|c| c.channels.iter())).any(|c| c.id == name && c.post_level.staff_only());
     lists_room(gs, read_only)
 }
 

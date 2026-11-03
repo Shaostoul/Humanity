@@ -630,7 +630,7 @@ mod local_only_room_tests {
     fn a_local_only_channel_refuses_federation_until_the_guarantee_is_disabled() {
         let path = temp_db("refuse");
         let db = Storage::open(&path).expect("open");
-        db.create_channel("local", "local", Some("stays here"), "test", false)
+        db.create_channel("local", "local", Some("stays here"), "test", humanity_protocol::chat_access::PostLevel::Members)
             .expect("create");
         db.set_channel_local_only("local", true).expect("flag");
 

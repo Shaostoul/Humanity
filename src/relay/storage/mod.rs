@@ -566,7 +566,6 @@ impl Storage {
                 description TEXT,
                 created_by  TEXT,
                 created_at  INTEGER NOT NULL,
-                read_only   INTEGER DEFAULT 0,
                 local_only  INTEGER DEFAULT 0
             );
 
@@ -961,16 +960,9 @@ impl Storage {
                 ON task_comments(task_id);"
         )?;
 
-        // Migration: add read_only column to channels if missing.
-        let has_read_only: bool = conn
-            .prepare("SELECT read_only FROM channels LIMIT 0")
-            .is_ok();
-        if !has_read_only {
-            conn.execute_batch(
-                "ALTER TABLE channels ADD COLUMN read_only INTEGER DEFAULT 0;"
-            )?;
-            info!("Migration: added read_only column to channels");
-        }
+        // (The `read_only` column's ALTER stood here until 2026-11-02: who may post is
+        // `post_level` now, added with the chat access levels below, which carry an older
+        // database's read_only into it and drop the column.)
 
         // ── v0.1132 — guaranteed local-only room ──
         // local_only channels REFUSE federation while the server-settings
@@ -1167,6 +1159,55 @@ impl Storage {
                 "ALTER TABLE channels ADD COLUMN voice_enabled INTEGER DEFAULT 1;"
             )?;
             info!("Migration: added voice_enabled column to channels");
+        }
+
+        // ── Chat access levels (2026-11-02, docs/design/chat-access.md) ──
+        // Who can read a channel and who can post in it. The column defaults are a new channel's
+        // levels: Members and Members (safe by default). `anyone_since` is when the read level last
+        // became Anyone; a visitor is shown only posts made after it (design section 4.1). The
+        // upgrade opens #general and #announcements to Anyone and keeps every other channel at
+        // Members: they were readable by anyone, and nobody posting was told. #general's visitors
+        // see only what is posted from now (its earlier posts were made under "encrypted", BUG-223);
+        // #announcements' whole history stays public, since only the Deploy Bot ever posted there
+        // (all 2,449 lines on united-humanity.us, read 2026-11-02) and the front page shows it already.
+        // An older database's read-only flag becomes its post level, then the column goes (no
+        // compatibility shims before v1.0, CLAUDE.md).
+        //
+        // ONE TRANSACTION (the migration review, 2026-11-02): each step is decided first, then all of
+        // them run together or none do. Run one at a time, a crash after the read_level column was
+        // added but before #general and #announcements were opened would have left both at Members
+        // for good (the next start sees the column and skips), quietly ending the read view and
+        // their federation. SQLite runs ALTER TABLE inside a transaction.
+        let lacks = |column: &str| conn.prepare(&format!("SELECT {column} FROM channels LIMIT 0")).is_err();
+        let mut steps: Vec<String> = Vec::new();
+        if lacks("anyone_since") {
+            steps.push("ALTER TABLE channels ADD COLUMN anyone_since INTEGER NOT NULL DEFAULT 0;".to_string());
+        }
+        if lacks("read_level") {
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0);
+            // A fresh database has no channels yet: #general and #announcements are opened when
+            // they are made (channels.rs `ensure_default_channel`, relay/mod.rs's seed).
+            steps.push("ALTER TABLE channels ADD COLUMN read_level TEXT NOT NULL DEFAULT 'members';".to_string());
+            steps.push("UPDATE channels SET read_level = 'anyone' WHERE id IN ('general', 'announcements');".to_string());
+            steps.push(format!("UPDATE channels SET anyone_since = {now_ms} WHERE id = 'general';"));
+        }
+        if lacks("post_level") {
+            steps.push("ALTER TABLE channels ADD COLUMN post_level TEXT NOT NULL DEFAULT 'members';".to_string());
+        }
+        if !lacks("read_only") {
+            steps.push("UPDATE channels SET post_level = 'mods' WHERE COALESCE(read_only, 0) = 1;".to_string());
+            steps.push("ALTER TABLE channels DROP COLUMN read_only;".to_string());
+        }
+        if !steps.is_empty() {
+            let batch = format!("BEGIN IMMEDIATE;\n{}\nCOMMIT;", steps.join("\n"));
+            if let Err(e) = conn.execute_batch(&batch) {
+                let _ = conn.execute_batch("ROLLBACK;");
+                return Err(e);
+            }
+            info!("Migration: chat access levels ({} steps in one transaction)", steps.len());
         }
 
         // ── Server settings singleton table (v0.200.0) ──

@@ -16,8 +16,10 @@ Moved from `CLAUDE.md` on 2026-10-23 with the wording unchanged. The code is the
 messages       (id, msg_type, from_key, from_name, content, timestamp, signature, raw_json,
                 channel_id (alter), reply_to_from (alter), reply_to_timestamp (alter), origin_server (alter))
 channels       (id, name, description, created_by, created_at,
-                read_only (alter), local_only (alter), position (alter), category_id (alter),
-                federated (alter), voice_enabled (alter))
+                local_only (alter), position (alter), category_id (alter), federated (alter),
+                voice_enabled (alter), anyone_since (alter), read_level (alter), post_level (alter);
+                read_only was moved into post_level and dropped, 2026-11-02, in one transaction:
+                docs/design/chat-access.md)
 profiles       (name, bio, socials, avatar_url, banner_url, pronouns, location, website, streaming_url, streaming_live)
 project_tasks  (id, title, description, status, priority, assignee, created_by, created_at, updated_at, labels)   -- NOT `tasks`
 task_comments  (id, task_id, author_key, author_name, content, created_at)

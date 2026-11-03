@@ -313,9 +313,9 @@ const OTHER_PIN = "55512340";
 const SEED = Uint8Array.from({ length: 32 }, (_, i) => (i * 7 + 3) & 0xff);
 const OTHER_SEED = Uint8Array.from({ length: 32 }, (_, i) => (i * 11 + 5) & 0xff);
 const CHANNELS = [
-  { id: "general", name: "general", read_only: false },
-  { id: "announcements", name: "announcements", read_only: true },
-  { id: "dev", name: "dev", read_only: false, voice_enabled: true },
+  { id: "general", name: "general", post_level: "members" },
+  { id: "announcements", name: "announcements", post_level: "mods" },
+  { id: "dev", name: "dev", post_level: "members", voice_enabled: true },
 ];
 const CTL_FOLLOW = "[[hum:follow]]";
 const CTL_UNFOLLOW = "[[hum:unfollow]]";
@@ -483,6 +483,7 @@ async function loadChat(opts = {}) {
   run("chat/chat-key-cards.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-messages.js");
@@ -1092,7 +1093,9 @@ test("turning it on sends exactly one reach_set with the preset's values, and no
   const kept = chat.saved();
   assert.ok(!wire.includes(kept.pin.salt) && !wire.includes(kept.pin.hash), "nothing of the PIN's verifier");
   assert.equal(chat.posted.length, 0, "nothing posted");
-  assert.ok(chat.fetches.slice(fetchedBefore).every((f) => f.method === "GET" && !/protect/i.test(f.url + (f.body || ""))), "and no request carries anything about it");
+  // A GET, or the chat's own signed read of a channel (POST /api/messages, pins, reactions: chat-access.md).
+  const ordinary = (f) => f.method === "GET" || /\/api\/(messages|pins|reactions)$/.test(f.url);
+  assert.ok(chat.fetches.slice(fetchedBefore).every((f) => ordinary(f) && !/protect/i.test(f.url + (f.body || ""))), "and no request carries anything about it");
   assert.deepEqual(kept.approved, [ANN], "the friend kept in the review is let through");
   assert.equal(chat.store.warningsOn, true, "warnings are on");
 
@@ -1185,6 +1188,8 @@ test("pictures and files from someone who is not a friend are not shown; a frien
     + " and /uploads/1760000000000_ship.blend and /uploads/1760000000001_holiday.heic and /uploads/1760000000002_maps.zip";
   const line = escHtml(PRESET.picture_hidden_line);
   const post = (from, ts) => {
+    // Verified posters: below verified a line's pictures and files are plain words (chat-access.md).
+    chat.fn("peerData")[from] = Object.assign({}, chat.fn("peerData")[from], { role: "verified" });
     chat.appended.length = 0;
     chat.fn("addChatMessage")(from === ME ? "Me_1" : "x", body, ts, from, true, false, null, null, false, null);
     return chat.appended[0].innerHTML;

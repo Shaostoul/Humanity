@@ -100,7 +100,7 @@ function applyReactionSync(targetFrom, targetTs, emoji, reactorKey) {
 // Load reactions from the API for the current channel and apply them.
 async function loadReactionsForChannel(channelId) {
   try {
-    const resp = await fetch(`/api/reactions?channel=${encodeURIComponent(channelId)}&limit=500`);
+    const resp = await chatRead('reactions', channelId, { limit: 500 }); // signed for a member (app.js)
     const data = await resp.json();
     if (data.reactions && data.reactions.length > 0) {
       for (const r of data.reactions) {
@@ -339,7 +339,7 @@ function removeMyPin(index) {
 
 async function loadPinsForChannel(channelId) {
   try {
-    const resp = await fetch(`/api/pins?channel=${encodeURIComponent(channelId)}`);
+    const resp = await chatRead('pins', channelId); // signed for a member (app.js)
     const data = await resp.json();
     currentPins = data.pins || [];
     renderPinBar();
@@ -1045,7 +1045,7 @@ function dropChannelNow() {
   const ch = (typeof channelList !== 'undefined' && Array.isArray(channelList)) ? channelList.find((c) => c.id === activeChannel) : null;
   if (!ch) return null;
   const myRole = (typeof peerData === 'object' && peerData && peerData[myKey] && peerData[myKey].role) || '';
-  return { id: ch.id, name: '#' + ch.name, postable: !ch.read_only || myRole === 'admin' || myRole === 'owner' };
+  return { id: ch.id, name: '#' + ch.name, postable: HosChatAccess.mayPost(ch.read_level, ch.post_level, chatRankOf(myKey)) };
 }
 
 // The upload window over the chat (/shared/upload-window.js), made the first time a drop opens it.

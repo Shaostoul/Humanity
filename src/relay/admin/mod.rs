@@ -42,6 +42,7 @@ use serde::{Deserialize, Serialize};
 use crate::relay::relay::RelayState;
 
 pub mod alerts;
+pub mod channels;
 pub mod federation;
 pub mod members;
 #[cfg(test)]
@@ -340,6 +341,8 @@ pub const RUNNERS: &[(&str, Runner)] = &[
     ("alerts.set_enabled", |s, c, i| boxed(alerts::set_enabled(s, c, i))),
     ("alerts.remove", |s, c, i| boxed(alerts::remove(s, c, i))),
     ("alerts.test", |s, c, i| boxed(alerts::test(s, c, i))),
+    ("channels.list", |s, c, i| boxed(channels::list(s, c, i))),
+    ("channels.access", |s, c, i| boxed(channels::access(s, c, i))),
     ("federation.list", |s, c, i| boxed(federation::list(s, c, i))),
     ("federation.add", |s, c, i| boxed(federation::add(s, c, i))),
     ("federation.add_key", |s, c, i| boxed(federation::add_key(s, c, i))),

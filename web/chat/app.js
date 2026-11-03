@@ -172,7 +172,8 @@ const SCRATCH_PAD_CHANNEL = {
   id: SCRATCH_PAD_ID,
   name: 'scratch-pad',
   description: SCRATCH_PAD_NOTE + ' Take notes, test formatting, run /commands.',
-  read_only: false,
+  read_level: 'members',
+  post_level: 'members',
   voice_enabled: false,
   federated: false,
 };
@@ -899,6 +900,100 @@ function onIdentityConfirmed() {
   }
 }
 
+// ── Reading a channel (chat access levels, 2026-11-02, docs/design/chat-access.md) ──
+// A channel that is not open to Anyone is served only to a member's signed request: POST with the
+// Dilithium3 signature over HosChatAccess.readPurpose(what, channel) and the time, in the body (a
+// key and a signature are about 10 KB, too long for an address). Without a key, or before the
+// signing key is ready, it asks as a visitor would, with GET, answered for an Anyone channel only.
+async function chatRead(what, channel, params) {
+  const q = Object.assign({ channel: channel }, params || {});
+  const ts = Date.now();
+  const A = window.HosChatAccess;
+  const sig = (myKey && A && typeof pqSignChatMessage === 'function') ? await pqSignChatMessage(A.readPurpose(what, channel), ts) : null;
+  if (sig) {
+    return fetch('/api/' + what, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ key: myKey, timestamp: ts, sig: sig }, q)),
+    });
+  }
+  const qs = Object.keys(q).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(q[k])).join('&');
+  return fetch('/api/' + what + '?' + qs);
+}
+
+/** The rank of `key` on this server, from what the member list says of them (chat-access.js). */
+function chatRankOf(key) {
+  const A = window.HosChatAccess;
+  if (!A) return 0;
+  if (String(key || '').startsWith('bot_')) return A.RANKS.admin; // the server's own bots
+  const p = (typeof peerData !== 'undefined' && peerData) ? peerData[key] : null;
+  return p ? A.rankForMember(p.role || '', 0) : A.RANKS.member;
+}
+
+/** Whether `key`'s links and picture and file addresses show as such here: verified and up, or not a channel. */
+function posterShowsLinks(key) {
+  const A = window.HosChatAccess;
+  if (!A || activeDmPartner || isScratchPad() || String(activeChannel || '').startsWith('p2pgroup:')) return true;
+  return A.showsLinks(chatRankOf(key));
+}
+
+/** The icon of a channel's read level (chat-access.md 6.1): the desktop app paints the same three. */
+const CHAT_LEVEL_ICONS = { anyone: 'globe', members: 'users', verified: 'check' };
+
+/** A channel's level badge: its words, its icon's name and its level, for the list and the line above the box. */
+function chatLevelBadge(ch) {
+  const A = window.HosChatAccess;
+  const read = A ? A.readLevel(ch && ch.read_level) : 'members';
+  const post = A ? A.normalizedPost(read, ch && ch.post_level) : 'members';
+  const word = { anyone: 'chat.level_anyone', members: 'chat.level_members', verified: 'chat.level_verified', mods: 'chat.level_mods' };
+  const tip = window.i18n ? i18n.t('chat.badge_hint', { read: i18n.t(word[read]), post: i18n.t(word[post]) }) : '';
+  return { tip, icon: CHAT_LEVEL_ICONS[read], read };
+}
+
+/** The badge as markup for a list built as a string (chat-ui.js): every word escaped. */
+function chatLevelBadgeHtml(ch) {
+  const b = chatLevelBadge(ch);
+  const svg = typeof hosIcon === 'function' ? hosIcon(b.icon, 11) : '';
+  return '<span class="ch-badge ch-level" data-level="' + esc(b.read) + '" role="img" aria-label="' + esc(b.tip) + '" data-tip-desc="' + esc(b.tip) + '">' + svg + '</span>';
+}
+
+/**
+ * The line above the box you type in: who can read this channel, then why I cannot post here or,
+ * below verified, the one-link rule with the Verified glossary card. Empty for a direct message, a
+ * group or the scratch pad. The desktop app draws the same (src/gui/pages/chat/access.rs).
+ */
+function renderAudienceLine() {
+  const el = document.getElementById('chat-audience');
+  const A = window.HosChatAccess;
+  if (!el || !A || !window.i18n) return; // the words come by key (shell.js loads i18n.js)
+  const ch = (activeDmPartner || isScratchPad()) ? null : channelList.find(c => c.id === activeChannel);
+  if (!ch) { el.textContent = ''; el.hidden = true; return; }
+  const keys = A.audienceKeys(ch.read_level, ch.post_level, chatRankOf(myKey));
+  el.textContent = '';
+  // The channel's level badge first, with its hint (6.1).
+  const b = chatLevelBadge(ch);
+  const badge = document.createElement('span');
+  badge.className = 'ch-badge ch-level';
+  badge.setAttribute('data-level', b.read);
+  badge.setAttribute('role', 'img');
+  badge.setAttribute('aria-label', b.tip);
+  badge.setAttribute('data-tip-desc', b.tip);
+  const svg = typeof hosIcon === 'function' ? hosIcon(b.icon, 12) : '';
+  if (svg) badge.innerHTML = svg;
+  el.appendChild(badge);
+  el.appendChild(document.createTextNode(' '));
+  const reads = document.createElement('span');
+  reads.textContent = i18n.t(keys.reads);
+  el.appendChild(reads);
+  if (keys.more) {
+    const more = document.createElement('span');
+    i18n.fill(more, keys.more);
+    el.appendChild(document.createTextNode(' '));
+    el.appendChild(more);
+  }
+  el.hidden = false;
+}
+
 // ── History ──
 async function loadHistory() {
   // Ensure channel context tint on initial load (switchChannel sets this too, but
@@ -912,7 +1007,7 @@ async function loadHistory() {
   // The scratch pad is kept in this browser; the server is never asked for it.
   if (isScratchPad()) return;
   try {
-    const resp = await fetch(`/api/messages?limit=100&channel=${encodeURIComponent(activeChannel)}`);
+    const resp = await chatRead('messages', activeChannel, { limit: 100 });
     const data = await resp.json();
     if (data.messages && data.messages.length > 0) {
       const notice = document.createElement('div');
@@ -2456,6 +2551,10 @@ function markLineNotSent(timestamp, reason, limit) {
   const words = reason === 'too_long' ? i18n.t('chat.line_not_sent_too_long', { limit: limit || '?' })
     : reason === 'too_fast' ? i18n.t('chat.line_not_sent_too_fast')
     : reason === 'new_account_wait' ? i18n.t('chat.line_not_sent_new_account')
+    : reason === 'post_level' ? i18n.t('chat.line_not_sent_post_level')
+    : reason === 'mass_mention' ? i18n.t('chat.line_not_sent_mass_mention')
+    : reason === 'too_many_links' ? i18n.t('chat.line_not_sent_links')
+    : reason === 'attachment' ? i18n.t('chat.line_not_sent_attachment')
     : i18n.t('chat.line_not_sent');
   const s = lineStatusEl(el);
   s.textContent = words + ' ';
@@ -2573,7 +2672,7 @@ function renderChannelList() {
   list.innerHTML = shown.map(ch => {
     const isActive = ch.id === activeChannel && !activeDmPartner;
     const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-    const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
+    const lock = HosChatAccess.staffOnly(ch) ? ' ' + hosIcon('lock', 14) : '';
     const fedIcon = ch.federated ? '<span class="fed-icon" title="Federated">🌐</span>' : '';
     return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}${fedIcon}</div>`;
   }).join('');
@@ -2640,13 +2739,12 @@ function updateInputForChannel() {
   }
 
   const ch = channelList.find(c => c.id === activeChannel);
-  // Check if the current user is admin/mod.
-  const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
-  const isStaff = myRole === 'admin' || myRole === 'mod';
+  // Who can read this channel and what I may post here, above the box (chat-access.js).
+  renderAudienceLine();
 
-  if (ch && ch.read_only && !isStaff) {
+  if (ch && !HosChatAccess.mayPost(ch.read_level, ch.post_level, chatRankOf(myKey))) {
     input.disabled = true;
-    input.placeholder = 'This channel is read-only';
+    input.placeholder = window.i18n ? i18n.t('chat.access_cannot_post_here') : '';
     sendBtn.disabled = true;
   } else {
     input.disabled = false;
@@ -2668,7 +2766,7 @@ function updateChannelHeader() {
   }
   const ch = channelList.find(c => c.id === activeChannel);
   if (ch) {
-    const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
+    const lock = HosChatAccess.staffOnly(ch) ? ' ' + hosIcon('lock', 14) : '';
     header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">${esc(ch.description)}</span>` : ''}`;
     header.style.display = 'block';
     if (window.twemoji) twemoji.parse(header);
@@ -3028,6 +3126,9 @@ listenForFileTrouble(document.getElementById('messages'));
 listenForFileTrouble(document.getElementById('thread-panel-messages'));
 
 function formatBody(text, fromKey) {
+  // A poster below verified on this server: links, pictures and files stay plain words
+  // (chat-access.js; the desktop app draws them the same, src/gui/pages/chat/access.rs).
+  const plainLinks = typeof posterShowsLinks === 'function' && !posterShowsLinks(fromKey);
   // Step 1: Extract code blocks BEFORE escaping (they get special treatment).
   const codeBlocks = [];
   const CODE_PLACEHOLDER = '\x00CB';
@@ -3045,19 +3146,19 @@ function formatBody(text, fromKey) {
   // so `__`, `*` or `@` in a file's name or address never reaches inside it.
   const fileCards = [];
   const FILE_CARD_PLACEHOLDER = '\x00FC';
-  safe = safe.replace(FILE_LINK_RE, (match, url, ext) => {
+  if (!plainLinks) safe = safe.replace(FILE_LINK_RE, (match, url, ext) => {
     fileCards.push(fileCardHtml(url, ext));
     return FILE_CARD_PLACEHOLDER + (fileCards.length - 1) + FILE_CARD_PLACEHOLDER;
   });
 
   // Image URLs → collapsed image placeholders.
-  safe = safe.replace(
+  if (!plainLinks) safe = safe.replace(
     /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:png|jpe?g|gif|webp)(?:\?[^\s<]*)?)/gi,
     '<span class="img-placeholder" data-img-url="$1">' + hosIcon('image', 14) + ' Image (click to load)</span>'
   );
 
   // Other URLs → clickable links.
-  safe = safe.replace(
+  if (!plainLinks) safe = safe.replace(
     /(?<!["=])(https?:\/\/[^\s<]+)(?![^<]*<\/a>|[^<]*<\/span>|[^<]*<\/audio>|[^<]*<\/video>)/g,
     '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>'
   );

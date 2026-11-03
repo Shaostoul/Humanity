@@ -89,6 +89,7 @@ function loadChat() {
   // The globals the voice script patches or reads, as the earlier chat
   // scripts define them in the page (app.js comes before it in index.html).
   run("shared/events.js");
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   for (const name of ["updateUserList", "updateStats", "renderServerList", "addSystemMessage", "hosIcon", "shortKey", "esc"]) {
     if (typeof ctx[name] !== "function") ctx[name] = () => "";

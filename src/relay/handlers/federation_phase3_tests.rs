@@ -43,9 +43,11 @@ async fn relay(tag: &str) -> Relay {
     let port = listener.local_addr().unwrap().port();
     let state = crate::relay::serve_relay(db, listener).await;
     let (key, _) = state.db.get_or_create_server_keypair().unwrap();
-    let _ = state.db.create_channel("general", "General", None, "test", false);
+    let _ = state.db.create_channel("general", "General", None, "test", humanity_protocol::chat_access::PostLevel::Members);
+    // Open to Anyone, as a server makes its #general: only such a channel travels (chat-access.md).
+    let _ = state.db.set_channel_access("general", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
     assert!(state.db.set_channel_federated("general", true).unwrap(), "#general is shared");
-    let _ = state.db.create_channel("local", "Local", None, "test", false);
+    let _ = state.db.create_channel("local", "Local", None, "test", humanity_protocol::chat_access::PostLevel::Members);
     Relay { state, port, key }
 }
 

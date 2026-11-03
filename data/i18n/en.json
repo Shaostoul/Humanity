@@ -56,7 +56,34 @@
     "line_edit_again_hint": "Puts your words back in the message box, so you can shorten them or wait a moment, then send them again.",
     "identity_locked_prompt": "Your identity in this browser is protected by a passphrase.\nType the passphrase to unlock it:",
     "identity_not_unlocked": "It did not unlock:",
-    "identity_locked_choice": "Try the passphrase again?\n\nCancel makes a new identity in this browser instead: a different account. Your protected identity then comes back only with its recovery phrase."
+    "identity_locked_choice": "Try the passphrase again?\n\nCancel makes a new identity in this browser instead: a different account. Your protected identity then comes back only with its recovery phrase.",
+    "access_read_anyone": "Anyone can read this, even without signing up.",
+    "access_read_members": "Only people on this server can read this.",
+    "access_read_verified": "Only verified people on this server can read this.",
+    "access_post_mods": "Only moderators and admins can post here.",
+    "access_post_verified": "Only [[verified|verified_member]] people can post here: an admin of this server verifies people.",
+    "access_post_members": "Choose a name on this server to post here.",
+    "access_one_link": "One link a message. Pictures and files need a [[verified|verified_member]] account: an admin of this server verifies people.",
+    "line_not_sent_post_level": "Not sent: you cannot post in this channel.",
+    "line_not_sent_links": "Not sent: one link a message until an admin of this server verifies you.",
+    "line_not_sent_attachment": "Not sent: pictures and files need a verified account.",
+    "level_read_label": "Who can read",
+    "level_post_label": "Who can post",
+    "level_read_hint": "Who can read this channel. Anyone: everyone, even without signing up; visitors see only what is posted after you choose it. Members: people with a name on this server. Verified: verified members, moderators and admins.",
+    "level_post_hint": "Who can post in this channel. Nobody can post where they cannot read.",
+    "level_anyone": "Anyone",
+    "level_members": "Members",
+    "level_verified": "Verified",
+    "level_mods": "Moderators and admins",
+    "level_anyone_hint": "Everyone can read it, even without signing up: the website's visitors and search engines too.",
+    "level_members_hint": "Only people with a chosen name on this server.",
+    "level_verified_hint": "Only verified members, moderators and admins of this server.",
+    "level_mods_hint": "Only this server's moderators and admins.",
+    "levels_new_channel": "A new channel starts with Members for both: change who can read and post on its row once it is made.",
+    "access_cannot_post_here": "You cannot post in this channel: the line above says who can.",
+    "line_not_sent_mass_mention": "Not sent: @everyone and @here are for this server's moderators and admins.",
+    "badge_hint": "Who can read: {{read}}. Who can post: {{post}}.",
+    "badge_label": "Who can read and post in this channel"
   },
   "settings": {
     "language": "Language",
@@ -2239,7 +2266,7 @@
     "go_hint": "Opens the page this step is about.",
     "close_hint": "Closes this window and goes back to the guides.",
     "load_failed": "Could not load quests ({{error}}). Try refreshing, or start with the Chat.",
-    "wizard_messages_privacy": "Your direct messages are sealed: only you and the person you write to can read them. Posts in a channel are public: anyone can read them, even without signing up."
+    "wizard_messages_privacy": "Your direct messages are sealed: only you and the person you write to can read them. Each channel says above the box you type in who can read it: some are for people on this server, and some anyone can read, even without signing up."
   },
   "home": {
     "title": "Home",
@@ -2927,5 +2954,31 @@
     "og_title": "HumanityOS Devlog",
     "og_description": "Every release as it ships. Built in the open, several releases a day.",
     "feed_title": "HumanityOS releases"
+  },
+  "chat_read": {
+    "page_title": "Read the chat, HumanityOS",
+    "meta_description": "Read the HumanityOS channels anyone may read, without signing up.",
+    "title": "Read the chat",
+    "intro": "You are reading as a visitor. Only the channels anyone may read are here, and only what was posted after each was opened to everyone. Names are shown, nothing else about anyone.",
+    "join": "Choose a name to join in",
+    "join_hint": "Opens the welcome step: choose a name and your browser makes your key. Then you can post and reply, and read the channels kept for people on this server.",
+    "channels_label": "Channels anyone may read",
+    "channel_hint": "Shows this channel's posts.",
+    "refresh": "Refresh",
+    "refresh_hint": "Asks the server for anything posted since you opened this page.",
+    "loading": "Reading the channel...",
+    "empty": "Nothing has been posted here since it was opened to everyone.",
+    "no_channels": "This server has no channel anyone may read. Choose a name to join in and see the rest.",
+    "failed": "The server did not answer. Try Refresh in a moment.",
+    "messages_label": "Posts in this channel"
+  },
+  "admin": {
+    "channels_title": "Channels: who can read and who can post",
+    "channels_intro": "Who can read: Anyone (no sign-up needed; visitors see only what is posted after you choose it), Members (a name on this server) or Verified. Who can post: Members, Verified, or Moderators and admins. Nobody can post where they cannot read. A new channel starts at Members for both.",
+    "channels_save": "Save",
+    "channels_save_hint": "Sets who can read and who can post in this channel. Everyone connected gets the new list at once.",
+    "channels_none": "This server has no channels yet.",
+    "channels_read_hint": "Who can read this channel.",
+    "channels_post_hint": "Who can post in this channel."
   }
 }

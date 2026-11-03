@@ -728,19 +728,26 @@ pub(super) fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state:
         // Channel flag toggles. These mutate the local ChatChannel for instant
         // feedback; the Save button persists them to the relay below. Read the
         // current values out of chat_channels (the modal's source of truth).
-        let (mut voice_enabled, mut read_only) = state.chat_channels.iter()
+        let (mut voice_enabled, mut read_level, mut post_level) = state.chat_channels.iter()
             .find(|c| c.id == state.edit_channel_id)
-            .map(|c| (c.voice_enabled, c.read_only))
-            .unwrap_or((true, false));
+            .map(|c| (c.voice_enabled, c.read_level, c.post_level))
+            .unwrap_or_default();
         if ui.checkbox(&mut voice_enabled, "Voice enabled").changed() {
             if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == state.edit_channel_id) {
                 ch.voice_enabled = voice_enabled;
             }
         }
-        if ui.checkbox(&mut read_only, "Read-only (only admins/mods can post)").changed() {
-            if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == state.edit_channel_id) {
-                ch.read_only = read_only;
-            }
+        // Who can read and who can post (chat/access.rs, the same pickers as Server Settings).
+        let salt = state.edit_channel_id.clone();
+        widgets::form_row(ui, theme, humanity_core::i18n::t("chat.level_read_label"), |ui| {
+            super::access::read_picker(ui, &salt, 200.0, &mut read_level);
+        });
+        widgets::form_row(ui, theme, humanity_core::i18n::t("chat.level_post_label"), |ui| {
+            super::access::post_picker(ui, &salt, 200.0, &mut post_level);
+        });
+        if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == state.edit_channel_id) {
+            ch.read_level = read_level;
+            ch.post_level = post_level;
         }
 
         ui.add_space(theme.spacing_md);
@@ -767,11 +774,12 @@ pub(super) fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state:
                                 "channel_id": state.edit_channel_id,
                                 "name": state.edit_channel_name.trim(),
                                 "description": state.edit_channel_description.trim(),
-                                "read_only": read_only,
+                                "read_level": read_level.as_str(),
+                                "post_level": post_level.as_str(),
                                 "voice_enabled": voice_enabled,
                             });
                             client.send(&msg.to_string());
-                            log::info!("Channel update: {} (read_only={read_only}, voice_enabled={voice_enabled})", state.edit_channel_id);
+                            log::info!("Channel update: {} (read={}, post={}, voice_enabled={voice_enabled})", state.edit_channel_id, read_level.as_str(), post_level.as_str());
                         }
                     }
                     state.show_channel_edit_modal = false;

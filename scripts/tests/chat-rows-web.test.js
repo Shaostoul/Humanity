@@ -541,6 +541,7 @@ function loadChat() {
   run("shared/events.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   run("chat/chat-messages.js");
   run("chat/chat-dms.js");

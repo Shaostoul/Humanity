@@ -172,6 +172,9 @@ fn the_chat_page_shows_a_posted_video_as_a_card_not_a_bare_path() {
     let theme = crate::gui::theme::load_theme();
     let mut state = GuiState::default();
     state.chat_active_channel = "general".into();
+    // A verified poster: below Verified a line's links and files are plain words since 2026-11-02
+    // (docs/design/chat-access.md; chat/access_tests.rs holds that).
+    state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann0".into(), role: "verified".into(), status: String::new() });
     state.chat_messages.push(ChatMessage {
         sender_name: "Ann".into(),
         sender_key: "ann0".into(),

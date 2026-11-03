@@ -237,6 +237,7 @@ async function loadDevice() {
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/chat-key-cards.js");
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-dms.js");

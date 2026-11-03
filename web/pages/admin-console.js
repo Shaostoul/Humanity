@@ -327,6 +327,60 @@
     run('federation.list', {}, 'fed-status', function (r) { renderFederation(r.data); });
   }
 
+  // ── Channels: who can read and who can post (docs/design/chat-access.md) ──
+  // The web mirror of the desktop app's Server Settings > Channels pickers (gui/pages/chat/access.rs).
+
+  const LEVEL_WORDS = { anyone: 'chat.level_anyone', members: 'chat.level_members', verified: 'chat.level_verified', mods: 'chat.level_mods' };
+  const LEVEL_HINTS = { anyone: 'chat.level_anyone_hint', members: 'chat.level_members_hint', verified: 'chat.level_verified_hint', mods: 'chat.level_mods_hint' };
+
+  /** A picker of `levels`, `chosen` selected, with its hint by key. */
+  function levelPicker(levels, chosen, hintKey) {
+    const sel = el('select', {});
+    window.i18n.hint(sel, hintKey);
+    for (const l of levels) {
+      const o = el('option', { text: window.i18n.t(LEVEL_WORDS[l]) });
+      o.value = l;
+      o.setAttribute('data-i18n-tip', LEVEL_HINTS[l]);
+      if (l === chosen) o.selected = true;
+      sel.appendChild(o);
+    }
+    return sel;
+  }
+
+  function renderChannels(view) {
+    const list = document.getElementById('channels-list');
+    if (!list || !window.i18n) return;
+    list.textContent = '';
+    const channels = (view && view.channels) || [];
+    if (!channels.length) {
+      list.appendChild(el('p', { cls: 'fed-help', text: window.i18n.t('admin.channels_none') }));
+      return;
+    }
+    const reads = (view && view.read_levels) || ['anyone', 'members', 'verified'];
+    const posts = (view && view.post_levels) || ['members', 'verified', 'mods'];
+    channels.forEach(function (c) {
+      const read = levelPicker(reads, c.read_level, 'admin.channels_read_hint');
+      const post = levelPicker(posts, c.post_level, 'admin.channels_post_hint');
+      read.setAttribute('aria-label', '#' + c.name + ': ' + window.i18n.t('chat.level_read_label'));
+      post.setAttribute('aria-label', '#' + c.name + ': ' + window.i18n.t('chat.level_post_label'));
+      const save = el('button', { type: 'button', text: window.i18n.t('admin.channels_save') });
+      window.i18n.hint(save, 'admin.channels_save_hint');
+      save.addEventListener('click', function () {
+        run('channels.access', { channel: c.id, read: read.value, post: post.value }, 'channels-status', function (r) { renderChannels(r.data); });
+      });
+      list.appendChild(el('div', { cls: 'fed-add-row channel-access-row', 'data-channel': c.id }, [
+        el('span', { cls: 'fed-name', text: '#' + c.name }),
+        el('label', { text: window.i18n.t('chat.level_read_label') + ' ' }, [read]),
+        el('label', { text: window.i18n.t('chat.level_post_label') + ' ' }, [post]),
+        save,
+      ]));
+    });
+  }
+
+  function loadChannels() {
+    run('channels.list', {}, 'channels-status', function (r) { renderChannels(r.data); });
+  }
+
   // ── Every admin action ──
 
   const ROLE_WORDS = { admin: 'for admins', mod: 'for moderators', member: 'for anyone' };
@@ -479,10 +533,12 @@
     if (logBtn) logBtn.addEventListener('click', loadLog);
     loadAlerts();
     loadFederation();
+    loadChannels();
     loadRegistry();
   }
 
   // The dashboard is revealed once the stats sign-in works (admin-app.js); the
   // console starts when it is shown, so a non-admin is not asked to sign twice.
   window.hosAdminConsoleStart = init;
+  window.hosAdminChannels = { renderChannels: renderChannels, loadChannels: loadChannels };
 })();

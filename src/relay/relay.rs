@@ -629,8 +629,11 @@ pub struct ChannelInfo {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    #[serde(default)]
-    pub read_only: bool,
+    /// Who can read it and who can post in it (docs/design/chat-access.md): `anyone`, `members`
+    /// or `verified`; `members`, `verified` or `mods` (only moderators and admins post: what the
+    /// `read_only` flag meant before 2026-11-02).
+    pub read_level: String,
+    pub post_level: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category_id: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -862,8 +865,8 @@ pub enum RelayMessage {
         categories: Option<Vec<CategoryInfo>>,
     },
 
-    /// Admin updates a channel's metadata (name / description) and flags
-    /// (read_only / voice_enabled / federated). Sent by the Server
+    /// Admin updates a channel's metadata (name / description), who can read and post in it
+    /// (read_level / post_level, chat_access.rs) and flags (voice_enabled / federated). Sent by the Server
     /// Settings → Channels spreadsheet on Save (v0.192.0). The handler
     /// requires admin role; on success it broadcasts a fresh
     /// `channel_list` so all clients see the new state.
@@ -875,7 +878,9 @@ pub enum RelayMessage {
         #[serde(default)]
         description: Option<String>,
         #[serde(default)]
-        read_only: Option<bool>,
+        read_level: Option<String>,
+        #[serde(default)]
+        post_level: Option<String>,
         #[serde(default)]
         voice_enabled: Option<bool>,
         #[serde(default)]
@@ -3284,7 +3289,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
 
                 // Send persisted reactions for the default channel ("general").
-                if let Ok(records) = state.db.load_channel_reactions("general", 500) {
+                if let Ok(records) = crate::relay::chat_access::general_reactions(&state.db, &public_key) {
                     let reactions: Vec<ReactionData> = records.into_iter().map(|r| ReactionData {
                         target_from: r.target_from,
                         target_timestamp: r.target_timestamp,
@@ -3299,7 +3304,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
 
                 // Send pinned messages for the default channel ("general").
-                if let Ok(pins) = state.db.get_pinned_messages("general") {
+                if let Ok(pins) = crate::relay::chat_access::general_pins(&state.db, &public_key) {
                     let pin_data: Vec<PinData> = pins.into_iter().map(|p| PinData {
                         from_key: p.from_key,
                         from_name: p.from_name,
@@ -3411,6 +3416,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             if should_skip {
                 continue;
             }
+            // A channel's lines, reactions and pins only to a socket that may read it (chat_access.rs).
+            if crate::relay::chat_access::line_channel(&msg).is_some_and(|ch| !crate::relay::chat_access::may_see(&state_for_broadcast.db, &my_key_for_broadcast, ch)) { continue; }
 
             // DmNew: only deliver to sockets bound to the target mailbox key
             // (covers the recipient AND, for self-copies, the sender's own
@@ -4006,7 +4013,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     let read_only = args.iter().any(|a| *a == "--readonly");
                                                     let desc = args.iter().filter(|a| **a != "--readonly").copied().collect::<Vec<_>>().join(" ");
                                                     let desc_opt = if desc.is_empty() { None } else { Some(desc.as_str()) };
-                                                    match state_clone.db.create_channel(&ch_name, &ch_name, desc_opt, &my_key_for_recv, read_only) {
+                                                    let post = if read_only { humanity_protocol::chat_access::PostLevel::Mods } else { humanity_protocol::chat_access::PostLevel::Members };
+                                                    match state_clone.db.create_channel(&ch_name, &ch_name, desc_opt, &my_key_for_recv, post) {
                                                         Ok(true) => {
                                                             // Broadcast updated channel list to everyone.
                                                             broadcast_channel_list(&state_clone);
@@ -4117,9 +4125,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /channel-readonly <name>".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else {
-                                                    let current_ro = state_clone.db.is_channel_read_only(&ch_name).unwrap_or(false);
-                                                    let new_ro = !current_ro;
-                                                    match state_clone.db.set_channel_read_only(&ch_name, new_ro) {
+                                                    // The post level between Members and Moderators and admins (chat_access.rs).
+                                                    let (read, post, _) = crate::relay::chat_access::levels(&state_clone.db, &ch_name);
+                                                    let new_ro = !post.staff_only();
+                                                    match state_clone.db.set_channel_access(&ch_name, read, if new_ro { humanity_protocol::chat_access::PostLevel::Mods } else { humanity_protocol::chat_access::PostLevel::Members }) {
                                                         Ok(true) => {
                                                             broadcast_channel_list(&state_clone);
                                                             let status = if new_ro { "now read-only 🔒" } else { "now writable 🔓" };
@@ -5101,17 +5110,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
 
                                 let ch = if channel.is_empty() { "general".to_string() } else { channel };
 
-                                // Check read-only channel.
-                                if state_clone.db.is_channel_read_only(&ch).unwrap_or(false) {
-                                    if user_role != "admin" && user_role != "mod" {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "This channel is read-only.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        continue;
-                                    }
-                                }
+                                // Who may post here, and below Verified one link and no attachment (chat_access.rs).
+                                if crate::relay::chat_access::post_refused(&state_clone, &my_key_for_recv, &ch, &content, timestamp) { continue; }
 
                                 // Full-PQ chat authentication: the sender's
                                 // Dilithium3 public key IS their identity
@@ -5231,6 +5231,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     let peers = state_clone.peers.read().await;
                                     for cap in mention_re.captures_iter(&content) {
                                         let mentioned_name = &cap[1];
+                                        if matches!(mentioned_name.to_ascii_lowercase().as_str(), "everyone" | "here") { continue; } // a call on everyone, never a person (chat_access.rs)
                                         // Resolve name → public key(s), check if offline.
                                         if let Ok(keys) = state_clone.db.keys_for_name(mentioned_name) {
                                             for mentioned_key in keys {
@@ -5253,7 +5254,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 }
 
                                 // A shared room's line goes to the linked servers, numbered (handlers/federation_log.rs).
-                                if state_clone.db.is_channel_federated(&ch).unwrap_or(false) {
+                                if state_clone.db.is_channel_federated(&ch).unwrap_or(false) && crate::relay::chat_access::travels(&state_clone.db, &ch) {
                                     let (fs, fch, fkey, fname, fcontent) = (state_clone.clone(), ch.clone(), my_key_for_recv.clone(), display.clone(), content.clone());
                                     tokio::spawn(async move { forward_to_federation(&fs, &fch, &fkey, &fname, &fcontent, timestamp).await });
                                 }
@@ -5413,7 +5414,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // spreadsheet (v0.192.0). Voice toggle persists
                             // across server restarts because all four flags
                             // live in the SQLite `channels` table.
-                            RelayMessage::ChannelUpdate { channel_id, name, description, read_only, voice_enabled, federated } => {
+                            RelayMessage::ChannelUpdate { channel_id, name, description, read_level, post_level, voice_enabled, federated } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" {
                                     let private = RelayMessage::Private {
@@ -5441,9 +5442,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     if let Some(d) = description.as_ref() {
                                         let _ = state_clone.db.set_channel_description(&channel_id, d.trim());
                                     }
-                                    if let Some(ro) = read_only {
-                                        let _ = state_clone.db.set_channel_read_only(&channel_id, ro);
-                                    }
+                                    // Who can read and post (chat_access.rs); a word naming no level is ignored.
+                                    crate::relay::chat_access::set_levels(&state_clone.db, &channel_id, read_level.as_deref(), post_level.as_deref());
                                     if let Some(ve) = voice_enabled {
                                         let _ = state_clone.db.set_channel_voice_enabled(&channel_id, ve);
                                     }
@@ -5868,7 +5868,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     last_searches.insert(my_key_for_recv.clone(), now);
                                 }
                                 let max_results = limit.unwrap_or(50).min(100) as usize;
-                                match state_clone.db.search_messages_full(&query, channel.as_deref(), from.as_deref(), max_results, &my_key_for_recv) {
+                                match state_clone.db.search_messages_full(&query, channel.as_deref(), from.as_deref(), max_results, &my_key_for_recv).map(|mut r| { r.retain(|(_, ch, _)| crate::relay::chat_access::may_see(&state_clone.db, &my_key_for_recv, ch)); r }) {
                                     Ok(results) => {
                                         let total = results.len() as u32;
                                         let search_results: Vec<SearchResultData> = results.into_iter().map(|(id, ch, msg)| {
@@ -5902,7 +5902,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             // ── Thread request ──
                             RelayMessage::ThreadRequest { from, timestamp } => {
-                                match state_clone.db.get_thread(&from, timestamp, 100) {
+                                match state_clone.db.get_thread(&from, timestamp, 100).map(|mut r| { r.retain(|m| crate::relay::chat_access::may_see(&state_clone.db, &my_key_for_recv, &m.4)); r }) {
                                     Ok(replies) => {
                                         let messages: Vec<ThreadMessageData> = replies.into_iter().map(|(fk, fn_, c, ts, ch)| {
                                             ThreadMessageData { from: fk, from_name: fn_, content: c, timestamp: ts, channel: ch }

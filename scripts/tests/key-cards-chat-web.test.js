@@ -157,6 +157,7 @@ async function loadChat() {
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/chat-key-cards.js");
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   run("chat/chat-dms.js");
   for (const name of ["updateStats", "renderServerList", "renderGroupList", "hosIcon", "playNotificationChime", "renderPresenceSidebarForActiveContext", "roleBadge", "isBlocked", "generateIdenticon", "switchSidebarTab", "renderChannelList", "isMobile", "sweepFriendPasses"]) {

@@ -386,6 +386,7 @@ async function loadChat(opts = {}) {
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
   run("chat/chat-files-card.js"); // a Media item's address in a message, as a card (2026-10-17)
+  run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
   vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-messages.js");

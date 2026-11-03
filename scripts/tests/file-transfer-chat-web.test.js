@@ -130,7 +130,7 @@ const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 const SEED = Uint8Array.from({ length: 32 }, (_, i) => (i * 7 + 3) & 0xff);
 const MB = 1024 * 1024;
 const MAY = "invite,message,trade,voice_message";
-const CHANNELS = [{ id: "general", name: "general", read_only: false }];
+const CHANNELS = [{ id: "general", name: "general", post_level: "members" }];
 const P = require(path.join(WEB, "shared", "protected.js"));
 const W = require(path.join(WEB, "shared", "warnings.js"));
 const report = require(path.join(WEB, "shared", "report.js"));
@@ -719,7 +719,7 @@ async function loadPage(relay, me, opts = {}) {
     "shared/report.js", "shared/group-report.js", "shared/warnings.js", "shared/protected.js", "shared/strip-metadata.js",
     "shared/upload-clean.js", "shared/files-in-messages.js", "shared/kept-files.js", "shared/file-risk.js", "shared/blake3.js",
     "shared/file-transfer.js", "shared/profile-changes.js", "shared/profile-copy.js", "shared/key-card.js", "chat/crypto.js", "chat/chat-dm-store.js", "chat/chat-key-cards.js",
-    "chat/view/timestampPill.js", "chat/view/messageRow.js", "chat/app.js", "chat/chat-messages.js", "chat/chat-dms.js",
+    "chat/view/timestampPill.js", "chat/view/messageRow.js", "shared/chat-access.js", "chat/app.js", "chat/chat-messages.js", "chat/chat-dms.js",
     "chat/chat-social.js",
   ]) run(rel);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)

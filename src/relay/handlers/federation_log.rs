@@ -623,10 +623,11 @@ fn bans_part(state: &RelayState, peer: &str, v: &Value) {
 
 // ── This server's own changes, sent to its links ─────────────────────────────────────────────
 
-/// Whether `channel` is shared with linked servers.
+/// Whether `channel` is shared with linked servers: federated, and readable by anyone (a peer
+/// shows what it receives to its own visitors; chat_access.rs `travels`).
 fn shared(state: &RelayState, channel: &str) -> bool {
     let ch = if channel.is_empty() { "general" } else { channel };
-    state.db.is_channel_federated(ch).unwrap_or(false)
+    state.db.is_channel_federated(ch).unwrap_or(false) && crate::relay::chat_access::travels(&state.db, ch)
 }
 
 /// Sign `words` at `ts` with this server's key and send `event` (with them) to the links.
