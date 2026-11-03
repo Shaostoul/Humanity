@@ -3194,5 +3194,8 @@ window.HOS_I18N_EN = {
       "shared_files_empty": "No shared files yet.",
       "private_web": "In the desktop app: the HumanityOS folder and Your folders, which stay on your own computer. A website cannot look through your folders the same way in every browser."
     }
+  },
+  "hud": {
+    "room_here": "Here: {{actions}}"
   }
 };

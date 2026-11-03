@@ -17,7 +17,10 @@
 //!
 //! The first-connect modal (drawn globally from lib.rs) records the
 //! choice in AppConfig so it never re-asks; until a choice is made the
-//! relay keeps new accounts presence-hidden (fail-private).
+//! relay keeps new accounts presence-hidden (fail-private), and this page
+//! draws presence off until then, as the website does (BUG-240, 2026-11-03:
+//! it drew it on). The directory box is the server's copy, and a server
+//! lists a member who never chose, so it draws ticked then, truly.
 
 use egui::{Frame, RichText, CornerRadius, Stroke, Vec2};
 use humanity_core::i18n::{t, t_marked, tf};
@@ -369,6 +372,91 @@ pub(crate) fn send_presence_flag(state: &GuiState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// One headless frame (no GPU) of Settings > Privacy, and whether each switch's box is drawn
+    /// ticked: (the directory, "Show others when I am online"). egui paints a ticked box's mark as
+    /// one open three-point line (egui widgets/checkbox.rs `Shape::line`) inside the box, which
+    /// stands just left of the label on its row; an unticked box has none. The pixels, not the
+    /// field the box binds, so a box drawn from something else would be caught too.
+    fn drawn_switches(state: &mut GuiState) -> (bool, bool) {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let input = || egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900.0, 2400.0))),
+            ..Default::default()
+        };
+        let mut out = None;
+        for _ in 0..2 {
+            out = Some(ctx.run(input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| draw_privacy_content(ui, &theme, state));
+            }));
+        }
+        let shapes = out.expect("a frame").shapes;
+        let mut marks: Vec<egui::Rect> = Vec::new();
+        fn visit(shape: &egui::Shape, marks: &mut Vec<egui::Rect>) {
+            match shape {
+                egui::Shape::Vec(v) => v.iter().for_each(|s| visit(s, marks)),
+                egui::Shape::Path(p) if !p.closed && p.points.len() == 3 => {
+                    marks.push(egui::Rect::from_points(&p.points));
+                }
+                _ => {}
+            }
+        }
+        shapes.iter().for_each(|cs| visit(&cs.shape, &mut marks));
+        let ticked = |key: &'static str| {
+            let label = crate::gui::screen_surface::find_text_in_shapes(&shapes, t(key))
+                .unwrap_or_else(|| panic!("{key} is drawn"))
+                .rect;
+            marks.iter().any(|m| {
+                let row = label.y_range().expand(label.height() * 0.5);
+                row.contains(m.center().y) && m.max.x <= label.min.x + 1.0 && m.min.x >= label.min.x - 40.0
+            })
+        };
+        (ticked("privacy.directory_label"), ticked("privacy.presence_label"))
+    }
+
+    /// BEFORE THE FIRST CHOICE THE SWITCHES SAY WHAT A SERVER DOES (BUG-240, 2026-11-03). A
+    /// server keeps a new member presence-hidden until a privacy level is chosen (relay
+    /// storage/members.rs `join_server_on`, `hide_presence = 1`), so a fresh install draws "Show
+    /// others when I am online" unticked, as the website does (web/shared/privacy-tiers.js
+    /// `presenceHidden` null). The directory box stays ticked: a server lists a member who never
+    /// chose (`MEMBER_DIR_VISIBLE`, no privacy map is listed; the website's `directoryListed`
+    /// says the same), so an unticked box there would tell the person they are out of the
+    /// directory while they are in it, the dangerous direction of BUG-235. Seen red 2026-11-03
+    /// with the old default (`online_status_visible: true` in Settings::default and the config's
+    /// `default_true`): "a fresh install draws presence as hidden (GuiState::default)", left
+    /// (true, true), right (true, false).
+    #[test]
+    fn a_fresh_install_draws_presence_hidden_as_a_server_keeps_it() {
+        let mut fresh = GuiState::default();
+        assert_eq!(drawn_switches(&mut fresh), (true, false), "a fresh install draws presence as hidden (GuiState::default)");
+        // The way a first launch really starts: no config.json, so AppConfig's defaults applied.
+        let mut first_launch = GuiState::default();
+        crate::config::AppConfig::default().apply_to_gui_state(&mut first_launch);
+        assert!(first_launch.settings.privacy_tier.is_empty(), "no level chosen yet");
+        assert_eq!(drawn_switches(&mut first_launch), (true, false), "a fresh install draws presence as hidden (no config.json)");
+    }
+
+    /// A choice already made loads as it was: the new default reaches only a config that never
+    /// held the switch (every save writes it). Seen both ways, and the box follows the file.
+    #[test]
+    fn a_choice_already_made_loads_as_it_was() {
+        for (file, seen) in [
+            (r#"{"privacy_tier":"open","online_status_visible":true}"#, true),
+            (r#"{"privacy_tier":"private","online_status_visible":false}"#, false),
+            (r#"{"privacy_tier":"","online_status_visible":true}"#, true),
+        ] {
+            let cfg: crate::config::AppConfig = serde_json::from_str(file).expect("a config");
+            let mut gs = GuiState::default();
+            cfg.apply_to_gui_state(&mut gs);
+            assert_eq!(gs.settings.online_status_visible, seen, "{file}");
+            assert_eq!(drawn_switches(&mut gs).1, seen, "{file}: the box shows the choice");
+            let back = crate::config::AppConfig::from_gui_state(&gs);
+            assert_eq!(back.online_status_visible, seen, "{file}: and the next save keeps it");
+        }
+    }
 
     /// The shipped levels load as written (not the fallback), each word a key en.json has, and the
     /// default is the most private. Seen red, 2026-11-03, with the Private level's name key

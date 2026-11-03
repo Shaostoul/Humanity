@@ -482,47 +482,8 @@ pub fn draw(
             let dot_dist = state.machine_label_dot_dist.max(0.5) * mul;
             let name_dist = state.machine_label_name_dist.max(0.5) * mul;
             let card_dist = state.machine_label_card_dist.max(0.5) * mul;
-            // Which room is the camera in? (None = outside every room.) `room_card_at`, the one
-            // pick the dev IPC's storey probe also reads (engine/storey_probe.rs): the elevator
-            // whose shaft holds it, else the room `room_at` names.
-            let current_room_info = room_card_at(&state.room_bounds, state.ship_structure.as_ref(), &state.keybinds, cam_pos);
-
-            // ── Room purpose card (bottom-left): the walkable world now KNOWS what each
-            // room is FOR, joined from data/rooms.ron. Name + purpose + the in-room actions
-            // (the actions are shown as text for now; a later increment routes [E] to them).
-            if let Some(room) = current_room_info.as_deref() {
-                if !room.display_name.is_empty() {
-                    let x = screen.left() + 16.0;
-                    text_shadowed(
-                        painter,
-                        Pos2::new(x, screen.bottom() - 48.0),
-                        Align2::LEFT_BOTTOM,
-                        &room.display_name,
-                        15.0,
-                        theme.text_primary(),
-                    );
-                    if !room.purpose.is_empty() {
-                        text_shadowed(
-                            painter,
-                            Pos2::new(x, screen.bottom() - 30.0),
-                            Align2::LEFT_BOTTOM,
-                            &room.purpose,
-                            11.0,
-                            theme.text_secondary(),
-                        );
-                    }
-                    if !room.actions.is_empty() {
-                        text_shadowed(
-                            painter,
-                            Pos2::new(x, screen.bottom() - 14.0),
-                            Align2::LEFT_BOTTOM,
-                            &format!("Here: {}", room.actions.join("  /  ")),
-                            10.0,
-                            theme.text_muted(),
-                        );
-                    }
-                }
-            }
+            // (The room purpose card is drawn in the bottom-left stack, standing on the chat feed:
+            // below, after the feed, BUG-236.)
 
             // OpenStreetMap credit (bottom-right), shown ONLY while real OSM
             // geometry is actually on screen.
@@ -919,6 +880,10 @@ pub fn draw(
             // the Chat page) updates this header + messages. Paint-only.
             // `hud_chat_feed_visible` (increment 1c) is the user's off switch,
             // toggled from the in-world panel's Options tab (persisted).
+            //
+            // THE BOTTOM-LEFT STACK (BUG-236, 2026-11-03): the feed is laid out first, in the
+            // corner, and its block (`chat_feed_rect`) is what the room card stands on, below.
+            let mut feed_block: Option<Rect> = None;
             if !state.chat_input_active && state.hud_chat_feed_visible {
                 // PRIVACY (v0.779): the always-on feed shows PUBLIC channels
                 // only. A DM or group conversation left active on the Chat page
@@ -949,19 +914,14 @@ pub fn draw(
                 } else {
                     format!("{label} - offline")
                 };
-                let line_h = 15.0;
-                let width = 420.0;
-                let rows = recent.len().max(1);
-                let box_h = line_h * (rows as f32 + 1.0) + 10.0;
-                let x0 = 14.0;
-                let bottom = screen.bottom() - 12.0;
-                let top = bottom - box_h;
-                // Legibility backing behind the feed.
-                let bg = Rect::from_min_max(
-                    Pos2::new(x0 - 6.0, top - 4.0),
-                    Pos2::new(x0 + width, bottom + 2.0),
-                );
-                painter.rect_filled(bg, CornerRadius::same(4), Color32::from_black_alpha(120));
+                let line_h = CHAT_FEED_LINE_H;
+                let width = CHAT_FEED_WIDTH;
+                // Legibility backing behind the feed: the block the stack is built on.
+                let bg = chat_feed_rect(screen, recent.len());
+                let x0 = bg.left() + 6.0;
+                let top = bg.top() + 4.0;
+                painter.rect_filled(bg, CornerRadius::same(4), CHAT_FEED_BACKING);
+                feed_block = Some(bg);
                 // Header / connection status at the top of the box.
                 let status_col = if connected { theme.success() } else { theme.warning() };
                 text_shadowed(painter, Pos2::new(x0, top), Align2::LEFT_TOP, &status, 11.0, status_col);
@@ -1029,6 +989,22 @@ pub fn draw(
                         "Sign in (Settings > Security > Unlock) to join chat."
                     };
                     text_shadowed(painter, Pos2::new(x0, top + line_h + 2.0), Align2::LEFT_TOP, hint, 11.0, theme.text_muted());
+                }
+            }
+
+            // ── Room purpose card (the bottom-left stack, on the chat feed): the walkable world
+            // KNOWS what each room is FOR, joined from data/rooms.ron. Name + purpose + the
+            // in-room actions (shown as text for now). Which room:
+            // `room_card_at`, the one pick the dev IPC's storey probe also reads
+            // (engine/storey_probe.rs): the elevator whose shaft holds the eye, else the room
+            // `room_at` names. Not while the chat panel is open (Enter): the panel
+            // (`chat::draw_ingame_chat`) covers this corner and the player is typing, not walking;
+            // before BUG-236 the card's lines showed past the panel's edge.
+            if !state.chat_input_active {
+                let current_room_info = room_card_at(&state.room_bounds, state.ship_structure.as_ref(), &state.keybinds, cam_pos);
+                if let Some(room) = current_room_info.as_deref() {
+                    let base = Pos2::new(screen.left() + ROOM_CARD_X, room_card_base(screen, feed_block));
+                    paint_room_card(painter, theme, room, base);
                 }
             }
 
@@ -1626,6 +1602,68 @@ fn text_shadowed(
         painter.text(pos + off, anchor, text, font.clone(), OUTLINE_INK);
     }
     painter.text(pos, anchor, text, font, color);
+}
+
+/// The chat feed's dark backing, behind its lines so they read over the world.
+const CHAT_FEED_BACKING: Color32 = Color32::from_black_alpha(120);
+/// The chat feed's line pitch, the width of its lines, and their inset from the screen's left
+/// edge (points; the Font Size scales points, gui/font_size.rs).
+const CHAT_FEED_LINE_H: f32 = 15.0;
+const CHAT_FEED_WIDTH: f32 = 420.0;
+const CHAT_FEED_X: f32 = 14.0;
+/// The room card's inset from the screen's left edge, and its gap above the chat feed (points).
+const ROOM_CARD_X: f32 = 16.0;
+const ROOM_CARD_GAP: f32 = 8.0;
+
+/// THE BOTTOM-LEFT STACK (BUG-236, 2026-11-03). The HUD's bottom-left corner holds two blocks:
+/// the in-game chat feed and the room purpose card. Both stood at fixed offsets from the bottom of
+/// the screen, so "Console room", its purpose and its "Here: ..." line were painted across the
+/// feed's status line and messages, at every Font Size (both are in points). They stack now: the
+/// feed is laid out first, in the corner, because its height is the one that changes (one to
+/// seven lines, or switched off), and the card stands on its block.
+///
+/// Why this corner, and not another: each of the others is spoken for in the world. Top-left is
+/// the vitals stack, which grows downward with the needs, the quest and the shared world;
+/// top-right the frame rate, the clock, the weather, the power and the altitude, and the update
+/// toast; top-centre the compass, the movement line and the notice banner; bottom-centre the
+/// hotbar; bottom-right the OpenStreetMap credit (a licence obligation, shown with the map) and
+/// the dev creature editor. Bottom-left is the "where am I, and who is talking" corner, and both
+/// blocks are left-aligned text there, the way they are read.
+///
+/// The feed's block on `screen` with `rows` message lines (an empty feed shows its one hint
+/// line): its dark backing, from the corner up.
+pub(crate) fn chat_feed_rect(screen: Rect, rows: usize) -> Rect {
+    let box_h = CHAT_FEED_LINE_H * (rows.max(1) as f32 + 1.0) + 10.0;
+    let x0 = screen.left() + CHAT_FEED_X;
+    let bottom = screen.bottom() - 12.0;
+    Rect::from_min_max(Pos2::new(x0 - 6.0, bottom - box_h - 4.0), Pos2::new(x0 + CHAT_FEED_WIDTH, bottom + 2.0))
+}
+
+/// Where the room card's lowest line stands (the bottom of its text, points): a gap above the
+/// chat feed's block when the feed is drawn (`feed`), else the corner, where it always stood.
+pub(crate) fn room_card_base(screen: Rect, feed: Option<Rect>) -> f32 {
+    feed.map_or(screen.bottom() - 14.0, |f| f.top() - ROOM_CARD_GAP)
+}
+
+/// The room card: the room's name, its purpose and its "Here: ..." actions, laid upward from
+/// `base` (the bottom of the lowest line) at the pitches the card always had. A line the room
+/// lacks takes no room (the name no longer floats over an empty purpose), and a room with no name
+/// draws nothing.
+fn paint_room_card(painter: &egui::Painter, theme: &Theme, room: &humanity_ship::room_types::RoomBounds, base: Pos2) {
+    if room.display_name.is_empty() {
+        return;
+    }
+    let mut y = base.y;
+    if !room.actions.is_empty() {
+        let here = humanity_core::i18n::tf("hud.room_here", &[("actions", &room.actions.join("  /  "))]);
+        text_shadowed(painter, Pos2::new(base.x, y), Align2::LEFT_BOTTOM, &here, 10.0, theme.text_muted());
+        y -= 16.0;
+    }
+    if !room.purpose.is_empty() {
+        text_shadowed(painter, Pos2::new(base.x, y), Align2::LEFT_BOTTOM, &room.purpose, 11.0, theme.text_secondary());
+        y -= 18.0;
+    }
+    text_shadowed(painter, Pos2::new(base.x, y), Align2::LEFT_BOTTOM, &room.display_name, 15.0, theme.text_primary());
 }
 
 /// The dark outline HUD text wears so it reads over any part of the world.
@@ -3115,3 +3153,7 @@ mod counter_card_tests {
         assert!(find_text_in_shapes(&out.shapes, "Take a meal").is_none(), "a card that is not a counter offers no meal");
     }
 }
+
+#[cfg(test)]
+#[path = "hud_corner_tests.rs"]
+mod corner_tests;

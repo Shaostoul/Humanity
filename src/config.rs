@@ -359,8 +359,12 @@ pub struct AppConfig {
     // had happened. (`profile_visible`, "Profile Visible to Others", stood
     // beside it until 2026-11-03: saved and loaded, read by nothing, so it
     // hid nothing (BUG-235). Removed; an old config's field is ignored.)
-    /// Show when you are online.
-    #[serde(default = "default_true")]
+    /// Show when you are online. OFF until the person chooses (BUG-240, 2026-11-03): a server
+    /// keeps a new member presence-hidden until a privacy level is chosen (relay
+    /// storage/members.rs `join_server_on` writes `hide_presence = 1`), so a fresh install that
+    /// drew this on told the person they were seen online when no server showed them. A choice
+    /// already made is in the file and loads as it was.
+    #[serde(default)]
     pub online_status_visible: bool,
     /// Chosen privacy tier id (empty = never chosen; first-connect modal asks). 2026-08-23.
     #[serde(default)]
@@ -2366,7 +2370,10 @@ mod play_mode_tests {
         let old: AppConfig = serde_json::from_str(minimal).unwrap();
         // Defaults must match Settings::default() in src/gui/mod.rs so an
         // existing install sees no behaviour change on upgrade.
-        assert!(old.online_status_visible, "online status stays visible by default");
+        // Online status is the one exception (BUG-240, 2026-11-03): hidden until a choice, as
+        // every server keeps a new member. A choice made is in the file (below, and
+        // privacy::tests::a_choice_already_made_loads_as_it_was).
+        assert!(!old.online_status_visible, "online status is hidden until the person chooses");
         assert!(old.dark_mode, "dark mode is the default");
         assert_eq!(old.font_size, 100.0, "Font Size starts at the designed size (percent)");
         assert_eq!(old.render_distance, 500.0);
@@ -2382,6 +2389,10 @@ mod play_mode_tests {
         let json = serde_json::to_string(&c).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
         assert!(!back.online_status_visible, "hidden online status must STAY hidden");
+        // Both ways, now that hidden is also the default (BUG-240): a choice to be seen survives.
+        c.online_status_visible = true;
+        let seen: AppConfig = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
+        assert!(seen.online_status_visible, "a choice to be seen online must STAY seen");
         assert_eq!(back.font_size, 150.0);
         assert_eq!(back.onboarding_quest_progress.get("water:collect-rain"), Some(&true));
 

@@ -4747,7 +4747,8 @@ impl Default for SettingsState {
             drone_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
-            online_status_visible: true,
+            // Off until a choice, as every server keeps a new member (BUG-240; config.rs).
+            online_status_visible: false,
             privacy_tier: String::new(),
             warnings_on_messages: true,
             outside_help_country: String::new(),

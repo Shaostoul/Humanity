@@ -5080,3 +5080,56 @@ fn snapshot_nav_double_laptop() {
 fn snapshot_nav_double_phone() {
     crate::gui::nav_mockup_tests::phone();
 }
+
+/// The HUD's bottom-left corner in the console room with the in-game chat feed showing (BUG-236,
+/// 2026-11-03): the room card ("Console room", its purpose, "Here: ...") stands on the feed's
+/// block instead of crossing its lines. On the operator's 2560 by 1440 screen at 100% and 200%
+/// (1280 by 720 points), the Font Size being the app's zoom (BUG-225).
+fn hud_room_and_chat_at(name: &str, percent: f32) {
+    render_page_png_at(name, 2560, 1440, percent, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::None;
+        let types = humanity_ship::room_types::RoomTypeRegistry::load(std::path::Path::new("data"));
+        state.room_bounds = vec![humanity_ship::room_types::RoomBounds {
+            id: "console_room".into(),
+            min: glam::Vec3::splat(-3.0),
+            max: glam::Vec3::splat(3.0),
+            display_name: types.name("console_room"),
+            purpose: types.purpose("console_room"),
+            actions: types.action_labels("console_room"),
+            action_pages: Vec::new(),
+            access: String::new(),
+            fill: None,
+        }];
+        state.ws_status = "Reconnecting in 3s...".into();
+        let channel = state.chat_active_channel.clone();
+        state.chat_messages.retain(|m| m.channel != channel);
+        for (who, words) in [
+            ("Ben", "are you coming to the garden at noon?"),
+            ("Ada", "yes, bringing the bean seedlings"),
+            ("Ben", "great, the rain barrel is full again"),
+        ] {
+            state.chat_messages.push(crate::gui::ChatMessage {
+                channel: channel.clone(),
+                sender_name: who.into(),
+                content: words.into(),
+                ..Default::default()
+            });
+        }
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(theme.bg_primary()))
+            .show(ctx, |_ui| {});
+        crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_hud_room_and_chat_100() {
+    hud_room_and_chat_at("hud_room_and_chat_100", 100.0);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_hud_room_and_chat_200() {
+    hud_room_and_chat_at("hud_room_and_chat_200", 200.0);
+}
