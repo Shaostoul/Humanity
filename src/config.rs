@@ -441,8 +441,10 @@ pub struct AppConfig {
     /// could turn it off or replace the PIN.
     #[serde(skip)]
     pub protected_setup: Option<crate::net::protected::ProtectedSetup>,
-    /// UI font size. An accessibility setting, so losing it every launch is
-    /// worse than losing a cosmetic one.
+    /// The Font Size: how large the whole app is drawn, in percent of its designed size, 100 to
+    /// 200 (egui's zoom, gui/font_size.rs; BUG-225). An accessibility setting, so losing it every
+    /// launch is worse than losing a cosmetic one. Until 2026-11-03 it held a size in points (10
+    /// to 24) that nothing read; such a value loads as 100%.
     #[serde(default = "default_font_size")]
     pub font_size: f32,
     /// Dark theme.
@@ -1112,7 +1114,7 @@ fn default_language() -> String { "en".to_string() }
 // Settings that were reachable in the UI but never persisted until v0.1066.
 // Defaults MUST match the `Settings::default()` values in src/gui/mod.rs, so
 // an existing install sees no behaviour change on upgrade.
-fn default_font_size() -> f32 { 14.0 }
+fn default_font_size() -> f32 { crate::gui::font_size::DEFAULT_PERCENT }
 fn default_render_distance() -> f32 { 500.0 }
 fn default_water_detail_depth() -> f32 { 20.0 }
 fn default_fps_foreground() -> u32 { 120 }
@@ -1764,7 +1766,7 @@ impl AppConfig {
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot
         // produce an unusable window (a 0 font size or a 0 m far plane).
-        state.settings.font_size = self.font_size.clamp(10.0, 24.0);
+        state.settings.font_size = crate::gui::font_size::checked(self.font_size);
         state.settings.dark_mode = self.dark_mode;
         state.settings.hint_display = self.hint_display;
         // The language: a code no file provides (a translation removed since)
@@ -2366,7 +2368,7 @@ mod play_mode_tests {
         assert!(old.profile_visible, "profile stays visible by default");
         assert!(old.online_status_visible, "online status stays visible by default");
         assert!(old.dark_mode, "dark mode is the default");
-        assert_eq!(old.font_size, 14.0);
+        assert_eq!(old.font_size, 100.0, "Font Size starts at the designed size (percent)");
         assert_eq!(old.render_distance, 500.0);
         assert_eq!(old.water_detail_depth, 20.0);
         assert!(!old.lights_tiled);
@@ -2376,13 +2378,13 @@ mod play_mode_tests {
         let mut c = old.clone();
         c.profile_visible = false;
         c.online_status_visible = false;
-        c.font_size = 22.0;
+        c.font_size = 150.0;
         c.onboarding_quest_progress.insert("water:collect-rain".into(), true);
         let json = serde_json::to_string(&c).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
         assert!(!back.profile_visible, "a private profile must STAY private");
         assert!(!back.online_status_visible, "hidden online status must STAY hidden");
-        assert_eq!(back.font_size, 22.0);
+        assert_eq!(back.font_size, 150.0);
         assert_eq!(back.onboarding_quest_progress.get("water:collect-rain"), Some(&true));
     }
 

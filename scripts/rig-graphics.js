@@ -127,7 +127,7 @@ const RECORD_ONLY = {
   fps_foreground_unlimited: "frame cap: would corrupt the rig's fps readings",
   fps_background: "frame cap: would corrupt the rig's fps readings",
   fps_background_sync: "frame cap: would corrupt the rig's fps readings",
-  font_size: "egui text size: shifts every HUD overlay in a capture, not a 3D setting",
+  font_size: "the Font Size, the zoom of the whole UI (gui/font_size.rs): resizes every overlay in a capture and moves what a rig clicks, not a 3D setting",
   dark_mode: "egui theme: HUD only, not a 3D setting",
   play_mode: "dev/creative gates, gameplay not graphics; every rig runs Dev (lib/rig-gameplay.js, pinned by spawnGame)",
   fresh_world_each_launch:

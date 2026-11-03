@@ -39,6 +39,9 @@ pub mod screen_surface;
 /// opened yet, and the panel of the last 100, each opening its conversation.
 #[cfg(feature = "native")]
 pub mod notice_panel;
+/// The Font Size setting as the whole app's zoom (BUG-225): set before every main pass.
+#[cfg(feature = "native")]
+pub mod font_size;
 
 /// Install every font fallback chain on an egui context. Called for the main
 /// UI context at boot AND for every in-world screen surface context, so a
@@ -4530,6 +4533,7 @@ pub struct SettingsState {
     pub invert_y: bool,
     // Appearance
     pub dark_mode: bool,
+    /// The Font Size, in percent (100 to 200): the whole app's zoom (gui/font_size.rs).
     pub font_size: f32,
     /// How per-setting descriptions are shown on THIS page (v0.1116): Full
     /// (inline, tightened) / Hover ("(?)" marker) / Off. See `HintDisplay`.
@@ -4725,7 +4729,7 @@ impl Default for SettingsState {
             mouse_sensitivity: 0.25,
             invert_y: false,
             dark_mode: true,
-            font_size: 14.0,
+            font_size: font_size::DEFAULT_PERCENT,
             hint_display: HintDisplay::default(),
             language: "en".to_string(),
             hostile_wildlife: false,

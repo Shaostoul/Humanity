@@ -1498,6 +1498,11 @@ key, and ratchets keep the hardcoded words shrinking (`tests/i18n_lint.rs`,
 ### Accessibility
 High contrast, reduced motion, font scaling, colorblind mode filters.
 - Web: `web/shared/accessibility.js`, `web/shared/theme.css`
+- Native: Settings > Appearance > Font Size (2026-11-03, BUG-225): 100% to 200%, the zoom of the
+  whole desktop app (every page, both menus, the bottom strip, the HUD), applied before each frame
+  and saved; Ctrl+Plus / Ctrl+Minus step it by ten, Ctrl+0 puts it back to 100%. The in-world
+  screens keep their own scale. `src/gui/font_size.rs`; snapshots `settings_appearance_100/150/200`
+  and `top_row_150_at_720` / `top_row_200_at_720`.
 
 ---
 

@@ -170,6 +170,7 @@ pub const FIXED_BINDS: &[(&str, &str)] = &[
     ("Ctrl+D", "Duplicate selection (construction editor)"),
     ("[ / ]", "Rotate held piece 15 degrees (construction editor)"),
     ("Ctrl+V", "Paste a clipboard image (Chat page)"),
+    ("Ctrl+Plus / Ctrl+Minus / Ctrl+0", "Font size larger / smaller / back to 100% (Settings > Appearance)"),
     ("Enter", "Send message (while the chat input is open)"),
     ("1-9", "See Hotbar binds above; cast HUD abilities"),
 ];

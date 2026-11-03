@@ -18,6 +18,8 @@
 // F10 (v0.1254.4) opens the cloud dev sidebar; its collapse tab frees the cursor without
 // closing the panel. It was handled in lib.rs but listed nowhere, so the F1 overlay, which is
 // the only place a player can discover a dev hotkey, did not know it existed.
+// Ctrl+Plus / Ctrl+Minus / Ctrl+0 (2026-11-03, BUG-225) step the Font Size setting, the whole
+// app's zoom, from every context: handled in gui/font_size.rs before each egui pass.
 // F11 (v0.1050) opens the live weather panel: condition presets plus wind and intensity
 // sliders. Wind is what the ocean spectrum is built from, so it doubles as the sea-state
 // control - glassy calm through to a storm sea.
@@ -45,6 +47,7 @@
         (action: "Peek through walls (hold)", keys: "Tab (hold)"),
         (action: "Free the cursor (hold)", keys: "Alt (hold)"),
         (action: "Rebind these keys", keys: "Settings > Controls"),
+        (action: "Font size larger / smaller / back to 100% (Settings > Appearance)", keys: "Ctrl+Plus / Ctrl+Minus / Ctrl+0"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),
@@ -68,6 +71,7 @@
         (action: "Rotate held piece (15 degrees)", keys: "[ / ]"),
         (action: "Top-down plan overlay", keys: "checkbox in panel"),
         (action: "Close editor", keys: "B"),
+        (action: "Font size larger / smaller / back to 100% (Settings > Appearance)", keys: "Ctrl+Plus / Ctrl+Minus / Ctrl+0"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),
@@ -81,6 +85,7 @@
     (context: "Showroom", binds: [
         (action: "Orbit the avatar", keys: "Drag (any mouse button)"),
         (action: "Zoom in / out", keys: "Mouse wheel"),
+        (action: "Font size larger / smaller / back to 100% (Settings > Appearance)", keys: "Ctrl+Plus / Ctrl+Minus / Ctrl+0"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),
@@ -95,6 +100,7 @@
         (action: "Navigate", keys: "Click (top nav bar + page)"),
         (action: "Back / close page", keys: "Esc"),
         (action: "Rebind game keys", keys: "Settings > Controls"),
+        (action: "Font size larger / smaller / back to 100% (Settings > Appearance)", keys: "Ctrl+Plus / Ctrl+Minus / Ctrl+0"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),

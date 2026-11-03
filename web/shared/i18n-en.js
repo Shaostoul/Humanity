@@ -166,7 +166,7 @@ window.HOS_I18N_EN = {
     "dark_mode": "Dark Mode",
     "dark_mode_desc": "Dark backgrounds with light text (easier on the eyes at night). Off = light theme.",
     "font_size": "Font Size",
-    "font_size_desc": "Base text size in points. Higher = larger, easier-to-read text that fits less on screen. Per-element sizes live under Widgets > Fonts.",
+    "font_size_desc": "How big everything in the app is drawn: the words, buttons and menus together, from 100% to 200%. Bigger is easier to read and fits less on the screen. Ctrl with + or - changes it anywhere in the app, and Ctrl with 0 puts it back to 100%. The size of each kind of text on its own is under Widgets > Fonts.",
     "timestamp_format": "Timestamp format",
     "timestamp_format_hint": "How the time next to each chat message is written. The change shows at once, on messages already there too.",
     "hints_full_hint": "Show every setting's description under it, and a hint when you rest the pointer on any button or box.",

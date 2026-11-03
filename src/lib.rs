@@ -14975,7 +14975,12 @@ mod native_app {
                             }
 
                             // Run egui frame
-                            let raw_input = state.egui_state.take_egui_input(&state.window);
+                            let mut raw_input = state.egui_state.take_egui_input(&state.window);
+                            // The Font Size is the whole app's zoom, set before the pass measures
+                            // anything; Ctrl and + / - / 0 change it here (gui/font_size.rs, BUG-225).
+                            if crate::gui::font_size::before_frame(&state.egui_ctx, &mut raw_input, &mut state.gui_state.settings.font_size) {
+                                state.gui_state.settings_dirty = true;
+                            }
                             let full_output = state.egui_ctx.run(raw_input, |ctx| {
                                 // `GuiPage::Profile` is an ALIAS for the Real page. Normalise
                                 // it HERE, inside the app's own frame, so the nav bar

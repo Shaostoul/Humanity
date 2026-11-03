@@ -375,8 +375,22 @@ fn demo_state() -> GuiState {
 }
 
 /// Render one settings-style page into an offscreen `w`x`h` surface and write
-/// `tests/snapshots/<name>.png`.
+/// `tests/snapshots/<name>.png`, at the designed size (Font Size 100%).
 pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState)) {
+    render_page_png_at(name, w, h, crate::gui::font_size::DEFAULT_PERCENT, frame);
+}
+
+/// [`render_page_png`] at a Font Size (BUG-225, gui/font_size.rs). `w` x `h` are the picture's
+/// PIXELS, as a window's are, and the page is laid out in `w / zoom` x `h / zoom` points, the way
+/// the app lays it out at that size: the size is set through `font_size::before_frame`, the call
+/// the app's frame loop makes before every pass. At 100% this is exactly the old harness.
+pub(crate) fn render_page_png_at(
+    name: &str,
+    w: u32,
+    h: u32,
+    percent: f32,
+    frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState),
+) {
     pollster::block_on(async move {
         // ── wgpu device (offscreen) ──
         // Not while the operator's GPU game runs: the page is then not written (crates/humanity-core/src/test_gpu.rs).
@@ -414,11 +428,12 @@ pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::
         // pages that re-apply the theme inside the frame keep this setting.
         ctx.all_styles_mut(|s| s.animation_time = 0.0);
         let mut state = demo_state();
-        let ppp = 1.0_f32;
+        state.settings.font_size = percent;
+        let zoom = crate::gui::font_size::zoom_for(percent);
         let raw_input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::pos2(0.0, 0.0),
-                egui::vec2(w as f32, h as f32),
+                egui::vec2(w as f32 / zoom, h as f32 / zoom),
             )),
             ..Default::default()
         };
@@ -446,9 +461,26 @@ pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::
         // its predicted 1/60 s per frame when no time is given). Anything
         // painted from `input.time` (the animated slider-thumb ring, the RGB
         // selection edges, uptime clocks) looks exactly as it did.
+        //
+        // At another Font Size, an EMPTY pass at t = 0 first: a new scale lands at
+        // the start of a pass with egui's guess at the window (its last size,
+        // scaled), so that pass is laid out at the wrong size, and drawing the
+        // page in it would leave the page's remembered state (a panel's width, a
+        // scroll position) measured at that size. Its texture deltas still count:
+        // the font atlas is made on the first pass.
+        if zoom != 1.0 {
+            let mut prime = raw_input.clone();
+            prime.time = Some(0.0);
+            crate::gui::font_size::before_frame(&ctx, &mut prime, &mut state.settings.font_size);
+            let primed = ctx.run(prime, |_| {});
+            for (id, delta) in &primed.textures_delta.set {
+                renderer.update_texture(&device, &queue, *id, delta);
+            }
+        }
         for warm_t in [Some(0.0_f64), None] {
             let mut warm_input = raw_input.clone();
             warm_input.time = warm_t;
+            crate::gui::font_size::before_frame(&ctx, &mut warm_input, &mut state.settings.font_size);
             let warm = ctx.run(warm_input, |ctx| {
                 frame(ctx, &mut theme, &mut state);
             });
@@ -456,12 +488,19 @@ pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::
                 renderer.update_texture(&device, &queue, *id, delta);
             }
         }
+        let mut raw_input = raw_input;
+        crate::gui::font_size::before_frame(&ctx, &mut raw_input, &mut state.settings.font_size);
         let full_output = ctx.run(raw_input, |ctx| {
             frame(ctx, &mut theme, &mut state);
         });
         for (id, delta) in &full_output.textures_delta.set {
             renderer.update_texture(&device, &queue, *id, delta);
         }
+        let ppp = full_output.pixels_per_point;
+        assert!(
+            (ppp - zoom).abs() < 1e-4,
+            "{name}: drawn at {ppp} pixels per point, not the {percent}% asked for"
+        );
         let clipped = ctx.tessellate(full_output.shapes, ppp);
         let screen = egui_wgpu::ScreenDescriptor {
             size_in_pixels: [w, h],
@@ -3035,6 +3074,51 @@ fn snapshot_nav_bar_full() {
         state.active_page = crate::gui::GuiPage::Humanity;
         crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
     });
+}
+
+/// The app's frame (the top row, the bottom strip, the page) on Settings > Appearance at a Font
+/// Size (BUG-225, gui/font_size.rs), in a `w` x `h` PIXEL window: the page scrolled to its
+/// Appearance section, where the setting itself is.
+fn settings_appearance_at(name: &str, w: u32, h: u32, percent: f32) {
+    render_page_png_at(name, w, h, percent, |ctx, theme, state| {
+        ctx.all_styles_mut(|s| s.scroll_animation = egui::style::ScrollAnimation::none());
+        state.settings.scroll_to_section = Some(crate::gui::SettingsCategory::Appearance);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Settings);
+    });
+}
+
+// Settings > Appearance on the operator's 2560 by 1440 screen at 100%, 150% and 200% (BUG-225):
+// everything grows together, the top row and the bottom strip with the page.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_appearance_100() {
+    settings_appearance_at("settings_appearance_100", 2560, 1440, 100.0);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_appearance_150() {
+    settings_appearance_at("settings_appearance_150", 2560, 1440, 150.0);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_appearance_200() {
+    settings_appearance_at("settings_appearance_200", 2560, 1440, 200.0);
+}
+
+// Today's single top row at 150% and 200% in the app's restored 1280 by 720 window (853 and 640
+// points across): how it wraps until the double menu's More (docs/design/navigation.md rung 2).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_top_row_150_at_720() {
+    settings_appearance_at("top_row_150_at_720", 1280, 720, 150.0);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_top_row_200_at_720() {
+    settings_appearance_at("top_row_200_at_720", 1280, 720, 200.0);
 }
 
 #[test]

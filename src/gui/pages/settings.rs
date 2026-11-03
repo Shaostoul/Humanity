@@ -1351,9 +1351,9 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         }
         widgets::setting_hint(ui, theme, hint, t("settings.dark_mode_desc"));
 
-        if with_hint(ui, "settings.font_size_desc", |ui| {
-            widgets::labeled_slider(ui, theme, t("settings.font_size"), &mut state.settings.font_size, 10.0..=24.0)
-        }) {
+        // The whole app's zoom, 100% to 200%, applied when the slider is let go (gui/font_size.rs,
+        // BUG-225); its hint is the same description line.
+        if crate::gui::font_size::setting_row(ui, theme, &mut state.settings.font_size) {
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, t("settings.font_size_desc"));

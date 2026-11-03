@@ -455,6 +455,10 @@ impl ScreenCore {
         let ctx = egui::Context::default();
         super::install_fonts(&ctx);
         theme.apply_to_egui(&ctx);
+        // A wall screen keeps one pixel per point whatever the person's Font Size (the main
+        // window's zoom, gui/font_size.rs), and egui's built-in Ctrl and + zoom, on in every new
+        // context, would grow it from a key typed into the focused screen.
+        ctx.options_mut(|o| o.zoom_with_keyboard = false);
         let source = ScreenSource::parse(source_id);
         if let ScreenSource::Unknown(_) = source {
             log::warn!(
@@ -1866,6 +1870,32 @@ mod tests {
         core.text("hi");
         core.run_with(&mut state, |c, s| draw(c, s, &mut text));
         assert_eq!(text, "hi", "typed text reaches the focused field");
+    }
+
+    /// A WALL SCREEN KEEPS ITS OWN SCALE (BUG-225, gui/font_size.rs). The person's Font Size is
+    /// the main window's zoom; a screen in the world is drawn at one pixel per point whatever it
+    /// is, and Ctrl and + typed into a focused screen do not zoom it either (egui's built-in
+    /// keyboard zoom is on in every new context).
+    ///
+    /// Seen red 2026-11-03 without the `zoom_with_keyboard = false` in `ScreenCore::new`: "Ctrl
+    /// and = zoomed the wall screen to 1.1 pixels per point".
+    #[test]
+    fn font_size_leaves_a_wall_screen_at_its_own_scale() {
+        let mut state = GuiState::default();
+        state.settings.font_size = crate::gui::font_size::MAX_PERCENT;
+        let theme = load_theme();
+        let mut core = ScreenCore::new("s", "inventory", 400, 300, &theme);
+        let draw = |ctx: &egui::Context, _: &mut GuiState| {
+            egui::CentralPanel::default().show(ctx, |ui| ui.label("x"));
+        };
+        core.run_with(&mut state, draw);
+        core.set_focus(true);
+        core.key(egui::Key::Equals, true, egui::Modifiers::COMMAND);
+        for _ in 0..2 {
+            core.run_with(&mut state, draw);
+        }
+        let ppp = core.ctx().pixels_per_point();
+        assert_eq!(ppp, 1.0, "Ctrl and = zoomed the wall screen to {ppp} pixels per point");
     }
 
     /// A PAGE DRAWN ON A WALL SCREEN MAY NOT STEER THE APP.
