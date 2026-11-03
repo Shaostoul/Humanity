@@ -1,10 +1,13 @@
 //! RGB-colored header nav bar for all tool pages.
 //!
-//! Mirrors the web shell.js color-coded navigation:
-//! - Red group: identity pages (never change with context)
-//! - Green group: context-sensitive pages (data changes with Real/Sim)
-//! - Blue group: system/config pages
-//! Plus a Real/Sim toggle on the right.
+//! THE ROW IS DATA since 2026-11-03 (docs/design/navigation.md, rung 1): its buttons, their
+//! order, their words, their groups' colours and the page each opens are `today_row.desktop` in
+//! data/gui/navigation.json (gui/navigation.rs reads it), the same file the website's top menu is
+//! drawn from (web/shared/shell.js, through scripts/gen-navigation.js). A button is added, moved
+//! or renamed there, never here. This file draws what the file says: the groups with a dot
+//! between them, each button's icon (its page's, widgets::icons::nav_icon) and words, the Chat
+//! button's unread dot, then the Aa switch; and what a click does (Play and Characters go to the
+//! world, every other button to its page).
 
 use egui::{Color32, Frame, Rect, RichText, CornerRadius, Stroke, Vec2};
 use crate::gui::{GuiPage, GuiState};
@@ -13,9 +16,12 @@ use crate::gui::theme::Theme;
 // `data/gui/theme.ron` in v0.175.0 so the Settings page color editor can
 // tune them. Read via `theme.nav_legacy_red()`, `theme.nav_reality()`, etc.
 
+/// One button of the row, as the file says it (gui/navigation.rs `RowButton`), its words read.
 struct NavItem {
     label: &'static str,
     page: GuiPage,
+    /// Characters: always the picker, even when a last pairing is recorded.
+    picker: bool,
 }
 
 /// Draw the RGB header nav bar at the top of the screen.
@@ -33,11 +39,10 @@ pub fn draw_nav_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     crate::gui::notice_panel::draw(ctx, theme, state);
 }
 
-/// Single-row RGB nav bar. Red identity / green contextual / blue
-/// system groups, with each button now showing an icon next to its
-/// label (v0.196.0). H brand button on the left navigates to Chat
-/// (operator decision: "H stands for Humanity ... fitting" + chat is
-/// the primary value prop). Real/Sim toggle on the right.
+/// The single row: the groups of data/gui/navigation.json's `today_row.desktop`, each button an
+/// icon beside its words (v0.196.0), then the Aa switch. (Its older notes, a Real/Sim toggle on the
+/// right and an H button opening Chat, are long gone: the Real/Sim switch went in v0.197.0, and
+/// the H is the Humanity button's icon since v0.363.)
 fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Keep repainting so the RGB channeling animation stays smooth
     ctx.request_repaint();
@@ -78,227 +83,33 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
 
-                // (v0.363) The separate brand "H" button was REMOVED — it
-                // duplicated the Humanity tab (both opened GuiPage::Humanity) and
-                // never got the active-tab RGB border the real tabs have. Humanity
-                // is now a single NORMAL tab whose ICON is the "H"
-                // (widgets::icons::paint_nav_icon) and whose label is "Humanity".
-                // Operator 2026-06-04: "only have a single H/Humanity page ... the
-                // icon can be the H and the text can be Humanity."
-
-                // Page carve: six top-level tabs —
-                // Humanity (the collective / mission), Chat (comms), Real (your
-                // actual life), Play (the sim), Platform (the software). This
-                // first step REGROUPS the existing pages under the five; the
-                // next steps fold each group into one scrollable section_nav
-                // page so the top row truly condenses. Decisions baked in: Maps
-                // lives once under Real (toggleable Humanity layers come with
-                // the merge); Recovery → Platform; Identity → Humanity (it's a
-                // public directory lookup, not private); Civilization → the
-                // Humanity Community Dashboard (what H now opens).
-
-                // Play — the dedicated button that drops into the 3D first-person
-                // game world (operator 2026-06-07: "add a dedicated button for the FPS
-                // game part ... Click Play to start FPS game mode" + "move Play all the
-                // way to the left"). Entering FPS mode = setting the page to None: the
-                // nav bar + pages hide and the cursor is grabbed for mouse-look (the
-                // post-egui reconcile in lib.rs); Esc brings the menu back. Leftmost,
-                // so the way into the world is the very first thing in the nav.
-                // Play enters the world (page None). It repeats the LAST pairing you
-                // entered (a character plus a world); with no pairing recorded yet it
-                // opens the picker. "Characters" ALWAYS opens the picker, so a pairing
-                // is never a dead end (operator, 2026-06-16; the automatic-last-pairing
-                // memory is docs/design/play-characters.md). The nav_group click
-                // handler branches on the label (v0.476.1).
-                let play_items = [
-                    NavItem { label: "Play", page: GuiPage::None },
-                    NavItem { label: "Characters", page: GuiPage::None },
-                    // Apps beside Play (2026-10-19, pages/apps.rs; the Games library and the Tools page made one):
-                    // the games on this computer, HumanityOS's own tools, other programs, help and services.
-                    NavItem { label: "Apps", page: GuiPage::Apps },
-                ];
-                nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Humanity — the collective + the mission, FOLDED into one tab.
-                // Its sections (Mission Dashboard/Governance/Directory/Onboarding/
-                // Donate/Resources) live in the Humanity page's section_nav. This
-                // is what the H button opens.
-                let humanity_items = [
-                    NavItem { label: "Humanity", page: GuiPage::Humanity },
-                ];
-                nav_group(ui, &humanity_items, theme.nav_reality(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Chat — communication.
-                let chat_items = [
-                    NavItem { label: "Chat", page: GuiPage::Chat },
-                ];
-                nav_group(ui, &chat_items, theme.nav_legacy_red(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Studio — livestreaming, promoted to its own top-level tab right of
-                // Chat (operator 2026-06-06: "move the studio page to the top level
-                // main menu to the right of the chat button").
-                let studio_items = [
-                    NavItem { label: "Studio", page: GuiPage::Studio },
-                    NavItem { label: "Watch", page: GuiPage::Watch },
-                    // The Files page beside Watch (docs/design/files-showcase.md, increment 2; called
-                    // Media until 2026-10-19, still GuiPage::Files in code).
-                    NavItem { label: "Files", page: GuiPage::Files },
-                ];
-                nav_group(ui, &studio_items, theme.nav_legacy_red(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Profile — your character / identity (operator 2026-06-07: "rename
-                // real to profile"). Renamed from "Real"; still GuiPage::Real (the
-                // folded page). After this batch its sidebar holds the Profile sections
-                // + Wallet + Market only — Possessions/Tasks/Map became their own
-                // top-level tabs and Streaming moved into Studio. A profile selector
-                // sits at the top (one base character for now; servers store augmented
-                // versions — see docs/design/homes-as-profiles.md).
-                let profile_items = [
-                    NavItem { label: "Profile", page: GuiPage::Real },
-                ];
-                nav_group(ui, &profile_items, theme.nav_legacy_green(), text_muted, theme, state);
-
-                // Home — your offline homestead (operator 2026-06-07: "let's do the
-                // homes thing ... keep developing offline"). Surfaces the Fibonacci
-                // homestead Design (rooms + bill-of-materials + power/water demand +
-                // a self-sufficiency summary). Sits by Profile (you -> your home).
-                let home_items = [
-                    NavItem { label: "Home", page: GuiPage::Homes },
-                ];
-                nav_group(ui, &home_items, theme.nav_legacy_green(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Quests — the learn-by-doing self-sufficiency path, its own
-                // top-level tab (operator 2026-06-06: "add a top level quests page
-                // for now").
-                let quests_items = [
-                    NavItem { label: "Quests", page: GuiPage::Quests },
-                ];
-                nav_group(ui, &quests_items, theme.nav_sim(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Tasks — promoted to its OWN top-level tab, to the right of Quests
-                // (operator 2026-06-07: "move tasks to the right of quests"). Was a
-                // section inside the old Real tab.
-                let tasks_items = [
-                    NavItem { label: "Tasks", page: GuiPage::Tasks },
-                ];
-                nav_group(ui, &tasks_items, theme.nav_sim(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Inventory — your possessions, promoted to its OWN top-level tab
-                // (operator 2026-06-07: "the inventory page definitely need to become
-                // a top level page"). Previously reachable only as Real's "Possessions"
-                // section; now one click from the nav like every other core surface.
-                let inventory_items = [
-                    NavItem { label: "Inventory", page: GuiPage::Inventory },
-                ];
-                nav_group(ui, &inventory_items, theme.nav_sim(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Crafting — its OWN top-level tab (operator 2026-06-07: "let's have
-                // the crafting page its own page for now at least" + "add crafting to
-                // the main menu"). This replaces the retired "Play" fold, which held
-                // only Crafting after Studio was promoted — so Play collapses into
-                // this direct tab rather than a one-item sidebar.
-                let crafting_items = [
-                    NavItem { label: "Crafting", page: GuiPage::Crafting },
-                ];
-                nav_group(ui, &crafting_items, theme.nav_sim(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Map — the universal Cosmos map, promoted to its OWN top-level tab
-                // (operator 2026-06-07: "move Map to the top menu as well"). Was a
-                // section inside the old Real tab; GuiPage::Maps forwards to the Cosmos
-                // page (the real map). Closes the game-colored cluster.
-                let map_items = [
-                    NavItem { label: "Maps", page: GuiPage::Maps },
-                ];
-                nav_group(ui, &map_items, theme.nav_sim(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Dev: the developer tools (Bugs, Testing, Performance, Dev, Planet
-                // Tuner) in one side list. It replaced the Platform tab on 2026-10-20:
-                // Platform's Calculator, Notes, Calendar and Browser are on Apps, its
-                // Recovery is in Settings > Account.
-                let dev_items = [
-                    NavItem { label: "Dev", page: GuiPage::Dev },
-                ];
-                nav_group(ui, &dev_items, theme.nav_tools(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // (The "Servers" top-nav tab was removed 2026-08-14 at the
-                // operator's request: server management now opens from the
-                // chat sidebar's Servers section header (server icon next
-                // to +) -- ONE servers concept, one place. The
-                // RelayControl page itself is unchanged.)
-
-                // Settings — its OWN top-level tab (operator 2026-06-04: "have
-                // settings as its own top level page ... always easily accessible,
-                // never buried in another menu"). Big enough to warrant its own
-                // page (section sidebar + long scroll), but it stays ONE click
-                // away here, not nested inside another tab.
-                // Library — the Humanity Accord and its reference companions, in a
-                // nested tree (operator 2026-06-06: "a top level Library button that
-                // contains all the docs sorted into nested categories").
-                // How-to beside it (2026-10-23, docs/design/how-to.md): the Library is what you
-                // read, How-to is what you do.
-                let library_items = [
-                    NavItem { label: "Library", page: GuiPage::Library },
-                    NavItem { label: crate::gui::pages::how_to::words::w("title"), page: GuiPage::HowTo },
-                ];
-                nav_group(ui, &library_items, theme.nav_reality(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // (The Tools tab became part of Apps, beside Play, on 2026-10-19:
-                // its free software and real-world help services are Apps' parts.)
-
-                let settings_items = [
-                    NavItem { label: "Settings", page: GuiPage::Settings },
-                ];
-                nav_group(ui, &settings_items, theme.nav_settings(), text_muted, theme, state);
-                // v0.479: the "Game Admin" nav button was removed -- game-world
-                // bans are now a subsection of Server Settings > ADMIN.
+                // THE ROW, from data/gui/navigation.json's today_row.desktop (rung 1 of
+                // docs/design/navigation.md): each group in its colour, a dot between two groups.
+                // How each button came to be where it is, in the operator's words: Play leftmost
+                // and into the world (2026-06-07, "move Play all the way to the left"; it replays
+                // the last pairing, Characters always opens the picker, 2026-06-16), one Humanity
+                // button whose icon is the H (2026-06-04), Studio beside Chat (2026-06-06), Profile
+                // renamed from Real (2026-06-07), Quests, Tasks, Inventory, Crafting and Maps each
+                // a tab of its own (2026-06-06/07), Settings never buried (2026-06-04), the Library
+                // with How-to beside it (2026-06-06, 2026-10-23), Dev in place of Platform
+                // (2026-10-20), Apps beside Play (2026-10-19). The Servers tab went to the chat's
+                // sidebar (2026-08-14) and Game Admin into Server Settings (v0.479); git history
+                // of this file has the long versions.
+                let menu = crate::gui::navigation::menu();
+                for (gi, group) in menu.desktop_row.iter().enumerate() {
+                    if gi > 0 {
+                        ui.add_space(6.0);
+                        separator_dot(ui, border);
+                        ui.add_space(6.0);
+                    }
+                    let colour = crate::gui::navigation::colour_of(&group.colour).map_or(text_muted, |c| c(theme));
+                    let items: Vec<NavItem> = group
+                        .buttons
+                        .iter()
+                        .map(|b| NavItem { label: humanity_core::i18n::t_dyn(&b.label), page: b.page, picker: b.picker })
+                        .collect();
+                    nav_group(ui, &items, colour, text_muted, theme, state);
+                }
 
                 // Presentation-mode cycle (v0.859): icon+text / icon-only / text-only,
                 // mirroring the web header's Aa button. Sits at the end of the row.
@@ -619,13 +430,14 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
                     state.last_page = state.active_page;
                 }
                 // "Characters" ALWAYS opens the picker (the way back to change who
-                // or where). "Play" replays the last pairing straight into
+                // or where): its entry in data/gui/navigation.json opens the world's
+                // `picker` part. "Play" replays the last pairing straight into
                 // first-person; with none recorded it opens the picker too.
                 // apply_last_pairing restores the selection, asks for the character
                 // load, and sets solo/shared from the world kind. (The showroom is
                 // opened by the per-frame handler in lib.rs when launcher_open_select
                 // is set.)
-                let force_picker = item.label == "Characters";
+                let force_picker = item.picker;
                 if force_picker || !state.apply_last_pairing() {
                     state.launcher_open_select = true;
                     state.launcher_homes_loaded = false; // rescan the saves

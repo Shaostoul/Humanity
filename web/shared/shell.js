@@ -943,6 +943,55 @@
   `;
   document.head.appendChild(style);
 
+  // ── The top menu's row, from data/gui/navigation.json (docs/design/navigation.md, rung 1) ──
+  // The one menu for both apps: the desktop app reads the file itself (src/gui/navigation.rs); the
+  // website's part is written in here by scripts/gen-navigation.js, the words from data/i18n/en.json
+  // (shell.js builds the menu as the page loads, before a fetch could answer). Never edit between the
+  // BEGIN and END lines: edit the data file, or the words, and run `node scripts/gen-navigation.js`;
+  // scripts/tests/navigation-web.test.js fails while the two differ. Until rung 5 the row is the
+  // file's today_row.web: each group's class and its tabs (address, icon, words, the key the page
+  // lights it by).
+  // BEGIN GENERATED NAVIGATION (scripts/gen-navigation.js, from data/gui/navigation.json and data/i18n/en.json: do not edit)
+  var NAV_SOURCE = 'data/gui/navigation.json'; // the file this is written from (tests/page_parity_lint.rs looks for this line)
+  var NAV_ROW = [
+    { cls: "nav-group-sim", tabs: [
+      { id: "play", href: "/download", icon: "games", label: "Play", key: "nav.play", active: "play" }, // i18n-exempt: en.json's words for its key
+      { id: "apps", href: "/apps", icon: "apps", label: "Apps", key: "nav.apps", active: "apps" } // i18n-exempt: en.json's words for its key
+    ] },
+    { cls: "nav-group-red", tabs: [
+      { id: "humanity", href: "/humanity", icon: "humanity", label: "Humanity", key: "nav.humanity", active: "humanity" } // i18n-exempt: en.json's words for its key
+    ] },
+    { cls: "nav-group-red", tabs: [
+      { id: "chat", href: "/chat", icon: "chat", label: "Chat", key: "nav.chat", active: "chat" } // i18n-exempt: en.json's words for its key
+    ] },
+    { cls: "nav-group-red", tabs: [
+      { id: "watch", href: "/watch", icon: "video", label: "Watch", key: "nav.watch", active: "watch" }, // i18n-exempt: en.json's words for its key
+      { id: "files", href: "/files", icon: "image", label: "Files", key: "nav.files", active: "files" } // i18n-exempt: en.json's words for its key
+    ] },
+    { cls: "nav-group-green", tabs: [
+      { id: "profile", href: "/profile", icon: "profile", label: "Profile", key: "nav.profile", active: "profile" }, // i18n-exempt: en.json's words for its key
+      { id: "own_life", href: "/home", icon: "home", label: "Home", key: "nav.own_life", active: "home" } // i18n-exempt: en.json's words for its key
+    ] },
+    { cls: "nav-group-sim", tabs: [
+      { id: "onboarding", href: "/onboarding", icon: "compass", label: "Onboarding", key: "nav.onboarding", active: "quests" }, // i18n-exempt: en.json's words for its key
+      { id: "tasks", href: "/tasks", icon: "tasklist", label: "Tasks", key: "nav.tasks", active: "tasks" }, // i18n-exempt: en.json's words for its key
+      { id: "inventory", href: "/inventory", icon: "inventory", label: "Inventory", key: "nav.inventory", active: "gear" }, // i18n-exempt: en.json's words for its key
+      { id: "crafting", href: "/crafting", icon: "crafting", label: "Crafting", key: "nav.crafting", active: "crafting" }, // i18n-exempt: en.json's words for its key
+      { id: "maps", href: "/maps", icon: "map", label: "Maps", key: "nav.maps", active: "map" } // i18n-exempt: en.json's words for its key
+    ] },
+    { cls: "nav-group-blue", tabs: [
+      { id: "dev", href: "/dev", icon: "tool", label: "Dev", key: "nav.dev", active: "dev" } // i18n-exempt: en.json's words for its key
+    ] },
+    { cls: "nav-group-red", tabs: [
+      { id: "library", href: "/library", icon: "journal", label: "Library", key: "nav.library", active: "library" }, // i18n-exempt: en.json's words for its key
+      { id: "how_to", href: "/how-to", icon: "steps", label: "How-to", key: "nav.how_to", active: "how_to" } // i18n-exempt: en.json's words for its key
+    ] },
+    { cls: "nav-group-settings", tabs: [
+      { id: "settings", href: "/settings", icon: "settings", label: "Settings", key: "nav.settings", active: "settings" } // i18n-exempt: en.json's words for its key
+    ] }
+  ];
+  // END GENERATED NAVIGATION
+
   // Helper: build a nav tab anchor.
   // icon is a hosIcon name (e.g. 'network') rendered as inline SVG.
   function navTab(href, icon, label, activeKey) {
@@ -953,6 +1002,30 @@
       iconHtml +
       '<span class="tab-label">' + label + '</span>' +
     '</a>';
+  }
+
+  // The words as markup: a word with < or & or a quote in it (a translation one day) stays words.
+  function navEsc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // One tab of the file's row. Humanity's icon is the brand H, as in the desktop app.
+  function navRowTab(tab) {
+    var label = navEsc(tab.label);
+    if (tab.icon === 'humanity') {
+      return '<a href="' + tab.href + '" class="tab' + (active === tab.active ? ' active' : '') + '" data-tip="' + label + '">' +
+        '<span class="tab-icon" style="font-weight:900;color:var(--accent);font-size:15px;line-height:1;">H</span>' +
+        '<span class="tab-label">' + label + '</span>' +
+      '</a>';
+    }
+    return navTab(tab.href, tab.icon, label, tab.active);
+  }
+
+  // The row: each of the file's groups in its class, a divider between two.
+  function navRowHtml() {
+    return NAV_ROW.map(function (group) {
+      return '<span class="' + group.cls + '">' + group.tabs.map(navRowTab).join('') + '</span>';
+    }).join('<div class="nav-divider"></div>');
   }
 
   // ── The app commits to one reality: your real life. ──
@@ -966,20 +1039,15 @@
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      /* ── Web header = EXACT MIRROR of the native app's top nav (v0.469.3). Order:
-         Play, Humanity, Chat, Studio, Profile, Home, Quests, Tasks, Inventory,
-         Crafting, Map, Dev, Library, Settings. The app has NO separate logo, so
-         neither do we -- the leading "Humanity" tab (with an H mark, like the app) is
-         the single home/Humanity button (this removes the old duplicate "H" brand).
-         App-only desktop features map to their nearest web target (Play/Studio ->
-         Download, Library -> Resources; Dev, which replaced Platform on 2026-10-20, ->
-         the Dev Workbench); the former web-only utility
-         tabs (Wallet, Market, Donate, Ops, Bugs, Dev, Audit, ...) stay reachable via
-         the mobile drawer + URL. Category colors mirror the native nav_group()
-         calls in escape_menu.rs: SIM PURPLE = the game (Play, Quests, Tasks,
-         Inventory, Crafting, Map), RED = platform entry (Humanity, Chat, Studio,
-         Library), GREEN = you (Profile, Home), BLUE = tools (Dev), GRAY =
-         Settings. Tabs render as category-bordered pills like the app. ── */
+      /* ── The row mirrors the desktop app's (v0.469.3): both are drawn from
+         data/gui/navigation.json since 2026-11-03 (navigation rung 1), whose today_row says
+         each app's groups, their colours and their tabs, and the older key a page lights each
+         tab by. The app has no separate logo, so neither do we: the Humanity tab carries the H.
+         Desktop-only pages are not in the website's row (Characters, Studio, Quests): Studio
+         left it on 2026-08-17 (operator: a desktop feature, and two tabs opening /download read
+         as a bug), and since the Quests/Tasks split (2026-08-16) the website shows Onboarding,
+         named for what it opens, where the desktop shows Quests. The web utility pages (Wallet,
+         Market, Donate, Ops, Bugs, ...) are in the phone menu below. ── */
       /* Front door: with the Humanity tab now opening /humanity (v0.1147),
        * this is the one reliable way back to the node's own homepage. Icon
        * only; the tooltip names THIS node's domain, honest on every server. */
@@ -989,84 +1057,8 @@
 
       '<div class="nav-divider"></div>' +
 
-      '<span class="nav-group-sim">' +
-        navTab('/download', 'games', 'Play', 'play') +
-        /* Apps beside Play, as in the app (2026-10-20; its Apps page, 2026-10-19, is the
-         * Games library and the Tools page made one, so the website's Tools page became it). */
-        navTab('/apps',     'apps',  'Apps', 'apps') +
-      '</span>' +
-
-      '<div class="nav-divider"></div>' +
-
-      '<span class="nav-group-red">' +
-        /* Points at the /humanity HUB (the app's Humanity tab mirror,
-         * v0.1147) rather than /, which stays the per-node front door. */
-        '<a href="/humanity" class="tab' + (active === 'humanity' ? ' active' : '') + '" data-tip="Humanity">' +
-          '<span class="tab-icon" style="font-weight:900;color:var(--accent);font-size:15px;line-height:1;">H</span>' +
-          '<span class="tab-label">Humanity</span>' +
-        '</a>' +
-      '</span>' +
-
-      '<div class="nav-divider"></div>' +
-
-      '<span class="nav-group-red">' +
-        navTab('/chat',     'chat',  'Chat',   'chat') +
-      '</span>' +
-
-      /* Chat is a group of its own and Watch and Files the next, as the desktop app's menu
-       * groups them (escape_menu.rs: Chat, a dot, then Studio, Watch and Files; 2026-10-22). */
-      '<div class="nav-divider"></div>' +
-
-      '<span class="nav-group-red">' +
-        /* Watch and Files beside Chat, as in the desktop app's menu (2026-10-12: on a desktop
-         * browser the page had no link at all, only the phone menu listed it). Files is the page
-         * people put their files on, called Media (at /media) until 2026-10-19. */
-        navTab('/watch',    'video', 'Watch',  'watch') +
-        navTab('/files',    'image', 'Files',  'files') +
-        /* Studio dropped from the web header (operator, 2026-08-17): it is
-         * a native feature today, and two tabs opening /download read as a
-         * bug. The streaming surface's future home is the Chat page (see
-         * docs/design/studio-watch.md). */
-      '</span>' +
-
-      '<div class="nav-divider"></div>' +
-
-      '<span class="nav-group-green">' +
-        navTab('/profile', 'profile', 'Profile', 'profile') +
-        navTab('/home',    'home',    'Home',    'home') +
-      '</span>' +
-
-      '<div class="nav-divider"></div>' +
-
-      '<span class="nav-group-sim">' +
-        /* Quests/Tasks split (operator, 2026-08-16): Quests = in-game,
-         * auto-populated, native-only; the web tutorial chains live under
-         * the Tasks umbrella, so this entry is named for what it opens. */
-        navTab('/onboarding', 'compass',   'Onboarding', 'quests') +
-        navTab('/tasks',      'tasklist',  'Tasks',     'tasks') +
-        navTab('/inventory',  'inventory', 'Inventory', 'gear') +
-        navTab('/crafting',   'crafting',  'Crafting',  'crafting') +
-        navTab('/maps',       'map',       'Maps',      'map') +
-      '</span>' +
-
-      '<div class="nav-divider"></div>' +
-
-      '<span class="nav-group-blue">' +
-        navTab('/dev',       'tool',     'Dev',      'dev') +
-      '</span>' +
-
-      '<div class="nav-divider"></div>' +
-
-      '<span class="nav-group-red">' +
-        navTab('/library',   'journal',  'Library',  'library') +
-        navTab('/how-to',    'steps',    'How-to',   'how_to') +
-      '</span>' +
-
-      '<div class="nav-divider"></div>' +
-
-      '<span class="nav-group-settings">' +
-        navTab('/settings',  'settings', 'Settings', 'settings') +
-      '</span>' +
+      /* The row: the groups and tabs of data/gui/navigation.json (navRowHtml above). */
+      navRowHtml() +
 
       /* Spacer pushes hamburger to the right */
       '<div class="spacer"></div>' +

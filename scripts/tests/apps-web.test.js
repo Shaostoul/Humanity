@@ -899,9 +899,11 @@ function webFiles() {
 // icons.js entry renamed: "icons.js has an apps icon" failed; and with the Justfile's rig-tests
 // naming tools-web.test.js: "the Justfile runs this file" failed.
 test("10. the nav: Apps beside Play with the four squares, in the phone menu, lit on /apps; nothing links to /tools; rig-tests runs this file", () => {
-  const sim = SHELL.match(/'<span class="nav-group-sim">' \+([\s\S]*?)'<\/span>'/);
-  assert.ok(sim, "shell.js has the Play group");
-  const tabs = [...sim[1].matchAll(/navTab\('([^']*)',\s*'([^']*)',\s*'([^']*)',\s*'([^']*)'\)/g)].map((m) => m.slice(1));
+  // The row is data since 2026-11-03 (data/gui/navigation.json, navigation rung 1): the groups
+  // gen-navigation.js writes into shell.js as NAV_ROW.
+  const sim = require(path.join(ROOT, "scripts", "gen-navigation.js")).shellRow(SHELL)[0];
+  assert.ok(sim && sim.cls === "nav-group-sim", "shell.js has the Play group first");
+  const tabs = sim.tabs.map((t) => [t.href, t.icon, t.label, t.active]);
   assert.deepStrictEqual(tabs, [["/download", "games", "Play", "play"], ["/apps", "apps", "Apps", "apps"]], "Apps beside Play, as in the app");
   assert.match(SHELL, /mobileLink\('\/apps',\s*'Apps'\)/, "in the phone menu");
   assert.match(SHELL, /else if \(p\.startsWith\('\/apps'\)\)\s*active = 'apps';/, "lit on /apps");

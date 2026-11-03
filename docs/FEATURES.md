@@ -1655,9 +1655,17 @@ Immediate-mode UI with theme.ron, 13 reusable widgets, 20+ pages.
 Title screen with Play, Settings, Quit. Overlays on 3D scene.
 - Native: `src/gui/pages/main_menu.rs`
 
-### Escape Menu
-In-game pause/settings overlay.
-- Native: `src/gui/pages/escape_menu.rs`
+### Top menu (the menu as data since 2026-11-03)
+The row at the top of every app page, on both apps, drawn from one file (docs/design/navigation.md,
+rung 1; until then two hand-written copies that drifted). The file holds the design's eight
+categories with every page placed in their rows, what is reachable outside the rows (each with why),
+and `today_row`, what the single row shows until rung 2 draws the two rows. (The file name
+`escape_menu.rs` is older than the row: it is not an in-game pause overlay.)
+- Data: `data/gui/navigation.json` (words and hints by key in `data/i18n/en.json`; the own-life category's id is `own_life`, its name one word, `nav.own_life`, while it is open)
+- Native: `src/gui/navigation.rs` (read once and again on a save, refused whole with the entry named when malformed; the exe's own copy otherwise), `src/gui/pages/escape_menu.rs` (draws `today_row.desktop`)
+- Web: `web/shared/shell.js` (draws `NAV_ROW`, written into it by `scripts/gen-navigation.js` from the file and en.json)
+- Tests: `src/gui/navigation_tests.rs` (the file reads, every GuiPage once, a malformed row refused, the drawn and clicked row is the file's), `scripts/tests/navigation-web.test.js` (the written copy current, the drawn row is the file's, a bad file refused), `page_registry_lint` (every web page once, every address a page), `page_parity_lint` ("The top menu")
+- Snapshots: `tests/snapshots/nav_bar_full.png`, `nav_bar_wrapped.png`, `nav_bar_icon_only.png`
 
 ### Settings Page
 Graphics, audio, controls, game, account categories with sliders and toggles.

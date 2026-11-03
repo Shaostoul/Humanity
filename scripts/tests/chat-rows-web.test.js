@@ -738,9 +738,11 @@ test("the site menu: a dot between groups, as native's separator_dot, and Chat a
   const at = shell.indexOf(".hub-nav .nav-divider {");
   const rule = shell.slice(at, shell.indexOf("}", at));
   assert.match(rule, /border-radius: 50%/, "a dot, not a line");
-  const chat = shell.indexOf("navTab('/chat'");
-  const watch = shell.indexOf("navTab('/watch'");
-  assert.ok(chat > 0 && watch > chat, "Chat, then Watch");
-  const between = shell.slice(chat, watch);
-  assert.ok(between.includes("</span>") && between.includes('<div class="nav-divider"></div>'), "a dot between Chat and Watch, each in its own group");
+  // The row is data since 2026-11-03 (data/gui/navigation.json, navigation rung 1): the groups
+  // gen-navigation.js writes into shell.js as NAV_ROW, drawn with a divider between two groups.
+  const row = require(path.join(ROOT, "scripts", "gen-navigation.js")).shellRow(shell);
+  const chat = row.findIndex((g) => g.tabs.some((t) => t.href === "/chat"));
+  assert.ok(chat >= 0 && row[chat].tabs.length === 1, "Chat a group of its own");
+  assert.strictEqual(row[chat + 1].tabs[0].href, "/watch", "Watch first in the group after Chat's");
+  assert.ok(shell.includes(".join('<div class=\"nav-divider\"></div>');"), "a dot between two groups");
 });

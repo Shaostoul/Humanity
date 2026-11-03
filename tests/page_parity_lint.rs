@@ -234,6 +234,30 @@ const PARITY_PAIRS: &[ParityPair] = &[
             ("web/pages/bugs-app.js", "fetch('/data/bugs/taxonomy.json')"),
         ],
     },
+    // The top menu (2026-11-03, docs/design/navigation.md rung 1): both apps' rows come from one
+    // file. The desktop reads it in gui/navigation.rs and escape_menu.rs draws that; the website's
+    // part is written into web/shared/shell.js by scripts/gen-navigation.js (a page builds its menu
+    // before a fetch could answer), and shell.js draws that. What each row SHOWS is held to the
+    // file by src/gui/navigation_tests.rs (the desktop's, drawn and clicked) and
+    // scripts/tests/navigation-web.test.js (the website's, run whole, and its copy current); this
+    // pair holds the reads in place. Seen red 2026-11-03 with escape_menu.rs reading the file itself
+    // each frame (`navigation::load(...)`) instead of the menu read once: "The top menu:
+    // src/gui/pages/escape_menu.rs no longer reads `gui/navigation.json` (expected a line with
+    // `let menu = crate::gui::navigation::menu();`)".
+    ParityPair {
+        page: "The top menu",
+        native: &["src/gui/navigation.rs"],
+        web: &["scripts/gen-navigation.js", "web/shared/shell.js"],
+        data_file: "gui/navigation.json",
+        reads: &[
+            ("src/gui/navigation.rs", "pub const FILE: &str = \"gui/navigation.json\";"),
+            ("src/gui/navigation.rs", "humanity_core::embedded_data::load_text_or_embedded(data_dir, FILE, parse)"),
+            ("src/gui/pages/escape_menu.rs", "let menu = crate::gui::navigation::menu();"),
+            ("scripts/gen-navigation.js", "const NAV_PATH = path.join(ROOT, 'data', 'gui', 'navigation.json');"),
+            ("web/shared/shell.js", "var NAV_SOURCE = 'data/gui/navigation.json';"),
+            ("web/shared/shell.js", "return NAV_ROW.map(function (group) {"),
+        ],
+    },
     // How-to (2026-10-23, docs/design/how-to.md): the category tree, the planned list and the page's
     // own words, one file each for both apps. The how-tos themselves are read file by file (the
     // desktop walks data/how_to/<top>/, the website takes the paths from the index the build writes

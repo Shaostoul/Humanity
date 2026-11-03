@@ -1,9 +1,10 @@
 # Navigation: the double top menu, the layers, the six questions, and Back and Forward
 
-**Status (2026-11-02): a design for the operator's review. Nothing in it is built** except a
-throwaway mock-up that renders its pictures (`src/gui/nav_mockup_tests.rs`, section 15) and the
-menu's words, added by key for that mock-up (`nav.*`, `front_door.q_*` in `data/i18n/en.json`).
-The questions that are his are in section 16, each with a recommendation.
+**Status (2026-11-02): a design for the operator's review.** Built so far: a throwaway mock-up
+that renders its pictures (`src/gui/nav_mockup_tests.rs`, section 15), the menu's words, by key
+(`nav.*`, `front_door.q_*` in `data/i18n/en.json`), and **rung 1 (2026-11-03): the menu as data,
+`data/gui/navigation.json`, which both apps' single row is drawn from, with no visible change**
+(section 14). The questions that are his are in section 16, each with a recommendation.
 
 It covers both apps, the desktop app first and the website mirroring it: the two menus and every
 page placed in them (section 3), how they behave under a mouse, a keyboard and a thumb (4), the
@@ -687,6 +688,22 @@ preview timings and the phone sizes are in it too. The desktop's `escape_menu.rs
 `shell.js` both draw from it, the phone's All pages list included, so the two menus cannot drift
 again (a `page_parity_lint` pair holds both readers to it).
 
+**As built in rung 1 (2026-11-03).** The file's own `_comment` says what each field means. Beside
+the categories it has `outside` (what a person can reach that the rows leave out: the title screen,
+the Profile alias, the website's front door, Onboarding, the Accord, Civilization, the Wallet guide,
+Recovery and `/hi`, each with `why`) and `today_row` (each app's single row as it is, its groups'
+colour tokens or CSS classes, and the older keys the website lights tabs by), which rung 2 replaces
+with the two rows on the desktop and rung 5 on the website. A new page with a stand-in today opens
+the stand-in (People the Directory, Servers the Relay Control page), its `_note` saying so. The
+own-life category's id is `own_life` and its name the key `nav.own_life` while its name is open
+(16.1). The desktop reads the file in `src/gui/navigation.rs`, once and again when it is saved,
+refusing a malformed file whole (the exe's own copy is used at start, the menu kept on a save).
+The website does not fetch it: `scripts/gen-navigation.js` writes the website's part, with its
+English words, into `shell.js` (a page builds its menu before a fetch could answer, and the
+desktop's offline copy of the website carries `web/` only), and a test fails while that copy is
+out of date. Left for rung 2, which uses them: the preview timings, the phone sizes, and drawing
+the icons by the file's names on the desktop (it draws each button's page's icon meanwhile).
+
 **New theme tokens** (`theme.ron`, each with its Settings editor row and its accessor): the sizes in
 section 7 (`nav_primary_height`, `nav_primary_button_height`, `nav_icon_size`,
 `nav_secondary_height`, `nav_secondary_button_height`, `nav_secondary_font_size`), one colour per
@@ -719,7 +736,12 @@ finding.
 1. **The menu as data, no visible change.** `data/gui/navigation.json`; `escape_menu.rs` and
    `shell.js` draw today's single row from it; the parity pair and the "none lost, none twice"
    test. *Gate:* `just lints`, `just test-lib`, `node --test scripts/tests/`, `nav_bar_full.png`
-   unchanged.
+   unchanged. **Built 2026-11-03** (section 13, "As built"): `nav_bar_full.png` re-renders byte
+   for byte the same, and the website's menu markup is byte for byte the same on 25 pages. Its
+   tests: `src/gui/navigation_tests.rs` (the file reads, every `GuiPage` once, a malformed row
+   refused naming the entry, the desktop's row drawn and clicked is the file's),
+   `scripts/tests/navigation-web.test.js` (the website's half), `page_registry_lint` (every web
+   page once, every address a page) and `page_parity_lint`'s "The top menu".
 2. **The double menu on the desktop.** The two rows, the preview, More, the sizes as tokens, Back
    and Forward buttons (drawn, wired in rung 4); the Humanity and Dev side lists become their rows;
    Inventory, Crafting and Quests move under Play. Then **delete `src/gui/nav_mockup_tests.rs`**.

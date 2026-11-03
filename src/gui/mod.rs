@@ -42,6 +42,10 @@ pub mod notice_panel;
 /// The Font Size setting as the whole app's zoom (BUG-225): set before every main pass.
 #[cfg(feature = "native")]
 pub mod font_size;
+/// The top menu as data (docs/design/navigation.md, rung 1): data/gui/navigation.json, read at
+/// start and when it is saved; the top row is drawn from it (pages/escape_menu.rs).
+#[cfg(feature = "native")]
+pub mod navigation;
 
 /// Install every font fallback chain on an egui context. Called for the main
 /// UI context at boot AND for every in-world screen surface context, so a

@@ -65,8 +65,8 @@ fn the_pages_words_are_all_in_the_words_file() {
     }
     called.extend(called_keys(&web, &["W", "WF"]));
     quoted.push_str(&web);
-    // The nav button is the page's title, in escape_menu.rs.
-    quoted.push_str(&std::fs::read_to_string(repo().join("src/gui/pages/escape_menu.rs")).unwrap());
+    // (The top menu's How-to button took this file's "title" until 2026-11-03; its words are the
+    // menu's own key now, nav.how_to in data/i18n/en.json, data/gui/navigation.json.)
     let missing: Vec<&String> = called.iter().filter(|k| !words.contains_key(*k)).collect();
     assert!(missing.is_empty(), "keys the page uses that data/how_to/words.json does not have: {missing:?}");
     let unused: Vec<&String> = words.keys().filter(|k| !quoted.contains(&format!("\"{k}\"")) && !quoted.contains(&format!("'{k}'"))).collect();

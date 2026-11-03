@@ -665,7 +665,10 @@ test("11. sizes, the share and the meter read as the design writes them", () => 
 test("12. the page is in the nav beside Watch and loads its scripts in order", () => {
   const shell = fs.readFileSync(path.join(WEB, "shared", "shell.js"), "utf8");
   assert.ok(/mobileLink\('\/watch',\s*'Watch'\)\s*\+[\s\S]{0,400}?mobileLink\('\/files',\s*'Files'\)/.test(shell), "the nav links the page");
-  assert.ok(/navTab\('\/files',\s*'image',\s*'Files',\s*'files'\)/.test(shell), "the top nav names it Files");
+  // The top row is data since 2026-11-03 (data/gui/navigation.json, navigation rung 1), written into
+  // shell.js as NAV_ROW by gen-navigation.js.
+  const tabs = require(path.join(H.ROOT, "scripts", "gen-navigation.js")).shellRow(shell).flatMap((g) => g.tabs);
+  assert.ok(tabs.some((t) => t.href === "/files" && t.icon === "image" && t.label === "Files" && t.active === "files"), "the top nav names it Files");
   assert.equal((shell.match(/mobileLink\('\/files'/g) || []).length, 1, "one Files in the phone menu");
   assert.ok(!/'\/media'|'\/shared-files'/.test(shell), "and no menu links the old addresses");
   assert.ok(/p\.startsWith\('\/files'\)/.test(shell), "the page lights its tab");

@@ -10,6 +10,9 @@
 // Storage is a Map per store (or one that throws: a blocked storage); fetch answers
 // /data/gui/wip_mute.json from data/; the clock is fixed; i18n answers from data/i18n/en.json.
 // HOS_WEB_DIR points it at another copy of web/ (how each test was seen red).
+// Since 2026-11-03 (navigation rung 1) it also keeps the top menu's markup (`navHtml`), and with
+// `opts.icons` runs web/shared/icons.js first, so the menu's icons are drawn as a page draws them
+// (scripts/tests/navigation-web.test.js).
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -60,6 +63,7 @@ function storage(blocked) {
  *   opts.version   the site's version (CURRENT_VERSION), default '0.1547.0'
  *   opts.nowSecs   the clock, seconds since 1970
  *   opts.path      location.pathname, default '/pages/notes.html'; opts.hash, default ''
+ *   opts.active    the script tag's data-active (the tab the page lights); opts.icons, run icons.js first
  *   opts.local / opts.session   { key: value } put in localStorage / sessionStorage first
  *   opts.blocked   both storages throw
  * Returns { ctx, rootStyle, strip, mute, menu, local, session, timers, events, readDone, fire, settle }.
@@ -70,6 +74,7 @@ function loadShell(opts = {}) {
   const docListeners = {};
   const winListeners = {};
   let stripHolder = null;
+  let navHolder = null;
   const el = (tag) => {
     const kids = {};
     const listeners = {};
@@ -90,6 +95,7 @@ function loadShell(opts = {}) {
       get: (o, p) => (p === 'firstChild' ? (o.firstChild = o.firstChild || el('div')) : p in o ? o[p] : anything()),
       set: (o, p, v) => {
         if (p === 'innerHTML' && String(v).includes('id="hos-wip-strip"')) stripHolder = proxy;
+        if (p === 'innerHTML' && String(v).startsWith('<nav class="hub-nav">')) navHolder = proxy;
         o[p] = v;
         return true;
       },
@@ -106,6 +112,8 @@ function loadShell(opts = {}) {
     querySelector: (sel) => (String(sel).includes('hos-wip') ? null : el('div')),
     addEventListener: (type, f) => { (docListeners[type] = docListeners[type] || []).push(f); },
   });
+  // A page's <script src="/shared/shell.js" data-active="..."> (opts.active), the tab it lights.
+  if (opts.active) doc.currentScript.setAttribute('data-active', opts.active);
   const local = storage(opts.blocked);
   const session = storage(opts.blocked);
   for (const [k, v] of Object.entries(opts.local || {})) local.map.set(k, typeof v === 'string' ? v : JSON.stringify(v));
@@ -144,6 +152,7 @@ function loadShell(opts = {}) {
   ctx.window = ctx;
   ctx.self = ctx;
   vm.createContext(ctx);
+  if (opts.icons) vm.runInContext(fs.readFileSync(path.join(WEB, 'shared', 'icons.js'), 'utf8'), ctx, { filename: 'icons.js' });
   const version = opts.version || '0.1547.0';
   const src = fs.readFileSync(path.join(WEB, 'shared', 'shell.js'), 'utf8').replace(/var CURRENT_VERSION = '[^']*';/, "var CURRENT_VERSION = '" + version + "';");
   vm.runInContext(src, ctx, { filename: 'shell.js' });
@@ -154,6 +163,8 @@ function loadShell(opts = {}) {
   return {
     ctx, rootStyle, appended, local: local.map, session: session.map, timers, events, clock,
     strip,
+    /** The top menu's markup, as the shell wrote it. */
+    navHtml: navHolder ? String(navHolder.innerHTML) : null,
     mute: strip ? strip.querySelector('.hos-wip-mute') : null,
     menu,
     readDone: () => (docListeners.DOMContentLoaded || []).forEach((f) => f()),

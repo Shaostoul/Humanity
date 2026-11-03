@@ -18,6 +18,9 @@
 //!    (excluding `None`). Added 2026-07-23: only the web count was guarded, so
 //!    the native prose silently drifted to 35 while the enum grew to 37, and
 //!    CLAUDE.md tells agents to trust that heading.
+//! 5. The top menu's file, data/gui/navigation.json (2026-11-03, navigation rung 1): every
+//!    website address in it is a page, and every web page is in it exactly once (none lost,
+//!    none twice). Its desktop twin is a lib test (src/gui/navigation_tests.rs).
 //! Deliberately NOT checked: prose accuracy (only a human can audit purpose
 //! text) and per-variant row format (the doc groups variants into tables of
 //! different shapes; a mention anywhere is the invariant that prevents rot).
@@ -146,6 +149,86 @@ fn web_page_files_and_count_match_the_registry() {
         "docs/PAGES.md claims {claimed} standalone web pages but web/pages/ holds {} -- update the heading (and add/remove the page rows)",
         files.len()
     );
+}
+
+/// Every `"web": "<address>"` value in a JSON text, in order (a `null` or an array is skipped).
+fn web_addresses(json: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(i) = json[from..].find("\"web\":") {
+        let start = from + i + 6;
+        let rest = json[start..].trim_start();
+        if let Some(stripped) = rest.strip_prefix('"') {
+            if let Some(end) = stripped.find('"') {
+                out.push(stripped[..end].to_string());
+            }
+        }
+        from = start;
+    }
+    out
+}
+
+/// The file a website address is served from: `/` the front door, `/chat` the chat's own
+/// folder, `/<name>` web/pages/<name>.html (the server's `try_files $uri.html`). A `#part` is a
+/// part of that page.
+fn web_page_file(address: &str) -> std::path::PathBuf {
+    let path = address.split('#').next().unwrap_or("");
+    match path {
+        "/" => repo().join("web/pages/index.html"),
+        "/chat" => repo().join("web/chat/index.html"),
+        p => repo().join("web/pages").join(format!("{}.html", p.trim_start_matches('/'))),
+    }
+}
+
+/// THE TOP MENU'S WEBSITE HALF OF "NONE LOST, NONE TWICE" (navigation rung 1, 2026-11-03,
+/// docs/design/navigation.md section 13). Every website address in data/gui/navigation.json is a
+/// page the website has, and every web/pages/*.html page is in the file exactly once as a whole
+/// page (a category, an item, or `outside` with its reason; `/dev#claude` is a part of /dev and
+/// does not count). The desktop half, every GuiPage in exactly one place, is a lib test that reads
+/// the file through the app's own reader: src/gui/navigation_tests.rs
+/// (`every_desktop_page_is_in_the_menu_file_once`).
+///
+/// Seen red 2026-11-03 with Governance's address written `/governanse`: "the menu's website
+/// addresses that are not pages: [\"/governanse (web/pages/governanse.html)\"]"; and with the `hi`
+/// entry taken out of `outside`: "web pages in 0 or 2+ places of the menu file (none lost, none
+/// twice): [\"hi.html in 0\"]".
+#[test]
+fn the_menu_file_places_every_web_page_once() {
+    let nav = fs::read_to_string(repo().join("data/gui/navigation.json")).expect("read data/gui/navigation.json");
+    let addresses = web_addresses(&nav);
+    assert!(addresses.len() > 30, "sanity: the menu file names {} website addresses", addresses.len());
+    let missing: Vec<String> = addresses
+        .iter()
+        .filter(|a| !a.starts_with('/') || !web_page_file(a).is_file())
+        .map(|a| {
+            let file = web_page_file(a);
+            let shown = file.strip_prefix(repo()).unwrap_or(&file).display().to_string().replace('\\', "/");
+            format!("{a} ({shown})")
+        })
+        .collect();
+    assert!(missing.is_empty(), "the menu's website addresses that are not pages: {missing:?}");
+
+    let mut wrong = Vec::new();
+    let mut pages: Vec<String> = fs::read_dir(repo().join("web/pages"))
+        .expect("read web/pages")
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|n| n.ends_with(".html"))
+        .collect();
+    pages.sort();
+    pages.push("chat (web/chat/index.html)".to_string());
+    for page in &pages {
+        let address = match page.as_str() {
+            "index.html" => "/".to_string(),
+            p if p.starts_with("chat ") => "/chat".to_string(),
+            p => format!("/{}", p.trim_end_matches(".html")),
+        };
+        let n = addresses.iter().filter(|a| **a == address).count();
+        if n != 1 {
+            wrong.push(format!("{page} in {n}"));
+        }
+    }
+    assert!(wrong.is_empty(), "web pages in 0 or 2+ places of the menu file (none lost, none twice): {wrong:?}");
 }
 
 /// The NATIVE heading count (2026-07-23). Only the web count was guarded, so the

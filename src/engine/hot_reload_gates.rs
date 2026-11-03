@@ -63,6 +63,12 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
         state.hull_profile = None; // force the re-read
         crate::engine::home_meshes::rebuild_hull(state);
     }
+    // The top menu (docs/design/navigation.md, rung 1): saving data/gui/navigation.json reads it
+    // again, so the row changes without a restart; a copy this version cannot read is refused,
+    // loudly in the log, and the menu keeps what it had (gui/navigation.rs).
+    if changes.iter().any(|c| c.ends_with(crate::gui::navigation::FILE)) {
+        crate::gui::navigation::reload(&humanity_core::storage::data_dir());
+    }
     // game.csv hot-reload (v0.1119): the interior-gravity knob
     // (gravity_m_s2) tunes live, like the file's own header always
     // promised. The watcher already dropped the stale cache entry, so

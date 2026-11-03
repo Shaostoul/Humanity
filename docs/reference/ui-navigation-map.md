@@ -177,6 +177,10 @@ Ranked by user confusion:
    section adds Humanity Accord and omits Characters + Watch; the shell.js
    mirror comment lists 14 tabs but renders 15. Recommendation: match
    native order, fix the comment, retitle the section honestly.
+   (2026-11-03: both apps' rows are drawn from one file,
+   `data/gui/navigation.json`, docs/design/navigation.md rung 1, so the two
+   rows cannot drift again; the phone drawer is still written by hand until
+   that design's rung 5 draws it from the same file.)
 10. **Web orphans.** /admin and /agents are linked from nowhere; /devlog and
     /wallet-guide are one-link wonders; /mission is a redirect stub still
     linked from the landing page. Recommendation: Ops-adjacent drawer links

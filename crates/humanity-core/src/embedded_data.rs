@@ -97,6 +97,9 @@ pub const NOTIFICATIONS_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_RO
 /// How long the unfinished-software warning can be muted for (docs/design/app-bottom-strip.md,
 /// section 3.5). Ungated though only the desktop app reads it, as NOTIFICATIONS_JSON is.
 pub const WIP_MUTE_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/gui/wip_mute.json"));
+/// The top menu (docs/design/navigation.md, rung 1; src/gui/navigation.rs), so a data folder
+/// without the file still has a menu. Ungated though only the desktop app reads it, as WIP_MUTE_JSON is.
+pub const NAVIGATION_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/gui/navigation.json"));
 
 // ── Solar system body definitions (RON) ─────────────────────────────
 pub const SOLAR_BODY_EARTH_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/solar_system/earth.ron"));
@@ -372,6 +375,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "media/ingest.json" => Some(MEDIA_INGEST_JSON),
         "notifications/notifications.json" => Some(NOTIFICATIONS_JSON),
         "gui/wip_mute.json" => Some(WIP_MUTE_JSON),
+        "gui/navigation.json" => Some(NAVIGATION_JSON),
         "external/catalog.json" => Some(EXTERNAL_CATALOG_JSON),
         "cities.json" => Some(CITIES_JSON),
         "coastlines.json" => Some(COASTLINES_JSON),
@@ -791,6 +795,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "ship/household.ron",
     "notifications/notifications.json",
     "gui/wip_mute.json",
+    "gui/navigation.json",
 ];
 
 #[cfg(test)]
