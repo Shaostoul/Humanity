@@ -508,6 +508,11 @@ the Arena is the only fighting between people.
 
 ## 4. Death beyond the link
 
+**Reworked by [respawn-and-revival.md](respawn-and-revival.md) (2026-11-03), after his answer in
+10.1:** the recorder below is replaced by one heavy field lifeline per team, taking every back slot;
+that design's section 2.11 holds the table that replaces 4.2, and its section 3 holds Hardcore's
+costs. This section stays as written until he accepts it.
+
 ### 4.1 The recorder
 
 A recorder is a portable second support for the mind: a small hardened unit worn at the collar.
@@ -1113,3 +1118,7 @@ answers.
 The respawn and revival mechanics get their own design document, as he asks, collecting the
 options (the heavy carried gear, Hardcore's costs, the highest skill's lost level, and magic) for
 him to play with.
+
+- **Designed 2026-11-03: [respawn-and-revival.md](respawn-and-revival.md)** (the field lifeline,
+  Hardcore's costs side by side, magic's options, everything respawning costs and gives; twelve
+  questions for him in its section 9).

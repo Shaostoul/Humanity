@@ -357,9 +357,15 @@ In order:
     - THE FILES PAGE'S PLACES IN RGB ORDER (2026-11-03): red, this computer (the HumanityOS folder,
       Your folders); green, what you share publicly; blue, what friends and servers share. The
       launcher's colour language. Queued after BUG-228 (which touches the Files viewer).
-    - RESPAWN AND REVIVAL, its own design (his ask, 2026-11-03): revival beyond the lifeline is a
-      heavy carried piece taking every back slot; Hardcore's costs to play with (mission gear and
-      experience, the highest skill's last level); magic considered. Dispatched.
+    - RESPAWN AND REVIVAL, its own design (his ask, 2026-11-03): DESIGNED,
+      docs/design/respawn-and-revival.md. The field lifeline (a 40 kg backpack-shaped unit, every
+      back slot, one per team, runs minds and never records one); Hardcore's costs side by side
+      (recommended: what you had with you lies where you fell, plus the experience not yet slept
+      on; the character ends only when no support is left; the highest skill's level as an off
+      dial); magic options (recommended: none in the fleet's world, a marked layer a world turns
+      on, spells as Arena sport); twelve questions for him. BUG-233 found with it: fourteen
+      fantasy spells are castable in every world today, unlabelled; its fix waits on his magic
+      answer.
     - THE DESKTOP APP DOES EVERYTHING: "We should add the pages... We can't leave anything out.
       Everything needs to be able to be done through the app." A desktop Roadmap page and Devlog
       page, and a parity audit of every one-sided page, in the double-menu design.
