@@ -247,6 +247,9 @@
     var sounds = loadSounds();
     var local = { desktop: !!at.desktop, sound: !!at.sound, show: show(), mutes: loadMutes(), levels: loadLevels(), sounds: sounds, events: {} };
     if (c.from_allowed === undefined && c.conversation && c.conversation.indexOf('dm:') === 0) c.from_allowed = allowed(c.conversation.slice(3));
+    // The sender's level from my profile card for them (per-person controls): a DM's
+    // conversation names them, a room line carries their key (`from_key`).
+    if (c.from_level === undefined) c.from_level = c.from_me ? null : personLevel(c.from_key || (c.conversation && c.conversation.indexOf('dm:') === 0 ? c.conversation.slice(3) : ''));
     var out = R.decide(c, synced(), local, {
       now: now,
       minute: d.getHours() * 60 + d.getMinutes(),
@@ -307,6 +310,15 @@
     var all = loadJson(ALLOW_KEY) || {};
     all[me()] = people;
     saveJson(ALLOW_KEY, all);
+  }
+
+  /** The level I set for `key` on their profile card ("Notifications from them",
+   *  /shared/person-controls.js), or null: THE rule's from_level. */
+  function personLevel(key) {
+    if (!key || !window.HosPersonControls) return null;
+    var storage = null;
+    try { storage = window.localStorage; } catch (_) { storage = null; }
+    return HosPersonControls.levelOf(storage, me(), key);
   }
 
   /** Is `key` on my always-allow list? */
@@ -914,6 +926,11 @@
     playSound: playSound,
     allowed: allowed,
     setAllowed: setAllowed,
+    personLevel: personLevel,
+    // The profile card's "Your settings for <name>" (per-person controls): a conversation's mute.
+    personMuted: personMuted,
+    setPersonMute: setPersonMute,
+    untilWords: untilWords,
     screenAllowNote: screenAllowNote,
     flushAllowNotes: flushAllowNotes,
     ring: ring,

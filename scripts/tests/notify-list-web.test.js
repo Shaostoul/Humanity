@@ -227,7 +227,8 @@ test('6. a shared room line notifies only while live and from someone not blocke
   ctx.handleMessage(fed({}));
   assert.strictEqual(calls.length, 1);
   assert.strictEqual(calls[0][0], 'Cy (B)');
-  assert.deepStrictEqual(plain(calls[0][3]), { room: 'global' });
+  // With its author's key, so the level set on their profile card applies (per-person controls).
+  assert.deepStrictEqual(plain(calls[0][3]), { room: 'global', from_key: 'k9' });
   ctx.handleMessage(fed({ timestamp: Date.now() - 6 * 60 * 1000 }));
   assert.strictEqual(calls.length, 1, 'a link catching up');
   ctx.handleMessage(fed({ from_key: 'bad' }));
@@ -237,6 +238,7 @@ test('6. a shared room line notifies only while live and from someone not blocke
   // A reply on a local line carries the replied-to author.
   ctx.handleMessage({ type: 'chat', from: 'k2', from_name: 'Ben', content: 'yes', channel: 'global', timestamp: 1, reply_to: { from: 'me' } });
   assert.strictEqual(calls[1][3].reply_from, 'me');
+  assert.strictEqual(calls[1][3].from_key, 'k2', 'a local line carries its author too');
 });
 
 test('7. Settings: the unread section is gone, the exceptions are there, the Muted list unmutes', () => {

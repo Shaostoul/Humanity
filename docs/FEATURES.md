@@ -1120,6 +1120,33 @@ the newest note per person winning.
   menu), `web/shared/notify-rules.js` (`allowNoteText`, `allowNoteParse`, `allowApply`), Settings
   (`web/pages/settings-app.js` `renderAllowList`)
 
+### Per-person controls: "Your settings for <name>" on a profile card (rung 1, 2026-11-03)
+The operator, 2026-11-03: "We need to add the various controls users can use on other users to the
+profile page. Like we need to set file sharing limits, allowed to call during quiet hours, etc."
+Design and the whole list (with its later rungs): docs/design/per-person-controls.md. On another
+person's card, below their actions and above Report and Block, apart from Moderation and Admin:
+Notifications from them (Everything / Only calls, mentions and replies / Nothing; THE rule's
+`from_level`, both twins, the shared cases), Calls and messages come through quiet hours (the
+always-allow list), Files from them (Use my setting / Always ask / Up to a size without asking /
+Never; the file's plan and a big file's question), a friend's Message, Call and Trade ticks (the
+"People I choose" choice), and their conversation's mute with Unmute. Each an override of a global
+setting, safe by default, enforced on the person's own device, kept by identity on this device,
+never told to a server or to the person. Also BUG-244: the card never shows an empty name.
+- Native: `src/net/person_controls.rs` (the record, `file_verdict`, the lines), `AppConfig::person_controls`,
+  `src/notifications/decide.rs` (`Candidate::from_level`, `Why::PersonLevel`; the data file's
+  `person_level` and `person_levels`), `src/engine/notify.rs` (`person_level`), the file's plan
+  (`src/gui/pages/chat/attach_view.rs` `Show::Refused`), the offer's question (`src/net/file_offer.rs`
+  `question`, `Question::Refused`; `chat/transfer_rows.rs`), the section (`src/gui/pages/chat/person_controls.rs`),
+  the card (`chat/modals.rs` `open_profile`, `card_name`, now a scrolling dialog)
+- Web: `web/shared/person-controls.js` (`HosPersonControls`, localStorage `hos_person_controls`),
+  `web/shared/notify-rules.js`, `web/chat/chat-notify.js` (`personLevel`), `web/chat/chat-dms.js`
+  (`privateFilePersonVerdict`), `web/chat/chat-file-transfer.js` (`refusedPerson`), the card's section
+  (`web/chat/chat-profile.js` `personControlsHtml`, `wirePersonControls`, `profileCardName`)
+- Tests: `scripts/tests/fixtures/person-controls-cases.json` (both twins), `notify-cases.json` (15 new
+  cases), `src/net/person_controls_tests.rs`, `src/gui/pages/chat/person_controls_tests.rs` (drawn
+  and clicked headless), `src/engine/notify.rs` `every_candidate_from_a_person_carries_their_level_from_the_card`,
+  `scripts/tests/person-controls-web.test.js`; snapshots `user_profile_modal`, `user_profile_modal_narrow`
+
 ### Notification Actions
 Reply and Mark Read buttons on push notifications.
 - Web: `web/shared/sw.js` (service worker)

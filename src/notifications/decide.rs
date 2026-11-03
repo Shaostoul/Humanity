@@ -4,7 +4,7 @@
 //! (`web/shared/notify-rules.js`) is held to the same cases
 //! (`scripts/tests/fixtures/notify-cases.json`). The checks run in a fixed order and the first
 //! that stops a notice names why ([`Why`]): a person's own message, a kind turned off, a mute, the
-//! room's level, quiet hours (unless an exception lets it through), the conversation already on
+//! sender's level (per-person controls), the room's level, quiet hours (unless an exception lets it through), the conversation already on
 //! screen, a burst. Only what passes them all can make a sound, an operating-system notice or an
 //! entry in the in-app list (rung 2), and the notice's words come from [`words`], which never
 //! shows what was said unless the person chose that.
@@ -70,6 +70,11 @@ pub struct Candidate {
     /// calls and messages (the person kinds) come through quiet hours. Decided on the device; no
     /// server knows the list.
     pub from_allowed: bool,
+    /// The sender's level as the person set it on their profile card ("Notifications from them",
+    /// docs/design/per-person-controls.md 3.1): `None` when nothing was chosen (Everything) and
+    /// for a notice with no person behind it (a task, a game event). Decided on the device; no
+    /// server knows it.
+    pub from_level: Option<super::Level>,
     /// A game event's id in the data file's `game_events` (rung 3); empty for every other kind.
     pub event: String,
     /// How many events a folded game notice stands for (rung 3, `notifications::game`).
@@ -146,6 +151,10 @@ pub enum Why {
     AllMuted,
     /// The conversation with that person is muted (rung 2).
     PersonMuted,
+    /// The sender is set below what the kind needs on the person's profile card: Nothing, or
+    /// "Only calls, mentions and replies" for a direct message or an ordinary line (per-person
+    /// controls).
+    PersonLevel,
     ServerMuted,
     RoomMuted,
     /// The room is set below what the kind needs: an ordinary line in a room at mentions, or
@@ -167,6 +176,7 @@ impl Why {
             Why::EventOff => "event_off",
             Why::AllMuted => "all_muted",
             Why::PersonMuted => "person_muted",
+            Why::PersonLevel => "person_level",
             Why::ServerMuted => "server_muted",
             Why::RoomMuted => "room_muted",
             Why::RoomLevel => "room_level",
@@ -225,6 +235,12 @@ pub fn decide(file: &File, c: &Candidate, synced: &Synced, local: &LocalSettings
     }
     if let Some(why) = muted(&local.mutes, kind.scope, c, at.now) {
         return Outcome::quiet(why);
+    }
+    // The sender's level from the person's profile card (per-person controls): after the mutes,
+    // before the room's level and quiet hours, so someone set to Nothing stays quiet even when
+    // always allowed through quiet hours (a mute holds over an exception the same way).
+    if c.from_level.is_some_and(|set| set < kind.person_level.unwrap_or(super::Level::All)) {
+        return Outcome::quiet(Why::PersonLevel);
     }
     if kind.scope == Scope::Room {
         // Every room kind needs at least mentions (a lib test holds the data file to it), so a

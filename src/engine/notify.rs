@@ -99,6 +99,9 @@ pub(crate) fn room_line(
         sender: sender.to_string(),
         room_name,
         text: crate::gui::pages::chat::reply::preview_of(content),
+        // The sender's level from my card for them: someone set to Nothing makes no notice in a
+        // room either, and one at "Only calls, mentions and replies" only a mention or a reply.
+        from_level: person_level(gs, sender_key),
         // A room's line is the room's: the always-allow list lifts quiet hours for a person's own
         // conversation only (rung 3), so it is not asked here.
         ..Default::default()
@@ -129,6 +132,13 @@ fn always_allowed(gs: &GuiState, key: &str) -> bool {
     gs.settings.notifications.always_allows(&gs.profile_public_key, key)
 }
 
+/// The level this identity set for `key` on their profile card ("Notifications from them",
+/// docs/design/per-person-controls.md 3.1), if any: THE rule's `from_level`. Decided here, on the
+/// device; no server knows it.
+pub(crate) fn person_level(gs: &GuiState, key: &str) -> Option<n::Level> {
+    gs.settings.person_controls.level_of(&gs.profile_public_key, key).map(|l| n::Level::from_id(l.id()))
+}
+
 /// A DM candidate, for a DM newly taken in from `server`'s mailbox.
 pub(crate) fn dm(gs: &GuiState, server: &str, inner: &crate::net::dm_pq::DmInner) -> Candidate {
     let from_me = inner.from == gs.profile_public_key;
@@ -139,6 +149,7 @@ pub(crate) fn dm(gs: &GuiState, server: &str, inner: &crate::net::dm_pq::DmInner
         from_me,
         from_friend: !from_me && is_friend(gs, &server, &inner.from),
         from_allowed: !from_me && always_allowed(gs, &inner.from),
+        from_level: if from_me { None } else { person_level(gs, &inner.from) },
         server,
         room: None,
         conversation: format!("dm:{peer}"),
@@ -158,6 +169,7 @@ pub(crate) fn call(gs: &GuiState, from: &str, from_name: &str) -> Candidate {
         from_me: from == gs.profile_public_key,
         from_friend: is_friend(gs, &server, from),
         from_allowed: always_allowed(gs, from),
+        from_level: person_level(gs, from),
         server,
         room: None,
         conversation: format!("dm:{from}"),
@@ -214,6 +226,7 @@ pub(crate) fn contact_request(gs: &GuiState, server: &str, from: &str) -> Candid
         kind: "contact_request".into(),
         from_me: from == gs.profile_public_key,
         from_allowed: always_allowed(gs, from),
+        from_level: person_level(gs, from),
         server: crate::gui::pages::chat::norm_server_url(server),
         room: None,
         conversation: format!("dm:{from}"),
@@ -489,6 +502,30 @@ mod tests {
         gs.user_name = "Ann".into();
         gs.profile_public_key = "me".into();
         gs
+    }
+
+    /// EVERY CANDIDATE FROM A PERSON CARRIES THEIR LEVEL FROM THE CARD (per-person controls,
+    /// docs/design/per-person-controls.md 3.1): their DM, their call, their contact request and
+    /// their line in a room carry what my profile card chose for them; my own DM (another of my
+    /// devices), someone with nothing chosen, and a task carry none. Seen red 2026-11-03 with
+    /// `from_level` left out of `dm`: "their DM" was None.
+    #[test]
+    fn every_candidate_from_a_person_carries_their_level_from_the_card() {
+        use crate::net::person_controls::{Controls, Notices};
+        let mut g = gs();
+        g.settings.person_controls.set("me", "k1", Controls { notices: Notices::Nothing, ..Default::default() });
+        let from = |f: &str, t: &str| crate::net::dm_pq::DmInner { from: f.into(), to: t.into(), ts: 1, text: "hi".into(), sig_b64: String::new(), cert: None };
+        assert_eq!(dm(&g, "https://a.example", &from("k1", "me")).from_level, Some(n::Level::Nothing), "their DM");
+        assert_eq!(dm(&g, "https://a.example", &from("me", "k1")).from_level, None, "my own DM to them");
+        assert_eq!(dm(&g, "https://a.example", &from("k2", "me")).from_level, None, "someone with nothing chosen");
+        assert_eq!(call(&g, "k1", "Ben").from_level, Some(n::Level::Nothing), "their call");
+        assert_eq!(contact_request(&g, "https://a.example", "k1").from_level, Some(n::Level::Nothing), "their contact request");
+        let line = room_line(&g, "https://a.example", "Ann", "global", "k1", "Ben", "hello", None).expect("a room line");
+        assert_eq!(line.from_level, Some(n::Level::Nothing), "their line in a room");
+        g.settings.person_controls.set("me", "k1", Controls { notices: Notices::Mentions, ..Default::default() });
+        assert_eq!(call(&g, "k1", "Ben").from_level, Some(n::Level::Mentions), "the level as chosen");
+        let t = task(&g, "https://a.example", &serde_json::json!({ "task_id": 7, "by_key": "k1", "title": "x" })).expect("a task");
+        assert_eq!(t.from_level, None, "a task is the server's, not the person's");
     }
 
     /// On screen means the Chat page (or the in-world panel) open on that conversation, on its

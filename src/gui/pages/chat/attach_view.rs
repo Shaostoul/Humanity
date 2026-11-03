@@ -23,6 +23,7 @@ use crate::gui::widgets::image_cache::{route_image, ImageCache, ImageRoute, Imag
 use crate::net::dm_pq::DmAttachment;
 use crate::net::files_policy as policy;
 use crate::net::kept_files::KeptFiles;
+use crate::net::person_controls::FileVerdict;
 
 /// The one line shown when a private file cannot be fetched or decrypted.
 pub(crate) const CANNOT_OPEN: &str = "This file could not be opened.";
@@ -84,9 +85,13 @@ pub(crate) enum Show {
     /// The protected setup leaves it out; the message row says so.
     Hidden,
     /// From someone this person does not accept files from (Settings > Privacy, "Accept files
-    /// from", the files section of docs/design/files-showcase.md): nothing is fetched, a picture
-    /// or not; the card asks (these words), and Accept fetches that one file.
+    /// from", the files section of docs/design/files-showcase.md), or one their profile card says
+    /// to ask about (always, or over its size: docs/design/per-person-controls.md 3.2): nothing is
+    /// fetched, a picture or not; the card asks (these words), and Accept fetches that one file.
     NotAccepted(String),
+    /// From someone whose profile card says Never for files (per-person controls): nothing is
+    /// fetched and there is no Accept; the row says so (these words).
+    Refused(String),
     /// A picture from someone who is not a friend: waits for a click.
     AskNotFriend,
     /// A friend's picture while pictures show without asking from nobody (the setting, or the
@@ -126,13 +131,27 @@ pub(crate) fn plan(state: &GuiState, msg: &ChatMessage, att: &DmAttachment) -> P
     let prefs = &state.settings.files_in_messages;
     let friend = crate::engine::protected::picture_friend(state, &msg.sender_key);
     let protected = crate::engine::protected::is_on(state);
+    // What the person's profile card chose for files from this sender (per-person controls 3.2):
+    // Never comes before a click given earlier (there is no Accept to give one), and "Up to N MB"
+    // takes a file within N past "Accept files from"; our own files are never asked about.
+    let verdict = if own {
+        FileVerdict::Mine
+    } else {
+        let mine = state.settings.person_controls.get(&state.profile_public_key, &msg.sender_key);
+        crate::net::person_controls::file_verdict(&mine, att.size, protected)
+    };
+    let person_line = crate::net::person_controls::verdict_line(verdict, &msg.sender_name);
     let show = if crate::engine::protected::hides_pictures_from(state, &msg.sender_key) {
         Show::Hidden
+    } else if let (FileVerdict::Never, Some(line)) = (verdict, person_line.clone()) {
+        Show::Refused(line)
     } else if state.image_cache.is_allowed(&key) {
         Show::Load
     } else if let ImageRoute::AskFirst { host, .. } = route {
         Show::AskOtherWebsite(host)
-    } else if !policy::accepts(prefs.accept_from, own, friend) {
+    } else if let Some(line) = person_line {
+        Show::NotAccepted(line)
+    } else if verdict != FileVerdict::Accept && !policy::accepts(prefs.accept_from, own, friend) {
         Show::NotAccepted(policy::not_accepted_line(&msg.sender_name, prefs.accept_from))
     } else if !policy::shows_picture(prefs.show_pictures_from, protected, own, friend) {
         if friend {
@@ -359,6 +378,11 @@ fn draw_file(
         }
         return;
     }
+    // Never, from the sender's profile card (per-person controls): the line, and nothing to press.
+    if let Show::Refused(line) = &plan.show {
+        draw_line(ui, theme, row_bg, line, theme.text_muted());
+        return;
+    }
     if shows_in_place(att) {
         match &plan.show {
             Show::AskNotFriend | Show::AskPicture => {
@@ -378,7 +402,7 @@ fn draw_file(
                 }
                 return;
             }
-            Show::Load | Show::Hidden | Show::NotAccepted(_) => {}
+            Show::Load | Show::Hidden | Show::NotAccepted(_) | Show::Refused(_) => {}
         }
         if matches!(cache.status(&plan.key), ImageStatus::Idle) {
             let (url, k, n, kept) = (plan.url.clone(), att.k.clone(), att.n.clone(), plan.kept.clone());

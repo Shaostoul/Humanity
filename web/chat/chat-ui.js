@@ -213,7 +213,8 @@ document.getElementById('sound-toggle').textContent = soundEnabled ? 'ðŸ”Š' : 'ð
 // is a mention when it names me, else a reply when it answers a line of mine (`reply_from`, the
 // replied-to line's author), else an ordinary line, which the rule lets through only in a room
 // set to every line (notifications rung 2). Whatever the rule lets through also goes in the
-// header bell's list (chat-notify.js).
+// header bell's list (chat-notify.js). A room line's `from_key` is its author's key, so the
+// level set on their profile card applies (per-person controls; a DM's conversation names them).
 function notifyNewMessage(author, content, isDm, where) {
   where = where || {};
   if (!windowFocused) {
@@ -234,7 +235,7 @@ function notifyNewMessage(author, content, isDm, where) {
     : (!activeDmPartner && !activeGroupId && room === activeChannel);
   const canShow = ('Notification' in window) && Notification.permission === 'granted';
   const d = HosChatNotify.decide(
-    { kind: kind, from_me: !!where.from_me, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content, from_friend: !!where.from_friend },
+    { kind: kind, from_me: !!where.from_me, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content, from_friend: !!where.from_friend, from_key: where.from_key || '' },
     { focused: windowFocused, on_screen: onScreen, desktop: canShow, sound: soundEnabled }
   );
   // The kind's own sound (rung 3: Settings > Notifications > Sounds), the chime where it cannot play.
@@ -368,7 +369,7 @@ handleMessage = function(msg) {
     // Notify if from someone else.
     if (msg.from !== myKey) {
       const replyFrom = msg.reply_to && typeof msg.reply_to.from === 'string' ? msg.reply_to.from : null;
-      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false, { room: msg.channel, reply_from: replyFrom });
+      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false, { room: msg.channel, reply_from: replyFrom, from_key: msg.from });
     }
   } else if (msg.type === 'federated_chat' && window.HosChatNotify) {
     // A shared room's line from a linked server (notifications rung 2): live only, never one a
@@ -379,7 +380,7 @@ handleMessage = function(msg) {
     const blocked = fromKey && typeof isBlockedKey === 'function' && isBlockedKey(fromKey);
     if (fresh && !blocked && msg.content && fromKey !== myKey) {
       const who = (msg.from_name || '') + (msg.server_name ? ' (' + msg.server_name + ')' : '');
-      notifyNewMessage(who, msg.content, false, { room: msg.channel || activeChannel });
+      notifyNewMessage(who, msg.content, false, { room: msg.channel || activeChannel, from_key: fromKey });
     }
   }
 };

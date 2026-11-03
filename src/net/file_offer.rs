@@ -38,6 +38,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use serde::{Deserialize, Serialize};
 
 use super::files_policy::{self, AcceptFrom};
+use super::person_controls::{self, FileVerdict};
 
 /// The offer note's marker.
 pub const CTL_OFFER: &str = "[[hum:offer:v1]]";
@@ -376,9 +377,13 @@ pub fn goes_direct_line(limit_bytes: u64, name: &str) -> String {
 pub enum Question {
     /// The protected setup leaves this person's files out: nothing is asked, the row says so.
     LeftOut,
-    /// Not someone files are accepted from: the card asks first, in these words, and only its
+    /// Not someone files are accepted from, or a file over the size the person takes from them
+    /// without asking (their profile card): the card asks first, in these words, and only its
     /// Accept leads on to the question.
     NotAccepted(String),
+    /// Their profile card says Never for files (per-person controls): nothing is asked and
+    /// nothing is sent back (the sender's row runs out, as for one left out); the row says so.
+    Refused(String),
     /// The question itself, with Accept and Decline.
     Ask(String),
 }
@@ -391,11 +396,28 @@ pub const LEFT_OUT_LINE: &str = "The protected setup leaves out files from peopl
 /// `hides_pictures_from`); someone this person does not accept files from (`accept_from`, with
 /// `friend` the pictures rule's own friend test) gets the one-file card, and only its Accept
 /// (`let_in`) leads on to "Ann wants to send you clip.mp4 (2.3 GB). Accept?".
-pub fn question(accept_from: AcceptFrom, friend: bool, protected_hides: bool, let_in: bool, sender: &str, name: &str, size: u64) -> Question {
+///
+/// `person` is what the sender's profile card chose for files (per-person controls 3.2,
+/// `person_controls::file_verdict`), after the protected setup: Never leaves the offer out with
+/// its own line; Always ask, and a size within "Up to N MB", go straight to the question (a big
+/// file always asks); a size over it asks first with the over-the-limit line.
+#[allow(clippy::too_many_arguments)]
+pub fn question(accept_from: AcceptFrom, friend: bool, protected_hides: bool, let_in: bool, person: FileVerdict, sender: &str, name: &str, size: u64) -> Question {
     if protected_hides {
         return Question::LeftOut;
     }
-    if !let_in && !files_policy::accepts(accept_from, false, friend) {
+    if person == FileVerdict::Never {
+        return Question::Refused(person_controls::verdict_line(person, sender).unwrap_or_default());
+    }
+    let taken = match person {
+        FileVerdict::Accept | FileVerdict::AskAlways => true,
+        FileVerdict::AskOver(_) => false,
+        FileVerdict::Mine | FileVerdict::Never => files_policy::accepts(accept_from, false, friend),
+    };
+    if !let_in && !taken {
+        if let FileVerdict::AskOver(_) = person {
+            return Question::NotAccepted(person_controls::verdict_line(person, sender).unwrap_or_default());
+        }
         let why = match accept_from {
             AcceptFrom::Friends => "You accept files only from friends.",
             AcceptFrom::Nobody | AcceptFrom::Anyone => "You do not accept files in messages.",

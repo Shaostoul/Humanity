@@ -68,6 +68,11 @@ pub mod file_transfer;
 #[cfg(feature = "native")]
 pub mod file_link;
 
+/// Per-person controls (2026-11-03, docs/design/per-person-controls.md): what a person chose for one
+/// other person on their profile card (notifications from them, files from them), and the files rule.
+#[cfg(feature = "native")]
+pub mod person_controls;
+
 /// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
 /// audiences per kind of contact, the relay's frames, the "show as a request" rule and the
 /// contact request itself, with no socket and no GUI so each rule is unit tested.

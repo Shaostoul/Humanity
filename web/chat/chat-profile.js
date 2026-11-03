@@ -551,7 +551,24 @@ window.addEventListener('storage', (e) => {
  * @param {string} name      - Display name
  * @param {string} publicKey - Ed25519 public key hex
  */
+/**
+ * The name a profile card shows: the opener's, else found from the key (the member list, the DM
+ * list, then the start of the key), never blank (BUG-244, the desktop's twin is modals.rs
+ * card_name: an opener with only a key drew a card with no name).
+ */
+function profileCardName(name, publicKey) {
+  const given = String(name || '').trim();
+  if (given) return given;
+  if (!publicKey) return '';
+  const p = typeof peerData !== 'undefined' && peerData ? peerData[publicKey] : null;
+  if (p && p.display_name) return p.display_name;
+  const dm = typeof dmConversations !== 'undefined' && Array.isArray(dmConversations) ? dmConversations.find((c) => c.partner_key === publicKey) : null;
+  if (dm && dm.partner_name) return dm.partner_name;
+  return typeof shortKey === 'function' ? shortKey(publicKey) : String(publicKey).slice(0, 8);
+}
+
 function requestViewProfile(name, publicKey) {
+  name = profileCardName(name, publicKey);
   pendingProfileView = { name, publicKey };
   // Check cache first, pass the full cached profile object.
   const cached = profileCache[name.toLowerCase()];
@@ -592,6 +609,7 @@ function showViewProfileCard(name, publicKey, profile) {
     profile = { bio: profile, socials: arguments[3] || '{}' };
   }
   profile = profile || {};
+  name = profileCardName(name, publicKey); // never a card with no name (BUG-244)
   const bio        = profile.bio        || '';
   const avatarUrl  = profile.avatar_url || '';
   const bannerUrl  = profile.banner_url || '';
@@ -730,7 +748,11 @@ function showViewProfileCard(name, publicKey, profile) {
     html += '</div></div>';
   }
 
+  // Your settings for <name> (per-person controls), below the person's actions.
+  html += personControlsHtml(name, publicKey);
+
   document.getElementById('view-profile-content').innerHTML = html;
+  wirePersonControls(name, publicKey);
   // Attach click handler via DOM API (not inline onclick).
   if (publicKey) {
     const pkEl = document.getElementById('profile-pk-copy');
@@ -844,6 +866,123 @@ function showViewProfileCard(name, publicKey, profile) {
 
   if (window.twemoji) twemoji.parse(document.getElementById('view-profile-content'));
   document.getElementById('view-profile-overlay').classList.add('open');
+}
+
+// ── Your settings for <name>: the per-person controls (2026-11-03) ──
+// docs/design/per-person-controls.md, section 4; the desktop's twin is
+// src/gui/pages/chat/person_controls.rs. One plain section on another person's
+// card: Notifications from them (THE rule's from_level), Calls and messages come
+// through quiet hours (the always-allow list, chat-notify.js), Files from them
+// (/shared/person-controls.js fileVerdict, read by chat-dms.js and
+// chat-file-transfer.js), a friend's Message, Call and Trade ticks (chat-social.js
+// setFriendTick, which asks the protected setup's PIN), and their conversation's
+// mute while one holds. Every word by key, every control with its hint. Kept in
+// this browser (hos_person_controls); never told to any server.
+
+function personControlsStorage() {
+  try { return window.localStorage; } catch (e) { return null; }
+}
+
+function personControlsT(key, vars) {
+  return window.i18n && typeof i18n.t === 'function' ? i18n.t(key, vars) : key;
+}
+
+/** A control's hint attributes, as the website's hint scanner reads them. */
+function personControlsTip(key) {
+  return ` data-i18n-tip="${key}" data-tip-desc="${esc(personControlsT(key))}"`;
+}
+
+/** The section's markup for `publicKey` shown as `name`; '' for myself, a bot, or no module. */
+function personControlsHtml(name, publicKey) {
+  if (!publicKey || publicKey === myKey || publicKey.startsWith('bot_') || !window.HosPersonControls) return '';
+  const T = personControlsT;
+  const tip = personControlsTip;
+  const P = window.HosPersonControls;
+  const c = P.get(personControlsStorage(), myKey, publicKey);
+  const levels = (window.HosNotifyRules && HosNotifyRules.file().person_levels) || [];
+  const caption = (key) => `<div class="person-controls-caption" style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">${esc(T(key, { name }))}</div>`;
+  const note = (words) => `<div class="person-controls-note" style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-xs);">${esc(words)}</div>`;
+  const box = 'width:100%;box-sizing:border-box;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xs) var(--space-sm);font-size:0.8rem;';
+  const tick = (id, key, hintKey, on) => `<label style="display:inline-flex;align-items:center;gap:var(--space-xs);margin:var(--space-xs) var(--space-md) 0 0;font-size:0.8rem;color:var(--text);cursor:pointer;"><input type="checkbox" data-pc="${id}"${on ? ' checked' : ''} data-i18n-tip="${hintKey}" data-tip-desc="${esc(T(hintKey))}"> <span>${esc(T(key))}</span></label>`;
+  let h = `<div id="person-controls" style="margin-top:var(--space-md);padding-top:var(--space-md);border-top:1px solid var(--border);">`;
+  h += `<div class="person-controls-heading"${tip('person.heading_hint')} style="font-size:0.75rem;font-weight:700;color:var(--text-muted);">${esc(T('person.heading', { name }))}</div>`;
+  // Notifications from them.
+  h += caption('person.notices');
+  h += `<select data-pc="notices" aria-label="${esc(T('person.notices', { name }))}" data-i18n-tip="person.notices_hint" data-tip-desc="${esc(T('person.notices_hint'))}" style="${box}">`;
+  for (const l of levels) h += `<option value="${esc(l.id)}"${l.id === c.notices ? ' selected' : ''}>${esc(T(l.label))}</option>`;
+  h += '</select>';
+  // Calls and messages through quiet hours: the always-allow list.
+  const allowed = !!(window.HosChatNotify && HosChatNotify.allowed(publicKey));
+  h += `<div style="margin-top:var(--space-xs);">${tick('quiet', 'person.quiet_allow', 'person.quiet_allow_hint', allowed)}</div>`;
+  if (c.notices === 'nothing') h += note(T('person.quiet_allow_nothing'));
+  // Files from them.
+  h += caption('person.files');
+  h += `<select data-pc="files" aria-label="${esc(T('person.files', { name }))}" data-i18n-tip="person.files_hint" data-tip-desc="${esc(T('person.files_hint'))}" style="${box}">`;
+  for (const id of P.FILES) h += `<option value="${id}"${id === c.files ? ' selected' : ''}>${esc(T('person.files_' + id))}</option>`;
+  h += '</select>';
+  if (c.files === 'up_to') {
+    h += `<div style="display:flex;align-items:center;gap:var(--space-sm);margin-top:var(--space-xs);"><input type="number" data-pc="mb" aria-label="${esc(T('person.files_mb_hint'))}" min="${P.MB_MIN}" max="${P.MB_MAX}" step="1" value="${P.mb(c)}" data-i18n-tip="person.files_mb_hint" data-tip-desc="${esc(T('person.files_mb_hint'))}" style="${box}width:6rem;"><span style="font-size:0.8rem;color:var(--text-muted);">${esc(T('person.files_mb_unit'))}</span></div>`;
+  }
+  if (c.files !== 'mine') h += note(T('person.files_' + c.files + '_hint'));
+  // What a friend may do: their pass's ticks (10c-ii); anyone else, the line saying what applies.
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  const friend = !!(store && typeof store.passFriends === 'function' && store.passFriends().includes(publicKey));
+  if (friend && typeof friendTicks === 'function') {
+    const ticks = friendTicks(publicKey);
+    h += caption('person.may');
+    h += `<div style="margin-top:var(--space-xs);">${tick('may-message', 'person.may_message', 'person.may_message_hint', !!ticks.message)}${tick('may-call', 'person.may_call', 'person.may_call_hint', !!ticks.call)}${tick('may-trade', 'person.may_trade', 'person.may_trade_hint', !!ticks.trade)}</div>`;
+    h += note(T('person.may_note'));
+  } else {
+    h += note(T('person.not_friend'));
+  }
+  // Their conversation's mute, while one holds.
+  const until = window.HosChatNotify && typeof HosChatNotify.personMuted === 'function' ? HosChatNotify.personMuted('dm:' + publicKey) : null;
+  if (until !== null && until !== undefined) {
+    h += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-sm);margin-top:var(--space-sm);font-size:0.75rem;color:var(--text-muted);"><span>${esc(T('notifications.muted_notice', { until: HosChatNotify.untilWords(until) }))}</span>`
+      + `<button type="button" data-pc="unmute" data-i18n-tip="notifications.unmute_hint" data-tip-desc="${esc(T('notifications.unmute_hint'))}" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:2px 8px;font-size:0.72rem;color:var(--text);cursor:pointer;">${esc(T('notifications.unmute_person'))}</button></div>`;
+  }
+  h += note(T('person.kept_here'));
+  h += '</div>';
+  return h;
+}
+
+/** Wire the section drawn by personControlsHtml; each change redraws it. */
+function wirePersonControls(name, publicKey) {
+  const root = document.getElementById('person-controls');
+  if (!root || !window.HosPersonControls) return;
+  const P = window.HosPersonControls;
+  const redraw = () => {
+    const el = document.getElementById('person-controls');
+    if (!el) return;
+    el.outerHTML = personControlsHtml(name, publicKey);
+    wirePersonControls(name, publicKey);
+  };
+  const keep = (patch) => {
+    const storage = personControlsStorage();
+    P.set(storage, myKey, publicKey, Object.assign(P.get(storage, myKey, publicKey), patch));
+    redraw();
+  };
+  const on = (id, ev, fn) => {
+    const el = root.querySelector(`[data-pc="${id}"]`);
+    if (el) el.addEventListener(ev, fn);
+  };
+  on('notices', 'change', (e) => keep({ notices: e.target.value }));
+  on('files', 'change', (e) => keep({ files: e.target.value }));
+  on('mb', 'change', (e) => keep({ files_mb: parseInt(e.target.value, 10) || P.MB_DEFAULT }));
+  on('quiet', 'change', (e) => {
+    if (window.HosChatNotify) HosChatNotify.setAllowed(publicKey, e.target.checked, name);
+    redraw();
+  });
+  for (const kind of ['message', 'call', 'trade']) {
+    on('may-' + kind, 'change', async (e) => {
+      if (typeof setFriendTick === 'function') await setFriendTick(publicKey, kind, e.target.checked).catch(() => false);
+      redraw();
+    });
+  }
+  on('unmute', 'click', () => {
+    if (window.HosChatNotify) HosChatNotify.setPersonMute(publicKey, null);
+    redraw();
+  });
 }
 
 function closeViewProfileModal(e) {

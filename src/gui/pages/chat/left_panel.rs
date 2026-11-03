@@ -561,8 +561,9 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // Right-click context menu on DMs
                     response.context_menu(|ui| {
                         if ui.button("View Profile").clicked() {
-                            state.chat_user_modal_open = true;
-                            state.chat_user_modal_key = dm.user_key.clone();
+                            // With the name the row shows (BUG-244: this set only the key, so the
+                            // card drew no name, or the last person's).
+                            super::modals::open_profile(state, &dm.user_key, &dm.user_name);
                             ui.close_menu();
                         }
                         if ui.button(RichText::new("Close Conversation").color(theme.danger())).clicked() {
@@ -1743,9 +1744,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     // Apply a voice-roster click: open the per-user control modal
                     // (the same modal reached from the member list). (v0.484)
                     if let Some((name, key)) = voice_user_click {
-                        state.chat_user_modal_open = true;
-                        state.chat_user_modal_name = name;
-                        state.chat_user_modal_key = key;
+                        super::modals::open_profile(state, &key, &name);
                     }
 
                     // Apply voice toggle after the loop. The relay tracks voice

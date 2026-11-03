@@ -73,7 +73,9 @@ fn levels_of(v: &Value) -> std::collections::BTreeMap<String, super::Level> {
 /// always allowed rings through quiet hours", "a call 2 seconds after a DM", "a game event off by
 /// default", "a kind whose sound is none", ...); here, seen red with the always-allow check left
 /// out of `decide` ("a call from someone always allowed rings through quiet hours" answered
-/// quiet_hours).
+/// quiet_hours). Per-person controls (2026-11-03): seen red here and on the website with the
+/// sender's level left out of `decide` ("a DM from someone set to nothing makes no notice"
+/// answered notify).
 #[test]
 fn every_shared_case_gets_the_same_answer() {
     let fx = fixture();
@@ -103,6 +105,14 @@ fn every_shared_case_gets_the_same_answer() {
             from_friend: b(&cand, "from_friend"),
             commons: false,
             from_allowed: b(&cand, "from_allowed"),
+            // Per-person controls: null when nothing was chosen; a word the rule does not know is
+            // no choice, as on the website.
+            from_level: match cand.get("from_level").and_then(Value::as_str) {
+                Some("all") => Some(super::Level::All),
+                Some("mentions") => Some(super::Level::Mentions),
+                Some("nothing") => Some(super::Level::Nothing),
+                _ => None,
+            },
             event: s(&cand, "event"),
             count: cand.get("count").and_then(Value::as_u64).unwrap_or(0) as u32,
             variant: s(&cand, "variant"),
@@ -353,7 +363,17 @@ fn the_data_file_parses_and_every_word_it_names_is_in_english() {
     }
     let level_ids: Vec<super::Level> = file.levels.iter().map(|l| l.id).collect();
     assert_eq!(level_ids, [super::Level::All, super::Level::Mentions, super::Level::Nothing], "the right-click's choices");
+    // Per-person controls: someone set to Nothing makes no notice of any kind, and the card offers
+    // the three levels in order.
+    for k in &file.kinds {
+        assert!(k.person_level.unwrap_or(super::Level::All) > super::Level::Nothing, "{} would notify from someone set to nothing", k.id);
+    }
+    let person_ids: Vec<super::Level> = file.person_levels.iter().map(|l| l.id).collect();
+    assert_eq!(person_ids, [super::Level::All, super::Level::Mentions, super::Level::Nothing], "the card's choices");
     let mut keys: Vec<&str> = Vec::new();
+    for l in &file.person_levels {
+        keys.extend([l.label.as_str(), l.hint.as_str()]);
+    }
     for k in &file.kinds {
         keys.extend([k.label.as_str(), k.hint.as_str(), k.title.as_str(), k.title_hidden.as_str(), k.body_hidden.as_str()]);
     }

@@ -83,6 +83,12 @@ pub struct Kind {
     /// A room kind: the least level its room must be set to (`None`: mentions).
     #[serde(default)]
     pub level: Option<Level>,
+    /// The least a SENDER's own level must be for this kind to notify (per-person controls,
+    /// docs/design/per-person-controls.md 3.1: "Notifications from them" on the profile card).
+    /// `mentions` lets it through for someone set to "Only calls, mentions and replies"; `None` is
+    /// `all`, so only Everything lets it through. A sender set to Nothing stops every kind.
+    #[serde(default)]
+    pub person_level: Option<Level>,
     /// The quiet-hours exception that lets it through quiet hours, if any.
     #[serde(default)]
     pub quiet_exception: Option<QuietException>,
@@ -165,6 +171,9 @@ pub struct File {
     pub kinds: Vec<Kind>,
     #[serde(default)]
     pub levels: Vec<LevelChoice>,
+    /// The choices the profile card offers for "Notifications from them" (per-person controls).
+    #[serde(default)]
+    pub person_levels: Vec<LevelChoice>,
     #[serde(default)]
     pub mute_for: Vec<MuteFor>,
     #[serde(default)]

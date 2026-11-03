@@ -267,6 +267,60 @@ fn the_click_to_load_and_protected_setup_rules_apply_to_a_private_picture() {
     tidy(&gs);
 }
 
+/// A PRIVATE FILE FOLLOWS THE SENDER'S PROFILE CARD (per-person controls 3.2,
+/// docs/design/per-person-controls.md): within "Up to N MB" a stranger's file is taken past "Accept
+/// files from" (its picture still waits for the pictures rule's click), and one over it asks with
+/// the over-the-limit line; "Always ask" asks for a friend's too, and Accept lets it in; "Never"
+/// refuses even after a click, drawing its line with nothing to press and fetching nothing; the
+/// protected setup still comes first, and our own files are never asked about. Seen red
+/// 2026-11-03 with `Show::Refused` drawn by the ask box: "never: no Accept to press" found "Click
+/// to accept map.png.".
+#[test]
+fn a_private_file_follows_the_senders_profile_card() {
+    use crate::net::person_controls::{Controls, FilesChoice};
+    let mut gs = app("person-files");
+    let (small, _) = sealed(&png(8, 8), "/uploads/pp1.enc", "map.png", "image/png");
+    let big = DmAttachment { url: "/uploads/pp2.enc".into(), size: 3 * 1024 * 1024, ..small.clone() };
+    let show = |gs: &GuiState, from: &str, att: &DmAttachment| plan(gs, &carrying("dm:x", from, "X", att), att).show;
+    let upto = Controls { files: FilesChoice::UpTo, files_mb: 1, ..Default::default() };
+
+    gs.settings.person_controls.set("me", "cy", upto);
+    assert_eq!(show(&gs, "cy", &small), Show::AskNotFriend, "within the size: taken, the picture waits for its click");
+    assert_eq!(
+        show(&gs, "cy", &big),
+        Show::NotAccepted("This file is over the 1 MB you take from X without asking. Accept this one?".into()),
+        "over the size: asked first"
+    );
+
+    gs.settings.person_controls.set("me", "ann", Controls { files: FilesChoice::Ask, ..Default::default() });
+    assert_eq!(
+        show(&gs, "ann", &small),
+        Show::NotAccepted("You chose to be asked about every file from X. Accept this one?".into()),
+        "always ask: a friend's too"
+    );
+    gs.image_cache.allow(&cache_key(&small));
+    assert_eq!(show(&gs, "ann", &small), Show::Load, "after Accept it loads");
+
+    gs.settings.person_controls.set("me", "ann", Controls { files: FilesChoice::Never, ..Default::default() });
+    let never = Show::Refused("You chose not to take files from X.".into());
+    assert_eq!(show(&gs, "ann", &small), never, "never: refused, even after a click");
+    let p = plan(&gs, &carrying("dm:ann", "ann", "X", &big), &big);
+    assert_eq!(p.show, never);
+    let ctx = egui::Context::default();
+    let (texts, _) = draw_frame(&ctx, &mut gs.image_cache, "X", &big, &p);
+    assert!(texts.iter().any(|t| t == "You chose not to take files from X."), "{texts:?}");
+    assert!(!texts.iter().any(|t| t.starts_with("Click to")), "never: no Accept to press: {texts:?}");
+    assert!(matches!(gs.image_cache.status(&p.key), ImageStatus::Idle), "nothing fetched");
+
+    gs.settings.person_controls.set("me", "me", Controls { files: FilesChoice::Never, ..Default::default() });
+    assert_eq!(show(&gs, "me", &big), Show::Load, "our own files are never asked about");
+
+    gs.protected.setup.on = true;
+    gs.protected.setup.pictures_hidden = true;
+    assert_eq!(show(&gs, "cy", &small), Show::Hidden, "the protected setup comes first");
+    tidy(&gs);
+}
+
 /// A file that is not a picture is a card: its name, its size and Save, fetched and decrypted
 /// only on Save, written into the folder under a safe name, never over another file.
 /// Seen red 2026-10-10 with `save_file` writing the ciphertext as fetched (no `open`): "Save

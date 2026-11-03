@@ -131,10 +131,16 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &OfferRecord,
         let prefs = &state.settings.files_in_messages;
         let friend = crate::engine::protected::picture_friend(state, &r.peer);
         let hides = crate::engine::protected::hides_pictures_from(state, &r.peer);
-        match fo::question(prefs.accept_from, friend, hides, r.let_in, name, &r.offer.name, r.offer.size) {
-            Question::LeftOut => {
+        // What the sender's profile card chose for files from them (per-person controls 3.2).
+        let mine = state.settings.person_controls.get(&state.profile_public_key, &r.peer);
+        let person = crate::net::person_controls::file_verdict(&mine, r.offer.size, crate::engine::protected::is_on(state));
+        let q = fo::question(prefs.accept_from, friend, hides, r.let_in, person, name, &r.offer.name, r.offer.size);
+        match q {
+            Question::LeftOut | Question::Refused(_) => {
                 // Left out without an answer: the sender's row keeps waiting until the offer runs out.
-                muted(ui, theme, fo::LEFT_OUT_LINE);
+                // Never, from their profile card, is the same in its own words.
+                let line = if let Question::Refused(line) = &q { line.as_str() } else { fo::LEFT_OUT_LINE };
+                muted(ui, theme, line);
                 if small(ui, theme, "Remove") {
                     acts.push(Act::Remove(id));
                 }

@@ -257,7 +257,7 @@ function ftRecordOf(t) {
   return {
     id: t.id, role: t.role, peer: t.peer, offer: t.offer, offerTs: t.offerTs, state: t.state,
     reason: t.reason || null, kept: t.kept || 0, done: t.done || 0, pausedHere: !!t.pausedHere,
-    refusedAccept: t.refusedAccept || null, name: t.name, size: t.size, type: t.type,
+    refusedAccept: t.refusedAccept || null, refusedPerson: !!t.refusedPerson, name: t.name, size: t.size, type: t.type,
     pendingNotes: (t.pendingNotes || []).slice(0, 8), created: t.created, updated: Date.now(),
     head: t.head || null,
   };
@@ -636,11 +636,16 @@ async function ftTakeOffer(offer, inner) {
   const settings = typeof privateFilesSettings === 'function' ? privateFilesSettings() : null;
   const who = typeof privateFileSender === 'function' ? privateFileSender(from) : { isMe: false, isFriend: false };
   const Fm = window.HosFilesInMessages;
-  const accepted = Fm ? Fm.acceptsFrom(settings, who) : false;
+  // The sender's profile card next (per-person controls, the desktop's `question`): Never leaves
+  // the offer out in its own words with nothing sent back; Always ask, a size within "Up to N MB"
+  // and one over it all reach the question (a big file always asks; it names the size).
+  const person = typeof privateFilePersonVerdict === 'function' ? privateFilePersonVerdict({ size: offer.size }, from).id : 'mine';
+  const accepted = person === 'mine' ? (Fm ? Fm.acceptsFrom(settings, who) : false) : person !== 'never';
   const hidden = typeof privateFileHidden === 'function' && privateFileHidden(from);
   if (!accepted || hidden) {
     t.state = 'refused';
     t.refusedAccept = settings ? settings.accept : 'friends';
+    t.refusedPerson = !hidden && person === 'never';
   } else if (!F.filePassTimeOk(offer.pass, ftNowSecs())) {
     t.state = 'expired';
   } else {
@@ -1485,7 +1490,12 @@ function ftStateWords(t) {
     case 'checking': return t.awaitingPlace ? W.choosePlace : W.checking;
     case 'saved': return W.saved;
     case 'declined': return W.youDeclined;
-    case 'refused': return W.refused(name, t.name, t.size, t.refusedAccept);
+    case 'refused':
+      // Never, from their profile card: its own words (per-person controls).
+      if (t.refusedPerson && window.HosPersonControls) {
+        return HosPersonControls.verdictLine({ id: 'never' }, name, (k, v) => (window.i18n && typeof i18n.t === 'function' ? i18n.t(k, v) : k));
+      }
+      return W.refused(name, t.name, t.size, t.refusedAccept);
     case 'elsewhere': return W.answeredElsewhere;
     case 'cancelled': return W.cancelled;
     case 'expired': return W.ranOut;

@@ -316,9 +316,7 @@ fn draw_user_row(
         }
     }
     if response.clicked() {
-        state.chat_user_modal_open = true;
-        state.chat_user_modal_name = name.to_string();
-        state.chat_user_modal_key = public_key.to_string();
+        super::modals::open_profile(state, public_key, name);
     }
     // Right-click: Report (step D) and Block or Unblock (step C) this person; their profile has
     // both too.

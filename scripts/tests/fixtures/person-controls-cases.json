@@ -1,0 +1,26 @@
+{
+  "_comment": "Per-person controls (docs/design/per-person-controls.md): the shared cases the desktop app (src/net/person_controls_tests.rs) and the website (scripts/tests/person-controls-web.test.js) both answer. `files`: what a file of `size` bytes from someone gets under their `controls` (`protected`: the protected setup is on), one of mine (Files in messages decides), accept, ask_always, ask_over (with `mb`, the limit it is over), never. `records`: a saved record as read back (anything missing or unknown is its default; the size is kept in 1..1024 when read through mb()).",
+  "files": [
+    { "name": "nothing chosen: my setting decides", "controls": {}, "size": 5000, "protected": false, "expect": "mine" },
+    { "name": "always ask, a small file", "controls": { "files": "ask" }, "size": 10, "protected": false, "expect": "ask_always" },
+    { "name": "never, a small file", "controls": { "files": "never" }, "size": 10, "protected": false, "expect": "never" },
+    { "name": "never under the protected setup", "controls": { "files": "never" }, "size": 10, "protected": true, "expect": "never" },
+    { "name": "up to 10 MB, a 1 MB file is taken", "controls": { "files": "up_to", "files_mb": 10 }, "size": 1048576, "protected": false, "expect": "accept" },
+    { "name": "up to 10 MB, exactly 10 MB is taken", "controls": { "files": "up_to", "files_mb": 10 }, "size": 10485760, "protected": false, "expect": "accept" },
+    { "name": "up to 10 MB, one byte over asks first", "controls": { "files": "up_to", "files_mb": 10 }, "size": 10485761, "protected": false, "expect": "ask_over", "mb": 10 },
+    { "name": "up to 10 MB under the protected setup: within the limit my setting decides", "controls": { "files": "up_to", "files_mb": 10 }, "size": 1048576, "protected": true, "expect": "mine" },
+    { "name": "up to 10 MB under the protected setup: over it still asks", "controls": { "files": "up_to", "files_mb": 10 }, "size": 20971520, "protected": true, "expect": "ask_over", "mb": 10 },
+    { "name": "up to with no size saved uses 10 MB", "controls": { "files": "up_to" }, "size": 10485761, "protected": false, "expect": "ask_over", "mb": 10 },
+    { "name": "up to 0 MB reads as 1 MB", "controls": { "files": "up_to", "files_mb": 0 }, "size": 1048577, "protected": false, "expect": "ask_over", "mb": 1 },
+    { "name": "up to past the range reads as 1024 MB", "controls": { "files": "up_to", "files_mb": 999999 }, "size": 1073741824, "protected": false, "expect": "accept" },
+    { "name": "an unknown choice is my setting", "controls": { "files": "sometimes" }, "size": 10, "protected": false, "expect": "mine" },
+    { "name": "the notifications level does not touch files", "controls": { "notices": "nothing" }, "size": 10, "protected": false, "expect": "mine" }
+  ],
+  "records": [
+    { "name": "an empty record is the defaults", "raw": {}, "expect": { "notices": "all", "files": "mine", "files_mb": 10, "default": true } },
+    { "name": "words from elsewhere read as the defaults", "raw": { "notices": "loud", "files": "sometimes", "files_mb": "big" }, "expect": { "notices": "all", "files": "mine", "files_mb": 10, "default": true } },
+    { "name": "a chosen level is kept", "raw": { "notices": "mentions" }, "expect": { "notices": "mentions", "files": "mine", "files_mb": 10, "default": false } },
+    { "name": "nothing is kept", "raw": { "notices": "nothing", "files": "never" }, "expect": { "notices": "nothing", "files": "never", "files_mb": 10, "default": false } },
+    { "name": "a size kept while another choice is picked does not make it chosen", "raw": { "files": "mine", "files_mb": 50 }, "expect": { "notices": "all", "files": "mine", "files_mb": 50, "default": true } }
+  ]
+}

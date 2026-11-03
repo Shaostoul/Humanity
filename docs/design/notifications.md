@@ -308,6 +308,7 @@ setup hides never notifies. Where each kind is raised (rung 2):
 | Per-kind sound, or None | this device | the kind's own (data) | Settings > Notifications > Sounds, with Play | Settings > Notifications > Sounds, with Play (the chat's sound menu keeps on or off) | 3 (built) |
 | Game events, per event | this device | per event in data | Settings, "Your home" | n/a (the website has no game) | 3 (built) |
 | The always-allow list (calls and messages through quiet hours) | my devices (notes to myself), never a server | nobody | a DM's right-click; Settings lists it with Remove | a DM's bell or right-click; Settings lists it with Remove | 3 (built) |
+| Notifications from one person: everything / only calls, mentions and replies / nothing (each kind's `person_level`, the candidate's `from_level`; checked right after the mutes) | this device, by identity (rung 2 of docs/design/per-person-controls.md: notes to myself) | everything | their profile card, "Your settings for <name>" (the always-allow switch is there too) | their profile card | per-person controls rung 1 (built 2026-11-03) |
 | Show HumanityOS in the notification area (the tray) | this device | on | Settings | n/a | 2 part 2 (built) |
 | Closing the window keeps HumanityOS running in the tray | this device | off (closing quits) | Settings | n/a | 2 part 2 (built) |
 

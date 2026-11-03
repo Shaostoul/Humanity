@@ -390,6 +390,11 @@ pub struct AppConfig {
     /// the attach button on, details removed, 1 GB kept).
     #[serde(default)]
     pub files_in_messages: crate::net::files_policy::FilesInMessages,
+    /// Per-person controls (docs/design/per-person-controls.md, 2026-11-03): what each identity
+    /// chose for one other person on their profile card (notifications from them, files from
+    /// them), only what differs from the defaults. Never sent to any server.
+    #[serde(default)]
+    pub person_controls: crate::net::person_controls::PeopleControls,
     /// The Add to Media uploads that did not finish (docs/design/files-showcase.md, resumable
     /// uploads and round 3, 2026-10-11): for each, the server's id, the file's path, size and
     /// modification time, and what its form said, so the Media page can offer to carry it on after
@@ -1560,6 +1565,7 @@ impl AppConfig {
             dm_preview_lines: state.settings.dm_preview_lines,
             outside_help_country: state.settings.outside_help_country.clone(),
             files_in_messages: state.settings.files_in_messages.clone(),
+            person_controls: state.settings.person_controls.clone(),
             files_unfinished_uploads: state.files.unfinished.clone(),
             files_folders: state.settings.files_folders.clone(),
             files_layout: state.settings.files_layout.clone(),
@@ -1765,6 +1771,7 @@ impl AppConfig {
         state.settings.dm_preview_lines = self.dm_preview_lines;
         state.settings.outside_help_country = self.outside_help_country.clone();
         state.settings.files_in_messages = self.files_in_messages.clone();
+        state.settings.person_controls = self.person_controls.clone();
         state.files.unfinished = self.files_unfinished_uploads.clone();
         state.settings.files_folders = self.files_folders.clone();
         state.settings.files_layout = self.files_layout.checked();
@@ -2536,6 +2543,27 @@ mod play_mode_tests {
         let mut fresh = crate::gui::GuiState::default();
         back.apply_to_gui_state(&mut fresh);
         assert_eq!(fresh.settings.files_in_messages, chosen, "the choices survive a restart");
+    }
+
+    /// Per-person controls (docs/design/per-person-controls.md): nothing chosen in a config written
+    /// before them, and what the profile card chose for each person survives a save and a load,
+    /// by identity. Seen red 2026-11-03 with `apply_to_gui_state` not reading it: "the choices for
+    /// each person survive a restart".
+    #[test]
+    fn person_controls_survive_a_restart() {
+        use crate::net::person_controls::{Controls, FilesChoice, Notices, PeopleControls};
+        let old: AppConfig = serde_json::from_str(r#"{"server_url":""}"#).unwrap();
+        assert_eq!(old.person_controls, PeopleControls::default(), "nothing chosen in an old config");
+        let mut state = crate::gui::GuiState::default();
+        state.settings.person_controls.set("me", "ann", Controls { notices: Notices::Nothing, files: FilesChoice::UpTo, files_mb: 25 });
+        state.settings.person_controls.set("me", "ben", Controls { files: FilesChoice::Never, ..Default::default() });
+        let chosen = state.settings.person_controls.clone();
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert_eq!(fresh.settings.person_controls, chosen, "the choices for each person survive a restart");
+        assert_eq!(fresh.settings.person_controls.get("me", "ann").mb(), 25);
     }
 
     /// The two realism switches (BUG-136 carrying weight, and body heat,

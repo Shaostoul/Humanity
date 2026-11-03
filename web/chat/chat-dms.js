@@ -461,9 +461,32 @@ function privateFileSender(fromKey) {
   return { isMe, isFriend: isMe || privateFileFromFriend(fromKey) };
 }
 
-/** Is this file downloaded without asking ("Accept files from", or Accept pressed here)? */
+/**
+ * What the sender's profile card chose for files from them (per-person controls,
+ * /shared/person-controls.js fileVerdict): {id: 'mine' | 'accept' | 'ask_always' | 'ask_over' |
+ * 'never', mb}. My own files are never asked about.
+ */
+function privateFilePersonVerdict(meta, fromKey) {
+  const P = window.HosPersonControls;
+  if (!P || privateFileSender(fromKey).isMe) return { id: 'mine' };
+  let storage = null;
+  try { storage = window.localStorage; } catch (e) { storage = null; }
+  const prot = typeof protectedIsOn === 'function' && protectedIsOn();
+  return P.fileVerdict(P.get(storage, myKey, fromKey), Number(meta && meta.size) || 0, prot);
+}
+
+/**
+ * Is this file downloaded without asking ("Accept files from", or Accept pressed here)? The
+ * sender's profile card comes first: Never refuses even a file Accept was pressed on (there is no
+ * Accept then), Always ask and a size over "Up to N MB" wait for Accept, and a size within it is
+ * taken past "Accept files from".
+ */
 function privateFileAccepted(meta, fromKey) {
+  const person = privateFilePersonVerdict(meta, fromKey).id;
+  if (person === 'never') return false;
   if (meta && privateFilesAccepted.has(meta.url)) return true;
+  if (person === 'ask_always' || person === 'ask_over') return false;
+  if (person === 'accept') return true;
   const who = privateFileSender(fromKey);
   const settings = privateFilesSettings();
   if (!settings) return who.isMe;
@@ -481,9 +504,13 @@ function privateFilePictureNow(meta, fromKey) {
 }
 
 /** The words on a file that was not downloaded: "Ann sent a file. You accept files only from friends. Accept this one?" */
-function privateFileAskWords(fromKey) {
+function privateFileAskWords(fromKey, meta) {
   const name = typeof reachDisplayName === 'function' ? reachDisplayName(fromKey)
     : ((typeof peerData !== 'undefined' && peerData && peerData[fromKey] && peerData[fromKey].display_name) || 'Someone');
+  // The sender's profile card's own words first (always ask, over its size, never).
+  const T = (k, v) => (window.i18n && typeof i18n.t === 'function' ? i18n.t(k, v) : k);
+  const personLine = window.HosPersonControls ? HosPersonControls.verdictLine(privateFilePersonVerdict(meta, fromKey), name, T) : null;
+  if (personLine) return personLine;
   const settings = privateFilesSettings();
   return window.HosFilesInMessages ? HosFilesInMessages.askWords(name, settings) : `${name} sent a file. Accept this one?`;
 }
@@ -545,6 +572,8 @@ function privateFileBodyHtml(meta, fromKey) {
   // Not allowed by "Accept files from": nothing is fetched until Accept. Its words are written
   // by hydratePrivateFile with textContent.
   if (!privateFileAccepted(meta, fromKey)) {
+    // Never, from the sender's profile card: the line alone, nothing to press.
+    if (privateFilePersonVerdict(meta, fromKey).id === 'never') return '<div class="enc-attach-ask"></div>';
     return '<div class="enc-attach-ask"></div><button type="button" class="enc-attach-accept">Accept</button>';
   }
   const way = privateFileWay(meta);
@@ -668,7 +697,7 @@ async function hydratePrivateFile(el, meta, fromKey) {
   privateFileCaution(card, meta);
   if (!privateFileAccepted(meta, fromKey)) {
     const ask = bodyEl.querySelector('.enc-attach-ask');
-    if (ask) ask.textContent = privateFileAskWords(fromKey);
+    if (ask) ask.textContent = privateFileAskWords(fromKey, meta);
     const accept = bodyEl.querySelector('.enc-attach-accept');
     if (!accept) return;
     accept.onclick = async (e) => {

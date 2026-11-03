@@ -3949,33 +3949,63 @@ fn snapshot_garden_modal_tower() {
 /// The chat User-Profile modal (v0.845 redesign — themed `widgets::dialog`
 /// backdrop, tokenized buttons, avatar badge, admin controls). Viewer = admin
 /// looking at a mutual-follow "verified" user, so every section renders: Send
-/// DM / Call / Follow, Moderation, Admin (Ban/Mod/Verify/Role).
+/// DM / Call / Follow, "Your settings for Aria" (2026-11-03, per-person
+/// controls: notifications at "Only calls, mentions and replies", files up to
+/// 25 MB, her Message, Call and Trade ticks, her conversation muted), Report
+/// and Block, Moderation, Admin (Ban/Mod/Verify/Role).
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_user_profile_modal() {
-    render_page_png("user_profile_modal", 560, 860, |ctx, theme, state| {
-        use crate::relay::storage::RoleDef;
-        let me = "me00000000000000000000000000000000".to_string();
-        let target = "aria1111111111111111111111111111ffff".to_string();
-        state.profile_public_key = me.clone();
-        state.chat_users = vec![
-            crate::gui::ChatUser { name: "You".into(),  public_key: me.clone(),     role: "admin".into(),    status: "online".into() },
-            crate::gui::ChatUser { name: "Aria".into(), public_key: target.clone(), role: "verified".into(), status: "online".into() },
-        ];
-        state.chat_roles = vec![
-            RoleDef { id: "unverified".into(), label: "Unverified".into(), color: "#9E9E9E".into(), ..Default::default() },
-            RoleDef { id: "verified".into(),   label: "Verified".into(),   color: "#4FC3F7".into(), ..Default::default() },
-            RoleDef { id: "moderator".into(),  label: "Moderator".into(),  color: "#81C784".into(), ..Default::default() },
-            RoleDef { id: "admin".into(),      label: "Admin".into(),      color: "#E57373".into(), ..Default::default() },
-        ];
-        // Mutual follow ⇒ "Friends".
-        state.chat_following_keys.insert(target.clone());
-        state.chat_followers.insert(target.clone());
-        state.chat_user_modal_open = true;
-        state.chat_user_modal_name = "Aria".into();
-        state.chat_user_modal_key = target.clone();
-        crate::gui::pages::chat::draw_user_modal(ctx, theme, state);
+    render_page_png("user_profile_modal", 560, 1500, |ctx, theme, state| user_profile_fixture(ctx, theme, state));
+}
+
+/// The same card at a narrow window (380 points, about a phone held upright): the per-person
+/// section's controls each sit under their own label line, so nothing runs off the card.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_user_profile_modal_narrow() {
+    render_page_png("user_profile_modal_narrow", 380, 1500, |ctx, theme, state| user_profile_fixture(ctx, theme, state));
+}
+
+/// The two profile-card snapshots' state: an admin looking at Aria, a verified mutual follow
+/// holding a pass from them, with per-person choices made for her.
+#[cfg(test)]
+fn user_profile_fixture(ctx: &egui::Context, theme: &crate::gui::theme::Theme, state: &mut crate::gui::GuiState) {
+    use crate::relay::storage::RoleDef;
+    let me = "me00000000000000000000000000000000".to_string();
+    let target = "aria1111111111111111111111111111ffff".to_string();
+    state.profile_public_key = me.clone();
+    state.chat_users = vec![
+        crate::gui::ChatUser { name: "You".into(),  public_key: me.clone(),     role: "admin".into(),    status: "online".into() },
+        crate::gui::ChatUser { name: "Aria".into(), public_key: target.clone(), role: "verified".into(), status: "online".into() },
+    ];
+    state.chat_roles = vec![
+        RoleDef { id: "unverified".into(), label: "Unverified".into(), color: "#9E9E9E".into(), ..Default::default() },
+        RoleDef { id: "verified".into(),   label: "Verified".into(),   color: "#4FC3F7".into(), ..Default::default() },
+        RoleDef { id: "moderator".into(),  label: "Moderator".into(),  color: "#81C784".into(), ..Default::default() },
+        RoleDef { id: "admin".into(),      label: "Admin".into(),      color: "#E57373".into(), ..Default::default() },
+    ];
+    // Mutual follow ⇒ "Friends", and a pass given to her ⇒ her three ticks on the card.
+    state.chat_following_keys.insert(target.clone());
+    state.chat_followers.insert(target.clone());
+    if state.dm_store.is_none() {
+        let mut store = crate::net::dm_store::DmStore::load(&[5u8; 32], &me, "wss://snapshot-profile.invalid");
+        store.set_following(&target, true);
+        store.set_follower(&target, true);
+        store.record_pass_sent(&target, crate::net::dm_store::SentPass { serial: "b2".repeat(16), may: "invite,message,trade,voice_message".into() });
+        state.dm_store = Some(store);
+    }
+    state.settings.person_controls.set(&me, &target, crate::net::person_controls::Controls {
+        notices: crate::net::person_controls::Notices::Mentions,
+        files: crate::net::person_controls::FilesChoice::UpTo,
+        files_mb: 25,
     });
+    state.settings.notifications.mutes.mute_person(&format!("dm:{target}"), crate::notifications::now_secs(), 0);
+    // Opened with no name, as a DM row's View Profile did (BUG-244): the card finds "Aria".
+    state.chat_user_modal_open = true;
+    state.chat_user_modal_name = String::new();
+    state.chat_user_modal_key = target.clone();
+    crate::gui::pages::chat::draw_user_modal(ctx, theme, state);
 }
 /// The Relay Control Center (v0.846) — left rail of the operator's relays +
 /// the Health tab showing the rich signed /api/admin/stats snapshot. Seeds two

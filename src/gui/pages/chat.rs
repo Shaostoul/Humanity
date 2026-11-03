@@ -106,6 +106,9 @@ pub(crate) mod channel_link;
 /// Mute server and Mute room, and a server row's muted mark (2026-10-30,
 /// docs/design/notifications.md). See `chat/mute_menu.rs`.
 mod mute_menu;
+/// "Your settings for <name>" on another person's profile card (2026-11-03,
+/// docs/design/per-person-controls.md). See `chat/person_controls.rs`.
+mod person_controls;
 // A line's length against the server's limit, and whether my line was posted (2026-10-24).
 pub(crate) mod line_limit;
 // Who can read and post in a channel: the line above the box, the pickers, plain links (2026-11-02).
@@ -965,6 +968,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // modal (same as clicking them in the user list).
                         if let Some(idx) = row_resp.clicked_mention {
                             if let Some((nm, key)) = mention_targets.get(idx) {
+                                // Field by field (the message list holds a borrow of `state`), as
+                                // modals.rs `open_profile` sets them.
                                 state.chat_user_modal_open = true;
                                 state.chat_user_modal_name = nm.clone();
                                 state.chat_user_modal_key = key.clone();

@@ -230,10 +230,30 @@ pub(super) fn draw_search_modal(ctx: &egui::Context, theme: &Theme, state: &mut 
 
 // ─────────────────────────────── User Profile Modal ────────────────────────
 
+/// Open the profile card for `key`, shown as `name` (what the opener drew; may be empty), setting
+/// all three together so the card never keeps the last person's name (BUG-244: a DM row's View
+/// Profile set only the key). The two openers inside the message list (chat.rs: a mention, a
+/// line's name) set the same three fields by hand, since the list holds a borrow of `state`.
+pub(crate) fn open_profile(state: &mut GuiState, key: &str, name: &str) {
+    state.chat_user_modal_open = true;
+    state.chat_user_modal_key = key.to_string();
+    state.chat_user_modal_name = name.trim().to_string();
+}
+
+/// The name the card shows: the opener's, else found from the key (the member list, friends, the
+/// DM list, then the start of the key), never blank (BUG-244, the operator's "?" card).
+pub(crate) fn card_name(state: &GuiState) -> String {
+    let given = state.chat_user_modal_name.trim();
+    if !given.is_empty() {
+        return given.to_string();
+    }
+    crate::engine::dm::dm_display_name(state, &state.chat_user_modal_key)
+}
+
 pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if !state.chat_user_modal_open { return; }
 
-    let name = state.chat_user_modal_name.clone();
+    let name = card_name(state);
     let key = state.chat_user_modal_key.clone();
 
     // ── Derive everything read-only up front (one borrow of state), so the
@@ -268,7 +288,9 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
     let mut open = true;
     let mut close_after = false;
 
-    widgets::dialog(ctx, theme, "user_profile_dialog", "Profile", &mut open, |ui| {
+    // Scrolling: its height depends on what is chosen in "Your settings for <name>" and on the
+    // viewer's role, so its end (Close) is never cut off on a short window.
+    widgets::dialog_scrolling(ctx, theme, "user_profile_dialog", "Profile", &mut open, |ui| {
         ui.set_min_width(320.0);
 
         // ── Identity header (avatar, name, status), all centered ──
@@ -451,6 +473,7 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
             }
         });
         super::reach::draw_refusal_notice(ui, theme, state, &key); // their gate refused us (step B)
+        super::person_controls::draw(ui, theme, state, &key, &name); // Your settings for <name>
         super::report_dialog::draw_profile_report(ui, theme, state, &key); // Report (step D)
         super::blocking::draw_profile_block(ui, theme, state, &key); // Block / Unblock (step C)
 

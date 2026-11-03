@@ -2222,6 +2222,16 @@ with voice both ways, and two Direct apps connecting with no relay at all),
 **Not in this step.** A choice per call (it is per person and device); IPv6 host candidates on the
 desktop app (its socket is IPv4); voice over TCP for networks that block UDP (7.4 step 4).
 
+## 10q. Your settings for one person (2026-11-03)
+
+The choices a person makes about ONE other person (their Message, Call and Trade ticks from 10c-ii
+and 10n, the always-allow list, notifications and files from them, their conversation's mute)
+now meet on that person's profile card, in "Your settings for <name>", apart from Report, Block
+and the moderation tools. The design, the whole list and its rungs are their own document:
+`docs/design/per-person-controls.md`. Nothing in this design changes: the ticks still re-issue
+the pass (`set_tick`, the protected setup's PIN included), and no new control puts a social edge
+on any server.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")

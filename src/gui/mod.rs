@@ -4623,6 +4623,8 @@ pub struct SettingsState {
     pub outside_help_country: String,
     /// Files in messages, the attach step's switch, the kept files cap (net/files_policy.rs).
     pub files_in_messages: crate::net::files_policy::FilesInMessages,
+    /// Per-person controls, from each profile card (net/person_controls.rs). Never sent anywhere.
+    pub person_controls: crate::net::person_controls::PeopleControls,
     /// The Media page's Your folders (pages/files/your_folders.rs): folders on this computer the
     /// person added to look through. Kept on this device only; never sent anywhere.
     pub files_folders: Vec<std::path::PathBuf>,
@@ -4761,6 +4763,7 @@ impl Default for SettingsState {
             dm_preview_lines: crate::gui::pages::chat::dm_rows::DEFAULT_LINES,
             outside_help_country: String::new(),
             files_in_messages: Default::default(),
+            person_controls: Default::default(),
             files_folders: Vec::new(),
             files_layout: Default::default(),
             apps_added: Vec::new(),

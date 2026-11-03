@@ -170,7 +170,7 @@ fn an_offer_reads_back_and_one_that_does_not_add_up_is_not_read() {
 #[test]
 fn the_receiver_applies_files_in_messages_before_asking() {
     let ask = Question::Ask("Ann wants to send you clip.mp4 (2.3 GB). Accept?".into());
-    let q = |from, friend, hides, let_in| question(from, friend, hides, let_in, "Ann", "clip.mp4", 2_468_000_000);
+    let q = |from, friend, hides, let_in| question(from, friend, hides, let_in, FileVerdict::Mine, "Ann", "clip.mp4", 2_468_000_000);
     assert_eq!(
         q(AcceptFrom::Friends, false, false, false),
         Question::NotAccepted("Ann wants to send you a file. You accept files only from friends. Accept this one?".into()),
@@ -185,6 +185,31 @@ fn the_receiver_applies_files_in_messages_before_asking() {
         "nobody, a friend included"
     );
     assert_eq!(q(AcceptFrom::Anyone, false, true, true), Question::LeftOut, "the protected setup leaves it out");
+}
+
+/// A BIG FILE'S QUESTION FOLLOWS THE SENDER'S PROFILE CARD (per-person controls 3.2): Never leaves
+/// the offer out with its own line, whatever was pressed; Always ask goes straight to the
+/// question, a stranger's too; a size within "Up to N MB" goes straight to the question past
+/// "Accept files from"; one over it asks first with the over-the-limit line, then the question;
+/// and the protected setup still comes first. Seen red 2026-11-03 with the Never arm taken out of
+/// `question`: "never: left out with its line" got the friends-only card instead.
+#[test]
+fn a_big_files_question_follows_the_senders_profile_card() {
+    let ask = Question::Ask("Ann wants to send you clip.mp4 (2.3 GB). Accept?".into());
+    let q = |person, let_in| question(AcceptFrom::Friends, false, false, let_in, person, "Ann", "clip.mp4", 2_468_000_000);
+    let never = Question::Refused("You chose not to take files from Ann.".into());
+    assert_eq!(q(FileVerdict::Never, false), never, "never: left out with its line");
+    assert_eq!(q(FileVerdict::Never, true), never, "never, whatever was pressed");
+    assert_eq!(q(FileVerdict::AskAlways, false), ask, "always ask: the question, a stranger's too");
+    assert_eq!(q(FileVerdict::Accept, false), ask, "within the size: the question, past Accept files from");
+    assert_eq!(
+        q(FileVerdict::AskOver(10), false),
+        Question::NotAccepted("This file is over the 10 MB you take from Ann without asking. Accept this one?".into()),
+        "over the size: asked first"
+    );
+    assert_eq!(q(FileVerdict::AskOver(10), true), ask, "then the question");
+    let left_out = question(AcceptFrom::Anyone, true, true, true, FileVerdict::AskAlways, "Ann", "clip.mp4", 1);
+    assert_eq!(left_out, Question::LeftOut, "the protected setup comes first");
 }
 
 /// NOTES MOVE A TRANSFER FORWARD ONLY. An offer is listed once (its pass checked); an answer counts
