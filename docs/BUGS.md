@@ -6923,7 +6923,7 @@ that shows an unsafe method teaches it.
 
 Every fact here still needs the teaching-data refutation pass before the chains that use it ship.
 
-## BUG-217: a task made in the desktop app is never saved, and vanishes on reconnect (OPEN, found 2026-10-30)
+## BUG-217: a task made in the desktop app is never saved, and vanishes on reconnect (FIXED 2026-11-02, found 2026-10-30)
 
 **Found by** the Tasks page agent (2026-10-30) while turning the Learn by doing panel into suggested
 cards. Native tasks have never been saved anywhere: `GuiState::tasks` lives only in memory, and when
@@ -6938,6 +6938,21 @@ not merged blindly with a server's shared board; the native page should keep its
 locally, and show a server's shared board beside them.
 
 **Direction decided 2026-11-02** (the operator, asked whether members may add board tasks, BUG-221): "You mean tasks, like in the task list page? Do we have two types of tasks, like private user tasks and public tasks? Should we have more? People should be able to add tasks to their own account that share between their devices but, they shouldn't have to share it with the server. I'm not really sure how we should implement this.  Let's go with the safest option for users and the server." So: a person's own tasks are theirs, kept on their device and shared only between their own devices, never readable by a server; a server's shared board keeps BUG-221's rule (moderators and admins create, change and assign; verified people, donors, moderators and admins comment). The plan for the kinds of task (own, shared with people I choose, a server's board) is to be written before the fix is built.
+
+**FIXED 2026-11-02** (docs/design/tasks.md, rung 1, both apps): a person's own tasks ("My tasks")
+are a list of their own, kept on each device encrypted with a key from the recovery phrase
+(desktop `src/gui/mine_tasks.rs`, a file under `<data>/tasks/` written crash-safely; website
+`web/shared/mine-tasks.js`, a record in the chat's own IndexedDB) and carried between the
+person's devices as sealed notes to themselves in their own mailbox, the block list's own way, so
+no server can read them. The server's list fills the board's own list (`GuiState::board_tasks`,
+`pages/tasks.rs take_board_list`) and never touches them; the page shows the two side by side.
+Add to my tasks makes one of them in one click in both apps. Tests: desktop
+`a_mine_task_survives_the_servers_list_and_a_restart` (`src/engine/mine_tasks_tests.rs`), seen
+red with `take_board_list` putting the server's list in place of the tasks made here (today's
+code before the fix): "the server's list left my own tasks alone"; website
+`scripts/tests/tasks-mine-web.test.js` ("BUG-217: ..."), red on HEAD's web/: "no server form
+opens". Also proved: no word of a task of mine reaches a server, and a task made on one device
+arrives on the person's other device and never on anyone else's (both apps).
 
 **The chain link, for whoever saves them (2026-10-30, the seams review):** the website links a task
 to its chain by a `chain:<id>` label in the task's labels (a JSON-array string on the server); the

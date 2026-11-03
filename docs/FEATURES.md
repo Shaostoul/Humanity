@@ -1055,8 +1055,37 @@ Reply and Mark Read buttons on push notifications.
 
 ## Task Board
 
+The kinds of task (docs/design/tasks.md, 2026-11-02): **My tasks**, kept on the person's own
+devices and synced between them sealed (below), and **this server's board**, the server's own
+shared list (these entries). The Tasks page shows them side by side, one at a time, never merged.
+
+### Tasks of my own (Mine), both apps (2026-11-02, fixes BUG-217)
+A person's own tasks, kept on each of their devices encrypted with a key from the recovery phrase
+(desktop: `<data>/tasks/<hash>.mine`, AES-256-GCM, written crash-safely; website: one record in
+the chat's own IndexedDB, AES-256-GCM), and carried between their devices as sealed notes to
+themselves in their own mailbox (`[[hum:task:v1]]`, the block list's own way): a server sees
+padded sealed self-mail by day, never that it is a task. The merge is per task, the later change
+winning in any order. New task, Add to my tasks (one click on a suggested card), move, priority
+and Delete; the board's list never replaces them. A task note from anyone else is dropped, and
+neither chat ever shows one as a message. Saved tasks that do not open are kept aside (the
+desktop renames the file to `<name>.unreadable-<seconds>`, the website copies the record to its own
+key), never written over, and the page says so. The website needs the identity Chat keeps in the
+browser (a passphrase-protected one cannot be opened from the Tasks page yet). Each page's kind
+switch says who can see what it shows.
+- Native: `src/gui/mine_tasks.rs` (records, merge, notes, file), `src/engine/mine_tasks.rs`
+  (add, change, delete, flush, the arrival rule), `src/gui/pages/tasks.rs` (the switch,
+  `take_board_list`, `add_chain_task`)
+- Web: `web/shared/mine-tasks.js`, `web/pages/tasks-app.js` (`openMine`, `mineAdd`,
+  `renderMineBoard`, the page's own mailbox read), `web/shared/pq-relay-auth.js`
+  (`getPqTasksKey`, `getPqDmKeys`)
+- Tests: `src/engine/mine_tasks_tests.rs`, `src/gui/mine_tasks_tests.rs`,
+  `src/gui/pages/tasks_click_tests.rs`, `scripts/tests/tasks-mine-web.test.js`, both held to
+  `scripts/tests/fixtures/task-note-v1.json`
+
 ### Task CRUD
-Create, read, update, delete tasks with title, description, status, priority, assignee.
+Create, read, update, delete tasks on the server's board with title, description, status,
+priority, assignee (moderators and admins change it, verified people, donors, moderators and
+admins comment: BUG-221). The desktop shows the board read-only for now (rung 5 of the plan).
 - Web: `web/pages/tasks.html`, `web/pages/tasks-app.js`
 - Server: `src/relay/storage/board.rs`
 
@@ -1674,7 +1703,8 @@ User profile view/edit.
 - Native: `src/gui/pages/profile.rs`
 
 ### Tasks Page
-Task board in native UI.
+The Tasks page in native UI: My tasks and this server's board side by side (2026-11-02,
+docs/design/tasks.md), each kind's line saying who can see it.
 - Native: `src/gui/pages/tasks.rs`
 
 ### Suggested cards on the Tasks page (2026-10-30)
@@ -1683,11 +1713,12 @@ cards at the top of the Todo column (Backlog on the web), replacing the separate
 Learn by doing side panel at the operator's request: title, one-line `purpose`,
 "1 of 4", the steps with their ticks (the same `chain:step` progress keys as
 before), a step's words with Go there and, where a step names a written how-to
-(`how_to`), Open the how-to. Add to my tasks makes the chain an ordinary task
-linked to it (`GuiTask::chain` natively, a `chain:<id>` label on the web, where
-the New Task form opens filled in and the person presses Create); the card then
-goes away and the task shows its steps. Hide suggestions hides them. The shared
-hollow card is `widgets::card_suggested` / `.card-suggested`.
+(`how_to`), Open the how-to. Add to my tasks makes the chain one of My tasks,
+linked to it (`GuiTask::chain`, the record's `chain`), in one click in both apps
+(since 2026-11-02; the website's used to open the server's New Task form); the card
+then goes away and the task shows its steps. The cards show on My tasks only. Hide
+suggestions hides them. The shared hollow card is `widgets::card_suggested` /
+`.card-suggested`.
 - Native: `src/gui/pages/tasks.rs` (draw_suggestion), `src/gui/widgets/mod.rs` (card_suggested)
 - Web: `web/pages/tasks-app.js` (renderSuggestions), `web/shared/theme.css` (.card-suggested)
 

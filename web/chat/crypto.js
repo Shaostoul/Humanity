@@ -956,6 +956,13 @@ const CTL_FRIEND_CERT = '[[hum:friend-cert]]';
 // (docs/design/ship-homes-increment-5b-plan.md 3.12). Pinned to native
 // CTL_PERMIT by scripts/tests/reach-web.test.js.
 const CTL_PERMIT = '[[hum:permit:v1]]';
+// Tasks of my own (docs/design/tasks.md, 2026-11-02): a note to myself
+// carrying my tasks, [[hum:task:v1]]{"tasks":[...]}. The Tasks page reads them
+// from my mailbox itself (/shared/mine-tasks.js); the chat swallows them
+// (chat-social.js ingestDmControl), so one is never stored, listed or shown as
+// a message. Pinned to native CTL_TASK and to /shared/mine-tasks.js by
+// scripts/tests/tasks-mine-web.test.js.
+const CTL_TASK = '[[hum:task:v1]]';
 // Block's notes to myself, [[hum:block:v1]]<key> and [[hum:unblock:v1]]<key>
 // (step C, 2026-10-09), are CTL_BLOCK and CTL_UNBLOCK in /shared/block.js,
 // pinned to native by scripts/tests/block-web.test.js; pqBuildSelfNote below

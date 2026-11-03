@@ -1,9 +1,23 @@
 //! Tasks: the not-game surface. A three-column kanban (Todo/In Progress/Done)
-//! for the person's own tasks, with SUGGESTED cards at the top of Todo.
+//! for the person's own tasks, with SUGGESTED cards at the top of Todo, and the
+//! server's board beside it.
 //!
 //! Features: project selector, kanban columns, task cards with priority badges
 //! and labels, detail panel, new task form, filter bar with search/priority/
 //! assignee filters, task count per column, suggested cards.
+//!
+//! THE KINDS (docs/design/tasks.md, 2026-11-02, fixing BUG-217). A switch at the
+//! top shows one kind at a time, with a line saying who can see it:
+//! - **My tasks** (`GuiState::mine_tasks`, gui/mine_tasks.rs): kept on this
+//!   device encrypted with a key from the recovery phrase and carried to my other
+//!   devices as sealed notes to myself (engine/mine_tasks.rs). No server can read
+//!   them. New task, the suggested cards' Add to my tasks, Edit and Delete work
+//!   here. They open once the identity is unlocked.
+//! - **This server's board** (`GuiState::board_tasks`): what the server's
+//!   `task_list` sent ([`take_board_list`]), public to its members. Read-only on
+//!   the desktop for now (rung 5 of the plan); it never touches My tasks. Until
+//!   2026-11-02 there was one list, the server's list replaced it on every
+//!   connection, and a task made here vanished (BUG-217).
 //!
 //! SUGGESTED CARDS (2026-10-30). The learn-by-doing chains
 //! (`data/onboarding/quests.json`: First Steps, Water Independence, ...) are
@@ -20,11 +34,12 @@
 //!   localStorage, `humanity_quest_progress`).
 //! - A step's title opens it: its words, Go there (the page it names) and, when
 //!   the step has a written how-to (`how_to` in the file), Open the how-to.
-//! - Add to my tasks makes the chain an ordinary Todo task linked to it
+//! - Add to my tasks makes the chain one of My tasks, linked to it
 //!   (`GuiTask::chain`), and the card goes away while that task exists. The
 //!   task's card then shows "Steps: 1 of 4" and its detail panel the steps,
-//!   tickable there. A task the server sends with a `chain:<id>` label (the
-//!   website's link, [`task_from_server`]) is linked the same way.
+//!   tickable there. The cards show on My tasks only. A board task the server
+//!   sends with a `chain:<id>` label (the website's link, [`task_from_server`])
+//!   shows that chain's steps the same way.
 //! - The header's Hide suggestions button hides them, for this run of the app.
 //!
 //! These cards are built to be fed by how-tos: increment 6 of
@@ -45,9 +60,31 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
 
+/// Which kind of task the page shows (docs/design/tasks.md section 7). Shared lists are rung 4.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum Kind {
+    /// My own tasks, shown first.
+    #[default]
+    Mine,
+    /// The server's board.
+    Board,
+}
+
+/// The tasks of `kind` the page draws: my own (none while no identity is unlocked) or the board's.
+fn shown(state: &GuiState, kind: Kind) -> &[GuiTask] {
+    match kind {
+        Kind::Mine => state.mine_tasks.as_ref().map(|m| m.tasks()).unwrap_or(&[]),
+        Kind::Board => &state.board_tasks,
+    }
+}
+
 /// Page-local state for the task board.
 struct TaskPageState {
-    selected_task: Option<usize>,
+    /// The kind shown (My tasks first).
+    kind: Kind,
+    /// The task whose detail panel is open, by id (ids stay put when a note or the server's list
+    /// arrives; a position would not).
+    selected_task: Option<String>,
     project_filter: String,
     projects: Vec<String>,
     new_labels_input: String,
@@ -70,6 +107,7 @@ struct TaskPageState {
 impl Default for TaskPageState {
     fn default() -> Self {
         Self {
+            kind: Kind::default(),
             selected_task: None,
             project_filter: String::new(),
             // Loaded from data/tasks/default_projects.json (see load_default_projects()).
@@ -217,8 +255,9 @@ pub(crate) fn task_from_server(task: &serde_json::Value) -> GuiTask {
     };
     let chain = all.iter().find_map(|l| l.strip_prefix(CHAIN_LABEL)).filter(|id| !id.is_empty()).map(str::to_string);
     let labels: Vec<String> = all.into_iter().filter(|l| !l.starts_with(CHAIN_LABEL)).collect();
+    let time = |k: &str| task.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
     GuiTask {
-        id: task.get("id").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+        id: task.get("id").and_then(|v| v.as_u64()).unwrap_or(0).to_string(),
         title: field("title"),
         description: field("description"),
         priority,
@@ -226,7 +265,26 @@ pub(crate) fn task_from_server(task: &serde_json::Value) -> GuiTask {
         assignee: field("assignee"),
         labels,
         chain,
+        created_at: time("created_at"),
+        updated_at: time("updated_at"),
     }
+}
+
+/// The server's board arrived (`task_list`, `task_list_response`, engine/frame_ws_poll.rs): it
+/// becomes the board's list, and nothing else. My own tasks are a separate list it never touches
+/// (BUG-217: until 2026-11-02 this list replaced the one tasks made here were kept in).
+pub(crate) fn take_board_list(state: &mut GuiState, tasks: &[serde_json::Value]) {
+    state.board_tasks = tasks.iter().map(task_from_server).collect();
+}
+
+/// Add to my tasks on a suggested card: the chain becomes one of my own tasks, linked to it, kept
+/// on this device and sent to my other devices. Never twice (a second click in the same frame, or
+/// a task made from it already, adds nothing); nothing while no identity is unlocked.
+pub(crate) fn add_chain_task(state: &mut GuiState, chain: &Chain) -> Option<String> {
+    if !crate::engine::mine_tasks::ensure(state) || state.mine_tasks.as_ref().is_some_and(|m| m.has_chain(&chain.id)) {
+        return None;
+    }
+    crate::engine::mine_tasks::add(state, &chain.title, &chain.purpose, TaskPriority::Medium, Vec::new(), Some(chain.id.clone()))
 }
 
 /// The labels a task's card and detail panel show: the person's own tags. The `scope:` label the
@@ -437,23 +495,9 @@ fn apply_chain_actions(ctx: &egui::Context, state: &mut GuiState, chains: &[Chai
                 state.push_nav_to(GuiPage::HowTo);
             }
             ChainAction::Add(id) => {
-                let Some(chain) = chains.iter().find(|c| c.id == id) else { continue };
-                // Never twice: a second click in the same frame, or a task made
-                // already, adds nothing.
-                if state.tasks.iter().any(|t| t.chain.as_deref() == Some(id.as_str())) {
-                    continue;
+                if let Some(chain) = chains.iter().find(|c| c.id == id) {
+                    add_chain_task(state, chain);
                 }
-                state.tasks.push(GuiTask {
-                    id: state.task_next_id,
-                    title: chain.title.clone(),
-                    description: chain.purpose.clone(),
-                    priority: TaskPriority::Medium,
-                    status: TaskStatus::Todo,
-                    assignee: String::new(),
-                    labels: Vec::new(),
-                    chain: Some(chain.id.clone()),
-                });
-                state.task_next_id += 1;
             }
         }
     }
@@ -487,183 +531,197 @@ fn status_label(status: TaskStatus) -> &'static str {
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Track which task to select (set by card "View" buttons)
-    let mut select_task: Option<usize> = None;
+    let mut select_task: Option<String> = None;
     let mut close_detail = false;
-    let mut apply_edit: Option<(usize, TaskStatus, TaskPriority)> = None;
+    let mut apply_edit: Option<(String, TaskStatus, TaskPriority)> = None;
+    let mut delete_task: Option<String> = None;
     let mut actions: Vec<ChainAction> = Vec::new();
     let chains = with_state(|ps| ps.chains.clone());
 
-    // A click on a task notice (notifications rung 3) opens that task once the board has it.
+    // A click on a task notice (notifications rung 3) names a board task: the board is shown and
+    // that task opened once the board has it.
     if let Some(id) = state.task_open_id {
-        if let Some(idx) = state.tasks.iter().position(|t| t.id == id) {
+        let id = id.to_string();
+        if state.board_tasks.iter().any(|t| t.id == id) {
             state.task_open_id = None;
             with_state(|ps| {
-                ps.selected_task = Some(idx);
+                ps.kind = Kind::Board;
+                ps.selected_task = Some(id);
                 ps.editing = false;
             });
         }
     }
+    let kind = with_state(|ps| ps.kind);
+    // My own tasks open with the identity: they are encrypted with a key from its seed.
+    let mine_open = kind == Kind::Mine && crate::engine::mine_tasks::ensure(state);
 
     // Draw detail side panel if a task is selected
     with_state(|ps| {
-        if let Some(sel_idx) = ps.selected_task {
-            if let Some(task) = state.tasks.get(sel_idx) {
-                egui::SidePanel::right("task_detail_panel")
-                    .min_width(280.0)
-                    .max_width(360.0)
-                    .frame(Frame::NONE.fill(theme.bg_sidebar()).inner_margin(12.0))
-                    .show(ctx, |ui| {
-                        ScrollArea::vertical().show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(t("tasks.detail_title")).size(theme.font_size_heading).color(theme.text_primary()));
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    if with_hint(ui, "tasks.close_detail_hint", |ui| widgets::secondary_button(ui, theme, "X")) {
-                                        close_detail = true;
-                                    }
-                                });
-                            });
-                            ui.add_space(theme.spacing_sm);
-
-                            // Title
-                            ui.label(RichText::new(&task.title).size(theme.font_size_title).color(theme.accent()));
-                            ui.add_space(theme.spacing_xs);
-
-                            // Priority badge
-                            widgets::badge(ui, theme, priority_label(task.priority), priority_color(theme, task.priority));
-
-                            ui.add_space(theme.spacing_sm);
-
-                            // Status
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(t("tasks.status_label")).color(theme.text_secondary()));
-                                if ps.editing {
-                                    egui::ComboBox::from_id_salt("edit_status")
-                                        .selected_text(status_label(ps.edit_status))
-                                        .width(120.0)
-                                        .show_ui(ui, |ui| {
-                                            for s in [TaskStatus::Todo, TaskStatus::InProgress, TaskStatus::Done] {
-                                                if ui.selectable_label(ps.edit_status == s, status_label(s)).hint("tasks.status_option_hint").clicked() {
-                                                    ps.edit_status = s;
-                                                }
-                                            }
-                                        })
-                                        .response
-                                        .hint("tasks.edit_status_hint");
-                                } else {
-                                    ui.label(RichText::new(status_label(task.status)).color(theme.text_primary()));
-                                }
-                            });
-
-                            // Priority (editable)
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(t("tasks.priority_label")).color(theme.text_secondary()));
-                                if ps.editing {
-                                    egui::ComboBox::from_id_salt("edit_priority")
-                                        .selected_text(priority_label(ps.edit_priority))
-                                        .width(120.0)
-                                        .show_ui(ui, |ui| {
-                                            for p in [TaskPriority::Low, TaskPriority::Medium, TaskPriority::High, TaskPriority::Critical] {
-                                                if ui.selectable_label(ps.edit_priority == p, priority_label(p)).hint("tasks.priority_option_hint").clicked() {
-                                                    ps.edit_priority = p;
-                                                }
-                                            }
-                                        })
-                                        .response
-                                        .hint("tasks.edit_priority_hint");
-                                } else {
-                                    ui.label(RichText::new(priority_label(task.priority)).color(theme.text_primary()));
-                                }
-                            });
-
-                            // Assignee
-                            if !task.assignee.is_empty() {
-                                ui.horizontal(|ui| {
-                                    ui.label(RichText::new(t("tasks.assignee_label")).color(theme.text_secondary()));
-                                    ui.label(RichText::new(&task.assignee).color(theme.text_primary()));
-                                });
+        let Some(sel) = ps.selected_task.clone() else { return };
+        let Some(task) = shown(state, kind).iter().find(|t| t.id == sel) else {
+            ps.selected_task = None;
+            return;
+        };
+        egui::SidePanel::right("task_detail_panel")
+            .min_width(280.0)
+            .max_width(360.0)
+            .frame(Frame::NONE.fill(theme.bg_sidebar()).inner_margin(12.0))
+            .show(ctx, |ui| {
+                ScrollArea::vertical().show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(t("tasks.detail_title")).size(theme.font_size_heading).color(theme.text_primary()));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if with_hint(ui, "tasks.close_detail_hint", |ui| widgets::secondary_button(ui, theme, "X")) {
+                                close_detail = true;
                             }
-
-                            ui.add_space(theme.spacing_sm);
-
-                            // Full description
-                            if !task.description.is_empty() {
-                                ui.label(RichText::new(t("tasks.description")).size(theme.font_size_body).color(theme.text_secondary()));
-                                widgets::card(ui, theme, |ui| {
-                                    ui.label(RichText::new(&task.description).color(theme.text_primary()));
-                                });
-                            }
-
-                            // A task made from a suggested card: its chain's
-                            // steps, tickable here as on the card.
-                            if let Some(chain) = task.chain.as_deref().and_then(|id| chains.iter().find(|c| c.id == id)) {
-                                ui.add_space(theme.spacing_sm);
-                                ui.label(RichText::new(t("tasks.detail_steps")).size(theme.font_size_body).color(theme.text_secondary()));
-                                ui.add_space(theme.spacing_xs);
-                                let open = ps.open_step.get(&chain.id).map(String::as_str);
-                                draw_steps(ui, theme, chain, &state.onboarding_quest_progress, open, &mut actions);
-                            }
-
-                            ui.add_space(theme.spacing_xs);
-
-                            // Labels
-                            let shown = shown_labels(task);
-                            if !shown.is_empty() {
-                                ui.label(RichText::new(t("tasks.labels")).size(theme.font_size_body).color(theme.text_secondary()));
-                                ui.horizontal_wrapped(|ui| {
-                                    for label in shown {
-                                        widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
-                                    }
-                                });
-                            }
-
-                            ui.add_space(theme.spacing_sm);
-
-                            // Task ID
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(t("tasks.task_id_label")).color(theme.text_muted()));
-                                ui.label(RichText::new(format!("#{}", task.id)).color(theme.text_muted()));
-                            });
-
-                            ui.add_space(theme.spacing_md);
-
-                            // Comments section
-                            ui.label(RichText::new(t("tasks.comments")).size(theme.font_size_body).color(theme.text_secondary()));
-                            widgets::card(ui, theme, |ui| {
-                                ui.label(RichText::new(t("tasks.no_comments")).color(theme.text_muted()));
-                            });
-
-                            ui.add_space(theme.spacing_md);
-
-                            // Edit / Save buttons
-                            ui.horizontal(|ui| {
-                                if ps.editing {
-                                    if widgets::Button::primary(t("common.save")).hint("tasks.save_edit_hint").show(ui, theme) {
-                                        apply_edit = Some((sel_idx, ps.edit_status, ps.edit_priority));
-                                        ps.editing = false;
-                                    }
-                                    if widgets::Button::secondary(t("common.cancel")).hint("tasks.cancel_edit_hint").show(ui, theme) {
-                                        ps.editing = false;
-                                    }
-                                } else if widgets::Button::primary(t("common.edit")).hint("tasks.edit_hint").show(ui, theme) {
-                                    ps.edit_status = task.status;
-                                    ps.edit_priority = task.priority;
-                                    ps.editing = true;
-                                }
-                            });
                         });
                     });
-            } else {
-                ps.selected_task = None;
-            }
-        }
+                    ui.add_space(theme.spacing_sm);
+
+                    // Title
+                    ui.label(RichText::new(&task.title).size(theme.font_size_title).color(theme.accent()));
+                    ui.add_space(theme.spacing_xs);
+
+                    // Priority badge
+                    widgets::badge(ui, theme, priority_label(task.priority), priority_color(theme, task.priority));
+
+                    ui.add_space(theme.spacing_sm);
+
+                    // Status
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(t("tasks.status_label")).color(theme.text_secondary()));
+                        if ps.editing {
+                            egui::ComboBox::from_id_salt("edit_status")
+                                .selected_text(status_label(ps.edit_status))
+                                .width(120.0)
+                                .show_ui(ui, |ui| {
+                                    for s in [TaskStatus::Todo, TaskStatus::InProgress, TaskStatus::Done] {
+                                        if ui.selectable_label(ps.edit_status == s, status_label(s)).hint("tasks.status_option_hint").clicked() {
+                                            ps.edit_status = s;
+                                        }
+                                    }
+                                })
+                                .response
+                                .hint("tasks.edit_status_hint");
+                        } else {
+                            ui.label(RichText::new(status_label(task.status)).color(theme.text_primary()));
+                        }
+                    });
+
+                    // Priority (editable)
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(t("tasks.priority_label")).color(theme.text_secondary()));
+                        if ps.editing {
+                            egui::ComboBox::from_id_salt("edit_priority")
+                                .selected_text(priority_label(ps.edit_priority))
+                                .width(120.0)
+                                .show_ui(ui, |ui| {
+                                    for p in [TaskPriority::Low, TaskPriority::Medium, TaskPriority::High, TaskPriority::Critical] {
+                                        if ui.selectable_label(ps.edit_priority == p, priority_label(p)).hint("tasks.priority_option_hint").clicked() {
+                                            ps.edit_priority = p;
+                                        }
+                                    }
+                                })
+                                .response
+                                .hint("tasks.edit_priority_hint");
+                        } else {
+                            ui.label(RichText::new(priority_label(task.priority)).color(theme.text_primary()));
+                        }
+                    });
+
+                    // Assignee (a board task's; my own tasks are mine)
+                    if !task.assignee.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(t("tasks.assignee_label")).color(theme.text_secondary()));
+                            ui.label(RichText::new(&task.assignee).color(theme.text_primary()));
+                        });
+                    }
+
+                    ui.add_space(theme.spacing_sm);
+
+                    // Full description
+                    if !task.description.is_empty() {
+                        ui.label(RichText::new(t("tasks.description")).size(theme.font_size_body).color(theme.text_secondary()));
+                        widgets::card(ui, theme, |ui| {
+                            ui.label(RichText::new(&task.description).color(theme.text_primary()));
+                        });
+                    }
+
+                    // A task made from a suggested card: its chain's
+                    // steps, tickable here as on the card.
+                    if let Some(chain) = task.chain.as_deref().and_then(|id| chains.iter().find(|c| c.id == id)) {
+                        ui.add_space(theme.spacing_sm);
+                        ui.label(RichText::new(t("tasks.detail_steps")).size(theme.font_size_body).color(theme.text_secondary()));
+                        ui.add_space(theme.spacing_xs);
+                        let open = ps.open_step.get(&chain.id).map(String::as_str);
+                        draw_steps(ui, theme, chain, &state.onboarding_quest_progress, open, &mut actions);
+                    }
+
+                    ui.add_space(theme.spacing_xs);
+
+                    // Labels
+                    let shown_tags = shown_labels(task);
+                    if !shown_tags.is_empty() {
+                        ui.label(RichText::new(t("tasks.labels")).size(theme.font_size_body).color(theme.text_secondary()));
+                        ui.horizontal_wrapped(|ui| {
+                            for label in shown_tags {
+                                widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
+                            }
+                        });
+                    }
+
+                    ui.add_space(theme.spacing_sm);
+
+                    if kind == Kind::Board {
+                        // The board's number for the task (my own tasks' ids are random and
+                        // mean nothing to read).
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(t("tasks.task_id_label")).color(theme.text_muted()));
+                            ui.label(RichText::new(format!("#{}", task.id)).color(theme.text_muted()));
+                        });
+                        ui.add_space(theme.spacing_md);
+                        // Comments section
+                        ui.label(RichText::new(t("tasks.comments")).size(theme.font_size_body).color(theme.text_secondary()));
+                        widgets::card(ui, theme, |ui| {
+                            ui.label(RichText::new(t("tasks.no_comments")).color(theme.text_muted()));
+                        });
+                        return;
+                    }
+
+                    ui.add_space(theme.spacing_md);
+
+                    // Edit / Save / Delete: my own tasks only (the board is read-only here).
+                    ui.horizontal(|ui| {
+                        if ps.editing {
+                            if widgets::Button::primary(t("common.save")).hint("tasks.save_edit_hint").show(ui, theme) {
+                                apply_edit = Some((task.id.clone(), ps.edit_status, ps.edit_priority));
+                                ps.editing = false;
+                            }
+                            if widgets::Button::secondary(t("common.cancel")).hint("tasks.cancel_edit_hint").show(ui, theme) {
+                                ps.editing = false;
+                            }
+                        } else {
+                            if widgets::Button::primary(t("common.edit")).hint("tasks.edit_hint").show(ui, theme) {
+                                ps.edit_status = task.status;
+                                ps.edit_priority = task.priority;
+                                ps.editing = true;
+                            }
+                            if widgets::Button::danger(t("common.delete")).hint("tasks.delete_mine_hint").show(ui, theme) {
+                                delete_task = Some(task.id.clone());
+                            }
+                        }
+                    });
+                });
+            });
     });
 
     // Apply edits outside borrow
-    if let Some((idx, new_status, new_priority)) = apply_edit {
-        if let Some(task) = state.tasks.get_mut(idx) {
-            task.status = new_status;
-            task.priority = new_priority;
-        }
+    if let Some((id, new_status, new_priority)) = apply_edit {
+        crate::engine::mine_tasks::change(state, &id, Some(new_status), Some(new_priority));
+    }
+    if let Some(id) = delete_task {
+        crate::engine::mine_tasks::delete(state, &id);
+        close_detail = true;
     }
     if close_detail {
         with_state(|ps| ps.selected_task = None);
@@ -676,8 +734,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.horizontal(|ui| {
                 // Heading matches the nav button ("Tasks"): one page, one name.
                 ui.label(RichText::new(t("tasks.title")).size(theme.font_size_title).color(theme.text_primary()));
+                if !mine_open {
+                    return;
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::Button::primary(t("tasks.new_task")).hint("tasks.new_task_hint").show(ui, theme) {
+                    if widgets::Button::primary(t("tasks.new_task")).hint("tasks.new_task_mine_hint").show(ui, theme) {
                         state.task_show_new_form = !state.task_show_new_form;
                     }
                     // Suggested-cards toggle. Right-to-left layout puts this
@@ -692,6 +753,40 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             });
 
             ui.add_space(theme.spacing_xs);
+
+            // The kinds, and who can see the one shown (docs/design/tasks.md section 7).
+            ui.horizontal(|ui| {
+                for (k, label, hint) in [(Kind::Mine, "tasks.kind_mine", "tasks.kind_mine_hint"), (Kind::Board, "tasks.kind_board", "tasks.kind_board_hint")] {
+                    if widgets::Button::tab(t(label), kind == k).hint(hint).show(ui, theme) && kind != k {
+                        with_state(|ps| {
+                            ps.kind = k;
+                            ps.selected_task = None;
+                            ps.editing = false;
+                        });
+                    }
+                }
+            });
+            let who = if kind == Kind::Mine { t("tasks.kind_mine_who") } else { t("tasks.kind_board_who") };
+            ui.label(RichText::new(who).color(theme.text_secondary()).size(theme.font_size_small));
+            // My saved tasks did not open as they were (gui/mine_tasks.rs `OpenProblem`): say so,
+            // and that tasks from my other devices come back as their notes arrive.
+            if kind == Kind::Mine {
+                if let Some(problem) = state.mine_tasks.as_ref().and_then(|m| m.problem()) {
+                    let (words, hint) = match problem {
+                        crate::gui::mine_tasks::OpenProblem::KeptAside(_) => ("tasks.mine_kept_aside", "tasks.mine_kept_aside_hint"),
+                        crate::gui::mine_tasks::OpenProblem::Unreadable(_) => ("tasks.mine_unreadable", "tasks.mine_unreadable_hint"),
+                    };
+                    ui.add(egui::Label::new(RichText::new(t(words)).color(theme.warning()).size(theme.font_size_small)).wrap())
+                        .hint(hint);
+                }
+            }
+            ui.add_space(theme.spacing_xs);
+
+            if kind == Kind::Mine && !mine_open {
+                ui.add_space(theme.spacing_lg);
+                ui.label(RichText::new(t("tasks.mine_locked")).color(theme.text_muted()));
+                return;
+            }
 
             // Project selector bar
             with_state(|ps| {
@@ -738,31 +833,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     })
                     .response
                     .hint("tasks.priority_filter_hint");
-                ui.add_space(theme.spacing_md);
-                ui.label(RichText::new(t("tasks.assignee_label")).color(theme.text_secondary()));
-                ui.add(egui::TextEdit::singleline(&mut state.task_filter_assignee)
-                    .desired_width(120.0)
-                    .hint_text(t("tasks.filter_assignee")))
-                    .hint("tasks.filter_assignee_hint");
+                // Who does it: a board's question (my own tasks are mine).
+                if kind == Kind::Board {
+                    ui.add_space(theme.spacing_md);
+                    ui.label(RichText::new(t("tasks.assignee_label")).color(theme.text_secondary()));
+                    ui.add(egui::TextEdit::singleline(&mut state.task_filter_assignee)
+                        .desired_width(120.0)
+                        .hint_text(t("tasks.filter_assignee")))
+                        .hint("tasks.filter_assignee_hint");
+                }
             });
 
             ui.add_space(theme.spacing_sm);
 
-            // New task form (inline)
-            if state.task_show_new_form {
+            // New task form (inline): one of my own.
+            if mine_open && state.task_show_new_form {
                 widgets::card(ui, theme, |ui| {
                     ui.label(RichText::new(t("tasks.new_task_heading")).size(theme.font_size_heading).color(theme.accent()));
                     ui.add_space(theme.spacing_xs);
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(t("tasks.title_label")).color(theme.text_secondary()));
-                        ui.add(egui::TextEdit::singleline(&mut state.task_new_title).desired_width(300.0))
+                        ui.add(egui::TextEdit::singleline(&mut state.task_new_title).desired_width(300.0).char_limit(crate::gui::mine_tasks::TITLE_MAX))
                             .hint("tasks.new_title_hint");
                     });
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(t("tasks.description_label")).color(theme.text_secondary()));
                         ui.add(egui::TextEdit::multiline(&mut state.task_new_description)
                             .desired_width(300.0)
-                            .desired_rows(2))
+                            .desired_rows(2)
+                            .char_limit(crate::gui::mine_tasks::DESCRIPTION_MAX))
                             .hint("tasks.new_description_hint");
                     });
                     ui.horizontal(|ui| {
@@ -778,10 +877,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             })
                             .response
                             .hint("tasks.new_priority_hint");
-                        ui.add_space(theme.spacing_md);
-                        ui.label(RichText::new(t("tasks.assignee_label")).color(theme.text_secondary()));
-                        ui.add(egui::TextEdit::singleline(&mut state.task_new_assignee).desired_width(120.0))
-                            .hint("tasks.new_assignee_hint");
                     });
                     with_state(|ps| {
                         ui.horizontal(|ui| {
@@ -811,7 +906,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                     ui.add_space(theme.spacing_xs);
                     ui.horizontal(|ui| {
-                        if widgets::Button::primary(t("tasks.create")).hint("tasks.create_hint").show(ui, theme) && !state.task_new_title.is_empty() {
+                        if widgets::Button::primary(t("tasks.create")).hint("tasks.create_hint").show(ui, theme) && !state.task_new_title.trim().is_empty() {
                             let labels: Vec<String> = with_state(|ps| {
                                 let mut all_labels: Vec<String> = ps.new_labels_input.split(',')
                                     .map(|s| s.trim().to_string())
@@ -824,22 +919,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 ps.new_project.clear();
                                 all_labels
                             });
-                            let task = GuiTask {
-                                id: state.task_next_id,
-                                title: state.task_new_title.clone(),
-                                description: state.task_new_description.clone(),
-                                priority: state.task_new_priority,
-                                status: TaskStatus::Todo,
-                                assignee: state.task_new_assignee.clone(),
-                                labels,
-                                chain: None,
-                            };
-                            state.task_next_id += 1;
-                            state.tasks.push(task);
+                            let (title, description, priority) = (state.task_new_title.trim().to_string(), state.task_new_description.clone(), state.task_new_priority);
+                            crate::engine::mine_tasks::add(state, &title, &description, priority, labels, None);
                             state.task_new_title.clear();
                             state.task_new_description.clear();
                             state.task_new_priority = TaskPriority::Medium;
-                            state.task_new_assignee.clear();
                             state.task_show_new_form = false;
                         }
                         if widgets::Button::secondary(t("common.cancel")).hint("tasks.cancel_new_hint").show(ui, theme) {
@@ -852,9 +936,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             // Build filtered indices
             let search_lower = state.task_search.to_lowercase();
-            let assignee_lower = state.task_filter_assignee.to_lowercase();
+            let assignee_lower = if kind == Kind::Board { state.task_filter_assignee.to_lowercase() } else { String::new() };
             let project_filter = with_state(|ps| ps.project_filter.clone());
-            let filtered: Vec<usize> = state.tasks.iter().enumerate()
+            let filtered: Vec<usize> = shown(state, kind).iter().enumerate()
                 .filter(|(_, task)| {
                     if !search_lower.is_empty() && !task.title.to_lowercase().contains(&search_lower)
                         && !task.description.to_lowercase().contains(&search_lower) {
@@ -874,19 +958,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 .map(|(i, _)| i)
                 .collect();
 
-            // The suggestions: hidden by the header button, and while a
-            // priority, assignee or project filter is set (a suggestion has
-            // none of those, so it can never match one). The search box
-            // filters them like tasks.
+            // The suggestions, on My tasks only (Add makes one of my own): hidden by the
+            // header button, and while a priority or project filter is set (a suggestion has
+            // none of those, so it can never match one). The search box filters them like tasks.
             let show = with_state(|ps| ps.show_suggestions);
-            let filtering = state.task_filter_priority.is_some() || !assignee_lower.is_empty() || !project_filter.is_empty();
-            let suggestions = if show && !filtering {
-                suggested(&chains, &state.tasks, &search_lower)
+            let filtering = state.task_filter_priority.is_some() || !project_filter.is_empty();
+            let suggestions = if kind == Kind::Mine && show && !filtering {
+                suggested(&chains, shown(state, kind), &search_lower)
             } else {
                 Vec::new()
             };
             let open = with_state(|ps| ps.open_step.clone());
             let board = Board {
+                kind,
                 filtered: &filtered,
                 chains: &chains,
                 suggestions: &suggestions,
@@ -898,17 +982,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     apply_chain_actions(ctx, state, &chains, actions);
 
     // Apply card selection
-    if let Some(idx) = select_task {
+    if let Some(id) = select_task {
         with_state(|ps| {
-            ps.selected_task = Some(idx);
+            ps.selected_task = Some(id);
             ps.editing = false;
         });
     }
 }
 
-/// What the board draws besides `GuiState`: the tasks that pass the filters,
-/// the chains (for a linked task's steps line) and the suggestions to show.
+/// What the board draws besides `GuiState`: the kind shown, the tasks that pass the filters, the
+/// chains (for a linked task's steps line) and the suggestions to show.
 struct Board<'a> {
+    kind: Kind,
     filtered: &'a [usize],
     chains: &'a [Chain],
     suggestions: &'a [&'a Chain],
@@ -921,9 +1006,10 @@ fn draw_board(
     theme: &Theme,
     state: &GuiState,
     board: &Board,
-    select_task: &mut Option<usize>,
+    select_task: &mut Option<String>,
     actions: &mut Vec<ChainAction>,
 ) {
+    let tasks = shown(state, board.kind);
     // (scroll id, status): the shown name comes from `status_label`, by key,
     // so the id stays the same whatever language the words are in.
     let columns = [
@@ -938,10 +1024,10 @@ fn draw_board(
             cols[col_idx].vertical(|ui| {
                 let col_tasks: Vec<usize> = board.filtered.iter()
                     .copied()
-                    .filter(|&i| state.tasks[i].status == *col_status)
+                    .filter(|&i| tasks[i].status == *col_status)
                     .collect();
 
-                // Column header with count (the person's own tasks only)
+                // Column header with count (the tasks only, not the suggestions)
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(status_label(*col_status)).size(theme.font_size_heading).color(theme.text_primary()));
                     widgets::badge(ui, theme, &col_tasks.len().to_string(), theme.bg_secondary());
@@ -967,7 +1053,7 @@ fn draw_board(
                         ui.label(RichText::new(t("tasks.no_tasks_column")).color(theme.text_muted()));
                     }
                     for &idx in &col_tasks {
-                        let task = &state.tasks[idx];
+                        let task = &tasks[idx];
                         let pc = priority_color(theme, task.priority);
                         widgets::card(ui, theme, |ui| {
                             // The title WRAPS in the room left beside the
@@ -1020,19 +1106,21 @@ fn draw_board(
                                 ui.label(RichText::new(tf("tasks.card_assignee", &[("name", &task.assignee)])).color(theme.text_secondary()).size(theme.font_size_small));
                             }
                             // Labels as small badges
-                            let shown = shown_labels(task);
-                            if !shown.is_empty() {
+                            let shown_tags = shown_labels(task);
+                            if !shown_tags.is_empty() {
                                 ui.horizontal_wrapped(|ui| {
-                                    for label in shown {
+                                    for label in shown_tags {
                                         widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
                                     }
                                 });
                             }
-                            // Task ID
+                            // The board's number for the task, and View
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(format!("#{}", task.id)).color(theme.text_muted()).size(theme.font_size_small));
+                                if board.kind == Kind::Board {
+                                    ui.label(RichText::new(format!("#{}", task.id)).color(theme.text_muted()).size(theme.font_size_small));
+                                }
                                 if widgets::Button::secondary(t("tasks.view")).hint("tasks.view_hint").show(ui, theme) {
-                                    *select_task = Some(idx);
+                                    *select_task = Some(task.id.clone());
                                 }
                             });
                         });
@@ -1048,27 +1136,36 @@ fn draw_board(
 
     // Empty state. Not while suggestions fill the Todo column: they are the
     // empty state then, and this line would sit under them, off the screen.
-    if state.tasks.is_empty() && board.suggestions.is_empty() {
+    if tasks.is_empty() && board.suggestions.is_empty() {
         ui.add_space(theme.spacing_lg);
         ui.vertical_centered(|ui| {
-            ui.label(RichText::new(t("tasks.empty_title")).size(theme.font_size_heading).color(theme.text_muted()));
-            ui.label(RichText::new(t("tasks.empty_body")).color(theme.text_secondary()));
+            if board.kind == Kind::Board {
+                ui.label(RichText::new(t("tasks.board_none")).size(theme.font_size_heading).color(theme.text_muted()));
+            } else {
+                ui.label(RichText::new(t("tasks.empty_title")).size(theme.font_size_heading).color(theme.text_muted()));
+                ui.label(RichText::new(t("tasks.empty_body")).color(theme.text_secondary()));
+            }
         });
     }
 }
 
-/// Snapshot helper: choose (or clear) the task whose detail panel is open, and
-/// open a chain's step, so a still can show the linked steps
+/// Snapshot helper: choose the kind shown, choose (or clear) the task whose detail panel is open,
+/// and open a chain's step, so a still can show the linked steps
 /// (`ui_snapshots::snapshot_tasks_suggested`).
 #[cfg(test)]
-pub(crate) fn set_for_snapshot(selected: Option<usize>, open: &[(&str, &str)]) {
+pub(crate) fn set_for_snapshot(kind: Kind, selected: Option<&str>, open: &[(&str, &str)]) {
     with_state(|ps| {
-        ps.selected_task = selected;
+        ps.kind = kind;
+        ps.selected_task = selected.map(str::to_string);
         ps.editing = false;
         ps.show_suggestions = true;
         ps.open_step = open.iter().map(|(c, s)| (c.to_string(), s.to_string())).collect();
     });
 }
+
+#[cfg(test)]
+#[path = "tasks_click_tests.rs"]
+mod click_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1080,7 +1177,7 @@ mod tests {
 
     fn task(chain: Option<&str>) -> GuiTask {
         GuiTask {
-            id: 1,
+            id: "1".into(),
             title: "x".into(),
             description: String::new(),
             priority: TaskPriority::Medium,
@@ -1088,6 +1185,8 @@ mod tests {
             assignee: String::new(),
             labels: Vec::new(),
             chain: chain.map(str::to_string),
+            created_at: 0,
+            updated_at: 0,
         }
     }
 

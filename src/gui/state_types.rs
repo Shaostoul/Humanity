@@ -152,11 +152,14 @@ pub enum TaskStatus {
     Done,
 }
 
-/// A task for the GUI task board.
+/// A task as the Tasks page draws it: one of the person's own (gui/mine_tasks.rs) or one of a
+/// server's board (`GuiState::board_tasks`). Both kinds use this shape; they are kept in separate
+/// lists and never merged (docs/design/tasks.md, BUG-217).
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct GuiTask {
-    pub id: u32,
+    /// A task of my own: 32 random hex. A board task: the server's number, as text.
+    pub id: String,
     pub title: String,
     pub description: String,
     pub priority: TaskPriority,
@@ -165,6 +168,9 @@ pub struct GuiTask {
     pub labels: Vec<String>,
     /// The learn-by-doing chain (data/onboarding/quests.json) Add to my tasks made this from (pages/tasks.rs).
     pub chain: Option<String>,
+    /// When it was made and last changed, ms since the epoch (0 when the server did not say).
+    pub created_at: u64,
+    pub updated_at: u64,
 }
 
 /// A marketplace listing, mirroring the relay's ListingData shape (v0.752,

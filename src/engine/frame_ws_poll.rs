@@ -1274,19 +1274,12 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             log::info!("Member left/kicked/banned: {}", &pk[..pk.len().min(16)]);
                         }
                     }
-                    Some("task_list_response") => {
-                        // Task list response from the WebSocket task_list request
+                    // The server's board: its own list, never merged into my own tasks (BUG-217,
+                    // docs/design/tasks.md; pages/tasks.rs take_board_list).
+                    Some("task_list_response") | Some("task_list") => {
                         if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
-                            state.gui_state.tasks.clear();
-                            for task in tasks {
-                                // The labels, and the chain a website task names in them (pages/tasks.rs).
-                                let task = crate::gui::pages::tasks::task_from_server(task);
-                                if task.id >= state.gui_state.task_next_id {
-                                    state.gui_state.task_next_id = task.id + 1;
-                                }
-                                state.gui_state.tasks.push(task);
-                            }
-                            log::info!("Received {} tasks from server (task_list_response)", state.gui_state.tasks.len());
+                            crate::gui::pages::tasks::take_board_list(&mut state.gui_state, tasks);
+                            log::info!("Received {} board tasks from the server", state.gui_state.board_tasks.len());
                         }
                     }
                     Some("name_taken") => {
@@ -1343,20 +1336,6 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         let server = state.gui_state.server_url.clone();
                         if let Some(c) = crate::engine::notify::task(&state.gui_state, &server, &val) {
                             crate::engine::notify::deliver(state, c);
-                        }
-                    }
-                    Some("task_list") => {
-                        if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
-                            state.gui_state.tasks.clear();
-                            for task in tasks {
-                                // The labels, and the chain a website task names in them (pages/tasks.rs).
-                                let task = crate::gui::pages::tasks::task_from_server(task);
-                                if task.id >= state.gui_state.task_next_id {
-                                    state.gui_state.task_next_id = task.id + 1;
-                                }
-                                state.gui_state.tasks.push(task);
-                            }
-                            log::info!("Received {} tasks from server", state.gui_state.tasks.len());
                         }
                     }
                     // ── Marketplace sync (v0.752, ladder rung 5) ──

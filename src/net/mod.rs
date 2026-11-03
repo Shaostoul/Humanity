@@ -75,6 +75,7 @@ pub mod reach;
 #[cfg(feature = "native")]
 pub mod block_list;
 
+
 /// Key cards (2026-10-22, docs/design/key-cards.md): the people's Kyber768 keys this app checked
 /// from their own signed key cards and pinned, and keys that changed, waiting to be accepted.
 #[cfg(feature = "native")]

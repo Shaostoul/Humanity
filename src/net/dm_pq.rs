@@ -228,6 +228,11 @@ pub const CTL_PERMIT: &str = "[[hum:permit:v1]]";
 /// hours or no longer do: `[[hum:quiet-allow:v1]]<key>/on` or `/off` (notifications/allow.rs). Must
 /// match the web client exactly (web/shared/notify-rules.js).
 pub const CTL_QUIET_ALLOW: &str = "[[hum:quiet-allow:v1]]";
+/// Tasks of my own (docs/design/tasks.md, 2026-11-02): a note a person sends only to themselves,
+/// like a block note, carrying one or more of their own task records:
+/// `[[hum:task:v1]]{"tasks":[...]}` (gui/mine_tasks.rs). Never shown as a message by either app.
+/// Must match the web client exactly (web/shared/mine-tasks.js, web/chat/crypto.js CTL_TASK).
+pub const CTL_TASK: &str = "[[hum:task:v1]]";
 
 /// Encrypted-attachment marker (2026-08-24). A DM whose text starts with this
 /// carries a base64 JSON payload `{url,k,n,name,mime,size}` instead of prose:

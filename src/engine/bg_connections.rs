@@ -354,6 +354,10 @@ fn bg_screen(gs: &mut GuiState, store: &mut crate::net::dm_store::DmStore, inner
     if crate::engine::quiet_allow::screens_dm(gs, inner) {
         return true;
     }
+    // Tasks of my own: a note to myself (my tasks are the identity's, not a server's).
+    if crate::engine::mine_tasks::screens_dm(gs, inner) {
+        return true;
+    }
     // Ship homes 5b: a household permit note is kept in, or listed as given in, that server's
     // store (engine/household.rs), never stored or shown as a message.
     if crate::engine::household::screens_dm_parked(gs, store, inner) {

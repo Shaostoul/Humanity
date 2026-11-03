@@ -82,6 +82,9 @@ pub use connections::{connect_target, erased_entry, EraseOutcome, ERASED_BY_ADMI
 mod state_types;
 /// The desktop Notes and Calendar kept between sessions in personal.json (2026-10-24).
 pub(crate) mod personal_store;
+/// Tasks of my own (docs/design/tasks.md, 2026-11-02): kept on this device encrypted, carried to my
+/// other devices by sealed notes to myself (engine/mine_tasks.rs), never readable by a server.
+pub mod mine_tasks;
 pub use state_types::*;
 /// The P2P trade types (`gui/trade_types.rs`, 2026-09-29).
 mod trade_types;
@@ -791,9 +794,11 @@ pub struct GuiState {
     /// Default page to load after onboarding (Chat by default).
     pub default_page: GuiPage,
 
-    // ── Task board state ──
-    pub tasks: Vec<GuiTask>,
-    pub task_next_id: u32,
+    // ── Tasks page state (docs/design/tasks.md: two lists, never merged) ──
+    /// The board of the server we are on, as its `task_list` sent it (pages/tasks.rs).
+    pub board_tasks: Vec<GuiTask>,
+    /// My own tasks, for the identity unlocked now (engine/mine_tasks.rs `ensure`).
+    pub mine_tasks: Option<crate::gui::mine_tasks::MineTasks>,
     pub task_search: String,
     pub task_filter_priority: Option<TaskPriority>,
     pub task_filter_assignee: String,
@@ -801,9 +806,8 @@ pub struct GuiState {
     pub task_new_title: String,
     pub task_new_description: String,
     pub task_new_priority: TaskPriority,
-    pub task_new_assignee: String,
-    /// A task to open on the Tasks page once the board has it (a click on a task notice,
-    /// notifications rung 3): its id. The page takes it when that task is in `tasks`.
+    /// A board task to open on the Tasks page once the board has it (a click on a task notice,
+    /// notifications rung 3): its id. The page takes it when that task is in `board_tasks`.
     pub task_open_id: Option<u32>,
 
     // ── Profile state ──
@@ -3293,8 +3297,8 @@ impl Default for GuiState {
             default_page: GuiPage::Humanity,
 
             // Task board defaults
-            tasks: Vec::new(),
-            task_next_id: 1,
+            board_tasks: Vec::new(),
+            mine_tasks: None,
             task_search: String::new(),
             task_filter_priority: None,
             task_filter_assignee: String::new(),
@@ -3302,7 +3306,6 @@ impl Default for GuiState {
             task_new_title: String::new(),
             task_new_description: String::new(),
             task_new_priority: TaskPriority::Medium,
-            task_new_assignee: String::new(),
             task_open_id: None,
 
             // Profile defaults

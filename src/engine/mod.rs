@@ -43,6 +43,9 @@ pub mod notify;
 /// The always-allow list: the people whose calls and messages come through quiet hours, and the
 /// notes to myself that carry it between my devices (notifications rung 3).
 pub mod quiet_allow;
+/// Tasks of my own (docs/design/tasks.md, 2026-11-02): made, sent as notes to myself and taken
+/// from them; the board's list never replaces them (BUG-217).
+pub mod mine_tasks;
 /// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
 /// the Report dialog's opening and sending, and the relay's `report_received` and `reports`.
 pub mod report;

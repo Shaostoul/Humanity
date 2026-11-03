@@ -291,13 +291,17 @@ fn demo_state() -> GuiState {
         connected: true,
     }];
 
-    // ── Tasks (one per kanban column) ──
-    s.tasks = vec![
-        GuiTask { id: 1, title: "Plant the spring greens".into(), description: String::new(), priority: TaskPriority::High, status: TaskStatus::Todo, assignee: "Shaostoul".into(), labels: vec!["garden".into()], chain: None },
-        GuiTask { id: 2, title: "Wire the mining drone manifest".into(), description: String::new(), priority: TaskPriority::Medium, status: TaskStatus::InProgress, assignee: "Ada".into(), labels: vec![], chain: None },
-        GuiTask { id: 3, title: "Ship the Laws page".into(), description: String::new(), priority: TaskPriority::Low, status: TaskStatus::Done, assignee: "Shaostoul".into(), labels: vec!["ui".into()], chain: None },
-    ];
-    s.task_next_id = 4;
+    // ── Tasks (one per kanban column): my own, kept in memory only for the stills, and one on
+    // the server's board (docs/design/tasks.md: two lists, never merged) ──
+    // (The sample identity's key, set with the profile below: my tasks are that identity's.)
+    let mut mine = crate::gui::mine_tasks::MineTasks::in_memory("ed25519:abc...def");
+    mine.add("Plant the spring greens", "", TaskPriority::High, vec!["garden".into()], None, 1);
+    let wiring = mine.add("Wire the mining drone manifest", "", TaskPriority::Medium, vec![], None, 2);
+    mine.change(&wiring, Some(TaskStatus::InProgress), None, 3);
+    let laws = mine.add("Ship the Laws page", "", TaskPriority::Low, vec!["ui".into()], None, 4);
+    mine.change(&laws, Some(TaskStatus::Done), None, 5);
+    s.mine_tasks = Some(mine);
+    s.board_tasks = vec![GuiTask { id: "1".into(), title: "Translate the Library".into(), description: String::new(), priority: TaskPriority::Medium, status: TaskStatus::Todo, assignee: "Ada".into(), labels: vec![], chain: None, created_at: 0, updated_at: 0 }];
 
     // ── Market listings ──
     s.listings = vec![
@@ -4077,30 +4081,52 @@ page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_tasks_suggested() {
-    crate::gui::pages::tasks::set_for_snapshot(Some(3), &[("water", "filtration"), ("first-steps", "backup")]);
+    use crate::gui::pages::tasks::{set_for_snapshot, Kind};
+    use crate::gui::mine_tasks::Record;
+    // Fixed ids, so the still can open First Steps' detail panel.
+    let first_steps = "00000000000000000000000000000004";
+    set_for_snapshot(Kind::Mine, Some(first_steps), &[("water", "filtration"), ("first-steps", "backup")]);
     render_page_png("tasks_suggested", 1280, 1300, |ctx, theme, state| {
-        if !state.tasks.iter().any(|t| t.chain.is_some()) {
-            let chained = |id: u32, title: &str, chain: &str, status: TaskStatus| GuiTask {
-                id,
+        let mine = state.mine_tasks.as_mut().expect("the sample identity has its tasks");
+        if !mine.tasks().iter().any(|t| t.chain.is_some()) {
+            let chained = |n: u64, title: &str, chain: &str, status: &str| Record {
+                id: format!("{n:032x}"),
+                deleted: false,
                 title: title.into(),
                 description: String::new(),
-                priority: TaskPriority::Medium,
-                status,
-                assignee: String::new(),
+                status: status.into(),
+                priority: "medium".into(),
                 labels: vec![],
                 chain: Some(chain.into()),
+                created_at: 10 + n,
+                updated_at: 10 + n,
             };
-            state.tasks.push(chained(4, "First Steps", "first-steps", TaskStatus::Todo));
-            state.tasks.push(chained(5, "Food Independence", "food", TaskStatus::InProgress));
-            state.tasks.push(chained(6, "Build Your Network", "community", TaskStatus::Done));
-            state.task_next_id = 7;
+            mine.apply(vec![
+                chained(4, "First Steps", "first-steps", "todo"),
+                chained(5, "Food Independence", "food", "in_progress"),
+                chained(6, "Build Your Network", "community", "done"),
+            ]);
             for key in ["first-steps:open-chat", "first-steps:profile", "water:understand-consumption", "food:understand-needs", "community:find-local"] {
                 state.onboarding_quest_progress.insert(key.into(), true);
             }
         }
         crate::gui::pages::tasks::draw(ctx, theme, state);
     });
-    crate::gui::pages::tasks::set_for_snapshot(None, &[]);
+    set_for_snapshot(Kind::Mine, None, &[]);
+}
+
+/// The Tasks page showing the server's board (docs/design/tasks.md, 2026-11-02): the kind
+/// switch on "This server's board", its line saying everyone on the server can see these, and
+/// the board read-only (no New task, no suggestions). `just snapshot tasks_board`.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_tasks_board() {
+    use crate::gui::pages::tasks::{set_for_snapshot, Kind};
+    set_for_snapshot(Kind::Board, None, &[]);
+    render_page_png("tasks_board", 1280, 900, |ctx, theme, state| {
+        crate::gui::pages::tasks::draw(ctx, theme, state);
+    });
+    set_for_snapshot(Kind::Mine, None, &[]);
 }
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
 

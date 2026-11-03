@@ -1,0 +1,32 @@
+{
+  "about": "Tasks of my own (docs/design/tasks.md, 2026-11-02): the note text both apps build from these records, byte for byte (src/gui/mine_tasks_tests.rs, scripts/tests/tasks-mine-web.test.js), and texts both read the same way.",
+  "marker": "[[hum:task:v1]]",
+  "records": [
+    {"id":"0123456789abcdef0123456789abcdef","title":"Fix the tap","description":"Washer, 15 mm.\nThe kitchen one.","status":"in_progress","priority":"high","labels":["home","water"],"chain":"water","created_at":1762000000000,"updated_at":1762000500000},
+    {"id":"fedcba9876543210fedcba9876543210","deleted":true,"updated_at":1762000600000},
+    {"id":"00000000000000000000000000000001","title":"Café \"Ölmühle\" ✓","status":"todo","priority":"medium","created_at":1762000700000,"updated_at":1762000700000}
+  ],
+  "text": "[[hum:task:v1]]{\"tasks\":[{\"id\":\"0123456789abcdef0123456789abcdef\",\"title\":\"Fix the tap\",\"description\":\"Washer, 15 mm.\\nThe kitchen one.\",\"status\":\"in_progress\",\"priority\":\"high\",\"labels\":[\"home\",\"water\"],\"chain\":\"water\",\"created_at\":1762000000000,\"updated_at\":1762000500000},{\"id\":\"fedcba9876543210fedcba9876543210\",\"deleted\":true,\"updated_at\":1762000600000},{\"id\":\"00000000000000000000000000000001\",\"title\":\"Café \\\"Ölmühle\\\" ✓\",\"status\":\"todo\",\"priority\":\"medium\",\"created_at\":1762000700000,\"updated_at\":1762000700000}]}",
+  "read": [
+    {
+      "name": "an unknown status and priority read as todo and medium; an unknown field is ignored",
+      "text": "[[hum:task:v1]]{\"tasks\":[{\"id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Sweep\",\"status\":\"testing\",\"priority\":\"urgent\",\"colour\":\"red\",\"created_at\":5,\"updated_at\":6}]}",
+      "records": [{"id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","title":"Sweep","status":"todo","priority":"medium","created_at":5,"updated_at":6}]
+    },
+    {
+      "name": "a record whose id is not 32 lowercase hex is left out; the others still read",
+      "text": "[[hum:task:v1]]{\"tasks\":[{\"id\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"title\":\"x\",\"updated_at\":1},{\"id\":\"short\",\"updated_at\":1},{\"id\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"deleted\":true,\"title\":\"words a deletion drops\",\"updated_at\":9}]}",
+      "records": [{"id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","deleted":true,"updated_at":9}]
+    },
+    {
+      "name": "a bad chain id is dropped, control characters other than line breaks and tabs are taken out, labels are trimmed and empty ones dropped",
+      "text": "[[hum:task:v1]]{\"tasks\":[{\"id\":\"cccccccccccccccccccccccccccccccc\",\"title\":\"a\\u0007b\\tc\",\"labels\":[\" seeds \",\"\",\"   \"],\"chain\":\"../etc\",\"status\":\"done\",\"priority\":\"low\",\"updated_at\":3}]}",
+      "records": [{"id":"cccccccccccccccccccccccccccccccc","title":"ab\tc","status":"done","priority":"low","labels":["seeds"],"updated_at":3}]
+    },
+    {
+      "name": "a body that does not read gives nothing",
+      "text": "[[hum:task:v1]]not json",
+      "records": []
+    }
+  ]
+}

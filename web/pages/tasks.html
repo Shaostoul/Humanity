@@ -465,6 +465,19 @@
       border-bottom-color: var(--accent);
     }
 
+    /* ── The kinds of task: My tasks / This server's board (docs/design/tasks.md) ── */
+    .task-kinds { display: flex; gap: var(--space-sm); padding: var(--space-md) var(--space-xl) 0; flex-shrink: 0; }
+    .kind-tab {
+      padding: var(--space-sm) var(--space-lg); font-size: 0.8rem; font-weight: 600; font-family: inherit;
+      color: var(--text-muted); background: transparent; border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: pointer;
+    }
+    .kind-tab.active { color: var(--accent); border-color: var(--accent); }
+    .kind-who { margin: var(--space-xs) var(--space-xl) var(--space-sm); font-size: 0.74rem; color: var(--text-muted); }
+    .mine-notice { color: var(--warning); }
+    /* What belongs to one kind only (tasks-app.js applyKind puts kind-mine on the body). */
+    body.kind-mine .board-only { display: none !important; }
+    body:not(.kind-mine) .mine-only { display: none !important; }
+
     /* ── Quests styles ── */
     #quests-content {
       flex: 1;
@@ -757,7 +770,7 @@
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple" data-i18n="tasks.eli5_simple">Your to-do list! Make tasks, check them off, and earn <span data-term="XP">XP</span> from <span data-term="quest">quests</span>.</div>
-  <div class="eli5-expert" data-i18n="tasks.eli5_expert">Kanban board with scope-filtered task management (Fibonacci tiers from self to cosmos). Quests tab adds RPG-style objectives with skill XP rewards. Tasks sync to the server via REST API. Drag cards between columns to update status.</div>
+  <div class="eli5-expert" data-i18n="tasks.eli5_expert">Two kinds of task side by side. My tasks are kept on your own devices, encrypted, and travel between them sealed, so no server can read them. This server's board is a shared kanban with scope filters (Fibonacci tiers from self to cosmos) that everyone on the server can see; moderators and admins change it. The Quests tab adds RPG-style objectives with skill XP rewards.</div>
 </div>
 <p class="page-hint" id="hint-kanban" data-i18n="tasks.page_hint_kanban">Your task board. Organize what needs to be done, from personal to-dos to big community projects. Drag tasks between columns as you make progress.</p>
 <p class="page-hint" id="hint-quests" style="display:none" data-i18n="tasks.page_hint_quests">Your quests and missions. Pick challenges to work on, track your progress, and earn recognition when you complete them.</p>
@@ -771,8 +784,17 @@
 
   <div id="kanban-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
 
+  <!-- The kinds of task, and who can see the one shown (docs/design/tasks.md) -->
+  <div class="task-kinds" role="tablist">
+    <button class="kind-tab active" id="kind-mine" role="tab" aria-selected="true" onclick="setTaskKind('mine')" data-i18n="tasks.kind_mine" data-i18n-tip="tasks.kind_mine_hint" data-tip-desc="Shows your own tasks. They are kept on your own devices, and no server can read them.">My tasks</button>
+    <button class="kind-tab" id="kind-board" role="tab" aria-selected="false" onclick="setTaskKind('board')" data-i18n="tasks.kind_board" data-i18n-tip="tasks.kind_board_hint" data-tip-desc="Shows the tasks of the server you are on, which everyone on it can see.">This server's board</button>
+  </div>
+  <p class="kind-who" id="kind-who" data-i18n="tasks.kind_mine_who">Only you can see these, on your own devices. They travel between your devices sealed, and no server can read them.</p>
+  <!-- Said only when my saved tasks did not open as they were (tasks-app.js renderMineNotice) -->
+  <p class="kind-who mine-notice" id="mine-notice" role="status" style="display:none"></p>
+
   <!-- Project selector -->
-  <div class="project-bar" id="project-bar">
+  <div class="project-bar board-only" id="project-bar">
     <div class="project-selector" id="project-selector">
       <button class="project-selector-btn" id="project-selector-btn" onclick="toggleProjectDropdown()" data-i18n-tip="tasks.project_selector_hint" data-tip-desc="Opens the list of projects, so you can see the tasks of just one.">
         <span class="proj-icon" id="proj-btn-icon">📋</span>
@@ -787,7 +809,7 @@
   </div>
 
   <!-- Scope selector -->
-  <div class="scope-bar">
+  <div class="scope-bar board-only">
     <div class="scope-header">
       <!-- Golden spiral SVG icon -->
       <svg class="spiral-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -802,27 +824,27 @@
 
   <!-- Controls bar -->
   <div class="board-controls">
-    <div class="scope-desc" id="scope-desc"><span data-i18n="common.loading">Loading...</span></div>
-    <div class="stats" id="stats-bar"></div>
+    <div class="scope-desc board-only" id="scope-desc"><span data-i18n="common.loading">Loading...</span></div>
+    <div class="stats board-only" id="stats-bar"></div>
     <input id="task-search" type="search" placeholder="Filter tasks..." data-i18n-placeholder="tasks.filter_tasks" data-i18n-tip="tasks.filter_tasks_web_hint" data-tip-desc="Type a word to show only the tasks that have it in their title, their description or the name of who does them." oninput="renderBoard()"
       style="background:var(--bg-input);border:1px solid var(--border-bright);border-radius:6px;padding:var(--space-sm) var(--space-lg);color:var(--text);font-size:0.78rem;font-family:inherit;outline:none;width:130px;flex-shrink:0;"
       onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
-    <button class="btn-refresh" id="btn-suggestions" onclick="toggleSuggestions()" data-i18n="tasks.hide_suggestions" data-i18n-tip="tasks.suggestions_hint" data-tip-desc="Shows or hides the suggestions at the top of the first column: step-by-step goals you can make your own. Your own tasks stay where they are.">Hide suggestions</button>
-    <button class="btn-refresh" onclick="loadTasks()" title="Refresh" data-i18n-title="common.refresh" data-i18n-tip="tasks.refresh_hint" data-tip-desc="Loads the list of tasks again from the server.">↻</button>
-    <button class="btn-new" onclick="openModal()" data-i18n="tasks.new_task" data-i18n-tip="tasks.new_task_hint" data-tip-desc="Opens the form for adding a new task to the board.">+ New Task</button>
+    <button class="btn-refresh mine-only" id="btn-suggestions" onclick="toggleSuggestions()" data-i18n="tasks.hide_suggestions" data-i18n-tip="tasks.suggestions_hint" data-tip-desc="Shows or hides the suggestions at the top of the first column: step-by-step goals you can make your own. Your own tasks stay where they are.">Hide suggestions</button>
+    <button class="btn-refresh board-only" onclick="loadTasks()" title="Refresh" data-i18n-title="common.refresh" data-i18n-tip="tasks.refresh_hint" data-tip-desc="Loads the list of tasks again from the server.">↻</button>
+    <button class="btn-new" id="btn-new-task" onclick="openModal()" data-i18n="tasks.new_task" data-i18n-tip="tasks.new_task_hint" data-tip-desc="Opens the form for adding a new task to the board.">+ New Task</button>
   </div>
 
   <!-- Kanban board -->
   <div class="kanban">
     <div class="col" data-status="backlog">
-      <div class="col-header"><span data-i18n="tasks.status_backlog">Backlog</span> <span class="col-count" id="count-backlog">0</span></div>
+      <div class="col-header"><span id="col-backlog-label" data-i18n="tasks.status_backlog">Backlog</span> <span class="col-count" id="count-backlog">0</span></div>
       <div class="col-body" id="col-backlog"><div class="loading"><span class="spinner"></span><span data-i18n="common.loading">Loading...</span></div></div>
     </div>
     <div class="col" data-status="in_progress">
       <div class="col-header"><span data-i18n="tasks.status_in_progress">In Progress</span> <span class="col-count" id="count-in_progress">0</span></div>
       <div class="col-body" id="col-in_progress"></div>
     </div>
-    <div class="col" data-status="testing">
+    <div class="col board-only" data-status="testing">
       <div class="col-header"><span data-i18n="tasks.status_testing">Testing</span> <span class="col-count" id="count-testing">0</span></div>
       <div class="col-body" id="col-testing"></div>
     </div>
@@ -933,7 +955,7 @@
       <button class="btn-close-detail" onclick="closeDetail()" title="Close (Esc)" data-i18n-title="tasks.close_esc" data-i18n-tip="tasks.close_detail_hint" data-tip-desc="Closes the task details and goes back to the board.">✕</button>
       <span class="detail-id" id="detail-id"></span>
       <div style="flex:1"></div>
-      <span id="detail-scope-badge" class="scope-badge"></span>
+      <span id="detail-scope-badge" class="scope-badge board-only"></span>
     </div>
     <div class="detail-body">
       <div class="detail-title" id="detail-title"></div>
@@ -946,7 +968,7 @@
       <div class="detail-labels" id="detail-labels"></div>
       <div class="detail-meta" id="detail-meta"></div>
       <div id="detail-test-panel"></div>
-      <div style="margin-top:var(--space-xl);border-top:1px solid var(--border);padding-top:var(--space-xl)">
+      <div class="board-only" id="detail-comments-box" style="margin-top:var(--space-xl);border-top:1px solid var(--border);padding-top:var(--space-xl)">
         <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-md)"><span class="pg-ico" data-icon="chat" data-size="14"></span> <span data-i18n="tasks.comments">Comments</span></div>
         <div id="detail-comments"></div>
         <div style="display:flex;gap:var(--space-md);margin-top:var(--space-md)">
@@ -980,12 +1002,12 @@
           <option value=critical data-i18n="tasks.priority_critical">Critical</option>
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group board-only">
         <label for="f-scope" data-i18n="tasks.scope">Scope</label>
         <select id=f-scope data-i18n-tip="tasks.form_scope_hint" data-tip-desc="Picks how far the task reaches, from your own self out to the whole cosmos."></select>
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group board-only">
       <label for="f-project" data-i18n="tasks.project">Project</label>
       <select id="f-project" data-i18n-tip="tasks.new_project_hint" data-tip-desc="Picks which project the new task belongs to."></select>
     </div>
@@ -995,11 +1017,11 @@
         <select id=f-status data-i18n-tip="tasks.form_status_hint" data-tip-desc="Picks which column the new task starts in.">
           <option value=backlog selected data-i18n="tasks.status_backlog">Backlog</option>
           <option value=in_progress data-i18n="tasks.status_in_progress">In Progress</option>
-          <option value=testing data-i18n="tasks.status_testing">Testing</option>
+          <option value=testing class="board-only" data-i18n="tasks.status_testing">Testing</option>
           <option value=done data-i18n="tasks.status_done">Done</option>
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group board-only">
         <label data-i18n="tasks.form_assignee">Assignee (name or key)</label>
         <input type=text id=f-assignee placeholder="Optional" data-i18n-placeholder="tasks.form_optional" data-i18n-tip="tasks.new_assignee_hint" data-tip-desc="The name of the person who will do this task. You can leave it empty.">
       </div>
@@ -1008,7 +1030,7 @@
       <label data-i18n="tasks.form_labels">Labels (comma-separated)</label>
       <input type=text id=f-labels placeholder="backend, relay, urgent" data-i18n-placeholder="tasks.form_labels_placeholder" data-i18n-tip="tasks.new_labels_hint" data-tip-desc="Short words that help you find the task later. Put a comma between them.">
     </div>
-    <div class="form-group">
+    <div class="form-group board-only">
       <label><span data-i18n="tasks.form_apikey">Admin API Key</span> <span style="font-weight:400;color:var(--text-muted)" data-i18n="tasks.form_apikey_optional">(optional, or sign in at /chat)</span></label>
       <input type=password id=f-apikey placeholder="Leave blank if signed into /chat" data-i18n-placeholder="tasks.form_apikey_placeholder" data-i18n-tip="tasks.form_apikey_hint" data-tip-desc="Only for the server's admins. Leave it empty if you have signed in on the Chat page.">
       <div class="auth-note"><span data-i18n="tasks.form_auth_note">Signed-in <span data-term="relay">relay</span> users can create tasks without a key. Admins:</span> <code>grep API_SECRET /opt/Humanity/.env</code></div>
@@ -1073,7 +1095,9 @@
 <!-- `pq-relay-auth.js` installs window.getPqIdentity, which reads the seed -->
 <!-- from the localStorage backup Chat writes (no WebCrypto Ed25519 needed). -->
 <script src="/chat/pq.js?v=1"></script>
-<script src="/shared/pq-relay-auth.js?v=2"></script>
+<script src="/shared/pq-relay-auth.js?v=6"></script>
+<!-- My own tasks: kept in this browser, encrypted, carried to my other devices sealed. -->
+<script src="/shared/mine-tasks.js?v=1"></script>
 <script src="/pages/tasks-app.js"></script>
 </body>
 </html>

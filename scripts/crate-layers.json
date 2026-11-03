@@ -105,7 +105,8 @@
         "engine/put_answer",
         "engine/household",
         "engine/low_impact",
-        "engine/quiet_allow"
+        "engine/quiet_allow",
+        "engine/mine_tasks"
       ],
       "uses": [
         "humanity-core",
