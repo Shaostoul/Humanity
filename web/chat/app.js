@@ -157,7 +157,7 @@ function endCallBeforeLeaving() {
 let pendingLinkCode = null;
 let pendingInviteCode = null;
 let identityConfirmed = false;
-let activeChannel = localStorage.getItem('humanity_channel') || 'general';
+let activeChannel = localStorage.getItem('humanity_channel') || HosChatAccess.MAIN_CHANNEL;
 let channelList = [];
 let replyTarget = null; // { author, body, fromKey, timestamp, element }
 
@@ -1309,7 +1309,7 @@ async function handleMessage(msg) {
   switch (msg.type) {
     case 'chat': {
       // Only show messages for the active channel.
-      const msgChannel = msg.channel || 'general';
+      const msgChannel = msg.channel || HosChatAccess.MAIN_CHANNEL;
       if (msgChannel !== activeChannel) return;
       const key = msg.from + ':' + msg.timestamp;
       if (seenTimestamps.has(key)) {
@@ -1339,7 +1339,7 @@ async function handleMessage(msg) {
       break;
     case 'federated_chat': {
       // Cross-server federated message, display with server badge.
-      const fedChannel = msg.channel || 'general';
+      const fedChannel = msg.channel || HosChatAccess.MAIN_CHANNEL;
       if (fedChannel !== activeChannel) return;
       const fedKey = 'fed:' + msg.server_id + ':' + msg.timestamp;
       if (seenTimestamps.has(fedKey)) return;
@@ -1486,7 +1486,7 @@ async function handleMessage(msg) {
       updatePeerList(msg.peers);
       // Refresh DM list on connect/reconnect. Groups are sent automatically by the server.
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/dms', timestamp: Date.now(), channel: 'general' }));
+        ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/dms', timestamp: Date.now(), channel: HosChatAccess.MAIN_CHANNEL }));
       }
       break;
     case 'full_user_list':
@@ -2079,7 +2079,7 @@ async function sendChatCommand(command, channelOverride) {
     from_name: myName,
     content: command,
     timestamp,
-    channel: channelOverride || activeChannel || 'general',
+    channel: channelOverride || activeChannel || HosChatAccess.MAIN_CHANNEL,
   };
 
   try {
@@ -2661,6 +2661,21 @@ function updateUserList(users) {
 function updateChannelList(channels) {
   channelList = channels;
   renderChannelList();
+  landIfRoomGone();
+}
+
+/**
+ * The server's channel list just arrived: when the room open here is not in it (an admin deleted
+ * it, or the server renamed it, as #general became #global on 2026-11-02, while this browser kept
+ * the old name as its last room), land in #global, else in the first room listed. A DM, a group
+ * and the scratch pad are not this server's rooms. The desktop's twin: chat.rs land_if_room_gone.
+ * What any deleted room does, not a mapping from an old name.
+ */
+function landIfRoomGone() {
+  if (activeDmPartner || (typeof activeGroupId !== 'undefined' && activeGroupId) || isScratchPad()) return;
+  if (!channelList.length || channelList.some((c) => c.id === activeChannel)) return;
+  const main = HosChatAccess.MAIN_CHANNEL;
+  switchChannel(channelList.some((c) => c.id === main) ? main : channelList[0].id);
 }
 
 function renderChannelList() {
@@ -2748,7 +2763,7 @@ function updateInputForChannel() {
     sendBtn.disabled = true;
   } else {
     input.disabled = false;
-    // Native's hint names where the message goes ("Message #general", chat.rs, the input bar).
+    // Native's hint names where the message goes ("Message #global", chat.rs, the input bar).
     input.placeholder = 'Message #' + (ch ? ch.name : activeChannel);
     sendBtn.disabled = false;
   }

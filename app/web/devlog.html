@@ -3,94 +3,79 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Devlog, HumanityOS</title>
-  <meta name="description" content="Every HumanityOS release as it ships: the running public devlog of a platform built in the open, several releases a day.">
+  <title data-i18n="devlog.page_title">Devlog, HumanityOS</title>
+  <meta name="description" data-i18n-content="devlog.meta_description" content="Every HumanityOS release as it ships: the running public devlog of a platform built in the open, several releases a day.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="HumanityOS Devlog">
-  <meta property="og:description" content="Every release as it ships. Built in the open, several releases a day.">
+  <meta property="og:title" data-i18n-content="devlog.og_title" content="HumanityOS Devlog">
+  <meta property="og:description" data-i18n-content="devlog.og_description" content="Every release as it ships. Built in the open, several releases a day.">
   <meta property="og:url" content="https://united-humanity.us/devlog">
-  <link rel="alternate" type="application/atom+xml" title="HumanityOS releases" href="https://github.com/Shaostoul/Humanity/releases.atom">
+  <link rel="alternate" type="application/atom+xml" data-i18n-title="devlog.feed_title" title="HumanityOS releases" href="https://github.com/Shaostoul/Humanity/releases.atom">
   <link rel="manifest" href="/shared/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/shared/theme.css">
-  <!-- The devlog IS the release history: this page renders the GitHub Releases
-       feed (the project's only authoritative changelog) client-side, so it can
-       never drift from reality and needs no build step. Social posts link here.
-       Native mirror note (dual-UI parity): the native app surfaces release
-       notes through its updater; a native Devlog reader off the same API is a
-       reasonable follow-up, tracked in PAGES.md's gaps table, not silently
-       skipped. -->
+  <link rel="stylesheet" href="/shared/update-card.css">
+  <!-- The devlog IS the release history, one update card per release, the card the front door
+       shows (docs/design/front-door.md; "Keep and update devlog too", the operator, 2026-11-02).
+       The list comes from THIS server (GET /api/releases), never from GitHub's API in the
+       visitor's browser, so a visitor's address goes nowhere else (devlog-app.js says why).
+       Native mirror note (dual-UI parity): the desktop app's update card is the design's rung 5
+       (src/gui/widgets/update_card.rs, the Humanity overview), tracked there, not skipped. -->
   <style>
-    body { line-height: 1.65; padding-bottom: 80px; }
-    .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
-    .page-head { padding: 56px 0 10px; text-align: center; }
-    .page-head h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 900; margin: 0 0 10px; }
+    body { line-height: 1.6; padding-bottom: 80px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    .page-head { padding: 48px 0 10px; text-align: center; }
+    .page-head h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 900; margin: 0 0 10px; color: var(--text-strong); }
     .page-head p { color: var(--text-secondary); max-width: 640px; margin: 0 auto; }
     .follow-bar { text-align: center; margin: 14px 0 6px; font-size: 0.92rem; color: var(--text-muted); }
     .follow-bar a { color: var(--accent); margin: 0 8px; }
-
-    .rel {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px 24px;
-      margin: 18px 0;
-    }
-    .rel-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-    .rel-head h3 { font-size: 1.05rem; margin: 0; }
-    .rel-head h3 a { color: var(--text); text-decoration: none; }
-    .rel-head h3 a:hover { color: var(--accent); }
-    .rel-date { font-size: 0.82rem; color: var(--text-muted); }
-    .rel-body { color: var(--text-secondary); font-size: 0.95rem; margin-top: 10px; overflow-wrap: anywhere; }
-    .rel-body h2, .rel-body h3 { font-size: 1rem; margin: 12px 0 6px; color: var(--text); }
-    .rel-body ul { padding-left: 20px; }
-    .rel-body code { background: var(--bg-secondary); border-radius: 4px; padding: 1px 5px; font-size: 0.88em; }
-    .rel-body img { max-width: 100%; border-radius: 8px; }
-
-    .devlog-note { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 8px; }
+    .devlog-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 18px; }
+    .devlog-note { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 14px; }
+    .devlog-status { text-align: center; color: var(--text-muted); padding: 32px 0; }
+    .devlog-status[hidden] { display: none; }
     .load-more {
-      display: block; margin: 22px auto 0; padding: 10px 26px;
+      display: block; margin: 22px auto 0; padding: 10px 26px; min-height: 44px;
       background: transparent; color: var(--text); border: 1px solid var(--border);
-      border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+      border-radius: var(--radius); font: inherit; font-weight: 700; font-size: 0.95rem; cursor: pointer;
     }
-    .load-more:hover { border-color: var(--accent); color: var(--accent); }
-    .devlog-empty { text-align: center; color: var(--text-muted); padding: 40px 0; }
+    .load-more[hidden] { display: none; }
+    .load-more:hover, .load-more:focus-visible { border-color: var(--accent); color: var(--accent); }
   </style>
 </head>
 <body>
   <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/i18n-en.js"></script>
+  <script src="/shared/i18n.js"></script>
   <script src="/shared/shell.js"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
-  <script src="/shared/markdown.js"></script>
 
   <header class="page-head">
     <div class="container">
-      <h1>Devlog</h1>
-      <p>Every release, as it ships. This project is built in the open,
-      usually several releases a day, and this page is the receipt.</p>
+      <h1 data-i18n="devlog.title">Devlog</h1>
+      <p data-i18n="devlog.intro">Every release, as it ships. HumanityOS is built in the open, usually several releases a day, and this page is the receipt.</p>
       <div class="follow-bar">
-        Follow:
-        <a href="https://github.com/Shaostoul/Humanity/releases.atom">RSS</a>
-        <a href="https://github.com/Shaostoul/Humanity/releases" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://x.com/Shaostoul" target="_blank" rel="noopener">X</a>
-        <a href="https://discord.gg/9XxmmeQnWC" target="_blank" rel="noopener">Discord</a>
+        <span data-i18n="devlog.follow">Follow:</span>
+        <a href="https://github.com/Shaostoul/Humanity/releases.atom" data-i18n-tip="devlog.rss_hint" data-tip-desc="The release feed, for a feed reader. It comes from GitHub, where the code lives." data-i18n="devlog.rss">RSS</a>
+        <a href="https://github.com/Shaostoul/Humanity/releases" target="_blank" rel="noopener" data-i18n-tip="devlog.github_hint" data-tip-desc="Opens the project's releases on GitHub, with the full notes of each." data-i18n="devlog.github">GitHub</a>
+        <a href="https://x.com/Shaostoul" target="_blank" rel="noopener" data-i18n-tip="devlog.x_hint" data-tip-desc="Opens the project's account on X." data-i18n="devlog.x">X</a>
+        <a href="https://discord.gg/9XxmmeQnWC" target="_blank" rel="noopener" data-i18n-tip="devlog.discord_hint" data-tip-desc="Opens the project's Discord server." data-i18n="devlog.discord">Discord</a>
       </div>
     </div>
   </header>
 
   <section>
     <div class="container">
-      <div id="devlog-list"><div class="devlog-empty">Loading releases...</div></div>
-      <button class="load-more" id="devlog-more" style="display:none;">Load older releases</button>
-      <p class="devlog-note">Rendered live from the public release history.
-      If this page is empty, the release feed is briefly rate-limited;
-      the <a href="https://github.com/Shaostoul/Humanity/releases">GitHub releases page</a>
-      always works.</p>
+      <p class="devlog-note" data-i18n="devlog.note">One card per release, from this server's #announcements <span data-term="channel">channel</span>. A signed release is one the desktop app will offer as an update. Each card's Release notes link opens its full notes on GitHub.</p>
+      <div class="devlog-list" id="devlog-list" role="list" data-i18n-aria-label="devlog.list_label" aria-label="Every release"></div>
+      <p class="devlog-status" id="devlog-status" aria-live="polite"></p>
+      <button type="button" class="load-more" id="devlog-more" hidden
+              data-i18n-tip="devlog.more_hint" data-tip-desc="Shows the next older releases."
+              data-i18n="devlog.more">Load older releases</button>
     </div>
   </section>
 
+  <script src="/shared/front-door.js"></script>
   <script src="/pages/devlog-app.js"></script>
 </body>
 </html>

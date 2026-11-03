@@ -64,5 +64,6 @@
     { "read": "anyone", "post": "members", "rank": "member", "content": "@here https://a.example https://b.example", "refusal": "mass_mention" },
     { "read": "anyone", "post": "members", "rank": "moderator", "content": "@everyone look", "refusal": null }
   ],
-  "purpose": ["messages", "general", "chat_read\nmessages\ngeneral"]
+  "main_channel": "global",
+  "purpose": ["messages", "global", "chat_read\nmessages\nglobal"]
 }

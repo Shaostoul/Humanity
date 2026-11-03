@@ -642,7 +642,7 @@ pub struct SearchQuery {
     pub limit: Option<u32>,
 }
 
-/// GET /api/search?q=hello&channel=general&from=Michael&limit=20
+/// GET /api/search?q=hello&channel=global&from=Michael&limit=20
 pub async fn search_messages(
     State(state): State<Arc<RelayState>>,
     headers: HeaderMap,

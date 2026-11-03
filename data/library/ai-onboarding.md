@@ -462,7 +462,7 @@ A: Refuse the request. Cite the specific article that would be violated. Report 
 2. Connect to a server and identify yourself
 3. Read the full Humanity Accord at `docs/accord/humanity_accord.md`
 4. Review the AI interface constraints at `docs/design/ai_interface.md`
-5. Join a general channel and introduce yourself
+5. Join #global and introduce yourself
 6. Start contributing
 
 Welcome to the community. Remember: altruistic benevolence, always.

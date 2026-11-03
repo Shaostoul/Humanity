@@ -308,7 +308,7 @@ async function loadChat() {
   ctx.pqDmOpen = async (_secret, ek, _nonce, ct) => (unb64(ek) === MY_KYBER ? unb64(ct) : null);
   const sock = fakeSocket();
   vm.runInContext(`(s, me) => {
-    ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'general';
+    ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'global';
     myDilithiumPublicHex = me; myDilithiumSecret = new Uint8Array(4);
     myKyberPublicBase64 = '${MY_KYBER}'; myKyberSecret = new Uint8Array(4);
   }`, ctx)(sock, ME);
@@ -354,7 +354,7 @@ const dmEnvelope = (from, text, ts) => envelope(from, ME, text, ts);
 function passFrom(issuer, grantee = ME, serial = "0123456789abcdef0123456789abcdef", may = MAY) {
   return fp.friendPassJson(serial, may, b64(fp.friendPassPreimage(SERVER, issuer, grantee, serial, may)));
 }
-const chat = (from, from_name, content, timestamp) => ({ type: "chat", from, from_name, content, timestamp, channel: "general" });
+const chat = (from, from_name, content, timestamp) => ({ type: "chat", from, from_name, content, timestamp, channel: "global" });
 const drawnFrom = (appended, key) => appended.filter((e) => e && e.dataset && e.dataset.from === key);
 
 test("the note markers are the desktop app's, and a note is exactly a marker and a key", (t) => {

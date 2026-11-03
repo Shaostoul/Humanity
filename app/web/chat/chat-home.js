@@ -7,7 +7,7 @@
 // the server offers with how many of each are free, and a [Choose] for each one that can be chosen.
 //
 // Every start's name and sentence, and every refusal's sentence, comes from the server's answer
-// (`game_home`, src/ship/starts.rs `HomeAnswer`), never from a copy here: a server that renames its
+// (`game_home`, crates/humanity-ship/src/starts.rs `HomeAnswer`), never from a copy here: a server that renames its
 // Cabin, or adds a kind of home, is shown as it says. The few words this file owns are about the
 // window itself (its title, "You have no home on this server yet.", "12 free", the note).
 //
@@ -24,7 +24,7 @@
 (function () {
   'use strict';
 
-  // The wire (src/ship/starts.rs HOME_REQUEST, CHOOSE_HOME, HOME_ANSWER).
+  // The wire (crates/humanity-ship/src/starts.rs HOME_REQUEST, CHOOSE_HOME, HOME_ANSWER).
   var HOME_REQUEST = 'game_home_request';
   var CHOOSE_HOME = 'game_choose_home';
   var HOME_ANSWER = 'game_home';
@@ -74,7 +74,7 @@
 
   function text(v) { return typeof v === 'string' ? v : ''; }
 
-  // Only the fields of src/ship/starts.rs HomeAnswer are read, each checked; anything else the
+  // Only the fields of crates/humanity-ship/src/starts.rs HomeAnswer are read, each checked; anything else the
   // answer carried is dropped here.
   function readAnswer(game) {
     if (!game || typeof game !== 'object' || game.type !== HOME_ANSWER) return null;

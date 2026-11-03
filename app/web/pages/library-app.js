@@ -104,6 +104,12 @@
     if (at < 0) return { slug: frag, anchor: null };
     return { slug: frag.slice(0, at), anchor: frag.slice(at + 1) };
   }
+  /* The address changed without a hashchange (pushState and replaceState fire none): say so, so the
+     unfinished-software warning (web/shared/shell.js) can show itself on its own page while muted,
+     and step aside again on the next document. */
+  function announceDoc() {
+    try { window.dispatchEvent(new Event('hos-library-doc')); } catch (e) { /* an old browser */ }
+  }
   function openHashDoc() {
     // Two reserved fragments that are VIEWS rather than documents, matching
     // the native resolver, so a link can point at the map or at the words
@@ -370,6 +376,26 @@
       if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
       if (ev.key === '/') { ev.preventDefault(); input.focus(); input.select(); }
     });
+
+    // ?q= (2026-11-02): the front door's "Search the whole Library for ..." hands its words here
+    // (docs/design/front-door.md, section 5), and the search runs as though they had been typed,
+    // over the full text the front door never fetches. At most 200 characters are taken.
+    var handed = handedQuery(location.search);
+    if (handed) {
+      input.value = handed;
+      searchQuery = handed;
+      loadSearchIndex(renderResults);
+      if (searchIndex) renderResults();
+    }
+  }
+
+  /** The words in an address's ?q=, trimmed, or '' when there are none. */
+  function handedQuery(search) {
+    var m = /[?&]q=([^&#]*)/.exec(String(search || ''));
+    if (!m) return '';
+    var words = '';
+    try { words = decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (e) { words = ''; }
+    return words.trim().slice(0, 200);
   }
 
   /* ── Left rail: nested category tree, mirroring the native collapsing headers ── */
@@ -866,6 +892,7 @@
     } else if (history.replaceState) {
       history.replaceState(null, '', hash);
     }
+    announceDoc();
     renderRail();
 
     var el = contentEl();
@@ -940,6 +967,7 @@
   function openCurriculum(keepPosition) {
     current = 'curriculum';
     if (history.replaceState) history.replaceState(null, '', '#curriculum');
+    announceDoc();
     renderRail();
     renderCurriculum(keepPosition);
     if (!keepPosition) revealReader();

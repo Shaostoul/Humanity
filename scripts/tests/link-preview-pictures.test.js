@@ -140,7 +140,7 @@ function loadChat() {
 // and return the HTML of each card it put under the message.
 async function previewCards(ctx, inserted, previews) {
   await vm.runInContext("handleMessage", ctx)({
-    type: "link_previews", channel: "general", from: "a1".repeat(32), timestamp: 1700000000000, previews,
+    type: "link_previews", channel: "global", from: "a1".repeat(32), timestamp: 1700000000000, previews,
   });
   return inserted.map((card) => card.innerHTML);
 }

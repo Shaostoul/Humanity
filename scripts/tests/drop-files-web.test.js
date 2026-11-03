@@ -170,10 +170,10 @@ test("1. the overlay: one line while files are over the page, gone when they lea
   o.detach();
   win.fire("dragenter", filesDrag());
   assert.equal(overlayOf(doc), null, "detached: gone, and no longer listening");
-  assert.equal(D.sendIn("#general"), "Drop to send in #general");
+  assert.equal(D.sendIn("#global"), "Drop to send in #global");
   assert.equal(D.addTo("Dusk"), "Drop to add to Dusk");
   assert.equal(D.WORDS.uploadToFiles, "Drop to upload to Files");
-  assert.equal(D.uploadAndPostIn("#general"), "Drop to upload to Files and post in #general");
+  assert.equal(D.uploadAndPostIn("#global"), "Drop to upload to Files and post in #global");
   assert.equal(D.WORDS.sharedFiles, "Drop to upload to Shared Files");
 });
 

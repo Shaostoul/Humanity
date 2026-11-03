@@ -627,7 +627,7 @@ impl Storage {
                 emoji           TEXT NOT NULL,
                 reactor_key     TEXT NOT NULL,
                 reactor_name    TEXT NOT NULL DEFAULT '',
-                channel         TEXT NOT NULL DEFAULT 'general',
+                channel         TEXT NOT NULL DEFAULT 'global',
                 created_at      INTEGER NOT NULL,
                 UNIQUE(target_from, target_timestamp, emoji, reactor_key)
             );
@@ -823,7 +823,7 @@ impl Storage {
             .is_ok();
         if !has_channel_id {
             conn.execute_batch(
-                "ALTER TABLE messages ADD COLUMN channel_id TEXT DEFAULT 'general';"
+                "ALTER TABLE messages ADD COLUMN channel_id TEXT DEFAULT 'global';"
             )?;
             info!("Migration: added channel_id column to messages");
         }
@@ -1165,8 +1165,8 @@ impl Storage {
         // Who can read a channel and who can post in it. The column defaults are a new channel's
         // levels: Members and Members (safe by default). `anyone_since` is when the read level last
         // became Anyone; a visitor is shown only posts made after it (design section 4.1). The
-        // upgrade opens #general and #announcements to Anyone and keeps every other channel at
-        // Members: they were readable by anyone, and nobody posting was told. #general's visitors
+        // upgrade opens #global (the old #general) and #announcements to Anyone and keeps every other channel at
+        // Members: they were readable by anyone, and nobody posting was told. #global's visitors
         // see only what is posted from now (its earlier posts were made under "encrypted", BUG-223);
         // #announcements' whole history stays public, since only the Deploy Bot ever posted there
         // (all 2,449 lines on united-humanity.us, read 2026-11-02) and the front page shows it already.
@@ -1175,9 +1175,25 @@ impl Storage {
         //
         // ONE TRANSACTION (the migration review, 2026-11-02): each step is decided first, then all of
         // them run together or none do. Run one at a time, a crash after the read_level column was
-        // added but before #general and #announcements were opened would have left both at Members
+        // added but before #global and #announcements were opened would have left both at Members
         // for good (the next start sees the column and skips), quietly ending the read view and
         // their federation. SQLite runs ALTER TABLE inside a transaction.
+        //
+        // #GENERAL BECOMES #GLOBAL in the same transaction (2026-11-02, docs/design/chat-channels.md
+        // section 2). The operator: "What do you think about renaming #general chat to #global since
+        // were federating that channel." It runs first, so the steps after it name #global, and
+        // only where there is a #general and no #global (a server whose admin made a #global of
+        // their own keeps both, and nothing moves into theirs). The channel's row and everything
+        // filed under it move (channels.rs `move_channel_on`: the levels, the stamp and the
+        // Federated tick, the lines and their stored copies, threads, lines from linked servers,
+        // reactions, pins, the search index). The search index's triggers named the old channel as
+        // the fallback for a line with none: they are dropped, and the index section below makes
+        // them again naming #global. The live servers' #general holds the operator's real history
+        // (149 lines, 12 reactions, 2 pins on united-humanity.us, read 2026-11-02).
+        // `tests`: chat_access_tests.rs `the_v0_1456_database_renames_general_to_global`.
+        let main = humanity_protocol::chat_access::MAIN_CHANNEL;
+        let has_channel = |id: &str| conn.query_row("SELECT 1 FROM channels WHERE id = ?1", [id], |_| Ok(())).is_ok();
+        let rename_to_global = has_channel("general") && !has_channel(main);
         let lacks = |column: &str| conn.prepare(&format!("SELECT {column} FROM channels LIMIT 0")).is_err();
         let mut steps: Vec<String> = Vec::new();
         if lacks("anyone_since") {
@@ -1188,11 +1204,11 @@ impl Storage {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_millis() as i64)
                 .unwrap_or(0);
-            // A fresh database has no channels yet: #general and #announcements are opened when
-            // they are made (channels.rs `ensure_default_channel`, relay/mod.rs's seed).
+            // A fresh database has no channels yet: #global and #announcements are opened when
+            // they are made (relay/default_channels.rs, from data/server/default_channels.json).
             steps.push("ALTER TABLE channels ADD COLUMN read_level TEXT NOT NULL DEFAULT 'members';".to_string());
-            steps.push("UPDATE channels SET read_level = 'anyone' WHERE id IN ('general', 'announcements');".to_string());
-            steps.push(format!("UPDATE channels SET anyone_since = {now_ms} WHERE id = 'general';"));
+            steps.push(format!("UPDATE channels SET read_level = 'anyone' WHERE id IN ('{main}', 'announcements');"));
+            steps.push(format!("UPDATE channels SET anyone_since = {now_ms} WHERE id = '{main}';"));
         }
         if lacks("post_level") {
             steps.push("ALTER TABLE channels ADD COLUMN post_level TEXT NOT NULL DEFAULT 'members';".to_string());
@@ -1201,13 +1217,38 @@ impl Storage {
             steps.push("UPDATE channels SET post_level = 'mods' WHERE COALESCE(read_only, 0) = 1;".to_string());
             steps.push("ALTER TABLE channels DROP COLUMN read_only;".to_string());
         }
-        if !steps.is_empty() {
-            let batch = format!("BEGIN IMMEDIATE;\n{}\nCOMMIT;", steps.join("\n"));
-            if let Err(e) = conn.execute_batch(&batch) {
+        if rename_to_global || !steps.is_empty() {
+            let upgrade = || -> Result<(), rusqlite::Error> {
+                conn.execute_batch("BEGIN IMMEDIATE;")?;
+                if rename_to_global {
+                    channels::move_channel_on(&conn, "general", main)?;
+                    // The words #general was made with give way to #global's (data/server/default_channels.json);
+                    // words an admin wrote stay theirs.
+                    if let Some(words) = crate::relay::default_channels::get(main).map(|c| c.words()) {
+                        conn.execute(
+                            "UPDATE channels SET description = ?1 WHERE id = ?2 AND COALESCE(description, '') IN ('', 'General discussion')",
+                            rusqlite::params![words, main],
+                        )?;
+                    }
+                    conn.execute_batch(
+                        "DROP TRIGGER IF EXISTS messages_fts_ai;
+                         DROP TRIGGER IF EXISTS messages_fts_ad;
+                         DROP TRIGGER IF EXISTS messages_fts_au;",
+                    )?;
+                }
+                conn.execute_batch(&steps.join("\n"))?;
+                conn.execute_batch("COMMIT;")
+            };
+            if let Err(e) = upgrade() {
                 let _ = conn.execute_batch("ROLLBACK;");
                 return Err(e);
             }
-            info!("Migration: chat access levels ({} steps in one transaction)", steps.len());
+            if rename_to_global {
+                info!("Migration: #general renamed to #{main}, with everything filed under it");
+            }
+            if !steps.is_empty() {
+                info!("Migration: chat access levels ({} steps in one transaction)", steps.len());
+            }
         }
 
         // ── Server settings singleton table (v0.200.0) ──
@@ -2833,17 +2874,17 @@ impl Storage {
             -- Keep FTS index up to date automatically
             CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
                 INSERT INTO messages_fts(rowid, content, from_name, channel_id)
-                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''), COALESCE(new.channel_id,'general'));
+                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''), COALESCE(new.channel_id,'global'));
             END;
             CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
                 INSERT INTO messages_fts(messages_fts, rowid, content, from_name, channel_id)
-                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''), COALESCE(old.channel_id,'general'));
+                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''), COALESCE(old.channel_id,'global'));
             END;
             CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
                 INSERT INTO messages_fts(messages_fts, rowid, content, from_name, channel_id)
-                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''), COALESCE(old.channel_id,'general'));
+                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''), COALESCE(old.channel_id,'global'));
                 INSERT INTO messages_fts(rowid, content, from_name, channel_id)
-                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''), COALESCE(new.channel_id,'general'));
+                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''), COALESCE(new.channel_id,'global'));
             END;
         ");
 
@@ -3150,7 +3191,7 @@ mod resilient_open_tests {
         s.with_conn(|c| {
             c.execute(
                 "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
-                 VALUES ('chat','pk','name','hello', ?1, '{}', 'general')",
+                 VALUES ('chat','pk','name','hello', ?1, '{}', 'global')",
                 rusqlite::params![marker_ts as i64],
             )
         }).unwrap();
@@ -3181,7 +3222,7 @@ mod resilient_open_tests {
         s.with_conn(|c| {
             c.execute(
                 "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
-                 VALUES ('chat','pk','name', ?1, 1, '{}', 'general')",
+                 VALUES ('chat','pk','name', ?1, 1, '{}', 'global')",
                 rusqlite::params![MARKER],
             )
         }).unwrap();

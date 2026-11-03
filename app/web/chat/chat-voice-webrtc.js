@@ -22,7 +22,7 @@ let dmScreenStream = null;
 let dmVideoActive = false;
 let dmScreenActive = false;
 let streamChatOverlayEnabled = localStorage.getItem('humanity-stream-chat-overlay') === 'true';
-let streamChatOverlayChannel = localStorage.getItem('humanity-stream-chat-channel') || 'general';
+let streamChatOverlayChannel = localStorage.getItem('humanity-stream-chat-channel') || 'global';
 
 function toggleVideo() {
   if (!peerConnection) return;
@@ -448,7 +448,7 @@ try {
 window.toggleStreamChatOverlay = function() {
   if (!streamChatOverlayEnabled && !streamChatOverlayChannel) {
     // First enable: prompt for channel name.
-    const ch = prompt('Enter channel for chat overlay:', 'general');
+    const ch = prompt('Enter channel for chat overlay:', 'global');
     if (!ch) return;
     streamChatOverlayChannel = ch.trim();
     localStorage.setItem('humanity-stream-chat-channel', streamChatOverlayChannel);
@@ -461,7 +461,7 @@ window.toggleStreamChatOverlay = function() {
   if (btn) {
     if (streamChatOverlayEnabled) {
       btn.classList.add('active');
-      btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + (streamChatOverlayChannel || 'general');
+      btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + (streamChatOverlayChannel || 'global');
     } else {
       btn.classList.remove('active');
       btn.innerHTML = hosIcon('chat', 16) + ' Overlay, Off';
@@ -470,7 +470,7 @@ window.toggleStreamChatOverlay = function() {
 };
 
 window.selectStreamChatChannel = function() {
-  const ch = prompt('Enter channel id/name for stream chat overlay:', streamChatOverlayChannel || 'general');
+  const ch = prompt('Enter channel id/name for stream chat overlay:', streamChatOverlayChannel || 'global');
   if (!ch) return;
   streamChatOverlayChannel = ch.trim();
   localStorage.setItem('humanity-stream-chat-channel', streamChatOverlayChannel);

@@ -792,7 +792,7 @@ fn fixture_trigger_view_update_delete_before_their_alter_fail() {
         r#"
         conn.execute_batch("
             CREATE TRIGGER IF NOT EXISTS m_ai AFTER INSERT ON messages BEGIN
-                INSERT INTO messages_fts(rowid, channel_id) VALUES (new.id, COALESCE(new.channel_id, 'general'));
+                INSERT INTO messages_fts(rowid, channel_id) VALUES (new.id, COALESCE(new.channel_id, 'global'));
                 SELECT CASE WHEN 1 THEN 1 END;
             END;
             CREATE VIEW IF NOT EXISTS v AS SELECT reply_to FROM messages;

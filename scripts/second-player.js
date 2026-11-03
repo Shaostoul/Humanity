@@ -188,7 +188,7 @@ const SEED_CONTEXT = "hum/second-player/seed/v1";
 // How the scripted player looks to others (crates/humanity-core/src/player_look.rs): skin, hair,
 // height. Fixed, so a person learns to recognise it.
 const LOOK = { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height: 1.0 };
-const CHAT_CHANNEL = "general";
+const CHAT_CHANNEL = "global";
 // A start id the relay reads from a join or a choice (crates/humanity-ship/src/starts.rs `is_start_id`): 1 to 32
 // of a-z, 0-9, - and _. A row of data/homes/starts.ron: "cabin", "homestead".
 const START_ID_RULE = /^[a-z0-9_-]{1,32}$/;
@@ -1163,7 +1163,7 @@ function startWalking(client, plan, start, log) {
 
 // ── Saying one line in chat ──────────────────────────────────────────────────
 
-/** Post `text` in #general, signed. A brand-new name has to wait before
+/** Post `text` in #global, signed. A brand-new name has to wait before
  *  posting in public (relay.rs NEW_IDENTITY_GRACE_SECS); when the relay says
  *  so, wait the time it names and try once more. */
 function sayInChat(client, identity, name, text, log) {

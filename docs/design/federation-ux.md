@@ -20,7 +20,7 @@
    The client holds ONE live connection; switching disconnects the rest,
    and nothing says so.
 2. "The channels seem universal across servers." Every server seeds
-   default channels with the same names (#general, #announcements);
+   default channels with the same names (#global, #announcements);
    same-named but independent rooms, with no per-server grouping cues.
 3. "The servers inherit each other's settings." Server Settings silently
    edits whichever server is CURRENTLY connected; with switching itself
@@ -79,7 +79,7 @@ Rules:
   dedup key.
 - KNOWN LIMIT (accepted for the operator-curated era): rooms are matched
   across the mesh BY NAME. Two unrelated meshes both federating a
-  "#general" would collide if a user joined both. Real cross-mesh channel
+  "#global" would collide if a user joined both. Real cross-mesh channel
   identity belongs to the signed-object space_id system; revisit when
   strangers can federate.
 

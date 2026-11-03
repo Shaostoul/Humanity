@@ -198,7 +198,7 @@ fn a_message_holding_an_items_address_shows_its_card() {
     let ctx = egui::Context::default();
     let theme = crate::gui::theme::load_theme();
     let mut state = with_item();
-    state.chat_active_channel = "general".into();
+    state.chat_active_channel = "global".into();
     // A verified poster: below Verified a line's links and files are plain words since 2026-11-02
     // (docs/design/chat-access.md; chat/access_tests.rs holds that).
     state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann".into(), role: "verified".into(), status: String::new() });
@@ -208,7 +208,7 @@ fn a_message_holding_an_items_address_shows_its_card() {
         content: "http://127.0.0.1:9/files/7".into(),
         timestamp: "09:20".into(),
         timestamp_ms: 1000,
-        channel: "general".into(),
+        channel: "global".into(),
         server: SERVER.into(),
         ..Default::default()
     });

@@ -621,7 +621,7 @@ impl RelayState {
 
 }
 
-fn default_channel() -> String { "general".to_string() }
+fn default_channel() -> String { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() }
 
 /// Channel info sent to clients.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3288,8 +3288,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     let _ = ws_tx.send(Message::Text(ch_msg.into())).await;
                 }
 
-                // Send persisted reactions for the default channel ("general").
-                if let Ok(records) = crate::relay::chat_access::general_reactions(&state.db, &public_key) {
+                // Send persisted reactions for the main channel (#global, `MAIN_CHANNEL`).
+                if let Ok(records) = crate::relay::chat_access::main_channel_reactions(&state.db, &public_key) {
                     let reactions: Vec<ReactionData> = records.into_iter().map(|r| ReactionData {
                         target_from: r.target_from,
                         target_timestamp: r.target_timestamp,
@@ -3303,8 +3303,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     }
                 }
 
-                // Send pinned messages for the default channel ("general").
-                if let Ok(pins) = crate::relay::chat_access::general_pins(&state.db, &public_key) {
+                // Send pinned messages for the main channel (#global, `MAIN_CHANNEL`).
+                if let Ok(pins) = crate::relay::chat_access::main_channel_pins(&state.db, &public_key) {
                     let pin_data: Vec<PinData> = pins.into_iter().map(|p| PinData {
                         from_key: p.from_key,
                         from_name: p.from_name,
@@ -3314,7 +3314,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         pinned_at: p.pinned_at,
                     }).collect();
                     let pins_msg = serde_json::to_string(&RelayMessage::PinsSync {
-                        channel: "general".to_string(),
+                        channel: humanity_protocol::chat_access::MAIN_CHANNEL.to_string(),
                         pins: pin_data,
                     }).unwrap();
                     let _ = ws_tx.send(Message::Text(pins_msg.into())).await;
@@ -4061,10 +4061,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                         message: "Invalid channel name. Use 1-24 chars: letters/numbers/dashes/underscores.".to_string(),
                                                     };
                                                     let _ = state_clone.broadcast_tx.send(private);
-                                                } else if old_name == "general" {
+                                                } else if old_name == humanity_protocol::chat_access::MAIN_CHANNEL {
                                                     let private = RelayMessage::Private {
                                                         to: my_key_for_recv.clone(),
-                                                        message: "Cannot rename the general channel.".to_string(),
+                                                        message: "Cannot rename the global channel.".to_string(),
                                                     };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else {
@@ -4101,8 +4101,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     .trim()
                                                     .trim_start_matches('#')
                                                     .to_lowercase();
-                                                if ch_name == "general" {
-                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Cannot delete the general channel.".to_string() };
+                                                if ch_name == humanity_protocol::chat_access::MAIN_CHANNEL {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Cannot delete the global channel.".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else if state_clone.db.delete_channel(&ch_name).unwrap_or(false) {
                                                     broadcast_channel_list(&state_clone);
@@ -4402,7 +4402,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can wipe messages.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
-                                                let wipe_ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                                let wipe_ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { channel.clone() };
                                                 match state_clone.db.wipe_channel_messages(&wipe_ch) {
                                                     Ok(count) => {
                                                         // Clear in-memory history for this channel.
@@ -4598,7 +4598,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can pin messages.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
-                                                let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                                let ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { channel.clone() };
                                                 match state_clone.db.get_last_message_in_channel(&ch) {
                                                     Ok(Some((from_key, from_name, content, ts))) => {
                                                         match state_clone.db.pin_message(&ch, &from_key, &from_name, &content, ts, &display) {
@@ -4656,7 +4656,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /unpin <number> — use /pins to see the list.".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else {
-                                                    let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                                    let ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { channel.clone() };
                                                     match state_clone.db.unpin_message(&ch, idx) {
                                                         Ok(true) => {
                                                             let _ = state_clone.broadcast_tx.send(RelayMessage::PinRemoved {
@@ -4680,7 +4680,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             }
                                         }
                                         "/pins" => {
-                                            let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                            let ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { channel.clone() };
                                             match state_clone.db.get_pinned_messages(&ch) {
                                                 Ok(pins) if pins.is_empty() => {
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("No pinned messages in #{}.", ch) };
@@ -4716,7 +4716,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
                                                 // Find user's last message in this channel.
-                                                let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                                let ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { channel.clone() };
                                                 let last_ts = state_clone.db.get_last_user_message_timestamp(&my_key_for_recv, &ch).unwrap_or(None);
                                                 if let Some(ts) = last_ts {
                                                     match crate::relay::handlers::federation_log::edit_own_message(&state_clone, &my_key_for_recv, ts, &new_content).await {
@@ -5108,7 +5108,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     continue; // Commands are never broadcast as chat.
                                 }
 
-                                let ch = if channel.is_empty() { "general".to_string() } else { channel };
+                                let ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { channel };
 
                                 // Who may post here, and below Verified one link and no attachment (chat_access.rs).
                                 if crate::relay::chat_access::post_refused(&state_clone, &my_key_for_recv, &ch, &content, timestamp) { continue; }
@@ -5305,7 +5305,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 let emoji = humanity_core::reactions::normalize(&emoji);
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
-                                let ch = if reaction_channel.is_empty() { "general".to_string() } else { reaction_channel };
+                                let ch = if reaction_channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { reaction_channel };
                                 // Only a room of this server: a reaction in a DM or a P2P group would tell everyone
                                 // who reacted to whom in a private conversation (BUG-178). Dropped silently.
                                 if !crate::relay::handlers::utils::is_room(&state_clone, &ch) {
@@ -5374,7 +5374,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 let edit_char_limit: usize = if edit_role == "admin" { 10_000 } else { 2_000 };
                                 // Only a room of this server: an edit in a DM or a P2P group would carry its private
                                 // text here in the clear (BUG-178); the clients do not offer it there.
-                                let edit_room = if edit_channel.is_empty() { "general" } else { edit_channel.as_str() };
+                                let edit_room = if edit_channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL } else { edit_channel.as_str() };
                                 if !crate::relay::handlers::utils::is_room(&state_clone, edit_room) {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
@@ -5390,7 +5390,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 } else {
                                     match crate::relay::handlers::federation_log::edit_own_message(&state_clone, &my_key_for_recv, timestamp, &new_content).await {
                                         Ok(true) => {
-                                            let ch = if edit_channel.is_empty() { "general".to_string() } else { edit_channel };
+                                            let ch = if edit_channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { edit_channel };
                                             let edit = RelayMessage::Edit {
                                                 from: my_key_for_recv.clone(), timestamp, new_content, channel: ch,
                                             };
@@ -5782,7 +5782,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can pin messages.".to_string() };
                                     let _ = state_clone.broadcast_tx.send(private);
                                 } else {
-                                    let ch = if pin_ch.is_empty() { "general".to_string() } else { pin_ch };
+                                    let ch = if pin_ch.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { pin_ch };
                                     // Only a room of this server: pinning a DM or a P2P group message would store its
                                     // private text here and show it to everyone (BUG-178).
                                     if !crate::relay::handlers::utils::is_room(&state_clone, &ch) {

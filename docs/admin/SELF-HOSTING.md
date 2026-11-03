@@ -792,7 +792,7 @@ GET https://your-domain.com/api/server-info
 2. Ask an existing server's admin to add you. **The easiest first partner
    is united-humanity.us itself**: join its chat at
    [united-humanity.us/chat](https://united-humanity.us/chat), say hello
-   in `#general`, and ask Shaostoul (the operator) to federate with your
+   in `#global`, and ask Shaostoul (the operator) to federate with your
    domain. There is no application form and it costs nothing.
 3. They run `/server-add https://your-domain.com` on their side. You can
    also add THEM from your side the same way -- federation links are

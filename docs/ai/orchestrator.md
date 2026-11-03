@@ -22,6 +22,7 @@ steps, and the ones that only a top-level session does:
   to trust the journal and PRIORITIES instead. Until a scope audit refreshes them, treat its output
   as background, not as live claims.
 - **Version sync check:** `docs/ai/release.md`, "Version SOP" (session start).
+- **"Check #feedback" (the operator, 2026-11-02):** `just feedback [count]` prints the newest lines of #feedback on united-humanity.us (linked servers' included), read as a visitor reads them, no key (`scripts/feedback.js`, `docs/design/chat-channels.md` section 3).
 - **Before claiming a multi-AI scope**, check `data/coordination/agent_registry.ron` for ownership rules and the `agent_sessions` SQLite table for active claims.
 - If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo against the real `src/` tree.
   *Superseded in part:* "Run `just clean-worktrees`" in that step applies to the operator or an

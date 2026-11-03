@@ -65,7 +65,7 @@ fn each_kind_of_conversation_says_whether_it_encrypts() {
     assert_eq!(Destination::of("dm:abc"), Destination::DirectMessage);
     assert_eq!(Destination::of("p2pgroup:g1"), Destination::Group);
     assert_eq!(Destination::of("scratchpad"), Destination::Scratchpad);
-    for public in ["general", "announcements", "commons:general", ""] {
+    for public in ["global", "announcements", "commons:global", ""] {
         assert_eq!(Destination::of(public), Destination::Public, "{public}");
     }
     assert!(Destination::DirectMessage.encrypts_file(), "a DM encrypts");
@@ -128,7 +128,7 @@ fn a_picked_or_pasted_file_in_a_dm_or_a_group_goes_up_encrypted_with_a_marker() 
 /// file's own bytes" failed.
 #[test]
 fn a_public_channel_uploads_the_plain_file_and_sends_its_url() {
-    let mut gs = viewing("general");
+    let mut gs = viewing("global");
     let (out, seen) = run_recorded(attach_job(&mut gs, "notes.pdf", file_bytes()).unwrap());
     let up = seen.unwrap();
     assert_eq!(up.bytes, file_bytes(), "public, picked: the file's own bytes");
@@ -151,7 +151,7 @@ fn a_public_channel_uploads_the_plain_file_and_sends_its_url() {
 #[test]
 fn nothing_over_the_size_cap_is_uploaded_on_any_path() {
     let big = vec![7u8; ATTACH_MAX_BYTES as usize + 1];
-    for channel in ["dm:abc", "p2pgroup:g1", "general"] {
+    for channel in ["dm:abc", "p2pgroup:g1", "global"] {
         let mut gs = viewing(channel);
         assert!(attach_job(&mut gs, "big.png", big.clone()).is_none(), "{channel}: a picked file over the cap");
         assert!(paste_job(&gs, big.clone()).is_none(), "{channel}: a pasted image over the cap");
@@ -182,7 +182,7 @@ fn a_file_name_holding_the_recovery_phrase_is_not_sent() {
     let seed = [5u8; 32];
     let phrase = crate::net::identity::mnemonic_from_seed(&seed).expect("a phrase seed");
     let words: Vec<&str> = phrase.split(' ').collect();
-    for channel in ["dm:abc", "p2pgroup:g1", "general"] {
+    for channel in ["dm:abc", "p2pgroup:g1", "global"] {
         let mut gs = viewing(channel);
         gs.private_key_bytes = Some(seed.to_vec());
         let name = format!("backup {} {} {} {} {}.txt", words[2], words[3], words[4], words[5], words[6]);
@@ -227,7 +227,7 @@ fn a_private_files_marker_is_sent_only_to_the_conversation_it_was_made_for() {
     drain(&ctx, &mut gs);
     assert_eq!(gs.chat_messages.len(), 1, "the same view: sent");
 
-    gs.clipboard_upload = finished("general", FAKE_URL);
+    gs.clipboard_upload = finished("global", FAKE_URL);
     drain(&ctx, &mut gs);
     assert_eq!(gs.chat_messages.len(), 2, "a plain URL still goes to the view on screen");
     assert_eq!(gs.chat_messages[1].content, FAKE_URL);
@@ -258,7 +258,7 @@ fn each_file_gets_the_limit_for_where_it_is_going() {
     assert_eq!(limit_for(huge, Destination::DirectMessage), private_ceiling(), "never past what the receiving side opens");
     assert_eq!(private_ceiling(), 1024 * mb, "the relay's own top of the range, 1 GB");
 
-    let mut gs = viewing("general");
+    let mut gs = viewing("global");
     gs.profile_public_key = "me".into();
     note_upload_limit(&mut gs, &serde_json::json!({ "type": "peer_list", "peers": [
         { "public_key": "someone", "upload_limit_mb": 999, "private_limit_mb": 999 },
@@ -362,7 +362,7 @@ fn a_picked_file_is_read_by_the_worker_and_kept_to_one_copy() {
 /// `upload_token_here` ignoring the server: "on another server the token does not count".
 #[test]
 fn every_upload_carries_this_connections_token_for_this_server() {
-    let mut gs = viewing("general");
+    let mut gs = viewing("global");
     gs.upload_token = None;
     note_upload_limit(&mut gs, &serde_json::json!({ "type": "peer_list", "peers": [
         { "public_key": "someone", "upload_token": "theirs" },
@@ -420,7 +420,7 @@ fn files_chosen_together_wait_their_turn_and_never_go_elsewhere() {
     state.clipboard_upload = None;
     next_queued(&mut state);
     assert_eq!(left(&state), 2, "then the next goes");
-    state.chat_active_channel = "general".into();
+    state.chat_active_channel = "global".into();
     next_queued(&mut state);
     assert!(state.files_flow.queue.is_none(), "leaving drops the rest");
     assert!(state.pending_notices.iter().any(|n| *n == left_before_the_rest(2)), "and says so: {:?}", state.pending_notices);

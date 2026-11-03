@@ -508,23 +508,23 @@ mod tests {
         assert!(on_screen(&g, &c));
         let other = Candidate { server: "https://b.example".into(), ..c.clone() };
         assert!(!on_screen(&g, &other), "the same peer's DM from another server is another store");
-        let room = Candidate { kind: "mention".into(), server: "https://b.example".into(), room: Some("general".into()), conversation: "general".into(), ..Default::default() };
-        g.chat_active_channel = "commons:general".into();
+        let room = Candidate { kind: "mention".into(), server: "https://b.example".into(), room: Some("global".into()), conversation: "global".into(), ..Default::default() };
+        g.chat_active_channel = "commons:global".into();
         assert!(on_screen(&g, &room), "the Commons view shows a shared room from any server");
     }
 
     /// The burst guard holds a conversation's second notice back for five seconds on ITS server:
-    /// two servers' rooms of one name (each has a "general") are two conversations. Seen red
+    /// two servers' rooms of one name (each has a "global") are two conversations. Seen red
     /// 2026-10-31 with the guard keyed by the conversation alone (part 1's leftover): a mention in
-    /// B's #general two seconds after one in A's #general found A's time.
+    /// B's #global two seconds after one in A's #global found A's time.
     #[test]
     fn the_burst_guard_keeps_each_servers_rooms_apart() {
         let mut rt = n::Runtime::default();
-        let a = Candidate { kind: "mention".into(), server: "https://a.example".into(), room: Some("general".into()), conversation: "general".into(), ..Default::default() };
+        let a = Candidate { kind: "mention".into(), server: "https://a.example".into(), room: Some("global".into()), conversation: "global".into(), ..Default::default() };
         let b = Candidate { server: "https://b.example".into(), ..a.clone() };
         note_notice(&mut rt, &a, 100);
         assert_eq!(last_notice(&rt, &a), Some(100));
-        assert_eq!(last_notice(&rt, &b), None, "B's #general is another room");
+        assert_eq!(last_notice(&rt, &b), None, "B's #global is another room");
         note_notice(&mut rt, &b, 102);
         assert_eq!((last_notice(&rt, &a), last_notice(&rt, &b)), (Some(100), Some(102)));
     }
@@ -539,16 +539,16 @@ mod tests {
         let mut g = gs();
         let (client, _sent) = crate::net::ws_client::WsClient::recording();
         g.ws_client = Some(client);
-        g.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), federated: true, ..Default::default() });
+        g.chat_channels.push(crate::gui::ChatChannel { id: "global".into(), name: "global".into(), federated: true, ..Default::default() });
         g.connections.push(crate::gui::ServerConnection {
             url: "https://b.example".into(),
             identified: true,
-            channels: vec![crate::gui::ChatChannel { id: "general".into(), name: "general".into(), federated: true, ..Default::default() }],
+            channels: vec![crate::gui::ChatChannel { id: "global".into(), name: "global".into(), federated: true, ..Default::default() }],
             ..Default::default()
         });
         g.federation_links.link_for_tests("https://a.example", "https://b.example");
-        let a = room_line(&g, "https://a.example", "Ann", "general", "k2", "Ben", "@ann look", None).expect("A's copy");
-        let b = room_line(&g, "https://b.example/", "Ann", "general", "k2", "Ben", "@ann look", None).expect("B's copy");
+        let a = room_line(&g, "https://a.example", "Ann", "global", "k2", "Ben", "@ann look", None).expect("A's copy");
+        let b = room_line(&g, "https://b.example/", "Ann", "global", "k2", "Ben", "@ann look", None).expect("B's copy");
         assert!(a.commons && b.commons, "both carriers' copies are the Commons room");
         let mut rt = n::Runtime::default();
         note_notice(&mut rt, &a, 100);
@@ -558,8 +558,8 @@ mod tests {
         assert_eq!((rt.list.len(), rt.list.unseen()), (1, 1), "one entry, one on the bell");
         // Unlinked, the same room name on two servers stays two rooms.
         g.federation_links = Default::default();
-        let a2 = room_line(&g, "https://a.example", "Ann", "general", "k2", "Ben", "@ann look", None).unwrap();
-        let b2 = room_line(&g, "https://b.example", "Ann", "general", "k2", "Ben", "@ann look", None).unwrap();
+        let a2 = room_line(&g, "https://a.example", "Ann", "global", "k2", "Ben", "@ann look", None).unwrap();
+        let b2 = room_line(&g, "https://b.example", "Ann", "global", "k2", "Ben", "@ann look", None).unwrap();
         assert!(!a2.commons && !b2.commons);
         assert_ne!(n::decide::burst_key(&a2), n::decide::burst_key(&b2));
     }
@@ -626,12 +626,12 @@ mod tests {
     fn a_room_line_is_a_mention_a_reply_to_me_or_an_ordinary_line() {
         let g = gs();
         let s = "https://a.example/";
-        let line = |name: &str, from: &str, text: &str, reply: Option<&str>| room_line(&g, s, name, "general", from, "Ben", text, reply);
+        let line = |name: &str, from: &str, text: &str, reply: Option<&str>| room_line(&g, s, name, "global", from, "Ben", text, reply);
         assert_eq!(kind_of(line("Ann", "k2", "hi Ann", None)), "room_line", "no @");
         assert_eq!(kind_of(line("Ann", "k2", "@Annabel hi", None)), "room_line");
         let m = line("Ann", "k2", "hi @ann", None).expect("a mention");
         assert!(!m.from_me);
-        assert_eq!((m.kind.as_str(), m.room.as_deref(), m.room_name.as_str()), ("mention", Some("general"), "general"));
+        assert_eq!((m.kind.as_str(), m.room.as_deref(), m.room_name.as_str()), ("mention", Some("global"), "global"));
         assert_eq!(m.server, "https://a.example", "the server normalised, as the mutes name it");
         assert!(line("Ann", "me", "@ann note to self", None).is_some_and(|m| m.from_me));
         assert_eq!(kind_of(line("Annie", "k2", "hi @ann", None)), "room_line", "the name signed in with there");
@@ -650,7 +650,7 @@ mod tests {
         let now = 10_000_000u64;
         let f = |ts: u64, from_key: &str, text: &str| {
             serde_json::json!({ "type": "federated_chat", "server_id": "srvB", "server_name": "B", "from_name": "Cy",
-                "from_key": from_key, "content": text, "timestamp": ts, "channel": "general" })
+                "from_key": from_key, "content": text, "timestamp": ts, "channel": "global" })
         };
         let c = federated_line(&g, "https://a.example", "Ann", &f(now - 1000, "k9", "@ann look"), now).expect("live");
         assert_eq!((c.kind.as_str(), c.sender.as_str(), c.from_me), ("mention", "Cy (B)", false));

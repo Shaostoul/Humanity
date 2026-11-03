@@ -53,7 +53,7 @@
 #incoming-call-overlay {
   display: none;
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0; left: 0; right: 0; bottom: var(--hos-wip-h, 0px);
   background: rgba(0,0,0,0.7);
   z-index: 300;
   align-items: center;
@@ -184,7 +184,7 @@
 /* Video panel */
 #video-panel {
   position: fixed;
-  bottom: 80px;
+  bottom: calc(80px + var(--hos-wip-h, 0px));
   right: 20px;
   z-index: 1000;
   display: none;
@@ -249,7 +249,7 @@
 #video-panel .video-wrapper.pinned-inapp {
   position: fixed !important;
   right: 14px;
-  bottom: 78px;
+  bottom: calc(78px + var(--hos-wip-h, 0px));
   width: min(36vw, 420px) !important;
   height: auto;
   z-index: 4000;
@@ -449,7 +449,7 @@
   #video-panel {
     left: 8px;
     right: 8px;
-    bottom: 72px;
+    bottom: calc(72px + var(--hos-wip-h, 0px));
     max-width: calc(100vw - 16px);
     max-height: 48vh;
     border-radius: var(--radius-lg);

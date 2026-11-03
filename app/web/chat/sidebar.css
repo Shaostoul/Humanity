@@ -105,7 +105,7 @@
 .channel-item .ch-mic.joined { color: var(--accent); opacity: 1; }
 
 /* The channel header, as native's (src/gui/pages/chat.rs, draw_center_panel):
-   the darkest sidebar ground, 10 x 16 inside, a 1 px border; "# general" at the
+   the darkest sidebar ground, 10 x 16 inside, a 1 px border; "# global" at the
    heading size in the main ink, then "|  description" small and muted. A DM
    names its person "DM: Ada" in the DM ink, a P2P group its name in the group
    ink, each after a Back button (chat-dms.js, chat-groups-p2p.js). */
@@ -468,7 +468,7 @@
 #sidebar-overlay {
   display: none;
   position: fixed;
-  top: 48px; left: 0; right: 0; bottom: 0;
+  top: 48px; left: 0; right: 0; bottom: var(--hos-wip-h, 0px);
   background: rgba(0,0,0,0.5);
   z-index: 9;
 }
@@ -641,6 +641,51 @@
 .server-group.collapsed .server-group-channels { display: none; }
 .server-group-channels { padding-left: var(--space-xs); }
 
+/* Mute server (2026-10-30, chat-notify.js): the bell at the end of the server's row, crossed out
+   while muted (the desktop's mark), and the small menu of lengths it opens. */
+.server-group-header .srv-mute {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.server-group-header .srv-mute:hover,
+.server-group-header .srv-mute:focus-visible { color: var(--text); opacity: 1; background: var(--bg-hover); }
+.server-group-header .srv-mute.muted { opacity: 1; }
+.srv-mute-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 10rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.srv-mute-menu .srv-mute-head {
+  font-size: var(--text-xs, 0.72rem);
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0 var(--space-xs);
+}
+.srv-mute-menu button {
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.srv-mute-menu button:hover,
+.srv-mute-menu button:focus-visible { background: var(--bg-hover); }
+
 /* ── Groups Placeholder ── */
 .groups-placeholder {
   font-size: var(--text-xs);
@@ -735,7 +780,7 @@
   #sidebar {
     display: none;
     position: fixed;
-    left: 0; top: 48px; bottom: 0;
+    left: 0; top: 48px; bottom: var(--hos-wip-h, 0px);
     z-index: 10;
     width: 260px;
     max-width: 80vw;
@@ -745,7 +790,7 @@
   #right-sidebar {
     display: none;
     position: fixed;
-    right: 0; top: 48px; bottom: 0;
+    right: 0; top: 48px; bottom: var(--hos-wip-h, 0px);
     z-index: 10;
     width: 260px;
     max-width: 80vw;
@@ -791,3 +836,25 @@
   }
   #channel-header .ch-name { font-size: var(--text-base); }
 }
+
+/* Mute room, the room's level and Mute conversation (notifications rung 2, chat-notify.js): a
+   bell at the end of a room's or a DM's row, shown on hover and focus, and always while muted
+   (the desktop's muted mark); the menu marks the room's level. */
+.srv-chan .row-mute,
+.dm-item .row-mute {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  opacity: 0;
+}
+.srv-chan:hover .row-mute,
+.dm-item:hover .row-mute,
+.row-mute:focus-visible,
+.row-mute.muted { opacity: 1; }
+.row-mute:hover,
+.row-mute:focus-visible { color: var(--text); background: var(--bg-hover); }
+.srv-mute-menu hr { border: none; border-top: 1px solid var(--border); margin: var(--space-xs) 0; width: 100%; }
+.srv-mute-menu button.checked { color: var(--accent); font-weight: 600; }

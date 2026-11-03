@@ -214,6 +214,47 @@
   }
 
   /**
+   * The key my own tasks are kept under in this browser (/shared/mine-tasks.js,
+   * docs/design/tasks.md, 2026-11-02): HKDF-SHA-256 of the seed with an empty
+   * salt and the info "hum/tasks-mine-web/v1", to a non-extractable AES-256-GCM
+   * key. The DM store's scheme (getPqDmStoreKey above) with its own info, so the
+   * two keys are never the same.
+   *
+   * @returns {Promise<CryptoKey|null>} null without a readable seed.
+   */
+  async function getPqTasksKey() {
+    const seed = await _loadSeed();
+    if (!seed) return null;
+    try {
+      const base = await crypto.subtle.importKey('raw', seed, 'HKDF', false, ['deriveKey']);
+      return await crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0),
+          info: new TextEncoder().encode('hum/tasks-mine-web/v1') },
+        base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    } catch (e) {
+      console.warn('pq-relay-auth: could not derive the tasks key', e);
+      return null;
+    }
+  }
+
+  /**
+   * My own DM keys, from the seed: the Kyber768 (ML-KEM-768) pair every device of
+   * mine derives the same way (pqDeriveKyber in /chat/pq.js), so a page can seal
+   * a note to myself and open the ones my other devices sent
+   * (/shared/mine-tasks.js). {kyberPublicB64, kyberSecret}, or null.
+   */
+  async function getPqDmKeys() {
+    if (typeof window.pqDeriveKyber !== 'function') return null;
+    const seed = await _loadSeed();
+    if (!seed) return null;
+    const kp = await window.pqDeriveKyber(seed);
+    if (!kp || !kp.kyberPublicBytes || !kp.kyberSecret) return null;
+    let s = '';
+    for (let i = 0; i < kp.kyberPublicBytes.length; i++) s += String.fromCharCode(kp.kyberPublicBytes[i]);
+    return { kyberPublicB64: btoa(s), kyberSecret: kp.kyberSecret };
+  }
+
+  /**
    * The 24 words of the recovery phrase for `seed32`, as a list: BIP39, 256 bits of entropy and an
    * 8-bit SHA-256 checksum, 11 bits a word (the same as mnemonicFromSeed in /chat/crypto.js, which
    * the backup screen shows; scripts/tests/post-in-chat-web.test.js holds the two to each other).
@@ -278,5 +319,7 @@
   window.getPqSignedAuth = getPqSignedAuth;
   window.getPqIdentity = getPqIdentity;
   window.getPqDmStoreKey = getPqDmStoreKey;
+  window.getPqTasksKey = getPqTasksKey;
+  window.getPqDmKeys = getPqDmKeys;
   window.pqRecoveryPhraseIn = pqRecoveryPhraseIn;
 })();

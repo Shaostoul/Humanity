@@ -5,7 +5,7 @@
 //! Moved out of `gui/pages/chat.rs` on 2026-10-24 with the linked-servers rule (federation-ux.md,
 //! build order 6). Before it, a room was matched across my servers BY NAME alone: the operator's
 //! own "Super Secret Invite Only Server" (a node on his PC, `http://127.0.0.1:3210`) marks its
-//! #general federated, so the app listed it as a third carrier of the public #general beside
+//! #global federated, so the app listed it as a third carrier of the public #global beside
 //! united-humanity.us and public.guide, though it is linked to neither. Two separate rooms were
 //! merged into one view, and a line typed there could be sent through the private server. Now a
 //! Commons room is a group of LINKED servers, and every place that asks (the sidebar, the
@@ -36,11 +36,11 @@ pub(crate) struct CommonsRoom {
     pub carrier_urls: Vec<String>,
 }
 
-/// The room name behind a Commons view id ("commons:general" -> "general"),
+/// The room name behind a Commons view id ("commons:global" -> "global"),
 /// or None when the active channel is not a Commons view. A Commons room and
 /// a same-named LOCAL channel are DIFFERENT rooms: the qualified id keeps
-/// them apart (the operator's private #general must never blend into the
-/// bridged #general, and vice versa).
+/// them apart (the operator's private #global must never blend into the
+/// bridged #global, and vice versa).
 pub(crate) fn commons_room_of(active_channel: &str) -> Option<&str> {
     active_channel.strip_prefix("commons:")
 }
@@ -382,46 +382,46 @@ mod tests {
         let mut state = GuiState::default();
         // Active connection is offline (no ws), so carriers come from the
         // two background connections.
-        state.connections.push(conn("https://a", true, &[("general", true, false), ("ops", true, false)]));
-        state.connections.push(conn("https://b", true, &[("general", true, true), ("lounge", false, false)]));
+        state.connections.push(conn("https://a", true, &[("global", true, false), ("ops", true, false)]));
+        state.connections.push(conn("https://b", true, &[("global", true, true), ("lounge", false, false)]));
         link(&mut state, "https://a", "https://b");
         let rooms = commons_rooms(&state);
         assert_eq!(rooms.len(), 1, "only the room BOTH servers federate qualifies");
-        assert_eq!(rooms[0].name, "general");
+        assert_eq!(rooms[0].name, "global");
         assert_eq!(rooms[0].carriers, 2);
-        assert_eq!(commons_route(&state, "general").0, false, "active connection is offline, so a send goes by a background carrier");
+        assert_eq!(commons_route(&state, "global").0, false, "active connection is offline, so a send goes by a background carrier");
         assert!(rooms[0].unread, "unread on ANY carrier lights the room");
     }
 
     #[test]
     fn same_name_without_the_federated_flag_never_merges() {
         let mut state = GuiState::default();
-        state.connections.push(conn("https://a", true, &[("general", false, false)]));
-        state.connections.push(conn("https://b", true, &[("general", false, false)]));
+        state.connections.push(conn("https://a", true, &[("global", false, false)]));
+        state.connections.push(conn("https://b", true, &[("global", false, false)]));
         link(&mut state, "https://a", "https://b");
-        assert!(commons_rooms(&state).is_empty(), "two plain #general rooms stay separate");
+        assert!(commons_rooms(&state).is_empty(), "two plain #global rooms stay separate");
     }
 
     /// The operator's case (2026-10-24): two linked public servers and a private node on this PC,
-    /// all three marking #general federated. The private node is not linked to either, so it is no
-    /// carrier, keeps its #general in its own list, and is never routed through. Seen red before
+    /// all three marking #global federated. The private node is not linked to either, so it is no
+    /// carrier, keeps its #global in its own list, and is never routed through. Seen red before
     /// the rule: the private node was the room's third carrier.
     #[test]
     fn a_server_linked_to_neither_is_no_carrier_of_their_room() {
         let mut state = GuiState::default();
-        state.connections.push(conn("https://united-humanity.us", true, &[("general", true, false)]));
-        state.connections.push(conn("http://127.0.0.1:3210", true, &[("general", true, false)]));
-        state.connections.push(conn("https://public.guide", true, &[("general", true, false)]));
+        state.connections.push(conn("https://united-humanity.us", true, &[("global", true, false)]));
+        state.connections.push(conn("http://127.0.0.1:3210", true, &[("global", true, false)]));
+        state.connections.push(conn("https://public.guide", true, &[("global", true, false)]));
         link(&mut state, "https://united-humanity.us", "https://public.guide");
         link(&mut state, "https://public.guide", "https://united-humanity.us");
-        let c = commons_carriers(&state, "general");
+        let c = commons_carriers(&state, "global");
         assert_eq!(c.parked, vec![0, 2], "the two linked servers, not the private node");
         assert!(c.is_commons());
         let rooms = commons_rooms(&state);
         assert_eq!(rooms.len(), 1);
         assert_eq!(rooms[0].carrier_urls, vec!["https://united-humanity.us".to_string(), "https://public.guide".to_string()]);
-        assert!(commons_rooms_carried_by(&state, "https://public.guide").contains("general"));
-        assert!(!commons_rooms_carried_by(&state, "http://127.0.0.1:3210").contains("general"), "it stays in the private node's own list");
+        assert!(commons_rooms_carried_by(&state, "https://public.guide").contains("global"));
+        assert!(!commons_rooms_carried_by(&state, "http://127.0.0.1:3210").contains("global"), "it stays in the private node's own list");
     }
 
     /// `in_commons` (notifications, the critic's review of part 2): the room on a server that is one
@@ -431,13 +431,13 @@ mod tests {
     #[test]
     fn in_commons_is_a_carriers_room_and_nothing_else() {
         let mut state = GuiState::default();
-        state.connections.push(conn("https://united-humanity.us", true, &[("general", true, false), ("ops", false, false)]));
-        state.connections.push(conn("http://127.0.0.1:3210", true, &[("general", true, false)]));
-        state.connections.push(conn("https://public.guide", true, &[("general", true, false), ("solo", true, false)]));
+        state.connections.push(conn("https://united-humanity.us", true, &[("global", true, false), ("ops", false, false)]));
+        state.connections.push(conn("http://127.0.0.1:3210", true, &[("global", true, false)]));
+        state.connections.push(conn("https://public.guide", true, &[("global", true, false), ("solo", true, false)]));
         link(&mut state, "https://united-humanity.us", "https://public.guide");
-        assert!(in_commons(&state, "https://united-humanity.us", "general"), "the first carrier");
-        assert!(in_commons(&state, "https://public.guide", "general"), "the second carrier");
-        assert!(!in_commons(&state, "http://127.0.0.1:3210", "general"), "a server linked to neither");
+        assert!(in_commons(&state, "https://united-humanity.us", "global"), "the first carrier");
+        assert!(in_commons(&state, "https://public.guide", "global"), "the second carrier");
+        assert!(!in_commons(&state, "http://127.0.0.1:3210", "global"), "a server linked to neither");
         assert!(!in_commons(&state, "https://united-humanity.us", "ops"), "not federated");
         assert!(!in_commons(&state, "https://public.guide", "solo"), "one carrier is no Commons room");
     }
@@ -445,8 +445,8 @@ mod tests {
     #[test]
     fn a_server_whose_list_has_not_arrived_is_linked_to_nobody() {
         let mut state = GuiState::default();
-        state.connections.push(conn("https://a", true, &[("general", true, false)]));
-        state.connections.push(conn("https://b", true, &[("general", true, false)]));
+        state.connections.push(conn("https://a", true, &[("global", true, false)]));
+        state.connections.push(conn("https://b", true, &[("global", true, false)]));
         assert!(commons_rooms(&state).is_empty(), "no lists yet, no Commons: safe by default");
         link(&mut state, "https://b", "https://a");
         assert_eq!(commons_rooms(&state).len(), 1, "one list naming the other is enough");
@@ -455,24 +455,24 @@ mod tests {
     #[test]
     fn a_link_is_the_same_server_however_its_address_is_written() {
         let mut state = GuiState::default();
-        state.connections.push(conn("wss://a.example/ws", true, &[("general", true, false)]));
-        state.connections.push(conn("https://B.example/", true, &[("general", true, false)]));
+        state.connections.push(conn("wss://a.example/ws", true, &[("global", true, false)]));
+        state.connections.push(conn("https://B.example/", true, &[("global", true, false)]));
         link(&mut state, "https://a.example", "https://b.example");
-        assert_eq!(commons_carriers(&state, "general").parked, vec![0, 1]);
+        assert_eq!(commons_carriers(&state, "global").parked, vec![0, 1]);
         assert_eq!(parse_links(r#"[{"server_id":"x","url":"https://Public.Guide/","status":"offline"},{"url":""}]"#), Ok(vec!["https://public.guide".to_string()]));
     }
 
     #[test]
     fn opening_a_commons_room_uses_the_qualified_id_and_clears_carrier_unread() {
         let mut state = GuiState::default();
-        state.connections.push(conn("https://a", true, &[("general", true, true)]));
-        state.connections.push(conn("https://b", true, &[("general", true, true)]));
-        open_commons_room(&mut state, "general");
+        state.connections.push(conn("https://a", true, &[("global", true, true)]));
+        state.connections.push(conn("https://b", true, &[("global", true, true)]));
+        open_commons_room(&mut state, "global");
         // The qualified id keeps the bridged room distinct from any
-        // same-named LOCAL channel (the private #general must never blend
+        // same-named LOCAL channel (the private #global must never blend
         // into the Commons view).
-        assert_eq!(state.chat_active_channel, "commons:general");
-        assert_eq!(commons_room_of(&state.chat_active_channel), Some("general"));
+        assert_eq!(state.chat_active_channel, "commons:global");
+        assert_eq!(commons_room_of(&state.chat_active_channel), Some("global"));
         assert!(
             state.connections.iter().all(|c| c.channels.iter().all(|ch| !ch.unread)),
             "opening the room clears unread on every carrier"
@@ -482,8 +482,8 @@ mod tests {
     #[test]
     fn unidentified_connections_do_not_count_as_carriers() {
         let mut state = GuiState::default();
-        state.connections.push(conn("https://a", true, &[("general", true, false)]));
-        state.connections.push(conn("https://b", false, &[("general", true, false)]));
+        state.connections.push(conn("https://a", true, &[("global", true, false)]));
+        state.connections.push(conn("https://b", false, &[("global", true, false)]));
         link(&mut state, "https://a", "https://b");
         assert!(commons_rooms(&state).is_empty(), "a half-connected server is not a carrier yet");
     }

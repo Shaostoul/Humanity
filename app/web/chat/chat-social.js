@@ -1022,6 +1022,10 @@ async function ingestDmControl(inner) {
   // a contact request. Only "starts with the marker", as the desktop app reads
   // it (net::household is_note): one whose permit does not read is still a note.
   if (typeof inner.text === 'string' && inner.text.startsWith(CTL_PERMIT)) return true;
+  // Tasks of my own (docs/design/tasks.md): the Tasks page reads these notes
+  // from my mailbox itself; here one is never stored, listed or shown, whoever
+  // sent it (crypto.js CTL_TASK).
+  if (typeof inner.text === 'string' && typeof CTL_TASK === 'string' && inner.text.startsWith(CTL_TASK)) return true;
   // A choice note (10n): a text that starts with its marker is never shown.
   if (typeof isChoiceNoteText === 'function' && isChoiceNoteText(inner.text)) {
     await ingestChoiceNote(inner);

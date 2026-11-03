@@ -484,10 +484,11 @@ pub struct AppConfig {
     /// reach it and Windows never asks about the firewall.
     #[serde(default)]
     pub host_node_local_only: bool,
-    /// Server sections the user collapsed in the chat sidebar (normalized
-    /// URLs). Order itself persists via saved_servers.
+    /// Whether each server's channel list in the chat sidebar is folded, as the person chose it
+    /// (normalized URL -> folded; one never chosen is folded unless it is the current server).
+    /// Order itself persists via saved_servers.
     #[serde(default)]
-    pub collapsed_servers: Vec<String>,
+    pub server_folds: std::collections::BTreeMap<String, bool>,
     /// Servers whose account an identity erased, keyed "<public key> <normalized URL>"
     /// (gui/connections.rs `erased_entry`, BUG-135), with whether the erase finished. The app
     /// never dials one by itself, so a restart does not sign up again there; the Chat page's
@@ -1570,7 +1571,7 @@ impl AppConfig {
             host_node_db: state.host_node_db.clone(),
             host_node_name: state.host_node_name.clone(),
             host_node_local_only: state.host_node_local_only,
-            collapsed_servers: state.chat_server_sections_collapsed.iter().cloned().collect(),
+            server_folds: state.chat_server_folds.iter().map(|(k, v)| (k.clone(), *v)).collect(),
             account_erased_on: state.account_erased_on.clone(),
             render_distance: state.settings.render_distance,
             water_detail_depth: state.settings.water_detail_depth,
@@ -1793,7 +1794,7 @@ impl AppConfig {
         state.host_node_db = self.host_node_db.clone();
         state.host_node_name = self.host_node_name.clone();
         state.host_node_local_only = self.host_node_local_only;
-        state.chat_server_sections_collapsed = self.collapsed_servers.iter().cloned().collect();
+        state.chat_server_folds = self.server_folds.iter().map(|(k, v)| (k.clone(), *v)).collect();
         state.account_erased_on = self.account_erased_on.clone();
         state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);
         state.settings.water_detail_depth = self.water_detail_depth.clamp(14.0, 20.0);

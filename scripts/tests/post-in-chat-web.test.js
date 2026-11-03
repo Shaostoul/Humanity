@@ -26,14 +26,14 @@
 // What it proves:
 //  A. Add to Media ends with "Also post in chat", in its green "Who can see it" part: the tick on
 //     the left, then the channel and Add to favorites, both greyed (disabled) while the tick is
-//     off; the channel open in the chat first ("#general (open in the chat)"), then favourites
+//     off; the channel open in the chat first ("#global (open in the chat)"), then favourites
 //     ("⭐ #printing"), then the rest; a read-only channel only for an admin; favourites kept in
 //     this browser, by server and channel; with no channel, one line saying so; a form for a file
 //     already on the server has none.
 //  B. Once the item is published, its own address on this server's Media page ({origin}/files/{id},
 //     which the chat shows as the item's card, web/chat/chat-files-card.js) is posted in the
 //     channel ticked, as a chat message signed over "content\ntimestamp" the way the chat signs one,
-//     and the line says "Posted in #general." once the server's echo came back. A members-only item
+//     and the line says "Posted in #global." once the server's echo came back. A members-only item
 //     posts the same: its page (since 2026-10-17, the desktop's add.rs post_text).
 //  C. Where it is not posted, the line says why and nothing is sent: the connection gone, the
 //     server's refusal (its words), no answer, the recovery-phrase guard (its own sentence), the
@@ -69,7 +69,7 @@ const LICENCES = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", 
 
 // This server's channels, as its channel_list names them (src/relay/relay.rs ChannelInfo).
 const CHANNELS = [
-  { id: "general", name: "general", post_level: "members" },
+  { id: "global", name: "global", post_level: "members" },
   { id: "announcements", name: "announcements", post_level: "mods" },
   { id: "printing", name: "printing", post_level: "members" },
   { id: "random", name: "random", post_level: "members" },
@@ -121,9 +121,9 @@ const chats = (session) => session.sent.filter((m) => m && m.type === "chat");
 // channel, then Add to favorites" (actual [ 'SELECT', 'LABEL', 'BUTTON' ]); with the select's
 // `disabled: !on` left out: "greyed while the tick is off" (actual false); with postChoices listing the
 // favourites after the rest: "a favourite: after the open one, before the rest" (actual [ '#random
-// (open in the chat)', '#general', '⭐ #printing' ]); with togglePostFavorite never writing to storage
+// (open in the chat)', '#global', '⭐ #printing' ]); with togglePostFavorite never writing to storage
 // (where the favourites are read back from): the same assertion (actual [ '#random (open in the
-// chat)', '#general', '#printing' ]).
+// chat)', '#global', '#printing' ]).
 test("A. Also post in chat: the tick on the left, the channel and Add to favorites greyed while it is off; the open channel first, then favourites, then the rest", async () => {
   const storage = storageWith("random");
   const p = await openPage({ storage, routes: listRoutes(listAnswer([])) });
@@ -140,7 +140,7 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
   assert.equal(r.row.children[0].title, "When it is up, a card for it is posted in this channel: its title, then its picture, description and every file when opened.", "its tooltip");
   assert.equal(r.tick.checked, false, "off unless asked for");
   assert.ok(r.greyed, "greyed while the tick is off");
-  assert.deepEqual(r.options, ["#random (open in the chat)", "#general", "#printing"], "the open channel first, then the rest; a read-only channel is not offered");
+  assert.deepEqual(r.options, ["#random (open in the chat)", "#global", "#printing"], "the open channel first, then the rest; a read-only channel is not offered");
   assert.equal(text(r.star), "Add to favorites");
   assert.equal(r.star.title, "Favorite channels are listed first, after the one open in the chat.");
   r.star.click();
@@ -154,7 +154,7 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
   postRow(p.doc).star.click();
   await settle();
   r = postRow(p.doc);
-  assert.deepEqual(r.options, ["#random (open in the chat)", "⭐ #printing", "#general"], "a favourite: after the open one, before the rest");
+  assert.deepEqual(r.options, ["#random (open in the chat)", "⭐ #printing", "#global"], "a favourite: after the open one, before the rest");
   assert.equal(r.chosen, "printing", "still the one chosen");
   assert.equal(text(r.star), "Remove from favorites");
   assert.deepEqual(JSON.parse(storage.getItem(M.POST_FAVORITES_KEY)), [ORIGIN + "\nprinting"], "kept by server and channel, in this browser");
@@ -162,13 +162,13 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
   const again = await openPage({ storage, routes: listRoutes(listAnswer([])) });
   listChannels(again.session);
   await pick(again.doc, [aFile("dawn.mp4", MIB)]);
-  assert.deepEqual(postRow(again.doc).options, ["#random (open in the chat)", "⭐ #printing", "#general"], "kept on this device: another page lists it the same");
+  assert.deepEqual(postRow(again.doc).options, ["#random (open in the chat)", "⭐ #printing", "#global"], "kept on this device: another page lists it the same");
 
   // A read-only channel only for an admin (the relay lets its staff post there).
-  const admin = await openPage({ session: fakeSession({ role: "admin" }), storage: storageWith("general"), routes: listRoutes(listAnswer([])) });
+  const admin = await openPage({ session: fakeSession({ role: "admin" }), storage: storageWith("global"), routes: listRoutes(listAnswer([])) });
   listChannels(admin.session);
   await pick(admin.doc, [aFile("dusk.mp4", MIB)]);
-  assert.deepEqual(postRow(admin.doc).options, ["#general (open in the chat)", "#announcements", "#printing", "#random"], "an admin: the read-only channel too");
+  assert.deepEqual(postRow(admin.doc).options, ["#global (open in the chat)", "#announcements", "#printing", "#random"], "an admin: the read-only channel too");
 
   // No channel: one line saying so.
   const none = await openPage({ routes: listRoutes(listAnswer([])) });
@@ -197,7 +197,7 @@ async function readyToUpload(opts) {
   const relay = resumableRelay();
   const published = [];
   const p = await openPage(Object.assign({
-    storage: storageWith("general"),
+    storage: storageWith("global"),
     phraseIn: o.phraseIn === undefined ? async () => false : o.phraseIn,
     routes: listRoutes(listAnswer([]), relay.routes.concat([
       [at("/api/files", "POST"), (c) => {
@@ -234,13 +234,13 @@ const runTimer = (p, ms) => { for (const t of p.timers.filter((x) => x.ms === ms
 test("B. once published, its own address on the Files page is posted in the channel ticked, signed as the chat signs, and the line says so once the server has it", async () => {
   const p = await readyToUpload();
   await tickOn(p.doc, true);
-  assert.equal(postRow(p.doc).chosen, "general", "test setup: #general, the channel open in the chat");
+  assert.equal(postRow(p.doc).chosen, "global", "test setup: #global, the channel open in the chat");
   await upload(p);
   assert.equal(p.published.length, 1, "published");
   const sent = chats(p.session);
   assert.equal(sent.length, 1, "one chat message");
   const m = sent[0];
-  assert.equal(m.channel, "general", "in the channel ticked");
+  assert.equal(m.channel, "global", "in the channel ticked");
   // The item's own page on this server, which both apps draw as its card: never its title,
   // description or file's address (the desktop's add.rs post_text, 2026-10-17).
   assert.equal(m.content, ORIGIN + "/files/7", "its own address on the Files page, nothing else");
@@ -251,7 +251,7 @@ test("B. once published, its own address on the Files page is posted in the chan
   assert.equal(notice(p.doc), M.FILES_WORDS.published, "not before the server has it");
   echo(p, m);
   await settle();
-  assert.equal(notice(p.doc), M.FILES_WORDS.published + " Posted in #general.", "Posted in #general.");
+  assert.equal(notice(p.doc), M.FILES_WORDS.published + " Posted in #global.", "Posted in #global.");
 
   // A members-only item: the same, its page, which only members can open, never its file.
   const mem = await readyToUpload({ members: true, title: "", description: "" });
@@ -262,7 +262,7 @@ test("B. once published, its own address on the Files page is posted in the chan
   assert.equal(mm.content, ORIGIN + "/files/7", "a members-only item: its page, never its file");
   echo(mem, mm);
   await settle();
-  assert.equal(notice(mem.doc), M.FILES_WORDS.published + " Posted in #general.");
+  assert.equal(notice(mem.doc), M.FILES_WORDS.published + " Posted in #global.");
 });
 
 // Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in web/pages/files-add.js:
@@ -279,7 +279,7 @@ test("C. where it is not posted the line says why and nothing goes: the connecti
   await tickOn(gone.doc, true);
   await upload(gone);
   assert.equal(chats(gone.session).length, 0, "the connection gone: nothing sent");
-  assert.equal(notice(gone.doc), published + " Not posted in #general: the chat is not connected to its server.");
+  assert.equal(notice(gone.doc), published + " Not posted in #global: the chat is not connected to its server.");
 
   // The server refuses it: its words. A line about something else meanwhile does not count.
   const ro = await readyToUpload();
@@ -292,7 +292,7 @@ test("C. where it is not posted the line says why and nothing goes: the connecti
   assert.equal(notice(ro.doc), published, "a moment is given for its echo");
   runTimer(ro, M.POST_GRACE_MS);
   await settle();
-  assert.equal(notice(ro.doc), published + " Not posted in #general: This channel is read-only.", "the server's refusal, in its words");
+  assert.equal(notice(ro.doc), published + " Not posted in #global: This channel is read-only.", "the server's refusal, in its words");
   // A line about something else, then its echo: posted.
   const other = await readyToUpload();
   await tickOn(other.doc, true);
@@ -301,7 +301,7 @@ test("C. where it is not posted the line says why and nothing goes: the connecti
   echo(other, chats(other.session)[0]);
   await settle();
   runTimer(other, M.POST_GRACE_MS);
-  assert.equal(notice(other.doc), published + " Posted in #general.", "another line meanwhile: posted once its echo came");
+  assert.equal(notice(other.doc), published + " Posted in #global.", "another line meanwhile: posted once its echo came");
 
   // No answer at all.
   const silent = await readyToUpload();
@@ -309,20 +309,20 @@ test("C. where it is not posted the line says why and nothing goes: the connecti
   await upload(silent);
   runTimer(silent, 15000);
   await settle();
-  assert.equal(notice(silent.doc), published + " Not posted in #general: the server did not answer.");
+  assert.equal(notice(silent.doc), published + " Not posted in #global: the server did not answer.");
 
   // The recovery-phrase guard: the chat's own sentence, and nothing signed or sent.
   const held = await readyToUpload({ phraseIn: async () => true });
   await tickOn(held.doc, true);
   await upload(held);
   assert.equal(chats(held.session).length, 0, "the guard's own sentence: nothing sent");
-  assert.equal(notice(held.doc), published + " Not posted in #general: " + WARN.PHRASE_GUARD_SENTENCE, "the guard's own sentence");
+  assert.equal(notice(held.doc), published + " Not posted in #global: " + WARN.PHRASE_GUARD_SENTENCE, "the guard's own sentence");
   // The guard cannot run: kept back, never sent unchecked.
   const unchecked = await readyToUpload({ phraseIn: null });
   await tickOn(unchecked.doc, true);
   await upload(unchecked);
   assert.equal(chats(unchecked.session).length, 0, "unchecked: nothing sent");
-  assert.equal(notice(unchecked.doc), published + " Not posted in #general: this page could not check it for your recovery phrase, so it was kept back.");
+  assert.equal(notice(unchecked.doc), published + " Not posted in #global: this page could not check it for your recovery phrase, so it was kept back.");
 
   // The tick off: published, and nothing posted.
   const off = await readyToUpload();
@@ -404,18 +404,18 @@ function idsIn(el) {
 // 'files-admin-wrap', 'files-viewer', 'files-report', 'files-takedown', 'files-file-input' ]); in
 // files-add.js, with takePending opening the form at once, before the page signed in: "they wait,
 // named, while the page signs in" (actual null); with openAddForm ignoring postTo: "posting ticked,
-// for #general" (actual false); with cancelForm not telling the page it is over: "Cancel closes the
+// for #global" (actual false); with cancelForm not telling the page it is over: "Cancel closes the
 // window" (actual false); in files-app.js, with dropDecision saying Drop to upload to Media over the
 // window whatever channel it was opened for: "over the window: the chat's channel's words" (actual
 // 'Drop to upload to Media'); with dropped() not posting a drop on the window in that channel: "and
-// the drop opens Add to Media posting in #general" (actual false).
+// the drop opens Add to Media posting in #global" (actual false).
 test("E. the upload window shows Add to Files alone, takes the files handed over once it may, posting ticked, and tells the page it is over what goes on", async () => {
   const relay = resumableRelay();
   const win = windowConnector();
   const session = fakeSession({ status: "connecting", role: "", roles: null, uploadToken: "" });
   const dropWin = fakeWindow(ORIGIN); // where files dragged over the window itself are heard
   const p = await openPage({
-    session, storage: storageWith("general"), uploadWindow: win, phraseIn: async () => false, window: dropWin,
+    session, storage: storageWith("global"), uploadWindow: win, phraseIn: async () => false, window: dropWin,
     routes: listRoutes(listAnswer([], { licences: LICENCES }), relay.routes.concat([
       [at("/api/files", "POST"), (c) => respond(200, { ok: true, item: H.item({ id: 7, url: "/uploads/" + c.body.filename, title: c.body.title, visibility: c.body.visibility }) })],
       // Its other file, added to the item once up (Edit's Add a file).
@@ -430,7 +430,7 @@ test("E. the upload window shows Add to Files alone, takes the files handed over
 
   const dusk = aFile("dusk.mp4", 3 * MIB);
   const dawn = aFile("dawn.mp4", 2 * MIB);
-  p.page.takeFiles([dusk, dawn], "general");
+  p.page.takeFiles([dusk, dawn], "global");
   await settle();
   const waiting = byId(p.doc, "files-form-pending");
   assert.ok(waiting && !p.page.state.form, "they wait, named, while the page signs in");
@@ -445,12 +445,12 @@ test("E. the upload window shows Add to Files alone, takes the files handed over
   assert.ok(f && f.file === dusk, "signed in: Add to Files opens with the first file as the item");
   assert.deepEqual(f.more, [dawn], "the rest to be added once it is up");
   const r = postRow(p.doc);
-  assert.ok(r && r.tick.checked && r.chosen === "general", "posting ticked, for #general");
-  assert.equal(r.options[0], "#general (open in the chat)");
+  assert.ok(r && r.tick.checked && r.chosen === "global", "posting ticked, for #global");
+  assert.equal(r.options[0], "#global (open in the chat)");
   assert.equal(win.last("busy").busy, false, "nothing going until Upload");
 
   // The same form as the Media page's own, every check in it (the share, the licence, Who can see it).
-  const plain = await openPage({ storage: storageWith("general"), routes: listRoutes(listAnswer([], { licences: LICENCES })) });
+  const plain = await openPage({ storage: storageWith("global"), routes: listRoutes(listAnswer([], { licences: LICENCES })) });
   listChannels(plain.session);
   await pick(plain.doc, [dusk, dawn]);
   assert.deepEqual(idsIn(byId(p.doc, "files-form")), idsIn(byId(plain.doc, "files-form")), "the same form, part for part");
@@ -460,24 +460,24 @@ test("E. the upload window shows Add to Files alone, takes the files handed over
   byId(p.doc, "files-form-go").click();
   await settle();
   const sent = chats(session);
-  assert.equal(sent.length, 1, "posted in #general once published");
+  assert.equal(sent.length, 1, "posted in #global once published");
   assert.equal(win.last("busy").busy, true, "going until the post is answered");
   echo({ session }, sent[0]);
   await settle();
   // Its line, as the desktop's says it: published, posted, then its other file going up to the item.
   const lines = win.told.filter((t) => t.event === "status").map((t) => t.text);
-  assert.ok(lines.includes(M.FILES_WORDS.published + " Posted in #general. Its other file is uploading under Uploads in progress, and added to it when up."), "its line, for the page it is over: " + JSON.stringify(lines));
+  assert.ok(lines.includes(M.FILES_WORDS.published + " Posted in #global. Its other file is uploading under Uploads in progress, and added to it when up."), "its line, for the page it is over: " + JSON.stringify(lines));
   assert.equal(lines[lines.length - 1], "Added to \"1760_dusk.mp4\".", "and the next, when its other file is in");
 
   // Files dropped on the window itself post in the same channel, as a drop on the chat under it does.
   const drag = (files) => ({ dataTransfer: { types: ["Files"], files: files || [], dropEffect: "none" }, preventDefault() {} });
   dropWin.fire("dragenter", drag());
   const overlay = p.doc.body.querySelector(".hos-drop-overlay");
-  assert.equal(text(overlay.children[0]), "Drop to upload to Files and post in #general", "over the window: the chat's channel's words");
+  assert.equal(text(overlay.children[0]), "Drop to upload to Files and post in #global", "over the window: the chat's channel's words");
   const again = aFile("again.mp4", MIB);
   dropWin.fire("drop", drag([again]));
   await settle();
-  assert.ok(p.page.state.form && p.page.state.form.file === again && postRow(p.doc).tick.checked && postRow(p.doc).chosen === "general", "and the drop opens Add to Files posting in #general");
+  assert.ok(p.page.state.form && p.page.state.form.file === again && postRow(p.doc).tick.checked && postRow(p.doc).chosen === "global", "and the drop opens Add to Files posting in #global");
 
   // Cancel on a form with nothing going closes the window.
   p.page.takeFiles([aFile("other.mp4", MIB)], "");
@@ -525,7 +525,7 @@ test("F. the two halves: files wait until the frame is there; only its own messa
   const w = UW.createHost({ window: host, document: doc, onStatus: (t) => said.push(t) });
   const a = { name: "dusk.mp4" };
   const b = { name: "dawn.mp4" };
-  assert.ok(w.show([a, b], "general"));
+  assert.ok(w.show([a, b], "global"));
   const el = w.element();
   assert.ok(el && doc.body.children.includes(el) && el.hidden === false, "the window is shown");
   assert.equal(el.className, "hos-upload-window");
@@ -546,7 +546,7 @@ test("F. the two halves: files wait until the frame is there; only its own messa
   host.fire("message", { source: inside, origin: "https://elsewhere.example", data: { kind: UW.KIND, event: "ready" } });
   assert.equal(inside.posted.length, 0, "another window's message is not the frame's, nor one from another site");
   host.fire("message", { source: inside, origin: ORIGIN, data: { kind: UW.KIND, event: "ready" } });
-  assert.deepEqual(inside.posted, [{ data: { kind: UW.KIND, event: "files", files: [a, b], postTo: "general" }, to: ORIGIN }], "then the files, and the channel to post in");
+  assert.deepEqual(inside.posted, [{ data: { kind: UW.KIND, event: "files", files: [a, b], postTo: "global" }, to: ORIGIN }], "then the files, and the channel to post in");
   w.show([b], "");
   assert.deepEqual(inside.posted[1].data.files, [b], "the next drop goes at once");
 
@@ -557,8 +557,8 @@ test("F. the two halves: files wait until the frame is there; only its own messa
   doc.key("Escape");
   assert.ok(w.element() === el && el.hidden === true && doc.body.children.includes(el), "closed with an upload going: hidden, kept");
   assert.equal(w.isOpen(), false);
-  host.fire("message", { source: inside, origin: ORIGIN, data: { kind: UW.KIND, event: "status", text: "It is on the Files page now. Posted in #general." } });
-  assert.deepEqual(said, ["It is on the Files page now. Posted in #general."], "closed: its lines go to the chat");
+  host.fire("message", { source: inside, origin: ORIGIN, data: { kind: UW.KIND, event: "status", text: "It is on the Files page now. Posted in #global." } });
+  assert.deepEqual(said, ["It is on the Files page now. Posted in #global."], "closed: its lines go to the chat");
   host.fire("message", { source: inside, origin: ORIGIN, data: { kind: UW.KIND, event: "busy", busy: false } });
   assert.equal(w.element(), null, "nothing going: removed");
   assert.ok(!doc.body.children.includes(el));
@@ -576,10 +576,10 @@ test("F. the two halves: files wait until the frame is there; only its own messa
   const c = UW.connectFrame({ window: frameWin, onFiles: (files, postTo) => took.push([files, postTo]) });
   c.ready();
   assert.deepEqual(host.posted.pop(), { data: { kind: UW.KIND, event: "ready" }, to: ORIGIN }, "it says it is there");
-  frameWin.fire("message", { source: host, origin: ORIGIN, data: { kind: UW.KIND, event: "files", files: [a], postTo: "general" } });
-  frameWin.fire("message", { source: stranger, origin: ORIGIN, data: { kind: UW.KIND, event: "files", files: [b], postTo: "general" } });
+  frameWin.fire("message", { source: host, origin: ORIGIN, data: { kind: UW.KIND, event: "files", files: [a], postTo: "global" } });
+  frameWin.fire("message", { source: stranger, origin: ORIGIN, data: { kind: UW.KIND, event: "files", files: [b], postTo: "global" } });
   frameWin.fire("message", { source: host, origin: "https://elsewhere.example", data: { kind: UW.KIND, event: "files", files: [b], postTo: "" } });
-  assert.deepEqual(took, [[[a], "general"]], "only its host's");
+  assert.deepEqual(took, [[[a], "global"]], "only its host's");
   assert.equal(UW.connectFrame({ window: fakeWindow(ORIGIN) }), null, "a page not in a frame is no upload window");
 });
 

@@ -34,7 +34,7 @@
 // published its own address on this page (/files/<id>, which the chat shows as
 // the item's card) is posted there, signed as the
 // chat signs, the chat's recovery-phrase guard first, and the line says
-// "Posted in #general." or why not. Its Upload button wears the nav bar's RGB
+// "Posted in #global." or why not. Its Upload button wears the nav bar's RGB
 // border. At /files?window=upload in a frame (/shared/upload-window.js) the
 // page is the upload window over the chat: Add to Files and its uploads alone,
 // opened with the files dropped on a channel there, posting ticked for it. At

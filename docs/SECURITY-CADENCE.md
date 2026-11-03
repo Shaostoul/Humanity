@@ -51,7 +51,7 @@ For every minor bump (Rust code changed), before `gh release create`:
 
 ### Smoke checklist (manual, ~5 min)
 - [ ] App opens, connects to relay, identifies successfully.
-- [ ] Send a message in #general → it appears for self.
+- [ ] Send a message in #global → it appears for self.
 - [ ] Send a DM to a test recipient (different identity) → both parties see it.
 - [ ] Open Settings → confirm no panic, sliders move, theme tokens render.
 - [ ] Right-click a message → context menu shows expected entries for your role.

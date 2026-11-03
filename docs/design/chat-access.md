@@ -99,7 +99,7 @@ server by `src/relay/chat_access.rs` `rank_of`):
 ## 4. Each channel's starting levels
 
 - **A new channel reads and posts at Members** (safe by default). An admin opens it to Anyone.
-- **#general reads at Anyone, posts at Members** ("Nonaccounts should be available to view").
+- **#global (the old #general, renamed the same day, `docs/design/chat-channels.md`) reads at Anyone, posts at Members** ("Nonaccounts should be available to view").
 - **#announcements reads at Anyone, posts at Moderators and admins.**
 - **#local reads at Members, posts at Members** (it never leaves this server anyway).
 - **Any other channel already on a server when the upgrade runs reads at Members**: it was
@@ -135,7 +135,7 @@ without a member's signature is answered only with posts made after it, and with
 a signature is checked against a key, so anyone holding a list of keys could try each and find the
 poster (found in the merge review, 2026-11-02, and held by the visitor test). Members, who
 read through a signed request, see the whole history as before. The upgrade sets `anyone_since`
-to the moment it runs for #general, so the website's read-only view of #general starts empty and
+to the moment it runs for #global (then #general), so the website's read-only view of it starts empty and
 fills as people post with the line in front of them. #announcements keeps its whole history
 public (`anyone_since` 0; decided in the merge review, 2026-11-02): every one of its 2,449 lines on
 united-humanity.us is the Deploy Bot's, so nobody's words are exposed, and the front page shows
@@ -220,7 +220,7 @@ rank.
   `GET /api/channels` lists the Anyone channels for the read-only view.
 - **The socket.** Each line (chat, a federated line, an edit, a reaction, a pin, link previews)
   goes only to sockets whose rank may read its channel; the search and a thread's replies are
-  filtered the same way; the pins and reactions sent at sign-in are #general's only when the
+  filtered the same way; the pins and reactions sent at sign-in are #global's only when the
   socket may read it.
 - **Posting.** After the slash commands (a command is not a post), the post level, then @everyone
   and @here below Moderator, then for a member below Verified at most one link and no upload

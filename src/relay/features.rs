@@ -688,9 +688,10 @@ mod tests {
         use std::sync::Arc;
 
         let db = crate::relay::storage::Storage::open_temp("featgate");
-        // #general as a server makes it (open to Anyone), so step 3's unsigned read is answered: a
-        // channel this server does not have reads at Members (chat_access.rs) and refuses with 401.
-        db.ensure_default_channel().expect("#general");
+        // The default channels as a server makes them (#global open to Anyone), so step 3's unsigned
+        // read is answered: a channel this server does not have reads at Members (chat_access.rs) and
+        // refuses with 401.
+        crate::relay::default_channels::make_missing(&db, true);
 
         let mut state = RelayState::new(db);
         // The owner said: chat yes, backups no.
@@ -740,7 +741,7 @@ mod tests {
 
         // 3. An ENABLED feature is untouched: /api/messages answers normally.
         let res = client
-            .get(format!("{base}/api/messages?channel=general&limit=1"))
+            .get(format!("{base}/api/messages?channel=global&limit=1"))
             .send()
             .await
             .expect("request reaches the relay");
@@ -1315,7 +1316,7 @@ mod tests {
     #[tokio::test]
     async fn pins_edits_and_reactions_are_only_for_this_servers_rooms() {
         let (state, port) = spawn_relay("only_rooms", Features::all_enabled()).await;
-        state.db.ensure_default_channel().unwrap(); // the relay makes #general at start (relay/mod.rs)
+        crate::relay::default_channels::make_missing(&state.db, true); // the relay makes them at start (relay/mod.rs)
         let (mut admin, admin_key) = bind_socket(&state, port, [51u8; 32], Some("Admin"), 1).await;
         state.db.set_role(&admin_key, "admin").unwrap();
         let (mut bystander, _) = bind_socket(&state, port, [52u8; 32], Some("Bystander"), 1).await;
@@ -1346,7 +1347,7 @@ mod tests {
         // nothing from the DM or the group reached them before it.
         send_json(&mut admin, serde_json::json!({
             "type": "pin_request", "from_key": "someone", "from_name": "Someone",
-            "content": "a public word", "timestamp": 1_791_000_000_001u64, "channel": "general",
+            "content": "a public word", "timestamp": 1_791_000_000_001u64, "channel": "global",
         })).await;
         let first = next_frame_with(&mut bystander, |v| {
             let t = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
@@ -1355,7 +1356,7 @@ mod tests {
         .await
         .expect("the bystander hears the room's pin");
         assert_eq!(first["type"], "pin_added", "nothing from a DM or a group reached the bystander first: {first}");
-        assert_eq!(first["channel"], "general");
+        assert_eq!(first["channel"], "global");
         assert!(!first.to_string().contains("a private word"), "no private text was sent to them");
         assert!(state.db.load_channel_reactions("dm:aa", 10).unwrap().is_empty(), "no reaction kept for a DM");
         assert!(state.db.load_channel_reactions("p2pgroup:bb", 10).unwrap().is_empty(), "nor for a group");

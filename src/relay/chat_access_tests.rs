@@ -33,19 +33,18 @@ impl Relay {
     }
 }
 
-/// A relay on loopback with #general (Anyone / Members, as a fresh server seeds it), #lounge
-/// (a new channel: Members / Members), #vip (Verified / Verified) and #announcements (Anyone /
-/// Moderators and admins).
+/// A relay on loopback with the default channels as a fresh server makes them (#announcements:
+/// Anyone / Moderators and admins; #local: Members; #global and #feedback: Anyone / Members,
+/// data/server/default_channels.json), #lounge (a new channel: Members / Members) and #vip
+/// (Verified / Verified).
 async fn relay(tag: &str) -> Relay {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let state = crate::relay::serve_relay(Storage::open_temp(tag), listener).await;
-    state.db.ensure_default_channel().unwrap();
+    crate::relay::default_channels::make_missing(&state.db, true);
     state.db.create_channel("lounge", "lounge", None, "test", PostLevel::Members).unwrap();
     state.db.create_channel("vip", "vip", None, "test", PostLevel::Members).unwrap();
     state.db.set_channel_access("vip", ReadLevel::Verified, PostLevel::Verified).unwrap();
-    state.db.create_channel("announcements", "announcements", None, "test", PostLevel::Mods).unwrap();
-    state.db.set_channel_access("announcements", ReadLevel::Anyone, PostLevel::Mods).unwrap();
     Relay { state, port }
 }
 
@@ -241,7 +240,7 @@ fn a_members_channel_is_read_only_by_members_and_a_verified_one_only_by_the_veri
         let sig = hex::encode(kp.sign(format!("{}\n{ts}", read_purpose("messages", "lounge")).as_bytes()));
         let res = reqwest::Client::new()
             .post(format!("{}/api/messages", r.base()))
-            .json(&json!({ "key": key, "timestamp": ts, "sig": sig, "channel": "general" }))
+            .json(&json!({ "key": key, "timestamp": ts, "sig": sig, "channel": "global" }))
             .send()
             .await
             .unwrap();
@@ -250,9 +249,10 @@ fn a_members_channel_is_read_only_by_members_and_a_verified_one_only_by_the_veri
 }
 
 /// A VISITOR READS AN ANYONE CHANNEL'S POSTS SINCE IT OPENED, WITHOUT KEYS (design 4.1): of two
-/// #general posts, the one made before the channel opened to Anyone is not served without a
+/// #global posts, the one made before the channel opened to Anyone is not served without a
 /// member's signature, the later one is, its poster's key blanked; a member's signed read has
-/// both, keys included; GET /api/channels lists #general and #announcements and not #lounge.
+/// both, keys included; GET /api/channels lists the Anyone channels (#announcements, #global,
+/// #feedback) and not #lounge.
 /// 
 /// Seen red 2026-11-02 with GET /api/messages reading from 0 instead of `anyone_since`: "only what
 /// was posted after it opened" (left: ["before it opened", "after it opened"]).
@@ -262,29 +262,29 @@ fn a_visitor_reads_an_anyone_channel_since_it_opened_without_keys() {
         let r = relay("access_visitor").await;
         let (_, ann) = keypair(1);
         r.state.db.register_name("ann", &ann).unwrap();
-        let (_, _, since) = r.state.db.channel_access("general").unwrap();
-        assert!(since > 0, "#general opened to Anyone when it was made");
-        store(&r, "general", &ann, "before it opened", (since - 60_000) as u64);
-        store(&r, "general", &ann, "after it opened", (since + 1) as u64);
+        let (_, _, since) = r.state.db.channel_access("global").unwrap();
+        assert!(since > 0, "#global opened to Anyone when it was made");
+        store(&r, "global", &ann, "before it opened", (since - 60_000) as u64);
+        store(&r, "global", &ann, "after it opened", (since + 1) as u64);
 
-        let (status, body) = visitor_read(&r, "messages", "general").await;
+        let (status, body) = visitor_read(&r, "messages", "global").await;
         assert_eq!(status, 200, "{body}");
         assert_eq!(contents(&body), vec!["after it opened"], "only what was posted after it opened");
         assert_eq!(body["messages"][0]["from"], "", "and no poster's key");
         assert!(body["messages"][0].get("signature").is_none(), "and no signature, which a list of keys would match to its poster: {body}");
-        let (_, body) = signed_read(&r, 1, "messages", "general").await;
+        let (_, body) = signed_read(&r, 1, "messages", "global").await;
         assert_eq!(contents(&body), vec!["before it opened", "after it opened"], "a member reads it whole");
         assert_eq!(body["messages"][0]["from"].as_str(), Some(ann.as_str()));
         assert!(body["messages"][0]["signature"].is_string(), "a member is given the signature to check");
 
         let listed = reqwest::get(format!("{}/api/channels", r.base())).await.unwrap().json::<Value>().await.unwrap();
         let ids: Vec<&str> = listed["channels"].as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap()).collect();
-        assert_eq!(ids, vec!["general", "announcements"], "only the Anyone channels, in the sidebar's order");
+        assert_eq!(ids, vec!["announcements", "global", "feedback"], "only the Anyone channels, in the sidebar's order");
     });
 }
 
 /// THE LIVE FEED, THE POST LEVEL, ONE LINK AND NO ATTACHMENT BELOW VERIFIED. Over real sockets:
-/// - a socket that chose no name is sent #general's lines (Anyone) but not #lounge's (Members);
+/// - a socket that chose no name is sent #global's lines (Anyone) but not #lounge's (Members);
 /// - a member's line in #announcements (Moderators and admins) is refused, `post_level`, and not
 ///   stored; a moderator's is posted;
 /// - an unverified member's line with two links is refused, `too_many_links`; with one link it is
@@ -307,13 +307,13 @@ fn the_feed_follows_the_read_level_and_posts_follow_the_post_level_and_the_link_
         let mut nameless = sign_in(&r, 3, None).await;
         let mut ann = sign_in(&r, 1, Some("ann")).await;
 
-        // The feed: #lounge's line first, then #general's; the nameless socket's first chat is #general's.
+        // The feed: #lounge's line first, then #global's; the nameless socket's first chat is #global's.
         let lounge_ts = post(&r, &mut ann, 1, "lounge", "for members").await;
         assert_eq!(answer_to(&mut ann, lounge_ts).await["type"], "chat", "ann posts in #lounge");
-        let general_ts = post(&r, &mut ann, 1, "general", "for anyone").await;
-        assert_eq!(answer_to(&mut ann, general_ts).await["type"], "chat");
+        let global_ts = post(&r, &mut ann, 1, "global", "for anyone").await;
+        assert_eq!(answer_to(&mut ann, global_ts).await["type"], "chat");
         let first = frame_where(&mut nameless, "a chat line", |f| f["type"] == "chat").await;
-        assert_eq!(first["channel"], "general", "a socket with no name is not sent a Members channel's line: {first}");
+        assert_eq!(first["channel"], "global", "a socket with no name is not sent a Members channel's line: {first}");
 
         // The post level.
         let ts = post(&r, &mut ann, 1, "announcements", "a member's announcement").await;
@@ -327,37 +327,37 @@ fn the_feed_follows_the_read_level_and_posts_follow_the_post_level_and_the_link_
         r.state.db.set_role(&ann_key, "").unwrap();
 
         // One link a line below Verified, shown with no preview.
-        let ts = post(&r, &mut ann, 1, "general", "two https://a.example and https://b.example").await;
+        let ts = post(&r, &mut ann, 1, "global", "two https://a.example and https://b.example").await;
         let refused = answer_to(&mut ann, ts).await;
         assert_eq!(refused["reason"], "too_many_links", "{refused}");
-        let ts = post(&r, &mut ann, 1, "general", "one https://a.example").await;
+        let ts = post(&r, &mut ann, 1, "global", "one https://a.example").await;
         assert_eq!(answer_to(&mut ann, ts).await["type"], "chat", "one link is posted");
-        assert!(stored(&r, "general").contains(&"one https://a.example".to_string()), "and stored as written");
+        assert!(stored(&r, "global").contains(&"one https://a.example".to_string()), "and stored as written");
         let previews = tokio::time::timeout(Duration::from_millis(500), frame_where(&mut ann, "a link preview", |f| f["type"] == "link_previews")).await;
         assert!(previews.is_err(), "no preview is fetched or sent");
 
         // No attachment below Verified.
-        let ts = post(&r, &mut ann, 1, "general", "look /uploads/1760000000000_cat.png").await;
+        let ts = post(&r, &mut ann, 1, "global", "look /uploads/1760000000000_cat.png").await;
         let refused = answer_to(&mut ann, ts).await;
         assert_eq!(refused["reason"], "attachment", "{refused}");
-        assert!(!stored(&r, "general").iter().any(|c| c.contains("/uploads/")), "and it is not stored");
+        assert!(!stored(&r, "global").iter().any(|c| c.contains("/uploads/")), "and it is not stored");
         r.state.db.set_role(&ann_key, "verified").unwrap();
-        let ts = post(&r, &mut ann, 1, "general", "look /uploads/1760000000000_cat.png and https://a.example https://b.example").await;
+        let ts = post(&r, &mut ann, 1, "global", "look /uploads/1760000000000_cat.png and https://a.example https://b.example").await;
         assert_eq!(answer_to(&mut ann, ts).await["type"], "chat", "a verified member posts a picture and two links");
 
         // @everyone and @here are for moderators and admins (the operator, 2026-11-02).
-        let ts = post(&r, &mut ann, 1, "general", "@everyone look at this").await;
+        let ts = post(&r, &mut ann, 1, "global", "@everyone look at this").await;
         let refused = answer_to(&mut ann, ts).await;
         assert_eq!(refused["reason"], "mass_mention", "a verified member does not call on everyone: {refused}");
         r.state.db.set_role(&ann_key, "mod").unwrap();
-        let ts = post(&r, &mut ann, 1, "general", "@here the server restarts at noon").await;
+        let ts = post(&r, &mut ann, 1, "global", "@here the server restarts at noon").await;
         assert_eq!(answer_to(&mut ann, ts).await["type"], "chat", "a moderator does");
     });
 }
 
 /// AN OLD DATABASE GAINS THE LEVELS AT STARTUP. A channels table of the shape the live servers
 /// have (read_only, no read_level, post_level or anyone_since), holding #general, #announcements
-/// (read only) and #lounge, opens without error: #general and #announcements read at Anyone from
+/// (read only) and #lounge, opens without error: #global (the old #general) and #announcements read at Anyone from
 /// the upgrade's moment on, #lounge at Members; #announcements posts at Moderators and admins, the
 /// others at Members; the read_only column is gone; a second open changes nothing. The columns are
 /// added by guarded ALTERs (tests/schema_alter_order_lint.rs holds the order).
@@ -383,9 +383,9 @@ fn an_old_database_gains_the_levels_at_startup() {
     }
     let before = now_ms() as i64;
     let db = Storage::open(&path).expect("an old database opens");
-    let (read, post, since) = db.channel_access("general").unwrap();
+    let (read, post, since) = db.channel_access("global").unwrap();
     assert_eq!((read, post), (ReadLevel::Anyone, PostLevel::Members));
-    assert!(since >= before, "#general opens to Anyone from the upgrade on: {since} < {before}");
+    assert!(since >= before, "#global (the old #general) opens to Anyone from the upgrade on: {since} < {before}");
     let (read, post, since) = db.channel_access("announcements").unwrap();
     assert_eq!((read, post), (ReadLevel::Anyone, PostLevel::Mods), "its read-only flag became its post level");
     assert_eq!(since, 0, "#announcements keeps its whole history public: only the Deploy Bot posted there");
@@ -403,7 +403,7 @@ fn an_old_database_gains_the_levels_at_startup() {
 /// when a column is dropped), given the live servers' three channels and two more: #todo, read
 /// only like #announcements, and #odd, whose read_only is NULL. Every read-only channel posts at
 /// Moderators and admins, not just #announcements; a NULL flag is not read only; a second open
-/// keeps #general's stamp. (The migration review's case, 2026-11-02.)
+/// keeps #global's stamp (the old #general's). (The migration review's case, 2026-11-02.)
 ///
 /// Seen red 2026-11-02 with #announcements stamped like #general: (left: (Anyone, Mods,
 /// 1793679599067), right: (Anyone, Mods, 0)).
@@ -424,16 +424,206 @@ fn the_v0_1456_database_moves_read_only_into_post_level() {
     }
     let db = Storage::open(&path).expect("the live servers' database opens");
     let levels = |id: &str| db.channel_access(id).unwrap_or_else(|| panic!("#{id} is kept"));
-    let (read, post, general_since) = levels("general");
+    let (read, post, global_since) = levels("global");
     assert_eq!((read, post), (ReadLevel::Anyone, PostLevel::Members));
-    assert!(general_since > 0, "#general is stamped");
+    assert!(global_since > 0, "#global (the old #general) is stamped");
     assert_eq!(levels("announcements"), (ReadLevel::Anyone, PostLevel::Mods, 0));
     assert_eq!(levels("local"), (ReadLevel::Members, PostLevel::Members, 0));
     assert_eq!(levels("todo"), (ReadLevel::Members, PostLevel::Mods, 0), "every read-only channel, not only #announcements");
     assert_eq!(levels("odd"), (ReadLevel::Members, PostLevel::Members, 0), "a NULL flag is not read only");
     drop(db);
     let db = Storage::open(&path).expect("and opens again");
-    assert_eq!(db.channel_access("general").unwrap().2, general_since, "a second open keeps #general's stamp");
+    assert_eq!(db.channel_access("global").unwrap().2, global_since, "a second open keeps #global's stamp");
+}
+
+/// File in #general what the live one holds (read 2026-11-02: lines, federated lines, reactions,
+/// pins): two lines of Ann's, Bob's reply to the first (a thread), a line from a linked server, a
+/// reaction and a pin, each written as the code before the rename wrote it, raw_json included (the
+/// history is served from raw_json, whose "channel" is "general" on every live line).
+fn file_under_general(conn: &rusqlite::Connection) {
+    let chat = |from: &str, name: &str, content: &str, timestamp: u64| RelayMessage::Chat {
+        from: from.into(),
+        from_name: Some(name.into()),
+        content: content.into(),
+        timestamp,
+        signature: Some(format!("sig-{timestamp}")),
+        channel: "general".into(),
+        reply_to: None,
+        thread_count: None,
+        message_id: None,
+    };
+    let line = |msg: &RelayMessage, from: &str, name: &str, content: &str, timestamp: u64, reply: Option<(&str, u64)>| {
+        conn.execute(
+            "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, signature, raw_json, channel_id, reply_to_from, reply_to_timestamp)
+             VALUES ('chat', ?1, ?2, ?3, ?4, 'sig', ?5, 'general', ?6, ?7)",
+            rusqlite::params![from, name, content, timestamp as i64, serde_json::to_string(msg).unwrap(), reply.map(|r| r.0), reply.map(|r| r.1 as i64)],
+        )
+        .unwrap();
+    };
+    line(&chat("ann", "Ann", "the garden towers are up", 100), "ann", "Ann", "the garden towers are up", 100, None);
+    line(&chat("bob", "Bob", "they look great", 200), "bob", "Bob", "they look great", 200, Some(("ann", 100)));
+    line(&chat("ann", "Ann", "thank you", 300), "ann", "Ann", "thank you", 300, None);
+    let federated = RelayMessage::FederatedChat {
+        server_id: "peer".into(),
+        server_name: "public.guide".into(),
+        from_name: "Cy".into(),
+        content: "hello from afar".into(),
+        timestamp: 400,
+        channel: "general".into(),
+        signature: None,
+        from_key: Some("cy".into()),
+    };
+    conn.execute(
+        "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id, origin_server)
+         VALUES ('federated_chat', 'peer', 'Cy', 'hello from afar', 400, ?1, 'general', 'peer')",
+        [serde_json::to_string(&federated).unwrap()],
+    )
+    .unwrap();
+    conn.execute_batch(
+        "INSERT INTO reactions (target_from, target_timestamp, emoji, reactor_key, reactor_name, channel, created_at)
+             VALUES ('ann', 100, '+1', 'bob', 'Bob', 'general', 250);
+         INSERT INTO pinned_messages (channel, from_key, from_name, content, original_timestamp, pinned_by, pinned_at)
+             VALUES ('general', 'ann', 'Ann', 'the garden towers are up', 100, 'admin', 260);",
+    )
+    .unwrap();
+}
+
+/// What `file_under_general` filed, read back from #global: the lines in order and each carrying
+/// its new channel (raw_json rewritten, or the apps would file the whole history under a channel
+/// that no longer exists and show none of it), the thread, the reaction, the pin, the search index,
+/// the federated line, and nothing of any kind left under #general, the FTS triggers included.
+fn everything_is_under_global(db: &Storage, when: &str) {
+    let lines: Vec<(String, String)> = db
+        .load_channel_messages("global", 50)
+        .unwrap()
+        .into_iter()
+        .filter_map(|m| if let RelayMessage::Chat { content, channel, .. } = m { Some((content, channel)) } else { None })
+        .collect();
+    assert_eq!(
+        lines,
+        vec![
+            ("the garden towers are up".to_string(), "global".to_string()),
+            ("they look great".to_string(), "global".to_string()),
+            ("thank you".to_string(), "global".to_string()),
+        ],
+        "{when}: the lines, each carrying its new channel"
+    );
+    let thread = db.get_thread("ann", 100, 10).unwrap();
+    assert_eq!(thread.len(), 1, "{when}: the thread");
+    assert_eq!((thread[0].2.as_str(), thread[0].4.as_str()), ("they look great", "global"), "{when}: the reply is in #global");
+    assert_eq!(db.load_channel_reactions("global", 10).unwrap().len(), 1, "{when}: the reaction");
+    assert_eq!(db.get_pinned_messages("global").unwrap().len(), 1, "{when}: the pin");
+    let found = db.search_messages_full("towers", Some("global"), None, 10, "").unwrap();
+    assert_eq!(found.len(), 1, "{when}: the search index finds the line in #global");
+    let left = |sql: &str| db.with_conn(|c| c.query_row(sql, [], |r| r.get::<_, i64>(0))).unwrap();
+    assert_eq!(
+        left("SELECT COUNT(*) FROM messages WHERE channel_id = 'global' AND msg_type = 'federated_chat' AND json_extract(raw_json, '$.channel') = 'global'"),
+        1,
+        "{when}: the federated line"
+    );
+    assert_eq!(
+        left(
+            "SELECT (SELECT COUNT(*) FROM channels WHERE id = 'general' OR name = 'general')
+                  + (SELECT COUNT(*) FROM messages WHERE channel_id = 'general' OR json_extract(raw_json, '$.channel') = 'general')
+                  + (SELECT COUNT(*) FROM reactions WHERE channel = 'general')
+                  + (SELECT COUNT(*) FROM pinned_messages WHERE channel = 'general')
+                  + (SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND sql LIKE '%''general''%')"
+        ),
+        0,
+        "{when}: nothing is left under #general"
+    );
+    assert!(db.search_messages_full("towers", Some("general"), None, 10, "").unwrap().is_empty(), "{when}: nor in the index");
+}
+
+/// #GENERAL BECOMES #GLOBAL ON THE LIVE SERVERS' DATABASE (2026-11-02, docs/design/chat-channels.md
+/// section 2). The operator: "What do you think about renaming #general chat to #global since were
+/// federating that channel." The v0.1456 database whole, #general holding lines, a thread, a
+/// federated line, a reaction and a pin: opened once, the rename runs in the chat access upgrade's
+/// one transaction. #global reads at Anyone and posts at Members with the upgrade's stamp, keeps its
+/// Federated tick and its place, takes #global's words for the ones #general was made with, and holds
+/// everything; a second open changes nothing.
+///
+/// Seen red 2026-11-02 before the rename step existed: "#global is kept" panicked (no such
+/// channel); with the step but the raw_json rewrite switched off, "the first open: the lines, each
+/// carrying its new channel" (left: [("the garden towers are up", "general"), ("they look great",
+/// "general"), ("thank you", "general")], right: the same with "global"); with the search index's
+/// triggers still made naming #general, "nothing is left under #general" (left: 3, right: 0);
+/// with the description left as it was, "#general's first words give way to #global's" (left:
+/// "General discussion", right: the data file's words for #global).
+#[test]
+fn the_v0_1456_database_renames_general_to_global() {
+    let path = humanity_core::test_temp::db("global_v0_1456");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/relay/relay_v0_1456.sql"))).expect("the previous code's database loads from its dump");
+        conn.execute_batch(
+            "INSERT INTO channels (id, name, description, created_by, created_at, read_only, federated, position) VALUES ('general', 'general', 'General discussion', 'system', 1, 0, 1, 10);
+             INSERT INTO channels (id, name, created_at, read_only, federated, position) VALUES ('announcements', 'announcements', 1, 1, 1, 2);
+             INSERT INTO channels (id, name, created_at, read_only, local_only, position) VALUES ('local', 'local', 1, 0, 1, 3);",
+        )
+        .unwrap();
+        file_under_general(&conn);
+    }
+    let db = Storage::open(&path).expect("the live servers' database opens");
+    let (read, post, since) = db.channel_access("global").unwrap_or_else(|| panic!("#global is kept"));
+    assert_eq!((read, post), (ReadLevel::Anyone, PostLevel::Members));
+    assert!(since > 0, "#global carries the upgrade's stamp");
+    assert!(db.channel_access("general").is_none(), "#general is gone");
+    assert!(db.is_channel_federated("global").unwrap(), "the Federated tick goes with it");
+    let position = db.with_conn(|c| c.query_row("SELECT position FROM channels WHERE id = 'global'", [], |r| r.get::<_, i64>(0))).unwrap();
+    assert_eq!(position, 10, "and its place in the list");
+    let description = db.with_conn(|c| c.query_row("SELECT description FROM channels WHERE id = 'global'", [], |r| r.get::<_, String>(0))).unwrap();
+    assert_eq!(description, crate::relay::default_channels::get("global").unwrap().words(), "#general's first words give way to #global's");
+    everything_is_under_global(&db, "the first open");
+    drop(db);
+    let db = Storage::open(&path).expect("and opens again");
+    assert_eq!(db.channel_access("global").unwrap().2, since, "a second open keeps the stamp");
+    everything_is_under_global(&db, "a second open");
+}
+
+/// #GENERAL BECOMES #GLOBAL ON A DATABASE THE CHAT ACCESS UPGRADE ALREADY RAN ON: the case of a
+/// server that started the chat access code before this one (its levels and stamp are set, the
+/// read_only column is gone). The rename runs alone, all of it or none, and the levels, the stamp
+/// and the Federated tick survive it. A server that already has a #global of its own (an admin made
+/// one) is left as it is: nothing moves into it.
+///
+/// Seen red 2026-11-02 before the rename step existed: "#global is kept" panicked; with the raw_json
+/// rewrite switched off, "the rename alone: the lines, each carrying its new channel" (left:
+/// [("the garden towers are up", "general"), ...], right: [(.., "global"), ...]).
+#[test]
+fn a_database_with_the_levels_renames_general_to_global_once() {
+    let path = humanity_core::test_temp::db("global_after_access");
+    drop(Storage::open(&path).expect("a database at today's shape"));
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "INSERT INTO channels (id, name, description, created_by, created_at, read_level, post_level, anyone_since, federated, position)
+                 VALUES ('general', 'general', 'General discussion', 'system', 1, 'anyone', 'members', 1793679599067, 1, 10);",
+        )
+        .unwrap();
+        file_under_general(&conn);
+    }
+    let db = Storage::open(&path).expect("it opens");
+    let levels = db.channel_access("global").unwrap_or_else(|| panic!("#global is kept"));
+    assert_eq!(levels, (ReadLevel::Anyone, PostLevel::Members, 1793679599067), "the levels and the stamp survive");
+    assert!(db.is_channel_federated("global").unwrap(), "and the Federated tick");
+    everything_is_under_global(&db, "the rename alone");
+
+    let both = humanity_core::test_temp::db("global_and_general");
+    drop(Storage::open(&both).unwrap());
+    {
+        let conn = rusqlite::Connection::open(&both).unwrap();
+        conn.execute_batch(
+            "INSERT INTO channels (id, name, created_at) VALUES ('general', 'general', 1);
+             INSERT INTO channels (id, name, created_at) VALUES ('global', 'global', 1);",
+        )
+        .unwrap();
+        file_under_general(&conn);
+    }
+    let db = Storage::open(&both).expect("a server with both opens");
+    assert!(db.channel_access("general").is_some(), "with a #global of its own, #general stays");
+    assert_eq!(db.load_channel_messages("general", 50).unwrap().len(), 3, "and keeps its lines");
+    assert!(db.load_channel_messages("global", 50).unwrap().is_empty(), "nothing moves into the other #global");
 }
 
 /// THE UPGRADE IS ALL OR NOTHING. A database whose read_only column cannot be dropped (a view
@@ -469,7 +659,10 @@ fn the_upgrade_is_all_or_nothing() {
         (false, false, false, true),
         "nothing of the upgrade is left behind"
     );
+    let ids: Vec<String> = conn.prepare("SELECT id FROM channels").unwrap().query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
+    assert_eq!(ids, vec!["general"], "nor of the rename to #global, which runs in the same transaction");
 }
+
 
 /// OPENING A CHANNEL TO ANYONE STAMPS WHEN, AND ONLY A CHANNEL ANYONE READS TRAVELS: setting
 /// #lounge to Anyone stamps `anyone_since` now and setting it again keeps the stamp; a channel at

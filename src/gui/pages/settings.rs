@@ -2267,7 +2267,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                         ui.painter().rect_filled(full_rect, 0.0, fill);
                         ui.add_space(theme.item_padding * 2.0);
                         ui.label(
-                            RichText::new("# general")
+                            RichText::new("# global")
                                 .size(theme.body_size)
                                 .color(text_color),
                         );

@@ -240,7 +240,7 @@ fn demo_state() -> GuiState {
 
     // ── Chat ──
     s.ws_status = "Connected".into();
-    s.chat_active_channel = "general".into();
+    s.chat_active_channel = "global".into();
     let mk_channel = |id: &str, name: &str, voice: bool, ro: bool| ChatChannel {
         id: id.into(),
         name: name.into(),
@@ -256,7 +256,7 @@ fn demo_state() -> GuiState {
         unread: false,
     };
     s.chat_channels = vec![
-        mk_channel("general", "general", true, false),
+        mk_channel("global", "global", true, false),
         mk_channel("announcements", "announcements", false, true),
         mk_channel("garden", "garden", true, false),
     ];
@@ -264,14 +264,14 @@ fn demo_state() -> GuiState {
     // covered by the chat snapshot.
     s.chat_channels[2].unread = true;
     s.chat_messages = vec![
-        ChatMessage { sender_name: "Shaostoul".into(), content: "Welcome to HumanityOS!".into(), timestamp: "12:30".into(), channel: "general".into(), ..Default::default() },
-        ChatMessage { sender_name: "Ada".into(), content: "The garden towers are looking great today.".into(), timestamp: "12:32".into(), channel: "general".into(), ..Default::default() },
-        ChatMessage { sender_name: "Shaostoul".into(), content: "Shipping the Laws page next.".into(), timestamp: "12:35".into(), channel: "general".into(), ..Default::default() },
+        ChatMessage { sender_name: "Shaostoul".into(), content: "Welcome to HumanityOS!".into(), timestamp: "12:30".into(), channel: "global".into(), ..Default::default() },
+        ChatMessage { sender_name: "Ada".into(), content: "The garden towers are looking great today.".into(), timestamp: "12:32".into(), channel: "global".into(), ..Default::default() },
+        ChatMessage { sender_name: "Shaostoul".into(), content: "Shipping the Laws page next.".into(), timestamp: "12:35".into(), channel: "global".into(), ..Default::default() },
         // Formatting-parity coverage (v0.1208): a blockquote + __bold__, a
         // bullet list, and a fenced code block, so the snapshot proves the
         // native renderer draws them (muted quote, real bullets, code panel).
-        ChatMessage { sender_name: "Ada".into(), content: "> from the design notes\nWe should try __two towers__ per plot:\n- more light\n- easier harvest".into(), timestamp: "12:36".into(), channel: "general".into(), ..Default::default() },
-        ChatMessage { sender_name: "Shaostoul".into(), content: "Here's the tick loop:\n```rust\nfor sys in systems {\n    sys.tick(dt);\n}\n```\nLooks good to me.".into(), timestamp: "12:37".into(), channel: "general".into(), ..Default::default() },
+        ChatMessage { sender_name: "Ada".into(), content: "> from the design notes\nWe should try __two towers__ per plot:\n- more light\n- easier harvest".into(), timestamp: "12:36".into(), channel: "global".into(), ..Default::default() },
+        ChatMessage { sender_name: "Shaostoul".into(), content: "Here's the tick loop:\n```rust\nfor sys in systems {\n    sys.tick(dt);\n}\n```\nLooks good to me.".into(), timestamp: "12:37".into(), channel: "global".into(), ..Default::default() },
     ];
     s.chat_users = vec![
         ChatUser { name: "Shaostoul".into(), public_key: "dlth3:9a41c2abc".into(), role: "admin".into(), status: "online".into() },
@@ -1020,7 +1020,7 @@ fn snapshot_notification_settings() {
         if n.mutes.servers.is_empty() {
             n.mutes.mute_everything(now, 3600);
             n.mutes.mute_server("https://united-humanity.us", now, 0);
-            n.mutes.mute_room("https://united-humanity.us", "general", now, 8 * 3600);
+            n.mutes.mute_room("https://united-humanity.us", "global", now, 8 * 3600);
             n.mutes.mute_person("dm:ab12cd34ef56", now, 3600);
             n.set_room_level("https://united-humanity.us", "builders", crate::notifications::Level::All);
             // Rung 3: a kind's sound set to none, a game event turned on, someone always allowed.
@@ -1056,7 +1056,7 @@ fn seed_notices(state: &mut crate::gui::GuiState) {
     let show = crate::notifications::Show::Name;
     state.notify.list.add(&c("contact_request", "dm:k5", None, "Cy", ""), show, now - 3600);
     state.notify.list.add(&c("reply", "builders", Some("builders"), "Dana", "agreed"), show, now - 600);
-    state.notify.list.add(&c("mention", "general", Some("general"), "Ben", "hey @you"), show, now - 120);
+    state.notify.list.add(&c("mention", "global", Some("global"), "Ben", "hey @you"), show, now - 120);
     state.notify.list.add(&c("dm", "dm:k1", None, "Ben", "meet at noon"), show, now - 30);
     state.active_page = crate::gui::GuiPage::Chat;
 }
@@ -1095,7 +1095,7 @@ fn snapshot_notice_banner() {
     render_page_png("notice_banner", 1280, 360, |ctx, theme, state| {
         state.active_page = crate::gui::GuiPage::None;
         state.notify.banner = Some(crate::notifications::clicks::Banner {
-            title: "Ben mentioned you in #general".into(),
+            title: "Ben mentioned you in #global".into(),
             body: "are you coming to the garden at noon?".into(),
             at: std::time::Instant::now(),
         });
@@ -1375,9 +1375,9 @@ fn snapshot_chat_protected() {
         if state.protected.preset.is_none() {
             protected_fixture(state, true);
             // The default state already lists these two; replace them rather than list each twice.
-            state.chat_channels.retain(|c| c.id != "announcements" && c.id != "general");
+            state.chat_channels.retain(|c| c.id != "announcements" && c.id != "global");
             state.chat_channels.push(ChatChannel { id: "announcements".into(), name: "announcements".into(), post_level: humanity_protocol::chat_access::PostLevel::Mods, ..Default::default() });
-            state.chat_channels.push(ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
+            state.chat_channels.push(ChatChannel { id: "global".into(), name: "global".into(), ..Default::default() });
             state.chat_messages.push(ChatMessage {
                 sender_name: "Server admin".into(),
                 sender_key: "admin0".into(),
@@ -1401,17 +1401,17 @@ fn snapshot_chat_protected() {
 fn snapshot_chat_click_to_load() {
     render_page_png("chat_click_to_load", 1280, 600, |ctx, theme, state| {
         if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
-            state.chat_messages.retain(|m| m.channel != "general");
+            state.chat_messages.retain(|m| m.channel != "global");
             state.chat_messages.push(ChatMessage {
                 sender_name: "Ann".into(),
                 sender_key: "ann0".into(),
                 content: "The garden this morning: https://example.com/garden.png".into(),
                 timestamp: "09:20".into(),
                 timestamp_ms: 1_791_481_200_000,
-                channel: "general".into(),
+                channel: "global".into(),
                 ..Default::default()
             });
-            state.chat_active_channel = "general".into();
+            state.chat_active_channel = "global".into();
         }
         crate::gui::pages::chat::draw(ctx, theme, state);
     });
@@ -1426,7 +1426,7 @@ fn snapshot_chat_public_files() {
     render_page_png("chat_public_files", 1280, 640, |ctx, theme, state| {
         const SERVER: &str = "http://127.0.0.1:9";
         if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
-            state.chat_messages.retain(|m| m.channel != "general");
+            state.chat_messages.retain(|m| m.channel != "global");
             for (i, (text, size)) in [
                 ("Found this one /uploads/1760000000000_WH40K_Marriah_Carey.mp4", 1_121_676u64),
                 ("The maps from Saturday /uploads/1760000000001_maps.zip", 48_200_000),
@@ -1443,12 +1443,12 @@ fn snapshot_chat_public_files() {
                     content: text.into(),
                     timestamp: format!("09:2{i}"),
                     timestamp_ms: 1_791_481_200_000 + i as u64 * 60_000,
-                    channel: "general".into(),
+                    channel: "global".into(),
                     server: SERVER.into(),
                     ..Default::default()
                 });
             }
-            state.chat_active_channel = "general".into();
+            state.chat_active_channel = "global".into();
         }
         crate::gui::pages::chat::draw(ctx, theme, state);
     });
@@ -1490,7 +1490,7 @@ fn snapshot_chat_media_card() {
             state.files.cards.insert(41, chat_card::CardState::Ready(staff));
             state.files.cards.insert(42, chat_card::CardState::Ready(shaper));
             state.files.cards_open.insert(chat_card::key_of("shao", 2_000, 41));
-            state.chat_messages.retain(|m| m.channel != "general");
+            state.chat_messages.retain(|m| m.channel != "global");
             for (ts, id) in [(1_000u64, 42), (2_000, 41)] {
                 state.chat_messages.push(ChatMessage {
                     sender_name: "Shaostoul".into(),
@@ -1498,14 +1498,14 @@ fn snapshot_chat_media_card() {
                     content: format!("{SERVER}/files/{id}"),
                     timestamp: "04:13".into(),
                     timestamp_ms: 1_792_000_000_000 + ts,
-                    channel: "general".into(),
+                    channel: "global".into(),
                     server: SERVER.into(),
                     ..Default::default()
                 });
             }
             state.files.cards_open.clear();
             state.files.cards_open.insert(chat_card::key_of("shao", 1_792_000_000_000 + 2_000, 41));
-            state.chat_active_channel = "general".into();
+            state.chat_active_channel = "global".into();
         }
         crate::gui::pages::chat::draw(ctx, theme, state);
     });
@@ -1802,7 +1802,7 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
                 { "server_id": "cd".repeat(1952), "name": "home-node", "url": "outbound-only", "by_key": true, "trust_tier": 0,
                   "paused": false, "linked": false, "status": "unknown" } ],
             "channels": [
-                { "id": "general", "name": "general", "federated": true, "can_federate": true },
+                { "id": "global", "name": "global", "federated": true, "can_federate": true },
                 { "id": "announcements", "name": "announcements", "federated": true, "can_federate": true },
                 { "id": "local", "name": "local", "federated": false, "local_only": true, "can_federate": false },
                 { "id": "dev", "name": "dev", "federated": false, "can_federate": true } ],
@@ -3191,17 +3191,17 @@ endsolid bracket
     render_page_png("files_upload_window", 1100, 1000, |ctx, theme, state| {
         if !state.chat_channels.iter().any(|c| c.id == "3d-printing") {
             state.chat_channels.clear();
-            for id in ["general", "3d-printing", "random"] {
+            for id in ["global", "3d-printing", "random"] {
                 state.chat_channels.push(crate::gui::ChatChannel { id: id.into(), name: id.into(), ..Default::default() });
             }
-            state.chat_active_channel = "general".into();
+            state.chat_active_channel = "global".into();
             // No list is asked of any server from a snapshot.
             state.files.requested = true;
             crate::gui::pages::files::sync_server(state);
             state.files.requested = true;
             let server = state.active_server();
             crate::gui::widgets::file_picker_memory::with(|m| m.toggle_post_favorite(&crate::gui::pages::files::post_key(&server, "3d-printing")));
-            crate::gui::pages::files::upload_dropped(state, &[file.clone()], Some("general".into()));
+            crate::gui::pages::files::upload_dropped(state, &[file.clone()], Some("global".into()));
             if let Some(form) = state.files.form.as_mut() {
                 form.title = "Bottle cutter bracket".into();
                 form.description = "Holds the cutter steady on the bench.".into();
@@ -3352,6 +3352,62 @@ fn snapshot_main_menu() {
 page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
 page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
 
+/// The channels as every server makes them (2026-11-02, docs/design/chat-channels.md), on the
+/// operator's 2560 x 1440 screen: under the server the app is on, #announcements, #local (an
+/// ordinary row now, no longer the server's name), #global (the old #general) and #feedback, each
+/// with its level badge, and a room of the server's own with an unread mark; a second saved server
+/// below, folded, one line (the others start folded).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_channels() {
+    render_page_png("chat_channels", 2560, 1440, |ctx, theme, state| {
+        // The closure runs once per frame: seed on the first only.
+        if state.connections.is_empty() {
+            use humanity_protocol::chat_access::{PostLevel, ReadLevel};
+            let room = |id: &str, read: ReadLevel, post: PostLevel, federated: bool, local_only: bool, voice: bool| ChatChannel {
+                id: id.into(),
+                name: id.into(),
+                read_level: read,
+                post_level: post,
+                federated,
+                local_only,
+                voice_enabled: voice,
+                ..Default::default()
+            };
+            state.chat_channels = vec![
+                room("announcements", ReadLevel::Anyone, PostLevel::Mods, true, false, false),
+                room("local", ReadLevel::Members, PostLevel::Members, false, true, true),
+                room("global", ReadLevel::Anyone, PostLevel::Members, true, false, true),
+                room("feedback", ReadLevel::Anyone, PostLevel::Members, true, false, false),
+                room("garden", ReadLevel::Members, PostLevel::Members, false, false, true),
+            ];
+            state.chat_channels[4].unread = true;
+            if let Some(s) = state.chat_servers.first_mut() {
+                s.channels = state.chat_channels.clone();
+            }
+            state.chat_servers.push(ChatServer {
+                name: "public.guide".into(),
+                channels: vec![],
+                voice_channels: vec![],
+                id: "srv_public_guide".into(),
+                url: "https://public.guide".into(),
+                connected: false,
+            });
+            state.connections.push(crate::gui::ServerConnection {
+                url: "https://public.guide".into(),
+                display_url: "https://public.guide".into(),
+                identified: true,
+                channels: vec![room("local", ReadLevel::Members, PostLevel::Members, false, true, true), room("lounge", ReadLevel::Members, PostLevel::Members, false, false, true)],
+                ..Default::default()
+            });
+            state.chat_active_channel = "global".into();
+            // Wide enough that each server's whole name shows.
+            state.chat_left_panel_width = 360.0;
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
 /// The Commons MERGED view, rendered from two populated background carrier
 /// connections (field test 5: the operator's Commons rooms rendered empty).
 /// This is the falsifiable repro: if the merge breaks, this snapshot shows
@@ -3364,7 +3420,7 @@ fn snapshot_chat_commons() {
         // (a second push doubled every carrier and every line, which
         // usefully exposed the native-line dedup gap, now fixed).
         if !state.connections.is_empty() {
-            state.chat_active_channel = "commons:general".into();
+            state.chat_active_channel = "commons:global".into();
             crate::gui::pages::chat::draw(ctx, theme, state);
             return;
         }
@@ -3373,8 +3429,8 @@ fn snapshot_chat_commons() {
             display_url: url.into(),
             identified: true,
             channels: vec![ChatChannel {
-                id: "general".into(),
-                name: "general".into(),
+                id: "global".into(),
+                name: "global".into(),
                 federated: true,
                 ..Default::default()
             }],
@@ -3386,7 +3442,7 @@ fn snapshot_chat_commons() {
                     content: (*text).into(),
                     timestamp: "12:00".into(),
                     timestamp_ms: *ts,
-                    channel: "general".into(),
+                    channel: "global".into(),
                     server: url.into(),
                     ..Default::default()
                 })
@@ -3401,7 +3457,7 @@ fn snapshot_chat_commons() {
             "https://b.example",
             &[("Bela", "hello from server B", 2000), ("Bix", "hey all", 4000)],
         ));
-        state.chat_active_channel = "commons:general".into();
+        state.chat_active_channel = "commons:global".into();
         crate::gui::pages::chat::draw(ctx, theme, state);
     });
 }
@@ -4226,7 +4282,7 @@ fn snapshot_picker_where_you_live() {
                     game_players: 2,
                     member_count: 41,
                     accord_compliant: true,
-                    channels: vec!["general".into(), "announcements".into()],
+                    channels: vec!["global".into(), "announcements".into()],
                     ..Default::default()
                 },
             );

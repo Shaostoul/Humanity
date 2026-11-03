@@ -136,14 +136,14 @@ pub fn post_refused(state: &Arc<RelayState>, key: &str, channel: &str, content: 
     true
 }
 
-/// #general's reactions for the socket of `key` at sign-in, or none when it may not read #general.
-pub fn general_reactions(db: &Storage, key: &str) -> Result<Vec<crate::relay::storage::ReactionRecord>, rusqlite::Error> {
-    if may_see(db, key, "general") { db.load_channel_reactions("general", 500) } else { Ok(Vec::new()) }
+/// #global's reactions for the socket of `key` at sign-in, or none when it may not read #global.
+pub fn main_channel_reactions(db: &Storage, key: &str) -> Result<Vec<crate::relay::storage::ReactionRecord>, rusqlite::Error> {
+    if may_see(db, key, humanity_protocol::chat_access::MAIN_CHANNEL) { db.load_channel_reactions(humanity_protocol::chat_access::MAIN_CHANNEL, 500) } else { Ok(Vec::new()) }
 }
 
-/// #general's pins for the socket of `key` at sign-in, or none when it may not read #general.
-pub fn general_pins(db: &Storage, key: &str) -> Result<Vec<crate::relay::storage::PinnedMessageRecord>, rusqlite::Error> {
-    if may_see(db, key, "general") { db.get_pinned_messages("general") } else { Ok(Vec::new()) }
+/// #global's pins for the socket of `key` at sign-in, or none when it may not read #global.
+pub fn main_channel_pins(db: &Storage, key: &str) -> Result<Vec<crate::relay::storage::PinnedMessageRecord>, rusqlite::Error> {
+    if may_see(db, key, humanity_protocol::chat_access::MAIN_CHANNEL) { db.get_pinned_messages(humanity_protocol::chat_access::MAIN_CHANNEL) } else { Ok(Vec::new()) }
 }
 
 // ── The routes ──
@@ -177,7 +177,7 @@ pub struct SignedRead {
     pub timestamp: u64,
     /// Their Dilithium3 signature (hex) over [`access::read_purpose`] then `\n{timestamp}`.
     pub sig: String,
-    /// The channel (default #general).
+    /// The channel (default #global).
     #[serde(default)]
     pub channel: Option<String>,
     /// For messages: only those after this row id.
@@ -262,7 +262,7 @@ fn for_visitors(mut msg: RelayMessage) -> RelayMessage {
 
 /// GET /api/messages: an Anyone channel's posts since it opened, without keys (module docs).
 pub async fn get_messages(State(state): State<Arc<RelayState>>, Query(q): Query<crate::relay::api::MessagesQuery>) -> Response {
-    let channel = q.channel.as_deref().unwrap_or("general");
+    let channel = q.channel.as_deref().unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL);
     match open_to_visitors(&state.db, channel) {
         Ok(since) => messages(&state.db, channel, q.after, q.limit, since, true),
         Err(refusal) => refusal,
@@ -271,7 +271,7 @@ pub async fn get_messages(State(state): State<Arc<RelayState>>, Query(q): Query<
 
 /// POST /api/messages: a member's signed read of a channel's history (module docs).
 pub async fn post_messages(State(state): State<Arc<RelayState>>, Json(req): Json<SignedRead>) -> Response {
-    let channel = req.channel.clone().unwrap_or_else(|| "general".to_string());
+    let channel = req.channel.clone().unwrap_or_else(|| humanity_protocol::chat_access::MAIN_CHANNEL.to_string());
     if let Err(refusal) = signed_reader(&state, &req, "messages", &channel).await {
         return refusal;
     }
@@ -305,7 +305,7 @@ fn pins(db: &Storage, channel: &str, since: i64, visitor: bool) -> Response {
 
 /// GET /api/pins: an Anyone channel's pins of posts made since it opened, without keys.
 pub async fn get_pins(State(state): State<Arc<RelayState>>, Query(q): Query<crate::relay::api::PinsQuery>) -> Response {
-    let channel = q.channel.as_deref().unwrap_or("general");
+    let channel = q.channel.as_deref().unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL);
     match open_to_visitors(&state.db, channel) {
         Ok(since) => pins(&state.db, channel, since, true),
         Err(refusal) => refusal,
@@ -314,7 +314,7 @@ pub async fn get_pins(State(state): State<Arc<RelayState>>, Query(q): Query<crat
 
 /// POST /api/pins: a member's signed read of a channel's pins.
 pub async fn post_pins(State(state): State<Arc<RelayState>>, Json(req): Json<SignedRead>) -> Response {
-    let channel = req.channel.clone().unwrap_or_else(|| "general".to_string());
+    let channel = req.channel.clone().unwrap_or_else(|| humanity_protocol::chat_access::MAIN_CHANNEL.to_string());
     if let Err(refusal) = signed_reader(&state, &req, "pins", &channel).await {
         return refusal;
     }
@@ -348,7 +348,7 @@ fn reactions(db: &Storage, channel: &str, limit: Option<usize>, since: i64, visi
 
 /// GET /api/reactions: an Anyone channel's reactions on posts made since it opened, without keys.
 pub async fn get_reactions(State(state): State<Arc<RelayState>>, Query(q): Query<crate::relay::api::ReactionsQuery>) -> Response {
-    let channel = q.channel.as_deref().unwrap_or("general");
+    let channel = q.channel.as_deref().unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL);
     match open_to_visitors(&state.db, channel) {
         Ok(since) => reactions(&state.db, channel, q.limit, since, true),
         Err(refusal) => refusal,
@@ -357,7 +357,7 @@ pub async fn get_reactions(State(state): State<Arc<RelayState>>, Query(q): Query
 
 /// POST /api/reactions: a member's signed read of a channel's reactions.
 pub async fn post_reactions(State(state): State<Arc<RelayState>>, Json(req): Json<SignedRead>) -> Response {
-    let channel = req.channel.clone().unwrap_or_else(|| "general".to_string());
+    let channel = req.channel.clone().unwrap_or_else(|| humanity_protocol::chat_access::MAIN_CHANNEL.to_string());
     if let Err(refusal) = signed_reader(&state, &req, "reactions", &channel).await {
         return refusal;
     }

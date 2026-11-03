@@ -923,10 +923,10 @@ pub fn draw(
                 // PRIVACY (v0.779): the always-on feed shows PUBLIC channels
                 // only. A DM or group conversation left active on the Chat page
                 // must never paint private text on the world overlay (visible
-                // on stream, over the shoulder). Fall back to #general.
+                // on stream, over the shoulder). Fall back to #global.
                 let active_raw = state.chat_active_channel.clone();
                 let active = if active_raw.starts_with("dm:") || active_raw.starts_with("p2pgroup:") {
-                    "general".to_string()
+                    humanity_protocol::chat_access::MAIN_CHANNEL.to_string()
                 } else {
                     active_raw
                 };

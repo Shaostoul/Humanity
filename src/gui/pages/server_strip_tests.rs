@@ -75,14 +75,14 @@ fn two_servers() -> GuiState {
     // OTHER first, as it was before the person came to HOME: then parked.
     s.server_url = OTHER.into();
     s.connected_server_url = OTHER.into();
-    s.chat_channels.push(ChatChannel { id: "local".into(), name: "Second server".into(), local_only: true, ..Default::default() });
+    s.chat_channels.push(ChatChannel { id: "local".into(), name: "local".into(), local_only: true, ..Default::default() });
     s.chat_active_channel = "local".into();
     s.chat_messages.push(ChatMessage { sender_name: "Bela".into(), content: "hello from the second server".into(), channel: "local".into(), timestamp_ms: 1, ..Default::default() });
     s.park_active_connection();
     // HOME, active.
     s.server_url = HOME.into();
     s.connected_server_url = HOME.into();
-    s.chat_messages.push(ChatMessage { sender_name: "Ada".into(), content: "hello from home".into(), channel: "general".into(), timestamp_ms: 2, ..Default::default() });
+    s.chat_messages.push(ChatMessage { sender_name: "Ada".into(), content: "hello from home".into(), channel: "global".into(), timestamp_ms: 2, ..Default::default() });
     s
 }
 
@@ -241,14 +241,17 @@ fn switching_with_uploads_running_asks_first() {
     );
 }
 
-/// Chat's server rows and the strip switch the same way, because they make the same switch: a
-/// row clicked in Chat and the same server picked in the strip leave two identical apps. And the
-/// Chat page holds no switch of its own any more: its cog, its row and its rooms each call
-/// `switch_to_server`, and nothing in it parks a server and brings another back by itself (the
-/// Connect button parks the server it leaves, which is a connect, not a switch).
+/// Chat's rooms and the strip switch the same way, because they make the same switch: a parked
+/// server's room clicked in Chat and the same server picked in the strip leave two identical apps.
+/// A server's NAME in Chat opens or folds its rooms and switches nothing (2026-11-02,
+/// docs/design/chat-channels.md section 5). And the Chat page holds no switch of its own: its cog
+/// and its rooms each call `switch_to_server`, and nothing in it parks a server and brings another
+/// back by itself (the Connect button parks the server it leaves, which is a connect, not a switch).
 ///
 /// Seen red 2026-10-12 with the row's block put back inline: "Chat's cog, row and rooms do not
-/// each call the one switch" (left: 2, right: 3).
+/// each call the one switch" (left: 2, right: 3). Seen red 2026-11-02 with the name still calling
+/// the switch: "a click on a server's name switched the app" (left: "http://127.0.0.1:19", right:
+/// "http://127.0.0.1:9").
 #[test]
 fn the_chat_rows_and_the_strip_switch_the_same_way() {
     let mut by_row = two_servers();
@@ -258,6 +261,8 @@ fn the_chat_rows_and_the_strip_switch_the_same_way() {
     let out = settled(&ctx, &mut theme, &mut by_row, GuiPage::Chat);
     assert!(shows(&out, "Second server"), "Chat lists the second server");
     click(&ctx, &mut theme, &mut by_row, GuiPage::Chat, "Second server");
+    assert_eq!(by_row.active_server(), HOME, "a click on a server's name switched the app");
+    click(&ctx, &mut theme, &mut by_row, GuiPage::Chat, "# local");
 
     let mut by_strip = two_servers();
     let (ctx, mut theme) = ctx_and_theme();
@@ -265,17 +270,51 @@ fn the_chat_rows_and_the_strip_switch_the_same_way() {
     click(&ctx, &mut theme, &mut by_strip, page, SWITCH);
     click(&ctx, &mut theme, &mut by_strip, page, "Second server");
 
-    assert_eq!(by_row.active_server(), OTHER, "the row did not switch");
+    assert_eq!(by_row.active_server(), OTHER, "the room did not switch");
     assert_eq!(after_switch(&by_strip), after_switch(&by_row), "the strip and Chat's row switched differently");
 
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let panel = std::fs::read_to_string(root.join("src/gui/pages/chat/left_panel.rs")).expect("read left_panel.rs");
     assert_eq!(
         panel.matches("state.switch_to_server(&server.url, &server.name);").count(),
-        3,
-        "Chat's cog, row and rooms do not each call the one switch"
+        2,
+        "Chat's cog and rooms do not each call the one switch"
     );
     assert_eq!(panel.matches("unpark_connection(").count(), 0, "a switch in Chat brings a server back by itself");
     assert_eq!(panel.matches("connect_with_key_card(").count(), 0, "a switch in Chat dials a server by itself");
     assert_eq!(panel.matches("park_active_connection()").count(), 1, "Chat parks a server outside its Connect button");
+}
+
+/// #LOCAL IS A ROW, AND A SERVER'S NAME FOLDS ITS ROOMS (2026-11-02, docs/design/chat-channels.md
+/// section 5). The operator: "We need to just make local visible like other channels are. I feel
+/// like they're too hard to find and add a layer of complexity that we don't need." In Chat the
+/// server the app is on shows its rooms from the start, its local-only room an ordinary row; a
+/// server that is not the current one starts folded (at dozens of servers, one line each); a click
+/// on its name opens its rooms, #local among them, and switches nothing, and a second click folds
+/// them again; the current server's name folds its own.
+///
+/// Seen red 2026-11-02 with #local filtered out of the rows again (`ch.local_only ||` back in the
+/// saved-row filter): "the current server's #local is an ordinary row".
+#[test]
+fn local_is_a_row_and_a_server_name_folds_its_rooms() {
+    let mut state = two_servers();
+    state.chat_left_panel_width = 420.0;
+    // HOME's own rooms, as its last channel list left them (HOME is current, its link down).
+    state.chat_channels = vec![
+        ChatChannel { id: "global".into(), name: "global".into(), ..Default::default() },
+        ChatChannel { id: "here".into(), name: "here".into(), local_only: true, ..Default::default() },
+    ];
+    let (ctx, mut theme) = ctx_and_theme();
+    let out = settled(&ctx, &mut theme, &mut state, GuiPage::Chat);
+    assert!(shows(&out, "# global"), "the current server's rooms show from the start");
+    assert!(shows(&out, "# here"), "the current server's #local is an ordinary row");
+    assert!(!shows(&out, "# local"), "a server that is not the current one starts folded");
+    click(&ctx, &mut theme, &mut state, GuiPage::Chat, "Second server");
+    assert_eq!(state.active_server(), HOME, "its name switches nothing");
+    assert!(shows(&settled(&ctx, &mut theme, &mut state, GuiPage::Chat), "# local"), "its name opens its rooms, #local among them");
+    click(&ctx, &mut theme, &mut state, GuiPage::Chat, "Second server");
+    assert!(!shows(&settled(&ctx, &mut theme, &mut state, GuiPage::Chat), "# local"), "a second click folds them");
+    click(&ctx, &mut theme, &mut state, GuiPage::Chat, "Home server");
+    // (#here: the centre panel's header names #global, the room open on HOME.)
+    assert!(!shows(&settled(&ctx, &mut theme, &mut state, GuiPage::Chat), "# here"), "the current server's name folds its own");
 }

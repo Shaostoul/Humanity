@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="chat_read.page_title">Read the chat, HumanityOS</title>
+  <meta name="description" data-i18n-content="chat_read.meta_description" content="Read the HumanityOS channels anyone may read, without signing up.">
+  <!-- Visitors may read; search engines are asked not to keep people's words (docs/design/chat-access.md). -->
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <!-- The chat's read-only view for a visitor without a name (2026-11-02, docs/design/chat-access.md
+       section 7): the channels anyone may read (GET /api/channels), each one's posts since it was
+       opened to everyone, names only, as plain words; no box to type in; one button to choose a
+       name. /chat sends a browser with no key here (web/chat/index.html). The desktop app always
+       has a key, so it has no such view: it signs in and reads what its member's rank allows. -->
+  <style>
+    body { line-height: 1.55; padding-bottom: 60px; }
+    .container { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+    .read-head { padding: 36px 0 8px; }
+    .read-head h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 900; margin: 0 0 8px; color: var(--text-strong); }
+    .read-head p { color: var(--text-secondary); margin: 0 0 14px; }
+    .read-join {
+      display: inline-flex; align-items: center; min-height: 44px; padding: 10px 22px;
+      background: var(--accent); color: var(--bg-primary); border-radius: var(--radius);
+      font-weight: 700; text-decoration: none;
+    }
+    .read-join:hover, .read-join:focus-visible { filter: brightness(1.08); }
+    .read-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 12px; }
+    .read-tab, .read-refresh {
+      min-height: 40px; padding: 8px 16px; background: transparent; color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius); font: inherit; cursor: pointer;
+    }
+    .read-tab[aria-selected="true"] { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+    .read-refresh { margin-left: auto; }
+    .read-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+    .read-line { padding: 10px 2px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+    .read-who { font-weight: 700; color: var(--text-strong); margin-right: 8px; }
+    .read-when { color: var(--text-muted); font-size: 0.82rem; }
+    .read-words { white-space: pre-wrap; margin-top: 2px; color: var(--text); }
+    .read-status { color: var(--text-muted); padding: 22px 0; }
+    .read-status[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/i18n-en.js"></script>
+  <script src="/shared/i18n.js"></script>
+  <script src="/shared/shell.js" data-active="chat"></script>
+  <script src="/shared/defaults.js"></script>
+  <script src="/shared/settings.js"></script>
+
+  <header class="read-head">
+    <div class="container">
+      <h1 data-i18n="chat_read.title">Read the chat</h1>
+      <p data-i18n="chat_read.intro">You are reading as a visitor. Only the channels anyone may read are here, and only what was posted after each was opened to everyone. Names are shown, nothing else about anyone.</p>
+      <a class="read-join" id="read-join" href="/?welcome=1&amp;return=/chat"
+         data-i18n-tip="chat_read.join_hint" data-tip-desc="Opens the welcome step: choose a name and your browser makes your key. Then you can post and reply, and read the channels kept for people on this server."
+         data-i18n="chat_read.join">Choose a name to join in</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="read-tabs" id="read-tabs" role="tablist" data-i18n-aria-label="chat_read.channels_label" aria-label="Channels anyone may read">
+      <button type="button" class="read-refresh" id="read-refresh"
+              data-i18n-tip="chat_read.refresh_hint" data-tip-desc="Asks the server for anything posted since you opened this page."
+              data-i18n="chat_read.refresh">Refresh</button>
+    </div>
+    <ol class="read-list" id="read-list" data-i18n-aria-label="chat_read.messages_label" aria-label="Posts in this channel"></ol>
+    <p class="read-status" id="read-status" aria-live="polite"></p>
+  </main>
+
+  <script src="/chat/read.js?v=1"></script>
+</body>
+</html>

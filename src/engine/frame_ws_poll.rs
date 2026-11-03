@@ -152,7 +152,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             .unwrap_or(0);
                         let channel = val.get("channel")
                             .and_then(|v| v.as_str())
-                            .unwrap_or("general")
+                            .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
                             .to_string();
                         // Robust dedup (fixes the 2026-05-20 "reply duplicated
                         // after a while" report). The chat_sent_timestamps
@@ -371,7 +371,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 let id = ch.get("id")
                                     .or_else(|| ch.get("name"))
                                     .and_then(|v| v.as_str())
-                                    .unwrap_or("general")
+                                    .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
                                     .to_string();
                                 let name = ch.get("name")
                                     .and_then(|v| v.as_str())
@@ -422,6 +422,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 );
                             }
                             carry_channel_marks(&old_channels, &mut state.gui_state.chat_channels);
+                            // The room open here may be gone (deleted, or renamed by the server).
+                            crate::gui::pages::chat::land_if_room_gone(&mut state.gui_state);
                         }
                         // Sealed-sender DMs: channel_list only arrives on a
                         // BOUND socket (post identify-challenge), so this is
@@ -546,7 +548,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             // Filter out internal sync + game messages from chat display.
                             // `__game__:` prefix tags game-engine traffic (ambient
                             // chatter, quest events, NPC dialog, world ticks) — those
-                            // belong on the game/perception channel, NOT in #general
+                            // belong on the game/perception channel, NOT in #global
                             // where humans are talking. (Bug fix 2026-05-03.)
                             // Multiplayer (v0.472): route game traffic into the sync
                             // system (remote players join / move / leave) instead of

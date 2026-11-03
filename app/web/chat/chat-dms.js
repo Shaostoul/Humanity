@@ -810,9 +810,12 @@ function renderDmList() {
     // its preview is real text. Don't "fix" native back to name-only for
     // parity; the two clients intentionally differ until web can decrypt
     // at list-render time.
-    return `<div class="dm-item${isActive ? ' active' : ''}" onclick="openDmConversation('${esc(c.partner_key)}', '${esc(c.partner_name)}')">
+    // The conversation's bell (notifications rung 2, chat-notify.js): Mute conversation, as the
+    // desktop's right-click; a right-click on the row opens the same menu.
+    const dmBell = window.HosChatNotify ? HosChatNotify.dmBellHtml(c.partner_key) : '';
+    return `<div class="dm-item${isActive ? ' active' : ''}" data-dm-key="${esc(c.partner_key)}" onclick="openDmConversation('${esc(c.partner_key)}', '${esc(c.partner_name)}')">
       <span class="dm-name">${esc(c.partner_name)} ${unread}</span>
-      <span class="dm-time">${timeStr}</span>
+      <span class="dm-time">${timeStr}</span>${dmBell}
     </div>`;
   }).join('') + purgeRow;
   if (window.twemoji) twemoji.parse(list);

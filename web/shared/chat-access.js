@@ -21,6 +21,9 @@
   const RANKS = Object.freeze({ visitor: 0, member: 1, verified: 2, moderator: 3, admin: 4 });
   /** How many links a member below Verified may put in one line. */
   const LINKS_BELOW_VERIFIED = 1;
+  /** The channel every server has: #global (the old #general, renamed 2026-11-02). The chat lands
+   *  in it when the room it was in is gone; the Rust twin is MAIN_CHANNEL. */
+  const MAIN_CHANNEL = 'global';
 
   /** A stored or sent word as a read level; a word that names none is the safe default. */
   function readLevel(word) {
@@ -131,7 +134,7 @@
   }
 
   const api = {
-    READ_LEVELS, POST_LEVELS, RANKS, LINKS_BELOW_VERIFIED,
+    READ_LEVELS, POST_LEVELS, RANKS, LINKS_BELOW_VERIFIED, MAIN_CHANNEL,
     readLevel, postLevel, normalizedPost, mayRead, mayPost, rankForMember,
     linksIn, carriesAttachment, massMention, postRefusal, showsLinks, staffOnly, readPurpose, audienceKeys,
   };

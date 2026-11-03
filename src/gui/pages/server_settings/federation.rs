@@ -323,14 +323,14 @@ mod tests {
         state.admin_console.federation = Some(json!({
             "peers": [{ "server_id": "https://a.example", "name": "Alpha", "url": "https://a.example", "trust_tier": 2,
                         "paused": false, "linked": true, "linked_secs": 7200, "status": "online" }],
-            "channels": [{ "id": "general", "name": "general", "federated": true, "local_only": false, "can_federate": true }],
+            "channels": [{ "id": "global", "name": "global", "federated": true, "local_only": false, "can_federate": true }],
             "own_key": "ab".repeat(1952),
         }));
         state.admin_console.federation_status = (true, "1 peer, 1 linked now.".into());
         frame(&ctx, &theme, &mut state, Vec::new());
         let out = frame(&ctx, &theme, &mut state, Vec::new());
         assert!(find_text_in_shapes(&out.shapes, "linked for 2 h").is_some(), "the peer's state is drawn");
-        assert!(find_text_in_shapes(&out.shapes, "#general").is_some(), "the channel is a box");
+        assert!(find_text_in_shapes(&out.shapes, "#global").is_some(), "the channel is a box");
         click(&ctx, &theme, &mut state, "Pause");
         assert_eq!(state.admin_console.confirm.as_deref(), Some("federation.pause:https://a.example"), "Pause asks first");
         click(&ctx, &theme, &mut state, "Really pause?");

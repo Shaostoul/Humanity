@@ -97,21 +97,21 @@ async fn two_relays_handshake_chat_and_gossip() {
     // Create the channel rows first: set_channel_federated is an UPDATE and
     // returns Ok(false) on a missing row, which a bare .expect() happily
     // swallows (the check-that-cannot-fail class, caught live in this test).
-    let _ = a.db.create_channel("general", "General", None, "test", humanity_protocol::chat_access::PostLevel::Members);
-    // Open to Anyone, as a server makes its #general: only such a channel travels (chat-access.md).
-    let _ = a.db.set_channel_access("general", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
-    let _ = b.db.create_channel("general", "General", None, "test", humanity_protocol::chat_access::PostLevel::Members);
-    // Open to Anyone, as a server makes its #general: only such a channel travels (chat-access.md).
-    let _ = b.db.set_channel_access("general", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
-    assert!(a.db.set_channel_federated("general", true).expect("federate a:general"), "channel row must exist on A");
-    assert!(b.db.set_channel_federated("general", true).expect("federate b:general"), "channel row must exist on B");
+    let _ = a.db.create_channel("global", "global", None, "test", humanity_protocol::chat_access::PostLevel::Members);
+    // Open to Anyone, as a server makes its #global: only such a channel travels (chat-access.md).
+    let _ = a.db.set_channel_access("global", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
+    let _ = b.db.create_channel("global", "global", None, "test", humanity_protocol::chat_access::PostLevel::Members);
+    // Open to Anyone, as a server makes its #global: only such a channel travels (chat-access.md).
+    let _ = b.db.set_channel_access("global", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
+    assert!(a.db.set_channel_federated("global", true).expect("federate a:global"), "channel row must exist on A");
+    assert!(b.db.set_channel_federated("global", true).expect("federate b:global"), "channel row must exist on B");
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_millis() as u64;
     // The author's key travels with the line since 2026-10-22 (a server refuses the words of a
     // key it, or a server sharing the room, banned); any stand-in key will do here.
-    federation::forward_to_federation(&a, "general", "alice-key", "Alice", "hello across servers", now_ms).await;
+    federation::forward_to_federation(&a, "global", "alice-key", "Alice", "hello across servers", now_ms).await;
 
     let b_for_chat = b.clone();
     eventually("B persists the federated chat line", || {
@@ -131,7 +131,7 @@ async fn two_relays_handshake_chat_and_gossip() {
     // dialed while messages identify their origin by PUBLIC KEY, so the
     // source-identity check dropped every message arriving on an outbound
     // socket. Both directions must key peers by their pinned key.
-    federation::forward_to_federation(&b, "general", "bela-key", "Bela", "hello back the other way", now_ms + 5).await;
+    federation::forward_to_federation(&b, "global", "bela-key", "Bela", "hello back the other way", now_ms + 5).await;
     let a_for_chat = a.clone();
     eventually("A persists the federated chat line from B (outbound-socket leg)", || {
         a_for_chat.db.load_recent_messages(50)

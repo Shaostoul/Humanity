@@ -9,8 +9,8 @@
 //
 // THE SPECIFICATION IS THE RELAY'S RUST, and this is a port of it with the
 // same rules and the same results, byte for byte:
-//   src/relay/core/strip_metadata.rs        JPEG, PNG and WebP pictures
-//   src/relay/core/strip_video_metadata.rs  MP4, MOV and 3GP videos
+//   crates/humanity-protocol/src/strip_metadata.rs        JPEG, PNG and WebP pictures
+//   crates/humanity-protocol/src/strip_video_metadata.rs  MP4, MOV and 3GP videos
 // scripts/tests/strip-metadata.test.js builds the same test files as the Rust
 // tests, and where rustc is installed it strips thousands of inputs with the
 // Rust itself and compares every byte and every report.

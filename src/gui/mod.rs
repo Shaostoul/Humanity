@@ -2837,10 +2837,12 @@ pub struct GuiState {
     pub chat_servers_collapsed: bool,
     /// COMMONS section (bridged federated rooms) collapse state.
     pub chat_commons_collapsed: bool,
-    /// Per-server section collapse (normalized URLs). Persisted: at many
-    /// servers (the operator is on 36 Discord servers), collapsed sections
-    /// are how the list stays scannable.
-    pub chat_server_sections_collapsed: std::collections::HashSet<String>,
+    /// Whether each server's channel list is folded, as the person chose it (normalized URL ->
+    /// folded). A server they never folded or opened is folded unless it is the current one
+    /// (chat/left_panel.rs `server_folded`, docs/design/chat-channels.md section 5): at dozens of
+    /// servers (the operator is on 36 Discord servers) the list stays one line a server.
+    /// Persisted.
+    pub chat_server_folds: std::collections::HashMap<String, bool>,
     /// URL of the server row currently being dragged for reordering, if any.
     /// Session-only; the resulting ORDER is what persists (saved_servers).
     pub server_drag: Option<String>,
@@ -3254,7 +3256,7 @@ impl Default for GuiState {
             chat_line_limits: std::collections::HashMap::new(),
             federation_links: Default::default(),
             chat_channels: Vec::new(),
-            chat_active_channel: "general".to_string(),
+            chat_active_channel: humanity_protocol::chat_access::MAIN_CHANNEL.to_string(),
             chat_users: Vec::new(),
             chat_dms: Vec::new(),
             chat_servers: Vec::new(),
@@ -4157,7 +4159,7 @@ impl Default for GuiState {
             chat_groups_collapsed: false,
             chat_servers_collapsed: false,
             chat_commons_collapsed: false,
-            chat_server_sections_collapsed: std::collections::HashSet::new(),
+            chat_server_folds: std::collections::HashMap::new(),
             server_drag: None,
             show_commons_info: false,
             chat_connected_server_collapsed: false,

@@ -97,7 +97,7 @@ pub(crate) fn make_operator(gs: &mut GuiState, ws: crate::net::ws_client::WsClie
             game_players: 0,
             member_count: 46,
             accord_compliant: false,
-            channels: vec!["general".into(), "announcements".into(), "dev".into()],
+            channels: vec!["global".into(), "announcements".into(), "dev".into()],
             ..Default::default()
         },
     );

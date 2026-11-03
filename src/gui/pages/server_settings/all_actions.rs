@@ -262,15 +262,15 @@ mod tests {
     fn a_form_becomes_the_inputs_the_action_takes() {
         let reorder = crate::relay::admin::find("channels.reorder").unwrap();
         let mut f = HashMap::new();
-        f.insert("name".to_string(), " general ".to_string());
+        f.insert("name".to_string(), " global ".to_string());
         f.insert("position".to_string(), "3".to_string());
-        assert_eq!(inputs_from_form(reorder, &f).unwrap(), json!({ "name": "general", "position": 3 }), "a number is sent as a number");
+        assert_eq!(inputs_from_form(reorder, &f).unwrap(), json!({ "name": "global", "position": 3 }), "a number is sent as a number");
         f.insert("position".to_string(), "three".to_string());
         assert!(inputs_from_form(reorder, &f).is_err());
         let chan = crate::relay::admin::find("federation.channel").unwrap();
         let mut g = HashMap::new();
-        g.insert("channel".to_string(), "general".to_string());
-        assert_eq!(inputs_from_form(chan, &g).unwrap(), json!({ "channel": "general", "federated": false }), "an unticked box is false");
+        g.insert("channel".to_string(), "global".to_string());
+        assert_eq!(inputs_from_form(chan, &g).unwrap(), json!({ "channel": "global", "federated": false }), "an unticked box is false");
         let checked = crate::relay::admin::check_inputs(chan, &inputs_from_form(chan, &g).unwrap());
         assert!(checked.is_ok(), "and the relay takes what the form makes: {:?}", checked.err());
     }

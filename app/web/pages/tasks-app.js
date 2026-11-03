@@ -27,6 +27,24 @@ let allTasks = [];
 let activeScope = 'city';
 let openDetailId = null; // track currently open detail drawer for real-time updates
 
+/* ── The kinds of task (docs/design/tasks.md, 2026-11-02, BUG-217) ──
+ * Two kinds, one shown at a time, each with a line saying who can see it:
+ *  - My tasks (`taskKind` 'mine', first): kept in this browser only, encrypted,
+ *    and carried to my other devices as sealed notes to myself through my own
+ *    mailbox (/shared/mine-tasks.js). No server can read them. They need the
+ *    identity Chat keeps in this browser (pq-relay-auth.js); the page reads the
+ *    mailbox itself on its own signed-in socket.
+ *  - This server's board ('board'): the server's tasks (allTasks below), public
+ *    to its members; the relay decides who may change them (BUG-221).
+ * The two are never merged. The last kind chosen is remembered in this browser. */
+const TASK_KIND_KEY = 'hos_tasks_kind';
+let taskKind = 'mine';
+let mine = null;            // { store, ids } once my tasks are open
+let mineState = 'opening';  // 'opening', 'open', or 'none' (no identity this page can open)
+let mineFetchRef = null;    // this page's own mailbox fetch waiting for its page (the chat's rule, 10o O1)
+let mineFetchAfter = 0;     // where that fetch started
+let mineQueue = Promise.resolve(); // mail is taken one frame at a time, in the order it came
+
 /* ── Project state ── */
 let activeProject = null;  // null = all projects, 'default' = uncategorized
 let projects = [];
@@ -41,12 +59,25 @@ const PROJECT_ICONS = ['📋', '🚀', '🏠', '🔧', '🎯', '🌍', '💡', '
 
 /* ── Init ── */
 function init() {
+  // A click on a task notice opens /tasks?task=<id> (notifications rung 3): that task, which is
+  // a board task, opens on the board.
+  const wanted = typeof URLSearchParams === 'function' && typeof location !== 'undefined'
+    ? parseInt(new URLSearchParams(location.search || '').get('task'), 10) : NaN;
+  try { if (localStorage.getItem(TASK_KIND_KEY) === 'board') taskKind = 'board'; } catch { /* storage blocked: My tasks first */ }
+  if (wanted > 0) taskKind = 'board';
+  applyKind();
+  openMine();
   buildScopeTabs();
   buildScopeSelect();
   buildProjectColorPicker();
   buildProjectIconPicker();
-  loadTasks();
+  loadTasks().then(() => { if (wanted > 0 && allTasks.some(t => t.id === wanted)) openDetail(wanted); });
   loadProjects();
+  loadSuggestions();
+  // Suggested cards are redrawn into the first column, so their clicks are
+  // caught once on the column itself (and on the detail drawer's steps).
+  document.getElementById('col-backlog').addEventListener('click', onSuggestionClick);
+  document.getElementById('detail-steps').addEventListener('click', onSuggestionClick);
   // Connect to relay for real-time updates if user has an identity
   setTimeout(ensureTaskWs, 1000);
 }
@@ -91,7 +122,9 @@ async function loadTasks() {
     renderProjectSelectorBtn();
   } catch (e) {
     console.error('[tasks] load error:', e);
-    document.getElementById('col-backlog').innerHTML = `<div class="empty-col">⚠️ ${i18n.t('tasks.load_failed')}<br><small>${e.message}</small></div>`;
+    // The board could not be read; My tasks need no server, so they still show.
+    if (taskKind === 'mine') { renderBoard(); return; }
+    document.getElementById('col-backlog').innerHTML = `<div class="empty-col">⚠️ ${i18n.t('tasks.load_failed')}<br><small>${esc(e.message)}</small></div>`;
   }
 }
 
@@ -105,8 +138,19 @@ function getTaskScope(task) {
 }
 
 function getNonScopeLabels(task) {
-  try { return JSON.parse(task.labels || '[]').filter(l => !l.startsWith('scope:')); }
+  // "scope:" and "chain:" labels are links the page reads, not tags a person wrote.
+  try { return JSON.parse(task.labels || '[]').filter(l => !l.startsWith('scope:') && !l.startsWith('chain:')); }
   catch { return []; }
+}
+
+/** The learn-by-doing chain a task was added from (one of my own: its `chain`;
+ *  a board task: its "chain:<id>" label), or null. */
+function getTaskChain(task) {
+  if (task && typeof task.chain === 'string') return suggestionChains.find(c => c.id === task.chain) || null;
+  try {
+    const l = JSON.parse(task.labels || '[]').find(x => x.startsWith('chain:'));
+    return l ? suggestionChains.find(c => c.id === l.slice('chain:'.length)) || null : null;
+  } catch { return null; }
 }
 
 function scopedTasks() {
@@ -127,6 +171,7 @@ function scopedTasks() {
 
 /* ── Render ── */
 function renderBoard() {
+  if (taskKind === 'mine') { renderMineBoard(); return; }
   const tasks = scopedTasks();
   // Whole-board empty state: a wall of "-" reads as broken. Say plainly what to
   // do. This board loads tasks from the server, so a logged-out or empty
@@ -147,6 +192,7 @@ function renderBoard() {
       const col = document.getElementById('col-' + s);
       if (col) col.innerHTML = '';
     });
+    renderSuggestions();
     return;
   }
   ['backlog','in_progress','testing','done'].forEach(status => {
@@ -163,6 +209,7 @@ function renderBoard() {
       console.error('renderCard error in', status, e);
     }
   });
+  renderSuggestions();
 }
 
 function renderControls() {
@@ -204,7 +251,193 @@ function renderCard(task) {
       ${labels.slice(0,3).map(l=>`<span class="label-tag">${esc(l)}</span>`).join('')}
       ${testTally}
     </div>
+    ${chainStepsLine(getTaskChain(task))}
   </div>`;
+}
+
+/* ── Suggested guides (2026-10-30) ──
+ * The learn-by-doing chains (data/onboarding/quests.json) as SUGGESTED cards at
+ * the top of the first column: the twin of the desktop Tasks page
+ * (src/gui/pages/tasks.rs, draw_suggestion), where they replaced a separate
+ * "Learn by doing" side panel at the operator's request ("Shouldn't those be
+ * cards in like the Todo section"). A step's tick is kept in this browser under
+ * humanity_quest_progress, keyed "chain:step", the store /onboarding uses too.
+ *
+ * "Add to my tasks" makes the chain one of My tasks in one click (2026-11-02,
+ * docs/design/tasks.md), as the desktop app does: kept in this browser and sent
+ * sealed to my other devices, never readable by a server. Until then it opened
+ * the server's New Task form, because this page was only the server's board.
+ * The cards show on My tasks only, and a chain made into a task stays away
+ * while that task exists. Once the chains become how-tos
+ * (docs/design/how-to.md, increment 6) these cards are fed by how-tos instead. */
+const SUGGEST_PROGRESS_KEY = 'humanity_quest_progress';
+let suggestionChains = [];
+let suggestionsShown = true;   // the Hide suggestions button; for this visit only
+let suggestionOpen = {};       // chain id -> the step whose words are showing
+
+function suggestionRead(key) {
+  try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { return {}; }
+}
+function suggestionWrite(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage blocked: the change lasts this visit */ }
+}
+
+async function loadSuggestions() {
+  try {
+    const res = await fetch('/data/onboarding/quests.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    suggestionChains = Array.isArray(data.chains) ? data.chains : [];
+  } catch (e) {
+    console.warn('[tasks] suggested guides not loaded:', e);
+    suggestionChains = [];
+  }
+  renderBoard();
+  reopenDetail();
+}
+
+/** The chains to suggest now: on My tasks only, not hidden, not already one of
+ *  my tasks, and matching the search box. */
+function visibleSuggestions() {
+  if (!suggestionsShown || taskKind !== 'mine' || mineState !== 'open') return [];
+  const list = mine.store.list;
+  const q = (document.getElementById('task-search')?.value || '').trim().toLowerCase();
+  return suggestionChains.filter(c => {
+    if (list.hasChain(c.id)) return false;
+    if (!q) return true;
+    return [c.title, c.purpose, ...c.steps.map(s => s.title)].some(w => String(w || '').toLowerCase().includes(q));
+  });
+}
+
+/** How many of a chain's steps are ticked. */
+function chainDone(chain, progress) {
+  return chain.steps.filter(s => progress[chain.id + ':' + s.id]).length;
+}
+
+/** The "Steps: 1 of 4" line on a task added from a chain (empty for any other task). */
+function chainStepsLine(chain) {
+  if (!chain) return '';
+  const done = chainDone(chain, suggestionRead(SUGGEST_PROGRESS_KEY));
+  return `<div class="card-steps">${i18n.t('tasks.card_steps', { done, total: chain.steps.length })}</div>`;
+}
+
+/** A chain's steps: a tick box and a title each; the open step also shows its
+ *  words and where to do it. Shared by the suggested card and the detail drawer. */
+function renderChainSteps(chain, progress) {
+  const open = suggestionOpen[chain.id];
+  return chain.steps.map(s => {
+    const ticked = !!progress[chain.id + ':' + s.id];
+    const isOpen = open === s.id;
+    let more = '';
+    if (isOpen) {
+      const outside = /^https?:/.test(s.link || '');
+      const go = s.link
+        ? `<a class="sg-act" href="${esc(s.link)}"${outside ? ' target="_blank" rel="noopener"' /* i18n-exempt: attributes */ : ''} data-i18n-tip="tasks.suggested_go_hint">${i18n.t('tasks.suggested_go')}</a>`
+        : '';
+      const howTo = s.how_to
+        ? `<a class="sg-act" href="/how-to#${encodeURIComponent(s.how_to)}" data-i18n-tip="tasks.suggested_how_to_hint">${i18n.t('tasks.suggested_how_to')}</a>`
+        : '';
+      more = `<div class="sg-step-words">${esc(s.description)}</div>` + (go || howTo ? `<div class="sg-acts">${go}${howTo}</div>` : '');
+    }
+    return `<div class="sg-step${ticked ? ' done' : '' /* i18n-exempt: a class name */}">
+      <button type="button" class="sg-tick" data-chain="${esc(chain.id)}" data-tick="${esc(s.id)}" aria-pressed="${ticked}" aria-label="${esc(s.title)}" data-i18n-tip="tasks.suggested_tick_hint">${ticked ? '✓' : ''}</button>
+      <div class="sg-step-main">
+        <button type="button" class="sg-step-title" data-chain="${esc(chain.id)}" data-step="${esc(s.id)}" aria-expanded="${isOpen}" data-i18n-tip="tasks.suggested_step_hint">${esc(s.title)}</button>
+        ${more}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/** One suggested card. */
+function renderSuggestion(chain, progress) {
+  const total = chain.steps.length;
+  const done = chainDone(chain, progress);
+  const count = done === total
+    ? i18n.t('tasks.suggested_all_done', { total })
+    : i18n.t('tasks.suggested_progress', { done, total });
+  const pct = total ? Math.round(done / total * 100) : 0;
+  return `<div class="card-suggested" data-suggestion="${esc(chain.id)}">
+    <div class="sg-head">
+      <span class="card-suggested-label">${i18n.t('tasks.suggested')}</span>
+      <span class="sg-count${done === total ? ' all-done' : '' /* i18n-exempt: a class name */}">${count}</span>
+    </div>
+    <div class="card-title">${esc(chain.title)}</div>
+    <div class="sg-purpose">${esc(chain.purpose || '')}</div>
+    <div class="sg-bar"><span style="width:${pct}%"></span></div>
+    <div class="sg-steps">${renderChainSteps(chain, progress)}</div>
+    <button type="button" class="sg-add" data-add="${esc(chain.id)}" data-i18n-tip="tasks.suggested_add_hint">${i18n.t('tasks.suggested_add')}</button>
+  </div>`;
+}
+
+/** Draw the suggested cards at the top of the first column (or take them away). */
+function renderSuggestions() {
+  const col = document.getElementById('col-backlog');
+  if (!col) return;
+  let box = document.getElementById('suggested-cards');
+  const chains = visibleSuggestions();
+  if (!chains.length) { if (box) box.remove(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'suggested-cards';
+    box.className = 'suggested-cards';
+  }
+  // Always first, above the person's own tasks (renderBoard rewrites the rest).
+  if (col.firstChild !== box) col.insertBefore(box, col.firstChild);
+  const progress = suggestionRead(SUGGEST_PROGRESS_KEY);
+  box.innerHTML = chains.map(c => renderSuggestion(c, progress)).join('');
+  i18n.apply(box);
+}
+
+/** The steps of a task added from a chain, in the detail drawer. */
+function renderDetailSteps(task) {
+  const el = document.getElementById('detail-steps');
+  if (!el) return;
+  const chain = task ? getTaskChain(task) : null;
+  if (!chain) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="detail-steps-title">${i18n.t('tasks.detail_steps')}</div>` +
+    `<div class="sg-steps">${renderChainSteps(chain, suggestionRead(SUGGEST_PROGRESS_KEY))}</div>`;
+  i18n.apply(el);
+}
+
+/** Clicks on a suggested card or on the drawer's steps (one listener each). */
+function onSuggestionClick(e) {
+  const tick = e.target.closest('[data-tick]');
+  if (tick) {
+    const key = tick.dataset.chain + ':' + tick.dataset.tick;
+    const progress = suggestionRead(SUGGEST_PROGRESS_KEY);
+    progress[key] = !progress[key];
+    suggestionWrite(SUGGEST_PROGRESS_KEY, progress);
+    renderBoard();
+    if (openDetailId != null) renderDetailSteps(detailTask());
+    return;
+  }
+  const step = e.target.closest('[data-step]');
+  if (step) {
+    const c = step.dataset.chain;
+    suggestionOpen[c] = suggestionOpen[c] === step.dataset.step ? null : step.dataset.step;
+    renderSuggestions();
+    if (openDetailId != null) renderDetailSteps(detailTask());
+    return;
+  }
+  const add = e.target.closest('[data-add]');
+  if (add) suggestionAdd(add.dataset.add);
+}
+
+/** Add to my tasks: the chain becomes one of my own tasks, linked to it, in one
+ *  click (never twice: a task made from it already adds nothing). */
+function suggestionAdd(chainId) {
+  const chain = suggestionChains.find(c => c.id === chainId);
+  if (!chain || mineState !== 'open' || mine.store.list.hasChain(chain.id)) return;
+  mineAdd({ title: chain.title, description: chain.purpose || '', chain: chain.id });
+}
+
+/** The Hide suggestions / Show suggestions button. */
+function toggleSuggestions() {
+  suggestionsShown = !suggestionsShown;
+  const key = suggestionsShown ? 'tasks.hide_suggestions' : 'tasks.show_suggestions';
+  setWords(document.getElementById('btn-suggestions'), key, i18n.t(key));
+  renderSuggestions();
 }
 
 /* ── Modal ── */
@@ -347,6 +580,7 @@ async function ensureTaskWs() {
           taskWsRetryMs = 5000;
           settleTaskWsWaiters(true);
           requestProjectList();
+          mineSignedIn();
         } else if (m.type === 'account_erased') {
           // This identity's account was erased on this server (BUG-135): the relay remembers
           // that for a while and signs nothing up for it, then closes. A refusal, so the page
@@ -363,6 +597,9 @@ async function ensureTaskWs() {
         }
         return;
       }
+      // My mailbox (my own tasks' notes, docs/design/tasks.md): a page of my own fetch, or live mail.
+      if (m.type === 'dm_batch') { mineInOrder(() => mineTakeBatch(m)); return; }
+      if (m.type === 'dm_new') { mineInOrder(() => mineTakeLive(m)); return; }
       // Resolve pending create promise
       if (m.type === 'task_created' && taskWsPending) { taskWsPending(m.task); taskWsPending = null; }
       if (m.type === 'system' && m.message && taskWsPending && !m.message.startsWith('__')) { taskWsPending(null, m.message); taskWsPending = null; }
@@ -447,6 +684,18 @@ async function submitTask() {
 
   const rawLabels = document.getElementById('f-labels').value.trim();
   const labelArr = rawLabels ? rawLabels.split(',').map(l => l.trim()).filter(Boolean) : [];
+  // On My tasks the form makes one of my own: kept here, sent sealed to my other
+  // devices, nothing to the board (docs/design/tasks.md).
+  if (taskKind === 'mine') {
+    if (mineState !== 'open') { msg.innerHTML = `<div class="msg-error">${esc(i18n.t('tasks.mine_locked_web'))}</div>`; return; }
+    const status = { backlog: 'todo', testing: 'in_progress' }[document.getElementById('f-status').value] || document.getElementById('f-status').value;
+    mineAdd({ title, description: document.getElementById('f-desc').value.trim(), priority: document.getElementById('f-priority').value, status, labels: labelArr });
+    document.getElementById('f-title').value = '';
+    document.getElementById('f-desc').value = '';
+    document.getElementById('f-labels').value = '';
+    closeModal();
+    return;
+  }
   labelArr.push('scope:' + document.getElementById('f-scope').value);
 
   const body = {
@@ -575,6 +824,8 @@ function openDetail(id) {
   i18n.apply(assigneeRow);
 
   document.getElementById('detail-desc').textContent = task.description || i18n.t('tasks.no_description');
+  // A task added from a suggested guide shows that guide's steps, tickable here too.
+  renderDetailSteps(task);
 
   document.getElementById('detail-labels').innerHTML = labels.length
     ? labels.map(l => `<span class="label-tag">${esc(l)}</span>`).join('')
@@ -641,6 +892,313 @@ async function submitComment(taskId) {
 
 function closeDetail() {
   document.getElementById('detail-overlay').classList.remove('open');
+  openDetailId = null;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   My own tasks (docs/design/tasks.md rung 1, 2026-11-02)
+   Kept in this browser, encrypted; carried to my other devices as
+   sealed notes to myself (/shared/mine-tasks.js). The board's list
+   never touches them.
+   ═══════════════════════════════════════════════════════════════ */
+
+/** The task the detail drawer shows: one of mine or one of the board's. */
+function detailTask() {
+  if (openDetailId == null) return null;
+  if (taskKind === 'mine') return mine ? mine.store.list.get(openDetailId) : null;
+  return allTasks.find(t => t.id === openDetailId) || null;
+}
+
+/** Draw the open drawer again, its task having changed. */
+function reopenDetail() {
+  if (openDetailId == null || !document.getElementById('detail-overlay').classList.contains('open')) return;
+  if (taskKind === 'mine') openMineDetail(openDetailId); else openDetail(openDetailId);
+}
+
+/** Show `kind` ('mine' or 'board'), remember it in this browser, and draw. */
+function setTaskKind(kind) {
+  if ((kind !== 'mine' && kind !== 'board') || kind === taskKind) return;
+  taskKind = kind;
+  try { localStorage.setItem(TASK_KIND_KEY, kind); } catch { /* storage blocked: for this visit */ }
+  closeDetail();
+  applyKind();
+  renderBoard();
+  renderControls();
+}
+
+/** The page's parts for the kind shown: the switch, the line saying who can
+ *  see it, the first column's name, the hints that name where a new task goes,
+ *  and (by a class on the body) the parts that belong to the board only. */
+function applyKind() {
+  const isMine = taskKind === 'mine';
+  if (document.body && document.body.classList) document.body.classList.toggle('kind-mine', isMine);
+  for (const k of ['mine', 'board']) {
+    const tab = document.getElementById('kind-' + k);
+    if (!tab) continue;
+    tab.classList.toggle('active', taskKind === k);
+    tab.setAttribute('aria-selected', String(taskKind === k));
+  }
+  const whoKey = isMine ? 'tasks.kind_mine_who' : 'tasks.kind_board_who';
+  setWords(document.getElementById('kind-who'), whoKey, i18n.t(whoKey));
+  const colKey = isMine ? 'tasks.status_todo' : 'tasks.status_backlog';
+  setWords(document.getElementById('col-backlog-label'), colKey, i18n.t(colKey));
+  const tip = (id, key) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.setAttribute('data-i18n-tip', key);
+    el.setAttribute('data-tip-desc', i18n.t(key));
+  };
+  tip('btn-new-task', isMine ? 'tasks.new_task_mine_hint' : 'tasks.new_task_hint');
+  tip('btn-submit', isMine ? 'tasks.create_task_mine_hint' : 'tasks.create_task_hint');
+  renderMineNotice();
+}
+
+/** Open my own tasks: the identity Chat keeps in this browser, the key they
+ *  are kept under, and my DM keys, all from the same seed (pq-relay-auth.js). */
+async function openMine() {
+  try {
+    const H = window.HosMineTasks;
+    if (!H || typeof window.getPqTasksKey !== 'function' || typeof window.getPqDmKeys !== 'function' || !window.indexedDB) throw new Error('not on this page');
+    const id = await loadTaskIdentity();
+    const key = id && await window.getPqTasksKey();
+    const dm = key && await window.getPqDmKeys();
+    if (!id || !key || !dm) throw new Error('no identity this page can open');
+    const store = await H.openStore(id.dilithiumPublicHex, key, window.indexedDB);
+    await store.load();
+    mine = { store, ids: { me: id.dilithiumPublicHex, dilithiumSecret: id.dilithiumSecret, kyberPublicB64: dm.kyberPublicB64, kyberSecret: dm.kyberSecret } };
+    mineState = 'open';
+  } catch (e) {
+    console.info('[tasks] my own tasks are not open here:', e && e.message);
+    mineState = 'none';
+  }
+  renderBoard();
+  if (mineState === 'open') mineSignedIn();
+}
+
+/** Take the mail one frame at a time, in the order it came. */
+function mineInOrder(fn) {
+  const next = mineQueue.then(fn, fn);
+  mineQueue = next.catch(() => {});
+  return next;
+}
+
+/** The page's socket is signed in: send what waited, then read my mailbox
+ *  from where this page last read on this server. */
+function mineSignedIn() {
+  if (mineState !== 'open' || !taskWs || !taskWsBound) return;
+  const waiting = mine.store.list.unsent.slice();
+  if (waiting.length) mineInOrder(() => mineSendKept(waiting));
+  mineFetch(mine.store.list.hw[location.host] || 0);
+}
+
+/** Ask for my mailbox from after `after`, with a fresh ref: only the page carrying it is this page's. */
+function mineFetch(after) {
+  if (!taskWs || !taskWsBound || taskWs.readyState !== WebSocket.OPEN) { mineFetchRef = null; return; }
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  mineFetchRef = 'tasks-' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  mineFetchAfter = Number(after) || 0;
+  taskWs.send(JSON.stringify({ type: 'dm_fetch', after_id: mineFetchAfter, ref: mineFetchRef }));
+}
+
+/** A page of my mailbox. Every device of mine receives every page, so only
+ *  this page's own counts; its task notes from me are merged in. */
+async function mineTakeBatch(m) {
+  if (mineState !== 'open' || !mineFetchRef || m.ref !== mineFetchRef) return;
+  const myRef = mineFetchRef;
+  const list = mine.store.list;
+  let lastId = mineFetchAfter;
+  let changed = false;
+  for (const item of m.messages || []) {
+    if (item.id > lastId) lastId = item.id;
+    if (!item.content) continue;
+    if (list.apply(await HosMineTasks.takeEnvelope(item.content, mine.ids))) changed = true;
+  }
+  if (lastId > (list.hw[location.host] || 0)) list.hw[location.host] = lastId;
+  await mine.store.save();
+  if (changed) { renderBoard(); reopenDetail(); }
+  if (mineFetchRef !== myRef) return;
+  if (m.done === false) { mineFetch(lastId); return; }
+  mineFetchRef = null;
+}
+
+/** Live mail: a note from another of my devices shows at once. */
+async function mineTakeLive(m) {
+  if (mineState !== 'open' || !m.content) return;
+  const list = mine.store.list;
+  const changed = list.apply(await HosMineTasks.takeEnvelope(m.content, mine.ids));
+  // The read position moves on live mail only once this page's own fetch is
+  // done (the chat's rule, 10o O1): rows before it may not have been read yet.
+  const moved = !mineFetchRef && Number(m.id) > (list.hw[location.host] || 0);
+  if (moved) list.hw[location.host] = Number(m.id);
+  if (changed || moved) await mine.store.save();
+  if (changed) { renderBoard(); reopenDetail(); }
+}
+
+/** The latest versions of `ids` as notes to myself, in my own mailbox. False
+ *  when the socket is not signed in or a note could not be sealed. */
+async function mineSend(ids) {
+  const list = mine.store.list;
+  const records = ids.map(id => list.record(id)).filter(Boolean);
+  if (!records.length) return true;
+  const open = () => taskWs && taskWsBound && taskWs.readyState === WebSocket.OPEN;
+  if (!open()) return false;
+  const ts = Date.now();
+  for (const text of HosMineTasks.noteTexts(records)) {
+    const put = await HosMineTasks.sealSelfNote(text, ts, mine.ids);
+    if (!put || !open()) return false;
+    taskWs.send(JSON.stringify(put));
+  }
+  return true;
+}
+
+/** Keep a change (marked unsent, so a closed page loses nothing), send it, then clear the mark. */
+async function mineSendKept(ids) {
+  const list = mine.store.list;
+  list.markUnsent(ids);
+  await mine.store.save();
+  if (await mineSend(ids)) {
+    list.unsent = list.unsent.filter(id => !ids.includes(id));
+    await mine.store.save();
+  }
+  renderMineNotice();
+}
+
+/** The words for a problem with my saved tasks (/shared/mine-tasks.js openStore problem()), and their hints. */
+const MINE_NOTICES = {
+  kept: { words: 'tasks.mine_kept_aside_web', hint: 'tasks.mine_kept_aside_web_hint' },
+  unreadable: { words: 'tasks.mine_unreadable_web', hint: 'tasks.mine_unreadable_web_hint' },
+};
+
+/** Say on My tasks, plainly, when my saved tasks did not open as they were: kept aside as a copy,
+ *  or not readable just now (nothing is saved over them), and that tasks from my other devices
+ *  come back as their notes arrive. Hidden otherwise. */
+function renderMineNotice() {
+  const el = document.getElementById('mine-notice');
+  if (!el) return;
+  const problem = mine && typeof mine.store.problem === 'function' ? mine.store.problem() : null;
+  const notice = taskKind === 'mine' && problem ? MINE_NOTICES[problem.kind] : null;
+  if (!notice) { el.style.display = 'none'; return; }
+  setWords(el, notice.words, i18n.t(notice.words));
+  el.setAttribute('data-i18n-tip', notice.hint);
+  el.setAttribute('data-tip-desc', i18n.t(notice.hint));
+  el.style.display = '';
+}
+
+/** A change made here: draw it, then keep and send it. */
+function mineChanged(id) {
+  renderBoard();
+  reopenDetail();
+  return mineInOrder(() => mineSendKept([id]));
+}
+
+/** A new task of my own: {title, description, priority, status, labels, chain}. Its id, or null. */
+function mineAdd(fields) {
+  if (mineState !== 'open') return null;
+  const id = mine.store.list.add(fields, Date.now());
+  mineChanged(id);
+  return id;
+}
+
+function mineChange(id, change) {
+  if (mineState === 'open' && mine.store.list.change(id, change, Date.now())) mineChanged(id);
+}
+
+function mineDelete(id) {
+  if (mineState !== 'open' || !mine.store.list.remove(id, Date.now())) return;
+  closeDetail();
+  mineChanged(id);
+}
+
+/** A status's name on My tasks: its first column is To do (the board's is Backlog). */
+function mineStatusName(s) {
+  return s === 'todo' ? i18n.t('tasks.status_todo') : statusName(s);
+}
+
+/** My tasks' columns: the record's status, and the column it is drawn in. */
+const MINE_COLUMNS = [['todo', 'backlog'], ['in_progress', 'in_progress'], ['done', 'done']];
+
+/** Draw My tasks: three columns (no Testing: its votes are the board's), the suggestions first. */
+function renderMineBoard() {
+  const put = (col, html, n) => {
+    const c = document.getElementById('col-' + col);
+    if (c) { c.innerHTML = html; i18n.apply(c); }
+    const k = document.getElementById('count-' + col);
+    if (k) k.textContent = String(n);
+  };
+  put('testing', '', 0);
+  renderMineNotice();
+  if (mineState !== 'open') {
+    const key = mineState === 'opening' ? 'common.loading' : 'tasks.mine_locked_web';
+    put('backlog', `<div class="empty-col">${esc(i18n.t(key))}</div>`, 0);
+    put('in_progress', '', 0);
+    put('done', '', 0);
+    return;
+  }
+  const q = (document.getElementById('task-search')?.value || '').trim().toLowerCase();
+  const tasks = mine.store.list.tasks().filter(t => !q || [t.title, t.description, ...(t.labels || [])].some(w => String(w || '').toLowerCase().includes(q)));
+  const none = !tasks.length && !visibleSuggestions().length;
+  for (const [status, col] of MINE_COLUMNS) {
+    const list = tasks.filter(t => t.status === status);
+    const empty = col === 'backlog' && none ? `<div class="empty-col">${esc(i18n.t('tasks.empty_body'))}</div>` : `<div class="empty-col">-</div>`;
+    put(col, list.length ? list.map(renderMineCard).join('') : empty, list.length);
+  }
+  renderSuggestions();
+}
+
+/** One of my tasks as a card (its id is 32 hex, so it is safe in the click). */
+function renderMineCard(t) {
+  const labels = (t.labels || []).slice(0, 3).map(l => `<span class="label-tag">${esc(l)}</span>`).join('');
+  return `<div role="button" tabindex="0" class="card priority-${t.priority}" onclick="openMineDetail('${t.id}')" data-i18n-tip="tasks.card_hint">
+    <div class="card-title">${esc(t.title || '')}</div>
+    <div class="card-info">
+      <span class="card-prio" style="color:${priorityColor(t.priority)}">${priorityName(t.priority).toUpperCase()}</span>
+      <span class="card-sep">·</span>
+      <span>${timeAgo(t.created_at || Date.now())}</span>
+      ${labels}
+    </div>
+    ${chainStepsLine(getTaskChain(t))}
+  </div>`;
+}
+
+/** The detail drawer for one of my tasks: move it, give it a priority, delete it. */
+function openMineDetail(id) {
+  const t = mine && mine.store.list.get(id);
+  if (!t) { closeDetail(); return; }
+  openDetailId = id;
+  document.getElementById('detail-id').textContent = '';
+  document.getElementById('detail-title').textContent = t.title || '';
+  document.getElementById('detail-badges').innerHTML =
+    `<span class="detail-badge badge-status-${t.status}">${mineStatusName(t.status)}</span>` +
+    `<span class="detail-badge badge-priority-${t.priority}">${priorityName(t.priority)}</span>`;
+  const statusBtns = document.getElementById('detail-status-btns');
+  const steps = [{ key: 'todo', icon: 'tasklist' }, { key: 'in_progress', icon: 'settings' }, { key: 'done', icon: 'check' }];
+  statusBtns.innerHTML = steps.map(({ key, icon }) => {
+    const label = (typeof hosIcon === 'function' ? hosIcon(icon, 14) : '') + ' ' + mineStatusName(key);
+    return key === t.status
+      ? `<button class="btn-status current current-${key}" disabled title="${i18n.t('tasks.current_status')}" data-i18n-tip="tasks.status_current_hint">${label}</button>`
+      : `<button class="btn-status" onclick="mineChange('${id}',{status:'${key}'})" title="${i18n.t('tasks.move_to', { status: mineStatusName(key) })}" data-i18n-tip="tasks.status_button_hint">${label}</button>`;
+  }).join('') + `<span class="status-move-label">← ${i18n.t('tasks.move_to_label')}</span>`;
+  i18n.apply(statusBtns);
+  const priorityBtns = document.getElementById('detail-priority-btns');
+  const levels = [{ key: 'low', glyph: '▽' }, { key: 'medium', glyph: '◆' }, { key: 'high', glyph: '▲' }, { key: 'critical', glyph: '🔥' }];
+  priorityBtns.innerHTML = levels.map(({ key, glyph }) => {
+    const label = glyph + ' ' + priorityName(key);
+    return key === t.priority
+      ? `<button class="btn-status current current-${key}" disabled title="${i18n.t('tasks.current_priority')}" data-i18n-tip="tasks.priority_current_hint">${label}</button>`
+      : `<button class="btn-status" onclick="mineChange('${id}',{priority:'${key}'})" title="${i18n.t('tasks.set_priority_to', { priority: label })}" data-i18n-tip="tasks.priority_button_hint">${label}</button>`;
+  }).join('') + `<span class="status-move-label">← ${i18n.t('tasks.priority_arrow_label')}</span>`;
+  i18n.apply(priorityBtns);
+  const row = document.getElementById('detail-assignee-row');
+  row.innerHTML = `<button class="btn-status" onclick="mineDelete('${id}')" data-i18n-tip="tasks.delete_mine_hint">${i18n.t('common.delete')}</button>`;
+  i18n.apply(row);
+  document.getElementById('detail-desc').textContent = t.description || i18n.t('tasks.no_description');
+  renderDetailSteps(t);
+  document.getElementById('detail-labels').innerHTML = (t.labels || []).map(l => `<span class="label-tag">${esc(l)}</span>`).join('');
+  const created = t.created_at ? new Date(t.created_at).toLocaleString() : '-';
+  document.getElementById('detail-meta').innerHTML =
+    `<div class="detail-meta-row"><span class="detail-meta-label">${i18n.t('tasks.created')}</span><span>${created}</span></div>`;
+  document.getElementById('detail-test-panel').innerHTML = '';
+  document.getElementById('detail-overlay').classList.add('open');
 }
 
 /* ── Test votes ──
@@ -1457,7 +2015,7 @@ function quest_showToast(msg, duration) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'quest-toast';
-    el.style.cssText = 'position:fixed;bottom:3rem;left:50%;transform:translateX(-50%);background:var(--tk-toast-bg);border:1px solid #f0a500;color:var(--tk-toast-ink);padding:var(--space-lg) 1.2rem;border-radius:8px;font-size:0.82rem;z-index:9999;max-width:340px;text-align:center;transition:opacity .3s;';
+    el.style.cssText = 'position:fixed;bottom:calc(3rem + var(--hos-wip-h, 0px));left:50%;transform:translateX(-50%);background:var(--tk-toast-bg);border:1px solid #f0a500;color:var(--tk-toast-ink);padding:var(--space-lg) 1.2rem;border-radius:8px;font-size:0.82rem;z-index:9999;max-width:340px;text-align:center;transition:opacity .3s;';
     document.body.appendChild(el);
   }
   el.textContent = msg;

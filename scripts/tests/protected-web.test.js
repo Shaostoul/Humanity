@@ -313,7 +313,7 @@ const OTHER_PIN = "55512340";
 const SEED = Uint8Array.from({ length: 32 }, (_, i) => (i * 7 + 3) & 0xff);
 const OTHER_SEED = Uint8Array.from({ length: 32 }, (_, i) => (i * 11 + 5) & 0xff);
 const CHANNELS = [
-  { id: "general", name: "general", post_level: "members" },
+  { id: "global", name: "global", post_level: "members" },
   { id: "announcements", name: "announcements", post_level: "mods" },
   { id: "dev", name: "dev", post_level: "members", voice_enabled: true },
 ];
@@ -524,7 +524,7 @@ async function loadChat(opts = {}) {
   // The identity in use (opts.me / opts.seed: another identity on the same device).
   const me = opts.me || ME;
   vm.runInContext(`(s, me, seed) => {
-    ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'general'; identityConfirmed = true;
+    ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'global'; identityConfirmed = true;
     myDilithiumPublicHex = me; myDilithiumSecret = new Uint8Array(4);
     myKyberPublicBase64 = '${MY_KYBER}'; myKyberSecret = new Uint8Array(4);
     myIdentity = { publicKeyHex: me, seed32: seed, canSign: true };
@@ -1124,31 +1124,31 @@ test("public rooms: only read-only rooms are listed, the rest hidden with one li
   const list = () => { chat.fn("renderServerList")(); return chat.el("server-list").innerHTML; };
   const line = escHtml(PRESET.public_rooms_hidden_line);
   let html = list();
-  for (const id of ["general", "announcements", "dev"]) assert.ok(html.includes(`data-channel-id="${id}"`), `off: #${id} is listed`);
+  for (const id of ["global", "announcements", "dev"]) assert.ok(html.includes(`data-channel-id="${id}"`), `off: #${id} is listed`);
   assert.ok(!html.includes(line));
   assert.ok(html.includes("Other"), "off: the federation list too");
 
   await turnOn(chat);
   html = list();
   assert.ok(html.includes('data-channel-id="announcements"'), "on: the read-only room is listed");
-  assert.ok(!html.includes('data-channel-id="general"') && !html.includes('data-channel-id="dev"'), "the public rooms are not");
+  assert.ok(!html.includes('data-channel-id="global"') && !html.includes('data-channel-id="dev"'), "the public rooms are not");
   assert.ok(html.includes(line), "and one line says they are hidden by the setup");
   assert.ok(!html.includes("Other"), "the federation list goes with them");
   chat.fn("renderChannelList")();
-  assert.ok(!chat.el("channel-list").innerHTML.includes("general"), "the older list too");
+  assert.ok(!chat.el("channel-list").innerHTML.includes("global"), "the older list too");
   assert.equal(chat.fn("activeChannel"), "announcements", "the open public room was left for a listed one");
-  chat.fn("switchChannel")("general");
+  chat.fn("switchChannel")("global");
   assert.equal(chat.fn("activeChannel"), "announcements", "a hidden room cannot be opened");
 
   // A post in a hidden room never reaches anything that draws or notifies it.
-  chat.set("() => { activeChannel = 'general'; }");
+  chat.set("() => { activeChannel = 'global'; }");
   chat.appended.length = 0;
   chat.notified.length = 0;
-  await chat.handle({ type: "chat", from: BEN, from_name: "Ben", content: "hello all", timestamp: 7001, channel: "general" });
+  await chat.handle({ type: "chat", from: BEN, from_name: "Ben", content: "hello all", timestamp: 7001, channel: "global" });
   await chat.handle({ type: "chat", from: BEN, from_name: "Ben", content: "over here", timestamp: 7002, channel: "dev" });
   assert.equal(chat.appended.length, 0, "not drawn");
   assert.equal(chat.notified.length, 0, "not notified");
-  assert.ok(!chat.ctx.unreadChannelCounts.general && !chat.ctx.unreadChannelCounts.dev, "not even an unread mark");
+  assert.ok(!chat.ctx.unreadChannelCounts.global && !chat.ctx.unreadChannelCounts.dev, "not even an unread mark");
   // A hidden room's history is not loaded.
   const before = chat.fetches.length;
   await chat.fn("loadHistory")();
@@ -1165,7 +1165,7 @@ test("public rooms: only read-only rooms are listed, the rest hidden with one li
   assert.ok(chat.pinOpen(), "showing them asks for the PIN");
   await answerPin(chat, PIN);
   html = list();
-  for (const id of ["general", "announcements", "dev"]) assert.ok(html.includes(`data-channel-id="${id}"`), `shown with the PIN: #${id}`);
+  for (const id of ["global", "announcements", "dev"]) assert.ok(html.includes(`data-channel-id="${id}"`), `shown with the PIN: #${id}`);
   assert.ok(!html.includes(line));
 
   // With no read-only room at all, the scratch pad (nothing from anyone) is where it goes.

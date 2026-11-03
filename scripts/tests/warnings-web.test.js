@@ -417,7 +417,7 @@ async function loadChat(opts = {}) {
   ctx.pqDmOpen = async (_secret, ek, _nonce, ct) => (unb64(ek) === MY_KYBER ? unb64(ct) : null);
   const sock = fakeSocket();
   vm.runInContext(`(s, me, seed) => {
-    ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'general'; identityConfirmed = true;
+    ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'global'; identityConfirmed = true;
     myDilithiumPublicHex = me; myDilithiumSecret = new Uint8Array(4);
     myKyberPublicBase64 = '${MY_KYBER}'; myKyberSecret = new Uint8Array(4);
     myIdentity = { publicKeyHex: me, seed32: seed, canSign: true };
@@ -624,7 +624,7 @@ test("under a received DM: each match once, in order, with Got it; never mine; n
   // A public channel post: not in this step.
   chat.set("() => { activeDmPartner = null; activeDmPartnerName = ''; }");
   const mark = chat.appended.length;
-  await chat.handle({ type: "chat", from: CY, from_name: "Cy", content: "Buy a gift card, I'm an admin", timestamp: 2003, channel: "general" });
+  await chat.handle({ type: "chat", from: CY, from_name: "Cy", content: "Buy a gift card, I'm an admin", timestamp: 2003, channel: "global" });
   const post = chat.appended.slice(mark).filter((e) => e && e.dataset && e.dataset.from === CY);
   assert.equal(post.length, 1, "the post is drawn");
   assert.deepEqual(warningsUnder(post[0]), [], "not on public channel posts");

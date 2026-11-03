@@ -990,7 +990,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 
     // Live chat panel (v0.850): read the stream's chat right inside Studio, with a
-    // channel selector, so you can watch #general while broadcasting.
+    // channel selector, so you can watch #global while broadcasting.
     draw_studio_chat(ui, theme, state);
 }
 
@@ -1335,7 +1335,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add(
             egui::TextEdit::singleline(&mut state.studio.chat_overlay_channel)
                 .desired_width(190.0)
-                .hint_text("general"),
+                .hint_text("global"),
         );
 
         ui.add_space(theme.section_gap);

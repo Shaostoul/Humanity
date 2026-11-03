@@ -513,7 +513,7 @@
     {
       "id": "channels.delete",
       "label": "Delete a channel",
-      "description": "Remove a channel. #general cannot be deleted.",
+      "description": "Remove a channel. #global cannot be deleted.",
       "category": "channels",
       "role": "mod",
       "danger": "destructive",

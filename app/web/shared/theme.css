@@ -124,6 +124,7 @@
   /* Semantic */
   --success: #33bf4d;
   --warning: #f2bf1a;
+  --warning-bg: #332100;
   --danger: #e64033;
   --danger-bg: #4d0a0a;
   --info: #3380e6;
@@ -267,6 +268,7 @@
   --accent-dim: rgba(168, 79, 0, 0.12);
   --success: #1a6e2e;
   --warning: #8a6100;
+  --warning-bg: #fbf0d0;
   --danger: #c0281c;
   --danger-bg: #f6d4d1;
   --info: #1f5fbf;
@@ -486,3 +488,22 @@ input[type="range"]:focus-visible {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-sm); }
 ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* A SUGGESTED card, the twin of the native widgets::card_suggested: hollow (the
+   column shows through, where a person's own card is filled) inside the same
+   border, with a small muted "Suggested" label at its top, so a suggestion never
+   reads as one of the person's own. First used by the Tasks page's suggested
+   guides (2026-10-30). */
+.card-suggested {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-md) var(--space-lg);
+}
+.card-suggested-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}

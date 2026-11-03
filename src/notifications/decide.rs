@@ -18,7 +18,7 @@ use super::settings::{LocalSettings, Show};
 pub const BURST_SECS: i64 = 5;
 
 /// The burst guard's key for `c` (and the in-app list's, `list::List::add`): its server and its
-/// conversation, so two servers' rooms of one name (each has a "general") keep their own five
+/// conversation, so two servers' rooms of one name (each has a "global") keep their own five
 /// seconds (rung 2, part 2: rung 2's first part keyed by the conversation alone); but a Commons
 /// room (`commons`: carried by two or more of my linked servers) is `commons:<room>`, ONE room
 /// whichever carrier delivers a copy of its line, so a mention bridged between two servers is one

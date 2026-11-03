@@ -1,0 +1,53 @@
+{
+  "_comment": "The channels every server makes for itself (docs/design/chat-channels.md section 4). Compiled into the relay (src/relay/default_channels.rs, include_str!): a server that follows releases gets the set its release was built with. Each channel: id (also its first name; an admin may rename the name); description, a word key in data/i18n/en.json, made into this server's words when the channel is made; read_level and post_level (docs/design/chat-access.md); position, lower is higher in the list; local_only, never bridged to another server; federated, travels to linked servers (only a channel anyone may read ever does); voice; and made: 'always' (made at every start when missing, so it cannot be gone for good; a local_only one while Server Settings' guaranteed local room is on and no local-only channel is left) or 'once' (made the first time this server starts with it in the set; one an admin deleted stays deleted, BUG-036). A channel already there keeps whatever its admin set.",
+  "channels": [
+    {
+      "id": "announcements",
+      "name": "announcements",
+      "description": "chat.channel_desc_announcements",
+      "read_level": "anyone",
+      "post_level": "mods",
+      "position": 2,
+      "local_only": false,
+      "federated": true,
+      "voice": false,
+      "made": "once"
+    },
+    {
+      "id": "local",
+      "name": "local",
+      "description": "chat.channel_desc_local",
+      "read_level": "members",
+      "post_level": "members",
+      "position": 3,
+      "local_only": true,
+      "federated": false,
+      "voice": true,
+      "made": "always"
+    },
+    {
+      "id": "global",
+      "name": "global",
+      "description": "chat.channel_desc_global",
+      "read_level": "anyone",
+      "post_level": "members",
+      "position": 10,
+      "local_only": false,
+      "federated": true,
+      "voice": true,
+      "made": "always"
+    },
+    {
+      "id": "feedback",
+      "name": "feedback",
+      "description": "chat.channel_desc_feedback",
+      "read_level": "anyone",
+      "post_level": "members",
+      "position": 11,
+      "local_only": false,
+      "federated": true,
+      "voice": false,
+      "made": "once"
+    }
+  ]
+}

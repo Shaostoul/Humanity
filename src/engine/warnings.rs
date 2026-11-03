@@ -199,7 +199,7 @@ mod tests {
         let in_group_from_dana = msg("p2pgroup:g1", "dana", 3, text);
         assert_eq!(ids(shown_under(&gs, &in_group_from_dana)), ["money", "recovery_phrase"], "a friend in a group");
 
-        assert!(shown_under(&gs, &msg("general", "eve", 4, text)).is_empty(), "not on public channel posts");
+        assert!(shown_under(&gs, &msg("global", "eve", 4, text)).is_empty(), "not on public channel posts");
         assert!(shown_under(&gs, &msg("dm:dana", "me", 5, text)).is_empty(), "never on our own messages");
         assert!(shown_under(&gs, &msg("dm:dana", "", 6, text)).is_empty(), "never on a line with no author");
         tidy(&gs);

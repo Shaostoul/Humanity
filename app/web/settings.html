@@ -108,7 +108,8 @@
     #settings-app {
       display: flex;
       flex: 1;
-      height: calc(100vh - 42px);
+      /* Ends where the unfinished-software warning begins (its spacer fills the rest). */
+      height: calc(100vh - 42px - var(--hos-wip-h, 0px));
       overflow: hidden;
       font-size: 15px !important;
     }
@@ -276,7 +277,7 @@
     /* Fixed bottom action bar */
     #settings-action-bar {
       position: fixed;
-      bottom: 0;
+      bottom: var(--hos-wip-h, 0px);
       left: 0;
       right: 0;
       display: flex;
@@ -605,7 +606,7 @@
 
     /* Vault entry modal */
     #vault-sec-entry-modal-overlay {
-      display: none; position: fixed; inset: 0;
+      display: none; position: fixed; inset: 0 0 var(--hos-wip-h, 0px) 0;
       background: rgba(0,0,0,.82); z-index: 800;
       align-items: center; justify-content: center; padding: var(--space-xl);
     }
@@ -689,7 +690,6 @@
     <div class="s-nav" data-sec="accessibility" onclick="showSection('accessibility')"><span class="s-ico" data-icon="eye"></span> Accessibility</div>
     <div class="s-nav" data-sec="audiovideo" onclick="showSection('audiovideo')"><span class="s-ico" data-icon="mic"></span> Audio &amp; Video</div>
     <div class="s-nav" data-sec="security" onclick="showSection('security')"><span class="s-ico" data-icon="shield"></span> Security</div>
-    <div class="s-nav" data-sec="dnd" onclick="showSection('dnd')"><span class="s-ico" data-icon="minus"></span> Do Not Disturb</div>
     <div class="s-nav" data-sec="storage" onclick="showSection('storage')"><span class="s-ico" data-icon="save"></span> Storage</div>
     <div class="s-nav" data-sec="wallet" onclick="showSection('wallet')"><span class="s-ico" data-icon="key"></span> Wallet</div>
     <div class="s-nav" data-sec="vault" onclick="showSection('vault')"><span class="s-ico" data-icon="key"></span> Vault</div>
@@ -974,59 +974,122 @@
               <strong>Direct Messages</strong>
               <span>Notify when you receive a direct message</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-dms" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-dms" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
           <div class="setting-row" style="padding-left:var(--space-2xl);">
             <div class="setting-label">
               <strong>@Mentions</strong>
               <span>Notify when someone mentions you in a channel</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-mentions" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-mentions" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
           <div class="setting-row" style="padding-left:var(--space-2xl);">
             <div class="setting-label">
               <strong>Task Updates</strong>
               <span>Notify when tasks assigned to you are updated</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-tasks" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-tasks" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
         </div>
       </div>
 
+      <!-- Quiet hours and their exceptions (synced: kept on the person's server, so every device
+           agrees; notifications rung 2 replaced the unread Do Not Disturb section with the two
+           exceptions here, docs/design/notifications.md). -->
       <div class="settings-group">
-        <div class="settings-group-title">Do Not Disturb</div>
+        <div class="settings-group-title" data-i18n="notifications.quiet">Quiet hours</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Quiet Hours</strong>
-            <span>Suppress push notifications during a scheduled time window</span>
+            <strong data-i18n="notifications.quiet">Quiet hours</strong>
+            <span data-i18n="notifications.quiet_hint">Between these hours nothing notifies you and calls do not ring, except what you let through below. The hours are your computer's own clock.</span>
           </div>
           <label class="toggle"><input type="checkbox" id="pref-push-dnd" onchange="savePushDnd()"><span class="toggle-track"></span></label>
         </div>
+        <!-- The operator, 2026-11-01: calls wait during quiet hours unless the caller is on the
+             always-allow list, said here in the quiet-hours control itself (notifications rung 3). -->
+        <p class="section-desc" data-i18n="notifications.quiet_allow_note">Calls and notices wait until quiet hours end, except from the people on your always-allow list. To add someone, open their conversation's menu in Chat and choose Always allow during quiet hours.</p>
         <div id="push-dnd-times" style="padding-left:var(--space-2xl);">
           <div class="setting-row">
             <div class="setting-label">
-              <strong>From</strong>
+              <strong data-i18n="notifications.quiet_from">From</strong>
             </div>
             <select class="setting-select" id="pref-dnd-start" onchange="savePushDnd()" style="min-width:110px;"></select>
           </div>
           <div class="setting-row">
             <div class="setting-label">
-              <strong>To</strong>
+              <strong data-i18n="notifications.quiet_to">To</strong>
             </div>
             <select class="setting-select" id="pref-dnd-end" onchange="savePushDnd()" style="min-width:110px;"></select>
           </div>
+          <!-- What still comes through, read as one list: the people always allowed (rung 3, kept in
+               this browser and on my other devices, drawn by settings-app.js renderAllowList), then
+               the two exceptions (rung 2, synced). -->
+          <div class="setting-row">
+            <div class="setting-label">
+              <strong data-i18n="notifications.quiet_allow_heading">Always allowed during quiet hours</strong>
+            </div>
+          </div>
+          <div id="quiet-allow-list"></div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <strong data-i18n="notifications.quiet_friends">Friends' messages come through</strong>
+              <span data-i18n="notifications.quiet_friends_hint">During quiet hours a direct message from a friend (you follow each other) still notifies you. Their calls still wait: for calls, add them to your always-allow list. Off unless you turn it on. Your device decides it: your server never learns who sends you a direct message.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="pref-push-quiet-friends" onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <strong data-i18n="notifications.quiet_mentions">Mentions and replies come through</strong>
+              <span data-i18n="notifications.quiet_mentions_hint">During quiet hours a mention of you, or a reply to something you wrote, still notifies you. Off unless you turn it on.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="pref-push-quiet-mentions" onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+          </div>
         </div>
+        <p class="section-desc" data-i18n="notifications.quiet_web_note">A push to this browser while no chat tab is open still comes at any hour: your server does not know your clock yet.</p>
       </div>
 
+      <!-- What a notice shows (2026-10-30, docs/design/notifications.md): who it is from by default,
+           never what was said unless chosen here. Read by the chat (chat-notify.js). Replaced the
+           Chat section's "Message Preview", which nothing read. -->
       <div class="settings-group">
-        <div class="settings-group-title">In-App</div>
+        <div class="settings-group-title" data-i18n="notifications.device_heading">On this computer</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Notification Sound</strong>
-            <span>Play a sound when notifications arrive</span>
+            <strong id="lbl-notif-show" data-i18n="notifications.show">A notice shows</strong>
+            <span data-i18n="notifications.show_hint">How much a notice says. Anyone near your screen can read a notice, and your computer keeps a copy of it, so the message itself is left out unless you choose it.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-notif-sound" onchange="savePref()"><span class="toggle-track"></span></label>
+          <select class="setting-select" id="pref-notif-show" aria-labelledby="lbl-notif-show" onchange="savePref()">
+            <option value="nothing" data-i18n="notifications.show_nothing">Only that something arrived</option>
+            <option value="name" data-i18n="notifications.show_name">Who it is from</option>
+            <option value="name_and_text" data-i18n="notifications.show_name_and_text">Who it is from and the message</option>
+          </select>
         </div>
+        <p class="section-desc" data-i18n="notifications.web_ios_note">On an iPhone or iPad, notices arrive only for a site added to the home screen: that is Apple's rule.</p>
+      </div>
+
+      <!-- Each kind's sound (notifications rung 3, the desktop's Settings > Notifications > Sounds):
+           drawn by settings-app.js renderSoundRows from /data/notifications/notifications.json, kept
+           in hos_notify_sounds, played by the chat (chat-notify.js playSound). -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="notifications.sounds_heading">Sounds</div>
+        <p class="section-desc" data-i18n="notifications.sounds_note">The sound each kind of notice plays. None plays no sound for that kind. The sound switch turns every sound on or off.</p>
+        <div id="notif-sounds"></div>
+      </div>
+
+      <!-- Muted (notifications rung 2, the desktop's Settings > Notifications > Muted): Mute
+           everything, every server, room and conversation muted in this browser with Unmute, and
+           the rooms set to every line or nothing with Back to mentions. Drawn by settings-app.js
+           (renderMutedList) from what the chat keeps (hos_notify_mutes, hos_notify_levels). The
+           chat's own sound menu is where a notice's sound is chosen; the unread "Notification
+           Sound" switch that sat here was removed. -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="notifications.muted_heading">Muted</div>
+        <div id="notif-muted-list"></div>
+        <!-- The unfinished-software warning bar (2026-11-02, the desktop's gui/bottom_strip/mute.rs
+             settings_row): muted until when, with Show it again, or Mute. Drawn by settings-app.js
+             (renderWipMuteRow) through web/shared/shell.js's window.hosWipMute; absent on 1.0. -->
+        <div id="wip-mute-row"></div>
+        <p class="section-desc" data-i18n="notifications.muted_web_note">Mutes and room levels are kept in this browser only.</p>
       </div>
     </section>
 
@@ -1150,13 +1213,6 @@
 
       <div class="settings-group">
         <div class="settings-group-title">Messages</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Message Preview</strong>
-            <span>Show a preview of messages in notifications</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-msg-preview" checked onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Send on Enter</strong>
@@ -1714,76 +1770,6 @@
       </div>
     </section>
 
-    <!-- Do Not Disturb -->
-    <section class="settings-section" id="sec-dnd">
-      <h1>Do Not Disturb</h1>
-      <p class="section-desc">Silence notifications and hide your online status. Set quiet hours so you aren't interrupted during sleep or focus time.</p>
-
-      <div class="settings-group">
-        <div class="settings-group-title">Presence</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Status Mode</strong>
-            <span>Controls what others see about your availability</span>
-          </div>
-          <select class="setting-select" id="pref-presence" onchange="savePref()">
-            <option value="online">🟢 Online</option>
-            <option value="busy">🔴 Busy</option>
-            <option value="away">🟡 Away</option>
-            <option value="invisible">⚫ Invisible</option>
-          </select>
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Custom Status</strong>
-            <span>A short message shown next to your name</span>
-          </div>
-          <input type="text" class="setting-input" id="pref-status-text" placeholder="e.g. In a meeting" maxlength="60" oninput="savePref()">
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <div class="settings-group-title">Quiet Hours</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Enable Quiet Hours</strong>
-            <span>Mute all notifications during a scheduled time window</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-quiet-hours" onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Start Time</strong>
-          </div>
-          <input type="time" class="setting-input" id="pref-quiet-start" value="22:00" onchange="savePref()" style="min-width:120px;">
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>End Time</strong>
-          </div>
-          <input type="time" class="setting-input" id="pref-quiet-end" value="08:00" onchange="savePref()" style="min-width:120px;">
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <div class="settings-group-title">Exceptions</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Allow DMs from Friends</strong>
-            <span>Friends can still reach you even during quiet hours</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-dnd-friends" checked onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Allow Mentions</strong>
-            <span>Still notify on @mentions during quiet hours</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-dnd-mentions" onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
-      </div>
-    </section>
-
     <!-- Storage -->
     <section class="settings-section" id="sec-storage">
       <h1>Storage</h1>
@@ -2208,7 +2194,7 @@
 
 <!-- Vault blur overlay -->
 <div id="vault-sec-blur-overlay"
-  style="display:none;position:fixed;inset:0;z-index:900;background:var(--set-cover-bg);
+  style="display:none;position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;z-index:900;background:var(--set-cover-bg);
          align-items:center;justify-content:center;flex-direction:column;gap:var(--space-lg);cursor:pointer"
   onclick="document.getElementById('vault-sec-blur-overlay').style.display='none'">
   <div style="font-size:2.5rem">🔒</div>
@@ -2218,7 +2204,7 @@
 
 <!-- Vault import modal -->
 <div id="vault-sec-import-overlay"
-  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:800;
+  style="display:none;position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;background:rgba(0,0,0,.82);z-index:800;
          align-items:center;justify-content:center;padding:var(--space-xl)"
   onclick="if(event.target===this)this.style.display='none'">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:1.75rem;width:100%;max-width:460px;color:var(--text)">
@@ -2301,6 +2287,7 @@
 <script src="/shared/hold-confirm.js?v=1"></script>
 <!-- Files kept from messages: the encrypted copies the chat keeps of private files opened. -->
 <script src="/shared/kept-files.js?v=1"></script>
+<script src="/shared/notify-rules.js"></script>
 <script src="/pages/settings-app.js"></script>
 </body>
 </html>

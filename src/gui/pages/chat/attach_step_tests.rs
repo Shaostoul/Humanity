@@ -85,7 +85,7 @@ fn a_photo_waits_for_send_and_a_plain_file_goes_at_once() {
     assert!(!step.remove, "the switch starts as last chosen");
     assert!(gs.clipboard_upload.is_none(), "nothing uploaded yet");
 
-    gs.chat_active_channel = "general".into();
+    gs.chat_active_channel = "global".into();
     frames_until_looked(&mut gs);
     assert!(gs.files_flow.step.is_none() && gs.clipboard_upload.is_none(), "leaving the conversation drops it, nothing sent");
 

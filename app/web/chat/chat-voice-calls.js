@@ -5,8 +5,8 @@
 //
 // Depends on: chat-voice-rooms.js (requestCallCredentials, relayOnlyRtcConfig,
 //   sayCallsNeedServer, getMicConstraints), app.js (ws, myKey,
-//   addSystemMessage, esc, hosIcon, resolveSenderName, playNotificationChime,
-//   openSocket)
+//   addSystemMessage, esc, hosIcon, resolveSenderName, openSocket), and, when
+//   loaded, chat-notify.js (HosChatNotify.ring / ringEnded: a ring's notice, rung 3)
 //
 // A call connects only through the server (step E, 2026-10-09,
 // docs/design/blocking-and-safe-mode.md 10f): once it is accepted, each side
@@ -80,6 +80,7 @@ function startCall(targetKey, targetName) {
 function acceptIncomingCall() {
   if (callState !== 'ringing-in') return;
   callState = 'in-call';
+  if (window.HosChatNotify) HosChatNotify.ringEnded(); // answered: the ring and its notice stop
   document.getElementById('incoming-call-overlay').classList.remove('open');
 
   ws.send(JSON.stringify({
@@ -140,6 +141,8 @@ function cleanupCall() {
 }
 
 function resetCallState() {
+  // However the ring ended (declined, the caller's hang-up, a disconnect): its notice goes.
+  if (window.HosChatNotify) HosChatNotify.ringEnded();
   callState = 'idle';
   callPeerKey = null;
   callPeerName = '';
@@ -399,7 +402,12 @@ function handleVoiceCallMessage(msg) {
       callPeerName = fromName;
       document.getElementById('incoming-caller-name').textContent = fromName;
       document.getElementById('incoming-call-overlay').classList.add('open');
-      playNotificationChime();
+      // The call's notice and its ring, through THE rule (notifications rung 3): quiet hours hold it
+      // unless the caller is on the always-allow list; the ringing screen shows either way.
+      if (window.HosChatNotify) {
+        const canShow = ('Notification' in window) && Notification.permission === 'granted';
+        HosChatNotify.ring(msg.from, fromName, typeof windowFocused === 'undefined' ? !document.hidden : windowFocused, canShow);
+      }
       break;
     case 'accept':
       if (callState === 'ringing-out' && msg.from === callPeerKey) {
@@ -471,35 +479,7 @@ openSocket = function() {
   }
 };
 
-// ── Web Push Notifications (SW-based) ──
-function sendSWNotification(title, body, tag, url) {
-  if (!document.hidden) return; // Only notify when tab is backgrounded
-  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
-  // Only when allowed: permission is offered once above the message box (chat-ui.js
-  // requestNotifications), never asked for here.
-  if (Notification.permission !== 'granted') return;
-  navigator.serviceWorker.controller.postMessage({
-    type: 'notification',
-    title: title,
-    body: body,
-    tag: tag || 'humanity',
-    url: url || '/chat'
-  });
-}
-
-
-// Patch handleMessage to send notifications for DMs and calls
-const _origHandleMessage4 = handleMessage;
-handleMessage = function(msg) {
-  // Notification for incoming DM
-  if (msg.type === 'private' && msg.from !== myKey && document.hidden) {
-    const senderName = resolveSenderName(msg.from_name, msg.from);
-    sendSWNotification('DM from ' + senderName, msg.content || 'New message', 'dm-' + msg.from, '/chat');
-  }
-  // Notification for incoming call
-  if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden && !ringIgnored(msg.from)) {
-    const callerName = resolveSenderName(msg.from_name, msg.from);
-    sendSWNotification('Incoming call from ' + callerName, 'Tap to answer', 'call-' + msg.from, '/chat');
-  }
-  _origHandleMessage4(msg);
-};
+// (Notifications rung 3, 2026-11-01: the service-worker notices that sat here, one for a ring and
+// one for a 'private' frame, went. A ring's notice is THE rule's, HosChatNotify.ring above, which
+// holds quiet hours, the mutes and what a notice shows; the relay sends 'private' as 'system', so
+// the other never fired.)

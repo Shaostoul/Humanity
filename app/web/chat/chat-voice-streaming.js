@@ -317,7 +317,7 @@ window.saveCurrentScene = function() {
     bitrate: document.getElementById('studio-bitrate-slider')?.value || '2500',
     pipSize: localStorage.getItem('humanity-studio-pip-width') || '34',
     chatOverlay: streamChatOverlayEnabled,
-    chatChannel: streamChatOverlayChannel || 'general',
+    chatChannel: streamChatOverlayChannel || 'global',
   };
   const scenes = JSON.parse(localStorage.getItem(SCENES_KEY) || '[]');
   scenes.push(scene);

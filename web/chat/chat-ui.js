@@ -2071,7 +2071,9 @@ var federatedRetryMs = 30000;
     const myRoleCh = (window.myPeerRole || '').toLowerCase();
 
     // Every channel renders as a normal row, mirrors native, where
-    // #announcements is just a read-only channel, not a separate widget.
+    // #announcements is just a read-only channel, not a separate widget, and
+    // #local is a row like the others (2026-11-02, docs/design/chat-channels.md
+    // section 5: the name above them folds the list, as on the desktop).
     // Property badges after the name match native's channel status icons
     // (src/gui/pages/chat.rs ~1027): eye = read-only, node-graph = federated,
     // both drawn in muted color.
@@ -2130,7 +2132,7 @@ var federatedRetryMs = 30000;
     // which renders it above DMs/Groups/Servers. No longer nested here.
 
     let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
-      <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
+      <div class="server-group-header" data-server-toggle="Humanity" data-i18n-tip="chat.server_row_hint" data-tip-desc="${esc(window.i18n ? i18n.t('chat.server_row_hint') : '')}" style="font-weight:bold;">
         <span class="collapse-arrow">▼</span>
         <span class="srv-name">🟢 ${esc(location.host || 'united-humanity.us')}</span>
         ${window.HosChatNotify ? HosChatNotify.bellHtml() : ''}
@@ -2190,7 +2192,7 @@ var federatedRetryMs = 30000;
     if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(cmd, 'The server was not added.')) return;
     // Send the command as a chat message (the server intercepts slash commands).
     if (ws && ws.readyState === WebSocket.OPEN) {
-      const msg = { type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'general' };
+      const msg = { type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'global' };
       ws.send(JSON.stringify(msg));
     }
     // Refresh after a delay to pick up the new server.
@@ -2290,8 +2292,8 @@ var federatedRetryMs = 30000;
             const cmd = '/channel-create ' + normalized;
             if (!beginChannelAdminCmd('create')) return;
             addSystemMessage('⏳ Creating #' + normalized + ' ...');
-            // Route admin channel-management commands through #general for consistent server handling.
-            sendChatCommand(cmd, 'general').then(ok => { if (!ok) failChannelAdminCmd('Create command failed to send.'); }).catch(console.error);
+            // Route admin channel-management commands through #global for consistent server handling.
+            sendChatCommand(cmd, 'global').then(ok => { if (!ok) failChannelAdminCmd('Create command failed to send.'); }).catch(console.error);
           }
         }
       }
@@ -2391,7 +2393,7 @@ const _origHandleMessage2 = handleMessage;
 handleMessage = function(msg) {
   // Intercept chat messages for other channels BEFORE the original handler skips them.
   if (msg.type === 'chat') {
-    const msgChannel = msg.channel || 'general';
+    const msgChannel = msg.channel || 'global';
     if (msgChannel !== activeChannel) {
       markUnread(msgChannel);
     }

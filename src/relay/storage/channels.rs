@@ -32,6 +32,30 @@ pub struct MutedUser {
     pub muted_at: i64,
 }
 
+/// Move channel `old` and everything filed under it to `new`, on a connection whose transaction
+/// the caller holds: the channel's row (its read and post levels, its `anyone_since` stamp, its
+/// Federated tick and its place in the list go with it), its lines, replies and lines from linked
+/// servers, the reactions and the pins. Each line's stored copy (`raw_json`, which the history is
+/// served from) names its channel too and is rewritten with it: left as it was, the apps would
+/// file the whole history under a channel that no longer exists and show none of it (found
+/// 2026-11-02 renaming #general to #global; `/channel-edit`'s rename had the same gap). The search
+/// index follows through its triggers. False when there is no channel `old`.
+pub(super) fn move_channel_on(conn: &rusqlite::Connection, old: &str, new: &str) -> Result<bool, rusqlite::Error> {
+    if conn.execute("UPDATE channels SET id = ?1, name = ?1 WHERE id = ?2", params![new, old])? == 0 {
+        return Ok(false);
+    }
+    conn.execute(
+        "UPDATE messages SET channel_id = ?1,
+             raw_json = CASE WHEN json_valid(raw_json) AND json_extract(raw_json, '$.channel') = ?2
+                             THEN json_set(raw_json, '$.channel', ?1) ELSE raw_json END
+         WHERE channel_id = ?2",
+        params![new, old],
+    )?;
+    conn.execute("UPDATE reactions SET channel = ?1 WHERE channel = ?2", params![new, old])?;
+    conn.execute("UPDATE pinned_messages SET channel = ?1 WHERE channel = ?2", params![new, old])?;
+    Ok(true)
+}
+
 /// Set the `message_id` field on a Chat message so clients can correlate `message_deleted` events.
 fn inject_message_id(msg: crate::relay::relay::RelayMessage, id: i64) -> crate::relay::relay::RelayMessage {
     if let crate::relay::relay::RelayMessage::Chat { from, from_name, content, timestamp, signature, channel, reply_to, thread_count, .. } = msg {
@@ -105,7 +129,7 @@ impl Storage {
         })
     }
 
-    /// Rename a channel ID/name and migrate message-scoped data.
+    /// Rename a channel ID/name and move everything filed under it (`move_channel_on`).
     /// Returns true when a channel was renamed.
     pub fn rename_channel(&self, old_id: &str, new_id: &str) -> Result<bool, rusqlite::Error> {
         self.with_conn_mut(|conn| {
@@ -120,23 +144,10 @@ impl Storage {
             }
 
             let tx = conn.transaction()?;
-
-            // Rename channel row.
-            let changed = tx.execute(
-                "UPDATE channels SET id = ?1, name = ?1 WHERE id = ?2",
-                params![new_id, old_id],
-            )?;
-
-            if changed == 0 {
+            if !move_channel_on(&tx, old_id, new_id)? {
                 tx.rollback()?;
                 return Ok(false);
             }
-
-            // Migrate message and channel-scoped metadata.
-            tx.execute("UPDATE messages SET channel_id = ?1 WHERE channel_id = ?2", params![new_id, old_id])?;
-            tx.execute("UPDATE reactions SET channel = ?1 WHERE channel = ?2", params![new_id, old_id])?;
-            tx.execute("UPDATE pinned_messages SET channel = ?1 WHERE channel = ?2", params![new_id, old_id])?;
-
             tx.commit()?;
             Ok(true)
         })
@@ -257,15 +268,6 @@ impl Storage {
         })
     }
 
-    /// Ensure the default "general" channel exists. Made here, it reads at Anyone and posts at
-    /// Members (docs/design/chat-access.md section 4); an existing one keeps the levels it has.
-    pub fn ensure_default_channel(&self) -> Result<(), rusqlite::Error> {
-        if self.create_channel("general", "general", Some("General discussion"), "system", PostLevel::Members)? {
-            self.set_channel_access("general", ReadLevel::Anyone, PostLevel::Members)?;
-        }
-        Ok(())
-    }
-
     /// Store a message with channel scope.
     pub fn store_message_in_channel(&self, msg: &crate::relay::relay::RelayMessage, channel_id: &str) -> Result<i64, rusqlite::Error> {
         self.with_conn(|conn| {
@@ -310,7 +312,7 @@ impl Storage {
         // Read-only: SELECT + query_map. Read pool.
         self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT from_key, COALESCE(from_name, ''), content, timestamp, COALESCE(channel_id, 'general')
+                "SELECT from_key, COALESCE(from_name, ''), content, timestamp, COALESCE(channel_id, 'global')
                  FROM messages
                  WHERE reply_to_from = ?1 AND reply_to_timestamp = ?2 AND msg_type = 'chat'
                  ORDER BY timestamp ASC
@@ -1180,10 +1182,10 @@ mod channel_message_tests {
         let now = super::super::now_millis();
         let old_ts = now - 40 * 86_400 * 1000; // 40 days ago
         let fresh_ts = now - 1 * 86_400 * 1000; // yesterday
-        db.store_message_in_channel(&chat("alice", "ancient", old_ts, "general"), "general").unwrap();
-        db.store_message_in_channel(&chat("bob", "ancient-but-pinned", old_ts + 1, "general"), "general").unwrap();
-        db.store_message_in_channel(&chat("carol", "recent", fresh_ts, "general"), "general").unwrap();
-        db.pin_message("general", "bob", "bob", "ancient-but-pinned", old_ts + 1, "admin").unwrap();
+        db.store_message_in_channel(&chat("alice", "ancient", old_ts, "global"), "global").unwrap();
+        db.store_message_in_channel(&chat("bob", "ancient-but-pinned", old_ts + 1, "global"), "global").unwrap();
+        db.store_message_in_channel(&chat("carol", "recent", fresh_ts, "global"), "global").unwrap();
+        db.pin_message("global", "bob", "bob", "ancient-but-pinned", old_ts + 1, "admin").unwrap();
         // 0 = keep forever: nothing expires.
         assert_eq!(db.expire_messages(0).unwrap(), 0);
         assert_eq!(db.message_count().unwrap(), 3);
@@ -1196,11 +1198,11 @@ mod channel_message_tests {
     #[test]
     fn store_and_load_channel_messages_roundtrip() {
         let db = fresh_db();
-        let id1 = db.store_message_in_channel(&chat("alice", "first", 100, "general"), "general").unwrap();
-        let id2 = db.store_message_in_channel(&chat("bob", "second", 200, "general"), "general").unwrap();
+        let id1 = db.store_message_in_channel(&chat("alice", "first", 100, "global"), "global").unwrap();
+        let id2 = db.store_message_in_channel(&chat("bob", "second", 200, "global"), "global").unwrap();
         assert!(id1 > 0 && id2 > id1, "row ids increase");
 
-        let msgs = db.load_channel_messages("general", 50).unwrap();
+        let msgs = db.load_channel_messages("global", 50).unwrap();
         assert_eq!(msgs.len(), 2);
         let (c0, mid0) = content_and_id(&msgs[0]);
         let (c1, mid1) = content_and_id(&msgs[1]);
@@ -1217,12 +1219,12 @@ mod channel_message_tests {
     #[test]
     fn channel_messages_are_isolated_per_channel() {
         let db = fresh_db();
-        db.store_message_in_channel(&chat("alice", "in general", 100, "general"), "general").unwrap();
+        db.store_message_in_channel(&chat("alice", "in global", 100, "global"), "global").unwrap();
         db.store_message_in_channel(&chat("alice", "in random",  200, "random"),  "random").unwrap();
 
-        let general = db.load_channel_messages("general", 50).unwrap();
-        assert_eq!(general.len(), 1);
-        assert_eq!(content_and_id(&general[0]).0, "in general");
+        let global = db.load_channel_messages("global", 50).unwrap();
+        assert_eq!(global.len(), 1);
+        assert_eq!(content_and_id(&global[0]).0, "in global");
 
         let random = db.load_channel_messages("random", 50).unwrap();
         assert_eq!(random.len(), 1);
@@ -1239,17 +1241,17 @@ mod channel_message_tests {
         let db = fresh_db();
         let mut ids = Vec::new();
         for i in 0..5 {
-            ids.push(db.store_message_in_channel(&chat("u", &format!("m{i}"), 100 + i as u64, "general"), "general").unwrap());
+            ids.push(db.store_message_in_channel(&chat("u", &format!("m{i}"), 100 + i as u64, "global"), "global").unwrap());
         }
         // Initial load (after_id 0): most-recent 3, oldest-first.
-        let (initial, max_initial) = db.load_channel_messages_after("general", 0, 3, 0).unwrap();
+        let (initial, max_initial) = db.load_channel_messages_after("global", 0, 3, 0).unwrap();
         assert_eq!(initial.len(), 3);
         assert_eq!(content_and_id(&initial[0]).0, "m2");
         assert_eq!(content_and_id(&initial[2]).0, "m4");
         assert_eq!(max_initial, *ids.last().unwrap(), "max id advances to newest");
 
         // Cursor poll: only rows strictly after ids[2] → m3, m4.
-        let (after, max_after) = db.load_channel_messages_after("general", ids[2], 50, 0).unwrap();
+        let (after, max_after) = db.load_channel_messages_after("global", ids[2], 50, 0).unwrap();
         assert_eq!(after.len(), 2);
         assert_eq!(content_and_id(&after[0]).0, "m3");
         assert_eq!(content_and_id(&after[1]).0, "m4");
@@ -1262,12 +1264,12 @@ mod channel_message_tests {
     fn thread_replies_are_counted_and_fetchable() {
         let db = fresh_db();
         // Parent message.
-        db.store_message_in_channel(&chat("alice", "parent", 100, "general"), "general").unwrap();
+        db.store_message_in_channel(&chat("alice", "parent", 100, "global"), "global").unwrap();
         // Two replies referencing (alice, 100).
-        db.store_message_in_channel_with_reply(&chat("bob",   "reply 1", 200, "general"), "general", "alice", 100).unwrap();
-        db.store_message_in_channel_with_reply(&chat("carol", "reply 2", 300, "general"), "general", "alice", 100).unwrap();
+        db.store_message_in_channel_with_reply(&chat("bob",   "reply 1", 200, "global"), "global", "alice", 100).unwrap();
+        db.store_message_in_channel_with_reply(&chat("carol", "reply 2", 300, "global"), "global", "alice", 100).unwrap();
         // An unrelated message that is NOT a reply.
-        db.store_message_in_channel(&chat("dave", "noise", 400, "general"), "general").unwrap();
+        db.store_message_in_channel(&chat("dave", "noise", 400, "global"), "global").unwrap();
 
         assert_eq!(db.get_thread_count("alice", 100).unwrap(), 2, "two replies counted");
         assert_eq!(db.get_thread_count("alice", 999).unwrap(), 0, "no replies to a non-parent");
@@ -1277,7 +1279,7 @@ mod channel_message_tests {
         // (from_key, from_name, content, timestamp, channel_id), oldest first.
         assert_eq!(thread[0].2, "reply 1");
         assert_eq!(thread[1].2, "reply 2");
-        assert_eq!(thread[0].4, "general", "thread rows carry their channel");
+        assert_eq!(thread[0].4, "global", "thread rows carry their channel");
     }
 
     /// Non-Chat variants are not persisted by the channel store (it returns 0
@@ -1286,9 +1288,9 @@ mod channel_message_tests {
     fn non_chat_message_is_not_persisted() {
         let db = fresh_db();
         let sys = RelayMessage::System { message: "server notice".to_string() };
-        let id = db.store_message_in_channel(&sys, "general").unwrap();
+        let id = db.store_message_in_channel(&sys, "global").unwrap();
         assert_eq!(id, 0, "System message is not stored via the channel path");
-        assert!(db.load_channel_messages("general", 50).unwrap().is_empty());
+        assert!(db.load_channel_messages("global", 50).unwrap().is_empty());
     }
 
     /// The first-admin claim-code bootstrap gates on admin_count: a fresh DB

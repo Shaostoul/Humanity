@@ -1,10 +1,10 @@
 # Federation: the live check on two linked servers
 
 Written 2026-10-22 for the operator's pair, united-humanity.us (called A below) and public.guide
-(B), which already share #general and #announcements. It runs on the live servers the same check
+(B), which already share #global and #announcements. It runs on the live servers the same check
 the automated Phase 3 test runs on two relays on one machine
 (`src/relay/handlers/federation_phase3_tests.rs`; what it proves and why is in
-`docs/design/federation-activation.md`, Phases 2 and 3). Use a test room, never #general, so
+`docs/design/federation-activation.md`, Phases 2 and 3). Use a test room, never #global, so
 nothing here lands in a room people read. Allow about 20 minutes.
 
 ## Before you start

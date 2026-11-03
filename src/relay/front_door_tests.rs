@@ -125,7 +125,7 @@ fn versions(updates: &serde_json::Value) -> Vec<String> {
 
 /// THE FRONT DOOR SHOWS ONLY THE BOT'S AND THE SERVER'S OWN RELEASE POSTS: a moderator's post in
 /// the release format, a bot post with a link to another site, and a person's chat line are not
-/// cards; the Deploy Bot's posts and the server's own announcement (BUG-226: stored in #general
+/// cards; the Deploy Bot's posts and the server's own announcement (BUG-226: stored in #global
 /// until this day) are, newest first, each linked to its own release page, at most nine.
 ///
 /// Seen red 2026-11-02 with the sender check taken out of `cards_from`: the moderator's newer
@@ -160,10 +160,10 @@ async fn the_front_door_shows_only_the_bots_and_the_servers_release_posts() {
     let nine = body["updates"].as_array().unwrap().iter().find(|u| u["version"] == "0.9.0").unwrap();
     assert_eq!(nine["title"], "release 9", "the bot's 0.9.0, not the moderator's lookalike");
 
-    // BUG-226: the server's announcement is in #announcements' history, not #general's.
-    let general = state.db.load_channel_messages("general", 200).unwrap();
-    let in_general = general.iter().any(|m| matches!(m, RelayMessage::Chat { content, .. } if content.contains("the server's own")));
-    assert!(!in_general, "a server announcement landed in #general");
+    // BUG-226: the server's announcement is in #announcements' history, not #global's.
+    let global = state.db.load_channel_messages("global", 200).unwrap();
+    let in_global = global.iter().any(|m| matches!(m, RelayMessage::Chat { content, .. } if content.contains("the server's own")));
+    assert!(!in_global, "a server announcement landed in #global");
 }
 
 /// Sign `bytes` with a key that is not the project's, as a signature file's JSON.
@@ -290,7 +290,7 @@ async fn every_api_answer_is_kept_out_of_search_indexes() {
     let refused = reqwest::Client::new().post(format!("{base}/api/release-signature")).json(&serde_json::json!({ "manifest": "{}", "signature": "{}" })).send().await.unwrap();
     assert_eq!(refused.status().as_u16(), 400);
     assert_eq!(tag(refused.headers()).as_deref(), Some("noindex"), "a refusal carries it too");
-    let messages = reqwest::get(format!("{base}/api/messages?channel=general")).await.unwrap();
+    let messages = reqwest::get(format!("{base}/api/messages?channel=global")).await.unwrap();
     assert_eq!(tag(messages.headers()).as_deref(), Some("noindex"), "people's posts");
     let health = reqwest::get(format!("{base}/health")).await.unwrap();
     assert_eq!(tag(health.headers()), None, "/health is not an /api/ answer");

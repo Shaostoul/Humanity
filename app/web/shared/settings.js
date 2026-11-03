@@ -364,9 +364,9 @@
         }
         // Also update chat's localStorage directly
         localStorage.setItem('humanity_sound_enabled', soundCb.checked);
-        // Update 🔔 icon
+        // Update the chat header speaker icon
         const toggle = document.getElementById('sound-toggle');
-        if (toggle) toggle.textContent = soundCb.checked ? '🔔' : '🔕';
+        if (toggle) toggle.textContent = soundCb.checked ? '🔊' : '🔇';
       };
       soundRow.appendChild(soundCb);
       soundRow.appendChild(document.createTextNode('🔔 Notification sounds'));

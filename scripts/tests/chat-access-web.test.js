@@ -76,6 +76,7 @@ test("1. the website's rules give every answer of the shared fixture", () => {
   for (const [content, yes] of FX.mass_mentions) assert.strictEqual(A.massMention(content), yes, "a call on everyone in " + content);
   for (const p of FX.posts) assert.strictEqual(A.postRefusal(p.read, p.post, rank(p.rank), p.content), p.refusal, "post " + JSON.stringify(p));
   assert.strictEqual(A.readPurpose(FX.purpose[0], FX.purpose[1]), FX.purpose[2]);
+  assert.strictEqual(A.MAIN_CHANNEL, FX.main_channel, "the channel every server has, as the Rust twin names it");
   assert.strictEqual(A.readLevel("public"), "members", "a word that names no level is the safe default");
 });
 
@@ -112,18 +113,18 @@ async function bootRead(answers) {
 
 test("2. a visitor without a name reads the channels anyone may read, as plain words, with no box to type in", async () => {
   const posts = [
-    { type: "chat", from: "", from_name: "ann", content: "see https://a.example and /uploads/1_cat.png", timestamp: 1_792_800_000_000, channel: "general" },
-    { type: "chat", from: "", from_name: "bob", content: "<b>not markup</b>", timestamp: 1_792_800_060_000, channel: "general" },
+    { type: "chat", from: "", from_name: "ann", content: "see https://a.example and /uploads/1_cat.png", timestamp: 1_792_800_000_000, channel: "global" },
+    { type: "chat", from: "", from_name: "bob", content: "<b>not markup</b>", timestamp: 1_792_800_060_000, channel: "global" },
   ];
   const { doc, asked } = await bootRead({
-    "/api/channels": { channels: [{ id: "general", name: "general" }, { id: "announcements", name: "announcements" }] },
-    "/api/messages": (u) => (u.includes("channel=general") ? { messages: posts, cursor: 2 } : { messages: [], cursor: 0 }),
+    "/api/channels": { channels: [{ id: "global", name: "global" }, { id: "announcements", name: "announcements" }] },
+    "/api/messages": (u) => (u.includes("channel=global") ? { messages: posts, cursor: 2 } : { messages: [], cursor: 0 }),
   });
   const tabs = all(doc.getElementById("read-tabs")).filter((e) => e.className === "read-tab");
-  assert.deepStrictEqual(tabs.map((b) => b.textContent), ["#general", "#announcements"], "the channels the server lists");
+  assert.deepStrictEqual(tabs.map((b) => b.textContent), ["#global", "#announcements"], "the channels the server lists");
   assert.strictEqual(tabs[0].getAttribute("aria-selected"), "true", "the first is open");
   assert.strictEqual(tabs[0].getAttribute("data-i18n-tip"), "chat_read.channel_hint", "each with its hint");
-  assert.ok(asked.some((u) => u.startsWith("/api/messages?channel=general")), "it reads #general without a key");
+  assert.ok(asked.some((u) => u.startsWith("/api/messages?channel=global")), "it reads #global without a key");
   for (const u of asked) assert.ok(u.startsWith("/api/"), "only this server: " + u);
   const rows = all(doc.getElementById("read-list")).filter((e) => e.className === "read-line");
   assert.strictEqual(rows.length, 2);
@@ -144,7 +145,7 @@ test("2. a visitor without a name reads the channels anyone may read, as plain w
 });
 
 test("2b. an empty channel and a server with none say so", async () => {
-  const empty = await bootRead({ "/api/channels": { channels: [{ id: "general", name: "general" }] }, "/api/messages": { messages: [], cursor: 0 } });
+  const empty = await bootRead({ "/api/channels": { channels: [{ id: "global", name: "global" }] }, "/api/messages": { messages: [], cursor: 0 } });
   assert.strictEqual(empty.doc.getElementById("read-status").textContent, t("chat_read.empty"));
   const none = await bootRead({ "/api/channels": { channels: [] } });
   assert.strictEqual(none.doc.getElementById("read-status").textContent, t("chat_read.no_channels"));
@@ -196,8 +197,8 @@ function loadChat() {
 
 test("3. the line above the box says who can read the channel and what I may post", () => {
   const { audience, set } = loadChat();
-  set("myKey = 'me'; activeDmPartner = null; activeChannel = 'general'; peerData = { me: { public_key: 'me', role: '' } };");
-  set("channelList = [{ id: 'general', name: 'general', read_level: 'anyone', post_level: 'members' }, { id: 'lounge', name: 'lounge', read_level: 'members', post_level: 'members' }, { id: 'announcements', name: 'announcements', read_level: 'anyone', post_level: 'mods' }];");
+  set("myKey = 'me'; activeDmPartner = null; activeChannel = 'global'; peerData = { me: { public_key: 'me', role: '' } };");
+  set("channelList = [{ id: 'global', name: 'global', read_level: 'anyone', post_level: 'members' }, { id: 'lounge', name: 'lounge', read_level: 'members', post_level: 'members' }, { id: 'announcements', name: 'announcements', read_level: 'anyone', post_level: 'mods' }];");
   set("renderAudienceLine()");
   assert.strictEqual(audience.hidden, false);
   assert.strictEqual(audience.textContent.trim(), t("chat.access_read_anyone") + " " + t("chat.access_one_link"), "Anyone, then the one-link rule for a member below verified");
@@ -229,7 +230,7 @@ test("3. the line above the box says who can read the channel and what I may pos
 
 test("4. a poster below verified has links, pictures and files drawn as plain words", () => {
   const { ctx, set } = loadChat();
-  set("myKey = 'me'; activeDmPartner = null; activeChannel = 'general'; peerData = { ann: { role: '' }, vic: { role: 'verified' } };");
+  set("myKey = 'me'; activeDmPartner = null; activeChannel = 'global'; peerData = { ann: { role: '' }, vic: { role: 'verified' } };");
   const body = (from) => vm.runInContext("formatBody", ctx)("see https://a.example and https://u.example/uploads/1_cat.png", from);
   const plain = body("ann");
   assert.ok(!plain.includes("<a ") && !plain.includes("img-placeholder") && !plain.includes("file-card"), "no link, picture or card: " + plain);
@@ -286,4 +287,29 @@ test("5. the admin page's Channels panel sets who can read and who can post thro
   const adminHtml = fs.readFileSync(path.join(WEB, "pages", "admin.html"), "utf8");
   assert.ok(adminHtml.includes('id="channels-panel"') && adminHtml.includes('id="channels-list"'), "admin.html has the panel");
   assert.ok(adminHtml.indexOf('src="/shared/i18n.js"') < adminHtml.indexOf("/shared/shell.js"), "the words load before the shell");
+});
+// ── 6. A room that is gone ──
+
+// docs/design/chat-channels.md section 2: a browser whose last room was #general (its
+// humanity_channel) when the server renamed it to #global, or a room an admin deleted, lands in
+// #global once the channel list arrives, else in the first room listed; a room that is there, a
+// direct message and a group stay where they are. No name is carried over: what any deleted room
+// does. Seen red 2026-11-02 with landIfRoomGone's call taken out of updateChannelList: "a room
+// that is gone lands in #global" (actual 'general').
+test("6. a room that is gone lands in #global, else in the first room listed", () => {
+  const { ctx, set } = loadChat();
+  // What switchChannel calls from the chat's other scripts, and the history it fetches.
+  for (const f of ["renderDmList", "loadPinsForChannel", "loadReactionsForChannel", "renderGroupList"]) ctx[f] = () => {};
+  ctx.loadHistory = () => Promise.resolve();
+  ctx.messageReactions = {};
+  set("myKey = 'me'; activeDmPartner = null; activeChannel = 'general'; peerData = { me: { public_key: 'me', role: '' } };");
+  const rooms = "[{ id: 'announcements', name: 'announcements' }, { id: 'local', name: 'local' }, { id: 'global', name: 'global' }, { id: 'feedback', name: 'feedback' }]";
+  set("updateChannelList(" + rooms + ")");
+  assert.strictEqual(set("activeChannel"), "global", "a room that is gone lands in #global");
+  set("activeChannel = 'deleted'; updateChannelList([{ id: 'announcements', name: 'announcements' }, { id: 'local', name: 'local' }])");
+  assert.strictEqual(set("activeChannel"), "announcements", "without #global, the first room listed");
+  set("activeChannel = 'local'; updateChannelList(" + rooms + ")");
+  assert.strictEqual(set("activeChannel"), "local", "a room that is there stays");
+  set("activeChannel = 'deleted'; activeDmPartner = 'ann'; updateChannelList(" + rooms + ")");
+  assert.strictEqual(set("activeChannel"), "deleted", "a direct message is no room of the server's");
 });

@@ -161,7 +161,7 @@ mod tests {
         let mut gs = GuiState::default();
         gs.private_key_bytes = Some(seed.to_vec());
         gs.profile_public_key = "me".into();
-        gs.chat_active_channel = "general".into();
+        gs.chat_active_channel = "global".into();
         let phrase = crate::net::identity::mnemonic_from_seed(&seed).unwrap();
         let words: Vec<&str> = phrase.split(' ').collect();
         let four = format!("my words are {}", words[2..6].join(" "));

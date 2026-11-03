@@ -50,6 +50,7 @@ use std::path::Path;
 ///   data/release/signing_pubkeys.json     the keys updates and local hand-offs
 ///                                         are verified against
 ///   docs/accord/humanity_accord.md        the Accord the Humanity page shows
+///   data/server/default_channels.json     the channels every server makes (2026-11-02)
 ///   data/homes/shipped   the shipped home designs: a neighbour's plot is drawn as its
 ///                        kind's built-in design, never the disk copy, so that read is
 ///                        embedded-only (ship homes increment 2, crates/humanity-ship/src/neighbours.rs,
@@ -92,6 +93,9 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     // The bug reporter's severities and categories (src/relay/bug_taxonomy.rs): built in for the
     // same reason, so a relay accepts the list it was built with, never a disk edit.
     "data/bugs/taxonomy.json",
+    // The channels every server makes for itself (src/relay/default_channels.rs, 2026-11-02):
+    // built in for the same reason, so a server makes the set its build was made with.
+    "data/server/default_channels.json",
 ];
 
 fn main() {

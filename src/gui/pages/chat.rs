@@ -387,8 +387,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 if ac.starts_with("dm:") {
                     // DM header: back button + partner name. Plain "Back":
                     // the U+2190 arrow escape used here tofued (v0.723).
-                    if widgets::Button::ghost("Back").tooltip("Return to #general").show(ui, theme) {
-                        state.chat_active_channel = "general".to_string();
+                    if widgets::Button::ghost("Back").tooltip("Return to #global").show(ui, theme) {
+                        state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
                     }
                     let partner_key = &ac[3..];
                     let partner_name = state.chat_dms.iter()
@@ -409,8 +409,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // right-click menu (kept out of this row so it can't
                     // overflow + clip on a narrow panel — that's why the
                     // operator couldn't reach them before).
-                    if widgets::Button::ghost("Back").tooltip("Return to #general").show(ui, theme) {
-                        state.chat_active_channel = "general".to_string();
+                    if widgets::Button::ghost("Back").tooltip("Return to #global").show(ui, theme) {
+                        state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
                     }
                     let gid = gid.to_string();
                     let group_name = state.p2p_groups.iter()
@@ -569,7 +569,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // conversation from every CARRIER of the bridged room -- and
                 // ONLY carriers. A same-named local channel on a non-carrier
                 // server is a different room and never blends in (the private
-                // #general vs the bridged #general).
+                // #global vs the bridged #global).
                 // Dedup: a line native to one of my servers (origin_server
                 // empty) beats its federated echoes; federated copies from
                 // several carriers collapse on (origin, timestamp, content).
@@ -2373,7 +2373,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                 // Entering Channels with a private conversation
                                 // still active would render DM/group text under
                                 // the public tab -- snap back to a public
-                                // channel (first known, else #general) exactly
+                                // channel (first known, else #global) exactly
                                 // like the v0.779 open-guard did.
                                 if m == crate::gui::IngameChatMode::Channels
                                     && (active.starts_with("dm:")
@@ -2384,7 +2384,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                         .chat_channels
                                         .first()
                                         .map(|c| c.id.clone())
-                                        .unwrap_or_else(|| "general".to_string());
+                                        .unwrap_or_else(|| humanity_protocol::chat_access::MAIN_CHANNEL.to_string());
                                     switch_to = Some(fallback);
                                 }
                             }
@@ -3818,7 +3818,7 @@ fn paint_timestamp_pill(
 /// `p2pgroup:` group or a `dm:` conversation), that leaks the notice INTO the
 /// private view, where it then vanishes on the next group reload (which rebuilds
 /// strictly from the group's signed message log). So when the active channel is
-/// private, file the notice under "general" (a server channel) instead — it's
+/// private, file the notice under #global (`MAIN_CHANNEL`, a server channel) instead — it's
 /// preserved without polluting the private conversation. (Bug: a deploy-bot
 /// #announcements notice appeared inside an open P2P group, then disappeared.)
 /// A DM (`dm:`) or a P2P group (`p2pgroup:`): encrypted end to end, so nothing that sends a
@@ -3854,7 +3854,7 @@ pub(crate) fn send_typing(state: &mut GuiState, now: std::time::Instant) {
 
 pub fn notice_channel(active_channel: &str) -> String {
     if active_channel.starts_with("p2pgroup:") || active_channel.starts_with("dm:") {
-        "general".to_string()
+        humanity_protocol::chat_access::MAIN_CHANNEL.to_string()
     } else if let Some(room) = commons_room_of(active_channel) {
         // A Commons VIEW id is not a storable channel; file the notice
         // under the underlying room so it renders in the merged view
@@ -3863,6 +3863,29 @@ pub fn notice_channel(active_channel: &str) -> String {
     } else {
         active_channel.to_string()
     }
+}
+
+/// The server's channel list just arrived: when the room open on this server is not in it (an
+/// admin deleted it, or the server renamed it, as #general became #global on 2026-11-02), land in
+/// #global, else in the first room the server lists, and fetch its history. A DM, a group, a
+/// Commons view and the scratch pad are not this server's rooms and are left as they are. This is
+/// what any deleted room does, not a mapping from an old name: no name is carried over.
+pub(crate) fn land_if_room_gone(state: &mut GuiState) {
+    let active = state.chat_active_channel.as_str();
+    let not_a_room = is_private_channel(active) || active.starts_with("group:") || commons_room_of(active).is_some();
+    if not_a_room || state.chat_channels.is_empty() || state.chat_channels.iter().any(|c| c.id == active) {
+        return;
+    }
+    let main = humanity_protocol::chat_access::MAIN_CHANNEL;
+    let to = if state.chat_channels.iter().any(|c| c.id == main) {
+        main.to_string()
+    } else {
+        state.chat_channels[0].id.clone()
+    };
+    state.chat_active_channel = to;
+    state.chat_reply_to = None;
+    state.chat_messages.clear();
+    state.history_fetched = false;
 }
 
 /// Try to read an image from the OS clipboard and encode it as PNG bytes.
@@ -4144,8 +4167,37 @@ mod private_channel_tests {
         assert!(super::is_private_channel("dm:abc"), "a DM is private");
         assert!(super::is_private_channel("p2pgroup:xyz"), "a P2P group is private");
         assert!(super::is_private_channel("scratchpad"), "the scratchpad, local only, is private");
-        for room in ["general", "announcements", "local", "commons:garden", ""] {
+        for room in ["global", "announcements", "local", "commons:garden", ""] {
             assert!(!super::is_private_channel(room), "{room:?} is not private");
+        }
+    }
+
+    /// A ROOM THAT IS GONE LANDS IN #GLOBAL (2026-11-02, docs/design/chat-channels.md): a
+    /// desktop app open in #general when its server renamed it to #global, or in a room an admin
+    /// deleted, is in #global once the channel list arrives, else in the first room listed, with
+    /// its history to fetch; a room that is there, a DM, a group, a Commons view and the scratch pad
+    /// stay where they are; the channel list's arrival calls it (frame_ws_poll.rs). Seen red
+    /// 2026-11-02 with the function returning at once: "a room that is gone lands in #global"
+    /// (left: "general", right: "global").
+    #[test]
+    fn a_room_that_is_gone_lands_in_global() {
+        use crate::gui::ChatChannel;
+        let room = |id: &str| ChatChannel { id: id.into(), name: id.into(), ..Default::default() };
+        let mut state = crate::gui::GuiState::default();
+        state.chat_channels = vec![room("announcements"), room("local"), room("global"), room("feedback")];
+        state.chat_active_channel = "general".into();
+        state.history_fetched = true;
+        super::land_if_room_gone(&mut state);
+        assert_eq!(state.chat_active_channel, "global", "a room that is gone lands in #global");
+        assert!(!state.history_fetched, "and fetches its history");
+        state.chat_channels.retain(|c| c.id != "global");
+        state.chat_active_channel = "deleted".into();
+        super::land_if_room_gone(&mut state);
+        assert_eq!(state.chat_active_channel, "announcements", "without #global, the first room listed");
+        for stays in ["local", "dm:abc", "p2pgroup:xyz", "commons:garden", "scratchpad"] {
+            state.chat_active_channel = stays.into();
+            super::land_if_room_gone(&mut state);
+            assert_eq!(state.chat_active_channel, stays, "{stays} stays");
         }
     }
 }
@@ -4196,7 +4248,7 @@ mod scratchpad_tests {
         crate::gui::fonts::install_font_fallbacks(&ctx);
         theme.apply_to_egui(&ctx);
 
-        state.chat_active_channel = "general".into();
+        state.chat_active_channel = "global".into();
         click(&ctx, &theme, &mut state, "# scratchpad");
         assert_eq!(state.chat_active_channel, "scratchpad");
         state.chat_input = "x".into();
@@ -4214,16 +4266,16 @@ mod scratchpad_tests {
 
         let shown = |state: &GuiState| state.chat_messages.iter().filter(|m| m.channel == "scratchpad").map(|m| (m.content.clone(), m.reply_to.as_ref().map(|r| r.preview.clone()))).collect::<Vec<_>>();
         let want = vec![("beans, squash".to_string(), Some("seeds to buy".to_string())), (marker.clone(), None)];
-        state.chat_active_channel = "general".into();
+        state.chat_active_channel = "global".into();
         state.chat_messages.clear();
         click(&ctx, &theme, &mut state, "# scratchpad");
         assert_eq!(shown(&state), want, "kept across opening it again");
         state.dm_store = None; // a restart: the store is read from disk again
-        state.chat_active_channel = "general".into();
+        state.chat_active_channel = "global".into();
         click(&ctx, &theme, &mut state, "# scratchpad");
         assert_eq!(shown(&state), want, "and across a restart");
 
-        state.chat_active_channel = "general".into();
+        state.chat_active_channel = "global".into();
         send_typing(&mut state, std::time::Instant::now());
         assert_eq!(sent.try_iter().filter(|f| f.contains("\"typing\"")).count(), 1, "a channel still sends one");
         state.dm_store.as_ref().unwrap().remove_file_for_test();

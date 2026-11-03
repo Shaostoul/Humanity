@@ -108,7 +108,7 @@ Farming, cooking, crafting, combat, quests, skills and XP, a player market with 
 ### 👋 Just try it
 1. Visit **[united-humanity.us/chat](https://united-humanity.us/chat)**
 2. Pick a display name
-3. Say hi in `#general`
+3. Say hi in `#global`
 4. Take the **[5-minute tour](https://united-humanity.us/onboarding)**
 
 No sign-up. No email. No credit card.

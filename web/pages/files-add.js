@@ -77,7 +77,7 @@
   }
   /**
    * The channels an upload can be posted in, as [{id, words}] (the desktop's post_choices): the one
-   * open in the chat first ("#general (open in the chat)"), then the person's favourites ("⭐
+   * open in the chat first ("#global (open in the chat)"), then the person's favourites ("⭐
    * #printing"), then the rest ("#random"); a read-only channel only for an admin. `opts`: open (the
    * chat's channel id), admin, isFavorite(id).
    */
@@ -104,7 +104,7 @@
   function postText(item, origin) {
     return String(origin || '').replace(/\/+$/, '') + '/files/' + (item ? item.id : '');
   }
-  /** "Posted in #general." and "Not posted in #general: why" (the desktop's words). */
+  /** "Posted in #global." and "Not posted in #global: why" (the desktop's words). */
   const postedIn = (name) => 'Posted in ' + name + '.';
   const notPostedIn = (name, why) => 'Not posted in ' + name + ': ' + why;
 
@@ -372,8 +372,8 @@
      * pqSignChatMessage), on this page's own signed-in connection; the recovery-phrase guard first,
      * as for anything the chat sends (chat-warnings.js). Only ever one of this server's channels
      * (its channel_list): never a direct message or a group. Resolves to the words for the page's
-     * line: "Posted in #general." once the server has it (its echo of the message came back), else
-     * "Not posted in #general: " and why; '' when the publish's answer names no item.
+     * line: "Posted in #global." once the server has it (its echo of the message came back), else
+     * "Not posted in #global: " and why; '' when the publish's answer names no item.
      */
     async function postPublished(answer, channel) {
       const item = answer && answer.item;

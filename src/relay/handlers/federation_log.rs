@@ -626,7 +626,7 @@ fn bans_part(state: &RelayState, peer: &str, v: &Value) {
 /// Whether `channel` is shared with linked servers: federated, and readable by anyone (a peer
 /// shows what it receives to its own visitors; chat_access.rs `travels`).
 fn shared(state: &RelayState, channel: &str) -> bool {
-    let ch = if channel.is_empty() { "general" } else { channel };
+    let ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL } else { channel };
     state.db.is_channel_federated(ch).unwrap_or(false) && crate::relay::chat_access::travels(&state.db, ch)
 }
 

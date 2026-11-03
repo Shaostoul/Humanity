@@ -814,7 +814,7 @@ pub(super) fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state:
                     }
                     log::info!("Channel delete: id={}, name={}", ch_id, ch_name);
                     if state.chat_active_channel == ch_name {
-                        state.chat_active_channel = "general".to_string();
+                        state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
                     }
                     state.show_channel_edit_modal = false;
                     state.edit_channel_confirm_delete = false;
@@ -1145,7 +1145,7 @@ pub(super) fn draw_commons_info_modal(ctx: &egui::Context, theme: &Theme, state:
             };
             body(ui,
                 "The Commons is where bridged rooms live. When two or more of \
-                 your servers carry the same federated room (like #general), it \
+                 your servers carry the same federated room (like #global), it \
                  appears here ONCE, and what you read is the merged conversation \
                  from every server that bridges it.");
             body(ui,
@@ -1164,7 +1164,7 @@ pub(super) fn draw_commons_info_modal(ctx: &egui::Context, theme: &Theme, state:
                  marks as Federated are bridged, and only with trusted peers.");
             body(ui,
                 "What stays local: each server's #local room is guaranteed to \
-                 never bridge anywhere (click the server's name to open it), \
+                 never bridge anywhere (it is listed under its server like every room), \
                  and any channel not marked Federated stays on its own \
                  server. Direct messages are end-to-end encrypted and are \
                  never part of federation.");

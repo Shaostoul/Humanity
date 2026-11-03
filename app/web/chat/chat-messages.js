@@ -100,7 +100,7 @@ function applyReactionSync(targetFrom, targetTs, emoji, reactorKey) {
 // Load reactions from the API for the current channel and apply them.
 async function loadReactionsForChannel(channelId) {
   try {
-    const resp = await fetch(`/api/reactions?channel=${encodeURIComponent(channelId)}&limit=500`);
+    const resp = await chatRead('reactions', channelId, { limit: 500 }); // signed for a member (app.js)
     const data = await resp.json();
     if (data.reactions && data.reactions.length > 0) {
       for (const r of data.reactions) {
@@ -231,7 +231,7 @@ function togglePinList() {
 /**
  * A DM or a P2P group has no pins (a pin would carry its words to the server, BUG-178): the pin
  * bar goes, the list closes, and the composer's pin button shows no count from the channel left
- * behind (seen 2026-10-22: "📌 1" from #general in a DM with Ada).
+ * behind (seen 2026-10-22: "📌 1" from #global in a DM with Ada).
  */
 function hidePinsForPrivateView() {
   const bar = document.getElementById('pin-bar');
@@ -339,7 +339,7 @@ function removeMyPin(index) {
 
 async function loadPinsForChannel(channelId) {
   try {
-    const resp = await fetch(`/api/pins?channel=${encodeURIComponent(channelId)}`);
+    const resp = await chatRead('pins', channelId); // signed for a member (app.js)
     const data = await resp.json();
     currentPins = data.pins || [];
     renderPinBar();
@@ -1017,7 +1017,7 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
 // The desktop app's drag and drop, in its words (/shared/drop-overlay.js; the desktop's
 // src/gui/pages/chat/attach_send.rs offer_drop). While files are dragged over the page it is
 // dimmed with one line saying what a drop will do:
-//   - one of this server's channels open: "Drop to upload to Files and post in #general", and the
+//   - one of this server's channels open: "Drop to upload to Files and post in #global", and the
 //     drop opens the upload window (/shared/upload-window.js): the Media page's own Add to Media,
 //     every control and check, in a window over the chat, "Also post in chat" ticked for that
 //     channel; nothing goes until its Upload (the operator, 2026-10-17: "First window popups with
@@ -1045,7 +1045,7 @@ function dropChannelNow() {
   const ch = (typeof channelList !== 'undefined' && Array.isArray(channelList)) ? channelList.find((c) => c.id === activeChannel) : null;
   if (!ch) return null;
   const myRole = (typeof peerData === 'object' && peerData && peerData[myKey] && peerData[myKey].role) || '';
-  return { id: ch.id, name: '#' + ch.name, postable: !ch.read_only || myRole === 'admin' || myRole === 'owner' };
+  return { id: ch.id, name: '#' + ch.name, postable: HosChatAccess.mayPost(ch.read_level, ch.post_level, chatRankOf(myKey)) };
 }
 
 // The upload window over the chat (/shared/upload-window.js), made the first time a drop opens it.
@@ -1056,14 +1056,14 @@ function chatUploadWindow() {
       window,
       document,
       // What the window says while it is closed and an upload carries on in it (published, posted
-      // in #general): a notice here.
+      // in #global): a notice here.
       onStatus: (text) => { if (typeof addNotice === 'function') addNotice(text, 'green', 10); },
     });
   }
   return chatUploadWindowHost;
 }
 
-/** How the chat names the conversation on screen: "#general", the person's name, the group's name. */
+/** How the chat names the conversation on screen: "#global", the person's name, the group's name. */
 function conversationLabel() {
   if (typeof isScratchPad === 'function' && isScratchPad()) return '#scratch-pad';
   if (typeof activeDmPartner !== 'undefined' && activeDmPartner) {

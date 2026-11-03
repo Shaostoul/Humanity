@@ -537,7 +537,7 @@ mod listing_mapping_tests {
                 "economy": {"active_listings": 5, "total_trades": 1, "total_reviews": 2},
                 "resources": {"total_tasks": 30, "tasks_completed": 21, "tasks_in_progress": 4, "tasks_open": 5},
                 "social": {"total_follows": 8, "total_dms": 9},
-                "activity": {"most_active_channel": "general", "messages_today": 15, "peak_online": 4}
+                "activity": {"most_active_channel": "global", "messages_today": 15, "peak_online": 4}
             }"#,
         )
         .unwrap();
@@ -549,7 +549,7 @@ mod listing_mapping_tests {
         assert_eq!(s.active_listings, 5);
         assert_eq!(s.tasks_completed, 21);
         assert_eq!(s.total_follows, 8);
-        assert_eq!(s.most_active_channel, "general");
+        assert_eq!(s.most_active_channel, "global");
         assert_eq!(s.peak_online, 4);
 
         // A partial payload (older server) degrades to zeros, not a panic.
@@ -1362,7 +1362,7 @@ impl Default for StudioState {
             stream_resolution: "1920x1080".into(),
             stream_bitrate: 3500,
             stream_fps: 30,
-            chat_overlay_channel: "general".into(),
+            chat_overlay_channel: humanity_protocol::chat_access::MAIN_CHANNEL.into(),
             chat_overlay_font_size: 14.0,
             chat_overlay_position: "Top-Right".into(),
             chat_overlay_opacity: 0.8,

@@ -75,7 +75,7 @@ function chatPage(stored) {
     ws: { readyState: 1, send: (s) => sent.push(JSON.parse(s)) },
     // chat-ui.js's globals notifyNewMessage reads.
     windowFocused: false, unreadCount: 0, startTitleFlash: () => {}, myName: 'Ann', myKey: 'me',
-    activeChannel: 'general', activeDmPartner: null, activeGroupId: null, soundEnabled: true,
+    activeChannel: 'global', activeDmPartner: null, activeGroupId: null, soundEnabled: true,
     playNotificationChime: () => {},
   };
   ctx.window = ctx;
@@ -155,13 +155,13 @@ test('3. a muted conversation and a room level reach the rule', () => {
   const now = Math.floor(Date.now() / 1000);
   const page = chatPage({
     hos_notify_mutes: JSON.stringify({ everything: null, servers: {}, rooms: {}, people: { 'dm:k1': 0 } }),
-    hos_notify_levels: JSON.stringify({ 'https://example.test|general': 'all' }),
+    hos_notify_levels: JSON.stringify({ 'https://example.test|global': 'all' }),
   });
   const N = page.ctx.HosChatNotify;
   N.prefsData(PREFS);
   assert.strictEqual(N.decide(dm('k1', 'hi'), AWAY).why, 'person_muted', 'a muted conversation');
   assert.strictEqual(N.decide(dm('k2', 'hi'), AWAY).why, 'notify');
-  const line = { kind: 'room_line', from_me: false, server: 'https://example.test', room: 'general', conversation: 'general', sender: 'Cy', room_name: 'general', text: 'hello' };
+  const line = { kind: 'room_line', from_me: false, server: 'https://example.test', room: 'global', conversation: 'global', sender: 'Cy', room_name: 'global', text: 'hello' };
   assert.strictEqual(N.decide(line, AWAY).why, 'notify', 'a room set to every line');
   assert.strictEqual(N.decide(Object.assign({}, line, { room: 'random', conversation: 'random' }), AWAY).why, 'room_level', 'another room at mentions');
   assert.match(N.dmBellHtml('k1'), /row-mute muted/, 'the muted mark on the row');
@@ -170,11 +170,11 @@ test('3. a muted conversation and a room level reach the rule', () => {
 });
 
 test('4. notifyNewMessage names the kind: a mention, a reply to my line, an ordinary line', () => {
-  const page = chatPage({ hos_notify_levels: JSON.stringify({ 'https://example.test|general': 'all', 'https://example.test|lobby': 'all' }) });
+  const page = chatPage({ hos_notify_levels: JSON.stringify({ 'https://example.test|global': 'all', 'https://example.test|lobby': 'all' }) });
   const N = page.ctx.HosChatNotify;
   N.prefsData(PREFS);
   const kinds = () => N.list().map((e) => e.kind);
-  page.ctx.notifyNewMessage('Ben', 'hey @ann', false, { room: 'general' });
+  page.ctx.notifyNewMessage('Ben', 'hey @ann', false, { room: 'global' });
   assert.deepStrictEqual(plain(kinds()), ['mention']);
   page.ctx.notifyNewMessage('Ben', 'agreed', false, { room: 'random', reply_from: 'me' });
   assert.strictEqual(kinds()[0], 'reply', 'a reply to my line');
@@ -216,18 +216,18 @@ test('6. a shared room line notifies only while live and from someone not blocke
     resolveSenderName: (n) => n,
     notifyNewMessage: (...a) => calls.push(a),
     isBlockedKey: (k) => k === 'bad',
-    activeChannel: 'general',
+    activeChannel: 'global',
     window: { HosChatNotify: { FEDERATED_LIVE_MS: 5 * 60 * 1000 } },
     Date, Number, String,
   };
   ctx.HosChatNotify = ctx.window.HosChatNotify;
   vm.createContext(ctx);
   vm.runInContext('var handleMessage; ' + slice(read('chat/chat-ui.js'), 'handleMessage = function(msg) {\n  _origHandleMessage(msg);', '\n};\n'), ctx);
-  const fed = (o) => Object.assign({ type: 'federated_chat', server_name: 'B', from_name: 'Cy', from_key: 'k9', content: '@ann hi', channel: 'general', timestamp: Date.now() }, o);
+  const fed = (o) => Object.assign({ type: 'federated_chat', server_name: 'B', from_name: 'Cy', from_key: 'k9', content: '@ann hi', channel: 'global', timestamp: Date.now() }, o);
   ctx.handleMessage(fed({}));
   assert.strictEqual(calls.length, 1);
   assert.strictEqual(calls[0][0], 'Cy (B)');
-  assert.deepStrictEqual(plain(calls[0][3]), { room: 'general' });
+  assert.deepStrictEqual(plain(calls[0][3]), { room: 'global' });
   ctx.handleMessage(fed({ timestamp: Date.now() - 6 * 60 * 1000 }));
   assert.strictEqual(calls.length, 1, 'a link catching up');
   ctx.handleMessage(fed({ from_key: 'bad' }));
@@ -235,7 +235,7 @@ test('6. a shared room line notifies only while live and from someone not blocke
   ctx.handleMessage(fed({ from_key: 'me' }));
   assert.strictEqual(calls.length, 1, 'my own line from the other server');
   // A reply on a local line carries the replied-to author.
-  ctx.handleMessage({ type: 'chat', from: 'k2', from_name: 'Ben', content: 'yes', channel: 'general', timestamp: 1, reply_to: { from: 'me' } });
+  ctx.handleMessage({ type: 'chat', from: 'k2', from_name: 'Ben', content: 'yes', channel: 'global', timestamp: 1, reply_to: { from: 'me' } });
   assert.strictEqual(calls[1][3].reply_from, 'me');
 });
 
@@ -260,7 +260,7 @@ test('7. Settings: the unread section is gone, the exceptions are there, the Mut
   const list = el('div');
   const ctx = {
     JSON, Object, Math, Date, parseInt, isNaN, Array, String,
-    localStorage: storage({ hos_notify_mutes: JSON.stringify({ everything: null, servers: {}, rooms: { 'https://example.test|general': 0 }, people: { 'dm:k1': 0 } }), hos_notify_names: JSON.stringify({ 'dm:k1': 'Ben' }) }),
+    localStorage: storage({ hos_notify_mutes: JSON.stringify({ everything: null, servers: {}, rooms: { 'https://example.test|global': 0 }, people: { 'dm:k1': 0 } }), hos_notify_names: JSON.stringify({ 'dm:k1': 'Ben' }) }),
     location: { origin: 'https://example.test', host: 'example.test' },
     document: { getElementById: (id) => (id === 'notif-muted-list' ? list : els[id] || null), createElement: el },
     window: { i18n: { t: (k, v) => k + (v ? JSON.stringify(v) : ''), hint: () => {} }, addEventListener: () => {} },
@@ -282,7 +282,7 @@ test('7. Settings: the unread section is gone, the exceptions are there, the Mut
   unmute[1].listeners.click();
   const m = JSON.parse(ctx.localStorage.getItem('hos_notify_mutes'));
   assert.deepStrictEqual(plain(m.people), {}, 'Unmute clears it');
-  assert.deepStrictEqual(Object.keys(m.rooms), ['https://example.test|general'], 'and only it');
+  assert.deepStrictEqual(Object.keys(m.rooms), ['https://example.test|global'], 'and only it');
 });
 
 // Rung 2, part 2 (2026-10-31): a click on the browser's own notice brings the tab forward AND

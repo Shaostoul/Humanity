@@ -590,7 +590,7 @@ pub(crate) mod tests {
         assert!(!screens_out(&gs, &frame("chat", &me)), "our own posts are never screened");
 
         let post = |from: &str, channel: &str| crate::gui::ChatMessage { sender_key: from.into(), channel: channel.into(), ..Default::default() };
-        for channel in ["general", "p2pgroup:g1", "dm:cy"] {
+        for channel in ["global", "p2pgroup:g1", "dm:cy"] {
             assert!(hides_message(&gs, &post("cy", channel)), "a blocked key's post is hidden in {channel}");
             assert!(!hides_message(&gs, &post("dee", channel)));
         }

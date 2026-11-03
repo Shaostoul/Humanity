@@ -17,7 +17,7 @@ fn protected_app() -> GuiState {
 }
 
 fn from(sender: &str, content: &str) -> ChatMessage {
-    ChatMessage { sender_name: sender.into(), sender_key: sender.into(), content: content.into(), timestamp_ms: 3, channel: "general".into(), ..Default::default() }
+    ChatMessage { sender_name: sender.into(), sender_key: sender.into(), content: content.into(), timestamp_ms: 3, channel: "global".into(), ..Default::default() }
 }
 
 /// PICTURES AND FILES (10h; the web hides audio, video and document links too,

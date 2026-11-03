@@ -34,7 +34,7 @@ fn a_reply_to_a_private_message_never_reaches_a_public_channel() {
     let (mut gs, sent) = app("p2pgroup:g1");
     gs.chat_reply_to = Some(context_for(&message("p2pgroup:g1", "ann", secret), "p2pgroup:g1", 41));
     assert!(gs.chat_reply_to.as_ref().unwrap().private, "a group message is private");
-    gs.chat_active_channel = "general".into(); // moved, by any path that does not clear it
+    gs.chat_active_channel = "global".into(); // moved, by any path that does not clear it
     assert!(super::super::send_composed_content(&mut gs, "hello all"));
     let frames: Vec<serde_json::Value> = sent.try_iter().map(|f| serde_json::from_str(&f).unwrap()).collect();
     let chat = frames.iter().find(|f| f["type"] == "chat").expect("the public send");
@@ -49,14 +49,14 @@ fn a_reply_to_a_private_message_never_reaches_a_public_channel() {
     assert!(made_in(&gs, "dm:ann").is_some(), "but it is the reply of this conversation");
 
     // A public reply in its own channel still goes with its send.
-    let (mut gs, sent) = app("general");
-    gs.chat_reply_to = Some(context_for(&message("general", "bo", "who has the map?"), "general", 41));
+    let (mut gs, sent) = app("global");
+    gs.chat_reply_to = Some(context_for(&message("global", "bo", "who has the map?"), "global", 41));
     assert!(super::super::send_composed_content(&mut gs, "I do"));
     let chat: serde_json::Value = sent.try_iter().map(|f| serde_json::from_str(&f).unwrap()).find(|f: &serde_json::Value| f["type"] == "chat").unwrap();
     assert_eq!(chat["reply_to"]["content"], "who has the map?", "a public reply keeps its quote");
 
     // Opening another conversation drops the target.
-    gs.chat_reply_to = Some(context_for(&message("general", "bo", "x"), "general", 41));
+    gs.chat_reply_to = Some(context_for(&message("global", "bo", "x"), "global", 41));
     drop_if_elsewhere(&mut gs);
     assert!(gs.chat_reply_to.is_some(), "still here: kept");
     gs.chat_active_channel = "dm:bo".into();

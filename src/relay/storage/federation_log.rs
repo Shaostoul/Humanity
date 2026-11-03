@@ -248,7 +248,7 @@ impl Storage {
             }
             let new_raw = if val.is_object() { val.to_string() } else { raw };
             conn.execute("UPDATE messages SET content = ?1, raw_json = ?2 WHERE id = ?3", params![new_content, new_raw, id])?;
-            Ok(Some(channel.unwrap_or_else(|| "general".to_string())))
+            Ok(Some(channel.unwrap_or_else(|| humanity_protocol::chat_access::MAIN_CHANNEL.to_string())))
         })
     }
 
@@ -288,7 +288,7 @@ impl Storage {
     pub fn posted_in_federated_rooms(&self, key: &str) -> Result<bool, rusqlite::Error> {
         self.with_conn(|conn| {
             conn.query_row(
-                "SELECT EXISTS(SELECT 1 FROM messages m JOIN channels c ON c.id = COALESCE(m.channel_id, 'general')
+                "SELECT EXISTS(SELECT 1 FROM messages m JOIN channels c ON c.id = COALESCE(m.channel_id, 'global')
                  WHERE m.from_key = ?1 AND m.msg_type = 'chat' AND c.federated = 1)",
                 params![key],
                 |r| r.get::<_, bool>(0),
@@ -300,7 +300,7 @@ impl Storage {
     pub fn message_channel(&self, from_key: &str, stamp: u64) -> Result<Option<String>, rusqlite::Error> {
         self.with_conn(|conn| {
             conn.query_row(
-                "SELECT COALESCE(channel_id, 'general') FROM messages WHERE from_key = ?1 AND timestamp = ?2 AND msg_type = 'chat' LIMIT 1",
+                "SELECT COALESCE(channel_id, 'global') FROM messages WHERE from_key = ?1 AND timestamp = ?2 AND msg_type = 'chat' LIMIT 1",
                 params![from_key, stamp as i64],
                 |r| r.get(0),
             )
@@ -312,7 +312,7 @@ impl Storage {
     pub fn message_by_id(&self, id: i64) -> Result<Option<(String, String, u64)>, rusqlite::Error> {
         self.with_conn(|conn| {
             conn.query_row(
-                "SELECT from_key, COALESCE(channel_id, 'general'), timestamp FROM messages WHERE id = ?1 AND msg_type = 'chat'",
+                "SELECT from_key, COALESCE(channel_id, 'global'), timestamp FROM messages WHERE id = ?1 AND msg_type = 'chat'",
                 params![id],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? as u64)),
             )

@@ -11,7 +11,7 @@
 // file ... If we're also in a chat channel, we could upload the file to the active
 // chat channel"):
 //   - the chat, one of this server's channels open:
-//         "Drop to upload to Files and post in #general": the upload window (the
+//         "Drop to upload to Files and post in #global": the upload window (the
 //         Media page's own Add to Media in a window over the chat,
 //         /shared/upload-window.js) with "Also post in chat" ticked for it
 //   - the chat, a private conversation open (a direct message, a group, the
@@ -59,7 +59,7 @@
     return 'Drop to send in ' + String(name == null ? '' : name);
   }
   /**
-   * "Drop to upload to Files and post in #general": a channel of the chat open (the desktop's
+   * "Drop to upload to Files and post in #global": a channel of the chat open (the desktop's
    * media/add.rs drop_and_post_words). `name` is how the chat names the channel.
    */
   function uploadAndPostIn(name) {

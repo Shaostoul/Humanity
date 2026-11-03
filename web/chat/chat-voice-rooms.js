@@ -997,7 +997,7 @@ async function handleVoiceRoomSignal(msg) {
             }
             if (!beginChannelAdminCmd('rename')) return;
             addSystemMessage('⏳ Renaming #' + name + ' → #' + newName.trim().toLowerCase() + ' ...');
-            sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general').then(ok => { if (!ok) failChannelAdminCmd('Rename command failed to send.'); }).catch(console.error);
+            sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'global').then(ok => { if (!ok) failChannelAdminCmd('Rename command failed to send.'); }).catch(console.error);
           }
         } else if (action === 'delete') {
           if (await holdConfirm('Delete channel "' + name + '"? This cannot be undone.', { seconds: 3 })) {
@@ -1008,8 +1008,8 @@ async function handleVoiceRoomSignal(msg) {
             const normalized = String(name || '').trim().replace(/^#/, '').toLowerCase();
             if (!beginChannelAdminCmd('delete')) return;
             addSystemMessage('⏳ Deleting #' + normalized + ' ...');
-            // Route admin channel-management commands through #general for consistent server handling.
-            sendChatCommand('/channel-delete ' + normalized, 'general').then(ok => { if (!ok) failChannelAdminCmd('Delete command failed to send.'); }).catch(console.error);
+            // Route admin channel-management commands through #global for consistent server handling.
+            sendChatCommand('/channel-delete ' + normalized, 'global').then(ok => { if (!ok) failChannelAdminCmd('Delete command failed to send.'); }).catch(console.error);
           }
         }
         dropdown.remove();

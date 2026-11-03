@@ -674,7 +674,7 @@ mod local_only_room_tests {
                     created_at  INTEGER NOT NULL,
                     read_only   INTEGER DEFAULT 0
                 );
-                INSERT INTO channels (id, name, created_at) VALUES ('general', 'general', 1);",
+                INSERT INTO channels (id, name, created_at) VALUES ('global', 'global', 1);",
             )
             .expect("seed old-shape channels");
         }
@@ -682,13 +682,13 @@ mod local_only_room_tests {
         let db = Storage::open(&path).expect("startup must survive a pre-v0.1132 DB");
 
         // Old row intact and defaulted not-local-only; new paths work.
-        assert!(!db.is_channel_local_only("general").expect("q"));
+        assert!(!db.is_channel_local_only("global").expect("q"));
         assert!(!db.any_local_only_channel().expect("q"));
         assert!(
             db.get_server_settings().expect("settings").local_channel_enabled,
             "migrated settings default the guarantee ON"
         );
-        db.set_channel_local_only("general", true).expect("flag works post-migration");
+        db.set_channel_local_only("global", true).expect("flag works post-migration");
         assert!(db.any_local_only_channel().expect("q"));
     }
 }

@@ -50,11 +50,11 @@ fn a_photo_leaves_without_where_it_was_taken_on_every_path() {
     assert_eq!(att.size, plain.len() as u64, "the marker states the cleaned size");
     assert!(plain.len() < photo.len());
 
-    let (_, seen) = recorded(job("general", "IMG_0001.JPG", photo.clone()));
+    let (_, seen) = recorded(job("global", "IMG_0001.JPG", photo.clone()));
     let up = seen.unwrap();
     assert!(describe(&up.bytes, "x.jpg").details.is_empty() && !up.keep_metadata, "a room's photo is cleaned too");
 
-    let mut keep = job("general", "IMG_0001.JPG", photo.clone());
+    let mut keep = job("global", "IMG_0001.JPG", photo.clone());
     keep.clean = false;
     let (_, seen) = recorded(keep);
     let up = seen.unwrap();
@@ -69,7 +69,7 @@ fn a_photo_leaves_without_where_it_was_taken_on_every_path() {
 #[test]
 fn a_file_that_could_not_be_checked() {
     let broken = fixture("mp4-broken-box.mp4");
-    let out = run(job("general", "clip.mp4", broken.clone()), |_, _, _| panic!("nothing goes to a public place"));
+    let out = run(job("global", "clip.mp4", broken.clone()), |_, _, _| panic!("nothing goes to a public place"));
     assert_eq!(out.unwrap_err(), NOT_CHECKED_PUBLIC);
     let out = run(job("dm:ann", "clip.mp4", broken.clone()), |_, _, _| panic!("not without Send anyway"));
     assert_eq!(out.unwrap_err(), NOT_CHECKED);

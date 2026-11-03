@@ -728,7 +728,7 @@ fn post_in_chat_is_a_tick_then_the_channel_greyed_while_off() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
     state.files.mine = Some(Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
-    for (id, ro) in [("general", false), ("random", false), ("printing", false), ("announcements", true)] {
+    for (id, ro) in [("global", false), ("random", false), ("printing", false), ("announcements", true)] {
         state.chat_channels.push(crate::gui::ChatChannel { id: id.into(), name: id.into(), post_level: if ro { humanity_protocol::chat_access::PostLevel::Mods } else { humanity_protocol::chat_access::PostLevel::Members }, ..Default::default() });
     }
     state.chat_active_channel = "random".into();
@@ -736,7 +736,7 @@ fn post_in_chat_is_a_tick_then_the_channel_greyed_while_off() {
     crate::gui::widgets::file_picker_memory::with(|m| m.toggle_post_favorite(&add::post_key(&server, "printing")));
     let choices = add::post_choices(&state);
     let ids: Vec<&str> = choices.iter().map(|(id, _)| id.as_str()).collect();
-    assert_eq!(ids, vec!["random", "printing", "general"], "the open channel, the favourite, the rest; no read-only channel");
+    assert_eq!(ids, vec!["random", "printing", "global"], "the open channel, the favourite, the rest; no read-only channel");
     assert!(choices[0].1.contains("open in the chat") && choices[1].1.starts_with('\u{2b50}'));
 
     let file = humanity_core::test_temp::file("media_post_row", "stl");
@@ -776,7 +776,7 @@ fn texts_left_to_right(out: &egui::FullOutput, a: &str, b: &str) -> bool {
 /// server than the chat's is not made, and says so; nor is one while the chat is not connected (the
 /// chat's own send would echo it locally and report it sent). Seen red 2026-10-17 with the file's
 /// address posted instead (the card's first version): the item's own address was expected; and,
-/// before the connection check, the offline post said "Posted in #general.".
+/// before the connection check, the offline post said "Posted in #global.".
 #[test]
 fn what_is_posted_and_where() {
     use serde_json::json;
@@ -786,14 +786,14 @@ fn what_is_posted_and_where() {
     assert_eq!(add::post_text(&members, "https://h.example/"), "https://h.example/files/9", "a members-only item: its page");
 
     let mut state = page_state(demo_answer(), true);
-    state.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
+    state.chat_channels.push(crate::gui::ChatChannel { id: "global".into(), name: "global".into(), ..Default::default() });
     let answer = json!({"item": {"id": 7, "url": "/uploads/7_dusk.glb", "title": "Dusk", "description": "", "visibility": "public"}});
-    add::post_published(&mut state, &answer, "general", "https://another.example");
-    assert!(state.files.status.contains("Not posted in #general: the chat is on another server now."), "{}", state.files.status);
+    add::post_published(&mut state, &answer, "global", "https://another.example");
+    assert!(state.files.status.contains("Not posted in #global: the chat is on another server now."), "{}", state.files.status);
     state.files.status.clear();
     let here = crate::gui::pages::chat::norm_server_url(&state.server_url);
-    add::post_published(&mut state, &answer, "general", &here);
-    assert!(state.files.status.contains("Not posted in #general: the chat is not connected to its server."), "offline: {}", state.files.status);
+    add::post_published(&mut state, &answer, "global", &here);
+    assert!(state.files.status.contains("Not posted in #global: the chat is not connected to its server."), "offline: {}", state.files.status);
 }
 
 /// A CHANNEL NO LONGER OFFERED IS NOT SWAPPED FOR ANOTHER (2026-10-17, the website's rule): a form
@@ -805,7 +805,7 @@ fn a_channel_no_longer_offered_is_not_swapped_for_another() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
     state.files.mine = Some(Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
-    state.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
+    state.chat_channels.push(crate::gui::ChatChannel { id: "global".into(), name: "global".into(), ..Default::default() });
     let file = humanity_core::test_temp::file("media_post_gone", "stl");
     std::fs::write(&file, b"solid w
 endsolid w
@@ -819,5 +819,5 @@ endsolid w
     let _ = settled(&ctx, &theme, &mut state);
     let form = state.files.form.as_ref().expect("the form is still open");
     assert!(!form.post_on, "the tick goes off");
-    assert_eq!(form.post_to, "general", "the first channel is shown to pick");
+    assert_eq!(form.post_to, "global", "the first channel is shown to pick");
 }

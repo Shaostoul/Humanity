@@ -74,7 +74,7 @@
 //     and its lines), with the buttons outside them.
 // 16. (2026-10-17) Files dragged from the computer onto the chat (/shared/drop-overlay.js, loaded
 //     here in index.html's order): over one of this server's channels "Drop to upload to Media and
-//     post in #general", and the drop opens the upload window (/shared/upload-window.js), the Media
+//     post in #global", and the drop opens the upload window (/shared/upload-window.js), the Media
 //     page's own Add to Media, posting ticked for the channel, nothing going until its Upload; in a
 //     DM or a group "Drop to send in Ben" (the group's name in a group), and the drop takes the attach
 //     button's own private path, never the upload window; where a drop would do nothing (sending
@@ -143,7 +143,7 @@ const PIN = "90817263";
 const ACCEPT_ANYONE = { hos_files_in_messages: JSON.stringify({ accept: "anyone" }) };
 const MAY = "invite,message,trade,voice_message";
 const CHANNELS = [
-  { id: "general", name: "general", post_level: "members" },
+  { id: "global", name: "global", post_level: "members" },
   { id: "announcements", name: "announcements", post_level: "mods" },
 ];
 
@@ -748,7 +748,7 @@ async function loadChat(me, opts = {}) {
   ctx.pqBlake3 = async (bytes) => fx.m.blake3(bytes);
   const sock = fakeSocket();
   vm.runInContext(`(s, me, name, sk, kyber, seed) => {
-    ws = s; myKey = me; myName = name; activeChannel = 'general'; identityConfirmed = true;
+    ws = s; myKey = me; myName = name; activeChannel = 'global'; identityConfirmed = true;
     myUploadToken = 'tok-test'; // this session's upload token, as the peer list gives it
     myDilithiumPublicHex = me; myDilithiumSecret = sk;
     myKyberPublicBase64 = kyber; myKyberSecret = new Uint8Array(4);
@@ -972,7 +972,7 @@ test("a public channel still uploads the plain file and posts its address", asyn
   const posts = page.sock.sent.filter((m) => m.type === "chat");
   assert.equal(posts.length, 1, "one public post");
   assert.equal(posts[0].content, up.url, "its address");
-  assert.equal(posts[0].channel, "general");
+  assert.equal(posts[0].channel, "global");
   assert.ok(!posts[0].content.includes(FILE_MARKER), "no marker");
 
   await pick(page, pdf("notes.pdf"));
@@ -1556,7 +1556,7 @@ test("files chosen together go one by one, and the rest stay behind when the con
   const release = page.holdUploads();
   const sending = page.fn("handleFileAttachment")({ target: { files: [picture("three.png"), picture("four.png")], value: "x" } });
   await waitFor(() => page.uploads.length === 1, "the first has started");
-  page.fn("switchChannel")("general");
+  page.fn("switchChannel")("global");
   release();
   await sending;
   await settle();
@@ -1575,7 +1575,7 @@ test("a group's file is not sent anywhere when another conversation is opened wh
   const release = page.holdUploads();
   const sending = page.fn("handleFileAttachment")({ target: { files: [picture("image.png")], value: "x" } });
   await waitFor(() => page.uploads.length === 1, "the upload has started");
-  page.fn("switchChannel")("general");
+  page.fn("switchChannel")("global");
   release();
   await sending;
   await settle();
@@ -1727,7 +1727,7 @@ test("the scratch pad: a file is encrypted and its marker kept in this browser; 
   }
 
   // Opening it again draws the kept entries the same way.
-  page.fn("switchChannel")("general");
+  page.fn("switchChannel")("global");
   await settle();
   page.state.appended.length = 0;
   page.fn("switchChannel")("__scratch__");
@@ -1781,7 +1781,7 @@ test("10m R10: no typing indicator while the scratch pad is open", async () => {
   press();
   press();
   assert.deepEqual(page.sock.sent.filter((m) => m.type === "typing"), [], "no typing indicator goes from the scratch pad");
-  page.fn("switchChannel")("general");
+  page.fn("switchChannel")("global");
   await settle();
   press();
   assert.equal(page.sock.sent.filter((m) => m.type === "typing").length, 1, "in a channel it still goes");
@@ -1856,7 +1856,7 @@ test("10m R10: a reply made in the scratch pad is kept on the note as a quote, a
   assert.equal(page.sock.raw.length, 0, "nothing went on the socket");
 
   // Opening the scratch pad again draws it as a reply still.
-  page.fn("switchChannel")("general");
+  page.fn("switchChannel")("global");
   await settle();
   page.state.appended.length = 0;
   page.fn("switchChannel")("__scratch__");
@@ -2690,7 +2690,7 @@ test("files: Safety shows the three settings; a change is kept, published as acc
   await paste(page, picture("image.png"));
   assert.equal(page.uploads.length, 0, "and a paste there sends nothing");
   assert.ok(page.systemLines.includes(FIM.WORDS.attachOff), "saying where it is turned off");
-  page.fn("switchChannel")("general");
+  page.fn("switchChannel")("global");
   await settle();
   assert.equal(page.el("attach-btn").style.display, "", "the button is back in a room");
   await paste(page, picture("image.png"));
@@ -3209,7 +3209,7 @@ test("files: the attach step shows a file named like a picture over a program's 
 // ── Files dragged from the computer onto the chat (2026-10-17) ──────────
 // The operator asked for drag and drop from the computer's file manager, and then redesigned what a
 // drop does (the desktop app's src/gui/pages/chat/attach_send.rs offer_drop, in its words): over one
-// of this server's channels the page is dimmed with "Drop to upload to Media and post in #general",
+// of this server's channels the page is dimmed with "Drop to upload to Media and post in #global",
 // and the drop opens the upload window (/shared/upload-window.js: the Media page's own Add to Media,
 // every control, in a frame over the chat) with "Also post in chat" ticked for that channel, and
 // nothing goes until its Upload. Over a private conversation (a DM, a group, the scratch pad) it says
@@ -3259,18 +3259,18 @@ function frameReady(page, w) {
 }
 
 // Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with chatDropDecision's channel line made
-// the private one (`D.sendIn(channel.name)`): "over #general: Drop to upload to Media and post in
-// #general" (actual { line: 'Drop to send in #general', ... }); with chatDropped sending a channel's
+// the private one (`D.sendIn(channel.name)`): "over #global: Drop to upload to Media and post in
+// #global" (actual { line: 'Drop to send in #global', ... }); with chatDropped sending a channel's
 // drop down the attach path (the window skipped): "nothing goes up until the window's Upload" (actual
 // 2); with chatDropped handing the window no channel (`host.show(files, '')`): "posting ticked for
-// #general" (actual ''); with files-add.js openAddForm ignoring postTo: "in the window: Also post in
-// chat ticked for #general" (actual false).
-test("drop: over #general it says the files go up to Files and are posted there; the drop opens the upload window, posting ticked, the Files page's own form", async () => {
+// #global" (actual ''); with files-add.js openAddForm ignoring postTo: "in the window: Also post in
+// chat ticked for #global" (actual false).
+test("drop: over #global it says the files go up to Files and are posted there; the drop opens the upload window, posting ticked, the Files page's own form", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);
   const enter = dragOn(page, "dragenter", filesDrag());
   assert.ok(enter.defaultPrevented, "a file drag is the page's, so the browser never opens the file in the tab");
-  assert.deepEqual(dropOverlay(page), { line: "Drop to upload to Files and post in #general", reason: "", refused: false }, "over #general: Drop to upload to Files and post in #general");
+  assert.deepEqual(dropOverlay(page), { line: "Drop to upload to Files and post in #global", reason: "", refused: false }, "over #global: Drop to upload to Files and post in #global");
   const over = dragOn(page, "dragover", filesDrag());
   assert.ok(over.defaultPrevented && over.dataTransfer.dropEffect === "copy", "dragover says copy");
   // Over a child element: its enter comes before the last one's leave.
@@ -3294,22 +3294,22 @@ test("drop: over #general it says the files go up to Files and are posted there;
   assert.equal(handed.length, 1, "once the page in it is there, the files are handed over");
   assert.equal(handed[0].to, page.ctx.location.origin, "to this site only");
   assert.deepEqual([handed[0].data.event, handed[0].data.files], ["files", [png, notes]], "the files dropped, as they are");
-  assert.equal(handed[0].data.postTo, "general", "posting ticked for #general");
+  assert.equal(handed[0].data.postTo, "global", "posting ticked for #global");
 
   // In the window: the Media page's own Add to Media (files-app.js, as /files?window=upload runs it),
-  // the first file the item and the other added once it is up, posting ticked for #general.
+  // the first file the item and the other added once it is up, posting ticked for #global.
   const storage = MH.fakeStorage();
-  storage.setItem("humanity_channel", "general");
+  storage.setItem("humanity_channel", "global");
   const inWindow = await MH.openPage({ storage, uploadWindow: { send() {} }, routes: MH.listRoutes(MH.listAnswer([])) });
-  inWindow.session.emit({ type: "frame", msg: { type: "channel_list", channels: [{ id: "general", name: "general" }, { id: "random", name: "random" }] } });
+  inWindow.session.emit({ type: "frame", msg: { type: "channel_list", channels: [{ id: "global", name: "global" }, { id: "random", name: "random" }] } });
   inWindow.page.takeFiles(handed[0].data.files, handed[0].data.postTo);
   await MH.settle();
   const f = inWindow.page.state.form;
   assert.ok(f && f.mode === "add" && f.file === png, "Add to Files opened with the first file as the item");
   assert.deepEqual(f.more, [notes], "the other to be added once it is up");
   const tick = MH.byId(inWindow.doc, "files-form-post-on");
-  assert.ok(tick && tick.checked, "in the window: Also post in chat ticked for #general");
-  assert.equal(MH.byId(inWindow.doc, "files-form-post-to").value, "general");
+  assert.ok(tick && tick.checked, "in the window: Also post in chat ticked for #global");
+  assert.equal(MH.byId(inWindow.doc, "files-form-post-to").value, "global");
   assert.ok(MH.byId(inWindow.doc, "files-form-go").className.split(/\s+/).includes("files-btn-rgb"), "its Upload wearing the RGB border");
 
   // A second drop goes to the same window, at once.
@@ -3331,8 +3331,8 @@ test("drop: over #general it says the files go up to Files and are posted there;
 // Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with conversationLabel naming a DM by
 // its key ("dm:" + activeDmPartner): "over a DM: the person's name" (actual "Drop to send in dm:...");
 // and 2026-10-17 again, with dropChannelNow not asking privateConversationNow first (a DM open over
-// #general taken for the channel): "over a DM: the person's name" (actual { line: 'Drop to upload to
-// Media and post in #general', ... }).
+// #global taken for the channel): "over a DM: the person's name" (actual { line: 'Drop to upload to
+// Media and post in #global', ... }).
 test("drop: in a DM it says the person's name, and the dropped file is encrypted and sealed to them, as a picked one is, never offered to a public upload", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);
@@ -3356,7 +3356,7 @@ test("drop: in a DM it says the person's name, and the dropped file is encrypted
 
 // Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with conversationLabel leaving groups
 // out (a group falling through to its room): "over a group: its name" (actual { line: 'Drop to send
-// in #general', ... }).
+// in #global', ... }).
 test("drop: in a group it says the group's name, and the dropped file goes inside the group's encrypted message", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);
@@ -3409,7 +3409,7 @@ test("drop: where a drop would do nothing the page says so and why, and nothing 
   const chanDown = await loadChat(fx.ann);
   chanDown.sock.readyState = 3;
   dragOn(chanDown, "dragenter", filesDrag());
-  assert.equal(dropOverlay(chanDown).line, "Drop to upload to Files and post in #general", "a channel with the chat's connection down: the window signs in itself");
+  assert.equal(dropOverlay(chanDown).line, "Drop to upload to Files and post in #global", "a channel with the chat's connection down: the window signs in itself");
   dragOn(chanDown, "dragleave", filesDrag());
   chanDown.set("(v) => { myKey = v; }", "");
   assert.deepEqual(refused(chanDown), { line: "Files cannot be dropped here.", reason: "This server has not finished signing you in yet. Try again in a moment.", refused: true }, "no identity in this browser: why not");

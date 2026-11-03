@@ -86,7 +86,7 @@ const reachedLive = () => ({
     [`${KEY} http://127.0.0.1:62050`]: { ship_hash: "bb", plot: "p1" },
   },
   account_erased_on: { [`${KEY} https://united-humanity.us`]: "Done" },
-  collapsed_servers: ["https://united-humanity.us", "http://127.0.0.1:62050"],
+  server_folds: { "https://united-humanity.us": true, "http://127.0.0.1:62050": false },
   last_world: "server:srv_https://united-humanity.us",
   fov: 77,
 });
@@ -136,7 +136,7 @@ test("a rig sandbox that once reached the live server is taken off it: no saved 
   assert.strictEqual(next.server_url, RG.RIG_NO_SERVER);
   assert.strictEqual(next.home_plots, undefined, "home_plots is gone from the game: dropped whole");
   assert.deepStrictEqual(next.account_erased_on, {});
-  assert.deepStrictEqual(next.collapsed_servers, ["http://127.0.0.1:62050"]);
+  assert.deepStrictEqual(next.server_folds, { "http://127.0.0.1:62050": false });
   assert.strictEqual(next.last_world, "home:", "a pairing with the live server is forgotten, and with no server of its own the rig boots your own home");
   assert.strictEqual(next.fov, 77);
   assert.deepStrictEqual(RG.gameplayProblems(next), []);

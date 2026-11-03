@@ -60,7 +60,7 @@ const RULES = starRules(ROBOTS);
 
 test("1. robots.txt keeps every crawler off the API, the uploads and a person's own pages", () => {
   const off = [
-    "/api/messages?channel=general", "/api/front-door", "/api/profile/abc", "/api/files/file/3",
+    "/api/messages?channel=global", "/api/front-door", "/api/profile/abc", "/api/files/file/3",
     "/uploads/a.png", "/ws", "/releases/HumanityOS-windows-x64.exe",
     "/chat", "/chat/index.html", "/settings", "/settings.html", "/identity", "/recovery", "/profile?key=ab",
     "/notes", "/wallet", "/admin", "/ops", "/dev", "/dev.html", "/bugs", "/widgets",
@@ -92,7 +92,7 @@ test("2b. AI training crawlers get the public pages under the same rules as ever
   const agents = ROBOTS.split(/\r?\n/).map((l) => l.replace(/#.*$/, "").trim()).filter((l) => /^user-agent\s*:/i.test(l));
   assert.deepStrictEqual(agents.map((l) => l.split(":")[1].trim()), ["*"], "one group, for every crawler");
   assert.strictEqual(allowed(RULES, "/library"), true);
-  assert.strictEqual(allowed(RULES, "/api/messages?channel=general"), false);
+  assert.strictEqual(allowed(RULES, "/api/messages?channel=global"), false);
 });
 
 test("3. the deploy puts both files at the web root", () => {
@@ -132,4 +132,4 @@ test("4. served as nginx serves them, at /robots.txt and /sitemap.xml, as text",
 // Red first, 2026-11-02, each in a copy of web/ (HOS_WEB_DIR):
 //  - robots.txt without "Allow: /devlog": 1 failed ("/devlog must be open": "Disallow: /dev" took
 //    it), and 2 with it (the Devlog is in the sitemap).
-//  - robots.txt without "Disallow: /api/": 1 failed ("/api/messages?channel=general must be off limits").
+//  - robots.txt without "Disallow: /api/": 1 failed ("/api/messages?channel=global must be off limits").

@@ -6,17 +6,20 @@ use rusqlite::params;
 use crate::relay::relay::RelayMessage;
 
 impl Storage {
-    /// Store a message and return its row ID.
+    /// Store a message and return its row ID. It is filed in #global, the channel every server has
+    /// (`MAIN_CHANNEL`), named here rather than left to the column's default: a live database's
+    /// column still defaults to the channel's old name (SQLite cannot change a default in place).
     pub fn store_message(&self, msg: &RelayMessage) -> Result<i64, rusqlite::Error> {
+        let main = humanity_protocol::chat_access::MAIN_CHANNEL;
         self.with_conn(|conn| {
             let raw = serde_json::to_string(msg).unwrap_or_default();
 
             match msg {
                 RelayMessage::Chat { from, from_name, content, timestamp, signature, .. } => {
                     conn.execute(
-                        "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, signature, raw_json)
-                         VALUES ('chat', ?1, ?2, ?3, ?4, ?5, ?6)",
-                        params![from, from_name, content, timestamp, signature, raw],
+                        "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, signature, raw_json, channel_id)
+                         VALUES ('chat', ?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        params![from, from_name, content, timestamp, signature, raw, main],
                     )?;
                 }
                 RelayMessage::System { message } => {
@@ -25,9 +28,9 @@ impl Storage {
                         .unwrap_or_default()
                         .as_millis() as i64;
                     conn.execute(
-                        "INSERT INTO messages (msg_type, content, timestamp, raw_json)
-                         VALUES ('system', ?1, ?2, ?3)",
-                        params![message, now, raw],
+                        "INSERT INTO messages (msg_type, content, timestamp, raw_json, channel_id)
+                         VALUES ('system', ?1, ?2, ?3, ?4)",
+                        params![message, now, raw, main],
                     )?;
                 }
                 _ => {

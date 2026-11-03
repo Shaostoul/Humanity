@@ -368,6 +368,6 @@ describe("a scripted second player on a throwaway relay", { skip: SKIP }, () => 
       await waitFor(() => heard.some((m) => m.content === TEXT), 3000),
       `the watcher received the walker's line. Its output:\n${player.text()}`,
     );
-    assert.match(player.text(), /said in #general/, "and the walker saw its own line come back");
+    assert.match(player.text(), /said in #global/, "and the walker saw its own line come back");
   });
 });

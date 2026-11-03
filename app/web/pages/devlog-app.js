@@ -1,89 +1,90 @@
-/* Devlog page: renders the GitHub Releases feed as the public devlog.
-   The release history is the project's only authoritative changelog (the
-   Version SOP tags and writes notes for every ship), so rendering it live
-   means this page can never drift from reality and needs no build step.
-   Unauthenticated GitHub API allows 60 requests/hour/IP; a sessionStorage
-   cache keeps a browsing session to ~1 request per page of releases. */
-(function() {
+/* The Devlog page (web/pages/devlog.html): every release, newest first, one update card each, the
+   same card the front door shows (web/shared/front-door.js updateCard), a signed release dressed
+   its own way (docs/design/front-door.md, section 3.1; the operator, 2026-11-02: "Keep and update
+   devlog too").
+
+   WHERE THE LIST COMES FROM (2026-11-02): this server's GET /api/releases (src/relay/front_door.rs),
+   the release posts of its #announcements channel a page at a time, each with whether the server
+   checked a signature by the project's release keys. Until this day the page asked GitHub's
+   releases API from every visitor's browser, which sent each visitor's address to GitHub (the
+   reason the site's fonts are self-hosted) and allowed a browser 60 requests an hour. A visitor
+   now talks only to this server; each card's Release notes link, which opens the full notes on
+   GitHub, is the visitor's own choice to make. scripts/tests/front-door-web.test.js fails if this
+   file or devlog.html names GitHub's API host again.
+
+   Works in the browser (it starts itself) and under Node for that test (module.exports.createDevlog). */
+(function (root) {
   'use strict';
 
-  var API = 'https://api.github.com/repos/Shaostoul/Humanity/releases';
-  var PER_PAGE = 25;
-  var CACHE_MS = 10 * 60 * 1000;
+  var NODE = typeof module === 'object' && module && module.exports;
+  var PAGE = 25;
 
-  var page = 1;
-  var list = document.getElementById('devlog-list');
-  var moreBtn = document.getElementById('devlog-more');
+  /** env = { document, fetch, t, hint, icon, fd, now() }. */
+  function createDevlog(env) {
+    var doc = env.document;
+    var T = env.t;
+    var state = { next: null, shown: 0, loading: false };
+    var list = doc.getElementById('devlog-list');
+    var more = doc.getElementById('devlog-more');
+    var status = doc.getElementById('devlog-status');
 
-  function esc(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function md(text) {
-    if (window.hosMarkdown && window.hosMarkdown.render) return window.hosMarkdown.render(text);
-    return '<p>' + esc(text).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
-  }
-
-  function fmtDate(iso) {
-    try {
-      return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch (e) { return (iso || '').slice(0, 10); }
-  }
-
-  function render(releases) {
-    if (page === 1) list.innerHTML = '';
-    if (!releases.length && page === 1) {
-      list.innerHTML = '<div class="devlog-empty">No releases visible right now. ' +
-        'See the <a href="https://github.com/Shaostoul/Humanity/releases">GitHub releases page</a>.</div>';
-      return;
+    function say(words) {
+      status.textContent = words || '';
+      status.hidden = !words;
     }
-    var frag = document.createDocumentFragment();
-    releases.forEach(function(r) {
-      if (r.draft) return;
-      var el = document.createElement('article');
-      el.className = 'rel';
-      el.innerHTML =
-        '<div class="rel-head">' +
-          '<h3><a href="' + esc(r.html_url) + '" target="_blank" rel="noopener">' +
-            esc(r.name || r.tag_name) + '</a></h3>' +
-          '<span class="rel-date">' + fmtDate(r.published_at) + '</span>' +
-        '</div>' +
-        (r.body ? '<div class="rel-body">' + md(r.body) + '</div>' : '');
-      frag.appendChild(el);
-    });
-    list.appendChild(frag);
-    moreBtn.style.display = releases.length >= PER_PAGE ? 'block' : 'none';
+
+    function load() {
+      if (state.loading) return Promise.resolve();
+      state.loading = true;
+      var url = '/api/releases?limit=' + PAGE + (state.next ? '&before=' + encodeURIComponent(state.next) : '');
+      return env.fetch(url, { cache: 'no-cache' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (j) {
+          var deps = { document: doc, t: T, hint: env.hint, icon: env.icon, now: env.now ? env.now() : Date.now() };
+          (j.releases || []).forEach(function (u) {
+            if (!u || typeof u.title !== 'string') return;
+            list.appendChild(env.fd.updateCard(u, deps));
+            state.shown++;
+          });
+          state.next = j.next == null ? null : j.next;
+          more.hidden = state.next == null;
+          say(state.shown ? '' : T('devlog.none'));
+        })
+        .catch(function () {
+          if (!state.shown) say(T('devlog.offline'));
+        })
+        .then(function () { state.loading = false; });
+    }
+
+    function start() {
+      more.addEventListener('click', function () { load(); });
+      say(T('devlog.loading'));
+      return load();
+    }
+
+    return { start: start, load: load, state: state };
   }
 
-  function load() {
-    var key = 'devlog-page-' + page;
-    try {
-      var cached = JSON.parse(sessionStorage.getItem(key) || 'null');
-      if (cached && Date.now() - cached.at < CACHE_MS) { render(cached.data); return; }
-    } catch (e) {}
-
-    fetch(API + '?per_page=' + PER_PAGE + '&page=' + page, {
-      headers: { 'Accept': 'application/vnd.github+json' },
-    })
-      .then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then(function(data) {
-        try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data: data })); } catch (e) {}
-        render(data);
-      })
-      .catch(function(err) {
-        console.error('devlog: release fetch failed', err);
-        if (page === 1) {
-          list.innerHTML = '<div class="devlog-empty">Could not load the release feed ' +
-            '(possibly rate-limited). The <a href="https://github.com/Shaostoul/Humanity/releases">' +
-            'GitHub releases page</a> always works.</div>';
-        }
+  function bootInBrowser(win) {
+    var doc = win.document;
+    var i18n = win.i18n;
+    var go = function () {
+      var page = createDevlog({
+        document: doc, fetch: function (u, i) { return win.fetch(u, i); },
+        t: function (k, v) { return i18n ? i18n.t(k, v) : k; },
+        hint: function (e, k) { if (i18n) i18n.hint(e, k); },
+        icon: win.hosIcon ? function (n, s) { return win.hosIcon(n, s); } : null,
+        fd: win.HosFrontDoor, now: function () { return Date.now(); }
       });
+      page.start();
+    };
+    if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', go);
+    else go();
   }
 
-  moreBtn.addEventListener('click', function() { page += 1; load(); });
-  load();
-})();
+  if (NODE) module.exports = { createDevlog: createDevlog };
+  else bootInBrowser(root);
+})(typeof window !== 'undefined' ? window : globalThis);

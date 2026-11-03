@@ -937,7 +937,7 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 "History wipes are permanent. \"Wipe active channel\" clears the channel \
                  you currently have open in Chat ({}); \"Wipe ALL channels\" clears every \
                  channel's history. \"Clean up names\" releases names inactive for 90+ days.",
-                if state.chat_active_channel.is_empty() { "general" } else { state.chat_active_channel.as_str() }
+                if state.chat_active_channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL } else { state.chat_active_channel.as_str() }
             ),
         );
         ui.add_space(theme.spacing_xs);
@@ -1573,7 +1573,7 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
          (4) Discovery, members on other servers can find and join the \
          discussion. Off = local-only: faster, fully private to this server, \
          but a single point of failure. Choose per-channel: keep #private-ops \
-         local, federate #general.",
+         local, federate #global.",
     );
     // Say what "Federated" actually bridges to RIGHT NOW (federation-ux.md
     // build order 5): a live peer list beats an abstract checkbox.
@@ -3016,7 +3016,7 @@ fn do_disconnect(state: &mut GuiState, group_id: Option<String>) {
             // Legacy relay groups died 2026-08-23; a group "disconnect"
             // no longer exists (P2P groups have Leave/Disband in the chat
             // sidebar). Just return to the chat page.
-            state.chat_active_channel = "general".to_string();
+            state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
             state.active_page = GuiPage::Chat;
         }
         None => {

@@ -120,12 +120,12 @@ fn while_files_are_dragged_the_window_says_where_they_will_go() {
         out = Some(ctx.run(input(&[], &[a.clone(), b.clone()]), |ctx| {
             begin_frame(ctx);
             register(ctx, Level::App, "Drop to upload to Files", |_s: &mut GuiState, _p| {});
-            register(ctx, Level::Page, "Drop to send in #general", |_s: &mut GuiState, _p| {});
+            register(ctx, Level::Page, "Drop to send in #global", |_s: &mut GuiState, _p| {});
             finish(ctx, &theme, &mut state);
         }));
     }
     let t = texts(out.as_ref().unwrap());
-    assert!(t.contains("Drop to send in #general") && !t.contains("Drop to upload to Files"), "the page's words, not the app's default: {t}");
+    assert!(t.contains("Drop to send in #global") && !t.contains("Drop to upload to Files"), "the page's words, not the app's default: {t}");
     assert!(t.contains("photo.jpg") && t.contains("notes.txt") && t.contains("Picture"), "{t}");
     let ctx = egui::Context::default();
     for _ in 0..2 {
@@ -170,12 +170,12 @@ fn a_file_dropped_on_the_chat_goes_to_the_open_conversation() {
 }
 
 /// A FILE DROPPED ON A CHANNEL OPENS THE UPLOAD WINDOW, POSTING IN THAT CHANNEL TICKED (operator,
-/// 2026-10-17: "I typically sit in #general so I'd go through the normal upload file popup path then
+/// 2026-10-17: "I typically sit in #global so I'd go through the normal upload file popup path then
 /// upon clicking upload it also posts the image with the title and description to the general
-/// chat"): the overlay says "Drop to upload to Files and post in #general", and the drop opens Add to
-/// Media with the file and "Also post in chat" ticked for #general; nothing goes until Upload. Seen
+/// chat"): the overlay says "Drop to upload to Files and post in #global", and the drop opens Add to
+/// Media with the file and "Also post in chat" ticked for #global; nothing goes until Upload. Seen
 /// red 2026-10-17 with the chat sending a channel's drop straight to its Attach: the overlay said
-/// "Drop to send in #general", not the upload window's words.
+/// "Drop to send in #global", not the upload window's words.
 #[test]
 fn a_file_dropped_on_a_channel_opens_the_upload_window_posting_ticked() {
     let (_dir, a, _, _) = files("drop_channel");
@@ -184,8 +184,8 @@ fn a_file_dropped_on_a_channel_opens_the_upload_window_posting_ticked() {
     let mut state = GuiState::default();
     state.server_url = "http://127.0.0.1:9".into();
     state.profile_public_key = "me".into();
-    state.chat_active_channel = "general".into();
-    state.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
+    state.chat_active_channel = "global".into();
+    state.chat_channels.push(crate::gui::ChatChannel { id: "global".into(), name: "global".into(), ..Default::default() });
     state.upload_token = Some((crate::gui::pages::chat::norm_server_url("http://127.0.0.1:9"), "tok".into()));
     let frame = |state: &mut GuiState, raw: egui::RawInput| {
         ctx.run(raw, |ctx| {
@@ -198,10 +198,10 @@ fn a_file_dropped_on_a_channel_opens_the_upload_window_posting_ticked() {
     };
     let _ = frame(&mut state, input(&[], &[a.clone()]));
     let out = frame(&mut state, input(&[], &[a.clone()]));
-    assert!(texts(&out).contains("Drop to upload to Files and post in #general"), "{}", texts(&out));
+    assert!(texts(&out).contains("Drop to upload to Files and post in #global"), "{}", texts(&out));
     let _ = frame(&mut state, input(&[a], &[]));
     let form = state.files.form.as_ref().expect("the upload window opens");
-    assert!(form.post_on && form.post_to == "general", "posting in #general ticked");
+    assert!(form.post_on && form.post_to == "global", "posting in #global ticked");
     assert!(state.files_flow.step.is_none() && state.files.uploads.is_empty(), "nothing goes until Upload");
 }
 

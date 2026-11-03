@@ -40,6 +40,7 @@
 use super::*;
 use crate::gui::widgets::Hint as _;
 use crate::gui::{connect_target, OFFICIAL_SERVER};
+use humanity_protocol::chat_access::{PostLevel, ReadLevel};
 
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
 
@@ -577,7 +578,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 store.save();
                             }
                             if state.chat_active_channel == format!("dm:{}", dm.user_key) {
-                                state.chat_active_channel = "general".to_string();
+                                state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
                             }
                             ui.close_menu();
                         }
@@ -985,20 +986,19 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         continue;
                     }
                     let span_top = ui.cursor().min.y;
-                    let sec_collapsed = state
-                        .chat_server_sections_collapsed
-                        .contains(&norm_server_url(&server.url));
+                    // Folded unless the person opened it (servers other than the current one
+                    // start folded: the list stays one line a server at dozens of servers).
+                    let sec_collapsed = server_folded(state, &server.url, is_current);
                     // This server's VISIBLE channels, computed up front so the
                     // header knows whether to draw a collapse triangle at all.
-                    // Bridged rooms live only in COMMONS and #local is the
-                    // server name itself (field test 4), so most servers list
-                    // nothing here -- which is the point: the list stays
-                    // short at dozens of servers.
-                    let bg_channels: Vec<(String, String, bool, bool)> = {
+                    // Bridged rooms live only in COMMONS (field test 4); #local
+                    // is an ordinary row like every other room since
+                    // 2026-11-02 (docs/design/chat-channels.md section 5).
+                    let bg_channels: Vec<(String, String, bool, bool, ReadLevel, PostLevel)> = {
                         // The Commons rooms THIS server is a linked carrier of (chat/commons.rs).
                         let commons = commons_rooms_carried_by(state, &server.url);
                         let filter_map = |ch: &crate::gui::ChatChannel| {
-                            if ch.local_only || (ch.federated && commons.contains(&ch.id)) || !crate::engine::protected::lists_channel(state, ch) {
+                            if (ch.federated && commons.contains(&ch.id)) || !crate::engine::protected::lists_channel(state, ch) {
                                 None
                             } else {
                                 Some((
@@ -1006,6 +1006,8 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     ch.name.clone(),
                                     ch.unread,
                                     false,
+                                    ch.read_level,
+                                    ch.post_level,
                                 ))
                             }
                         };
@@ -1081,12 +1083,11 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         muted: super::mute_menu::server_mute(state, &server.url),
                     };
                     let out = draw_server_row(ui, theme, state, &spec);
-                    if out.collapse_clicked {
-                        let key = norm_server_url(&server.url);
-                        if !state.chat_server_sections_collapsed.remove(&key) {
-                            state.chat_server_sections_collapsed.insert(key);
-                        }
-                        crate::config::AppConfig::from_gui_state(state).save();
+                    // A click on the name folds or opens the list, as the triangle does: the name
+                    // is a header, never a hidden way into a room (2026-11-02, docs/design/
+                    // chat-channels.md section 5). A room row switches and lands there.
+                    if out.collapse_clicked || out.clicked {
+                        toggle_server_fold(state, &server.url, is_current);
                     }
                     if out.forget_fired {
                         let rid = server.id.clone();
@@ -1103,12 +1104,6 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         }
                         state.push_nav_to(crate::gui::GuiPage::ServerSettings);
                     }
-                    if out.clicked && !is_current {
-                        // Park this server, bring that one back (landing in its
-                        // #local) or dial it, and save; with no identity
-                        // unlocked, the status line says to unlock first.
-                        state.switch_to_server(&server.url, &server.name);
-                    }
                     // Right-click: Mute server, without switching to it (chat/mute_menu.rs).
                     out.row.context_menu(|ui| {
                         ui.set_min_width(160.0);
@@ -1124,7 +1119,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     // last-known channels from the legacy fields, so it never
                     // looks channel-less.
                     if !sec_collapsed {
-                        for (ch_id, ch_name, ch_unread, ch_commons) in bg_channels.clone() {
+                        for (ch_id, ch_name, ch_unread, ch_commons, ch_read, ch_post) in bg_channels.clone() {
                             ui.horizontal(|ui| {
                                 // Exactly the ACTIVE channel-row height: any
                                 // per-path height difference shuffles the
@@ -1148,6 +1143,14 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     } else {
                                         format!("Open #{} on {}", ch_name, server.name)
                                     });
+                                // The read level's badge, as on the current server's rows
+                                // (chat/access.rs, docs/design/chat-access.md 6.1).
+                                let isz = (theme.body_size * 0.9).min(14.0);
+                                let (badge, badge_resp) = ui.allocate_exact_size(egui::Vec2::splat(isz), egui::Sense::hover());
+                                super::access::paint_level_badge(ui.painter(), badge, ch_read, theme.text_muted());
+                                if badge_resp.hovered() {
+                                    super::access::badge_tooltip(ui, &ch_id, ch_read, ch_post);
+                                }
                                 if ch_commons {
                                     let (br, _) = ui.allocate_exact_size(
                                         egui::vec2(13.0, 11.0),
@@ -1185,9 +1188,13 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                         // (gui/connections.rs), then land directly
                                         // in the clicked room.
                                         state.switch_to_server(&server.url, &server.name);
-                                        state.chat_active_channel = ch_id.clone();
-                                        state.chat_messages.clear();
-                                        state.history_fetched = false;
+                                        // The room the server comes back in keeps what it has
+                                        // (BUG-035's rule, as on the current server's rows).
+                                        if state.chat_active_channel != ch_id {
+                                            state.chat_active_channel = ch_id.clone();
+                                            state.chat_messages.clear();
+                                            state.history_fetched = false;
+                                        }
                                         if let Some(c) = state
                                             .chat_channels
                                             .iter_mut()
@@ -1263,6 +1270,21 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
 // ─────────────────────────────── RIGHT PANEL ──────────────────────────────
 
+/// Whether a server's channel list is folded: what the person chose for it, else folded for every
+/// server but the current one (2026-11-02, docs/design/chat-channels.md section 5). Every server
+/// lists at least #local now, so at dozens of servers the others start as one line each, and the
+/// server you are on shows its rooms.
+pub(crate) fn server_folded(state: &GuiState, url: &str, is_current: bool) -> bool {
+    state.chat_server_folds.get(&norm_server_url(url)).copied().unwrap_or(!is_current)
+}
+
+/// Fold or open a server's channel list (its name or its triangle was clicked), and save.
+pub(crate) fn toggle_server_fold(state: &mut GuiState, url: &str, is_current: bool) {
+    let folded = server_folded(state, url, is_current);
+    state.chat_server_folds.insert(norm_server_url(url), !folded);
+    crate::config::AppConfig::from_gui_state(state).save();
+}
+
 /// Everything one server header row needs, prepared by the caller.
 struct ServerRowSpec {
     name: String,
@@ -1334,7 +1356,7 @@ fn draw_server_row(
     // the LAST-registered widget, so every specific control below (triangle,
     // cog, grip, X) must come after this to win its own region. Getting
     // this backwards is exactly how the cogs went dead in field test 7.
-    let row_resp = ui.interact(rect, row_id.with("ctx"), egui::Sense::click());
+    let row_resp = ui.interact(rect, row_id.with("ctx"), egui::Sense::click()).hint("chat.server_row_hint");
     if row_resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -1572,12 +1594,8 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             .map(|s| s.name.clone())
                             .unwrap_or_else(|| server_display_name(&state.server_url))
                     };
-                    // Per-server collapse set, same as saved rows (the old
-                    // separate chat_connected_server_collapsed flag is
-                    // retired from this path).
-                    let svr_collapsed = state
-                        .chat_server_sections_collapsed
-                        .contains(&norm_server_url(&state.server_url));
+                    // The same fold state as saved rows; the current server starts open.
+                    let svr_collapsed = server_folded(state, &state.server_url, true);
                     let commons_set = commons_rooms_carried_by(state, &state.server_url);
                     let bridges: Vec<String> = state
                         .chat_channels
@@ -1588,7 +1606,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     let has_channels = state
                         .chat_channels
                         .iter()
-                        .any(|c| !c.local_only && !(c.federated && commons_set.contains(&c.id)));
+                        .any(|c| !(c.federated && commons_set.contains(&c.id)));
                     let _ = (svr_hdr_height, svr_full_w);
                     let spec = ServerRowSpec {
                         name: svr_name.clone(),
@@ -1607,27 +1625,13 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     };
                     let out = draw_server_row(ui, theme, state, &spec);
                     let mut svr_disconnect = false;
-                    if out.collapse_clicked {
-                        let key = norm_server_url(&state.server_url);
-                        if !state.chat_server_sections_collapsed.remove(&key) {
-                            state.chat_server_sections_collapsed.insert(key);
-                        }
-                        crate::config::AppConfig::from_gui_state(state).save();
-                    }
-                    // Clicking the row opens the server's OWN room: #local.
-                    if out.clicked {
-                        if let Some(local_id) = state
-                            .chat_channels
-                            .iter()
-                            .find(|c| c.local_only)
-                            .map(|c| c.id.clone())
-                        {
-                            if state.chat_active_channel != local_id {
-                                state.chat_active_channel = local_id;
-                                state.chat_messages.clear();
-                                state.history_fetched = false;
-                            }
-                        }
+                    // A click on the name folds or opens the list, as on every server: until
+                    // 2026-11-02 it opened #local, a room with no row of its own ("too hard to find
+                    // and add a layer of complexity that we don't need", the operator;
+                    // docs/design/chat-channels.md section 5).
+                    if out.collapse_clicked || out.clicked {
+                        let url = state.server_url.clone();
+                        toggle_server_fold(state, &url, true);
                     }
                     let cog_resp = out.cog;
                     let menu_id = ui.id().with("svr_menu");
@@ -1691,11 +1695,11 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     let my_voice_key = state.profile_public_key.clone();
 
                     for (idx, ch) in channels.iter().enumerate() {
-                        // Field test 4 (final call after trying both ways):
-                        // bridged rooms live ONLY in COMMONS, and #local is
-                        // the server name itself -- neither repeats here.
-                        // This is what keeps the list short at many servers.
-                        if (ch.federated && commons_names.contains(&ch.id)) || ch.local_only || !crate::engine::protected::lists_channel(state, ch) {
+                        // Field test 4: bridged rooms live ONLY in COMMONS and do not
+                        // repeat here. #local is an ordinary row since 2026-11-02 (it was
+                        // the server's name; docs/design/chat-channels.md section 5); the
+                        // list stays short at many servers because the others start folded.
+                        if (ch.federated && commons_names.contains(&ch.id)) || !crate::engine::protected::lists_channel(state, ch) {
                             continue;
                         }
                         let is_commons = false;

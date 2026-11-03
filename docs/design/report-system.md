@@ -17,7 +17,7 @@ Reports must work cleanly in three distinct contexts because the trust geometry 
 |---|---|
 | **Recipient** | The reported message's server's MOD + ADMIN tier. Visible in the new "Reports" tab inside the server's settings cog. |
 | **What the reporter sees** | "Reported. Mods will review." Status visible later in the user's own profile under "My filed reports". |
-| **What the reportee sees** | Nothing at submission time. Only sees a system DM if a mod takes action ("Your message in #general was deleted by Mod {name} for {reason}"). |
+| **What the reportee sees** | Nothing at submission time. Only sees a system DM if a mod takes action ("Your message in #global was deleted by Mod {name} for {reason}"). |
 | **Available actions** | Dismiss / Warn / Delete message / Mute (15m / 1h / 24h / 7d) / Kick / Ban / **Mark Bogus** (deducts trust from reporter). |
 
 Same flow for groups, a group is just a small private server with its own admin tier.

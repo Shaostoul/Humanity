@@ -58,12 +58,12 @@ pub struct SendRequest {
     pub from_name: String,
     /// Message content.
     pub content: String,
-    /// Target channel (defaults to "general").
-    #[serde(default = "default_general")]
+    /// Target channel (defaults to #global, `MAIN_CHANNEL`).
+    #[serde(default = "main_channel")]
     pub channel: String,
 }
 
-fn default_general() -> String { "general".to_string() }
+fn main_channel() -> String { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() }
 
 /// Query params for GET /api/messages.
 #[derive(Debug, Deserialize)]
@@ -72,7 +72,7 @@ pub struct MessagesQuery {
     pub after: Option<usize>,
     /// Max messages to return (default 50).
     pub limit: Option<usize>,
-    /// Channel to fetch messages from (default: general).
+    /// Channel to fetch messages from (default: #global, `MAIN_CHANNEL`).
     pub channel: Option<String>,
 }
 
@@ -98,7 +98,7 @@ pub async fn send_message(
         return Err((StatusCode::BAD_REQUEST, format!("Message too long ({} chars, max 10000).", req.content.len())));
     }
 
-    let channel = if req.channel.is_empty() { "general".to_string() } else { req.channel };
+    let channel = if req.channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { req.channel };
 
     // Validate channel exists.
     if !state.db.channel_exists(&channel).unwrap_or(false) {
@@ -697,7 +697,7 @@ pub async fn github_webhook(
 /// Query params for GET /api/reactions.
 #[derive(Debug, Deserialize)]
 pub struct ReactionsQuery {
-    /// Channel to fetch reactions from (default: general).
+    /// Channel to fetch reactions from (default: #global, `MAIN_CHANNEL`).
     pub channel: Option<String>,
     /// Max reactions to return (default 500).
     pub limit: Option<usize>,
@@ -721,7 +721,7 @@ pub struct ReactionEntry {
 /// Query params for GET /api/pins.
 #[derive(Debug, Deserialize)]
 pub struct PinsQuery {
-    /// Channel to fetch pins from (default: general).
+    /// Channel to fetch pins from (default: #global, `MAIN_CHANNEL`).
     pub channel: Option<String>,
 }
 

@@ -222,7 +222,7 @@ const _origHandleMessageProtected = handleMessage;
 handleMessage = function (msg) {
   if (msg && PROTECTED_ROOM_FRAMES.includes(msg.type) && protectedHidesRooms()) {
     const ch = typeof msg.channel === 'string' && msg.channel ? msg.channel
-      : (msg.type === 'chat' || msg.type === 'federated_chat' ? 'general' : null);
+      : (msg.type === 'chat' || msg.type === 'federated_chat' ? 'global' : null);
     if (ch && protectedChannelHidden(ch)) return;
   }
   return _origHandleMessageProtected(msg);

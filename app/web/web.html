@@ -167,7 +167,7 @@
     /* ── Floating add button ── */
     .fab-add {
       position: fixed;
-      bottom: var(--space-3xl);
+      bottom: calc(var(--space-3xl) + var(--hos-wip-h, 0px));
       right: var(--space-2xl);
       width: 48px;
       height: 48px;
@@ -277,7 +277,7 @@
     @media (max-width: 600px) {
       .site-grid { grid-template-columns: 1fr; }
       #page-app { padding: 0 var(--space-md) var(--space-2xl); }
-      .fab-add { bottom: var(--space-2xl); right: var(--space-xl); }
+      .fab-add { bottom: calc(var(--space-2xl) + var(--hos-wip-h, 0px)); right: var(--space-xl); }
     }
   </style>
 </head>

@@ -100,7 +100,7 @@ pub fn begin_frame(ctx: &egui::Context) {
 }
 
 /// Say that this place takes dropped files: `words` is what a drop will do ("Drop to send in
-/// #general"), `handler` what is done with them.
+/// #global"), `handler` what is done with them.
 pub fn register(ctx: &egui::Context, level: Level, words: impl Into<String>, handler: impl FnOnce(&mut GuiState, Vec<PathBuf>) + Send + 'static) {
     if let Ok(mut t) = frame(ctx).takers.lock() {
         t.push(Taker { level, words: words.into(), handler: Some(Box::new(handler)) });

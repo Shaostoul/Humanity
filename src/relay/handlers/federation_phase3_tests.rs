@@ -1,6 +1,6 @@
 //! PHASE 3 of docs/design/federation-activation.md, as a test that runs with the relay battery
 //! (`just verify-relay`): two complete relays on loopback (127.0.0.1 only), linked both ways at
-//! tier 2 the way /server-add and the key discovery link them, sharing #general. People sign in
+//! tier 2 the way /server-add and the key discovery link them, sharing #global. People sign in
 //! through the real /ws handshake and post PQ-signed chat; a moderator bans through the real
 //! `mod_action`; profiles are signed by the person's own key. Everything is read back from the
 //! OTHER relay's database within [`BOUND`].
@@ -43,10 +43,10 @@ async fn relay(tag: &str) -> Relay {
     let port = listener.local_addr().unwrap().port();
     let state = crate::relay::serve_relay(db, listener).await;
     let (key, _) = state.db.get_or_create_server_keypair().unwrap();
-    let _ = state.db.create_channel("general", "General", None, "test", humanity_protocol::chat_access::PostLevel::Members);
-    // Open to Anyone, as a server makes its #general: only such a channel travels (chat-access.md).
-    let _ = state.db.set_channel_access("general", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
-    assert!(state.db.set_channel_federated("general", true).unwrap(), "#general is shared");
+    let _ = state.db.create_channel("global", "global", None, "test", humanity_protocol::chat_access::PostLevel::Members);
+    // Open to Anyone, as a server makes its #global: only such a channel travels (chat-access.md).
+    let _ = state.db.set_channel_access("global", humanity_protocol::chat_access::ReadLevel::Anyone, humanity_protocol::chat_access::PostLevel::Members);
+    assert!(state.db.set_channel_federated("global", true).unwrap(), "#global is shared");
     let _ = state.db.create_channel("local", "Local", None, "test", humanity_protocol::chat_access::PostLevel::Members);
     Relay { state, port, key }
 }
@@ -165,14 +165,14 @@ fn holds(r: &Relay, origin: &str, content: &str) -> usize {
 }
 
 /// A MESSAGE, AN EDIT, A DELETE, A PROFILE CHANGE AND A BAN ON ONE SERVER REACH THE OTHER, AND THE
-/// BAN IS HONOURED THERE. On two relays linked both ways at tier 2, sharing #general:
-/// - Ann (admin on A) posts in #general: B holds it, with Ann's key as its author.
+/// BAN IS HONOURED THERE. On two relays linked both ways at tier 2, sharing #global:
+/// - Ann (admin on A) posts in #global: B holds it, with Ann's key as its author.
 /// - She edits it: B's copy has the new words. She deletes another: B's copy is gone.
 /// - She saves her profile and her key signs its copy: B keeps it.
-/// - She bans Mallory on A: B keeps A's ban, so Mallory's post in B's shared #general is refused
+/// - She bans Mallory on A: B keeps A's ban, so Mallory's post in B's shared #global is refused
 ///   (with words saying B's own rooms are still open) while her post in B's own #local goes; a
 ///   line by Mallory that reached A anyway (a server not honouring the ban) is not shown on A.
-/// - She lifts the ban: B forgets it, and Mallory's next post in #general reaches A.
+/// - She lifts the ban: B forgets it, and Mallory's next post in #global reaches A.
 /// Each within BOUND; the slowest is printed.
 ///
 /// Seen red 2026-10-22, one break at a time: with the `after_ban` call taken out of
@@ -220,16 +220,16 @@ async fn everything_reaches_the_other_server() {
     a.state.db.set_role(&ann, "admin").unwrap();
 
     // A message.
-    let t1 = post(&mut sock, 41, "general", "hello from A").await;
+    let t1 = post(&mut sock, 41, "global", "hello from A").await;
     took(within("B holds Ann's message", || holds(&b, &a.key, "hello from A") == 1).await);
     assert!(copies(&b, &a.key).iter().any(|(author, ts, _)| *author == ann && *ts == t1), "the author and time travel with it");
 
     // An edit, through the real edit frame.
-    send(&mut sock, json!({ "type": "edit", "from": "", "timestamp": t1, "new_content": "hello from A (edited)", "channel": "general" })).await;
+    send(&mut sock, json!({ "type": "edit", "from": "", "timestamp": t1, "new_content": "hello from A (edited)", "channel": "global" })).await;
     took(within("B's copy has the new words", || holds(&b, &a.key, "hello from A (edited)") == 1 && holds(&b, &a.key, "hello from A") == 0).await);
 
     // A delete. (Admins skip the chat limiter, so two posts in a row are fine.)
-    let t2 = post(&mut sock, 41, "general", "a line to take back").await;
+    let t2 = post(&mut sock, 41, "global", "a line to take back").await;
     within("B holds the line to take back", || holds(&b, &a.key, "a line to take back") == 1).await;
     send(&mut sock, json!({ "type": "delete", "from": "", "timestamp": t2 })).await;
     took(within("B's copy of the deleted message is gone", || holds(&b, &a.key, "a line to take back") == 0).await);
@@ -253,7 +253,7 @@ async fn everything_reaches_the_other_server() {
     let mut msock = sign_in(&b, 43, "Mallory").await;
     send(&mut sock, json!({ "type": "mod_action", "action": "ban", "target": mallory, "target_name": "" })).await;
     took(within("B keeps A's ban", || b.state.db.fed_banned_by(&mallory).ok().flatten().is_some()).await);
-    post(&mut msock, 43, "general", "mallory in the shared room").await;
+    post(&mut msock, 43, "global", "mallory in the shared room").await;
     let refusal = frame_where(&mut msock, "the refusal", |f| f["type"] == "system" && f["message"].as_str().is_some_and(|m| m.contains("shared with"))).await;
     assert!(refusal["message"].as_str().unwrap().contains("own rooms are still open"), "{refusal}");
     tokio::time::sleep(Duration::from_millis(1_100)).await; // the chat limiter's one second
@@ -261,7 +261,7 @@ async fn everything_reaches_the_other_server() {
     within("her post in B's own room goes", || b.state.db.load_recent_messages(50).unwrap().iter().any(|m| matches!(m, crate::relay::relay::RelayMessage::Chat { content, .. } if content == "mallory in B's own room"))).await;
     assert!(!b.state.db.load_recent_messages(50).unwrap().iter().any(|m| matches!(m, crate::relay::relay::RelayMessage::Chat { content, .. } if content == "mallory in the shared room")), "her post in the shared room was stored on B");
     // A server that does not honour the ban sends her words anyway: A, which banned her, refuses.
-    federation::forward_to_federation(&b.state, "general", &mallory, "Mallory", "sent by a server that ignores bans", now).await;
+    federation::forward_to_federation(&b.state, "global", &mallory, "Mallory", "sent by a server that ignores bans", now).await;
     tokio::time::sleep(Duration::from_millis(500)).await;
     assert_eq!(holds(&a, &b.key, "sent by a server that ignores bans"), 0, "A showed the words of a key it banned");
     assert_eq!(holds(&b, &a.key, "stays on A"), 0, "a line in A's own room reached B");
@@ -270,7 +270,7 @@ async fn everything_reaches_the_other_server() {
     send(&mut sock, json!({ "type": "unban", "target": mallory })).await;
     took(within("B forgets A's ban", || b.state.db.fed_banned_by(&mallory).ok().flatten().is_none()).await);
     tokio::time::sleep(Duration::from_millis(1_100)).await;
-    post(&mut msock, 43, "general", "mallory, welcome back").await;
+    post(&mut msock, 43, "global", "mallory, welcome back").await;
     took(within("her post reaches A again", || holds(&a, &b.key, "mallory, welcome back") == 1).await);
     println!("PHASE 3: the slowest change took {slowest:?} to reach the other server (bound {BOUND:?})");
 }
@@ -303,7 +303,7 @@ async fn a_pause_and_a_flood() {
     let (_, ann) = keypair(51);
     let mut sock = sign_in(&a, 51, "Ann").await;
     a.state.db.set_role(&ann, "admin").unwrap();
-    let t0 = post(&mut sock, 51, "general", "before the pause").await;
+    let t0 = post(&mut sock, 51, "global", "before the pause").await;
     within("B holds the first line", || holds(&b, &a.key, "before the pause") == 1).await;
     let _ = t0;
 
@@ -311,9 +311,9 @@ async fn a_pause_and_a_flood() {
     let paused_at = Instant::now();
     let mut stamps = Vec::new();
     for i in 1..=5 {
-        stamps.push(post(&mut sock, 51, "general", &format!("during the pause {i}")).await);
+        stamps.push(post(&mut sock, 51, "global", &format!("during the pause {i}")).await);
     }
-    send(&mut sock, json!({ "type": "edit", "from": "", "timestamp": stamps[1], "new_content": "during the pause 2 (edited)", "channel": "general" })).await;
+    send(&mut sock, json!({ "type": "edit", "from": "", "timestamp": stamps[1], "new_content": "during the pause 2 (edited)", "channel": "global" })).await;
     send(&mut sock, json!({ "type": "delete", "from": "", "timestamp": stamps[3] })).await;
     // And Ann's key card, kept on A as her sign-in keeps it (handlers/key_cards.rs), so it goes
     // into A's numbered log while B has A paused.
@@ -360,7 +360,7 @@ async fn a_pause_and_a_flood() {
     };
     let base = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
     for i in 0..40u64 {
-        federation::forward_to_federation(&a.state, "general", &ann, "Ann", &format!("flood {i}"), base + i).await;
+        federation::forward_to_federation(&a.state, "global", &ann, "Ann", &format!("flood {i}"), base + i).await;
     }
     let took = within_for(FLOOD_BOUND, "B holds all 40, each once", || (0..40).all(|i| holds(&b, &a.key, &format!("flood {i}")) == 1)).await;
     println!("PHASE 3: the 40-line flood arrived complete in {took:?}");
@@ -402,7 +402,7 @@ async fn a_refused_line_is_named_to_its_sender_and_no_one_else() {
     let mut ann = sign_in(&r, 61, "Ann").await;
     let mut bob = sign_in(&r, 62, "Bob").await;
     let long = "x".repeat(2_100);
-    let ts = post(&mut ann, 61, "general", &long).await;
+    let ts = post(&mut ann, 61, "global", &long).await;
     let f = frame_where(&mut ann, "the sender is told which line was refused", |f| f["type"] == "chat_refused").await;
     assert_eq!(f["timestamp"].as_u64(), Some(ts), "it names the refused line by its timestamp");
     assert_eq!(f["reason"], "too_long");
@@ -413,7 +413,7 @@ async fn a_refused_line_is_named_to_its_sender_and_no_one_else() {
     assert!(f.get("to").is_none(), "the frame does not carry who it is addressed to: {f}");
     // Bob, on the same server, hears nothing about it (a quiet window, then a line of his own
     // proves his socket is live and nothing else was queued for him).
-    let bob_ts = post(&mut bob, 62, "general", "hello").await;
+    let bob_ts = post(&mut bob, 62, "global", "hello").await;
     let seen = frame_where(&mut bob, "Bob's own line comes back", |f| f["type"] == "chat_refused" || (f["type"] == "chat" && f["timestamp"].as_u64() == Some(bob_ts))).await;
     assert_eq!(seen["type"], "chat", "Bob was told about Ann's refused line: {seen}");
 }

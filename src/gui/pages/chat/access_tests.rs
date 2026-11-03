@@ -36,7 +36,7 @@ fn the_line_says_who_reads_and_what_you_may_post() {
     assert_eq!(audience_words(ReadLevel::Anyone, PostLevel::Mods, Rank::Moderator).1, None);
 }
 
-/// THE LINE ABOVE THE BOX IS DRAWN AND ITS GLOSSARY WORD WORKS: on #general (Anyone) as an
+/// THE LINE ABOVE THE BOX IS DRAWN AND ITS GLOSSARY WORD WORKS: on #global (Anyone) as an
 /// unverified member, "Anyone can read this, even without signing up." is drawn above the box,
 /// with the one-link line; resting the pointer on its word "verified" opens the definition card
 /// (an egui tooltip layer), so the line is not only painted but answers the pointer
@@ -47,7 +47,7 @@ fn the_line_says_who_reads_and_what_you_may_post() {
 /// Members.", when the pointer rests on it.
 ///
 /// Seen red 2026-11-02, one break at a time: with the `draw_audience_line` call taken out of the
-/// composer, "the line says who can read #general" (the expect panicked); with the one-link line
+/// composer, "the line says who can read #global" (the expect panicked); with the one-link line
 /// drawn as a plain label instead of `widgets::glossary_words`, "resting on \"verified\" opens its
 /// card" (no tooltip layer); with the badge's hint call taken out, "resting on the badge shows who
 /// can read and post".
@@ -60,12 +60,12 @@ fn the_line_above_the_box_says_who_reads_and_its_word_opens_the_card() {
         s.interaction.show_tooltips_only_when_still = false;
     });
     let theme = crate::gui::theme::load_theme();
-    let mut state = chat_on("general", ReadLevel::Anyone, PostLevel::Members, "");
+    let mut state = chat_on("global", ReadLevel::Anyone, PostLevel::Members, "");
     for _ in 0..3 {
         frame(&ctx, &theme, &mut state, Vec::new());
     }
     let out = frame(&ctx, &theme, &mut state, Vec::new());
-    let reads = find_text_in_shapes(&out.shapes, t("chat.access_read_anyone")).expect("the line says who can read #general");
+    let reads = find_text_in_shapes(&out.shapes, t("chat.access_read_anyone")).expect("the line says who can read #global");
     let composer = ctx.read_response(egui::Id::new("chat_composer_input")).expect("the composer is drawn").rect;
     assert!(reads.rect.bottom() <= composer.top(), "above the box you type in: {:?} / {composer:?}", reads.rect);
     let one_link = humanity_core::i18n::plain(t_marked("chat.access_one_link"));
@@ -89,7 +89,7 @@ fn the_line_above_the_box_says_who_reads_and_its_word_opens_the_card() {
         s.interaction.tooltip_delay = 0.0;
         s.interaction.show_tooltips_only_when_still = false;
     });
-    let mut state2 = chat_on("general", ReadLevel::Anyone, PostLevel::Members, "");
+    let mut state2 = chat_on("global", ReadLevel::Anyone, PostLevel::Members, "");
     for _ in 0..3 {
         frame(&ctx2, &theme, &mut state2, Vec::new());
     }
@@ -115,7 +115,7 @@ fn the_line_above_the_box_says_who_reads_and_its_word_opens_the_card() {
     assert!(find_text_in_shapes(&out.shapes, t("chat.access_read_members")).is_some(), "#lounge: only people on this server");
     assert!(find_text_in_shapes(&out.shapes, &one_link).is_none(), "a verified member has no one-link line");
 
-    let mut dm = chat_on("general", ReadLevel::Anyone, PostLevel::Members, "");
+    let mut dm = chat_on("global", ReadLevel::Anyone, PostLevel::Members, "");
     dm.chat_active_channel = "dm:someone".into();
     frame(&ctx, &theme, &mut dm, Vec::new());
     let out = frame(&ctx, &theme, &mut dm, Vec::new());
@@ -129,7 +129,7 @@ fn the_line_above_the_box_says_who_reads_and_its_word_opens_the_card() {
 /// below Verified: plain words".
 #[test]
 fn a_poster_below_verified_has_plain_links() {
-    let mut state = chat_on("general", ReadLevel::Anyone, PostLevel::Members, "");
+    let mut state = chat_on("global", ReadLevel::Anyone, PostLevel::Members, "");
     state.chat_users.push(crate::gui::ChatUser { name: "vic".into(), public_key: "vic_key".into(), role: "verified".into(), status: String::new() });
     let line = |from: &str| ChatMessage { sender_key: from.into(), content: "see https://a.example".into(), ..Default::default() };
     assert!(!shows_links(&state, &line(ME)), "a member below Verified: plain words");

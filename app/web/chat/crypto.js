@@ -956,12 +956,22 @@ const CTL_FRIEND_CERT = '[[hum:friend-cert]]';
 // (docs/design/ship-homes-increment-5b-plan.md 3.12). Pinned to native
 // CTL_PERMIT by scripts/tests/reach-web.test.js.
 const CTL_PERMIT = '[[hum:permit:v1]]';
+// Tasks of my own (docs/design/tasks.md, 2026-11-02): a note to myself
+// carrying my tasks, [[hum:task:v1]]{"tasks":[...]}. The Tasks page reads them
+// from my mailbox itself (/shared/mine-tasks.js); the chat swallows them
+// (chat-social.js ingestDmControl), so one is never stored, listed or shown as
+// a message. Pinned to native CTL_TASK and to /shared/mine-tasks.js by
+// scripts/tests/tasks-mine-web.test.js.
+const CTL_TASK = '[[hum:task:v1]]';
 // Block's notes to myself, [[hum:block:v1]]<key> and [[hum:unblock:v1]]<key>
 // (step C, 2026-10-09), are CTL_BLOCK and CTL_UNBLOCK in /shared/block.js,
 // pinned to native by scripts/tests/block-web.test.js; pqBuildSelfNote below
 // seals one. The note carrying the choice for each friend between my devices,
 // [[hum:choice:v1]]<friend key>/<may> (10n, 2026-10-10), is CTL_CHOICE in
 // /shared/friend-pass.js (with its builder and reader), sealed the same way.
+// The always-allow list's note to myself, [[hum:quiet-allow:v1]]<key>/on or /off
+// (notifications rung 3, 2026-11-01), is in /shared/notify-rules.js (allowNoteText, allowNoteParse),
+// applied by chat-notify.js screenAllowNote and sealed the same way.
 
 // Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b).
 // The issuer gives the grantee a pass naming this server's did:hum, a random

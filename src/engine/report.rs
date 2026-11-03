@@ -378,7 +378,7 @@ mod tests {
         assert_eq!(d.context, Some(ReportContext::Dm));
         assert_eq!(d.candidates.iter().map(|c| c.ticked).collect::<Vec<_>>(), [false, true], "the message pressed on is ticked");
 
-        open_for_message(&mut gs, &msg("general", 30, "buy now"));
+        open_for_message(&mut gs, &msg("global", 30, "buy now"));
         let d = gs.reports.dialog.take().unwrap();
         assert_eq!((d.context, d.also_block), (Some(ReportContext::Post), false));
         assert_eq!(d.fixed, Some(Evidence::Post { from: dana.clone(), timestamp: 30 }));

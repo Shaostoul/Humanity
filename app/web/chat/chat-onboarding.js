@@ -136,7 +136,7 @@ function step0() {
       <ul style="font-size:.82rem;color:var(--text-muted);line-height:1.8;margin:0;padding-left:var(--space-2xl)">
         <li>No company holds your account, not us, not anyone.</li>
         <li>You can't be banned, shadowbanned, or deplatformed.</li>
-        <li>Nobody reads your messages, they're encrypted.</li>
+        <li>${window.i18n ? window.i18n.t("onboarding.wizard_messages_privacy") : ""}</li>
         <li>Your identity is the same on every device, as long as you back it up (we'll show you how).</li>
       </ul>
     </div>

@@ -11,6 +11,14 @@
 //! The website's twin is `web/shared/chat-access.js`; `scripts/tests/chat-access-web.test.js`
 //! holds it to the same answers as the tests here.
 
+/// The channel every server has: #global, the room linked servers share (renamed from #general on
+/// 2026-11-02; the operator: "renaming #general chat to #global since were federating that
+/// channel"). It cannot be deleted or renamed, a line or a request that names no channel is filed
+/// in it, and an app lands in it when the room it was in is gone. The other default channels are
+/// data (`data/server/default_channels.json`, docs/design/chat-channels.md); the website's twin is
+/// `HosChatAccess.MAIN_CHANNEL` in `web/shared/chat-access.js`.
+pub const MAIN_CHANNEL: &str = "global";
+
 /// What a person is on one server, lowest first. Worked out by the relay from the key's role and
 /// whether it chose a name there (`src/relay/chat_access.rs` `rank_of`); an app works it out the
 /// same way from the member list (`rank_for_member`).
@@ -348,7 +356,7 @@ mod tests {
 
     #[test]
     fn the_read_purpose_names_what_and_where() {
-        assert_eq!(read_purpose("messages", "general"), "chat_read\nmessages\ngeneral");
+        assert_eq!(read_purpose("messages", MAIN_CHANNEL), "chat_read\nmessages\nglobal");
     }
 
     fn rank(word: &str) -> Rank {
@@ -400,5 +408,6 @@ mod tests {
         }
         let purpose = fx["purpose"].as_array().unwrap();
         assert_eq!(read_purpose(purpose[0].as_str().unwrap(), purpose[1].as_str().unwrap()), purpose[2].as_str().unwrap());
+        assert_eq!(fx["main_channel"].as_str(), Some(MAIN_CHANNEL), "the channel every server has, as the website names it");
     }
 }

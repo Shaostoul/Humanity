@@ -500,7 +500,7 @@ async function loadChat(me, opts = {}) {
   ctx.pqBlake3 = async (bytes) => fx.m.blake3(bytes);
   const sock = fakeSocket();
   vm.runInContext(`(s, me, name, sk, kyber) => {
-    ws = s; myKey = me; myName = name; activeChannel = 'general';
+    ws = s; myKey = me; myName = name; activeChannel = 'global';
     myDilithiumPublicHex = me; myDilithiumSecret = sk;
     myKyberPublicBase64 = kyber; myKyberSecret = new Uint8Array(4);
   }`, ctx)(sock, me.key, me.name, me.sk, kyberOf(me.key));
@@ -1076,11 +1076,11 @@ test("a reply begun in a group never rides a post anywhere else, and no reply qu
   await openTheGroup(page);
   pressReply(words);
   assert.ok(reply(), "a reply in the group");
-  page.fn("switchChannel")("general");
+  page.fn("switchChannel")("global");
   assert.equal(reply(), null, "opening a channel takes a group's reply down");
 
   // A public message holding a file's marker (another client's): a reply to it quotes no part of it.
-  await page.handle({ type: "chat", from: fx.cy.key, from_name: "Cy", content: "look " + FILE_TEXT, timestamp: T0 + 1000, channel: "general" });
+  await page.handle({ type: "chat", from: fx.cy.key, from_name: "Cy", content: "look " + FILE_TEXT, timestamp: T0 + 1000, channel: "global" });
   const pub = page.state.appended.find((e) => e && e.dataset && e.dataset.from === fx.cy.key && String(e.dataset.timestamp) === String(T0 + 1000));
   assert.ok(pub, "the public message is drawn");
   pressReply(pub);

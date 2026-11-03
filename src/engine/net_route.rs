@@ -1018,7 +1018,7 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
                                 .unwrap_or(0);
                             let ch = msg.get("channel")
                                 .and_then(|v| v.as_str())
-                                .unwrap_or("general")
+                                .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
                                 .to_string();
                             // My own line in the server's history: it was posted (chat/line_limit.rs).
                             if !my_key.is_empty() && sender_key == my_key {
@@ -1103,7 +1103,7 @@ mod tests {
         assert_eq!(at(&mut gs, "dm:ab12"), None, "a DM is never asked of the server");
         assert_eq!(at(&mut gs, "p2pgroup:g1"), None, "nor a P2P group");
         assert_eq!(at(&mut gs, "scratchpad"), None, "nor the scratchpad");
-        assert_eq!(at(&mut gs, "general").as_deref(), Some("general"), "a room is");
+        assert_eq!(at(&mut gs, "global").as_deref(), Some("global"), "a room is");
         assert_eq!(at(&mut gs, "commons:garden").as_deref(), Some("garden"), "a Commons room this server carries is, as its room");
         assert_eq!(at(&mut gs, "commons:books"), None, "one it does not carry is not");
     }

@@ -252,7 +252,7 @@ mod tests {
         let dir = humanity_core::test_temp::dir("fpm_save");
         let path = dir.join(FILE_NAME);
         assert_eq!(load(&path), PickerMemory::default(), "no file yet");
-        let m = PickerMemory { favorites: vec![dir.join("models")], last_folder: Some(dir.join("parts")), post_favorites: vec!["https://h\ngeneral".into()], view: PickerView::Pictures, across: Some(2) };
+        let m = PickerMemory { favorites: vec![dir.join("models")], last_folder: Some(dir.join("parts")), post_favorites: vec!["https://h\nglobal".into()], view: PickerView::Pictures, across: Some(2) };
         save(&path, &m).expect("saved");
         assert_eq!(load(&path), m, "read back");
         assert!(!path.with_extension("json.tmp").exists(), "no temporary file left");

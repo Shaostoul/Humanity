@@ -26,7 +26,7 @@ fn a_long_post_grows_the_composer_upward_and_stays_on_screen() {
     let ctx = egui::Context::default();
     let theme = crate::gui::theme::load_theme();
     let mut state = GuiState::default();
-    state.chat_active_channel = "general".into();
+    state.chat_active_channel = "global".into();
     for _ in 0..3 {
         frame(&ctx, &theme, &mut state);
     }
@@ -57,7 +57,7 @@ fn one_long_wrapping_line_grows_the_composer_upward_too() {
     let ctx = egui::Context::default();
     let theme = crate::gui::theme::load_theme();
     let mut state = GuiState::default();
-    state.chat_active_channel = "general".into();
+    state.chat_active_channel = "global".into();
     for _ in 0..3 {
         frame(&ctx, &theme, &mut state);
     }
@@ -82,7 +82,7 @@ fn the_composers_hints_open_above_it() {
     let ctx = egui::Context::default();
     let theme = crate::gui::theme::load_theme();
     let mut state = GuiState::default();
-    state.chat_active_channel = "general".into();
+    state.chat_active_channel = "global".into();
     for _ in 0..3 {
         frame(&ctx, &theme, &mut state);
     }
@@ -123,7 +123,7 @@ fn the_bar_settles_and_shrinks_back_when_the_text_does() {
     let ctx = egui::Context::default();
     let theme = crate::gui::theme::load_theme();
     let mut state = GuiState::default();
-    state.chat_active_channel = "general".into();
+    state.chat_active_channel = "global".into();
     for _ in 0..4 {
         frame(&ctx, &theme, &mut state);
     }

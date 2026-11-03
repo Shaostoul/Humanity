@@ -437,7 +437,7 @@
               data-tip-desc="Opens slash commands and quick actions for this channel."
               data-tip-detail="Type / or ! to filter, try /me, /nick, /clear, /dm">+</button>
             <input type="file" id="file-upload-input" multiple style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.avif,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
-            <textarea id="msg-input" placeholder="Message #general" rows="1" disabled aria-label="Message"></textarea>
+            <textarea id="msg-input" placeholder="Message #global" rows="1" disabled aria-label="Message"></textarea>
             <button id="composer-search-btn" class="composer-ghost" onclick="toggleSearch()" aria-label="Search messages"
               data-tip-title="Search Messages"
               data-tip-hotkey="Ctrl + F"
@@ -784,7 +784,7 @@
        which signs my own card, and chat-key-cards.js, which checks everyone else's. -->
   <script src="/shared/key-card.js?v=1"></script>
   <!-- drop-overlay.js: files dragged from the computer onto the page (2026-10-17), the desktop's
-       words while they are over it ("Drop to upload to Files and post in #general" over a channel,
+       words while they are over it ("Drop to upload to Files and post in #global" over a channel,
        "Drop to send in Ben" in a private conversation) and its drop. upload-window.js: the window a
        drop on a channel opens, the Files page's own Add to Files in a frame over the chat. Both
        before chat-messages.js, which puts them on the page. -->
@@ -817,12 +817,12 @@
        chat-dms.js, which ask it while they draw a message. -->
   <script src="/chat/chat-files-card.js?v=3"></script>
   <!-- Who can read and post in a channel (2026-11-02): the twin of the relay's rules; before app.js. -->
-  <script src="/shared/chat-access.js?v=1"></script>
-  <script src="/chat/app.js?v=37"></script>
+  <script src="/shared/chat-access.js?v=2"></script>
+  <script src="/chat/app.js?v=38"></script>
   <script src="/chat/chat-messages.js?v=25"></script>
   <script src="/chat/chat-dms.js?v=23"></script>
   <script src="/chat/chat-social.js?v=22"></script>
-  <script src="/chat/chat-groups-p2p.js?v=19"></script>
+  <script src="/chat/chat-groups-p2p.js?v=20"></script>
   <script src="/shared/over-limit.js?v=1"></script>
   <!-- notify-rules.js: THE notification rule, shared with Node tests and twin of the desktop's
        src/notifications/decide.rs (2026-10-30, docs/design/notifications.md); chat-notify.js: the
@@ -830,11 +830,11 @@
        notifyNewMessage and renderServerList ask them. -->
   <script src="/shared/notify-rules.js?v=2"></script>
   <script src="/chat/chat-notify.js?v=3"></script>
-  <script src="/chat/chat-ui.js?v=25"></script>
-  <script src="/chat/chat-voice-rooms.js?v=9"></script>
+  <script src="/chat/chat-ui.js?v=26"></script>
+  <script src="/chat/chat-voice-rooms.js?v=10"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>
-  <script src="/chat/chat-voice-webrtc.js?v=1"></script>
-  <script src="/chat/chat-voice-streaming.js?v=1"></script>
+  <script src="/chat/chat-voice-webrtc.js?v=2"></script>
+  <script src="/chat/chat-voice-streaming.js?v=2"></script>
   <!-- Live-now mirror of the native Chat live strip: /api/live directory, links to /watch (v0.1151) -->
   <script src="/chat/chat-live.js?v=1"></script>
   <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
@@ -862,7 +862,7 @@
        chat-privacy.js (the Safety page it draws into) and chat-warnings.js (the recovery phrase
        behind "Forgot the PIN?"); last of the scripts that wrap the frame handler, so a hidden
        room's post is dropped before any of them sees it. -->
-  <script src="/chat/chat-protected.js?v=3"></script>
+  <script src="/chat/chat-protected.js?v=4"></script>
   <!-- Your fleet ledger: the player's own used/given ledger from the server, read-only (command palette) -->
   <script src="/chat/chat-fleet.js?v=1"></script>
   <!-- Where you live (ship homes increment 6): your own home on this server's ship, or the kinds of

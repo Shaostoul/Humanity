@@ -171,7 +171,7 @@ fn the_chat_page_shows_a_posted_video_as_a_card_not_a_bare_path() {
     let ctx = egui::Context::default();
     let theme = crate::gui::theme::load_theme();
     let mut state = GuiState::default();
-    state.chat_active_channel = "general".into();
+    state.chat_active_channel = "global".into();
     // A verified poster: below Verified a line's links and files are plain words since 2026-11-02
     // (docs/design/chat-access.md; chat/access_tests.rs holds that).
     state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann0".into(), role: "verified".into(), status: String::new() });
@@ -181,7 +181,7 @@ fn the_chat_page_shows_a_posted_video_as_a_card_not_a_bare_path() {
         content: "Found this one /uploads/1760000000000_WH40K_Marriah_Carey.mp4".into(),
         timestamp: "09:20".into(),
         timestamp_ms: 1_791_481_200_000,
-        channel: "general".into(),
+        channel: "global".into(),
         server: SERVER.into(),
         ..Default::default()
     });

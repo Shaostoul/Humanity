@@ -8,9 +8,10 @@
  * shows the app update"). data/announcements_archive.json is the durable
  * repo copy (lossless export taken pre-wipe). After the relay recreates
  * the fresh schema, this regenerates:
- *   1. the `announcements` channels row (the fresh schema only auto-
- *      creates `general`, so without this the messages are orphaned and
- *      the channel never appears in the UI), and
+ *   1. the `announcements` channels row (the relay makes it on a fresh
+ *      server too, data/server/default_channels.json; this script runs with
+ *      the relay stopped, so it makes the row itself from the same file and
+ *      words, and without it the messages are orphaned), and
  *   2. every archived message, with a synthesized `raw_json` that
  *      deserializes as `RelayMessage::Chat` — the relay serves history
  *      via `serde_json::from_str::<RelayMessage>(raw_json)`, so a wrong
@@ -27,6 +28,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ARCHIVE = path.join(__dirname, '..', 'data', 'announcements_archive.json');
+const DEFAULTS = path.join(__dirname, '..', 'data', 'server', 'default_channels.json');
+const WORDS = path.join(__dirname, '..', 'data', 'i18n', 'en.json');
 
 /** SQL string literal (single-quote escaped) or NULL for null/undefined. */
 function sql(v) {
@@ -49,16 +52,24 @@ if (!Array.isArray(rows)) {
 const out = [];
 out.push('BEGIN;');
 
-// 1. Recreate the announcements channel (values mirror the prod row:
-//    anyone reads it, only moderators and admins post, since the whole
-//    history public, pinned near the top, voice disabled; chat access
-//    levels, docs/design/chat-access.md). INSERT OR IGNORE so it is
-//    harmless when the relay has already made it.
+// 1. Recreate the announcements channel as the relay makes it (its row in
+//    data/server/default_channels.json, its words from data/i18n/en.json:
+//    anyone reads it, only moderators and admins post, near the top, voice
+//    off, federated), with its whole history public (anyone_since 0, the
+//    chat access decision, docs/design/chat-access.md section 4.1: only the
+//    Deploy Bot posts there). INSERT OR IGNORE so it is harmless when the
+//    relay has already made it.
+const ann = JSON.parse(fs.readFileSync(DEFAULTS, 'utf8')).channels.find((c) => c.id === 'announcements');
+if (!ann) {
+  console.error('[seed-announcements] ' + DEFAULTS + ' has no announcements channel');
+  process.exit(1);
+}
+const words = ann.description.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), JSON.parse(fs.readFileSync(WORDS, 'utf8')));
 out.push(
   "INSERT OR IGNORE INTO channels " +
-  "(id, name, description, created_by, created_at, read_level, post_level, anyone_since, position, voice_enabled) " +
-  "VALUES ('announcements', 'announcements', 'Project updates and news', " +
-  "'system', 1772591873057, 'anyone', 'mods', 0, 2, 0);"
+  "(id, name, description, created_by, created_at, read_level, post_level, anyone_since, position, voice_enabled, federated, local_only) " +
+  "VALUES (" + [sql(ann.id), sql(ann.name), sql(typeof words === 'string' ? words : ann.description), sql('system'), 1772591873057,
+    sql(ann.read_level), sql(ann.post_level), 0, ann.position, ann.voice ? 1 : 0, ann.federated ? 1 : 0, ann.local_only ? 1 : 0].join(', ') + ");"
 );
 
 let n = 0;

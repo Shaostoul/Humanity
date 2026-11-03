@@ -130,7 +130,7 @@ const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 const SEED = Uint8Array.from({ length: 32 }, (_, i) => (i * 7 + 3) & 0xff);
 const MB = 1024 * 1024;
 const MAY = "invite,message,trade,voice_message";
-const CHANNELS = [{ id: "general", name: "general", post_level: "members" }];
+const CHANNELS = [{ id: "global", name: "global", post_level: "members" }];
 const P = require(path.join(WEB, "shared", "protected.js"));
 const W = require(path.join(WEB, "shared", "warnings.js"));
 const report = require(path.join(WEB, "shared", "report.js"));
@@ -746,7 +746,7 @@ async function loadPage(relay, me, opts = {}) {
   ctx.pqDmOpen = async (_secret, ek, _nonce, ct) => (unb64(ek) === kyberOf(me.key) ? unb64(ct) : null);
   ctx.pqBlake3 = async (bytes) => B3.hash(bytes);
   vm.runInContext(`(s, me, name, sk, kyber, seed) => {
-    ws = s; myKey = me; myName = name; activeChannel = 'general'; identityConfirmed = true;
+    ws = s; myKey = me; myName = name; activeChannel = 'global'; identityConfirmed = true;
     myUploadToken = 'tok-test';
     myDilithiumPublicHex = me; myDilithiumSecret = sk;
     myKyberPublicBase64 = kyber; myKyberSecret = new Uint8Array(4);

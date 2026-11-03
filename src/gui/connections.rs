@@ -177,7 +177,7 @@ impl GuiState {
             // FEDERATED rooms at every park (field test 5): the active life
             // only fetched the room the user had open, so a parked buffer is
             // usually NARROW -- without this, clicking through servers left
-            // every carrier with no #general history and the Commons view
+            // every carrier with no #global history and the Commons view
             // merged to empty. The merge dedups, so re-fetching is cheap.
             history_queue: self
                 .chat_channels
@@ -188,7 +188,7 @@ impl GuiState {
             history_rx: None,
             messages: take(&mut self.chat_messages),
             channels: take(&mut self.chat_channels),
-            active_channel: std::mem::replace(&mut self.chat_active_channel, "general".to_string()),
+            active_channel: std::mem::replace(&mut self.chat_active_channel, humanity_protocol::chat_access::MAIN_CHANNEL.to_string()),
             users: take(&mut self.chat_users),
             dms: take(&mut self.chat_dms),
             pins: take(&mut self.chat_pins),
@@ -237,7 +237,7 @@ impl GuiState {
         self.chat_messages = conn.messages;
         self.chat_channels = conn.channels;
         self.chat_active_channel = if conn.active_channel.is_empty() {
-            "general".to_string()
+            humanity_protocol::chat_access::MAIN_CHANNEL.to_string()
         } else {
             conn.active_channel
         };
@@ -266,9 +266,9 @@ impl GuiState {
     /// In order: no unlocked identity, nothing changes and the status line says to unlock first
     /// (connecting locked would register a keyless name-squatter on the relay); otherwise the
     /// active server is parked with its socket still open (`park_active_connection`), the
-    /// target's background link is brought back as it was (`unpark_connection`), landing in the
-    /// server's own room (#local) when it has one, or, with no link to bring back, a new
-    /// connection is dialled with this identity, landing in #general; and the config is saved,
+    /// target's background link is brought back as it was (`unpark_connection`), in the room it
+    /// was left in, or, with no link to bring back, a new
+    /// connection is dialled with this identity, landing in #global; and the config is saved,
     /// so the next launch opens on the server chosen.
     ///
     /// The caller decides whether to switch at all (a row never switches to the server it
@@ -281,14 +281,9 @@ impl GuiState {
         }
         self.park_active_connection();
         let switched = if self.unpark_connection(url) {
-            // Land in this server's own room: #local.
-            if let Some(local_id) = self.chat_channels.iter().find(|c| c.local_only).map(|c| c.id.clone()) {
-                if self.chat_active_channel != local_id {
-                    self.chat_active_channel = local_id;
-                    self.chat_messages.clear();
-                    self.history_fetched = false;
-                }
-            }
+            // Back in the room this server was left in (a room row's click then lands in its
+            // own). Until 2026-11-02 a switch landed in #local, the server's name being its door;
+            // #local is an ordinary row now (docs/design/chat-channels.md section 5).
             Switched::Restored
         } else {
             self.server_url = url.to_string();
@@ -311,7 +306,7 @@ impl GuiState {
             self.ws_reconnect_timer = 0.0;
             self.ws_reconnect_delay = 5.0;
             self.ws_reconnect_attempts = 0;
-            self.chat_active_channel = "general".to_string();
+            self.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
             self.history_fetched = false;
             Switched::Dialling
         };
@@ -839,7 +834,7 @@ mod park_unpark_tests {
         state.park_active_connection();
         assert_eq!(state.connections.len(), 1, "one parked entry");
         assert!(state.chat_messages.is_empty(), "legacy buffer handed off");
-        assert_eq!(state.chat_active_channel, "general", "fresh default room");
+        assert_eq!(state.chat_active_channel, "global", "fresh default room");
         assert!(!state.ws_identified);
 
         // Visit another server, then come back.

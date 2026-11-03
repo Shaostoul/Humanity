@@ -7,7 +7,7 @@
 1. **Web mirrors native.** The native chat page is the canonical design ("great, loving it"); the web chat is the old/broken UI and must be rebuilt as a *child* of the native parent, same GUI/UX/pages/style/theme. egui is less capable than HTML/CSS, so native is designed within its constraints and web mirrors (web may not exceed/diverge). This is already the CLAUDE.md "Rust-first canonical UI" rule; the gap is execution (web chat is stale).
 2. **Studio widget moves to the RIGHT rail**, not the left. For a streamer (the operator), it sits at the **top, above Friends**.
 3. The studio widget holds **commonly-used buttons** + a button to open a **large Studio modal** (full streaming control surface: analytics, metrics, buttons, configs, dropdowns, sliders, variables, settings).
-4. **Chat docked under the studio widget**: the studio area has a chat at its bottom (e.g. the operator's relay #general), with the **text-entry at the TOP** (closest to the studio controls) and messages **newest-at-top → oldest-at-bottom** (inverted from the normal chat page).
+4. **Chat docked under the studio widget**: the studio area has a chat at its bottom (e.g. the operator's relay #global), with the **text-entry at the TOP** (closest to the studio controls) and messages **newest-at-top → oldest-at-bottom** (inverted from the normal chat page).
 5. Below the studio area: the normal chat-page **Friends list**. Under each **streaming friend**: a **simplified viewer widget**, a paused video frame (last loaded frame from their stream).
 6. A **dedicated viewer modal** for focusing on one/multiple streams: video on top (where the studio widget is), chat on the bottom.
 7. **Persistent streaming.** Streaming must continue even when the operator leaves the Studio page, navigating to ANY HumanityOS page keeps the stream live. (Global session, not page-bound.)
@@ -38,7 +38,7 @@
 - The native Studio *page* content is the starting material, refactor it to render inside a modal AND keep a full-page route.
 
 ### Docked studio chat (inverted)
-- Under the studio widget: a chat bound to a chosen channel (default the relay #general). **Input at top, newest-at-top.** This is a distinct render mode from the main chat page (which is input-at-bottom, newest-at-bottom).
+- Under the studio widget: a chat bound to a chosen channel (default the relay #global). **Input at top, newest-at-top.** This is a distinct render mode from the main chat page (which is input-at-bottom, newest-at-bottom).
 
 ### Viewer widget (under each streaming friend)
 - A small "paused video" tile showing the last decoded frame (a poster/thumbnail) from that friend's stream. Click → the viewer modal.

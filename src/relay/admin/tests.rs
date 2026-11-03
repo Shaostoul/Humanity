@@ -425,13 +425,13 @@ async fn the_federation_panel_the_whole_way() {
     assert_eq!(code, 200);
     assert_eq!(st.db.list_federated_servers().unwrap().len(), 1, "resumed");
 
-    st.db.create_channel("general", "general", None, "test", humanity_protocol::chat_access::PostLevel::Members).ok();
-    let chan = r#"{"channel":"general","federated":true}"#;
+    st.db.create_channel("global", "global", None, "test", humanity_protocol::chat_access::PostLevel::Members).ok();
+    let chan = r#"{"channel":"global","federated":true}"#;
     let (code, v) = run(&st, signed_run(&ada, "federation.channel", chan, tick())).await;
     assert_eq!(code, 200, "{v}");
-    let general = v["data"]["channels"].as_array().unwrap().iter().find(|c| c["id"] == "general").cloned().unwrap();
-    assert_eq!(general["federated"], true);
-    assert!(st.db.is_channel_federated("general").unwrap());
+    let global = v["data"]["channels"].as_array().unwrap().iter().find(|c| c["id"] == "global").cloned().unwrap();
+    assert_eq!(global["federated"], true);
+    assert!(st.db.is_channel_federated("global").unwrap());
     let (code, _) = run(&st, signed_run(&ada, "federation.channel", r#"{"channel":"nowhere","federated":true}"#, tick())).await;
     assert_eq!(code, 404);
 

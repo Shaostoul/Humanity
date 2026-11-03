@@ -1,7 +1,7 @@
 // ── profile-copy.js ───────────────────────────────────────────────────────
 // The copy of my profile that other servers keep (BUG-191, 2026-10-12,
 // docs/design/bug-191-profile-copies-plan.md sections 3.1 to 3.4 and 3.11).
-// The website's twin of the relay's src/relay/core/profile_copy.rs, held to it
+// The website's twin of the relay's crates/humanity-protocol/src/profile_copy.rs, held to it
 // byte for byte by scripts/tests/profile-copy-web.test.js (which reads the
 // Rust constants and the pinned words out of that file) and by the shared
 // fixture scripts/tests/fixtures/profile-copy-v1.json (made by the Rust

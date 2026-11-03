@@ -185,12 +185,12 @@ fn counts_decisions_and_post_lookup() {
 
     db.with_conn(|c| {
         c.execute(
-            "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id) VALUES ('chat', 'poster', 'P', 'a post', 42, '{}', 'general')",
+            "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id) VALUES ('chat', 'poster', 'P', 'a post', 42, '{}', 'global')",
             [],
         )
     })
     .unwrap();
-    assert_eq!(db.post_for_report("poster", 42).unwrap(), Some(("a post".to_string(), "general".to_string())));
+    assert_eq!(db.post_for_report("poster", 42).unwrap(), Some(("a post".to_string(), "global".to_string())));
     assert_eq!(db.post_for_report("poster", 43).unwrap(), None);
     assert_eq!(db.post_for_report("someone", 42).unwrap(), None);
 }

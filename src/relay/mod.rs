@@ -56,6 +56,9 @@ pub mod storage;
 /// Chat access levels (2026-11-02, docs/design/chat-access.md): who a key is here, which sockets
 /// a channel's lines go to, the check every line meets, and the signed history routes.
 pub mod chat_access;
+/// The channels every server makes for itself, from data/server/default_channels.json (2026-11-02,
+/// docs/design/chat-channels.md): #announcements, #local, #global, #feedback.
+pub mod default_channels;
 /// Continuous backup of the database: WAL shipping to a folder, a bucket or another server (2026-10-22).
 pub mod backup_stream;
 pub mod handlers;
@@ -95,7 +98,6 @@ use tower_http::cors::CorsLayer;
 use std::sync::Arc;
 
 use relay::RelayState;
-use humanity_protocol::chat_access::{PostLevel, ReadLevel};
 use serde_json;
 use rusqlite;
 
@@ -793,88 +795,23 @@ pub async fn run_relay() {
         Err(e) => tracing::error!("Failed to initialize server keypair: {e}"),
     }
 
-    // `general` is the catch-all and protected from deletion server-side; always
-    // ensure it exists.
-    db.ensure_default_channel().expect("Failed to create default channel");
-    let _ = db.set_channel_position("general", 10);
-
-    // The default channel set is `general` (chat) + `announcements` (broadcast
-    // channel for the Deploy Bot, security notices, and operator news).
+    // The default channels (2026-11-02, docs/design/chat-channels.md section 4): the rows of
+    // data/server/default_channels.json, built into the program (relay/default_channels.rs). The
+    // ones this server is missing are made: #global, which every server has, at every start; the
+    // guaranteed local-only room, #local, at every start while Server Settings > Federation keeps
+    // the guarantee on and no local-only channel is left (recreating it IS the guarantee, v0.1132;
+    // with it off nothing is made and an existing #local is an ordinary channel); #announcements and
+    // #feedback the first time a server starts with them in the set, so one an admin deleted stays
+    // deleted (BUG-036). That is how the live servers get #feedback at their next start. A channel
+    // already there keeps whatever its admin set.
     //
-    // The `default_channels_seeded` row in `server_state` records that the seed
-    // has run; subsequent boots skip the seed entirely so deleted channels stay
-    // deleted (BUG-036). Remove that row in the database to re-seed.
-    //
-    // Pre-v0.125.0 databases have already-existing channel rows but no
-    // seeded-flag yet; the migration below treats those as "seed has run" so
-    // operators inherit their current channel set rather than getting
-    // surprises. Brand-new databases have zero messages → fall through to seed.
-    //
-    // Welcome and Rules used to be channels; v0.126.0 retires them in favour of
-    // dedicated /welcome and /rules pages backed by data files (operator-
-    // editable, layered on top of the Humanity Accord). The legacy text is
-    // preserved at `data/server/legacy_channel_content.json` for that
-    // migration. `stream` and `dev` were placeholders and are dropped outright.
-    if db.get_state("default_channels_seeded").ok().flatten().is_none() {
-        let prior_use = db.message_count().unwrap_or(0) > 0;
-        if prior_use {
-            let _ = db.set_state("default_channels_seeded", "true");
-            tracing::info!("Migration: existing database — marking channel seed as already done (BUG-036)");
-        }
-    }
-    let already_seeded = db
-        .get_state("default_channels_seeded")
-        .ok()
-        .flatten()
-        .as_deref()
-        == Some("true");
-    if !already_seeded {
-        // Anyone reads it; only moderators and admins post (docs/design/chat-access.md section 4).
-        if db.create_channel("announcements", "announcements", Some("Project updates and news"), "system", PostLevel::Mods).unwrap_or(false) {
-            let _ = db.set_channel_access("announcements", ReadLevel::Anyone, PostLevel::Mods);
-        }
-        let _ = db.set_channel_position("announcements", 2);
-        // #announcements is a read-only broadcast channel — it carries no voice
-        // channel. (Without this it inherits the voice_enabled column default of
-        // 1.) Mirrors native, which shows a mic only on voice-enabled channels.
-        let _ = db.set_channel_voice_enabled("announcements", false);
-        let _ = db.set_state("default_channels_seeded", "true");
-        tracing::info!("Default channels seeded (first boot): general + announcements");
-    }
-
-    // Guaranteed local-only room (v0.1132): while the server-settings
-    // guarantee is ON (the default), every boot makes sure a local_only
-    // channel exists — #local, a room that provably never bridges to any
-    // other server. This runs EVERY boot, not once: recreating it if it
-    // was deleted IS the guarantee. Operators who don't want it turn the
-    // setting off (Server Settings → Federation); then nothing is seeded
-    // and any existing #local becomes an ordinary channel.
-    let local_room_wanted = db
-        .get_server_settings()
-        .map(|s| s.local_channel_enabled)
-        .unwrap_or(true);
-    if local_room_wanted && !db.any_local_only_channel().unwrap_or(false) {
-        let _ = db.create_channel(
-            "local",
-            "local",
-            Some("This server only. Never bridged to other servers."),
-            "system",
-            PostLevel::Members,
-        );
-        let _ = db.set_channel_local_only("local", true);
-        let _ = db.set_channel_position("local", 3);
-        tracing::info!("Guaranteed local-only room seeded: #local");
-    }
-
-    // One-time correction for installs seeded before the line above existed:
-    // #announcements was created with voice_enabled at its column default (1),
-    // so it wrongly advertised a voice channel. Disable it once. Guarded by a
-    // state flag so an operator who later deliberately re-enables voice on it
-    // won't have that choice reverted on the next boot.
-    if db.get_state("announcements_voice_disabled_v1").ok().flatten().is_none() {
-        let _ = db.set_channel_voice_enabled("announcements", false);
-        let _ = db.set_state("announcements_voice_disabled_v1", "true");
-        tracing::info!("Migration: disabled voice on #announcements (broadcast channel)");
+    // Welcome and Rules used to be channels; v0.126.0 retired them in favour of dedicated /welcome
+    // and /rules pages backed by data files (operator-editable, layered on top of the Humanity
+    // Accord). The legacy text is preserved at `data/server/legacy_channel_content.json`.
+    let local_room_wanted = db.get_server_settings().map(|s| s.local_channel_enabled).unwrap_or(true);
+    let made = default_channels::make_missing(&db, local_room_wanted);
+    if !made.is_empty() {
+        tracing::info!("Default channels made: #{}", made.join(", #"));
     }
 
     let mut relay_state = RelayState::new(db);

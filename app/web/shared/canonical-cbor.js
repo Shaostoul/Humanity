@@ -1,7 +1,7 @@
 // canonical-cbor.js — byte-exact canonical CBOR encoder (no dependencies).
 //
 // Must reproduce, byte-for-byte, the Rust encoder in
-// src/relay/core/encoding.rs (rules from design/conformance/canonical_cbor_rules.md):
+// crates/humanity-protocol/src/encoding.rs (rules from design/conformance/canonical_cbor_rules.md):
 //   - definite-length only
 //   - shortest-form integer / length headers
 //   - map keys sorted: SHORTER encoded key first, then bytewise-lexicographic
@@ -10,7 +10,7 @@
 //   - no floats, no tags, UTF-8 text only
 //
 // Locked to the Rust impl by the group-object KAT (scripts/group-object-kat.mjs
-// ↔ src/relay/core/object.rs::group_object_canonical_kat). If you change the
+// ↔ crates/humanity-protocol/src/object.rs::group_object_canonical_kat). If you change the
 // encoding, both MUST change or the KAT fails (a web-built signed object would
 // then be unverifiable by the relay — DO NOT SHIP).
 //
@@ -109,7 +109,7 @@ export function cborMap(pairs) {
 
 /**
  * Encode a Humanity Network Object to canonical CBOR bytes — mirrors
- * src/relay/core/object.rs::Object::to_canonical_bytes.
+ * crates/humanity-protocol/src/object.rs::Object::to_canonical_bytes.
  *
  * fields:
  *   protocol_version       (number, required)

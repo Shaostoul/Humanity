@@ -188,11 +188,11 @@ fn conversation_mutes_and_room_levels() {
     assert!(m.prune(5000), "ended");
     assert!(m.people.is_empty());
     let mut s = LocalSettings::default();
-    assert_eq!(s.room_level("https://a.example", "general"), super::Level::Mentions, "every room starts at mentions");
-    s.set_room_level("https://a.example", "general", super::Level::All);
-    assert_eq!(s.room_level("https://a.example", "general"), super::Level::All);
-    assert_eq!(s.room_level("https://b.example", "general"), super::Level::Mentions, "the same room on another server");
-    s.set_room_level("https://a.example", "general", super::Level::Mentions);
+    assert_eq!(s.room_level("https://a.example", "global"), super::Level::Mentions, "every room starts at mentions");
+    s.set_room_level("https://a.example", "global", super::Level::All);
+    assert_eq!(s.room_level("https://a.example", "global"), super::Level::All);
+    assert_eq!(s.room_level("https://b.example", "global"), super::Level::Mentions, "the same room on another server");
+    s.set_room_level("https://a.example", "global", super::Level::Mentions);
     assert!(s.room_levels.is_empty(), "the default is no entry");
     let back: LocalSettings = serde_json::from_str(r#"{"room_levels":{"s|r":"nothing"},"mutes":{"people":{"dm:k":0}}}"#).unwrap();
     assert_eq!(back.room_level("s", "r"), super::Level::Nothing);
@@ -252,8 +252,8 @@ fn a_notice_shows_the_message_only_when_the_person_chose_it() {
     assert_eq!(body, "meet me at noon");
     let mut m = dm("hey @me");
     m.kind = "mention".into();
-    m.room_name = "general".into();
-    assert_eq!(words(&file, &m, Show::Name).0, "Ben mentioned you in #general");
+    m.room_name = "global".into();
+    assert_eq!(words(&file, &m, Show::Name).0, "Ben mentioned you in #global");
 }
 
 /// A notice is two short lines: control characters and new lines go, runs of spaces close up, and
@@ -322,18 +322,18 @@ fn a_notice_tag_is_stable_short_and_names_nothing() {
 fn mutes_end_and_are_pruned() {
     let mut m = Mutes::default();
     m.mute_server("s", 100, 3600);
-    m.mute_room("s", "general", 100, 0);
+    m.mute_room("s", "global", 100, 0);
     m.mute_everything(100, 60);
     assert_eq!(m.server_muted("s", 200), Some(3700));
-    assert_eq!(m.room_muted("s", "general", 1_000_000), Some(0), "until unmuted");
-    assert!(m.room_muted("t", "general", 200).is_none(), "the same room on another server");
+    assert_eq!(m.room_muted("s", "global", 1_000_000), Some(0), "until unmuted");
+    assert!(m.room_muted("t", "global", 200).is_none(), "the same room on another server");
     assert_eq!(m.everything_muted(159), Some(160));
     assert!(m.everything_muted(160).is_none(), "ended on the second");
     assert!(m.prune(5000));
     assert!(m.servers.is_empty() && m.everything.is_none());
     assert_eq!(m.rooms.len(), 1, "until-unmuted stays");
     assert!(!m.prune(5000), "nothing more to drop");
-    m.unmute_room("s", "general");
+    m.unmute_room("s", "global");
     assert!(m.is_empty_at(5000));
 }
 

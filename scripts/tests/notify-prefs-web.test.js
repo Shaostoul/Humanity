@@ -104,7 +104,7 @@ function chatPage(stored) {
   return { ctx, sent, notices, listeners };
 }
 
-const MENTION = { kind: 'mention', from_me: false, server: 'https://example.test', room: 'general', conversation: 'general', sender: 'Ben', room_name: 'general', text: 'hey @Ann' };
+const MENTION = { kind: 'mention', from_me: false, server: 'https://example.test', room: 'global', conversation: 'global', sender: 'Ben', room_name: 'global', text: 'hey @Ann' };
 const AWAY = { focused: false, on_screen: false, desktop: true, sound: true };
 const STORED = { dm: true, mentions: false, tasks: true, dnd_start: null, dnd_end: null };
 

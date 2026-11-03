@@ -205,7 +205,7 @@ impl Storage {
                 [],
                 |r| r.get(0),
             )
-            .unwrap_or_else(|_| "general".to_string());
+            .unwrap_or_else(|_| humanity_protocol::chat_access::MAIN_CHANNEL.to_string());
 
         CivilizationStats {
             population: PopulationStats {

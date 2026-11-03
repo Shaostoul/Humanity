@@ -53,11 +53,11 @@ test('a chat command is filled from the inputs, and a confirm word is exact', ()
 
 test('a form becomes the inputs the relay takes', () => {
   const reorder = find('channels.reorder');
-  assert.deepStrictEqual(A.adminInputsFromForm(reorder, { name: ' general ', position: '3' }), { ok: true, inputs: { name: 'general', position: 3 } }, 'a number is sent as a number');
-  assert.strictEqual(A.adminInputsFromForm(reorder, { name: 'general', position: 'three' }).ok, false);
+  assert.deepStrictEqual(A.adminInputsFromForm(reorder, { name: ' global ', position: '3' }), { ok: true, inputs: { name: 'global', position: 3 } }, 'a number is sent as a number');
+  assert.strictEqual(A.adminInputsFromForm(reorder, { name: 'global', position: 'three' }).ok, false);
   assert.strictEqual(A.adminInputsFromForm(reorder, { position: '3' }).ok, false, 'a required box refused when empty');
   const chan = find('federation.channel');
-  assert.deepStrictEqual(A.adminInputsFromForm(chan, { channel: 'general', federated: false }).inputs, { channel: 'general', federated: false }, 'an unticked box is false');
+  assert.deepStrictEqual(A.adminInputsFromForm(chan, { channel: 'global', federated: false }).inputs, { channel: 'global', federated: false }, 'an unticked box is false');
 });
 
 test('a masked secret and a peer\'s state read as words', () => {

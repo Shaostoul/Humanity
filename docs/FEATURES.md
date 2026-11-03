@@ -144,6 +144,14 @@ Real-time text chat with channels, threads, and message history.
   you type in and a badge beside each channel's name say who can read and post, in both apps; an
   unverified poster's links are drawn as plain words. The website's read-only view for a visitor
   without a name: `/chat/read` (`web/chat/read.html`).
+- **The channels every server has (2026-11-02, docs/design/chat-channels.md):** #general renamed
+  #global (`humanity_protocol::chat_access::MAIN_CHANNEL`; the live servers' history, reactions,
+  pins, threads and search index moved by the relay's upgrade, `storage/channels.rs`
+  `move_channel_on`), #feedback (anyone reads, people with a name post, federated), #announcements
+  and #local, made from one data file (`data/server/default_channels.json`, compiled into the relay,
+  `src/relay/default_channels.rs`). #local is an ordinary row under its server in both apps; a
+  server's name folds its rooms; a room that is gone lands the app in #global. `just feedback`
+  prints the newest #feedback lines from united-humanity.us (`scripts/feedback.js`).
 - **Is my line posted? (2026-10-24):** my own room line reads "Sending...", then is posted, or
   "Not sent" with why (too long for my limit, too fast, a new account's wait) and Edit and send
   again; "Not confirmed by the server yet" after 20 s. The relay names each refusal to its sender
@@ -829,9 +837,11 @@ recovery decrypts transparently and scans both backup directories.
 - Server: `src/relay/storage/backup_crypto.rs`, `scripts/humanity-backup-db.sh`, `scripts/decrypt-backup.sh`
 
 ### Saved Servers: add / switch / forget (native, v0.712–v0.714)
-Add Server accepts a bare host (assumes https, v0.714); clicking a saved server's
-name switches to it (reconnects with the same identity, lands on #general;
-v0.712–713); a small "x" forgets the bookmark. The active server shows "(current)".
+Add Server accepts a bare host (assumes https, v0.714); clicking one of a saved server's
+rooms switches to it and lands there (reconnects with the same identity; a new connection
+lands on #global; v0.712–713), and its name folds or opens its rooms (2026-11-02,
+docs/design/chat-channels.md section 5: servers other than the current one start folded);
+a small "x" forgets the bookmark. The active server shows "(current)".
 - Native: `src/gui/pages/chat.rs` (saved-servers loop + `draw_add_server_modal`)
 
 ### System Health Panel (native, v0.720)
@@ -4480,7 +4490,7 @@ persistent `crash.log`, under `%APPDATA%/HumanityOS/logs` (Windows) / `~/.local/
 
 ### In-World Chat (feed + interactive panel)
 The SAME relay chat visible in the 3D world: a paint-only bottom-left feed of the
-active PUBLIC channel (DM/group channels fall back to #general so private text never
+active PUBLIC channel (DM/group channels fall back to #global so private text never
 paints on the world overlay / a stream), and an interactive panel opened with Enter
 (frees the cursor, disables look/move, swallows gameplay hotkeys while typing; Esc or
 click-away closes, typed text survives a dismissed panel and an aborted send). Channel

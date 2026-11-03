@@ -105,7 +105,7 @@
 .channel-item .ch-mic.joined { color: var(--accent); opacity: 1; }
 
 /* The channel header, as native's (src/gui/pages/chat.rs, draw_center_panel):
-   the darkest sidebar ground, 10 x 16 inside, a 1 px border; "# general" at the
+   the darkest sidebar ground, 10 x 16 inside, a 1 px border; "# global" at the
    heading size in the main ink, then "|  description" small and muted. A DM
    names its person "DM: Ada" in the DM ink, a P2P group its name in the group
    ink, each after a Back button (chat-dms.js, chat-groups-p2p.js). */

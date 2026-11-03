@@ -23,7 +23,7 @@
 //                         {event: 'busy', busy} while an upload, a publish or
 //                         a post is under way; {event: 'status', text} with
 //                         each line its page says (published, posted in
-//                         #general); {event: 'close'} when its form is
+//                         #global); {event: 'close'} when its form is
 //                         cancelled, or Escape is pressed, with nothing going.
 // Close (or Escape) on the host hides the window. While something is going
 // its frame stays, hidden, so the upload carries on, and the lines it says

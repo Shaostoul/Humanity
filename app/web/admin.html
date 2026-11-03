@@ -181,6 +181,9 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<!-- Words by key (the Channels panel builds with i18n.t): English first, then i18n.js, before shell.js. -->
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src=/shared/shell.js data-active=ops></script>
 <!-- Which server this page is on, held under the nav while the page scrolls (media-round-5-plan.md 3.11). -->
 <script src="/shared/server-strip.js?v=1"></script>
@@ -348,6 +351,16 @@
     <!-- Alert channels (2026-10-22, docs/design/in-app-ops.md): where this server's
          warnings go. Was an SSH edit of data/alert-channels.secrets.json. The web
          mirror of the desktop app's Server Settings > ADMIN > Alert channels. -->
+    <!-- Channels: who can read and who can post (2026-11-02, docs/design/chat-access.md), the web
+         mirror of the desktop app's Server Settings > Channels pickers, on the registry's
+         channels.list and channels.access (admin-console.js renderChannels). -->
+    <div class="panel" id="channels-panel">
+      <h2 data-i18n="admin.channels_title">Channels: who can read and who can post</h2>
+      <p class="fed-help" data-i18n="admin.channels_intro">Who can read: Anyone (no sign-up needed; visitors see only what is posted after you choose it), Members (a name on this server) or Verified. Who can post: Members, Verified, or Moderators and admins. Nobody can post where they cannot read. A new channel starts at Members for both.</p>
+      <div id="channels-list"></div>
+      <div id="channels-status" class="fed-status"></div>
+    </div>
+
     <div class="panel" id="alerts-panel">
       <h2>Alert channels</h2>
       <p class="fed-help">
@@ -534,7 +547,7 @@
 <!-- The action registry (2026-10-22): BLAKE3 for the signed purpose, the shared rules, the panels. -->
 <script src="/shared/blake3.js?v=1"></script>
 <script src="/shared/admin-actions.js?v=1"></script>
-<script src="/pages/admin-console.js?v=1"></script>
+<script src="/pages/admin-console.js?v=2"></script>
 <script src="/pages/admin-app.js?v=4"></script>
 <script src="/pages/backups-admin.js?v=1"></script>
 </body>

@@ -18,7 +18,7 @@ concrete gap to two humans co-occupying the 3D world. It is a backlog, not a des
    net::sync" src/lib.rs` returns 0 hits. The engine main loop never creates the sync system, never
    sends a join, never applies remote player positions. The 3D world is single-player in practice.
 2. **The client WebSocket handler is chat-only.** `src/lib.rs:4264` filters `__game__:` and
-   `__sync_data__` OUT of the chat display (correct -- game traffic should not appear in #general),
+   `__sync_data__` OUT of the chat display (correct -- game traffic should not appear in #global),
    but there is no sibling branch that routes those same messages INTO the game world. Game messages
    the relay sends are received and then dropped on the floor.
 3. **Protocol drift.** The client speaks `net::protocol::NetMessage` (e.g. `{type: "Join", ...}`)

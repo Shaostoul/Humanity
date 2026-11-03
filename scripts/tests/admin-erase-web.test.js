@@ -279,7 +279,7 @@ async function loadChat(opts = {}) {
   ctx.pqDmOpen = async (_secret, ek, _nonce, ct) => (unb64(ek) === MY_KYBER ? unb64(ct) : null);
   const sock = fakeSocket();
   vm.runInContext(`(s, me) => {
-    ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'general';
+    ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'global';
     myDilithiumPublicHex = me; myDilithiumSecret = new Uint8Array(4);
     myKyberPublicBase64 = '${MY_KYBER}'; myKyberSecret = new Uint8Array(4);
   }`, ctx)(sock, ME);

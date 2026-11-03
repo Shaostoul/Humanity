@@ -62,7 +62,7 @@
         i18n.t('civilization.web_direct_messages', { n: soc.total_dms || 0 })
       ], 'var(--nav-red)') +
       civCard(i18n.t('civilization.activity'), act.messages_today || 0, i18n.t('civilization.web_unit_messages_today'), [
-        i18n.t('civilization.web_most_active', { channel: act.most_active_channel || 'general' }),
+        i18n.t('civilization.web_most_active', { channel: act.most_active_channel || 'global' }),
         i18n.t('civilization.web_peak_online', { n: act.peak_online || 0 })
       ], '#1abc9c');
 

@@ -555,7 +555,7 @@ function loadChat() {
   ctx.openPillPopup = (row, how) => opened.push({ row, how });
   ctx.appendMessage = (el) => drawn.push(el);
   const sent = [];
-  vm.runInContext("(s, me) => { ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'general'; }", ctx)(
+  vm.runInContext("(s, me) => { ws = s; myKey = me; myName = 'Me_1'; activeChannel = 'global'; }", ctx)(
     { readyState: 1, send: (s) => sent.push(JSON.parse(s)) }, ME);
   const fn = (name) => vm.runInContext(name, ctx);
   const add = (author, key, body, ts, opts) => fn("addChatMessage")(author, body, ts, key, true, true, null, null, false, null, opts);
@@ -671,18 +671,18 @@ test("the stylesheets: stripes, the reactions inside the pill, no hover ground o
 });
 
 // ── 6. The channel header and the composer (Track W step 4) ─────────────
-// Native (src/gui/pages/chat.rs draw_center_panel and its input bar): "# general" at the heading
+// Native (src/gui/pages/chat.rs draw_center_panel and its input bar): "# global" at the heading
 // size, then "|  description" small and muted; a DM's header is Back, "DM: Ada" in the DM ink,
 // Report, Block; the composer is one rounded box with the text, then Search, Pins (with the
-// count), ?, Attach and Send, its hint naming where the message goes ("Message #general").
+// count), ?, Attach and Send, its hint naming where the message goes ("Message #global").
 // Red first, 2026-10-22, against the web/ of 2f872f2be (step 3): each test below failed.
 
 test("the channel header reads as native's: the name, then the description after a bar, not a dash", () => {
   const c = loadChat();
-  vm.runInContext("channelList = [{ id: 'general', name: 'general', description: 'General discussion' }]; activeChannel = 'general';", c.ctx);
+  vm.runInContext("channelList = [{ id: 'global', name: 'global', description: 'General discussion' }]; activeChannel = 'global';", c.ctx);
   c.fn("updateChannelHeader")();
   const html = c.keep("#channel-header").innerHTML;
-  assert.ok(html.includes('<span class="ch-name"># general</span><span class="ch-desc">General discussion</span>'), "no '- ' before the description (the bar is drawn by .ch-desc::before)");
+  assert.ok(html.includes('<span class="ch-name"># global</span><span class="ch-desc">General discussion</span>'), "no '- ' before the description (the bar is drawn by .ch-desc::before)");
   const css = read("chat/sidebar.css");
   assert.match(css, /#channel-header \.ch-desc::before \{ content: '\|'/, "the bar");
   assert.match(css.slice(css.indexOf("#channel-header .ch-name {")), /font-size: var\(--text-xl\)/, "the name at native's heading size (font_size_heading = --text-xl)");
@@ -699,7 +699,7 @@ test("a DM's header: Back, then DM: and the name in the DM ink, then Report and 
   const theme = read("shared/theme.css");
   assert.match(theme, /--dm-accent: #[0-9a-f]{6};[\s\S]*:root\[data-theme="light"\][\s\S]*--dm-accent: #[0-9a-f]{6};/, "the DM ink is a theme token in both themes (theme.ron dm_accent)");
   // A DM has no pins: the composer's count from the channel left behind goes. Seen red
-  // 2026-10-22 in the browser: "📌 1" from #general in the DM with Ada.
+  // 2026-10-22 in the browser: "📌 1" from #global in the DM with Ada.
   c.keep("#composer-pin-count").textContent = "1";
   c.fn("openDmConversation")(ANN, "Ada");
   assert.equal(c.keep("#composer-pin-count").textContent, "", "no pin count in a DM");
@@ -714,9 +714,9 @@ test("the composer is native's one box: text, Search, Pins, ?, Attach, Send; its
   assert.ok(ids.every((v, i) => v > 0 && (i === 0 || v > ids[i - 1])), "in native's order, the web's + first: " + ids.join(","));
   assert.ok(box.includes('<span class="attach-label">Attach</span>'), "Attach says so, as native's button does");
   const c = loadChat();
-  vm.runInContext("channelList = [{ id: 'general', name: 'general' }]; activeChannel = 'general';", c.ctx);
+  vm.runInContext("channelList = [{ id: 'global', name: 'global' }]; activeChannel = 'global';", c.ctx);
   c.fn("updateInputForChannel")();
-  assert.equal(c.keep("#msg-input").placeholder, "Message #general", "native's hint");
+  assert.equal(c.keep("#msg-input").placeholder, "Message #global", "native's hint");
   vm.runInContext("currentPins = [{ from_name: 'Ada', content: 'x', original_timestamp: 1, pinned_by: 'Me' }];", c.ctx);
   c.fn("renderPinBar")();
   assert.equal(c.keep("#composer-pin-count").textContent, "1", "the pin button carries the count, as native's");

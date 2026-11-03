@@ -473,7 +473,7 @@ fn the_review_steps_remove_for_a_friend_a_group_and_a_room() {
     gs.p2p_groups.push(crate::net::api_v2::P2pGroupInfo { group_id: "g1".into(), name: "Book club".into(), members: vec![me.clone()], is_creator: false });
     gs.p2p_groups_last_fetch = Some(std::time::Instant::now());
     gs.chat_channels.push(crate::gui::ChatChannel { id: "lounge".into(), name: "lounge".into(), voice_enabled: true, voice_joined: true, ..Default::default() });
-    gs.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), voice_enabled: true, ..Default::default() });
+    gs.chat_channels.push(crate::gui::ChatChannel { id: "global".into(), name: "global".into(), voice_enabled: true, ..Default::default() });
     gs.voice_active_room = Some("lounge".into());
 
     let items = review_items(&gs);
@@ -524,13 +524,13 @@ fn only_read_only_rooms_are_listed() {
     let (seed, me) = identity(167);
     let (mut gs, _sent) = app(&me, &seed, "protected-rooms");
     let ch = |id: &str, read_only: bool, federated: bool| crate::gui::ChatChannel { id: id.into(), name: id.into(), post_level: if read_only { humanity_protocol::chat_access::PostLevel::Mods } else { humanity_protocol::chat_access::PostLevel::Members }, federated, ..Default::default() };
-    gs.chat_channels = vec![ch("announcements", true, false), ch("general", false, false), ch("news", true, true), ch("lobby", false, true)];
+    gs.chat_channels = vec![ch("announcements", true, false), ch("global", false, false), ch("news", true, true), ch("lobby", false, true)];
     let listed = |gs: &GuiState| gs.chat_channels.iter().filter(|c| lists_channel(gs, c)).map(|c| c.id.clone()).collect::<Vec<_>>();
-    assert_eq!(listed(&gs), ["announcements", "general", "news", "lobby"], "off: every room");
+    assert_eq!(listed(&gs), ["announcements", "global", "news", "lobby"], "off: every room");
     protect(&mut gs, "7391", &[]);
     assert_eq!(listed(&gs), ["announcements", "news"], "on: the read-only rooms only");
     assert!(hides_public_rooms(&gs), "so the line shows");
-    gs.chat_active_channel = "general".into();
+    gs.chat_active_channel = "global".into();
     assert!(hides_active_room(&gs), "the open public room is left out");
     gs.chat_active_channel = "a-room-not-listed-yet".into();
     assert!(hides_active_room(&gs), "and a room not known yet");
@@ -544,7 +544,7 @@ fn only_read_only_rooms_are_listed() {
 
     perform(&mut gs, ProtectedAction::ShowPublicRooms);
     enter(&mut gs, "7391");
-    assert_eq!(listed(&gs), ["announcements", "general", "news", "lobby"], "shown with the PIN");
+    assert_eq!(listed(&gs), ["announcements", "global", "news", "lobby"], "shown with the PIN");
     assert!(!hides_public_rooms(&gs) && !hides_active_room(&gs));
     tidy(&gs);
 }

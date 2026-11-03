@@ -4,7 +4,7 @@
 #help-modal-overlay {
   display: none;
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0; left: 0; right: 0; bottom: var(--hos-wip-h, 0px);
   background: rgba(0,0,0,0.6);
   z-index: 100;
   align-items: center;
@@ -101,7 +101,7 @@
 .profile-modal-overlay {
   display: none;
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0; left: 0; right: 0; bottom: var(--hos-wip-h, 0px);
   background: rgba(0,0,0,0.6);
   z-index: 150;
   align-items: center;
@@ -384,7 +384,7 @@
   position: fixed;
   top: 0; right: 0;
   width: min(420px, 90vw);
-  height: 100vh;
+  height: calc(100vh - var(--hos-wip-h, 0px));
   background: var(--bg);
   border-left: 1px solid var(--border);
   z-index: 2000;

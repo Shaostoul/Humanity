@@ -57,8 +57,8 @@ test('a notice shows the message only when the person chose it', () => {
   const hidden = rules.words(dm, 'nothing', t);
   assert.ok(!hidden.join(' ').includes('Ben') && !hidden.join(' ').includes('noon'), hidden.join(' / '));
   assert.strictEqual(rules.words(dm, 'name_and_text', t)[1], 'meet me at noon');
-  const mention = { kind: 'mention', sender: 'Ben', room_name: 'general', text: 'hey @me' };
-  assert.strictEqual(rules.words(mention, 'name', t)[0], 'Ben mentioned you in #general');
+  const mention = { kind: 'mention', sender: 'Ben', room_name: 'global', text: 'hey @me' };
+  assert.strictEqual(rules.words(mention, 'name', t)[0], 'Ben mentioned you in #global');
   assert.strictEqual(rules.clean('  a\n\tb\u0007  c ', 80), 'a b c');
   const cut = rules.clean('é'.repeat(300), 10);
   assert.strictEqual(Array.from(cut).length, 10);

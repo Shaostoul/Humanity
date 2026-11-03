@@ -70,7 +70,7 @@ pub(crate) fn refresh_p2p_groups(state: &mut GuiState) {
 // A P2P group opens like a channel: clicking it sets the active channel to
 // "p2pgroup:<id>" and its decrypted messages render in the SAME center panel
 // as channels and DMs (no modal — operator: switching to a group should feel
-// like switching from #general to #announcements). These helpers do the
+// like switching from #global to #announcements). These helpers do the
 // network + crypto work (blocking ureq, same pattern as image upload):
 //   enter_p2p_group — full sync on open: rekey-if-creator, fetch+unseal the
 //                      epoch key, load the roster name map, decrypt history.
@@ -333,7 +333,7 @@ pub(crate) fn drain_p2p_loaders(state: &mut GuiState) {
                 state.p2p_groups_list_loader = None;
                 state.p2p_groups = list;
                 // If the open group is gone (disbanded or we left it elsewhere),
-                // exit to #general and drop its decrypted history.
+                // exit to #global and drop its decrypted history.
                 if let Some(agid) = state
                     .chat_active_channel
                     .strip_prefix("p2pgroup:")
@@ -342,7 +342,7 @@ pub(crate) fn drain_p2p_loaders(state: &mut GuiState) {
                     if !state.p2p_groups.iter().any(|g| g.group_id == agid) {
                         let channel = format!("p2pgroup:{}", agid);
                         state.chat_messages.retain(|m| m.channel != channel);
-                        state.chat_active_channel = "general".to_string();
+                        state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
                         state.p2p_group_active_id.clear();
                         state.p2p_group_chat_epoch_key = None;
                         state.p2p_group_loading = false;
@@ -444,7 +444,7 @@ pub(crate) fn join_group_with_ticket(state: &mut GuiState, ticket: &str) {
 
 /// Leave a P2P group (self-remove from the roster). Submits a
 /// `group_member_v1` remove for my own key, then drops the view back to
-/// #general and refreshes the group list so the row disappears. Never needs
+/// #global and refreshes the group list so the row disappears. Never needs
 /// the protected setup's PIN; its review step's Remove for a group is this.
 // `pub(crate)` for the Groups section's row menu in `chat.rs` and the
 // protected setup's review step (engine/protected.rs).
@@ -462,7 +462,7 @@ pub(crate) fn leave_p2p_group(state: &mut GuiState, group_id: &str) {
             // Drop any cached messages for this group + leave the view.
             let channel = format!("p2pgroup:{}", group_id);
             state.chat_messages.retain(|m| m.channel != channel);
-            state.chat_active_channel = "general".to_string();
+            state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
             state.p2p_group_active_id.clear();
             state.p2p_group_chat_epoch_key = None;
             state.p2p_group_loader = None; // cancel any in-flight load for the left group
@@ -477,7 +477,7 @@ pub(crate) fn leave_p2p_group(state: &mut GuiState, group_id: &str) {
 }
 
 /// Disband a P2P group I created (creator-only `group_disband_v1`). Removes it
-/// for everyone, drops the view back to #general, and refreshes the list.
+/// for everyone, drops the view back to #global, and refreshes the list.
 // `pub(super)` only because its caller (the Groups section's row menu) stayed
 // in `chat.rs`.
 pub(super) fn disband_p2p_group(state: &mut GuiState, group_id: &str) {
@@ -493,7 +493,7 @@ pub(super) fn disband_p2p_group(state: &mut GuiState, group_id: &str) {
         Ok(()) => {
             let channel = format!("p2pgroup:{}", group_id);
             state.chat_messages.retain(|m| m.channel != channel);
-            state.chat_active_channel = "general".to_string();
+            state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
             state.p2p_group_active_id.clear();
             state.p2p_group_chat_epoch_key = None;
             state.p2p_group_loader = None; // cancel any in-flight load for the disbanded group

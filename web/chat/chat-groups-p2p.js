@@ -479,7 +479,7 @@
     // If I'm currently viewing it, drop back to a normal channel.
     if (window.activeP2pGroup && window.activeP2pGroup.id === groupId) {
       if (typeof closeP2pGroup === 'function') closeP2pGroup();
-      if (typeof switchChannel === 'function') switchChannel('general');
+      if (typeof switchChannel === 'function') switchChannel('global');
     }
     if (typeof addSystemMessage === 'function') addSystemMessage('You left the group.');
     await loadP2pGroups();
@@ -496,7 +496,7 @@
     await postObject(submission);
     if (window.activeP2pGroup && window.activeP2pGroup.id === groupId) {
       if (typeof closeP2pGroup === 'function') closeP2pGroup();
-      if (typeof switchChannel === 'function') switchChannel('general');
+      if (typeof switchChannel === 'function') switchChannel('global');
     }
     if (typeof addSystemMessage === 'function') addSystemMessage('Group disbanded for everyone.');
     await loadP2pGroups();
@@ -777,7 +777,7 @@
   // The modal version (openP2pGroupDialog) is removed, it duplicated the chat
   // UI inside a constrained window AND was hitting an egui-like z-order bug
   // where the backdrop kept landing in front of the modal. Inline is the
-  // correct mental model: switching from "#general" to "My Group" is one
+  // correct mental model: switching from "#global" to "My Group" is one
   // context change, not a popup.
 
   // Active P2P-group conversation lives on `window` so the cross-file
@@ -1029,7 +1029,7 @@
       header.style.display = 'block';
       // Native's group header (chat.rs draw_center_panel): Back, the group's name in the group
       // ink at the heading size, "end-to-end encrypted" small and muted, and Copy invite.
-      header.innerHTML = '<button type="button" class="ch-back" onclick="switchChannel(\'general\')" data-tip-desc="Return to #general.">Back</button>' +
+      header.innerHTML = '<button type="button" class="ch-back" onclick="switchChannel(\'global\')" data-tip-desc="Return to #global.">Back</button>' +
         '<span class="ch-name ch-group">' + esc(displayName) + '</span>' +
         '<span class="ch-desc">end-to-end encrypted · ' +
         '<a href="#" id="p2pg-header-invite" style="color:var(--accent);text-decoration:none;">Copy invite ticket</a></span>';

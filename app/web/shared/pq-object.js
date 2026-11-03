@@ -1,6 +1,6 @@
 // pq-object.js — build + sign Humanity Network signed objects in the browser.
 //
-// Mirrors src/relay/core/object.rs (ObjectBuilder + signable_bytes + object_id).
+// Mirrors crates/humanity-protocol/src/object.rs (ObjectBuilder + signable_bytes + object_id).
 // Produces the exact submission shape the relay's POST /api/v2/objects expects
 // (see web/shared/pq-identity.js postObject), so a web-built object verifies on
 // the relay via put_signed_object → Object::verify_signature.
@@ -152,7 +152,7 @@ export async function verifyObjectSubmission(submission, { blake3, pqVerify }) {
   }
 }
 
-/* ── Signed moderation (rung 1; src/relay/core/moderation.rs) ───────────
+/* ── Signed moderation (rung 1; crates/humanity-protocol/src/moderation.rs) ───────────
  *
  * The MODERATOR'S CLIENT signs a moderation action, never the relay. A relay
  * cannot hold a moderator's key, and a log signed by the party whose behaviour
@@ -160,7 +160,7 @@ export async function verifyObjectSubmission(submission, { blake3, pqVerify }) {
  * these are built and signed here, exactly like a vote, and the relay verifies.
  *
  * Byte-locked to the Rust encoder by scripts/mod-object-kat.mjs
- * <-> src/relay/core/moderation.rs::cross_language_kat (`just mod-kat`).
+ * <-> crates/humanity-protocol/src/moderation.rs::cross_language_kat (`just mod-kat`).
  * If these drift, an action signed in a browser is unverifiable and the audit
  * log silently contains only what was done from the other client.
  */
@@ -297,7 +297,7 @@ export function voteV1Payload(choice) {
  * proposal's object_id hex). One vote per (proposal, voter) — the relay keeps
  * the FIRST vote and ignores later ones, so votes are final.
  * Locked byte-for-byte to the Rust encoder by scripts/vote-object-kat.mjs
- * ↔ src/relay/core/object.rs::vote_v1_cross_language_kat (`just vote-kat`).
+ * ↔ crates/humanity-protocol/src/object.rs::vote_v1_cross_language_kat (`just vote-kat`).
  * Returns `{ objectId (= the vote id), submission }`.
  */
 export async function buildVoteV1({ proposalId, choice, authorPublicKey, sign, blake3, createdAt }) {

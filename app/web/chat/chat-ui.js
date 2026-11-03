@@ -40,15 +40,12 @@ function toggleChannelVoice(channel) {
   if (typeof renderServerList === 'function') renderServerList();
 }
 
-// DM settings (the DMs-section cog). Native opens a small popup whose only live
-// control is a DM-notifications toggle; mirror that intent as a mute toggle.
+// DM settings (the DMs-section cog): the person's synced DM switch, the same one as Settings >
+// Notifications and the desktop's DM cog. It flips the switch AS THE SERVER HOLDS IT and sends
+// only that switch (chat-notify.js toggleDm); before the server has answered it writes nothing
+// (2026-10-30: it sent a whole set from this browser's memory, which wiped quiet hours).
 window.openDmSettings = function() {
-  const key = 'hos_dm_notifications_muted';
-  const muted = localStorage.getItem(key) === '1';
-  localStorage.setItem(key, muted ? '0' : '1');
-  const msg = muted ? '🔔 DM notifications unmuted' : '🔕 DM notifications muted';
-  if (typeof addNotice === 'function') addNotice(msg, muted ? 'green' : 'orange', 4);
-  else if (typeof addSystemMessage === 'function') addSystemMessage(msg);
+  if (window.HosChatNotify) HosChatNotify.toggleDm();
 };
 
 // ── Key Bindings ──
@@ -103,17 +100,11 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-/** Check if a message content mentions the current user. */
-function isMentioned(content) {
-  if (!myName) return false;
-  const pattern = new RegExp('@' + myName.replace(/[-_]/g, '[-_]'), 'i');
-  return pattern.test(content);
-}
-
 // ── Notification Sounds ──
 let audioCtx = null;
 let soundEnabled = localStorage.getItem('humanity_sound_enabled') !== 'false';
-let selectedSound = localStorage.getItem('humanity_sound') || 'chime';
+// The synthesized chime, where a browser cannot play a notice's own sound (chat-notify.js playSound).
+const selectedSound = 'chime';
 
 // Loaded from /data/sounds/presets.json at startup. Empty until fetch resolves;
 // playNotificationChime() returns silently if the preset isn't loaded yet.
@@ -189,65 +180,73 @@ function closeIdentityMenuOutside(e) {
     document.removeEventListener('click', closeIdentityMenuOutside);
   }
 }
+// The sound menu keeps the switch; which sound each kind of notice plays is chosen in Settings >
+// Notifications > Sounds (notifications rung 3, the desktop's twin), from the same files the
+// desktop plays. The synthesized chime below stays as the sound where a browser cannot play one.
 function renderSoundOptions() {
   const container = document.getElementById('sound-options');
-  container.innerHTML = Object.entries(SOUND_PRESETS).map(([key, preset]) => {
-    const checked = key === selectedSound ? 'checked' : '';
-    return `<label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:var(--space-md);cursor:pointer;padding:var(--space-xs) 0;">
-      <input type="radio" name="sound-choice" value="${key}" ${checked} onchange="selectSound('${key}')" style="accent-color:var(--accent);">
-      ${esc(preset.label)}
-      <button onclick="event.preventDefault();previewSound('${key}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;padding:0 var(--space-sm);">▶</button>
-    </label>`;
-  }).join('');
+  const link = document.createElement('a');
+  link.href = '/settings#notifications';
+  link.style.cssText = 'font-size:0.75rem;color:var(--text-muted);';
+  link.setAttribute('data-i18n', 'notifications.sounds_web_note');
+  link.textContent = window.i18n ? window.i18n.t('notifications.sounds_web_note') : 'Settings';
+  if (window.i18n && window.i18n.hint) window.i18n.hint(link, 'notifications.sound_kind_hint');
+  container.replaceChildren(link);
   document.getElementById('sound-enabled').checked = soundEnabled;
-}
-function selectSound(key) {
-  selectedSound = key;
-  localStorage.setItem('humanity_sound', key);
-  playNotificationChime();
-}
-function previewSound(key) {
-  const prev = selectedSound;
-  selectedSound = key;
-  playNotificationChime();
-  selectedSound = prev;
 }
 function toggleSoundEnabled() {
   soundEnabled = document.getElementById('sound-enabled').checked;
   localStorage.setItem('humanity_sound_enabled', soundEnabled);
-  // Update bell icon.
-  document.getElementById('sound-toggle').textContent = soundEnabled ? '🔔' : '🔕';
+  // Update the speaker icon (a speaker, since the notices bell sits beside it: notifications rung 2).
+  document.getElementById('sound-toggle').textContent = soundEnabled ? '🔊' : '🔇';
 }
-// Set initial bell icon.
-document.getElementById('sound-toggle').textContent = soundEnabled ? '🔔' : '🔕';
+// Set the initial speaker icon.
+document.getElementById('sound-toggle').textContent = soundEnabled ? '🔊' : '🔇';
 
-function notifyNewMessage(author, content, isDm) {
-  const mentioned = isMentioned(content);
-
+// A live line or DM that may deserve a notice (2026-10-30, docs/design/notifications.md). The
+// title flashes for any line while the tab is behind; a sound or the browser's notice comes only
+// for a DM or an @mention, and only as THE rule allows (chat-notify.js, /shared/notify-rules.js,
+// the desktop's twin): the synced switches, quiet hours, a muted server, the conversation already
+// on screen. The notice says who it is from, never what was said, unless the person chose that in
+// Settings. `where`: {conversation: 'dm:<key>', from_friend} for a DM, {room: <channel id>,
+// reply_from} for a room line, and `kind` to name one outright (a contact request). A room line
+// is a mention when it names me, else a reply when it answers a line of mine (`reply_from`, the
+// replied-to line's author), else an ordinary line, which the rule lets through only in a room
+// set to every line (notifications rung 2). Whatever the rule lets through also goes in the
+// header bell's list (chat-notify.js).
+function notifyNewMessage(author, content, isDm, where) {
+  where = where || {};
   if (!windowFocused) {
     unreadCount++;
     startTitleFlash();
   }
-
-  // DM notifications can be muted via the DMs-section cog (DM settings).
-  const dmMuted = isDm && localStorage.getItem('hos_dm_notifications_muted') === '1';
-
-  // Always notify on @mention or DM, even if focused (unless DMs are muted).
-  if (!dmMuted && (mentioned || isDm || !windowFocused)) {
-    playNotificationChime();
+  if (!window.HosChatNotify || !window.HosNotifyRules) return;
+  let kind = where.kind || (isDm ? 'dm' : '');
+  if (!kind) {
+    if (HosNotifyRules.isMention(content, myName)) kind = 'mention';
+    else if (where.reply_from && where.reply_from === myKey) kind = 'reply';
+    else kind = 'room_line';
   }
-
-  // Browser notification (if permitted).
-  if (!dmMuted && Notification.permission === 'granted' && (!windowFocused || mentioned || isDm)) {
-    const prefix = isDm ? '💬 DM from ' : '';
-    const n = new Notification(prefix + author, {
-      body: content.substring(0, 100),
-      icon: '/favicon.png',
-      tag: isDm ? 'humanity-dm' : 'humanity-msg',
-    });
+  const room = isDm ? null : (where.room || activeChannel || null);
+  const conversation = isDm ? (where.conversation || 'dm:') : (room || '');
+  const onScreen = isDm
+    ? (!!activeDmPartner && conversation === 'dm:' + activeDmPartner)
+    : (!activeDmPartner && !activeGroupId && room === activeChannel);
+  const canShow = ('Notification' in window) && Notification.permission === 'granted';
+  const d = HosChatNotify.decide(
+    { kind: kind, from_me: !!where.from_me, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content, from_friend: !!where.from_friend },
+    { focused: windowFocused, on_screen: onScreen, desktop: canShow, sound: soundEnabled }
+  );
+  // The kind's own sound (rung 3: Settings > Notifications > Sounds), the chime where it cannot play.
+  if (d.sound) HosChatNotify.playSound(d.sound_id);
+  if (d.toast && canShow) {
+    const n = new Notification(d.title, { body: d.body, icon: '/favicon.png', tag: d.tag });
+    // A click brings the tab forward and opens the conversation, the way the bell's list does
+    // (rung 2, part 2; the desktop's twin is a click on its operating-system notice).
     n.onclick = () => {
       window.focus();
       n.close();
+      HosChatNotify.openEntry({ kind: kind, conversation: conversation, room: room, sender: author });
     };
   }
 }
@@ -368,7 +367,19 @@ handleMessage = function(msg) {
     localStorage.setItem('humanity_last_seen', String(msg.timestamp));
     // Notify if from someone else.
     if (msg.from !== myKey) {
-      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false);
+      const replyFrom = msg.reply_to && typeof msg.reply_to.from === 'string' ? msg.reply_to.from : null;
+      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false, { room: msg.channel, reply_from: replyFrom });
+    }
+  } else if (msg.type === 'federated_chat' && window.HosChatNotify) {
+    // A shared room's line from a linked server (notifications rung 2): live only, never one a
+    // link re-sent while catching up (older than FEDERATED_LIVE_MS), never from someone I
+    // blocked (`from_key`, the author's key the relay carries since 2026-10-22).
+    const fromKey = typeof msg.from_key === 'string' ? msg.from_key : '';
+    const fresh = Number(msg.timestamp) > 0 && Date.now() - Number(msg.timestamp) <= HosChatNotify.FEDERATED_LIVE_MS;
+    const blocked = fromKey && typeof isBlockedKey === 'function' && isBlockedKey(fromKey);
+    if (fresh && !blocked && msg.content && fromKey !== myKey) {
+      const who = (msg.from_name || '') + (msg.server_name ? ' (' + msg.server_name + ')' : '');
+      notifyNewMessage(who, msg.content, false, { room: msg.channel || activeChannel });
     }
   }
 };
@@ -2060,7 +2071,9 @@ var federatedRetryMs = 30000;
     const myRoleCh = (window.myPeerRole || '').toLowerCase();
 
     // Every channel renders as a normal row, mirrors native, where
-    // #announcements is just a read-only channel, not a separate widget.
+    // #announcements is just a read-only channel, not a separate widget, and
+    // #local is a row like the others (2026-11-02, docs/design/chat-channels.md
+    // section 5: the name above them folds the list, as on the desktop).
     // Property badges after the name match native's channel status icons
     // (src/gui/pages/chat.rs ~1027): eye = read-only, node-graph = federated,
     // both drawn in muted color.
@@ -2073,7 +2086,8 @@ var federatedRetryMs = 30000;
     const channelsHtml = rooms.shown.map(ch => {
       const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
       const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-      const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
+      // The read level's badge first (chat-access.md 6.1, app.js chatLevelBadgeHtml), then eye and node-graph.
+      const badges = chatLevelBadgeHtml(ch) + (HosChatAccess.staffOnly(ch) ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
       // Mic sits LEFT of the # (native order: mic, cog, #name). Clickable -
       // joins/leaves the REAL relay voice room for the channel. "joined" reflects
       // the actual mesh connection (_currentRoomId), not the old dead per-channel
@@ -2096,7 +2110,10 @@ var federatedRetryMs = 30000;
       // .srv-chan suppresses the auto "# " ::before so the mic can sit before the
       // hash; the hash is rendered as part of the label instead. .in-voice marks
       // the channel whose voice you are currently connected to.
-      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}${voiceJoined ? ' in-voice' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}</div>${vpHtml}`;
+      // The room's bell (notifications rung 2, chat-notify.js): Mute room and its level, as the
+      // desktop's right-click; a right-click on the row opens the same menu.
+      const roomBell = window.HosChatNotify ? HosChatNotify.roomBellHtml(ch.id) : '';
+      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}${voiceJoined ? ' in-voice' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}${roomBell}</div>${vpHtml}`;
     }).join('');
 
     // Text channel create button (admin/mod only)
@@ -2115,9 +2132,10 @@ var federatedRetryMs = 30000;
     // which renders it above DMs/Groups/Servers. No longer nested here.
 
     let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
-      <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
+      <div class="server-group-header" data-server-toggle="Humanity" data-i18n-tip="chat.server_row_hint" data-tip-desc="${esc(window.i18n ? i18n.t('chat.server_row_hint') : '')}" style="font-weight:bold;">
         <span class="collapse-arrow">▼</span>
         <span class="srv-name">🟢 ${esc(location.host || 'united-humanity.us')}</span>
+        ${window.HosChatNotify ? HosChatNotify.bellHtml() : ''}
       </div>
       <div class="server-group-channels">${channelsHtml}${roomsHiddenHtml}${createChannelBtn}</div>
     </div>`;
@@ -2174,7 +2192,7 @@ var federatedRetryMs = 30000;
     if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(cmd, 'The server was not added.')) return;
     // Send the command as a chat message (the server intercepts slash commands).
     if (ws && ws.readyState === WebSocket.OPEN) {
-      const msg = { type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'general' };
+      const msg = { type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'global' };
       ws.send(JSON.stringify(msg));
     }
     // Refresh after a delay to pick up the new server.
@@ -2274,8 +2292,8 @@ var federatedRetryMs = 30000;
             const cmd = '/channel-create ' + normalized;
             if (!beginChannelAdminCmd('create')) return;
             addSystemMessage('⏳ Creating #' + normalized + ' ...');
-            // Route admin channel-management commands through #general for consistent server handling.
-            sendChatCommand(cmd, 'general').then(ok => { if (!ok) failChannelAdminCmd('Create command failed to send.'); }).catch(console.error);
+            // Route admin channel-management commands through #global for consistent server handling.
+            sendChatCommand(cmd, 'global').then(ok => { if (!ok) failChannelAdminCmd('Create command failed to send.'); }).catch(console.error);
           }
         }
       }
@@ -2375,7 +2393,7 @@ const _origHandleMessage2 = handleMessage;
 handleMessage = function(msg) {
   // Intercept chat messages for other channels BEFORE the original handler skips them.
   if (msg.type === 'chat') {
-    const msgChannel = msg.channel || 'general';
+    const msgChannel = msg.channel || 'global';
     if (msgChannel !== activeChannel) {
       markUnread(msgChannel);
     }

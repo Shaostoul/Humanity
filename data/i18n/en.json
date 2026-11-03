@@ -134,7 +134,12 @@
     "access_cannot_post_here": "You cannot post in this channel: the line above says who can.",
     "line_not_sent_mass_mention": "Not sent: @everyone and @here are for this server's moderators and admins.",
     "badge_hint": "Who can read: {{read}}. Who can post: {{post}}.",
-    "badge_label": "Who can read and post in this channel"
+    "badge_label": "Who can read and post in this channel",
+    "channel_desc_announcements": "Project updates and news",
+    "channel_desc_local": "This server only. Never bridged to other servers.",
+    "channel_desc_global": "Talk with everyone, on this server and on every server linked to it.",
+    "channel_desc_feedback": "Tell the people building HumanityOS what works, what does not, and what you would like next. Anyone can read it, on every linked server.",
+    "server_row_hint": "Shows or hides this server's channels."
   },
   "settings": {
     "language": "Language",

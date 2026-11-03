@@ -151,7 +151,7 @@ fn a_post_is_looked_up_and_a_group_message_is_kept_unproven() {
         st.db
             .with_conn(|c| {
                 c.execute(
-                    "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id) VALUES ('chat', ?1, 'X', ?2, ?3, '{}', 'general')",
+                    "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id) VALUES ('chat', ?1, 'X', ?2, ?3, '{}', 'global')",
                     rusqlite::params![from, text, ts],
                 )
             })
@@ -167,7 +167,7 @@ fn a_post_is_looked_up_and_a_group_message_is_kept_unproven() {
     let id = received(&all, &rae.key).expect("received");
     let items = kept_items(&st, id);
     assert_eq!((items[0]["checked"].as_bool(), items[0]["text"].as_str()), (Some(true), Some("what the server has")), "the server's text is kept with the post");
-    assert_eq!(items[0]["channel"], "general");
+    assert_eq!(items[0]["channel"], "global");
     assert_eq!((items[1]["checked"].as_bool(), items[1].get("text")), (Some(false), None), "a post the server does not have");
     assert_eq!((items[2]["checked"].as_bool(), items[2].get("text")), (Some(false), None), "someone else's post is not looked up");
     assert_eq!((items[3]["kind"].as_str(), items[3]["checked"].as_bool(), items[3]["text"].as_str()), (Some("group_text"), Some(false), Some("said in the group")));
@@ -468,7 +468,7 @@ fn warn_delete_post_and_dismiss() {
     st.db
         .with_conn(|c| {
             c.execute(
-                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id) VALUES ('chat', ?1, 'Tom', 'a cruel post', 42, '{}', 'general')",
+                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id) VALUES ('chat', ?1, 'Tom', 'a cruel post', 42, '{}', 'global')",
                 rusqlite::params![tom.key],
             )
         })

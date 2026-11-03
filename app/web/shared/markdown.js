@@ -23,6 +23,17 @@
 
   function inlineMarkdown(text) {
     let s = escapeHtml(text);
+    // Inline code is set aside FIRST and put back last: what is between
+    // backticks is shown exactly as written, never bolded, italicised or
+    // linked. Until 2026-10-30 code ran after emphasis, so `__game__` showed
+    // as a bold "game" inside the code box and `window.__TAURI__` lost its
+    // underscores; the native reader (src/gui/widgets/markdown.rs) always
+    // showed them as written. Guarded by scripts/check-library-render.js.
+    const codes = [];
+    s = s.replace(/`([^`]+)`/g, function (_m, c) {
+      codes.push(c);
+      return '\u0000' + (codes.length - 1) + '\u0000';
+    });
     // Bold.
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     // An underscore INSIDE a word never opens or closes emphasis. This is the
@@ -39,10 +50,12 @@
     s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
     s = s.replace(/(^|[^A-Za-z0-9_])_([^_\s](?:[^_]*[^_\s])?)_(?![A-Za-z0-9_])/g,
       '$1<em>$2</em>');
-    // Inline code.
-    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
     // Links.
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Inline code, back in place, untouched by the rules above.
+    s = s.replace(/\u0000(\d+)\u0000/g, function (_m, i) {
+      return '<code>' + codes[Number(i)] + '</code>';
+    });
     return s;
   }
 

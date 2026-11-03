@@ -178,7 +178,7 @@ mod tests {
     fn room_state(server: &str) -> GuiState {
         let mut gs = GuiState::default();
         gs.server_url = server.to_string();
-        gs.chat_active_channel = "general".to_string();
+        gs.chat_active_channel = "global".to_string();
         gs.profile_public_key = "me".to_string();
         gs
     }

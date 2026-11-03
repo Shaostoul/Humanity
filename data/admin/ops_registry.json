@@ -189,7 +189,7 @@
     },
     {
       "name": "Delete a channel",
-      "what": "Removes a channel (the general channel is protected). Quirk: the code allows moderators, though /help lists it as admin-only (src/relay/relay.rs:3895-3897 vs 3782).",
+      "what": "Removes a channel (the global channel is protected). Quirk: the code allows moderators, though /help lists it as admin-only (src/relay/relay.rs:3895-3897 vs 3782).",
       "where": "native-app",
       "audience": "moderator",
       "how": "Server Settings > ADMIN > Channels grid > per-row Delete (channel_delete WS message) (src/gui/pages/server_settings.rs:1466-1691).",
@@ -300,7 +300,7 @@
     },
     {
       "name": "Federate a channel, or stop",
-      "what": "Chooses which channels travel to peer servers (today united-humanity.us and public.guide federate #general and #announcements). The guaranteed local-only room never federates while that setting is on.",
+      "what": "Chooses which channels travel to peer servers (today united-humanity.us and public.guide federate #global and #announcements). The guaranteed local-only room never federates while that setting is on.",
       "where": "native-app",
       "audience": "any-admin",
       "how": "Server Settings > ADMIN > Federation (src/gui/pages/server_settings/federation.rs; on the website, the admin page's Federation panel, web/pages/admin-console.js), through the signed action registry POST /api/admin/actions/run (src/relay/admin/federation.rs): federation.channel, the \"Channels that travel to peers\" boxes.",

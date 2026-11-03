@@ -171,7 +171,7 @@ fn merge_history_into(conn: &mut crate::gui::ServerConnection, body: &str, my_ke
         let channel = msg
             .get("channel")
             .and_then(|v| v.as_str())
-            .unwrap_or("general")
+            .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
             .to_string();
         if content.is_empty() {
             continue;
@@ -266,7 +266,7 @@ fn dial_missing_saved_servers(state: &mut EngineState) {
             )),
             status: "Connecting...".to_string(),
             reconnect_delay: 5.0,
-            active_channel: "general".to_string(),
+            active_channel: humanity_protocol::chat_access::MAIN_CHANNEL.to_string(),
             ..Default::default()
         });
     }
@@ -283,7 +283,7 @@ pub(crate) fn erased_link(gui: &crate::gui::GuiState, url: &str) -> Option<crate
         status: "Disconnected".to_string(),
         manually_disconnected: true,
         reconnect_delay: 5.0,
-        active_channel: "general".to_string(),
+        active_channel: humanity_protocol::chat_access::MAIN_CHANNEL.to_string(),
         ..Default::default()
     })
 }
@@ -619,7 +619,7 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                     .get("id")
                     .or_else(|| ch.get("name"))
                     .and_then(|v| v.as_str())
-                    .unwrap_or("general")
+                    .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
                     .to_string();
                 conn.channels.push(crate::gui::ChatChannel {
                     name: ch.get("name").and_then(|v| v.as_str()).unwrap_or(&id).to_string(),
@@ -674,7 +674,7 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             let channel = val
                 .get("channel")
                 .and_then(|v| v.as_str())
-                .unwrap_or("general")
+                .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
                 .to_string();
             // Someone we blocked (step C): no unread dot, and nothing kept to draw.
             if content.is_empty() || crate::engine::block::is_blocked(&state.gui_state, &sender_key) {
@@ -934,13 +934,13 @@ mod tests {
         // The exact serialization /api/messages returns: RelayMessage rows,
         // chat + federated_chat mixed.
         let body = r#"{"messages":[
-            {"type":"chat","from":"k1","from_name":"Alice","content":"hello","timestamp":1000,"channel":"general"},
-            {"type":"chat","from":"k2","from_name":"Bela","content":"hey","timestamp":1500,"channel":"general"},
-            {"type":"federated_chat","server_id":"deadbeef","server_name":"peer","from_name":"Cyra","content":"hi from afar","timestamp":2000,"channel":"general"}
+            {"type":"chat","from":"k1","from_name":"Alice","content":"hello","timestamp":1000,"channel":"global"},
+            {"type":"chat","from":"k2","from_name":"Bela","content":"hey","timestamp":1500,"channel":"global"},
+            {"type":"federated_chat","server_id":"deadbeef","server_name":"peer","from_name":"Cyra","content":"hi from afar","timestamp":2000,"channel":"global"}
         ],"cursor":3}"#;
         super::merge_history_into(&mut conn, body, "");
         assert_eq!(conn.messages.len(), 3, "all rows land in the carrier buffer");
-        assert!(conn.messages.iter().all(|m| m.channel == "general"));
+        assert!(conn.messages.iter().all(|m| m.channel == "global"));
         assert_eq!(conn.messages[2].origin_server, "deadbeef");
         assert_eq!(conn.messages[2].sender_name, "Cyra (peer)");
         // Re-merging the same body is idempotent (dedup holds).
