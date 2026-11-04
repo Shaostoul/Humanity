@@ -273,3 +273,7 @@ of the key).
 5. **Hide your presence from one person?** It needs presence sent to friends in sealed notes
    instead of by the server's member list (section 2). Recommendation: a later design, after
    federation's presence work.
+
+### 8.1 His answers (2026-11-03)
+
+To questions 2, 3 and 5, as put to him ("Should open without asking up to N MB also apply to big files sent straight from their device? No: those land on your disk directly.", "Should Nothing also hide the ringing screen? No: untick their Call instead.", "Should hiding your online status from one person get its own design later? Yes, because the server would have to know who you are hiding from."): "Your recommendations sound good." So: big files sent device to device always ask, whatever the size limit; Nothing is about notices and never hides a ringing call; hiding presence from one person waits for its own design. Questions 1 and 4 keep their recommendations until he says otherwise.
