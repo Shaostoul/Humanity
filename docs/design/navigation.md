@@ -1030,3 +1030,5 @@ on this computer" (the HumanityOS folder, Your folders; desktop only), green "Wh
 files, Admin), in the launcher's own tokens; the page still opens on Shared on <server>. The
 mock-up picture itself (`nav_double_tv_hover.png`) was deleted with the mock-up in rung 2, still
 drawing the old order (it is in git at 57fde1c95); the Files page's own snapshots draw the new.
+
+**2026-11-04, the own-life category's name: "Let's with life."** So "Life" (`nav.own_life`, already the working name since rung 2) is decided. Rung 7 gives Life its own small overview page (your day, tasks, money) so its button opens a page named Life, with the homestead page in its row.
