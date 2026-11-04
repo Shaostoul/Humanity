@@ -160,8 +160,6 @@ pub(crate) fn group_count(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
     if resp.clicked() {
-        state.settings.category = crate::gui::SettingsCategory::Safety;
-        state.settings.scroll_to_section = Some(crate::gui::SettingsCategory::Safety);
-        state.push_nav_to(crate::gui::GuiPage::Settings);
+        state.go_to(crate::gui::history::Place::settings(crate::gui::SettingsCategory::Safety), crate::gui::How::From);
     }
 }

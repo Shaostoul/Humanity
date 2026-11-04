@@ -49,11 +49,6 @@ struct LibState {
     /// every document is already loaded, so unlike web there is no index to
     /// fetch and no cost to searching.
     search: String,
-    /// Where the reader came from, so following a cross-reference is
-    /// reversible. Pushed on every link jump, popped by Back. Without it a
-    /// document that sends you somewhere else is a one-way trip, which is the
-    /// thing that makes people avoid following links at all.
-    back: Vec<Sel>,
     /// A heading slug to scroll to on the next frame, then cleared. Set by the
     /// Contents outline and by opening a search hit. One frame only: holding it
     /// would fight the reader every time they scrolled away.
@@ -120,6 +115,38 @@ pub fn shown_doc(state: &GuiState) -> Option<String> {
     })
 }
 
+/// The place the reader shows, for the app's history (gui/history.rs): the open document's slug,
+/// or `curriculum` or `dictionary` (the website's `/library#<id>`); None before the first frame
+/// has picked one. Since navigation rung 4 (2026-11-04) the reader's own Back list is gone: every
+/// document opened (a link followed, a rail entry, Next) is a step of the app's history, so the
+/// mouse's back button, Alt+Left, the top menu's Back and the reader's Back all walk one list.
+pub fn shown_place(state: &GuiState) -> Option<String> {
+    let view = lib_state(|s| match s.sel {
+        _ if !s.initialized => Some(None),
+        Sel::Curriculum => Some(Some("curriculum".to_string())),
+        Sel::Dictionary => Some(Some("dictionary".to_string())),
+        Sel::Doc(..) => None,
+    });
+    match view {
+        Some(v) => v,
+        None => shown_doc(state),
+    }
+}
+
+/// Open a place [`shown_place`] named (Back and Forward).
+pub fn show_place(state: &GuiState, id: &str) {
+    match id {
+        "curriculum" => show_curriculum(),
+        "dictionary" => lib_state(|s| {
+            s.sel = Sel::Dictionary;
+            s.initialized = true;
+        }),
+        slug => {
+            show_doc(state, slug);
+        }
+    }
+}
+
 /// Open the Curriculum view.
 ///
 /// Exists because two callers need to reach it without a click: the
@@ -144,7 +171,6 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             dict_cat: None,
             define_mode: false,
             define_popup: None,
-            back: Vec::new(),
             search: String::new(),
             scroll_to: None,
             cur_filter: String::new(),
@@ -160,6 +186,13 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // The reader's Back is the app's (gui/history.rs): shown while the step before is a Library
+    // place, counting the Library places in a row behind this one.
+    let behind = {
+        let places: Vec<_> = state.history.places().take(state.history.position()).collect();
+        places.iter().rev().take_while(|p| p.page == crate::gui::GuiPage::Library).count()
+    };
+    let mut want_back = false;
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
@@ -363,11 +396,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                             if let Some((next, anchor)) = picked {
                                 lib_state(|s| {
-                                    let prev = s.sel.clone();
-                                    if prev != next {
-                                        s.back.push(prev);
-                                        s.sel = next;
-                                    }
+                                    s.sel = next;
                                     s.scroll_to = anchor;
                                 });
                             }
@@ -600,14 +629,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.horizontal(|ui| {
                                 // Back first, so following a cross-reference is
                                 // visibly reversible. Only shown when there is
-                                // somewhere to go, rather than a dead control.
-                                if !s.back.is_empty() {
-                                    let n = s.back.len();
-                                    let label = if n == 1 { "Back".to_string() } else { format!("Back ({n})") };
-                                    if crate::gui::widgets::Button::secondary(&label).show(ui, theme) {
-                                        if let Some(prev) = s.back.pop() {
-                                            s.sel = prev;
-                                        }
+                                // somewhere to go in the Library, rather than a dead
+                                // control; it is the app's Back (gui/history.rs).
+                                if behind > 0 {
+                                    let label = if behind == 1 {
+                                        humanity_core::i18n::t("nav.back").to_string()
+                                    } else {
+                                        humanity_core::i18n::tf("library.back_count", &[("count", &behind.to_string())])
+                                    };
+                                    if crate::gui::widgets::Button::secondary(&label).hint("library.back_hint").show(ui, theme) {
+                                        want_back = true;
                                     }
                                 }
                                 let label = if s.define_mode {
@@ -767,8 +798,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                     }
                                                 });
                                                 if let Some(next) = go {
-                                                    let prev = s.sel.clone();
-                                                    s.back.push(prev);
                                                     s.sel = next;
                                                 }
                                             }
@@ -1082,23 +1111,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // documents, so a document can send a reader to the map or
                     // to the words without either becoming a fake .md file.
                     if slug == "curriculum" {
-                        lib_state(|s| {
-                            let prev = s.sel.clone();
-                            if prev != Sel::Curriculum {
-                                s.back.push(prev);
-                                s.sel = Sel::Curriculum;
-                            }
-                        });
+                        lib_state(|s| s.sel = Sel::Curriculum);
                         return;
                     }
                     if slug == "dictionary" {
-                        lib_state(|s| {
-                            let prev = s.sel.clone();
-                            if prev != Sel::Dictionary {
-                                s.back.push(prev);
-                                s.sel = Sel::Dictionary;
-                            }
-                        });
+                        lib_state(|s| s.sel = Sel::Dictionary);
                         return;
                     }
                     let found = state.library.iter().enumerate().find_map(|(si, sec)| {
@@ -1110,11 +1127,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                     if let Some(next) = found {
                         lib_state(|s| {
-                            let prev = s.sel.clone();
-                            if prev != next {
-                                s.back.push(prev);
-                                s.sel = next;
-                            }
+                            s.sel = next;
                             if anchor.is_some() {
                                 s.scroll_to = anchor;
                             }
@@ -1123,6 +1136,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
             }
         });
+    if want_back {
+        state.back();
+    }
 }
 
 /// A clickable tag-filter chip. Returns true when clicked this frame.

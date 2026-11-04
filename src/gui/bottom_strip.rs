@@ -264,7 +264,7 @@ fn open_details(ctx: &egui::Context, state: &mut GuiState) {
         // Only when data/library/ is missing the page; the test below keeps the slug shipped.
         log::warn!("bottom strip: the Library has no {DETAILS_SLUG:?} document; opening the Library as it is");
     }
-    state.push_nav_to(GuiPage::Library);
+    state.go(GuiPage::Library, crate::gui::How::From);
 }
 
 #[cfg(test)]
@@ -425,7 +425,7 @@ mod tests {
         let ctx = egui::Context::default();
         open_details(&ctx, &mut state);
         assert_eq!(state.active_page, GuiPage::MainMenu, "the setup is still what shows");
-        assert!(state.nav_back_stack.is_empty(), "and nothing was pushed to come back to");
+        assert!(state.history.is_empty(), "and nothing was made a step to come back to");
         assert!(details_window_open(&ctx), "the document opened in a window over the setup");
         // Drawn headless: the window shows the document's own words, then Close shuts it.
         let theme = crate::gui::theme::load_theme();

@@ -499,7 +499,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         state.chat_input =
                                             tf("market.message_prefill", &[("title", &listing.title)]);
                                     }
-                                    state.active_page = crate::gui::GuiPage::Chat;
+                                    state.go(crate::gui::GuiPage::Chat, crate::gui::How::Beside);
                                 }
                             });
                             let hint = if listing.seller_key == my_key {

@@ -126,9 +126,9 @@ pub(super) fn draw_live_strip(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                     state.studio.broadcast_request = Some(true);
                 }
 
-                // push_nav_to so Esc on the Studio page returns to Chat.
+                // How::From, so Escape on the Studio page returns to Chat.
                 if widgets::Button::secondary("Open Studio").show(ui, theme) {
-                    state.push_nav_to(crate::gui::GuiPage::Studio);
+                    state.go(crate::gui::GuiPage::Studio, crate::gui::How::From);
                 }
 
                 // Honest status, mirrored from the real publisher.
@@ -167,7 +167,7 @@ pub(super) fn draw_live_strip(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                         );
                         if widgets::Button::secondary("Watch").show(ui, theme) {
                             crate::gui::pages::watch::start_watching(state, &id);
-                            state.push_nav_to(crate::gui::GuiPage::Watch);
+                            state.go(crate::gui::GuiPage::Watch, crate::gui::How::From);
                         }
                     });
                 }

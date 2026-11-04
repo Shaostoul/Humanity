@@ -242,7 +242,7 @@ pub fn draw(ui: &mut Ui, theme: &Theme, state: &mut GuiState, lib: &Library) {
         }
         if let Some(slug) = open_doc {
             if crate::gui::pages::library::show_doc(state, &slug) {
-                state.push_nav_to(crate::gui::GuiPage::Library);
+                state.go(crate::gui::GuiPage::Library, crate::gui::How::From);
             }
         }
     }

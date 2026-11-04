@@ -1757,12 +1757,14 @@ mod native_app {
             //     (and mark the tour seen — the dashboard IS the orientation now)
             //   - onboarding_complete && concept_tour_seen: user's chosen boot page
             if gui_state.onboarding_complete {
-                gui_state.active_page = if gui_state.concept_tour_seen {
+                let first = if gui_state.concept_tour_seen {
                     gui_state.default_page
                 } else {
                     gui_state.concept_tour_seen = true;
                     GuiPage::Humanity
                 };
+                // The first screen is a place the app opens by itself (gui/history.rs).
+                gui_state.go(first, crate::gui::How::Replace);
             }
 
             self.state = Some(EngineState {
@@ -2475,18 +2477,13 @@ mod native_app {
                             state.gui_state.pending_clipboard_paste = true;
                         }
 
-                        // Escape behavior (v0.195.0):
-                        //   1. If the nav back-stack has entries, pop one
-                        //      — this is "go back" inside a nested page
-                        //      flow (Chat → cog → ServerSettings → Esc
-                        //      should return to Chat, not jump to FPS).
-                        //   2. If we're on a non-None page and the stack
-                        //      is empty, save the page as last_page and
-                        //      go to None (FPS mode). Same as before.
-                        //   3. If we're already on None, reopen last_page.
-                        //      Same as before.
-                        //   4. MainMenu always stays put — operator can't
-                        //      Esc out of the title screen.
+                        // Escape behavior (docs/design/navigation.md section 10.4, the rules
+                        // in gui/history.rs `GuiState::escape`): the nearest thing open closes
+                        // first (here: the help panel, the menu's preview, a popup); then a page
+                        // opened FROM inside another goes back to it (Chat → cog →
+                        // ServerSettings → Esc returns to Chat, v0.195.0); a page reached from
+                        // the menu goes into the world; the world brings back the page left; the
+                        // title screen stays put.
                         // Esc closes the pinned help panel FIRST (v0.1212). It is the
                         // topmost thing on screen, so dismissing it is what Esc means
                         // while it is up; everything below (showroom cancel, nav back,
@@ -2499,7 +2496,8 @@ mod native_app {
                         // 10.4 rule 1): the second row goes back to the page's own row at once.
                         if key == KeyCode::Escape && pressed
                             && !matches!(state.gui_state.active_page, GuiPage::None | GuiPage::MainMenu)
-                            && crate::gui::pages::escape_menu::end_preview(&state.egui_ctx)
+                            && (crate::gui::pages::escape_menu::end_preview(&state.egui_ctx)
+                                || crate::gui::history::close_popup(&state.egui_ctx))
                         {
                             return;
                         }
@@ -2529,29 +2527,15 @@ mod native_app {
                                 state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
                                 state.camera.position = state.showroom_return_pos;
                                 if was_picker {
-                                    state.gui_state.active_page = state.gui_state.last_page;
+                                    state.gui_state.leave_world();
                                 }
                                 return;
                             }
 
-                            let old_page = state.gui_state.active_page;
-
-                            if state.gui_state.pop_nav_back() {
-                                // Did the back-pop. active_page is now the previous nested page.
-                            } else {
-                                state.gui_state.active_page = match old_page {
-                                    GuiPage::None => state.gui_state.last_page,
-                                    GuiPage::MainMenu => GuiPage::MainMenu,
-                                    other => {
-                                        state.gui_state.last_page = other;
-                                        GuiPage::None
-                                    }
-                                };
-                            }
+                            state.gui_state.escape();
                             // Cursor grab is handled by the single per-frame reconciliation
                             // (keys off active_page/showroom/construction). Manipulating it
                             // here too desynced `cursor_free` and broke later panels. (v0.460)
-                            let _ = old_page;
                             return;
                         }
 
@@ -2616,7 +2600,7 @@ mod native_app {
                         if state.gui_state.keybinds.is(GA::Inventory, &key_name) && pressed
                             && state.gui_state.active_page == GuiPage::None
                         {
-                            state.gui_state.active_page = GuiPage::Inventory;
+                            state.gui_state.go(GuiPage::Inventory, crate::gui::How::Beside);
                             // Cursor freed by the per-frame reconciliation (active_page != None).
                             return;
                         }
@@ -5396,7 +5380,7 @@ mod native_app {
                         // Watching, not walking: close the page so the world shows. In the shared
                         // world the body stays here, and so does what we report (engine/move_check.rs
                         // `body_position`, ship homes increment 4).
-                        state.gui_state.active_page = GuiPage::None;
+                        state.gui_state.enter_world();
                         if state.game_joined && state.moves.follow_body.is_none() {
                             state.moves.follow_body = Some(state.camera.position);
                         }
@@ -7327,7 +7311,7 @@ mod native_app {
                         state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
                         state.camera.position = state.showroom_return_pos;
                         if was_picker {
-                            state.gui_state.active_page = state.gui_state.last_page;
+                            state.gui_state.leave_world();
                         }
                     }
                     // Enter: commit the WHO/WHERE pairing. Persist appearance + emerge
@@ -14347,7 +14331,7 @@ mod native_app {
                         // the last pairing, so the picker always opens on rows that
                         // still exist (showroom::load_homes -> preselect).
                         state.gui_state.launcher_homes_loaded = false;
-                        state.gui_state.active_page = GuiPage::None;
+                        state.gui_state.enter_world();
                         open_showroom(state, 0); // mode 0 = the Play picker
                     }
 
@@ -15004,12 +14988,16 @@ mod native_app {
                                 // out onto the Profile page. Play was unusable. A page draw may
                                 // not steer the app; this line is the one place that may.
                                 if state.gui_state.active_page == GuiPage::Profile {
-                                    state.gui_state.active_page = GuiPage::Real;
+                                    state.gui_state.go(GuiPage::Real, crate::gui::How::Replace);
                                 }
                                 // Files dropped on the window this frame, held for whichever page or
                                 // window takes them (gui/drop_files.rs; routed at the frame's end).
                                 crate::gui::drop_files::begin_frame(ctx);
                                 crate::gui::pages::files::offer_drop_anywhere(ctx, &state.gui_state);
+                                // Back and Forward (gui/history.rs): the step a page moved to, the
+                                // mouse's side buttons and Alt+arrows. On pages only: in the world
+                                // the side buttons are the game's (unbound).
+                                crate::gui::history::frame(ctx, &mut state.gui_state);
                                 // Show RGB nav bar on all pages except None and MainMenu
                                 match state.gui_state.active_page {
                                     GuiPage::None | GuiPage::MainMenu => {}

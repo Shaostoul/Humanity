@@ -388,7 +388,7 @@ fn apply(ctx: &egui::Context, state: &mut GuiState, act: Act) {
         Act::InstallFromTile(i) => programs::install_from_tile(state, i),
         Act::Agree(i) => programs::agree(state, i),
         Act::CancelInstall => programs::cancel_install(state),
-        Act::OpenPage(page) => state.push_nav_to(page),
+        Act::OpenPage(page) => state.go(page, crate::gui::How::From),
         Act::View(view) => keep_view(state, view),
         Act::Store(store) => state.apps.games.store = store,
         Act::Add => games::open_picker(state),

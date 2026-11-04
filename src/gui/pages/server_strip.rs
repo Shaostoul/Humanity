@@ -334,7 +334,7 @@ fn draw_list(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, here: &st
                 }
                 ui.separator();
                 if widgets::Button::ghost(MANAGE).size(widgets::ButtonSize::Small).tooltip(MANAGE_HINT).show(ui, theme) {
-                    state.push_nav_to(GuiPage::Chat);
+                    state.go(GuiPage::Chat, crate::gui::How::From);
                     keep_open = false;
                 }
             });

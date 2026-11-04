@@ -856,7 +856,7 @@ fn draw_step_ready(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 pub(crate) fn skip_setup(state: &mut GuiState) {
     state.onboarding_complete = true;
     state.start_at_home_alone();
-    state.active_page = GuiPage::None;
+    state.enter_world();
 }
 
 /// The server step's "Skip (stay offline)": the player chose not to use the server, so a
@@ -883,10 +883,10 @@ pub(crate) fn finish_onboarding(state: &mut GuiState) {
         state.first_minutes.start();
     }
     if state.server_connected {
-        state.active_page = GuiPage::Chat;
+        state.go(GuiPage::Chat, crate::gui::How::Beside);
     } else {
         state.start_at_home_alone();
-        state.active_page = GuiPage::None; // Enter the 3D world
+        state.enter_world(); // Enter the 3D world
     }
 }
 
@@ -923,15 +923,15 @@ fn draw_hub(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(24.0);
 
                 if widgets::primary_button(ui, theme, "  Enter World  ") {
-                    state.active_page = GuiPage::None;
+                    state.enter_world();
                 }
                 ui.add_space(6.0);
                 if widgets::secondary_button(ui, theme, "  Chat  ") {
-                    state.active_page = GuiPage::Chat;
+                    state.go(GuiPage::Chat, crate::gui::How::Beside);
                 }
                 ui.add_space(6.0);
                 if widgets::secondary_button(ui, theme, "  Settings  ") {
-                    state.active_page = GuiPage::Settings;
+                    state.go(GuiPage::Settings, crate::gui::How::Beside);
                 }
                 ui.add_space(6.0);
                 if widgets::danger_button(ui, theme, "  Quit  ") {

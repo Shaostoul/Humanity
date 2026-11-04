@@ -304,7 +304,7 @@ fn play_tap_opens_its_page_a_hold_enters_and_its_button_enters() {
     r.wait(0.4);
     assert_eq!(r.state.active_page, GuiPage::None, "a hold of 800 ms goes into the world");
     assert!(r.state.launcher_open_select, "with no game played yet, through the character picker");
-    assert_eq!(r.state.last_page, GuiPage::Chat, "Escape in the world returns to the page left");
+    assert_eq!(r.state.history.current().map(|p| p.page), Some(GuiPage::Chat), "Escape in the world returns to the page left");
     r.press(play, false);
     r.frame(Vec::new());
     assert_eq!(r.state.active_page, GuiPage::None, "letting go after the hold opens nothing more");

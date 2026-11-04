@@ -174,18 +174,18 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 // Quests is its own top-level page now (not a Real-tab section);
                 // the old `active_real_section = "quests"` was an unknown id that
                 // silently fell through to Profile > Body & Measurements (v0.699 fix).
-                state.active_page = crate::gui::GuiPage::Quests;
+                state.go(crate::gui::GuiPage::Quests, crate::gui::How::Beside);
             }
             // Laws, Donate and Governance are pages of their own since navigation rung 2 (the
             // Humanity row); opened from here, so Escape comes back.
             if widgets::Button::secondary(t("humanity.see_laws")).hint("humanity.see_laws_hint").show(ui, theme) {
-                state.push_nav_to(crate::gui::GuiPage::Laws);
+                state.go(crate::gui::GuiPage::Laws, crate::gui::How::From);
             }
             if widgets::Button::secondary(t("humanity.fund_work")).hint("humanity.fund_work_hint").show(ui, theme) {
-                state.push_nav_to(crate::gui::GuiPage::Donate);
+                state.go(crate::gui::GuiPage::Donate, crate::gui::How::From);
             }
             if widgets::Button::secondary(t("humanity.shape_rules")).hint("humanity.shape_rules_hint").show(ui, theme) {
-                state.push_nav_to(crate::gui::GuiPage::Governance);
+                state.go(crate::gui::GuiPage::Governance, crate::gui::How::From);
             }
         });
     });
@@ -410,13 +410,13 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 // Quests is its own top-level page now (not a Real-tab section);
                 // the old `active_real_section = "quests"` was an unknown id that
                 // silently fell through to Profile > Body & Measurements (v0.699 fix).
-                state.active_page = crate::gui::GuiPage::Quests;
+                state.go(crate::gui::GuiPage::Quests, crate::gui::How::Beside);
             }
             if widgets::Button::secondary(t("humanity.fund_work")).hint("humanity.fund_work_hint").show(ui, theme) {
-                state.push_nav_to(crate::gui::GuiPage::Donate);
+                state.go(crate::gui::GuiPage::Donate, crate::gui::How::From);
             }
             if widgets::Button::secondary(t("humanity.shape_rules")).hint("humanity.shape_rules_hint").show(ui, theme) {
-                state.push_nav_to(crate::gui::GuiPage::Governance);
+                state.go(crate::gui::GuiPage::Governance, crate::gui::How::From);
             }
         });
     });

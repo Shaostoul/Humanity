@@ -2788,7 +2788,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
         // Hand off to the full Chat page: close the panel (keeping the typed
         // text, same as click-away) and navigate. The per-frame cursor
         // reconciliation in lib.rs handles the page-mode cursor.
-        state.active_page = crate::gui::GuiPage::Chat;
+        state.go(crate::gui::GuiPage::Chat, crate::gui::How::Beside);
         state.chat_input_active = false;
         state.chat_input_focus_pending = false;
     }

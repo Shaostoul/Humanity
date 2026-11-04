@@ -142,17 +142,22 @@ pub fn step_done(state: &GuiState, step: &Step) -> bool {
 
 /// Go where a step points ("Take me there").
 fn go(state: &mut GuiState, place: &Place) {
-    if let Some(section) = place.settings.as_deref() {
-        state.settings.category = match section {
-            "appearance" => SettingsCategory::Appearance,
-            "privacy" => SettingsCategory::Privacy,
-            _ => SettingsCategory::Account,
-        };
-        state.settings.scroll_to_section = Some(state.settings.category);
+    let section = place.settings.as_deref().map(|section| match section {
+        "appearance" => SettingsCategory::Appearance,
+        "privacy" => SettingsCategory::Privacy,
+        _ => SettingsCategory::Account,
+    });
+    if let Some(c) = section {
+        state.settings.category = c;
+        state.settings.scroll_to_section = Some(c);
     }
     if let Some(page) = place.page.as_deref() {
         if let Some(p) = crate::gui::dispatch::page_from_id(page) {
-            state.active_page = p;
+            // A Settings section is a step of its own (gui/history.rs).
+            match section {
+                Some(c) if p == crate::gui::GuiPage::Settings => state.go_to(crate::gui::history::Place::settings(c), crate::gui::How::Beside),
+                _ => state.go(p, crate::gui::How::Beside),
+            }
         }
     }
 }

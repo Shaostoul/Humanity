@@ -20,6 +20,9 @@
 // the only place a player can discover a dev hotkey, did not know it existed.
 // Ctrl+Plus / Ctrl+Minus / Ctrl+0 (2026-11-03, BUG-225) step the Font Size setting, the whole
 // app's zoom, from every context: handled in gui/font_size.rs before each egui pass.
+// Back and Forward (2026-11-04, navigation rung 4, gui/history.rs): the mouse's side buttons and
+// Alt+Left / Alt+Right on every page (Alt+arrows only while no text box has the keyboard: there
+// they jump a word). In the world the side buttons do nothing yet (unbound), so World lists none.
 // F11 (v0.1050) opens the live weather panel: condition presets plus wind and intensity
 // sliders. Wind is what the ocean spectrum is built from, so it doubles as the sea-state
 // control - glassy calm through to a storm sea.
@@ -98,7 +101,8 @@
     ]),
     (context: "Menu", binds: [
         (action: "Navigate", keys: "Click (top nav bar + page)"),
-        (action: "Back / close page", keys: "Esc"),
+        (action: "Back / Forward (where you were before; Back closes a popup first)", keys: "Mouse back / forward button, Alt+Left / Alt+Right (not while typing), the arrows at the top left"),
+        (action: "Close a popup, back out of a page opened from another, else into the world", keys: "Esc"),
         (action: "Rebind game keys", keys: "Settings > Controls"),
         (action: "Font size larger / smaller / back to 100% (Settings > Appearance)", keys: "Ctrl+Plus / Ctrl+Minus / Ctrl+0"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),

@@ -762,7 +762,7 @@ pub(crate) fn draw_leave_question(ctx: &egui::Context, theme: &Theme, state: &mu
     if back || !open {
         state.files.place = super::Place::Shared;
         state.settings.files_layout.gallery = false;
-        state.push_nav_to(crate::gui::GuiPage::Files);
+        state.go(crate::gui::GuiPage::Files, crate::gui::How::From);
     } else if discard {
         if let Some(page) = state.files.item.as_mut() {
             page.edit = None;

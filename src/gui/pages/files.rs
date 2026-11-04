@@ -871,7 +871,7 @@ pub(crate) fn more_when_seen(state: &mut GuiState) {
 pub(crate) fn open_admin_tab(state: &mut GuiState) {
     sync_server(state);
     state.files.place = Place::Admin;
-    state.push_nav_to(GuiPage::Files);
+    state.go(GuiPage::Files, crate::gui::How::From);
 }
 
 /// The admins' section asks again for the categories, the suggestions and the usage.
@@ -912,7 +912,7 @@ pub(crate) fn open_item_by_number(state: &mut GuiState, id: i64) {
     item_view::open_by_number(state, id);
     // Shown in the panes, wherever the page was left.
     panes::set_gallery(state, false);
-    state.push_nav_to(GuiPage::Files);
+    state.go(GuiPage::Files, crate::gui::How::From);
 }
 
 /// Whether the whole Files page is members only on this server: its answer says, else its

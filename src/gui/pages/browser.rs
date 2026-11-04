@@ -22,7 +22,7 @@ use egui::{Frame, RichText, ScrollArea, Stroke};
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, ButtonVariant};
-use crate::gui::{GuiPage, GuiState, SettingsCategory, WebSite, WebSiteCategory};
+use crate::gui::{GuiState, SettingsCategory, WebSite, WebSiteCategory};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
@@ -134,9 +134,7 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .size(widgets::ButtonSize::Small)
             .show(ui, theme)
         {
-            state.settings.category = SettingsCategory::Privacy;
-            state.settings.scroll_to_section = Some(SettingsCategory::Privacy);
-            state.push_nav_to(GuiPage::Settings);
+            state.go_to(crate::gui::history::Place::settings(SettingsCategory::Privacy), crate::gui::How::From);
         }
     }
 }

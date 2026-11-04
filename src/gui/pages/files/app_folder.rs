@@ -163,7 +163,7 @@ pub fn guide_of(path: &Path, library_dir: &Path, library: &[crate::gui::LibraryS
 /// not have it.
 pub(crate) fn open_in_library(state: &mut GuiState, slug: &str) -> bool {
     if crate::gui::pages::library::show_doc(state, slug) {
-        state.push_nav_to(crate::gui::GuiPage::Library);
+        state.go(crate::gui::GuiPage::Library, crate::gui::How::From);
         true
     } else {
         state.files.app_folder.status = "The Library on this computer does not have this guide.".to_string();
@@ -473,7 +473,7 @@ mod tests {
     /// that guide open in its reader, and for a slug the Library does not have, stays and says why.
     ///
     /// Seen red 2026-10-20 with `open_in_library` going to the Library without opening the guide
-    /// (`show_doc` not called, only `push_nav_to`): "that guide open in its reader" got None.
+    /// (`show_doc` not called, only the page opened): "that guide open in its reader" got None.
     #[test]
     fn a_library_guide_is_found_and_opens_in_the_library() {
         crate::config::keep_saves_off_disk();

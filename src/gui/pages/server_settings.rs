@@ -191,11 +191,12 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                       are preserved if you come back.")
             .show(ui, theme)
         {
-            // Pop the nav stack if we have one — that's the "previous
-            // page" the user expects. Otherwise fall back to Chat as
-            // the canonical home for this page.
-            if !state.pop_nav_back() {
-                state.active_page = GuiPage::Chat;
+            // Back out to the page this one was opened from (Escape's rule,
+            // gui/history.rs `back_out`) — that's the "previous page" the user
+            // expects. Otherwise fall back to Chat as the canonical home for
+            // this page.
+            if !state.back_out() {
+                state.go(GuiPage::Chat, crate::gui::How::Beside);
             }
             state.server_settings_status.clear();
         }
@@ -263,9 +264,9 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
             {
                 // The Real page IS the profile editor (GuiPage::Profile is only an
                 // alias for it), so land there directly on the Identity section.
-                // push_nav_to so Esc returns to ServerSettings.
+                // How::From, so Escape returns to ServerSettings.
                 state.active_real_section = "identity".to_string();
-                state.push_nav_to(GuiPage::Real);
+                state.go(GuiPage::Real, crate::gui::How::From);
             }
             ui.add_space(theme.spacing_sm);
             if widgets::Button::secondary("Notification preferences")
@@ -273,7 +274,7 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
                           and set quiet hours. Stored locally per device.")
                 .show(ui, theme)
             {
-                state.push_nav_to(GuiPage::Settings);
+                state.go(GuiPage::Settings, crate::gui::How::From);
             }
         });
 
@@ -3017,12 +3018,12 @@ fn do_disconnect(state: &mut GuiState, group_id: Option<String>) {
             // no longer exists (P2P groups have Leave/Disband in the chat
             // sidebar). Just return to the chat page.
             state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
-            state.active_page = GuiPage::Chat;
+            state.go(GuiPage::Chat, crate::gui::How::Beside);
         }
         None => {
             // The one Disconnect path (gui/connections.rs), shared with the Chat page.
             state.disconnect_active();
-            state.active_page = GuiPage::Chat;
+            state.go(GuiPage::Chat, crate::gui::How::Beside);
         }
     }
 }

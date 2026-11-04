@@ -46,6 +46,11 @@ pub mod font_size;
 /// start and when it is saved; the top row is drawn from it (pages/escape_menu.rs).
 #[cfg(feature = "native")]
 pub mod navigation;
+/// Back and Forward (navigation rung 4): the one way between places, `GuiState::go`.
+#[cfg(feature = "native")]
+pub mod history;
+#[cfg(feature = "native")]
+pub use history::How;
 
 /// Install every font fallback chain on an egui context. Called for the main
 /// UI context at boot AND for every in-world screen surface context, so a
@@ -492,18 +497,17 @@ pub fn config_str_to_page(s: &str) -> GuiPage {
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
+    /// The page on screen (`None`: the 3D world). Written only by the history (gui/history.rs:
+    /// `go`, `go_to`, Back, Forward, the world's entry and exit), which `tests/page_change_lint.rs`
+    /// holds.
     pub active_page: GuiPage,
-    /// Last page visited before returning to game view. Escape reopens this page.
-    pub last_page: GuiPage,
-    /// Navigation back-stack. When a page opens a sub-page (e.g. clicking
-    /// the cog on a server row opens ServerSettings from Chat), the source
-    /// page is pushed here so Escape returns to it instead of jumping
-    /// straight to FPS mode. Operator 2026-05-08: "if I'm in nested pages
-    /// like that esc needs to reliably take people back to the previous
-    /// menu/page". Use `push_nav_to` / `pop_nav_back` helpers below.
-    /// Direct nav-bar clicks DO NOT push (they replace the current page,
-    /// not nest under it).
-    pub nav_back_stack: Vec<GuiPage>,
+    /// Back and Forward (navigation rung 4, docs/design/navigation.md section 10): the steps this
+    /// session went through and where it is among them, in memory only. Each step remembers
+    /// whether its page was opened FROM inside another, so Escape backs out of it to that page;
+    /// operator 2026-05-08: "if I'm in nested pages like that esc needs to reliably take people
+    /// back to the previous menu/page". The page Escape in the world brings back is its current
+    /// step's.
+    pub history: crate::gui::history::History,
     /// In-world interactive chat panel open (v0.772): Enter opens it, which
     /// frees the cursor + disables look/move so you can read + type in the
     /// same relay chat as the Chat page/website without leaving the 3D world.
@@ -3058,41 +3062,6 @@ impl GuiState {
         }
     }
 
-    /// Navigate to a sub-page, pushing the CURRENT page onto the back
-    /// stack so Escape returns there. Use this for contextual openings
-    /// (cog → ServerSettings, message → details modal, etc.). For
-    /// peer-level navigation (clicking a top-tier nav button), set
-    /// `active_page` directly and call `clear_nav_back` to drop the
-    /// stack — those navigations don't nest.
-    pub fn push_nav_to(&mut self, target: GuiPage) {
-        // Avoid pushing duplicate top-of-stack — repeatedly opening the
-        // same sub-page from the same parent shouldn't bury the parent
-        // under N copies of itself.
-        if self.nav_back_stack.last() != Some(&self.active_page) {
-            self.nav_back_stack.push(self.active_page);
-        }
-        self.active_page = target;
-    }
-
-    /// Pop the back stack and switch to that page. Returns true if a
-    /// page was popped (caller can decide what to do if false — e.g.
-    /// fall through to "Esc closes menu" behavior at the root level).
-    pub fn pop_nav_back(&mut self) -> bool {
-        if let Some(prev) = self.nav_back_stack.pop() {
-            self.active_page = prev;
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Drop the back stack — used when navigating laterally (e.g.
-    /// clicking a top-tier nav button) so the user doesn't end up with
-    /// a stack of unrelated pages from earlier sessions.
-    pub fn clear_nav_back(&mut self) {
-        self.nav_back_stack.clear();
-    }
-
     /// Push a confirmation toast (v0.861, lives `TOAST_LIFE`). `now` is the current egui time
     /// (`ui.ctx().input(|i| i.time)`). Use this after any save/apply so the action
     /// is never silent -- e.g. `state.toast("Theme saved", ToastKind::Success, now)`.
@@ -3210,8 +3179,7 @@ impl Default for GuiState {
     fn default() -> Self {
         Self {
             active_page: GuiPage::MainMenu,
-            last_page: GuiPage::Chat,
-            nav_back_stack: Vec::new(),
+            history: Default::default(),
             chat_input_active: false,
             chat_input_focus_pending: false,
             ingame_chat_mode: IngameChatMode::Channels,

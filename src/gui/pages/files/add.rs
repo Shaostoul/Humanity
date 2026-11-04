@@ -252,7 +252,7 @@ pub(crate) fn put_on_files_page(state: &mut GuiState, filename: &str, name: &str
     let source = Source::Existing { filename: api::bare_name(filename).to_string(), name: name.to_string(), len };
     state.files.form = Some(Form::new(source));
     super::refresh_mine(state);
-    state.push_nav_to(GuiPage::Files);
+    state.go(GuiPage::Files, crate::gui::How::From);
 }
 
 /// The picker, the form and the suggestion form, whichever are open.

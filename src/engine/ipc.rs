@@ -906,7 +906,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         match crate::engine::move_check::parse_walk(&spec) {
             Some(w) => {
                 state.moves.walk = Some(w);
-                state.gui_state.active_page = crate::gui::GuiPage::None;
+                state.gui_state.enter_world();
                 log::info!("Showcase: walk_to -> walking to {:?} at {} m/s", w.to, w.speed);
             }
             None => log::warn!("Showcase: walk_to wants \"x,y,z,yaw,pitch,speed\" with a speed above 0, not {spec:?}"),
@@ -984,13 +984,12 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         log::info!("Showcase: console {line} -> {}", said.trim_end().replace('\n', " | "));
     }
     // {"page":"homes"} (ship homes 5b, 2026-10-12): open that page, as its nav item does (the
-    // back stack cleared: the nav's clicks are lateral). verify-copresence --household opens the
+    // history keeps it as a step beside the page before). verify-copresence --household opens the
     // Home page, whose Household card it then clicks through. Permanent dev tooling.
     if let Some(spec) = grab("page") {
         match parse_page(&spec) {
             Some(page) => {
-                state.gui_state.clear_nav_back();
-                state.gui_state.active_page = page;
+                state.gui_state.go(page, crate::gui::How::Beside);
                 log::info!("Showcase: page -> {page:?}");
             }
             None => log::warn!("Showcase: page wants a page id (gui/dispatch.rs `page_id`), not {spec:?}"),
@@ -1799,7 +1798,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         if !state.gui_state.apply_last_pairing() {
             state.gui_state.launcher_open_select = true;
         }
-        state.gui_state.active_page = crate::gui::GuiPage::None;
+        state.gui_state.enter_world();
     }
     // Optional camera framing in the same request: "cam":"x,y,z,yaw,pitch"
     // parks the free camera there and drops into the world view (page None)
@@ -1824,7 +1823,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             state.camera.position = Vec3::new(v[0], v[1], v[2]);
             state.camera.yaw = v[3];
             state.camera.pitch = v[4];
-            state.gui_state.active_page = crate::gui::GuiPage::None;
+            state.gui_state.enter_world();
         }
     }
 }
@@ -4163,7 +4162,7 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
     state.gui_state.showroom_active = false;
     state.gui_state.construction_active = false;
     let enter = req.get("enter").and_then(|v| v.as_bool()).unwrap_or(true);
-    state.gui_state.active_page = if enter { GuiPage::None } else { GuiPage::MainMenu };
+    if enter { state.gui_state.enter_world() } else { state.gui_state.show_title() }
     let key_prefix: String =
         state.gui_state.profile_public_key.chars().take(12).collect();
     log::info!(
@@ -5651,7 +5650,7 @@ mod household_ipc_tests {
         for verb in ["grab(\"page\")", "grab(\"accept_request\")"] {
             assert!(poll.contains(verb), "the showcase poll never reads {verb}");
         }
-        for done in ["state.gui_state.active_page = page;", "crate::engine::reach::accept_request(&mut state.gui_state, &key);"] {
+        for done in ["state.gui_state.go(page, crate::gui::How::Beside);", "crate::engine::reach::accept_request(&mut state.gui_state, &key);"] {
             assert!(poll.contains(done), "the showcase poll never does {done}");
         }
     }

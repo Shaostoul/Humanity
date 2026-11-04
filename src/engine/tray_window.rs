@@ -270,7 +270,7 @@ fn leave_world(state: &mut EngineState) {
     }
     if state.gui_state.active_page == GuiPage::None {
         state.gui_state.chat_input_active = false;
-        state.gui_state.active_page = GuiPage::MainMenu;
+        state.gui_state.show_title();
     }
 }
 

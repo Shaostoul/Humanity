@@ -183,7 +183,7 @@ pub(crate) fn open_entry(state: &mut GuiState, e: &Entry) {
     if let Some(event) = e.conversation.strip_prefix("game:") {
         let page = n::data::get().game_event(event).and_then(|g| crate::gui::dispatch::page_from_id(&g.opens)).unwrap_or(GuiPage::None);
         if state.active_page != page {
-            state.push_nav_to(page);
+            state.go(page, crate::gui::How::From);
         }
         return;
     }
@@ -208,7 +208,7 @@ pub(crate) fn open_entry(state: &mut GuiState, e: &Entry) {
             c.send(&serde_json::json!({ "type": "task_list" }).to_string());
         }
         if state.active_page != GuiPage::Tasks {
-            state.push_nav_to(GuiPage::Tasks);
+            state.go(GuiPage::Tasks, crate::gui::How::From);
         }
         return;
     }
@@ -228,7 +228,7 @@ pub(crate) fn open_entry(state: &mut GuiState, e: &Entry) {
         }
     }
     if state.active_page != GuiPage::Chat {
-        state.push_nav_to(GuiPage::Chat);
+        state.go(GuiPage::Chat, crate::gui::How::From);
     }
 }
 

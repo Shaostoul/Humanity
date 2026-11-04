@@ -24,9 +24,9 @@
 //! one token per category (`nav_cat_<id>`). A button is added, moved or renamed in the file, never
 //! here. This file draws what the file says and does what a click asks.
 //!
-//! BACK AND FORWARD are drawn here and wired in rung 4 (the app's history). Until then Back walks
-//! the steps Escape walks (`GuiState::nav_back_stack`: a page opened from inside another), and
-//! Forward is drawn dimmed, saying it is not built yet.
+//! BACK AND FORWARD are drawn here, the app's history since rung 4 (gui/history.rs, the same
+//! steps the mouse's side buttons and Alt+arrows walk), each dimmed with a hint saying why when it
+//! has nowhere to go.
 //!
 //! COST (section 13's budget): two rows of at most nine buttons, laid out on frames the app draws
 //! anyway; the menu is read once (no file read per frame); the hover state is a few numbers in
@@ -162,20 +162,19 @@ fn colour(theme: &Theme, cat: &NavCategory) -> Color32 {
     navigation::colour_of(&cat.colour).map_or(theme.text_muted(), |c| c(theme))
 }
 
-/// Open an entry's page: a menu click is LATERAL, so the back stack empties and Escape on the new
-/// page goes to the world rather than through stale steps (v0.195). The world's entries go in
-/// through Play's one way in (pages/play.rs); a Dev row item opens its part of the Dev page, and
-/// the Dev button the developer's tools.
+/// Open an entry's page: a menu click is a step BESIDE the page you were on (gui/history.rs), so
+/// Back returns to that page while Escape on the new one goes into the world, never through the
+/// pages before it (v0.195). The world's entries go in through Play's one way in (pages/play.rs);
+/// a Dev row item opens its part of the Dev page, and the Dev button the developer's tools.
 pub(crate) fn open(state: &mut GuiState, b: &NavButton) {
     if b.page == GuiPage::None {
         crate::gui::pages::play::enter_world(state, b.picker());
         return;
     }
-    state.clear_nav_back();
     if b.page == GuiPage::Dev {
         state.active_dev_section = b.section.clone().unwrap_or_else(|| crate::gui::pages::dev_tab::FIRST_SECTION.to_string());
     }
-    state.active_page = b.page;
+    state.go(b.page, crate::gui::How::Beside);
 }
 
 /// The category whose row docks under the primary row: the page on screen's, else the last one
@@ -350,13 +349,14 @@ fn primary_row(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, menu: &
 }
 
 /// Back or Forward, an arrow in a square (dimmed, with a hint saying why, when it has nowhere to
-/// go).
+/// go). The app's history (gui/history.rs), as the mouse's side buttons and Alt+arrows.
 fn arrow_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, r: Rect, back: bool) {
-    let can = back && !state.nav_back_stack.is_empty();
+    let can = if back { state.history.can_back() } else { state.history.can_forward() };
     let (name, hint) = match (back, can) {
-        (true, true) => ("nav.back", "nav.back_from_hint"),
+        (true, true) => ("nav.back", "nav.back_hint"),
         (true, false) => ("nav.back", "nav.back_none_hint"),
-        (false, _) => ("nav.forward", "nav.forward_not_yet_hint"),
+        (false, true) => ("nav.forward", "nav.forward_hint"),
+        (false, false) => ("nav.forward", "nav.forward_none_hint"),
     };
     let id = Id::new(if back { "nav_back" } else { "nav_forward" });
     // Disabled when there is nowhere to go: not a Tab stop and not clickable, its hint still under
@@ -372,7 +372,11 @@ fn arrow_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, r: Rect,
         crate::gui::widgets::icons::paint_arrow_right(ui.painter(), ir, ink);
     }
     if resp.hint(hint).clicked() && can {
-        state.pop_nav_back();
+        if back {
+            crate::gui::history::ask_back(ui.ctx(), state);
+        } else {
+            state.forward();
+        }
     }
 }
 

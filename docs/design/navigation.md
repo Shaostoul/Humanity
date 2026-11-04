@@ -649,6 +649,40 @@ One press does the first of these that applies:
 5. **The title screen:** nothing. **The picker** keeps today's Escape (back to the page before it),
    because Escape on a chooser means "not now", never "go in".
 
+### 10.5 As built on the desktop (rung 4, 2026-11-04)
+
+- **One file:** `src/gui/history.rs`. `GuiState::go(page, how)` opens a page and `go_to(place, how)`
+  a place inside one; `How` is `Beside`, `From` or `Replace` (a place the app opens by itself: the
+  first screen, the Profile alias). `back`, `forward`, `back_out` (Escape's rule 2), `escape` (rules
+  2 to 5), and the world's `enter_world` and `leave_world` and the title screen's `show_title`,
+  which are never steps. `GuiState::history` holds the steps (at most 100, in memory only).
+- **The writes moved:** the 40 direct assignments to `active_page` in 18 files went onto those
+  functions, and the 32 `push_nav_to` calls became `go(page, How::From)`; `nav_back_stack`,
+  `push_nav_to`, `pop_nav_back`, `clear_nav_back` and `last_page` are gone. Each direct write that
+  was a link to another page became `Beside`, so Escape on it still goes into the world as before.
+  `tests/page_change_lint.rs` (in `just lints`) refuses an assignment to `active_page` outside
+  history.rs, test code aside; it named the 40 when it went in.
+- **A place inside a page is seen, not told:** once a frame on a page (`history::frame`, called by
+  lib.rs before the menu) `note_place` compares what the page shows with the step the history is on
+  and adds a step when they differ: the chat's server and channel (the Chat page writes its channel
+  in 86 places), the Files place and item, the Library document, the how-to, the Maps view, the Dev
+  and Profile sections. The frame after a step is made or returned to, the place the page settles on
+  becomes that step's instead of a new one. Settings is told: its open section follows the scroll,
+  so a section is a step only when chosen (its sidebar, a link to it, through `go_to`).
+- **A chat step on another server** switches to that server when it is still a saved one (the
+  server strip's own switch), then opens the channel the way its row does; a conversation opens
+  through `open_dm_conversation`. The step holds the conversation's channel id in memory only.
+- **The Library** lost its own `back` list: every document opened is a step of the app's history,
+  and the reader's Back (shown while the step before is a Library document, "Back (2)" for two) is
+  the app's Back.
+- **Popups:** every dialog drawn through `widgets::dialog` says it is open (`popup_drawn`) and
+  closes when asked; `close_popup` closes an open drop-down, else the dialog drawn last. Back from
+  every source and Escape (lib.rs, after the help panel and the menu's preview) ask it first.
+  Popups drawn some other way (the image viewer, a raw `egui::Window`) are not closed by it yet.
+- **In the world** `history::frame` returns at once: the side buttons do nothing (unbound) and
+  Escape keeps its world meaning. In-world screens draw pages with their own context and no
+  history of their own yet.
+
 ## 11. The 3D game
 
 - **In first person (Play): no menus, no footer, no warning**, as today: the world is the page, and
@@ -804,7 +838,12 @@ finding.
    the web tests.
 4. **History on the desktop.** `go`, the places, the forty writes moved, the side buttons,
    Alt+arrows, Escape's rules, the Library's own `back` joined. *Gate:* the history tests, `just
-   verify-runtime` (in the world the side buttons do nothing).
+   verify-runtime` (in the world the side buttons do nothing). **Built 2026-11-04** (section 10.5).
+   Its tests: `src/gui/history_tests.rs` (Back and Forward through pages, a Settings section, a
+   chat channel and a Files place; the cap of 100; a popup closed first; Alt+Left in a text box
+   moves its cursor and not the page; the mouse's `Extra1` and `Extra2` on a page and in the world;
+   Escape's rules; the world never a step), each seen red against a broken history (the file's
+   head says how), and `tests/page_change_lint.rs`.
 5. **The website's menus and history.** `shell.js` from the file (hover, touch, the phone's
    rows and All pages), `web/shared/history.js` and each in-page view on it. *Gate:* the web tests,
    screenshots at 2560 x 1440 and 412 x 915 in both themes.

@@ -288,7 +288,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         state.add_server_url_draft.clear();
                         state.add_server_name_draft.clear();
                         state.show_add_server_modal = true;
-                state.active_page = GuiPage::Chat;
+                state.go(GuiPage::Chat, crate::gui::How::Beside);
             }
 
             // ── THIS PC: a permanent home for the local node ──
@@ -568,7 +568,7 @@ fn draw_control_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _sel
         .size(theme.font_size_small).color(theme.text_muted()));
     ui.add_space(theme.spacing_xs);
     if widgets::Button::secondary("Open Server Settings").show(ui, theme) {
-        state.active_page = GuiPage::ServerSettings;
+        state.go(GuiPage::ServerSettings, crate::gui::How::Beside);
     }
 }
 
@@ -770,7 +770,7 @@ fn draw_config_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if widgets::Button::secondary("Open").show(ui, theme) {
-                            state.active_page = GuiPage::ServerSettings;
+                            state.go(GuiPage::ServerSettings, crate::gui::How::Beside);
                             state.server_settings_tab = 0;
                         }
                     });

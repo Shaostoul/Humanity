@@ -488,11 +488,11 @@ fn apply_chain_actions(ctx: &egui::Context, state: &mut GuiState, chains: &[Chai
             }),
             // "Create your first task" names this very page: open the form.
             ChainAction::Go(GuiPage::Tasks) => state.task_show_new_form = true,
-            ChainAction::Go(page) => state.push_nav_to(page),
+            ChainAction::Go(page) => state.go(page, crate::gui::How::From),
             ChainAction::Web(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
             ChainAction::HowTo(id) => {
                 state.how_to.open(&id);
-                state.push_nav_to(GuiPage::HowTo);
+                state.go(GuiPage::HowTo, crate::gui::How::From);
             }
             ChainAction::Add(id) => {
                 if let Some(chain) = chains.iter().find(|c| c.id == id) {

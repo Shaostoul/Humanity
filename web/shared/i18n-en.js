@@ -116,8 +116,6 @@ window.HOS_I18N_EN = {
     "server_settings_hint": "The settings of a server you are on: a member's, a moderator's and an admin's.",
     "onboarding_hint": "Getting started by doing: short chains of steps toward clean water, food and power.",
     "display_mode_hint": "How the top row's buttons show: icon and words, icon only, or words only.",
-    "back_from_hint": "Goes back to the page you opened this one from. Escape does the same.",
-    "forward_not_yet_hint": "Going forward again after going back is not built yet: open the page from the menu.",
     "display_mode": "Button style"
   },
   "common": {
@@ -3287,5 +3285,9 @@ window.HOS_I18N_EN = {
     "may_note": "These ticks count where Settings > Safety is set to People I choose. Changing one gives them a new pass.",
     "not_friend": "They reach you as Settings > Safety says for people who are not your friends.",
     "kept_here": "Kept on this device."
+  },
+  "library": {
+    "back_count": "Back ({{count}})",
+    "back_hint": "Goes back to the document you were reading before. The mouse's back button and Alt+Left do the same."
   }
 };

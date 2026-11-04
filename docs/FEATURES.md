@@ -1711,8 +1711,8 @@ rung 1, until then two hand-written copies that drifted). The file holds the des
 categories with every page placed in their rows, what is reachable outside the rows (each with why),
 the desktop's timings, and `today_row.web`, the website's single row until rung 5. ON THE DESKTOP,
 TWO ROWS (rung 2, 2026-11-03): the eight categories (Humanity, Play, Chat, Life, Apps, Library, Dev,
-Settings; "Life" is a working name, the operator's to choose), Back and Forward (Back walks the
-steps Escape walks; the app's history is rung 4), the Aa switch, the bell and help; under it the
+Settings; "Life" is a working name, the operator's to choose), Back and Forward (the app's history,
+next entry), the Aa switch, the bell and help; under it the
 category's pages, only pages that exist (Mission, People, Rules, Roadmap, Devlog, Worlds and Servers
 wait for rung 7). Resting the pointer 200 ms on another category previews its row (Settings >
 Appearance turns it off; Escape ends it); a row that does not fit puts the rest under More, never a
@@ -1725,6 +1725,23 @@ older than the menu: it is not an in-game pause overlay.)
 - Web: `web/shared/shell.js` (draws `NAV_ROW`, written into it by `scripts/gen-navigation.js` from the file and en.json; `web_label` keeps the website's Home tab saying Home)
 - Tests: `src/gui/navigation_tests.rs` (the file reads, every GuiPage once, the rows as drawn hold only pages that exist, each once, a malformed row refused, each page's place), `src/gui/pages/escape_menu_tests.rs` (the rows are the file's, a click on each category, the preview's rest and leave, a click in the preview, the switch off, Play's tap, hold and button, More at 100/150/200% on 2560x1440 and 1280x720), `a11y_tests.rs` (`a11y_the_top_menu_names_and_hints_every_stop`), `font_size.rs` (two lines at every size), `scripts/tests/navigation-web.test.js`, `page_registry_lint`, `page_parity_lint` ("The top menu")
 - Snapshots: `tests/snapshots/nav_rows_tv_100.png`, `_tv_200`, `_720_100`, `_720_200` and each `_preview`, `play_page.png`, and `nav_bar_full.png`, `nav_bar_wrapped.png`, `nav_bar_icon_only.png`
+
+### Back and Forward on the desktop (navigation rung 4, 2026-11-04)
+The app's history, the way a web browser has one (operator, 2026-11-02: "We need to make it so the
+back button on the mouse can take the user back to where they were like the internet browser.";
+docs/design/navigation.md section 10). A STEP is a page, a Settings section chosen, a Dev or Profile
+section, a chat channel or conversation (server and channel), a Files place or item, a Library
+document, a how-to, a Maps view; at most 100, in memory for the session only. BACK AND FORWARD: the
+mouse's back and forward buttons (egui `Extra1`/`Extra2`), Alt+Left and Alt+Right while no text box
+has the keyboard (a text box keeps them as its word jumps), and the top menu's two arrows (dimmed
+with a hint when there is nowhere to go). With a popup open, Back closes the popup first. ESCAPE:
+a popup closes first; a page opened FROM inside another goes back to it (its inside steps
+included); a page reached from the menu goes into the world; the world brings back the page left;
+the title screen stays. Entering the world is never a step, and in the world the side buttons do
+nothing (unbound, the operator's answer of 2026-11-03). The Library's own Back list joined the app's
+(its reader's Back is the app's, shown while the step before is a Library document).
+- Native: `src/gui/history.rs` (`GuiState::go`, `go_to`, `back`, `forward`, `back_out`, `escape`, `enter_world`, `leave_world`, `show_title`; `note_place`, once a frame, sees a place moved to inside a page; `frame`, the side buttons and Alt+arrows, from lib.rs; `close_popup` and `popup_drawn`, which `widgets/dialog.rs` calls), `src/gui/pages/escape_menu.rs` (the arrows), `src/gui/pages/library.rs` (`shown_place`, `show_place`), `data/keymaps.ron` (the Menu keys)
+- Tests: `src/gui/history_tests.rs` (pages, a Settings section, a chat channel, a Files place, the cap, a popup closed first, Alt+Left in a text box, the side buttons on a page and in the world, Escape's rules, the world never a step), `tests/page_change_lint.rs` (`active_page` is assigned only in history.rs; it named 40 places when it went in)
 
 ### Settings Page
 Graphics, audio, controls, game, account categories with sliders and toggles.

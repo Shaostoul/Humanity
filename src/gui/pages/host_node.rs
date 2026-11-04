@@ -1152,7 +1152,7 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
                 });
                 state.settings_dirty = true; // saved servers persist now
             }
-            state.active_page = GuiPage::Chat;
+            state.go(GuiPage::Chat, crate::gui::How::Beside);
         }
         if widgets::Button::ghost("Copy address to share").show(ui, theme) {
             ui.ctx().copy_text(share_url.clone());

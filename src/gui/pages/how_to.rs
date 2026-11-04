@@ -168,11 +168,12 @@ pub fn go(state: &mut GuiState, page: &str, section: Option<&str>) {
     let Some(target) = crate::gui::dispatch::page_from_id(page) else { return };
     if target == crate::gui::GuiPage::Settings {
         if let Some(cat) = section.and_then(|s| crate::gui::pages::settings::SECTIONS.iter().find(|(_, c)| section_id(*c) == s)) {
-            state.settings.category = cat.1;
-            state.settings.scroll_to_section = Some(cat.1);
+            // The section is a step of its own (gui/history.rs).
+            state.go_to(crate::gui::history::Place::settings(cat.1), crate::gui::How::From);
+            return;
         }
     }
-    state.push_nav_to(target);
+    state.go(target, crate::gui::How::From);
 }
 
 fn poll_loading(state: &mut GuiState) {

@@ -452,7 +452,7 @@ pub(crate) fn activate(state: &mut EngineState) -> bool {
             state.gui_state.pending_notices.push(msg);
         }
         uses::StructureUse::Store => {
-            state.gui_state.active_page = crate::gui::GuiPage::Inventory;
+            state.gui_state.go(crate::gui::GuiPage::Inventory, crate::gui::How::Beside);
             // Opening a page mid-walk swallows the key releases: clear held
             // movement in both movers, as the NPC talk card does.
             state.controller.stop_movement();

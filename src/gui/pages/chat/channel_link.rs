@@ -285,7 +285,7 @@ pub(crate) fn open_link(state: &mut GuiState, url: &str, now: f64) -> bool {
     // On a page, the Chat page shows it; in the world the channel changes under the player's feet
     // (the world's own chat follows it) and the app does not take them out of the world.
     if !matches!(state.active_page, GuiPage::Chat | GuiPage::None | GuiPage::MainMenu) {
-        state.push_nav_to(GuiPage::Chat);
+        state.go(GuiPage::Chat, crate::gui::How::From);
     }
     true
 }

@@ -248,7 +248,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         });
     if report {
         state.help_panel_pinned = false;
-        state.push_nav_to(GuiPage::BugReport);
+        state.go(GuiPage::BugReport, crate::gui::How::From);
     }
 }
 
@@ -378,6 +378,6 @@ mod tests {
         frame(&mut state, vec![egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
         assert_eq!(state.active_page, GuiPage::BugReport, "it opens the Bugs page");
         assert!(!state.help_panel_pinned, "and closes the panel");
-        assert_eq!(state.nav_back_stack, vec![GuiPage::Chat], "as a step from the page you were on");
+        assert!(state.back_out() && state.active_page == GuiPage::Chat, "as a step from the page you were on: Escape goes back to it");
     }
 }

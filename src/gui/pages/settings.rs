@@ -196,7 +196,9 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                 .min_size(Vec2::new(ui.available_width(), 28.0));
 
                 if ui.add(btn).clicked() {
-                    state.settings.scroll_to_section = Some(*cat);
+                    // A section chosen is a step of the history (Back returns to the one before;
+                    // scrolling to one is not a step: gui/history.rs).
+                    state.go_to(crate::gui::history::Place::settings(*cat), crate::gui::How::Beside);
                 }
             }
         });

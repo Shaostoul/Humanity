@@ -314,7 +314,7 @@ pub(crate) fn frame(state: &mut EngineState) {
             short: false,
             hint: String::new(),
         });
-        state.gui_state.active_page = GuiPage::None;
+        state.gui_state.enter_world();
     }
     let g = &state.gui_state;
     if g.construction_active || g.showroom_active || g.player_death_cause.is_some() {

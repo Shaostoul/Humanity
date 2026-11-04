@@ -18,7 +18,7 @@ use humanity_core::i18n::{t, tf};
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::{GuiPage, GuiState};
+use crate::gui::GuiState;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default().frame(widgets::page_frame(theme)).show(ctx, |ui| {
@@ -56,13 +56,10 @@ pub fn last_played(state: &GuiState) -> String {
 /// when none is recorded or `picker` asks for it (Characters). One function for every way in:
 /// Play's press and hold, this page's button, and the Characters item of the Play row.
 ///
-/// Entering the world is not a step of the menu's history (docs/design/navigation.md section 11):
-/// the back stack is emptied, and the page left is remembered so Escape in the world returns to it.
+/// Entering the world is not a step of the history (docs/design/navigation.md section 11): the
+/// history stays on the page left, so Escape in the world returns to it and Back after that goes
+/// to the page before it (gui/history.rs `enter_world`).
 pub fn enter_world(state: &mut GuiState, picker: bool) {
-    state.clear_nav_back();
-    if state.active_page != GuiPage::None {
-        state.last_page = state.active_page;
-    }
     // apply_last_pairing restores the selection, asks for the character load, and sets solo or
     // shared from the world kind; with nothing recorded the picker opens instead (the showroom is
     // opened by lib.rs's per-frame handler when launcher_open_select is set).
@@ -70,5 +67,5 @@ pub fn enter_world(state: &mut GuiState, picker: bool) {
         state.launcher_open_select = true;
         state.launcher_homes_loaded = false; // rescan the saves
     }
-    state.active_page = GuiPage::None;
+    state.enter_world();
 }

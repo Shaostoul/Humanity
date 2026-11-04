@@ -522,7 +522,7 @@ pub(super) fn draw_picker(ctx: &egui::Context, theme: &Theme, state: &mut GuiSta
 /// Why: a finding (its Library slug, and its path in the project's files), in the Library.
 pub(crate) fn open_why(state: &mut GuiState, slug: &str, path: &str) {
     if crate::gui::pages::library::show_doc(state, slug) {
-        state.push_nav_to(GuiPage::Library);
+        state.go(GuiPage::Library, crate::gui::How::From);
     } else {
         state.apps.say(format!("The Library on this computer does not have that document. It is {path} in the project's files."), true);
     }

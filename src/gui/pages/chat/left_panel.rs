@@ -928,7 +928,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         crate::config::AppConfig::from_gui_state(state).save();
     }
     if manage_servers_clicked {
-        state.push_nav_to(crate::gui::GuiPage::RelayControl);
+        state.go(crate::gui::GuiPage::RelayControl, crate::gui::How::From);
     }
     // (disconnect is handled inside the server name row)
     if add_server_clicked {
@@ -1089,7 +1089,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         if !is_current {
                             state.switch_to_server(&server.url, &server.name);
                         }
-                        state.push_nav_to(crate::gui::GuiPage::ServerSettings);
+                        state.go(crate::gui::GuiPage::ServerSettings, crate::gui::How::From);
                     }
                     // Right-click: Mute server, without switching to it (chat/mute_menu.rs).
                     out.row.context_menu(|ui| {
@@ -1598,8 +1598,8 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         if is_server_admin {
                             ui.separator();
                             if ui.button("Server Settings").clicked() {
-                                // push_nav_to so Esc returns to Chat.
-                                state.push_nav_to(crate::gui::GuiPage::ServerSettings);
+                                // How::From, so Escape returns to Chat.
+                                state.go(crate::gui::GuiPage::ServerSettings, crate::gui::How::From);
                             }
                         }
                         ui.separator();

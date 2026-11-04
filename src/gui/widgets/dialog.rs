@@ -74,6 +74,12 @@ fn dialog_inner(
     let mut shown = false;
     let mut local_open = *open;
     let mut backdrop_layer = None;
+    // Back and Escape close the dialog drawn last before they go anywhere (gui/history.rs
+    // `close_popup`, docs/design/navigation.md section 10.2): it says it is open, and closes
+    // when asked.
+    if local_open && crate::gui::history::popup_drawn(ctx, egui::Id::new(id)) {
+        local_open = false;
+    }
 
     // Semi-transparent backdrop — paints a dimmed overlay over the rest of
     // the UI and catches clicks behind the modal. Clicking the backdrop
