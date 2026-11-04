@@ -409,7 +409,15 @@
         fd: win.HosFrontDoor, location: win.location, history: win.history,
         now: function () { return Date.now(); },
         setTimeout: function (f, ms) { return win.setTimeout(f, ms); }, clearTimeout: function (t) { win.clearTimeout(t); },
-        scrollTo: function (e) { if (e && e.scrollIntoView) e.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); },
+        // Stops just under the fixed top menu, measured (it is taller when its rows wrap), so a
+        // section's heading is never hidden behind it (2026-11-04, Start here's question).
+        scrollTo: function (e) {
+          if (!e || !e.getBoundingClientRect) return;
+          var nav = doc.querySelector('.hub-nav');
+          var under = nav ? nav.getBoundingClientRect().bottom : 0;
+          var top = e.getBoundingClientRect().top + win.scrollY - Math.max(0, under) - 12;
+          win.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' });
+        },
         widthOf: function (e) { return e.clientWidth; },
         onWidth: function (e, f) {
           if (win.ResizeObserver) new win.ResizeObserver(f).observe(e);
