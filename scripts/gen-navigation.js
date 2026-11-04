@@ -106,6 +106,7 @@ function webRow(navText, enText, iconsText) {
   const today = (nav.today_row && nav.today_row.web) || [];
   const activeOf = (nav.today_row && nav.today_row.web_active) || {};
   const labelOf = (nav.today_row && nav.today_row.web_label) || {};
+  const iconOf = (nav.today_row && nav.today_row.web_icon) || {};
   const shown = new Set();
   const row = today.map((g) => {
     if (typeof g.class !== 'string' || !g.class.trim()) throw new Error('today\'s website row has a group with no class');
@@ -118,7 +119,7 @@ function webRow(navText, enText, iconsText) {
         if (shown.has(id)) throw new Error('today\'s website row shows `' + id + '` twice');
         shown.add(id);
         const key = labelOf[id] || p.label;
-        return { id, href: p.web, icon: p.icon, label: word(en, key), key, active: activeOf[id] || id };
+        return { id, href: p.web, icon: iconOf[id] || p.icon, label: word(en, key), key, active: activeOf[id] || id };
       }),
     };
   });

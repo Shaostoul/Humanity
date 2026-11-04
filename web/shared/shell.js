@@ -955,7 +955,7 @@
   var NAV_SOURCE = 'data/gui/navigation.json'; // the file this is written from (tests/page_parity_lint.rs looks for this line)
   var NAV_ROW = [
     { cls: "nav-group-sim", tabs: [
-      { id: "play", href: "/download", icon: "games", label: "Play", key: "nav.play", active: "play" }, // i18n-exempt: en.json's words for its key
+      { id: "play", href: "/download", icon: "download", label: "Download", key: "nav.download", active: "play" }, // i18n-exempt: en.json's words for its key
       { id: "apps", href: "/apps", icon: "apps", label: "Apps", key: "nav.apps", active: "apps" } // i18n-exempt: en.json's words for its key
     ] },
     { cls: "nav-group-red", tabs: [

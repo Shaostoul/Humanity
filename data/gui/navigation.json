@@ -7,7 +7,7 @@
     "THE OWN-LIFE CATEGORY'S NAME IS OPEN (section 16.1, question 1: \"Home\" clashes with the player homes). Its id is the neutral `own_life` and its words are the key `nav.own_life`, \"Life\" since rung 2 as a working name the operator may change: renaming it is one word in data/i18n/en.json.",
     "outside: what a person can reach that the design's two rows leave out, each with `why` (the world itself, the title screen, an alias, the website's own pages). A test holds every desktop page and every website page to exactly one place in this file (categories, items or outside): none lost, none twice.",
     "timings: the desktop's, in milliseconds (section 4.1): how long the pointer rests on another category's button before the second row previews its pages (`preview_rest_ms`), how long the preview stays after the pointer leaves both rows (`preview_leave_ms`), and how long Play is pressed and held to go straight into the world (`play_hold_ms`; a tap opens Play's page).",
-    "today_row: what the WEBSITE's single row shows until rung 5 draws its two rows (the desktop's two rows replaced its own single row in rung 2). `web` is web/shared/shell.js's groups (a CSS class each, a divider between); `web_active` maps an entry to the older key the website lights its tab by, where the two differ (the pages' data-active and shell.js's address list); `web_label` maps an entry to the words the website's tab still shows, where they differ from the entry's (the own-life category is \"Life\" on the desktop; the website's tab opens its Home page, so it says Home until rung 5)."
+    "today_row: what the WEBSITE's single row shows until rung 5 draws its two rows (the desktop's two rows replaced its own single row in rung 2). `web` is web/shared/shell.js's groups (a CSS class each, a divider between); `web_active` maps an entry to the older key the website lights its tab by, where the two differ (the pages' data-active and shell.js's address list); `web_label` maps an entry to the words the website's tab still shows, where they differ from the entry's (the own-life category is \"Life\" on the desktop; the website's tab opens its Home page, so it says Home until rung 5); and Play is Download on the website, where it opens /download (the operator, 2026-11-04: \"on the web I think we should rename play to download, since it takes the user to the download page anyways\"). `web_icon` likewise gives the website tab its own icon where it differs."
   ],
   "categories": [
     {
@@ -140,6 +140,7 @@
       { "class": "nav-group-settings", "items": ["settings"] }
     ],
     "web_active": { "own_life": "home", "onboarding": "quests", "inventory": "gear", "maps": "map" },
-    "web_label": { "own_life": "nav.home" }
+    "web_label": { "own_life": "nav.home", "play": "nav.download" },
+    "web_icon": { "play": "download" }
   }
 }

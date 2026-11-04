@@ -157,6 +157,10 @@ pub struct TodayRow {
     /// An entry's id to the words (a key) the website's tab still shows, where they differ.
     #[serde(default)]
     pub web_label: BTreeMap<String, String>,
+    /// An entry's id to the icon (a web/shared/icons.js name) the website's tab shows, where it
+    /// differs: Play is Download on the website (2026-11-04), with the download icon.
+    #[serde(default)]
+    pub web_icon: BTreeMap<String, String>,
 }
 
 /// `data/gui/navigation.json`, as written.

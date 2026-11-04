@@ -92,11 +92,13 @@ test('the row shell.js draws is the file\'s today_row.web, words, icons and lit 
   const entries = byId(NAV);
   const activeOf = NAV.today_row.web_active || {};
   const labelOf = NAV.today_row.web_label || {};
+  // web_icon: the website tab's own icon where it differs (Play is Download there, 2026-11-04).
+  const iconOf = NAV.today_row.web_icon || {};
   const want = NAV.today_row.web.map((g) => ({
     cls: g.class,
     tabs: g.items.map((id) => {
       const e = entries.get(id);
-      return { id, href: e.web, label: words(labelOf[id] || e.label), icon: e.icon, active: activeOf[id] || id };
+      return { id, href: e.web, label: words(labelOf[id] || e.label), icon: iconOf[id] || e.icon, active: activeOf[id] || id };
     }),
   }));
   // A page for each tab, lighting it the way its page does (its script tag's data-active, the key
