@@ -897,9 +897,11 @@ build that quotes a number from them should check the paper itself.
 4. **Worn gear's mass is not counted** toward the load (the inventory tick), against his carrying rule
    "mass still applies"; and **the backpack's 65 L exists whether or not a backpack is worn**
    (`default_volume_capacity`). Rung 3.
-5. **Two experience curves.** data/skills/xp_curve.json (the web pages: a 10-level table) and the
-   game's `xp_per_level` times level to the 1.5 with per-skill maximums of 15 to 30. The web's profile
-   and the game can show different levels for the same experience.
+5. **Two experience curves** (FIXED 2026-11-04, BUG-248). data/skills/xp_curve.json (the web pages: a
+   10-level table) held another curve than the game's `xp_per_level` times level to the 1.5, so the
+   web's profile and the game showed different levels for the same experience. The table is now the
+   game's rule at a base of 100, held to it by a test. The highest levels still differ: 15 to 30 per
+   skill in the game, 10 for the website's real-life skills (unchanged).
 6. **The death mode is per install** (`AppConfig::death_realistic`), while Hardcore is per character.
    A person with two characters cannot have one Realistic and one Simplified. Recommended with rung 5:
    the death mode moves into the character's save, and Settings shows the current character's.

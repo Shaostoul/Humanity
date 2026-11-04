@@ -205,7 +205,7 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.with_layout(Layout::top_down(Align::Center), |ui| {
         ui.label(
-            RichText::new("SERVER / GROUP SETTINGS")
+            RichText::new("SERVER SETTINGS")
                 .size(theme.font_size_small)
                 .color(theme.accent())
                 .strong(),
@@ -400,20 +400,12 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
         ui.add_space(theme.spacing_sm);
 
         // Disconnect (was the old "danger zone" action — leaves it in user scope
-        // because anyone can disconnect themselves).
-        let (disconnect_label, group_id) = match resolve_group(state) {
-            Some((id, _name)) => ("Leave group", Some(id)),
-            None => ("Disconnect from server", None),
-        };
-        let disconnect_tip = if group_id.is_some() {
-            "Leave this group. You won't receive new messages here. You can rejoin via \
-             the group invite link."
-        } else {
-            "Stop the WebSocket connection to this server. Your identity stays on your \
-             device. Reconnect any time by re-entering the server URL."
-        };
-        if widgets::Button::danger(disconnect_label).tooltip(disconnect_tip).show(ui, theme) {
-            do_disconnect(state, group_id);
+        // because anyone can disconnect themselves). This page is always the server's: a group
+        // is left from its own cog in the chat (BUG-247).
+        if widgets::Button::danger(t("chat.disconnect_server")).hint("chat.disconnect_server_hint").show(ui, theme) {
+            // The one Disconnect path (gui/connections.rs), shared with the Chat page.
+            state.disconnect_active();
+            state.go(GuiPage::Chat, crate::gui::How::Beside);
         }
     });
 }
@@ -3009,23 +3001,6 @@ pub(crate) fn send_slash(state: &mut GuiState, command: &str) {
     }
 }
 
-fn do_disconnect(state: &mut GuiState, group_id: Option<String>) {
-    match group_id {
-        Some(_gid) => {
-            // Legacy relay groups died 2026-08-23; a group "disconnect"
-            // no longer exists (P2P groups have Leave/Disband in the chat
-            // sidebar). Just return to the chat page.
-            state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
-            state.go(GuiPage::Chat, crate::gui::How::Beside);
-        }
-        None => {
-            // The one Disconnect path (gui/connections.rs), shared with the Chat page.
-            state.disconnect_active();
-            state.go(GuiPage::Chat, crate::gui::How::Beside);
-        }
-    }
-}
-
 /// Look up the current user's role from the chat user list.
 /// Returns one of "owner", "admin", "mod", "member", or "" (unknown).
 fn current_user_role(state: &GuiState) -> String {
@@ -3047,32 +3022,19 @@ fn role_label(role: &str) -> String {
     }
 }
 
-/// Figure out whether we are configuring a group (modal context was set) or
-/// the currently connected server. Returns (header label, id/key string).
+/// The server these settings are for: (header label, its address). Always the server the app
+/// is on. Until 2026-11-04 a group could be the scope, kept from the relay groups removed on
+/// 2026-08-23, whose cog opened this page for a group; nothing opens it for a group now (a group
+/// is left or disbanded from its own cog in the chat), and the leftover took the profile card's
+/// key for a group's id (BUG-247).
 fn resolve_scope(state: &GuiState) -> (String, String) {
-    if let Some((id, name)) = resolve_group(state) {
-        (format!("Group: {}", name), id)
-    } else {
-        // Name the server LOUDLY (federation-ux.md finding #3): with several
-        // servers connected at once, every admin action on this page hits
-        // exactly this one -- the title says which, the mono line under it
-        // shows the full URL these settings are being sent to.
-        let url = resolve_server_url(state);
-        let name = crate::gui::pages::chat::server_display_name(&url);
-        (format!("Server: {}", name), url)
-    }
-}
-
-fn resolve_group(state: &GuiState) -> Option<(String, String)> {
-    // Legacy relay groups died 2026-08-23. P2P groups manage themselves
-    // from the chat sidebar (Leave/Disband), not this page.
-    let ctx_id = state.chat_user_modal_key.clone();
-    if ctx_id.is_empty() { return None; }
-    state
-        .p2p_groups
-        .iter()
-        .find(|g| g.group_id == ctx_id)
-        .map(|g| (g.group_id.clone(), g.name.clone()))
+    // Name the server LOUDLY (federation-ux.md finding #3): with several
+    // servers connected at once, every admin action on this page hits
+    // exactly this one -- the title says which, the mono line under it
+    // shows the full URL these settings are being sent to.
+    let url = resolve_server_url(state);
+    let name = crate::gui::pages::chat::server_display_name(&url);
+    (format!("Server: {}", name), url)
 }
 
 fn resolve_server_url(state: &GuiState) -> String {
@@ -3263,5 +3225,45 @@ mod tests {
         click_in_channels(&ctx, &theme, &mut state, "Save");
         let ch = &state.chat_channels[0];
         assert_eq!((ch.read_level, ch.post_level), (ReadLevel::Anyone, PostLevel::Mods), "Save applies both");
+    }
+
+    /// BUG-247: SERVER SETTINGS IS ALWAYS THE SERVER'S, whatever profile card was open last. The
+    /// page took a group scope ("Group: <name>", a "Leave group" button that left nothing and only
+    /// went back to Chat) whenever the profile card's key matched a group's id, a leftover of the
+    /// relay groups removed on 2026-08-23, whose cog opened this page for a group. Nothing opens it
+    /// for a group now (a group's own cog in the chat has Leave and Disband), so the scope is gone:
+    /// the title names the server, and Disconnect disconnects from it.
+    ///
+    /// Seen red 2026-11-04 with the scope as it was: "the page never offers to leave a group".
+    #[test]
+    fn server_settings_is_always_the_servers_whatever_card_was_open() {
+        let ctx = egui::Context::default();
+        crate::gui::install_fonts(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        crate::config::keep_saves_off_disk();
+        let mut state = GuiState::default();
+        state.server_url = "https://home.example".into();
+        state.connected_server_url = state.server_url.clone();
+        state.ws_client = Some(crate::net::ws_client::WsClient::recording().0);
+        state.p2p_groups = vec![crate::net::api_v2::P2pGroupInfo { group_id: "g1".into(), name: "Garden club".into(), members: vec!["me".into()], is_creator: false }];
+        // The one way the old scope could be taken: a card open on a key equal to a group's id.
+        state.chat_user_modal_key = "g1".into();
+        let frame = |state: &mut GuiState, events: Vec<egui::Event>| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 2000.0))), events, ..Default::default() };
+            ctx.run(input, |ctx| draw(ctx, &theme, state))
+        };
+        for _ in 0..3 {
+            frame(&mut state, Vec::new());
+        }
+        let out = frame(&mut state, Vec::new());
+        assert!(find_text_in_shapes(&out.shapes, "Leave group").is_none(), "the page never offers to leave a group");
+        assert!(find_text_in_shapes(&out.shapes, "Group: Garden club").is_none(), "nor names one as its scope");
+        let disconnect = find_text_in_shapes(&out.shapes, t("chat.disconnect_server")).expect("Disconnect from server is drawn").rect.center();
+        let m = egui::Modifiers::default();
+        frame(&mut state, vec![egui::Event::PointerMoved(disconnect)]);
+        frame(&mut state, vec![egui::Event::PointerButton { pos: disconnect, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(&mut state, vec![egui::Event::PointerButton { pos: disconnect, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+        assert!(state.ws_client.is_none(), "and Disconnect disconnects from the server");
     }
 }

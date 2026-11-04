@@ -5254,9 +5254,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 }
 
                                 // A shared room's line goes to the linked servers, numbered (handlers/federation_log.rs).
+                                // Awaited here, never spawned (BUG-249): the line must be in the outbox before this
+                                // socket's next frame is read, or an edit or delete sent right after it is numbered
+                                // first, finds no line to rewrite or scrub, and every linked server keeps the old words.
                                 if state_clone.db.is_channel_federated(&ch).unwrap_or(false) && crate::relay::chat_access::travels(&state_clone.db, &ch) {
-                                    let (fs, fch, fkey, fname, fcontent) = (state_clone.clone(), ch.clone(), my_key_for_recv.clone(), display.clone(), content.clone());
-                                    tokio::spawn(async move { forward_to_federation(&fs, &fch, &fkey, &fname, &fcontent, timestamp).await });
+                                    forward_to_federation(&state_clone, &ch, &my_key_for_recv, &display, &content, timestamp).await;
                                 }
 
                                 // Link previews placeholder (future feature).

@@ -1,5 +1,5 @@
 # HumanityOS Abilities Database (was spells.csv; renamed v0.753 - the rows
-# were never just fantasy spells, and Real mode filters by flavor)
+# were never just fantasy spells)
 # All castable spells, tech abilities, and powers
 #
 # Column definitions:
@@ -23,8 +23,11 @@
 #   skill_level       - Minimum skill level (0 = none)
 #   tags              - Pipe-separated: offensive|defensive|utility|movement|summon|aura|passive|channeled
 #   description       - Short description
-#   flavor            - real | tech | fantasy. Real mode shows real+tech;
-#                       whether fantasy loads is a Sim data view, not code.
+#   flavor            - real | tech | fantasy. Parsed and printed, and it
+#                       filters nothing: every row loads in every world, and
+#                       there is no Real mode (the Real/Sim toggle was removed
+#                       on 2026-07-16, docs/design/two-realities.md). Labelling
+#                       and gating the fantasy rows by world waits on BUG-233.
 #   builds            - Blueprint id (data/blueprints/basic.ron) the ability
 #                       builds in front of the caster, through the same build
 #                       path as a piece placed by hand (BUG-153, 2026-10-05).

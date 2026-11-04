@@ -262,6 +262,37 @@ fn the_invite_link_is_the_servers_own_chat_address() {
     assert!(state.toasts.iter().any(|t| t.text == said), "and the notice says the link opens only here");
 }
 
+/// BUG-246: A RIGHT-CLICK ON THE ACTIVE SERVER'S ROW, OR ON A GROUP'S ROW, LEAVES ITS MENU OPEN.
+/// Both menus were anchored on the row's cog with `CloseOnClick`, which egui closes on any click
+/// outside the anchor in the same frame, so a right-click anywhere else on the row opened the menu
+/// and closed it at once. The right-click now opens it where the pointer is (egui's context menu,
+/// as a saved server's and a room's right-click do), and the cog's own click is unchanged (the
+/// BUG-245 test above clicks it).
+///
+/// Seen red 2026-11-04 with both rows as they were: "a right-click on the server row leaves its
+/// menu open".
+#[test]
+fn a_right_click_on_a_server_or_group_row_leaves_its_menu_open() {
+    let (ctx, theme) = ctx_and_theme();
+    let copy = humanity_core::i18n::t("chat.copy_invite_link");
+
+    let mut state = two_servers();
+    press(&ctx, &theme, &mut state, View::Panel, "Home server", egui::PointerButton::Secondary);
+    let out = settled(&ctx, &theme, &mut state, View::Panel);
+    assert!(find_text_in_shapes(&out.shapes, copy).is_some(), "a right-click on the server row leaves its menu open");
+    let outs = press(&ctx, &theme, &mut state, View::Panel, copy, egui::PointerButton::Primary);
+    assert_eq!(copied(&outs), vec!["https://home.example/chat".to_string()], "and its items work");
+    let out = settled(&ctx, &theme, &mut state, View::Panel);
+    assert!(find_text_in_shapes(&out.shapes, copy).is_none(), "and an item's click closes the menu");
+
+    let mut state = two_servers();
+    state.p2p_groups = vec![crate::net::api_v2::P2pGroupInfo { group_id: "g1".into(), name: "Garden club".into(), members: vec!["me".into()], is_creator: false }];
+    state.chat_groups_collapsed = false;
+    press(&ctx, &theme, &mut state, View::Panel, "Garden club", egui::PointerButton::Secondary);
+    let out = settled(&ctx, &theme, &mut state, View::Panel);
+    assert!(find_text_in_shapes(&out.shapes, "Copy invite ticket").is_some(), "a right-click on a group's row leaves its menu open");
+}
+
 /// One frame in which something in the app asks to open `url` in the browser (as a chat message's
 /// link does, chat.rs), then the end of the frame (lib.rs): the links left for the browser.
 fn follow(ctx: &egui::Context, state: &mut GuiState, url: &str) -> Vec<String> {

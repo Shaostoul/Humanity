@@ -277,10 +277,10 @@ async fn everything_reaches_the_other_server() {
 }
 
 /// A PAUSE LOSES NOTHING AND REPEATS NOTHING, AND A FLOOD IS SLOWED THEN PAUSED THEN CAUGHT UP.
-/// B pauses A for three seconds; meanwhile Ann posts five lines on A, edits one and deletes
-/// another, and A keeps a key card of hers. Nothing reaches B during the pause. When it ends B
-/// asks, A sends what B set aside, and B holds exactly four lines (the deleted one gone, the
-/// edited one edited), each once, and Ann's card. Asking
+/// B pauses A; meanwhile Ann posts five lines on A, edits one and deletes another, and A keeps a
+/// key card of hers. Nothing reaches B during the pause. Ann posts a sixth line as the pause runs
+/// out. When it ends B asks, A sends what B set aside, and B holds exactly five lines (the deleted
+/// one gone, the edited one edited), each once, and Ann's card. Asking
 /// again from three numbers back (a restart before the place was stored) changes nothing. Then,
 /// with small allowances on B, A sends 40 lines at once: B is slowed, then paused (the admin API
 /// shows the pause), and still holds all 40, each once.
@@ -292,6 +292,14 @@ async fn everything_reaches_the_other_server() {
 /// "asking again changed what B holds: [... "during the pause 5", "during the pause 5"]"; and
 /// (2026-10-24) with `key_card_gossip` taken out of `apply`, so a card in the log was never kept:
 /// "not within 10s: B keeps Ann's card after the pause" (the lines had all arrived).
+///
+/// Made deterministic 2026-11-04 (it failed now and then: data/coordination/flaky-tests.jsonl).
+/// Two causes. The pause was three seconds of clock, which a busy machine once outran ("test
+/// setup: still inside the pause"); it is now held open until B has set aside every frame of it.
+/// And a line's forward was spawned, so an edit or delete sent right after it could be numbered
+/// first and miss it (BUG-249: B kept "during the pause 4", deleted). Seen red with the forward
+/// spawned as it was and 200 ms added before it, the race made certain: "not within 10s: B caught
+/// up after the pause". Green 20 runs in a row after the fix.
 #[test]
 fn a_pause_loses_nothing_and_repeats_nothing_and_a_flood_is_slowed_then_paused() {
     on_a_big_stack(|| a_pause_and_a_flood());
@@ -308,10 +316,15 @@ async fn a_pause_and_a_flood() {
     within("B holds the first line", || holds(&b, &a.key, "before the pause") == 1).await;
     let _ = t0;
 
-    federation_log::pause_peer(&b.state, &a.key, Duration::from_secs(3));
-    let paused_at = Instant::now();
+    // The pause is held open (two minutes, longer than any step here) until every frame A sends
+    // during it has reached B and been set aside, then left to run out by the clock. It was three
+    // seconds, and a busy machine once took longer than that to post these lines ("test setup:
+    // still inside the pause", 2026-11-01).
+    federation_log::pause_peer(&b.state, &a.key, Duration::from_secs(120));
+    let set_aside = |b: &Relay| federation_log::peer_view(&b.state, Some(&a.key))["flow"]["set_aside"].as_u64().unwrap_or(0);
     let mut stamps = Vec::new();
     for i in 1..=5 {
+        tokio::time::sleep(Duration::from_millis(2)).await; // each line its own millisecond, its own stamp
         stamps.push(post(&mut sock, 51, "global", &format!("during the pause {i}")).await);
     }
     send(&mut sock, json!({ "type": "edit", "from": "", "timestamp": stamps[1], "new_content": "during the pause 2 (edited)", "channel": "global" })).await;
@@ -322,23 +335,31 @@ async fn a_pause_and_a_flood() {
     let card = humanity_protocol::key_card::sign_card(&[51; 32], now).unwrap();
     let kept = crate::relay::handlers::key_cards::keep_from_sign_in(&a.state, &ann, humanity_protocol::key_card::card_json(&card)).await;
     assert!(kept.is_some_and(|k| k.stored()), "A keeps Ann's card");
-    tokio::time::sleep(Duration::from_millis(1_000)).await;
-    assert!(paused_at.elapsed() < Duration::from_secs(3), "test setup: still inside the pause");
+    within("B set aside the five lines, the edit, the delete and the card", || set_aside(&b) >= 8).await;
     assert!(copies(&b, &a.key).iter().all(|(_, _, c)| !c.starts_with("during the pause")), "a line reached B during the pause");
     assert_eq!(b.state.db.get_key_card(&ann).unwrap(), None, "Ann's card reached B during the pause");
+
+    // The pause runs out two seconds from now, and a sixth line is sent as it does. It reaches B
+    // inside the pause and is set aside too, so B, which reads when the pause ends from it, is
+    // woken by the clock and asks by itself (`tick`); on a machine slow enough for it to arrive
+    // after the end, B asks on reading it (`ingest`).
+    federation_log::pause_ends_in_for_test(&b.state, &a.key, Duration::from_secs(2));
+    let pause_ends = Instant::now() + Duration::from_secs(2);
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    post(&mut sock, 51, "global", "during the pause 6").await;
 
     let caught_up = |b: &Relay| {
         let held = copies(b, &a.key);
         let n = |c: &str| held.iter().filter(|(_, _, x)| x == c).count();
         n("during the pause 1") == 1 && n("during the pause 2 (edited)") == 1 && n("during the pause 2") == 0
             && n("during the pause 3") == 1 && n("during the pause 4") == 0 && n("during the pause 5") == 1
+            && n("during the pause 6") == 1
     };
     within("B caught up after the pause", || caught_up(&b)).await;
     within("B keeps Ann's card after the pause", || b.state.db.get_key_card(&ann).ok().flatten().as_ref() == Some(&card)).await;
-    let took = paused_at.elapsed();
-    println!("PHASE 3: B caught up {took:?} after the pause began ({:?} after it ended)", took.saturating_sub(Duration::from_secs(3)));
+    println!("PHASE 3: B caught up {:?} after the pause ended", Instant::now().saturating_duration_since(pause_ends));
     let flow = federation_log::peer_view(&b.state, Some(&a.key));
-    assert!(flow["flow"]["set_aside"].as_u64().unwrap() >= 7, "the frames during the pause were set aside: {flow}");
+    assert!(flow["flow"]["set_aside"].as_u64().unwrap() >= 8, "the frames during the pause were set aside: {flow}");
 
     // Asked again from three numbers back: nothing is stored twice.
     let (_, newest) = a.state.db.fed_outbox_bounds().unwrap();

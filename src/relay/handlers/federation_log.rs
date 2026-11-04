@@ -774,6 +774,15 @@ pub fn pause_peer(state: &RelayState, peer: &str, how_long: Duration) {
     }
 }
 
+/// Tests only: let the pause on `peer` run out `how_long` from now, counting nothing
+/// (`PeerFlow::pause_ends_at`).
+#[cfg(test)]
+pub(crate) fn pause_ends_in_for_test(state: &RelayState, peer: &str, how_long: Duration) {
+    if let Ok(mut ins) = state.fed.ins.lock() {
+        place(state, &mut ins, peer).flow.pause_ends_at(Instant::now() + how_long);
+    }
+}
+
 /// Tests only: put this server's place in `peer`'s log back to `to` (as a crash before the place
 /// was stored would) and ask the peer for everything after it, over the live link.
 #[cfg(test)]

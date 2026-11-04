@@ -16,8 +16,9 @@ function defaultScope() {
   return SCOPES.find(s => s.key === 'city') || SCOPES[SCOPES.length - 1];
 }
 
-/* ── Skill XP curve (data/skills/xp_curve.json; fallback if fetch fails) ── */
-let XP_PER_LEVEL = [100,150,225,338,507,760,1140,1710,2565,3848];
+/* ── Skill XP curve (data/skills/xp_curve.json, the game's rule; this copy only if the fetch
+ * fails, held to the file by scripts/tests/xp-curve-web.test.js, BUG-248) ── */
+let XP_PER_LEVEL = [100,282,519,800,1118,1469,1852,2262,2700,3162];
 let MAX_LEVEL = 10;
 
 let allTasks = [];

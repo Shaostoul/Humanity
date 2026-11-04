@@ -792,56 +792,59 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     let menu_id = ui.id().with("p2pmenu").with(&p.group_id);
-                    if cog_resp.clicked() || row_resp.secondary_clicked() {
+                    // The cog opens the menu under itself. A right-click on the row opens the same menu where
+                    // the pointer is (BUG-246): it toggled the cog's menu, which egui closes on any click
+                    // outside the cog in that same frame, so it never showed.
+                    if cog_resp.clicked() {
                         ui.memory_mut(|m| m.toggle_popup(menu_id));
                     }
-                    egui::popup_below_widget(
-                        ui,
-                        menu_id,
-                        &cog_resp,
-                        egui::PopupCloseBehavior::CloseOnClick,
-                        |ui| {
-                            ui.set_min_width(180.0);
-                            ui.label(
-                                RichText::new(&p.name)
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary())
-                                    .strong(),
-                            );
-                            ui.separator();
-                            if ui.button("Copy invite ticket").clicked() {
-                                p2p_copy_invite = Some((p.group_id.clone(), p.name.clone()));
-                            }
-                            // 3s hold: a short gate so a stray tap doesn't drop
-                            // you from a group; rejoining needs a new invite.
-                            if hold_to_confirm_button(
+                    // Each item closes the menu it is in (a right-click menu stays open until told).
+                    let mut group_menu = |ui: &mut egui::Ui| {
+                        ui.set_min_width(180.0);
+                        ui.label(
+                            RichText::new(&p.name)
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
+                        ui.separator();
+                        if ui.button("Copy invite ticket").clicked() {
+                            p2p_copy_invite = Some((p.group_id.clone(), p.name.clone()));
+                            ui.close_menu();
+                        }
+                        // 3s hold: a short gate so a stray tap doesn't drop
+                        // you from a group; rejoining needs a new invite.
+                        if hold_to_confirm_button(
+                            ui,
+                            theme,
+                            egui::Id::new(("p2p_leave_hold", p.group_id.as_str())),
+                            "Leave group (hold)",
+                            "Hold to leave…",
+                            3.0,
+                            "Press and HOLD to leave this group. You can rejoin later with a new invite ticket.",
+                        ) {
+                            p2p_leave_gid = Some(p.group_id.clone());
+                            ui.close_menu();
+                        }
+                        // Disband: creator only. Press-and-HOLD (5s): this
+                        // destroys the group for EVERY member, irreversibly.
+                        if p.is_creator
+                            && hold_to_confirm_button(
                                 ui,
                                 theme,
-                                egui::Id::new(("p2p_leave_hold", p.group_id.as_str())),
-                                "Leave group (hold)",
-                                "Hold to leave…",
-                                3.0,
-                                "Press and HOLD to leave this group. You can rejoin later with a new invite ticket.",
-                            ) {
-                                p2p_leave_gid = Some(p.group_id.clone());
-                            }
-                            // Disband: creator only. Press-and-HOLD (5s): this
-                            // destroys the group for EVERY member, irreversibly.
-                            if p.is_creator
-                                && hold_to_confirm_button(
-                                    ui,
-                                    theme,
-                                    egui::Id::new(("p2p_disband_hold", p.group_id.as_str())),
-                                    "Disband for everyone (hold)",
-                                    "Hold to disband…",
-                                    5.0,
-                                    "Press and HOLD to permanently disband this group for ALL members. This cannot be undone.",
-                                )
-                            {
-                                p2p_disband_gid = Some(p.group_id.clone());
-                            }
-                        },
-                    );
+                                egui::Id::new(("p2p_disband_hold", p.group_id.as_str())),
+                                "Disband for everyone (hold)",
+                                "Hold to disband…",
+                                5.0,
+                                "Press and HOLD to permanently disband this group for ALL members. This cannot be undone.",
+                            )
+                        {
+                            p2p_disband_gid = Some(p.group_id.clone());
+                            ui.close_menu();
+                        }
+                    };
+                    egui::popup_below_widget(ui, menu_id, &cog_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| group_menu(ui));
+                    row_resp.context_menu(|ui| group_menu(ui));
                     if row_resp.clicked() {
                         open_p2p_id = Some(p.group_id.clone());
                     }
@@ -1260,12 +1263,11 @@ struct ServerRowSpec {
 struct ServerRowOut {
     /// Left-click anywhere on the row (not on a control).
     clicked: bool,
-    /// Right-click anywhere on the row.
-    secondary: bool,
     collapse_clicked: bool,
     cog: egui::Response,
     forget_fired: bool,
-    /// The whole row, for a right-click menu that opens and closes as egui's own (Mute server).
+    /// The whole row, for a right-click menu that opens and closes as egui's own (a saved
+    /// server's Mute server; the active server's whole menu, BUG-246).
     row: egui::Response,
 }
 
@@ -1510,12 +1512,46 @@ fn draw_server_row(
 
     ServerRowOut {
         clicked: row_resp.clicked(),
-        secondary: row_resp.secondary_clicked(),
         collapse_clicked,
         cog,
         forget_fired,
         row: row_resp,
     }
+}
+
+/// The active server's menu: under its cog on a click, and where the pointer is on a right-click
+/// of its row (BUG-246). True when Disconnect was chosen. Each item closes the menu it is in (a
+/// right-click menu stays open until told; the cog's closes on any click anyway).
+fn active_server_menu(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, svr_name: &str, is_server_admin: bool) -> bool {
+    let mut disconnect = false;
+    ui.set_min_width(160.0);
+    ui.label(RichText::new(svr_name).size(theme.font_size_body).color(theme.text_primary()).strong());
+    ui.separator();
+    // This server's own chat address (chat/channel_link.rs, BUG-245: it was
+    // https://united-humanity.us/chat for every server).
+    if ui.button(humanity_core::i18n::t("chat.copy_invite_link")).hint("chat.copy_invite_link_hint").clicked() {
+        let url = state.server_url.clone();
+        super::channel_link::copy_invite_link(ui.ctx(), state, &url);
+        ui.close_menu();
+    }
+    if is_server_admin {
+        ui.separator();
+        if ui.button("Server Settings").clicked() {
+            // How::From, so Escape returns to Chat.
+            state.go(crate::gui::GuiPage::ServerSettings, crate::gui::How::From);
+            ui.close_menu();
+        }
+    }
+    ui.separator();
+    // Mute server (2026-10-30; removed in v0.847 while there was nothing to mute).
+    let url = state.server_url.clone();
+    super::mute_menu::server_items(ui, theme, state, &url);
+    ui.separator();
+    if ui.button(RichText::new("Disconnect").color(theme.danger())).clicked() {
+        disconnect = true;
+        ui.close_menu();
+    }
+    disconnect
 }
 
 /// The ACTIVE server's full sidebar entry (header + cog + channels +
@@ -1582,7 +1618,10 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     }
                     let cog_resp = out.cog;
                     let menu_id = ui.id().with("svr_menu");
-                    if cog_resp.clicked() || cog_resp.secondary_clicked() || out.secondary {
+                    // The cog opens the menu under itself. A right-click on the row opens the same
+                    // menu where the pointer is (BUG-246): it toggled the cog's menu, which egui
+                    // closes on any click outside the cog in that same frame, so it never showed.
+                    if cog_resp.clicked() || cog_resp.secondary_clicked() {
                         ui.memory_mut(|m| m.toggle_popup(menu_id));
                     }
                     let is_server_admin = {
@@ -1590,30 +1629,10 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         vr == "admin" || vr == "moderator" || vr == "mod"
                     };
                     egui::popup_below_widget(ui, menu_id, &cog_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
-                        ui.set_min_width(160.0);
-                        ui.label(RichText::new(&svr_name).size(theme.font_size_body).color(theme.text_primary()).strong());
-                        ui.separator();
-                        // This server's own chat address (chat/channel_link.rs, BUG-245: it was
-                        // https://united-humanity.us/chat for every server).
-                        if ui.button(humanity_core::i18n::t("chat.copy_invite_link")).hint("chat.copy_invite_link_hint").clicked() {
-                            let url = state.server_url.clone();
-                            super::channel_link::copy_invite_link(ui.ctx(), state, &url);
-                        }
-                        if is_server_admin {
-                            ui.separator();
-                            if ui.button("Server Settings").clicked() {
-                                // How::From, so Escape returns to Chat.
-                                state.go(crate::gui::GuiPage::ServerSettings, crate::gui::How::From);
-                            }
-                        }
-                        ui.separator();
-                        // Mute server (2026-10-30; removed in v0.847 while there was nothing to mute).
-                        let url = state.server_url.clone();
-                        super::mute_menu::server_items(ui, theme, state, &url);
-                        ui.separator();
-                        if ui.button(RichText::new("Disconnect").color(theme.danger())).clicked() {
-                            svr_disconnect = true;
-                        }
+                        svr_disconnect |= active_server_menu(ui, theme, state, &svr_name, is_server_admin);
+                    });
+                    out.row.context_menu(|ui| {
+                        svr_disconnect |= active_server_menu(ui, theme, state, &svr_name, is_server_admin);
                     });
 
                     if svr_disconnect {

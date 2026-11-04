@@ -1,5 +1,6 @@
 {
-  "_purpose": "The skill XP progression curve (infinite-of-x: was duplicated as hardcoded arrays in web/pages/tasks-app.js and web/pages/profile.html). xp_per_level[i] is the XP needed to advance FROM level i; max_level caps progression. Edit here; the web pages fetch this file. If native skill leveling ever needs the same curve, read this file rather than adding a third copy.",
+  "_purpose": "The website's skill XP table (web/pages/profile.html and web/pages/tasks-app.js fetch it), and it is THE GAME'S RULE: the XP to go from level L-1 to level L is base x L^1.5, rounded down (crates/humanity-systems/src/skills/mod.rs SkillDef::xp_for_level; a game skill's own base and highest level are its row in data/skills/skills.csv). xp_per_level[i] is the XP needed to advance FROM level i, for a skill of this base, up to max_level. Never edit the numbers by hand: change base or max_level, and the test the_websites_xp_curve_is_the_games_rule (in just validate-data and the lib tests) prints the table to paste. BUG-248: until 2026-11-04 this held another curve (each step 1.5 times the last), so the website and the game showed different levels for the same XP.",
+  "base": 100,
   "max_level": 10,
-  "xp_per_level": [100, 150, 225, 338, 507, 760, 1140, 1710, 2565, 3848]
+  "xp_per_level": [100, 282, 519, 800, 1118, 1469, 1852, 2262, 2700, 3162]
 }

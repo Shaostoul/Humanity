@@ -264,6 +264,16 @@ impl PeerFlow {
         *n = n.saturating_sub(1);
     }
 
+    /// Tests only: move the end of the pause the peer is in to `until`, counting nothing (a pause
+    /// held open while a test checks what arrived during it, then left to run out by the clock,
+    /// so no slow step of the test can outlast it; federation_phase3_tests.rs).
+    #[cfg(test)]
+    pub fn pause_ends_at(&mut self, until: Instant) {
+        if self.paused_until.is_some() {
+            self.paused_until = Some(until);
+        }
+    }
+
     /// Pause the peer now for `how_long` (admin tests and a future admin action).
     pub fn pause_for(&mut self, now: Instant, how_long: Duration) {
         self.paused_until = Some(now + how_long);

@@ -1528,9 +1528,10 @@
       },
     ];
 
-    // XP curve lives in data/skills/xp_curve.json (shared with the tasks page);
-    // the literals below are only the offline fallback.
-    var SKILL_XP_PER_LEVEL = [100, 150, 225, 338, 507, 760, 1140, 1710, 2565, 3848];
+    // XP curve lives in data/skills/xp_curve.json (shared with the tasks page, and the game's
+    // rule, BUG-248); the literals below are only the offline fallback, held to the file by
+    // scripts/tests/xp-curve-web.test.js.
+    var SKILL_XP_PER_LEVEL = [100, 282, 519, 800, 1118, 1469, 1852, 2262, 2700, 3162];
     var SKILL_MAX_LEVEL = 10;
     fetch('/data/skills/xp_curve.json')
       .then(function (r) { return r.ok ? r.json() : null; })

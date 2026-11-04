@@ -256,6 +256,27 @@ mod skill_tests {
         assert_eq!(mining.xp_for_level(1), 100);
     }
 
+    /// BUG-248: THE WEBSITE'S XP TABLE IS THE GAME'S RULE. data/skills/xp_curve.json, which the
+    /// website's Profile and Tasks pages level a person's skills from, is `xp_for_level` for a
+    /// skill of its `base`, step by step up to its `max_level` (its `xp_per_level[i]` is the XP to
+    /// go from level i to i + 1). Run by `just validate-data` too; on a difference it prints the
+    /// right table. scripts/tests/xp-curve-web.test.js holds the pages to the file.
+    ///
+    /// Seen red 2026-11-04 with the file as it was (each step 1.5 times the last): "the website's
+    /// table is the game's rule at base 100" (left [100, 150, 225, 338, ...], right [100, 282, 519,
+    /// 800, ...]).
+    #[test]
+    fn the_websites_xp_curve_is_the_games_rule() {
+        let path = concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/xp_curve.json");
+        let file: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).expect("the table")).expect("it is JSON");
+        let base = file["base"].as_u64().expect("the table names its base") as u32;
+        let max_level = file["max_level"].as_u64().expect("and its last level") as u32;
+        let steps: Vec<u32> = file["xp_per_level"].as_array().expect("and its steps").iter().map(|v| v.as_u64().unwrap_or(0) as u32).collect();
+        let def = SkillDef { id: "web".into(), name: "web".into(), category: String::new(), max_level, xp_per_level: base, description: String::new() };
+        let rule: Vec<u32> = (1..=max_level).map(|level| def.xp_for_level(level)).collect();
+        assert_eq!(steps, rule, "the website's table is the game's rule at base {base}");
+    }
+
     #[test]
     fn channel_xp_grant_levels_up_the_player() {
         let mut data = DataStore::new();
