@@ -37,8 +37,9 @@ fn two_servers(active: &str) -> GuiState {
     s
 }
 
-/// The sidebar drawn at a Font Size, in a window 420 points across, settled over three passes.
-fn draw_at(state: &mut GuiState, percent: f32) -> (Vec<egui::epaint::ClippedShape>, f32) {
+/// A sidebar (`draw`: the left one, or the member list) drawn at a Font Size, in a window 420
+/// points across, settled over three passes.
+fn draw_at(state: &mut GuiState, percent: f32, draw: fn(&mut egui::Ui, &Theme, &mut GuiState)) -> (Vec<egui::epaint::ClippedShape>, f32) {
     let ctx = egui::Context::default();
     crate::gui::install_fonts(&ctx);
     let theme = crate::gui::theme::load_theme();
@@ -50,7 +51,7 @@ fn draw_at(state: &mut GuiState, percent: f32) -> (Vec<egui::epaint::ClippedShap
         let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(420.0, 900.0))), ..Default::default() };
         crate::gui::font_size::before_frame(&ctx, &mut input, &mut state.settings.font_size);
         out = Some(ctx.run(input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| left_panel::draw_left_panel(ui, &theme, state));
+            egui::CentralPanel::default().show(ctx, |ui| draw(ui, &theme, state));
         }));
     }
     (out.expect("three passes ran").shapes, ctx.pixels_per_point())
@@ -120,7 +121,7 @@ fn a_room_row_is_the_same_under_the_active_server_and_another() {
     for percent in [100.0, 200.0] {
         for (active, (on, off)) in [(HOME, ("Home server", "Second server")), (OTHER, ("Second server", "Home server"))] {
             let mut state = two_servers(active);
-            let (shapes, ppp) = draw_at(&mut state, percent);
+            let (shapes, ppp) = draw_at(&mut state, percent, left_panel::draw_left_panel);
             let home = rooms(&shapes, "Home server", "alpha", "beta");
             let second = rooms(&shapes, "Second server", "delta", "epsilon");
             let (a, o) = if active == HOME { (&home, &second) } else { (&second, &home) };
@@ -140,5 +141,61 @@ fn a_room_row_is_the_same_under_the_active_server_and_another() {
             let h = a.height_plain.expect("a room row has its own ground");
             assert!(close(a.first_to_second, h), "rooms under {on} have a gap between them at {percent}%: {a:?}");
         }
+    }
+}
+
+/// The middle of the drawn text `text` (a row with no ground of its own is measured by the step
+/// from one row's middle to the next's).
+fn mid(shapes: &[egui::epaint::ClippedShape], text: &str) -> f32 {
+    find_text_in_shapes(shapes, text).unwrap_or_else(|| panic!("{text:?} is drawn")).rect.center().y
+}
+
+/// BUG-243: EVERY ROW OF THE CHAT'S SIDEBARS IS A LINE OF THE BODY TEXT TALL, the room row's rule
+/// (BUG-242, never less than the theme's row height): the scratchpad, the people in a room's voice,
+/// the Commons rooms, the Groups and the member list, at 100% and 200% Font Size. Each is measured
+/// against a room row drawn in the same frame: the scratchpad by its own ground, the others by the
+/// step from one row to the next (the member list keeps the theme's gap between rows).
+///
+/// Seen red 2026-11-04 with the rows as they were: "rows not a line of the body text tall at 100%
+/// (a room row is 22.375): [("the scratchpad", 15.875), ("the voice roster", 12.375), ("the Commons
+/// rooms", 14.28125), ("the Groups", 26.0), ("the member list", 15.89875)]". The scratchpad and the
+/// member list were the theme's bare row height (15.9 points, shorter than a line of the 16.4-point
+/// text), the voice roster 0.78 of it, the Commons rooms 0.9 of it, and the Groups a server header's
+/// 24 points and a 2-point gap.
+#[test]
+fn every_sidebar_row_is_a_line_of_body_text_tall() {
+    let theme = crate::gui::theme::load_theme();
+    for percent in [100.0, 200.0] {
+        let mut state = two_servers(HOME);
+        // Two people in #beta's voice, two groups, and two Commons rooms (rooms both servers mark
+        // federated, the two servers linked), every section open.
+        if let Some(beta) = state.chat_channels.iter_mut().find(|c| c.id == "beta") {
+            beta.voice_participants = vec![("k1".into(), "Bea".into()), ("k2".into(), "Cy".into())];
+        }
+        let group = |id: &str, name: &str| crate::net::api_v2::P2pGroupInfo { group_id: id.into(), name: name.into(), members: vec!["me".into()], is_creator: false };
+        state.p2p_groups = vec![group("g1", "Garden club"), group("g2", "Hikers")];
+        let fed = |id: &str| ChatChannel { id: id.into(), name: id.into(), federated: true, ..Default::default() };
+        state.chat_channels.extend([fed("gamma"), fed("zeta")]);
+        state.connections[0].channels.extend([fed("gamma"), fed("zeta")]);
+        state.federation_links.link_for_tests(HOME, OTHER);
+        let person = |name: &str| crate::gui::ChatUser { name: name.into(), public_key: format!("key_{name}"), role: String::new(), status: "online".into() };
+        state.chat_users = vec![person("Dana"), person("Eli")];
+        state.chat_groups_collapsed = false;
+        state.chat_commons_collapsed = false;
+        state.chat_members_collapsed = false;
+
+        let (shapes, ppp) = draw_at(&mut state, percent, left_panel::draw_left_panel);
+        let (members, _) = draw_at(&mut state, percent, right_panel::draw_right_panel);
+        let close = |x: f32, y: f32| same(x, y, ppp);
+        let room = row(&shapes, "alpha").height.expect("a room row has its own ground");
+        let rows = [
+            ("the scratchpad", row(&shapes, "scratchpad").height.expect("the scratchpad row has its own ground")),
+            ("the voice roster", mid(&shapes, "Cy") - mid(&shapes, "Bea")),
+            ("the Commons rooms", mid(&shapes, "# zeta") - mid(&shapes, "# gamma")),
+            ("the Groups", mid(&shapes, "Hikers") - mid(&shapes, "Garden club")),
+            ("the member list", mid(&members, "Eli") - mid(&members, "Dana") - theme.row_gap),
+        ];
+        let off: Vec<_> = rows.iter().filter(|(_, h)| !close(*h, room)).collect();
+        assert!(off.is_empty(), "rows not a line of the body text tall at {percent}% (a room row is {room}): {off:?}");
     }
 }

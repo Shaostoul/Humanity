@@ -203,7 +203,11 @@ window.HOS_I18N_EN = {
     "copy_link_done": "Copied {{link}}",
     "copy_link_done_private": "Copied {{link}}. This server has no public address, so the link opens only on this computer or on its home network.",
     "copy_link_prompt": "Copy this channel's address:",
-    "link_no_channel": "There is no channel #{{name}} on this server."
+    "link_no_channel": "There is no channel #{{name}} on this server.",
+    "copy_invite_link": "Copy invite link",
+    "copy_invite_link_hint": "Copies the address of this server's chat so you can send it to someone. Opening it takes them to this server's chat. On an invite-only server they also need a one-time invite code from an admin.",
+    "invite_link_label": "Server invite link",
+    "invite_private": "This server has no public address, so its invite link opens only on this computer or on its home network."
   },
   "settings": {
     "language": "Language",

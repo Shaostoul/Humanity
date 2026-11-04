@@ -16,6 +16,9 @@
 //!   united-humanity.us path, `/chat/<name>`, which opens nothing). A server with no public
 //!   address (localhost, a home network) is copied all the same, and the notice says the link
 //!   opens only on this computer or its home network.
+//! - COPY INVITE LINK, on the server cog's menu (chat/left_panel.rs) and in Server Settings: the
+//!   address of the server's own chat, `https://<the server>/chat`, the same way (BUG-245, they
+//!   built https://united-humanity.us/chat for every server).
 //! - A LINK THE APP WOULD OPEN IN THE BROWSER (egui's OpenUrl, from a chat message's link or
 //!   anywhere else in the app's own window) that names a channel on the server the app is on or on
 //!   a SAVED server opens that channel here instead (`open_in_app`, at the end of every frame in
@@ -203,16 +206,44 @@ pub(crate) fn server_origin(server_url: &str) -> Option<String> {
     Some(u.origin().ascii_serialization())
 }
 
+/// Whether the server at `origin` (from `server_origin`) can be reached from another network.
+fn origin_is_public(origin: &str) -> bool {
+    url::Url::parse(origin).ok().and_then(|u| u.host_str().map(is_public_host)).unwrap_or(false)
+}
+
 /// Channel `id`'s address on the server at `server_url`, and whether that server is public.
 pub(crate) fn channel_address(server_url: &str, id: &str) -> Option<(String, bool)> {
     let origin = server_origin(server_url)?;
-    let public = url::Url::parse(&origin).ok().and_then(|u| u.host_str().map(is_public_host)).unwrap_or(false);
+    let public = origin_is_public(&origin);
     Some((link(&origin, id), public))
+}
+
+/// The invite link of the server at `server_url`: its own chat's address (`https://<it>/chat`,
+/// which opens that server's chat and its first channel), and whether that server is public.
+/// BUG-245: the server cog's Copy invite link and Server Settings' invite link built
+/// https://united-humanity.us/chat whichever server they were for.
+pub(crate) fn invite_address(server_url: &str) -> Option<(String, bool)> {
+    let origin = server_origin(server_url)?;
+    let public = origin_is_public(&origin);
+    Some((format!("{origin}/chat"), public))
 }
 
 /// Copy channel `id`'s address on the server at `server_url` and say what was copied.
 pub(crate) fn copy_channel_link(ctx: &egui::Context, state: &mut GuiState, server_url: &str, id: &str) {
     let Some((address, public)) = channel_address(server_url, id) else { return };
+    copy_and_say(ctx, state, address, public);
+}
+
+/// Copy the invite link of the server at `server_url` (`invite_address`) and say what was copied,
+/// as Copy link does: the server cog's Copy invite link (chat/left_panel.rs) and Server Settings'.
+pub(crate) fn copy_invite_link(ctx: &egui::Context, state: &mut GuiState, server_url: &str) {
+    let Some((address, public)) = invite_address(server_url) else { return };
+    copy_and_say(ctx, state, address, public);
+}
+
+/// Copy `address` and say so: a flash for a public server's, words to read for one that opens only
+/// on this computer or its home network.
+fn copy_and_say(ctx: &egui::Context, state: &mut GuiState, address: String, public: bool) {
     ctx.copy_text(address.clone());
     let now = ctx.input(|i| i.time);
     if public {

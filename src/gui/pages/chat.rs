@@ -3460,7 +3460,8 @@ fn draw_commons_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 let is_active = commons_room_of(&state.chat_active_channel) == Some(room.name.as_str());
                 let row_w = ui.available_width();
                 let (row_rect, response) = ui.allocate_exact_size(
-                    Vec2::new(row_w, theme.row_height * 0.9),
+                    // A line of the body text tall, as every sidebar row (chat/channel_row.rs, BUG-243).
+                    Vec2::new(row_w, channel_row::text_row_height(ui, theme)),
                     egui::Sense::click(),
                 );
                 if !ui.is_rect_visible(row_rect) {

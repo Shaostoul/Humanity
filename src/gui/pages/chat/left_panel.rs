@@ -246,7 +246,8 @@ pub(crate) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
 /// Local scratchpad channel - not attached to any server/group/DM.
 fn draw_scratchpad_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let is_active = state.chat_active_channel == "scratchpad";
-    let row_height = theme.row_height;
+    // A line of the body text tall, as every sidebar row is (chat/channel_row.rs, BUG-243).
+    let row_height = super::channel_row::text_row_height(ui, theme);
     let (rect, resp) = ui.allocate_exact_size(
         Vec2::new(ui.available_width(), row_height),
         egui::Sense::click(),
@@ -692,7 +693,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 for p in p2p_clone.iter() {
                     let is_active =
                         state.chat_active_channel == format!("p2pgroup:{}", p.group_id);
-                    let hdr_height = 24.0;
+                    // A line of the body text tall and no gap, as a DM row (BUG-243: 24 points
+                    // and a 2-point gap, a server header's size, not a conversation's).
+                    let hdr_height = super::channel_row::text_row_height(ui, theme);
                     let full_w = ui.available_width();
                     let (row_rect, row_resp) = ui.allocate_exact_size(
                         Vec2::new(full_w, hdr_height),
@@ -845,7 +848,6 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     if row_resp.hovered() && !cog_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
-                    ui.add_space(2.0);
                 }
                 if let Some(gid) = open_p2p_id {
                     // Switch the active channel INSTANTLY (the header + "Loading…"
@@ -1591,9 +1593,11 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         ui.set_min_width(160.0);
                         ui.label(RichText::new(&svr_name).size(theme.font_size_body).color(theme.text_primary()).strong());
                         ui.separator();
-                        let invite_url = format!("https://united-humanity.us/chat");
-                        if ui.button("Copy Invite Link").clicked() {
-                            ui.ctx().copy_text(invite_url);
+                        // This server's own chat address (chat/channel_link.rs, BUG-245: it was
+                        // https://united-humanity.us/chat for every server).
+                        if ui.button(humanity_core::i18n::t("chat.copy_invite_link")).hint("chat.copy_invite_link_hint").clicked() {
+                            let url = state.server_url.clone();
+                            super::channel_link::copy_invite_link(ui.ctx(), state, &url);
                         }
                         if is_server_admin {
                             ui.separator();
@@ -1700,7 +1704,9 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             let is_me = pk == &my_voice_key;
                             let pw = ui.available_width();
                             let (prect, presp) = ui.allocate_exact_size(
-                                Vec2::new(pw, theme.row_height * 0.78),
+                                // A line of the body text tall (BUG-243: 0.78 of the theme's row
+                                // height, shorter than the name it holds).
+                                Vec2::new(pw, super::channel_row::text_row_height(ui, theme)),
                                 egui::Sense::click(),
                             );
                             if presp.hovered() {

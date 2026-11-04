@@ -99,19 +99,28 @@ fn ctx_and_theme() -> (egui::Context, Theme) {
     (ctx, theme)
 }
 
-/// One frame of the left panel, or of the Chat page, with `events`.
-fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: bool, events: Vec<egui::Event>) -> egui::FullOutput {
-    let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0))), events, ..Default::default() };
-    ctx.run(input, |ctx| {
-        if page {
-            crate::gui::pages::chat::draw(ctx, theme, state);
-        } else {
+/// What a test draws: the chat's left panel, the whole Chat page, or the Server Settings page.
+#[derive(Clone, Copy)]
+enum View {
+    Panel,
+    Chat,
+    Settings,
+}
+
+/// One frame of `view`, with `events`.
+fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, view: View, events: Vec<egui::Event>) -> egui::FullOutput {
+    let tall = if matches!(view, View::Settings) { 2000.0 } else { 900.0 };
+    let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, tall))), events, ..Default::default() };
+    ctx.run(input, |ctx| match view {
+        View::Chat => crate::gui::pages::chat::draw(ctx, theme, state),
+        View::Settings => crate::gui::pages::server_settings::draw(ctx, theme, state),
+        View::Panel => {
             egui::CentralPanel::default().show(ctx, |ui| left_panel::draw_left_panel(ui, theme, state));
         }
     })
 }
 
-fn settled(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: bool) -> egui::FullOutput {
+fn settled(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: View) -> egui::FullOutput {
     for _ in 0..3 {
         frame(ctx, theme, state, page, Vec::new());
     }
@@ -120,9 +129,14 @@ fn settled(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: bool)
 
 /// Press and release `button` on the drawn text `text`, each on a frame of its own; every frame's
 /// output, in order.
-fn press(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: bool, text: &str, button: egui::PointerButton) -> Vec<egui::FullOutput> {
+fn press(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: View, text: &str, button: egui::PointerButton) -> Vec<egui::FullOutput> {
     let out = settled(ctx, theme, state, page);
     let pos = find_text_in_shapes(&out.shapes, text).unwrap_or_else(|| panic!("{text:?} is drawn")).rect.center();
+    press_at(ctx, theme, state, page, pos, button)
+}
+
+/// Press and release `button` at `pos`, as `press` does.
+fn press_at(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: View, pos: egui::Pos2, button: egui::PointerButton) -> Vec<egui::FullOutput> {
     let m = egui::Modifiers::default();
     vec![
         frame(ctx, theme, state, page, vec![egui::Event::PointerMoved(pos)]),
@@ -155,31 +169,97 @@ fn copy_link_copies_the_room_address_on_its_own_server() {
     let copy = humanity_core::i18n::t("chat.copy_link");
 
     let mut state = two_servers();
-    press(&ctx, &theme, &mut state, false, "# feedback", egui::PointerButton::Secondary);
-    let outs = press(&ctx, &theme, &mut state, false, copy, egui::PointerButton::Primary);
+    press(&ctx, &theme, &mut state, View::Panel, "# feedback", egui::PointerButton::Secondary);
+    let outs = press(&ctx, &theme, &mut state, View::Panel, copy, egui::PointerButton::Primary);
     assert_eq!(copied(&outs), vec!["https://home.example/chat#feedback".to_string()], "the room's menu has Copy link, copying its address here");
     let said = humanity_core::i18n::tf("chat.copy_link_done", &[("link", &"https://home.example/chat#feedback")]);
     assert!(state.toasts.iter().any(|t| t.text == said), "and it says what was copied: {:?}", state.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
 
     let mut state = two_servers();
-    press(&ctx, &theme, &mut state, false, "# garden", egui::PointerButton::Secondary);
-    let outs = press(&ctx, &theme, &mut state, false, copy, egui::PointerButton::Primary);
+    press(&ctx, &theme, &mut state, View::Panel, "# garden", egui::PointerButton::Secondary);
+    let outs = press(&ctx, &theme, &mut state, View::Panel, copy, egui::PointerButton::Primary);
     assert_eq!(copied(&outs), vec!["https://other.example/chat#garden".to_string()], "a room on another server is copied with that server's address");
     assert_eq!(state.active_server(), norm_server_url(HOME), "and copying switches nothing");
 
     let mut state = two_servers();
     state.chat_active_channel = "fire-disciples".into();
-    let outs = press(&ctx, &theme, &mut state, true, copy, egui::PointerButton::Primary);
+    let outs = press(&ctx, &theme, &mut state, View::Chat, copy, egui::PointerButton::Primary);
     assert_eq!(copied(&outs), vec!["https://home.example/chat#fire-disciples".to_string()], "the header's Copy link copies the open channel");
 
     let mut state = two_servers();
     state.server_url = "http://127.0.0.1:3210".into();
     state.connected_server_url = state.server_url.clone();
     state.chat_servers[0].url = state.server_url.clone();
-    let outs = press(&ctx, &theme, &mut state, true, copy, egui::PointerButton::Primary);
+    let outs = press(&ctx, &theme, &mut state, View::Chat, copy, egui::PointerButton::Primary);
     assert_eq!(copied(&outs), vec!["http://127.0.0.1:3210/chat#global".to_string()], "a server with no public address is copied all the same");
     let said = humanity_core::i18n::tf("chat.copy_link_done_private", &[("link", &"http://127.0.0.1:3210/chat#global")]);
     assert!(state.toasts.iter().any(|t| t.text == said), "and says the link opens only here");
+}
+
+/// Click the cog on the server row of the server the app is on, which opens its menu: a painted
+/// mark with no text, found from the row's ground (as wide as the list, a row tall) and the cog's
+/// fixed place, 48 points in from the row's right edge (left_panel.rs `draw_server_row`).
+fn open_server_menu(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let out = settled(ctx, theme, state, View::Panel);
+    let name = find_text_in_shapes(&out.shapes, "Home server").expect("the server row is drawn").rect.center();
+    let ground = out
+        .shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::Rect(r) if r.rect.contains(name) && r.rect.width() > 300.0 && r.rect.height() < 40.0 => Some(r.rect),
+            _ => None,
+        })
+        .next()
+        .expect("the server row has its own ground");
+    press_at(ctx, theme, state, View::Panel, egui::pos2(ground.right() - 48.0, name.y), egui::PointerButton::Primary);
+}
+
+/// The server the app is on moved to an address with no public name (this computer).
+fn on_this_computer(state: &mut GuiState) {
+    state.server_url = "http://127.0.0.1:3210".into();
+    state.connected_server_url = state.server_url.clone();
+    state.chat_servers[0].url = state.server_url.clone();
+}
+
+/// BUG-245: THE INVITE LINK IS THE SERVER'S OWN CHAT ADDRESS. The server cog's Copy invite link and
+/// Server Settings' invite link show and copy https://<the server the app is on>/chat, as Copy link
+/// does for a room, with the notice saying what was copied; for a server with no public address
+/// they copy it all the same and say the link opens only on this computer or its home network.
+///
+/// Seen red 2026-11-04 with both building the address as they did (the cog's
+/// `format!("https://united-humanity.us/chat")`, Server Settings' `"https://united-humanity.us/chat"`),
+/// their buttons already reading the new word: "the server cog's Copy invite link copies this
+/// server's chat address" (left: ["https://united-humanity.us/chat"], right:
+/// ["https://home.example/chat"]); and with the cog fixed and Server Settings not yet, "Server
+/// Settings shows this server's chat address".
+#[test]
+fn the_invite_link_is_the_servers_own_chat_address() {
+    let (ctx, theme) = ctx_and_theme();
+    let copy = humanity_core::i18n::t("chat.copy_invite_link");
+
+    let mut state = two_servers();
+    open_server_menu(&ctx, &theme, &mut state);
+    let outs = press(&ctx, &theme, &mut state, View::Panel, copy, egui::PointerButton::Primary);
+    assert_eq!(copied(&outs), vec!["https://home.example/chat".to_string()], "the server cog's Copy invite link copies this server's chat address");
+    let said = humanity_core::i18n::tf("chat.copy_link_done", &[("link", &"https://home.example/chat")]);
+    assert!(state.toasts.iter().any(|t| t.text == said), "and says what was copied: {:?}", state.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+
+    let mut state = two_servers();
+    let out = settled(&ctx, &theme, &mut state, View::Settings);
+    assert!(find_text_in_shapes(&out.shapes, "https://home.example/chat").is_some(), "Server Settings shows this server's chat address");
+    let outs = press(&ctx, &theme, &mut state, View::Settings, copy, egui::PointerButton::Primary);
+    assert_eq!(copied(&outs), vec!["https://home.example/chat".to_string()], "and its Copy invite link copies it");
+
+    let private = humanity_core::i18n::t("chat.invite_private");
+    let mut state = two_servers();
+    on_this_computer(&mut state);
+    let out = settled(&ctx, &theme, &mut state, View::Settings);
+    assert!(find_text_in_shapes(&out.shapes, private).is_some(), "Server Settings says a server with no public address has a link that opens only here");
+    open_server_menu(&ctx, &theme, &mut state);
+    let outs = press(&ctx, &theme, &mut state, View::Panel, copy, egui::PointerButton::Primary);
+    assert_eq!(copied(&outs), vec!["http://127.0.0.1:3210/chat".to_string()], "a server with no public address is copied all the same");
+    let said = humanity_core::i18n::tf("chat.copy_link_done_private", &[("link", &"http://127.0.0.1:3210/chat")]);
+    assert!(state.toasts.iter().any(|t| t.text == said), "and the notice says the link opens only here");
 }
 
 /// One frame in which something in the app asks to open `url` in the browser (as a chat message's

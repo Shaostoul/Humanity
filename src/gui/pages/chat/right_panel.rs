@@ -191,7 +191,8 @@ fn draw_user_row(
     let is_modal_target = state.chat_user_modal_open
         && state.chat_user_modal_key == public_key;
 
-    let row_height = theme.row_height;
+    // A line of the body text tall, as every sidebar row (chat/channel_row.rs, BUG-243).
+    let row_height = super::channel_row::text_row_height(ui, theme);
     let (full_rect, response) = ui.allocate_exact_size(
         Vec2::new(ui.available_width(), row_height),
         egui::Sense::click(),

@@ -282,23 +282,21 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
-        // Invite (everyone can copy server invite)
-        let (label, invite_url) = match resolve_group(state) {
-            Some((id, _name)) => (
-                "Group invite link",
-                format!("https://united-humanity.us/chat/group/{}", id),
-            ),
-            None => ("Server invite link", "https://united-humanity.us/chat".to_string()),
-        };
-        kv_row(ui, theme, label, invite_url.clone());
-        ui.add_space(theme.spacing_sm);
-        if widgets::Button::primary("Copy invite")
-            .tooltip("Copy the public invite link to your clipboard. Anyone with the link \
-                      can join. For an invite-only server, ask an admin to generate a one-time invite code.")
-            .show(ui, theme)
-        {
-            ui.ctx().copy_text(invite_url);
-            state.server_settings_status = "Invite link copied to clipboard.".into();
+        // Invite (everyone can copy it): this server's own chat address, as the server cog's Copy
+        // invite link (chat/channel_link.rs). BUG-245: it was https://united-humanity.us/chat for
+        // every server, and for a group https://united-humanity.us/chat/group/<id>, an address
+        // neither app opens (a group's invite is its ticket, on the group's cog in the chat).
+        let link = crate::gui::pages::chat::channel_link::invite_address(&state.server_url);
+        if let Some((invite_url, public)) = link {
+            kv_row(ui, theme, t("chat.invite_link_label"), invite_url);
+            if !public {
+                widgets::body_hint(ui, theme, t("chat.invite_private"));
+            }
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::primary(t("chat.copy_invite_link")).hint("chat.copy_invite_link_hint").show(ui, theme) {
+                let url = state.server_url.clone();
+                crate::gui::pages::chat::channel_link::copy_invite_link(ui.ctx(), state, &url);
+            }
         }
 
         ui.add_space(theme.spacing_md);

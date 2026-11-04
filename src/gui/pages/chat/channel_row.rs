@@ -74,7 +74,10 @@ pub(super) fn room_indent(theme: &Theme) -> f32 {
 }
 
 /// A room row's height: a line of the body text, never less than the theme's row height or a mark.
-/// The DM rows' name line is the same height (chat/left_panel.rs).
+/// EVERY row of the chat's sidebars is this tall (BUG-243, 2026-11-04): the scratchpad, a DM's name
+/// line, the Groups, the people in a room's voice (chat/left_panel.rs), the Commons rooms (chat.rs)
+/// and the member list (chat/right_panel.rs). The theme's row height alone is shorter than a line of
+/// the text those rows hold, which packed their words together.
 pub(super) fn text_row_height(ui: &egui::Ui, theme: &Theme) -> f32 {
     let line = ui.fonts(|f| f.row_height(&egui::FontId::proportional(theme.body_size)));
     theme.row_height.max(line).max(mark_size(theme))

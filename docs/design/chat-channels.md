@@ -192,6 +192,13 @@ and matches the tree under each server's name. The theme's row height alone is s
 it holds, which is what packed the active server's rooms together. The open room keeps its accent
 wash and its bar (`row_accent_width`, a new token the DM and scratchpad rows use too).
 
+**Every sidebar row, the same measure (BUG-243, 2026-11-04).** The rule is `channel_row.rs`
+`text_row_height`, and every row of both chat sidebars takes it: the rooms, the DMs' name line, the
+scratchpad, the Groups, the people in a room's voice, the Commons rooms and the member list. Before,
+the scratchpad and the member list were the theme's bare row height, the voice roster 0.78 of it,
+the Commons rooms 0.9 of it, and the Groups a server header's 24 points with a gap. Held by
+`every_sidebar_row_is_a_line_of_body_text_tall` beside the room test, seen red first.
+
 The website lists only its own server's rooms (section 5), so it never had the two paths; its rooms
 had the other half of the defect, a mic in front of a voice room's name only, and now keep the
 voice column too (`web/chat/chat-ui.js` `renderServerList`, `.ch-voice-slot` in `sidebar.css`).
@@ -280,6 +287,12 @@ Held by `scripts/tests/chat-links-web.test.js` (seven tests), `src/relay/chat_ac
 
 ## 9. Not done here
 
-- The server cog's "Copy Invite Link" (chat/left_panel.rs) and Server Settings' invite link
+- ~~The server cog's "Copy Invite Link" (chat/left_panel.rs) and Server Settings' invite link
   (server_settings.rs) still build `https://united-humanity.us/chat`, whichever server they are
-  for: the same defect Copy link had, left for its own change.
+  for: the same defect Copy link had, left for its own change.~~ Done 2026-11-04 (BUG-245): both
+  show and copy the server's own chat address, `https://<the server>/chat`, through
+  `channel_link.rs` `invite_address` and `copy_invite_link`, the rule Copy link uses (a server with
+  no public address is copied all the same, and both say the link opens only on this computer or
+  its home network). Server Settings' group branch, `https://united-humanity.us/chat/group/<id>`,
+  went with it: no page of either app opens that address, and a group's invite is its ticket. The
+  website lists only its own server and has no invite link to mirror.
