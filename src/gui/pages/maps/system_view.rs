@@ -437,7 +437,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     let clicked_label = click_at.and_then(|p| label_rects.iter().find(|(_, r)| r.contains(p)).map(|(id, _)| id.clone()));
     if let Some((ast_id, _)) = clicked_asteroid {
         state.pending_open_mining_modal = Some(ast_id);
-        state.go(crate::gui::GuiPage::Inventory, crate::gui::How::Beside);
+        state.go(crate::gui::GuiPage::Inventory, crate::gui::How::From);
     } else if let Some(id) = clicked_pill.or(clicked_label) {
         if state.maps.expanded_body.as_deref() == Some(id.as_str()) {
             state.maps.expanded_body = None;

@@ -190,7 +190,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 // Quests is its own top-level page now (not a Real-tab section);
                 // the old `active_real_section = "quests"` was an unknown id that
                 // silently fell through to Profile > Body & Measurements (v0.699 fix).
-                state.go(crate::gui::GuiPage::Quests, crate::gui::How::Beside);
+                state.go(crate::gui::GuiPage::Quests, crate::gui::How::From);
             }
             // Laws, Donate and Governance are pages of their own since navigation rung 2 (the
             // Humanity row); opened from here, so Escape comes back.
@@ -426,7 +426,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 // Quests is its own top-level page now (not a Real-tab section);
                 // the old `active_real_section = "quests"` was an unknown id that
                 // silently fell through to Profile > Body & Measurements (v0.699 fix).
-                state.go(crate::gui::GuiPage::Quests, crate::gui::How::Beside);
+                state.go(crate::gui::GuiPage::Quests, crate::gui::How::From);
             }
             if widgets::Button::secondary(t("humanity.fund_work")).hint("humanity.fund_work_hint").show(ui, theme) {
                 state.go(crate::gui::GuiPage::Donate, crate::gui::How::From);
