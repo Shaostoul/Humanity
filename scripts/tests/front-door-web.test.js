@@ -379,3 +379,20 @@ test("12. the search's suggestions float over the page and close on a press outs
   const js = fs.readFileSync(path.join(ROOT, "web", "pages", "index-app.js"), "utf8");
   assert.ok(js.includes("addEventListener('pointerdown'") && js.includes(".fd-search"), "a press outside the search closes them");
 });
+
+test("13. Start here opens its question right under the button, not at the page's foot", () => {
+  // The operator, 2026-11-04: "The new start here button just takes me back to the same page." The
+  // section sat after the updates, 3,700 px down, and the button's jump read as nothing happening.
+  // Red before the move: the start section came after the updates' section.
+  const html = fs.readFileSync(path.join(ROOT, "web", "pages", "index.html"), "utf8");
+  const header = html.indexOf("</header>");
+  const startAt = html.indexOf('<section id="start"');
+  const menu = html.indexOf('id="fd-menu"');
+  const updates = html.indexOf('aria-labelledby="fd-updates-h"');
+  assert.ok(header > 0 && startAt > header && startAt < menu && startAt < updates, "the question sits right after the header, above the cards and the updates");
+  assert.match(html.slice(startAt, startAt + 120), /\shidden>/, "hidden until the button opens it");
+  assert.match(html, /id="fd-start"[^>]*aria-controls="start"[^>]*aria-expanded="false"/, "the button says what it opens");
+  const js = fs.readFileSync(path.join(ROOT, "web", "pages", "index-app.js"), "utf8");
+  assert.ok(/function openStart\(\)[\s\S]{0,200}sec\.hidden = false/.test(js), "the button shows it");
+  assert.ok(/stored\(GOAL_KEY\);\s*if \(saved\) \{ openStart\(\);/.test(js), "a choice made before shows it at once");
+});

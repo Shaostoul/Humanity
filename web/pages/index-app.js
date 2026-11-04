@@ -339,13 +339,22 @@
         grid.appendChild(b);
       });
       var saved = stored(GOAL_KEY);
-      if (saved) pick(saved, false);
+      if (saved) { openStart(); pick(saved, false); }
+    }
+
+    /** Show "What brought you here?", which waits hidden right under the Start here button. */
+    function openStart() {
+      var sec = byId('start');
+      if (sec) sec.hidden = false;
+      var b = byId('fd-start');
+      if (b && b.setAttribute) b.setAttribute('aria-expanded', 'true');
     }
 
     function wireStart() {
       byId('fd-change').addEventListener('click', function () { pick(null, true); });
       byId('fd-start').addEventListener('click', function (e) {
         if (e && e.preventDefault) e.preventDefault();
+        openStart();
         if (env.scrollTo) env.scrollTo(byId('start'));
         var first = byId('fd-goals').querySelector('.fd-goal');
         if (first && first.focus) first.focus({ preventScroll: true });
@@ -374,7 +383,7 @@
             .then(function (g) { (g[1].chains || []).forEach(function (c) { state.chains[c.id] = c; }); drawGoals(g[0].goals || []); })
         ]);
       }).then(function () {
-        if (env.location && env.location.hash === '#start' && env.scrollTo) env.scrollTo(byId('start'));
+        if (env.location && env.location.hash === '#start') { openStart(); if (env.scrollTo) env.scrollTo(byId('start')); }
         if (env.onWidth) env.onWidth(byId('fd-cards'), function () { drawCards(false); });
       });
     }

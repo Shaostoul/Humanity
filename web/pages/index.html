@@ -281,11 +281,27 @@
     </div>
 
     <div class="fd-start-row">
-      <a class="fd-start" href="#start" id="fd-start"
+      <a class="fd-start" href="#start" id="fd-start" aria-controls="start" aria-expanded="false"
          data-i18n-tip="front_door.start_hint" data-tip-desc="Asks one question, what brought you here, and shows the first useful thing for it."
          data-i18n="front_door.start">New here? Start here</a>
     </div>
   </header>
+
+  <!-- ══ Start here: one question, answered within one click. It opens right here, under the
+       button that opens it (2026-11-04; it used to sit at the page's foot, 3,700 px down, and the
+       button's jump read as nothing happening). Shown at once for #start or a choice made before. ══ -->
+  <section id="start" aria-labelledby="fd-start-h" tabindex="-1" hidden>
+    <div class="fd-head"><h2 id="fd-start-h" data-i18n="front_door.start_title">What brought you here?</h2></div>
+    <p class="fd-start-intro" data-i18n="front_door.start_intro">Pick one. The first useful thing for it is one click away, with no sign-up. What you pick, and how far you get, stays on this device.</p>
+    <div class="fd-back-row" id="fd-back" hidden>
+      <span id="fd-back-words"></span>
+      <button type="button" class="fd-link-btn" id="fd-change"
+              data-i18n-tip="front_door.start_change_hint" data-tip-desc="Shows every choice again. Your progress so far is kept."
+              data-i18n="front_door.start_change">Pick something else</button>
+    </div>
+    <div class="fd-goals" id="fd-goals"></div>
+    <div class="fd-answer" id="fd-answer" hidden aria-live="polite"></div>
+  </section>
 
   <nav class="fd-menu" id="fd-menu" data-i18n-aria-label="front_door.menu_label" aria-label="Where to go"></nav>
 
@@ -299,19 +315,6 @@
     <p class="fd-note" id="fd-cards-note" hidden></p>
   </section>
 
-  <!-- ══ Start here: one question, answered within one click ══ -->
-  <section id="start" aria-labelledby="fd-start-h" tabindex="-1">
-    <div class="fd-head"><h2 id="fd-start-h" data-i18n="front_door.start_title">What brought you here?</h2></div>
-    <p class="fd-start-intro" data-i18n="front_door.start_intro">Pick one. The first useful thing for it is one click away, with no sign-up. What you pick, and how far you get, stays on this device.</p>
-    <div class="fd-back-row" id="fd-back" hidden>
-      <span id="fd-back-words"></span>
-      <button type="button" class="fd-link-btn" id="fd-change"
-              data-i18n-tip="front_door.start_change_hint" data-tip-desc="Shows every choice again. Your progress so far is kept."
-              data-i18n="front_door.start_change">Pick something else</button>
-    </div>
-    <div class="fd-goals" id="fd-goals"></div>
-    <div class="fd-answer" id="fd-answer" hidden aria-live="polite"></div>
-  </section>
 </main>
 
 <script src="/shared/front-door.js"></script>
