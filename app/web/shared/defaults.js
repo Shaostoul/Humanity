@@ -50,12 +50,8 @@
     // What a notice shows (2026-10-30, docs/design/notifications.md): 'nothing' | 'name' |
     // 'name_and_text', as the desktop's Settings > Notifications. Who it is from by default.
     'notif-show': 'name',
-    // Privacy
-    'who-dm': 'everyone',
-    'show-online': true,
-    'read-receipts': true,
-    'discoverable': true,
-    'local-only': true,
+    // Privacy (BUG-235, 2026-11-03: 'who-dm', 'show-online', 'read-receipts', 'discoverable' and
+    // 'local-only' were removed with the Settings switches that wrote them; nothing read them.)
     analytics: false,
     // Chat
     'enter-send': true,

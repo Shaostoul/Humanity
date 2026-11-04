@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/shared/how-it-works.css?v=1">
   <!-- The server's data folder place (2026-10-19): the data browser's own styles, scoped to its parts. -->
   <link rel="stylesheet" href="/shared/files-folder.css?v=2">
-  <link rel="stylesheet" href="/shared/files-places.css?v=1">
+  <link rel="stylesheet" href="/shared/files-places.css?v=2">
   <!-- Each file's type, always shown just before its name (2026-10-17), and the tinted parts of
        Add to Files and an item's Edit, in the chat sidebar's colours, darker. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
@@ -126,12 +126,19 @@
      before files-app.js, which shows them. -->
 <script src="/shared/markdown.js"></script>
 <script src="/pages/shared-files-upload.js?v=2"></script>
-<script src="/pages/files-shared.js?v=1"></script>
+<!-- The words by key (data/i18n/en.json), here at once: the places' names, hints and groups
+     (2026-11-03) are asked for while the page builds (web/shared/i18n.js says why both, in this
+     order). -->
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
+<script src="/pages/files-shared.js?v=2"></script>
 <script src="/pages/files-folder.js?v=4"></script>
-<script src="/pages/files-places.js?v=4"></script>
+<!-- The places in red, green and blue (2026-11-03): on this computer (the desktop's), what you
+     share (Yours on <server>, Your shared files), what everyone shares. -->
+<script src="/pages/files-places.js?v=5"></script>
 <!-- "How this page works" (2026-10-20): the toggle beside the heading and its fold; before files-app.js. -->
 <script src="/shared/how-it-works.js?v=1"></script>
-<script src="/pages/files-app.js?v=20"></script>
+<script src="/pages/files-app.js?v=21"></script>
 <!-- The admins' section (Files page settings): this page's Admin tab, for admins (/files#admin; /admin points here). -->
 <script src="/pages/files-admin.js?v=3"></script>
 </body>

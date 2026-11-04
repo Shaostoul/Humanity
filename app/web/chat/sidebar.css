@@ -100,6 +100,16 @@
   cursor: pointer;
   border-radius: var(--radius-sm);
 }
+/* The voice column (BUG-242, as the desktop's room row): every server room keeps it, the mic in
+   it or nothing, one small icon wide, so each room's name starts at the same place. */
+.channel-item .ch-voice-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-small);
+  margin-right: 5px;
+  vertical-align: middle;
+}
 .channel-item .ch-mic:hover { color: var(--text); opacity: 1; }
 .channel-item.active .ch-mic { color: var(--text); opacity: 0.95; }
 .channel-item .ch-mic.joined { color: var(--accent); opacity: 1; }
@@ -146,6 +156,21 @@
 }
 #channel-header .ch-back:hover,
 #channel-header .ch-back:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+/* Copy link (2026-11-03, app.js copyChannelLink): native's ghost button at the header's end. */
+#channel-header .ch-copy-link {
+  float: right;
+  margin-left: var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+#channel-header .ch-copy-link:hover,
+#channel-header .ch-copy-link:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 
 .peer {
   font-size: var(--text-sm);

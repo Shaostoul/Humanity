@@ -230,6 +230,25 @@
       transition: transform 0.2s;
     }
     .toggle input:checked + .toggle-track::after { transform: translateX(18px); }
+    .toggle input:focus-visible + .toggle-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* Privacy levels (BUG-237): the desktop's level cards (src/gui/pages/privacy.rs tier_card),
+       one radio each; the picked one has the accent border, as on the desktop. */
+    .privacy-tier-list { display: flex; flex-direction: column; gap: var(--space-sm); padding: 0 var(--space-xl) var(--space-md); }
+    .privacy-tier-card { display: block; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-md) var(--space-lg); cursor: pointer; background: var(--bg-card); }
+    .privacy-tier-card.selected { border: 2px solid var(--accent); background: var(--bg-secondary); }
+    .privacy-tier-card .tier-head { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+    .privacy-tier-card .tier-name { font-weight: 700; font-size: 0.88rem; color: var(--set-ink); }
+    .privacy-tier-card .tier-tagline { font-size: 0.78rem; color: var(--text-muted); }
+    .privacy-tier-card .tier-desc { margin: var(--space-xs) 0 0 24px; font-size: 0.78rem; line-height: 1.4; color: var(--text-muted); }
+    .privacy-tier-card input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .privacy-apply { background: var(--accent); color: var(--text-on-accent); border: none; border-radius: var(--radius); padding: var(--space-sm) var(--space-xl); font: inherit; font-size: 0.84rem; font-weight: 700; cursor: pointer; }
+    .privacy-apply:hover { opacity: 0.88; }
+    .privacy-apply:focus-visible { outline: 2px solid var(--set-ink); outline-offset: 2px; }
+    .privacy-current { font-size: 0.78rem; color: var(--text-muted); }
+    .setting-label span.privacy-status { color: var(--set-ink); }
+    .setting-label span.privacy-status:empty { display: none; }
+    .setting-row:has(> .setting-label > .privacy-status:empty) { display: none; }
 
     /* Select */
     .setting-select {
@@ -1149,54 +1168,86 @@
 
     <!-- Privacy -->
     <section class="settings-section" id="sec-privacy">
-      <h1>Privacy</h1>
-      <p class="section-desc">Control who can see your information and contact you.</p>
+      <h1 data-i18n="privacy.title">Privacy</h1>
+      <p class="section-desc" data-i18n="privacy.web_section_desc">What other people can see about you, and where each choice is made.</p>
+      <!-- BUG-235 (2026-11-03): this section held five switches that were saved in the browser and
+           read by nothing: Who Can Message Me, Show Online Status, Read Receipts, Show in Discovery
+           and Local-Only Storage. A person who picked "Nobody" or turned their status off was told
+           they were protected and was not. They are gone; these words say what the real switches
+           do (the same keys as the desktop app's Settings > Privacy, src/gui/pages/privacy.rs) and
+           what none of them hides. -->
+      <p class="section-desc" data-i18n="privacy.intro">Direct messages are <span data-term="e2ee">end-to-end encrypted</span> whatever you choose here, and the server keeps no record of who you message. A direct message you send carries your signature, so the person you sent it to can prove to others that you wrote it. The choices below decide what other people can see about you.</p>
+
+      <!-- BUG-237 (2026-11-03): the levels and both switches, as the desktop app's Settings >
+           Privacy has them (src/gui/pages/privacy.rs draw_privacy_content), drawn and wired by
+           /pages/settings-privacy.js. Until then the website showed the level only once, at the
+           first chat, and had no presence switch: a person could not become harder to see. -->
+      <div class="settings-group" id="privacy-levels">
+        <div class="settings-group-title" id="privacy-levels-title" data-i18n="privacy.modal_title">How visible do you want to be?</div>
+        <div class="privacy-tier-list" id="privacy-tier-cards" role="radiogroup" aria-labelledby="privacy-levels-title"></div>
+        <div class="setting-row">
+          <button type="button" class="privacy-apply" id="privacy-apply" data-i18n="privacy.apply_tier" data-i18n-tip="privacy.apply_tier_hint" data-tip-desc="Uses the privacy level you picked above. It sets both switches below at once.">Use this privacy level</button>
+          <span class="privacy-current" id="privacy-current"></span>
+        </div>
+      </div>
 
       <div class="settings-group">
-        <div class="settings-group-title">Visibility</div>
+        <div class="settings-group-title" data-i18n="privacy.switches_title">The two privacy switches</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Who Can Message Me</strong>
-            <span>Restrict incoming direct messages</span>
+            <span data-i18n="privacy.switches_intro">A privacy level only sets these two switches, and you can change either one on its own.</span>
           </div>
-          <select class="setting-select" id="pref-who-dm" onchange="savePref()">
-            <option value="everyone">Everyone</option>
-            <option value="friends">Friends Only</option>
-            <option value="nobody">Nobody</option>
-          </select>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Show Online Status</strong>
-            <span>Let others see when you're online</span>
+            <strong data-i18n="privacy.presence_label">Show others when I am online</strong>
+            <span id="privacy-presence-does" data-i18n="privacy.presence_does">Off: you never appear online, the server keeps no last-seen time for you, and no typing, joining or leaving signals are sent. You still appear in the people list, shown as offline, and friends can still message you.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-show-online" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="privacy-presence" data-i18n-aria-label="privacy.presence_label" aria-label="Show others when I am online" aria-describedby="privacy-presence-does"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Read Receipts</strong>
-            <span>Let senders see when you've read their messages</span>
+            <strong data-i18n="privacy.directory_label">List me in the public member directory</strong>
+            <span id="privacy-directory-does" data-i18n="privacy.directory_does">On: you are in this server's member directory and its search, and a signed copy of your profile (without what you keep for friends) is kept by this server and passed to the servers it is linked with, where anyone can look it up by your <span data-term="public key">public key</span>. Off: you are left out of the directory and its search, every linked server drops its copy, and looking up your key finds nothing. It is off until you turn it on. Off does not hide your name or your profile from the people on a server you use.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-read-receipts" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="privacy-directory" data-i18n-aria-label="privacy.directory_label" aria-label="List me in the public member directory" aria-describedby="privacy-directory-does"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label"><span class="privacy-status" id="privacy-status" role="status" aria-live="polite"></span></div>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Show in Discovery</strong>
-            <span>Allow others to find your profile in search</span>
+            <span data-i18n="privacy.web_where">The directory switch is also on your Profile page. What you choose here is kept in this browser, and the chat tells each server you use the next time it connects to it.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-discoverable" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span data-i18n="privacy.web_reach">Who can message you, call you or send you trade requests is chosen with the Safety button under your name in the chat.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="privacy.seen_title">What everyone on a server you use can always see</div>
+        <div class="setting-row">
+          <div class="setting-label"><span data-i18n="privacy.seen_people">Your name, your <span data-term="public key">public key</span> and your role, in that server's people list, whether you are in its directory or not.</span></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label"><span data-i18n="privacy.seen_profile">Your profile there: your name, bio, picture, banner and links. Your pronouns, location and website too, unless you keep them for friends with the lock beside each on the website's Profile page.</span></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label"><span data-i18n="privacy.kept_for_friends">Kept for friends: only someone holding a <span data-term="friendship pass">friendship pass</span> from you sees it, on the server where you gave the pass. Your app gives one to each person you follow who follows you back, and with each contact request you send. Unfollow and Block take it back.</span></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label"><span data-i18n="privacy.seen_posts">What you post in a <span data-term="channel">channel</span>, with your name and the time. A channel open to Anyone can be read by anyone on the internet, even without signing up; other channels only by the members they let in. A <span data-term="federation">federated</span> channel's posts also go to the servers this one is linked with.</span></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label"><strong data-i18n="privacy.seen_no_switch">No switch here hides these from the people on a server you use.</strong></div>
         </div>
       </div>
 
       <div class="settings-group">
         <div class="settings-group-title">Data</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Local-Only Storage</strong>
-            <span>Keep skills, inventory, and logbook data on this device only</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-local-only" checked onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Usage analytics</strong>
@@ -2283,6 +2334,19 @@
 <!-- `pq-relay-auth.js` installs window.getPqSignedAuth used by vault sync. -->
 <script src="/chat/pq.js?v=1"></script>
 <script src="/shared/pq-relay-auth.js?v=2"></script>
+<!-- Settings > Privacy (BUG-237, 2026-11-03): the levels and how a choice is kept
+     (privacy-tiers.js, shared with the chat), the directory choice recorded in the profile the
+     chat sends (profile-changes.js), and this page's own signed-in connection, which tells this
+     server the presence choice at once (relay-session.js). settings-privacy.js draws the section. -->
+<script src="/shared/profile-changes.js?v=2"></script>
+<script src="/shared/relay-session.js?v=2"></script>
+<!-- The words by key, here at once: settings-privacy.js draws the level cards with i18n.t as it
+     mounts, and the copies shell.js adds run only after this page's own scripts (the cards showed
+     their keys on the live site, 2026-11-03; web/shared/i18n.js says why both, in this order). -->
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
+<script src="/shared/privacy-tiers.js?v=1"></script>
+<script src="/pages/settings-privacy.js?v=1"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/hold-confirm.js?v=1"></script>
 <!-- Files kept from messages: the encrypted copies the chat keeps of private files opened. -->

@@ -19,8 +19,9 @@
 //   - name, bio, avatar, banner and links always;
 //   - pronouns, location and website blank when I keep them for friends
 //     (`"private"` under the field's name in my privacy map);
-//   - every field blank (a "withdrawal") when I am unlisted
-//     (`"directory": "unlisted"`).
+//   - every field blank (a "withdrawal") when I am unlisted: unless my privacy
+//     map says `"directory": "listed"` (I ticked the box), which nobody has
+//     until they choose (BUG-241, 2026-11-03, safe by default).
 // A field kept for friends never leaves the server, signed or not.
 //
 // The words signed, as UTF-8:
@@ -82,10 +83,27 @@
     }
   }
 
-  /** Am I unlisted: the map's "directory" is the string "unlisted". */
-  function unlisted(privacyText) {
+  /**
+   * The word under "directory" in my privacy map when I list myself in a server's public member
+   * directory: the only word that lists (BUG-241, 2026-11-03). The relay's DIRECTORY_LISTED.
+   */
+  const DIRECTORY_LISTED = 'listed';
+  /** The word both apps write when the box is unticked (the relay's DIRECTORY_UNLISTED). */
+  const DIRECTORY_UNLISTED = 'unlisted';
+
+  /**
+   * Am I listed: the map's "directory" is the string "listed". Nothing else lists: no key (never
+   * chose, or a profile saved before 2026-11-03, when choosing listed took the key out), any
+   * other word, a value that is not a string, a map that is not an object. Safe by default.
+   */
+  function listed(privacyText) {
     const m = mapOf(privacyText);
-    return !!m && own(m, 'directory') === 'unlisted';
+    return !!m && own(m, 'directory') === DIRECTORY_LISTED;
+  }
+
+  /** Am I unlisted: not listed. */
+  function unlisted(privacyText) {
+    return !listed(privacyText);
   }
 
   /**
@@ -222,7 +240,7 @@
   const api = {
     FIELDS_FOR_FRIENDS, COPY_TAG, BIO_MAX_CHARS, NAME_MAX_BYTES, LINKS_MAX_BYTES, PICTURE_LINK_MAX_BYTES,
     WEBSITE_MAX_BYTES, PRONOUNS_MAX_CHARS, LOCATION_MAX_CHARS, KEY_HEX_LEN, SIGNATURE_HEX_LEN, MAX_AHEAD_MS,
-    unlisted, keptForFriends, withdrawal, isWithdrawal, publicCopy, copyText, nextCopyTime,
+    DIRECTORY_LISTED, DIRECTORY_UNLISTED, listed, unlisted, keptForFriends, withdrawal, isWithdrawal, publicCopy, copyText, nextCopyTime,
     chars, utf8Bytes, isKeyText, isSignatureText, fieldsWithinLimits, withinLimits,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;

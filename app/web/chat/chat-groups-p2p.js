@@ -1012,6 +1012,8 @@
     if (typeof activeGroupId !== 'undefined') { activeGroupId = null; activeGroupName = ''; }
     window.activeP2pGroup = { id: groupId, name: name || '', epoch: 0, epochKey: null, epochKeys: null, myFp: '', fpToName: null, fpToKey: null };
     _p2pGroupSeenObjIds.clear(); // fresh dedup set per opened group
+    // The address names no group (app.js syncChatAddress, docs/design/navigation.md 10.1): /chat.
+    if (typeof syncChatAddress === 'function') syncChatAddress();
 
     // (b) Sidebar: switch to Groups tab + redraw lists so highlights reflect state.
     if (typeof switchSidebarTab === 'function') switchSidebarTab('groups', true);

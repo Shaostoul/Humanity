@@ -213,7 +213,8 @@ document.getElementById('sound-toggle').textContent = soundEnabled ? '🔊' : '�
 // is a mention when it names me, else a reply when it answers a line of mine (`reply_from`, the
 // replied-to line's author), else an ordinary line, which the rule lets through only in a room
 // set to every line (notifications rung 2). Whatever the rule lets through also goes in the
-// header bell's list (chat-notify.js).
+// header bell's list (chat-notify.js). A room line's `from_key` is its author's key, so the
+// level set on their profile card applies (per-person controls; a DM's conversation names them).
 function notifyNewMessage(author, content, isDm, where) {
   where = where || {};
   if (!windowFocused) {
@@ -234,7 +235,7 @@ function notifyNewMessage(author, content, isDm, where) {
     : (!activeDmPartner && !activeGroupId && room === activeChannel);
   const canShow = ('Notification' in window) && Notification.permission === 'granted';
   const d = HosChatNotify.decide(
-    { kind: kind, from_me: !!where.from_me, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content, from_friend: !!where.from_friend },
+    { kind: kind, from_me: !!where.from_me, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content, from_friend: !!where.from_friend, from_key: where.from_key || '' },
     { focused: windowFocused, on_screen: onScreen, desktop: canShow, sound: soundEnabled }
   );
   // The kind's own sound (rung 3: Settings > Notifications > Sounds), the chime where it cannot play.
@@ -368,7 +369,7 @@ handleMessage = function(msg) {
     // Notify if from someone else.
     if (msg.from !== myKey) {
       const replyFrom = msg.reply_to && typeof msg.reply_to.from === 'string' ? msg.reply_to.from : null;
-      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false, { room: msg.channel, reply_from: replyFrom });
+      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false, { room: msg.channel, reply_from: replyFrom, from_key: msg.from });
     }
   } else if (msg.type === 'federated_chat' && window.HosChatNotify) {
     // A shared room's line from a linked server (notifications rung 2): live only, never one a
@@ -379,7 +380,7 @@ handleMessage = function(msg) {
     const blocked = fromKey && typeof isBlockedKey === 'function' && isBlockedKey(fromKey);
     if (fresh && !blocked && msg.content && fromKey !== myKey) {
       const who = (msg.from_name || '') + (msg.server_name ? ' (' + msg.server_name + ')' : '');
-      notifyNewMessage(who, msg.content, false, { room: msg.channel || activeChannel });
+      notifyNewMessage(who, msg.content, false, { room: msg.channel || activeChannel, from_key: fromKey });
     }
   }
 };
@@ -2096,9 +2097,14 @@ var federatedRetryMs = 30000;
       // match the live roster + join by id (not by name).
       const vc = (window._voiceChannels || []).find(c => String(c.id) === String(ch.id));
       const voiceJoined = String(ch.id) === String(window._currentRoomId);
+      // Every room keeps the voice column (BUG-242, as the desktop's room row,
+      // src/gui/pages/chat/channel_row.rs): a room without voice has it empty, so a
+      // voice mark never pushes one room's name sideways. Only the mic is .ch-mic,
+      // which the click handler joins or leaves with; a click on an empty slot opens
+      // the room like the rest of the row.
       const micHtml = ch.voice_enabled
-        ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.id)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
-        : '';
+        ? `<span class="ch-voice-slot ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.id)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
+        : '<span class="ch-voice-slot" aria-hidden="true"></span>';
       const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
       // Live voice roster under the channel: who is connected to voice here
       // (from the relay's voice_channel_list broadcast). (v0.481)

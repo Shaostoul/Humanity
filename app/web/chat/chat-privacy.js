@@ -1,91 +1,88 @@
 // ── chat-privacy.js ───────────────────────────────────────────────────────
-// Privacy tiers (2026-08-23, mirrors native src/gui/pages/privacy.rs).
-// Every user chooses how visible to be, ONCE, at first connect — and the
-// default is maximum privacy. Tiers come from /data/gui/privacy_tiers.json
-// (one data source for both clients). A tier presets two real switches:
+// Privacy levels (2026-08-23, mirrors native src/gui/pages/privacy.rs).
+// Every user chooses how visible to be at first connect, and the default is
+// maximum privacy. The levels, what each sets and how a choice is kept are
+// /shared/privacy-tiers.js (HosPrivacyTiers), shared with Settings > Privacy,
+// which can change them later (BUG-237, 2026-11-03: until then the website
+// never showed the choice again). A level presets two real switches:
 //   - hide_presence  → relay `privacy_update` (server-enforced: never
 //     online, no last_seen stored, no join/leave/typing signals)
-//   - directory_unlisted → privacy.directory in the profile privacy JSON
-//     (the existing member-directory opt-out), applied by merging into
-//     the local profile store and pushing via pushProfileToRelay().
-// The choice persists in localStorage ('humanity_privacy_tier') and is
-// re-asserted on every fresh connection (per-server flags).
-// Depends on: app.js (ws, myKey), chat-profile.js (loadProfileLocal,
-// saveProfileLocal, pushProfileToRelay), chat-ui.js (addSystemMessage).
+//   - directory_unlisted → privacy.directory in the profile privacy JSON,
+//     "listed" or "unlisted" (only "listed" puts a person in the member
+//     directory, BUG-241), applied by merging into the local profile store
+//     and pushing via pushProfileToRelay().
+// The level last used ('humanity_privacy_tier') and the presence switch
+// ('humanity_hide_presence') are kept in this browser; the presence choice is
+// told to each server on every fresh connection (the flags are per server),
+// and to this one at once when Settings changes it in another tab.
+// Depends on: app.js (ws, myKey), chat-profile.js (pushProfileToRelay),
+// chat-ui.js (addSystemMessage), /shared/privacy-tiers.js, /shared/i18n.js.
 // ─────────────────────────────────────────────────────────────────────────
 
 let _privacyTiers = null;         // loaded tier defs
 let _privacyModalShown = false;   // once per page load
+// A page (a test harness) that has not loaded /shared/privacy-tiers.js: no levels, no chooser.
+const P_MISSING = { defaultTier: 'private', tiers: [] };
 
 async function loadPrivacyTiers() {
   if (_privacyTiers) return _privacyTiers;
-  try {
-    const res = await fetch('/data/gui/privacy_tiers.json');
-    const data = await res.json();
-    if (data && Array.isArray(data.tiers) && data.tiers.length) {
-      _privacyTiers = { defaultTier: data.default_tier || 'private', tiers: data.tiers };
-      return _privacyTiers;
-    }
-  } catch (e) {
-    console.warn('privacy tiers load failed:', e && e.message);
-  }
-  // Fail-private fallback.
-  _privacyTiers = {
-    defaultTier: 'private',
-    tiers: [{
-      id: 'private', name: 'Private', tagline: 'Maximum privacy.',
-      description: 'You never appear online and are not listed in the public directory.',
-      hide_presence: true, directory_unlisted: true,
-    }],
-  };
+  const P = window.HosPrivacyTiers;
+  if (!P) return P_MISSING;
+  _privacyTiers = await P.loadTiers((url) => fetch(url), window.i18n ? (k) => i18n.has(k) : null);
   return _privacyTiers;
+}
+
+/** A level's words, by key (privacy_tiers.json holds keys; a page with no words shows the key). */
+function tierWords(key) {
+  return window.i18n ? i18n.t(key) : key;
+}
+
+/** Tell the connected server the presence choice this browser keeps (none when never chosen). */
+function sendPresenceChoice() {
+  const frame = window.HosPrivacyTiers ? window.HosPrivacyTiers.reassertFrame(localStorage) : null;
+  if (frame && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
 }
 
 /** Apply a tier: server presence flag + directory listing + persistence. */
 async function applyPrivacyTier(tierId) {
   const { tiers } = await loadPrivacyTiers();
-  const tier = tiers.find((t) => t.id === tierId);
+  const P = window.HosPrivacyTiers;
+  const tier = P ? P.tierById(tiers, tierId) : null;
   if (!tier) return;
-  // 1) Presence (server-enforced).
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'privacy_update', hide_presence: !!tier.hide_presence }));
-  }
-  // 2) Directory listing: merge into the local profile store so the push
-  // path carries every other profile field unchanged.
+  // 1) Both switches and the level are kept in this browser; the directory choice is recorded
+  // as changed in the profile, so the push carries it on top of the server's copy (BUG-195's
+  // review: it was never sent once only changes made here went).
+  const frame = P.applyTier(localStorage, tier, window.HosProfileChanges || null);
+  // 2) Presence (server-enforced).
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
+  // 3) The directory, with the profile.
   try {
-    const before = loadProfileLocal();
-    const local = JSON.parse(JSON.stringify(before));
-    local.privacy = local.privacy || {};
-    if (tier.directory_unlisted) local.privacy.directory = 'unlisted';
-    else delete local.privacy.directory;
-    // Recorded as changed here, so it goes on top of the server's copy and waits until that copy
-    // carries it (BUG-195's review: it was never sent once only changes made here went).
-    if (window.HosProfileChanges) {
-      window.HosProfileChanges.add(window.localStorage, window.HosProfileChanges.changedFields(before, local));
-    }
-    saveProfileLocal(local);
     if (typeof pushProfileToRelay === 'function') pushProfileToRelay();
   } catch (e) {
-    console.warn('privacy tier profile merge failed:', e && e.message);
+    console.warn('privacy tier profile push failed:', e && e.message);
   }
-  // 3) Persist the choice; the modal never re-asks.
-  localStorage.setItem('humanity_privacy_tier', tier.id);
   if (typeof addSystemMessage === 'function') {
-    addSystemMessage('Privacy level set to <strong>' + esc(tier.name) + '</strong>. Change it any time from the account menu.');
+    // Settings > Privacy has the levels and both switches since BUG-237 (2026-11-03).
+    // (shell.js loads the words before anything here runs; a test page that has not loaded them
+    // gets the level's name alone.)
+    const name = tierWords(tier.name);
+    addSystemMessage(esc(window.i18n ? i18n.t('privacy.web_level_set', { level: name }) : name));
   }
 }
 
 /** Re-assert the persisted choice on a fresh connection (flags are
  *  per-server; a new or wiped server learns the choice immediately). */
 async function reassertPrivacyTier() {
-  const chosen = localStorage.getItem('humanity_privacy_tier');
-  if (!chosen) return;
-  const { tiers } = await loadPrivacyTiers();
-  const tier = tiers.find((t) => t.id === chosen);
-  if (!tier) return;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'privacy_update', hide_presence: !!tier.hide_presence }));
-  }
+  sendPresenceChoice();
+}
+
+// Settings > Privacy in another tab changed the presence switch (or a level): tell this server
+// now, on this tab's signed-in socket. Settings tells the server itself too when it can sign in;
+// with the key locked there, this is how the change goes at once.
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', (e) => {
+    if (e && window.HosPrivacyTiers && e.key === window.HosPrivacyTiers.PRESENCE_KEY) sendPresenceChoice();
+  });
 }
 
 /**
@@ -96,18 +93,21 @@ async function reassertPrivacyTier() {
  */
 function privacyExplanationText() {
   const signed = typeof REPORT_PRIVACY_SENTENCE === 'string' ? ' ' + REPORT_PRIVACY_SENTENCE : '';
-  return 'Your messages are end-to-end encrypted whatever you pick, and this server keeps no record of who you message.'
-    + signed
-    + ' This only controls whether others can see you online and find you in directories. You can change it any time.';
+  // "Direct messages", not "your messages" (2026-11-03): channel posts are public (BUG-223). The
+  // scope sentence says Settings > Privacy can change it later (true since BUG-237).
+  const words = window.i18n
+    ? [i18n.t('privacy.web_modal_intro'), i18n.t('privacy.web_modal_scope')]
+    : ['', ''];
+  return (words[0] + signed + ' ' + words[1]).trim();
 }
 
 /** First-connect chooser. Called from app.js once identity is confirmed. */
 async function maybeShowPrivacyTierModal() {
-  if (_privacyModalShown) return;
-  if (localStorage.getItem('humanity_privacy_tier')) {
-    reassertPrivacyTier();
-    return;
-  }
+  if (!window.HosPrivacyTiers) return;
+  // The presence choice goes to this server on every connect, whether or not a level was ever
+  // picked (Settings can set the switch on its own) and after the chooser was shown once here.
+  sendPresenceChoice();
+  if (_privacyModalShown || localStorage.getItem('humanity_privacy_tier')) return;
   _privacyModalShown = true;
   const { defaultTier, tiers } = await loadPrivacyTiers();
   let selected = defaultTier;
@@ -119,25 +119,28 @@ async function maybeShowPrivacyTierModal() {
     <label class="privacy-tier-card" data-tier="${esc(t.id)}" style="display:block;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;background:var(--bg-secondary);">
       <div style="display:flex;align-items:center;gap:8px;">
         <input type="radio" name="privacy-tier" value="${esc(t.id)}"${t.id === defaultTier ? ' checked' : ''}>
-        <span style="font-weight:700;">${esc(t.name)}</span>
-        <span style="color:var(--text-muted);font-size:0.78rem;">${esc(t.tagline)}</span>
+        <span style="font-weight:700;">${esc(tierWords(t.name))}</span>
+        <span style="color:var(--text-muted);font-size:0.78rem;">${esc(tierWords(t.tagline))}</span>
       </div>
-      <div style="margin:4px 0 0 24px;color:var(--text-muted);font-size:0.78rem;line-height:1.4;">${esc(t.description)}</div>
+      <div style="margin:4px 0 0 24px;color:var(--text-muted);font-size:0.78rem;line-height:1.4;">${esc(tierWords(t.description))}</div>
     </label>`).join('');
   overlay.innerHTML = `
     <div style="max-width:520px;width:100%;max-height:90vh;overflow-y:auto;background:var(--bg-primary);border:1px solid var(--border);border-radius:12px;padding:18px;">
-      <h2 style="margin:0 0 6px;font-size:1.05rem;">How visible do you want to be?</h2>
+      <h2 style="margin:0 0 6px;font-size:1.05rem;">${esc(tierWords('privacy.modal_title'))}</h2>
       <p style="margin:0 0 12px;color:var(--text-muted);font-size:0.8rem;line-height:1.45;">
         ${esc(privacyExplanationText())}
       </p>
       ${cards}
-      <button id="privacy-tier-apply" class="vr-btn" style="width:100%;margin-top:8px;font-size:0.85rem;padding:10px;">Use this privacy level</button>
+      <button id="privacy-tier-apply" class="vr-btn" style="width:100%;margin-top:8px;font-size:0.85rem;padding:10px;">${esc(tierWords('privacy.modal_apply'))}</button>
     </div>`;
   document.body.appendChild(overlay);
   overlay.querySelectorAll('input[name="privacy-tier"]').forEach((r) => {
+    if (window.i18n) i18n.hint(r, 'privacy.tier_card_hint');
     r.onchange = () => { selected = r.value; };
   });
-  document.getElementById('privacy-tier-apply').onclick = async () => {
+  const apply = document.getElementById('privacy-tier-apply');
+  if (window.i18n) i18n.hint(apply, 'privacy.modal_apply_hint');
+  apply.onclick = async () => {
     await applyPrivacyTier(selected);
     overlay.remove();
     // Protection-by-default nudge: if the seed still sits unwrapped in

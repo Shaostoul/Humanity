@@ -19,6 +19,10 @@
  *   HosNotifyRules.soundOf / eventOn / gameEvent      a kind's sound, a game event (rung 3)
  *   HosNotifyRules.allowNoteText / allowNoteParse /   the always-allow list's note to oneself
  *     isAllowNote / allowApply                        and its newest-wins merge (rung 3)
+ *
+ * A candidate's `from_level` (2026-11-03, docs/design/per-person-controls.md) is the sender's
+ * level from the person's profile card ('all', 'mentions', 'nothing'; null when nothing was
+ * chosen), checked against each kind's `person_level` right after the mutes.
  */
 (function (root) {
   'use strict';
@@ -215,6 +219,13 @@
     }
     var m = muted(local.mutes, k.scope, c, at.now);
     if (m) return quiet(m);
+    // The sender's level from the person's profile card (per-person controls, the desktop's
+    // `from_level`): after the mutes, before the room's level and quiet hours. A word the rule
+    // does not know is no choice; a kind without `person_level` needs everything.
+    if (c.from_level != null && Object.prototype.hasOwnProperty.call(LEVEL_RANK, c.from_level)) {
+      var need = Object.prototype.hasOwnProperty.call(LEVEL_RANK, k.person_level) ? k.person_level : 'all';
+      if (LEVEL_RANK[c.from_level] < LEVEL_RANK[need]) return quiet('person_level');
+    }
     if (k.scope === 'room') {
       var set = LEVEL_RANK[roomLevel(local.levels, c.server, c.room)];
       if (set < LEVEL_RANK[levelOf(k.level)]) return quiet('room_level');
