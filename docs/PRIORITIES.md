@@ -374,6 +374,12 @@ In order:
       page. Like we need to set file sharing limits, allowed to call during quiet hours, etc."
       Design and build after navigation rung 2. The card he showed had no name (a "?" avatar):
       an opener passing an empty name, to fix with it.
+    - PER-PERSON CONTROLS, his later answers (2026-11-03, docs/design/per-person-controls.md 8.1):
+      rung 1 BUILT (c754f5762). Next: a per-person call connection, "Always private and always
+      direct with this person"; a global "Direct with friends, Private with everyone else" and
+      "Direct with X group", with named lists of people ("family" "coworkers" "game clan")
+      usable by every per-person control (the word is open: "lists" recommended, since Groups
+      means group chats); separate quiet-hours switches kept as an option for later.
     - DM PREVIEWS (same day): "we should add an option to hide or show varying amounts of
       people's replies in the DMs section. I like seeing the snippet but, some people might only
       want the usernames to display." Sent to the BUG-242 agent (the same file).
