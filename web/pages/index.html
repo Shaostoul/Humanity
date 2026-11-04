@@ -114,7 +114,7 @@
     .fd-facts { color: var(--text-muted); font-size: 0.9rem; margin: 8px auto 0; }
 
     /* The search: one box, under the words, over everything else */
-    .fd-search { max-width: 720px; margin: 24px auto 0; text-align: left; }
+    .fd-search { max-width: 720px; margin: 24px auto 0; text-align: left; position: relative; }
     .fd-search-label { display: block; font-weight: 800; font-size: 1.02rem; margin: 0 0 6px 2px; color: var(--text-strong); }
     .fd-search-box { position: relative; }
     .fd-search-box .pg-ico { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); display: flex; }
@@ -123,7 +123,13 @@
       color: var(--text); background: var(--bg-input); border: 2px solid var(--border); border-radius: var(--radius-lg);
     }
     .fd-search-input:focus { outline: none; border-color: var(--border-focus); }
-    .fd-results { margin-top: 8px; padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+    /* The suggestions float over the page under the box, never pushing it down (2026-11-04,
+       the operator: "it moves everything else on the page down"); a press outside closes them. */
+    .fd-results {
+      position: absolute; left: 0; right: 0; top: 100%; z-index: var(--z-page-float);
+      margin-top: 8px; padding: 10px 14px; max-height: min(60vh, 520px); overflow-y: auto;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    }
     .fd-results[hidden] { display: none; }
     .fd-results h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 6px 0 4px; }
     .fd-results ul { list-style: none; margin: 0; padding: 0; }

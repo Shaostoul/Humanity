@@ -367,3 +367,15 @@ test("11. the Devlog reads this server's /api/releases, a page at a time, and ne
 //  - index-app.js following ?return= as it was before (no same-site check): 10 failed
 //    ("return=javascript:alert(document.domain) is not followed").
 //  - devlog-app.js asking https://api.github.com/repos/Shaostoul/Humanity/releases again: 11 failed.
+
+test("12. the search's suggestions float over the page and close on a press outside it", () => {
+  // The operator, 2026-11-04: "it moves everything else on the page down". Red before the fix:
+  // .fd-results had no position, so it sat in the page's flow under the box.
+  const html = fs.readFileSync(path.join(ROOT, "web", "pages", "index.html"), "utf8");
+  const rule = (html.match(/\.fd-results\s*\{[^}]*\}/) || [""])[0];
+  assert.match(rule, /position:\s*absolute/, "the suggestions are out of the page's flow");
+  assert.match(rule, /z-index:\s*var\(--z-page-float\)/, "on the layer scale, over the page");
+  assert.match(html, /\.fd-search\s*\{[^}]*position:\s*relative/, "placed under the search box");
+  const js = fs.readFileSync(path.join(ROOT, "web", "pages", "index-app.js"), "utf8");
+  assert.ok(js.includes("addEventListener('pointerdown'") && js.includes(".fd-search"), "a press outside the search closes them");
+});

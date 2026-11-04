@@ -253,6 +253,16 @@
       input.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { input.value = ''; search(''); }
       });
+      // The suggestions float over the page (index.html's .fd-results), so a press outside the
+      // search closes them, and going back into the box brings them back.
+      if (doc.addEventListener) {
+        doc.addEventListener('pointerdown', function (e) {
+          var area = input.closest ? input.closest('.fd-search') : null;
+          var box = byId('fd-results');
+          if (box && area && e.target && !area.contains(e.target)) box.hidden = true;
+        });
+      }
+      input.addEventListener('focus', function () { if (input.value && state.idx) search(input.value); });
     }
 
     // ── Start here: what brought you here? ──
