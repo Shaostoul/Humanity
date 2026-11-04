@@ -22,7 +22,7 @@ shared ship's rules are the same on both sides.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-ship/src/levels.rs` 184 of 200.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 5, `native` 3.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 57.
-- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 323, gui 159, relay 39, systems 26.
+- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 323, gui 160, relay 39, systems 26.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 380 tests, and this runs exactly them, checked against every test's name:
 
@@ -36,7 +36,7 @@ just test-lib --crate humanity-ship
 |---|---:|---|
 | `ship_structure::ShipStructure` | 23 | engine 14, gui 4, systems 3, relay 2 |
 | `machines::MachineHome` | 19 | engine 14, gui 4, systems 1 |
-| `room_types::RoomBounds` | 14 | gui 11, engine 2, systems 1 |
+| `room_types::RoomBounds` | 15 | gui 12, engine 2, systems 1 |
 | `lock_types::LockState` | 13 | engine 8, gui 5 |
 | `machines::PlacedMachine` | 12 | engine 12 |
 | `machines::ConduitEnd` | 11 | gui 7, engine 4 |

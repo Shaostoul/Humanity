@@ -15,13 +15,13 @@ deploy takes.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "relay"`: `relay/`, `how_to/`
-- **Size:** 111,657 lines in 222 files, 18,822 of them in 56 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `relay/relay.rs` 6,309 of 6,340, `relay/api.rs` 3,762 of 3,930, `relay/handlers/profile.rs` 620 of 650, `relay/files.rs` 1,568 of 1,650, `relay/handlers/msg_handlers.rs` 4,373 of 4,660, `relay/api_market.rs` 697 of 800, `relay/handlers/stream.rs` 437 of 550.
+- **Size:** 113,997 lines in 228 files, 19,861 of them in 58 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `relay/relay.rs` 6,309 of 6,340, `relay/handlers/profile.rs` 629 of 650, `relay/files.rs` 1,568 of 1,650, `relay/api.rs` 3,693 of 3,930, `relay/handlers/msg_handlers.rs` 4,373 of 4,660, `relay/api_market.rs` 697 of 800, `relay/handlers/stream.rs` 437 of 550.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `relay` 3, `mesh` 1.
-- **May use** (the plan): core, protocol, ship, systems; through those, also terrain. **Uses today** (references in non-test code): protocol 97, ship 39, core 28, systems 10.
+- **May use** (the plan): core, protocol, ship, systems; through those, also terrain. **Uses today** (references in non-test code): protocol 141, ship 39, core 29, systems 10.
 - **May be used by** (the plan): gui, engine. **Used today by:** gui 104, engine 11.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 992 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 1,017 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine relay:: how_to:: --skip engine::call_relay:: --skip gui::crossing_tests::how_to:: --skip gui::pages::how_to:: --skip net::call_relay::

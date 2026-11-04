@@ -16,12 +16,12 @@ the relay rather than on top of it.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `net/`
-- **Size:** 30,658 lines in 55 files, 3,858 of them in 13 test files.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 44.
-- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 46, protocol 31.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 333, engine 97.
+- **Size:** 31,184 lines in 58 files, 3,994 of them in 14 test files.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 46.
+- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 47, protocol 32.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 344, engine 99.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 256 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 263 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gui::pages::settings::recovery_net::
@@ -33,9 +33,9 @@ just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gu
 |---|---:|---|
 | `net::file_risk::file_type` | 18 | gui 18 |
 | `net::warnings::GUARD_LINE` | 13 | gui 12, engine 1 |
+| `net::dm_pq::DmInner` | 12 | gui 8, engine 4 |
 | `net::dm_store::DmStore` | 12 | gui 8, engine 4 |
 | `net::protected::ProtectedAction` | 12 | gui 12 |
-| `net::dm_pq::DmInner` | 11 | gui 7, engine 4 |
 | `net::identity::pq_sign_chat` | 11 | gui 11 |
 | `net::ws_client::WsClient` | 10 | engine 5, gui 5 |
 | `net::webrtc::WebrtcEvent` | 8 | engine 8 |
@@ -47,7 +47,7 @@ just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gu
 | `net::household::PermitKey` | 5 | engine 5 |
 | `net::identity::mnemonic_from_seed` | 5 | gui 5 |
 
-And 181 more items, 294 references (`node scripts/crate-cards.js --interface humanity-net` lists them all).
+And 188 more items, 306 references (`node scripts/crate-cards.js --interface humanity-net` lists them all).
 <!-- end generated -->
 
 ## Rules
