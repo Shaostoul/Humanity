@@ -358,21 +358,15 @@ pub fn file_picker_modal(
     }
 
     // A dimmed screen behind the picker, so it reads as a window that is open (operator,
-    // 2026-10-17); a click on it is Cancel, as on the app's other dialogs (widgets/dialog.rs).
-    let backdrop = egui::Area::new(egui::Id::new(PICKER_ID).with("backdrop"))
-        .order(egui::Order::Middle)
-        .fixed_pos(egui::pos2(0.0, 0.0))
-        .show(ctx, |ui| {
-            let screen = ctx.screen_rect();
-            ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(BACKDROP_ALPHA));
-            ui.allocate_rect(screen, egui::Sense::click())
-        });
-    if backdrop.inner.clicked() {
+    // 2026-10-17): a full-screen popup's shade (gui/layers.rs), over the menus and the warning too.
+    // A click on it is Cancel, as on the app's other dialogs (widgets/dialog.rs), and so are Back
+    // and Escape.
+    let shade = crate::gui::layers::shade(ctx, egui::Id::new(PICKER_ID), crate::gui::layers::Close::Any, egui::Color32::from_black_alpha(BACKDROP_ALPHA));
+    if shade.wants_close() {
         return FilePickerResult::Cancelled;
     }
 
-    let window = egui::Window::new(RichText::new(title).color(theme.text_primary()).strong())
-        .id(egui::Id::new(PICKER_ID))
+    let window = crate::gui::layers::window(ctx, egui::Id::new(PICKER_ID), RichText::new(title).color(theme.text_primary()).strong(), crate::gui::layers::Layer::PopupWindow)
         .collapsible(false)
         .resizable(true)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -601,7 +595,7 @@ pub fn file_picker_modal(
         });
 
     if let Some(w) = window {
-        ctx.set_sublayer(backdrop.response.layer_id, w.response.layer_id);
+        crate::gui::layers::seat(ctx, &shade, w.response.layer_id);
     }
 
     // A file was picked: the next picker opens in its folder. A folder pick (a folder picker, a
@@ -617,7 +611,7 @@ pub fn file_picker_modal(
 /// Said when files dropped on an open picker are all of kinds or sizes it does not take.
 pub const DROPPED_NONE_FIT: &str = "None of those files can be chosen here: this asks for other kinds of file, or smaller ones.";
 
-/// The picker window's id (its backdrop is `with("backdrop")`).
+/// The picker window's id (its shade is `with("shade")`, gui/layers.rs).
 pub const PICKER_ID: &str = "file_picker_modal";
 /// How dark the screen behind the picker goes: the dialogs' own dimming (widgets/dialog.rs).
 const BACKDROP_ALPHA: u8 = 140;
@@ -939,7 +933,7 @@ mod tests {
         let window = ctx.memory(|m| m.area_rect(egui::Id::new(PICKER_ID))).expect("drawn");
         let top = ctx.layer_id_at(window.center()).map(|l| l.id);
         assert_eq!(top, Some(egui::Id::new(PICKER_ID)), "the window is above its backdrop");
-        assert_eq!(ctx.layer_id_at(egui::pos2(5.0, 5.0)).map(|l| l.id), Some(egui::Id::new(PICKER_ID).with("backdrop")), "the screen around it is the backdrop");
+        assert_eq!(ctx.layer_id_at(egui::pos2(5.0, 5.0)).map(|l| l.id), Some(egui::Id::new(PICKER_ID).with("shade")), "the screen around it is the backdrop");
         let at = egui::pos2(5.0, 5.0);
         let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() };
         picker_frame(&ctx, &theme, &mut picker, vec![egui::Event::PointerMoved(at), button(true)]);

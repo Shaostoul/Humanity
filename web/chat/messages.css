@@ -144,7 +144,7 @@
    stop it. It hangs off <body>, so it is never cut by the message list. */
 .pill-popup {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-page-float);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -183,7 +183,7 @@
 /* The full date and time, left of the Þ (native pill_ts_expand). */
 .pill-ts-expand {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-tooltip);
   padding: 4px 8px;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -319,7 +319,7 @@
   right: var(--space-md);
   top: var(--space-xs);
   gap: var(--space-sm);
-  z-index: 2;
+  z-index: calc(var(--z-page) + 2);
 }
 .message.mobile-selected .msg-actions { display: flex; }
 .msg-actions button {

@@ -287,8 +287,8 @@ fn draw_list(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, here: &st
     let mut picked: Option<(String, String)> = None;
     let locked = state.private_key_bytes.is_none();
     let servers: Vec<(String, String)> = state.chat_servers.iter().map(|s| (norm_server_url(&s.url), s.name.clone())).collect();
-    let area = egui::Area::new(Id::new("server_strip_list"))
-        .order(egui::Order::Foreground)
+    // The page's own drop-down (layer 40, gui/layers.rs).
+    let area = crate::gui::layers::area(ctx, Id::new("server_strip_list"), crate::gui::layers::Layer::PageFloat)
         .pivot(Align2::RIGHT_TOP)
         .fixed_pos(egui::pos2(anchor.right(), anchor.bottom() + 4.0))
         .show(ctx, |ui| {

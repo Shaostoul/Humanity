@@ -450,6 +450,52 @@ pub struct Theme {
     /// this flag remains the extra kill-switch on top of the mode.
     #[serde(default = "default_cheats_enabled")]
     pub cheats_enabled: bool,
+
+    // ── The layer scale (navigation rung 3, 2026-11-04; docs/design/navigation.md section 6) ──
+    // The website's z-index for each of the operator's layers: gen-theme-css.js writes them as
+    // theme.css's --z-* custom properties (a larger z-index is nearer). The desktop holds the same
+    // order in egui's orders (gui/layers.rs, `Layer::web_token` names these), and a test there holds
+    // the two to one order. Not in the Settings editor: they are the order itself, not a look, and
+    // one changed alone could put the menu over a popup (tests/theme_editor_coverage.rs).
+    /// 41+: the page (its own parts raised over their neighbours use calc(var(--z-page) + N)).
+    #[serde(default = "default_z_page")]
+    pub z_page: i32,
+    /// 40: the page's drop-downs, context menus and windows that are not full-screen popups.
+    #[serde(default = "default_z_page_float")]
+    pub z_page_float: i32,
+    /// 30: the footer chat.
+    #[serde(default = "default_z_footer")]
+    pub z_footer: i32,
+    /// 21: the unfinished-software warning.
+    #[serde(default = "default_z_warning")]
+    pub z_warning: i32,
+    /// 20: the secondary menu.
+    #[serde(default = "default_z_menu_2")]
+    pub z_menu_2: i32,
+    /// 19: the secondary row's More.
+    #[serde(default = "default_z_menu_2_drop")]
+    pub z_menu_2_drop: i32,
+    /// 10: the primary menu.
+    #[serde(default = "default_z_menu_1")]
+    pub z_menu_1: i32,
+    /// 9: the primary row's drop-downs (help, notices, the phone's All pages).
+    #[serde(default = "default_z_menu_1_drop")]
+    pub z_menu_1_drop: i32,
+    /// 5: a full-screen popup's shade, over both menus and the warning.
+    #[serde(default = "default_z_shade")]
+    pub z_shade: i32,
+    /// 4: the popup's window when it is its own element.
+    #[serde(default = "default_z_popup")]
+    pub z_popup: i32,
+    /// 3: a popup's own drop-downs and confirms.
+    #[serde(default = "default_z_popup_controls")]
+    pub z_popup_controls: i32,
+    /// 2: urgent, an incoming call or an emergency alert.
+    #[serde(default = "default_z_urgent")]
+    pub z_urgent: i32,
+    /// 1: tooltips, hints and toasts.
+    #[serde(default = "default_z_tooltip")]
+    pub z_tooltip: i32,
 }
 
 /// Animation style enum encoded as u8 in theme.ron for serde stability.
@@ -936,6 +982,20 @@ fn default_attack_anim() -> u8 { 1 }          // PULSE_RED
 fn default_anim_speed() -> f32 { 1.0 }
 fn default_nav_dev_visible() -> bool { true } // ON during dev period; flip at v1.0
 fn default_cheats_enabled() -> bool { true } // ON during dev; turn off for demos / servers
+// The layer scale (navigation rung 3): his number, then what it is.
+fn default_z_page() -> i32 { 0 }
+fn default_z_page_float() -> i32 { 100 }
+fn default_z_footer() -> i32 { 200 }
+fn default_z_warning() -> i32 { 210 }
+fn default_z_menu_2() -> i32 { 300 }
+fn default_z_menu_2_drop() -> i32 { 310 }
+fn default_z_menu_1() -> i32 { 400 }
+fn default_z_menu_1_drop() -> i32 { 410 }
+fn default_z_shade() -> i32 { 1000 }
+fn default_z_popup() -> i32 { 1010 }
+fn default_z_popup_controls() -> i32 { 1020 }
+fn default_z_urgent() -> i32 { 2000 }
+fn default_z_tooltip() -> i32 { 3000 }
 
 fn default_theme() -> Theme {
     Theme {
@@ -1112,5 +1172,18 @@ fn default_theme() -> Theme {
         attack_indicator_speed: default_anim_speed(),
         nav_dev_visible: default_nav_dev_visible(),
         cheats_enabled: default_cheats_enabled(),
+        z_page: default_z_page(),
+        z_page_float: default_z_page_float(),
+        z_footer: default_z_footer(),
+        z_warning: default_z_warning(),
+        z_menu_2: default_z_menu_2(),
+        z_menu_2_drop: default_z_menu_2_drop(),
+        z_menu_1: default_z_menu_1(),
+        z_menu_1_drop: default_z_menu_1_drop(),
+        z_shade: default_z_shade(),
+        z_popup: default_z_popup(),
+        z_popup_controls: default_z_popup_controls(),
+        z_urgent: default_z_urgent(),
+        z_tooltip: default_z_tooltip(),
     }
 }

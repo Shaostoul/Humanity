@@ -1031,7 +1031,7 @@ async function openSeedPhraseModal() {
   const words = mnemonic.trim().split(/\s+/);
   const overlay = document.createElement('div');
   overlay.id = 'seed-phrase-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
 
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:600px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
@@ -1150,7 +1150,7 @@ async function openSeedPhraseModal() {
 function openRestoreFromMnemonicModal() {
   const overlay = document.createElement('div');
   overlay.id = 'restore-mnemonic-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
 
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
@@ -1284,7 +1284,7 @@ function openEncryptedBackupModal() {
   const overlay = document.createElement('div');
   overlay.id = 'encrypted-backup-overlay';
   overlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:6000;
+    position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:var(--z-shade);
     display:flex;align-items:center;justify-content:center;
   `;
   overlay.innerHTML = `
@@ -1349,7 +1349,7 @@ function openRestoreIdentityModal() {
   const overlay = document.createElement('div');
   overlay.id = 'restore-identity-overlay';
   overlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:6000;
+    position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:var(--z-shade);
     display:flex;align-items:center;justify-content:center;
   `;
   overlay.innerHTML = `
@@ -1409,7 +1409,7 @@ async function scanQrWithCamera(onResult) {
   }
   const overlay = document.createElement('div');
   overlay.id = 'qr-scan-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:8000;display:flex;flex-direction:column;align-items:center;justify-content:center;'; // theme-exempt: the camera view for scanning a code is black in both themes
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:calc(var(--z-shade) + 2);display:flex;flex-direction:column;align-items:center;justify-content:center;'; // theme-exempt: the camera view for scanning a code is black in both themes
   overlay.innerHTML = `
     <video id="qr-scan-video" playsinline muted style="width:100%;max-width:480px;max-height:70vh;border-radius:var(--radius);object-fit:cover"></video>
     <p style="color:#fff;font-size:.85rem;margin:var(--space-lg);text-align:center">Point your camera at the QR code on your other device</p>
@@ -1474,7 +1474,7 @@ function openLinkThisDeviceModal() {
   if (existing) existing.remove();
   const overlay = document.createElement('div');
   overlay.id = 'link-this-device-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:7000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:calc(var(--z-shade) + 1);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
   const method = (icon, title, pro, con, id) => `
     <button id="${id}" style="display:block;width:100%;text-align:left;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-lg);margin-bottom:var(--space-md);cursor:pointer;color:var(--text)">
       <div style="font-weight:700;font-size:.9rem;margin-bottom:2px">${icon} ${title}</div>
@@ -1587,7 +1587,7 @@ function openKeyProtectionModal() {
   const wrapped = isKeyWrapped();
   const overlay = document.createElement('div');
   overlay.id = 'key-protection-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;';
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:500px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md)">${hosIcon('lock', 14)} Key Protection</h2>

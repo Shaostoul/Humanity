@@ -5255,6 +5255,40 @@ fn snapshot_nav_rows_720_200_preview() {
     nav_rows_at("nav_rows_720_200_preview", 1280, 200.0, crate::gui::GuiPage::Chat, Some("play"));
 }
 
+/// THE ONE LAYER ORDER (navigation rung 3, 2026-11-04; gui/layers.rs): a full-screen popup over the
+/// Files page on the operator's 2560 by 1440 screen. Its shade dims both rows of the menu (the bell
+/// and the help button too), the open notices panel, the page and the warning (5); the popup's
+/// window stands on it (4) with its controls (3); an incoming call shows over the popup in the
+/// urgent band under the menus (2); a toast over everything (1). The warning's version is pinned
+/// so the picture does not change with every release.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_popup_over_menus() {
+    render_page_png_at("popup_over_menus", 2560, 1440, 100.0, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::Files;
+        state.notify.panel_open = true;
+        state.call_incoming = Some(("peer_key".to_string(), "Ada".to_string()));
+        if state.toasts.is_empty() {
+            state.toast("Saved", crate::gui::ToastKind::Success, ctx.input(|i| i.time));
+        }
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+        crate::gui::bottom_strip::draw_for_version(ctx, theme, state, "0.1548.0");
+        crate::gui::pages::files::draw(ctx, theme, state);
+        let mut open = true;
+        crate::gui::widgets::dialog(ctx, theme, "snapshot_popup", &humanity_core::i18n::t("wip.more"), &mut open, |ui| {
+            ui.set_width(520.0);
+            crate::gui::widgets::glossary_words(ui, theme, humanity_core::i18n::t_marked("wip.line"), theme.font_size_body, theme.text_primary());
+            ui.add_space(theme.spacing_md);
+            let _ = crate::gui::widgets::Button::primary(humanity_core::i18n::t("common.close")).show(ui, theme);
+        });
+        crate::gui::pages::chat::draw_incoming_call_modal(ctx, theme, state);
+        crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
+        crate::gui::notice_panel::draw(ctx, theme, state);
+        crate::gui::widgets::draw_toasts(ctx, theme, state);
+        crate::gui::layers::arrange(ctx);
+    });
+}
+
 /// Play's own page under the menu (navigation rung 2): who and where was played last, and Enter
 /// the world, in the app's restored window.
 #[test]

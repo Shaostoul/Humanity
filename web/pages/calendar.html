@@ -268,7 +268,7 @@
       color: var(--text);
       overflow: hidden;
       cursor: pointer;
-      z-index: 1;
+      z-index: calc(var(--z-page) + 1);
     }
 
     /* ── Day view ── */
@@ -316,7 +316,7 @@
       color: var(--text);
       overflow: hidden;
       cursor: pointer;
-      z-index: 1;
+      z-index: calc(var(--z-page) + 1);
     }
 
     /* Current time indicator */
@@ -326,7 +326,7 @@
       right: 0;
       height: 2px;
       background: var(--accent);
-      z-index: 10;
+      z-index: calc(var(--z-page) + 10);
       pointer-events: none;
     }
     .now-dot {
@@ -344,7 +344,7 @@
       display: none;
       position: fixed; inset: 0;
       background: var(--bg-modal);
-      z-index: 8000;
+      z-index: var(--z-shade);
       align-items: center;
       justify-content: center;
     }

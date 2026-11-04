@@ -243,9 +243,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let right_panel_left = right_response.response.rect.left();
     let header_top = left_response.response.rect.top();
 
-    egui::Area::new(egui::Id::new("chat_left_lock_overlay"))
+    // The lock buttons are part of the page (41+, gui/layers.rs): on its panels' edges, under
+    // every floating thing (they were egui's Foreground, over an open dialog's shade).
+    crate::gui::layers::area(ctx, egui::Id::new("chat_left_lock_overlay"), crate::gui::layers::Layer::Page)
         .fixed_pos(egui::pos2(left_panel_right, header_top))
-        .order(egui::Order::Foreground)
         .interactable(true)
         .show(ctx, |ui| {
             // Strip the parent style's item_spacing inside this Area
@@ -256,9 +257,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 crate::config::AppConfig::from_gui_state(state).save();
             }
         });
-    egui::Area::new(egui::Id::new("chat_right_lock_overlay"))
+    crate::gui::layers::area(ctx, egui::Id::new("chat_right_lock_overlay"), crate::gui::layers::Layer::Page)
         .fixed_pos(egui::pos2(right_panel_left - LOCK_PX, header_top))
-        .order(egui::Order::Foreground)
         .interactable(true)
         .show(ctx, |ui| {
             ui.spacing_mut().item_spacing = Vec2::ZERO;
@@ -1225,10 +1225,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     thorn_rect_for_msg.center().y,
                                 );
                                 let full_ts = format_full_timestamp(msg.timestamp_ms);
-                                egui::Area::new(egui::Id::new(("pill_ts_expand", msg.timestamp_ms)))
+                                // A tooltip (layer 1): it takes no click.
+                                crate::gui::layers::area(ui.ctx(), egui::Id::new(("pill_ts_expand", msg.timestamp_ms)), crate::gui::layers::Layer::Tooltip)
                                     .fixed_pos(ts_overlay_pos)
                                     .pivot(egui::Align2::RIGHT_CENTER)
-                                    .order(egui::Order::Foreground)
                                     .interactable(false)
                                     .show(ui.ctx(), |ui| {
                                         Frame::NONE
@@ -1266,10 +1266,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 theme, chan_time, chan_attack, theme.accent(),
                             );
                             ui.ctx().request_repaint();
-                            egui::Area::new(egui::Id::new(("pill_expand", target_ts)))
+                            // The page's own drop-down (layer 40): its reactions take clicks.
+                            crate::gui::layers::area(ui.ctx(), egui::Id::new(("pill_expand", target_ts)), crate::gui::layers::Layer::PageFloat)
                                 .fixed_pos(overlay_pos)
                                 .pivot(egui::Align2::LEFT_CENTER)
-                                .order(egui::Order::Foreground)
                                 .interactable(true)
                                 .show(ui.ctx(), |ui| {
                                     Frame::NONE
@@ -1948,8 +1948,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 response.rect.left(),
                                 response.rect.top() - area_h - 4.0,
                             );
-                            egui::Area::new(egui::Id::new("mention_autocomplete_area"))
-                                .order(egui::Order::Foreground)
+                            crate::gui::layers::area(ui.ctx(), egui::Id::new("mention_autocomplete_area"), crate::gui::layers::Layer::PageFloat)
                                 .fixed_pos(area_pos)
                                 .show(ui.ctx(), |ui| {
                                     Frame::popup(ui.style()).show(ui, |ui| {
@@ -2327,7 +2326,8 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     let dm_open = active.starts_with("dm:");
     let group_open = active.starts_with("p2pgroup:") || active.starts_with("group:");
 
-    let area = egui::Area::new(egui::Id::new("ingame_chat_panel"))
+    // In the world, the chat panel stands where a page's floats do (layer 40, gui/layers.rs).
+    let area = crate::gui::layers::area(ctx, egui::Id::new("ingame_chat_panel"), crate::gui::layers::Layer::PageFloat)
         .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(12.0, -12.0))
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style())

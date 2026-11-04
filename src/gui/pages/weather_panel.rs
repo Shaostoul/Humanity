@@ -173,7 +173,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
     }
     let mut changed = false;
     let mut open = true;
-    egui::Window::new("Weather and time (F11)")
+    // A dev window over the page or the world (layer 40, gui/layers.rs).
+    crate::gui::layers::window(ctx, egui::Id::new("Weather and time (F11)"), "Weather and time (F11)", crate::gui::layers::Layer::PageFloat)
         .open(&mut open)
         .default_pos([40.0, 80.0])
         .default_width(330.0)

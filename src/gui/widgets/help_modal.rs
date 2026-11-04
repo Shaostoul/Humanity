@@ -193,23 +193,17 @@ pub fn draw(
 
     let mut should_close = false;
 
-    // Backdrop
-    let screen = ctx.screen_rect();
-    let bg_modal = Theme::c32(&theme.bg_modal);
-    egui::Area::new(egui::Id::new("hos_help_backdrop"))
-        .fixed_pos(screen.min)
-        .show(ctx, |ui| {
-            let (_, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
-            ui.painter().rect_filled(screen, CornerRadius::ZERO, bg_modal);
-            if resp.clicked() {
-                should_close = true;
-            }
-        });
+    // A full-screen popup (gui/layers.rs): its shade covers the menus and the warning; a click on
+    // it, Back and Escape close it (Escape and Back through layers::close_nearest).
+    let shade = crate::gui::layers::shade(ctx, egui::Id::new("hos_help_modal"), crate::gui::layers::Close::Any, Theme::c32(&theme.bg_modal));
+    if shade.wants_close() {
+        *active_topic = None;
+        return;
+    }
 
     // Modal window
     let modal_w = theme.modal_width;
-    egui::Window::new(&topic.title)
-        .id(egui::Id::new("hos_help_modal"))
+    let window = crate::gui::layers::window(ctx, egui::Id::new("hos_help_modal"), &topic.title, crate::gui::layers::Layer::PopupWindow)
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
@@ -257,11 +251,9 @@ pub fn draw(
             });
         });
 
-    // Close via Escape
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        should_close = true;
+    if let Some(w) = window {
+        crate::gui::layers::seat(ctx, &shade, w.response.layer_id);
     }
-
     if should_close {
         *active_topic = None;
     }

@@ -249,7 +249,7 @@
 
     /* Detail panel */
     .asset-detail-overlay {
-      display: none; position: fixed; inset: 0 0 var(--hos-wip-h, 0px) 0; z-index: 1000;
+      display: none; position: fixed; inset: 0; z-index: var(--z-shade);
       background: rgba(0,0,0,0.6); align-items: center; justify-content: center;
     }
     .asset-detail-overlay.open { display: flex; }
@@ -287,7 +287,7 @@
       position: fixed; bottom: calc(24px + var(--hos-wip-h, 0px)); left: 50%; transform: translateX(-50%);
       background: var(--bg-card); color: var(--text); border: 1px solid var(--accent);
       padding: 8px 20px; border-radius: var(--radius); font-size: 0.82rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 2000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: var(--z-tooltip);
       opacity: 0; transition: opacity 0.3s; pointer-events: none;
     }
     .toast.show { opacity: 1; }

@@ -414,7 +414,7 @@
       background: var(--bg-card, #1a1a1a); border: 1px solid var(--border, #333);
       border-radius: var(--radius); padding: var(--space-md) var(--space-xl); font-size: 0.82rem;
       color: var(--text, #eee); opacity: 0; pointer-events: none;
-      transition: opacity 0.25s, transform 0.25s; z-index: 9999;
+      transition: opacity 0.25s, transform 0.25s; z-index: var(--z-tooltip);
     }
     #skill-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -1737,7 +1737,7 @@
     /** Show a modal listing community members who have this skill */
     function skill_findUsers(skillId, skillName) {
       var overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
       overlay.innerHTML =
         '<div style="background:var(--pg-card-bg);border:1px solid var(--pg-line);border-radius:12px;padding:var(--space-2xl);width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:var(--pg-card-ink);">' +
           '<h2 style="font-size:0.95rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">' + hosIcon('users', 16) + ' ' + skillName + '</h2>' +

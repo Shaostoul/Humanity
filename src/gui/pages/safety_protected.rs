@@ -281,8 +281,14 @@ pub(crate) fn draw_pin_prompt(ctx: &egui::Context, theme: &Theme, state: &mut Gu
     }
     let Some(preset) = state.protected.preset.clone() else { return };
     let (mut go, mut cancel, mut forgot) = (false, false, false);
-    egui::Window::new(&preset.name)
-        .id(egui::Id::new("protected_pin_prompt"))
+    // A full-screen popup (gui/layers.rs): Back and Escape are its Cancel; a stray click beside it
+    // is not (the locked action waits for the PIN).
+    let shade = crate::gui::layers::shade(ctx, egui::Id::new("protected_pin_prompt"), crate::gui::layers::Close::Keys, Theme::c32(&theme.bg_modal));
+    if shade.wants_close() {
+        crate::engine::protected::cancel_prompt(state);
+        return;
+    }
+    let window = crate::gui::layers::window(ctx, egui::Id::new("protected_pin_prompt"), &preset.name, crate::gui::layers::Layer::PopupWindow)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
@@ -322,6 +328,9 @@ pub(crate) fn draw_pin_prompt(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                 }
             });
         });
+    if let Some(w) = window {
+        crate::gui::layers::seat(ctx, &shade, w.response.layer_id);
+    }
     if cancel {
         crate::engine::protected::cancel_prompt(state);
     } else if forgot {

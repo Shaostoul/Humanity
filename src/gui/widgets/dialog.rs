@@ -14,6 +14,7 @@
 use egui::{Align2, Color32, Frame, RichText, CornerRadius, Stroke, Ui, Vec2};
 // Vec2 used by `dialog_anchored` callers via the `offset` parameter.
 use super::super::theme::Theme;
+use crate::gui::layers;
 
 /// Render a centered themed dialog. Returns true if the dialog was shown.
 ///
@@ -73,35 +74,21 @@ fn dialog_inner(
 ) -> bool {
     let mut shown = false;
     let mut local_open = *open;
-    let mut backdrop_layer = None;
-    // Back and Escape close the dialog drawn last before they go anywhere (gui/history.rs
-    // `close_popup`, docs/design/navigation.md section 10.2): it says it is open, and closes
-    // when asked.
-    if local_open && crate::gui::history::popup_drawn(ctx, egui::Id::new(id)) {
-        local_open = false;
-    }
-
-    // Semi-transparent backdrop — paints a dimmed overlay over the rest of
-    // the UI and catches clicks behind the modal. Clicking the backdrop
-    // CLOSES the modal (standard click-outside-to-dismiss UX). That dismissal
-    // is also what avoids egui's z-order bug where interacting with a same-
-    // layer Area can shove the Window behind it (operator-reported v0.297).
+    let mut shade = None;
+    // The popup's shade (gui/layers.rs, layer 5): it dims and blocks everything under the dialog,
+    // both menus and the warning included, and a click on it CLOSES the dialog (click outside to
+    // dismiss). Back and Escape close it too, through the one close path (`layers::close_nearest`,
+    // docs/design/navigation.md section 10.2). The click-away is also what avoids egui's z-order
+    // bug where interacting with a same-layer Area can shove the Window behind it (v0.297).
     if local_open {
-        let area_resp = egui::Area::new(egui::Id::new(format!("{id}-backdrop")))
-            .order(egui::Order::Middle)
-            .fixed_pos(egui::pos2(0.0, 0.0))
-            .show(ctx, |ui| {
-                let screen = ctx.screen_rect();
-                ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(140));
-                ui.allocate_rect(screen, egui::Sense::click())
-            });
-        backdrop_layer = Some(area_resp.response.layer_id);
-        if area_resp.inner.clicked() {
+        let s = layers::shade(ctx, egui::Id::new(id), layers::Close::Any, Color32::from_black_alpha(140));
+        if s.wants_close() {
             local_open = false;
         }
+        shade = Some(s);
     }
 
-    let mut window = egui::Window::new(RichText::new(title).color(theme.text_primary()).strong());
+    let mut window = layers::window(ctx, egui::Id::new(id), RichText::new(title).color(theme.text_primary()).strong(), layers::Layer::PopupWindow);
     // A window with its own scroll area does not size itself to its content (it keeps egui's
     // default height and scrolls inside a short box), and once sized it keeps that size. So it is
     // held to exactly the height its content took last frame, up to the screen less a margin;
@@ -123,7 +110,6 @@ fn dialog_inner(
         };
     }
     let win_resp = window
-        .id(egui::Id::new(id))
         .open(&mut local_open)
         .constrain_to(room)
         .anchor(anchor, offset)
@@ -156,18 +142,17 @@ fn dialog_inner(
             }
         });
 
-    // Keep the window directly ABOVE its own backdrop, every frame, and let the backdrop decide
-    // where the pair sits. Both live in `Order::Middle`, and egui raises a layer when it first
-    // appears or is pressed, so the dialog opened last is in front, its backdrop dimming any
-    // dialog under it. Without this the backdrop can end up above its own window, tinting it and
+    // Keep the window directly ABOVE its own shade, every frame (`layers::seat`), and let the shade
+    // decide where the pair sits: `layers::arrange` puts the popup opened last in front, its shade
+    // dimming any dialog under it. Without this the shade can end up above its own window, tinting it and
     // swallowing its clicks: "the tinted background claims the screen; the modal renders behind
     // it where I can't click anything" (v0.849). The v0.849 fix raised the window to the top on
     // EVERY frame instead, which made every open dialog ask for the top at once; egui then keeps
     // their earlier order, and a window it has seen before (closed and opened again) keeps its old
     // place. So the Media item's Edit window, opened a second time from the item's page, stayed
     // behind the page for good (operator, 2026-10-15: "Like our layering order is reversed").
-    if let (Some(wr), Some(backdrop)) = (win_resp.as_ref(), backdrop_layer) {
-        ctx.set_sublayer(backdrop, wr.response.layer_id);
+    if let (Some(wr), Some(s)) = (win_resp.as_ref(), shade.as_ref()) {
+        layers::seat(ctx, s, wr.response.layer_id);
     }
 
     *open = local_open;

@@ -238,6 +238,26 @@
   --section-magenta: #d641c6;
   --section-yellow-bg: #2d280a;
   --section-yellow: #f1c40f;
+
+  /* The layer scale (navigation rung 3, docs/design/navigation.md section 6): every z-index on
+     the website is one of these, or calc(var(--z-x) + N) for a part raised inside its band.
+     Nearest first, his numbers: 1 tooltip, 2 urgent, 3 a popup's controls, 4 its window,
+     5 its shade, 9 the primary row's drop-downs, 10 the primary menu, 19 and 20 the secondary
+     row's More and row, 21 the warning, 30 the footer, 40 the page's floats, 41+ the page.
+     The desktop holds the same order in src/gui/layers.rs. */
+  --z-tooltip: 3000;
+  --z-urgent: 2000;
+  --z-popup-controls: 1020;
+  --z-popup: 1010;
+  --z-shade: 1000;
+  --z-menu-1-drop: 410;
+  --z-menu-1: 400;
+  --z-menu-2-drop: 310;
+  --z-menu-2: 300;
+  --z-warning: 210;
+  --z-footer: 200;
+  --z-page-float: 100;
+  --z-page: 0;
 }
 
 /* The website's light theme (web-only: the desktop app has none). shell.js sets
@@ -405,7 +425,7 @@ input[type="range"]:focus-visible {
   position: fixed;
   left: 8px;
   top: -48px;
-  z-index: 100002;
+  z-index: calc(var(--z-tooltip) + 1);
   padding: 6px 12px;
   background: var(--bg-card);
   color: var(--text);

@@ -535,7 +535,7 @@ function renderReportDialog() {
     overlay = document.createElement('div');
     overlay.id = 'report-overlay';
     overlay.className = 'profile-modal-overlay';
-    overlay.style.zIndex = '10000';
+    overlay.style.zIndex = 'var(--z-shade)';
     overlay.onclick = (e) => { if (e && e.target === overlay) closeReportDialog(); };
     card = document.createElement('div');
     card.id = 'report-card';
@@ -877,7 +877,7 @@ function renderReportsView() {
     overlay = document.createElement('div');
     overlay.id = 'reports-overlay';
     overlay.className = 'profile-modal-overlay';
-    overlay.style.zIndex = '10000';
+    overlay.style.zIndex = 'var(--z-shade)';
     overlay.onclick = (e) => { if (e && e.target === overlay) closeReportsView(); };
     card = document.createElement('div');
     card.id = 'reports-card';

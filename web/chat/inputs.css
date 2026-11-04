@@ -107,8 +107,8 @@
 #cmd-palette-overlay {
   display: none;
   position: fixed;
-  inset: 0 0 var(--hos-wip-h, 0px) 0;
-  z-index: 999;
+  inset: 0;
+  z-index: var(--z-shade);
 }
 #cmd-palette-overlay.open { display: block; }
 
@@ -127,7 +127,7 @@
   opacity: 0;
   transform: translateY(8px);
   transition: opacity 0.15s ease, transform 0.15s ease;
-  z-index: 1000;
+  z-index: var(--z-popup);
 }
 #cmd-palette-overlay.open #cmd-palette {
   opacity: 1;

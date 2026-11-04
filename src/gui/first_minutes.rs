@@ -181,7 +181,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let step = all[idx].clone();
     let done = step_done(state, &step);
     let mut changed = false;
-    egui::Window::new("first_minutes_card")
+    // A window of the page (layer 40, gui/layers.rs): a popup's shade covers it.
+    crate::gui::layers::window(ctx, egui::Id::new("first_minutes_card"), "first_minutes_card", crate::gui::layers::Layer::PageFloat)
         .title_bar(false)
         .resizable(false)
         // Standing on the unfinished-software warning: egui anchors to the whole screen.

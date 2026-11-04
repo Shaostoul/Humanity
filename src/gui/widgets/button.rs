@@ -354,8 +354,7 @@ fn show_tip_above(ui: &Ui, response: &egui::Response, text: &str, bar_top: f32) 
     if !response.hovered() || !rested {
         return;
     }
-    let shown = egui::Area::new(response.id.with("tip_above"))
-        .order(egui::Order::Tooltip)
+    let shown = crate::gui::layers::area(ui.ctx(), response.id.with("tip_above"), crate::gui::layers::Layer::Tooltip)
         .pivot(egui::Align2::LEFT_BOTTOM)
         .fixed_pos(egui::pos2(response.rect.left(), bar_top - 4.0))
         .interactable(false)

@@ -2484,20 +2484,26 @@ mod native_app {
                         // ServerSettings → Esc returns to Chat, v0.195.0); a page reached from
                         // the menu goes into the world; the world brings back the page left; the
                         // title screen stays put.
-                        // Esc closes the pinned help panel FIRST (v0.1212). It is the
-                        // topmost thing on screen, so dismissing it is what Esc means
-                        // while it is up; everything below (showroom cancel, nav back,
-                        // drop to FPS) happens on the next press, unchanged.
+                        // The nearest thing open closes first (section 10.4 rule 1), on every
+                        // screen, the world and the title screen included: an egui drop-down, else
+                        // the popup opened last (gui/layers.rs, the one close path; a popup asking
+                        // for a decision keeps the press and nothing else moves). A popup is nearer
+                        // than the pinned help panel: its shade covers the panel (navigation rung 3).
+                        if key == KeyCode::Escape && pressed && crate::gui::history::close_popup(&state.egui_ctx) {
+                            return;
+                        }
+                        // Then the pinned help panel (v0.1212): dismissing it is what Esc means
+                        // while it is up; everything below (showroom cancel, nav back, drop to
+                        // FPS) happens on the next press, unchanged.
                         if key == KeyCode::Escape && pressed && state.gui_state.help_panel_pinned {
                             state.gui_state.help_panel_pinned = false;
                             return;
                         }
-                        // Then the top menu's preview, or a More list (navigation rung 2, section
-                        // 10.4 rule 1): the second row goes back to the page's own row at once.
+                        // Then the top menu's preview (navigation rung 2, section 10.4 rule 1): the
+                        // second row goes back to the page's own row at once.
                         if key == KeyCode::Escape && pressed
                             && !matches!(state.gui_state.active_page, GuiPage::None | GuiPage::MainMenu)
-                            && (crate::gui::pages::escape_menu::end_preview(&state.egui_ctx)
-                                || crate::gui::history::close_popup(&state.egui_ctx))
+                            && crate::gui::pages::escape_menu::end_preview(&state.egui_ctx)
                         {
                             return;
                         }
@@ -15249,7 +15255,7 @@ mod native_app {
 
                                 // Planet info tooltip when targeting a hologram pin
                                 if let Some(ref planet_name) = state.targeted_planet {
-                                    egui::Area::new(egui::Id::new("planet_info_tooltip"))
+                                    crate::gui::layers::area(ctx, egui::Id::new("planet_info_tooltip"), crate::gui::layers::Layer::Tooltip)
                                         .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -60.0))
                                         .show(ctx, |ui| {
                                             egui::Frame::popup(ui.style())
@@ -15272,10 +15278,8 @@ mod native_app {
                                 if hud::crosshair_visible(&state.gui_state) {
                                     let screen = ctx.screen_rect();
                                     let center = screen.center();
-                                    let painter = ctx.layer_painter(egui::LayerId::new(
-                                        egui::Order::Foreground,
-                                        egui::Id::new("crosshair"),
-                                    ));
+                                    // Part of the world's picture (41+, gui/layers.rs): under every popup.
+                                    let painter = crate::gui::layers::painter(ctx, egui::Id::new("crosshair"), crate::gui::layers::Layer::Page);
                                     let color = if state.targeted_planet.is_some() {
                                         state.theme.info() // targeting highlight - the theme's blue info token
                                     } else {
@@ -15447,6 +15451,10 @@ mod native_app {
                                 // Last: a link to a channel on this or a saved server, clicked
                                 // anywhere this frame, opens here instead of in the browser.
                                 crate::gui::pages::chat::channel_link::open_in_app(ctx, &mut state.gui_state);
+                                // The one layer order (gui/layers.rs, navigation rung 3), once
+                                // everything is drawn: the urgent band over every popup, the popups
+                                // over the menus' drop-downs, those over the page's windows.
+                                crate::gui::layers::arrange(ctx);
                             });
                             // Quit from the main menu hub or the updater's Restart to Apply
                             // (first-hour audit 2026-10-04, Blocker 5): the save the close

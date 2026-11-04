@@ -50,17 +50,23 @@
 }
 .btn-hangup:hover { background: #e54545; }
 
+/* The urgent band (docs/design/navigation.md section 6, layer 2): over everything, an open popup
+   included, at the top centre under the top menu. It dims nothing and takes no click but on its own
+   card, so a popup under it keeps its typing (the desktop: gui/layers.rs, Layer::Urgent). */
 #incoming-call-overlay {
   display: none;
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: var(--hos-wip-h, 0px);
-  background: rgba(0,0,0,0.7);
-  z-index: 300;
-  align-items: center;
+  top: 0; left: 0; right: 0;
+  padding-top: 4.5rem;
+  pointer-events: none;
+  z-index: var(--z-urgent);
+  align-items: flex-start;
   justify-content: center;
 }
 #incoming-call-overlay.open { display: flex; }
 #incoming-call-box {
+  pointer-events: auto;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -186,7 +192,7 @@
   position: fixed;
   bottom: calc(80px + var(--hos-wip-h, 0px));
   right: 20px;
-  z-index: 1000;
+  z-index: var(--z-page-float);
   display: none;
   background: #111; /* theme-exempt: a video surface is black in both themes */
   border-radius: var(--radius);
@@ -252,7 +258,7 @@
   bottom: calc(78px + var(--hos-wip-h, 0px));
   width: min(36vw, 420px) !important;
   height: auto;
-  z-index: 4000;
+  z-index: calc(var(--z-page) + 10);
   border: 1px solid var(--accent);
   box-shadow: 0 8px 22px rgba(0,0,0,0.45);
 }
@@ -299,7 +305,7 @@
   bottom: 10px;
   width: 180px;
   height: 120px;
-  z-index: 4002;
+  z-index: calc(var(--z-page) + 12);
   border: 1px solid var(--accent);
   box-shadow: 0 6px 18px rgba(0,0,0,0.45);
 }
@@ -315,7 +321,7 @@
   width: 280px;
   min-height: 110px;
   max-width: 65%;
-  z-index: 4003;
+  z-index: calc(var(--z-page) + 13);
   border: 1px solid var(--accent);
   background: rgba(8,8,10,0.84); /* theme-exempt: laid over the video, dark in both themes */
   box-shadow: 0 8px 20px rgba(0,0,0,0.45);
@@ -339,7 +345,7 @@
   border-radius: var(--radius);
   padding: var(--space-sm) 0;
   min-width: 200px;
-  z-index: 310;
+  z-index: calc(var(--z-page-float) + 2);
   display: none;
   max-height: 200px;
   overflow-y: auto;

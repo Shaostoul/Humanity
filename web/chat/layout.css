@@ -253,7 +253,7 @@ header h1 {
 }
 .notice-panel {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-page-float);
   width: min(340px, calc(100vw - 16px));
   max-height: 70vh;
   overflow-y: auto;

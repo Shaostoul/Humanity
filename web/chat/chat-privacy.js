@@ -114,7 +114,7 @@ async function maybeShowPrivacyTierModal() {
 
   const overlay = document.createElement('div');
   overlay.id = 'privacy-tier-modal';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:var(--z-shade);background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px;';
   const cards = tiers.map((t) => `
     <label class="privacy-tier-card" data-tier="${esc(t.id)}" style="display:block;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;background:var(--bg-secondary);">
       <div style="display:flex;align-items:center;gap:8px;">
@@ -905,7 +905,7 @@ function openSafetyPanel() {
     overlay = document.createElement('div');
     overlay.id = 'safety-overlay';
     overlay.className = 'profile-modal-overlay';
-    overlay.style.zIndex = '10000';
+    overlay.style.zIndex = 'var(--z-shade)';
     overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
     const card = document.createElement('div');
     card.id = 'safety-card';

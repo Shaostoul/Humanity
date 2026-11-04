@@ -160,7 +160,7 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   flex-direction: column;
   gap: 4px;
-  z-index: 10;
+  z-index: calc(var(--z-page) + 10);
 }
 #map-controls button {
   width: 36px;
@@ -189,7 +189,7 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-xs) var(--space-sm);
-  z-index: 5;
+  z-index: calc(var(--z-page) + 5);
   pointer-events: none;
 }
 #attribution:empty { display: none; }
@@ -206,7 +206,7 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 11px;
   pointer-events: none;
   display: none;
-  z-index: 20;
+  z-index: calc(var(--z-page) + 20);
   white-space: nowrap;
 }
 
@@ -219,7 +219,7 @@ button { font-family: inherit; cursor: pointer; }
   width: 20px;
   height: 20px;
   pointer-events: none;
-  z-index: 5;
+  z-index: calc(var(--z-page) + 5);
   opacity: 0.25;
 }
 #crosshair::before, #crosshair::after {
@@ -237,7 +237,7 @@ button { font-family: inherit; cursor: pointer; }
   position: absolute;
   inset: 0;
   display: none;
-  z-index: 12;
+  z-index: calc(var(--z-page) + 12);
   background: var(--map-space);
 }
 #ship-plan.open { display: block; }
@@ -295,7 +295,7 @@ button { font-family: inherit; cursor: pointer; }
 /* Responsive */
 @media (max-width: 700px) {
   #info-panel { width: 240px; }
-  #info-panel.open { position: absolute; right: 0; top: 0; bottom: 0; z-index: 15; }
+  #info-panel.open { position: absolute; right: 0; top: 0; bottom: 0; z-index: calc(var(--z-page) + 15); }
 }
   </style>
 </head>

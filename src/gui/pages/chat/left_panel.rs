@@ -355,9 +355,9 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // that explicitly excludes the trigger click frame is reliable.
     if state.dm_settings_popup_open {
         if let Some(cog_rect) = cog_rect_cell.get() {
-            let popup_resp = egui::Area::new(egui::Id::new("dm_settings_popup"))
+            // The page's own drop-down (layer 40, gui/layers.rs).
+            let popup_resp = crate::gui::layers::area(ui.ctx(), egui::Id::new("dm_settings_popup"), crate::gui::layers::Layer::PageFloat)
                 .fixed_pos(egui::pos2(cog_rect.left() - 100.0, cog_rect.bottom() + 4.0))
-                .order(egui::Order::Foreground)
                 .show(ui.ctx(), |ui| {
                     egui::Frame::popup(ui.style())
                         .show(ui, |ui| {

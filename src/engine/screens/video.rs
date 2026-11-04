@@ -576,9 +576,9 @@ pub fn draw_screen(
     if view.strip {
         let bg = theme.bg_primary();
         let fill = egui::Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), STRIP_ALPHA);
-        let area = egui::Area::new(egui::Id::new("video_strip"))
+        // The video view's own controls are part of its page (41+, gui/layers.rs).
+        let area = crate::gui::layers::area(ctx, egui::Id::new("video_strip"), crate::gui::layers::Layer::Page)
             .anchor(egui::Align2::LEFT_BOTTOM, egui::Vec2::ZERO)
-            .order(egui::Order::Foreground)
             .interactable(true)
             .show(ctx, |ui| {
                 egui::Frame::NONE

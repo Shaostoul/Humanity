@@ -236,11 +236,8 @@ fn draw_details_window(ctx: &egui::Context, theme: &Theme, state: &GuiState) {
             close = true;
         }
     });
-    // Over the setup's own windows, which are drawn after the strip in the same frame: the
-    // dimmed backdrop first, then the window on it.
-    for id in [egui::Id::new(format!("{DETAILS_WINDOW}-backdrop")), egui::Id::new(DETAILS_WINDOW)] {
-        ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
-    }
+    // Over the setup's own windows, which are drawn after the strip in the same frame: they are the
+    // title screen's page (layer 40), and gui/layers.rs `arrange` keeps every popup over them.
     if !open || close {
         close_details_window(ctx);
     }

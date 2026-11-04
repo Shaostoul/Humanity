@@ -11,6 +11,9 @@ use crate::gui::theme::Theme;
 use crate::gui::GuiState;
 use super::image_cache::{default_downloads_dir, filename_from_url, ImageStatus};
 
+/// The viewer's popup and window, by id.
+const VIEWER: &str = "hos_image_viewer_window";
+
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     let url = match state.image_viewer_url.clone() {
         Some(u) => u,
@@ -19,21 +22,17 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 
     let mut should_close = false;
 
-    // Backdrop: darker than the help modal to emphasise the photo.
+    // A full-screen popup (gui/layers.rs): its shade, darker than the help modal's to make the
+    // photo pop, covers the menus and the warning; a click on it, Back and Escape close it.
     let screen = ctx.screen_rect();
-    let backdrop = egui::Area::new(egui::Id::new("hos_image_viewer_backdrop"))
-        .fixed_pos(screen.min)
-        .show(ctx, |ui| {
-            let (_, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
-            ui.painter().rect_filled(screen, CornerRadius::ZERO, Color32::from_rgba_unmultiplied(0, 0, 0, 230)); // theme-exempt: full-screen image lightbox always dims to near-black so the photo pops, regardless of theme
-            if resp.clicked() {
-                should_close = true;
-            }
-        });
+    let shade = crate::gui::layers::shade(ctx, egui::Id::new(VIEWER), crate::gui::layers::Close::Any, Color32::from_rgba_unmultiplied(0, 0, 0, 230)); // theme-exempt: full-screen image lightbox always dims to near-black so the photo pops, regardless of theme
+    if shade.wants_close() {
+        state.image_viewer_url = None;
+        return;
+    }
 
     // Image + controls window
-    let window = egui::Window::new("Image")
-        .id(egui::Id::new("hos_image_viewer_window"))
+    let window = crate::gui::layers::window(ctx, egui::Id::new(VIEWER), "Image", crate::gui::layers::Layer::PopupWindow)
         .title_bar(false)
         .collapsible(false)
         .resizable(false)
@@ -179,18 +178,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             });
         });
 
-    // Keep the window directly ABOVE its backdrop, every frame. Both live in the same layer order,
-    // and egui raises whichever was clicked last: clicking the backdrop to close one picture left
-    // the backdrop on top, so the NEXT picture opened behind the dimmed screen, and a click on its
-    // Download landed on the backdrop and closed it (operator, 2026-10-10). Pinned to its backdrop
-    // rather than raised every frame, so a picture opened from inside a dialog is in front of it
-    // (widgets/dialog.rs, the same fix, 2026-10-15).
+    // The window seated directly ABOVE its shade, every frame (layers::seat): clicking the backdrop
+    // to close one picture left the backdrop on top, so the NEXT picture opened behind the dimmed
+    // screen, and a click on its Download landed on the backdrop and closed it (operator,
+    // 2026-10-10). Seated rather than raised every frame, so a picture opened from inside a dialog
+    // is in front of it (widgets/dialog.rs, the same fix, 2026-10-15). Escape and Back reach it
+    // through the one close path (layers::close_nearest).
     if let Some(w) = window {
-        ctx.set_sublayer(backdrop.response.layer_id, w.response.layer_id);
-    }
-
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        should_close = true;
+        crate::gui::layers::seat(ctx, &shade, w.response.layer_id);
     }
 
     if should_close {

@@ -62,12 +62,22 @@ fn render_doc_modal(ctx: &egui::Context, theme: &Theme) {
         return;
     }
     let mut still_open = true;
-    doc_viewer(|d| {
-        egui::Window::new(
+    // A full-screen popup (gui/layers.rs): its shade covers the menus; a click beside it, Back and
+    // Escape close it.
+    let shade = crate::gui::layers::shade(ctx, egui::Id::new(DOC_VIEWER), crate::gui::layers::Close::Any, Theme::c32(&theme.bg_modal));
+    if shade.wants_close() {
+        doc_viewer(|d| d.open = false);
+        return;
+    }
+    let window = doc_viewer(|d| {
+        crate::gui::layers::window(
+            ctx,
+            egui::Id::new(DOC_VIEWER),
             RichText::new(d.title.as_str())
                 .size(theme.font_size_heading)
                 .strong()
                 .color(theme.text_primary()),
+            crate::gui::layers::Layer::PopupWindow,
         )
         .open(&mut still_open)
         .collapsible(false)
@@ -86,12 +96,18 @@ fn render_doc_modal(ctx: &egui::Context, theme: &Theme) {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 widgets::markdown::render_markdown(ui, theme, d.body.as_str());
             });
-        });
+        })
     });
+    if let Some(w) = window {
+        crate::gui::layers::seat(ctx, &shade, w.response.layer_id);
+    }
     if !still_open {
         doc_viewer(|d| d.open = false);
     }
 }
+
+/// The document viewer's popup and window, by id.
+const DOC_VIEWER: &str = "humanity_doc_viewer";
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // The Mission Dashboard embeds the live community dashboard, so its relay fetch has to be

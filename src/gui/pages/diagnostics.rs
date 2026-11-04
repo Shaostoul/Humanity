@@ -16,7 +16,9 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &GuiState) {
     if !state.show_perf_overlay && !state.show_network_overlay && !state.show_system_overlay {
         return;
     }
-    egui::Area::new(egui::Id::new("diagnostics_overlay"))
+    // The F2/F3/F4 readouts take no click: drawn with the tooltips (layer 1, gui/layers.rs), so a
+    // popup never hides what they measure.
+    crate::gui::layers::area(ctx, egui::Id::new("diagnostics_overlay"), crate::gui::layers::Layer::Tooltip)
         .interactable(false)
         .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-8.0, 44.0))
         .show(ctx, |ui| {

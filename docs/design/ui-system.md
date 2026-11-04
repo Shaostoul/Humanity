@@ -161,6 +161,33 @@ control's binding (a tuple binding too), a `with_hint` closure around it, and th
 description line right after it; the web scanner reads the attributes as written, so write
 `data-i18n-tip` / `data-tip-desc` out in markup rather than through a helper that returns them.
 
+## The layer rule: every surface takes its place in one order (2026-11-04)
+
+What is drawn over what is one order for the whole app, the operator's (docs/design/navigation.md
+section 6), nearest the viewer first: 1 tooltips, hints and toasts; 2 urgent (an incoming call, an
+emergency alert); 3, 4 and 5 a full-screen popup's controls, its window and its shade, which dims and
+blocks everything farther away, both menus and the warning included; 9 the primary row's drop-downs
+(the notices and help panels); 10 the primary menu; 19 and 20 the secondary row's More and the row;
+21 the unfinished-software warning; 30 the footer chat; 40 the page's drop-downs and windows that are
+not full-screen popups (in the world, the HUD and its panels); 41 and up the page.
+
+- **Native:** every floating surface picks its layer from `src/gui/layers.rs`:
+  `layers::area(ctx, id, Layer::...)`, `layers::window(ctx, id, title, Layer::...)`,
+  `layers::painter(ctx, id, Layer::...)`. A full-screen popup is `widgets::dialog` (the default), or,
+  when its window needs a frame of its own, `layers::shade(ctx, id, Close::..., dim)` drawn before
+  its window on `Layer::PopupWindow`, then `layers::seat(ctx, &shade, window_layer)`. The shade says
+  how it may be closed (`Close::Any`: a click on it, Back and Escape; `Close::Keys`: Back and Escape
+  only; `Close::Decide`: its own buttons only, and Back and Escape leave the page under it where it
+  is), and Back and Escape reach every popup through the one close path (`history::close_popup`,
+  `layers::close_nearest`). `tests/layer_lint.rs` (in `just lints`) refuses `egui::Area::new`,
+  `egui::Window::new` or an `egui::Order` outside layers.rs. lib.rs calls `layers::arrange` last in
+  the frame.
+- **Web:** every `z-index` is a step of the theme's `--z-*` scale (`data/gui/theme.ron`'s `z_*`
+  tokens, written into theme.css by `node scripts/gen-theme-css.js`): `var(--z-shade)` for a popup's
+  shade, `var(--z-page-float)` for a page's drop-down, `calc(var(--z-page) + N)` for a part raised
+  over its neighbours inside the page. A popup's shade covers the whole window (`inset: 0`), never
+  stopping at the warning. `scripts/tests/z-index-scale-web.test.js` refuses a number.
+
 ## Component registry
 
 Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS class or shared JS component), with the same visual signature and the same theme tokens consumed.

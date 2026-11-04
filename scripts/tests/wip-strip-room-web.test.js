@@ -34,14 +34,18 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..', '..');
 const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, 'web');
+// The layer scale (theme.css --z-*, navigation rung 3): a z-index is read through it.
+const { scale, resolve } = require('./z-scale.js');
+const SCALE = scale(WEB);
+const zOf = (v) => { const r = v === undefined ? null : resolve(v, SCALE); return r ? r.value : 0; };
 
 /** The strip's own z-index (shell.js), read rather than copied, so the rule follows it. */
 const STRIP_Z = (() => {
   const shell = fs.readFileSync(path.join(WEB, 'shared', 'shell.js'), 'utf8');
   const at = shell.indexOf('.hos-wip-strip {');
-  const m = /z-index:\s*(\d+)/.exec(shell.slice(at, shell.indexOf('}', at)));
-  assert.ok(at >= 0 && m, 'shell.js styles .hos-wip-strip with a z-index');
-  return Number(m[1]);
+  const m = /z-index:\s*([^;]+);/.exec(shell.slice(at, shell.indexOf('}', at)));
+  assert.ok(at >= 0 && m && resolve(m[1], SCALE), 'shell.js styles .hos-wip-strip with a z-index on the scale');
+  return resolve(m[1], SCALE).value;
 })();
 
 /** Rules that are not page furniture standing at the bottom, each with its reason. */
@@ -138,7 +142,7 @@ function scan() {
         where: path.relative(WEB, file).replace(/\\/g, '/') + ':' + p.line,
         selector: p.selector,
         bottom,
-        z: d['z-index'] !== undefined && /^-?\d+$/.test(d['z-index']) ? Number(d['z-index']) : 0,
+        z: zOf(d['z-index']),
         covers: isZero(top) && (fullHeight ? /^100[dsl]?vh$/.test(d.height.trim()) : isZero(bottom)),
       });
     }

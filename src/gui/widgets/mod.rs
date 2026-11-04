@@ -126,10 +126,7 @@ pub fn draw_underwater_tint(ctx: &egui::Context, state: &super::GuiState) {
     if !state.underwater {
         return;
     }
-    let painter = ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Background,
-        egui::Id::new("underwater_tint"),
-    ));
+    let painter = crate::gui::layers::painter(ctx, egui::Id::new("underwater_tint"), crate::gui::layers::Layer::Page);
     let r = ctx.screen_rect();
     // v0.907 depth grading: light dies with depth. The wash deepens from
     // the v0.903 surface tint to near-opaque by ~1 km and the hue slides
@@ -224,8 +221,8 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
         // The text (never shorter than the dot), the frame's 9 point top and bottom margins,
         // its stroke, and a small gap before the next toast up.
         from_bottom += text.size().y.max(9.0) + 2.0 * 9.0 + 3.0 + 4.0;
-        egui::Area::new(egui::Id::new(("hos_toast", i)))
-            .order(egui::Order::Foreground)
+        // A toast is a tooltip of the whole app (layer 1, gui/layers.rs): over everything, no click.
+        crate::gui::layers::area(ctx, egui::Id::new(("hos_toast", i)), crate::gui::layers::Layer::Tooltip)
             .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, y_off))
             .interactable(false)
             .show(ctx, |ui| {

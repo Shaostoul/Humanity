@@ -225,7 +225,7 @@
 
     const overlay = document.createElement('div');
     overlay.id = 'humanity-settings-overlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;';
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closePanel(); });
 
     const modal = document.createElement('div');

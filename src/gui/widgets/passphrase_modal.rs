@@ -8,20 +8,25 @@
 use egui::{Align2, Frame, RichText, CornerRadius, Stroke, Vec2};
 use crate::gui::{GuiState, PassphraseMode};
 use crate::gui::theme::Theme;
+use crate::gui::layers;
 use crate::gui::widgets;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // Semi-transparent backdrop
-    egui::Area::new(egui::Id::new("passphrase_backdrop"))
-        .fixed_pos([0.0, 0.0])
-        .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            let screen = ui.ctx().screen_rect();
-            // bg_modal IS the modal-scrim token (a black at ~70% alpha by default).
-            ui.painter().rect_filled(screen, 0.0, Theme::c32(&theme.bg_modal));
-        });
+    // A full-screen popup (gui/layers.rs). Unlocking, setting a first passphrase or PIN asks for a
+    // decision: nothing but its own buttons ends it, so Back and Escape leave the page under it
+    // where it is. Changing one may be put off: Back and Escape are its Cancel.
+    let close = match state.passphrase_mode {
+        PassphraseMode::Change | PassphraseMode::PinChange => layers::Close::Keys,
+        _ => layers::Close::Decide,
+    };
+    // bg_modal IS the modal-scrim token (a black at ~70% alpha by default).
+    let shade = layers::shade(ctx, egui::Id::new(PASSPHRASE), close, Theme::c32(&theme.bg_modal));
+    if shade.wants_close() {
+        state.passphrase_needed = false;
+        return;
+    }
 
-    egui::Window::new("Passphrase Required")
+    let window = layers::window(ctx, egui::Id::new(PASSPHRASE), "Passphrase Required", layers::Layer::PopupWindow)
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -31,7 +36,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             .corner_radius(CornerRadius::same(8))
             .stroke(Stroke::new(1.0_f32, theme.accent()))
             .inner_margin(20.0))
-        .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             match state.passphrase_mode {
                 PassphraseMode::SetNew => draw_set_new(ui, theme, state),
@@ -42,7 +46,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 PassphraseMode::PinChange => draw_pin_change(ui, theme, state),
             }
         });
+    if let Some(w) = window {
+        layers::seat(ctx, &shade, w.response.layer_id);
+    }
 }
+
+/// The passphrase popup and its window, by id (the window's title was its id before).
+const PASSPHRASE: &str = "Passphrase Required";
 
 fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("Encrypt Your Private Key")

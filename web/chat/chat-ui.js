@@ -754,7 +754,7 @@ function adminEraseCard(title) {
   const overlay = document.createElement('div');
   overlay.id = 'admin-erase-overlay';
   overlay.className = 'profile-modal-overlay open';
-  overlay.style.zIndex = '10000';
+  overlay.style.zIndex = 'var(--z-shade)';
   overlay.addEventListener('click', (e) => { if (e && e.target === overlay) closeAdminEraseDialog(); });
   const card = document.createElement('div');
   card.className = 'profile-modal';
@@ -1030,7 +1030,7 @@ function openLoginRestoreModal(opts) {
 
   const overlay = document.createElement('div');
   overlay.id = 'login-restore-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:var(--bg-modal);z-index:6000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:var(--bg-modal);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = `
     <style>
       #login-restore-overlay [hidden] { display: none !important; }

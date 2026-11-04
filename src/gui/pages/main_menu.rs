@@ -68,7 +68,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 /// choices; nothing is written to disk until one is made. GUI-first rule:
 /// this is an in-app step, never an installer-only or CLI decision.
 fn draw_storage_chooser(ctx: &egui::Context, theme: &Theme) {
-    egui::Window::new("storage_chooser")
+    // The title screen's own windows are its page (layer 40, gui/layers.rs): the warning's details
+    // popup covers them.
+    crate::gui::layers::window(ctx, egui::Id::new("storage_chooser"), "storage_chooser", crate::gui::layers::Layer::PageFloat)
         .title_bar(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -126,7 +128,7 @@ fn draw_storage_chooser(ctx: &egui::Context, theme: &Theme) {
 
 /// First-run onboarding flow.
 fn draw_onboarding(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("onboarding")
+    crate::gui::layers::window(ctx, egui::Id::new("onboarding"), "onboarding", crate::gui::layers::Layer::PageFloat)
         .title_bar(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -903,7 +905,7 @@ fn where_you_start(state: &GuiState) -> &'static str {
 
 /// Returning user hub (after onboarding is complete).
 fn draw_hub(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("hub_menu")
+    crate::gui::layers::window(ctx, egui::Id::new("hub_menu"), "hub_menu", crate::gui::layers::Layer::PageFloat)
         .title_bar(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])

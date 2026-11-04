@@ -45,7 +45,7 @@
     var st = document.createElement('style');
     st.id = 'hos-tour-styles';
     st.textContent =
-      '#hos-tour-card{position:fixed;right:16px;bottom:calc(56px + var(--hos-wip-h, 0px));z-index:9500;width:min(340px,calc(100vw - 32px));' +
+      '#hos-tour-card{position:fixed;right:16px;bottom:calc(56px + var(--hos-wip-h, 0px));z-index:calc(var(--z-menu-1-drop) + 1);width:min(340px,calc(100vw - 32px));' +
       'background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-lg,10px);' +
       'padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.4);font-family:inherit;}' +
       '#hos-tour-card .tour-count{font-size:0.75rem;color:var(--text-muted);}' +
@@ -58,7 +58,7 @@
       '#hos-tour-card button.primary{background:var(--accent);border-color:var(--accent);color:var(--text-on-accent);font-weight:600;}' +
       '#hos-tour-card button.quiet{background:transparent;border-color:transparent;color:var(--text-muted);}' +
       '#hos-tour-card button:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px;}' +
-      '#hos-tour-ring{position:fixed;z-index:9400;pointer-events:none;border:3px solid var(--accent);border-radius:var(--radius,6px);' +
+      '#hos-tour-ring{position:fixed;z-index:var(--z-menu-1-drop);pointer-events:none;border:3px solid var(--accent);border-radius:var(--radius,6px);' +
       'box-shadow:0 0 0 4px rgba(0,0,0,0.25);}' +
       '@media (prefers-reduced-motion: no-preference){#hos-tour-card{transition:opacity 0.2s;}}';
     document.head.appendChild(st);

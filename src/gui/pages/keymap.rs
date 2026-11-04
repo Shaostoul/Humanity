@@ -107,7 +107,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     } else {
         (egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
     };
-    egui::Area::new(egui::Id::new("keymap_overlay"))
+    // The help panel is the primary row's drop-down (layer 9, gui/layers.rs): under a popup's shade.
+    crate::gui::layers::area(ctx, egui::Id::new("keymap_overlay"), crate::gui::layers::Layer::PrimaryDrop)
         .interactable(pinned)
         .anchor(align, offset)
         .show(ctx, |ui| {
@@ -282,10 +283,10 @@ pub fn draw_help_toggle(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // A top-anchored Area rather than a widget inside the nav bar: the nav row WRAPS
     // when the window is narrow, so a button placed in it would move. This one cannot.
     // The nav bar reserves the matching width on its right edge so nothing is covered.
-    egui::Area::new(egui::Id::new("help_toggle_button"))
+    // Part of the primary menu (layer 10, gui/layers.rs): on its row, under any popup's shade.
+    crate::gui::layers::area(ctx, egui::Id::new("help_toggle_button"), crate::gui::layers::Layer::Primary)
         // Centred in the top menu's primary row (navigation rung 2).
         .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-8.0, crate::gui::pages::escape_menu::corner_y(theme, HELP_TOGGLE_SIZE)))
-        .order(egui::Order::Foreground)
         // Hover only: an Area senses a click by default, a nameless Tab stop beside the button.
         .sense(egui::Sense::hover())
         .show(ctx, |ui| {

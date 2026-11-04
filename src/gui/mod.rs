@@ -49,6 +49,7 @@ pub mod navigation;
 /// Back and Forward (navigation rung 4): the one way between places, `GuiState::go`.
 #[cfg(feature = "native")]
 pub mod history;
+pub mod layers;
 #[cfg(feature = "native")]
 pub use history::How;
 

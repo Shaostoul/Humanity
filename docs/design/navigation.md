@@ -382,6 +382,70 @@ world.
 - **On the phone**, a full-screen popup also pushes a history step without changing the address,
   so the phone's back gesture closes the popup instead of leaving the page (section 10).
 
+### 6.1 As built (rung 3, 2026-11-04)
+
+**Desktop: `src/gui/layers.rs`**, the one place that says which egui order each kind of surface
+takes. `Layer` names his layers (`Layer::number` is his number, `Layer::order` egui's order,
+`Layer::web_token` the website's token), and every surface is built through it: `layers::area`,
+`layers::window` and `layers::painter`, and a full-screen popup is `layers::shade` with its window
+seated on it (`layers::seat`); `widgets::dialog` does both. `tests/layer_lint.rs` refuses
+`egui::Area::new`, `egui::Window::new` or an `egui::Order` anywhere else in `src/` (it named 73
+places in 28 files when it went in). How the order maps onto egui's, which differs in one place from
+the plan above:
+
+- 10, 20, 21, 30 and 41+ are Background: the panels as before, and the few parts of them drawn as
+  Areas (the bell and the help button on the primary row, the chat's lock buttons, the video view's
+  strip, the world's tint and crosshair) are Background Areas now, drawn on their panel. They were
+  Foreground, so the bell and the help button stayed bright and clickable over an open dialog's
+  shade.
+- 40, 19, 9 and 5 with 4 are Middle, put in order by `layers::arrange`, which lib.rs calls last in
+  every frame: the page's windows, then the menus' drop-downs (the notices and help panels, which
+  moved from Foreground), then the popups, the one opened last nearest, each window glued above its
+  shade. egui sorts each order once a frame, moving to the top what first shows or is pressed;
+  `arrange` raises the fewest layers that put the rest back, and when one sort cannot (a page window
+  newly shown over a popup), it settles on the next frame and asks for it.
+- 3: a popup's own widgets are drawn in its window; the drop-down lists in it are egui's, which egui
+  always draws in Foreground, over the window. **The plan put the menus' More and the page's
+  drop-downs in Middle; egui's own drop-downs (combo boxes, `popup_below_widget`: More, the
+  warning's Mute, a page's combo box) cannot leave Foreground**, so they stay there: each closes at
+  any click outside it, a popup's shade takes every click, and a popup that opens by itself closes
+  any that is open (`arrange`), so none is ever over a shade. Our own drop-downs (the notices and
+  help panels, the chat's settings and mention lists, the server strip's list) are Middle.
+- 2 is Foreground, raised every frame by `arrange`: the incoming call, the ringing and in-call bars
+  and the voice room's bar, in a band at the top centre under both rows (`layers::urgent_top`; the
+  incoming call was a window in the middle of the screen, among the dialogs). It asks for no
+  keyboard focus and the close path never reaches it, so a popup under it keeps its typing.
+- 1 is Tooltip: the hints, the toasts (moved from Foreground), the drop note, the pill's full time,
+  the planet card, the F2/F3/F4 readouts.
+- The F12 debug console (`crates/humanity-core/src/debug.rs`) stays in egui's Foreground over
+  everything, on purpose; the lint reads `src/` only.
+
+**The one close path.** Every popup says how it may be closed when it draws its shade
+(`layers::Close`): `Any` (a click on the shade, Back, Escape), `Keys` (Back and Escape: the PIN
+prompt and the passphrase change, where a stray click would lose typing), `Decide` (its own buttons
+only: the passphrase at start, the privacy choice, the death screen; Back and Escape do nothing
+more, so the page under it never moves). `history::close_popup` closes an open egui drop-down, else
+asks `layers::close_nearest`, which closes the popup opened last. The image viewer, the help modal,
+the passphrase modal, the file picker, the Humanity page's document viewer, the trading post, the
+PIN prompt and the privacy choice moved onto it (the Commons explainer onto `widgets::dialog`), so
+Back and Escape close each. Escape asks it first on every screen, before the pinned help panel (a
+popup's shade covers the panel), the world and the title screen included.
+
+**Website.** `data/gui/theme.ron` has the scale as `z_*` tokens and `gen-theme-css.js` writes them
+as `--z-tooltip: 3000`, `--z-urgent: 2000`, `--z-popup-controls: 1020`, `--z-popup: 1010`,
+`--z-shade: 1000`, `--z-menu-1-drop: 410`, `--z-menu-1: 400`, `--z-menu-2-drop: 310`,
+`--z-menu-2: 300`, `--z-warning: 210`, `--z-footer: 200`, `--z-page-float: 100`, `--z-page: 0`
+(the plan's values, with layer 3's added). The 123 z-indexes written as numbers (48 values) moved
+onto it: a part raised inside its band is `calc(var(--z-x) + N)` (a popup opened from another, the
+page's own parts over their neighbours, keeping their old numbers there), the starfield behind the
+page `calc(var(--z-page) - 1)`. `scripts/tests/z-index-scale-web.test.js` holds the count at zero
+(no exceptions), checks the scale is his order, and that every popup's shade (a fixed dim from the
+top of the window) covers the whole window over the menu: 17 did not, the Tasks (three), Trade,
+Wallet, Dev, Market (four), Guilds and vault modals, the chat's help and profile modals, and the
+incoming call. The Tasks detail drawer's dim is a popup's shade now too. The chat's incoming call
+is the urgent band: at the top centre, it dims nothing and takes no click but on its own card. The
+strip tests read z-indexes through the scale (`scripts/tests/z-scale.js`).
+
 ## 7. Sizes on his two screens
 
 **His TV at 4 ft.** A 65-inch 16:9 panel is 1,439 mm wide, so at 2560 x 1440 a pixel is 0.562 mm.
@@ -678,7 +742,8 @@ One press does the first of these that applies:
 - **Popups:** every dialog drawn through `widgets::dialog` says it is open (`popup_drawn`) and
   closes when asked; `close_popup` closes an open drop-down, else the dialog drawn last. Back from
   every source and Escape (lib.rs, after the help panel and the menu's preview) ask it first.
-  Popups drawn some other way (the image viewer, a raw `egui::Window`) are not closed by it yet.
+  Popups drawn some other way (the image viewer, a raw `egui::Window`) were not closed by it yet;
+  rung 3 put every popup on it (section 6.1), and Escape now asks it before the help panel.
 - **In the world** `history::frame` returns at once: the side buttons do nothing (unbound) and
   Escape keeps its world meaning. In-world screens draw pages with their own context and no
   history of their own yet.
@@ -835,7 +900,14 @@ finding.
 3. **The layer order.** `src/gui/layers.rs`; the notices and help panels under a popup's shade; the
    toasts to the tooltip order; the website's `--z-*` scale and the literal ratchet; the website's
    modals covering the whole window. *Gate:* the layer-order test, `wip-strip-room-web.test.js`,
-   the web tests.
+   the web tests. **Built 2026-11-04** (section 6.1), with every popup on the one close path (rung
+   4's open item). Its tests: `src/gui/layers_tests.rs` (the order with a popup, the notices panel,
+   an incoming call and a toast, read from egui's own list and hit test; the shade over both rows,
+   the bell, the help button and the warning; a popup over the notices panel after a press on it,
+   twice; Back and Escape on seven popups, three of them asking for a decision; the raise plan),
+   `tests/layer_lint.rs` and `scripts/tests/z-index-scale-web.test.js`, each seen red first (each
+   file's head says how), and the strip tests reading the scale. Its picture:
+   `tests/snapshots/popup_over_menus.png`.
 4. **History on the desktop.** `go`, the places, the forty writes moved, the side buttons,
    Alt+arrows, Escape's rules, the Library's own `back` joined. *Gate:* the history tests, `just
    verify-runtime` (in the world the side buttons do nothing). **Built 2026-11-04** (section 10.5).

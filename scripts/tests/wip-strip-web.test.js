@@ -129,12 +129,16 @@ test('4. the strip is fixed at the very bottom, the footer stands on it, and the
   assert.match(strip, /bottom: 0;/);
   assert.match(strip, /background: var\(--warning-bg\);/);
   assert.match(strip, /border-top: 1px solid var\(--warning\);/);
-  const z = Number(/z-index: (\d+);/.exec(strip)[1]);
+  // Read through the layer scale (theme.css --z-*, navigation rung 3).
+  const { scale, resolve } = require('./z-scale.js');
+  const sc = scale(WEB);
+  const zOf = (r) => resolve(/z-index: ([^;]+);/.exec(r)[1], sc).value;
+  const z = zOf(strip);
   const footer = rule('.site-footer');
   assert.match(footer, /bottom: var\(--hos-wip-h, 0px\);/, 'the footer stands on the strip');
-  const footerZ = Number(/z-index: (\d+);/.exec(footer)[1]);
+  const footerZ = zOf(footer);
   assert.ok(z > footerZ, 'the folded footer slides away behind the strip, not over it');
-  assert.ok(z < 5500, 'the strip stays under the top menu and its drawers');
+  assert.ok(z < zOf(rule('.hub-nav')), 'the strip stays under the top menu and its drawers');
   assert.match(shell, /\.hos-wip-spacer \{ display: block; flex: 0 0 auto; height: var\(--hos-wip-h, 0px\); \}/, 'a spacer keeps the end of the page clear');
   assert.match(shell, /document\.documentElement\.style\.setProperty\('--hos-wip-h', h \+ 'px'\)/, 'the strip measures itself');
   assert.match(shell, /document\.readyState === 'loading'\) document\.addEventListener\('DOMContentLoaded', addSpacer\)/, 'the spacer waits for the page, so it lands last');

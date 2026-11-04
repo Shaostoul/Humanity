@@ -202,11 +202,11 @@ pub fn note_now(ctx: &egui::Context) -> Option<String> {
 /// each with its type (widgets/file_badge.rs). Nothing in it can be clicked: the drag goes on.
 fn draw_overlay(ctx: &egui::Context, theme: &Theme, words: &str, takes: bool, over: &[PathBuf]) {
     let screen = ctx.screen_rect();
-    let dim = egui::LayerId::new(egui::Order::Foreground, Id::new("hos_drop_overlay_dim"));
-    ctx.layer_painter(dim).rect_filled(screen, 0.0, Color32::from_black_alpha(160)); // theme-exempt: the dialogs' own dimming (widgets/dialog.rs)
+    // The note while files are dragged over the window is a tooltip of the whole app (layer 1,
+    // gui/layers.rs): over everything, and it takes no click (the drag goes on).
+    crate::gui::layers::painter(ctx, Id::new("hos_drop_overlay_dim"), crate::gui::layers::Layer::Tooltip).rect_filled(screen, 0.0, Color32::from_black_alpha(160)); // theme-exempt: the dialogs' own dimming (widgets/dialog.rs)
     let edge = if takes { theme.accent() } else { theme.warning() };
-    egui::Area::new(Id::new("hos_drop_overlay_card"))
-        .order(egui::Order::Foreground)
+    crate::gui::layers::area(ctx, Id::new("hos_drop_overlay_card"), crate::gui::layers::Layer::Tooltip)
         .anchor(Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .interactable(false)
         .show(ctx, |ui| {
@@ -240,8 +240,7 @@ fn draw_overlay(ctx: &egui::Context, theme: &Theme, words: &str, takes: bool, ov
 /// The note a drop left, at the top of the window, while it lasts.
 fn draw_note(ctx: &egui::Context, theme: &Theme) {
     let Some(words) = note_now(ctx) else { return };
-    egui::Area::new(Id::new("hos_drop_note"))
-        .order(egui::Order::Tooltip)
+    crate::gui::layers::area(ctx, Id::new("hos_drop_note"), crate::gui::layers::Layer::Tooltip)
         .anchor(Align2::CENTER_TOP, egui::vec2(0.0, 48.0))
         .interactable(false)
         .show(ctx, |ui| {

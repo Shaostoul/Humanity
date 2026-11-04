@@ -509,7 +509,8 @@ pub fn draw_creature_editor(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
     let mut despawn = false;
     let hmax = state.dev_edit_health_max.max(1.0);
 
-    egui::Area::new(egui::Id::new("dev_creature_editor"))
+    // In the world, a panel stands where a page's floats do (layer 40, gui/layers.rs).
+    crate::gui::layers::area(ctx, egui::Id::new("dev_creature_editor"), crate::gui::layers::Layer::PageFloat)
         .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-12.0, -12.0))
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style())

@@ -3289,5 +3289,10 @@ window.HOS_I18N_EN = {
   "library": {
     "back_count": "Back ({{count}})",
     "back_hint": "Goes back to the document you were reading before. The mouse's back button and Alt+Left do the same."
+  },
+  "layers": {
+    "shade_hint": "Press anywhere outside the box to close it, or press Escape or Back.",
+    "shade_keys_hint": "Press Escape or Back to close this box, or use its own buttons.",
+    "shade_decide_hint": "This box needs an answer first: use its own buttons."
   }
 };

@@ -25,7 +25,14 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
     }
     let mut open_flag = true;
     let mut sell_tab = SELL_TAB.with(|t| *t.borrow());
-    egui::Window::new("Trading post")
+    // A full-screen popup over the world (gui/layers.rs): a click beside it, Back and Escape close it.
+    let shade = crate::gui::layers::shade(ctx, egui::Id::new("Trading post"), crate::gui::layers::Close::Any, Theme::c32(&theme.bg_modal));
+    if shade.wants_close() {
+        state.vendor_open = false;
+        state.vendor_status.clear();
+        return;
+    }
+    let window = crate::gui::layers::window(ctx, egui::Id::new("Trading post"), "Trading post", crate::gui::layers::Layer::PopupWindow)
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
@@ -173,6 +180,9 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 });
             }
         });
+    if let Some(w) = window {
+        crate::gui::layers::seat(ctx, &shade, w.response.layer_id);
+    }
     SELL_TAB.with(|t| *t.borrow_mut() = sell_tab);
     if !open_flag {
         state.vendor_open = false;

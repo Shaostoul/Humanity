@@ -36,7 +36,7 @@
     '[data-term]:hover{border-bottom-color:var(--text,#e0e0e0);}' +
 
     /* Tooltip card */
-    '.glossary-tooltip{position:fixed;z-index:100000;max-width:360px;min-width:220px;' +
+    '.glossary-tooltip{position:fixed;z-index:var(--z-tooltip);max-width:360px;min-width:220px;' +
     'background:var(--bg-card,#161616);color:var(--text,#e0e0e0);' +
     'border:1px solid var(--border,#333);border-radius:var(--radius,8px);' +
     'padding:14px 16px 12px;box-shadow:0 8px 32px rgba(0,0,0,0.55);' +

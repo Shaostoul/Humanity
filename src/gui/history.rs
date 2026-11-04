@@ -33,14 +33,15 @@
 //! `MouseButton::Back` and `Forward`, Windows' XBUTTON1 and XBUTTON2) and Alt+Left and Alt+Right
 //! while no text box has the keyboard (egui's text box moves the cursor a word on Alt+arrows, so
 //! there they keep that meaning); the top menu's two arrows (pages/escape_menu.rs). WITH A POPUP
-//! OPEN, BACK CLOSES THE POPUP FIRST ([`close_popup`]), the way Android's back closes a dialog.
+//! OPEN, BACK CLOSES THE POPUP FIRST ([`close_popup`], the one close path of gui/layers.rs), the
+//! way Android's back closes a dialog; a popup asking for a decision keeps it, and the page stays.
 //! IN THE WORLD the side buttons do nothing: they are game buttons there, unbound until the
 //! operator decides (his answer of 2026-11-03: "I'm not sure what to make them do yet").
 //!
 //! ESCAPE ([`GuiState::escape`], from lib.rs's key handler, section 10.4): the nearest thing open
-//! closes first (lib.rs: the help panel, the menu's preview, then [`close_popup`]); then a page
-//! opened FROM inside another goes back to that page; a page reached from the menu goes into the
-//! world; in the world, the page you left comes back; on the title screen, nothing.
+//! closes first (lib.rs: [`close_popup`] on every screen, then the help panel, the menu's
+//! preview); then a page opened FROM inside another goes back to that page; a page reached from the
+//! menu goes into the world; in the world, the page you left comes back; on the title screen, nothing.
 
 use crate::gui::pages::files::Place as FilesPlace;
 use crate::gui::pages::maps::MapView;
@@ -443,47 +444,15 @@ impl GuiState {
     }
 }
 
-/// Where the dialog drawn last says so (pass number, its id), and where a close is asked for.
-const POPUP_SHOWN: &str = "history_popup_shown";
-const POPUP_CLOSE: &str = "history_popup_close";
-
-/// Called by a closable dialog each pass it is drawn (widgets/dialog.rs): true when Back or
-/// Escape asked it to close, which it then does.
-pub fn popup_drawn(ctx: &egui::Context, id: egui::Id) -> bool {
-    let close = ctx.data_mut(|d| {
-        if d.get_temp::<egui::Id>(egui::Id::new(POPUP_CLOSE)) == Some(id) {
-            d.remove::<egui::Id>(egui::Id::new(POPUP_CLOSE));
-            true
-        } else {
-            false
-        }
-    });
-    if !close {
-        let pass = ctx.cumulative_pass_nr();
-        ctx.data_mut(|d| d.insert_temp(egui::Id::new(POPUP_SHOWN), (pass, id)));
-    }
-    close
-}
-
-/// Close the nearest popup: an open drop-down, else the dialog drawn last (in the last pass).
-/// True when there was one, so the Back or Escape that asked does nothing more.
+/// Close the nearest popup: an open drop-down, else the full-screen popup opened last
+/// (gui/layers.rs `close_nearest`, which leaves a popup asking for a decision as it is). True when
+/// there was one, so the Back or Escape that asked does nothing more.
 pub fn close_popup(ctx: &egui::Context) -> bool {
     if ctx.memory(|m| m.any_popup_open()) {
         ctx.memory_mut(|m| m.close_popup());
         return true;
     }
-    let now = ctx.cumulative_pass_nr();
-    let shown = ctx.data(|d| d.get_temp::<(u64, egui::Id)>(egui::Id::new(POPUP_SHOWN)));
-    match shown {
-        Some((pass, id)) if pass + 1 >= now => {
-            ctx.data_mut(|d| {
-                d.remove::<(u64, egui::Id)>(egui::Id::new(POPUP_SHOWN));
-                d.insert_temp(egui::Id::new(POPUP_CLOSE), id);
-            });
-            true
-        }
-        _ => false,
-    }
+    crate::gui::layers::close_nearest(ctx)
 }
 
 /// Back as every way of asking for it does it: a popup open closes first.

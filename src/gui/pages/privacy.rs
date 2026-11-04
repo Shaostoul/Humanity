@@ -234,7 +234,10 @@ pub fn draw_privacy_tier_modal(ctx: &egui::Context, theme: &Theme, state: &mut G
         return;
     }
     let mut applied: Option<String> = None;
-    egui::Window::new(t("privacy.modal_window"))
+    // A popup asking for a decision (gui/layers.rs): its shade covers the menus, and Back and Escape
+    // leave it alone (the page under it does not move) until a level is chosen.
+    let shade = crate::gui::layers::shade(ctx, egui::Id::new("privacy_tier_modal"), crate::gui::layers::Close::Decide, Theme::c32(&theme.bg_modal));
+    let window = crate::gui::layers::window(ctx, egui::Id::new("privacy_tier_modal"), t("privacy.modal_window"), crate::gui::layers::Layer::PopupWindow)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -254,6 +257,9 @@ pub fn draw_privacy_tier_modal(ctx: &egui::Context, theme: &Theme, state: &mut G
             ui.add_space(theme.spacing_sm);
             applied = draw_tier_chooser(ui, theme, state, t("privacy.modal_apply"), "privacy.modal_apply_hint");
         });
+    if let Some(w) = window {
+        crate::gui::layers::seat(ctx, &shade, w.response.layer_id);
+    }
     if let Some(tier_id) = applied {
         apply_tier(state, &tier_id);
         state.privacy_tier_prompt_open = false;

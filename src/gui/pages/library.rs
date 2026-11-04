@@ -812,8 +812,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 let gl = crate::gui::glossary::glossary();
                                 let hit = gl.lookup_word(&word).cloned();
                                 let mut open = true;
-                                egui::Window::new(RichText::new("Definition").strong())
-                                    .id(egui::Id::new("library_define_popup"))
+                                // The page's own window (layer 40, gui/layers.rs), beside the word.
+                                crate::gui::layers::window(ui.ctx(), egui::Id::new("library_define_popup"), RichText::new("Definition").strong(), crate::gui::layers::Layer::PageFloat)
                                     .collapsible(false)
                                     .resizable(false)
                                     .open(&mut open)

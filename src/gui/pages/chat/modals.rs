@@ -39,6 +39,7 @@
 //! arrive without any of them being widened.
 
 use super::*;
+use crate::gui::layers;
 
 // `pub(super)` only because its caller (`draw`, the page frame) stayed in
 // `chat.rs`; it was private when the two lived in one file.
@@ -1151,13 +1152,10 @@ pub(super) fn draw_commons_info_modal(ctx: &egui::Context, theme: &Theme, state:
         return;
     }
     let mut open = true;
-    egui::Window::new("The Commons")
-        .open(&mut open)
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .max_width(440.0)
-        .show(ctx, |ui| {
+    // A popup like every other (widgets::dialog, gui/layers.rs): its shade covers the menus, and
+    // Back, Escape or a click outside it close it.
+    widgets::dialog(ctx, theme, "commons_info_dialog", "The Commons", &mut open, |ui| {
+            ui.set_max_width(440.0);
             let body = |ui: &mut egui::Ui, text: &str| {
                 ui.label(
                     RichText::new(text)
@@ -1201,7 +1199,7 @@ pub(super) fn draw_commons_info_modal(ctx: &egui::Context, theme: &Theme, state:
                     state.show_commons_info = false;
                 }
             });
-        });
+    });
     if !open {
         state.show_commons_info = false;
     }
@@ -1340,6 +1338,16 @@ pub(super) fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
 /// incoming-call overlay; the control protocol is chat-voice-calls.js's
 /// `voice_call` ring/accept/reject/hangup. Before this, native silently
 /// discarded the ring and a web caller rang forever.
+/// The incoming call's card, by id (its title, as egui named it before it took a layer).
+const INCOMING_CALL: &str = "Incoming call";
+
+/// Where a call's bar stands in the urgent band: under the incoming call's card while one rings.
+fn call_bar_top(ctx: &egui::Context, theme: &Theme, state: &GuiState) -> f32 {
+    let top = layers::urgent_top(theme, state.active_page);
+    let card = state.call_incoming.as_ref().and_then(|_| ctx.memory(|m| m.area_rect(egui::Id::new(INCOMING_CALL))));
+    card.map_or(top, |r| top + r.height() + theme.spacing_sm)
+}
+
 pub(crate) fn draw_incoming_call_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let (peer_key, peer_name) = match state.call_incoming.clone() {
         Some(p) => p,
@@ -1347,10 +1355,13 @@ pub(crate) fn draw_incoming_call_modal(ctx: &egui::Context, theme: &Theme, state
     };
     let mut accept = false;
     let mut decline = false;
-    egui::Window::new("Incoming call")
+    // The urgent band (layer 2, gui/layers.rs): at the top centre under the menus, over any popup
+    // (the operator, 2026-11-03: "Yes."), never taking its typing; Back and Escape leave it alone.
+    let top = layers::urgent_top(theme, state.active_page);
+    layers::window(ctx, egui::Id::new(INCOMING_CALL), INCOMING_CALL, layers::Layer::Urgent)
         .collapsible(false)
         .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .anchor(egui::Align2::CENTER_TOP, [0.0, top])
         .fixed_size(egui::Vec2::new(340.0, 0.0))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .show(ctx, |ui| {
@@ -1406,11 +1417,12 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
     // Outgoing ring (waiting for the callee to accept).
     if let Some((_, peer_name)) = state.call_outgoing.clone() {
         let mut cancel = false;
-        egui::Window::new("call_bar_ringing")
+        let top = call_bar_top(ctx, theme, state);
+        layers::window(ctx, egui::Id::new("call_bar_ringing"), "call_bar_ringing", layers::Layer::Urgent)
             .title_bar(false)
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::CENTER_TOP, [0.0, 8.0])
+            .anchor(egui::Align2::CENTER_TOP, [0.0, top])
             .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -1441,11 +1453,12 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
     let mut hangup = false;
     let mut toggle_mute = false;
     let muted = state.call_muted;
-    egui::Window::new("call_bar")
+    let top = call_bar_top(ctx, theme, state);
+    layers::window(ctx, egui::Id::new("call_bar"), "call_bar", layers::Layer::Urgent)
         .title_bar(false)
         .collapsible(false)
         .resizable(false)
-        .anchor(egui::Align2::CENTER_TOP, [0.0, 8.0])
+        .anchor(egui::Align2::CENTER_TOP, [0.0, top])
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .show(ctx, |ui| {
             ui.horizontal(|ui| {

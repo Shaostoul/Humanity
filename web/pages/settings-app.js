@@ -2339,7 +2339,7 @@ async function settingsRefusedWhileProtected() {
 
 function settingsAlert(msg, ms) {
   var d = document.createElement('div');
-  d.style.cssText = 'position:fixed;top:var(--space-xl);right:var(--space-xl);z-index:9999;background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:8px;padding:var(--space-lg) var(--space-2xl);color:var(--set-card-ink);font-size:0.85rem;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.5);';
+  d.style.cssText = 'position:fixed;top:var(--space-xl);right:var(--space-xl);z-index:var(--z-tooltip);background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:8px;padding:var(--space-lg) var(--space-2xl);color:var(--set-card-ink);font-size:0.85rem;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.5);';
   d.textContent = msg;
   document.body.appendChild(d);
   setTimeout(function() { d.remove(); }, ms || 5000);
@@ -2349,7 +2349,7 @@ async function settingsOpenBackup() {
   // The file holds the identity the recovery phrase comes from (see above).
   if (await settingsRefusedWhileProtected()) return;
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:var(--set-card-ink);">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">🔐 Download Encrypted Backup</h2>' +
     '<p style="font-size:.8rem;color:var(--set-quiet-ink);line-height:1.5;margin:0 0 var(--space-xl)">Enter a passphrase to encrypt your private key. Store the file in your cloud, it\'s useless without the passphrase.</p>' +
@@ -2384,7 +2384,7 @@ async function settingsOpenBackup() {
 
 function settingsOpenRestore() {
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:var(--set-card-ink);">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">📥 Restore from Backup File</h2>' +
     '<p style="font-size:.8rem;color:var(--set-err-ink);line-height:1.5;margin:0 0 var(--space-md)"><strong>This will replace your current identity on this device.</strong></p>' +
@@ -2444,7 +2444,7 @@ async function settingsOpenSeed() {
   }
   var words = mnemonic.trim().split(/\s+/);
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:var(--set-card-ink);max-height:90vh;overflow-y:auto;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Your 24-Word Recovery Phrase</h2>' +
     '<p style="font-size:.78rem;color:var(--set-err-ink);line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
@@ -2515,7 +2515,7 @@ function settingsShowPhraseUnavailable() {
   }
 
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:var(--set-card-ink);max-height:90vh;overflow-y:auto;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">Recovery Phrase Unavailable</h2>' +
     body +
@@ -2534,7 +2534,7 @@ function settingsShowPhraseUnavailable() {
 
 function settingsOpenRestoreSeed() {
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:var(--set-card-ink);max-height:90vh;overflow-y:auto;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Restore from Recovery Phrase</h2>' +
     '<p style="font-size:.8rem;color:var(--set-err-ink);line-height:1.5;margin:0 0 var(--space-md)"><strong>This will permanently replace your current identity on this device.</strong></p>' +

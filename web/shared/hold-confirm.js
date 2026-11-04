@@ -126,7 +126,7 @@
     const style = document.createElement('style');
     style.id = 'hold-confirm-style';
     style.textContent = [
-      '.hold-confirm-overlay{position:fixed;inset:0;z-index:100000;display:flex;',
+      '.hold-confirm-overlay{position:fixed;inset:0;z-index:calc(var(--z-popup-controls) + 5);display:flex;',
       'align-items:center;justify-content:center;background:rgba(0,0,0,0.55);',
       'backdrop-filter:blur(2px);padding:20px;}',
       '.hold-confirm-modal{background:var(--bg-secondary,#1c1c1c);color:var(--text,#eee);',

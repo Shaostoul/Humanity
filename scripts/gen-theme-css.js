@@ -257,6 +257,21 @@ function buildCss(tokens) {
   lines.push(`  --section-magenta: ${c('section_magenta')};`);
   lines.push(`  --section-yellow-bg: ${c('section_yellow_bg')};`);
   lines.push(`  --section-yellow: ${c('section_yellow')};`);
+  lines.push('');
+  lines.push('  /* The layer scale (navigation rung 3, docs/design/navigation.md section 6): every z-index on');
+  lines.push('     the website is one of these, or calc(var(--z-x) + N) for a part raised inside its band.');
+  lines.push('     Nearest first, his numbers: 1 tooltip, 2 urgent, 3 a popup\'s controls, 4 its window,');
+  lines.push('     5 its shade, 9 the primary row\'s drop-downs, 10 the primary menu, 19 and 20 the secondary');
+  lines.push('     row\'s More and row, 21 the warning, 30 the footer, 40 the page\'s floats, 41+ the page.');
+  lines.push('     The desktop holds the same order in src/gui/layers.rs. */');
+  for (const [name, fallback] of [
+    ['tooltip', 3000], ['urgent', 2000], ['popup_controls', 1020], ['popup', 1010], ['shade', 1000],
+    ['menu_1_drop', 410], ['menu_1', 400], ['menu_2_drop', 310], ['menu_2', 300], ['warning', 210],
+    ['footer', 200], ['page_float', 100], ['page', 0],
+  ]) {
+    const tok = t['z_' + name];
+    lines.push(`  --z-${name.replace(/_/g, '-')}: ${tok ? Math.round(tok.value) : fallback};`);
+  }
   lines.push('}');
   lines.push('');
   lines.push(...buildLight(lines));

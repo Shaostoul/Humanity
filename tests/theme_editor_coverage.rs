@@ -80,7 +80,9 @@ fn every_theme_size_token_has_editor_row() {
     // Some size-shaped fields are intentionally not user-editable
     // (computed from others, or context-bound). List them here with a
     // reason and they'll be excluded from the coverage requirement.
-    let intentionally_omitted: HashSet<&str> = ["max_messages"].iter().copied().collect();
+    // The layer scale (z_*, navigation rung 3) is the order itself, not a look: one changed alone
+    // could put the top menu over a popup, so it is set in theme.ron and nowhere in Settings.
+    let intentionally_omitted: HashSet<&str> = ["max_messages", "z_page", "z_page_float", "z_footer", "z_warning", "z_menu_2", "z_menu_2_drop", "z_menu_1", "z_menu_1_drop", "z_shade", "z_popup", "z_popup_controls", "z_urgent", "z_tooltip"].iter().copied().collect();
 
     let missing: Vec<String> = size_tokens
         .iter()

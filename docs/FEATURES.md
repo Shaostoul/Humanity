@@ -1740,8 +1740,26 @@ included); a page reached from the menu goes into the world; the world brings ba
 the title screen stays. Entering the world is never a step, and in the world the side buttons do
 nothing (unbound, the operator's answer of 2026-11-03). The Library's own Back list joined the app's
 (its reader's Back is the app's, shown while the step before is a Library document).
-- Native: `src/gui/history.rs` (`GuiState::go`, `go_to`, `back`, `forward`, `back_out`, `escape`, `enter_world`, `leave_world`, `show_title`; `note_place`, once a frame, sees a place moved to inside a page; `frame`, the side buttons and Alt+arrows, from lib.rs; `close_popup` and `popup_drawn`, which `widgets/dialog.rs` calls), `src/gui/pages/escape_menu.rs` (the arrows), `src/gui/pages/library.rs` (`shown_place`, `show_place`), `data/keymaps.ron` (the Menu keys)
+- Native: `src/gui/history.rs` (`GuiState::go`, `go_to`, `back`, `forward`, `back_out`, `escape`, `enter_world`, `leave_world`, `show_title`; `note_place`, once a frame, sees a place moved to inside a page; `frame`, the side buttons and Alt+arrows, from lib.rs; `close_popup`, which asks gui/layers.rs `close_nearest`), `src/gui/pages/escape_menu.rs` (the arrows), `src/gui/pages/library.rs` (`shown_place`, `show_place`), `data/keymaps.ron` (the Menu keys)
 - Tests: `src/gui/history_tests.rs` (pages, a Settings section, a chat channel, a Files place, the cap, a popup closed first, Alt+Left in a text box, the side buttons on a page and in the world, Escape's rules, the world never a step), `tests/page_change_lint.rs` (`active_page` is assigned only in history.rs; it named 40 places when it went in)
+
+### One layer order on both apps (navigation rung 3, 2026-11-04)
+What is drawn over what, the operator's order (2026-11-02: "This way it hides/shades the top menu
+buttons too"; docs/design/navigation.md section 6), nearest first: 1 tooltips, hints and toasts; 2
+urgent (an incoming call and the call's own bar, at the top centre under the menus, over any popup,
+never taking its typing); 3 to 5 a full-screen popup's controls, window and shade (the shade dims and
+blocks both menus, the warning and the page); 9 the notices and help panels; 10 and 20 the menus; 21
+the warning; 30 the footer; 40 the page's drop-downs and windows; 41+ the page. EVERY POPUP closes
+with Back and Escape through one path (the image viewer, the help, passphrase-change, file picker,
+document viewer, trading post and PIN popups included, which rung 4 left out); a popup asking for a
+decision (the passphrase at start, the privacy choice, the death screen) keeps Back and Escape and
+the page under it does not move. Escape closes a popup before the pinned help panel, on every screen.
+On the website every z-index is on one scale and every modal covers the whole window, the menu and the
+warning included (the Tasks, Trade, Wallet, Dev, Market, Guilds and vault modals had sat under the
+menu, stopping at the warning); the incoming call is a band at the top centre that dims nothing.
+- Native: `src/gui/layers.rs` (`Layer` in his numbers, `area`, `window`, `painter`, `shade`, `seat`, `Close`, `close_nearest`, `urgent_top`, `arrange` from lib.rs last in the frame), `widgets/dialog.rs` and every popup, panel, toast and tooltip on it
+- Web: `data/gui/theme.ron` `z_*` tokens, written by `scripts/gen-theme-css.js` into `web/shared/theme.css` as `--z-tooltip` to `--z-page`; every page's and the shell's z-indexes on them
+- Tests: `src/gui/layers_tests.rs` (the order with a popup, the notices panel, an incoming call and a toast, read from egui; the shade over both menus, the bell, the help button and the warning; a popup over the notices panel opened after a press on it; Back and Escape on seven popups; the raise plan), `tests/layer_lint.rs` (no egui Area, Window or Order outside layers.rs; it named 73 places in 28 files), `scripts/tests/z-index-scale-web.test.js` (the scale in his order, no z-index written as a number, every shade over the menu and the whole window; 123 numbers in 48 values and 17 shades when it went in), `wip-strip-room-web.test.js` and `wip-strip-web.test.js` (read through the scale)
 
 ### Settings Page
 Graphics, audio, controls, game, account categories with sliders and toggles.

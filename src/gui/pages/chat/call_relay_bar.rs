@@ -36,11 +36,13 @@ pub(super) fn draw_room_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         format!("Voice in {name}: not connected")
     };
     let mut dismiss = false;
-    egui::Window::new("voice_room_relay_bar")
+    // The call's own bar, in the urgent band (layer 2, gui/layers.rs), at the top centre under the menus.
+    let top = crate::gui::layers::urgent_top(theme, state.active_page);
+    crate::gui::layers::window(ctx, egui::Id::new("voice_room_relay_bar"), "voice_room_relay_bar", crate::gui::layers::Layer::Urgent)
         .title_bar(false)
         .collapsible(false)
         .resizable(false)
-        .anchor(egui::Align2::CENTER_TOP, [0.0, 8.0])
+        .anchor(egui::Align2::CENTER_TOP, [0.0, top])
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .show(ctx, |ui| {
             ui.horizontal(|ui| {

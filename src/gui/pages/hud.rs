@@ -1,6 +1,7 @@
 //! In-game HUD: health bar, hotbar, crosshair, compass, FPS, weather, day/night.
 
-use egui::{Align2, Area, Color32, FontId, Pos2, Rect, RichText, CornerRadius, Vec2};
+use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, CornerRadius, Vec2};
+use crate::gui::layers;
 use glam::{Mat4, Vec3};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
@@ -79,20 +80,11 @@ pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
     let Some(cause) = state.player_death_cause.clone() else { return };
     let key = humanity_core::input::bindings::pretty_key_name(state.keybinds.pair(humanity_core::input::bindings::GameAction::Interact).0);
     let lines = death_screen_lines(state.death_pack.note.as_ref(), &state.death_pack.rules, &key);
-    let screen = ctx.screen_rect();
-    // Dim the world so the moment reads instantly (paint-only layer).
-    Area::new(egui::Id::new("death_dim"))
-        .order(egui::Order::Foreground)
-        .fixed_pos(screen.min)
-        .interactable(false)
-        .show(ctx, |ui| {
-            ui.painter()
-                .rect_filled(screen, 0.0, Color32::from_black_alpha(190));
-        });
-    // Centered card with the cause + the one action. Created after the dim in
-    // the same order, so it draws (and clicks) on top.
-    Area::new(egui::Id::new("death_card"))
-        .order(egui::Order::Foreground)
+    // A popup asking for a decision (gui/layers.rs): its shade dims the world so the moment reads
+    // instantly, and Back and Escape leave it alone; only Respawn ends it.
+    let shade = layers::shade(ctx, egui::Id::new("death_card"), layers::Close::Decide, Color32::from_black_alpha(190));
+    // Centered card with the cause + the one action, seated on the shade.
+    let card = layers::area(ctx, egui::Id::new("death_card"), layers::Layer::PopupWindow)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             egui::Frame::window(&ctx.style())
@@ -127,6 +119,7 @@ pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     });
                 });
         });
+    layers::seat(ctx, &shade, card.response.layer_id);
 }
 
 pub fn draw(
@@ -139,7 +132,8 @@ pub fn draw(
 ) {
     let screen = ctx.screen_rect();
 
-    Area::new(egui::Id::new("hud_layer"))
+    // In the world the HUD stands where a page's floats do (layer 40, gui/layers.rs).
+    layers::area(ctx, egui::Id::new("hud_layer"), layers::Layer::PageFloat)
         .fixed_pos([0.0, 0.0])
         // Non-interactable so this full-screen HUD layer never sits in front of an in-world
         // side panel and eats its clicks (the recurring "panel shows but won't click" bug).
@@ -1744,7 +1738,8 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
     // wants_pointer_input read false over the editor's side panels, so their clicks route to the
     // camera instead (the "panel shows but won't click" regression). A layer_painter only paints and
     // never participates in input routing. (`p` owns it; `painter` is a ref so the body is unchanged.)
-    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("construction_dim_overlay")));
+    // Part of the world's own picture (41+, gui/layers.rs): under every panel and popup.
+    let p = layers::painter(ctx, egui::Id::new("construction_dim_overlay"), layers::Layer::Page);
     let painter = &p;
     for (storey, walls) in &groups {
         let floor = storey.floor;
@@ -1970,7 +1965,7 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
         .find(|(id, _)| *id == cur_id)
         .map(|(_, n)| n.clone())
         .unwrap_or_else(|| cur_id.clone());
-    Area::new(egui::Id::new("machine_recipe_selector"))
+    layers::area(ctx, egui::Id::new("machine_recipe_selector"), layers::Layer::PageFloat)
         .fixed_pos(sel_pos)
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
@@ -2123,7 +2118,7 @@ pub fn draw_npc_talk_card(ctx: &egui::Context, theme: &Theme, state: &mut GuiSta
     let mut close = false;
     let mut more = false;
     let screen = ctx.screen_rect();
-    let area = Area::new(egui::Id::new("npc_talk_card"))
+    let area = layers::area(ctx, egui::Id::new("npc_talk_card"), layers::Layer::PageFloat)
         .fixed_pos(Pos2::new(
             screen.center().x - 180.0,
             screen.top() + screen.height() * 0.22,
