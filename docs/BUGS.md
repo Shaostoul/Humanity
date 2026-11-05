@@ -7357,3 +7357,10 @@ he noticed the "2+ hour task".
 - **The fix:** every file of an item can be removed, the first included, as long as one file stays. Removing the first makes the next one the item's main file (its preview and cover picked again); the last file left says why it cannot go (the item needs one: remove the item instead).
 - **Where:** both apps (src/gui/pages/files/edit.rs and the website's edit form) and the relay route that removes an item's file, with tests through the real route, seen red first.
 - Queued for after the weekly reset.
+
+## BUG-251: the chat's 3D view of a model cuts off its Close the 3D view button at the bottom (OPEN, found 2026-11-04)
+
+**Reported by the operator** (2026-11-04, a screenshot of a .stl opened in 3D from a chat file card in v0.1548.0: the button's lower half is clipped by the panel's bottom edge, under the help line "drag to turn it, scroll to zoom ... 4,006 triangles."): "The close 3D view button at the bottom left of the file upload is pushed offscreen a bit."
+- **The cause, to confirm:** the 3D canvas is sized to the space it was given before the help line and the button are laid out, so they spill past the panel's edge (src/gui/model_view/ and the chat card that opens it; grep "Close the 3D view").
+- **The fix:** measure the help line and the button first and give the canvas what is left, so the button always sits inside the panel at every window size and Font Size (100% to 200%); a headless test that the button's rectangle lies inside the panel's, seen red first; the same check for the Files page's 3D view if it shares the code.
+- Queued for after the weekly reset.
