@@ -253,6 +253,16 @@
       input.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { input.value = ''; search(''); }
       });
+      // The suggestions float over the page (index.html's .fd-results), so a press outside the
+      // search closes them, and going back into the box brings them back.
+      if (doc.addEventListener) {
+        doc.addEventListener('pointerdown', function (e) {
+          var area = input.closest ? input.closest('.fd-search') : null;
+          var box = byId('fd-results');
+          if (box && area && e.target && !area.contains(e.target)) box.hidden = true;
+        });
+      }
+      input.addEventListener('focus', function () { if (input.value && state.idx) search(input.value); });
     }
 
     // ── Start here: what brought you here? ──
@@ -329,13 +339,22 @@
         grid.appendChild(b);
       });
       var saved = stored(GOAL_KEY);
-      if (saved) pick(saved, false);
+      if (saved) { openStart(); pick(saved, false); }
+    }
+
+    /** Show "What brought you here?", which waits hidden right under the Start here button. */
+    function openStart() {
+      var sec = byId('start');
+      if (sec) sec.hidden = false;
+      var b = byId('fd-start');
+      if (b && b.setAttribute) b.setAttribute('aria-expanded', 'true');
     }
 
     function wireStart() {
       byId('fd-change').addEventListener('click', function () { pick(null, true); });
       byId('fd-start').addEventListener('click', function (e) {
         if (e && e.preventDefault) e.preventDefault();
+        openStart();
         if (env.scrollTo) env.scrollTo(byId('start'));
         var first = byId('fd-goals').querySelector('.fd-goal');
         if (first && first.focus) first.focus({ preventScroll: true });
@@ -364,7 +383,7 @@
             .then(function (g) { (g[1].chains || []).forEach(function (c) { state.chains[c.id] = c; }); drawGoals(g[0].goals || []); })
         ]);
       }).then(function () {
-        if (env.location && env.location.hash === '#start' && env.scrollTo) env.scrollTo(byId('start'));
+        if (env.location && env.location.hash === '#start') { openStart(); if (env.scrollTo) env.scrollTo(byId('start')); }
         if (env.onWidth) env.onWidth(byId('fd-cards'), function () { drawCards(false); });
       });
     }
@@ -390,7 +409,15 @@
         fd: win.HosFrontDoor, location: win.location, history: win.history,
         now: function () { return Date.now(); },
         setTimeout: function (f, ms) { return win.setTimeout(f, ms); }, clearTimeout: function (t) { win.clearTimeout(t); },
-        scrollTo: function (e) { if (e && e.scrollIntoView) e.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); },
+        // Stops just under the fixed top menu, measured (it is taller when its rows wrap), so a
+        // section's heading is never hidden behind it (2026-11-04, Start here's question).
+        scrollTo: function (e) {
+          if (!e || !e.getBoundingClientRect) return;
+          var nav = doc.querySelector('.hub-nav');
+          var under = nav ? nav.getBoundingClientRect().bottom : 0;
+          var top = e.getBoundingClientRect().top + win.scrollY - Math.max(0, under) - 12;
+          win.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' });
+        },
         widthOf: function (e) { return e.clientWidth; },
         onWidth: function (e, f) {
           if (win.ResizeObserver) new win.ResizeObserver(f).observe(e);

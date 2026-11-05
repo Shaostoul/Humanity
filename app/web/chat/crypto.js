@@ -415,7 +415,7 @@ async function openLinkDeviceModal() {
   const linkUrl = location.origin + '/chat/index.html#devicelink=' + b64;
   const overlay = document.createElement('div');
   overlay.id = 'link-device-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:7000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:calc(var(--z-shade) + 1);display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:440px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto;">
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md)">📱 Link New Device</h2>

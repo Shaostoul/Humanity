@@ -904,7 +904,7 @@ test("10. the nav: Apps beside Play with the four squares, in the phone menu, li
   const sim = require(path.join(ROOT, "scripts", "gen-navigation.js")).shellRow(SHELL)[0];
   assert.ok(sim && sim.cls === "nav-group-sim", "shell.js has the Play group first");
   const tabs = sim.tabs.map((t) => [t.href, t.icon, t.label, t.active]);
-  assert.deepStrictEqual(tabs, [["/download", "games", "Play", "play"], ["/apps", "apps", "Apps", "apps"]], "Apps beside Play, as in the app");
+  assert.deepStrictEqual(tabs, [["/download", "download", "Download", "play"], ["/apps", "apps", "Apps", "apps"]], "Apps beside the website's Download tab (Play is Download on the website since 2026-11-04, where it opens /download)");
   assert.match(SHELL, /mobileLink\('\/apps',\s*'Apps'\)/, "in the phone menu");
   assert.match(SHELL, /else if \(p\.startsWith\('\/apps'\)\)\s*active = 'apps';/, "lit on /apps");
   // The icon: four rounded squares, two by two (the app's paint_apps).

@@ -337,7 +337,7 @@
       display: none;
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.7);
-      z-index: 8000;
+      z-index: var(--z-shade);
       align-items: center;
       justify-content: center;
     }
@@ -592,7 +592,7 @@
     /* ── Equipment Modal ── */
     .equip-modal-backdrop {
       display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.72); z-index: 8000;
+      background: rgba(0,0,0,0.72); z-index: var(--z-shade);
       align-items: center; justify-content: center;
     }
     .equip-modal-backdrop.open { display: flex; }

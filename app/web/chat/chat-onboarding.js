@@ -33,7 +33,7 @@ async function showOnboardingWizard(mnemonic) {
   const overlay = document.createElement('div');
   overlay.id = 'onboarding-overlay';
   overlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9000;
+    position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:var(--z-shade);
     display:flex;align-items:center;justify-content:center;
     padding:var(--space-xl);box-sizing:border-box;
   `;

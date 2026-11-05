@@ -3058,7 +3058,7 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "humanity-core"
-version = "0.1548.0"
+version = "0.1549.0"
 dependencies = [
  "aes-gcm 0.10.3",
  "base64 0.22.1",
@@ -3091,7 +3091,7 @@ dependencies = [
 
 [[package]]
 name = "humanity-engine"
-version = "0.1548.0"
+version = "0.1549.0"
 dependencies = [
  "aes-gcm 0.10.3",
  "arboard",
@@ -3196,7 +3196,7 @@ dependencies = [
 
 [[package]]
 name = "humanity-protocol"
-version = "0.1548.0"
+version = "0.1549.0"
 dependencies = [
  "aes-gcm 0.10.3",
  "argon2",
@@ -3224,7 +3224,7 @@ dependencies = [
 
 [[package]]
 name = "humanity-ship"
-version = "0.1548.0"
+version = "0.1549.0"
 dependencies = [
  "glam",
  "hecs",
@@ -3237,7 +3237,7 @@ dependencies = [
 
 [[package]]
 name = "humanity-systems"
-version = "0.1548.0"
+version = "0.1549.0"
 dependencies = [
  "blake3",
  "glam",
@@ -3255,7 +3255,7 @@ dependencies = [
 
 [[package]]
 name = "humanity-terrain"
-version = "0.1548.0"
+version = "0.1549.0"
 dependencies = [
  "glam",
  "humanity-core",

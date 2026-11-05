@@ -85,7 +85,7 @@
     '  top: var(--hos-nav-h, 0px);',
     /* Above the page's own content as it scrolls beneath, below Chat's
        drawers (10) and every dialog, so those still cover it. */
-    '  z-index: 9;',
+    '  z-index: calc(var(--z-page) + 9);',
     '  display: flex; align-items: center; gap: var(--space-md);',
     '  min-height: 28px; box-sizing: border-box; flex-shrink: 0;',
     /* The right 60px stay clear: shell.js's round help button (38px, 44px on

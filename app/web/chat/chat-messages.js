@@ -646,7 +646,7 @@ function showAttachStep(o) {
     };
     const overlay = mk('div', 'profile-modal-overlay open');
     overlay.id = 'attach-step-overlay';
-    overlay.style.zIndex = '10000';
+    overlay.style.zIndex = 'var(--z-shade)';
     const card = mk('div', 'profile-modal attach-step');
     card.setAttribute('role', 'dialog');
     card.setAttribute('aria-label', ATTACH_STEP_TITLE);

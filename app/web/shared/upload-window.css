@@ -5,7 +5,7 @@
 .hos-upload-window {
   position: fixed;
   inset: 0;
-  z-index: 9000;
+  z-index: var(--z-shade);
   display: flex;
   align-items: center;
   justify-content: center;

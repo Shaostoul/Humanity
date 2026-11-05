@@ -178,7 +178,7 @@ function addFollowContextMenu() {
       document.querySelectorAll('.follow-ctx-menu').forEach(m => m.remove());
       const menu = document.createElement('div');
       menu.className = 'follow-ctx-menu';
-      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:140px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      menu.style.cssText = 'position:fixed;z-index:var(--z-page-float);background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:140px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
       menu.style.left = e.clientX + 'px';
       menu.style.top = e.clientY + 'px';
 
@@ -272,7 +272,7 @@ function renderGroupList() {
       if (!g) return;
       const menu = document.createElement('div');
       menu.className = 'group-ctx-menu';
-      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      menu.style.cssText = 'position:fixed;z-index:var(--z-page-float);background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
       menu.style.left = e.clientX + 'px';
       menu.style.top = e.clientY + 'px';
       const items = [
@@ -361,7 +361,7 @@ function promptCreateGroup() {
   const overlay = document.createElement('div');
   overlay.id = 'p2pg-create-modal';
   // The card is a CHILD of the backdrop, so it always renders above it.
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:var(--z-shade);display:flex;align-items:center;justify-content:center;';
 
   const card = document.createElement('div');
   card.style.cssText = 'background:var(--bg-elevated,#1b1b1b);color:var(--text-primary,#eee);border:1px solid var(--border,#333);border-radius:10px;max-width:460px;width:92%;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,0.5);';

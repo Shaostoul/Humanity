@@ -9,7 +9,7 @@
       position: fixed;
       inset: 0;
       background: rgba(0,0,0,0.7);
-      z-index: 8500;
+      z-index: var(--z-shade);
       align-items: center;
       justify-content: center;
     }

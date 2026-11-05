@@ -96,7 +96,7 @@
     .swap-box input{font-size:1.2rem;font-weight:600;background:none;border:none;flex:1;padding:var(--space-sm);min-width:0}
     .swap-box input:focus{outline:none}
     .swap-box select{font-size:0.9rem;font-weight:600;background:var(--bg-card);min-width:90px}
-    .swap-flip{display:flex;justify-content:center;margin:calc(var(--space-md) * -1) 0;position:relative;z-index:1}
+    .swap-flip{display:flex;justify-content:center;margin:calc(var(--space-md) * -1) 0;position:relative;z-index:calc(var(--z-page) + 1)}
     .swap-flip button{background:var(--bg-card);border:2px solid var(--border);border-radius:50%;width:36px;height:36px;font-size:1.1rem;display:flex;align-items:center;justify-content:center;color:var(--text)}
     .swap-flip button:hover{border-color:var(--accent);color:var(--accent)}
     .swap-rate{text-align:center;font-size:0.8rem;color:var(--text-muted);margin:var(--space-md) 0}
@@ -137,7 +137,7 @@
     .nft-empty{text-align:center;padding:3rem var(--space-xl);color:var(--text-muted);font-style:italic}
 
     /* Modal */
-    .wallet-modal-overlay{position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;display:none}
+    .wallet-modal-overlay{position:fixed;inset:0;z-index:var(--z-shade);background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;display:none}
     .wallet-modal-overlay.open{display:flex;align-items:center;justify-content:center}
     .wallet-modal{max-width:500px;width:calc(100% - 2rem);background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);margin:2rem}
     .wallet-modal h3{margin:0 0 var(--space-xl);color:var(--accent);font-size:1rem}

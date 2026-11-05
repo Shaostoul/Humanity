@@ -612,7 +612,7 @@ function renderProtectedSetup() {
     overlay = overlay || document.createElement('div');
     overlay.id = 'protected-setup-overlay';
     overlay.className = 'profile-modal-overlay';
-    overlay.style.zIndex = '10001';
+    overlay.style.zIndex = 'calc(var(--z-shade) + 1)';
     if (overlay.dataset) overlay.dataset.built = '1';
     card = card || document.createElement('div');
     card.id = 'protected-setup-card';
@@ -829,7 +829,7 @@ function renderProtectedPin() {
     overlay = overlay || document.createElement('div');
     overlay.id = 'protected-pin-overlay';
     overlay.className = 'profile-modal-overlay';
-    overlay.style.zIndex = '10002';
+    overlay.style.zIndex = 'calc(var(--z-shade) + 2)';
     if (overlay.dataset) overlay.dataset.built = '1';
     card = card || document.createElement('div');
     card.id = 'protected-pin-card';

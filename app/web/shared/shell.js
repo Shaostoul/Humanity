@@ -36,7 +36,7 @@
     if (document.getElementById('hos-error-banner')) return;
     var banner = document.createElement('div');
     banner.id = 'hos-error-banner';
-    banner.style.cssText = 'position:fixed;bottom:var(--hos-wip-h, 0px);left:0;right:0;z-index:999999;background:#991b1b;color:#fff;padding:10px 16px;font:14px/1.4 sans-serif;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+    banner.style.cssText = 'position:fixed;bottom:var(--hos-wip-h, 0px);left:0;right:0;z-index:var(--z-urgent);background:#991b1b;color:#fff;padding:10px 16px;font:14px/1.4 sans-serif;display:flex;align-items:center;justify-content:space-between;gap:12px;';
     var text = document.createElement('span');
     text.textContent = 'Something went wrong. Try refreshing.';
     var btn = document.createElement('button');
@@ -69,7 +69,7 @@
       var st = document.createElement('style');
       st.id = 'hos-help-styles';
       st.textContent =
-        '.hos-help-backdrop{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:20px;animation:hos-help-fade 0.15s ease-out;}' +
+        '.hos-help-backdrop{position:fixed;inset:0;z-index:var(--z-shade);background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:20px;animation:hos-help-fade 0.15s ease-out;}' +
         '@keyframes hos-help-fade{from{opacity:0}to{opacity:1}}' +
         '.hos-help-modal{background:var(--bg-card,#161616);border:1px solid var(--border,#333);border-left:3px solid var(--accent,#ed8c24);border-radius:var(--radius,8px);max-width:480px;width:100%;padding:28px;color:var(--text,#e0e0e0);box-shadow:0 12px 40px rgba(0,0,0,0.5);font-family:inherit;}' +
         '.hos-help-modal h3{margin:0 0 14px;font-size:1.15rem;font-weight:700;color:var(--text,#fff);}' +
@@ -258,7 +258,7 @@
     var css = document.createElement('style');
     css.id = 'hos-space-bg-style';
     css.textContent =
-      '#hos-space-bg{position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;overflow:hidden;pointer-events:none;}' +
+      '#hos-space-bg{position:fixed;top:0;left:0;right:0;bottom:0;z-index:calc(var(--z-page) - 1);overflow:hidden;pointer-events:none;}' +
       // The image layer is 60vh taller than the viewport (30vh headroom above
       // and below) so the scroll parallax has real travel room.
       '#hos-space-bg .hos-space-img{position:absolute;left:0;right:0;top:-30vh;height:160vh;' +
@@ -405,7 +405,7 @@
       top: 0;
       left: 0;
       right: 0;
-      z-index: 5500;
+      z-index: var(--z-menu-1);
       isolation: isolate;
       font-size: 15px !important; /* fixed so global font-size slider doesn't break nav */
       /* v0.859: WRAP overflowing buttons into a second row instead of hiding them
@@ -516,7 +516,7 @@
       font-size: 0.7rem;
       font-weight: 600;
       white-space: nowrap;
-      z-index: 9000;
+      z-index: var(--z-tooltip);
       pointer-events: none;
       letter-spacing: 0.03em;
     }
@@ -550,7 +550,7 @@
       width: 14px; height: 14px; border-radius: 50%;
       background: #e33; color: #fff; font-size: 9px;
       font-weight: 700; line-height: 14px; text-align: center;
-      pointer-events: none; z-index: 2;
+      pointer-events: none; z-index: calc(var(--z-page) + 2);
       animation: badgePulse 2s ease-in-out infinite;
     }
     @keyframes badgePulse {
@@ -639,7 +639,7 @@
       background: var(--hos-chrome-bg);
       backdrop-filter: blur(12px);
       border-top: 1px solid var(--border);
-      z-index: 2100;
+      z-index: var(--z-footer);
       text-align: center;
       font-size: 0.8rem;
       color: var(--text-muted);
@@ -689,7 +689,7 @@
       font-size: 0.78rem;
       font-weight: 700;
       line-height: 1;
-      z-index: 1;
+      z-index: calc(var(--z-page) + 1);
       animation: footer-toggle-rgb 10s linear infinite; /* slow pulse when collapsed */
       transition: color 0.15s, background 0.15s;
       white-space: nowrap;
@@ -710,7 +710,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      z-index: 2150;
+      z-index: var(--z-warning);
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -752,7 +752,7 @@
       position: fixed;
       inset: 0;
       background: var(--bg);
-      z-index: 7600;
+      z-index: var(--z-menu-1-drop);
       display: none;
     }
     #mobile-hub-backdrop.open { display: block; }
@@ -762,7 +762,7 @@
       width: 100vw;
       height: 100vh;
       background: var(--bg);
-      z-index: 7700;
+      z-index: calc(var(--z-menu-1-drop) + 1);
       display: flex;
       flex-direction: column;
       transform: translateY(100%);
@@ -955,7 +955,7 @@
   var NAV_SOURCE = 'data/gui/navigation.json'; // the file this is written from (tests/page_parity_lint.rs looks for this line)
   var NAV_ROW = [
     { cls: "nav-group-sim", tabs: [
-      { id: "play", href: "/download", icon: "games", label: "Play", key: "nav.play", active: "play" }, // i18n-exempt: en.json's words for its key
+      { id: "play", href: "/download", icon: "download", label: "Download", key: "nav.download", active: "play" }, // i18n-exempt: en.json's words for its key
       { id: "apps", href: "/apps", icon: "apps", label: "Apps", key: "nav.apps", active: "apps" } // i18n-exempt: en.json's words for its key
     ] },
     { cls: "nav-group-red", tabs: [
@@ -1380,7 +1380,7 @@
 
     var tip = document.createElement('div');
     tip.id = 'hos-rich-tooltip';
-    tip.style.cssText = 'position:fixed;z-index:9000;pointer-events:none;max-width:300px;background:rgba(8,8,10,0.97);border:1px solid rgba(130,130,140,0.35);border-radius:var(--radius);padding:8px 11px;color:#e8e8ea;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,0.55);display:none;'; // theme-exempt: the hover tooltip is dark in both themes, as on most light sites; its inks are set for that ground
+    tip.style.cssText = 'position:fixed;z-index:var(--z-tooltip);pointer-events:none;max-width:300px;background:rgba(8,8,10,0.97);border:1px solid rgba(130,130,140,0.35);border-radius:var(--radius);padding:8px 11px;color:#e8e8ea;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,0.55);display:none;'; // theme-exempt: the hover tooltip is dark in both themes, as on most light sites; its inks are set for that ground
     document.body.appendChild(tip);
 
     /** Strip native title to prevent browser double-tooltip. */
@@ -1822,7 +1822,7 @@
     var keybindGroups = [];
 
     var CSS =
-      '#hos-help-toggle{position:fixed;z-index:9000;width:38px;height:38px;' +
+      '#hos-help-toggle{position:fixed;z-index:calc(var(--z-menu-1) + 1);width:38px;height:38px;' +
         'border-radius:50%;display:flex;align-items:center;justify-content:center;' +
         'background:var(--bg-card,#161616);border:1px solid var(--border,#333);' +
         'color:var(--text-muted,#999);font-size:1rem;font-weight:700;line-height:1;' +
@@ -1830,7 +1830,7 @@
         'transition:color .15s,border-color .15s;}' +
       '#hos-help-toggle:hover,#hos-help-toggle[aria-expanded="true"]' +
         '{border-color:var(--accent,#ed8c24);color:var(--accent,#ed8c24);}' +
-      '#hos-help-panel{position:fixed;z-index:9001;width:min(360px,calc(100vw - 20px));' +
+      '#hos-help-panel{position:fixed;z-index:var(--z-menu-1-drop);width:min(360px,calc(100vw - 20px));' +
         'max-height:min(70vh,620px);overflow-y:auto;background:var(--bg-card,#161616);' +
         'border:1px solid var(--border,#333);border-left:3px solid var(--accent,#ed8c24);' +
         'border-radius:var(--radius-lg,10px);box-shadow:0 12px 40px rgba(0,0,0,.5);' +
@@ -2055,7 +2055,7 @@
 
     var dbg = document.createElement('div');
     dbg.id = 'hos-debug-overlay';
-    dbg.style.cssText = 'position:fixed;bottom:calc(48px + var(--hos-wip-h, 0px));right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:var(--radius);padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;width:210px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;'; // theme-exempt: the debug overlay is a green-on-black terminal readout in both themes
+    dbg.style.cssText = 'position:fixed;bottom:calc(48px + var(--hos-wip-h, 0px));right:10px;z-index:var(--z-tooltip);background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:var(--radius);padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;width:210px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;'; // theme-exempt: the debug overlay is a green-on-black terminal readout in both themes
     document.body.appendChild(dbg);
 
     var WS_LABELS = ['CONNECTING','OPEN','CLOSING','CLOSED'];
@@ -2154,7 +2154,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1548.0';
+    var CURRENT_VERSION = '0.1549.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

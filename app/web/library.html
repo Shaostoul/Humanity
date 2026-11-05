@@ -85,7 +85,7 @@
     [data-reduced-motion] .lib-doc.active, [data-no-rgb] .lib-doc.active { animation:none; color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); }
     /* Sticky under the top bar, so the notice stays in view while a tall rail
        has travelled up with the page to show its lower entries. */
-    .lib-filter-note { position:sticky; top:var(--lib-top, 64px); z-index:1; font-size:var(--text-sm); color:var(--text-muted); margin:0 0 var(--space-sm); padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
+    .lib-filter-note { position:sticky; top:var(--lib-top, 64px); z-index:calc(var(--z-page) + 1); font-size:var(--text-sm); color:var(--text-muted); margin:0 0 var(--space-sm); padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
     .lib-filter-note b { color:var(--text); }
     .lib-filter-clear { background:none; border:none; color:var(--accent); font-family:inherit; font-size:inherit; cursor:pointer; text-decoration:underline; padding:0 0 0 4px; }
     .lib-special { margin-top:var(--space-lg); padding-top:var(--space-md); border-top:1px solid var(--border); }
