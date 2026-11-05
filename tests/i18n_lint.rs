@@ -1038,7 +1038,8 @@ fn every_language_file_is_a_subset_of_english() {
 // any area made clickable with `Sense::click()`.
 //
 // It HAS A HINT when its statement (closure bodies and if/else bodies aside)
-// calls `.hint(..)` / `.hint_dyn(..)`, `with_hint(..)`, `.tooltip(..)`, or one
+// calls `.hint(..)` / `.hint_dyn(..)` (or their `_below` forms, a hint opening
+// under the top menu's rows), `with_hint(..)`, `.tooltip(..)`, or one
 // of egui's `.on_hover_text(..)` family; or when it is bound with `let r =`
 // and `r.on_hover_text(..)` / `r.hint(..)` follows in the same block; or when
 // the very next statement is `setting_hint(..)`, the Settings page's own
@@ -1069,7 +1070,7 @@ const FN_CONTROLS: &[&str] = &[
     "custom_slider_capped", "search_bar", "stepper_button", "hold_to_confirm", "hold_to_confirm_at", "card_clickable",
 ];
 const HINT_CALLS: &[&str] = &[
-    "hint", "hint_dyn", "with_hint", "tooltip", "tooltip_above", "on_hover_text", "on_hover_ui",
+    "hint", "hint_dyn", "hint_below", "hint_dyn_below", "with_hint", "tooltip", "tooltip_above", "on_hover_text", "on_hover_ui",
     "on_hover_text_at_pointer", "on_hover_ui_at_pointer", "on_disabled_hover_text", "on_disabled_hover_ui",
 ];
 

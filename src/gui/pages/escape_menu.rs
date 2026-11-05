@@ -133,7 +133,9 @@ pub fn corner_y(theme: &Theme, size: f32) -> f32 {
 }
 
 /// How far the two rows (and the line under them) reach down the window, in points: where the
-/// pinned help panel hangs from.
+/// pinned help panel hangs from, and the line every hint of the rows' buttons opens under
+/// (`Hint::hint_below`), so no hint covers the secondary row (the operator, 2026-11-04: "The
+/// tooltip popup blocks the secondary top menu buttons.").
 pub fn rows_height(theme: &Theme) -> f32 {
     theme.nav_primary_height + theme.nav_secondary_height + theme.nav_separator_height
 }
@@ -339,7 +341,7 @@ fn primary_row(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, menu: &
             let fill = if aa_resp.hovered() { theme.bg_tertiary() } else { theme.bg_secondary() };
             ui.painter().rect_filled(aa, CornerRadius::same(6), fill);
             ui.painter().text(aa.center(), egui::Align2::CENTER_CENTER, mode.glyph(), FontId::proportional(theme.font_size_small), theme.text_muted());
-            if aa_resp.hint("nav.display_mode_hint").clicked() {
+            if aa_resp.hint_below(rows_height(theme), "nav.display_mode_hint").clicked() {
                 state.nav_display_mode = state.nav_display_mode.next();
                 // Saved at once (v0.1066): the choice used to be lost on every restart.
                 crate::config::AppConfig::from_gui_state(state).save();
@@ -371,7 +373,7 @@ fn arrow_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, r: Rect,
     } else {
         crate::gui::widgets::icons::paint_arrow_right(ui.painter(), ir, ink);
     }
-    if resp.hint(hint).clicked() && can {
+    if resp.hint_below(rows_height(theme), hint).clicked() && can {
         if back {
             crate::gui::history::ask_back(ui.ctx(), state);
         } else {
@@ -452,7 +454,8 @@ fn category_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rect:
     }
     let hovered = resp.hovered();
     let mut clicked = went_in;
-    let resp = resp.hint_dyn(&b.hint);
+    // Its hint under both rows, never over the secondary row the pointer goes to next.
+    let resp = resp.hint_dyn_below(rows_height(theme), &b.hint);
     if resp.clicked() && !went_in && !latched {
         open(state, b);
         clicked = true;
@@ -472,7 +475,8 @@ fn more_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, r: Rect, 
     let ink = if active.is_some() || resp.hovered() { theme.text_strong() } else { theme.text_secondary() };
     let g = painter.layout_no_wrap(t("nav.more").to_string(), FontId::proportional(size), ink);
     painter.galley(egui::pos2(r.left() + PAD, r.center().y - g.size().y / 2.0), g, ink);
-    let resp = resp.hint("nav.more_hint");
+    // Its hint under both rows; the list opens under the button itself.
+    let resp = resp.hint_below(rows_height(theme), "nav.more_hint");
     if resp.clicked() {
         ui.memory_mut(|m| m.toggle_popup(popup));
     }
@@ -534,7 +538,8 @@ fn secondary_row(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, menu:
                 let ink = if is_here || resp.hovered() { theme.text_strong() } else { theme.text_secondary() };
                 let g = painter.layout_no_wrap(words.to_string(), FontId::proportional(size), ink);
                 painter.galley(egui::pos2(r.left() + PAD, cy - g.size().y / 2.0), g, ink);
-                if resp.hint_dyn(&b.hint).clicked() {
+                // Its hint under both rows, so it never covers the buttons beside it.
+                if resp.hint_dyn_below(rows_height(theme), &b.hint).clicked() {
                     open(state, b);
                 }
                 x = r.right() + GAP;

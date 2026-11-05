@@ -55,6 +55,12 @@ pub trait Hint {
     fn hint(self, key: &'static str) -> Response;
     /// `hint` for a key built at run time (one per item in a list).
     fn hint_dyn(self, key: &str) -> Response;
+    /// `hint`, opening below the line `y` (window points) at the control's x instead of just
+    /// under the control, for a control in a band whose neighbours under it must stay uncovered:
+    /// the top menu's two rows ([`below`]). Returns the control's own response.
+    fn hint_below(self, y: f32, key: &'static str) -> Response;
+    /// `hint_below` for a key built at run time.
+    fn hint_dyn_below(self, y: f32, key: &str) -> Response;
 }
 
 impl Hint for Response {
@@ -64,6 +70,36 @@ impl Hint for Response {
     fn hint_dyn(self, key: &str) -> Response {
         show_words(self, humanity_core::i18n::t_dyn(key))
     }
+    fn hint_below(self, y: f32, key: &'static str) -> Response {
+        show_words(below(&self, y), humanity_core::i18n::t(key));
+        self
+    }
+    fn hint_dyn_below(self, y: f32, key: &str) -> Response {
+        show_words(below(&self, y), humanity_core::i18n::t_dyn(key));
+        self
+    }
+}
+
+/// A copy of a control's response for its hint, so the hint opens below the line `y` at the
+/// control's x (the operator, 2026-11-04, from a screenshot of the top menu: "The tooltip popup
+/// blocks the secondary top menu buttons."). egui opens a hint just under the rect of the response
+/// it is given, so a primary-row button's hint covered the secondary row, the very buttons the
+/// pointer goes to next; this copy's rect sits at `y`. The words, the hint mode and the hint on
+/// keyboard focus are the same as `hint`'s; the control keeps its own response for its click and
+/// its drop-down (which opens under the control itself).
+///
+/// The rect egui reads also decides how long a hint stays up. An ENABLED control's copy is a line
+/// with no height, because egui keeps an open hint while the pointer is inside the rect: a rect
+/// reaching down to `y` would keep a top-menu category's hint up while the pointer is on the
+/// secondary button under it, whose own hint then could not show (egui shows one hint at a time per
+/// layer). A DISABLED control's hint shows only while the pointer is inside the rect, so its copy
+/// keeps the control and reaches down to `y` (under the top menu's Back and Forward the secondary
+/// row is empty: it starts after them).
+pub fn below(resp: &Response, y: f32) -> Response {
+    let top = if resp.enabled() { y } else { resp.rect.top().min(y) };
+    let mut tip = resp.clone();
+    tip.rect = egui::Rect::from_x_y_ranges(resp.rect.x_range(), top..=y);
+    tip
 }
 
 /// Put words on a response as its hover hint, unless hints are off.

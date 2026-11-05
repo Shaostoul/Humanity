@@ -18,6 +18,9 @@ struct Rows {
     size: Vec2,
     /// The page under the menu is drawn too (Play's page and its button).
     with_page: bool,
+    /// Hints on, and the help button drawn in the corner beside the bell as the app does (only the
+    /// hints' own test: everywhere else a resting pointer would bring one up over the rows read).
+    hints: bool,
 }
 
 impl Rows {
@@ -34,18 +37,22 @@ impl Rows {
         });
         let mut state = GuiState::default();
         state.active_page = GuiPage::Chat;
-        Rows { ctx, theme, state, t: 10.0, size, with_page: false }
+        Rows { ctx, theme, state, t: 10.0, size, with_page: false, hints: false }
     }
 
     /// One frame, 1/60 s after the last, with `events`.
     fn frame(&mut self, events: Vec<egui::Event>) -> egui::FullOutput {
         self.t += 1.0 / 60.0;
         let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, self.size)), time: Some(self.t), events, ..Default::default() };
-        let (theme, state, with_page) = (&mut self.theme, &mut self.state, self.with_page);
-        state.settings.hint_display = crate::gui::HintDisplay::Off;
+        let (theme, state, with_page, hints) = (&mut self.theme, &mut self.state, self.with_page, self.hints);
+        let mode = if hints { crate::gui::HintDisplay::Full } else { crate::gui::HintDisplay::Off };
+        state.settings.hint_display = mode;
         self.ctx.run(input, |ctx| {
-            crate::gui::widgets::hint::set_mode(ctx, crate::gui::HintDisplay::Off);
+            crate::gui::widgets::hint::set_mode(ctx, mode);
             draw_nav_bar(ctx, theme, state);
+            if hints {
+                crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
+            }
             if with_page && state.active_page != GuiPage::None {
                 crate::gui::dispatch::draw_tool_page(ctx, state.active_page, theme, state);
             }
@@ -428,6 +435,68 @@ fn more_lists_what_does_not_fit_and_opens_it() {
     let place = texts(&out).into_iter().filter(|(s, rect)| *s == words_of(&last.button) && rect.top() > r.theme.nav_primary_height).map(|(_, rect)| rect.center()).next().expect("the last category is listed");
     r.click(place);
     assert_eq!(r.state.active_page, last.button.page, "a click in More's list opens {}", last.id);
+}
+
+/// Where the hints showing in the last frame were drawn: each visible tooltip layer's rect, as egui
+/// laid it out (its frame included).
+fn hint_rects(ctx: &egui::Context) -> Vec<Rect> {
+    ctx.memory(|m| m.areas().visible_layer_ids().into_iter().filter(|l| l.order == crate::gui::layers::TOOLTIPS).filter_map(|l| m.area_rect(l.id)).collect())
+}
+
+/// A HINT NEVER COVERS THE SECONDARY ROW (the operator, 2026-11-04, from a screenshot: "The tooltip
+/// popup blocks the secondary top menu buttons."). With hints on, the pointer rests long enough for
+/// a hint on every button of the secondary row (Chat's, on the Chat page) and then on every button
+/// of the primary row: Back and Forward (with nowhere to go, so their hints are the disabled
+/// kind), each category the window shows (its words, and Humanity's icon), More when there is one,
+/// the Aa switch, the notices bell and help. Each time a hint comes up (read from egui's visible
+/// tooltip layers, so the test cannot pass with no hint drawn), and its rect does not overlap the
+/// secondary row's (the rect the row drew in). At the operator's 2560x1440 and the restored
+/// 1280x720.
+///
+/// Seen red 2026-11-04 with egui's own placement (a hint just under its own button), on the
+/// operator's case, Humanity's button (its icon, the letter H): "at 2560x1440 the hint on \"H\"
+/// covers the secondary row: hint [[96.0 46.0] - [585.3 77.0]], row [[0.0 48.0] - [2560.0 88.0]]";
+/// on a secondary button ("the hint on \"Watch\" ... hint [[96.0 87.0] - [343.3 118.0]]", a point
+/// over the row's foot) and on Back ("hint [[8.0 46.0] - [177.3 77.0]]") the same way.
+#[test]
+fn a_hint_never_covers_the_secondary_row() {
+    for size in [TV, Vec2::new(1280.0, 720.0)] {
+        let mut r = Rows::new(size);
+        r.hints = true;
+        r.ctx.all_styles_mut(|s| {
+            s.interaction.tooltip_delay = 0.3;
+            s.interaction.show_tooltips_only_when_still = false;
+        });
+        let away = egui::pos2(size.x * 0.5, size.y - 40.0);
+        r.move_to(away);
+        let out = r.wait(0.5);
+        let th = &r.theme;
+        let (ph, sh) = (th.nav_primary_height, th.nav_secondary_height);
+        // The secondary row's buttons first, while no preview has changed it.
+        let mut spots: Vec<(String, egui::Pos2)> = texts(&out).into_iter().filter(|(_, rect)| rect.center().y > ph && rect.center().y < ph + sh).map(|(s, rect)| (s, rect.center())).collect();
+        assert!(spots.len() >= 2, "the secondary row is drawn: {spots:?}");
+        // Back and Forward (arrows painted, no words), every word of the primary row, and the
+        // bell (an icon).
+        let bh = th.nav_primary_button_height.min(ph);
+        spots.push(("Back".into(), egui::pos2(8.0 + bh / 2.0, ph / 2.0)));
+        spots.push(("Forward".into(), egui::pos2(8.0 + bh + 3.0 + bh / 2.0, ph / 2.0)));
+        spots.extend(texts(&out).into_iter().filter(|(_, rect)| rect.center().y < ph).map(|(s, rect)| (s, rect.center())));
+        let bell = crate::gui::notice_panel::BELL_SIZE;
+        let bell_x = size.x - 8.0 - crate::gui::pages::keymap::HELP_TOGGLE_SIZE - crate::gui::notice_panel::BELL_GAP - bell / 2.0;
+        spots.push(("the bell".into(), egui::pos2(bell_x, corner_y(th, bell) + bell / 2.0)));
+        for (name, spot) in spots {
+            r.move_to(away);
+            r.wait(0.5);
+            r.move_to(spot);
+            r.wait(0.8);
+            let tips = hint_rects(&r.ctx);
+            assert!(!tips.is_empty(), "at {}x{} a rest on {name:?} brings up its hint", size.x, size.y);
+            let row: Rect = r.ctx.data(|d| d.get_temp(Id::new(SECONDARY_RECT_ID))).expect("the secondary row's rect");
+            for tip in tips {
+                assert!(!tip.intersect(row).is_positive(), "at {}x{} the hint on {name:?} covers the secondary row: hint {tip:?}, row {row:?}", size.x, size.y);
+            }
+        }
+    }
 }
 
 /// The preview's timing on its own (`step`), at the edges the rows' tests cross in between: a rest

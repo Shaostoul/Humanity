@@ -30,7 +30,8 @@ pub fn count_text(unseen: usize) -> Option<String> {
 /// many).
 pub fn notice_bell(ui: &mut Ui, theme: &Theme, size: f32, unseen: usize, open: bool, label: &str) -> Response {
     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), Sense::click());
-    let resp = resp.hint("notifications.bell_hint");
+    // Its hint under both rows of the top menu, never over the secondary row (escape_menu.rs).
+    let resp = resp.hint_below(crate::gui::pages::escape_menu::rows_height(theme), "notifications.bell_hint");
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
     if !ui.is_rect_visible(rect) {
         return resp;
