@@ -357,6 +357,11 @@ In order:
     - THE FILES PAGE'S PLACES IN RGB ORDER (2026-11-03): red, this computer (the HumanityOS folder,
       Your folders); green, what you share publicly; blue, what friends and servers share. The
       launcher's colour language. Queued after BUG-228 (which touches the Files viewer).
+    - VIDEOS IN CHAT, INLINE (2026-11-04, with a screenshot of a .mp4 card in #global): "Can we make
+      the videos show in chat and playable in chat?" Today a video posts as a card (Download, Play
+      here in its own window). FIRST after the weekly reset: a player inside the message (a still
+      frame until pressed; play, pause, seek, mute; one playing at a time so a chat full of videos
+      stays fast; the website's <video> to match), on the one begin_ingest road (BUG-228).
     - LINKS TO CHANNELS (2026-11-03): "Can we make it so I can link people to specific channels
       like https://united-humanity.us/chat#global or https://united-humanity.us/chat#fire-disciples"
       The web chat opens /chat#x for a signed-in person but cleans the address, a visitor's
