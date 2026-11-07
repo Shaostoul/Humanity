@@ -12,6 +12,8 @@ pub mod hud;
 pub mod vendor;
 pub mod showroom;
 pub mod construction;
+/// A placed in-world screen's settings panel, opened by its cog in the build editor (2026-11-06).
+pub mod screen_settings;
 pub mod keymap;
 pub mod diagnostics;
 pub mod weather_panel;

@@ -35,6 +35,9 @@ pub mod drop_files;
 /// 3D world (in-world screens, rung 1).
 #[cfg(feature = "native")]
 pub mod screen_surface;
+/// The in-world screens' aim assist and size numbers (data/gui/screens.json) and the size label,
+/// read by the engine's screens, Settings, the saved config and the cog's panel (2026-11-06).
+pub mod screen_tuning;
 /// The header's notices (notifications rung 2, 2026-10-31): the bell with the count of notices not
 /// opened yet, and the panel of the last 100, each opening its conversation.
 #[cfg(feature = "native")]
@@ -1858,6 +1861,9 @@ pub struct GuiState {
     /// Set by the panel on a MACHINE edit (offset / add / remove / connect) -> the engine refreshes
     /// just the machine meshes live, no full room rebuild. (v0.525)
     pub construction_machines_dirty: bool,
+    /// The placed in-world screen whose settings panel is open (its instance id), opened by the
+    /// cog on its picture in the build editor (2026-11-06, `gui::pages::screen_settings`).
+    pub screen_settings_open: Option<String>,
     /// The relay's identify handshake (nonce challenge -> Dilithium proof -> bind) has COMPLETED
     /// on the current socket (v0.794). Set when the first post-bind message (peer_list) arrives;
     /// cleared at every connect call site. Pre-bind, the relay's identify loop silently DISCARDS
@@ -3801,6 +3807,7 @@ impl Default for GuiState {
             construction_level: 0,
             construction_dirty: false,
             construction_machines_dirty: false,
+            screen_settings_open: None,
             ws_identified: false,
             star_catalog_download: None,
             star_catalog_remove: None,
@@ -4527,6 +4534,11 @@ pub struct SettingsState {
     // Controls
     pub mouse_sensitivity: f32,
     pub invert_y: bool,
+    /// Aim assist on in-world screens (2026-11-06, docs/design/in-world-screens.md): the nearest
+    /// clickable thing within the cone is outlined and takes the click. On by default.
+    pub screen_aim_assist: bool,
+    /// Its cone, in degrees (the range and the default are data/gui/screens.json's `aim`).
+    pub screen_aim_cone_deg: f32,
     // Appearance
     pub dark_mode: bool,
     /// The Font Size, in percent (100 to 200): the whole app's zoom (gui/font_size.rs).
@@ -4733,6 +4745,8 @@ impl Default for SettingsState {
             even_loudness: true,
             mouse_sensitivity: 0.25,
             invert_y: false,
+            screen_aim_assist: true,
+            screen_aim_cone_deg: crate::gui::screen_tuning::tuning().aim.cone_deg_default,
             dark_mode: true,
             font_size: font_size::DEFAULT_PERCENT,
             nav_preview: true,

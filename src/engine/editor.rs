@@ -672,6 +672,7 @@ pub(crate) fn try_place_held_machine(state: &mut EngineState) {
                 rotation: 0.0,
                 zone,
                 screen_source: None,
+                screen_size_m: None,
             });
             state.gui_state.construction_machines_dirty = true;
         }
@@ -1602,6 +1603,13 @@ pub(crate) fn apply_object_drag(state: &mut EngineState) {
         }
         state.construction_grab_press = None; // armed: this is now a drag
     }
+    // An in-world screen's handle (2026-11-06) works in the screen's own plane, not on the floor.
+    if let ObjectGrab::Screen(g) = &grab {
+        state.construction_snap_x = None;
+        state.construction_snap_z = None;
+        crate::engine::screens::edit::apply_drag(state, g);
+        return;
+    }
     // On the plan of the storey being edited (increment 7).
     let Some(StoreyFloorHit { x: hx, y: hy, z: hz, .. }) = cursor_storey_hit(state) else {
         return;
@@ -1740,7 +1748,7 @@ pub(crate) fn apply_object_drag(state: &mut EngineState) {
         }
         // Handled by the early match above (own projection math); unreachable here, kept
         // only so this match stays exhaustive.
-        ObjectGrab::CorridorMouth(_) | ObjectGrab::LightAim { .. } => {}
+        ObjectGrab::CorridorMouth(_) | ObjectGrab::LightAim { .. } | ObjectGrab::Screen(_) => {}
     }
 }
 

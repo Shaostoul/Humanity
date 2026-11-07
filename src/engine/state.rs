@@ -84,6 +84,10 @@ pub(crate) enum ObjectGrab {
     /// angle in the ring's plane (None until the first drag frame) -- state rides in the
     /// variant, like the opening grab's wall plane.
     LightAim { light: usize, axis: u8, prev_angle: Option<f32> },
+    /// An in-world screen's handle (2026-11-06, docs/design/in-world-screens.md): an edge or a
+    /// corner resizes its picture, the middle moves it along its own plane. The drag works in the
+    /// screen's plane fixed at the grab, not on the floor (`engine::screens::edit`).
+    Screen(Box<crate::engine::screens::edit::ScreenGrab>),
 }
 
 /// Construction opening-gizmo drag (v0.468, rebuilt v0.469): which room+opening is grabbed,

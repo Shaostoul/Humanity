@@ -398,21 +398,22 @@ impl Wall {
     }
 }
 
-/// A WALL SCREEN'S CHAT PLAYS ITS VIDEOS IN THEIR ROWS, OFFERS NO FULL WINDOW, AND LEAVES NO COPY
-/// BEHIND (BUG-258). The chat on the console room's wall screen draws each video row's player; its
-/// controls have no Full window (the window is the app screen's, which nobody at the wall could
-/// close: the pointer is the look ray); pressing the picture fetches the video and plays it in its
-/// row on the wall, polled there (so its fetch is taken and its temporary copy known), the reaction
-/// popups never blocked by a window, and the app screen's own set untouched. When the screen goes
-/// (a home reload drops its surfaces), its copy goes with it.
+/// A WALL SCREEN'S CHAT PLAYS ITS VIDEOS IN THEIR ROWS, ITS FULL WINDOW OPENS ON THE WALL, AND IT
+/// LEAVES NO COPY BEHIND (BUG-258, then 2026-11-06). The chat on the console room's wall screen
+/// draws each video row's player; pressing the picture fetches the video and plays it in its row on
+/// the wall, polled there (so its fetch is taken and its temporary copy known). Full window, pressed
+/// on the wall, opens the window ON THE WALL: the wall's own run draws it (the operator: "the whole
+/// display would be dedicated to the whole page"), the app screen's own set stays untouched, and
+/// Close the window, pressed on the wall, puts the video back in its row. When the screen goes (a
+/// home reload drops its surfaces), its copy goes with it.
 ///
-/// Seen red 2026-11-06 with the wall's set built as the app screen's (`ChatVideos::default()` in
-/// `ScreenTextures`, as before): "no Full window on a wall screen: [..., \"Play\", \"0:00\", \"Full
-/// window\", \"Mute\", ...]" (pressed, it set `window`, after which the row said "Playing in its
-/// own window.", was never polled again and its finished fetch never read, so no copy was known to
-/// delete).
+/// Seen red 2026-11-06 (BUG-258) with the wall's set built as the app screen's and its window drawn
+/// only for the app screen: the row said "Playing in its own window." and was never polled again.
+/// Seen red 2026-11-06 (the wall's own Full window) with `draw_screen_full_views` not drawing the
+/// video window (only the frame's end): "the window opens on the wall" failed, no "Close the window"
+/// among the wall's texts.
 #[test]
-fn a_wall_screens_chat_plays_in_its_rows_offers_no_full_window_and_deletes_its_copy() {
+fn a_wall_screens_chat_plays_in_its_rows_opens_full_window_on_the_wall_and_deletes_its_copy() {
     let mut chat = Chat::new("chat_video_wall_screen", &[&format!("on the wall {A}")], 1280.0, 720.0);
     let mut wall = Wall::new(fetch_copies(media_fixture("sliding-bar-av1-opus.mp4"), chat.dir.to_path_buf()));
     let a = Chat::url(A);
@@ -421,7 +422,7 @@ fn a_wall_screens_chat_plays_in_its_rows_offers_no_full_window_and_deletes_its_c
         texts = texts_of(&wall.frame(&mut chat.state));
     }
     assert!(texts.iter().any(|x| x == t("chat_video.play")) && texts.iter().any(|x| x == t("chat_video.mute")), "the row draws its player on the wall: {texts:?}");
-    assert!(!texts.iter().any(|x| x == t("chat_video.full_window")), "no Full window on a wall screen: {texts:?}");
+    assert!(texts.iter().any(|x| x == t("chat_video.full_window")), "a wall screen offers Full window: {texts:?}");
 
     let at = wall.core.chat_videos().pictures.get(&a).expect("the picture is drawn on the wall").center();
     wall.click(&mut chat.state, at);
@@ -430,13 +431,70 @@ fn a_wall_screens_chat_plays_in_its_rows_offers_no_full_window_and_deletes_its_c
         v.is_playing(&Chat::url(A)) && v.shows_picture(&Chat::url(A)) && t.iter().any(|x| x == "Pause")
     });
     assert!(held, "it plays in its row on the wall, its picture there and its Pause: {texts:?}");
-    assert!(!texts.iter().any(|x| x == t("chat_video.in_window")), "not in a window: {texts:?}");
-    assert!(!wall.core.chat_videos().window_open(), "no window, so the reaction popups are not blocked");
+    assert!(!wall.core.chat_videos().window_open(), "in its row until Full window is pressed");
     let copy = wall.core.chat_videos().temp_copy(&a).expect("its fetch was taken: the copy it plays from is known");
     assert!(copy.exists());
-    assert_eq!(chat.state.chat_video.live_count(), 0, "the app screen's own set is untouched");
+
+    // Full window, pressed on the wall: the window opens on the wall, drawn by the wall's own run.
+    let full = texts_at(&wall.frame(&mut chat.state)).into_iter().find(|(x, _)| x == t("chat_video.full_window")).expect("Full window is drawn on the wall").1;
+    wall.click(&mut chat.state, full.center());
+    let shown = texts_at(&wall.frame(&mut chat.state));
+    assert!(wall.core.chat_videos().window_open(), "Full window opened the wall's own window");
+    let close = shown.iter().find(|(x, _)| x == t("chat_video.close_window")).map(|(_, r)| *r);
+    assert!(close.is_some(), "the window opens on the wall, its Close there: {:?}", shown.iter().map(|(x, _)| x).collect::<Vec<_>>());
+    assert!(!chat.state.chat_video.window_open() && chat.state.chat_video.live_count() == 0, "the app screen's own set is untouched");
+
+    // Close the window, pressed on the wall: the video goes back to its row.
+    wall.click(&mut chat.state, close.unwrap().center());
+    wall.frame(&mut chat.state);
+    assert!(!wall.core.chat_videos().window_open(), "Close the window, pressed on the wall, closes it");
+    assert!(wall.core.chat_videos().has_player(&a), "the video is back in its row, its player kept");
     drop(wall);
     assert!(!copy.exists(), "the screen gone, its temporary copy goes");
+}
+
+/// A PICTURE OPENED ON A WALL SCREEN FILLS THAT SCREEN, NEVER THE APP'S (2026-11-06). The picture
+/// viewer's address was one `GuiState` field shared with the app screen, so a picture pressed on a
+/// wall screen opened its full-screen viewer over the app screen. Now it is the screen's own
+/// (`ScreenTextures::image_viewer_url`, swapped in for its run): a page that opens it on the wall
+/// leaves the app screen's viewer shut, the wall's run draws the viewer (its Close) over its own
+/// page, it stays open on the wall's next run, and its Close, pressed on the wall, closes it there.
+///
+/// Seen red 2026-11-06 with the viewer's address left out of the swap: "the app screen's viewer
+/// stays shut" failed, the address the wall's page set left on the app's `GuiState`.
+#[test]
+fn a_picture_opened_on_a_wall_screen_fills_that_screen_not_the_apps() {
+    let theme = crate::gui::theme::load_theme();
+    let mut state = GuiState::default();
+    let mut core = crate::gui::screen_surface::ScreenCore::new("desk_monitor_2", "page:chat", 1280, 720, &theme);
+    let views = |ctx: &egui::Context, st: &mut GuiState| crate::gui::screen_surface::draw_screen_full_views(ctx, &theme, st);
+    // A page on the wall opens a picture, the way a chat attachment's click does.
+    core.run_with(&mut state, |ctx, st| {
+        st.image_viewer_url = Some("https://example.invalid/wall.png".into());
+        views(ctx, st);
+    });
+    assert!(state.image_viewer_url.is_none(), "the app screen's viewer stays shut");
+    // Its next run: still open on the wall (the address is the wall's), its Close drawn there.
+    let mut kept = false;
+    let out = core.run_with(&mut state, |ctx, st| {
+        kept = st.image_viewer_url.as_deref() == Some("https://example.invalid/wall.png");
+        views(ctx, st);
+    });
+    assert!(kept, "the wall keeps its picture open");
+    let close = texts_at(&out).into_iter().find(|(x, _)| x == "Close").map(|(_, r)| r.center());
+    let close = close.unwrap_or_else(|| panic!("the viewer is drawn on the wall: {:?}", texts_of(&out)));
+    // Its Close, pressed on the wall, closes it there.
+    let uv = (close.x / 1280.0, close.y / 720.0);
+    core.pointer_moved(uv);
+    core.run_with(&mut state, views);
+    core.button(uv, true);
+    core.run_with(&mut state, views);
+    core.button(uv, false);
+    core.run_with(&mut state, views);
+    let mut still_open = true;
+    core.run_with(&mut state, |_, st| still_open = st.image_viewer_url.is_some());
+    assert!(!still_open, "Close, pressed on the wall, closed the wall's picture");
+    assert!(state.image_viewer_url.is_none());
 }
 
 /// A VIEW THAT GOES BEFORE ITS FINISHED FETCH WAS TAKEN STILL DELETES THE COPY (BUG-258): a wall

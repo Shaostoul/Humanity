@@ -432,6 +432,7 @@ mod tests {
                     rotation: 0.0,
                     zone: "home".to_string(),
                     screen_source: None,
+                    screen_size_m: None,
                 };
                 spawn_home_machine_entity(&mut world, &inst, &home.catalog[machine], &empty, &empty, None, None);
                 spawned.push(machine);
@@ -473,6 +474,7 @@ mod tests {
                     rotation: 0.0,
                     zone: "home".to_string(),
                     screen_source: None,
+                    screen_size_m: None,
                 };
                 let def = home
                     .catalog
@@ -510,6 +512,7 @@ mod tests {
                 rotation: 0.0,
                 zone: "home".to_string(),
                 screen_source: None,
+                screen_size_m: None,
             };
             spawn_home_machine_entity(&mut world, &inst, &home.catalog["exhaust_fan"], &empty, &empty, None, None);
             let found: Vec<(String, f32, f32, bool, [f32; 3])> = world
@@ -544,6 +547,7 @@ mod tests {
                     rotation: 0.0,
                     zone: "home".to_string(),
                     screen_source: None,
+                    screen_size_m: None,
                 };
                 spawn_home_machine_entity(&mut world, &inst, &home.catalog[machine], &empty, &empty, None, None);
                 let found: Vec<(String, f32, f32, bool, [f32; 3])> = world
@@ -585,6 +589,7 @@ mod tests {
                 rotation: 0.0,
                 zone: "home".to_string(),
                 screen_source: None,
+                screen_size_m: None,
             };
             spawn_home_machine_entity(&mut world, &inst, &home.catalog["bumblebee_hive"], &empty, &empty, None, None);
             let found: Vec<(String, [f32; 3])> = world
@@ -662,6 +667,7 @@ mod tests {
                 rotation: 0.0,
                 zone: "home".to_string(),
                 screen_source: None,
+                screen_size_m: None,
             };
             spawn_home_machine_entity(&mut world, &inst, def, &empty, &empty, None, Some(&containers));
             world.spawn((PowerConsumer { draw_watts: 100.0, priority: 1, enabled: true }, PowerCircuit { island: 0 }));
@@ -755,6 +761,7 @@ mod tests {
                 rotation: 0.0,
                 zone: "home".to_string(),
                 screen_source: None,
+                screen_size_m: None,
             };
             spawn_home_machine_entity(&mut world, &inst, def, &empty, &empty, None, Some(&containers));
             world.spawn((PowerConsumer { draw_watts: 100.0, priority: 1, enabled: true }, PowerCircuit { island: 0 }));
@@ -879,6 +886,7 @@ mod tests {
                     rotation: 0.0,
                     zone: "home".to_string(),
                     screen_source: None,
+                    screen_size_m: None,
                 };
                 spawn_home_machine_entity(world, &inst, &home.catalog[machine], &empty, &empty, None, Some(&containers));
                 world

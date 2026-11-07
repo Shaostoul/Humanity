@@ -46,7 +46,7 @@ fn a_room_resized_changes_its_fans_day_on_the_meter() {
     let mut home = humanity_systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let fan_def = home.catalog["exhaust_fan"].clone();
     let Some(MachinePower::Consumer { average_watts: Some(estimate), .. }) = fan_def.power else { panic!("the shipped fan carries its data's day") };
-    let inst = MachineInstance { id: "fan_t".into(), machine: "exhaust_fan".into(), room: "room-a".into(), offset: (5.0, 2.2, 9.5), rotation: 0.0, zone: "home".into(), screen_source: None };
+    let inst = MachineInstance { id: "fan_t".into(), machine: "exhaust_fan".into(), room: "room-a".into(), offset: (5.0, 2.2, 9.5), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
     for slot in 0..140 {

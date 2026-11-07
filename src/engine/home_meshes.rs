@@ -914,8 +914,10 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
         }
         // In-world screens follow their bodies on a move: geometry only, no
         // surface or renderer slot is touched (a drag must not recreate the
-        // page's context and lose its scroll state).
-        state.screens.update_poses(&placements);
+        // page's context and lose its scroll state). A screen resized or given
+        // a new source in the build editor (2026-11-06) also gets its body
+        // mesh, its quad and its surface rebuilt (`follow_placements`).
+        crate::engine::screens::follow_placements(state, &placements);
         rebuild_connection_objects(state);
         return;
     }

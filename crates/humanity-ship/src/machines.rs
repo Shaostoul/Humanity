@@ -481,6 +481,66 @@ pub fn default_screen_brightness() -> f32 {
     1.0
 }
 
+/// The most pixels a screen's surface may have whatever its shape (in-world-screens.md, "Size and
+/// shape"): one 1920 x 1080 frame. A page screen's cost is its egui pass and its texture (8 MB at
+/// this cap), and since 2026-10-31 page screens take turns, one a frame; the cap keeps any one turn
+/// inside the measured 2 to 3 ms of a 1280 x 720 page with room to spare.
+pub const SCREEN_MAX_PIXELS: f64 = 1920.0 * 1080.0;
+/// The widest a screen's surface may be, in pixels: well inside every GPU's texture limit.
+pub const SCREEN_MAX_WIDTH_PX: f64 = 4096.0;
+/// The narrowest either side of a screen's surface may be, in pixels.
+pub const SCREEN_MIN_SIDE_PX: f64 = 64.0;
+
+/// The pixel size of a screen's surface for a picture `display` metres wide and high (in-world
+/// screens, any size, 2026-11-06): the def's pixel HEIGHT is kept, so a page reads the same size on
+/// any screen of a kind, only bigger on a bigger one, and the width follows the picture's aspect
+/// (16:9 is 1280 x 720, 32:9 is 2560 x 720 for a 720-pixel def). Past [`SCREEN_MAX_WIDTH_PX`] or
+/// [`SCREEN_MAX_PIXELS`] both sides scale down together, so the aspect holds.
+pub fn screen_px_for_shape(def_px: (u32, u32), display: (f32, f32)) -> (u32, u32) {
+    let h = def_px.1.max(1) as f64;
+    let aspect = (display.0.max(1e-3) as f64 / display.1.max(1e-3) as f64).clamp(0.05, 20.0);
+    let (mut w, mut hh) = (h * aspect, h);
+    if w > SCREEN_MAX_WIDTH_PX {
+        let s = SCREEN_MAX_WIDTH_PX / w;
+        w *= s;
+        hh *= s;
+    }
+    if w * hh > SCREEN_MAX_PIXELS {
+        let s = (SCREEN_MAX_PIXELS / (w * hh)).sqrt();
+        w *= s;
+        hh *= s;
+    }
+    (w.round().max(SCREEN_MIN_SIDE_PX) as u32, hh.round().max(SCREEN_MIN_SIDE_PX) as u32)
+}
+
+/// The body size of a screen machine whose PICTURE is `display` metres (width, height) on `face`:
+/// on that face the body is the picture plus the bezel on every side, and the body's third size
+/// (its depth behind the face) is the def's. "front"/"back" span x and y, "left"/"right" z and y,
+/// "top" x and z; an unknown face is read as "front", the way the screen quad reads it.
+pub fn body_size_for_display(def_size: (f32, f32, f32), face: &str, bezel: f32, display: (f32, f32)) -> (f32, f32, f32) {
+    let b2 = 2.0 * bezel.max(0.0);
+    let (dw, dh) = (display.0.max(0.01) + b2, display.1.max(0.01) + b2);
+    let (w, h, d) = def_size;
+    match face {
+        "left" | "right" => (w, dh, dw),
+        "top" => (dw, h, dh),
+        _ => (dw, dh, d),
+    }
+}
+
+/// The picture size (width, height) in metres of a screen body `size` on `face` with `bezel`: the
+/// inverse of [`body_size_for_display`], what the build editor starts a resize from.
+pub fn display_size_of(size: (f32, f32, f32), face: &str, bezel: f32) -> (f32, f32) {
+    let b2 = 2.0 * bezel.max(0.0);
+    let (w, h, d) = size;
+    let (a, b) = match face {
+        "left" | "right" => (d, h),
+        "top" => (w, d),
+        _ => (w, h),
+    };
+    ((a - b2).max(0.01), (b - b2).max(0.01))
+}
+
 /// Bulk storage a machine provides for one utility (v0.608). `capacity` is litres for a fluid
 /// (Water/HotWater/Fuel), or units/kg for a solid (Food/Nutrient).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -737,6 +797,14 @@ pub struct MachineInstance {
     /// default page; ignored on a machine with no screen.
     #[serde(default)]
     pub screen_source: Option<String>,
+    /// How big THIS screen's picture is, (width, height) in metres, when it was resized in the
+    /// build editor or chosen from a size preset in its cog panel (in-world screens, any size,
+    /// 2026-11-06). The body follows the picture (`body_size_for_display`) and the surface's
+    /// pixels follow its shape (`screen_px_for_shape`). `None` = the def's size; ignored on a
+    /// machine with no screen. Written only when set, so a home file of unresized screens is
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub screen_size_m: Option<(f32, f32)>,
 }
 
 /// A grid of identical machines, expanded into instances at load time. Lets a dense
@@ -1844,6 +1912,7 @@ impl MachineHome {
                     rotation: 0.0,
                     zone: arr.zone.clone(),
                     screen_source: None,
+                    screen_size_m: None,
                 });
                 idx += 1;
             }
@@ -2882,11 +2951,23 @@ impl MachineHome {
                     g.ceiling_y,
                 )
             };
+            // A screen resized in the build editor (in-world screens, any size, 2026-11-06): its
+            // body follows its picture and its surface's pixels follow the picture's shape, so
+            // everything downstream (the body mesh, the pick volume, the quad, the surface) reads
+            // one size from here.
+            let (size, screen_def) = match (&def.screen, inst.screen_size_m) {
+                (Some(sd), Some(display)) => {
+                    let mut s = sd.clone();
+                    s.px = screen_px_for_shape(sd.px, display);
+                    (body_size_for_display(def.size, &sd.face, sd.bezel_m, display), Some(s))
+                }
+                _ => (def.size, def.screen.clone()),
+            };
             // A sphere is center-origin; lift it by its radius so it rests on the floor.
             let (pos, top_y) = if def.shape == "sphere" {
-                ((x, y + def.size.0, z), y + 2.0 * def.size.0)
+                ((x, y + size.0, z), y + 2.0 * size.0)
             } else {
-                ((x, y, z), y + def.size.1)
+                ((x, y, z), y + size.1)
             };
             out.push(PlacedMachine {
                 id: inst.id.clone(),
@@ -2896,7 +2977,7 @@ impl MachineHome {
                 floor_y,
                 ceiling_y,
                 shape: def.shape.clone(),
-                size: def.size,
+                size,
                 color: def.color,
                 label: if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() },
                 stats: self.stats_for(&inst.machine),
@@ -2904,7 +2985,7 @@ impl MachineHome {
                 model: def.model.clone(),
                 // The instance's own page wins over the def's default, so two
                 // wall screens of one catalog type can show different pages.
-                screen: def.screen.clone().map(|mut s| {
+                screen: screen_def.map(|mut s| {
                     if let Some(source) = &inst.screen_source {
                         s.source = source.clone();
                     }
@@ -2939,6 +3020,7 @@ impl MachineHome {
                         // Array cells show their def's default page; a
                         // per-cell page needs an explicit instance.
                         screen_source: None,
+                        screen_size_m: None,
                     });
                     idx += 1;
                 }
@@ -3293,6 +3375,7 @@ mod tests {
             rotation: 0.0,
             zone: "home".to_string(),
             screen_source: None,
+            screen_size_m: None,
         });
         let tmp = std::env::temp_dir().join(format!("humanity_home_add_{}.ron", std::process::id()));
         home.save(&tmp).expect("save");
@@ -3392,6 +3475,7 @@ mod tests {
             rotation: 0.0,
             zone: "home".to_string(),
             screen_source: None,
+            screen_size_m: None,
         };
         let conn = |from: &str, to: &str| MachineConnection {
             from: from.to_string(),
@@ -3433,6 +3517,7 @@ mod tests {
             rotation: 0.0,
             zone: "home".to_string(),
             screen_source: None,
+            screen_size_m: None,
         };
         let mut home = MachineHome {
             ship_machines: None,
@@ -3486,6 +3571,7 @@ mod tests {
             rotation: 0.0,
             zone: "home".to_string(),
             screen_source: None,
+            screen_size_m: None,
         };
         let mut home = MachineHome {
             ship_machines: None,
@@ -3522,7 +3608,7 @@ mod tests {
             ship_machines: None,
             ship_part: Default::default(),
             catalog,
-            instances: vec![MachineInstance { id: "solo".into(), machine: "box".into(), room: "garden".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0, zone: "home".into(), screen_source: None }],
+            instances: vec![MachineInstance { id: "solo".into(), machine: "box".into(), room: "garden".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None }],
             arrays: vec![MachineArray {
                 machine: "box".to_string(),
                 room: "garden".to_string(),
@@ -3564,7 +3650,7 @@ mod tests {
     fn remove_connection_between_drops_either_direction() {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), test_def("box"));
-        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let mut home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -3637,7 +3723,7 @@ mod tests {
             ship_machines: None,
             ship_part: Default::default(),
             catalog,
-            instances: vec![MachineInstance { id: "m1".into(), machine: "box".into(), room: "g".into(), offset: (1.0, 0.0, 2.0), rotation: 90.0, zone: "home".into(), screen_source: None }],
+            instances: vec![MachineInstance { id: "m1".into(), machine: "box".into(), room: "g".into(), offset: (1.0, 0.0, 2.0), rotation: 90.0, zone: "home".into(), screen_source: None, screen_size_m: None }],
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
@@ -3674,7 +3760,7 @@ mod tests {
             ship_machines: None,
             ship_part: Default::default(),
             catalog,
-            instances: vec![MachineInstance { id: "l1".into(), machine: "load".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None }],
+            instances: vec![MachineInstance { id: "l1".into(), machine: "load".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None }],
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
@@ -3695,7 +3781,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0, average_watts: None })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -3739,7 +3825,7 @@ mod tests {
         catalog.insert("stove".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 1200.0, priority: 2, idle_watts: Some(0.0), average_watts: None })));
         catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5, idle_watts: None, average_watts: None })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -4037,7 +4123,7 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 1000.0, priority: 1, idle_watts: None, average_watts: None })));
         catalog.insert("big_load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1, idle_watts: None, average_watts: None })));
         catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let home = |loads: Vec<MachineInstance>| {
             let mut instances = vec![inst("p1", "panel"), inst("w1", "wind"), inst("g1", "genset"), inst("b1", "batt")];
             instances.extend(loads);
@@ -4147,7 +4233,7 @@ mod tests {
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0, average_watts: None })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -4180,7 +4266,7 @@ mod tests {
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0, average_watts: None })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
         catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let mut home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -4476,7 +4562,7 @@ mod tests {
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0, average_watts: None })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 2000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -4507,7 +4593,7 @@ mod tests {
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0, average_watts: None })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 200.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -4538,7 +4624,7 @@ mod tests {
             ship_machines: None,
             ship_part: Default::default(),
             catalog,
-            instances: vec![MachineInstance { id: "a".into(), machine: "box".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None }],
+            instances: vec![MachineInstance { id: "a".into(), machine: "box".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None }],
             arrays: Vec::new(),
             connections: vec![MachineConnection { from: "a".into(), to: "ghost".into(), kind: "power".into(), spec: None }],
             loops: Vec::new(),
@@ -4581,9 +4667,9 @@ mod tests {
             ship_part: Default::default(),
             catalog,
             instances: vec![
-                MachineInstance { id: "b1".into(), machine: "box".into(), room: "garage".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0, zone: "home".into(), screen_source: None },
-                MachineInstance { id: "s1".into(), machine: "ball".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None },
-                MachineInstance { id: "ghost".into(), machine: "box".into(), room: "nowhere".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None },
+                MachineInstance { id: "b1".into(), machine: "box".into(), room: "garage".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None },
+                MachineInstance { id: "s1".into(), machine: "ball".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None },
+                MachineInstance { id: "ghost".into(), machine: "box".into(), room: "nowhere".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None },
             ],
             arrays: Vec::new(),
             connections: Vec::new(),
@@ -4610,11 +4696,11 @@ mod tests {
         let mut home = pos_test_home();
         home.instances = vec![
             // At the commons zone's very corner: kept 0.3 m inside, at 70.3 x, 5.3 z.
-            MachineInstance { id: "shop".into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "commons".into(), screen_source: None },
+            MachineInstance { id: "shop".into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "commons".into(), screen_source: None, screen_size_m: None },
             // Inside the commons footprint: zone origin + offset, y on the commons deck (y=2).
-            MachineInstance { id: "stall".into(), machine: "box".into(), room: "g".into(), offset: (5.0, 0.0, 5.0), rotation: 0.0, zone: "commons".into(), screen_source: None },
+            MachineInstance { id: "stall".into(), machine: "box".into(), room: "g".into(), offset: (5.0, 0.0, 5.0), rotation: 0.0, zone: "commons".into(), screen_source: None, screen_size_m: None },
             // A stale zone id: falls back to the "home" zone's footprint.
-            MachineInstance { id: "lost".into(), machine: "box".into(), room: "g".into(), offset: (75.0, 0.0, 10.0), rotation: 0.0, zone: "deleted_zone".into(), screen_source: None },
+            MachineInstance { id: "lost".into(), machine: "box".into(), room: "g".into(), offset: (75.0, 0.0, 10.0), rotation: 0.0, zone: "deleted_zone".into(), screen_source: None, screen_size_m: None },
         ];
         let zones = vec![
             ZoneRect { id: "home".into(), origin: (0.0, 0.0, 0.0), size: (55.0, 89.0, 3.0) },
@@ -5055,7 +5141,7 @@ mod tests {
     #[test]
     fn placements_box_mode_clamps_negative_offsets_into_the_box() {
         let mut home = pos_test_home();
-        home.instances = vec![MachineInstance { id: "solar".into(), machine: "box".into(), room: "garage".into(), offset: (-7.0, 0.0, -22.0), rotation: 0.0, zone: "home".into(), screen_source: None }];
+        home.instances = vec![MachineInstance { id: "solar".into(), machine: "box".into(), room: "garage".into(), offset: (-7.0, 0.0, -22.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None }];
         let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(55.0, 89.0, 3.0)));
         assert_eq!(placed.len(), 1, "a negative-offset machine is visible, not skipped");
         assert!((placed[0].pos.0 - 0.3).abs() < 1e-5, "negative x clamps to the near edge, inside the box");
@@ -5180,8 +5266,8 @@ mod tests {
             ship_part: Default::default(),
             catalog,
             instances: vec![
-                MachineInstance { id: "s1".into(), machine: "src".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None },
-                MachineInstance { id: "l1".into(), machine: "load".into(), room: "g".into(), offset: (gap, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None },
+                MachineInstance { id: "s1".into(), machine: "src".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None },
+                MachineInstance { id: "l1".into(), machine: "load".into(), room: "g".into(), offset: (gap, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None },
             ],
             arrays: Vec::new(),
             connections: vec![MachineConnection {
@@ -5272,7 +5358,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("uplink".to_string(), uplink);
         catalog.insert("server".to_string(), server);
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let mut home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -5322,7 +5408,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 1000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let mut home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -5354,7 +5440,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 500.0, average_watts: None })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 80.0, priority: 1, idle_watts: None, average_watts: None })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None };
         let mut home = MachineHome {
             ship_machines: None,
             ship_part: Default::default(),
@@ -5563,5 +5649,95 @@ mod camera_px_tests {
         assert!(out.contains("camera_px"), "the field is written out: {out}");
         let back: MachineDef = ron::from_str(&out).expect("the written def parses again");
         assert_eq!(back.camera_px, (320, 180), "the value survives the round trip");
+    }
+
+}
+
+/// In-world screens of any size (2026-11-06): the picture size a placed screen keeps, and what
+/// follows from it.
+#[cfg(test)]
+mod screen_size_tests {
+    use super::*;
+
+    fn one_zone(w: f32, d: f32, h: f32) -> Vec<ZoneRect> {
+        vec![ZoneRect { id: "home".into(), origin: (0.0, 0.0, 0.0), size: (w, d, h) }]
+    }
+
+    /// A screen resized in the build editor saves its picture size in the home file and loads it
+    /// back, and its body and its surface's pixels follow (in-world screens, any size,
+    /// 2026-11-06): a 100" 16:9 picture is 2.214 x 1.245 m, its body that plus the bezel, its
+    /// surface 1280 x 720; a 200" 32:9 one is 2560 x 720; an unresized screen keeps the def's size
+    /// and pixels and writes no size into the file.
+    ///
+    /// Seen red 2026-11-06 with `placements` reading `def.size` and the def's `px` (the override
+    /// left out): "the body follows the picture" failed, left (1.2, 0.7, 0.05).
+    #[test]
+    fn a_resized_screen_saves_and_loads_its_size_and_its_body_and_pixels_follow() {
+        // The smallest wall screen def RON accepts (every other field is defaulted).
+        let tv: MachineDef = ron::from_str(r#"(shape: "box", size: (1.2, 0.7, 0.05), color: (0.1, 0.1, 0.1), screen: Some((source: "inventory", px: (1280, 720), face: "front", bezel_m: 0.02, brightness: 1.0)))"#).expect("a wall screen def parses");
+        let mut catalog = BTreeMap::new();
+        catalog.insert("wall_screen".to_string(), tv);
+        let inst = |id: &str, size: Option<(f32, f32)>| MachineInstance { id: id.into(), machine: "wall_screen".into(), room: "g".into(), offset: (5.0, 1.2, 5.0), rotation: 90.0, zone: "home".into(), screen_source: None, screen_size_m: size };
+        // Diagonal inches and an aspect to metres, the way the size presets are read.
+        let by_diag = |inches: f32, a: f32, b: f32| {
+            let d = inches * 0.0254 / (a * a + b * b).sqrt();
+            (a * d, b * d)
+        };
+        let hundred = by_diag(100.0, 16.0, 9.0);
+        assert!((hundred.0 - 2.214).abs() < 1e-3 && (hundred.1 - 1.245).abs() < 1e-3, "{hundred:?}");
+        let home = MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
+            catalog,
+            instances: vec![inst("tv_100", Some(hundred)), inst("tv_200", Some(by_diag(200.0, 32.0, 9.0))), inst("plain", None)],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+            grown: Default::default(),
+            paid: Default::default(),
+        };
+        // The editor's save writes pretty RON (`MachineHome::save`); read it back.
+        let text = ron::ser::to_string_pretty(&home, ron::ser::PrettyConfig::default().struct_names(false)).expect("serialise");
+        assert_eq!(text.matches("screen_size_m").count(), 2, "only the resized screens write a size:\n{text}");
+        let back: MachineHome = ron::from_str(&text).expect("the saved home loads");
+        assert_eq!(back.instances[0].screen_size_m, Some(hundred), "the size survives the save and load");
+        assert_eq!(back.instances[2].screen_size_m, None);
+        let placed = back.placements(&std::collections::HashMap::new(), Some(&one_zone(20.0, 20.0, 4.0)));
+        let p = |id: &str| placed.iter().find(|p| p.id == id).expect("placed").clone();
+        let tv = p("tv_100");
+        let close = |a: (f32, f32, f32), b: (f32, f32, f32)| (a.0 - b.0).abs() < 1e-4 && (a.1 - b.1).abs() < 1e-4 && (a.2 - b.2).abs() < 1e-4;
+        assert!(close(tv.size, (hundred.0 + 0.04, hundred.1 + 0.04, 0.05)), "the body follows the picture: {:?}", tv.size);
+        assert!((tv.top_y - (1.2 + hundred.1 + 0.04)).abs() < 1e-4, "it grows up from its base");
+        assert_eq!(tv.screen.as_ref().unwrap().px, (1280, 720), "a 16:9 picture keeps 1280 x 720");
+        assert_eq!(display_size_of(tv.size, "front", 0.02), (hundred.0, hundred.1), "the picture reads back from the body");
+        assert_eq!(p("tv_200").screen.as_ref().unwrap().px, (2560, 720), "a 32:9 picture is twice as wide in pixels");
+        let plain = p("plain");
+        assert_eq!(plain.size, (1.2, 0.7, 0.05), "an unresized screen keeps the def's size");
+        assert_eq!(plain.screen.as_ref().unwrap().px, (1280, 720));
+    }
+
+    /// The surface's pixels for a shape: the def's height kept, the width from the aspect, and the
+    /// caps (4096 wide, one 1920 x 1080 frame of pixels) scaling both sides together.
+    ///
+    /// Seen red 2026-11-06 with the pixel cap switched off: the 64:9 case gave (4096, 576), a
+    /// 2.4-megapixel surface past the cap.
+    #[test]
+    fn a_screens_pixels_follow_its_shape_under_the_caps() {
+        assert_eq!(screen_px_for_shape((1280, 720), (16.0, 9.0)), (1280, 720));
+        assert_eq!(screen_px_for_shape((1280, 720), (21.0, 9.0)), (1680, 720));
+        assert_eq!(screen_px_for_shape((1024, 600), (9.0, 16.0)), (338, 600), "a tall screen keeps the height");
+        // 64:9 at 720 tall would be 5120 wide: the width cap scales it to 4096 x 576, still over the
+        // pixel cap, which brings it to 3840 x 540.
+        assert_eq!(screen_px_for_shape((1280, 720), (64.0, 9.0)), (3840, 540));
+        // A 1440-tall def at 16:9 is 2560 x 1440 = 3.7 MP: the pixel cap brings it to 1920 x 1080.
+        assert_eq!(screen_px_for_shape((2560, 1440), (16.0, 9.0)), (1920, 1080));
+        // The body and the picture are each other's inverse on every face.
+        for face in ["front", "back", "left", "right", "top"] {
+            let body = body_size_for_display((1.2, 0.7, 0.05), face, 0.03, (2.0, 1.0));
+            let back = display_size_of(body, face, 0.03);
+            assert!((back.0 - 2.0).abs() < 1e-5 && (back.1 - 1.0).abs() < 1e-5, "{face}: {back:?}");
+        }
     }
 }

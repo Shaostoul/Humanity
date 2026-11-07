@@ -74,6 +74,7 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
             rotation: 0.0,
             zone: "home".into(),
             screen_source: None,
+            screen_size_m: None,
         };
         crate::engine::home_spawn::spawn_home_machine_entity(&mut world, &inst, &def, &empty, &empty, None, None);
         home.instances.push(inst);
@@ -194,6 +195,7 @@ fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
             rotation: 0.0,
             zone: "home".into(),
             screen_source: None,
+            screen_size_m: None,
         };
         let empty = std::collections::HashMap::new();
         crate::engine::home_spawn::spawn_home_machine_entity(&mut world, &inst, def, &empty, &empty, None, None);
@@ -246,6 +248,7 @@ fn spawn_def(world: &mut hecs::World, def: &humanity_ship::machines::MachineDef,
         rotation: 0.0,
         zone: "home".into(),
         screen_source: None,
+        screen_size_m: None,
     };
     let empty = std::collections::HashMap::new();
     let reg = shipped_containers();
@@ -369,6 +372,7 @@ fn a_heat_pump_delivers_its_cop_times_its_draw_and_is_charged_only_its_draw() {
         rotation: 0.0,
         zone: "home".into(),
         screen_source: None,
+        screen_size_m: None,
     });
     let meter = humanity_systems::crafting::away::day_power_balance(&home, &Default::default());
     let away = humanity_systems::crafting::away::day_power_balance(&home, &saved);

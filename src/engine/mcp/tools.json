@@ -32,7 +32,7 @@
     {
       "name": "game_camera",
       "title": "Park the camera",
-      "description": "Send a dev IPC camera_request and return the game's camera_done answer (where the camera really went, measured). Shapes: {\"body\":\"earth\",\"lat\":23,\"lon\":13,\"altitude_km\":0.05,\"look_offset_deg\":80,\"time\":12} parks over a body; {\"station\":\"home\",\"x\":..,\"y\":..,\"z\":..,\"yaw\":..,\"pitch\":..,\"time\":12} parks aboard the home in its own coordinates; {\"station\":\"home\",\"screen\":\"wall_screen_3\"} faces an in-world screen. The world must be loaded. tests/visual/vantages.json holds hundreds of worked examples (game_goto_vantage replays one by id).",
+      "description": "Send a dev IPC camera_request and return the game's camera_done answer (where the camera really went, measured). Shapes: {\"body\":\"earth\",\"lat\":23,\"lon\":13,\"altitude_km\":0.05,\"look_offset_deg\":80,\"time\":12} parks over a body; {\"station\":\"home\",\"x\":..,\"y\":..,\"z\":..,\"yaw\":..,\"pitch\":..,\"time\":12} parks aboard the home in its own coordinates; {\"station\":\"home\",\"screen\":\"wall_screen_3\"} faces an in-world screen (add \"look_uv\":[u,v] to look at that point of its picture, (0,0) its top-left). The world must be loaded. tests/visual/vantages.json holds hundreds of worked examples (game_goto_vantage replays one by id).",
       "inputSchema": {
         "type": "object",
         "properties": {

@@ -22,6 +22,8 @@ Code map:
 | Dev IPC | `src/engine/ipc.rs` (`poll_screen_request` and its two companions; `poll_camera_request`'s `station` + `screen` pose) |
 | The screens rig | `scripts/verify-screens.js` (`just verify-screens`), `scripts/lib/png.js`, fixtures under `tests/fixtures/screens/` |
 | Hooks in the main loop | `src/lib.rs` (search "In-world screens") |
+| Aim assist (the nearest widget in a cone, the line, the highlight) | `src/engine/screens/aim.rs`, `data/gui/screens.json` (`aim`), read by `src/gui/screen_tuning.rs` (in the GUI layer so Settings and the config may read it) |
+| Any size, the build-mode handles, the cog's panel | `src/engine/screens/edit.rs` (handles, drag, `write_drag`), `src/engine/screens.rs` (`follow_placements`), `src/gui/pages/screen_settings.rs` (the cog's panel), `crates/humanity-ship/src/machines.rs` (`MachineInstance.screen_size_m`, `screen_px_for_shape`, `SCREEN_MAX_PIXELS`, `body_size_for_display`), `data/gui/screens.json` (`sizes`) |
 
 The decision that required this increment is Brief 4 in
 [decision-briefs.md](decision-briefs.md): whatever renders the readable web
@@ -116,10 +118,13 @@ the full-screen inventory.
 - **Cursor free** (Alt held, the F10 sidebar): the ray is the cursor's world
   ray from `Camera::pick_ray`, unless the main UI has an interactive widget
   under the cursor, in which case the world gets no ray.
-- The nearest screen the ray hits within **3.5 m** (`REACH_M`) is the hovered
-  screen; its page receives `PointerMoved` at the hit's (u, v) in pixels.
-  Leaving it sends `PointerGone`. Screens beyond reach still render but
-  ignore input.
+- The nearest screen the ray hits within its reach is the hovered screen; its
+  page receives `PointerMoved` at the hit's (u, v) in pixels. Leaving it sends
+  `PointerGone`. Screens beyond reach still render but ignore input. The reach
+  was a fixed **3.5 m** until 2026-11-06; it now grows with the screen's size,
+  and with the aim assist on, the pointer goes to the nearest clickable widget
+  within a cone of the crosshair (`Screens::aim_at`; see "Aim assist, any
+  size, and each screen's own settings" below).
 - **Click:** a primary press or release while a screen is hovered goes to
   that screen (`Screens::route_button`, which returns true when a screen
   took the event). On a press that return is what makes `lib.rs` withhold the
@@ -880,6 +885,9 @@ The three verbs a rig needs so it never guesses a pixel:
 that screen's centre, at its height, looking back at it: the pose is
 computed from the screen's quad, so any screen in any room can be framed
 without a typed coordinate. Unknown ids fail with the placed ids listed.
+`"look_uv": [u, v]` (2026-11-06) keeps that spot and looks at that point of
+the picture instead ((0, 0) its top-left as seen from the front), so a rig
+can rest the crosshair near a widget and capture the aim assist's line.
 
 The MAIN egui context has its own sibling, `debug/ui_request.json`
 (2026-09-18): `f10` / `escape` run the F10 sidebar's key rules through the
@@ -1029,9 +1037,12 @@ flow.
 
 ## Performance budget
 
-- Surfaces are fixed-size (the def's `px`), allocated once per placed screen
-  and reused across editor rebuilds by instance id; a move recomputes
-  geometry only. Only a changed page or pixel size recreates a surface.
+- Surfaces are fixed-size (the def's `px`, or for a resized screen the shape's,
+  `screen_px_for_shape`), allocated once per placed screen and reused across
+  editor rebuilds by instance id; a move recomputes geometry only. Only a
+  changed source recreates a surface; a page surface whose pixel size changed
+  (a resize in the build editor, 2026-11-06) is resized in place and keeps its
+  context, and the screen being dragged is drawn every frame meanwhile.
   The two exceptions resize IN PLACE (`ScreenSurface::resize`, same context,
   new texture): a pixel provider writing frames of another size, and a
   camera screen taking its post's `camera_px` (default 640 x 360) on its
@@ -1137,3 +1148,318 @@ shared. That way we don't infringe on YouTube ads or whatever." So:
 - It replaces the earlier plan of lockstep playback with a shared
   play/pause/seek state, which needed a continuously running shared clock
   and would have made one person's pause everyone's pause.
+
+## Aim assist, any size, and each screen's own settings (2026-11-06)
+
+The operator, verbatim: "Let's add like a proximity for clicking in-game screen buttons. Like
+within X degrees highlight the nearest widget, like play or whatever. Let's draw a line between
+the crosshair and the gui element it is interacting with. That way I don't have to have perfect
+aim on a tiny play button on a screen very far away. Also, can we make the in-game displays
+customize width/height wise? That way I could have a 100" 16:9 TV or a 200" 32:9 TV. I feel like
+we could add the scaling lines for the TV to the edges of the TV in build mode. Just aim at the
+edge and drag. Then click on the central area of the screen allows moving it around. Then there
+could be like a cog like at the top right of the screen for editing that screens settings. So I
+could say this screen always display this youtube/twitch stream whenever they livestream. Or this
+screen only allows shopping at amazon. Or this screen always displays this HumanityOS page. Or
+whatever imaginable."
+
+This section is the whole feature, then the rungs it is built in. Rungs 1 and 2 are built.
+
+### 1. Aim assist: the nearest widget in a cone
+
+**What the player sees.** While the crosshair (or the free cursor) is near a screen, the nearest
+thing on it that can be clicked is outlined in the theme's accent colour, and a thin line runs
+from the crosshair to it. A click goes to that thing. When the crosshair is already on a control,
+that control is outlined and no line is drawn (there is nothing to bridge).
+
+**Where the widgets come from.** egui records every widget it laid out in a pass, with its id, its
+rectangle after clipping, what it senses (click, drag, hover) and whether it is enabled. A screen's
+own context exposes the finished pass through `ctx.viewport(|v| v.prev_pass.widgets)`, so the
+candidates are exactly what egui itself would hit-test: no list of buttons kept by hand, and every
+page on every screen is covered by construction. A candidate is a widget that senses a CLICK, is
+enabled, has a rectangle of at least one pixel after clipping (a row scrolled out of view is gone),
+and is the topmost layer at its own centre (a button under an open window is not offered).
+
+**How it picks.** The look ray meets the screen's PLANE, whether or not it lands inside the
+display. For each candidate the nearest point of its rectangle to that meeting point is found (in
+the screen's own pixels, which is the plane in metres scaled), turned back into a world point, and
+measured as the ANGLE between the look ray and the direction from the eye to that point. The
+smallest angle inside the cone wins. Measuring in angles rather than pixels or metres is the
+point: a 1 cm button on a far screen and a 5 cm one on a near screen are equally easy to hit,
+because what the player controls is where they look, not a distance on the wall. A ray that misses
+the display by a little still picks a widget near the edge, so a control in the very corner of a
+far screen is reachable without landing on the screen first.
+
+- **Inside wins.** A control the crosshair is on has angle 0 and wins at once; among nested ones
+  (a button inside a clickable row) the smallest rectangle wins, which is the one egui's own
+  hit-test would pick. The pointer then goes where the crosshair really is, not to the control's
+  centre, so a slider or a text field gets the exact spot.
+- **Snapped, the pointer goes to the nearest point of the target, a few pixels inside it**, never
+  its centre: a wide row is clicked near where the player aimed, and a small button inside a wide
+  row is not clicked by aiming at the row's far end.
+- **Hysteresis, so it never flickers.** The current target is kept while it stays within the cone
+  times `exit_scale` (1.25), and a rival takes over only when its angle is below the current one
+  times `switch_ratio` (0.7). Between two buttons, the crosshair crosses a dead band in the middle
+  where the old choice holds, instead of a line where the two swap every frame. A rival the
+  crosshair is ON always takes over (its angle is 0).
+- **A held button freezes the target.** While the press is down the pointer moves by the look
+  ray's movement since the press, from where the press landed. A click is press and release with
+  the pointer still (egui refuses a click that moved more than 6 px), so the look ray's small
+  jitter never turns a click into a drag, and a real drag (a slider) still moves.
+- **The cone** is the player's: Settings > Controls, "Aim assist on in-world screens" (on by
+  default, for accessibility: a tremor or a gamepad stick should not decide whether a button can
+  be pressed) and "Aim assist cone" in degrees (`cone_deg_default` 3, from 0.5 to 10, in
+  `data/gui/screens.json`). Off, the screens behave exactly as before.
+
+**How far it reaches.** The old fixed 3.5 m (`REACH_M`, removed) is the floor. A screen's reach grows with
+its size: `reach = clamp(max(reach_base_m, diagonal * reach_per_diagonal), .., reach_max_m)`, from
+the data file (3.5 m, 1.75 m per metre of diagonal, 25 m at most). The factor is chosen so the
+shipped 79-inch wall screen (a 1.74 x 0.99 m picture, 2.0 m diagonal) reaches 3.5 m as before; a
+100" TV (2.5 m diagonal) reaches 4.4 m, a 200" one (5.1 m) 8.9 m.
+This keeps one rule ("a screen answers from as far as it reads"), and the 25 m cap keeps a
+cinema-sized wall from taking clicks meant for the world across a hall.
+
+**Controller and mouse.** The assist runs on the pointing ray, which is the look ray while the
+cursor is grabbed (what a gamepad stick or the mouse turns) and the cursor's ray while it is free.
+On a gamepad (not wired in the engine yet) the outline is the only cursor a screen has, so it shows
+whenever a target is chosen; with a mouse the same. A future `controller_cone_scale` widens the
+cone for a stick, which is coarser than a mouse; it is not in the data file until a gamepad exists.
+
+**Cost.** One ray against each screen's plane per frame (they already were), and for the screen
+being aimed at, one walk over the widgets egui recorded last pass (a few hundred rectangles at most
+on a busy page). No new pass, no readback, nothing kept between runs.
+
+### 2. Size and shape: any width and height
+
+A placed screen's PICTURE has a width and height in metres, chosen freely or from presets by
+diagonal and aspect (`data/gui/screens.json` `sizes`: 24", 32", 55", 65", 75", 100" and 120" at
+16:9; 34" and 55" at 21:9; 49" and 200" at 32:9; any number more is a data line). The body follows
+the picture: on its screen face it is the picture plus the bezel on each side
+(`body_size_for_display`), its depth is the def's, and it grows from its base and about its
+centre, so a wall-hung screen stays on its wall.
+
+**The surface follows the shape.** The pixel height stays the def's (720 for a wall screen), so a
+page reads the same size on any screen of a kind, only bigger on a bigger one; the width follows
+the aspect (`screen_px_for_shape`): 16:9 is 1280 x 720, 32:9 is 2560 x 720, 21:9 is 1680 x 720.
+The cap is **2,073,600 pixels (one 1920 x 1080 frame) and 4096 wide** (`SCREEN_MAX_PIXELS`,
+`SCREEN_MAX_WIDTH_PX` beside the function in `machines.rs`), scaled down evenly past it,
+because a page screen's cost is its egui pass and texture (8 MB at the cap) and, since 2026-10-31,
+page screens take turns, one a frame; the cap keeps any one turn inside the measured 2 to 3 ms of a
+1280 x 720 page with room to spare. A screen whose source is a camera or a video still sizes its
+surface to its frame as before; the shape only changes the canvas it letterboxes into. Such a
+surface (a stream, a clip, a camera, the web view) is made anew at the screen's new shape when a
+build-mode handle is let go, not on every frame of the drag (a new socket or decoder a frame); a
+page surface is resized in place, keeping its scroll and open state. One limit stays: a camera
+renders at its post's `camera_px` aspect (16:9 by default), so on a screen of another shape its
+picture is stretched, as it already was on a 16:10 desk monitor; rendering at the screen's own
+aspect is a rung 5 item.
+
+### 3. Build mode: drag the edges, move it, the cog
+
+In the build editor (B), the screen under the cursor and the selected screen show their handles,
+drawn on the picture's own rectangle:
+
+- **Edges** (a band along each side, `handle_band` of the shorter side): aim and drag to move that
+  edge; the opposite edge stays put. An edge changes one dimension, so it changes the shape.
+- **Corners**: drag both edges at once. **A corner keeps the aspect; Shift frees it.** A TV is
+  bought by size, and its aspect is part of what it is (16:9, 32:9), so the common resize keeps
+  it and the explicit shape change is the edge or Shift.
+- **The middle**: drag to move it ON ITS WALL: along the wall and up or down, never in or out, so
+  a wall screen cannot be dragged off its wall into the room. (Moving it to another wall is the
+  machine's ordinary floor drag, from the object browser, or later the drag across a corner.)
+- **Snapping**, with the editor's grid snap on: a width or height to whole 5 cm (a corner keeping
+  the aspect snaps its width), a move in 5 cm steps along the wall and in height; then an edge
+  within 5 cm of a neighbouring screen's edge on the same wall lines up with it (rung 5; the grid
+  step is rung 2).
+- **The cog**, a gear near the picture's top-right corner: click to open that screen's settings
+  panel (section 4). It sits two handle widths in from the corner, clear of both edge bands, so
+  the corner stays a corner and a click on the cog never starts a resize.
+- **What a tap does**: a press and release without moving only selects the screen (its details
+  show on the editor's right panel), as for every object; a drag starts past the editor's drag
+  threshold. The handles are drawn on the picture itself: the edges as lines (the one under the
+  cursor thicker, in the accent colour), the corners as squares, a cross in the middle, the cog,
+  and the size and diagonal under the bottom edge.
+- Limits: from 0.2 x 0.12 m to 8 x 5 m (`min_m`, `max_m` in the data file).
+
+**The data**, per placed screen in the home's file, never per machine def:
+
+```ron
+(
+    id: "wall_screen_4",
+    machine: "wall_screen",
+    ...
+    screen_source: Some("page:tasks"),     // what it shows (existing since rung 2 of the ladder)
+    screen_size_m: Some((2.214, 1.245)),   // the picture in metres; None = the def's size
+)
+```
+
+Both fields are optional and default to None, so every home file written before keeps loading
+as it was (no compatibility code: an absent field is the def's value). A machine def keeps its
+`size` and `screen.px` as the defaults a new screen starts from.
+
+### 4. Each screen's settings (the cog)
+
+What a screen shows, and the rules it follows, as data entries, never code branches
+(infinite-of-x). The panel writes them into the placed screen and the editor's save writes the
+home file.
+
+**What it shows**, one source string (the existing schemes):
+
+| choice | source | status |
+|---|---|---|
+| A HumanityOS page, always | `page:<id>` | built (rung 2) |
+| A camera post, always | `camera:<instance id>` | built (rung 2) |
+| A video file on this computer | `video:<path>` | built before; chosen with the screen's own Open button |
+| A web page, read by our own reader | `web:<url>` | built before; typed in the cog in rung 3 |
+| A live stream on our own relay | `watch:<name>` | built before; chosen in the cog in rung 3 |
+| A YouTube, Twitch or Rumble channel, whenever it is live | `embed:<platform>:<channel>` | rung 4, through the embedded-browser host |
+
+**Rules** (rung 3 onward), a list read top to bottom, the first that applies wins, the screen's
+`screen_source` when none does:
+
+```ron
+screen_rules: [
+    (when: Live("twitch:somechannel"), show: "embed:twitch:somechannel"),
+    (when: Schedule(days: [Mon, Tue, Wed, Thu, Fri], from: "07:00", to: "09:00"), show: "page:tasks"),
+],
+screen_allow_sites: ["example-shop.com"],   // a web: screen may only go to these sites
+screen_changers: Household,                 // Anyone, Household or Owner
+screen_sound: (on: false, volume: 0.6),
+```
+
+- **A live channel "whenever they are live".** Watching YouTube, Twitch or Rumble on a screen goes
+  through the opt-in embedded-browser host and nowhere else (CLAUDE.md, the 2026-09-18 amendment;
+  [embedded-browser.md](embedded-browser.md)). **Today that host is a measured spike, not built:**
+  nothing in the game can show a platform's player yet. When it is built, the simplest honest
+  "whenever they are live" is the platform's own embedded player for the channel, which shows the
+  stream when there is one; switching the screen to something else while the channel is offline
+  needs a "who is live" answer from the platform. The limits named per the project's rule:
+  Twitch video cannot decode in the official browser builds (a PATENT limit, H.264 and AAC);
+  YouTube's developer policies forbid embedding API credentials in open-source projects, and
+  Rumble's terms forbid automated access without its written permission (both PLATFORM HOLDER'S
+  RULES, `docs/reference/findings/2026-11-06-social-platform-apis.md`, YT-8 and RU-1). How each
+  platform lets an app ask whether a channel is live is NOT researched yet: a dated finding comes
+  before rung 4 builds it.
+- **Only this site.** A `web:` screen with an allowlist navigates only within those domains (a
+  link or typed address elsewhere is refused with a plain sentence). What our reader is, plainly:
+  it shows a page's text, images and links, and it does not run JavaScript, so a shop's product
+  pages may read but its cart, sign-in and checkout, which are scripts, do not work on it. The
+  sites database's placement gate still applies first ([readable-web.md](readable-web.md)): a site
+  whose terms forbid being shown inside other software is refused there.
+- **A schedule**: days and a time window, in the player's local time.
+- **Who may change it**: anyone in the home, the household, or only its owner; in a shared world
+  the server keeps the setting and checks the signer, the same as other building in a plot.
+- **Sound**: on or off and a volume per screen. A screen still starts muted on every boot unless
+  its owner turned sound on for it (the 2026-09-27 rule; this makes the choice per screen).
+
+### 5. The page fills its screen, and so do its full views (operator, 2026-11-06)
+
+Asked about wall screens offering no Full window for chat videos (BUG-258 had taken the button
+away), the operator, verbatim: "I figured the whole display would be dedicated to the whole page
+that we're on tailored to that display size/aspect ratio."
+
+So two rules:
+
+- **A page on a wall screen lays itself out for THAT display.** A page draws at one point per
+  pixel into the screen's surface, and the surface follows the screen's shape (section 2), so a
+  32:9 wall's page is laid out 2560 x 720 points wide, not a 16:9 page with bars. Built with rung 2:
+  nothing letterboxes a page; only a stream or a clip, whose frames have their own aspect,
+  letterboxes into the screen's canvas.
+- **A full view opened on a wall screen fills THAT screen, never a window on the app screen.** A
+  chat video's Full window, the picture viewer and the 3D view are drawn by the screen's own run,
+  under its own context, over its page (`screen_surface::draw_screen_full_views`), and closed there
+  with the screen's own controls, aimed at with the look ray and the aim assist. Their state is the
+  screen's own: the chat's videos were already a set per screen (`ScreenTextures::chat_video`);
+  `image_viewer_url` and `chat_model_view`, which were one `GuiState` field each shared with the
+  app screen (a picture pressed on a wall opened over the app screen, where nobody at the wall
+  could close it), are now swapped per screen like the textures. **Built 2026-11-06**: Full window
+  is offered on a wall again and opens on the wall; the picture viewer and the 3D view open on the
+  wall that asked. One limit stays: the 3D view draws with the model viewer's GPU pieces, which
+  live in the app screen's egui renderer; a wall screen's renderer does not have them yet, so on a
+  wall the 3D view shows the viewer's own plain words ("needs the app's graphics; Download the file
+  to see it") in its window on the wall. Installing those pieces in each surface's renderer is the
+  next step for it (rung 3 below).
+
+### 6. A control room: one fixed screen per page (operator, 2026-11-06)
+
+The operator, verbatim: "I feel like we should design a control room with a fixed display screen
+to each menu page. The inventory display is only ever inventory. That way we can see all of the
+screens at once."
+
+**What it is.** A room whose walls carry one screen per app page, each bound to its page by the
+cog's first rule, "always this page" (`screen_source: page:<id>`), all live at once: inventory,
+maps, crafting, chat, tasks, the body and health page (`real`), quests, calendar, the Homes page,
+and the ship's status. The ship's status has no page of its own yet (the HUD's home systems line,
+power, water and air, is its seed, `game_home_state` reads the same numbers); a page for it is part
+of this rung.
+
+**Where it sits** (recommendation, coordinated with
+[mothership-master-plan.md](mothership-master-plan.md)):
+
+1. **In the player's home**: the Homestead design's console room already holds six screens
+   (inventory, tasks, the garden camera, the live stream, the video, the web: section "Shipped
+   data" above), so it becomes the home's control room rather than a new room being added: its
+   walls are re-laid as a screen wall, one page each. A Cabin, 3.15 x 2.5 m, has room for one
+   wall of three; the master plan's plot kinds each say how many (data, below).
+2. **On the ship**: the bridge, the big shared one, at the bow (the master plan's section 3.3:
+   the bow is where the ship meets the outside, its hangars, arrivals and docking). The plan does
+   not place a bridge yet; this recommends adding it there in the rungs after Neighbourhood 1
+   (its section 6.5), with the ship-wide pages (the fleet ledger, the ship's status, the map) on
+   its walls. Its screens are per viewer like every screen (section "Screens are per viewer"):
+   each person at the bridge sees the pages from their own app.
+
+**The data.** A screen wall is one entry in the home's file, expanded at load into ordinary placed
+screens the way `arrays` expands into machines, so every cell has the cog, the handles and its own
+saved size:
+
+```ron
+screen_walls: [
+    (
+        id_prefix: "control",          // cells are control_inventory, control_maps, ...
+        machine: "wall_screen",
+        zone: "home", room: "console-room",
+        origin: (50.9, 1.0, 38.0),      // the first cell's base centre, zone-local
+        along: (0.0, 0.0, 1.0),         // the wall's direction
+        rotation: 90.0,                 // which way the cells face
+        size_m: (1.74, 0.99),           // each picture (optional: the def's)
+        gap_m: 0.1,
+        rows: 2,                        // stacked, fill the row first
+        pages: ["inventory", "maps", "crafting", "chat", "tasks", "real"],
+    ),
+],
+```
+
+A page named twice is refused with a warning (the inventory display is only ever inventory, and
+one is enough); an unknown page id shows the existing "No page named" notice on its cell.
+
+**The budget for N live page screens.** Today `frame_surfaces` frames the nearest four screens in
+view within 40 m, and of those the page screens take turns, one a frame (`PAGE_FRAMES_PER_TICK`,
+measured 2 to 3 ms each in the 2026-10-31 stutter survey); the hovered screen, the focused one, a
+provider's and the one being dragged redraw every frame. A control room breaks the "nearest four":
+twelve page screens in view would leave eight frozen. So in this rung every page screen in view
+and in range joins the turns, still one page redraw a frame: N screens each redraw at
+`fps / N` (twelve at 60 fps: 5 times a second; at the operator's 120 fps: 10), the one being looked
+at every frame, and the frame pays the same one page draw it pays today. A page that changes
+slowly (the calendar) loses nothing; one that changes fast is the one being looked at. A later
+refinement spends a time budget instead of a count (about 3 ms of page draws a frame, each
+screen's last draw time measured), so cheap pages refresh more often; both obey the Dev page's
+"turn off all reuse" switch, which redraws every screen every frame as before. Memory: a 1280 x
+720 surface is 3.7 MB of texture, twelve are 44 MB.
+
+### The rungs
+
+1. **Aim assist** (built 2026-11-06): the cone, the hysteresis, the line and the outline, reach by
+   size, the Settings toggle and cone.
+2. **Any size, the handles, the cog** (built 2026-11-06): `screen_size_m` saved and loaded, the
+   surface following the shape, edge and corner drag (Shift frees the aspect), the middle drag on
+   the wall, the grid snap, size presets, and the cog's panel with "a HumanityOS page" and "a
+   camera" wired to the existing sources. With it (built 2026-11-06): a wall screen's full views
+   (a chat video's Full window, the picture viewer, the 3D view) open on that screen, per screen.
+3. **The control room**: `screen_walls` in the home file, every page screen in view taking turns,
+   the home's console room re-laid as one, a ship's status page, and the model viewer's GPU pieces
+   in each surface so the 3D view draws on a wall.
+4. **Rules without the platforms**: the web address, our own live streams, the schedule, the
+   allowlist, sound and volume, who may change it.
+5. **Live channels**, after the embedded-browser host ships and a dated finding on each
+   platform's live-status route. The bridge on the ship follows the master plan's own rungs.
+6. **Snapping to neighbours, across corners, several screens at once, a VR ray.**

@@ -3075,6 +3075,10 @@ mod native_app {
                                 // the right panel, like a wall.
                             } else if !lock_struct && state.gui_state.ship_structure.is_some() && try_pick_structure(state) {
                                 // Clicked a placed STRUCTURE (v0.583) -> its detail shows on the right.
+                            } else if !lock_machine && crate::engine::screens::edit::try_pick(state) {
+                                // An in-world screen's picture (2026-11-06): its cog opens its
+                                // settings panel, an edge or a corner resizes it, the middle moves
+                                // it along its wall. Before the machine pick, whose body it is.
                             } else if !lock_machine && state.gui_state.ship_structure.is_some() && try_pick_port(state) {
                                 // Grabbed a machine PORT (v0.625): drag onto another machine to WIRE
                                 // them. Runs before the machine pick so a port beats moving the body.
@@ -3147,6 +3151,12 @@ mod native_app {
                             state.construction_grab = None; // release; keep the selection highlighted
                             state.construction_gizmo_grab = None; // release a slid handle too
                             state.construction_node_grab = None; // release a dragged corner node
+                            // A screen's handle let go (2026-11-06): one more rebuild, which makes a
+                            // stream's or a clip's surface anew at the screen's final shape (it is
+                            // kept through the drag, `screens::sync_screens`).
+                            if matches!(state.construction_object_grab, Some(ObjectGrab::Screen(_))) {
+                                state.gui_state.construction_machines_dirty = true;
+                            }
                             state.construction_object_grab = None; // release a dragged object (v0.593)
                             state.construction_opening_grab = None; // release a dragged opening
                             state.construction_opening_resize = None; // release a resize handle (v0.578)
@@ -15200,6 +15210,22 @@ mod native_app {
                                     && state.gui_state.construction_active
                                 {
                                     crate::gui::pages::construction::draw(ctx, &state.theme, &mut state.gui_state);
+                                    // In-world screens in build mode (2026-11-06): the handles on
+                                    // the screen under the cursor and the selected one, and the
+                                    // settings panel its cog opened.
+                                    let win = state.window.inner_size();
+                                    crate::engine::screens::edit::draw_handles(
+                                        ctx,
+                                        &state.theme,
+                                        &state.screens.quads,
+                                        state.station_off,
+                                        &state.camera,
+                                        state.cursor_pos,
+                                        (win.width as f32, win.height as f32),
+                                        state.construction_object_grab.as_ref(),
+                                        state.gui_state.construction_machine_selected.as_deref(),
+                                    );
+                                    crate::gui::pages::screen_settings::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
                                 // (The old show_chat Enter-toggle overlay was removed in
@@ -15290,6 +15316,18 @@ mod native_app {
                                         egui::Color32::from_white_alpha(180)
                                     };
                                     painter.circle_filled(center, 3.0, color);
+                                    // In-world screens' aim assist (2026-11-06): the outline round
+                                    // the widget a click goes to, and the line to it from the
+                                    // crosshair (or the free cursor).
+                                    if let Some(shown) = state.screens.aim_shown.as_ref() {
+                                        let from = if state.cursor_free {
+                                            let ppp = ctx.pixels_per_point().max(0.01);
+                                            egui::pos2(state.cursor_pos.0 / ppp, state.cursor_pos.1 / ppp)
+                                        } else {
+                                            center
+                                        };
+                                        crate::engine::screens::aim::draw_overlay(ctx, &state.theme, shown, state.camera.view_projection_matrix(), from);
+                                    }
                                 }
 
                                 // Top-right help toggle (v0.1212): "?" when the panel is

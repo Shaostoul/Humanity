@@ -117,7 +117,7 @@ fn consumer(watts: f32, average_watts: Option<f32>) -> MachineDef {
 }
 
 fn placed(id: &str, machine: &str) -> MachineInstance {
-    MachineInstance { id: id.into(), machine: machine.into(), room: String::new(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None }
+    MachineInstance { id: id.into(), machine: machine.into(), room: String::new(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None }
 }
 
 /// THE METER CHARGES A RECORDED DAY AND SAYS WHICH FIGURES ARE MEASURED. Two

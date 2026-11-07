@@ -430,6 +430,7 @@ mod tests {
             rotation: 0.0,
             zone: "home".into(),
             screen_source: None,
+            screen_size_m: None,
         });
         if let Some(item) = paid {
             home.paid.insert(id.clone(), item.to_string());

@@ -321,6 +321,14 @@ pub struct AppConfig {
     /// Invert vertical mouse look (v0.909 - persisted now that it's wired).
     #[serde(default)]
     pub invert_y: bool,
+    /// Aim assist on in-world screens (Settings > Controls, 2026-11-06): the nearest clickable
+    /// thing within the cone of the crosshair is outlined and takes the click. On by default, for
+    /// accessibility.
+    #[serde(default = "default_true")]
+    pub screen_aim_assist: bool,
+    /// The aim assist's cone in degrees; absent = data/gui/screens.json's default.
+    #[serde(default = "default_screen_aim_cone_deg")]
+    pub screen_aim_cone_deg: f32,
     #[serde(default = "default_master_volume")]
     pub master_volume: f32,
     #[serde(default = "default_music_volume")]
@@ -1142,6 +1150,10 @@ fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_star_catalog_tier() -> String { "auto".to_string() }
 fn default_true() -> bool { true }
+/// The aim assist's cone for a config written before it existed: the data file's default.
+fn default_screen_aim_cone_deg() -> f32 {
+    crate::gui::screen_tuning::tuning().aim.cone_deg_default
+}
 fn default_video_start() -> String { "last".to_string() }
 fn default_full_volume() -> f32 { 1.0 }
 fn default_dm_preview_lines() -> u8 { crate::gui::pages::chat::dm_rows::DEFAULT_LINES }
@@ -1568,6 +1580,8 @@ impl AppConfig {
             fov: state.settings.fov,
             mouse_sensitivity: state.settings.mouse_sensitivity,
             invert_y: state.settings.invert_y,
+            screen_aim_assist: state.settings.screen_aim_assist,
+            screen_aim_cone_deg: state.settings.screen_aim_cone_deg,
             master_volume: state.settings.master_volume,
             music_volume: state.settings.music_volume,
             sfx_volume: state.settings.sfx_volume,
@@ -1778,6 +1792,9 @@ impl AppConfig {
             default_mouse_sensitivity()
         };
         state.settings.invert_y = self.invert_y;
+        state.settings.screen_aim_assist = self.screen_aim_assist;
+        let aim = &crate::gui::screen_tuning::tuning().aim;
+        state.settings.screen_aim_cone_deg = self.screen_aim_cone_deg.clamp(aim.cone_deg_min, aim.cone_deg_max);
         state.settings.master_volume = self.master_volume;
         state.settings.music_volume = self.music_volume;
         state.settings.sfx_volume = self.sfx_volume;

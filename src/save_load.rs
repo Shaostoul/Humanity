@@ -3248,6 +3248,7 @@ mod tests {
                 rotation: 0.0,
                 zone: "home".to_string(),
                 screen_source: None,
+                screen_size_m: None,
             };
             crate::engine::home_spawn::spawn_home_machine_entity(world, &inst, &home.catalog[machine], &empty, &empty, None, containers);
         }

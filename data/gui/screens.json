@@ -1,0 +1,33 @@
+{
+  "_comment": "In-world screens: the aim assist and the sizes a screen can take (docs/design/in-world-screens.md, 'Aim assist, any size, and each screen's own settings', 2026-11-06). Read by the desktop app (src/engine/screens/tuning.rs). `aim`: the cone in degrees the nearest clickable thing on a screen is picked within (the person's own value is Settings > Controls; these are its default and its range), the hysteresis that keeps the choice from flickering (`exit_scale`: the current target is kept while it stays within the cone times this; `switch_ratio`: a rival takes over only when its angle is below the current one times this), how far inside a target the pointer lands when it snaps (`inset_px`), and how far a screen answers from: `reach_base_m`, or its diagonal times `reach_per_diagonal`, whichever is more, never past `reach_max_m`. `sizes`: the smallest and largest picture in metres (width, height), the build editor's grid step for sizes and moves, the width of the edge handles as a share of the picture's shorter side, and the presets the cog's panel offers, each a diagonal in inches and an aspect (width : height). Any number of presets may be added.",
+  "aim": {
+    "cone_deg_default": 3.0,
+    "cone_deg_min": 0.5,
+    "cone_deg_max": 10.0,
+    "exit_scale": 1.25,
+    "switch_ratio": 0.7,
+    "inset_px": 4.0,
+    "reach_base_m": 3.5,
+    "reach_per_diagonal": 1.75,
+    "reach_max_m": 25.0
+  },
+  "sizes": {
+    "min_m": [0.2, 0.12],
+    "max_m": [8.0, 5.0],
+    "grid_m": 0.05,
+    "handle_band": 0.12,
+    "presets": [
+      { "diagonal_in": 24, "aspect": [16, 9] },
+      { "diagonal_in": 32, "aspect": [16, 9] },
+      { "diagonal_in": 55, "aspect": [16, 9] },
+      { "diagonal_in": 65, "aspect": [16, 9] },
+      { "diagonal_in": 75, "aspect": [16, 9] },
+      { "diagonal_in": 100, "aspect": [16, 9] },
+      { "diagonal_in": 120, "aspect": [16, 9] },
+      { "diagonal_in": 34, "aspect": [21, 9] },
+      { "diagonal_in": 55, "aspect": [21, 9] },
+      { "diagonal_in": 49, "aspect": [32, 9] },
+      { "diagonal_in": 200, "aspect": [32, 9] }
+    ]
+  }
+}

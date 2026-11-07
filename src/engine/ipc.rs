@@ -933,6 +933,28 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             if state.gui_state.construction_active { "open" } else { "shut" }
         );
     }
+    // {"select_machine":"wall_screen_4"} (2026-11-06): in the build editor, select a placed
+    // machine as a click on it does and turn the editor's camera to it (the browser row's
+    // double-click focus), so a rig can capture a screen's build-mode handles
+    // (engine/screens/edit.rs `draw_handles`). {"screen_settings":"wall_screen_4"} opens that
+    // screen's settings panel as its cog does; "" closes it. Permanent dev tooling.
+    if let Some(id) = grab("select_machine") {
+        let centre = state.screens.quads.iter().find(|q| q.id == id).map(|q| q.geom.origin + (q.geom.u_axis + q.geom.v_axis) * 0.5);
+        let at = centre.or_else(|| state.machine_pick.iter().find(|m| m.0 == id).map(|m| m.1));
+        match at {
+            Some(c) if state.gui_state.construction_active => {
+                state.gui_state.construction_machine_selected = Some(id.clone());
+                state.gui_state.construction_focus_request = Some((c.x, c.y, c.z));
+                log::info!("Showcase: select_machine {id} -> selected, the editor's camera turned to it");
+            }
+            Some(_) => log::warn!("Showcase: select_machine {id} needs the build editor open (build_editor:1)"),
+            None => log::warn!("Showcase: select_machine {id}: no placed machine by that id"),
+        }
+    }
+    if let Some(id) = grab("screen_settings") {
+        state.gui_state.screen_settings_open = if id.is_empty() { None } else { Some(id.clone()) };
+        log::info!("Showcase: screen_settings {id:?} -> the panel is {}", if id.is_empty() { "closed" } else { "open" });
+    }
     // {"stock":"1"} (ship homes increment 5, 2026-10-05): the Crafting page's "Dev: stock all
     // materials" (a stack of every recipe input into the pack), under the button's own rule, the
     // Dev mode with dev cheats on. verify-copresence --build stocks the game before it places.
@@ -3546,7 +3568,16 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
                     let distance = v.get("distance_m").and_then(|d| d.as_f64()).unwrap_or(2.0).max(0.3) as f32;
                     let centre = q.geom.origin + (q.geom.u_axis + q.geom.v_axis) * 0.5;
                     let n = q.geom.normal.normalize_or_zero();
-                    Some((centre + n * distance, -n))
+                    let eye = centre + n * distance;
+                    // Optional "look_uv": [u, v] (2026-11-06): from the same spot, look at that
+                    // point of the picture instead of its centre ((0, 0) its top-left as seen
+                    // from the front), so a rig can rest the crosshair NEAR a widget and see the
+                    // aim assist's line to it (docs/design/in-world-screens.md).
+                    let look = match v.get("look_uv").and_then(|a| a.as_array()).map(|a| a.iter().filter_map(|x| x.as_f64()).collect::<Vec<_>>()) {
+                        Some(uv) if uv.len() == 2 => (q.geom.origin + q.geom.u_axis * uv[0] as f32 + q.geom.v_axis * uv[1] as f32 - eye).normalize_or(-n),
+                        _ => -n,
+                    };
+                    Some((eye, look))
                 }
                 None => {
                     let known: Vec<&str> = state.screens.quads.iter().map(|q| q.id.as_str()).collect();

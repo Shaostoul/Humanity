@@ -42,10 +42,13 @@ pub mod camera;
 pub mod live;
 pub mod video;
 pub mod web;
+/// Aim assist (2026-11-06): the nearest clickable widget within a cone of the crosshair, the line
+/// and the outline, and the reach that grows with a screen's size.
+pub mod aim;
+/// Build mode's handles on a screen (2026-11-06): resize by the edges and corners, move along its
+/// wall, the cog that opens its settings panel.
+pub mod edit;
 
-/// How far the player can reach a screen with the look ray or the cursor,
-/// in metres. Beyond this a screen still renders but ignores input.
-pub const REACH_M: f32 = 3.5;
 /// Screens farther than this from the camera keep their last image instead
 /// of re-running their page every frame.
 pub const FRAME_RANGE_M: f32 = 40.0;
@@ -101,6 +104,11 @@ pub struct ScreenQuad {
     /// mesh gets, so the quad follows the body exactly.
     pub position: Vec3,
     pub yaw_deg: f32,
+    /// The body size and the def pixel size this quad was built for (the placement's, which a
+    /// resized screen changes, 2026-11-06): what `follow_placements` compares to know a screen was
+    /// resized and its body, quad and surface must follow.
+    pub body_size: (f32, f32, f32),
+    pub px: (u32, u32),
 }
 
 /// Local-space basis of one box face: (outward normal, the viewer's right,
@@ -349,6 +357,31 @@ pub struct Screens {
     /// The tick each surface's page was last drawn, by surface index (None: never, or the surfaces
     /// were rebuilt since). What [`page_turns`] ranks by.
     pub page_drawn_at: Vec<Option<u64>>,
+    /// Aim assist (2026-11-06): the widget chosen last frame, by surface index and egui id, which
+    /// the hysteresis keeps (`aim::pick`).
+    pub aim_target: Option<(usize, egui::Id)>,
+    /// What the main UI draws this frame for the chosen widget: its outline and, when the pointer
+    /// was snapped onto it, the line from the crosshair (`aim::draw_overlay`). World space.
+    pub aim_shown: Option<aim::Shown>,
+    /// A press on a screen still held: the pointer moves by the ray's movement since the press
+    /// (`aim::PressHold`), so a click stays a click.
+    pub press: Option<aim::PressHold>,
+    /// Where the pointing ray met the hovered screen's plane this frame (surface index, pixels):
+    /// what a press records as its start.
+    pub last_raw: Option<(usize, egui::Pos2)>,
+}
+
+/// Where the pointing ray lands this frame (`Screens::aim_at`): the screen, where its pointer goes,
+/// where the ray met its plane, the widget chosen, and the overlay to draw.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Aimed {
+    pub surface: usize,
+    pub pointer: egui::Pos2,
+    pub raw: Option<egui::Pos2>,
+    pub target: Option<aim::Target>,
+    pub shown: Option<aim::Shown>,
+    /// The pointer follows a held press (the target and the overlay are kept as they were).
+    pub held: bool,
 }
 
 /// Which of the page screens in view (`waiting`, by surface index) are drawn this frame: at most
@@ -429,8 +462,17 @@ impl Screens {
                     // The surface's own entry point: the egui core AND the
                     // provider (a clip pauses on click) see the event.
                     s.button((uv.x, uv.y), pressed);
+                    let (w, h) = s.core.size();
                     if pressed {
                         self.set_focus(Some(si));
+                        // Aim assist: while the press is held the pointer moves only by the ray's
+                        // movement from here (`aim::PressHold`), so the release lands where the
+                        // press did and egui counts a click.
+                        let pointer = egui::pos2(uv.x * w as f32, uv.y * h as f32);
+                        let raw = self.last_raw.filter(|(r, _)| *r == si).map_or(pointer, |(_, p)| p);
+                        self.press = Some(aim::PressHold { surface: si, pointer, raw });
+                    } else {
+                        self.press = None;
                     }
                     return true;
                 }
@@ -439,10 +481,72 @@ impl Screens {
             None => {
                 if pressed {
                     self.set_focus(None);
+                } else {
+                    self.press = None;
                 }
                 false
             }
         }
+    }
+
+    /// Where the pointing ray (`eye`, unit `dir`, in the world frame; the quads are in the home
+    /// frame, `so` is the station offset between them) lands this frame, with the aim assist on or
+    /// off (`assist`, its cone `cone_deg`). The design's "How it picks":
+    ///
+    /// - A held press keeps its screen; the pointer moves by the ray's movement since the press.
+    /// - Of the screens whose PICTURE the ray hits within each one's reach (`aim::reach_m`, which
+    ///   grows with its size), the nearest; with the assist on, the widget on it is chosen by
+    ///   `aim::pick` (the pointer may snap onto it).
+    /// - With the assist on and no picture hit, the screens whose picture is within the cone, the
+    ///   nearest in angle first: the first with a widget in the cone.
+    pub(crate) fn aim_at(&self, eye: Vec3, dir: Vec3, so: Vec3, assist: bool, cone_deg: f32, tuning: &crate::gui::screen_tuning::AimTuning) -> Option<Aimed> {
+        let world = |q: &ScreenQuad| QuadGeom { origin: q.geom.origin + so, ..q.geom };
+        if let Some(h) = self.press {
+            let q = self.quads.iter().find(|q| q.surface == h.surface)?;
+            let px = self.surfaces.get(h.surface)?.core.size();
+            let raw = aim::plane_px(eye, dir, &world(q), px).map(|(r, _)| r);
+            return Some(Aimed { surface: h.surface, pointer: h.pointer_for(raw, px), raw, target: None, shown: None, held: true });
+        }
+        let mut direct: Option<(usize, egui::Pos2, f32)> = None;
+        let mut near: Vec<(usize, egui::Pos2, f32)> = Vec::new();
+        for (qi, q) in self.quads.iter().enumerate() {
+            let Some(s) = self.surfaces.get(q.surface) else { continue };
+            let g = world(q);
+            let px = s.core.size();
+            let Some((raw, t)) = aim::plane_px(eye, dir, &g, px) else { continue };
+            if t > aim::reach_m(&g, tuning) {
+                continue;
+            }
+            if aim::on_picture(raw, px) {
+                if direct.map_or(true, |b| t < b.2) {
+                    direct = Some((qi, raw, t));
+                }
+            } else if assist {
+                let a = aim::picture_angle_deg(eye, dir, &g, px, raw);
+                if a <= cone_deg {
+                    near.push((qi, raw, a));
+                }
+            }
+        }
+        let on = |qi: usize, raw: egui::Pos2| -> Option<Aimed> {
+            let q = &self.quads[qi];
+            let s = self.surfaces.get(q.surface)?;
+            let px = s.core.size();
+            let clamp = |p: egui::Pos2| egui::pos2(p.x.clamp(0.0, px.0 as f32), p.y.clamp(0.0, px.1 as f32));
+            if !assist {
+                return Some(Aimed { surface: q.surface, pointer: clamp(raw), raw: Some(raw), target: None, shown: None, held: false });
+            }
+            let current = self.aim_target.filter(|(si, _)| *si == q.surface).map(|(_, id)| id);
+            let found = aim::targets(s.core.ctx());
+            let p = aim::pick(eye, dir, &world(q), px, raw, &found, current, cone_deg, tuning);
+            let shown = p.target.map(|t| aim::Shown::of(&world(q), px, &t, p.pointer, p.snapped));
+            Some(Aimed { surface: q.surface, pointer: clamp(p.pointer), raw: Some(raw), target: p.target, shown, held: false })
+        };
+        if let Some((qi, raw, _)) = direct {
+            return on(qi, raw);
+        }
+        near.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+        near.into_iter().filter_map(|(qi, raw, _)| on(qi, raw)).find(|a| a.target.is_some())
     }
 
     /// Route a wheel notch to the hovered screen. Returns true when taken.
@@ -536,6 +640,45 @@ impl Screens {
     }
 }
 
+/// The editor's count-unchanged rebuild (a move, a resize, the cog's choice, 2026-11-06): the
+/// placed screens follow their placements. A move recomputes geometry only (`update_poses`: no
+/// surface or renderer slot is touched, so a page keeps its scroll state). A resize (a new body
+/// size or surface pixel size) or a new source rebuilds that screen's body mesh here and the
+/// screen set through `sync_screens`, which keeps every surface it can (a page surface is resized
+/// in place). `placements` is in the order of `state.machine_objects`, the fast path's own
+/// invariant (`home_meshes::rebuild_machine_objects`).
+pub(crate) fn follow_placements(state: &mut EngineState, placements: &[PlacedMachine]) {
+    let mut reshape = placements.iter().filter(|p| p.screen.is_some()).count() != state.screens.quads.len();
+    for (i, p) in placements.iter().enumerate() {
+        let Some(def) = p.screen.as_ref() else { continue };
+        let Some(q) = state.screens.quads.iter().find(|q| q.id == p.id) else {
+            reshape = true;
+            continue;
+        };
+        let source_changed = state.screens.surfaces.get(q.surface).map_or(true, |s| s.core.source_id != def.source);
+        if q.body_size != p.size {
+            // The body follows the picture (`body_size_for_display`), its mesh replaced in its own
+            // slot. A model body keeps its model: a model is fitted to the def's height, never
+            // stretched (no shipped screen has one).
+            if p.model.is_none() {
+                if let Some(&(mesh_slot, _, _, _)) = state.machine_objects.get(i) {
+                    let mesh = crate::engine::home_meshes::machine_mesh(&state.renderer.device, &p.shape, p.size);
+                    state.renderer.replace_mesh(mesh_slot, mesh);
+                }
+            }
+            reshape = true;
+        }
+        if source_changed || q.px != def.px {
+            reshape = true;
+        }
+    }
+    if reshape {
+        sync_screens(state, placements);
+    } else {
+        state.screens.update_poses(placements);
+    }
+}
+
 /// Rebuild the screen set from the current placements: create a surface and
 /// a display quad for every placed machine whose def has a `screen`, REUSE
 /// the surface of an instance that already had one (an editor move must not
@@ -559,18 +702,39 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
             );
         }
         let (w, h) = (def.px.0.max(1), def.px.1.max(1));
-        // Reuse the existing surface when it still matches the def; a
-        // changed source or pixel size means a new context and texture. A
+        // Reuse the existing surface when it still shows the same source; a
+        // changed source means a new context, texture and provider. A page
+        // surface whose pixel size changed (the screen was resized in the
+        // build editor, 2026-11-06) is resized IN PLACE, so its context, and
+        // with it the page's scroll and open state, survives the resize. A
         // provider may have resized its surface to its frame (see
-        // `ScreenSurface::resize`), so the size check is against the def's
-        // px only for a surface that has no provider.
+        // `ScreenSurface::resize`), so a surface with a provider keeps its size;
+        // when its screen's shape changes it is made anew (a stream letterboxes
+        // into, and a clip remembers, the surface it started on), but not while
+        // that screen is being dragged (a new socket or decoder every frame):
+        // the release asks for one more rebuild, which makes it then.
+        let old_px = old_quads.iter().find(|q| q.id == p.id).map(|q| q.px);
+        let dragging = matches!(&state.construction_object_grab, Some(crate::engine::state::ObjectGrab::Screen(g)) if g.id == p.id);
         let reused = old_surfaces
             .iter()
             .position(|s| s.core.id == p.id)
             .map(|i| old_surfaces.remove(i))
-            .filter(|s| s.core.source_id == def.source && (s.provider().is_some() || s.size() == (w, h)));
+            .filter(|s| s.core.source_id == def.source && (s.provider().is_none() || dragging || old_px == Some(def.px)));
+        // The pixel size this quad's surface was made for: a provider surface kept through a drag
+        // keeps its old one, so the rebuild after the release sees the change.
+        let built_px = match &reused {
+            Some(s) if s.provider().is_some() => old_px.unwrap_or(def.px),
+            _ => def.px,
+        };
+        let mut resized = false;
         let (surface, surface_is_new) = match reused {
-            Some(s) => (s, false),
+            Some(mut s) => {
+                if s.provider().is_none() && s.size() != (w, h) {
+                    s.resize(&state.renderer.device, w, h);
+                    resized = s.take_view_changed();
+                }
+                (s, false)
+            }
             None => {
                 // The provider comes first because it decides the texture
                 // format: a camera screen is written by the present pass
@@ -616,7 +780,7 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
                     crate::renderer::materials::MATERIAL_TYPE_SCREEN,
                     def.brightness,
                 );
-                if surface_is_new {
+                if surface_is_new || resized {
                     state.renderer.set_material_albedo_view(prior.material, surfaces[si].view());
                 }
                 (prior.mesh, prior.material)
@@ -642,6 +806,8 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
             material: material_slot,
             position: pos,
             yaw_deg: p.rotation,
+            body_size: p.size,
+            px: built_px,
         });
     }
     if !old_surfaces.is_empty() {
@@ -655,6 +821,11 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
     state.screens.quads = quads;
     state.screens.hover = None;
     state.screens.focused = None;
+    // Surface indices changed: the aim assist's choice, its overlay and a held press go with them.
+    state.screens.aim_target = None;
+    state.screens.aim_shown = None;
+    state.screens.press = None;
+    state.screens.last_raw = None;
     // The page screens' turns start over: every screen is drawn as if it never was.
     state.screens.page_drawn_at.clear();
     if let Some(done) = state.screens.abandon_ipc("the placed screens were rebuilt while it was in flight") {
@@ -709,38 +880,52 @@ pub(crate) fn update(state: &mut EngineState) {
         return;
     }
     let ray = if interactive(state) { pointing_ray(state) } else { None };
-    let so = state.station_off;
-    let mut best: Option<(usize, f32, f32, f32)> = None;
-    if let Some((o, d)) = ray {
-        for q in &state.screens.quads {
-            let g = QuadGeom { origin: q.geom.origin + so, ..q.geom };
-            if let Some((u, v, t)) = ray_hit_uv(o, d, &g) {
-                if t <= REACH_M && best.map_or(true, |b| t < b.3) {
-                    best = Some((q.surface, u, v, t));
-                }
-            }
-        }
+    if ray.is_none() || !state.lmb_held {
+        // No pointing (a menu, the editor, a modal), or the button is already up (its release
+        // went to a panel and never reached the screen): a held press cannot be released on a
+        // screen any more, so it is dropped rather than left to steer the next look.
+        state.screens.press = None;
     }
-    let held = state.screens.ipc.as_ref().map(|i| i.surface);
-    let prev = state.screens.hover.map(|(si, _)| si);
-    let next = best.map(|(si, _, _, _)| si);
+    let so = state.station_off;
+    let assist = state.gui_state.settings.screen_aim_assist;
+    let cone = state.gui_state.settings.screen_aim_cone_deg;
+    let aimed = ray.and_then(|(o, d)| state.screens.aim_at(o, d.normalize_or_zero(), so, assist, cone, &crate::gui::screen_tuning::tuning().aim));
+    let screens = &mut state.screens;
+    let held = screens.ipc.as_ref().map(|i| i.surface);
+    let prev = screens.hover.map(|(si, _)| si);
+    let next = aimed.map(|a| a.surface);
     if let Some(p) = prev {
         if next != Some(p) && held != Some(p) {
-            if let Some(s) = state.screens.surfaces.get_mut(p) {
+            if let Some(s) = screens.surfaces.get_mut(p) {
                 s.core.pointer_gone();
             }
         }
     }
-    match best {
-        Some((si, u, v, _)) => {
-            if held != Some(si) {
-                if let Some(s) = state.screens.surfaces.get_mut(si) {
-                    s.core.pointer_moved((u, v));
+    match aimed {
+        Some(a) => {
+            let Some((w, h)) = screens.surfaces.get(a.surface).map(|s| s.core.size()) else {
+                screens.hover = None;
+                return;
+            };
+            let uv = (a.pointer.x / w.max(1) as f32, a.pointer.y / h.max(1) as f32);
+            if held != Some(a.surface) {
+                if let Some(s) = screens.surfaces.get_mut(a.surface) {
+                    s.core.pointer_moved(uv);
                 }
             }
-            state.screens.hover = Some((si, egui::pos2(u, v)));
+            screens.hover = Some((a.surface, egui::pos2(uv.0, uv.1)));
+            screens.last_raw = a.raw.map(|r| (a.surface, r));
+            if !a.held {
+                screens.aim_target = a.target.map(|t| (a.surface, t.id));
+                screens.aim_shown = a.shown;
+            }
         }
-        None => state.screens.hover = None,
+        None => {
+            screens.hover = None;
+            screens.last_raw = None;
+            screens.aim_target = None;
+            screens.aim_shown = None;
+        }
     }
 }
 
@@ -831,6 +1016,17 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
             chosen.push(si);
         }
     }
+    // The screen being resized or moved in the build editor (2026-11-06) is drawn every frame, so
+    // its page follows its new shape at once instead of waiting for its turn.
+    let edited = match &state.construction_object_grab {
+        Some(crate::engine::state::ObjectGrab::Screen(g)) => state.screens.surface_index(&g.id),
+        _ => None,
+    };
+    if let Some(si) = edited {
+        if !chosen.contains(&si) {
+            chosen.push(si);
+        }
+    }
 
     // World screens (rung 3): one render this frame at most. The surfaces
     // are taken out of the state for the call because the render needs the
@@ -870,7 +1066,7 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     let n_surfaces = state.screens.surfaces.len();
     state.screens.page_drawn_at.resize(n_surfaces, None);
     let (hover, ipc, focused) = (state.screens.hover.map(|(h, _)| h), state.screens.ipc.as_ref().map(|i| i.surface), state.screens.focused);
-    let every_frame = |si: usize, s: &ScreenSurface| drawn_every_frame(si, s.provider().is_some(), hover, ipc, focused);
+    let every_frame = |si: usize, s: &ScreenSurface| drawn_every_frame(si, s.provider().is_some(), hover, ipc, focused) || edited == Some(si);
     let waiting: Vec<usize> = chosen
         .iter()
         .copied()

@@ -24,13 +24,16 @@
 //!   is reuse of a picture, so it obeys the Dev page's "turn off all reuse" switch: with reuse off
 //!   none is kept and the row shows its Play mark again. At most [`MAX_STILLS`] are kept.
 //!
-//! - **On a wall screen, the screen is the bigger view (BUG-258).** A wall screen showing the chat
-//!   (gui/screen_surface.rs, its own set: [`ChatVideos::on_a_wall_screen`]) offers no Full window:
-//!   the window is the app screen's, drawn by the engine for the app screen's set only, and a person
-//!   at a wall screen is looking at it through the look ray, with the pointer held by the view, so
-//!   a window over the app screen could not be closed from there. Its videos play in their rows,
-//!   and their sound comes from where the screen is (`engine::screens::place_page_sound`): fading
-//!   with distance, panned by its bearing, on the world-sound bus like a film on an in-world screen.
+//! - **On a wall screen, Full window fills that screen (2026-11-06).** A wall screen showing the
+//!   chat (gui/screen_surface.rs, its own set: [`ChatVideos::on_a_wall_screen`]) offers Full window
+//!   like the app screen, and its window opens ON THE WALL: the screen's own run draws it under the
+//!   screen's context (`screen_surface::draw_screen_full_views`), so the person at the wall closes
+//!   it there, with the look ray and the aim assist. (BUG-258 had taken the button away, because the
+//!   window was then drawn only for the app screen's set, where nobody at the wall could close it;
+//!   the operator, 2026-11-06: "I figured the whole display would be dedicated to the whole page
+//!   that we're on tailored to that display size/aspect ratio.") Its sound comes from where the
+//!   screen is (`engine::screens::place_page_sound`): fading with distance, panned by its bearing,
+//!   on the world-sound bus like a film on an in-world screen.
 //!
 //! The still is drawn after the first press, never fetched before it: a still for a row nobody
 //! pressed would need a range read of the MP4's index (often at the file's end), its first keyframe
@@ -133,8 +136,6 @@ pub(crate) struct ChatVideos {
     current: Option<String>,
     /// The video in Full window.
     window: Option<String>,
-    /// A wall screen's set ([`ChatVideos::on_a_wall_screen`]): no Full window is offered.
-    on_wall: bool,
     /// How many frames have ended ([`ChatVideos::end_frame`]): the clock "on screen this frame or
     /// the last" is told by. Its own count, not egui's pass number, because a wall screen showing
     /// the chat draws it under a context of its own (gui/screen_surface.rs, with a set of its own).
@@ -182,7 +183,6 @@ impl Default for ChatVideos {
             problems: HashMap::new(),
             current: None,
             window: None,
-            on_wall: false,
             frame: 0,
             volume: 1.0,
             muted: false,
@@ -208,10 +208,11 @@ impl Default for ChatVideos {
 
 impl ChatVideos {
     /// The set of a wall screen showing the chat (gui/screen_surface.rs `ScreenTextures`): its
-    /// videos play in their rows, with no Full window (the module's notes say why), and their sound
-    /// comes from the screen (BUG-258).
+    /// videos play in their rows, their sound comes from the screen (BUG-258), and Full window
+    /// opens on that screen, drawn by the screen's own run (`screen_surface::draw_screen_full_views`,
+    /// 2026-11-06), so the person at the wall closes it there.
     pub(crate) fn on_a_wall_screen() -> Self {
-        ChatVideos { on_wall: true, ..Default::default() }
+        ChatVideos::default()
     }
 
     /// Whether a video is in Full window (the chat's popups stay shut under it).
@@ -658,7 +659,7 @@ fn under_picture(ui: &mut egui::Ui, theme: &Theme, videos: &ChatVideos, url: &st
         let time = if length > 0.0 { tf("chat_video.time", &[("at", &at), ("length", &video_view::clock(length))]) } else { at };
         ui.label(RichText::new(time).size(theme.font_size_small).color(theme.text_muted()));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if !in_window && !videos.on_wall && widgets::Button::ghost(t("chat_video.full_window")).size(small).hint("chat_video.full_window_hint").show(ui, theme) {
+            if !in_window && widgets::Button::ghost(t("chat_video.full_window")).size(small).hint("chat_video.full_window_hint").show(ui, theme) {
                 asked.window = true;
             }
             // Settings > Audio's video volume choices, a small mark beside the bar (2026-11-06).

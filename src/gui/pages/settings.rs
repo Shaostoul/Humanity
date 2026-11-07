@@ -4153,6 +4153,20 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "On = pushing the mouse forward looks down, like an aircraft stick. Off = forward looks up.");
+        // Aim assist on in-world screens (2026-11-06, docs/design/in-world-screens.md): on by
+        // default; the cone's range is data/gui/screens.json's.
+        {
+            use humanity_core::i18n::t;
+            if widgets::toggle(ui, theme, t("settings.screen_aim_assist"), &mut state.settings.screen_aim_assist) {
+                state.settings_dirty = true;
+            }
+            widgets::setting_hint(ui, theme, hint, t("settings.screen_aim_assist_hint"));
+            let aim = &crate::gui::screen_tuning::tuning().aim;
+            if widgets::labeled_slider(ui, theme, t("settings.screen_aim_cone"), &mut state.settings.screen_aim_cone_deg, aim.cone_deg_min..=aim.cone_deg_max) {
+                state.settings_dirty = true;
+            }
+            widgets::setting_hint(ui, theme, hint, t("settings.screen_aim_cone_hint"));
+        }
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Keybinds").color(theme.text_secondary()).strong());

@@ -57,9 +57,17 @@ pub struct ScreenTextures {
     pub watch_texture: Option<egui::TextureHandle>,
     pub link_device_qr: Option<(String, egui::TextureHandle)>,
     /// The chat's inline videos as this screen shows them: their players' pictures and stills are
-    /// this screen's textures (2026-11-06, pages/chat/inline_video.rs). A wall screen's set: no
-    /// Full window, and its sound placed at the screen (BUG-258, `ScreenCore::sync_page_sound`).
+    /// this screen's textures (2026-11-06, pages/chat/inline_video.rs), and its sound is placed at
+    /// the screen (BUG-258, `ScreenCore::sync_page_sound`). Full window, pressed on a wall screen,
+    /// opens on THAT screen: the screen's own run draws its window (`draw_screen_full_views`).
     pub(crate) chat_video: crate::gui::pages::chat::inline_video::ChatVideos,
+    /// The picture viewer and the 3D view a page opened ON THIS SCREEN (2026-11-06, the operator:
+    /// "the whole display would be dedicated to the whole page that we're on tailored to that
+    /// display size/aspect ratio"). They were one `GuiState` field each, shared with the app
+    /// screen, so a picture pressed on a wall opened over the app screen, where the person at the
+    /// wall could not close it; swapped per screen, the screen's own run draws them, filling it.
+    pub image_viewer_url: Option<String>,
+    pub chat_model_view: Option<crate::gui::model_view::Viewer>,
 }
 
 impl Default for ScreenTextures {
@@ -69,6 +77,8 @@ impl Default for ScreenTextures {
             watch_texture: None,
             link_device_qr: None,
             chat_video: crate::gui::pages::chat::inline_video::ChatVideos::on_a_wall_screen(),
+            image_viewer_url: None,
+            chat_model_view: None,
         }
     }
 }
@@ -81,7 +91,22 @@ impl ScreenTextures {
         std::mem::swap(&mut self.watch_texture, &mut state.watch_texture);
         std::mem::swap(&mut self.link_device_qr, &mut state.link_device_qr);
         std::mem::swap(&mut self.chat_video, &mut state.chat_video);
+        std::mem::swap(&mut self.image_viewer_url, &mut state.image_viewer_url);
+        std::mem::swap(&mut self.chat_model_view, &mut state.chat_model_view);
     }
+}
+
+/// The full views a page drawn on a wall screen opened, drawn by that screen's own run over its
+/// page, so they fill THAT screen and are closed from it with its own controls (aimed at with the
+/// look ray, the aim assist helping): the picture viewer, the 3D view, and a chat video's Full
+/// window, then the end of the frame for the screen's chat videos. Under the screen's swapped state
+/// (`ScreenTextures`), so none of them ever opens on the app screen. The 3D view needs the model
+/// viewer's GPU pieces in the surface's own renderer, which a wall screen does not have yet: there
+/// it shows the viewer's plain words instead ("needs the app's graphics"), never a window elsewhere.
+pub(crate) fn draw_screen_full_views(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    crate::gui::widgets::image_cache_view::draw(ctx, theme, state);
+    crate::gui::pages::chat::draw_model_window(ctx, theme, &mut state.chat_model_view);
+    crate::gui::pages::chat::draw_video_window(ctx, theme, &mut state.chat_video);
 }
 
 /// The swap guard. Constructing it puts the screen's handles into
@@ -727,9 +752,11 @@ impl ScreenCore {
                 // after every page draw; a screen showing chat needs the same,
                 // against ITS cache (the swapped-in one) and ITS context.
                 state.image_cache.poll(ctx);
-                // And the end of the frame for ITS chat videos (the main loop's is in
-                // `chat::draw_video_window`): one plays at a time, a row off this screen drops its player.
-                state.chat_video.end_frame(ctx);
+                // The full views the page opened on THIS screen (the picture viewer, the 3D view, a
+                // chat video's Full window), filling it, and the end of the frame for ITS chat videos
+                // (the main loop's is in `chat::draw_video_window`): one plays at a time, a row off
+                // this screen drops its player.
+                draw_screen_full_views(ctx, theme, state);
             }
             ScreenSource::Unknown(_) => notice(ctx, &format!("No source named \"{source_id}\"")),
             // A provider normally draws these before this path is reached

@@ -102,6 +102,7 @@ fn powered_wifi_router_leaves_crop_health_unchanged() {
         rotation: 0.0,
         zone: "home".to_string(),
         screen_source: None,
+        screen_size_m: None,
     };
     let data = make_store();
     let empty = std::collections::HashMap::new();

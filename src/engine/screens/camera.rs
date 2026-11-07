@@ -489,6 +489,8 @@ mod tests {
             material,
             position: Vec3::ZERO,
             yaw_deg: 0.0,
+            body_size: (1.0, 1.0, 0.05),
+            px: (1280, 720),
         };
         let quads = vec![quad("cam_screen", 0, 7), quad("tasks_screen", 1, 9), quad("cam_screen_twin", 0, 8)];
         let obj = |material: usize| RenderObject {
