@@ -4,20 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title data-i18n="front_door.page_title">HumanityOS: free guides and tools for food, water and power</title>
+  <!-- page-meta: written by scripts/gen-page-meta.js from data/site/page_meta.json and data/i18n/en.json; edit those, not these lines -->
   <meta name="description" data-i18n-content="front_door.description" content="Free guides and tools for growing food, keeping water safe, making power and helping each other, and a space game that teaches the same skills. No sign-up, no ads, nothing to buy.">
-
   <meta property="og:type" content="website">
-  <meta property="og:title" content="HumanityOS: free guides and tools for food, water and power">
+  <meta property="og:site_name" content="HumanityOS">
+  <meta property="og:title" data-i18n-content="front_door.page_title" content="HumanityOS: free guides and tools for food, water and power">
   <meta property="og:description" data-i18n-content="front_door.description" content="Free guides and tools for growing food, keeping water safe, making power and helping each other, and a space game that teaches the same skills. No sign-up, no ads, nothing to buy.">
-  <meta property="og:url" content="https://united-humanity.us">
+  <meta property="og:url" content="https://united-humanity.us/">
   <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
+  <meta property="og:image:alt" data-i18n-content="page_meta.image_alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="HumanityOS: free guides and tools for food, water and power">
-  <meta name="twitter:description" data-i18n-content="front_door.description" content="Free guides and tools for growing food, keeping water safe, making power and helping each other, and a space game that teaches the same skills. No sign-up, no ads, nothing to buy.">
-  <meta name="twitter:image" content="https://united-humanity.us/shared/social/og-banner.png">
+  <!-- /page-meta -->
 
   <link rel="canonical" href="https://united-humanity.us/">
 
@@ -161,6 +160,9 @@
     .fd-tile-line { display: block; color: var(--text-muted); font-size: 0.86rem; line-height: 1.4; }
 
     /* The sections under the title screen: the update cards, Start here. */
+    .fd-privacy { text-align: center; margin: 28px 0 0; font-size: 0.85rem; }
+    .fd-privacy a { color: var(--text-muted); }
+    .fd-privacy a:hover, .fd-privacy a:focus-visible { color: var(--accent); }
     .fd-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 30px 0 10px; }
     .fd-head h2 { font-size: 1.18rem; font-weight: 800; color: var(--text-strong); margin: 0; }
     .fd-head-sub { color: var(--text-muted); font-size: 0.85rem; margin-left: 10px; font-weight: 400; }
@@ -314,6 +316,10 @@
     <div class="fd-cards" id="fd-cards" role="list" data-i18n-aria-label="front_door.updates_label" aria-label="Recent updates"></div>
     <p class="fd-note" id="fd-cards-note" hidden></p>
   </section>
+
+  <!-- What this server keeps about a visitor, linked in plain sight on the homepage (2026-11-07,
+       docs/design/privacy-notice.md): the shared footer has the link too, but it starts folded. -->
+  <p class="fd-privacy"><a href="/privacy" data-i18n="front_door.privacy_link" data-i18n-tip="footer.privacy_hint" data-tip-desc="Opens the privacy page: what this server keeps about you, for how long, and how to erase it.">Privacy: what this server keeps about you</a></p>
 
 </main>
 

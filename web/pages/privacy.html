@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="privacy_page.page_title">Privacy, HumanityOS</title>
+  <!-- page-meta: written by scripts/gen-page-meta.js from data/site/page_meta.json and data/i18n/en.json; edit those, not these lines -->
+  <meta name="description" data-i18n-content="privacy_page.meta_description" content="What the HumanityOS server keeps about you, why, for how long, who can see it, and how to erase it, in plain words.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HumanityOS">
+  <meta property="og:title" data-i18n-content="privacy_page.page_title" content="Privacy, HumanityOS">
+  <meta property="og:description" data-i18n-content="privacy_page.meta_description" content="What the HumanityOS server keeps about you, why, for how long, who can see it, and how to erase it, in plain words.">
+  <meta property="og:url" content="https://united-humanity.us/privacy">
+  <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" data-i18n-content="page_meta.image_alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- /page-meta -->
+  <link rel="canonical" href="https://united-humanity.us/privacy">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* The privacy policy (2026-11-07, docs/design/privacy-notice.md). Native first: the text is the
+       desktop Library's "Privacy: What This Server Keeps About You" (docs/outreach/privacy_policy.md,
+       copied to data/library/ by scripts/build-library.js), and this page draws the SAME file with
+       the website Library's renderer, so there is one text to keep true. Theme tokens only. */
+    body { background: var(--bg); color: var(--text); line-height: 1.6; margin: 0; }
+    .pp { max-width: 50rem; margin: 0 auto; padding: var(--space-xl) 16px var(--space-3xl); }
+    .pp h1 { font-size: clamp(1.6rem, 5vw, 2.2rem); line-height: 1.2; color: var(--text-strong); margin: 0 0 var(--space-md); }
+    .pp h2 { font-size: var(--text-xl); color: var(--accent); margin: var(--space-2xl) 0 var(--space-sm); }
+    .pp h3 { font-size: var(--text-lg); margin: var(--space-lg) 0 var(--space-sm); }
+    .pp p { margin: var(--space-md) 0; }
+    .pp a { color: var(--accent); }
+    .pp ul, .pp ol { padding-left: var(--space-2xl); }
+    .pp li { margin: var(--space-xs) 0; }
+    .pp code { background: var(--bg-secondary); padding: 2px 6px; border-radius: var(--radius-sm); font-size: 0.88em; }
+    .pp table { border-collapse: collapse; width: 100%; margin: var(--space-md) 0; font-size: var(--text-sm); display: block; overflow-x: auto; }
+    .pp th, .pp td { border: 1px solid var(--border); padding: var(--space-sm) var(--space-md); text-align: left; vertical-align: top; }
+    .pp th { background: var(--bg-secondary); }
+    .pp hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-2xl) 0; }
+    .pp .pp-note { color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
+<script src="/shared/shell.js"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/markdown.js"></script>
+<main class="pp" id="page-app">
+  <div id="privacy-text">
+    <p class="pp-note" data-i18n="privacy_page.loading">Loading the privacy page...</p>
+  </div>
+  <noscript>
+    <p class="pp-note"><span data-i18n="privacy_page.no_script">This page needs JavaScript to show its formatting. The same words are here as plain text:</span> <a href="/data/library/privacy_policy.md" data-i18n="privacy_page.plain_text" data-i18n-tip="privacy_page.plain_text_hint" data-tip-desc="Opens the privacy page as a plain text file, which any browser can show.">the privacy page as plain text</a></p>
+  </noscript>
+</main>
+<script src="/pages/privacy-app.js"></script>
+</body>
+</html>

@@ -868,7 +868,8 @@ test("9. the page's lines are the app's, word for word, and it says what only th
   const text = (s) => s.replace(/<[^>]+>/g, "").replace(/&#39;/g, "'").replace(/\s+/g, " ");
   assert.ok(text(HTML).includes(rustConst("INTRO", APPS_RS)), "apps.html says the app's INTRO");
   assert.match(HTML, /<h1>Apps<\/h1>/);
-  assert.match(HTML, /<title>Apps, HumanityOS<\/title>/);
+  // The title carries its key since 2026-11-07 (page_titles.apps), so the share preview is by key too.
+  assert.match(HTML, /<title[^>]*>Apps, HumanityOS<\/title>/);
   assert.ok(HTML.includes('<script src="/pages/apps-app.js'), "apps.html loads apps-app.js");
   assert.ok(!/<img\b/i.test(HTML), "no logo or picture");
   // The colours are the theme's: no colour literal in the page's styles.

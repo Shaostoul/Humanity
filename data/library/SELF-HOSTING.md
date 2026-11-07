@@ -963,9 +963,11 @@ By default, the relay:
 - Stores no IP address in its database, and its log names an address only when it is limiting
   it: too many identify attempts, or too many new identities, from one address
   (`src/relay/relay.rs`, `src/relay/handlers/sign_ups.rs`). nginx in front of it keeps access logs
-  with addresses; the provisioned rotation keeps 2 days of them, for fail2ban
-  (`/etc/logrotate.d/nginx`, `rotate 2`; checked on united-humanity.us 2026-10-12).
-- Does NOT track users
+  with addresses; the provisioned rotation keeps today's file and 2 older ones, about 3 days, for
+  fail2ban (`/etc/logrotate.d/nginx`, `daily`, `rotate 2`; checked on united-humanity.us 2026-10-12
+  and 2026-11-07).
+- Runs no analytics, ads or tracking scripts, and sets no cookies (bug reports, with the browser
+  name sent with them, are public until BUG-280 is fixed)
 - Does NOT require email or phone
 - Stores messages in SQLite; direct messages only as sealed ciphertext in a mailbox with no sender
   column, removed after `dm_mailbox_ttl_days` (30 by default)
@@ -974,7 +976,15 @@ By default, the relay:
   Files from direct messages and groups arrive already encrypted by the sender's app, so the server
   cannot open them, and leave after the DM mailbox lifetime.
 
-You control your server. You control the data. Delete the database file and everything's gone.
+You control your server. You control the data. Deleting the database file removes what it holds;
+its backups, the uploaded files and the logs are separate and go when you delete them too.
+
+The full list of what a server keeps, for how long and who can see it, with the code behind each
+part, is [`docs/design/privacy-notice.md`](https://github.com/Shaostoul/Humanity/blob/main/docs/design/privacy-notice.md); the privacy page
+united-humanity.us publishes from it is [`docs/outreach/privacy_policy.md`](/library#privacy-policy)
+(the website's `/privacy`). A server of your own is yours to describe: copy the page, change
+what differs (your contact route, your log settings, your linked servers), and link it from your
+front door.
 
 ---
 

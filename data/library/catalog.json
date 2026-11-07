@@ -1794,6 +1794,16 @@
       "name": "Your Privacy",
       "docs": [
         {
+          "title": "Privacy: What This Server Keeps About You",
+          "src": "docs/outreach/privacy_policy.md",
+          "tags": [
+            "project",
+            "beginner",
+            "real",
+            "reference"
+          ]
+        },
+        {
           "title": "Who Can Read Your Messages",
           "src": "docs/outreach/who_can_read_your_messages.md",
           "tags": [

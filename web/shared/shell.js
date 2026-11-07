@@ -1617,6 +1617,9 @@
         '<a href="https://github.com/Shaostoul/Humanity" target="_blank">' + ghIcon + ' GitHub</a>' +
         // The project's own copy of the code, a pull mirror of GitHub (2026-09-29).
         '<a href="https://git.united-humanity.us/shaostoul/Humanity" target="_blank" title="Our own copy of the code, on our own server" style="margin-left:var(--space-lg, 12px);">Mirror</a>' +
+        // What this server keeps about a visitor (2026-11-07, docs/design/privacy-notice.md): on
+        // every page, because a privacy policy has to be easy to find from wherever someone is.
+        '<a href="/privacy" data-i18n="footer.privacy" data-i18n-tip="footer.privacy_hint" data-tip-desc="Opens the privacy page: what this server keeps about you, for how long, and how to erase it." style="margin-left:var(--space-lg, 12px);">Privacy</a>' +
         '<a href="#" id="hos-take-tour" style="margin-left:var(--space-lg, 12px);font-size:0.72rem;">Take Tour</a>' +
       '</div>' +
     '</div>';

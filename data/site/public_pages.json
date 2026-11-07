@@ -20,6 +20,7 @@
     { "path": "/hi", "what": "first contact, from a business card" },
     { "path": "/donate", "what": "how to support the project" },
     { "path": "/wallet-guide", "what": "the wallet's help page" },
-    { "path": "/web", "what": "the reading list of other sites" }
+    { "path": "/web", "what": "the reading list of other sites" },
+    { "path": "/privacy", "what": "what this server keeps about you, and how to erase it" }
   ]
 }

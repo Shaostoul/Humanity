@@ -140,8 +140,17 @@ const server = http.createServer((req, res) => {
     }
     fs.readFile(file, (e, buf) => {
       if (e) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('404: ' + req.url);
+        // The site's own 404 page, as nginx's `error_page 404 /404.html` serves it (2026-11-07,
+        // BUG-277), at the missing address and with the 404 status; plain text if it is gone.
+        fs.readFile(path.join(ROOT, 'web', 'pages', '404.html'), (e2, page) => {
+          if (e2) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('404: ' + req.url);
+            return;
+          }
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(page);
+        });
         return;
       }
       const ext = path.extname(file).toLowerCase();

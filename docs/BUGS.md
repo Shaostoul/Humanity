@@ -7570,3 +7570,75 @@ he noticed the "2+ hour task".
 **Found by** BUG-275's work, on both apps. The protected setup promises that a file goes only with its location removed, and the chat's attach step keeps it (a file that could not be checked is sent nowhere), but the question after the server's 422 (BUG-260) was asked whatever the setup said. A HEIC photo goes to a room as picked for the server to clean even under the protected setup (`upload-clean.js` `decide`), so an unreadable one met "Send anyway", which stored it with its details.
 - **Fixed**: under the protected setup the server's 422 is said in the server's words, as any other refusal is, and nothing waits to be sent. Web `web/chat/chat-messages.js` `uploadPrepared` (`attachProtectedOn()`, cache tag v=29); desktop `chat/attach_send.rs` `drain` (`engine::protected::is_on`).
 - **Held by**, each seen red first: `scripts/tests/upload-keep-web.test.js` 4 (red against HEAD's chat-messages.js: "no question under the protected setup", actual 1 window) and `gui::pages::chat::attach_send::keep_tests::the_servers_422_under_the_protected_setup_says_its_words` (red against `drain` from before: "nothing asked under the protected setup").
+
+## BUG-277: a missing page on the website showed nginx's own page, naming its version (FIXED in the repo 2026-11-07, needs the operator on the live server; found 2026-11-07)
+
+**Found by** the website checklist, checked live with curl on 2026-11-07: `https://united-humanity.us/<anything missing>` answered "404 Not Found" over "nginx/1.22.1", with no way on, and the `Server:` header named the version too, which tells anyone scanning for a known flaw exactly which to try. `scripts/nginx/humanity.conf` had no `error_page` and no `server_tokens`.
+- **Fixed in the repo** (2026-11-07): `web/pages/404.html`, our own page in plain words with a way on (the front door, the Library, How-to, Chat, report the link); `humanity.conf` sends a missing address there (`error_page 404 /404.html;`, the page `internal`) and has `server_tokens off;` in every server block. The relay's own 404s (`/api/`, `/uploads/`) pass through as before. `scripts/provision-vps.sh` also declares the `resumable_limit` zone the config uses, which a freshly provisioned server lacked.
+- **Held by** `scripts/tests/not-found-web.test.js` (red against the old config: no error_page, all four server blocks without server_tokens; and with the page missing).
+- **Why a push does not fix the live site**: the deploy (`.github/workflows/deploy.yml`) copies the page into the web root (`scripts/sync-web-root.sh`) but never touches nginx, and `provision-vps.sh` installs `humanity.conf` only when a server is first set up. On united-humanity.us `/etc/nginx/sites-enabled/humanity` is a plain, hand-edited file (not the usual link), drifted from the repo, so it must not be overwritten with the repo's copy.
+- **The operator's commands** (once this is merged and deployed, so `/var/www/humanity/404.html` exists; checked read-only on 2026-11-07: the live file has 4 `server {` lines and 1 `    index index.html;` line, and `/etc/nginx/nginx.conf` line 21 is `	# server_tokens off;`):
+
+  ```
+  ssh humanity-vps
+  ls -l /var/www/humanity/404.html                         # the deploy put the page there
+  F=/etc/nginx/sites-enabled/humanity
+  cp "$F" /root/humanity.nginx.2026-11-07.bak
+  cp /etc/nginx/nginx.conf /root/nginx.conf.2026-11-07.bak
+  # 1. every site on the box, the Forgejo one included: turn on the line Debian ships commented out
+  sed -i 's/^\t# server_tokens off;/\tserver_tokens off;/' /etc/nginx/nginx.conf
+  # 2. this site's four server blocks, as in the repo
+  sed -i 's/^server {$/server {\n    server_tokens off;/' "$F"
+  # 3. our 404 page, in the main block only (the one line `    index index.html;` is there)
+  sed -i 's|^    index index.html;$|    index index.html;\n    error_page 404 /404.html;\n    location = /404.html { internal; }|' "$F"
+  nginx -t && systemctl reload nginx
+  # if nginx -t failed: cp /root/humanity.nginx.2026-11-07.bak "$F"; cp /root/nginx.conf.2026-11-07.bak /etc/nginx/nginx.conf
+  ```
+
+  Then check from anywhere:
+
+  ```
+  curl -sI https://united-humanity.us/no-such-page | grep -i -E '^HTTP|^server'   # HTTP/2 404, and "server: nginx" with no number
+  curl -s  https://united-humanity.us/no-such-page | grep -o 'This page is not here'
+  curl -s  https://united-humanity.us/api/no-such-route                            # still the relay's own answer
+  ```
+
+## BUG-278: the public list of who is online names people who turned off "Show others when I am online" (OPEN, found 2026-11-07)
+
+**Found by** the privacy-notice inventory (2026-11-07, read from the code). `GET /api/peers` (`src/relay/api.rs` `get_peers`, about line 1294) needs no sign-in and lists every connected key and display name with `status: "online"`, with no check of the person's hide-presence choice, while the roster sent over the socket does mask them (`src/relay/broadcast.rs:256-266`), and the Library's "How Your Privacy Is Built" and `docs/reference/retention_and_deletion_semantics.md` say a hidden person's presence never leaves the server. A first sign-in also broadcasts `MemberJoined` with key and name (`src/relay/handlers/sign_ups.rs:111-117`).
+- **Fix direction** (not built): filter hidden people out of `/api/peers` as the roster does (or retire the route if nothing needs it), and send no join announcement for a person who starts hidden. The privacy page names this gap until it is fixed.
+
+## BUG-279: erasing an account leaves some of the person's data on the server, and the export leaves some out (OPEN, found 2026-11-07)
+
+**Found by** the privacy-notice inventory (2026-11-07). `delete_account` (`src/relay/storage/account.rs:295-390`) does not remove: copies in `pinned_messages` (the retention sweep skips pins too), `task_comments`, `user_data` (the website's settings sync, never deleted at all), `system_profiles`, `signed_objects` and the P2P group tables and `votes`, `bug_reports` and `bug_votes`, `reputation` and its events, trades, guilds, streams and stream chat, assets, projects and skills, `link_codes`, `invite_codes` and legacy `peers` rows. `user_data` and `system_profiles` are also missing from the export. The Library's "How Your Privacy Is Built" says an erase removes "all of its data", and `erased_accounts.rs` that it "removes everything". Bans and reports about the person stay on purpose (`account.rs:181-187`) and are not part of this bug.
+- **Fix direction** (not built): erase (or, where a record must stay, strip the person's key and name from) each table above, add the two missing tables to the export, and say plainly in the erase dialog what stays and why. The privacy page names this gap until it is fixed.
+
+## BUG-280: bug reports, with the reporter's browser name and window size, are public (OPEN, found 2026-11-07)
+
+**Found by** the privacy-notice inventory (2026-11-07). The website's bug form captures the browser's user agent, window size and page address (`web/pages/bugs-app.js:64-68`), and `GET /api/bugs` returns every report with `reporter_key`, `reporter_name`, `browser_info` and `page_url` to anyone, signed in or not (`src/relay/api.rs` `bug_to_json`, about line 3558). `docs/admin/SELF-HOSTING.md` says the relay "Does NOT track users".
+- **Fix direction** (not built): show `browser_info` only to admins (or drop the user agent and keep the browser family and version), and say on the form what is sent and who sees it. The privacy page names this gap until it is fixed.
+
+## BUG-281: every website page asks GitHub for the newest version, so GitHub sees every visitor (OPEN, found 2026-11-07)
+
+**Found by** the privacy-notice inventory (2026-11-07). The update checker in `web/shared/shell.js` (about line 2153) fetches `https://api.github.com/repos/Shaostoul/Humanity/releases/latest` three seconds after every page loads (at most once per 30 minutes per browser), on every page that loads the shell; `download.html` calls it on load too. GitHub sees each visitor's IP address and browser. A comment in `src/relay/front_door.rs:7-10` (the route behind the front door's update cards) says visitors talk only to this server, never to GitHub's API, and the devlog already stopped asking GitHub (2026-11-02).
+- **Fix direction** (not built): ask this server instead (it already serves `/api/releases` for the devlog). The privacy page names this gap until it is fixed.
+
+## BUG-282: a file attached in a members-only room can be opened by anyone who has its link (OPEN, found 2026-11-07)
+
+**Found by** the privacy-notice inventory (2026-11-07). The relay serves `data/uploads` with no access check (`src/relay/mod.rs:1488`, `nest_service("/uploads", ServeDir::new("data/uploads"))`; nginx proxies `/uploads/` to it), so an attachment posted in a members-only room is readable by anyone given or guessing its address, and the stored name is the upload time in milliseconds plus the original file name, with no random part (`src/relay/upload_rules.rs:267-277`). Members-only Files items are checked (`files_counts.rs:23-31`); chat attachments are not.
+- **Fix direction** (not built): store chat uploads under an unguessable name, and serve an attachment from a members-only room only to members (or with a short-lived ticket, as members-only Files items are). The privacy page names this gap until it is fixed.
+
+## BUG-283: the website's settings sync sends notes and settings unsealed when it has no key (OPEN, found 2026-11-07)
+
+**Found by** the privacy-notice inventory (2026-11-07). `encryptSyncData` in `web/chat/app.js` (about line 638) returns the plain text when `deriveSyncKey()` has no key, and again when encryption throws ("Sync encryption failed, sending plaintext"), so notes, to-dos, the garden and settings can reach the server's `user_data` readable by its operator. `docs/design/unpairable-dms.md` calls the sync "Encrypted storage".
+- **Fix direction** (not built): never send unsealed; skip the sync (and say so) when there is no key. The privacy page names this gap until it is fixed.
+
+## BUG-284: a P2P group's name, member list and who posted when are served to anyone (OPEN, found 2026-11-07)
+
+**Found by** the privacy-notice inventory (2026-11-07). BUG-261 is that the server can read these; this is worse: `GET /api/v2/objects` (`src/relay/api_v2_objects.rs` `list_objects`) needs no sign-in and returns the signed objects, group creation and membership included, to anyone, and the objects are copied to linked servers. The messages themselves stay sealed. `docs/reference/retention_and_deletion_semantics.md` describes groups as "opaque ciphertext plus signed membership objects".
+- **Fix direction** (not built): until BUG-261's certificate design lands, list group objects only to the group's members (a signed request, as `/api/v2/groups` already is). The privacy page names this gap until it is fixed.
+
+## BUG-285: the live relay database is readable by every account on the server (OPEN, found 2026-11-07)
+
+**Found by** the privacy-notice inventory, checked read-only on united-humanity.us 2026-11-07: `/opt/Humanity/data/relay.db` is mode 644 (`humanity:humanity`) in a 755 folder, so any account on the box (www-data for nginx, the Forgejo service, any other) can read every member's profile, room messages, push addresses, reports and the rest; `data/backup.key` is 600, as it should be. Nothing sets a umask: the relay's unit written by `scripts/provision-vps.sh` (around line 248) has no `UMask=`, so SQLite creates its files with the default 644. Defence in depth, not a known leak: nginx does not serve `/opt`.
+- **Fix direction** (not built): `UMask=0077` in the relay's `[Service]` (provision-vps.sh, and the follow nodes' unit), so the database, its WAL and the backups it writes are 600; and on each server once, by the operator: `chmod 600 /opt/Humanity/data/relay.db*` and `chmod 700 /opt/Humanity/data /opt/Humanity/backups` (the backup timer runs as root, `scripts/systemd/humanity-backup-db.service` having no `User=`, so it still reads them; check the follow node the same way).

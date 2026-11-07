@@ -1910,6 +1910,16 @@
       "name": "Your Privacy",
       "docs": [
         {
+          "title": "Privacy: What This Server Keeps About You",
+          "file": "privacy_policy.md",
+          "tags": [
+            "project",
+            "beginner",
+            "real",
+            "reference"
+          ]
+        },
+        {
           "title": "Who Can Read Your Messages",
           "file": "who_can_read_your_messages.md",
           "tags": [

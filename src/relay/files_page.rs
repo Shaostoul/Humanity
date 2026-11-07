@@ -230,10 +230,14 @@ fn short_description(text: &str) -> String {
 /// files.html with `title` (already escaped) as its `<title>` and `tags` written at its
 /// [`OG_MARKER`] line (before `</head>` if the marker is missing, at the top if that is too).
 fn fill(template: &str, title: &str, tags: &str) -> String {
-    let mut page = template.to_string();
+    let mut page = without_page_meta(template);
     let title_element = format!("<title>{title}</title>");
     let mut tags = tags.to_string();
-    match page.find("<title>").and_then(|a| page[a..].find("</title>").map(|b| (a, a + b + "</title>".len()))) {
+    // `<title>` or `<title data-i18n="...">` (the website's titles carry their key since
+    // 2026-11-07); the item's title replaces the whole element, key and all, so the page's script
+    // never puts "Files, HumanityOS" back over the item's name.
+    let open = page.find("<title>").or_else(|| page.find("<title "));
+    match open.and_then(|a| page[a..].find("</title>").map(|b| (a, a + b + "</title>".len()))) {
         Some((a, b)) => page.replace_range(a..b, &title_element),
         None => tags = format!("{title_element}\n  {tags}"),
     }
@@ -245,6 +249,30 @@ fn fill(template: &str, title: &str, tags: &str) -> String {
         page.insert_str(0, &format!("{tags}\n"));
     }
     page
+}
+
+/// The first line of the website's own description and share block in each page's head
+/// (`scripts/gen-page-meta.js`, 2026-11-07, docs/design/privacy-notice.md section 6).
+pub const PAGE_META_OPEN: &str = "<!-- page-meta:";
+/// Its last line.
+pub const PAGE_META_CLOSE: &str = "<!-- /page-meta -->";
+
+/// files.html without its own description and share block. That block describes the Files page
+/// itself (og:title "Files, HumanityOS", the site's banner as og:image, og:url /files); an item's
+/// page writes the item's tags instead, and a social site takes the FIRST og:image and og:title it
+/// meets, so leaving both would show the banner and the page's name on every shared item. The
+/// bare page (a members-only, hidden or missing item) must say nothing about any address either.
+/// Whole lines go, from the opening comment's line to the closing comment's, line endings and all.
+fn without_page_meta(page: &str) -> String {
+    match (page.find(PAGE_META_OPEN), page.find(PAGE_META_CLOSE)) {
+        (Some(a), Some(b)) if b > a => {
+            let start = page[..a].rfind('\n').map_or(0, |i| i + 1);
+            let close_end = b + PAGE_META_CLOSE.len();
+            let end = page[close_end..].find('\n').map_or(page.len(), |i| close_end + i + 1);
+            format!("{}{}", &page[..start], &page[end..])
+        }
+        _ => page.to_string(),
+    }
 }
 
 /// The bare page every hidden case gets: the same bytes for the same site, whatever the number.

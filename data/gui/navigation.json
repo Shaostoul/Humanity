@@ -124,7 +124,9 @@
     { "id": "civilization", "web": "/civilization", "why": "The community dashboard, to be merged into Mission (section 9)." },
     { "id": "wallet_guide", "web": "/wallet-guide", "why": "The Wallet's help page, to move into the help system on both apps (section 9)." },
     { "id": "recovery", "web": "/recovery", "why": "Recovery through trusted people: a part of Settings > Account on the desktop (section 9)." },
-    { "id": "hi", "web": "/hi", "why": "The printed card's QR address, never in a menu (section 9)." }
+    { "id": "hi", "web": "/hi", "why": "The printed card's QR address, never in a menu (section 9)." },
+    { "id": "privacy", "web": "/privacy", "why": "The privacy policy: linked from every page's footer and from the front door, where people look for it, not a menu step (docs/design/privacy-notice.md). On the desktop it is a Library document on the Your Privacy shelf." },
+    { "id": "not_found", "web": "/404", "why": "The page nginx shows for an address that is not here; nobody goes to it on purpose. The desktop app has no addresses, so it has none (docs/design/privacy-notice.md section 5)." }
   ],
   "timings": { "preview_rest_ms": 200, "preview_leave_ms": 300, "play_hold_ms": 800 },
   "today_row": {

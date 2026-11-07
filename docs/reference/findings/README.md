@@ -453,3 +453,12 @@ what we will say about it.
   Jensen), so Kalpana One's 250 m radius was cut to 325 m and Drum 1's 2 km is 8 radii; the main
   belt is about 4 x 10^-4 Earth masses (Pitjeva and Pitjev 2018); the ADA lets a walkway slope 1 in
   20 before it is a ramp. The basis for the master plan's scale study and the lean.
+- [`2026-11-07-privacy-notice.md`](2026-11-07-privacy-notice.md),
+  what a privacy notice for united-humanity.us must say, and which laws reach a free,
+  non-commercial project run by one person in Washington State: the EU GDPR probably not (no
+  targeting; the EDPB's own Example 16), though being free is no exit and an EU representative
+  would follow if it did; the UK GDPR the same, with the new right to complain to the controller
+  (s.164A, 19 June 2026); the CCPA no; CalOPPA unclear on "commercial"; Washington's My Health My
+  Data Act no while no health data reaches the server (checked in the code); COPPA only if
+  commercial and child-directed or on actual knowledge. No consent banner, age gate or request
+  form is required as things stand. The basis for the /privacy page.

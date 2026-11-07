@@ -1519,6 +1519,32 @@ any other until the operator decides (the comment in robots.txt says where the l
   `data/site/public_pages.json`), placed at the web root by `scripts/sync-web-root.sh`
 - Test: `scripts/tests/robots-web.test.js`
 
+### Descriptions and share previews on every page (2026-11-07)
+Every website page people can reach carries a one-sentence description and a share preview (og:
+title, description, url, image, type; twitter:card), written into each page's `<head>` because
+crawlers and social sites do not run scripts. One generator writes them from data; nothing is
+hand-copied. Design: `docs/design/privacy-notice.md` section 6.
+- Web: `scripts/gen-page-meta.js` from `data/site/page_meta.json` and `data/i18n/en.json`
+  (`page_meta.*`, `page_titles.*`); the shared picture `web/shared/social/og-banner.png`
+- Test: `scripts/tests/page-meta-web.test.js`
+
+### The 404 page (2026-11-07)
+Our own page for an address that is not here, in plain words with a way on, in place of nginx's
+default page; nginx no longer names its version (BUG-277; the live server needs the operator's
+commands in BUG-277). The desktop app has no addresses, so no 404.
+- Web: `web/pages/404.html`; `scripts/nginx/humanity.conf` (`error_page 404`, `server_tokens off`)
+- Test: `scripts/tests/not-found-web.test.js`
+
+### The privacy policy (2026-11-07)
+What the server keeps about a visitor or a member, why, for how long, who can see it and how to
+erase it, true to an inventory read from the code, with the known gaps named (BUG-278 to BUG-284).
+The law behind it: `docs/reference/findings/2026-11-07-privacy-notice.md`.
+- Native: the Library's "Your Privacy" shelf ("Privacy: What This Server Keeps About You",
+  `docs/outreach/privacy_policy.md` copied to `data/library/privacy_policy.md`)
+- Web: `/privacy` (`web/pages/privacy.html`, `privacy-app.js`) drawing the same file; linked from
+  every page's footer (`web/shared/shell.js`) and the front door; in the sitemap
+- Evidence: `docs/design/privacy-notice.md`
+
 ### File Browser/Editor
 Tree navigator for data/ directory. Built-in viewers for text, JSON, CSV, markdown, images, audio, video.
 - Web: `web/pages/files.html`, `web/pages/files-app.js`

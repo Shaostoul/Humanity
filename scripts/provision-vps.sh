@@ -373,7 +373,11 @@ printf 'server_names_hash_bucket_size 64;\n' > /etc/nginx/conf.d/hash-bucket.con
 cat > /etc/nginx/conf.d/humanity-limits.conf <<'LIMITS'
 limit_req_zone $binary_remote_addr zone=api_read_limit:10m rate=10r/s;
 limit_req_zone $binary_remote_addr zone=upload_limit:10m rate=2r/m;
+limit_req_zone $binary_remote_addr zone=resumable_limit:10m rate=120r/m;
 LIMITS
+# (resumable_limit added 2026-11-07: humanity.conf's /api/upload/resumable has used it since
+# 2026-10-11 and the live server declares it, but a fresh server provisioned from this script did
+# not, so its `nginx -t` below would have failed with "zero size shared memory zone".)
 install -m 644 "$REPO/scripts/nginx/humanity.conf" /etc/nginx/sites-available/humanity
 # The repo config is written for the canonical instance; substitute this
 # node's domains into the installed copy (server_name lines AND letsencrypt

@@ -141,7 +141,16 @@ async fn a_public_items_page_carries_its_open_graph_tags_escaped() {
         assert!(page.contains(&tag), "the page carries {tag}\n{page}");
     }
     assert_eq!(page.matches("<title>").count(), 1, "one title, the item's");
+    assert_eq!(page.matches("<title").count(), 1, "the Files page's own title (with its key) is gone");
     assert!(!page.contains(OG_MARKER), "the tags are written at the marker");
+    // The Files page's own description and share block (scripts/gen-page-meta.js, 2026-11-07) is
+    // taken out: a social site reads the FIRST og:title and og:image, which would otherwise be the
+    // page's name and the site's banner on every shared item. Seen red 2026-11-07 with
+    // `without_page_meta` left out of `fill`: "the page's own block is gone" (and the bare-page,
+    // labelled-item and forged-host tests red on the block's og:image, og:url and twitter:card).
+    assert!(!page.contains(PAGE_META_OPEN) && !page.contains(PAGE_META_CLOSE), "the page's own block is gone\n{page}");
+    assert_eq!(page.matches("property=\"og:title\"").count(), 1, "one og:title, the item's");
+    assert!(!page.contains("og-banner.png"), "no banner standing in for the item's picture");
     let html = files_html();
     let tail = &html[html.find("</head>").unwrap()..];
     assert!(page.ends_with(tail), "the rest of files.html is as it was");
@@ -394,7 +403,10 @@ async fn no_media_html_says_so_in_words() {
     assert_eq!(read_template(&[missing, found]).await, Some(files_html()), "the first that can be read");
     assert_eq!(template_paths().last().unwrap(), &PathBuf::from("web").join("pages").join("files.html"));
     assert_eq!(files_html().matches(OG_MARKER).count(), 1, "files.html carries its marker line once");
-    assert_eq!(files_html().matches("<title>").count(), 1);
+    // One title element (it carries its key, `<title data-i18n=...>`, since 2026-11-07), and the
+    // page's own share block once, which `fill` takes out of every item page.
+    assert_eq!(files_html().matches("<title").count(), 1);
+    assert_eq!(files_html().matches(PAGE_META_OPEN).count(), 1, "files.html carries its share block once");
 }
 
 /// NGINX SENDS ITEM PAGES TO THE RELAY: the repository's nginx config and the self-hosting guide
