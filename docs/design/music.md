@@ -601,8 +601,8 @@ The operator, shown the four libraries of question 1: "Awesome, let's build up o
 kind of like we do with the star catalog and skybox." Also: "Could we deep drums and steel drums.
 Let's just keep focusing of 432 Hz."
 
-**What was downloaded.** The four approved libraries, whole, to `E:\HumanityOS\instruments-src\`
-(never into git), each verified and recorded with its size, SHA-256, source and licence text in
+**What was downloaded.** The four approved libraries, whole, and on 2026-11-07 three more (a steel
+pan, a Hang, big drums), to `E:\HumanityOS\instruments-src\` (never into git), each verified and recorded with its size, SHA-256, source and licence text in
 [`docs/reference/instrument-sources.md`](../reference/instrument-sources.md).
 
 **The pipeline** (`just instrument-packs`, `scripts/instrument-packs.js`, recipes in
@@ -623,18 +623,22 @@ operator (`docs/ai/release.md`, "Instrument packs"); sizes and checksums are in
 
 | Set | Size (Ogg Vorbis) | Instruments, and the part each plays | From |
 |---|---|---|---|
-| **Core**, in the app | 6.0 MiB | small upright piano (piano); concert harp; vibraphone; glockenspiel; tubular bells; wine glasses (glass); violins (high strings); cellos (low strings); bass drum (deep drum) | FreePats, VCSL, VSCO 2 |
+| **Core**, in the app | 6.3 MiB | small upright piano (piano); concert harp; vibraphone; glockenspiel; tubular bells; wine glasses (glass); violins (high strings); cellos (low strings); steel pan; bass drum (deep drum) | FreePats, VCSL, VSCO 2, jSteelDrum |
 | **Keys** | 69.7 MiB | Steinway B grand, Kawai grand, Kawai upright, Yamaha upright (piano) | VCSL, FreePats |
 | **Strings** | 33.3 MiB | violin, viola and cello sections; double bass; solo violin; violins and cellos plucked; concert harp | VSCO 2, VCSL |
-| **Mallets and bells** | 11.2 MiB | vibraphone, bowed vibraphone, glockenspiel, tubular bells, hand chimes, wine glasses, marimba, xylophone | VCSL |
+| **Mallets and bells** | 20.2 MiB | vibraphone, bowed vibraphone, glockenspiel, tubular bells, hand chimes, wine glasses, steel pan, marimba, xylophone | VCSL, jSteelDrum |
 | **Guitars** | 20.1 MiB | Gretsch and Hofner hollowbody electrics, three velocity layers, two round robins | Karoryfer |
-| **Percussion and deep drums** | 4.4 MiB | bass drum, concert bass drum, large hand drum, timpani, frame drum, low tom, gong | VCSL, VSCO 2 |
+| **Percussion and deep drums** | 6.2 MiB | big mallet toms of 22 and 18 inches (the deep drum part's first choice), bass drum, concert bass drum, large hand drum, timpani, frame drum, low tom, gong; the Hang (handpan) | Big Rusty Drums, VCSL, VSCO 2, FreePats |
 
 Measured source tunings: most instruments within 5 cents of A = 440; the concert harp about 8
 cents flat (A4 = 438.2 Hz); the glockenspiel, xylophone and wine glasses 13 to 16 cents sharp (A4 =
 443.4 to 443.9 Hz), the way orchestral mallets are often tuned. A tubular bell's strike note comes
 from its upper partials and is not measured (A = 440 assumed). Timpani keys come from each hit's
-measured pitch; hits with no clear pitch are left out. Sizes and checksums: `data/music/packs.ron`.
+measured pitch; hits with no clear pitch are left out. The steel pan measured +2.4 cents and the
+Hang +5.7: where the measure disagreed with a file name (an octave out when it locked onto a partial,
+a neighbouring note ringing along, or the hardest pan hits up to about 50 cents sharp, the way a
+struck pan sounds) the key follows the file name, which the hits measured in tune confirm. Sizes and
+checksums: `data/music/packs.ron`.
 
 **Settings > Audio > Instruments** (`src/gui/pages/settings/instruments.rs`): the core set (always
 installed), then each pack with what it holds, its size, its licence in plain words, installed or
@@ -657,12 +661,15 @@ anything, checked against its published checksum before it lands, and removing i
 Decoded samples kept in memory obey the Dev page's "turn off all reuse" switch
 (`instrument_packs::samples::SampleBank`).
 
-**Deep drums and steel drums.** Deep drums are in the percussion pack from the approved libraries
-(concert bass drums, timpani, a frame drum, a low tom, a large hand drum, a gong). No steel pan or
-taiko is in them; the CC0 candidates found (Jeff Learman's chromatic C tenor steel pan, FreePats'
-Hang, Karoryfer's Big Rusty Drums) are in
-[`findings/2026-11-06-steel-pan-and-deep-drums.md`](../reference/findings/2026-11-06-steel-pan-and-deep-drums.md),
-**not downloaded**, each waiting for the operator's yes; once downloaded, each is one recipe.
+**Deep drums and steel drums.** Found in
+[`findings/2026-11-06-steel-pan-and-deep-drums.md`](../reference/findings/2026-11-06-steel-pan-and-deep-drums.md)
+and approved by the operator on 2026-11-07 ("Let's do it."): Jeff Learman's chromatic C tenor steel
+pan (version 1, CC0) plays the new `steel_pan` part (a small set in the core, the full one in the
+mallets pack); Karoryfer's Big Rusty Drums give the deep drum part its first choice, a bass drum set
+up as a 22-inch floor tom and an 18-inch tom, played with mallets (the close microphone and the
+overheads mixed, as the library's own programs do); and FreePats' Hang in D minor plays the new
+`handpan` part with `exact_keys` (its nine notes only, as the bank asks: a key it does not have plays
+nothing). No CC0 recording of a real taiko exists in what was searched.
 
 **The website** plays no music yet (rung 9), so it has no Instruments list; it mirrors this one when
 it does.

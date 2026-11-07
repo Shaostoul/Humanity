@@ -3483,7 +3483,9 @@ window.HOS_I18N_EN = {
       "deep_drum": "deep drum",
       "timpani": "timpani",
       "frame_drum": "frame drum",
-      "gong": "gong"
+      "gong": "gong",
+      "steel_pan": "steel pan",
+      "handpan": "handpan"
     },
     "instrument": {
       "upright_piano_small": "Upright piano (small)",
@@ -3523,7 +3525,12 @@ window.HOS_I18N_EN = {
       "frame_drum": "Frame drum",
       "low_tom": "Low tom",
       "gong": "Gong",
-      "grand_piano_steinway": "Grand piano (Steinway)"
+      "grand_piano_steinway": "Grand piano (Steinway)",
+      "steel_pan_small": "Steel pan (small)",
+      "steel_pan": "Steel pan",
+      "handpan": "Hang (handpan)",
+      "big_tom_22": "Big mallet tom, 22 inch",
+      "big_tom_18": "Big mallet tom, 18 inch"
     }
   },
   "chat_video_dock": {

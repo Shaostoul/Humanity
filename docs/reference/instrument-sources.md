@@ -1,17 +1,18 @@
 # Instrument sources: what was downloaded, from where, when
 
 **Manifest dated 6 November 2026** (downloads made 2026-11-07 UTC, the evening of 2026-11-06
-Pacific). The raw sample libraries behind the app's free instrument library
+Pacific); **sections 5 to 7 added 7 November 2026** (downloaded 2026-11-07 09:53 to 09:56 UTC). The raw sample libraries behind the app's free instrument library
 ([`docs/design/music.md`](../design/music.md) rung 6; the code is `src/instrument_packs/`, the
 pipeline `scripts/instrument-packs.js`, run by `just instrument-packs`).
 
-The operator approved these four downloads on 2026-11-06 ("Awesome, let's build up our free
+The operator approved the first four downloads on 2026-11-06 ("Awesome, let's build up our free
 library." and "Let's go all in."), whole libraries, from the official sources named in the dated
 finding [`findings/2026-11-06-music-sources.md`](findings/2026-11-06-music-sources.md), which
-cleared each as public domain (CC0). Any other library needs his yes first; the candidates found for
-a steel pan and deeper drums are in
-[`findings/2026-11-06-steel-pan-and-deep-drums.md`](findings/2026-11-06-steel-pan-and-deep-drums.md)
-and were **not** downloaded.
+cleared each as public domain (CC0). On 2026-11-07 he approved three more ("Let's do it."), sections
+5 to 7: the steel pan, the Hang and the big drums found in
+[`findings/2026-11-06-steel-pan-and-deep-drums.md`](findings/2026-11-06-steel-pan-and-deep-drums.md).
+Nothing else in that finding was downloaded (not the steel pan's version 2, not the CC BY taiko). Any
+other library needs his yes first.
 
 **Where they are.** Outside the repository, on the development machine only:
 `E:\HumanityOS\instruments-src\` (`download-log.txt` there has each download's time). Never in git:
@@ -120,6 +121,79 @@ every sample folder it makes, so it travels with the samples into the app and in
   Line endings of the two copies were made plain LF; the words are unchanged.
 - Used for: the guitars pack (a green Gretsch Anniversary and a black Hofner Club, recorded by
   Brian Wood).
+
+## 5. jSteelDrum version 1 (Jeff Learman): a C tenor steel pan
+
+- Source: https://github.com/jlearman/jSteelDrum1 (GitHub reports no licence identifier; the
+  repository's own `LICENSE` file, read 2026-11-07, is the whole statement): "This is free and
+  unencumbered software released into the public domain according to Creative Commons CC0:
+  https://creativecommons.org/publicdomain/zero/1.0/ Created by Jeff Learman."
+- Downloaded 2026-11-07 09:53 UTC as the repository's "Download ZIP" link,
+  https://github.com/jlearman/jSteelDrum1/archive/refs/heads/main.zip; the archive's own comment
+  names the commit, `8f37bc7472d89ce3f7ca53265794466ab0cbf23e` (2023-09-26, "Update README.md point
+  to latest version").
+
+| File | Bytes | SHA-256 |
+|---|---|---|
+| `jSteelDrum1-main.zip` | 56,638,307 | `aba369742514652ef61c365c4d52ac1cd4bdc737ca60d4ecd510e5973b39de42` |
+
+- Unpacked: 450 files, 61,331,840 bytes, **every one matching its git blob hash** in that commit's
+  tree (0 different, 0 missing, 0 extra).
+- Licence text: copied as
+  [`instrument-licences/jsteeldrum1-LICENSE.txt`](instrument-licences/jsteeldrum1-LICENSE.txt); the
+  README (a steel pan hand-made in Trinidad, recorded in September 2021, 27 notes from C4 to B5 plus
+  C#6, D#6 and F6, five velocity layers) as
+  [`jsteeldrum1-README.txt`](instrument-licences/jsteeldrum1-README.txt).
+- Worth knowing: two files are named "A5" though their MIDI number is 069 (A4); the pipeline takes
+  the MIDI number. Its README calls version 2 "much better"; version 2 was not approved and not
+  downloaded.
+- Used for: the core set's small steel pan; the mallets pack's steel pan.
+
+## 6. FreePats Hang in D minor
+
+- Source page: https://freepats.zenvoid.org/ChromaticPercussion/hang.html ("Version 2022-03-30");
+  the download is the release asset of https://github.com/freepats/hang-D-minor (release
+  `2022-03-30`, published on GitHub 2024-08-28).
+- Downloaded 2026-11-07 09:54 UTC:
+
+| File (https://github.com/freepats/hang-D-minor/releases/download/2022-03-30/) | Bytes | SHA-256 |
+|---|---|---|
+| `Hang-D-minor-SFZ+FLAC-20220330.7z` | 13,478,020 | `dea56a898c88b838e37f92967fe0edfe41b1bd2aa16ed9a240e3f44efb525a5c` |
+
+- The size matches the 13,478,020 bytes GitHub lists for the asset (no digest published); the
+  archive's own CRC32 for each of its 55 files checked on reading, all matching.
+- Licence: the archive's README.txt, "Published under the terms of Creative Commons CC0 public
+  domain dedication", and its LICENSE.txt, the CC0 1.0 Universal legal code; copied as
+  [`freepats-hang-d-minor-LICENSE.txt`](instrument-licences/freepats-hang-d-minor-LICENSE.txt) and
+  [`freepats-hang-d-minor-README.txt`](instrument-licences/freepats-hang-d-minor-README.txt).
+- Worth knowing: nine notes are sampled (A3, D4, E4, F4, G4, A4, Bb4, C5, D5; the README's list
+  also names C4, which has no samples), and the README asks that the semitones between them not be
+  filled by pitching neighbours ("Other notes are silent"). The instrument is marked
+  `exact_keys`, so a key the Hang does not have plays nothing.
+- Used for: the percussion pack's Hang.
+
+## 7. Karoryfer Big Rusty Drums
+
+- Source page: https://shop.karoryfer.com/pages/free-big-rusty-drums; the free-samples page,
+  https://shop.karoryfer.com/pages/free-samples: "All our free sample libraries are under a Creative
+  Commons Zero license." The download is the release asset of
+  https://github.com/sfzinstruments/karoryfer.big-rusty-drums (release `v1.100`, 2023-04-29, tag
+  commit `f07ce00df34a46b6b08375be56fe116cf15782bc`).
+- Downloaded 2026-11-07 09:54 to 09:56 UTC:
+
+| File (https://github.com/sfzinstruments/karoryfer.big-rusty-drums/releases/download/v1.100/) | Bytes | SHA-256 |
+|---|---|---|
+| `Big_Rusty_Drums_1100.zip` | 619,600,370 | `d4a9990acd19376d91ce446dae415c81428728b5adebb6a88eddbb3a6aac8744` |
+
+- The size matches the 619,600,370 bytes GitHub lists (no digest published). Unpacked: 4,871
+  files. Against the tag's git tree: all 4,493 sample and binary files byte for byte identical; the
+  378 text files (programs, GUI, presets, LICENSE) identical once their line endings are made LF
+  (the release was zipped from a Windows checkout); only `.gitattributes` is not in the zip.
+- Licence text: the archive's `LICENSE` is the CC0 1.0 Universal legal code, copied as
+  [`karoryfer-big-rusty-drums-LICENSE.txt`](instrument-licences/karoryfer-big-rusty-drums-LICENSE.txt).
+- Used for: the percussion pack's two big mallet toms (the 22-inch, a bass drum set up as a floor
+  tom, and the 18-inch), each the close microphone and the overheads mixed, as the library's own
+  programs do.
 
 ## What the app gets from them
 

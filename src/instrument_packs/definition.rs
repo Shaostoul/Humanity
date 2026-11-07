@@ -134,6 +134,10 @@ pub struct Sampler {
     /// The library normalised every file, so loudness by velocity is the engine's job.
     #[serde(default)]
     pub normalized: bool,
+    /// Each zone plays only its own keys, and a key outside every zone plays nothing (the Hang:
+    /// its readme asks that the semitones it does not have not be filled by pitching neighbours).
+    #[serde(default)]
+    pub exact_keys: bool,
     pub zones: Vec<Zone>,
 }
 
@@ -171,8 +175,12 @@ pub fn note_hz(midi: f64, a4_hz: f64) -> f64 {
 
 impl Sampler {
     /// The zone that plays `key` at `velocity` (1..=127), taking turn `turn` among its round
-    /// robins. A key or velocity outside every zone takes the nearest one, so a note is never lost.
+    /// robins. A key or velocity outside every zone takes the nearest one, so a note is never lost;
+    /// except that with `exact_keys` a key outside every zone plays nothing (None).
     pub fn zone_for(&self, key: u8, velocity: u8, turn: usize) -> Option<&Zone> {
+        if self.exact_keys && !self.zones.iter().any(|z| (z.lo_key..=z.hi_key).contains(&key)) {
+            return None;
+        }
         let key_dist = |z: &Zone| {
             if key < z.lo_key {
                 z.lo_key - key

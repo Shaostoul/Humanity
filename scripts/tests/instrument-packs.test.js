@@ -218,6 +218,81 @@ test('the pipeline turns a fixture library into a core set and a checked pack', 
   }
 });
 
+/** The peak of an encoded sample, decoded by ffmpeg. */
+function peakOf(file) {
+  const raw = require('child_process').execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'f32le', '-ac', '1', 'pipe:1'], { maxBuffer: 1 << 26 });
+  const x = new Float32Array(raw.buffer, raw.byteOffset, Math.floor(raw.length / 4));
+  let p = 0;
+  for (const v of x) p = Math.max(p, Math.abs(v));
+  return p;
+}
+
+/**
+ * The 2026-11-07 additions, for the steel pan, the Hang and the big toms: a MIDI number in a file
+ * name wins over its note name (jSteelDrum names two A4 files "A5"); `exact_keys` gives each note
+ * its own key only and says so in the definition (the Hang's nine notes); `from.mix` adds another
+ * microphone's file of the same hit, and a sample that would then peak over full scale is refused.
+ *
+ * Seen RED first (2026-11-07), each under a mutation put back after: the MIDI group ignored, "the
+ * MIDI number wins over the note name"; the exact-key spread left as for other instruments, "each
+ * note plays only its own key"; the mix loop skipped, "the overhead is mixed in (x1.00: 0.442
+ * against 0.442 alone)"; the full-scale check removed, "Missing expected rejection: a mix past full
+ * scale is refused".
+ */
+test('a MIDI number, exact keys and mixed microphones', async () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'hos-instr-test2-'));
+  try {
+    const entries = [{ path: 'Kit/LICENSE', data: Buffer.from(LICENCE) }];
+    // Two pan notes, one mislabelled the way jSteelDrum's are: MIDI 069 named "A5".
+    entries.push({ path: 'Kit/Pan/Pan_060__C4_1.wav', data: wav(B.noteHz(60, 440), 0.5, 1.0, 0.1) });
+    entries.push({ path: 'Kit/Pan/Pan_069__A5_1.wav', data: wav(B.noteHz(69, 440), 0.5, 1.0, 0.1) });
+    // A hang with two notes and a gap between them.
+    entries.push({ path: 'Kit/Hang/A3_01.wav', data: wav(B.noteHz(57, 440), 0.5, 1.0, 0.1) });
+    entries.push({ path: 'Kit/Hang/D4_01.wav', data: wav(B.noteHz(62, 440), 0.5, 1.0, 0.1) });
+    // A drum hit (a low tone, which the encoder keeps cleanly) on two microphones, the same take.
+    const hit = wav(110, 0.4, 0.5, 0.05);
+    entries.push({ path: 'Kit/Tom/cl/t_vl1_rr1.wav', data: hit });
+    entries.push({ path: 'Kit/Tom/oh/t_vl1_rr1.wav', data: hit });
+    const archive = path.join(work, 'kit', 'Kit.tar.gz');
+    fs.mkdirSync(path.dirname(archive), { recursive: true });
+    fs.writeFileSync(archive, zlib.gzipSync(B.tarBuffer(entries)));
+    const lib = {
+      name: 'Kit', url: 'https://example.invalid/kit', version: 'test', fetched: '2026-11-07', licence: 'cc0', licence_name: 'CC0 1.0',
+      archive: 'kit/Kit.tar.gz', strip: 'Kit', bytes: fs.statSync(archive).size,
+      sha256: crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex'), licence_file: 'LICENSE', credit: 'Test tones.',
+    };
+    const tom = (mixDb) => ({ id: 'tom', pack: 'core', part: 'deep_drum', rank: 10, library: 'kit', pitched: false, key: 41,
+      from: { dir: 'Tom/cl', pattern: '^t_(?<vel>vl\\d)_rr(?<rr>\\d)\\.wav$', mix: [{ dir: 'Tom/oh', gain_db: mixDb }] }, max_seconds: 1 });
+    const recipe = (tomRecipe) => ({
+      release: 'r', base_url: 'http://127.0.0.1/', packs: { core: { quality: 0 } }, libraries: { kit: lib },
+      instruments: [
+        { id: 'pan', pack: 'core', part: 'steel_pan', rank: 10, library: 'kit', measure_pitch: false,
+          from: { dir: 'Pan', pattern: '^Pan_(?<midi>\\d{3})_+(?<note>[A-G]b?\\d)_(?<vel>\\d)\\.wav$' }, max_seconds: 1 },
+        { id: 'hang', pack: 'core', part: 'handpan', rank: 10, library: 'kit', exact_keys: true, measure_pitch: false,
+          from: { dir: 'Hang', pattern: '^(?<note>[A-G]b?\\d)_(?<rr>\\d+)\\.wav$' }, max_seconds: 1 },
+        tomRecipe,
+      ],
+    });
+    // The tom alone first (the overhead 120 dB down), then with the overhead at -6 dB.
+    const alone = peakOf(path.join((await build(work, recipe(tom(-120)))).core, 'samples', 'tom', 't_vl1_rr1.ogg'));
+    const out = await build(work, recipe(tom(-6)));
+    const pan = zones(fs.readFileSync(path.join(out.core, 'instruments', 'pan.ron'), 'utf8'));
+    assert.deepStrictEqual(pan.map((z) => z.key), [60, 69], 'the MIDI number wins over the note name');
+    const hangRon = fs.readFileSync(path.join(out.core, 'instruments', 'hang.ron'), 'utf8');
+    assert.match(hangRon, /exact_keys: true/);
+    assert.deepStrictEqual(zones(hangRon).map((z) => [z.lo_key, z.hi_key]), [[57, 57], [62, 62]], 'each note plays only its own key');
+    assert.doesNotMatch(fs.readFileSync(path.join(out.core, 'instruments', 'pan.ron'), 'utf8'), /exact_keys/, 'only an exact-key instrument says so');
+    // The same take on both microphones: the overhead at -6 dB adds half again (x1.50).
+    const peak = peakOf(path.join(out.core, 'samples', 'tom', 't_vl1_rr1.ogg'));
+    const ratio = peak / alone;
+    assert.ok(ratio > 1.4 && ratio < 1.6, `the overhead is mixed in (x${ratio.toFixed(2)}: ${peak.toFixed(3)} against ${alone.toFixed(3)} alone)`);
+    // At +12 dB the mix passes full scale, and the pipeline refuses it rather than clip.
+    await assert.rejects(build(work, recipe(tom(12)), path.join(work, 'packs-hot')), /peak over full scale/, 'a mix past full scale is refused');
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the tar writer is plain ustar and reads back', () => {
   const t = B.tarBuffer([{ path: 'b.txt', data: Buffer.from('bee') }, { path: 'a/c.bin', data: Buffer.alloc(700, 7) }]);
   assert.strictEqual(t.length % 512, 0);

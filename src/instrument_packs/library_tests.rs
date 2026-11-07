@@ -214,6 +214,32 @@ fn decoded_samples_obey_the_reuse_switch() {
     assert_eq!(*c, *d, "the same sound either way");
 }
 
+/// AN EXACT-KEY INSTRUMENT PLAYS ONLY ITS OWN NOTES: the Hang (FreePats, D minor) has nine notes
+/// and its readme asks that the semitones between them not be filled by pitching its neighbours
+/// ("Other notes are silent"), because every note carries the others' resonance. With
+/// `exact_keys`, a key the instrument does not have finds no zone; without it, the nearest zone
+/// plays, as for every other instrument.
+///
+/// Seen red 2026-11-07 before `exact_keys` existed (the flag was read and ignored): "a note the
+/// Hang does not have is silent" (left: Some(62), right: None).
+#[test]
+fn an_exact_key_instrument_plays_only_its_own_notes() {
+    let ron = |exact: &str| {
+        format!(
+            "Instrument(id: \"hang\", words: \"w\", kind: Sampler((folder: \"hang\", source_a4_hz: 440.0{exact}, zones: [\
+             (file: \"A3.ogg\", key: 57, lo_key: 57, hi_key: 57, lo_vel: 1, hi_vel: 127, recorded_hz: Some(220.0)),\
+             (file: \"D4.ogg\", key: 62, lo_key: 62, hi_key: 62, lo_vel: 1, hi_vel: 127, recorded_hz: Some(293.66))])))"
+        )
+    };
+    let exact = super::definition::Instrument::parse(&ron(", exact_keys: true")).expect("parses");
+    let s = exact.sampler().unwrap();
+    assert_eq!(s.zone_for(57, 100, 0).map(|z| z.key), Some(57));
+    assert_eq!(s.zone_for(62, 100, 0).map(|z| z.key), Some(62));
+    assert_eq!(s.zone_for(60, 100, 0).map(|z| z.key), None, "a note the Hang does not have is silent");
+    let spread = super::definition::Instrument::parse(&ron("")).expect("parses");
+    assert_eq!(spread.sampler().unwrap().zone_for(60, 100, 0).map(|z| z.key), Some(62), "other instruments take the nearest zone");
+}
+
 /// An instrument definition of another kind (the music engine's synthesised voices share the
 /// folder) is recognised and left alone, and a sampled one whose sample is missing is left out
 /// with the reason, so its part falls back instead of playing silence.

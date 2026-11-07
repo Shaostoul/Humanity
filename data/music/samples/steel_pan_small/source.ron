@@ -1,0 +1,23 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "jSteelDrum (version 1), a C tenor steel pan",
+    url: "https://github.com/jlearman/jSteelDrum1",
+    version: "commit 8f37bc7472d89ce3f7ca53265794466ab0cbf23e (2023-09-26)",
+    licence: "CC0 1.0",
+    fetched: "2026-11-07",
+    archive: "jsteeldrum1/jSteelDrum1-main.zip",
+    archive_sha256: "aba369742514652ef61c365c4d52ac1cd4bdc737ca60d4ecd510e5973b39de42",
+    kept: [
+        (file: "SteelDrum_060__C4_3-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_060__C4_3-1.flac"),
+        (file: "SteelDrum_063_Eb4_3-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_063_Eb4_3-1.flac"),
+        (file: "SteelDrum_066_Gb4_3-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_066_Gb4_3-1.flac"),
+        (file: "SteelDrum_069__A4_3-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_069__A4_3-1.flac"),
+        (file: "SteelDrum_072__C5_3-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_072__C5_3-1.flac"),
+        (file: "SteelDrum_075_Eb5_3-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_075_Eb5_3-1.flac"),
+        (file: "SteelDrum_078_Gb5_3-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_078_Gb5_3-1.flac"),
+        (file: "SteelDrum_081__A5_3-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_081__A5_3-1.flac"),
+        (file: "SteelDrum_085_Db6_2-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_085_Db6_2-1.flac"),
+        (file: "SteelDrum_089__F6_2-1.ogg", from: "jSteelDrum-flac-sfz/SteelDrum_089__F6_2-1.flac"),
+    ],
+)

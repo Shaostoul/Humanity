@@ -24,6 +24,8 @@ Parts(
         (id: "wine_glass", words: "instrument_packs.part.wine_glass", synth: (kind: "modal", preset: "glass")),
         (id: "marimba", words: "instrument_packs.part.marimba", synth: (kind: "modal", preset: "marimba")),
         (id: "xylophone", words: "instrument_packs.part.xylophone", synth: (kind: "modal", preset: "xylophone")),
+        (id: "steel_pan", words: "instrument_packs.part.steel_pan", synth: (kind: "modal", preset: "steel_pan")),
+        (id: "handpan", words: "instrument_packs.part.handpan", synth: (kind: "modal", preset: "handpan")),
         (id: "guitar", words: "instrument_packs.part.guitar", synth: (kind: "plucked", preset: "clean_guitar")),
         (id: "deep_drum", words: "instrument_packs.part.deep_drum", synth: (kind: "modal", preset: "membrane_low")),
         (id: "timpani", words: "instrument_packs.part.timpani", synth: (kind: "modal", preset: "membrane_tuned")),

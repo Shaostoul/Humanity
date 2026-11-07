@@ -251,7 +251,8 @@ function sfzCandidates(recipe, lib) {
   const sfzPath = recipe.from.sfz;
   const regions = parseSfz(lib.read(sfzPath).toString('utf8'));
   const dir = path.posix.dirname(sfzPath);
-  const num = (v, d) => (v === undefined ? d : Number(v));
+  // A key opcode is a number or a note name ("Gb3", "C4"; SFZ's middle C is C4 = 60).
+  const num = (v, d) => (v === undefined ? d : /^-?\d+(\.\d+)?$/.test(String(v)) ? Number(v) : B.noteToMidi(v) ?? d);
   return regions.map((r) => {
     const key = num(r.pitch_keycenter, num(r.key, 60));
     return {
@@ -280,7 +281,8 @@ function patternCandidates(recipe, lib) {
     const m = re.exec(path.posix.basename(rel));
     if (!m) continue;
     const g = m.groups || {};
-    const named = g.note != null ? B.noteToMidi(g.note) : null;
+    // A MIDI number in the name wins over a note name (jSteelDrum names a few A4 files "A5").
+    const named = g.midi != null ? Number(g.midi) : g.note != null ? B.noteToMidi(g.note) : null;
     if (g.note != null && named == null) continue;
     let key = named;
     if (key == null && recipe.keys && g.art != null) key = recipe.keys[g.art];
@@ -398,6 +400,18 @@ async function processSample(cand, recipe, lib, staging, quality) {
     rate = 48000;
   }
   const pcm = await decode(lib.input(cand.file), channels, rate);
+  // Other microphones of the same hit, mixed in (Big Rusty Drums: the close mic and the overheads,
+  // recorded together, so they line up from the first sample).
+  for (const m of recipe.from.mix || []) {
+    const other = await decode(lib.input(m.dir + '/' + path.posix.basename(cand.file)), channels, rate);
+    const g = Math.pow(10, (m.gain_db || 0) / 20);
+    for (let i = 0; i < Math.min(pcm.length, other.length); i++) pcm[i] += other[i] * g;
+  }
+  // A gain for the whole sample (the same for every layer, so the dynamics between them stay).
+  if (recipe.gain_db) {
+    const g = Math.pow(10, recipe.gain_db / 20);
+    for (let i = 0; i < pcm.length; i++) pcm[i] *= g;
+  }
   const shaped = shape(pcm, channels, rate, recipe, loop);
   // The pitch, on the mono mix, near the note the file is named for (or anywhere in a drum's
   // range when the file names no note: the timpani).
@@ -450,7 +464,8 @@ function tuning(samples, recipe) {
   const shift = recipe.octave_shift != null ? recipe.octave_shift : 12 * Math.round(median(diffs) / 12);
   const cents = median(diffs.map((d) => (d - shift) * 100));
   const a4 = Math.round(440 * Math.pow(2, cents / 1200) * 100) / 100;
-  return { shift, a4, how: `measured: median of ${named.length} samples, ${cents >= 0 ? '+' : ''}${cents.toFixed(1)} cents from A = 440${shift ? `; names ${shift / 12} octave(s) off C4 = 60` : ''}` };
+  const note = recipe.tuning_note ? `; ${recipe.tuning_note}` : '';
+  return { shift, a4, how: `measured: median of ${named.length} samples, ${cents >= 0 ? '+' : ''}${cents.toFixed(1)} cents from A = 440${shift ? `; names ${shift / 12} octave(s) off C4 = 60` : ''}${note}` };
 }
 
 function layout(samples, recipe, tune) {
@@ -464,8 +479,11 @@ function layout(samples, recipe, tune) {
     const keys = [...new Set(kept.map((s) => s.key))].sort((a, b) => a - b);
     const pitched = recipe.pitched !== false;
     keys.forEach((k, i) => {
-      const lo = pitched ? (i === 0 ? Math.max(0, k - extend) : Math.floor((keys[i - 1] + k) / 2) + 1) : k;
-      const hi = pitched ? (i === keys.length - 1 ? Math.min(127, k + extend) : Math.floor((k + keys[i + 1]) / 2)) : k;
+      // Exact keys (the Hang): each note plays only its own key; nothing is stretched to fill the
+      // semitones between, which the instrument does not have.
+      const spreadKeys = pitched && !recipe.exact_keys;
+      const lo = spreadKeys ? (i === 0 ? Math.max(0, k - extend) : Math.floor((keys[i - 1] + k) / 2) + 1) : k;
+      const hi = spreadKeys ? (i === keys.length - 1 ? Math.min(127, k + extend) : Math.floor((k + keys[i + 1]) / 2)) : k;
       const atKey = kept.filter((s) => s.key === k);
       const layers = [...new Set(atKey.map((s) => s.layerToken))].sort((a, b) => layerRank(a, recipe.vel_order) - layerRank(b, recipe.vel_order));
       for (const s of atKey) {
@@ -514,6 +532,7 @@ function definitionRon(recipe, lib, zones, tune) {
       tuning_note: tune.how,
       release_s: B.f(recipe.release_s != null ? recipe.release_s : 0.5),
       normalized: !!(recipe.normalized ?? lib.normalized),
+      ...(recipe.exact_keys ? { exact_keys: true } : {}),
       zones: zones.map((z) => ({
         file: z.outName,
         key: z.key,
@@ -638,6 +657,9 @@ async function main(argv) {
       writeInstrumentFiles(root, recipe, lib, zones, tune, licenceText);
       const off = zones.filter((z) => z.measured && Math.abs(1200 * Math.log2(z.measured / B.noteHz(z.key, tune.a4 || 440))) > 30).length;
       log(`  ${zones.length} zones, ${tune.how}${off ? `; ${off} sample(s) measured more than 30 cents off their key` : ''}`);
+      // A sample over full scale would clip when played (a mix of microphones can sum past 1.0).
+      const hot = zones.filter((z) => z.peak > 1.0).length;
+      if (hot) throw new Error(`instrument ${recipe.id}: ${hot} sample(s) peak over full scale; lower the mix gains`);
       built.push({ recipe, root, bytes: dirBytes(staging) });
     }
 
@@ -676,6 +698,9 @@ async function main(argv) {
         entry.sha256 = crypto.createHash('sha256').update(tar).digest('hex');
         fs.writeFileSync(path.join(args.packsOut, file + '.sha256'), `${entry.sha256}  ${file}\n`);
         log(`pack ${id}: ${ids.length} instruments, ${(tar.length / 1048576).toFixed(1)} MiB, sha256 ${entry.sha256}`);
+      } else if (ready.length && !args.writeCatalog) {
+        log(`pack ${id}: ${ready.length} of its ${ids.length} instruments built; no archive (a trial run)`);
+        continue;
       } else if (ready.length) {
         throw new Error(`pack ${id}: only ${ready.length} of its ${ids.length} instruments were built (use --only for whole packs, or --no-catalog)`);
       } else {

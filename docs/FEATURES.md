@@ -2735,13 +2735,15 @@ they play, voices levelled per person, a slider per kind, an opt-in mic level) a
 ### Free instrument library: the core set, downloadable packs, Settings > Audio > Instruments (2026-11-06)
 Real recorded instruments for the live score (`docs/design/music.md` rung 6, section 23), all public
 domain (CC0): FreePats' Upright Piano KW, VCSL, VSCO 2 Community Edition and Karoryfer's Black And
-Green Guitars, downloaded once to the dev machine (`docs/reference/instrument-sources.md`, licence
+Green Guitars, and since 2026-11-07 Jeff Learman's steel pan, FreePats' Hang and Karoryfer's Big
+Rusty Drums, downloaded once to the dev machine (`docs/reference/instrument-sources.md`, licence
 texts in `docs/reference/instrument-licences/`). `just instrument-packs` keeps the samples each
 instrument needs, MEASURES each one's pitch (so the library's real tuning is recorded; nothing is
 retuned on disk, the engine plays each at the rate for A = 432 or 440) and encodes Ogg Vorbis: a
 small core set ships in the app (piano, harp, vibraphone, glockenspiel, tubular bells, wine glasses,
-violins, cellos, a bass drum), and five packs (keys, strings, mallets and bells, guitars, percussion
-and deep drums) are one checked archive each, GitHub release assets the operator uploads. Settings >
+violins, cellos, a steel pan, a bass drum), and five packs (keys, strings, mallets and bells with the
+steel pan, guitars, percussion and deep drums with the big mallet toms and the Hang, which plays only
+its own nine notes) are one checked archive each, GitHub release assets the operator uploads. Settings >
 Audio > Instruments lists them like the star catalog's tiers: what each holds, its size, its licence
 in plain words, installed or not, Download / Remove with progress, and what the music plays for each
 part now. Each pack is checked against its SHA-256 before it is unpacked; a damaged one is refused.
