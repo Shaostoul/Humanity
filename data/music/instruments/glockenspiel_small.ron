@@ -1,0 +1,29 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "glockenspiel_small",
+    words: "instrument_packs.instrument.glockenspiel_small",
+    part: "glockenspiel",
+    rank: 20,
+    kind: Sampler((
+        folder: "glockenspiel_small",
+        pitched: true,
+        source_a4_hz: 443.4,
+        tuning_note: "measured: median of 6 samples, +13.3 cents from A = 440; names 1 octave(s) off C4 = 60",
+        release_s: 1.0,
+        normalized: false,
+        zones: [
+            (file: "glock_medium_G4_01.ogg", key: 79, lo_key: 75, hi_key: 81, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(790.049), measured_hz: Some(769.685), loop_start: None, loop_end: None),
+            (file: "glock_medium_C5_01.ogg", key: 84, lo_key: 82, hi_key: 87, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1054.589), measured_hz: Some(1046.963), loop_start: None, loop_end: None),
+            (file: "glock_medium_G5_01.ogg", key: 91, lo_key: 88, hi_key: 93, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1580.098), measured_hz: Some(1578.105), loop_start: None, loop_end: None),
+            (file: "glock_medium_C6_01.ogg", key: 96, lo_key: 94, hi_key: 99, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(2109.178), measured_hz: Some(2111.864), loop_start: None, loop_end: None),
+            (file: "glock_medium_G6_01.ogg", key: 103, lo_key: 100, hi_key: 105, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(3160.196), measured_hz: Some(3171.962), loop_start: None, loop_end: None),
+            (file: "glock_medium_C7_01.ogg", key: 108, lo_key: 106, hi_key: 112, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(4218.355), measured_hz: Some(4257.905), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "D#5", high: "E8"),
+    reverb_send: 0.5,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "Versilian Community Sample Library (VCSL)", url: "https://github.com/sgossner/VCSL", version: "commit c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e (2026-01-14)", fetched: "2026-11-06"),
+    credit: "From the Versilian Community Sample Library by Versilian Studios (Sam Gossner and contributors). Public domain (CC0 1.0).",
+)

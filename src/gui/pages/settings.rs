@@ -11,6 +11,11 @@ use crate::updater::{UpdateChannel, UpdateState};
 
 /// Settings > Data > "Data folder": what the last update refreshed and kept (BUG-163 part 2).
 mod data_folder;
+/// Settings > Audio > Instruments (2026-11-06, docs/design/music.md rung 6): the instrument packs
+/// that come with the app and the ones to download, the star catalog's way.
+mod instruments;
+#[cfg(test)]
+mod instruments_tests;
 /// Settings > Privacy > "Calls and voice rooms" (10p, 2026-10-22): Private, Direct, or Direct
 /// also asking a public service, and who can see the person's address in each.
 mod calls;
@@ -2747,6 +2752,8 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
     if video_start_choices(ui, theme, hint, accent) {
         state.settings_dirty = true;
     }
+    // Instruments (2026-11-06, music.md rung 6): the recorded instruments the music plays.
+    instruments::draw_instruments(ui, theme, hint, accent, &mut crate::instrument_packs::ui::shared());
     // Voice (v0.485). Device selectors + a mic loopback test (toggle) with a live
     // level meter, so you can confirm capture + playback and pick devices. The
     // full in-app voice transport is being built in phases.

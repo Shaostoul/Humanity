@@ -1,0 +1,34 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "vibraphone_small",
+    words: "instrument_packs.instrument.vibraphone_small",
+    part: "vibraphone",
+    rank: 20,
+    kind: Sampler((
+        folder: "vibraphone_small",
+        pitched: true,
+        source_a4_hz: 440.02,
+        tuning_note: "measured: median of 11 samples, +0.1 cents from A = 440; names 1 octave(s) off C4 = 60",
+        release_s: 1.2,
+        normalized: false,
+        zones: [
+            (file: "Vibes_soft_F2_v1_rr1_Main.ogg", key: 53, lo_key: 49, hi_key: 55, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(174.622), measured_hz: Some(190.328), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_A2_v1_rr1_Main.ogg", key: 57, lo_key: 56, hi_key: 58, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(220.01), measured_hz: Some(219.899), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_C3_v1_rr2_Main.ogg", key: 60, lo_key: 59, hi_key: 62, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(261.637), measured_hz: Some(261.631), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_E3_v1_rr2_Main.ogg", key: 64, lo_key: 63, hi_key: 65, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(329.643), measured_hz: Some(329.63), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_G3_v1_rr1_Main.ogg", key: 67, lo_key: 66, hi_key: 69, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(392.013), measured_hz: Some(391.99), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_B3_v1_rr1_Main.ogg", key: 71, lo_key: 70, hi_key: 72, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(493.906), measured_hz: Some(493.843), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_D4_v1_rr1_Main.ogg", key: 74, lo_key: 73, hi_key: 75, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(587.356), measured_hz: Some(587.358), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_F4_v1_rr1_Main.ogg", key: 77, lo_key: 76, hi_key: 79, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(698.488), measured_hz: Some(698.553), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_A4_v1_rr1_Main.ogg", key: 81, lo_key: 80, hi_key: 82, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(880.04), measured_hz: Some(880.146), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_C5_v1_rr1_Main.ogg", key: 84, lo_key: 83, hi_key: 86, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1046.55), measured_hz: Some(1046.816), loop_start: None, loop_end: None),
+            (file: "Vibes_soft_E5_v1_rr1_Main.ogg", key: 88, lo_key: 87, hi_key: 92, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1318.57), measured_hz: Some(1318.749), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "C#3", high: "G#6"),
+    reverb_send: 0.45,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "Versilian Community Sample Library (VCSL)", url: "https://github.com/sgossner/VCSL", version: "commit c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e (2026-01-14)", fetched: "2026-11-06"),
+    credit: "From the Versilian Community Sample Library by Versilian Studios (Sam Gossner and contributors). Public domain (CC0 1.0).",
+)

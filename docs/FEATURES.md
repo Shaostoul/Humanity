@@ -2708,6 +2708,31 @@ they play, voices levelled per person, a slider per kind, an opt-in mic level) a
   `data/sounds.toml`
 - Web: `web/shared/video-volume.js`, Settings > Audio & Video > Videos (`web/pages/settings.html`)
 
+### Free instrument library: the core set, downloadable packs, Settings > Audio > Instruments (2026-11-06)
+Real recorded instruments for the live score (`docs/design/music.md` rung 6, section 23), all public
+domain (CC0): FreePats' Upright Piano KW, VCSL, VSCO 2 Community Edition and Karoryfer's Black And
+Green Guitars, downloaded once to the dev machine (`docs/reference/instrument-sources.md`, licence
+texts in `docs/reference/instrument-licences/`). `just instrument-packs` keeps the samples each
+instrument needs, MEASURES each one's pitch (so the library's real tuning is recorded; nothing is
+retuned on disk, the engine plays each at the rate for A = 432 or 440) and encodes Ogg Vorbis: a
+small core set ships in the app (piano, harp, vibraphone, glockenspiel, tubular bells, wine glasses,
+violins, cellos, a bass drum), and five packs (keys, strings, mallets and bells, guitars, percussion
+and deep drums) are one checked archive each, GitHub release assets the operator uploads. Settings >
+Audio > Instruments lists them like the star catalog's tiers: what each holds, its size, its licence
+in plain words, installed or not, Download / Remove with progress, and what the music plays for each
+part now. Each pack is checked against its SHA-256 before it is unpacked; a damaged one is refused.
+For each part of the score the best instrument installed plays, and its synthesised voice when none
+is (`data/music/parts.ron`), so the music always plays. Decoded samples obey the "turn off all
+reuse" switch. The sampler voice inside the score waits for the music engine's crate.
+- Native: `src/instrument_packs/` (catalog, definition, install, library, samples, tar, ui),
+  `src/gui/pages/settings/instruments.rs`, `instrument_packs::ui::tick` in `src/lib.rs`
+- Data: `data/music/packs.ron` (generated), `data/music/parts.ron`, `data/music/instruments/*.ron`
+  and `data/music/samples/<id>/` (generated core set, each with `LICENSE.txt` and `source.ron`)
+- Tools: `scripts/instrument-packs.js`, `scripts/instrument-recipes.json`, `scripts/lib/sevenzip.js`
+  and `lzma.js` (FreePats' .7z), `scripts/serve-instrument-packs.js` (try packs on 127.0.0.1);
+  upload recipe in `docs/ai/release.md`, "Instrument packs"
+- Web: none yet (the website plays no music until music.md rung 9)
+
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
 - Native: `crates/humanity-core/src/ecs/systems.rs`, `crates/humanity-core/src/ecs/components.rs`

@@ -1,0 +1,32 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "tubular_bells_small",
+    words: "instrument_packs.instrument.tubular_bells_small",
+    part: "tubular_bells",
+    rank: 20,
+    kind: Sampler((
+        folder: "tubular_bells_small",
+        pitched: true,
+        source_a4_hz: 440.0,
+        tuning_note: "not measured: a tubular bell's strike note is heard from its upper partials, which the pitch measure cannot follow (it scattered by more than 30 cents on half the bells); VCSL measures within a few cents of 440 on its harmonic instruments; A4 = 440 Hz assumed, names 1 octave(s) off",
+        release_s: 2.0,
+        normalized: false,
+        zones: [
+            (file: "chimes_C3_pp_rr2.ogg", key: 60, lo_key: 56, hi_key: 61, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(261.626), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "chimes_D3_pp_rr3.ogg", key: 62, lo_key: 62, hi_key: 63, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(293.665), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "chimes_E3_pp_rr1.ogg", key: 64, lo_key: 64, hi_key: 65, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(329.628), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "chimes_Fs3_p_rr1.ogg", key: 66, lo_key: 66, hi_key: 67, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(369.994), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "chimes_Gs3_p_rr2.ogg", key: 68, lo_key: 68, hi_key: 69, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(415.305), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "chimes_As3_pp_rr1.ogg", key: 70, lo_key: 70, hi_key: 71, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(466.164), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "chimes_C4_p_rr1.ogg", key: 72, lo_key: 72, hi_key: 73, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(523.251), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "chimes_D4_p_rr1.ogg", key: 74, lo_key: 74, hi_key: 75, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(587.33), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "chimes_E4_pp_rr3.ogg", key: 76, lo_key: 76, hi_key: 80, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(659.255), measured_hz: None, loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "G#3", high: "G#5"),
+    reverb_send: 0.5,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "Versilian Community Sample Library (VCSL)", url: "https://github.com/sgossner/VCSL", version: "commit c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e (2026-01-14)", fetched: "2026-11-06"),
+    credit: "From the Versilian Community Sample Library by Versilian Studios (Sam Gossner and contributors). Public domain (CC0 1.0).",
+)

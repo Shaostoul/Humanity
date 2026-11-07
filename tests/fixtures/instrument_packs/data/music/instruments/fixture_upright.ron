@@ -1,0 +1,26 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "fixture_upright",
+    words: "instrument_packs.instrument.fixture_upright",
+    part: "piano",
+    rank: 10,
+    kind: Sampler((
+        folder: "fixture_upright",
+        pitched: true,
+        source_a4_hz: 442.01,
+        tuning_note: "measured: median of 3 samples, +7.9 cents from A = 440; names 1 octave(s) off C4 = 60",
+        release_s: 0.5,
+        normalized: false,
+        zones: [
+            (file: "Up_C3_v1.ogg", key: 60, lo_key: 56, hi_key: 64, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(262.821), measured_hz: Some(262.819), loop_start: None, loop_end: None),
+            (file: "Up_A3_v1.ogg", key: 69, lo_key: 65, hi_key: 72, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(442.01), measured_hz: Some(442.007), loop_start: None, loop_end: None),
+            (file: "Up_E4_v1.ogg", key: 76, lo_key: 73, hi_key: 80, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(662.267), measured_hz: Some(662.27), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "G#3", high: "G#5"),
+    reverb_send: 0.3,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "Fixture Library", url: "https://example.invalid/fixture", version: "test", fetched: "2026-11-06"),
+    credit: "Tones made by the pipeline test.",
+)

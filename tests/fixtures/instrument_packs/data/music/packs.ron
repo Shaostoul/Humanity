@@ -1,0 +1,29 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+PackCatalog(
+    release: "assets-instruments-fixture",
+    base_url: "http://127.0.0.1/",
+    core: (
+        words: "instrument_packs.pack.core",
+        instruments: [
+            (id: "fixture_upright", part: "piano"),
+        ],
+        bytes: 20472,
+    ),
+    packs: [
+        (
+            id: "fixture",
+            version: 1,
+            family: "keys",
+            words: "instrument_packs.pack.fixture",
+            file: "humanity-instruments-fixture-v1.tar",
+            bytes: 67584,
+            sha256: "e8850bb4d9ae0d18e549dc9cc496c6486f9a508bd9d160f0b97fc72141134bec",
+            licence: "instrument_packs.licence.cc0",
+            instruments: [
+                (id: "fixture_grand", part: "piano"),
+                (id: "fixture_drum", part: "deep_drum"),
+            ],
+        ),
+    ],
+)

@@ -1,0 +1,33 @@
+// The parts of the live score (docs/design/music.md section 7: a mood's roles name parts like
+// these), each with the synthesised voice that plays it when no recorded instrument for it is
+// installed, so the music always plays. Recorded instruments name their part in their definition
+// (data/music/instruments/*.ron, and inside each pack); the best installed one wins
+// (src/instrument_packs/library.rs). A part is data: add one here and give an instrument its id.
+//
+// `synth.kind` is one of music.md section 6's synthesised kinds (synth, choir, modal, plucked);
+// `synth.preset` names the preset of it the music engine plays (its own data, built with the engine).
+Parts(
+    parts: [
+        (id: "piano", words: "instrument_packs.part.piano", synth: (kind: "plucked", preset: "felt_piano")),
+        (id: "harp", words: "instrument_packs.part.harp", synth: (kind: "plucked", preset: "harp")),
+        (id: "strings_high", words: "instrument_packs.part.strings_high", synth: (kind: "synth", preset: "soft_string_pad")),
+        (id: "strings_mid", words: "instrument_packs.part.strings_mid", synth: (kind: "synth", preset: "soft_string_pad")),
+        (id: "strings_low", words: "instrument_packs.part.strings_low", synth: (kind: "synth", preset: "low_string_pad")),
+        (id: "bass_strings", words: "instrument_packs.part.bass_strings", synth: (kind: "synth", preset: "sub_drone")),
+        (id: "strings_pizzicato", words: "instrument_packs.part.strings_pizzicato", synth: (kind: "plucked", preset: "pizzicato")),
+        (id: "solo_violin", words: "instrument_packs.part.solo_violin", synth: (kind: "synth", preset: "soft_lead")),
+        (id: "vibraphone", words: "instrument_packs.part.vibraphone", synth: (kind: "modal", preset: "vibraphone")),
+        (id: "bowed_vibraphone", words: "instrument_packs.part.bowed_vibraphone", synth: (kind: "modal", preset: "bowed_bar")),
+        (id: "glockenspiel", words: "instrument_packs.part.glockenspiel", synth: (kind: "modal", preset: "celesta")),
+        (id: "tubular_bells", words: "instrument_packs.part.tubular_bells", synth: (kind: "modal", preset: "tubular_bell")),
+        (id: "hand_chimes", words: "instrument_packs.part.hand_chimes", synth: (kind: "modal", preset: "hand_chime")),
+        (id: "wine_glass", words: "instrument_packs.part.wine_glass", synth: (kind: "modal", preset: "glass")),
+        (id: "marimba", words: "instrument_packs.part.marimba", synth: (kind: "modal", preset: "marimba")),
+        (id: "xylophone", words: "instrument_packs.part.xylophone", synth: (kind: "modal", preset: "xylophone")),
+        (id: "guitar", words: "instrument_packs.part.guitar", synth: (kind: "plucked", preset: "clean_guitar")),
+        (id: "deep_drum", words: "instrument_packs.part.deep_drum", synth: (kind: "modal", preset: "membrane_low")),
+        (id: "timpani", words: "instrument_packs.part.timpani", synth: (kind: "modal", preset: "membrane_tuned")),
+        (id: "frame_drum", words: "instrument_packs.part.frame_drum", synth: (kind: "modal", preset: "membrane_mid")),
+        (id: "gong", words: "instrument_packs.part.gong", synth: (kind: "modal", preset: "gong")),
+    ],
+)

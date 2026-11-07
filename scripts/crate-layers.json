@@ -80,7 +80,7 @@
     },
     {
       "name": "humanity-gui",
-      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the updater that Settings > Updates drives and GuiState holds, and release_update, the binary's release-signing commands and the launcher's check of a local exe: the GUI's since 2026-10-31; the pure signature check both use moved down to humanity-protocol's release_signature on 2026-11-02, so the server can check a signed release too), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
+      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the instrument packs that Settings > Audio > Instruments installs and GuiState holds (2026-11-06), the updater that Settings > Updates drives and GuiState holds, and release_update, the binary's release-signing commands and the launcher's check of a local exe: the GUI's since 2026-10-31; the pure signature check both use moved down to humanity-protocol's release_signature on 2026-11-02, so the server can check a signed release too), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
       "paths": [
         "gui",
         "config",
@@ -89,6 +89,7 @@
         "software",
         "media",
         "web_reader",
+        "instrument_packs",
         "updater",
         "release_update",
         "engine/protected",

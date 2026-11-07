@@ -1,0 +1,27 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "wine_glasses_small",
+    words: "instrument_packs.instrument.wine_glasses_small",
+    part: "wine_glass",
+    rank: 20,
+    kind: Sampler((
+        folder: "wine_glasses_small",
+        pitched: true,
+        source_a4_hz: 443.87,
+        tuning_note: "measured: median of 4 samples, +15.2 cents from A = 440; names 1 octave(s) off C4 = 60",
+        release_s: 2.0,
+        normalized: false,
+        zones: [
+            (file: "glass1_Ds4_Slow_1_Main.ogg", key: 75, lo_key: 71, hi_key: 76, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(627.727), measured_hz: Some(631.216), loop_start: None, loop_end: None),
+            (file: "glass2_Fs4_Slow_1_Main.ogg", key: 78, lo_key: 77, hi_key: 80, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(746.497), measured_hz: Some(734.323), loop_start: None, loop_end: None),
+            (file: "glass3_As4_Slow_1_Main.ogg", key: 82, lo_key: 81, hi_key: 84, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(940.528), measured_hz: Some(963.591), loop_start: None, loop_end: None),
+            (file: "glass4_D5_Slow_2_Main.ogg", key: 86, lo_key: 85, hi_key: 90, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1184.991), measured_hz: Some(1178.458), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "B4", high: "F#6"),
+    reverb_send: 0.55,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "Versilian Community Sample Library (VCSL)", url: "https://github.com/sgossner/VCSL", version: "commit c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e (2026-01-14)", fetched: "2026-11-06"),
+    credit: "From the Versilian Community Sample Library by Versilian Studios (Sam Gossner and contributors). Public domain (CC0 1.0).",
+)

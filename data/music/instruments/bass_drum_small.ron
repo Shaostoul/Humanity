@@ -1,0 +1,25 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "bass_drum_small",
+    words: "instrument_packs.instrument.bass_drum_small",
+    part: "deep_drum",
+    rank: 20,
+    kind: Sampler((
+        folder: "bass_drum_small",
+        pitched: false,
+        source_a4_hz: 440.0,
+        tuning_note: "unpitched: played at its recorded rate, never retuned",
+        release_s: 0.8,
+        normalized: false,
+        zones: [
+            (file: "BDrumNew_hit_v2_rr1_Sum.ogg", key: 36, lo_key: 36, hi_key: 36, lo_vel: 1, hi_vel: 63, rr: 1, recorded_hz: None, measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BDrumNew_hit_v7_rr1_Sum.ogg", key: 36, lo_key: 36, hi_key: 36, lo_vel: 64, hi_vel: 127, rr: 1, recorded_hz: None, measured_hz: None, loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "C2", high: "C2"),
+    reverb_send: 0.35,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "Versilian Community Sample Library (VCSL)", url: "https://github.com/sgossner/VCSL", version: "commit c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e (2026-01-14)", fetched: "2026-11-06"),
+    credit: "From the Versilian Community Sample Library by Versilian Studios (Sam Gossner and contributors). Public domain (CC0 1.0).",
+)

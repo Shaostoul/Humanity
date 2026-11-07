@@ -124,6 +124,44 @@ just sync    # fetches, git reset --hard, builds ON the VPS, lays out the web ro
 - Deploy `git pull` fails if server has local changes -> `just sync` fixes it
 - **The forge mirror PULLS from GitHub every 8 hours; nothing pushes to it (since 2026-09-29).** `just ship` pushes only to `origin`; the local `forge` remote is `https://git.united-humanity.us/shaostoul/Humanity.git`, fetch-only and credential-free (the old SSH push setup no longer applies: a pull mirror refuses pushes). Health: `just brief`'s MIRROR row. It once vanished for eight weeks unseen: `docs/admin/forgejo-setup.md`.
 
+## Instrument packs (release assets; uploading is the operator's step)
+
+Settings > Audio > Instruments downloads the instrument packs (docs/design/music.md rung 6) from
+GitHub release assets under the non-`v*` tag `assets-instruments-1`, the star catalog's way
+(`assets-stars-1`): uploading there triggers no workflow and serves from GitHub's CDN. The app checks
+every download against the SHA-256 in `data/music/packs.ron` and refuses a mismatch, so **the catalog
+committed to main and the assets uploaded must come from the same run**. Producing the packs is an
+agent's job; **uploading them is publishing, so it is the operator's step**. An agent never uploads.
+
+1. Build (needs the raw libraries on `E:\HumanityOS\instruments-src`, recorded in
+   `docs/reference/instrument-sources.md`, and ffmpeg with libvorbis; about half an hour):
+
+   ```bash
+   just instrument-packs
+   ```
+
+   It rewrites the core set in `data/music/` and `data/music/packs.ron`, and writes each pack as
+   `E:\HumanityOS\instrument-packs\humanity-instruments-<pack>-v<version>.tar` with a `.sha256`
+   beside it. The encoding is bitexact, so an unchanged recipe on the same ffmpeg rebuilds
+   byte-identical packs (`git diff data/music/packs.ron` shows no change). Each pack carries each
+   library's licence text in every sample folder (a release asset has no licence file of its own).
+
+2. Upload (the operator; the first time creates the release, later times replace the assets):
+
+   ```bash
+   gh release create assets-instruments-1 --repo Shaostoul/Humanity --title "Instrument packs" --notes "CC0 instrument packs for Settings > Audio > Instruments. Built by just instrument-packs; sources in docs/reference/instrument-sources.md." E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
+   # later rebuilds:
+   gh release upload assets-instruments-1 --repo Shaostoul/Humanity --clobber E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
+   ```
+
+3. Commit `data/music/` (the core set and the catalog) from the SAME run, then ship. A pack whose
+   contents change gets its `version` raised in `scripts/instrument-recipes.json` first, so its file
+   name changes and an installed older pack is offered as an update.
+
+To try packs before uploading, serve the folder on this computer and point the app at it:
+`node scripts/serve-instrument-packs.js` (127.0.0.1:8000, the packs folder) and run the app with
+`HUMANITY_INSTRUMENT_PACKS_URL=http://127.0.0.1:8000/` (a dev aid, `instrument_packs::ui`).
+
 ## Recipes
 
 ```

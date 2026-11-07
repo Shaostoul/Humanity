@@ -1,0 +1,16 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "Fixture Library",
+    url: "https://example.invalid/fixture",
+    version: "test",
+    licence: "CC0 1.0",
+    fetched: "2026-11-06",
+    archive: "fixlib/FixtureLib.tar.gz",
+    archive_sha256: "1a3841238ed6b54ccae00e3e0c8507bd5de579343673b7aafb5da359f688137b",
+    kept: [
+        (file: "Up_C3_v1.ogg", from: "Upright/Up_C3_v1.wav"),
+        (file: "Up_A3_v1.ogg", from: "Upright/Up_A3_v1.wav"),
+        (file: "Up_E4_v1.ogg", from: "Upright/Up_E4_v1.wav"),
+    ],
+)

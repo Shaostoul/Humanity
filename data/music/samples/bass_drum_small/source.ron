@@ -1,0 +1,15 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "Versilian Community Sample Library (VCSL)",
+    url: "https://github.com/sgossner/VCSL",
+    version: "commit c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e (2026-01-14)",
+    licence: "CC0 1.0",
+    fetched: "2026-11-06",
+    archive: "vcsl/VCSL-c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e.tar.gz",
+    archive_sha256: "e4f9ed1fd698306627bc4911c7b7c8db2506cf3d00d486b630723855cc4ed529",
+    kept: [
+        (file: "BDrumNew_hit_v2_rr1_Sum.ogg", from: "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v2_rr1_Sum.wav"),
+        (file: "BDrumNew_hit_v7_rr1_Sum.ogg", from: "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v7_rr1_Sum.wav"),
+    ],
+)

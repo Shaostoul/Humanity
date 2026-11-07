@@ -1,0 +1,29 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "violins_small",
+    words: "instrument_packs.instrument.violins_small",
+    part: "strings_high",
+    rank: 20,
+    kind: Sampler((
+        folder: "violins_small",
+        pitched: true,
+        source_a4_hz: 440.21,
+        tuning_note: "measured: median of 6 samples, +0.8 cents from A = 440; names 1 octave(s) off C4 = 60",
+        release_s: 1.2,
+        normalized: false,
+        zones: [
+            (file: "VlnEns_susVib_G2_v1.ogg", key: 55, lo_key: 51, hi_key: 57, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(196.091), measured_hz: Some(195.947), loop_start: None, loop_end: None),
+            (file: "VlnEns_susVib_B2_v1.ogg", key: 59, lo_key: 58, hi_key: 62, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(247.06), measured_hz: Some(247.174), loop_start: None, loop_end: None),
+            (file: "VlnEns_susVib_Fs3_v1.ogg", key: 66, lo_key: 63, hi_key: 69, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(370.171), measured_hz: Some(370.763), loop_start: None, loop_end: None),
+            (file: "VlnEns_susVib_C4_v1.ogg", key: 72, lo_key: 70, hi_key: 75, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(523.501), measured_hz: Some(524.411), loop_start: None, loop_end: None),
+            (file: "VlnEns_susVib_G4_v1.ogg", key: 79, lo_key: 76, hi_key: 82, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(784.365), measured_hz: Some(782.744), loop_start: None, loop_end: None),
+            (file: "VlnEns_susVib_D5_v1.ogg", key: 86, lo_key: 83, hi_key: 90, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1175.22), measured_hz: Some(1174.7), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "D#3", high: "F#6"),
+    reverb_send: 0.4,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "VSCO 2 Community Edition", url: "https://github.com/sgossner/VSCO-2-CE", version: "commit 440300901dfe9275fd84e0b7763af1f8443ae62e (2020-08-05)", fetched: "2026-11-06"),
+    credit: "From VS Chamber Orchestra 2: Community Edition by Versilian Studios (https://versilian-studios.com/vsco-community/): recorded by Sam Gossner (Versilian Studios) and Simon Dalzell (Ivy Audio), sample cutting by Elan Hickler (Soundemote). Public domain (CC0 1.0).",
+)

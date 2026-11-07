@@ -1,7 +1,10 @@
 # Music and the ship's hum: a calm score composed live, tuned to A = 432 Hz
 
-**Status: design 2026-11-06; nothing built in the app.** A listenable direction sketch exists
-(section 19). The whole feature is planned here with all its parts (CLAUDE.md, "Plan the whole
+**Status: design 2026-11-06.** A listenable direction sketch exists (section 19). **Built the same
+day: rung 6's instrument library** (section 23): the CC0 libraries downloaded and recorded, the
+pipeline that makes instruments from them (`just instrument-packs`), the core set inside the app,
+the downloadable packs, Settings > Audio > Instruments, and the choice of instrument per part with
+synthesis as the fallback. The sampler voice inside the score waits for the engine's crate. The whole feature is planned here with all its parts (CLAUDE.md, "Plan the whole
 feature, build it in rungs"), then cut into rungs (section 20), smallest first. What can legally be
 shipped, and what the research says about 432 Hz, "healing frequencies" and brown noise, rests on
 the dated finding
@@ -225,7 +228,11 @@ Instrument(
 
 Sampled instruments name their folder under `data/music/samples/<id>/`, which carries the library's
 licence text and a `source.ron` (library, URL, licence, date fetched, which notes and layers were
-kept), checked by a lint.
+kept), checked by a lint. **Built 2026-11-06** (section 23): the `Sampler` kind's real shape is
+`src/instrument_packs/definition.rs` (zones of key range, velocity range and round robin, each with
+the frequency it was recorded at), written by `just instrument-packs`; each definition also names the
+`part` of the score it plays and a `rank` (the best installed wins), and carries `licence`, `source`
+and `credit`.
 
 ## 7. Moods and compositions as data
 
@@ -531,7 +538,11 @@ and shipped before the next. All native-gated except the pure crate.
    `sampler` voice; curated CC0 subsets of piano, harp, vibraphone, glass, bells and string sections
    under `data/music/samples/` with their licence files and `source.ron`; retuning by playback rate.
    Tests: a sampled A4 at 432 measures 432 Hz within 0.5 cents; the memory and disk budgets; a lint
-   that every sample folder carries its licence text and source.
+   that every sample folder carries its licence text and source. **The library half is built
+   (2026-11-06, section 23)**: the downloads, the pipeline, the core set, the packs, Settings >
+   Audio > Instruments, the choice per part with synthesis as the fallback, the licence and source
+   check, retuning by playback rate (measured at 432.00 and 440.00 Hz through a stub of the engine's
+   instrument trait). Left for the engine's crate: its real `sampler` voice playing them in the score.
 7. **Intensity, stingers, quiet gaps, and the tones layer.** Activity to intensity, the event
    gestures, the gaps setting, and the opt-in tones with their words. Tests: a stinger lands on a
    beat and never above the score's level; tones are silent unless on, and play only with the music
@@ -577,7 +588,81 @@ and shipped before the next. All native-gated except the pure crate.
 
 ## 22. Not done here
 
-- No code, no data files, no Settings change: this is the design and the evidence.
+- No code, no data files, no Settings change: this is the design and the evidence. (Rung 6's
+  instrument library was built the same day afterwards: section 23.)
 - `docs/dev/adding-sounds-music.md`'s stale status table is left for the rung that wires music,
   which rewrites its music half anyway.
 - The beds for planets and spacewalks are named, not designed.
+
+## 23. The free instrument library (built 2026-11-06)
+
+The operator, shown the four libraries of question 1: "Awesome, let's build up our free library." and
+"Let's go all in. Then in the settings we can have a section for filling out the instrument list,
+kind of like we do with the star catalog and skybox." Also: "Could we deep drums and steel drums.
+Let's just keep focusing of 432 Hz."
+
+**What was downloaded.** The four approved libraries, whole, to `E:\HumanityOS\instruments-src\`
+(never into git), each verified and recorded with its size, SHA-256, source and licence text in
+[`docs/reference/instrument-sources.md`](../reference/instrument-sources.md).
+
+**The pipeline** (`just instrument-packs`, `scripts/instrument-packs.js`, recipes in
+`scripts/instrument-recipes.json`): per instrument it keeps the samples it needs (velocity layers,
+round robins, a key spread), trims silence and long tails, **measures each sample's pitch** and
+encodes **Ogg Vorbis** (decoded by kira and symphonia today; bitexact, so a rebuild is byte for byte
+the same). **Nothing is retuned on disk**: each zone records the frequency it was recorded at (its
+key at the library's measured tuning) and the engine plays it at `note_hz(key, a4) / recorded_hz`,
+section 9's rate, so A = 432 by default and 440 on the other setting both come from the same files.
+The measurement earned its keep at once: VSCO 2 names its strings an octave low, Karoryfer names its
+guitars an octave high, and VCSL's Kawai names the piano's lowest A "A-1"; each is corrected and
+recorded in the definition's `tuning_note`. Every library measured within a few cents of A = 440.
+
+**The core set** ships in the app (`data/music/instruments/`, `data/music/samples/<id>/`), and **five
+packs** are one archive each, GitHub release assets under `assets-instruments-1` uploaded by the
+operator (`docs/ai/release.md`, "Instrument packs"); sizes and checksums are in
+`data/music/packs.ron`:
+
+| Set | Size (Ogg Vorbis) | Instruments, and the part each plays | From |
+|---|---|---|---|
+| **Core**, in the app | 6.0 MiB | small upright piano (piano); concert harp; vibraphone; glockenspiel; tubular bells; wine glasses (glass); violins (high strings); cellos (low strings); bass drum (deep drum) | FreePats, VCSL, VSCO 2 |
+| **Keys** | 69.7 MiB | Steinway B grand, Kawai grand, Kawai upright, Yamaha upright (piano) | VCSL, FreePats |
+| **Strings** | 33.3 MiB | violin, viola and cello sections; double bass; solo violin; violins and cellos plucked; concert harp | VSCO 2, VCSL |
+| **Mallets and bells** | 11.2 MiB | vibraphone, bowed vibraphone, glockenspiel, tubular bells, hand chimes, wine glasses, marimba, xylophone | VCSL |
+| **Guitars** | 20.1 MiB | Gretsch and Hofner hollowbody electrics, three velocity layers, two round robins | Karoryfer |
+| **Percussion and deep drums** | 4.4 MiB | bass drum, concert bass drum, large hand drum, timpani, frame drum, low tom, gong | VCSL, VSCO 2 |
+
+Measured source tunings: most instruments within 5 cents of A = 440; the concert harp about 8
+cents flat (A4 = 438.2 Hz); the glockenspiel, xylophone and wine glasses 13 to 16 cents sharp (A4 =
+443.4 to 443.9 Hz), the way orchestral mallets are often tuned. A tubular bell's strike note comes
+from its upper partials and is not measured (A = 440 assumed). Timpani keys come from each hit's
+measured pitch; hits with no clear pitch are left out. Sizes and checksums: `data/music/packs.ron`.
+
+**Settings > Audio > Instruments** (`src/gui/pages/settings/instruments.rs`): the core set (always
+installed), then each pack with what it holds, its size, its licence in plain words, installed or
+not, Download / Remove with progress, and for each instrument the part it plays and what plays that
+part now. Settings has no Music section yet; the music's controls (section 15) live in Settings >
+Audio, so the list sits there under its own heading. A download is checked against its SHA-256
+before anything is unpacked and swapped in whole (`src/instrument_packs/install.rs`); a damaged one
+is refused and deleted.
+
+**Always music.** Each instrument names its `part` (`data/music/parts.ron`) and a `rank`; for each
+part the best installed instrument plays, and when none is installed, that part's synthesised voice
+(section 6's kinds, a preset named in `parts.ron`) plays instead
+(`instrument_packs::library::InstrumentLibrary::choose`). The seam is tested against a stub of the
+engine's instrument trait (the engine's crate was not on main yet): with no drum installed the deep
+drum part is synthesised; with the fixture pack installed it plays the pack's samples, and a sampled
+A4 recorded at 440 measures 432.00 and 440.00 Hz at the two tunings.
+
+**Not a cache.** An installed pack is data the person chose to install: never worked out again from
+anything, checked against its published checksum before it lands, and removing it changes what plays.
+Decoded samples kept in memory obey the Dev page's "turn off all reuse" switch
+(`instrument_packs::samples::SampleBank`).
+
+**Deep drums and steel drums.** Deep drums are in the percussion pack from the approved libraries
+(concert bass drums, timpani, a frame drum, a low tom, a large hand drum, a gong). No steel pan or
+taiko is in them; the CC0 candidates found (Jeff Learman's chromatic C tenor steel pan, FreePats'
+Hang, Karoryfer's Big Rusty Drums) are in
+[`findings/2026-11-06-steel-pan-and-deep-drums.md`](../reference/findings/2026-11-06-steel-pan-and-deep-drums.md),
+**not downloaded**, each waiting for the operator's yes; once downloaded, each is one recipe.
+
+**The website** plays no music yet (rung 9), so it has no Instruments list; it mirrors this one when
+it does.

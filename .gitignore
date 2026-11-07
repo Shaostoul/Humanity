@@ -96,6 +96,10 @@ Thumbs.db
 data/stars-athyg.bin
 data/stars-gaia25m.bin
 data/galaxy_glow_ultra.png
+# Instrument packs installed from Settings > Audio > Instruments (music.md rung 6): downloaded data,
+# like the star catalog tiers above. The core set (data/music/instruments, samples) and the catalog
+# (data/music/packs.ron) ARE tracked.
+/data/music/packs/
 wallpapers/
 # DXC shader-compiler DLLs beside the taskbar exe (refreshed by archive-build.js)
 /dxcompiler.dll

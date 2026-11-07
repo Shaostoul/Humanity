@@ -1,0 +1,24 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "Versilian Community Sample Library (VCSL)",
+    url: "https://github.com/sgossner/VCSL",
+    version: "commit c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e (2026-01-14)",
+    licence: "CC0 1.0",
+    fetched: "2026-11-06",
+    archive: "vcsl/VCSL-c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e.tar.gz",
+    archive_sha256: "e4f9ed1fd698306627bc4911c7b7c8db2506cf3d00d486b630723855cc4ed529",
+    kept: [
+        (file: "Vibes_soft_F2_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_F2_v1_rr1_Main.wav"),
+        (file: "Vibes_soft_A2_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_A2_v1_rr1_Main.wav"),
+        (file: "Vibes_soft_C3_v1_rr2_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C3_v1_rr2_Main.wav"),
+        (file: "Vibes_soft_E3_v1_rr2_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_E3_v1_rr2_Main.wav"),
+        (file: "Vibes_soft_G3_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_G3_v1_rr1_Main.wav"),
+        (file: "Vibes_soft_B3_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_B3_v1_rr1_Main.wav"),
+        (file: "Vibes_soft_D4_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_D4_v1_rr1_Main.wav"),
+        (file: "Vibes_soft_F4_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_F4_v1_rr1_Main.wav"),
+        (file: "Vibes_soft_A4_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_A4_v1_rr1_Main.wav"),
+        (file: "Vibes_soft_C5_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_C5_v1_rr1_Main.wav"),
+        (file: "Vibes_soft_E5_v1_rr1_Main.ogg", from: "Idiophones/Struck Idiophones/Vibraphone/Soft Mallets/Vibes_soft_E5_v1_rr1_Main.wav"),
+    ],
+)

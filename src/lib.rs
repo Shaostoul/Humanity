@@ -64,6 +64,11 @@ pub mod net;
 // decoder and feeds kira, neither of which the relay build carries.
 #[cfg(feature = "native")]
 pub mod media;
+
+/// The free instrument library (2026-11-06, docs/design/music.md rung 6): the recorded instruments
+/// that come with the app, the packs to download, and the best instrument for each part of the score.
+#[cfg(feature = "native")]
+pub mod instrument_packs;
 // The readable web (2026-09-16): HTTPS fetch + html5ever parse, no JS. Native-only. docs/design/readable-web.md.
 #[cfg(feature = "native")]
 pub mod web_reader;
@@ -16045,6 +16050,11 @@ mod native_app {
                                         .ok()
                                         .map(|m| m.len());
                             }
+
+                            // ── Instrument packs (2026-11-06, music.md rung 6): Settings > Audio >
+                            // Instruments' Download / Remove, the star catalog's way (a thread, a
+                            // checked archive, progress the section draws).
+                            crate::instrument_packs::ui::tick(&mut crate::instrument_packs::ui::shared(), &state.data_dir);
 
                             // ── Ultra Milky Way glow download/remove (2026-07-11) ── same
                             // mechanics as the star catalog above: background thread, stream
