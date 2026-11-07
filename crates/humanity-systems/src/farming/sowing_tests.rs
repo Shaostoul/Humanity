@@ -23,7 +23,7 @@ use crate::inventory::Inventory;
 /// mushroom rack 4 m from the bed, and a fish tank 2 m from it.
 fn home() -> DataStore {
     let mut data = make_store();
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     let tower = |id: &str, z: f32| GrowPlot {
         id: id.into(),
         aliases: vec!["nutrition".into()],
@@ -70,7 +70,7 @@ fn plant(sys: &mut FarmingSystem, world: &mut hecs::World, data: &DataStore, see
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    std::mem::take(&mut *data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+    crate::notices::take_said(&data)
 }
 
 /// (tag, place) of every crop, sorted.

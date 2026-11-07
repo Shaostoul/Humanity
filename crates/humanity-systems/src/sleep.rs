@@ -229,7 +229,7 @@ mod tests {
         data.insert("game_time", Mutex::new(gt));
         crate::time::insert_slots(&mut data);
         data.insert(REQUEST_SLOT, Mutex::new(None::<String>));
-        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data
     }
 
@@ -307,7 +307,7 @@ mod tests {
         assert_eq!(v.energy, v.energy_max, "a night's sleep refills energy");
         let fx = world.get::<&StatusEffects>(p).unwrap();
         assert!(!fx.has("fatigued") && fx.has("rested"));
-        let notices = data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        let notices = crate::notices::said(&data);
         assert!(notices.last().unwrap().contains("slept 8 hours in the Bed"), "{notices:?}");
     }
 

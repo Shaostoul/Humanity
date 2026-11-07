@@ -866,14 +866,14 @@ pub(super) fn handle_request(
         })
         .collect();
     if plants == 0 {
-        super::push_notice(data, format!("There are no crops to treat in {}.", area.replace('_', " ")));
+        super::push_reply(data, format!("There are no crops to treat in {}.", area.replace('_', " ")));
         return;
     }
     // Encarsia wasps and cucumeris mites are for greenhouses (UC IPM: not
     // recommended outdoors), so an outdoor field is refused before anything
     // is spent.
     if control.indoors_only && super::is_field_area(area) {
-        super::push_notice(
+        super::push_reply(
             data,
             format!("{} is for greenhouses, not an outdoor field like {}. {}", control.name, area.replace('_', " "), control.note),
         );
@@ -882,7 +882,7 @@ pub(super) fn handle_request(
     // A row cover lies over soil: a tower grows in a mist, a rack in its
     // own substrate, and there is nothing to lay it on.
     if control.needs_soil && !has_soil(data, area) {
-        super::push_notice(
+        super::push_reply(
             data,
             format!(
                 "A {} lies over a bed or a field, and {} has no soil to lay it on: a tower grows in a nutrient mist and a mushroom rack in its own substrate.",
@@ -894,7 +894,7 @@ pub(super) fn handle_request(
     }
     // One cover at a time.
     if control.is_cover() && cover_on(world, area, control) {
-        super::push_notice(data, format!("There is already a {} over {}.", control.name.to_lowercase(), place(area)));
+        super::push_reply(data, format!("There is already a {} over {}.", control.name.to_lowercase(), place(area)));
         return;
     }
     // A control whose label forbids a crop growing here (sulfur burns the
@@ -904,7 +904,7 @@ pub(super) fn handle_request(
             .get::<super::PlantRegistry>("plant_registry")
             .and_then(|r| r.get(plant).map(|d| d.name.to_lowercase()))
             .unwrap_or_else(|| plant.replace('_', " "));
-        super::push_notice(
+        super::push_reply(
             data,
             format!("{} is not for the {name} in {}. {}", control.name, area.replace('_', " "), control.note),
         );
@@ -912,12 +912,12 @@ pub(super) fn handle_request(
     }
     // Ventilating acts on the air of the area's grow room, not on its pests.
     if control.air_changes > 0.0 {
-        super::push_notice(data, super::humidity::ventilate(world, data, air, area, control.air_changes));
+        super::push_reply(data, super::humidity::ventilate(world, data, air, area, control.air_changes));
         return;
     }
     let water_l = control.water_l_per_plant.max(0.0) * plants as f64;
     if water_l > 0.0 && !water_available {
-        super::push_notice(data, format!("The water tanks are empty: nothing to {} with.", control.name.to_lowercase()));
+        super::push_reply(data, format!("The water tanks are empty: nothing to {} with.", control.name.to_lowercase()));
         return;
     }
     // A cover is sized by the ground it spans, everything else by the plants.
@@ -947,7 +947,7 @@ pub(super) fn handle_request(
             } else {
                 format!("the {plants} plants")
             };
-            super::push_notice(
+            super::push_reply(
                 data,
                 format!("{} needs {need} x {item_name} for {what} in {}; you have {have}.", control.name, area.replace('_', " ")),
             );
@@ -980,7 +980,7 @@ pub(super) fn handle_request(
     } else {
         outcome_notice(pests, control, area, plants, water_l, &out)
     };
-    super::push_notice(data, notice);
+    super::push_reply(data, notice);
 }
 
 // -- Row covers (2026-09-27) --------------------------------------------------------
@@ -1148,7 +1148,7 @@ fn take_off_cover(
         return;
     };
     if !cover_on(world, area, cover) {
-        super::push_notice(data, format!("There is no {} over {}.", cover.name.to_lowercase(), place(area)));
+        super::push_reply(data, format!("There is no {} over {}.", cover.name.to_lowercase(), place(area)));
         return;
     }
     // The pieces this cover took when it was laid, not a recount of the
@@ -1175,7 +1175,7 @@ fn take_off_cover(
             break;
         }
         if !fitted {
-            super::push_notice(
+            super::push_reply(
                 data,
                 format!("Your pack has no room for the {pieces} x {item_name} of the {}: make room and take it off again.", cover.name.to_lowercase()),
             );
@@ -1191,7 +1191,7 @@ fn take_off_cover(
         }
     }
     log::info!("[Farming] {} off {area}: {pieces} pieces back", cover.id);
-    super::push_notice(data, format!("You took the {} off {}{back}.", cover.name.to_lowercase(), place(area)));
+    super::push_reply(data, format!("You took the {} off {}{back}.", cover.name.to_lowercase(), place(area)));
 }
 
 /// One grow area's row-cover line for the Garden panel (2026-09-27).

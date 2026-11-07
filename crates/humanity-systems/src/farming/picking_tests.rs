@@ -27,7 +27,7 @@ fn store() -> DataStore {
     let areas: HashMap<String, f32> =
         [("tomato_bed".to_string(), 4.2_f32), ("lettuce_bed".to_string(), 1.0)].into_iter().collect();
     data.insert(PLOT_AREA_KEY, areas);
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     // Pests off: a plant bearing through its window keeps ticking, and over
     // the weeks these tests jump, pests on the bed would trim its health and
     // so its picks; the picking arithmetic is what is under test here.
@@ -257,7 +257,7 @@ fn a_spent_plant_leaves_the_plot_empty() {
     tick(&mut sys, &mut world, &data, 2.0, None);
     assert!(world.get::<&CropInstance>(t).is_err(), "Realistic: its window ended, the plot is empty");
     assert_eq!(count(&world, who, "vegetable_tomato_0"), 0, "nothing was picked");
-    let said = std::mem::take(&mut *data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap());
+    let said = crate::notices::take_said(&data);
     assert!(said.iter().any(|s| s.contains("Finished bearing") && s.contains("tomato")), "{said:?}");
     assert!(said.iter().any(|s| s.contains("past its best")), "told produce passed over: {said:?}");
     // Clear: the player pulls a ripe plant early (the crop card's button).

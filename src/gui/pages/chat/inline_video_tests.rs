@@ -50,12 +50,12 @@ fn pictures_of(out: &egui::FullOutput) -> Vec<(egui::TextureId, egui::Rect)> {
     found
 }
 
-fn media_fixture(name: &str) -> std::path::PathBuf {
+pub(crate) fn media_fixture(name: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media").join(name)
 }
 
 /// A fetch that copies `fixture` into `dir` (a new copy each time, as each fetch makes its own).
-fn fetch_copies(fixture: std::path::PathBuf, dir: std::path::PathBuf) -> FetchForTest {
+pub(crate) fn fetch_copies(fixture: std::path::PathBuf, dir: std::path::PathBuf) -> FetchForTest {
     let n = std::sync::atomic::AtomicUsize::new(0);
     std::sync::Arc::new(move |_url: &str| {
         let copy = dir.join(format!("copy-{}.video", n.fetch_add(1, std::sync::atomic::Ordering::SeqCst)));
@@ -66,18 +66,18 @@ fn fetch_copies(fixture: std::path::PathBuf, dir: std::path::PathBuf) -> FetchFo
 
 /// The real chat page in #global, its posts by a verified member (below Verified a line's files are
 /// plain words since 2026-11-02), on a `w` x `h` screen.
-struct Chat {
+pub(crate) struct Chat {
     ctx: egui::Context,
     theme: Theme,
-    state: GuiState,
+    pub(crate) state: GuiState,
     screen: egui::Vec2,
     /// The test's folder (the copies, the stand-in ffmpeg), deleted with the guard.
-    dir: humanity_core::test_temp::TempPath,
+    pub(crate) dir: humanity_core::test_temp::TempPath,
 }
 
 impl Chat {
     /// Each of `posts` is a message's words; each `/uploads/` address in them is given a size.
-    fn new(test: &str, posts: &[&str], w: f32, h: f32) -> Chat {
+    pub(crate) fn new(test: &str, posts: &[&str], w: f32, h: f32) -> Chat {
         let dir = humanity_core::test_temp::dir(test);
         let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
         std::fs::write(&fake, b"not ffmpeg").unwrap(); // a conversion cannot rescue a test
@@ -113,7 +113,7 @@ impl Chat {
     }
 
     /// The address a video's card plays from.
-    fn url(raw: &str) -> String {
+    pub(crate) fn url(raw: &str) -> String {
         public_files::Card::of(raw, SERVER).url
     }
 
@@ -158,7 +158,7 @@ impl Chat {
     }
 }
 
-const A: &str = "/uploads/1760000000000_sliding_bar.mp4";
+pub(crate) const A: &str = "/uploads/1760000000000_sliding_bar.mp4";
 const B: &str = "/uploads/1760000000001_second_clip.mp4";
 
 /// A CHAT FULL OF VIDEOS COSTS NOTHING UNTIL ONE IS PLAYED, AND EACH ROW DRAWS ITS PLAYER (the
@@ -349,6 +349,183 @@ fn full_window_is_the_same_player_bigger_and_closing_it_puts_the_video_back() {
     assert!(!chat.state.chat_video.window_open(), "closed");
     assert!(chat.state.chat_video.has_player(&a), "the video is back in its row, its player kept");
     assert!(!texts_of(&out).iter().any(|x| x == t("chat_video.in_window")), "the row is its player again");
+}
+
+/// The wall screen of the operator's console room (data/machines/home.ron, `desk_monitor_2`,
+/// `page:chat`), at 1280 x 720 pixels, drawing the chat page under its own context with its own set
+/// of videos, as the engine runs it (gui/screen_surface.rs `ScreenCore::run`).
+pub(crate) struct Wall {
+    pub(crate) core: crate::gui::screen_surface::ScreenCore,
+    theme: Theme,
+}
+
+impl Wall {
+    const SIZE: (f32, f32) = (1280.0, 720.0);
+
+    pub(crate) fn new(fetch: FetchForTest) -> Wall {
+        let theme = crate::gui::theme::load_theme();
+        let mut core = crate::gui::screen_surface::ScreenCore::new("desk_monitor_2", "page:chat", Self::SIZE.0 as u32, Self::SIZE.1 as u32, &theme);
+        core.chat_videos().fetch_for_test = Some(fetch);
+        Wall { core, theme }
+    }
+
+    pub(crate) fn frame(&mut self, state: &mut GuiState) -> egui::FullOutput {
+        self.core.run(&mut self.theme, state)
+    }
+
+    /// Press at `pos` on the wall, the way the look ray does: the pointer there, then a press and a
+    /// let-go.
+    pub(crate) fn click(&mut self, state: &mut GuiState, pos: egui::Pos2) {
+        let uv = (pos.x / Self::SIZE.0, pos.y / Self::SIZE.1);
+        self.core.pointer_moved(uv);
+        self.frame(state);
+        self.core.button(uv, true);
+        self.core.button(uv, false);
+        self.frame(state);
+    }
+
+    /// Frames (10 ms apart) until `done` holds, at most 30 s; the last frame's texts and whether it held.
+    pub(crate) fn frames_until(&mut self, state: &mut GuiState, done: impl Fn(&mut crate::gui::screen_surface::ScreenCore, &[String]) -> bool) -> (Vec<String>, bool) {
+        let started = std::time::Instant::now();
+        loop {
+            let texts = texts_of(&self.frame(state));
+            let held = done(&mut self.core, &texts);
+            if held || started.elapsed() > std::time::Duration::from_secs(30) {
+                return (texts, held);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+}
+
+/// A WALL SCREEN'S CHAT PLAYS ITS VIDEOS IN THEIR ROWS, OFFERS NO FULL WINDOW, AND LEAVES NO COPY
+/// BEHIND (BUG-258). The chat on the console room's wall screen draws each video row's player; its
+/// controls have no Full window (the window is the app screen's, which nobody at the wall could
+/// close: the pointer is the look ray); pressing the picture fetches the video and plays it in its
+/// row on the wall, polled there (so its fetch is taken and its temporary copy known), the reaction
+/// popups never blocked by a window, and the app screen's own set untouched. When the screen goes
+/// (a home reload drops its surfaces), its copy goes with it.
+///
+/// Seen red 2026-11-06 with the wall's set built as the app screen's (`ChatVideos::default()` in
+/// `ScreenTextures`, as before): "no Full window on a wall screen: [..., \"Play\", \"0:00\", \"Full
+/// window\", \"Mute\", ...]" (pressed, it set `window`, after which the row said "Playing in its
+/// own window.", was never polled again and its finished fetch never read, so no copy was known to
+/// delete).
+#[test]
+fn a_wall_screens_chat_plays_in_its_rows_offers_no_full_window_and_deletes_its_copy() {
+    let mut chat = Chat::new("chat_video_wall_screen", &[&format!("on the wall {A}")], 1280.0, 720.0);
+    let mut wall = Wall::new(fetch_copies(media_fixture("sliding-bar-av1-opus.mp4"), chat.dir.to_path_buf()));
+    let a = Chat::url(A);
+    let mut texts = Vec::new();
+    for _ in 0..3 {
+        texts = texts_of(&wall.frame(&mut chat.state));
+    }
+    assert!(texts.iter().any(|x| x == t("chat_video.play")) && texts.iter().any(|x| x == t("chat_video.mute")), "the row draws its player on the wall: {texts:?}");
+    assert!(!texts.iter().any(|x| x == t("chat_video.full_window")), "no Full window on a wall screen: {texts:?}");
+
+    let at = wall.core.chat_videos().pictures.get(&a).expect("the picture is drawn on the wall").center();
+    wall.click(&mut chat.state, at);
+    let (texts, held) = wall.frames_until(&mut chat.state, |core, t| {
+        let v = core.chat_videos();
+        v.is_playing(&Chat::url(A)) && v.shows_picture(&Chat::url(A)) && t.iter().any(|x| x == "Pause")
+    });
+    assert!(held, "it plays in its row on the wall, its picture there and its Pause: {texts:?}");
+    assert!(!texts.iter().any(|x| x == t("chat_video.in_window")), "not in a window: {texts:?}");
+    assert!(!wall.core.chat_videos().window_open(), "no window, so the reaction popups are not blocked");
+    let copy = wall.core.chat_videos().temp_copy(&a).expect("its fetch was taken: the copy it plays from is known");
+    assert!(copy.exists());
+    assert_eq!(chat.state.chat_video.live_count(), 0, "the app screen's own set is untouched");
+    drop(wall);
+    assert!(!copy.exists(), "the screen gone, its temporary copy goes");
+}
+
+/// A VIEW THAT GOES BEFORE ITS FINISHED FETCH WAS TAKEN STILL DELETES THE COPY (BUG-258): a wall
+/// screen's chat not drawn again after Play (the person walked away) never polls its video, so the
+/// fetch's worker hands over a copy nobody reads; dropping the view takes it and deletes it.
+///
+/// Seen red 2026-11-06 with `Drop for VideoView` as before (only `temp`, set by a poll, was
+/// deleted): "the unread copy goes with the view".
+#[test]
+fn a_view_dropped_before_its_fetch_was_taken_deletes_the_copy() {
+    let dir = humanity_core::test_temp::dir("chat_video_unread_fetch");
+    let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+    std::fs::write(&fake, b"not ffmpeg").unwrap(); // no conversion: the copy is all there is
+    let copy = dir.join("copy.video");
+    let mut view = VideoView::default();
+    let at = copy.clone();
+    view.start(&fake.display().to_string(), "clip.mp4", move || {
+        std::fs::write(&at, b"bytes of a fetched video").map_err(|e| e.to_string())?;
+        Ok(at)
+    });
+    // Wait (never polling the view) until its worker has handed the copy over.
+    let started = std::time::Instant::now();
+    while !view.handed.load(std::sync::atomic::Ordering::SeqCst) && started.elapsed() < std::time::Duration::from_secs(30) {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(view.handed.load(std::sync::atomic::Ordering::SeqCst), "the fetch handed its copy over");
+    assert!(copy.exists(), "the fetch wrote its copy");
+    assert!(view.temp.is_none(), "never polled, so the view never took it");
+    drop(view);
+    assert!(!copy.exists(), "the unread copy goes with the view");
+}
+
+/// FULL WINDOW KEEPS CLOSE THE WINDOW INSIDE IT, AND ITSELF ON THE SCREEN, AT EVERY WINDOW SIZE AND
+/// FONT SIZE (BUG-258; BUG-251's rule for the 3D window). The window as the engine draws it
+/// (`draw_video_window`), for a video with a long name that cannot play (BUG-228's long words under
+/// its picture, the tallest the controls get), on screens of 1024x640 to 2560x1440 at Font Size
+/// 100% to 200% (the screen in points is the pixels over the Font Size): the window stays on the
+/// screen, Close the window lies inside it and inside what of it can be seen, and the picture's box
+/// keeps a height.
+///
+/// Seen red 2026-11-06 with the window as it was (the picture sized to 0.72 of the screen's height,
+/// the controls and Close under it, no `body_room`): "Close the window lies inside its window, on
+/// the screen" at 10 of the 20: 1024x640 at 125% to 200%, 1280x720 at 125% to 200%, 1920x1080 at
+/// 175% and 200%; e.g. "1280x720 at 200%: screen [[0.0 0.0] - [640.0 360.0]], window [[4.1 -52.6] -
+/// [635.9 412.6]], button None" (the window past both edges, Close not drawn on the screen at all),
+/// and "1920x1080 at 200%: ... window [[127.4 -19.4] - [832.6 559.4]], button [[134.4 523.9] -
+/// [287.9 552.4]]" (Close below the screen's 540). With the height laid out from the bottom up, it
+/// was red again at 1024x640 at 175% and 200%, sideways: "screen [[0.0 0.0] - [585.1 365.7]],
+/// window [[-26.0 3.0] - [611.2 362.8]]" (the long name as the window's title widened it past both
+/// edges), until the title was cut to the window's width.
+#[test]
+fn full_window_keeps_close_inside_it_at_every_size_and_font_size() {
+    use crate::gui::model_view::tests::{inside, painted_button, screens_and_font_sizes};
+    const URL: &str = "http://127.0.0.1:9/uploads/1760000000005_family_reunion_2026.mp4";
+    const NAME: &str = "Family reunion at the lake, summer 2026, the whole afternoon.mp4";
+    let words = "Family reunion at the lake, summer 2026, the whole afternoon.mp4 is an MP4 file with H.265 video and AAC sound, which this app cannot play as it is. This video is H.265. Windows plays it only with the HEVC Video Extensions from the Microsoft Store. It will play in another player, such as VLC.";
+    let mut bad = Vec::new();
+    for (px, percent) in screens_and_font_sizes() {
+        let ctx = egui::Context::default();
+        crate::gui::install_fonts(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        ctx.all_styles_mut(|s| s.animation_time = 0.0);
+        let mut videos = ChatVideos::default();
+        let said = words.to_string();
+        videos.fetch_for_test = Some(std::sync::Arc::new(move |_: &str| Err(said.clone())));
+        videos.press_play(URL, NAME, "");
+        videos.window = Some(URL.to_string());
+        assert!(videos.wait_for_picture_or_words(URL, &ctx), "its words come");
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, px / (percent / 100.0));
+        let mut size = percent;
+        let mut out = None;
+        for _ in 0..4 {
+            let mut input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+            crate::gui::font_size::before_frame(&ctx, &mut input, &mut size);
+            out = Some(ctx.run(input, |ctx| draw_video_window(ctx, &theme, &mut videos)));
+        }
+        let out = out.expect("four passes ran");
+        let window = ctx.memory(|m| m.area_rect(egui::Id::new(WINDOW_ID))).expect("the window is drawn");
+        let close = painted_button(&out, t("chat_video.close_window"));
+        let picture = videos.pictures.get(URL).copied().unwrap_or(egui::Rect::NOTHING);
+        let words_shown = texts_of(&out).iter().any(|x| x.contains("HEVC"));
+        match close {
+            Some((button, seen)) if inside(screen, window) && inside(window, button) && inside(seen, button) && picture.height() >= 1.0 && words_shown => {}
+            _ => bad.push(format!("{}x{} at {percent}%: screen {screen:?}, window {window:?}, button {close:?}, picture {picture:?}, words shown {words_shown}", px.x, px.y)),
+        }
+        assert!(videos.window_open(), "the window stays open while it is drawn");
+    }
+    assert!(bad.is_empty(), "Close the window lies inside its window, on the screen:\n{}", bad.join("\n"));
 }
 
 /// WHAT ONE PLAYING VIDEO COSTS THE FRAME (the brief's measurement, docs/design/media-player.md):

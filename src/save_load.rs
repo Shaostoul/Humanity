@@ -3116,7 +3116,7 @@ mod tests {
         data.insert("item_registry", humanity_systems::inventory::ItemRegistry::from_csv(&read("items.csv")).unwrap());
         data.insert("creature_registry", humanity_systems::livestock::CreatureRegistry::from_csv(&read("creatures.csv")).unwrap());
         data.insert("auto_mine_order", Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
-        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        humanity_systems::notices::register(&mut data);
         // The smelter's coal waits in home storage, the only store the home's
         // machines draw on (BUG-150); the drone files each haul there too.
         data.insert("home_stock", Mutex::new(std::collections::HashMap::from([("coal_0".to_string(), 3u32)])));

@@ -42,7 +42,7 @@ fn store(stock: &[(&str, u32)], mode: Mode) -> DataStore {
         crate::fluids::FluidTable::from_ron(&std::fs::read(data_dir().join("containers/fluids.ron")).unwrap()).unwrap(),
     );
     data.insert("home_stock", Mutex::new(stock.iter().map(|(k, v)| (k.to_string(), *v)).collect::<HashMap<String, u32>>()));
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     data.insert(MODE_KEY, mode);
     crate::livestock::register(&mut data);
     data
@@ -53,7 +53,7 @@ fn stock_of(data: &DataStore, id: &str) -> u32 {
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone()
+    crate::notices::said(&data)
 }
 
 /// One homestead animal of `species`, placed the way world entry places it.

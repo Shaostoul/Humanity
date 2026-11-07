@@ -498,7 +498,7 @@ impl Weeds {
         };
         let name = area.replace('_', " ");
         if soil.soil_for(&area).is_none() {
-            super::push_notice(
+            super::push_reply(
                 store,
                 format!("{name} has no soil, so no weeds: a tower grows in a nutrient mist and a mushroom rack in its own substrate."),
             );
@@ -547,7 +547,7 @@ impl Weeds {
                         break;
                     }
                     if !have {
-                        super::push_notice(store, format!("{} needs a {} in your backpack.", control.name, item_name(&control.tool).to_lowercase()));
+                        super::push_reply(store, format!("{} needs a {} in your backpack.", control.name, item_name(&control.tool).to_lowercase()));
                         return;
                     }
                     if broke > 0 {
@@ -568,7 +568,7 @@ impl Weeds {
                         break;
                     }
                     if !took {
-                        super::push_notice(
+                        super::push_reply(
                             store,
                             format!("{} for {name} ({m2:.1} m2) takes {need} x {}; you have {have}.", control.name, item_name(&control.item)),
                         );
@@ -616,7 +616,7 @@ impl Weeds {
         drop(mem);
         s.push_str(&spent);
         log::info!("[Farming] {} on {area}: {before:.3} ({m2:.2} m2)", control.id);
-        super::push_notice(store, s);
+        super::push_reply(store, s);
     }
 }
 

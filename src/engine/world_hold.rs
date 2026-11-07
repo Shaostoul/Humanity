@@ -3,8 +3,6 @@
 //! takes their notices through `take_notices`, once a frame, so the headless test below drives the
 //! same two functions the game does.
 
-use std::sync::Mutex;
-
 use humanity_core::ecs::systems::SystemRunner;
 use humanity_core::hot_reload::data_store::DataStore;
 
@@ -30,14 +28,16 @@ pub(crate) fn tick(runner: &mut SystemRunner, world: &mut hecs::World, data: &Da
     world_dt
 }
 
-/// What the systems said this frame (the "player_notices" channel), as the world's notices: shown
-/// while the world runs, held for the person's entry while it does not (`GuiState::world_notice`).
+/// What the systems said this frame, on their two channels (humanity_systems::notices): their
+/// replies to what the person did on a page, shown at once, in a world or not (BUG-258: held, a
+/// craft refused on the picker got no answer); and the world's own lines, shown while the world
+/// runs and held for the person's entry while it does not (`GuiState::world_notice`, BUG-253).
 pub(crate) fn take_notices(data: &DataStore, gui: &mut GuiState) {
-    let said: Vec<String> = data
-        .get::<Mutex<Vec<String>>>("player_notices")
-        .and_then(|slot| slot.lock().ok().map(|mut n| std::mem::take(&mut *n)))
-        .unwrap_or_default();
-    for msg in said {
+    use humanity_systems::notices;
+    for msg in notices::take(data, notices::REPLIES) {
+        gui.reply_notice(msg);
+    }
+    for msg in notices::take(data, notices::WORLD) {
         gui.world_notice(msg);
     }
 }

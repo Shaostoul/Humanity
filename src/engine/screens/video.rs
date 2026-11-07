@@ -58,7 +58,8 @@
 //! GPU: `open_with`, `open_path`, `advance`, `plan_frame`, the pause
 //! toggle, `picture_layout`, `letterbox_layout`, `resolve_media_path`,
 //! `StripTimer`, `strip_wanted`, `draw_screen`, `audio_placement`,
-//! `compose_mix`, `mix_moved` and `SoundLink::step` are pure, egui-only or
+//! `compose_mix`, `mix_moved` (both in `crate::media` since 2026-11-06, shared
+//! with the chat's videos) and `SoundLink::step` are pure, egui-only or
 //! player-only and every test below drives them; `frame`, `upload_frame`
 //! and `world_update` are thin glue over them (the GPU calls and the kira
 //! calls respectively).
@@ -74,7 +75,7 @@ use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult, Fil
 use crate::gui::widgets::{self, ButtonVariant};
 use crate::gui::GuiState;
 use crate::media::transcode::{self, Ingest, TranscodeJob};
-use crate::media::{AudioAttach, VideoFrame, VideoPlayer};
+use crate::media::{compose_mix, mix_moved, AudioAttach, VideoFrame, VideoPlayer, MIX_TWEEN_MS};
 
 /// Beyond this distance from the listener a screen's sound is silent. The
 /// same 50 m the one-shot spatial path (`AudioManager::play_spatial`) uses,
@@ -84,13 +85,6 @@ pub const AUDIO_MAX_DISTANCE_M: f32 = 50.0;
 /// it at 0.85 (kira: 0 hard left, 0.5 centre, 1 hard right), a clear bias
 /// that never silences the other ear (a room carries sound to both).
 pub const PAN_STRENGTH: f32 = 0.7;
-/// Volume and pan changes smaller than this are not sent to the audio
-/// thread, so a listener standing still does not restart a tween every frame.
-pub const MIX_EPSILON: f64 = 0.004;
-/// Tween for volume and pan updates: long enough that walking past a screen
-/// glides instead of stepping, short enough that turning the head feels
-/// immediate.
-pub const MIX_TWEEN_MS: u64 = 60;
 /// How long the control strip stays up after the pointer last moved on the
 /// screen while a film plays. Three seconds is what desktop players use.
 pub const STRIP_HOLD: Duration = Duration::from_secs(3);
@@ -265,35 +259,6 @@ pub fn audio_placement(screen: Vec3, listener: Vec3, right: Vec3) -> (f64, f64) 
     let side = if dist > 1.0e-3 { (to.dot(right.normalize_or_zero()) / dist).clamp(-1.0, 1.0) } else { 0.0 };
     let pan = 0.5 + 0.5 * PAN_STRENGTH * side;
     (falloff as f64, pan as f64)
-}
-
-/// The amplitude a screen's sound plays at: the master slider, the sfx bus
-/// slider (a film on the wall is a world sound, on the same bus as
-/// footsteps and machines, so the Settings sliders govern it), the clip's
-/// own volume (the strip's bar, starting at Settings > Audio's start volume;
-/// 2026-11-06) and the distance falloff from `audio_placement`, multiplied.
-/// All four are 0..1. Pure, so the composition is a unit test and not an ear
-/// test: a bus forgotten here (the sfx slider silently not governing films)
-/// fails the test instead of going unnoticed until someone turns the slider
-/// down.
-pub fn compose_mix(master: f64, sfx: f64, own: f64, falloff: f64) -> f64 {
-    master * sfx * own * falloff
-}
-
-/// The change gate: whether `next` differs from the last mix `sent` by more
-/// than `MIX_EPSILON` on EITHER channel. Nothing sent yet always counts as
-/// moved. This is what keeps a listener standing still from restarting a
-/// 60 ms tween every frame: kira would hold the value at its target anyway,
-/// but every restart is a message to the audio thread. Going to silence, or
-/// out of it, always counts, however small the step: a Mute from a quiet
-/// mix (0.0012 at a low master) sat inside the gate and was never sent.
-pub fn mix_moved(sent: Option<(f64, f64)>, next: (f64, f64)) -> bool {
-    match sent {
-        None => true,
-        Some((v, p)) => {
-            (v == 0.0) != (next.0 == 0.0) || (v - next.0).abs() > MIX_EPSILON || (p - next.1).abs() > MIX_EPSILON
-        }
-    }
 }
 
 /// What one world tick does to the sound, decided by `SoundLink::step`.
@@ -1503,6 +1468,7 @@ mod tests {
     use super::*;
     use crate::engine::screens::provider_for;
     use crate::gui::screen_surface::{ScreenCore, ScreenSource};
+    use crate::media::MIX_EPSILON;
     use crate::gui::theme::load_theme;
     use std::time::{Duration, Instant};
 

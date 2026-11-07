@@ -24,6 +24,14 @@
 //!   is reuse of a picture, so it obeys the Dev page's "turn off all reuse" switch: with reuse off
 //!   none is kept and the row shows its Play mark again. At most [`MAX_STILLS`] are kept.
 //!
+//! - **On a wall screen, the screen is the bigger view (BUG-258).** A wall screen showing the chat
+//!   (gui/screen_surface.rs, its own set: [`ChatVideos::on_a_wall_screen`]) offers no Full window:
+//!   the window is the app screen's, drawn by the engine for the app screen's set only, and a person
+//!   at a wall screen is looking at it through the look ray, with the pointer held by the view, so
+//!   a window over the app screen could not be closed from there. Its videos play in their rows,
+//!   and their sound comes from where the screen is (`engine::screens::place_page_sound`): fading
+//!   with distance, panned by its bearing, on the world-sound bus like a film on an in-world screen.
+//!
 //! The still is drawn after the first press, never fetched before it: a still for a row nobody
 //! pressed would need a range read of the MP4's index (often at the file's end), its first keyframe
 //! and a decode, for every video row on screen.
@@ -49,7 +57,10 @@ use std::path::PathBuf;
 use humanity_core::i18n::{t, tf};
 
 use crate::gui::widgets::hint::Hint;
-use crate::gui::widgets::video_view::{self, TrackReport, VideoView};
+use crate::gui::widgets::video_view::{self, SoundPlace, TrackReport, VideoView};
+
+/// The id of the Full window.
+pub(crate) const WINDOW_ID: &str = "chat_video_view";
 
 /// The widest a player is drawn in its message, in points.
 pub(crate) const INLINE_MAX_WIDTH: f32 = 560.0;
@@ -122,6 +133,8 @@ pub(crate) struct ChatVideos {
     current: Option<String>,
     /// The video in Full window.
     window: Option<String>,
+    /// A wall screen's set ([`ChatVideos::on_a_wall_screen`]): no Full window is offered.
+    on_wall: bool,
     /// How many frames have ended ([`ChatVideos::end_frame`]): the clock "on screen this frame or
     /// the last" is told by. Its own count, not egui's pass number, because a wall screen showing
     /// the chat draws it under a context of its own (gui/screen_surface.rs, with a set of its own).
@@ -169,6 +182,7 @@ impl Default for ChatVideos {
             problems: HashMap::new(),
             current: None,
             window: None,
+            on_wall: false,
             frame: 0,
             volume: 1.0,
             muted: false,
@@ -193,6 +207,13 @@ impl Default for ChatVideos {
 }
 
 impl ChatVideos {
+    /// The set of a wall screen showing the chat (gui/screen_surface.rs `ScreenTextures`): its
+    /// videos play in their rows, with no Full window (the module's notes say why), and their sound
+    /// comes from the screen (BUG-258).
+    pub(crate) fn on_a_wall_screen() -> Self {
+        ChatVideos { on_wall: true, ..Default::default() }
+    }
+
     /// Whether a video is in Full window (the chat's popups stay shut under it).
     pub(crate) fn window_open(&self) -> bool {
         self.window.is_some()
@@ -286,6 +307,12 @@ impl ChatVideos {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         false
+    }
+
+    /// Put the video at `url` (which has a player) in Full window, as its button does (a snapshot).
+    #[cfg(test)]
+    pub(crate) fn open_window(&mut self, url: &str) {
+        self.window = Some(url.to_string());
     }
 
     /// The temporary copy the video at `url` plays from.
@@ -487,13 +514,22 @@ impl ChatVideos {
         // `live` drops here: the player lets go of the file, then the copy goes (`Drop for VideoView`).
     }
 
-    /// Their sound through the app's mixer, at the chat videos' volume (each frame it has a mixer).
-    pub(crate) fn sync_sound(&mut self, audio: &mut humanity_core::audio::AudioManager) {
+    /// Their sound through the app's mixer, at the chat videos' volume and Mute, heard from `place`
+    /// (each frame it has a mixer): the app screen's set from the app, a wall screen's from that
+    /// screen (BUG-258: a wall screen's videos were never handed to the mixer, so they played
+    /// silent and their Mute and volume did nothing).
+    pub(crate) fn sync_sound(&mut self, audio: &mut humanity_core::audio::AudioManager, place: SoundPlace) {
         for live in self.live.values_mut() {
             live.view.volume = self.volume;
             live.view.muted = self.muted;
-            live.view.sync_sound(audio);
+            live.view.sync_sound_at(audio, place);
         }
+    }
+
+    /// The mix last handed to the mixer for the video at `url`'s sound (volume, pan), if it has one.
+    #[cfg(test)]
+    pub(crate) fn mix_sent(&self, url: &str) -> Option<(f64, f64)> {
+        self.live.get(url).and_then(|l| l.view.mix_sent)
     }
 }
 
@@ -501,10 +537,13 @@ impl ChatVideos {
 #[derive(Default)]
 struct Asked {
     play: bool,
-    seek: Option<f32>,
+    /// A new place, in seconds.
+    seek: Option<f64>,
     mute: bool,
     volume: Option<f32>,
     window: bool,
+    /// The mark beside the volume bar: Settings > Audio's video volume choices (2026-11-06).
+    settings: bool,
 }
 
 /// The player in a video's card: the picture, then the seek bar, then Play or Pause, the time, Mute,
@@ -517,7 +556,10 @@ pub(crate) fn draw_in_card(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVi
 }
 
 /// The player itself, at most `max` (its picture fitted inside, its controls under it); `in_window`
-/// for Full window's bigger view (no Full window button there, and it is always on screen).
+/// for Full window's bigger view (no Full window button there, and it is always on screen), where
+/// `max.y` holds the picture AND its controls: they are laid out first, where nobody sees them, and
+/// the picture's box (the full width, the picture fitted in it) gets the height they leave (BUG-258,
+/// as BUG-251's `show_fit`).
 #[allow(clippy::too_many_arguments)]
 fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &str, name: &str, ffmpeg: &str, max: egui::Vec2, in_window: bool) {
     let ctx = ui.ctx().clone();
@@ -528,9 +570,14 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
         let size = videos.live.get(url).and_then(|l| l.view.texture()).map(|t| t.size()).or_else(|| videos.stills.get(url).map(|s| s.texture.size())).or_else(|| poster_of(videos, url).map(|t| t.size()));
         size.map_or(FIRST_ASPECT, |[w, h]| (w.max(1) as f32 / h.max(1) as f32).clamp(0.25, 4.0))
     };
-    let mut width = if in_window { max.x } else { ui.available_width().min(max.x) }.max(160.0);
+    let mut width = if in_window { max.x } else { ui.available_width().min(max.x).max(160.0) };
     let mut height = width / aspect;
-    if height > max.y {
+    if in_window {
+        let below = measured_height(ui, width, &mut |ui| {
+            under_picture(ui, theme, videos, url, width, true);
+        });
+        height = height.min((max.y - below - ui.spacing().item_spacing.y).max(0.0));
+    } else if height > max.y {
         height = max.y.max(90.0);
         width = height * aspect;
     }
@@ -545,55 +592,16 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
             videos.want_poster(url);
         }
     }
-    let mut asked = Asked { play: press.clicked() && !elsewhere, ..Default::default() };
     if ui.is_rect_visible(picture) {
         paint_picture(ui, theme, videos, url, picture, elsewhere);
     }
     if elsewhere {
         return;
     }
-
-    // The place, the time and the state, from the player, else from the still.
-    let live = videos.live.get(url);
-    let (place, length) = match live.filter(|l| l.view.has_player()) {
-        Some(l) => l.view.place(),
-        None => videos.stills.get(url).map_or((0.0, 0.0), |s| (s.place_s, s.length_s)),
-    };
-    let playing = live.is_some_and(|l| l.view.is_playing());
-    let can_seek = live.is_some_and(|l| l.view.has_player()) && length > 0.0;
-    let fraction = if length > 0.0 { (place / length).clamp(0.0, 1.0) as f32 } else { 0.0 };
-    asked.seek = video_view::track_bar(ui, theme, "seek", fraction, width, can_seek, TrackReport::OnRelease, "chat_video.seek_hint");
-    let small = widgets::ButtonSize::Small;
-    ui.allocate_ui_with_layout(egui::vec2(width, theme.button_height), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-        ui.spacing_mut().item_spacing.x = theme.spacing_sm;
-        let (label, hint) = if playing { (t("chat_video.pause"), "chat_video.pause_hint") } else { (t("chat_video.play"), "chat_video.play_hint") };
-        if widgets::Button::secondary(label).size(small).hint(hint).show(ui, theme) {
-            asked.play = true;
-        }
-        let at = video_view::clock(place);
-        let time = if length > 0.0 { tf("chat_video.time", &[("at", &at), ("length", &video_view::clock(length))]) } else { at };
-        ui.label(RichText::new(time).size(theme.font_size_small).color(theme.text_muted()));
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if !in_window && widgets::Button::ghost(t("chat_video.full_window")).size(small).hint("chat_video.full_window_hint").show(ui, theme) {
-                asked.window = true;
-            }
-            // Settings > Audio's video volume choices, a small mark beside the bar (2026-11-06).
-            if video_view::volume_settings_mark(ui, theme) {
-                videos.open_volume_settings = true;
-            }
-            asked.volume = video_view::track_bar(ui, theme, "volume", videos.volume, VOLUME_WIDTH, !videos.muted, TrackReport::Live, "chat_video.volume_hint");
-            if widgets::Button::ghost(if videos.muted { t("chat_video.unmute") } else { t("chat_video.mute") }).size(small).hint("chat_video.mute_hint").show(ui, theme) {
-                asked.mute = true;
-            }
-        });
-    });
-    // A video nothing here plays, in BUG-228's plain words (the card's Download is beside its name).
-    let problem = videos.live.get(url).map(|l| l.view.problem.clone()).filter(|p| !p.is_empty()).or_else(|| videos.problems.get(url).cloned());
-    if let Some(words) = problem {
-        ui.scope(|ui| {
-            ui.set_max_width(width);
-            ui.add(egui::Label::new(RichText::new(words).size(theme.font_size_small).color(theme.danger())).wrap());
-        });
+    let mut asked = under_picture(ui, theme, videos, url, width, in_window);
+    asked.play |= press.clicked();
+    if asked.settings {
+        videos.open_volume_settings = true;
     }
     if let Some(live) = videos.live.get(url) {
         if live.view.fetching() || live.view.converting().is_some() {
@@ -605,8 +613,8 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
     if asked.play {
         videos.press_play(url, name, ffmpeg);
     }
-    if let (Some(f), Some(live)) = (asked.seek, videos.live.get_mut(url)) {
-        live.view.seek_to(f as f64 * length);
+    if let (Some(seconds), Some(live)) = (asked.seek, videos.live.get_mut(url)) {
+        live.view.seek_to(seconds);
     }
     if asked.mute {
         videos.muted = !videos.muted;
@@ -622,6 +630,88 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
         }
         videos.window = Some(url.to_string());
     }
+}
+
+/// What goes under a player's picture, `width` points wide: the seek bar, then Play or Pause, the
+/// time, Mute, the volume and Full window (not in the window itself, nor on a wall screen, BUG-258),
+/// then the words of a video that cannot play. Returns what its controls asked for this frame.
+fn under_picture(ui: &mut egui::Ui, theme: &Theme, videos: &ChatVideos, url: &str, width: f32, in_window: bool) -> Asked {
+    let mut asked = Asked::default();
+    // The place, the time and the state, from the player, else from the still.
+    let live = videos.live.get(url);
+    let (place, length) = match live.filter(|l| l.view.has_player()) {
+        Some(l) => l.view.place(),
+        None => videos.stills.get(url).map_or((0.0, 0.0), |s| (s.place_s, s.length_s)),
+    };
+    let playing = live.is_some_and(|l| l.view.is_playing());
+    let can_seek = live.is_some_and(|l| l.view.has_player()) && length > 0.0;
+    let fraction = if length > 0.0 { (place / length).clamp(0.0, 1.0) as f32 } else { 0.0 };
+    asked.seek = video_view::track_bar(ui, theme, "seek", fraction, width, can_seek, TrackReport::OnRelease, "chat_video.seek_hint").map(|f| f as f64 * length);
+    let small = widgets::ButtonSize::Small;
+    ui.allocate_ui_with_layout(egui::vec2(width, theme.button_height), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        ui.spacing_mut().item_spacing.x = theme.spacing_sm;
+        let (label, hint) = if playing { (t("chat_video.pause"), "chat_video.pause_hint") } else { (t("chat_video.play"), "chat_video.play_hint") };
+        if widgets::Button::secondary(label).size(small).hint(hint).show(ui, theme) {
+            asked.play = true;
+        }
+        let at = video_view::clock(place);
+        let time = if length > 0.0 { tf("chat_video.time", &[("at", &at), ("length", &video_view::clock(length))]) } else { at };
+        ui.label(RichText::new(time).size(theme.font_size_small).color(theme.text_muted()));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if !in_window && !videos.on_wall && widgets::Button::ghost(t("chat_video.full_window")).size(small).hint("chat_video.full_window_hint").show(ui, theme) {
+                asked.window = true;
+            }
+            // Settings > Audio's video volume choices, a small mark beside the bar (2026-11-06).
+            if video_view::volume_settings_mark(ui, theme) {
+                asked.settings = true;
+            }
+            asked.volume = video_view::track_bar(ui, theme, "volume", videos.volume, VOLUME_WIDTH, !videos.muted, TrackReport::Live, "chat_video.volume_hint");
+            if widgets::Button::ghost(if videos.muted { t("chat_video.unmute") } else { t("chat_video.mute") }).size(small).hint("chat_video.mute_hint").show(ui, theme) {
+                asked.mute = true;
+            }
+        });
+    });
+    // A video nothing here plays, in BUG-228's plain words (the card's Download is beside its name).
+    let problem = live.map(|l| l.view.problem.clone()).filter(|p| !p.is_empty()).or_else(|| videos.problems.get(url).cloned());
+    if let Some(words) = problem {
+        ui.scope(|ui| {
+            ui.set_max_width(width);
+            ui.add(egui::Label::new(RichText::new(words).size(theme.font_size_small).color(theme.danger())).wrap());
+        });
+    }
+    asked
+}
+
+/// `name` as a window's title no wider than `width` points (in the heading font a title is drawn
+/// in): whole when it fits, else cut between characters with an ellipsis after it.
+fn title_fitting(ctx: &egui::Context, name: &str, width: f32) -> String {
+    let font = egui::TextStyle::Heading.resolve(&ctx.style());
+    let wide = |s: &str| ctx.fonts(|f| f.layout_no_wrap(s.to_string(), font.clone(), egui::Color32::PLACEHOLDER).size().x);
+    if wide(name) <= width {
+        return name.to_string();
+    }
+    let chars: Vec<char> = name.chars().collect();
+    let cut = |n: usize| format!("{}\u{2026}", chars[..n].iter().collect::<String>().trim_end());
+    let (mut lo, mut hi) = (0, chars.len());
+    while lo < hi {
+        let mid = (lo + hi + 1) / 2;
+        if wide(&cut(mid)) <= width {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    cut(lo)
+}
+
+/// How tall `add` lays out `width` points wide, laid out once where nobody sees it: not drawn,
+/// disabled (so it answers nothing and shows no hint), and far above the screen, where no pointer
+/// can rest on it, so what comes before it can be given the rest.
+fn measured_height(ui: &mut egui::Ui, width: f32, add: &mut dyn FnMut(&mut egui::Ui)) -> f32 {
+    let at = egui::Rect::from_min_size(egui::pos2(ui.cursor().min.x, -1.0e6), egui::vec2(width, 1.0e5));
+    let mut probe = ui.new_child(egui::UiBuilder::new().max_rect(at).layout(*ui.layout()).invisible());
+    add(&mut probe);
+    probe.min_rect().height()
 }
 
 /// The picture box: black, the picture (the player's, else the still) fitted in it, and over it the
@@ -691,16 +781,33 @@ fn poster_of<'a>(videos: &'a ChatVideos, url: &str) -> Option<&'a egui::TextureH
 /// Full window: the video Full window was pressed on, bigger, in a window of its own with Close the
 /// window (which puts it back in its message). Then the end of the frame for every chat video
 /// ([`ChatVideos::end_frame`]). The engine calls this every frame, whatever page is open.
+///
+/// The window's body is held to the room a dialog has on this screen (`widgets::dialog::body_room`,
+/// BUG-251's rule) and laid out from the bottom up: Close the window and the player's controls are
+/// measured first and the picture gets the height they leave, so Close always sits inside the
+/// window, on the screen, at every window size and Font Size (BUG-258: the picture was sized to
+/// 0.72 of the screen's height with its controls and Close under it, so on a screen under about
+/// 620 points tall, 1280x720 at Font Size 125% or 1920x1080 at 175%, Close fell off the bottom).
+/// Its title, the video's name, is cut to the window's width, or a long name widened the window
+/// past a narrow screen's edges (1024x640 at 175%).
 pub(crate) fn draw_video_window(ctx: &egui::Context, theme: &Theme, videos: &mut ChatVideos) {
     if let Some(url) = videos.window.clone() {
         if let Some((name, ffmpeg)) = videos.live.get(&url).map(|l| (l.name.clone(), l.ffmpeg.clone())) {
             let mut open = true;
             let mut close = false;
-            let screen = ctx.screen_rect();
-            let max = egui::vec2((screen.width() * 0.8).max(320.0), (screen.height() * 0.72).max(200.0));
-            widgets::dialog(ctx, theme, "chat_video_view", &name, &mut open, |ui| {
-                draw_player(ui, theme, videos, &url, &name, &ffmpeg, max, true);
-                close = widgets::Button::secondary(t("chat_video.close_window")).hint("chat_video.close_window_hint").show(ui, theme);
+            let room = widgets::dialog::body_room(ctx, theme);
+            let width = (ctx.screen_rect().width() * 0.8).max(320.0).min(room.x);
+            // The title is the video's name, cut to the window's width: a window grows to fit its
+            // title, so a long name would push it past a narrow screen's edges.
+            let title = title_fitting(ctx, &name, width - 2.0 * ctx.style().spacing.interact_size.y);
+            widgets::dialog(ctx, theme, WINDOW_ID, &title, &mut open, |ui| {
+                let close_button = |ui: &mut egui::Ui| widgets::Button::secondary(t("chat_video.close_window")).hint("chat_video.close_window_hint").show(ui, theme);
+                let foot = measured_height(ui, width, &mut |ui| {
+                    close_button(ui);
+                });
+                let gap = ui.spacing().item_spacing.y;
+                draw_player(ui, theme, videos, &url, &name, &ffmpeg, egui::vec2(width, room.y - foot - gap), true);
+                close = close_button(ui);
             });
             if !open || close {
                 videos.window = None;
@@ -712,12 +819,13 @@ pub(crate) fn draw_video_window(ctx: &egui::Context, theme: &Theme, videos: &mut
     videos.end_frame(ctx);
 }
 
-/// The chat's videos get their sound from the app's mixer (the engine calls this each frame it has
-/// a mixer).
+/// The chat's videos on the app's screen get their sound from the app's mixer, heard from the app
+/// (the engine calls this each frame it has a mixer; a wall screen's are placed at the screen by
+/// `engine::screens::place_page_sound`).
 pub(crate) fn sync_video_sound(videos: &mut ChatVideos, audio: &mut humanity_core::audio::AudioManager) {
-    videos.sync_sound(audio);
+    videos.sync_sound(audio, SoundPlace::App);
 }
 
 #[cfg(test)]
 #[path = "inline_video_tests.rs"]
-mod tests;
+pub(crate) mod tests;

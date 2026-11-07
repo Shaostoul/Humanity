@@ -28,12 +28,12 @@ fn the_pages_video_gets_its_sound_and_mute_silences_it() {
     opened.video.player = Some(crate::media::VideoPlayer::open(&mp4).expect("open"));
     sync_sound(&mut opened, &mut audio);
     assert!(opened.video.player.as_ref().unwrap().has_audio(), "the sound is attached");
-    assert_eq!(opened.video.volume_sent, Some(0.3), "at the master volume");
+    assert_eq!(opened.video.mix_sent, Some((0.3, 0.5)), "at the master volume, centred");
     opened.video.muted = true;
     sync_sound(&mut opened, &mut audio);
-    assert_eq!(opened.video.volume_sent, Some(0.0), "muted: silence");
+    assert_eq!(opened.video.mix_sent, Some((0.0, 0.5)), "muted: silence");
     opened.video.muted = false;
     audio.set_master_volume(0.2);
     sync_sound(&mut opened, &mut audio);
-    assert_eq!(opened.video.volume_sent, Some(0.2), "unmuted, at the master volume as it is now");
+    assert_eq!(opened.video.mix_sent, Some((0.2, 0.5)), "unmuted, at the master volume as it is now");
 }

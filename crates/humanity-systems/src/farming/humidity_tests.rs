@@ -43,7 +43,7 @@ fn level(world: &hecs::World, area: &str, pest: &str) -> f64 {
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    std::mem::take(&mut *data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+    crate::notices::take_said(&data)
 }
 
 fn request(data: &DataStore, area: &str, control: &str) {

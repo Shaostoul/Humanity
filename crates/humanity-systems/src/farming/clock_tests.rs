@@ -471,7 +471,7 @@ fn a_harvest_between_turns_meets_the_crop_as_it_is_now() {
 fn harvest_between_turns(no_bring_up: bool) -> (bool, bool) {
     let mut data = fixtures::gardening::make_store();
     data.insert(super::clock::INTERVAL_KEY, Mutex::new(3600.0));
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     {
         let gt = data.get::<Mutex<crate::time::GameTime>>("game_time").unwrap();
         let mut g = gt.lock().unwrap();
@@ -573,7 +573,7 @@ fn a_reader_that_looks_keeps_the_garden_within_a_second() {
 #[test]
 fn a_burn_harms_a_crop_once_a_frame_with_a_command_waiting() {
     let mut data = fixtures::gardening::make_store();
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     // A burn the plants feel at 2 g: past a 1 g safe line, harm 5 health a real second at 2 g.
     data.insert(
         "flight_data",

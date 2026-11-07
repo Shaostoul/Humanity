@@ -25,7 +25,7 @@ fn home(stock: &[(&str, u32)]) -> (DataStore, hecs::World, hecs::Entity) {
     let read = |f: &str| std::fs::read(format!("{root}{f}")).unwrap();
     data.insert("recipe_registry", RecipeRegistry::from_csv(&read("recipes.csv")).unwrap());
     data.insert("item_registry", ItemRegistry::from_csv(&read("items.csv")).unwrap());
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     data.insert("auto_craft_status", Mutex::new(Vec::<String>::new()));
     let stock: HashMap<String, u32> = stock.iter().map(|(id, q)| (id.to_string(), *q)).collect();
     data.insert("home_stock", Mutex::new(stock));

@@ -597,7 +597,7 @@ pub(super) fn handle_request(
             Some(p) => format!("its pH is held at {p:.1} by the tower's dosing"),
             None => "it is not soil".to_string(),
         };
-        super::push_notice(data, format!("{} is for soil, and {} is {}: {why}.", am.name, area.replace('_', " "), medium.name.to_lowercase()));
+        super::push_reply(data, format!("{} is for soil, and {} is {}: {why}.", am.name, area.replace('_', " "), medium.name.to_lowercase()));
         return;
     };
     let plants = data.get::<super::PlantRegistry>("plant_registry");
@@ -608,7 +608,7 @@ pub(super) fn handle_request(
         .filter_map(|(_, c)| c.tower_slot.map(|s| (s, c.crop_def_id.clone())))
         .collect();
     if crops.is_empty() {
-        super::push_notice(data, format!("There are no planted units to treat in {}.", area.replace('_', " ")));
+        super::push_reply(data, format!("There are no planted units to treat in {}.", area.replace('_', " ")));
         return;
     }
     let units = world
@@ -647,7 +647,7 @@ pub(super) fn handle_request(
     }
     if plan.is_empty() {
         let dir = if am.raises() { "up to" } else { "down to" };
-        super::push_notice(
+        super::push_reply(
             data,
             format!(
                 "{} is already {dir} the pH its crops want (counting what is still reacting): {} would take it past their window.",
@@ -680,7 +680,7 @@ pub(super) fn handle_request(
             }
         }
         if !took {
-            super::push_notice(
+            super::push_reply(
                 data,
                 format!(
                     "{} for {} takes {:.2} kg, {bags} x {item_name}; you have {have}.",
@@ -726,7 +726,7 @@ pub(super) fn handle_request(
         ));
     }
     log::info!("[Farming] {} on {area}: {:.1} g over {} units", am.id, total_g, plan.len());
-    super::push_notice(data, s);
+    super::push_reply(data, s);
 }
 
 /// Add the potash an amendment carries (`k2o_per_g` grams of K2O per gram,

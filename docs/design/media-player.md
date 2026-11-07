@@ -489,6 +489,24 @@ opened the video in a window of its own. Now the player sits inside the message,
   its Play mark. At most 24 stills are kept; the oldest goes first.
 - Below Verified, a poster's files are plain words (chat access rung 1); no player is drawn for
   them, as no card was before.
+- **On a wall screen showing the chat** (an in-world screen with `page:chat`, the console room's
+  `desk_monitor_2`), the screen is the bigger view, so no Full window is offered (BUG-258). The
+  window is the app screen's, drawn by the engine for the app screen's set of videos only, and a
+  person at a wall screen points with the look ray while the view holds the pointer, so a window
+  opened over the app screen could not be closed from there; offered anyway, it stranded the row
+  ("Playing in its own window."), never polled again, its temporary copy never deleted, the
+  screen's reaction popups shut. A wall screen's videos play in their rows, and their sound comes
+  from the screen (`engine::screens::place_page_sound`, every frame, framed or not): fading to
+  silence at 50 m, panned by the screen's bearing, on the world-sound bus under the master volume
+  like a film on an in-world screen, with the row's volume bar and Mute on top. They had played
+  silent, their Mute and volume doing nothing.
+- **Full window keeps Close on the screen.** Its body is held to the room a dialog has
+  (`widgets::dialog::body_room`, BUG-251's rule) and laid out from the bottom up: Close the window
+  and the controls (with any words under them) are measured first and the picture's box gets the
+  height they leave, so Close sits inside the window at every window size and Font Size (BUG-258:
+  the picture was 0.72 of the screen's height with everything under it, so on a screen under about
+  620 points tall (1280x720 at Font Size 125%, 1920x1080 at 175%), with a video's words under its
+  picture, Close fell off).
 
 **The website** (`web/chat/app.js` `fileCardHtml`): the browser's own `<video controls>` inline in
 the card, `preload="none"` on every video (it was `metadata` for this server's files, a read of

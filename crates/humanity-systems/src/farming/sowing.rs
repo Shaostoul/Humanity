@@ -281,7 +281,7 @@ pub(super) fn sow_from_backpack(
 ) {
     let Some(def) = super::plant_id_from_seed(seed_id).and_then(|p| plants.and_then(|r| r.get(&p))) else {
         log::debug!("[Farming] no plant def for seed {seed_id}; not planted");
-        super::push_notice(data, format!("Nothing planted: the garden has no growing data for {seed_id}."));
+        super::push_reply(data, format!("Nothing planted: the garden has no growing data for {seed_id}."));
         return;
     };
     let media = crate::grow_machines::load_grow_media(&humanity_core::storage::data_dir());
@@ -296,7 +296,7 @@ pub(super) fn sow_from_backpack(
     let spot = match choose(&here, &taken, seed_takes(def), feet(world, data)) {
         Ok(s) => s,
         Err(r) => {
-            super::push_notice(data, refusal_words(&r));
+            super::push_reply(data, refusal_words(&r));
             return;
         }
     };
@@ -316,7 +316,7 @@ pub(super) fn sow_from_backpack(
                 .get::<crate::inventory::ItemRegistry>("item_registry")
                 .and_then(|r| r.items.get(seed_id))
                 .map_or(seed_id.to_string(), |d| d.name.to_lowercase());
-            super::push_notice(data, format!("Nothing planted: your backpack holds no {name}."));
+            super::push_reply(data, format!("Nothing planted: your backpack holds no {name}."));
             return;
         }
     }
@@ -348,7 +348,7 @@ pub(super) fn sow_from_backpack(
     log::info!("[Farming] planted {} (from {seed_id}) in {} {}", def.id, spot.tag, spot.slot);
     // The player planted it (2026-10-04, the opening's Plant step).
     crate::quests::push_quest_event(data, crate::quests::plant_event_key(&def.id));
-    super::push_notice(data, planted_words(def, &spot, &said));
+    super::push_reply(data, planted_words(def, &spot, &said));
 }
 
 /// The notice for a seed sown: where, when it ripens, and its water.

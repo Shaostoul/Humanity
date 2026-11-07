@@ -1282,11 +1282,9 @@ impl System for CraftingSystem {
                             .unwrap_or_default();
                         let unpowered = here.frame().and_then(|f| Self::station_unpowered_at(world, machine_type, f));
                         if let Some(reason) = unpowered {
-                            if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
-                                if let Ok(mut n) = slot.lock() {
-                                    n.push(format!("{}: {reason}", recipe.name));
-                                }
-                            }
+                            // A reply to the craft the person pressed: shown at once, in the world
+                            // or not (BUG-258, crate::notices).
+                            crate::notices::reply(data, format!("{}: {reason}", recipe.name));
                             continue;
                         }
                     }
@@ -1297,13 +1295,9 @@ impl System for CraftingSystem {
                         .and_then(|r| r.items.get(id).map(|d| d.name.clone()))
                         .unwrap_or_else(|| id.to_string())
                 };
-                let notice = |msg: String| {
-                    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
-                        if let Ok(mut n) = slot.lock() {
-                            n.push(msg);
-                        }
-                    }
-                };
+                // What this craft says is a reply to the press that asked for it (BUG-258): shown
+                // at once, before the person enters a world too (crate::notices).
+                let notice = |msg: String| crate::notices::reply(data, msg);
 
                 // Inputs (creative mode bypasses): the backpack first, then
                 // the home's storage while the player is where it is, then
@@ -1423,6 +1417,7 @@ impl System for CraftingSystem {
                         vehicle_kits,
                         false,
                         to_home,
+                        crate::notices::reply,
                     );
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
@@ -1578,6 +1573,7 @@ impl System for CraftingSystem {
                             vehicle_kits,
                             craft.auto && to_storage,
                             hand_to_home,
+                            crate::notices::world,
                         );
                         log::debug!("Craft complete: {}", recipe.id);
                     }
@@ -1694,8 +1690,11 @@ impl CraftingSystem {
         // A hand craft's goods go to the backpack, and what it cannot take
         // to home storage with their grade (BUG-147, crafting::home_store).
         overflow_home: bool,
+        // Where what it says goes (BUG-258, crate::notices): a reply for an instant craft the
+        // person just pressed, the world's own line for a craft that finished in time.
+        say: fn(&DataStore, String),
     ) {
-        Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home);
+        Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say);
         Self::on_craft_complete(data, recipe);
     }
 
@@ -1711,6 +1710,7 @@ impl CraftingSystem {
         vehicle_kits: Option<&crate::vehicles::VehicleKitRegistry>,
         to_storage: bool,
         overflow_home: bool,
+        say: fn(&DataStore, String),
     ) {
         // Split out the vehicle-class outputs (usually none).
         let vehicle_outputs: Vec<(String, u32)> = match vehicle_kits {
@@ -1810,9 +1810,7 @@ impl CraftingSystem {
                         })
                         .collect::<Vec<_>>()
                         .join(", ");
-                    if let Some(Ok(mut n)) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").map(|m| m.lock()) {
-                        n.push(format!("{} is done: {what} went to home storage, too big for your backpack.", recipe.name));
-                    }
+                    say(data, format!("{} is done: {what} went to home storage, too big for your backpack.", recipe.name));
                 } else {
                     for (id, q, _) in &left {
                         log::warn!("Crafting output overflow: {q} of {id} lost (inventory full)");
@@ -2022,7 +2020,7 @@ mod skill_xp_tests {
         );
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
         inv.add_item("plank_0", 5, 99);
@@ -2048,7 +2046,7 @@ mod skill_xp_tests {
         );
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let mut ft = crate::fluids::FluidTable::default();
         ft.tap.insert("water_purified_0".into(), 1.0);
         data.insert("fluid_table", ft);
@@ -2092,7 +2090,7 @@ mod skill_xp_tests {
         );
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
         inv.add_item("plank_0", 5, 99);
@@ -2136,7 +2134,7 @@ mod skill_xp_tests {
         );
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
         inv.add_item("egg_0", 3, 12);
@@ -2189,7 +2187,7 @@ mod skill_xp_tests {
         );
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let mut stock = std::collections::HashMap::new();
         stock.insert("grain_0".to_string(), 40u32);
         data.insert("home_stock", std::sync::Mutex::new(stock));
@@ -2251,7 +2249,7 @@ mod skill_xp_tests {
         data.insert("quality_levels", quality::QualityLevels::from_ron(&bytes).unwrap());
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
         inv.add_item("iron_0", 1, 20);
@@ -2285,7 +2283,7 @@ mod skill_xp_tests {
         );
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
@@ -2339,7 +2337,7 @@ mod skill_xp_tests {
     }
 
     fn notices(data: &DataStore) -> Vec<String> {
-        data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone()
+        crate::notices::said(&data)
     }
 
     /// A manual craft whose output cannot fit is REFUSED before its inputs are

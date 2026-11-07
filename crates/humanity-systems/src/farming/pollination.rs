@@ -689,7 +689,7 @@ fn step_crops(
 /// gains nothing: the cover wears off before its flowers open).
 fn hand_pollinate(world: &mut hecs::World, data: &DataStore, d: &PollinationData, area: &str) {
     if open_field(area, &covered_fields(world, data)) {
-        super::push_notice(data, "Outdoor fields are pollinated by the wind and wild insects.".to_string());
+        super::push_reply(data, "Outdoor fields are pollinated by the wind and wild insects.".to_string());
         return;
     }
     let mut done: BTreeMap<String, bool> = BTreeMap::new();
@@ -711,7 +711,7 @@ fn hand_pollinate(world: &mut hecs::World, data: &DataStore, d: &PollinationData
     }
     let place = super::pests::place(area);
     if done.is_empty() {
-        super::push_notice(data, format!("Nothing among {place} needs pollinating by hand."));
+        super::push_reply(data, format!("Nothing among {place} needs pollinating by hand."));
         return;
     }
     let parts: Vec<String> = done
@@ -723,7 +723,7 @@ fn hand_pollinate(world: &mut hecs::World, data: &DataStore, d: &PollinationData
     if !done.values().any(|f| *f) {
         s.push_str(" Nothing there is in flower yet, so this does nothing until it is.");
     }
-    super::push_notice(data, s);
+    super::push_reply(data, s);
 }
 
 /// What to call a hive in a notice or a row: "bumblebee hive 1" for
@@ -785,12 +785,12 @@ fn item_name(data: &DataStore, id: &str) -> String {
 /// which a new one would waste.
 fn introduce_colony(world: &mut hecs::World, data: &DataStore, d: &PollinationData, hive: &str) {
     if !hives(world).iter().any(|(id, _)| id == hive) {
-        super::push_notice(data, format!("There is no bumblebee hive called {} in the home.", hive_name(hive)));
+        super::push_reply(data, format!("There is no bumblebee hive called {} in the home.", hive_name(hive)));
         return;
     }
     let kept = colonies(world);
     if let Colony::Working { left_days } = Colony::of(kept.get(hive), d.colony_life_days) {
-        super::push_notice(
+        super::push_reply(
             data,
             format!(
                 "The colony in {} is still working, with {} left; a new one now would waste it.",
@@ -817,7 +817,7 @@ fn introduce_colony(world: &mut hecs::World, data: &DataStore, d: &PollinationDa
             break;
         }
         if !took {
-            super::push_notice(
+            super::push_reply(
                 data,
                 format!(
                     "Introducing a colony in {} takes a {} (bought from the vendor), and you have none.",
@@ -832,7 +832,7 @@ fn introduce_colony(world: &mut hecs::World, data: &DataStore, d: &PollinationDa
     if let Ok(mut mem) = world.get::<&mut SoilMemory>(e) {
         mem.hives.insert(hive.to_string(), HiveColony::default());
     }
-    super::push_notice(
+    super::push_reply(
         data,
         format!(
             "You introduced a {} in {}. Its bees work the flowers of the indoor crops within {:.0} m for {}, and \
@@ -1218,7 +1218,7 @@ mod tests {
     fn store(speed: f32, on: bool) -> DataStore {
         let mut data = make_store();
         crate::farming::fixtures::gardening::set_garden_speed(&data, speed);
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data.insert(REQUEST_KEY, std::sync::Mutex::new(Option::<Request>::None));
         data.insert(MODE_KEY, std::sync::Mutex::new(on));
         data
@@ -1263,7 +1263,7 @@ mod tests {
     }
 
     fn notices(data: &DataStore) -> Vec<String> {
-        std::mem::take(&mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+        crate::notices::take_said(&data)
     }
 
     fn request(data: &DataStore, area: &str) {

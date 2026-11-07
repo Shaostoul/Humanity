@@ -71,6 +71,11 @@ And 353 more items, 559 references (`node scripts/crate-cards.js --interface hum
   modes, open source, and a compute budget".
 - **Compute is a budget.** Cosmetic simulation runs on each client and is never networked; only
   gameplay state syncs, at a low rate; each step states its per-frame cost. Source: the same section.
+- **A system says whether a line is the world's or a reply,** by the channel it writes to, never
+  by its words: `notices::world` for what the world says on its own (a bed flowering, a craft
+  finishing; held until the person enters a world), `notices::reply` for the answer to a request a
+  page sent (a craft refused, a Plant press with no seed; shown at once). Source:
+  [BUGS.md](../BUGS.md), BUG-258 and BUG-253; `crates/humanity-systems/src/notices.rs`.
 - **A step never depends on the frame rate.** Doses, needs and falls are exact per tick, the same at
   30 and 240 frames a second. Source: [BUGS.md](../BUGS.md), BUG-164 and BUG-209.
 - **The farming golden state stays bit for bit** through every speed change and every rung of the

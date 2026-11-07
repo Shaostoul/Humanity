@@ -1172,9 +1172,10 @@ mod native_app {
                 "inventory_transfer_ops",
                 std::sync::Mutex::new(Vec::<humanity_systems::inventory::TransferOp>::new()),
             );
-            // One-line notices from the sim systems for the player (2026-09-25):
-            // a finished craft waiting for room, an empty cistern at watering.
-            data_store.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+            // One-line notices from the sim systems for the player (2026-09-25), on two
+            // channels (BUG-258): the world's own lines (a finished craft waiting for room)
+            // and replies to a page's press (an empty cistern at Water).
+            humanity_systems::notices::register(&mut data_store);
             // The garden's real water use (2026-09-25): FarmingSystem publishes
             // litres per minute, PlumbingSystem draws them through the
             // irrigation machine; hand watering queues litres the same way.

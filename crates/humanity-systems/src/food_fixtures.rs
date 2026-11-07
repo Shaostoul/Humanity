@@ -48,7 +48,7 @@ pub mod wounds {
         data.insert("rest_request", Mutex::new(false));
         data.insert("compost_request", Mutex::new(false));
         data.insert("player_death", Mutex::new(Option::<String>::None));
-        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data.insert("vitals_drain_scale", Mutex::new(0.0_f32));
         data.insert("damage_events", Mutex::new(Vec::<(u64, DamageEvent)>::new()));
         data.insert("loot_drops", Mutex::new(Vec::<(String, u32)>::new()));
@@ -83,7 +83,7 @@ pub mod wounds {
     }
 
     pub fn notices(data: &DataStore) -> Vec<String> {
-        std::mem::take(&mut *data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+        crate::notices::take_said(&data)
     }
 
     /// Tick `steps` steps of `step_s` game seconds.

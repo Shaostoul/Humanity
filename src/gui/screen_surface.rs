@@ -57,13 +57,19 @@ pub struct ScreenTextures {
     pub watch_texture: Option<egui::TextureHandle>,
     pub link_device_qr: Option<(String, egui::TextureHandle)>,
     /// The chat's inline videos as this screen shows them: their players' pictures and stills are
-    /// this screen's textures (2026-11-06, pages/chat/inline_video.rs).
+    /// this screen's textures (2026-11-06, pages/chat/inline_video.rs). A wall screen's set: no
+    /// Full window, and its sound placed at the screen (BUG-258, `ScreenCore::sync_page_sound`).
     pub(crate) chat_video: crate::gui::pages::chat::inline_video::ChatVideos,
 }
 
 impl Default for ScreenTextures {
     fn default() -> Self {
-        Self { image_cache: ImageCache::new(), watch_texture: None, link_device_qr: None, chat_video: Default::default() }
+        Self {
+            image_cache: ImageCache::new(),
+            watch_texture: None,
+            link_device_qr: None,
+            chat_video: crate::gui::pages::chat::inline_video::ChatVideos::on_a_wall_screen(),
+        }
     }
 }
 
@@ -687,6 +693,20 @@ impl ScreenCore {
 
     pub fn has_focus(&self) -> bool {
         self.focus
+    }
+
+    /// The sound of the videos this screen's chat plays, through the app's mixer, heard from
+    /// `place` (where the screen is: `engine::screens::place_page_sound`, every frame, framed or
+    /// not, so it fades and pans as the listener moves). BUG-258: a wall screen's chat videos were
+    /// never handed to the mixer. A page with no videos has nothing to hand over.
+    pub(crate) fn sync_page_sound(&mut self, audio: &mut humanity_core::audio::AudioManager, place: crate::gui::widgets::video_view::SoundPlace) {
+        self.textures.chat_video.sync_sound(audio, place);
+    }
+
+    /// This screen's own chat videos (tests drive them: the fetch stand-in, what was pressed).
+    #[cfg(test)]
+    pub(crate) fn chat_videos(&mut self) -> &mut crate::gui::pages::chat::inline_video::ChatVideos {
+        &mut self.textures.chat_video
     }
 
     /// Run the page ONCE with every event queued since the last run. Returns

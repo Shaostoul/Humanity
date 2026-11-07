@@ -1738,12 +1738,12 @@ mod quest_tests {
             crate::skills::SkillRegistry::from_csv(&std::fs::read(root.join("data/skills/skills.csv")).unwrap()).unwrap(),
         );
         data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data
     }
 
     fn notices(data: &DataStore) -> Vec<String> {
-        std::mem::take(&mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+        crate::notices::take_said(&data)
     }
 
     /// THE IRON STEP SAYS WHERE. It read "Acquire 3 iron ore (mine it with a

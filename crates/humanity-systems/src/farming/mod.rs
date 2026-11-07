@@ -526,13 +526,16 @@ pub const HAND_WATER_L: f32 = 2.0;
 /// the drying.
 pub const RAIN_WATER_PER_S: f32 = 1.0 / (5.0 * 3600.0);
 
-/// One line for the player (the "player_notices" channel the main loop shows).
+/// One line for the player from the garden itself (a bed flowering, the feeder run dry): the world
+/// speaking on its own, held until the person enters a world (crate::notices).
 fn push_notice(data: &DataStore, msg: String) {
-    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
-        if let Ok(mut n) = slot.lock() {
-            n.push(msg);
-        }
-    }
+    crate::notices::world(data, msg);
+}
+
+/// One line answering a press on a page (Plant, Water, Harvest, a pest control, an amendment, hand
+/// pollination): a reply, shown at once, in a world or not (BUG-258, crate::notices).
+fn push_reply(data: &DataStore, msg: String) {
+    crate::notices::reply(data, msg);
 }
 
 /// Why a Plant button on a tower or a bed planted nothing (2026-10-04): no
@@ -1904,7 +1907,7 @@ impl FarmingSystem {
                 // A press that plants nothing says why (2026-10-04): it was only
                 // in the log, so a Plant button that did nothing was a mystery.
                 if planted == 0 {
-                    push_notice(data, nothing_planted_notice(skipped > 0, "every cup of this tower already has a plant"));
+                    push_reply(data, nothing_planted_notice(skipped > 0, "every cup of this tower already has a plant"));
                 }
             }
 
@@ -2038,7 +2041,7 @@ impl FarmingSystem {
                     }
                     log::info!("[Farming] bed-planted {planted}x {plant_id} for {area_id}");
                     if planted == 0 {
-                        push_notice(data, nothing_planted_notice(no_seed > 0, "every plot of it is already growing"));
+                        push_reply(data, nothing_planted_notice(no_seed > 0, "every plot of it is already growing"));
                     }
                 } else {
                     log::warn!("[Farming] no plant def '{plant_id}' for bed {area_id}; not planted");
@@ -2076,7 +2079,7 @@ impl FarmingSystem {
                     // HAND_WATER_L, drawn from the home tanks, and an empty
                     // cistern means there is nothing to water with.
                     if !water_available {
-                        push_notice(data, "The water tanks are empty: nothing to water with.".to_string());
+                        push_reply(data, "The water tanks are empty: nothing to water with.".to_string());
                     } else if let Ok(mut crop) = world.get::<&mut CropInstance>(entity) {
                         crop.water_level = 1.0;
                         crop.health = (crop.health + 10.0).min(100.0);
@@ -2185,7 +2188,7 @@ impl FarmingSystem {
                         let what = item_registry
                             .and_then(|r| r.items.get(&item))
                             .map_or(item.clone(), |d| d.name.to_lowercase());
-                        push_notice(
+                        push_reply(
                             data,
                             format!(
                                 "No {what} on this crop: it ripens in under {days:.0} days, and {what} must go on \
@@ -2440,7 +2443,7 @@ impl FarmingSystem {
                 .iter()
                 .map(|p| plant_registry.and_then(|r| r.get(p)).map_or(p.replace('_', " "), |d| d.name.to_lowercase()))
                 .collect();
-            push_notice(
+            push_reply(
                 data,
                 format!(
                     "Finished bearing and cleared from their plots: {}. Sow again to start a new season.",
@@ -2459,7 +2462,7 @@ impl FarmingSystem {
             } else {
                 format!("{stressed_picked} of these crops were")
             };
-            push_notice(
+            push_reply(
                 data,
                 format!(
                     "{what} stressed while growing (thirst, too few nutrients, pests, \
@@ -4112,7 +4115,7 @@ mod gardening_tests {
         let mut data = make_store();
         data.insert("irrigation_demand_lpm", std::sync::Mutex::new(0.0_f32));
         data.insert("hand_water_draw_l", std::sync::Mutex::new(0.0_f32));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let tomato_l_per_day = data
             .get::<PlantRegistry>("plant_registry")
             .unwrap()
@@ -4182,7 +4185,7 @@ mod gardening_tests {
         data.insert("water_status", std::sync::Mutex::new(WaterStatus { stored_l: 0.0, capacity_l: 8000.0, ..Default::default() }));
         *data.get::<std::sync::Mutex<Option<u64>>>("water_request").unwrap().lock().unwrap() = Some(bits);
         sys.tick(&mut world, 0.016, &data);
-        let notes = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        let notes = crate::notices::said(&data);
         assert_eq!(notes.len(), 1, "told the tanks are empty: {notes:?}");
     }
 
@@ -4284,7 +4287,7 @@ mod gardening_tests {
         // Creative: no seeds come back with the potatoes, so the count below is
         // produce only.
         data.insert("creative_mode", std::sync::Mutex::new(true));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let last_stage = data
             .get::<PlantRegistry>("plant_registry")
             .unwrap()
@@ -4316,11 +4319,7 @@ mod gardening_tests {
         let grain = |world: &hecs::World| {
             world.get::<&Inventory>(player).unwrap().count_item("vegetable_potato_0")
         };
-        let notices = |data: &DataStore| {
-            std::mem::take(
-                &mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap(),
-            )
-        };
+        let notices = |data: &DataStore| crate::notices::take_said(data);
 
         *data.get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() =
             healthy;

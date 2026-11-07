@@ -59,6 +59,19 @@ pub fn cannot_play_words(why: &str) -> String {
 /// What the worker hands back: the temporary copy and what `begin_ingest` decided for it.
 type Fetched = Result<(PathBuf, Ingest), String>;
 
+/// Where a video's sound is heard from (BUG-258, 2026-11-06).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SoundPlace {
+    /// The app itself: centred, at the master volume (the Media page, the chat on the app's own
+    /// screen).
+    App,
+    /// A screen in the world (a wall screen showing the chat): `falloff` (0 to 1) from how far the
+    /// listener is and `pan` (0 left, 0.5 centre, 1 right) from the screen's bearing, worked out by
+    /// `engine::screens::video::audio_placement`, and on the world-sound bus under the master volume,
+    /// the way a film on an in-world screen is heard (`compose_mix`).
+    World { falloff: f64, pan: f64 },
+}
+
 /// A video being fetched, playing, or that could not play.
 pub struct VideoView {
     fetch_rx: Option<Receiver<Fetched>>,
@@ -74,10 +87,10 @@ pub struct VideoView {
     converted: Option<PathBuf>,
     /// What the person knows the video by, for the words.
     name: String,
-    /// Its sound: handed to the mixer once, muted with Mute, at the master volume last sent.
+    /// Its sound: handed to the mixer once, muted with Mute, at the mix (volume, pan) last sent.
     sound_attached: bool,
     pub muted: bool,
-    pub(crate) volume_sent: Option<f64>,
+    pub(crate) mix_sent: Option<(f64, f64)>,
     /// Its own volume, 0 to 1, on top of the app's master volume (a chat row's volume bar).
     pub volume: f32,
     /// Where it starts when its player opens, in seconds (a chat video played again after its row
@@ -85,6 +98,9 @@ pub struct VideoView {
     pub start_at: f64,
     /// The last picture shown, kept (moved, not copied) for [`VideoView::still_image`].
     last_frame: Option<crate::media::VideoFrame>,
+    /// Set once the fetch's worker has handed its result over (tests: a view dropped after that).
+    #[cfg(test)]
+    pub(crate) handed: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Default for VideoView {
@@ -100,10 +116,12 @@ impl Default for VideoView {
             name: String::new(),
             sound_attached: false,
             muted: false,
-            volume_sent: None,
+            mix_sent: None,
             volume: 1.0,
             start_at: 0.0,
             last_frame: None,
+            #[cfg(test)]
+            handed: Default::default(),
         }
     }
 }
@@ -119,6 +137,8 @@ impl VideoView {
         // set one (humanity_core::audio::start_volume).
         self.volume = humanity_core::audio::start_volume::start_volume();
         let (ffmpeg_setting, name) = (ffmpeg_setting.to_string(), name.to_string());
+        #[cfg(test)]
+        let handed = self.handed.clone();
         std::thread::spawn(move || {
             let fetched = fetch().map(|copy| {
                 // A conversion is written beside the copy: the temporary folder, swept at every start.
@@ -126,10 +146,18 @@ impl VideoView {
                 let ingest = crate::media::transcode::begin_ingest_as(&copy, &name, &ffmpeg_setting, &dir);
                 (copy, ingest)
             });
-            // The view went while it was fetching: nobody will play it, so it goes now (a conversion
-            // stops when its job is dropped, and takes its part file with it).
-            if let Err(std::sync::mpsc::SendError(Ok((copy, _)))) = tx.send(fetched) {
-                let _ = std::fs::remove_file(copy);
+            match tx.send(fetched) {
+                // The view went while it was fetching: nobody will play it, so it goes now (a
+                // conversion stops when its job is dropped, and takes its part file with it). A view
+                // that goes after this send takes it in its own Drop.
+                Err(std::sync::mpsc::SendError(Ok((copy, _)))) => {
+                    let _ = std::fs::remove_file(copy);
+                }
+                Ok(()) => {
+                    #[cfg(test)]
+                    handed.store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+                Err(_) => {}
             }
         });
         self.fetch_rx = Some(rx);
@@ -349,34 +377,66 @@ impl VideoView {
         play_here
     }
 
-    /// The video's sound from the app's mixer: handed over once, then kept at the master volume,
-    /// or silent while muted.
+    /// The video's sound from the app's mixer, heard from the app itself (see [`Self::sync_sound_at`]).
     pub fn sync_sound(&mut self, audio: &mut humanity_core::audio::AudioManager) {
+        self.sync_sound_at(audio, SoundPlace::App);
+    }
+
+    /// The mix (volume, pan) its sound plays at from `place`, with the master volume `master` and
+    /// the world-sound bus's `sfx`: its own volume on top, silence while muted. Pure, so the sum is a
+    /// test and not an ear test.
+    pub fn mix(&self, place: SoundPlace, master: f64, sfx: f64) -> (f64, f64) {
+        let own = self.volume.clamp(0.0, 1.0) as f64;
+        let (volume, pan) = match place {
+            SoundPlace::App => (master * own, 0.5),
+            // The row's own volume goes in as `compose_mix`'s `own`, once, as a clip's strip bar does.
+            SoundPlace::World { falloff, pan } => (crate::media::compose_mix(master, sfx, own, falloff), pan),
+        };
+        (if self.muted { 0.0 } else { volume }, pan)
+    }
+
+    /// The video's sound from the app's mixer, heard from `place`: handed over once, at the mix
+    /// that place gives now ([`Self::mix`]), then sent again only when the mix moved past the
+    /// in-world screens' gate (`mix_moved`: a listener standing still sends nothing, a Mute always
+    /// goes). The engine calls it each frame it has a mixer: for the Media page and the chat on
+    /// the app's screen from the app, for a wall screen's chat from that screen (BUG-258).
+    pub fn sync_sound_at(&mut self, audio: &mut humanity_core::audio::AudioManager, place: SoundPlace) {
+        use crate::media::{mix_moved, MIX_TWEEN_MS};
+        let (volume, pan) = self.mix(place, audio.master_volume(), audio.sfx_volume());
         let Some(player) = self.player.as_mut() else { return };
         if player.info().audio_track.is_none() {
             return;
         }
-        let volume = if self.muted { 0.0 } else { audio.master_volume() * self.volume.clamp(0.0, 1.0) as f64 };
         if !self.sound_attached {
             self.sound_attached = true;
-            let opts = crate::media::AudioAttach { looping: false, volume, panning: 0.5 };
+            let opts = crate::media::AudioAttach { looping: false, volume, panning: pan };
             if let Err(e) = player.attach_audio_with(audio, opts) {
                 log::warn!("media: the video's sound did not start: {e}");
                 return;
             }
-            self.volume_sent = Some(volume);
+            self.mix_sent = Some((volume, pan));
             return;
         }
-        if self.volume_sent != Some(volume) {
-            player.set_audio_mix(volume, 0.5, 30);
-            self.volume_sent = Some(volume);
+        if mix_moved(self.mix_sent, (volume, pan)) {
+            player.set_audio_mix(volume, pan, MIX_TWEEN_MS);
+            self.mix_sent = Some((volume, pan));
         }
     }
 }
 
 impl Drop for VideoView {
-    /// The player lets go of the file first, then the temporary copy goes.
+    /// The player lets go of the file first, then the temporary copy goes. A fetch that finished
+    /// but was never taken (the view went before its next poll: a wall screen's chat not drawn
+    /// since Play) is taken here, so its copy and any conversion of it go too (BUG-258).
     fn drop(&mut self) {
+        if let Some(Ok(Ok((copy, ingest)))) = self.fetch_rx.take().map(|rx| rx.try_recv()) {
+            if let Ingest::Transcoding { job, .. } = ingest {
+                let dst = job.dst().to_path_buf();
+                drop(job); // kills ffmpeg and removes its part file
+                let _ = std::fs::remove_file(dst);
+            }
+            let _ = std::fs::remove_file(copy);
+        }
         self.player = None;
         // A conversion still running stops (its job's Drop kills ffmpeg and removes its part file).
         self.job = None;

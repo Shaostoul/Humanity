@@ -1185,7 +1185,7 @@ mod transfer_tests {
     #[test]
     fn queued_trade_moves_apply_and_settle_together() {
         let mut data = DataStore::new();
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(8);
         inv.add_item("rope_0", 1, 99);
@@ -1203,7 +1203,7 @@ mod transfer_tests {
         assert_eq!((inv.count_item("rope_0"), inv.count_item("hammer_0")), (0, 1));
         let ts = world.get::<&TradeSettlements>(player).unwrap();
         assert!(ts.pending.is_empty() && ts.settled.contains("t-1"), "{:?}", *ts);
-        let notices = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        let notices = crate::notices::said(&data);
         assert_eq!(notices.len(), 1, "the rope that was not there is said: {notices:?}");
         assert!(notices[0].contains("1 x rope_0"), "{notices:?}");
     }

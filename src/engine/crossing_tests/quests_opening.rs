@@ -65,9 +65,8 @@ fn opening_store() -> DataStore {
         "status_effect_registry",
         humanity_systems::status_effects::StatusEffectRegistry::from_csv(&read("status_effects.csv")).expect("status_effects.csv"),
     );
-    for key in ["quest_events", "player_notices"] {
-        data.insert(key, Mutex::new(Vec::<String>::new()));
-    }
+    data.insert("quest_events", Mutex::new(Vec::<String>::new()));
+    humanity_systems::notices::register(&mut data);
     data.insert("xp_grants", Mutex::new(Vec::<humanity_systems::skills::SkillXPEvent>::new()));
     for key in ["consume_request", "drink_request", "plant_request", "craft_request"] {
         data.insert(key, Mutex::new(Option::<String>::None));
@@ -302,7 +301,7 @@ impl Game {
     }
 
     fn notices(&self) -> Vec<String> {
-        std::mem::take(&mut *self.data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+        humanity_systems::notices::take_said(&self.data)
     }
 
     fn request(&self, key: &str, value: &str) {
@@ -531,7 +530,7 @@ fn a_plant_button_that_plants_nothing_says_why() {
     let mut world = hecs::World::new();
     world.spawn((Inventory::new(16), Controllable));
     let mut farming = FarmingSystem::new();
-    let notices = |data: &DataStore| std::mem::take(&mut *data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap());
+    let notices = |data: &DataStore| humanity_systems::notices::take_said(&data);
     *data.get::<Mutex<Option<(String, Vec<String>)>>>("plant_tower_request").unwrap().lock().unwrap() =
         Some(("apothecary".into(), vec!["basil".into(), "mint".into()]));
     farming.tick(&mut world, 1.0, &data);

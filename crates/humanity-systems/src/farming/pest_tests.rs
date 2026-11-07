@@ -43,7 +43,7 @@ fn store(speed: f32, severity: f32) -> DataStore {
     let mut data = make_store();
     super::fixtures::gardening::set_garden_speed(&data, speed);
     data.insert("garden_pest_severity", std::sync::Mutex::new(severity));
-    data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     data.insert("hand_water_draw_l", std::sync::Mutex::new(0.0_f32));
     data.insert("pest_control_request", std::sync::Mutex::new(Option::<(String, String)>::None));
     data
@@ -80,7 +80,7 @@ fn seed_pest(world: &mut hecs::World, area: &str, pest: &str, lvl: f64, told: bo
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    std::mem::take(&mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+    crate::notices::take_said(&data)
 }
 
 fn request(data: &DataStore, area: &str, control: &str) {

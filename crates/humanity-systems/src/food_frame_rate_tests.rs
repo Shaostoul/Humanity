@@ -67,7 +67,7 @@ fn store(mode: Mode) -> DataStore {
     data.insert("rest_request", Mutex::new(false));
     data.insert("compost_request", Mutex::new(false));
     data.insert("player_death", Mutex::new(Option::<String>::None));
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     data.insert(MODE_KEY, mode);
     let mut clock = crate::time::GameTime::default();
     clock.time_scale = 1.0;

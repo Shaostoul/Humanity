@@ -109,7 +109,7 @@ fn store(mode: Option<Mode>) -> DataStore {
     data.insert("rest_request", Mutex::new(false));
     data.insert("compost_request", Mutex::new(false));
     data.insert("player_death", Mutex::new(Option::<String>::None));
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     if let Some(mode) = mode {
         data.insert(MODE_KEY, mode);
     }
@@ -131,7 +131,7 @@ fn request(data: &DataStore, channel: &str, item_id: &str) {
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    std::mem::take(&mut *data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+    crate::notices::take_said(&data)
 }
 
 fn give(world: &mut hecs::World, who: hecs::Entity, item_id: &str, qty: u32) {

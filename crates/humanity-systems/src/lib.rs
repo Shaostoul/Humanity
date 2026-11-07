@@ -28,6 +28,9 @@ pub mod surface_move;
 pub mod persistence;
 
 pub mod time;
+/// The two channels a system speaks to the person on: the world's own lines (held until the person
+/// enters a world) and replies to a page action (shown at once). BUG-258, 2026-11-06.
+pub mod notices;
 pub mod farming;
 pub mod construction;
 pub mod door_anim;

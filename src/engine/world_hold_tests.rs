@@ -24,7 +24,7 @@ const POLLEN: &str = "indoors nothing carries their pollen";
 fn home() -> (hecs::World, DataStore, SystemRunner, hecs::Entity) {
     let mut data = make_store();
     set_garden_speed(&data, 100.0);
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    humanity_systems::notices::register(&mut data);
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
     let tomato = world.spawn((CropInstance {
@@ -159,4 +159,59 @@ fn a_load_while_held_drops_the_old_worlds_notices_and_its_own_waits() {
     gui.showroom_active = false;
     assert!(gui.note_world_frame(true), "Enter runs the world");
     assert!(gui.pending_notices.iter().any(|n| n.starts_with("While you were away")), "and shows what waited: {:?}", gui.pending_notices);
+}
+
+/// A REPLY TO A PAGE'S PRESS IS SHOWN AT ONCE ON THE PICKER, WHILE THE WORLD'S OWN LINE WAITS
+/// (BUG-258): the home of the test above, with a stove that has no power and a backpack with an egg
+/// in it. On Play's picker, before Enter, the garden's flowering line is held (BUG-253's rule: the
+/// world does not speak before Enter); the person presses Fry (a recipe at the stove) on a page, and
+/// the crafting system's answer ("Fry: ... no power") is a toast on that very frame, the garden's
+/// line still held, still not a toast. Enter then shows the garden's line once.
+///
+/// Seen red 2026-11-06 with the crafting system writing its refusal on the world's channel as
+/// before (`crate::notices::world` in place of `reply` at crafting/mod.rs's unpowered station):
+/// "the craft's answer is a toast at once, on the picker: toasts [], held [\"The tomato plants in
+/// ntower 3 are flowering, ...\", \"Fry: the stove has no power\"]".
+#[test]
+fn on_the_picker_a_craft_at_an_unpowered_station_answers_at_once_while_the_garden_waits() {
+    use humanity_core::ecs::components::{Controllable, MachineType, PowerConsumer, StationLoad};
+    use humanity_systems::crafting::{CraftingSystem, RecipeRegistry};
+    use humanity_systems::inventory::Inventory;
+    let mut f = Frames::new();
+    let recipes = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+                   fry,Fry,cooking,egg_0:1,fried_egg_0:1,2,stove_0,,0,test\n";
+    f.data.insert("recipe_registry", RecipeRegistry::from_csv(recipes.as_bytes()).unwrap());
+    f.data.insert("craft_request", Mutex::new(Option::<String>::None));
+    f.data.insert("dev_stock_materials", Mutex::new(false));
+    f.runner.register(CraftingSystem::new());
+    let mut pack = Inventory::new(16);
+    pack.add_item("egg_0", 3, 12);
+    f.world.spawn((pack, Controllable));
+    f.world.spawn((MachineType("stove".into()), StationLoad { active_watts: 1200.0, idle_watts: 0.0 }, PowerConsumer { draw_watts: 0.0, priority: 2, enabled: false }));
+
+    // Play's picker is open over the loaded world: the garden's line waits.
+    let mut gui = GuiState::default();
+    gui.active_page = GuiPage::None;
+    gui.showroom_active = true;
+    gui.showroom_mode = 0;
+    f.run(&mut gui, true, 10);
+    assert!(gui.held_world_notices.iter().any(|n| n.contains(POLLEN)), "the garden's line waits for Enter: {:?}", gui.held_world_notices);
+
+    // Fry, pressed on a page: one frame later its answer is a toast, and the garden still waits.
+    *f.data.get::<Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() = Some("fry".into());
+    f.run(&mut gui, true, 1);
+    let toasts: Vec<&String> = gui.toasts.iter().map(|t| &t.text).collect();
+    assert!(
+        toasts.iter().any(|t| t.starts_with("Fry:") && t.contains("no power")),
+        "the craft's answer is a toast at once, on the picker: toasts {toasts:?}, held {:?}",
+        gui.held_world_notices
+    );
+    assert_eq!(toasts_saying(&gui, POLLEN), 0, "the garden's line is still not a toast: {toasts:?}");
+    assert!(gui.held_world_notices.iter().any(|n| n.contains(POLLEN)), "and still waits: {:?}", gui.held_world_notices);
+    assert!(!gui.held_world_notices.iter().any(|n| n.starts_with("Fry:")), "the answer is not held: {:?}", gui.held_world_notices);
+
+    // Enter: the garden's line, once.
+    gui.showroom_active = false;
+    f.run(&mut gui, true, 5);
+    assert_eq!(toasts_saying(&gui, POLLEN), 1, "Enter shows the garden's line once");
 }

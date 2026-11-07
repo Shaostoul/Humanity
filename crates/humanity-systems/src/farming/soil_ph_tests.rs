@@ -43,7 +43,7 @@ fn run_days(sys: &mut FarmingSystem, world: &mut hecs::World, data: &DataStore, 
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    std::mem::take(&mut *data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+    crate::notices::take_said(&data)
 }
 
 fn request(data: &DataStore, area: &str, amendment: &str) {

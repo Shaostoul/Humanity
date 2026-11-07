@@ -211,6 +211,47 @@ impl Default for AudioAttach {
     }
 }
 
+// How a long-lived placed sound (a film on an in-world screen, a chat video on a wall screen) is
+// mixed and when a new mix is sent. Moved here from engine/screens/video.rs on 2026-11-06 (BUG-258)
+// so the chat's video widget, in the gui crate of the split, uses the same rules as the screens.
+/// Volume and pan changes smaller than this are not sent to the audio
+/// thread, so a listener standing still does not restart a tween every frame.
+pub const MIX_EPSILON: f64 = 0.004;
+/// Tween for volume and pan updates: long enough that walking past a screen
+/// glides instead of stepping, short enough that turning the head feels
+/// immediate.
+pub const MIX_TWEEN_MS: u64 = 60;
+
+/// The amplitude a screen's sound plays at: the master slider, the sfx bus
+/// slider (a film on the wall is a world sound, on the same bus as
+/// footsteps and machines, so the Settings sliders govern it), the sound's
+/// own volume (a clip's strip bar, starting at Settings > Audio's start volume,
+/// 2026-11-06; a wall screen's chat video row's volume bar, BUG-258) and the
+/// distance falloff from `engine::screens::video::audio_placement`, multiplied.
+/// All four are 0..1. Pure, so the composition is a unit test and not an ear
+/// test: a bus forgotten here (the sfx slider silently not governing films)
+/// fails the test instead of going unnoticed until someone turns the slider
+/// down.
+pub fn compose_mix(master: f64, sfx: f64, own: f64, falloff: f64) -> f64 {
+    master * sfx * own * falloff
+}
+
+/// The change gate: whether `next` differs from the last mix `sent` by more
+/// than `MIX_EPSILON` on EITHER channel. Nothing sent yet always counts as
+/// moved. This is what keeps a listener standing still from restarting a
+/// 60 ms tween every frame: kira would hold the value at its target anyway,
+/// but every restart is a message to the audio thread. Going to silence, or
+/// out of it, always counts, however small the step: a Mute from a quiet
+/// mix (0.0012 at a low master) sat inside the gate and was never sent.
+pub fn mix_moved(sent: Option<(f64, f64)>, next: (f64, f64)) -> bool {
+    match sent {
+        None => true,
+        Some((v, p)) => {
+            (v == 0.0) != (next.0 == 0.0) || (v - next.0).abs() > MIX_EPSILON || (p - next.1).abs() > MIX_EPSILON
+        }
+    }
+}
+
 /// What `probe()` learns about a file before any decoding happens.
 #[derive(Clone, Debug)]
 pub struct MediaInfo {

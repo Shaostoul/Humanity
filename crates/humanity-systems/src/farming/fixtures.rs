@@ -102,7 +102,7 @@ pub mod heat {
     pub fn store(rooms: Vec<GrowRoom>, plots: Vec<GrowPlot>) -> DataStore {
         let mut data = make_store();
         data.insert("garden_pest_severity", Mutex::new(0.0_f32));
-        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data.insert("hand_water_draw_l", Mutex::new(0.0_f32));
         data.insert("pest_control_request", Mutex::new(Option::<(String, String)>::None));
         data.insert(humidity::DATA_KEY, air());
@@ -210,7 +210,7 @@ pub mod humidity {
         let mut data = make_store();
         super::gardening::set_garden_speed(&data, speed);
         data.insert("garden_pest_severity", Mutex::new(severity));
-        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data.insert("hand_water_draw_l", Mutex::new(0.0_f32));
         data.insert("pest_control_request", Mutex::new(Option::<(String, String)>::None));
         let mut d = shipped_air();
@@ -276,7 +276,7 @@ pub mod life_support {
     pub fn store(rooms: Vec<GrowRoom>, plots: Vec<GrowPlot>) -> DataStore {
         let mut data = make_store();
         data.insert("garden_pest_severity", Mutex::new(0.0_f32));
-        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data.insert("hand_water_draw_l", Mutex::new(0.0_f32));
         data.insert("irrigation_demand_lpm", Mutex::new(0.0_f32));
         data.insert("water_status", Mutex::new(WaterStatus::default()));
@@ -354,7 +354,7 @@ pub mod soil_ph {
     pub fn store(on: bool) -> DataStore {
         let mut data = make_store();
         data.insert("garden_pest_severity", Mutex::new(0.0_f32));
-        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         // Time speed 1 (the one clock, 2026-09-27): a real second is a game second.
         data.get::<Mutex<crate::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = 1.0;
         soil_ph::register(&mut data);
@@ -440,7 +440,7 @@ pub mod golden {
         let mut data = make_store();
         set_garden_speed(&data, GARDEN_SPEED);
         data.insert("garden_pest_severity", Mutex::new(0.5_f32));
-        data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         data.insert("hand_water_draw_l", Mutex::new(0.0_f32));
         data.insert("irrigation_demand_lpm", Mutex::new(0.0_f32));
         data.insert("water_status", Mutex::new(WaterStatus::default()));

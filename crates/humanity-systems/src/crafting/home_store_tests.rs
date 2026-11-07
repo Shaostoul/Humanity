@@ -27,7 +27,7 @@ fn real_home(stock: &[(&str, u32)]) -> (DataStore, hecs::World, hecs::Entity) {
     );
     data.insert("dev_stock_materials", Mutex::new(false));
     data.insert("craft_request", Mutex::new(Option::<String>::None));
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     let stock: HashMap<String, u32> = stock.iter().map(|(id, q)| (id.to_string(), *q)).collect();
     data.insert("home_stock", Mutex::new(stock));
     data.insert("home_stock_outputs", Mutex::new(Vec::<(String, u32)>::new()));
@@ -69,7 +69,7 @@ fn hand_made(data: &DataStore) -> Vec<(String, u32, u8)> {
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone()
+    crate::notices::said(&data)
 }
 
 fn vehicles(world: &hecs::World) -> Vec<String> {

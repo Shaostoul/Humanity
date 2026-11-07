@@ -21,7 +21,7 @@ fn home(recipes: &str, stock: &[(&str, u32)]) -> (DataStore, hecs::World, hecs::
     let mut data = DataStore::new();
     data.insert("recipe_registry", RecipeRegistry::from_csv(format!("{HEADER}{recipes}").as_bytes()).unwrap());
     data.insert("item_registry", ItemRegistry::from_csv(ITEMS.as_bytes()).unwrap());
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     let stock: HashMap<String, u32> = stock.iter().map(|(id, q)| (id.to_string(), *q)).collect();
     data.insert("home_stock", Mutex::new(stock));
     data.insert("home_stock_outputs", Mutex::new(Vec::<(String, u32)>::new()));
@@ -60,7 +60,7 @@ fn stored(data: &DataStore, id: &str) -> u32 {
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone()
+    crate::notices::said(&data)
 }
 
 /// The grain mill mills while the player is away, on the grain the Barn

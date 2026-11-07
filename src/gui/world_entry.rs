@@ -19,7 +19,10 @@
 //!   Held, its systems still take what a page asks of them (a transfer on the Inventory page) but
 //!   no time passes for them: nothing grows, ages, flies, wears or is eaten (engine/world_hold.rs).
 //! - What the world SAYS while held waits (`world_notice`, `held_world_notices`) and is shown on
-//!   the frame the person enters. A save loaded onto the world while it is held drops what the
+//!   the frame the person enters. A system's REPLY to what the person did on a page (a craft
+//!   refused at an unpowered station, a Plant press with no seed) is not the world speaking: it is
+//!   shown at once (`reply_notice`, BUG-258), the system marking it a reply by writing it on the
+//!   replies channel (humanity_systems::notices), never by its words. A save loaded onto the world while it is held drops what the
 //!   world before it said (`drop_held_world_notices`: that world is gone), and the farm tells the
 //!   loaded world's beds again (farming's resume).
 //! - No time is lost: a save written while the world is held is stamped with the moment the world
@@ -54,6 +57,14 @@ impl GuiState {
             self.pending_notices.extend(held);
         }
         self.world_running
+    }
+
+    /// A reply to something the person just did on a page (a craft refused at an unpowered station,
+    /// a Plant press with no seed): shown now, in a world or not. Not the world speaking on its own,
+    /// so the hold above does not apply (BUG-258; the system that says it marks it a reply,
+    /// humanity_systems::notices).
+    pub fn reply_notice(&mut self, msg: String) {
+        self.pending_notices.push(msg);
     }
 
     /// A notice from the world: shown now while the world runs, held for the person's entry while

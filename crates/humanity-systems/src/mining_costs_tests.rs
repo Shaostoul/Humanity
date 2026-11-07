@@ -26,7 +26,7 @@ fn store(spec: DroneSpec, realistic: bool, unit: DroneUnit) -> DataStore {
     data.insert("item_registry", items);
     data.insert("commission_drone", Mutex::new(Order::None));
     data.insert("auto_mine_order", Mutex::new(Order::None));
-    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     data.insert(UNIT_KEY, Mutex::new(unit));
     data.insert(SPEC_KEY, spec);
     data.insert(REQUEST_KEY, Mutex::new(Option::<DroneRequest>::None));
@@ -69,7 +69,7 @@ fn keep_mining(data: &DataStore, units: u32) {
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    data.get::<Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone()
+    crate::notices::said(&data)
 }
 
 fn unit_now(data: &DataStore) -> DroneUnit {

@@ -440,7 +440,7 @@ impl CraftingSystem {
                 m.batch = None;
                 m.free_at = done;
                 if let Some(recipe) = recipes.recipes.get(&rid) {
-                    Self::deliver_goods(world, data, recipe, player, m.pad, items, kits, true, false);
+                    Self::deliver_goods(world, data, recipe, player, m.pad, items, kits, true, false, crate::notices::world);
                     ledger.collect_filed(data);
                     Self::credit_craft(data, recipe);
                     for (id, q) in &recipe.outputs {

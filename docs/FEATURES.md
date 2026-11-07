@@ -790,11 +790,13 @@ screen drops its player (decoder, sound, temporary copy) and keeps a small still
 words beside Download. `src/gui/pages/chat/inline_video.rs` (`ChatVideos`, `draw_in_card`,
 `draw_video_window`, `end_frame`), drawn from `chat/public_files.rs` `draw_card`; the controls'
 bar `widgets/video_view.rs` `track_bar`; a wall screen showing the chat keeps a set of its own
-(`gui/screen_surface.rs` `ScreenTextures`). Website: `<video controls playsinline preload="none">`
+(`gui/screen_surface.rs` `ScreenTextures`, `ChatVideos::on_a_wall_screen`: no Full window there,
+and its sound heard from the screen, `engine::screens::place_page_sound`, BUG-258); Full window's
+body held to `widgets::dialog::body_room`, Close laid out first (BUG-258). Website: `<video controls playsinline preload="none">`
 inline in the card, one playing at a time and a playing one scrolled out of view paused
 (`web/chat/app.js` `fileMediaOnePlaying`). Design: `docs/design/media-player.md`, "Videos inside
 chat messages". Tests: `gui::pages::chat::inline_video::tests`, `private-files-web.test.js` ("plays
-inline"). Snapshots: `tests/snapshots/chat_video_still.png`, `chat_video_playing.png`.
+inline"). Snapshots: `tests/snapshots/chat_video_still.png`, `chat_video_playing.png`, `chat_video_window_short.png`.
 **A posted video's poster picture (2026-11-06, rung 2).** The app that posts a video in a public room
 makes one small JPEG of it (about a second in, at most 640 px on its longest side, aimed under 96 KB)
 and sends it in the same upload as a `poster` part before the file: desktop
@@ -2804,8 +2806,12 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   its systems tick with no time passing (a page's request still applies), its notices wait and
   show on entry (a load while held drops the old world's), and a save written while held is
   stamped with the moment the world is current to, so the next catch-up counts the held time.
+  A system's reply to a page's request (a craft refused at an unpowered station, a Plant press
+  with no seed, a drone's service short of parts) is not the world speaking and shows at once
+  (BUG-258): the system writes it on the replies channel, `humanity_systems::notices::reply`,
+  the world's own lines on `notices::world`.
   `src/gui/world_entry.rs`, `src/engine/world_hold.rs` (`world_hold_tests.rs`),
-  `save_load::WorldHold`.
+  `save_load::WorldHold`, `crates/humanity-systems/src/notices.rs`.
 - **Offline progression, the rest of single player (2026-09-27):** the
   automated machines run the time away through moment by moment on the inputs
   really on hand and the power the home could spare, resting at their keep

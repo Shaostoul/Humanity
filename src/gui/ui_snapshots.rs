@@ -1636,6 +1636,30 @@ fn snapshot_chat_video_playing() {
     chat_video_snapshot("chat_video_playing", true);
 }
 
+/// A chat video's Full window on a short screen (1280x720 at Font Size 175%, about 731 x 411
+/// points), the AV1 fixture playing under a long name: Close the window sits inside the window, the
+/// controls above it, the picture given the height they leave (BUG-258; it was 0.72 of the screen's
+/// height with the controls and Close under it, so Close fell off a screen this short).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_video_window_short() {
+    let folder = humanity_core::test_temp::dir("snapshot_chat_video_window_short");
+    let videos = std::cell::RefCell::new(crate::gui::pages::chat::inline_video::ChatVideos::default());
+    let url = "http://127.0.0.1:9/uploads/1760000000000_family_reunion_at_the_lake.mp4";
+    render_page_png_at("chat_video_window_short", 1280, 720, 175.0, |ctx, theme, _state| {
+        let mut videos = videos.borrow_mut();
+        if !videos.window_open() {
+            let fixture = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/sliding-bar-av1-opus.mp4");
+            let copy = folder.join("copy.video");
+            videos.fetch_for_test = Some(std::sync::Arc::new(move |_: &str| std::fs::copy(&fixture, &copy).map(|_| copy.clone()).map_err(|e| e.to_string())));
+            videos.press_play(url, "Family reunion at the lake, summer 2026.mp4", "");
+            assert!(videos.wait_for_picture_or_words(url, ctx), "the fixture shows a picture");
+            videos.open_window(url);
+        }
+        crate::gui::pages::chat::draw_video_window(ctx, theme, &mut videos);
+    });
+}
+
 // Media items posted in chat (2026-10-17, files/chat_card.rs): one card as the line it starts as,
 // one opened out to its by-line, description and every file with its type. The items are put in
 // place as if the server had answered; nothing is asked of any server.

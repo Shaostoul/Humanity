@@ -410,7 +410,7 @@ impl System for DroneSystem {
                 Some(DroneRequest::Repair) => service(world, data, spec, u, item_registry),
                 Some(DroneRequest::CancelHeld) => {
                     if u.held.take().is_some() {
-                        notice(data, "The drone's waiting launch is cancelled.".to_string());
+                        reply(data, "The drone's waiting launch is cancelled.".to_string());
                     }
                 }
                 None => {}
@@ -594,12 +594,18 @@ enum Charging {
     NoGrid,
 }
 
-/// Post one line for the player (the HUD's notices).
+/// Post one line for the player from the drone itself (a trip's end, its wear): the world speaking
+/// on its own, held until the person enters a world (crate::notices).
 fn notice(data: &DataStore, line: String) {
     log::info!("[Mining] {line}");
-    if let Some(Ok(mut n)) = data.get::<Mutex<Vec<String>>>("player_notices").map(|m| m.lock()) {
-        n.push(line);
-    }
+    crate::notices::world(data, line);
+}
+
+/// Post one line answering the Mining panel (Launch, Repair, Cancel): a reply, shown at once, in a
+/// world or not (BUG-258, crate::notices).
+fn reply(data: &DataStore, line: String) {
+    log::info!("[Mining] {line}");
+    crate::notices::reply(data, line);
 }
 
 /// A part list for the player: "2 Carbon Fiber Sheet and 1 Rubber Sheet".
@@ -716,7 +722,9 @@ fn pay_for_trip(spec: &DroneSpec, mode: Mode, u: &mut DroneUnit) {
 
 /// A Launch from the Mining panel (or a standing order's refire) with running costs:
 /// a drone due for its service is refused, one without a trip's charge is refused in
-/// Realistic and waits for it in Simplified, and otherwise it takes off and pays.
+/// Realistic and waits for it in Simplified, and otherwise it takes off and pays. What it says is a
+/// reply to the Launch press (BUG-258): a standing order refires only once the drone is charged and
+/// serviced, so a refusal here always answers the person.
 #[allow(clippy::too_many_arguments)]
 fn commission_with_costs(
     world: &mut hecs::World,
@@ -730,7 +738,7 @@ fn commission_with_costs(
 ) {
     let item_registry = data.get::<ItemRegistry>("item_registry");
     if u.worn_out(spec) {
-        notice(
+        reply(
             data,
             format!(
                 "The drone stays docked: it is due for its service, which takes {}. Repair it from the Mining panel.",
@@ -751,7 +759,7 @@ fn commission_with_costs(
         match mode {
             Mode::Simplified => {
                 u.held = Some((target.to_string(), manifest.to_vec()));
-                notice(
+                reply(
                     data,
                     format!(
                         "The drone takes off when its battery holds a trip's {}, in {}.",
@@ -771,7 +779,7 @@ fn commission_with_costs(
                     ),
                 };
                 let then = if keep { " Keep mining sends it when it is charged." } else { " Launch it again when it is charged." };
-                notice(data, format!("The drone cannot take off yet: {why}.{then}"));
+                reply(data, format!("The drone cannot take off yet: {why}.{then}"));
             }
         }
         return;
@@ -822,7 +830,7 @@ fn parts_on_hand(world: &hecs::World, data: &DataStore, spec: &DroneSpec, item_r
 /// told what is missing.
 fn service(world: &mut hecs::World, data: &DataStore, spec: &DroneSpec, u: &mut DroneUnit, item_registry: Option<&ItemRegistry>) {
     if u.wear_trips <= 0.0 {
-        notice(data, "The drone needs no service yet.".to_string());
+        reply(data, "The drone needs no service yet.".to_string());
         return;
     }
     if !free_resources(data) {
@@ -830,7 +838,7 @@ fn service(world: &mut hecs::World, data: &DataStore, spec: &DroneSpec, u: &mut 
         let missing: Vec<(String, u32)> =
             parts.iter().filter(|p| p.have < p.need).map(|p| (p.id.clone(), p.need - p.have)).collect();
         if !missing.is_empty() {
-            notice(data, format!("The drone's service needs {} more.", parts_words(&missing, item_registry)));
+            reply(data, format!("The drone's service needs {} more.", parts_words(&missing, item_registry)));
             return;
         }
         let store = crate::crafting::home_store::HomeStore::here(data);
@@ -846,7 +854,7 @@ fn service(world: &mut hecs::World, data: &DataStore, spec: &DroneSpec, u: &mut 
     }
     u.wear_trips = 0.0;
     u.told_worn = false;
-    notice(
+    reply(
         data,
         format!(
             "The drone is serviced ({}): good for {:.0} more trips.",
@@ -1761,7 +1769,7 @@ mod drone_tests {
     #[test]
     fn an_empty_trip_ends_keep_mining_and_says_so() {
         let mut data = make_store();
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         set_order(&mut data, Some(("rock", vec![("iron_ore_0", 10)])));
         let mut world = hecs::World::new();
         let player = world.spawn((Inventory::new(16), Controllable));
@@ -1781,7 +1789,7 @@ mod drone_tests {
         assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"), 4, "the first trip's iron");
         let order = standing_order(&data);
         assert_eq!(order, None, "the order ends when a trip comes back empty / left: {order:?} / right: None");
-        let notices = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        let notices = crate::notices::said(&data);
         assert!(
             notices.iter().any(|n| n.contains("came back empty")
                 && n.contains("Asteroid R-1")
@@ -1803,14 +1811,14 @@ mod drone_tests {
     #[test]
     fn an_empty_trip_while_away_ends_keep_mining() {
         let mut data = make_store();
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         set_order(&mut data, Some(("rock", vec![("gold_ore_0", 4)])));
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(16), Controllable));
         world.spawn((asteroid("rock", vec![("iron_ore_0", 50.0)]),));
         assert!(advance_away(&mut world, &data, 3600.0, 0.0).hauls.is_empty());
         assert_eq!(standing_order(&data), None, "the empty trip away ended the order");
-        let notices = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        let notices = crate::notices::said(&data);
         assert!(notices.iter().any(|n| n.contains("came back empty") && n.contains("Gold Ore")), "{notices:?}");
     }
 

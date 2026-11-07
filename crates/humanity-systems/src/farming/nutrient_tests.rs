@@ -48,7 +48,7 @@ fn health_of(world: &hecs::World, e: hecs::Entity) -> f32 {
 }
 
 fn notices(data: &DataStore) -> Vec<String> {
-    std::mem::take(&mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+    crate::notices::take_said(&data)
 }
 
 fn set_fertilize(data: &DataStore, e: hecs::Entity) {
@@ -73,7 +73,7 @@ fn compost_bag() -> Npk {
 #[test]
 fn a_crop_short_of_one_nutrient_is_stunted_by_the_minimum_rule() {
     let mut data = make_store();
-    data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
     world.spawn((Irrigator,));
@@ -279,7 +279,7 @@ fn the_nutrient_slider_runs_a_feeder_that_spends_stored_fertilizer() {
     let run = |creative: bool, bags: u32| {
         let mut data = make_store();
         data.insert("creative_mode", std::sync::Mutex::new(creative));
-        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::notices::register(&mut data);
         let mut stock = HashMap::new();
         stock.insert("fertilizer_0".to_string(), bags);
         data.insert("home_stock", std::sync::Mutex::new(stock));
@@ -474,7 +474,7 @@ fn compost_banks_its_organic_nitrogen_and_it_comes_back_in_the_second_year() {
 #[test]
 fn stored_urine_by_hand_feeds_a_crop_but_not_within_a_month_of_its_harvest() {
     let mut data = make_store();
-    data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
     let mut inv = Inventory::new(8);
@@ -609,7 +609,7 @@ fn the_households_urine_feeds_the_garden_through_the_compost_action() {
     let mut data = make_store();
     data.insert("compost_request", std::sync::Mutex::new(false));
     data.insert("vitals_drain_scale", std::sync::Mutex::new(0.0_f32));
-    data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+    crate::notices::register(&mut data);
     // Time speed 1: the body's days are real days (the one clock, 2026-09-27).
     data.get::<std::sync::Mutex<crate::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = 1.0;
     let mut food = crate::food::FoodSystem::new(std::path::Path::new(concat!(

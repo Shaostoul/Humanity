@@ -802,10 +802,14 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
         let Screens { surfaces, quads, .. } = screens;
         for q in quads.iter() {
             let Some(s) = surfaces.get_mut(q.surface) else { continue };
+            let centre = q.geom.origin + (q.geom.u_axis + q.geom.v_axis) * 0.5 + so;
             if s.provider().is_none() {
+                // A page screen: the sound of the videos its chat plays, from where it is (BUG-258).
+                if let Some(audio) = audio.as_mut() {
+                    place_page_sound(&mut s.core, centre, cam, right, audio);
+                }
                 continue;
             }
-            let centre = q.geom.origin + (q.geom.u_axis + q.geom.v_axis) * 0.5 + so;
             let mut world = ScreenWorld {
                 screen_centre: centre.to_array(),
                 listener_pos: cam.to_array(),
@@ -930,6 +934,22 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
         }
     });
 }
+
+/// The sound of the videos a page screen's chat plays (BUG-258, 2026-11-06), placed at the screen:
+/// its centre `centre` heard by a listener at `listener` whose right is `right`, the falloff and the
+/// pan of a film on an in-world screen (`video::audio_placement`), on the world-sound bus under the
+/// master volume, with the chat's own volume bar and Mute on top. `frame_surfaces` calls it every
+/// frame for every page screen, framed or not, so the sound follows the listener the way a clip's
+/// does. Before, a wall screen's chat videos were never handed to the mixer: they played silent and
+/// their Mute and volume did nothing.
+pub(crate) fn place_page_sound(core: &mut crate::gui::screen_surface::ScreenCore, centre: Vec3, listener: Vec3, right: Vec3, audio: &mut humanity_core::audio::AudioManager) {
+    let (falloff, pan) = video::audio_placement(centre, listener, right);
+    core.sync_page_sound(audio, crate::gui::widgets::video_view::SoundPlace::World { falloff, pan });
+}
+
+#[cfg(test)]
+#[path = "screens_sound_tests.rs"]
+mod sound_tests;
 
 /// Whether a screen showing `source` has data of its own built on a frame that draws it: the
 /// Inventory page's Garden rows (engine/garden_mirror.rs, built in `frame_surfaces` before the
