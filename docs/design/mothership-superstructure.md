@@ -1,5 +1,9 @@
 # Mothership superstructure layout (vision + plan, 2026-06-29)
 
+> 2026-11-06: the whole ship is now laid out in one plan, [mothership-master-plan.md](mothership-master-plan.md),
+> which takes this page's zones, transit graphs and noise rule as inputs; today's placements are
+> audited in [world-audit-2026-11-06.md](world-audit-2026-11-06.md).
+
 > Operator scope (v0.629 session): "figure out how we lay out the superstructure of the mothership -- how
 > to lay out rail lines, elevators, teleporters, hangar bays, mech bays, cargo tunnels, storage areas,
 > massive industrial factory areas. We'll want to figure out how to build the public meeting zone / the

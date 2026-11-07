@@ -4,6 +4,11 @@ Status: decided by the operator 2026-09-19, in conversation, and written down
 the same night because it existed nowhere else. These answers set the order of
 a lot of work, so they belong on disk rather than in a chat log.
 
+The whole-ship layout that reconciles this page with every other piece (the drum, the spine,
+where homes go, where a new player arrives) and the plan for wiping and rebuilding today's world:
+[mothership-master-plan.md](mothership-master-plan.md), with the audit of what is placed today in
+[world-audit-2026-11-06.md](world-audit-2026-11-06.md) (both 2026-11-06, plans for the operator).
+
 ## What the mothership is
 
 A premade place. The operator's words: "the homeship is meant to be premade.
