@@ -11,13 +11,29 @@
 //!
 //! Layout rule (operator: "single stacking the pie charts on mobile; on PC it
 //! keeps the widget small"): `pie_grid` stacks pies in one column when the
-//! panel is narrow and lays them out two-across when it is wide.
+//! panel is narrow and lays them out two-across when it is wide enough for each
+//! pie to stand beside its legend.
+//!
+//! THE LEGEND IS A TABLE AS WIDE AS ITS WORDS (BUG-254, 2026-11-06). It used to
+//! right-align each row's share and amount against the whole column, so at the
+//! operator's 2560x1440 a left pie's numbers stood 1,100 points from their own
+//! names and 22 from the right pie's: they read as the right pie's numbers, and
+//! the right pies seemed to disagree with their own wedges. Now the legend is
+//! measured first (the widest share, amount and name), each row reads swatch,
+//! share, amount, name, so every number stands next to its own name whatever the
+//! names' lengths, and it sits beside the donut when the column has room (under
+//! it when not). `pie_grid` lays two columns only when every pie fits beside its
+//! legend in half the width. Neighbouring wedges are cut apart by a thin line in
+//! the hole's colour, so two rows can never read as one wedge; and a legend row
+//! under the pointer lifts its wedge, so a row and its wedge are seen together.
 //!
 //! Colours come from theme tokens ONLY (`theme.rs` accessors, selected by
 //! name in the registry). The arc geometry below is computed maths, not a
 //! palette, so there is nothing here for the theme lint to catch.
 
-use egui::{Color32, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, Vec2};
+use egui::{Color32, FontId, Galley, Pos2, Rect, RichText, Sense, Shape, Stroke, Ui, Vec2};
+use humanity_core::i18n::{t, tf};
+use std::sync::Arc;
 
 use crate::gui::theme::Theme;
 
@@ -77,6 +93,15 @@ const PIE_DIAMETER: f32 = 132.0;
 const HOLE_FRAC: f32 = 0.52;
 /// Angular resolution of the arc approximation (degrees per segment).
 const SEG_DEG: f32 = 3.0;
+/// The room between the donut and its legend, and between a legend's names and
+/// its shares, in points.
+const LEGEND_GAP: f32 = 16.0;
+/// A legend swatch's side, in points.
+const SWATCH: f32 = 10.0;
+/// The narrowest a wrapped legend name may be squeezed to on a narrow panel.
+const NAME_MIN_W: f32 = 48.0;
+/// The width of the cut between two neighbouring wedges, in points.
+const CUT_W: f32 = 1.5;
 
 /// Fraction of the total each slice represents. Returns an empty vec when the
 /// total is zero, which is how "nothing measured yet" is detected.
@@ -88,9 +113,15 @@ pub fn fractions(slices: &[PieSlice]) -> Vec<f32> {
     slices.iter().map(|s| (s.value.max(0.0) / total) as f32).collect()
 }
 
-/// Draw one pie with its legend. Returns the hovered slice index, if any.
+/// Draw one pie with its legend. Returns the hovered slice index, if any (the
+/// wedge under the pointer, else the legend row under it).
 pub fn pie(ui: &mut Ui, theme: &Theme, spec: &PieSpec) -> Option<usize> {
-    let mut hovered: Option<usize> = None;
+    // The legend row the pointer was over last frame lifts its wedge this frame (the legend is
+    // laid out after the donut, so its hover is known only once the donut is painted).
+    let hover_id = egui::Id::new(("pie_legend_hover", spec.title.as_str()));
+    let legend_hover: Option<usize> = ui.ctx().data(|d| d.get_temp::<Option<usize>>(hover_id)).flatten();
+    let mut wedge_hover: Option<usize> = None;
+    let mut row_hover: Option<usize> = None;
     ui.vertical(|ui| {
         ui.label(
             RichText::new(&spec.title)
@@ -108,84 +139,212 @@ pub fn pie(ui: &mut Ui, theme: &Theme, spec: &PieSpec) -> Option<usize> {
         ui.add_space(theme.spacing_xs);
 
         let fracs = fractions(&spec.slices);
-        let (rect, resp) = ui.allocate_exact_size(
-            Vec2::new(PIE_DIAMETER, PIE_DIAMETER),
-            Sense::hover(),
-        );
+        let avail = ui.available_width();
+        let mut legend = Legend::measure(ui, theme, spec, &fracs);
+        let beside = avail >= PIE_DIAMETER + LEGEND_GAP + legend.width();
+        let block_w = if beside {
+            ui.horizontal_top(|ui| {
+                wedge_hover = donut(ui, theme, spec, &fracs, legend_hover);
+                ui.add_space((LEGEND_GAP - ui.spacing().item_spacing.x).max(0.0));
+                ui.vertical(|ui| row_hover = legend.draw(ui, theme, spec, wedge_hover.or(legend_hover)));
+            });
+            PIE_DIAMETER + LEGEND_GAP + legend.width()
+        } else {
+            wedge_hover = donut(ui, theme, spec, &fracs, legend_hover);
+            ui.add_space(theme.spacing_xs);
+            legend.fit(avail);
+            row_hover = legend.draw(ui, theme, spec, wedge_hover.or(legend_hover));
+            avail
+        };
         if fracs.is_empty() {
-            // Nothing measured yet: an empty ring plus an honest label beats a
-            // fake chart. (Before world entry this is the normal state.)
-            if ui.is_rect_visible(rect) {
-                ring(ui, rect, theme.bg_card(), theme.border());
-            }
+            // Nothing measured yet: an empty ring plus an honest line beats a fake chart. (Before
+            // world entry this is the normal state.)
             ui.label(
-                RichText::new("No measurements yet - enter the world.")
+                RichText::new(t("performance.pie_empty"))
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
-        } else {
-            // Which wedge is the pointer over? Pure geometry: angle from the
-            // centre, radius inside the ring.
-            let center = rect.center();
-            let radius = rect.width() * 0.5;
-            if let Some(p) = resp.hover_pos() {
-                hovered = slice_at(center, radius, p, &fracs);
-            }
-            if ui.is_rect_visible(rect) {
-                paint_pie(ui, rect, &spec.slices, &fracs, hovered, theme);
-            }
-            // Centre label: the hovered slice, or the slice count at rest.
-            let (mid, sub) = match hovered {
-                Some(i) => (
-                    format!("{:.0}%", fracs[i] * 100.0),
-                    spec.slices[i].label.clone(),
-                ),
-                None => (format!("{}", spec.slices.len()), "systems".to_string()),
-            };
-            let painter = ui.painter();
-            painter.text(
-                rect.center() - Vec2::new(0.0, 7.0),
-                egui::Align2::CENTER_CENTER,
-                mid,
-                egui::FontId::proportional(theme.font_size_body),
-                theme.text_primary(),
-            );
-            painter.text(
-                rect.center() + Vec2::new(0.0, 9.0),
-                egui::Align2::CENTER_CENTER,
-                sub,
-                egui::FontId::proportional(theme.font_size_small * 0.9),
-                theme.text_muted(),
-            );
-        }
-
-        ui.add_space(theme.spacing_xs);
-        for (i, s) in spec.slices.iter().enumerate() {
-            let pct = fracs.get(i).copied().unwrap_or(0.0);
-            let row = legend_row(ui, theme, s, pct, hovered == Some(i));
-            if row.hovered() {
-                hovered = Some(i);
-            }
         }
         if !spec.footer.is_empty() {
             ui.add_space(theme.spacing_xs);
-            ui.label(
-                RichText::new(&spec.footer)
-                    .size(theme.font_size_small * 0.92)
-                    .color(theme.text_muted()),
-            );
+            // Wrapped to the chart's own width, so the line stays under its pie, not across the
+            // column into the next one.
+            let w = block_w.max(PIE_DIAMETER * 2.5).min(avail);
+            ui.allocate_ui(Vec2::new(w, 0.0), |ui| {
+                ui.set_max_width(w);
+                ui.label(
+                    RichText::new(&spec.footer)
+                        .size(theme.font_size_small * 0.92)
+                        .color(theme.text_muted()),
+                );
+            });
         }
     });
-    hovered
+    ui.ctx().data_mut(|d| d.insert_temp(hover_id, row_hover));
+    wedge_hover.or(row_hover)
+}
+
+/// The donut: its wedges (or an empty ring before anything is measured), and in the middle the
+/// share and name of the wedge the pointer is over or `lifted` names, else how many systems the
+/// pie has. Returns the wedge under the pointer.
+fn donut(ui: &mut Ui, theme: &Theme, spec: &PieSpec, fracs: &[f32], lifted: Option<usize>) -> Option<usize> {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(PIE_DIAMETER, PIE_DIAMETER), Sense::hover());
+    if fracs.is_empty() {
+        if ui.is_rect_visible(rect) {
+            ring(ui, rect, theme.bg_card(), theme.border());
+        }
+        return None;
+    }
+    // Which wedge is the pointer over? Pure geometry: angle from the centre, radius inside the ring.
+    let center = rect.center();
+    let radius = rect.width() * 0.5;
+    let under = resp.hover_pos().and_then(|p| slice_at(center, radius, p, fracs));
+    let shown = under.or(lifted).filter(|i| *i < fracs.len());
+    if ui.is_rect_visible(rect) {
+        paint_pie(ui, rect, &spec.slices, fracs, shown, theme);
+    }
+    // Centre label: the shown slice, or the slice count at rest.
+    let (mid, sub) = match shown {
+        Some(i) => (format!("{:.0}%", fracs[i] * 100.0), spec.slices[i].label.clone()),
+        None => (format!("{}", spec.slices.len()), t("performance.pie_systems").to_string()),
+    };
+    let painter = ui.painter();
+    painter.text(
+        rect.center() - Vec2::new(0.0, 7.0),
+        egui::Align2::CENTER_CENTER,
+        mid,
+        FontId::proportional(theme.font_size_body),
+        theme.text_primary(),
+    );
+    painter.text(
+        rect.center() + Vec2::new(0.0, 9.0),
+        egui::Align2::CENTER_CENTER,
+        sub,
+        FontId::proportional(theme.font_size_small * 0.9),
+        theme.text_muted(),
+    );
+    under
+}
+
+/// A pie's legend as a table: swatch, share, amount, then the name, each column as wide as its
+/// widest entry (BUG-254). The numbers come first, beside the swatch, so each stands next to its
+/// own name whatever the names' lengths: with the names first, one long name ("Elsewhere (present,
+/// drivers, untimed passes)") pushed every number hundreds of points from the short names, nearer
+/// the next pie's than its own (measured at 1280x720, 2026-11-06).
+struct Legend {
+    names: Vec<String>,
+    /// Each row's share of the pie, 0..1, and as drawn ("12%").
+    fracs: Vec<f32>,
+    shares: Vec<String>,
+    name_w: f32,
+    share_w: f32,
+    value_w: f32,
+}
+
+impl Legend {
+    fn font(theme: &Theme) -> FontId {
+        FontId::proportional(theme.font_size_small)
+    }
+
+    /// The widths the rows' words need, unwrapped.
+    fn measure(ui: &Ui, theme: &Theme, spec: &PieSpec, fracs: &[f32]) -> Self {
+        let font = Self::font(theme);
+        let width = |s: &str| ui.fonts(|f| f.layout_no_wrap(s.to_string(), font.clone(), Color32::WHITE).size().x);
+        let names: Vec<String> = spec
+            .slices
+            .iter()
+            .map(|s| if s.locked { tf("performance.pie_locked", &[("name", &s.label)]) } else { s.label.clone() })
+            .collect();
+        let fracs: Vec<f32> = (0..spec.slices.len()).map(|i| fracs.get(i).copied().unwrap_or(0.0)).collect();
+        let shares: Vec<String> = fracs.iter().map(|f| format!("{:.0}%", f * 100.0)).collect();
+        let max = |it: &mut dyn Iterator<Item = f32>| it.fold(0.0_f32, f32::max);
+        let name_w = max(&mut names.iter().map(|n| width(n)));
+        let share_w = max(&mut shares.iter().map(|p| width(p)));
+        let value_w = max(&mut spec.slices.iter().map(|s| width(&s.display)));
+        Self { names, fracs, shares, name_w, share_w, value_w }
+    }
+
+    /// The table's whole width.
+    fn width(&self) -> f32 {
+        self.columns_w() + self.name_w
+    }
+
+    /// Everything but the names: the swatch, the shares and the amounts, and the gaps between.
+    fn columns_w(&self) -> f32 {
+        SWATCH + 6.0 + self.share_w + 8.0 + self.value_w + 10.0
+    }
+
+    /// Squeeze the names (they wrap) so the table fits `avail` on a narrow panel.
+    fn fit(&mut self, avail: f32) {
+        if self.width() > avail {
+            self.name_w = (avail - self.columns_w()).max(NAME_MIN_W);
+        }
+    }
+
+    /// One row per slice. `highlight` is the wedge lifted on the donut, whose row is highlighted
+    /// too. Returns the row under the pointer.
+    fn draw(&self, ui: &mut Ui, theme: &Theme, spec: &PieSpec, highlight: Option<usize>) -> Option<usize> {
+        let font = Self::font(theme);
+        let mut under = None;
+        for (i, s) in spec.slices.iter().enumerate() {
+            let lit = highlight == Some(i);
+            let name_color = if lit { theme.text_primary() } else { theme.text_secondary() };
+            let name: Arc<Galley> = ui.fonts(|f| f.layout(self.names[i].clone(), font.clone(), name_color, self.name_w));
+            let share = ui.fonts(|f| f.layout_no_wrap(self.shares[i].clone(), font.clone(), theme.accent()));
+            let value = ui.fonts(|f| f.layout_no_wrap(s.display.clone(), font.clone(), theme.text_primary()));
+            let h = name.size().y.max(share.size().y).max(SWATCH);
+            let (rect, resp) = ui.allocate_exact_size(Vec2::new(self.width(), h), Sense::hover());
+            if ui.is_rect_visible(rect) {
+                let p = ui.painter();
+                if lit {
+                    p.rect_filled(rect.expand2(Vec2::new(4.0, 2.0)), 3.0, theme.bg_secondary());
+                }
+                let line_mid = rect.top() + share.size().y * 0.5;
+                let sw = Rect::from_center_size(egui::pos2(rect.left() + SWATCH * 0.5, line_mid), Vec2::splat(SWATCH));
+                p.rect_filled(sw, 2.0, s.color);
+                // The share and the amount right-aligned in their columns, so their digits line up
+                // down the table; then the name, wrapping in what is left.
+                let share_right = rect.left() + SWATCH + 6.0 + self.share_w;
+                p.galley(egui::pos2(share_right - share.size().x, rect.top()), share, theme.accent());
+                let value_right = share_right + 8.0 + self.value_w;
+                p.galley(egui::pos2(value_right - value.size().x, rect.top()), value, theme.text_primary());
+                p.galley(egui::pos2(rect.left() + self.columns_w(), rect.top()), name, name_color);
+            }
+            let words = tf("performance.pie_row_label", &[("name", &self.names[i]), ("share", &self.shares[i]), ("value", &s.display)]);
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &words));
+            if resp.hovered() {
+                under = Some(i);
+            }
+            resp.on_hover_text(row_hint(s, self.fracs[i]));
+        }
+        under
+    }
+}
+
+/// A legend row's hover text: its note and how its measured share (`frac`, 0..1) compares with
+/// the share it is expected to want, else its name and share.
+fn row_hint(s: &PieSlice, frac: f32) -> String {
+    let share = format!("{:.1}", frac * 100.0);
+    if s.note.is_empty() {
+        tf("performance.pie_row_hint", &[("name", &s.label), ("share", &share)])
+    } else if s.base_frac > 0.0 {
+        let expected = format!("{:.0}", s.base_frac * 100.0);
+        format!("{}\n{}", s.note, tf("performance.pie_row_expected", &[("share", &share), ("expected", &expected)]))
+    } else {
+        s.note.clone()
+    }
 }
 
 /// Lay several pies out: one column when narrow (the phone shape the operator
 /// asked for), two columns when there is room. Returns nothing - each pie
 /// handles its own hover.
 pub fn pie_grid(ui: &mut Ui, theme: &Theme, specs: &[PieSpec]) {
-    // 2 x (pie + legend column) plus the gap between them. Below this the
-    // legends would wrap into noise, so we stack instead.
-    let wide = ui.available_width() >= 620.0;
+    // Two columns only when every pie fits beside its legend in half the width, with a gutter
+    // between the columns: squeezed under its donut in a narrow column, a legend's numbers stand
+    // against the next column's (BUG-254). Otherwise one column, each pie the panel's width.
+    let gutter = theme.spacing_md * 3.0;
+    let needed = specs.iter().map(|s| needed_width(ui, theme, s)).fold(0.0_f32, f32::max);
+    let wide = ui.available_width() >= 2.0 * needed + gutter;
     if !wide {
         for spec in specs {
             pie(ui, theme, spec);
@@ -193,10 +352,13 @@ pub fn pie_grid(ui: &mut Ui, theme: &Theme, specs: &[PieSpec]) {
         }
         return;
     }
-    let col = (ui.available_width() - theme.spacing_md) * 0.5;
+    let col = (ui.available_width() - gutter) * 0.5;
     for pair in specs.chunks(2) {
         ui.horizontal_top(|ui| {
-            for spec in pair {
+            for (k, spec) in pair.iter().enumerate() {
+                if k > 0 {
+                    ui.add_space((gutter - ui.spacing().item_spacing.x).max(0.0));
+                }
                 ui.allocate_ui(Vec2::new(col, 0.0), |ui| {
                     ui.set_width(col);
                     pie(ui, theme, spec);
@@ -207,53 +369,9 @@ pub fn pie_grid(ui: &mut Ui, theme: &Theme, specs: &[PieSpec]) {
     }
 }
 
-/// One legend line: swatch, label, measured share, live value.
-fn legend_row(
-    ui: &mut Ui,
-    theme: &Theme,
-    s: &PieSlice,
-    pct: f32,
-    highlight: bool,
-) -> egui::Response {
-    let resp = ui
-        .horizontal(|ui| {
-            let (sw, _) = ui.allocate_exact_size(Vec2::new(10.0, 10.0), Sense::hover());
-            ui.painter().rect_filled(sw, 2.0, s.color);
-            let name = if s.locked {
-                format!("{} (locked)", s.label)
-            } else {
-                s.label.clone()
-            };
-            let name_color = if highlight { theme.text_primary() } else { theme.text_secondary() };
-            ui.label(RichText::new(name).size(theme.font_size_small).color(name_color));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    RichText::new(&s.display)
-                        .size(theme.font_size_small)
-                        .strong()
-                        .color(theme.text_primary()),
-                );
-                ui.label(
-                    RichText::new(format!("{:.0}%", pct * 100.0))
-                        .size(theme.font_size_small)
-                        .color(theme.accent()),
-                );
-            });
-        })
-        .response;
-    let hover = if s.note.is_empty() {
-        format!("{} - {:.1}% of this budget", s.label, pct * 100.0)
-    } else if s.base_frac > 0.0 {
-        format!(
-            "{}\nMeasured {:.1}%, expected about {:.0}%.",
-            s.note,
-            pct * 100.0,
-            s.base_frac * 100.0
-        )
-    } else {
-        s.note.clone()
-    };
-    resp.on_hover_text(hover)
+/// The width a pie needs to stand beside its legend with its names unwrapped.
+fn needed_width(ui: &Ui, theme: &Theme, spec: &PieSpec) -> f32 {
+    PIE_DIAMETER + LEGEND_GAP + Legend::measure(ui, theme, spec, &fractions(&spec.slices)).width()
 }
 
 /// Empty ring, for the "nothing measured yet" state.
@@ -281,6 +399,7 @@ fn paint_pie(
     let r = rect.width() * 0.5;
     // Start at 12 o'clock and run clockwise, the way people read a clock.
     let mut a0 = -std::f32::consts::FRAC_PI_2;
+    let mut cuts: Vec<f32> = Vec::new();
     for (i, f) in fracs.iter().enumerate() {
         let sweep = f * std::f32::consts::TAU;
         if sweep <= 0.0 {
@@ -298,7 +417,16 @@ fn paint_pie(
             col,
             Stroke::NONE,
         ));
+        cuts.push(a0);
         a0 = a1;
+    }
+    // A thin cut in the hole's colour where each wedge starts, so two neighbouring rows are two
+    // wedges even when their colours are alike (BUG-254). One wedge alone is a whole ring: no cut.
+    if cuts.len() > 1 {
+        let cut = Stroke::new(CUT_W, theme.bg_card());
+        for a in cuts {
+            painter.line_segment([c, c + Vec2::new(a.cos(), a.sin()) * r], cut);
+        }
     }
     // Hole: cut the middle out so the centre label sits on flat colour.
     painter.circle_filled(c, r * HOLE_FRAC - 1.0, theme.bg_card());

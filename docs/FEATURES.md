@@ -2757,6 +2757,13 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   notice. Settings >
   Gameplay > "Keep growing while away". `save_load::catch_up_world`;
   `docs/design/offline-progression.md`.
+- **The world held until it is entered (2026-11-06, BUG-253):** the world loaded at startup
+  neither runs nor speaks until the person enters it, nor while the character picker is open:
+  its systems tick with no time passing (a page's request still applies), its notices wait and
+  show on entry (a load while held drops the old world's), and a save written while held is
+  stamped with the moment the world is current to, so the next catch-up counts the held time.
+  `src/gui/world_entry.rs`, `src/engine/world_hold.rs` (`world_hold_tests.rs`),
+  `save_load::WorldHold`.
 - **Offline progression, the rest of single player (2026-09-27):** the
   automated machines run the time away through moment by moment on the inputs
   really on hand and the power the home could spare, resting at their keep
@@ -4751,6 +4758,20 @@ never as an error. git runs with optional locks off, so the panel never holds an
 - Web: the Claude tab of `web/pages/dev.html` (`web/pages/dev-claude.js`, tested by
   `scripts/tests/dev-claude-web.test.js`): GitHub's newest release and commit on main, TIER 0 from
   GitHub's copy, the journal the site serves; it names what only the desktop app can show
+
+### Dev > Performance: each pie's legend a table beside its donut (2026-11-06, BUG-254)
+Each pie's legend is a table measured first (the widest share, amount and name), each row reading
+swatch, share, amount, name, so every number stands next to its own name whatever the names'
+lengths; it sits beside its donut when the column has room, under it when not, and the page uses
+two columns only when every pie fits beside its legend. At 2560x1440 the old legend right-aligned
+the numbers against the whole column, where they read as the next pie's. Neighbouring wedges are
+cut apart by a thin line, a legend row under the pointer lifts its wedge, and neighbouring rows of
+a pie look different over the page (measured as the eye sees them: several theme tokens are near
+twins, and orbit_line and constellation_line are too faint for a wedge).
+- Native: `src/gui/widgets/pie.rs` (`Legend`, `donut`, the cuts in `paint_pie`),
+  `data/performance/budget_systems.ron`; tests `src/gui/pages/performance_layout_tests.rs` (2560x1440
+  and 1280x720) and `performance::tests::neighbouring_rows_differ_in_colour`; snapshots
+  `performance`, `performance_wide`, `performance_narrow`
 
 ### Dev > Performance: the slow-frame record and one-off part timers (2026-10-31)
 Beside each stage's average and its worst frame per 5 s window, the frame costs keep the last 32

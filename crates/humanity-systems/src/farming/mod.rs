@@ -1288,6 +1288,13 @@ impl System for FarmingSystem {
             versions::touch_all(data);
             // What the old world's crops breathed is not the loaded ones'.
             self.held = clock::Held::default();
+            // Nor is what its beds were told: the loaded world's are told again. The engine drops
+            // the notices a held world said before a load (BUG-253, gui/world_entry.rs), so a bed
+            // the old world had already announced is announced again for the world entered.
+            self.feeder_dry_told = false;
+            self.short_told.clear();
+            self.ph_rt.forget_told();
+            self.pollination.forget_told();
         }
         let farm_t0 = self.clock.farm_t;
         self.clock.pass(game_dt);

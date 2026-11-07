@@ -74,7 +74,7 @@ pub(crate) fn after_tick(state: &mut EngineState, dt: f32) {
         let events = dp::count_down(&mut state.game_world.world, f64::from(dt), &state.gui_state.death_pack.rules);
         let keep = state.gui_state.death_pack.rules.keep_minutes_of_play;
         for e in events {
-            state.gui_state.pending_notices.push(pack_notice(&e, keep));
+            state.gui_state.world_notice(pack_notice(&e, keep));
         }
     }
 }

@@ -335,3 +335,24 @@ grows by exactly the real time away. Everything handed the time away
 (crops, builds, crafts, soil pH, the drone, machines, livestock) gets it in
 game seconds. A dev hold (the F11 freeze, a sleep) is not the setting and
 does not stretch it.
+
+## The world held until it is entered (2026-11-06, BUG-253)
+
+The operator, 2026-11-05, with the garden's notices over the character picker: "I hadn't entered
+the world yet. I clicked to view characters. Then the game seems to have launched as per the
+bottom middle popups." The home's save is put on the world at startup (the pages show the
+character's things), and its systems ticked every frame from then, whatever page was open.
+
+- **Nothing of a world runs or speaks before the person enters it** (`gui/world_entry.rs`,
+  `engine/world_hold.rs`). The world runs once the person has stood in it this session, and not
+  while the character picker is open. Held, its systems still take what a page asks of them (a
+  transfer on the Inventory page) but no time passes for them. What it says while held (the
+  systems' notices, the catch-up's "While you were away") waits and is shown on the frame the
+  person enters; a save loaded while held drops what the world before it said, and the farm tells
+  the loaded world's beds again.
+- **No time is lost to the hold.** A save written while the world is held is stamped with the
+  moment the world is current to, not the clock (`save_load::WorldHold`), so the next load's
+  catch-up counts the held time as time away: a session spent only in chat leaves the garden to
+  grow by the whole session at the next load. The minutes in the picker after its load leave the
+  world that far behind for the session, and they too are counted at the next load.
+- **After entering**, a page over the world leaves it running, as before.

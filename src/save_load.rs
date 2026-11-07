@@ -45,6 +45,76 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+/// How far behind the clock the world is, because it was held still (BUG-253, 2026-11-06). Until
+/// the person enters a world, and while the character picker is open, the world's systems run
+/// with no time passing (gui/world_entry.rs), so the world is current to an earlier moment than
+/// the clock says. A save written then is stamped with that moment (`current_to`), not the clock,
+/// so the next load's catch-up counts the held time as time away and none of it is lost: a
+/// chat-only session leaves the garden to grow by the whole session at the next load, as it did
+/// when the world ran behind the pages. A load brings the world to the clock again (`loaded`).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct WorldHold {
+    /// When the hold now on began (wall-clock seconds), None while the world runs.
+    held_since: Option<u64>,
+    /// The seconds the world was held since its last load, before the hold now on.
+    behind: u64,
+}
+
+impl WorldHold {
+    /// The world stops moving on at `now` (nothing if it is already held).
+    pub fn hold(&mut self, now: u64) {
+        if self.held_since.is_none() {
+            self.held_since = Some(now);
+        }
+    }
+
+    /// The world moves on again at `now`, as far behind the clock as it was held.
+    pub fn run(&mut self, now: u64) {
+        if let Some(since) = self.held_since.take() {
+            self.behind += now.saturating_sub(since);
+        }
+    }
+
+    /// A load's catch-up brought the world to the clock at `now` (a held world stays held, from
+    /// then).
+    pub fn loaded(&mut self, now: u64) {
+        self.behind = 0;
+        if self.held_since.is_some() {
+            self.held_since = Some(now);
+        }
+    }
+
+    /// The moment the world is current to, at `now`: what a save of it is stamped with.
+    pub fn current_to(&self, now: u64) -> u64 {
+        let held = self.held_since.map_or(0, |since| now.saturating_sub(since));
+        now.saturating_sub(self.behind + held)
+    }
+}
+
+/// The running game's one world hold. Running until the engine holds it at startup, so nothing
+/// that never holds it (the tests, the save tools) sees a stamp other than the clock.
+static WORLD_HOLD: std::sync::Mutex<WorldHold> = std::sync::Mutex::new(WorldHold { held_since: None, behind: 0 });
+
+fn with_world_hold<R>(f: impl FnOnce(&mut WorldHold) -> R) -> R {
+    let mut hold = WORLD_HOLD.lock().unwrap_or_else(|e| e.into_inner());
+    f(&mut hold)
+}
+
+/// The world stops moving on (the engine, at startup and each frame it is held; engine/world_hold.rs).
+pub fn hold_world() {
+    with_world_hold(|h| h.hold(now_secs()));
+}
+
+/// The world moves on again (the engine, each frame it runs).
+pub fn run_world() {
+    with_world_hold(|h| h.run(now_secs()));
+}
+
+/// The moment a save of the world written now is stamped with (`WorldHold::current_to`).
+fn world_current_to() -> u64 {
+    with_world_hold(|h| h.current_to(now_secs()))
+}
+
 /// Where the player's home stands: the box (min, max) of the plot it stands on, in ship metres
 /// (increment 1b of docs/design/ship-homes-and-logistics.md). The engine keeps it in the
 /// DataStore under `HOME_FRAME_KEY`, current with the live ship (engine/home_plot.rs: the world
@@ -168,7 +238,8 @@ fn load_home_at(path: &std::path::Path) -> Option<WorldSave> {
 /// Extract the live player's progress (inventory + skills) into a WorldSave.
 pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     let mut save = new_save_of_active_home();
-    save.timestamp = now_secs();
+    // The moment the world is current to: the clock, unless the world was held still (BUG-253).
+    save.timestamp = world_current_to();
     // The player is the single Controllable entity.
     for (_e, (inv, skills, name, appearance, outfit, _ctrl)) in world
         .query::<(
@@ -1403,8 +1474,12 @@ pub fn after_resume(gui: &mut crate::gui::GuiState, save: &WorldSave, r: &Resume
     if let Some(pool) = &save.placed_items {
         gui.placed_items = pool.clone();
     }
+    // A world's notice (BUG-253): shown now in a running world, held for the person's entry while
+    // the world is held (at startup, under the character picker); what the world before this load
+    // said while held was about a world that is gone.
+    gui.drop_held_world_notices();
     if let Some(msg) = away_notice(r) {
-        gui.pending_notices.push(msg);
+        gui.world_notice(msg);
     }
     gui.auto_mine_enabled = save.mining_order.is_some();
     gui.prev_auto_mine_enabled = gui.auto_mine_enabled;
@@ -1435,7 +1510,10 @@ pub fn resume_home(
     time_speed: f32,
     home: Option<&humanity_ship::machines::MachineHome>,
 ) -> Resumed {
-    let mut r = catch_up_world(world, save, offline_progression, time_speed, now_secs());
+    let now = now_secs();
+    let mut r = catch_up_world(world, save, offline_progression, time_speed, now);
+    // The world is current to the clock again (BUG-253): a held one is held from now.
+    with_world_hold(|h| h.loaded(now));
     humanity_systems::time::request_restore_elapsed(data, r.clock);
     // SOIL pH: what was still reacting when the player left kept reacting.
     // Handed over, not stepped here: the farming tick applies it under the
@@ -1533,6 +1611,36 @@ pub fn resume_home(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A HELD WORLD IS SAVED AS CURRENT TO WHEN IT WAS HELD (BUG-253): the world held still from
+    /// startup and under the character picker is saved with the moment it is current to, so the
+    /// next load's catch-up counts the held time and none of it is lost. Walked through a session:
+    /// startup, an hour on the pages, the picker's load and a minute in the picker, an hour in the
+    /// world, the picker again without a load, and a load in the world.
+    ///
+    /// Seen red 2026-11-06 with `run` not adding the hold to `behind` (the picker's minute lost):
+    /// "an hour in the world, a minute behind: the picker's minute", left 8260, right 8200.
+    #[test]
+    fn a_held_world_is_saved_as_current_to_when_it_was_held() {
+        let mut h = WorldHold::default();
+        assert_eq!(h.current_to(1_000), 1_000, "a world never held is current to the clock");
+        h.hold(1_000); // startup
+        h.loaded(1_000); // the startup catch-up
+        assert_eq!(h.current_to(4_600), 1_000, "an hour on the pages before entering: still current to startup");
+        h.hold(4_600);
+        assert_eq!(h.current_to(4_600), 1_000, "holding a held world changes nothing");
+        h.loaded(4_600); // Play: the picker loads the character, caught up to now
+        assert_eq!(h.current_to(4_660), 4_600, "a minute in the picker");
+        h.run(4_660); // Enter
+        assert_eq!(h.current_to(8_260), 8_200, "an hour in the world, a minute behind: the picker's minute");
+        h.hold(8_260); // the picker again
+        h.run(8_320); // and back, without a load
+        assert_eq!(h.current_to(9_000), 8_880, "two minutes behind now");
+        h.loaded(9_000); // a load in the world (a snapshot restore)
+        assert_eq!(h.current_to(9_010), 9_010, "a load brings the world to the clock");
+        h.run(9_020);
+        assert_eq!(h.current_to(9_030), 9_030, "running a running world changes nothing");
+    }
 
     #[test]
     fn extract_apply_round_trips_inventory_and_skills() {

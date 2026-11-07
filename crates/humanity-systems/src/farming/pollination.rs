@@ -504,6 +504,11 @@ impl Pollination {
         Self::default()
     }
 
+    /// A save was loaded onto the world: its areas have not been told anything yet (BUG-253).
+    pub fn forget_told(&mut self) {
+        self.told.clear();
+    }
+
     /// The data in use (the DataStore's, else this system's own, read on first use).
     fn ensure(&mut self, data: &DataStore) {
         if self.data.is_none() && data.get::<PollinationData>(DATA_KEY).is_none() {
@@ -1357,6 +1362,36 @@ mod tests {
         let mut p = Pollination::new();
         step(&mut p, &mut world, &data, 0.0);
         assert!((p.harvest_set(&world, &data, e) - 0.49).abs() < 1e-6, "{}", p.harvest_set(&world, &data, e));
+    }
+
+    /// A save loaded onto the world (the farm takes the load's hand-over, `clock::hand_over_resume`)
+    /// is told about its flowering beds again (BUG-253): the engine drops what a held world said
+    /// before a load, so a bed told before the load would otherwise never be told in the world
+    /// the person enters. Told once while it flowers, as before, until the load.
+    ///
+    /// Seen red 2026-11-06 without the farm forgetting what it had told on a resume: "told again
+    /// after the load: []".
+    #[test]
+    fn a_loaded_world_is_told_its_flowering_beds_again() {
+        let mut data = store(100.0, true);
+        // The load's hand-over channel alone (the interval stays absent: every area every frame).
+        data.insert(crate::farming::clock::RESUME_KEY, std::sync::Mutex::new(Option::<crate::farming::clock::Owed>::None));
+        let mut sys = FarmingSystem::new();
+        let mut world = watered_world();
+        world.spawn((crop("tomato", "ntower_3", "flower"),));
+        let told = |data: &DataStore| notices(data).into_iter().filter(|n| n.contains("indoors nothing carries their pollen")).collect::<Vec<_>>();
+        for _ in 0..3 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert_eq!(told(&data).len(), 1, "told once");
+        for _ in 0..3 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert!(told(&data).is_empty(), "not again while it flowers");
+        crate::farming::clock::hand_over_resume(&data, Default::default());
+        sys.tick(&mut world, 1.0, &data);
+        let again = told(&data);
+        assert_eq!(again.len(), 1, "told again after the load: {again:?}");
     }
 
     /// The harvest applies the fruit set: 600 ripe tomatoes that flowered

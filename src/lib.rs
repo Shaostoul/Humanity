@@ -1664,6 +1664,11 @@ mod native_app {
             // 2026-10-04; the operator's own config keeps it on) keeps only the
             // character of your own home, and so does a save that carries no
             // progress; a server's save always keeps its progress (increment 6).
+            //
+            // The world is held still from startup until the person enters it (BUG-253,
+            // gui/world_entry.rs): its saves are stamped with the moment it is current to, which
+            // the catch-up below sets to now.
+            crate::save_load::hold_world();
             if let Some(save) = &home_save {
                 if !crate::save_load::applies_progress(save, gui_state.settings.fresh_world_each_launch) {
                     crate::save_load::apply_identity(&mut game_world.world, save);
@@ -6647,16 +6652,17 @@ mod native_app {
                     // they took back out of the GUI containers.
                     let home_stock_before = crate::engine::stock_piles::publish_home_stock(state);
 
-                    // Tick all ECS systems
-                    {
-                        let _cost_systems =
-                            humanity_core::frame_costs::stage("cpu.systems");
-                        state.system_runner.tick(
-                            &mut state.game_world.world,
-                            dt,
-                            &state.data_store,
-                        );
-                    }
+                    // Tick all ECS systems: by the frame's time once the person has entered the
+                    // world, by none before that or while the character picker is open (BUG-253,
+                    // engine/world_hold.rs). `world_dt` is the time the world moved on by.
+                    let world_dt = crate::engine::world_hold::tick(
+                        &mut state.system_runner,
+                        &mut state.game_world.world,
+                        &state.data_store,
+                        &mut state.gui_state,
+                        state.world_loaded,
+                        dt,
+                    );
 
                     // What the systems used FROM home storage this tick comes out
                     // of the placed containers (v0.737; planet chests excluded).
@@ -6667,7 +6673,7 @@ mod native_app {
                     crate::engine::stock_piles::age_home_storage(state); // stored food spoils too (S6)
                     // A death the tick recorded, and the packs Realistic deaths leave (before the
                     // periodic save below, so no save holds a death with a full backpack).
-                    crate::engine::death_pack::after_tick(state, dt);
+                    crate::engine::death_pack::after_tick(state, world_dt);
                     // Backpack overflow from "Take to backpack" goes back to the
                     // container it came from (2026-09-25; it used to vanish).
                     let returned: Vec<(String, u32)> = state
@@ -6675,13 +6681,8 @@ mod native_app {
                         .get::<std::sync::Mutex<Vec<(String, u32)>>>("inventory_transfer_returns")
                         .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
                         .unwrap_or_default();
-                    if let Some(slot) = state.data_store.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
-                        if let Ok(mut n) = slot.lock() {
-                            for msg in n.drain(..) {
-                                state.gui_state.pending_notices.push(msg);
-                            }
-                        }
-                    }
+                    // What the systems said: shown, or held for the person's entry (BUG-253).
+                    crate::engine::world_hold::take_notices(&state.data_store, &mut state.gui_state);
                     let origins = std::mem::take(&mut state.gui_state.inflight_take_origins);
                     for (key, qty) in returned {
                         let origin = origins.iter().find(|o| o.key == key).cloned();

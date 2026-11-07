@@ -2,7 +2,7 @@
 // See docs/design/resource-budgets.md.
 //
 // One row per SYSTEM that shows up as a slice of one of the four pies on the
-// Performance page (Platform > Performance). Adding a system to the pie is
+// Performance page (Dev > Performance). Adding a system to the pie is
 // adding a row here - no code change (infinite-of-X).
 //
 //   id          stable key (also the increment-2 allocation key)
@@ -21,6 +21,11 @@
 //               balanced machine, 0..1. Increment 1 only DISPLAYS it next to
 //               the measured share, so "expected vs actual" is visible.
 //   note        one line of plain English shown on hover.
+//   color       the slice's theme token. Neighbouring rows of a pie must LOOK different
+//               over the page (gui/pages/performance.rs neighbouring_rows_differ_in_colour,
+//               BUG-254): info, nav_tools and badge_verified are one blue to the eye, accent
+//               and nav_dev one orange, and orbit_line and constellation_line are drawn at a
+//               tenth, too faint for a wedge.
 //
 // HONEST LIMITS (do not silently "fix" these by renaming rows):
 //  * GPU timestamps measure PASSES, and this engine draws terrain, sky, water
@@ -71,7 +76,7 @@
         ],
         locked: false,
         base_frac: 0.10,
-        color: "info",
+        color: "success",
         note: "The volumetric cloud deck: sun-light cache, screen march, temporal resolve and composite.",
     ),
     (
@@ -141,7 +146,7 @@
         sources: ["gpu.lines", "gpu.celestial_lines"],
         locked: false,
         base_frac: 0.02,
-        color: "orbit_line",
+        color: "badge_donor",
         note: "Orbit paths, rings and placement guides.",
     ),
     (
@@ -161,7 +166,7 @@
         sources: ["gpu.stars"],
         locked: false,
         base_frac: 0.05,
-        color: "constellation_line",
+        color: "nav_sim",
         note: "The 16.8 M-point sky. Timed once the star pass in lib.rs is wired.",
     ),
     (
@@ -236,7 +241,9 @@
         sources: ["cpu.maps_symbology"],
         locked: false,
         base_frac: 0.01,
-        color: "nav_tools",
+        // Not its neighbours' colour (BUG-254): two rows side by side in one colour read as one
+        // wedge (gui/pages/performance.rs `neighbouring_rows_differ_in_colour`).
+        color: "success",
         note: "Drawing the Maps page's orbits, bodies, belts and names this frame.",
     ),
     (
@@ -270,7 +277,7 @@
         ],
         locked: false,
         base_frac: 0.01,
-        color: "nav_tools",
+        color: "badge_donor",
         note: "Preparing the Maps page's plan tiles while they bake.",
     ),
     (
@@ -371,7 +378,7 @@
         sources: ["cpu.systems"],
         locked: true,
         base_frac: 0.10,
-        color: "accent",
+        color: "nav_sim",
         note: "Farming, weather, creatures, vitals - the whole ECS tick. Each system is measured on its own too (cpu.system.farming, cpu.system.weather, cpu.system.ai, ...); the breakdown appears when slices become drillable.",
     ),
     (
@@ -386,7 +393,7 @@
         sources: ["cpu.page_data.garden"],
         locked: false,
         base_frac: 0.02,
-        color: "accent",
+        color: "badge_donor",
         note: "Gathering what an open page shows from the game world: the Garden on the Inventory page. Paid only on a frame that draws that page; measured when a wall screen in view shows it (a page open on the main screen pauses these measurements).",
     ),
 
@@ -438,7 +445,7 @@
         sources: ["vram.particles"],
         locked: false,
         base_frac: 0.03,
-        color: "orbit_line",
+        color: "badge_donor",
         note: "Billboard and GPU-simulation particle pools.",
     ),
     (

@@ -515,6 +515,11 @@ fn soil_of(area: &str) -> String {
 }
 
 impl PhRuntime {
+    /// A save was loaded onto the world: its areas have not been told anything yet (BUG-253).
+    pub fn forget_told(&mut self) {
+        self.told.clear();
+    }
+
     /// Say once per grow area when its soil has left a crop's window, and
     /// which amendment fixes it; an area leaves the told set when all its
     /// crops are back inside. `out_now` is this tick's first out-of-window

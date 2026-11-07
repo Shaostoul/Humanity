@@ -315,12 +315,16 @@ fn remainder_slice(
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, _state: &mut GuiState) {
+    page(ctx, theme, |ui| draw_content(ui, theme));
+}
+
+/// The page's panel and scroll area around `body`, shared by `draw` and the headless layout
+/// tests (performance_layout_tests.rs), so they lay the pies out in the same frame.
+fn page(ctx: &egui::Context, theme: &Theme, body: impl FnOnce(&mut egui::Ui)) {
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
-            ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                draw_content(ui, theme);
-            });
+            ScrollArea::vertical().auto_shrink([false, false]).show(ui, body);
         });
 }
 
@@ -331,7 +335,12 @@ pub fn draw_content(ui: &mut egui::Ui, theme: &Theme) {
     // working-set syscall only run while this is fresh.
     frame_costs::watch();
     let snap = frame_costs::snapshot();
+    draw_content_from(ui, theme, &snap);
+}
 
+/// The page body drawn from a given snapshot: the live one (`draw_content`), or a test's own
+/// numbers, which need not touch the process-wide store other tests read.
+pub fn draw_content_from(ui: &mut egui::Ui, theme: &Theme, snap: &Snapshot) {
     ui.label(
         RichText::new("Performance")
             .size(theme.font_size_title)
@@ -384,7 +393,7 @@ pub fn draw_content(ui: &mut egui::Ui, theme: &Theme) {
 
     let specs: Vec<PieSpec> = CATEGORIES
         .iter()
-        .map(|(cat, title)| build_spec(theme, &snap, cat, title))
+        .map(|(cat, title)| build_spec(theme, snap, cat, title))
         .collect();
     widgets::pie::pie_grid(ui, theme, &specs);
 
@@ -399,6 +408,12 @@ pub fn draw_content(ui: &mut egui::Ui, theme: &Theme) {
         .color(theme.text_secondary()),
     );
 }
+
+/// The pies as drawn (BUG-254): every legend value in its own pie's column, every wedge its row's
+/// share, at the operator's 2560x1440 and at 1280x720.
+#[cfg(test)]
+#[path = "performance_layout_tests.rs"]
+mod layout_tests;
 
 #[cfg(test)]
 mod tests {
@@ -483,6 +498,64 @@ mod tests {
         }
     }
 
+    /// Neighbouring rows of a pie look different, the remainder wedge (`text_muted`, last) and the
+    /// first row included, since the ring closes; and every row's colour shows on the page (BUG-254).
+    /// Two wedges side by side in one colour read as one, and the operator could not match the CPU
+    /// pie's wedges to its rows. "Look different" is measured as the eye sees it: each colour laid
+    /// over the page's background (some tokens are nearly transparent: orbit_line and
+    /// constellation_line are drawn at a tenth), then their distance in 0..255 RGB, at least
+    /// `APART`. Several tokens are near twins (info, nav_tools and badge_verified are one blue to
+    /// the eye; accent and nav_dev one orange), so a different token name is not enough. Only
+    /// neighbours, so a pie may have more rows than the theme has colours.
+    ///
+    /// Seen red 2026-11-06 with the registry as it was: "cpu: \"Maps: where you are\" and \"Maps:
+    /// symbols\" are neighbours in one colour (nav_tools and nav_tools)" (by token name, its first
+    /// form); then, measured as seen, with those rows moved to orbit_line and constellation_line:
+    /// "gpu: \"Clouds\" and \"In-world screens\" look alike side by side (info and nav_tools, 26
+    /// apart)".
+    #[test]
+    fn neighbouring_rows_differ_in_colour() {
+        const APART: f32 = 50.0;
+        let theme = crate::gui::theme::load_theme();
+        let bg = theme.bg_panel();
+        let seen = |c: egui::Color32| -> [f32; 3] {
+            // egui's colours are premultiplied: over the page, a colour is itself plus what of the
+            // page its alpha lets through.
+            let through = 1.0 - f32::from(c.a()) / 255.0;
+            [
+                f32::from(c.r()) + f32::from(bg.r()) * through,
+                f32::from(c.g()) + f32::from(bg.g()) * through,
+                f32::from(c.b()) + f32::from(bg.b()) * through,
+            ]
+        };
+        let apart = |a: egui::Color32, b: egui::Color32| {
+            let (x, y) = (seen(a), seen(b));
+            ((x[0] - y[0]).powi(2) + (x[1] - y[1]).powi(2) + (x[2] - y[2]).powi(2)).sqrt()
+        };
+        for (cat, _) in CATEGORIES.iter() {
+            let mut ring: Vec<(&str, &str, egui::Color32)> = systems()
+                .iter()
+                .filter(|r| r.category == *cat)
+                .map(|r| (r.display.as_str(), r.color.as_str(), token_color(&theme, &r.color)))
+                .collect();
+            ring.push(("the remainder", "text_muted", theme.text_muted()));
+            for (i, a) in ring.iter().enumerate() {
+                let off_page = apart(a.2, bg);
+                assert!(off_page >= APART, "{cat}: {:?} ({}) barely shows on the page, {off_page:.0} from its background", a.0, a.1);
+                let b = &ring[(i + 1) % ring.len()];
+                let d = apart(a.2, b.2);
+                assert!(
+                    d >= APART,
+                    "{cat}: {:?} and {:?} look alike side by side ({} and {}, {d:.0} apart)",
+                    a.0,
+                    b.0,
+                    a.1,
+                    b.1
+                );
+            }
+        }
+    }
+
     // ── The join between the registry and the engine, in BOTH directions ──
     //
     // The ids the engine records are read from the SOURCE TREE, not from a
@@ -496,7 +569,7 @@ mod tests {
     /// `#[cfg(test)] mod ui_snapshots;` line in gui/mod.rs), so nothing in
     /// them records at runtime; the seeded numbers they stage would
     /// otherwise read as recorders.
-    const TEST_ONLY_FILES: &[&str] = &["src/gui/ui_snapshots.rs"];
+    const TEST_ONLY_FILES: &[&str] = &["src/gui/ui_snapshots.rs", "src/gui/pages/performance_layout_tests.rs"];
 
     /// Ids the engine records that are DELIBERATELY not a pie row, each with
     /// its reason. A recorded id that is neither a row nor on this list

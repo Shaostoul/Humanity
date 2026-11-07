@@ -82,6 +82,10 @@ mod connections;
 /// first entry into the world (first-hour audit 2026-10-04). See `gui/first_steps.rs`.
 #[cfg(feature = "native")]
 pub(crate) mod first_steps;
+/// Whether the person is in a world, and the world held still and quiet until they are (BUG-253).
+/// See `gui/world_entry.rs`.
+#[cfg(feature = "native")]
+pub(crate) mod world_entry;
 pub use connections::{connect_target, erased_entry, EraseOutcome, ERASED_BY_ADMIN_NOTE, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE, OFFICIAL_SERVER};
 
 
@@ -1282,6 +1286,17 @@ pub struct GuiState {
     /// the player needs to read rather than a confirmation (the offline
     /// progression "while you were away" line). See `GuiState::notice`.
     pub pending_notices: Vec<String>,
+    /// The game world's own notices (the systems' `player_notices`, the catch-up's "while you were
+    /// away") raised while the person is not in a world, before they enter one this session or
+    /// while the character picker is open: held here and shown when they enter (BUG-253,
+    /// gui/world_entry.rs), never as toasts over the picker or the pages before it.
+    pub held_world_notices: Vec<String>,
+    /// Whether the person has stood in a world this session (gui/world_entry.rs): until then the
+    /// world loaded at startup is held still and says nothing.
+    pub world_entered: bool,
+    /// Whether the world ran this frame (gui/world_entry.rs `note_world_frame`): it runs once the
+    /// person has entered it, except while the character picker is open.
+    pub world_running: bool,
     /// Station types WHERE THE PLAYER IS (engine/built_uses.rs
     /// publish_stations): aboard the home's machines and its built stations,
     /// at a planet site that site's; the same set CraftingSystem gates on.
@@ -3487,6 +3502,9 @@ impl Default for GuiState {
             pending_bookmark_recat: None,
             pending_toasts: Vec::new(),
             pending_notices: Vec::new(),
+            held_world_notices: Vec::new(),
+            world_entered: false,
+            world_running: false,
             stations_here: std::collections::HashSet::new(),
             stations_where: Default::default(),
             home_stock: std::collections::HashMap::new(),
