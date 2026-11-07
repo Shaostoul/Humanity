@@ -1,4 +1,4 @@
-# Privacy by architecture: what we built, and what we can't
+# How your privacy is built: what we did, and what we can't
 
 There is a question every online platform quietly answers for you, usually
 without telling you: when someone powerful demands your data, what can they
@@ -12,26 +12,42 @@ nothing. It is also an honest account of the parts we cannot close, because
 a privacy claim that hides its own limits is just marketing, and we would
 rather you trust the architecture than trust us.
 
-*Checked against the code on 6 November 2026. Where an earlier version of this
-page claimed more than the code did (groups, photos, the order of stored
-messages, the onion door, friendship passes, how long logs are kept), it now
-says the narrower thing that is true.*
+*Checked against the code on 6 November 2026, and again on 7 November 2026, the
+day the fix to the order of stored messages went live on united-humanity.us.
+Where an earlier version of this page claimed more than the code did (groups,
+photos, the order of stored messages, the onion door, friendship passes, how
+long logs are kept), it now says the narrower thing that is true. Its opening
+story is now told from the court filings themselves, read on 7 November 2026:
+[our dated research note](https://github.com/Shaostoul/Humanity/blob/main/docs/reference/findings/2026-11-07-take-two-discord-subpoena.md)
+links each one.*
 
 ## The moment that started it
 
-A court order landed that forced Discord and Microsoft to hand over personal
-information on roughly 100,000 users, real names, emails, phone numbers, IP
-addresses, device identifiers, linked accounts, to help hunt down a single
-person who leaked a video game. Most of those hundred thousand people had
-nothing to do with the leak. Their only mistake was being in the wrong chat
-server at the wrong time.
+In August 2026, Take-Two Interactive, the publisher of Grand Theft Auto VI,
+went to a federal court in New York to find out who had posted leaked material
+from the game. Under the law that lets a copyright owner ask a court for a
+subpoena to identify someone it accuses of copying its work, it asked for one
+subpoena to Discord and one to Microsoft, and both were approved on 21 August
+2026.
 
-Discord is not uniquely evil here. It did what almost every platform is built
-to do: it collected everything, and so when the order came, it had everything
-to give. That is the entire lesson. "We promise to protect your data" is a
-promise standing on a foundation of having collected the data in the first
-place, and that foundation is one subpoena, one breach, or one change of
-ownership away from crumbling. Every platform that holds your information is
+The one to Discord named three accounts, and then went much further. It asked
+about every account that had been a member of three Discord communities since 1
+June 2026, one of them the community server of a Grand Theft Auto video creator,
+which Discord's own count put at more than 117,000 members on 7 November 2026.
+For each of those accounts it asked for email addresses, phone numbers, IP
+access logs, linked accounts, device identifiers and "original message logs".
+The one to Microsoft asked for much the same about members of the same
+communities. Three accounts were named; nearly everyone else in those
+communities had nothing to do with the leak. Their only mistake was being in the
+wrong chat server at the wrong time.
+
+Discord is not the villain of this story. It said it would "evaluate the
+validity and scope before responding", and nothing public says that it or
+Microsoft handed anything over. But a request like that is worth making only
+because Discord, like almost every platform, had collected all of it. That is
+the entire lesson. "We promise to protect your data" is a promise standing on a
+foundation of having collected the data in the first place, and that foundation
+is one subpoena, one breach, or one change of ownership away from crumbling. Every platform that holds your information is
 holding a liability on your behalf, and you are the one who pays when it
 spills.
 
@@ -61,7 +77,8 @@ record of every message's envelope: who sent it, who received it, and when.
 That is metadata, and metadata is often more revealing than content. Knowing
 that a person messaged a divorce lawyer, a clinic, and a rival company's
 recruiter, in that order, tells you almost everything without reading a single
-word. In the Discord case, the envelope was precisely what the order wanted.
+word. The subpoena to Discord asked for records of exactly this kind, each
+member's "IP access logs" and "original message logs" among them.
 
 We rebuilt the whole system so the server no longer records the envelope. The
 sender's identity now travels sealed inside the encrypted message, signed so
@@ -71,18 +88,25 @@ server after a short delivery window; your real history lives encrypted on
 your own devices. What a subpoena of our database now returns is a pile of
 scrambled blobs, each addressed to an anonymous key, padded to one of a few
 fixed sizes, with the day it arrived and no sender. The rows are kept by
-recipient rather than in the order they arrived, and your app sends its own copy
-of what you wrote (the one your other devices read) a random 20 seconds to 2
-minutes after the recipient's, so nothing in the database pairs a message with
-the person who sent it.
+recipient rather than in the order they arrived, so nothing in the database
+pairs a message with the person who sent it. And the app sends its own copy of
+what you wrote (the one your other devices read) a random 20 seconds to 2
+minutes after the recipient's, so the two are not written one right after the
+other either: the website does this now, and the desktop app does from its next
+update.
 
-That last part was not true until 6 November 2026, and we found it while
-checking this page against the code. Rows used to be numbered in the order they
-arrived, and your app sent your own copy right after the recipient's, so two
-neighbouring rows of the same size could pair you with the person you wrote to.
-We fixed both halves; rows stored before the fix keep their old numbers until
-they age out of the 30-day window, and backups taken before it keep them for as
-long as those backups are kept.
+That last part was not true until November 2026, and we found it while checking
+this page against the code. Rows used to be numbered in the order they arrived,
+and your app sent your own copy right after the recipient's, so two neighbouring
+rows of the same size could pair you with the person you wrote to. We fixed both
+halves in the code on 6 November 2026; the server's half went live on
+united-humanity.us on 7 November 2026, and so did the website's. Until the
+desktop app's update, the server's
+write log and its continuous backup still hold a desktop user's two copies one
+right after the other, even though the database itself no longer pairs them.
+Other servers get the fix when they update. Rows stored before the fix keep
+their old numbers until they age out of the 30-day window, and backups taken
+before it keep them for as long as those backups are kept.
 
 What the database still cannot hide, said plainly: at the moment you send, the
 server you are connected to knows it is you and whom the sealed envelope is
@@ -112,9 +136,8 @@ certificate can still send you a small, capped number of polite messages a day,
 so someone can reach out to you cold without anyone being able to flood you.
 
 The result is that our server can no longer answer "who follows whom" or "who
-is friends with whom," because it does not know and never records it. That
-list, the one Discord had to hand over for a hundred thousand people, does not
-exist on our side to hand over.
+is friends with whom," because it does not know and never records it. A request
+like the one sent to Discord would find no such list on our side to hand over.
 
 ### What you said in a shop or a group
 
@@ -148,17 +171,19 @@ downloads it.
 
 Now your app removes that hidden metadata on your own device before a photo
 or video leaves it (a switch, "Remove location and camera details", on unless
-you turn it off), and the server removes it again from every picture, video and
-phone photo uploaded to it, before the file is stored. JPEG, PNG and WebP
+you turn it off), and the server removes it again from the pictures, videos and
+phone photos uploaded to it, before the file is stored. JPEG, PNG and WebP
 pictures lose their EXIF, XMP and comment blocks; HEIC and AVIF photos have
 their EXIF and XMP blanked; MP4-family videos have their location boxes blanked.
 The removal is lossless, so the picture itself is untouched.
 
 When a file cannot be read all the way through, the metadata cannot be removed
-with certainty, and until 6 November 2026 the server then stored the picture as
-it came, location and all. Now it stores nothing: your app asks you, "Send it
-anyway, or don't send?", with "Don't send" first, and only your "Send anyway",
-signed with your own key for that one file, lets the server keep it as it is.
+with certainty, and until 7 November 2026 the server on united-humanity.us then
+stored the picture as it came, location and all. Now it stores nothing unless
+you say so: the app asks you, "Send it anyway, or don't send?", with "Don't
+send" first, and only your "Send anyway", signed with your own key for that one
+file, lets the server keep it as it is. The website asks now; the desktop app
+asks from its next update.
 Two limits we know of: a GIF is stored as it is (it has no standard place for a
 location, though an editing program can write one in), and a location recorded
 inside a video's own picture stream, as some action cameras and drones do, is

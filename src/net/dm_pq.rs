@@ -145,7 +145,7 @@ pub fn open(
 // The v1 dual-seal `{v:1,r,s}` envelope hid CONTENT from the relay but the
 // wire + DB row still carried `from_key`/`from_name` in the clear, so the
 // relay accumulated a complete who-talked-to-whom graph (the thing the
-// Take-Two/Discord subpoena actually harvested). v2 moves the sender's
+// 2026 Take-Two subpoena to Discord asked for). v2 moves the sender's
 // identity INSIDE the ciphertext:
 //
 //   inner  = { "v":2, "from", "to", "ts", "text", "sig" }   (JSON, signed)

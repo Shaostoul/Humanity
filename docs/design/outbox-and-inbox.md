@@ -570,7 +570,7 @@ destination.
   MA-17). The hint's legal half is a glossary mark: "a court can make it hand that copy over" is
   written `[[subpoena|a court can make it hand that copy over]]` in `en.json`, so the card explains the
   legal word (section 7.3.1).
-- **Honest about the sealed level** (operator's ask, and `docs/outreach/privacy_by_architecture.md`,
+- **Honest about the sealed level** (operator's ask, and `docs/outreach/how_your_privacy_is_built.md`,
   "Your own device"). A HumanityOS sealed DM waits on the relay as a sealed envelope with no sender
   and only its day of arrival, expiring after the server's setting (30 days by default), and its
   history is kept only on the two people's devices, encrypted under each one's identity
@@ -989,7 +989,12 @@ found, each closed with its test seen red first:
 5. **The draft's own checks before its post goes out** (its notes, A and D): the long version's page
    in the Library, which waits for item 1 by his choice ("Yeah, we're waiting until after."), and the
    fact-check list's open lines (the promise "We are fixing it", which the landing steps take out,
-   and the short version's count once its link is final).
+   and the short version's count once its link is final). *Done 7 November 2026:* item 1 went live
+   on united-humanity.us and the website that day (the desktop app's half comes with its next
+   update), and the page is in the Library, About HumanityOS > Your Privacy:
+   [`docs/outreach/who_can_read_your_messages.md`](../outreach/who_can_read_your_messages.md)
+   (united-humanity.us/library#who-can-read-your-messages); the short version's count, with its
+   final link, is 284 of Bluesky's 300.
 
 Recommended next, but not part of the gate: a way to compare keys in person, and the onion door
 opened on united-humanity.us (the draft's C.5 and C.8, both small). **The gate lifts** when he says
@@ -1153,7 +1158,7 @@ no names.
 Protection 9: Settings > Security says whether the system drive is encrypted (BitLocker on Windows,
 FileVault on macOS, LUKS on Linux, each read without administrator rights where the system allows)
 and how to turn it on, in plain steps, never forcing it. Belongs in Settings > Security; the "Your
-own device" limit in `docs/outreach/privacy_by_architecture.md` is why: every sealed message and
+own device" limit in `docs/outreach/how_your_privacy_is_built.md` is why: every sealed message and
 every sign-in is only as safe as the device holding its unlocked copy.
 
 ## 16. The rungs
@@ -1297,7 +1302,9 @@ Later the same evening (section 1 has each answer with what it answered):
 - **The privacy post's long version: in the Library, after the DM mailbox fix.** "Library makes
   sense. Not sure which subcategory." and, on waiting for the fix, "Yeah, we're waiting until after."
   The category, "Your Privacy" (About HumanityOS), is our recommendation, made for the badge test's
-  page, not his choice. The page is ready to land, with its exact catalog entry and steps:
+  page, not his choice. Landed on 7 November 2026, once the fix was live:
+  [`docs/outreach/who_can_read_your_messages.md`](../outreach/who_can_read_your_messages.md), its
+  notes and landing steps in
   [`docs/outreach/posts/DRAFT-privacy-compared-notes.md`](../outreach/posts/DRAFT-privacy-compared-notes.md).
 
 **Not marked decided, and why.** The recommendations of questions 2, 3 and 5, and the order in

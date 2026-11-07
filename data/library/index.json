@@ -1910,6 +1910,24 @@
       "name": "Your Privacy",
       "docs": [
         {
+          "title": "Who Can Read Your Messages",
+          "file": "who_can_read_your_messages.md",
+          "tags": [
+            "project",
+            "real",
+            "reference"
+          ]
+        },
+        {
+          "title": "How Your Privacy Is Built",
+          "file": "how_your_privacy_is_built.md",
+          "tags": [
+            "project",
+            "real",
+            "reference"
+          ]
+        },
+        {
           "title": "What Do These Labels Mean to You?",
           "file": "what_do_these_labels_mean.md",
           "tags": [

@@ -115,9 +115,6 @@ A privacy page that hides its own limits is just marketing, so here are ours.
 - **The moment you send.** The server you are connected to knows, at that moment, that it is you
   sending and whom the sealed envelope is for. It does not write that down, but a server changed to
   record it could, from then on.
-- **A gap we found while checking this page.** The order in which the server stores envelopes can
-  pair a message with the sender's own copy of it, stored right after it, so a copy of the database
-  could show who wrote to whom on which day, for messages still on the server. We are fixing it.
 - **Group chats show who is talking.** What is said in a group is sealed, but the server that carries
   a group can see its name, who is in it, and who posted when.
 - **The other person.** Whoever you write to can screenshot, forward or report your messages, and
@@ -144,6 +141,15 @@ A privacy page that hides its own limits is just marketing, so here are ours.
 - **Fixed on 6 November 2026:** the server could be made to send requests into its own network
   through a notification address someone gave it. Now every address someone else hands the server is
   checked at the moment it connects, and only the public internet is allowed.
+- **Fixed on 7 November 2026:** the order in which the server stored sealed envelopes could pair a
+  message with the sender's own copy of it. The server on united-humanity.us now keeps them by
+  recipient, not in the order they arrive, so a copy of its database no longer pairs them, and the
+  website sends your own copy a random 20 seconds to 2 minutes after the one for the person you
+  wrote to. The desktop app does the same from its next update; until then, the server's log of
+  recent changes, and any backup made from it, still holds the desktop app's two copies one after
+  the other. Even after, on a server so quiet that nothing else is written in those minutes, that
+  log could hint at a pair. Other servers get the fix when they update, and envelopes stored before
+  it keep their old order until they are deleted, after 30 days by default.
 
 ## Check it yourself
 
@@ -155,4 +161,4 @@ layout and our research notes are public.
 - Our research notes on the 13 platforms, with every source and its date:
   github.com/Shaostoul/Humanity/blob/main/docs/reference/findings/2026-11-06-social-platform-apis.md
 
-*Published [date]. Every comparison is as of 6 November 2026.*
+*Published 7 November 2026. Every comparison is as of 6 November 2026.*

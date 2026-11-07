@@ -426,3 +426,14 @@ what we will say about it.
   Green space of 0.5 to 1 ha within 300 m (WHO 2017), the 3-30-300 rule, WHO crowding and
   accessibility recommendations (2018) and air quality levels (2021). The basis for the master
   plan's crew-health rules.
+- [`2026-11-07-take-two-discord-subpoena.md`](2026-11-07-take-two-discord-subpoena.md),
+  what the Grand Theft Auto VI leak subpoenas of August 2026 asked Discord and Microsoft for, read
+  from the court filings (S.D.N.Y. 1:26-mc-422 and 1:26-mc-421) and the companies' own posts. Take-Two
+  asked under 17 U.S.C. 512(h), both were approved on 21 August 2026 (Judge Rochon's Microsoft order
+  read; the Discord order is a scanned page, its grant in Take-Two's words), and the Discord subpoena
+  asked for message logs, IP access logs, emails, phone numbers, linked accounts and device
+  identifiers of every member of three communities since 1 June 2026. No filing gives a number (the
+  "~100k" came from a commentator; the largest server has 117,129 members by Discord's count on 7
+  November 2026), no real names were asked for, and nothing public shows either company handed
+  anything over (Discord said on 24 August it had not yet been served). Corrects the opening story
+  of `docs/outreach/how_your_privacy_is_built.md`.

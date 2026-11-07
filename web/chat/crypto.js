@@ -927,7 +927,7 @@ function getPeerEcdhPublic(peerKey) {
 // ── Sealed-sender DM v2 (2026-08-23) ────────────────────────────────────────
 // The v1 dual-seal hid CONTENT but the wire + relay row still carried
 // from/to in the clear, so the relay accumulated a complete DM social
-// graph (the dataset the Take-Two/Discord subpoena harvested). v2 moves
+// graph (the kind the 2026 Take-Two subpoena to Discord asked for). v2 moves
 // the sender INSIDE the ciphertext, Dilithium-signed:
 //
 //   inner = { v:2, from, to, ts, text, sig }

@@ -3,8 +3,9 @@
 //! REPLACES the old `direct_messages` table, which stored
 //! `from_key, from_name, to_key, timestamp` in the clear next to the
 //! ciphertext and therefore accumulated a complete, subpoena-exportable
-//! who-talked-to-whom graph (the exact dataset the Take-Two/Discord
-//! court order harvested from 100k bystanders). The migration in
+//! who-talked-to-whom graph (the kind of dataset the
+//! 2026 Take-Two subpoena to Discord asked for, docs/reference/findings/
+//! 2026-11-07-take-two-discord-subpoena.md). The migration in
 //! `storage/mod.rs` DROPS that table outright (secure_delete=ON zeroes
 //! the freed pages; a wal_checkpoint(TRUNCATE) folds them out of the WAL).
 //!
@@ -50,7 +51,7 @@
 //! What a subpoena of this table yields: pseudonymous keys, each with N undecryptable blobs of a
 //! few padded sizes, the day each arrived and its place in that key's own mail that day. No
 //! sender, no names, no content, and no order across mailboxes to pair a message with its sender's
-//! own copy. What is still true, said plainly in docs/outreach/privacy_by_architecture.md: the
+//! own copy. What is still true, said plainly in docs/outreach/how_your_privacy_is_built.md: the
 //! server knows the sender at the moment of sending (the put arrives on their signed-in
 //! connection); the write-ahead log and the continuous backup keep the order pages were written
 //! in for as long as they keep them, so on a server so quiet that nothing else is written in the

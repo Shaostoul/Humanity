@@ -2097,10 +2097,11 @@ Patreon are limited or closed, each said on screen). Nothing built.
   have it in the library so I can share it with people."): About HumanityOS > Your Privacy, "What Do
   These Labels Mean to You?" (`docs/outreach/what_do_these_labels_mean.md`,
   united-humanity.us/library#what-do-these-labels-mean); answers arrive in #feedback and are read as
-  design 7.3.2 says. **The privacy comparison post** goes into the same shelf after the DM mailbox
-  fix ("Library makes sense. Not sure which subcategory." / "Yeah, we're waiting until after."):
-  ready, with its exact catalog entry and landing steps, in
-  `docs/outreach/posts/DRAFT-privacy-compared-notes.md`.
+  design 7.3.2 says. **The privacy comparison post** is on the same shelf since 7 November 2026, the
+  day the DM mailbox fix went live ("Library makes sense. Not sure which subcategory." / "Yeah, we're
+  waiting until after."): "Who Can Read Your Messages" (`docs/outreach/who_can_read_your_messages.md`,
+  united-humanity.us/library#who-can-read-your-messages), its notes in
+  `docs/outreach/posts/DRAFT-privacy-compared-notes.md`. Nothing is posted outside the Library.
 - **Next rung, unblocked: rung 1, copy and open for every platform, no sign-ins.** The operator,
   2026-11-06: "I guess we should format it from the base method of copy and open then make the GUI
   elements for autoposting or whatever, we provide the full concise details." Each platform's

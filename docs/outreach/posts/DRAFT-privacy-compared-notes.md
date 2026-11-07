@@ -1,18 +1,20 @@
-# Notes for the draft page "Who can read your private messages?" (never shipped)
+# Notes for the page "Who can read your private messages?"
 
-**Status: a draft. Nothing has been posted anywhere, and the page is not in the Library yet.**
+**Status: in the Library since 7 November 2026 (About HumanityOS > Your Privacy,
+united-humanity.us/library#who-can-read-your-messages). Nothing has been posted anywhere.**
 Drafted with AI (Claude) on 6 November 2026, at the operator's suggestion ("I feel like we could
 make a post about HumanityOS' privacy vs all other platforms."). The page itself is
-[`DRAFT-privacy-compared.md`](DRAFT-privacy-compared.md) beside this file, written exactly as it
-will ship in the Library; these notes are for the operator and whoever lands it, and no Library
-entry ever points at this file.
+[`docs/outreach/who_can_read_your_messages.md`](../who_can_read_your_messages.md), exactly as it
+ships in the Library; these notes are for the operator and whoever edits or posts it, and no
+Library entry ever points at this file. (This file keeps its draft name until the short version is
+posted: landing step 8.)
 
 Every claim about another platform comes from the dated research note
 [`docs/reference/findings/2026-11-06-social-platform-apis.md`](../../reference/findings/2026-11-06-social-platform-apis.md),
 whose sources (each platform's own pages) were read on 6 November 2026; the finding numbers (MA-17,
 BS-18 and so on) in the fact-check list at the end point into it. Every claim about HumanityOS was
 checked against the code on 6 November 2026, not only against
-[`docs/outreach/privacy_by_architecture.md`](../privacy_by_architecture.md) and
+[`docs/outreach/how_your_privacy_is_built.md`](../how_your_privacy_is_built.md) (named `privacy_by_architecture.md` until 7 November 2026) and
 [`docs/reference/cryptography.md`](../../reference/cryptography.md); where those overclaim, the page
 says the narrower thing (section B). Words: "recovery phrase", "no sign-up" (CLAUDE.md, account
 words). No em dashes.
@@ -26,7 +28,10 @@ words). No em dashes.
   is about the reader's own privacy and sits naturally beside the test of the words the Inbox will
   use for it; "How It Helps" is the project's pitch to each audience, a different kind of page.
 - **When it goes in:** "Yeah, we're waiting until after." That is, after the DM mailbox ordering fix
-  (A.2 below) lands, so the page never ships with "We are fixing it" in it.
+  (A.2 below) lands, so the page never ships with "We are fixing it" in it. **Done 7 November
+  2026:** the fix went live on united-humanity.us that morning (the relay logged its mailbox rebuild
+  at 09:05 UTC) and the website's half the same day; the page went into the Library that day, with
+  the desktop app's half stated as coming with its next update.
 - **Posting at all:** "Let's get more of the security stuff finished before you start posting." The
   short version below is not posted by the project's accounts on any outside platform until the
   security work named in [`docs/design/outbox-and-inbox.md`](../../design/outbox-and-inbox.md)
@@ -34,6 +39,29 @@ words). No em dashes.
   posting and waits only for the mailbox fix.
 
 ## Landing the page, once the DM mailbox fix has landed (in this order)
+
+**Steps 1 to 7 done on 7 November 2026; step 8 waits for the posting gate.** Step 1's line as it
+went in, checked against BUG-259 (`docs/BUGS.md`), `src/relay/storage/dms.rs`,
+`web/shared/self-mail.js` and `src/net/self_mail.rs`, and against what was live that day (the
+server on united-humanity.us and the website had the fix; the desktop app's half was in the code
+but not yet in a released build, and public.guide runs released builds):
+
+> **Fixed on 7 November 2026:** the order in which the server stored sealed envelopes could pair a
+> message with the sender's own copy of it. The server on united-humanity.us now keeps them by
+> recipient, not in the order they arrive, so a copy of its database no longer pairs them, and the
+> website sends your own copy a random 20 seconds to 2 minutes after the one for the person you
+> wrote to. The desktop app does the same from its next update; until then, the server's log of
+> recent changes, and any backup made from it, still holds the desktop app's two copies one after
+> the other. Even after, on a server so quiet that nothing else is written in those minutes, that
+> log could hint at a pair. Other servers get the fix when they update, and envelopes stored before
+> it keep their old order until they are deleted, after 30 days by default.
+
+It says more than the planned words below because "no longer pairs a message with the sender's own
+copy" was true of the database on united-humanity.us but not yet of its write log for the desktop
+app, nor of other servers, nor of envelopes stored before the fix. **When the desktop release
+carrying `src/net/self_mail.rs` ships, shorten it:** say "the website and the desktop app send your
+own copy ...", drop the sentence beginning "The desktop app does the same", and start the next with
+"On a server so quiet".
 
 1. **Bring the limits up to date.** In "What HumanityOS cannot protect you from", delete the bullet
    "A gap we found while checking this page", and add to "What is still coming" a line beside the
@@ -76,7 +104,7 @@ words). No em dashes.
 8. **When the short version is posted** (after the posting gate), rename this file to
    `docs/outreach/posts/<posting date>-privacy-compared.md`, the record of what was posted where.
 
-## Should `privacy_by_architecture.md` join "Your Privacy"?
+## Should `how_your_privacy_is_built.md` join "Your Privacy"?
 
 **Recommendation: yes, but only after a correction pass, and not before the mailbox fix.** It is the
 longer story of how the privacy work was built and belongs on the same shelf. It is not in the
@@ -94,6 +122,21 @@ page would then contradict it in public:
 So: correct it against section B, source the opening story (or cut it), then add it to "Your
 Privacy" in the same change that lands this page, as its second document.
 
+**Done 7 November 2026.** Re-checked against the code where section B named it, with the mailbox
+fix live: its mailbox paragraphs now say the server's half and the website's are live on
+united-humanity.us and the desktop app's comes with its next update (until then the write log and
+the continuous backup still hold a desktop user's two copies one after the other), and its picture
+paragraph says the same of the "Send anyway" question (live on the server and the website on 7
+November, the desktop app with its next update). The opening story was researched from the court
+filings into
+[`docs/reference/findings/2026-11-07-take-two-discord-subpoena.md`](../../reference/findings/2026-11-07-take-two-discord-subpoena.md):
+it checks out in substance, and the page now tells it as the filings do (subpoenas approved on 21
+August 2026 asking, not shown handing over; every member of three communities, the largest at
+117,129 members by Discord's count on 7 November 2026, no number in any filing; no real names asked
+for; three accounts named, not "a single person"). Renamed to its Library title, "How Your Privacy
+Is Built" (`docs/outreach/how_your_privacy_is_built.md`, united-humanity.us/library#how-your-privacy-is-built),
+and added as the second document of "Your Privacy".
+
 ---
 
 ## The short version (for Mastodon, Bluesky and X; 222 characters before the link)
@@ -107,7 +150,7 @@ own limits are in it too. [link to the long version]
 ## A. Before posting
 
 1. **Where the long version lives: decided** (above): a Library page in "Your Privacy", once the
-   mailbox fix lands.
+   mailbox fix lands. *Done 7 November 2026.*
 2. **The row-order gap** (the third limit). Found while checking the post: `src/relay/storage/dms.rs`
    numbers mailbox rows in arrival order (`id INTEGER PRIMARY KEY AUTOINCREMENT`), and both apps send
    a direct message's recipient copy and the sender's own copy one right after the other (the
@@ -123,24 +166,32 @@ own limits are in it too. [link to the long version]
    `web/shared/self-mail.js`). The page is left as written here until it lands: landing step 1 runs
    once the release carrying the fix is live. Rows stored before it keep their old numbers until they
    age out of the 30-day window. Still true, and in the page's other bullets or in
-   `privacy_by_architecture.md`: the server sees sender and recipient at the moment of sending, and
+   `how_your_privacy_is_built.md`: the server sees sender and recipient at the moment of sending, and
    its write log and continuous backup keep write order, which on a very quiet server can still
    suggest a pair.
+   **Update 2026-11-07: live on united-humanity.us.** The commit carrying it (c6bed1e0b) deployed on
+   7 November 2026; the live relay logged "Migration: rebuilt dm_mailbox keyed by mailbox (no
+   arrival-order rowid)" at 09:05 UTC and its table is WITHOUT ROWID, PRIMARY KEY (to_key, id). The
+   website's half is live the same day. The desktop app's half reaches people with its next update,
+   and public.guide, which runs released builds, gets the server half with the next release. Landing
+   step 1 ran that day, with the line quoted under "Landing the page" saying so.
 3. **Nothing here names a person or attacks anyone.** It credits the platforms that encrypt, and says
    plainly that keeping a readable copy is not a scandal. The Discord court-order story that opens
-   `privacy_by_architecture.md` is left out on purpose: it is not in the dated finding, and this post
-   cites only what the finding read.
+   `how_your_privacy_is_built.md` is left out on purpose: it is not in the dated finding, and this post
+   cites only what the finding read. (Since 7 November 2026 the story has its own dated finding,
+   `docs/reference/findings/2026-11-07-take-two-discord-subpoena.md`, and the longer page tells it
+   from the filings; this page still leaves it out.)
 
 ## B. What the source documents overclaim (so the post says the narrower thing)
 
 Checked against the code on 6 November 2026; each is for whoever next edits those documents.
-**All corrected later on 6 November 2026** (the privacy-fix wave): `privacy_by_architecture.md`
+**All corrected later on 6 November 2026** (the privacy-fix wave): `how_your_privacy_is_built.md`
 says the narrower true thing for each, `SECURITY-CADENCE.md`'s threat model is current,
 `cryptography.md` has a "P2P group messages" row, and the code changed where it was the code that
 fell short (the mailbox order, BUG-259; a picture the server cannot clean, BUG-260). The group
 metadata is logged, not fixed (BUG-261). Each item below says what changed.
 
-- `docs/outreach/privacy_by_architecture.md`, "There is no conversation graph to reconstruct" (and
+- `docs/outreach/how_your_privacy_is_built.md` (then `privacy_by_architecture.md`), "There is no conversation graph to reconstruct" (and
   the same in `docs/reference/cryptography.md`'s DM metadata row and `src/relay/storage/dms.rs`'s
   header): the row-order pairing in A.2. *Now: fixed in the code (BUG-259); all three places say
   exactly what is true, the residuals included.*
@@ -185,7 +236,7 @@ the notification layering, disappearing messages, the app lock, the disk check).
 
 | # | Protection | What it protects against | Rough size | Already planned? |
 |---|---|---|---|---|
-| 1 | **Fix the mailbox's row order** (A.2): rows kept in an order that does not follow arrival, for example keyed by recipient and a per-mailbox count, and the sender's own copy sent apart from the recipient's | A seized or leaked database pairing who wrote to whom | Small: the relay's mailbox table and its paging, plus a test that two puts in a row cannot be paired | Yes since 2026-11-06: the first item of the posting gate (`outbox-and-inbox.md` section 14) |
+| 1 | **Fix the mailbox's row order** (A.2): rows kept in an order that does not follow arrival, for example keyed by recipient and a per-mailbox count, and the sender's own copy sent apart from the recipient's | A seized or leaked database pairing who wrote to whom | Small: the relay's mailbox table and its paging, plus a test that two puts in a row cannot be paired | Yes since 2026-11-06: the first item of the posting gate (`outbox-and-inbox.md` section 14). **Done:** BUG-259, live on united-humanity.us and the website on 7 November 2026, the desktop app's half with its next update |
 | 2 | **Hide a group's metadata from its server**: the group's name sealed like its messages, the author inside the sealed part, times coarsened like the mailbox's | The server learning a group's name, members and who posts when | Medium to large: the group object format on both apps and the relay | Yes since 2026-11-06: in the posting gate (section 14) |
 | 3 | **Send without telling the server who you are** (the envelope put from a connection that has not signed in, with a delivery pass from the recipient, the way some messengers do it) | A changed server, or someone watching it live, seeing who sends to whom | Large: the reach and rate-limit checks now use the sender's identity and would need another basis | No ("mixnet-class traffic analysis" is listed as what remains, PRIORITIES TIER 1) |
 | 4 | **Forward secrecy for direct messages**: keys that change as a conversation goes on, so a key taken later cannot open messages already delivered | Someone who later gets a person's recovery phrase or device opening envelopes they copied earlier (from the server's 30 days or its backups) | Large: a ratcheting protocol on the post-quantum keys, across a person's several devices | No (only a line in `docs/design/to_research.md`) |
@@ -248,11 +299,11 @@ November 2026, each with its own date there).
 | 37 | HumanityOS: addresses not in the database; web server logs at most three days | `docs/admin/SELF-HOSTING.md` (Privacy); `/etc/logrotate.d/nginx` on united-humanity.us (`daily`, `rotate 2`, read 6 November 2026) | yes |
 | 38 | united-humanity.us has no Tor onion address | SSH to the server, 6 November 2026: no `tor` program, service inactive | yes |
 | 39 | At the moment of sending, the server knows the sender and the recipient key | `deposit_dm(state, my_key, to, ...)`: the put arrives on the sender's signed-in connection | yes |
-| 40 | The row-order gap, and that it is fixed in the code | Before: `src/relay/storage/dms.rs` (AUTOINCREMENT id), `web/chat/chat-ui.js` and `src/gui/pages/chat.rs` (the two puts back to back). After (BUG-259, 2026-11-06): dms.rs WITHOUT ROWID, per-mailbox numbers from the day; `src/net/self_mail.rs`, `web/shared/self-mail.js` | yes (fixed in the code 6 November 2026); the bullet comes out when the release carrying it is live (landing step 1), so the page never ships "We are fixing it" |
+| 40 | The row-order gap, and that it is fixed in the code | Before: `src/relay/storage/dms.rs` (AUTOINCREMENT id), `web/chat/chat-ui.js` and `src/gui/pages/chat.rs` (the two puts back to back). After (BUG-259, 2026-11-06): dms.rs WITHOUT ROWID, per-mailbox numbers from the day; `src/net/self_mail.rs`, `web/shared/self-mail.js` | yes (fixed in the code 6 November 2026; live on united-humanity.us and the website 7 November 2026, the desktop half with its next update); the bullet came out on 7 November 2026 (landing step 1) and the "Fixed on" line says what is live and what waits |
 | 41 | Every message carries your signature, so the recipient can prove you wrote it; reports hand over a readable copy by choice | `docs/reference/cryptography.md` (Reports row) | yes |
 | 42 | First key trusted, changes warned; comparing in person not built | `docs/design/key-cards.md` (Known limits) | yes |
 | 43 | A browser's push service sees when and how big, never the words | `docs/reference/cryptography.md` (Web Push) | yes |
 | 44 | Fixed 6 November 2026: addresses others hand the server are checked as it connects, public internet only | BUG-255 in `docs/BUGS.md`; `src/relay/outbound.rs`; deployed: the "Deploy to VPS" run for its commit succeeded and the live relay restarted about 19:07 Pacific | yes |
 | 45 | The coming items (badge, links, app lock, disk check, disappearing messages) | `docs/design/outbox-and-inbox.md` (7.3, 7.6, 15.1, 15.3 to 15.5); `docs/PRIORITIES.md` arc I | yes (planned, not built: the post says "coming") |
 | 46 | "No published rules yet" for HumanityOS's legal requests | a search of the docs for law-enforcement pages, 6 November 2026 | yes |
-| 47 | The short version fits Bluesky (300), X (280) and Mastodon (500) with its link | 222 characters and graphemes before the link (counted with Node's `Intl.Segmenter`); X counts any link as 23 (X-21); Bluesky's 300 graphemes take the link as written (BS-16): the planned link, https://united-humanity.us/library#who-can-read-your-messages, is 61 characters, so 222 + 1 + 61 = 284, which fits | **recount once the link is final** |
+| 47 | The short version fits Bluesky (300), X (280) and Mastodon (500) with its link | 222 characters and graphemes before the link (counted with Node's `Intl.Segmenter`); X counts any link as 23 (X-21); Bluesky's 300 graphemes take the link as written (BS-16): the link, https://united-humanity.us/library#who-can-read-your-messages, is 61 characters, so 222 + 1 + 61 = 284, which fits | yes (recounted 7 November 2026 with the final link: 222 graphemes, 61-character link, 284) |
