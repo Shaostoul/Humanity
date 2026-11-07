@@ -150,6 +150,17 @@ L.push('DELIVERY: ' + (sh('node "' + path.join(root, 'scripts', 'check-delivery.
   }
   L.push('RELAY:    ' + row);
 }
+// The files each server runs from OUTSIDE its checkout (scripts/server-files.txt: the backup script
+// in /usr/local/bin, the timers' units, the follower), against the repo's copies, read over ssh and
+// changing nothing (BUG-252, 2026-11-06: public.guide restarted every 30 minutes for two days on a
+// stale hand-installed backup script, and nothing anywhere said so). One line per server.
+try {
+  const r = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'check-server-files.js')], { encoding: 'utf8', timeout: 45000 });
+  const rows = String(r.stdout || '').trim().split('\n').filter(Boolean);
+  L.push('SCRIPTS:  ' + (rows.length ? rows.join('\n          ') : 'could not check (run: just server-files)'));
+} catch {
+  L.push('SCRIPTS:  could not check (run: just server-files)');
+}
 // C: and the hourly build-output guard (scripts/pc-disk-guard.js, 2026-09-29).
 try {
   const s = fs.statfsSync(path.parse(root).root);

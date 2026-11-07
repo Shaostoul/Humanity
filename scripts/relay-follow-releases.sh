@@ -11,9 +11,12 @@
 # Where it lives: /usr/local/lib/humanity/relay-follow-releases.sh, OUTSIDE the
 # repo, run as root by humanity-relay-follow.service (from the hourly timer).
 # A copy inside the checkout would be deleted by a roll back to a release that
-# did not carry it yet. After every successful update the repo's copy is
-# installed over that one, so fixes to this script reach the node by
-# themselves; a roll back never touches it.
+# did not carry it yet. After every successful update, and on every run that
+# finds the node already current, the release's installer
+# (scripts/install-server-files.sh) puts the release's copy of every file the
+# node runs from outside the checkout in place: this script, the backup script
+# in /usr/local/bin and the timers' units (scripts/server-files.txt, BUG-252).
+# So fixes reach the node by themselves; a roll back never touches them.
 #
 # What a run does:
 #   0. If the last run stopped partway through an update (killed by the unit's
@@ -35,14 +38,15 @@
 #      files, skips that release and exits 1. A file-mode-only difference is
 #      not an edit (the watchdog script's executable bit is one, on
 #      public.guide).
-#   4. Backs up the database (sqlite3 .backup), the running program, the
+#   4. Backs up the database (sqlite3 .backup, opened read-only), the running program, the
 #      node's edits and any local file the release would overwrite, then
 #      writes the pending record.
 #   5. Checks the repo out at the release (for its data files and scripts),
 #      puts the node's edits back on top, installs the program, restarts the
 #      relay and waits for /health.
 #   6. Healthy: records the release, lays out the web root the way the deploy
-#      does, and installs the release's copy of this script. Not healthy
+#      does, and installs the release's copies of the server files (this
+#      script among them). Not healthy
 #      within about a minute: puts back the previous program, the previous
 #      checkout with the node's edits, and the database (with the owner and
 #      mode the live file had: the relay runs as its own user and must still
@@ -60,10 +64,13 @@
 # Settings (environment, all optional): REPO (/opt/Humanity), WEB_ROOT
 # (/var/www/humanity), SERVICE (humanity-relay), PORT (3210),
 # STATE_DIR (/var/lib/humanity-follow), KEEP_BACKUPS (3),
-# INSTALLED_COPY (/usr/local/lib/humanity/relay-follow-releases.sh),
-# LATEST_API and DOWNLOAD_BASE (GitHub's), HEALTH_TRIES (30) and
-# HEALTH_PAUSE (2 seconds). scripts/tests/relay-follow.test.js runs this
-# script against a scratch repo and a stand-in GitHub through them.
+# INSTALLED_COPY (/usr/local/lib/humanity/relay-follow-releases.sh, where the
+# unit runs this script from; the same path as its line in server-files.txt),
+# INSTALL_ROOT (empty; passed on to the installer, which puts it in front of
+# every path it installs to), LATEST_API and DOWNLOAD_BASE (GitHub's),
+# HEALTH_TRIES (30) and HEALTH_PAUSE (2 seconds).
+# scripts/tests/relay-follow.test.js runs this script against a scratch repo
+# and a stand-in GitHub through them.
 # =============================================================================
 set -u
 umask 077
@@ -120,6 +127,23 @@ healthy() {
 # checked-out release gave it.
 watchdog_runnable() {
   if [ -f "$WATCHDOG" ]; then chmod +x "$WATCHDOG" || say "could not make $WATCHDOG executable"; fi
+}
+
+# The release's own copies of every file this node runs from outside the checkout
+# (scripts/server-files.txt: the backup script, the timers' units, this script itself), through the
+# release's installer (BUG-252, 2026-11-06). public.guide restarted every 30 minutes because its
+# backup script in /usr/local/bin was a stale copy installed by hand: this script updated the
+# checkout and never that. Each file goes in by rename, so the copy of this script bash is reading
+# right now is never rewritten under it, and the installer says what it replaced. Called only with
+# the checkout at the release the node runs (just updated, or already current); a roll back never
+# changes them.
+install_server_files() {
+  if [ -f "$REPO/scripts/install-server-files.sh" ]; then
+    bash "$REPO/scripts/install-server-files.sh" "$REPO" follow \
+      || say "some of $1's server files could not be installed (the lines above name them)"
+  else
+    say "$1 carries no scripts/install-server-files.sh; the files this node runs from outside $REPO are left as they are"
+  fi
 }
 
 # Keep only the newest KEEP_BACKUPS of one kind of backup in STATE_DIR.
@@ -258,6 +282,9 @@ if [ -n "$installed" ] && ! newer "$latest" "$installed"; then
   if [ "${latest#v}" = "${installed#v}" ]; then
     say "already on $latest"
     echo "$latest" > "$INSTALLED"
+    # Every hour, not only after an update: a copy someone installed by hand, or one an older
+    # follower never refreshed, is put right within the hour (BUG-252).
+    install_server_files "$latest"
   else
     say "GitHub's latest release, $latest, is older than $installed here; not going backwards"
   fi
@@ -336,7 +363,10 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 db_owner="$(stat -c '%u:%g' "$DB")"
 db_mode="$(stat -c '%a' "$DB")"
 db_backup="$STATE_DIR/relay.db.before-$latest-$stamp"
-if ! sqlite3 "$DB" ".backup '$db_backup'"; then
+# Read-only (mode=ro), as scripts/humanity-backup-db.sh since BUG-215: the old relay is still
+# running on this database, and a read-write sqlite3 that closes can checkpoint and empty the log
+# under it, the "disk I/O error" that made public.guide restart every 30 minutes (BUG-252).
+if ! sqlite3 "file:$DB?mode=ro" ".backup '$db_backup'"; then
   say "could not back up the database; not updating"
   exit 1
 fi
@@ -417,16 +447,6 @@ fi
 if [ -d "$WEB_ROOT" ] && [ -f "$REPO/scripts/sync-web-root.sh" ]; then
   (umask 022; bash "$REPO/scripts/sync-web-root.sh" "$REPO" "$WEB_ROOT") || say "the web root sync failed (the relay itself is updated)"
 fi
-# This release's copy of the follower, so fixes to it reach this node. Installed by rename: the
-# copy bash is reading right now is never rewritten under it.
-if [ -f "$REPO/scripts/relay-follow-releases.sh" ] && ! cmp -s "$REPO/scripts/relay-follow-releases.sh" "$INSTALLED_COPY"; then
-  if mkdir -p "$(dirname "$INSTALLED_COPY")" \
-     && install -m 755 "$REPO/scripts/relay-follow-releases.sh" "$INSTALLED_COPY.new" \
-     && mv -f "$INSTALLED_COPY.new" "$INSTALLED_COPY"; then
-    say "installed $latest's copy of this script at $INSTALLED_COPY"
-  else
-    say "could not install $latest's copy of this script at $INSTALLED_COPY"
-  fi
-fi
+install_server_files "$latest"
 prune 'relay.db.before-*'; prune 'local-edits.before-*'; prune 'local-files.before-*'
 exit 0

@@ -887,6 +887,16 @@ OUTSIDE the backups dir, so traveling backup copies are ciphertext. Crash
 recovery decrypts transparently and scans both backup directories.
 - Server: `src/relay/storage/backup_crypto.rs`, `scripts/humanity-backup-db.sh`, `scripts/decrypt-backup.sh`
 
+### Server files kept current, and checked (servers, 2026-11-06, BUG-252)
+Every file a server runs from outside its checkout (the backup script in /usr/local/bin, the
+timers' units, the release follower) is listed with its role and mode, and installed from the
+running release's own copy by rename, with a line naming each one replaced: by the deploy on every
+push (united-humanity.us) and by the release follower after each update and every hour (any node
+that follows releases). `just brief`'s SCRIPTS row compares each server's installed copies with
+the repo's over a read-only ssh call. The deploy and the disk guard also clear the build leftovers
+in target/, keeping the relay's program and the deploy's markers.
+- Servers: `scripts/server-files.txt`, `scripts/install-server-files.sh`, `scripts/check-server-files.js` (`just server-files`), `scripts/relay-follow-releases.sh`, `scripts/clear-build-cache.sh`, `.github/workflows/deploy.yml`
+
 ### Saved Servers: add / switch / forget (native, v0.712–v0.714)
 Add Server accepts a bare host (assumes https, v0.714); clicking one of a saved server's
 rooms switches to it and lands there (reconnects with the same identity; a new connection

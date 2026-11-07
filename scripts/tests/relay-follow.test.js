@@ -23,9 +23,10 @@
 //     as root on a checkout another user owns, refusing it unless the call names safe.directory,
 //     so the cases below also prove that defect fixed (taking safe.directory off the script's
 //     git calls turned ten of the eleven red, all but the static unit check);
-//   - REPO, STATE_DIR, INSTALLED_COPY, LATEST_API and DOWNLOAD_BASE pointed into the scratch
-//     world through the script's own settings, and the follower run from the INSTALLED copy, as
-//     the unit runs it.
+//   - REPO, STATE_DIR, INSTALLED_COPY, INSTALL_ROOT (the node's file system outside the checkout,
+//     where the release's installer puts the server files, BUG-252), LATEST_API and DOWNLOAD_BASE
+//     pointed into the scratch world through the script's own settings, and the follower run from
+//     the INSTALLED copy, as the unit runs it.
 //
 // Each case was seen failing once against a deliberately broken copy of the script
 // (HOS_FOLLOW_SCRIPT pointed at the broken copy; HOS_FOLLOW_UNIT for the unit), then passing on
@@ -45,6 +46,12 @@ const { execFileSync, spawnSync } = require("node:child_process");
 
 const SCRIPTS = path.join(__dirname, "..");
 const FOLLOWER = process.env.HOS_FOLLOW_SCRIPT || path.join(SCRIPTS, "relay-follow-releases.sh");
+// The server-files installer and its list (BUG-252), which the scratch v0.2.0 carries.
+const INSTALLER = path.join(SCRIPTS, "install-server-files.sh");
+const SERVER_FILES = path.join(SCRIPTS, "server-files.txt");
+const BACKUP_SCRIPT = path.join(SCRIPTS, "humanity-backup-db.sh");
+// The backup script public.guide kept in /usr/local/bin from August (BUG-252).
+const STALE_BACKUP = "#!/bin/bash\n# the August copy, installed by hand\nsqlite3 /opt/Humanity/data/relay.db \".backup '$OUT'\"\n";
 const UNIT = process.env.HOS_FOLLOW_UNIT || path.join(SCRIPTS, "systemd", "humanity-relay-follow.service");
 const STUBS = path.join(__dirname, "fixtures", "relay-follow");
 const WINDOWS = process.platform === "win32";
@@ -84,6 +91,8 @@ function gitRaw(cwd, ...args) {
 
 const read = (p) => fs.readFileSync(p, "utf8");
 const exists = (p) => fs.existsSync(p);
+// A release's files as a Linux checkout has them (a CR would stop bash and the list's reader).
+const lf = (s) => s.replace(/\r\n/g, "\n");
 
 // data/server-config.json at v0.1.0: long enough that an edit near the top and one near the
 // bottom are three-way-mergeable (git's context is three lines).
@@ -103,7 +112,11 @@ function makeWorld() {
     upstream: path.join(root, "upstream.git"),
     repo: path.join(root, "opt", "Humanity"),
     state: path.join(root, "var-lib-humanity-follow"),
-    installed: path.join(root, "usr-local-lib", "humanity", "relay-follow-releases.sh"),
+    // The node's file system outside the checkout (the installer's INSTALL_ROOT): the follower
+    // runs from its installed copy here, and the backup script sits in its /usr/local/bin.
+    sys: path.join(root, "sys"),
+    installed: path.join(root, "sys", "usr", "local", "lib", "humanity", "relay-follow-releases.sh"),
+    backupInstalled: path.join(root, "sys", "usr", "local", "bin", "humanity-backup-db"),
     gh: path.join(root, "github"),
     bin: path.join(root, "stubs"),
     log: path.join(root, "stub.log"),
@@ -135,9 +148,13 @@ function makeWorld() {
   git(b, "commit", "-qm", "v0.1.0");
   git(b, "tag", "v0.1.0");
   // v0.2.0: changes the port (near the bottom), marks the watchdog executable, and is the first
-  // release to carry the follower (as v0.1485.1 did not).
+  // release to carry the follower (as v0.1485.1 did not), and the server-files installer, its list
+  // and the backup script (as v0.1549.0 did not carry the installer).
   fs.writeFileSync(path.join(b, "data", "server-config.json"), CONFIG_V1.replace('"port": 3210', '"port": 3211'));
-  fs.writeFileSync(path.join(b, "scripts", "relay-follow-releases.sh"), read(FOLLOWER) + "\n# the v0.2.0 copy\n");
+  fs.writeFileSync(path.join(b, "scripts", "relay-follow-releases.sh"), lf(read(FOLLOWER)) + "\n# the v0.2.0 copy\n");
+  fs.writeFileSync(path.join(b, "scripts", "install-server-files.sh"), lf(read(INSTALLER)));
+  fs.writeFileSync(path.join(b, "scripts", "server-files.txt"), lf(read(SERVER_FILES)));
+  fs.writeFileSync(path.join(b, "scripts", "humanity-backup-db.sh"), lf(read(BACKUP_SCRIPT)));
   git(b, "add", "-A");
   git(b, "update-index", "--chmod=+x", "scripts/humanity-relay-watchdog.sh", "scripts/relay-follow-releases.sh");
   git(b, "commit", "-qm", "v0.2.0");
@@ -159,9 +176,12 @@ function makeWorld() {
   fs.mkdirSync(path.dirname(w.relay), { recursive: true });
   fs.writeFileSync(w.relay, "relay-v0.1.0");
 
-  // The follower, installed where the unit runs it from.
+  // The follower, installed where the unit runs it from, and the stale backup script public.guide
+  // kept in /usr/local/bin (BUG-252).
   fs.mkdirSync(path.dirname(w.installed), { recursive: true });
   fs.copyFileSync(FOLLOWER, w.installed);
+  fs.mkdirSync(path.dirname(w.backupInstalled), { recursive: true });
+  fs.writeFileSync(w.backupInstalled, STALE_BACKUP);
 
   // GitHub: each release's relay and its .sha256.
   for (const tag of ["v0.1.0", "v0.2.0", "v0.3.0"]) {
@@ -190,6 +210,7 @@ function follow(w, env = {}) {
       REPO: px(w.repo),
       STATE_DIR: px(w.state),
       INSTALLED_COPY: px(w.installed),
+      INSTALL_ROOT: px(w.sys),
       WEB_ROOT: px(path.join(w.root, "no-web-root")),
       LATEST_API,
       DOWNLOAD_BASE,
@@ -260,6 +281,10 @@ test("a newer release is installed, recorded, and brings its own copy of the fol
   const backup = lines.filter((l) => l.startsWith("sqlite3 "));
   assert.strictEqual(backup.length, 1);
   assert.match(backup[0], /^sqlite3 \(umask 0077\) /, "the database backup is made under umask 077");
+  // Read-only, as scripts/humanity-backup-db.sh since BUG-215: a read-write sqlite3 that closes
+  // can empty the live relay's log under it (BUG-252, public.guide's half-hourly restarts). Seen
+  // red 2026-11-06 against HEAD's follower: "sqlite3 (umask 0077) /c/.../data/relay.db .backup ...".
+  assert.match(backup[0], /^sqlite3 \(umask 0077\) file:\S+\/data\/relay\.db\?mode=ro \.backup /, `the live database is opened read-only for the backup: ${backup[0]}`);
   assert.ok(lines.some((l) => l === `chmod 700 ${px(w.state)}`), "the state folder is set to 700");
   assert.ok(lines.some((l) => l === `chmod -R go-rwx ${px(w.state)}`), "and what was in it before is tightened");
   // git writes the release's files for the relay's user to read: never under the script's 077.
@@ -278,6 +303,42 @@ test("a newer release is installed, recorded, and brings its own copy of the fol
   assert.strictEqual(again.status, 0, again.out);
   assert.match(again.out, /already on v0\.2\.0/);
   cleanup(w);
+});
+
+// BUG-252, public.guide's case: the follower updated the checkout and never /usr/local/bin, so a
+// backup script installed by hand in August kept emptying the relay's log every 30 minutes. Seen
+// red 2026-11-06 against the follower as it was (HOS_FOLLOW_SCRIPT pointed at HEAD's copy): "the
+// update installs the release's backup script" failed, /usr/local/bin/humanity-backup-db was still
+// the August copy after "updated to v0.2.0". With the call taken off the "already on" branch
+// alone: "the hourly run puts a hand-installed copy right" failed.
+test("the release's server files are installed after an update and on every hourly run, never by a roll back", () => {
+  const w = makeWorld();
+  const r = follow(w);
+  assert.strictEqual(r.status, 0, r.out);
+  assert.match(r.out, /updated to v0\.2\.0; the relay is healthy/);
+  assert.strictEqual(read(w.backupInstalled), lf(read(BACKUP_SCRIPT)), "the update installs the release's backup script");
+  assert.match(r.out, /replaced \/usr\/local\/bin\/humanity-backup-db \(md5 [0-9a-f]{8}, dated \d{4}-\d\d-\d\d\) with this release's copy/, "and says what it replaced");
+  const installs = logLines(w).filter((l) => l.startsWith("install ") && l.includes("/sys/"));
+  assert.ok(installs.length >= 2 && installs.every((l) => l.endsWith(".new")), `each file is installed beside the live one and renamed over it: ${installs.join(" | ")}`);
+  assert.ok(!exists(`${w.backupInstalled}.new`) && !exists(`${w.installed}.new`), "nothing is left half installed");
+
+  // Someone installs an old copy by hand again: the next hourly run, with nothing to update, puts
+  // it right.
+  fs.writeFileSync(w.backupInstalled, STALE_BACKUP);
+  const again = follow(w);
+  assert.strictEqual(again.status, 0, again.out);
+  assert.match(again.out, /already on v0\.2\.0/);
+  assert.strictEqual(read(w.backupInstalled), lf(read(BACKUP_SCRIPT)), "the hourly run puts a hand-installed copy right");
+
+  // A release that is rolled back changes none of them.
+  const rb = makeWorld();
+  fs.writeFileSync(path.join(rb.gh, "unhealthy"), "relay-v0.2.0\n");
+  const rolled = follow(rb);
+  assert.strictEqual(rolled.status, 1, rolled.out);
+  assert.strictEqual(read(rb.backupInstalled), STALE_BACKUP, "a roll back installs nothing");
+  assert.doesNotMatch(rolled.out, /\[server files\]/, "the installer never ran");
+  cleanup(w);
+  cleanup(rb);
 });
 
 // Seen red three ways: with the database put back by `cp -a "$db_backup" "$DB"` again, the

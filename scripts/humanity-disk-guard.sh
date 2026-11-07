@@ -17,9 +17,14 @@
 #     • rotate old deploy *.log              (keep newest $LOG_KEEP)
 #     • clean the apt package cache
 #     • cap journald                         (--vacuum-size=$JOURNAL_MAX)
-#   THRESHOLD ($WARN_PCT):
-#     • delete the regenerable Rust build cache (`target/`). NOT data —
-#       the next deploy rebuilds it. This alone makes the original
+#   ALWAYS (since 2026-11-06; until then only at $WARN_PCT):
+#     • clear the build leftovers in `target/`, keeping the relay's
+#       program and the deploy's markers (clear-build-cache.sh). NOT data:
+#       since 2026-10-30 the relay is built on GitHub and only its program
+#       is copied here, so nothing else in target/ is used again, and
+#       united-humanity.us still held 29 GB of them from when it compiled
+#       on the server. Never while a build is running (`just sync`, the
+#       fallback deploy, still builds here). This alone makes the original
 #       incident structurally impossible.
 #   THRESHOLD ($CRIT_PCT):
 #     • harder journald vacuum + a VISIBLE chat alert (same mechanism
@@ -53,7 +58,8 @@
 set -euo pipefail
 
 ROOT_MNT="/"
-REPO="/opt/Humanity"
+# Movable for scripts/tests/build-leftovers.test.js; the unit does not set it.
+REPO="${REPO:-/opt/Humanity}"
 TARGET="$REPO/target"
 BACKUPS="$REPO/backups"
 LOG_TAG="humanity-disk-guard"
@@ -196,20 +202,24 @@ if [ "${pct:-0}" -ge "$WARN_PCT" ] && [ -d "$FORGEJO_ARCHIVES" ]; then
   log "RECLAIM: disk ${pct}% >= ${WARN_PCT}% -- cleared the git mirror's archive cache (${sz})"
 fi
 
-# ── THRESHOLD: reclaim the regenerable build cache ──
-pct="$(usage_pct)"
-if [ "${pct:-0}" -ge "$WARN_PCT" ]; then
-  if [ -d "$TARGET" ]; then
-    sz="$(du -sh "$TARGET" 2>/dev/null | cut -f1 || echo '?')"
-    if building; then
-      log "RECLAIM deferred: disk ${pct}% but a build is running in ${TARGET} (${sz}); deleting it now would fail that build"
-    else
-      # clear-build-cache.sh keeps target/release/HumanityOS, the file the
-      # relay runs from; a bare rm -rf here left the relay unrestartable
-      # twice (2026-05-21, 2026-10-06).
-      log "RECLAIM: disk ${pct}% >= ${WARN_PCT}% -- clearing build cache ${TARGET} (${sz}), keeping the relay binary; next deploy rebuilds clean"
-      bash "$REPO/scripts/clear-build-cache.sh" "$REPO" >/dev/null 2>&1 || true
-    fi
+# ── ALWAYS: clear the build leftovers in target/ ──
+# Every run, not only above WARN_PCT (2026-11-06): nothing builds here
+# since 2026-10-30, so everything in target/ but the relay's program and
+# the deploy's markers is leftovers, and united-humanity.us held 29 GB of
+# them at 70% disk. clear-build-cache.sh keeps target/release/HumanityOS,
+# the file the relay runs from (a bare rm -rf here left the relay
+# unrestartable twice, 2026-05-21 and 2026-10-06), and HumanityOS.source
+# and .started (the deploy's plan reads them). It prints one line, which
+# goes in the journal only when something was cleared.
+if [ -d "$TARGET" ]; then
+  if building; then
+    log "build leftovers kept for now: a build is running in ${TARGET}; deleting its files would fail it"
+  else
+    cleared="$(bash "$REPO/scripts/clear-build-cache.sh" "$REPO" 2>&1 || true)"
+    case "$cleared" in
+      *"nothing to clear"*) ;;
+      *) log "BUILD LEFTOVERS: ${cleared}" ;;
+    esac
   fi
 fi
 

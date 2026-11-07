@@ -1,0 +1,43 @@
+# The files a HumanityOS server runs from OUTSIDE its checkout (/opt/Humanity), each installed from
+# the copy the running release carries (BUG-252, 2026-11-06).
+#
+# Why: a file the servers run from /usr/local/bin or /etc/systemd/system is a COPY, and a copy that
+# nothing refreshes goes stale. public.guide kept a hand-installed backup script from August that
+# opened the database read-write; BUG-215 had fixed it in the repo, but nothing ever installed the
+# fix there, and the stale copy emptied the relay's log every 30 minutes, which restarted it.
+#
+# Who reads this list:
+#   scripts/install-server-files.sh  installs every line for a server's role, atomically, and says
+#                                    what it replaced. The deploy (united-humanity.us, role main)
+#                                    runs it on every push; relay-follow-releases.sh (public.guide
+#                                    and other self-updating nodes, role follow) after each update
+#                                    and on every hourly run that finds the node current.
+#   scripts/check-server-files.js    `just brief`'s SCRIPTS row: each server's installed copies
+#                                    against the repo's, read over ssh (md5sum), changing nothing.
+#   scripts/tests/server-files.test.js  checks that every path a unit in scripts/systemd/ runs from
+#                                    outside the checkout is listed here.
+#
+# Scripts the units run from INSIDE the checkout (the watchdog, the disk guard) are not listed:
+# updating the checkout updates them.
+#
+# A line:  file <role> <mode> <source in the repo> <installed path>
+#   role   all (every server) | main (the server the deploy updates) | follow (a node that keeps
+#          itself on the latest release; never the main server, whose checkout the deploy owns)
+#
+#   server <ssh alias> <role> <name>
+#   A server `just brief` checks: the alias from the operator's ssh config, its role, its name.
+
+file all    755 scripts/humanity-backup-db.sh                   /usr/local/bin/humanity-backup-db
+file all    755 scripts/vps/regen-releases-manifest             /usr/local/bin/regen-releases-manifest
+file all    644 scripts/systemd/humanity-backup-db.service      /etc/systemd/system/humanity-backup-db.service
+file all    644 scripts/systemd/humanity-backup-db.timer        /etc/systemd/system/humanity-backup-db.timer
+file all    644 scripts/systemd/humanity-disk-guard.service     /etc/systemd/system/humanity-disk-guard.service
+file all    644 scripts/systemd/humanity-disk-guard.timer       /etc/systemd/system/humanity-disk-guard.timer
+file all    644 scripts/systemd/humanity-relay-watchdog.service /etc/systemd/system/humanity-relay-watchdog.service
+file all    644 scripts/systemd/humanity-relay-watchdog.timer   /etc/systemd/system/humanity-relay-watchdog.timer
+file follow 755 scripts/relay-follow-releases.sh                /usr/local/lib/humanity/relay-follow-releases.sh
+file follow 644 scripts/systemd/humanity-relay-follow.service   /etc/systemd/system/humanity-relay-follow.service
+file follow 644 scripts/systemd/humanity-relay-follow.timer     /etc/systemd/system/humanity-relay-follow.timer
+
+server humanity-vps  main   united-humanity.us
+server humanity-vps2 follow public.guide

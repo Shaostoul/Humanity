@@ -11,6 +11,11 @@ for a in "$@"; do
     *) if [ -z "$db" ]; then db="$a"; else cmd="$a"; fi ;;
   esac
 done
+# A URI filename (file:/path?mode=ro, how the follower opens the live database read-only) names
+# the same file.
+case "$db" in
+  file:*) db="${db#file:}"; db="${db%%\?*}" ;;
+esac
 case "$cmd" in
   ".backup '"*"'")
     dest="${cmd#".backup '"}"

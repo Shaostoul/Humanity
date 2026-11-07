@@ -877,8 +877,15 @@ What it takes care of, so you do not have to:
   program, your saved edits) is readable by root alone. It keeps the newest three of each.
 
 The script runs from `/usr/local/lib/humanity/`, outside the checkout, because a roll back to an
-older release would delete a copy inside it. After each successful update it installs the
-release's copy there itself, so fixes to it arrive with the releases.
+older release would delete a copy inside it. After each successful update, and on every hourly
+run that finds the node already current, it runs the release's `scripts/install-server-files.sh`,
+which installs the release's copy of every file the node runs from outside the checkout (listed in
+`scripts/server-files.txt`: this script, the backup script in `/usr/local/bin`, and the units of
+the backup, the disk guard, the watchdog and the follower). Each one goes in by rename, the journal
+names every file it replaced, and a changed unit is followed by a `systemctl daemon-reload`. So
+fixes to any of them arrive with the releases, and a copy installed by hand is put right within the
+hour: public.guide restarted every 30 minutes for two days in November 2026 because its backup
+script was a stale hand-installed copy that nothing refreshed (BUG-252).
 
 Install it from `main`, not from your checkout: the checkout is at the release you run, which
 may carry an older copy (or none).

@@ -13,9 +13,16 @@
 #
 # WHAT IT DOES (every 2 min from the .timer):
 #   - GET /health. HTTP 200 = healthy.
-#   - Healthy + we were previously DOWN  -> post a recovery notice to
-#     #announcements (relay is up now, so the post lands) so there's a
-#     visible "it was down, it's back" record.
+#   - Healthy + we were previously DOWN  -> a recovery notice to the
+#     server's admins: their alert channels (Server Settings > ADMIN >
+#     Alert channels, sent by scripts/humanity-alert.js) and the journal.
+#     NEVER a chat channel (BUG-252, 2026-11-06): it used to post into
+#     #announcements, and when public.guide restarted every 30 minutes for
+#     two days the public channel every visitor reads first filled with
+#     "[Watchdog] Relay recovered and is responding again." A server's
+#     health is its admins' business, and a flapping server must not be
+#     able to fill a public channel. scripts/tests/watchdog-target.test.js
+#     runs this script and fails on any chat post.
 #   - Not healthy:
 #       * 1st consecutive failure -> log + record "down" (NO restart;
 #         absorbs a single transient slow response without thrashing).
@@ -32,33 +39,16 @@
 # ─────────────────────────────────────────────────────────────────────
 set -uo pipefail   # deliberately NOT -e: we handle every failure path
 
-REPO="/opt/Humanity"
+# REPO and STATE_FILE can be moved for scripts/tests/watchdog-target.test.js;
+# the unit sets neither.
+REPO="${REPO:-/opt/Humanity}"
 HEALTH_URL="http://localhost:3210/health"
 BINARY="$REPO/target/release/HumanityOS"
 UNIT="humanity-relay"
-STATE_FILE="/run/humanity-relay-watchdog.state"   # tmpfs; resets on reboot (fine)
+STATE_FILE="${STATE_FILE:-/run/humanity-relay-watchdog.state}"   # tmpfs; resets on reboot (fine)
 LOG_TAG="humanity-relay-watchdog"
 
 log() { logger -t "$LOG_TAG" -- "$*" 2>/dev/null || echo "[$LOG_TAG] $*"; }
-
-# Post to #announcements via the bot API (best-effort; only works when
-# the relay is up, which for the recovery notice it is by definition).
-# In-app announce to #announcements (works only when the relay is up,
-# which for the recovery notice it is by definition).
-announce() {
-  local content="$1"
-  [ -f "$REPO/.env" ] || return 0
-  local secret
-  secret="$(grep '^API_SECRET' "$REPO/.env" | cut -d= -f2- | tr -d '\r' || true)"
-  [ -n "${secret:-}" ] || return 0
-  # Plain ASCII content — chat clients render this; no glyph risk.
-  local body
-  body="{\"channel\":\"announcements\",\"content\":\"${content}\",\"from_name\":\"Watchdog\"}"
-  curl -s --max-time 10 -X POST "http://localhost:3210/api/send" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer ${secret}" \
-    -d "$body" >/dev/null 2>&1 || true
-}
 
 # EXTERNAL alert fanout (ntfy/Discord/Telegram/webhook) via the shared
 # node helper. Works even when the relay is DOWN (this is a separate
@@ -89,12 +79,12 @@ if [ "$code" = "200" ]; then
       # a "recovered" post would announce an outage nobody had. It did, 73
       # times in #announcements (2026-05 to 2026-10, BUG-169): every deploy
       # restart posted "Relay recovered" with no outage before it.
-      log "healthy again after one failed check (was 'suspect'): not an outage, nothing posted"
+      log "healthy again after one failed check (was 'suspect'): not an outage, nothing sent"
       ;;
     healing|down-critical)
+      # To the admins only: the journal and their alert channels (BUG-252).
       log "RECOVERED: relay healthy again (HTTP 200, was '$prev')"
-      announce "[Watchdog] Relay recovered and is responding again."
-      external_alert "HumanityOS relay RECOVERED and is responding again." "info"
+      external_alert "HumanityOS relay recovered and is responding again." "info"
       ;;
   esac
   echo "up" > "$STATE_FILE"

@@ -1,50 +1,94 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────
-# Clear the VPS's regenerable Rust build cache (target/) but KEEP the
-# one file in it that runs: target/release/HumanityOS, the live relay
-# (the humanity-relay unit's ExecStart, written by provision-vps.sh).
+# Clear the build leftovers in a server's target/ and KEEP the files in
+# it that are not build output: target/release/HumanityOS, the program
+# the relay runs (the humanity-relay unit's ExecStart, written by
+# provision-vps.sh), and the deploy's markers beside it.
 #
-# WHY: every "clear the build cache" path used to be a bare
-# `rm -rf target`, which deletes the running relay's binary with it.
-# The process keeps running from the open file, so nothing looks wrong,
-# but the next restart (the watchdog, a crash, a reboot) has nothing to
-# start. That is the 2026-05-21 cascade, and on 2026-10-06 it happened
-# again: the disk guard cleared target/ during a disk-full incident and
-# the relay ran for days as "/opt/Humanity/target/release/HumanityOS
-# (deleted)" (BUG-169).
+# WHAT IS KEPT, in target/release/ (everything else in target/ goes):
+#   HumanityOS                  the program the relay runs from
+#   HumanityOS.source           the commit it was built from (the deploy's
+#   HumanityOS.started          plan reads both: without them the next push
+#                               rebuilds and restarts the relay for nothing)
+#   HumanityOS.incoming(.sha256) the next program, copied up by the deploy
+#                               before its step that swaps it in
+# The program is never moved or copied: the leftovers are deleted around
+# it, so the running relay's file and a restart's file stay the same one.
 #
-# One script, three callers: humanity-disk-guard.sh, the deploy workflow's
-# pre-build reclaim (.github/workflows/deploy.yml) and `just sync`.
+# WHY (2026-11-06, found beside BUG-252): since 2026-10-30 the relay is
+# built on GitHub and the deploy only copies the finished program here,
+# so nothing in target/ but those files is used again. united-humanity.us
+# still held 29 GB of leftovers from when it compiled on the server
+# (deps/, build/, incremental/, .fingerprint/, a 175 MB rlib), public.guide
+# its own, because this ran only when the disk passed 80% (the deploy) or
+# 88% (the disk guard). Now the deploy runs it on every push and the disk
+# guard every 20 minutes. `just sync`, the fallback that does build on the
+# server, runs it after its build.
+#
+# EARLIER (BUG-169): every "clear the build cache" path used to be a bare
+# `rm -rf target`, which deleted the running relay's program with it. The
+# process kept running from the open file, so nothing looked wrong, but
+# the next restart had nothing to start: the 2026-05-21 cascade, and again
+# on 2026-10-06. The version after that kept the program by hard-linking it
+# aside, but still deleted the markers and an incoming program.
+#
+# Callers: humanity-disk-guard.sh, the deploy workflow
+# (.github/workflows/deploy.yml) and `just sync`.
+# scripts/tests/build-leftovers.test.js runs it over a scratch target/.
 #
 # Usage: clear-build-cache.sh [repo dir, default /opt/Humanity]
-# Never fails its caller: every step is best effort.
+# Never fails its caller: every step is best effort. Prints one line:
+# what it removed, or "nothing to clear".
 # ─────────────────────────────────────────────────────────────────────
 set -uo pipefail
 
 REPO="${1:-/opt/Humanity}"
 TARGET="$REPO/target"
-BIN="$TARGET/release/HumanityOS"
-KEEP="$REPO/.relay-binary-kept"
+RELEASE="$TARGET/release"
 
-[ -d "$TARGET" ] || exit 0
-
-kept=0
-if [ -f "$BIN" ]; then
-  rm -f "$KEEP"
-  # A hard link costs no space, so this works on a full disk. Fall back
-  # to a copy only if linking is refused.
-  if ln "$BIN" "$KEEP" 2>/dev/null || cp -p "$BIN" "$KEEP" 2>/dev/null; then
-    kept=1
-  fi
+if [ ! -d "$TARGET" ]; then
+  echo "there is no $TARGET: nothing to clear"
+  exit 0
 fi
 
-rm -rf "$TARGET" || true
+# True for a name in target/release/ that is not build output.
+kept() {
+  case "$1" in
+    HumanityOS|HumanityOS.source|HumanityOS.started|HumanityOS.incoming|HumanityOS.incoming.sha256) return 0 ;;
+  esac
+  return 1
+}
 
-if [ "$kept" = 1 ]; then
-  mkdir -p "$TARGET/release" && mv -f "$KEEP" "$BIN" && \
-    echo "cleared $TARGET, kept the relay binary" || \
-    echo "cleared $TARGET, but could not put the relay binary back (it is at $KEEP)"
-else
-  echo "cleared $TARGET (there was no relay binary in it to keep)"
+before_kb="$(du -sk "$TARGET" 2>/dev/null | cut -f1)"
+removed=()
+failed=()
+# Every entry of a folder, dot names included (the globs that match nothing stay literal and are
+# skipped by the -e test).
+entries() { for p in "$1"/* "$1"/.[!.]* "$1"/..?*; do if [ -e "$p" ] || [ -L "$p" ]; then printf '%s\n' "$p"; fi; done; }
+
+while IFS= read -r p; do
+  name="${p##*/}"
+  if [ "$name" = release ] && [ -d "$p" ] && [ ! -L "$p" ]; then continue; fi
+  if rm -rf -- "$p"; then removed+=("$name"); else failed+=("$name"); fi
+done < <(entries "$TARGET")
+
+if [ -d "$RELEASE" ]; then
+  while IFS= read -r p; do
+    name="${p##*/}"
+    if kept "$name"; then continue; fi
+    if rm -rf -- "$p"; then removed+=("release/$name"); else failed+=("release/$name"); fi
+  done < <(entries "$RELEASE")
 fi
+
+if [ "${#removed[@]}" -eq 0 ] && [ "${#failed[@]}" -eq 0 ]; then
+  echo "$TARGET holds only the relay program and its markers: nothing to clear"
+  exit 0
+fi
+after_kb="$(du -sk "$TARGET" 2>/dev/null | cut -f1)"
+freed_mb=$(( (${before_kb:-0} - ${after_kb:-0}) / 1024 ))
+line="cleared ${#removed[@]} build leftovers from $TARGET (${freed_mb} MB): ${removed[*]}; kept the relay program and its markers"
+if [ "${#failed[@]}" -gt 0 ]; then
+  line="$line; could not remove: ${failed[*]}"
+fi
+echo "$line"
 exit 0

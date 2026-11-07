@@ -180,40 +180,31 @@ jobs:
             git reset --hard origin/main
             git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/
 
-            # ── Disk-pressure guard (incident 2026-05-17) ──
-            # The VPS's old build cache (target/) grew unpruned to 27 GB and filled the disk; the
-            # VPS no longer builds, but the guard stays for the cache it still holds. It keeps
-            # target/release/HumanityOS, the file the running relay was started from (BUG-169).
+            # ── The build leftovers in target/ (incident 2026-05-17; 2026-11-06) ──
+            # The VPS's old build cache grew unpruned to 27 GB and filled the disk in May. Since
+            # 2026-10-30 the VPS no longer builds, so everything in target/ but the relay's program
+            # and the markers beside it is leftovers: 29 GB of them were still there on 2026-11-06,
+            # because this cleared them only at 80% disk. Cleared on every deploy now (a no-op once
+            # they are gone). The script keeps target/release/HumanityOS, the file the running
+            # relay was started from (BUG-169), HumanityOS.source and .started (the plan above
+            # reads them) and HumanityOS.incoming (this push's program, copied up a step ago).
             DISK_PCT=$(df --output=pcent / | tail -1 | tr -dc '0-9' || echo 0)
             echo "Root disk at ${DISK_PCT}%"
-            if [ "${DISK_PCT:-0}" -ge 80 ]; then
-              echo "Disk >= 80% -- clearing regenerable target/"
-              bash scripts/clear-build-cache.sh /opt/Humanity || true
-            fi
-            # Install/refresh the standalone disk-guard timer FROM THE
-            # REPO so the protection is version-controlled, self-heals
-            # every 20 min, and survives a VPS rebuild (not a manual
-            # one-off hack that gets lost).
-            chmod +x scripts/humanity-disk-guard.sh || true
-            cp -f scripts/systemd/humanity-disk-guard.service /etc/systemd/system/humanity-disk-guard.service || true
-            cp -f scripts/systemd/humanity-disk-guard.timer   /etc/systemd/system/humanity-disk-guard.timer   || true
-
-            # v0.283.4: install the (corrected) DB backup script too.
-            # The pre-fix on-VPS copy pointed at the pre-v0.90.0 layout
-            # path (/opt/Humanity/crates/humanity-relay/data/relay.db)
-            # and silently backed up an auto-created empty DB for over
-            # a month. The in-repo version is the source of truth from
-            # now on; this step keeps the deployed copy in sync.
-            chmod +x scripts/humanity-backup-db.sh || true
-            cp -f scripts/humanity-backup-db.sh /usr/local/bin/humanity-backup-db || true
-
-            # v0.285.x: install the relay watchdog timer (incident
-            # 2026-05-21). HTTP-liveness check + self-heal restart every
-            # 2 min, catching alive-but-hung + systemd-gave-up cases that
-            # Restart=always misses.
-            chmod +x scripts/humanity-relay-watchdog.sh || true
-            cp -f scripts/systemd/humanity-relay-watchdog.service /etc/systemd/system/humanity-relay-watchdog.service || true
-            cp -f scripts/systemd/humanity-relay-watchdog.timer   /etc/systemd/system/humanity-relay-watchdog.timer   || true
+            bash scripts/clear-build-cache.sh /opt/Humanity || true
+            # The files this server runs from OUTSIDE the checkout (scripts/server-files.txt: the
+            # backup script in /usr/local/bin, the units of the disk guard, the backup and the
+            # watchdog, the release manifest script), each from this push's copy, installed by
+            # rename, with a line naming every one it replaced (BUG-252, 2026-11-06). Until then
+            # this step copied a few of them with `cp -f`, in place, and never the backup's own
+            # units; public.guide, which no deploy updates, kept a stale backup script for months
+            # (relay-follow-releases.sh runs the same installer there now). The history of each
+            # file: the 2026-05-17 disk outage (the disk guard), the v0.283.4 fossil backups (a
+            # stale backup script), the 2026-05-21 crash loop (the watchdog).
+            # The watchdog and the disk guard run from the checkout itself, so they only have to
+            # be executable.
+            chmod +x scripts/humanity-disk-guard.sh scripts/humanity-relay-watchdog.sh || true
+            bash scripts/install-server-files.sh /opt/Humanity main \
+              || echo "WARNING: some server files could not be installed (the lines above name them)"
 
             systemctl daemon-reload || true
             systemctl enable --now humanity-disk-guard.timer || true
