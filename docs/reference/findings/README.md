@@ -378,3 +378,19 @@ what we will say about it.
   AV1-in-ISOBMFF binding is a Final Deliverable under its royalty-free terms. Open: the 2026 edition
   says patents were declared, and ISO's database refuses automated reading. The Rust readers'
   licences (`mp4-atom` MIT OR Apache-2.0). Extends the 2026-09-19 codec finding.
+- [`2026-11-06-social-platform-apis.md`](2026-11-06-social-platform-apis.md),
+  whether a free, open-source desktop app, holding each person's sign-in on their own device, may
+  post for them to Mastodon, Bluesky, X, Threads, Facebook, Instagram, YouTube, Reddit, LinkedIn,
+  Discord, Telegram, Rumble and Patreon, read their replies, mentions and DMs, and draft with AI;
+  whether each platform's DMs are end-to-end encrypted and what it hands to legal process; and the
+  laws on labelling AI-written posts. Mastodon and Bluesky fit fully (free, no review, a sign-in a
+  public app can do alone); X is paid per call ($0.20 a post with a link); LinkedIn bars automated
+  posting and closes reading; Discord forbids acting as the person and credentials in open source;
+  Telegram forbids public credentials and using its data to deploy AI; Threads, Facebook Pages and
+  Instagram need review, business verification and the app secret; no app can post to a personal
+  Facebook profile; Reddit closed new access on 31 October 2026; YouTube, Rumble and Patreon have no
+  community-post or message API. Only X Chat, Telegram Secret Chats and personal Messenger chats are
+  end-to-end encrypted. The EU AI Act's Article 50 has applied since 2 August 2026 (its review
+  exception needs a substantive review and a named responsible person; whether the project is a
+  "provider" is open); California's bot law and the FTC do not require the label. The basis for
+  `docs/design/outbox-and-inbox.md`. Extends the 2026-09-25 permission-routes finding (Discord).

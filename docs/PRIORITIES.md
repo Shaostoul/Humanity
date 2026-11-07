@@ -2058,6 +2058,33 @@ haze. Next rungs, in order:
 - **Record button in the Studio page** (logged in `docs/design/in-app-ops.md`).
 - **Text overlays and music**, if posting shows captions burned in do better.
 
+### I. The Outbox and the unified Inbox (planned, designed 2026-11-06)
+
+Operator, 2026-11-06, on HumanityOS's own social accounts run with Claude's drafts: "I'm liking the
+idea. Can we do a unified inbox too? Or like receiving full replies/DMs?" Post once to your
+HumanityOS profile, chat channels and your connected accounts; replies, mentions and DMs from them
+beside HumanityOS's own, each with a plain badge saying who else can read it; sign-ins on your own
+device, never through our servers; an AI helper drafts, a person taps Post, the app labels it;
+groups share an Outbox with roles and approvals. Design: `docs/design/outbox-and-inbox.md` (12
+rungs, 14 questions for the operator); research:
+`docs/reference/findings/2026-11-06-social-platform-apis.md` (Mastodon and Bluesky fit fully; X is
+paid per call; LinkedIn bars automated posting; Discord, Telegram, Meta, YouTube, Reddit, Rumble and
+Patreon are limited or closed, each said on screen). Nothing built.
+- **Next rung, unblocked: rung 1**, one person, the Outbox, Mastodon, post only (with copy and
+  share-window buttons for the platforms with no API), once the operator answers the design's
+  questions 1 to 3 (which platforms, the account names, new accounts or @Shaostoul).
+- **Beyond this feature, planned (designed in its section 15, each needing its own short design
+  where it belongs):**
+  - every link drawn with its real site highlighted, look-alike names warned, and "Where does this
+    go?" following redirects through the person's server without opening the page (15.1; the
+    unused relay link-preview fetcher must not be reused until each hop is checked);
+  - one layering for every notification and per-person choice: the app's default, yours, shared
+    groups whose membership syncs (a guild), your lists, one person; the most specific wins (15.2);
+  - disappearing messages for HumanityOS DMs and group chats, permanent by default, a timer per
+    conversation and per message, keep visible to the sender (15.3);
+  - the app lock after idle and on demand, the identity locked when the app closes (15.4);
+  - a gentle check that the computer's disk is encrypted, with how to turn it on (15.5).
+
 ---
 
 ## TIER 1: hardening before invites scale beyond a known group
