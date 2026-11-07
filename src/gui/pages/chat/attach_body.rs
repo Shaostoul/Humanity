@@ -73,6 +73,19 @@ impl Multipart {
         Multipart { boundary, before, file: std::io::Cursor::new(bytes), after }
     }
 
+    /// [`Multipart::new`] with a video's poster picture (`poster`, a JPEG) as a part of its own named
+    /// `poster`, BEFORE the file's part, so the relay holds the small picture before the large file
+    /// starts (2026-11-06, relay/poster.rs). The file's bytes are still the buffer handed in.
+    pub(crate) fn with_poster(filename: &str, mime: &str, bytes: Vec<u8>, poster: &[u8]) -> Self {
+        let mut body = Self::new(filename, mime, bytes);
+        let mut before = format!("--{}\r\nContent-Disposition: form-data; name=\"poster\"; filename=\"poster.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n", body.boundary).into_bytes();
+        before.extend_from_slice(poster);
+        before.extend_from_slice(b"\r\n");
+        before.append(&mut body.before);
+        body.before = before;
+        body
+    }
+
     /// The whole body's length, for `Content-Length` (so it is sent as it is, not chunked).
     pub(crate) fn len(&self) -> u64 {
         (self.before.len() + self.file.get_ref().len() + self.after.len()) as u64

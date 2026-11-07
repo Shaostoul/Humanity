@@ -85,6 +85,9 @@ impl Chat {
         state.chat_active_channel = "global".into();
         state.settings.ffmpeg_path = fake.display().to_string();
         state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann0".into(), role: "verified".into(), status: String::new() });
+        // A video's poster picture (rung 2) is asked of no server: none is there, as for a video
+        // posted before poster pictures, unless a test hands one over.
+        state.chat_video.poster_fetch_for_test = Some(std::sync::Arc::new(|_url: &str| Err("not found (404)".to_string())));
         let mut chat = Chat { ctx: egui::Context::default(), theme: crate::gui::theme::load_theme(), state, screen: egui::vec2(w, h), dir };
         for p in posts {
             chat.post(p);
@@ -407,4 +410,172 @@ fn bench_one_playing_video_frame_cost() {
         let pre = each(&|| egui::ColorImage::from_rgba_premultiplied([w, h], &rgba));
         println!("BENCH one picture made into an image ({w}x{h}): unmultiplied {un:.3} ms, premultiplied {pre:.3} ms");
     }
+}
+
+// ── Rung 2: the poster picture (2026-11-06) ──
+
+/// A poster picture as the posting app makes one (chat/video_poster.rs `encode_poster`): a 320 x 180
+/// JPEG of one colour, handed over by every fetch, and the count of fetches.
+fn poster_fetch(chat: &mut Chat) -> std::sync::Arc<std::sync::atomic::AtomicUsize> {
+    let rgba: Vec<u8> = std::iter::repeat([200u8, 60, 160, 255]).take(320 * 180).flatten().collect();
+    let jpeg = super::super::video_poster::encode_poster(&rgba, 320, 180).unwrap();
+    let asked = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = asked.clone();
+    chat.state.chat_video.poster_fetch_for_test = Some(std::sync::Arc::new(move |_url: &str| {
+        counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(jpeg.clone())
+    }));
+    asked
+}
+
+/// THE DESKTOP ROW DRAWS THE POSTER PICTURE BEFORE PLAY AND FETCHES NOTHING ELSE (rung 2; the
+/// operator, 2026-11-04: "Can we make the videos show in chat and playable in chat?"). A video row
+/// on screen asks for its poster picture at the video's address with `.poster.jpg` after it, once
+/// over many frames, and draws it in its picture box with the Play mark over it (no "press Play"
+/// words over a picture); the video itself is not fetched and no player is made. Pressing Play then
+/// fetches the video, and the poster picture stays in the box until the first frame comes.
+///
+/// Seen red 2026-11-06 with `draw_player`'s `want_poster` call taken out: "its poster picture
+/// comes" (nothing was asked); with `paint_picture` leaving the poster picture out of its chain: "the
+/// box draws the poster picture" (only the black box and its words).
+#[test]
+fn the_desktop_row_draws_the_poster_picture_before_play_and_fetches_nothing_else() {
+    let mut chat = Chat::new("chat_video_poster_before_play", &[&format!("from the meetup {A}")], 1280.0, 900.0);
+    let asked = poster_fetch(&mut chat);
+    let a = Chat::url(A);
+    let (_, held) = chat.frames_until(|s, _| s.chat_video.poster_texture(&Chat::url(A)).is_some());
+    assert!(held, "its poster picture comes");
+    for _ in 0..10 {
+        chat.frame(Vec::new());
+    }
+    let out = chat.frame(Vec::new());
+    let poster = chat.state.chat_video.poster_texture(&a).unwrap();
+    let picture = chat.state.chat_video.pictures[&a];
+    assert!(pictures_of(&out).iter().any(|(id, r)| *id == poster && r.intersects(picture) && r.width() > 100.0), "the box draws the poster picture");
+    let texts = texts_of(&out);
+    assert!(!texts.iter().any(|t| t == t_press_play()), "no 'press Play' words over a picture: {texts:?}");
+    assert!(texts.iter().any(|x| x == t("chat_video.play")), "its Play is there: {texts:?}");
+    assert_eq!(chat.state.chat_video.poster_fetches, vec![format!("{a}.poster.jpg")], "asked once, at the video's address with .poster.jpg after it");
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(chat.state.chat_video.fetches, 0, "the video itself is not fetched");
+    assert_eq!(chat.state.chat_video.live_count(), 0, "and no player is made");
+
+    // Play: the video is fetched, and the poster picture stays until its first picture comes.
+    chat.state.chat_video.fetch_for_test = Some(fetch_copies(media_fixture("sliding-bar-av1-opus.mp4"), chat.dir.to_path_buf()));
+    chat.press_picture(&a);
+    let (_, held) = chat.frames_until(|s, _| s.chat_video.shows_picture(&Chat::url(A)));
+    assert!(held, "Play plays it");
+    assert_eq!(chat.state.chat_video.fetches, 1);
+    assert_eq!(chat.state.chat_video.poster_fetches.len(), 1, "the poster picture is not asked again");
+}
+
+/// A VIDEO POSTED BEFORE POSTER PICTURES KEEPS TODAY'S BLACK BOX WITH ITS PLAY MARK. Its poster
+/// picture's address answers 404: the row draws no picture, says how to watch it, and does not ask
+/// again frame after frame.
+///
+/// Seen red 2026-11-06 with `take_posters` dropping a refusal (the entry removed, not marked
+/// missing, so the next frame asks again): "the 404 is taken as no poster picture".
+#[test]
+fn a_video_posted_before_poster_pictures_keeps_the_old_box() {
+    let mut chat = Chat::new("chat_video_poster_old_box", &[&format!("an old one {A}")], 1280.0, 900.0);
+    let a = Chat::url(A);
+    let (_, held) = chat.frames_until(|s, _| s.chat_video.poster_missing(&Chat::url(A)));
+    assert!(held, "the 404 is taken as no poster picture");
+    for _ in 0..12 {
+        chat.frame(Vec::new());
+    }
+    let out = chat.frame(Vec::new());
+    let picture = chat.state.chat_video.pictures[&a];
+    assert!(!pictures_of(&out).iter().any(|(_, r)| r.intersects(picture)), "no picture in the box");
+    assert!(texts_of(&out).iter().any(|t| t == t_press_play()), "the box says how to watch it");
+    assert_eq!(chat.state.chat_video.poster_fetches.len(), 1, "asked once, not frame after frame / left: {} / right: 1", chat.state.chat_video.poster_fetches.len());
+    assert_eq!(chat.state.chat_video.fetches, 0);
+}
+
+/// POSTER PICTURES ARE MEMORY ONLY, UNDER THE REUSE SWITCH. With reuse on, a row scrolled out of
+/// view keeps its poster picture (drawn again with no new fetch), and no more than `MAX_POSTERS`
+/// are kept however many rows have passed, the one seen longest ago going first. With the Dev
+/// page's "turn off all reuse" (set for this one set of videos), the picture goes the moment its
+/// row is off the screen and is asked for again when it comes back.
+///
+/// Seen red 2026-11-06 with `trim_posters` keeping everything: "with reuse off, a row off the screen
+/// lets its poster picture go / left: 1 / right: 0".
+#[test]
+fn poster_pictures_are_memory_only_under_the_reuse_switch() {
+    for reuse in [true, false] {
+        let mut chat = Chat::new(&format!("chat_video_poster_reuse_{reuse}"), &[&format!("watch {A}")], 1280.0, 900.0);
+        chat.state.chat_video.reuse_for_test = Some(reuse);
+        poster_fetch(&mut chat);
+        let a = Chat::url(A);
+        let (_, held) = chat.frames_until(|s, _| s.chat_video.poster_texture(&Chat::url(A)).is_some());
+        assert!(held, "its poster picture comes");
+        for i in 0..80 {
+            chat.post(&format!("a newer line, number {i}, that pushes the video up and out of view"));
+        }
+        for _ in 0..4 {
+            chat.frame(Vec::new());
+        }
+        if reuse {
+            assert_eq!(chat.state.chat_video.posters_kept(), 1, "with reuse on, a row off the screen keeps its poster picture");
+        } else {
+            assert_eq!(chat.state.chat_video.posters_kept(), 0, "with reuse off, a row off the screen lets its poster picture go / left: {} / right: 0", chat.state.chat_video.posters_kept());
+        }
+        // The row drawn again, on its own.
+        let theme = crate::gui::theme::load_theme();
+        let card = public_files::Card::of(A, SERVER);
+        let mut cache = crate::gui::widgets::image_cache::ImageCache::new();
+        cache.set_size_for_test(&card.url, Some(1_121_676));
+        let mut viewer = None;
+        for _ in 0..200 {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0))), ..Default::default() };
+            let videos = &mut chat.state.chat_video;
+            let _ = chat.ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    public_files::draw(ui, &theme, &mut cache, &mut viewer, videos, "", &card, theme.bg_primary());
+                });
+                videos.end_frame(ctx);
+            });
+            if chat.state.chat_video.poster_texture(&a).is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(chat.state.chat_video.poster_texture(&a).is_some(), "drawn again, it shows its poster picture");
+        let asked = chat.state.chat_video.poster_fetches.len();
+        assert_eq!(asked, if reuse { 1 } else { 2 }, "reuse {reuse}: asked again only with reuse off");
+    }
+
+    // However many rows pass, no more than MAX_POSTERS are kept; the newest stay.
+    let mut videos = ChatVideos { reuse_for_test: Some(true), poster_fetch_for_test: Some(std::sync::Arc::new(|_url: &str| Err("not found (404)".to_string()))), ..Default::default() };
+    let ctx = egui::Context::default();
+    let urls: Vec<String> = (0..MAX_POSTERS + 12).map(|i| format!("{SERVER}/uploads/17600000{i:05}_clip.mp4")).collect();
+    for url in &urls {
+        let _ = ctx.run(egui::RawInput::default(), |ctx| {
+            videos.want_poster(url);
+            videos.end_frame(ctx);
+        });
+    }
+    assert_eq!(videos.posters_kept(), MAX_POSTERS, "no more than MAX_POSTERS are kept");
+    assert!(videos.posters.contains_key(urls.last().unwrap()) && !videos.posters.contains_key(&urls[0]), "the one seen longest ago went first");
+}
+
+/// BELOW VERIFIED A VIDEO STAYS PLAIN WORDS, AND NO POSTER PICTURE IS ASKED FOR (chat access rung 1:
+/// a member not yet Verified posts no attachments). The same row from a member: its address is words,
+/// no player is drawn, and nothing is fetched, the poster picture included.
+///
+/// Seen red 2026-11-06 with chat/access.rs `shows_links` answering true for everyone (the rung-1 rule
+/// bypassed): "no picture box drawn" (the player was drawn, and its poster picture asked for).
+#[test]
+fn below_verified_a_video_stays_words_and_no_poster_picture_is_asked_for() {
+    let mut chat = Chat::new("chat_video_poster_unverified", &[&format!("look {A}")], 1280.0, 900.0);
+    chat.state.chat_users[0].role = "member".into();
+    poster_fetch(&mut chat);
+    let mut texts = Vec::new();
+    for _ in 0..6 {
+        texts = texts_of(&chat.frame(Vec::new()));
+    }
+    assert!(chat.state.chat_video.pictures.is_empty(), "no picture box drawn");
+    assert!(!texts.iter().any(|x| x == t("chat_video.full_window") || x == t("chat_video.mute")), "no player's controls: {texts:?}");
+    assert_eq!(chat.state.chat_video.poster_fetches.len(), 0, "no poster picture is asked for / left: {} / right: 0", chat.state.chat_video.poster_fetches.len());
+    assert_eq!(chat.state.chat_video.fetches, 0);
 }

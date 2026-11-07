@@ -17,7 +17,10 @@
 //!     in the waiting or the public folder and could not move it back (R4-5);
 //!   - requests for help with recovery that ended (seven days after they opened), with the pieces
 //!     they hold, and recovery setups never finished a day after they began (storage/recovery.rs,
-//!     2026-10-21). Reads already leave an ended request out; this takes it off the disk.
+//!     2026-10-21). Reads already leave an ended request out; this takes it off the disk;
+//!   - last, a video's poster picture whose video is no longer beside it (storage/files.rs
+//!     `sweep_lone_posters`, 2026-11-06): every road that deletes a video deletes its picture
+//!     too, so this only finds one a relay stopped between the two left behind.
 //!
 //! Callers (relay/mod.rs, handlers/server_settings_update.rs): relay start, the six-hour
 //! maintenance pass (before its backup, so nothing expired rides into the backup), and every
@@ -92,6 +95,12 @@ impl Storage {
             Ok(0) => {}
             Ok(n) => tracing::info!("Private files: removed {n} older than the {}-day DM lifetime", s.dm_mailbox_ttl_days),
             Err(e) => tracing::error!("Private file sweep failed: {e}"),
+        }
+        // Last, after every sweep above that deletes files: a video's poster picture whose video is
+        // no longer beside it (a relay stopped between the two deletes), 2026-11-06.
+        let lone: usize = [folders.uploads, folders.members, folders.waiting].into_iter().map(super::files::sweep_lone_posters).sum();
+        if lone > 0 {
+            tracing::info!("Poster pictures: removed {lone} whose video was gone");
         }
     }
 }

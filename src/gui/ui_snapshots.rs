@@ -1582,6 +1582,54 @@ fn snapshot_chat_video_still() {
     chat_video_snapshot("chat_video_still", false);
 }
 
+/// The chat with videos posted in it before anything is played (rung 2, 2026-11-06,
+/// docs/design/media-player.md, "Rung 2: the poster picture"), at the operator's 2560x1440: the
+/// first row's poster picture, made from the AV1 fixture by the posting app's own road
+/// (chat/video_poster.rs `make_poster`), drawn under its Play mark; the second, a video posted
+/// before poster pictures (its picture's address answers 404), keeps the black box and its words.
+/// Nothing is fetched of either video, and nothing is asked of any server.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_video_poster() {
+    let fixture = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/sliding-bar-av1-opus.mp4");
+    let poster = crate::gui::pages::chat::video_poster::make_poster(&fixture).expect("the fixture makes a poster picture");
+    render_page_png("chat_video_poster", 2560, 1440, move |ctx, theme, state| {
+        const SERVER: &str = "http://127.0.0.1:9";
+        if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
+            let poster = poster.clone();
+            state.chat_video.poster_fetch_for_test = Some(std::sync::Arc::new(move |url: &str| {
+                if url.contains("sliding_bar") { Ok(poster.clone()) } else { Err("not found (404)".to_string()) }
+            }));
+            state.chat_messages.retain(|m| m.channel != "global");
+            state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann0".into(), role: "verified".into(), status: String::new() });
+            let posts = [
+                "The bar slides across, have a look /uploads/1760000000000_sliding_bar.mp4",
+                "And one from before poster pictures /uploads/1760000000001_meetup.mp4",
+            ];
+            for (i, text) in posts.iter().enumerate() {
+                let url = format!("{SERVER}{}", text.rsplit(' ').next().unwrap());
+                state.image_cache.set_size_for_test(&url, Some(1_121_676));
+                // Asked for as the row's first sight asks, and waited for: the picture is settled.
+                state.chat_video.want_poster(&url);
+                state.chat_messages.push(ChatMessage {
+                    sender_name: "Ann".into(),
+                    sender_key: "ann0".into(),
+                    content: (*text).into(),
+                    timestamp: format!("09:2{i}"),
+                    timestamp_ms: 1_791_481_200_000 + i as u64 * 60_000,
+                    channel: "global".into(),
+                    server: SERVER.into(),
+                    ..Default::default()
+                });
+            }
+            state.chat_video.wait_for_posters(ctx);
+            state.chat_active_channel = "global".into();
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+        crate::gui::pages::chat::draw_video_window(ctx, theme, &mut state.chat_video);
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_chat_video_playing() {

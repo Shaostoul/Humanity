@@ -426,3 +426,35 @@ fn files_chosen_together_wait_their_turn_and_never_go_elsewhere() {
     assert!(state.pending_notices.iter().any(|n| *n == left_before_the_rest(2)), "and says so: {:?}", state.pending_notices);
     assert_eq!(left_before_the_rest(1), "The last file you chose was not sent, because you left the conversation it was for.");
 }
+
+/// A VIDEO POSTED IN A PUBLIC CHANNEL GOES WITH ITS POSTER PICTURE; A PRIVATE ONE NEVER DOES
+/// (2026-11-06, docs/design/media-player.md, "Rung 2: the poster picture"). A fixture video picked
+/// in #global is uploaded with a poster picture made from it (a JPEG at most 640 pixels a side,
+/// which decodes); the same video in a DM goes sealed with none (a plain picture of a sealed file
+/// would show what it holds); a document in public has none.
+///
+/// Seen red 2026-11-06 with `run` never making one (`poster: None` on the plain upload): "a poster
+/// picture rides with a public video"; with the private-conversation guard taken out of `run`: "a
+/// video in a DM goes with no poster picture".
+#[test]
+fn a_video_posted_in_public_goes_with_its_poster_picture_and_a_private_one_never_does() {
+    let video = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/sliding-bar-av1-opus.mp4");
+    let mut gs = viewing("global");
+    let (out, seen) = run_recorded(attach_file_job(&mut gs, &video).expect("a small video goes"));
+    let up = seen.expect("it was uploaded");
+    assert_eq!(out.unwrap(), FAKE_URL, "its address is posted");
+    assert!(!up.encrypted && up.filename == "sliding-bar-av1-opus.mp4", "the plain video");
+    let poster = up.poster.expect("a poster picture rides with a public video");
+    assert!(poster.starts_with(&[0xFF, 0xD8, 0xFF]), "a JPEG");
+    let (w, h, _) = super::super::video_poster::decode_poster(&poster).expect("which decodes as a poster picture");
+    assert!(w.max(h) <= 640, "at most 640 pixels a side: {w} x {h}");
+
+    let mut dm = viewing("dm:abc");
+    let (_, seen) = run_recorded(attach_file_job(&mut dm, &video).expect("a small video goes"));
+    let sealed = seen.expect("it was uploaded");
+    assert!(sealed.encrypted, "sealed");
+    assert!(sealed.poster.is_none(), "a video in a DM goes with no poster picture");
+
+    let (_, seen) = run_recorded(attach_job(&mut gs, "notes.pdf", file_bytes()).unwrap());
+    assert!(seen.unwrap().poster.is_none(), "a document has none");
+}

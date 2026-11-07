@@ -564,7 +564,9 @@ async function loadChat(me, opts = {}) {
       const encrypted = /(^|&)encrypted=1(&|$)/.test(query);
       const ext = encrypted ? "enc" : (String(file.name || "").split(".").pop() || "bin");
       const url = `/uploads/u${++uploadCount}.${ext}`;
-      uploads.push({ url, query, name: file.name, type: file.type, bytes });
+      const posterPart = form.get("poster");
+      const poster = posterPart instanceof Blob ? { name: posterPart.name, type: posterPart.type, bytes: new Uint8Array(await posterPart.arrayBuffer()) } : null;
+      uploads.push({ url, query, name: file.name, type: file.type, bytes, parts: [...form.keys()], poster });
       if (relay.hold) await relay.hold;
       files.set(url, bytes);
       return { url };
@@ -716,6 +718,7 @@ async function loadChat(me, opts = {}) {
   run("chat/view/messageRow.js");
   run("chat/chat-files-card.js"); // a Media item posted in chat, as a card (2026-10-17)
   run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
+  run("shared/video-poster.js"); // a posted video's poster picture (2026-11-06), before app.js
   run("chat/app.js");
   vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-messages.js");
@@ -737,6 +740,11 @@ async function loadChat(me, opts = {}) {
     if (typeof ctx[name] !== "function") ctx[name] = () => "";
   }
   ctx.holdConfirm = async () => true;
+  // A video's poster picture is made by the browser's own <video> and a canvas, which this page
+  // has not got: `opts.makePoster(file)` stands in (the module itself is held by
+  // scripts/tests/video-poster-web.test.js), else none is made, as in a browser that cannot decode
+  // the video.
+  ctx.HosVideoPoster.make = opts.makePoster || (async () => null);
   ctx.appendMessage = (el) => { state.appended.push(el); };
   ctx.notifyNewMessage = () => {};
   ctx.playNotificationChime = () => {};
@@ -1189,7 +1197,7 @@ test("public file cards: a video plays inline, is not read before Play, and only
   for (const [card, url] of [[one, UP_VIDEO], [two, UP_VIDEO_2]]) {
     assert.ok(card.html.includes(`<video controls playsinline preload="none" src="${url}"></video>`), "a video: nothing read before Play, " + url);
   }
-  assert.ok(!row.innerHTML.includes("poster="), "no poster: the server keeps no still of a video");
+  assert.ok(!/<video[^>]*\bposter=/.test(row.innerHTML), "no poster on a player as the row is drawn (it comes once its card is on screen)");
   assert.equal(page.fetched.filter((f) => f.startsWith("GET /uploads/")).length, 0, "nothing of a video fetched as the row is drawn");
   for (const id of ["messages", "thread-panel-messages"]) {
     for (const type of ["play", "pause", "ended"]) {
@@ -1219,6 +1227,81 @@ test("public file cards: a video plays inline, is not read before Play, and only
   offScreen([{ target: two.player, isIntersecting: false }]);
   assert.equal(two.player.pauses, 2, "a playing video scrolled out of view is paused");
   assert.ok(!watched.includes(two.player), "and is no longer watched");
+});
+
+// ── 4d. A video's poster picture (rung 2, 2026-11-06) ──────────────────────
+// docs/design/media-player.md, "Rung 2: the poster picture". The app that posts a video makes one
+// small JPEG of it (/shared/video-poster.js, its own test: scripts/tests/video-poster-web.test.js)
+// and sends it in the same upload, as the `poster` part before the file; the relay keeps it beside
+// the video, and a card puts it on its player once the card is on screen. The desktop app's twin:
+// src/gui/pages/chat/video_poster.rs and inline_video.rs.
+
+/** The fixture video (an AV1 WebM, tests/fixtures/media), as the person would pick it. */
+const FIXTURE_VIDEO = Uint8Array.from(fs.readFileSync(path.join(ROOT, "tests", "fixtures", "media", "colour-bar-av1-opus.webm")));
+/** A JPEG's first bytes and some words, as a poster picture stands in here. */
+const POSTER_JPEG = Uint8Array.from(Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from("A-POSTER-PICTURE")]));
+
+// Seen red 2026-11-06 against a copy of web/ (HOS_WEB_DIR) with chat-messages.js's
+// `formData.append('poster', ...)` taken out: "its poster picture first, then the file" (actual:
+// ["file"]); with the private conversation's path calling videoPosterFor too: "not made for a
+// video going to a DM" (actual: 2).
+test("poster: a video posted in a room goes with its poster picture before the file; a picture or a DM's video never does", async () => {
+  const fx = await fixture();
+  const made = [];
+  const page = await loadChat(fx.ann, { makePoster: async (file) => { made.push(file); return new Blob([POSTER_JPEG], { type: "image/jpeg" }); } });
+  await pick(page, new File([FIXTURE_VIDEO], "colour_bar.webm", { type: "video/webm" }));
+  assert.equal(page.uploads.length, 1, "the video went up");
+  const up = page.uploads[0];
+  assert.deepEqual(up.parts, ["poster", "file"], "its poster picture first, then the file");
+  assert.ok(up.poster && up.poster.type === "image/jpeg" && up.poster.name === "poster.jpg" && sameBytes(up.poster.bytes, POSTER_JPEG), "the picture made from it, a JPEG");
+  assert.ok(!/encrypted=1/.test(up.query) && sameBytes(up.bytes, FIXTURE_VIDEO), "beside the video's own bytes");
+  assert.equal(made.length, 1, "made once");
+  assert.ok(made[0] instanceof Blob && sameBytes(new Uint8Array(await made[0].arrayBuffer()), FIXTURE_VIDEO), "from the very file going up");
+  assert.equal(page.sock.sent.filter((m) => m.type === "chat").pop().content, up.url, "and its address is posted");
+
+  await pick(page, picture("image.png"));
+  assert.deepEqual(page.uploads[1].parts, ["file"], "a picture goes alone");
+  assert.equal(made.length, 1, "with none made");
+
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  await pick(page, new File([FIXTURE_VIDEO], "colour_bar.webm", { type: "video/webm" }));
+  const sealed = page.uploads[page.uploads.length - 1];
+  assert.ok(/encrypted=1/.test(sealed.query), "a DM's video goes sealed");
+  assert.deepEqual(sealed.parts, ["file"], "with no poster picture");
+  assert.equal(made.length, 1, "not made for a video going to a DM");
+});
+
+// Seen red 2026-11-06 against a copy of web/ (HOS_WEB_DIR) with fileCardHtml leaving
+// `data-file-poster` out: "a video on this server names its poster picture"; with filePosterWatch
+// setting the poster at once: "nothing is put on its player before the card is near the screen".
+test("poster: a video card names its poster picture and its player gets poster= once on screen, still preload none", async () => {
+  const observers = [];
+  class FakeObserver {
+    constructor(cb, opt) { this.cb = cb; this.opt = opt; this.watched = []; observers.push(this); }
+    observe(el) { if (!this.watched.includes(el)) this.watched.push(el); }
+    unobserve(el) { this.watched = this.watched.filter((x) => x !== el); }
+  }
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { IntersectionObserver: FakeObserver });
+  page.files.set(UP_VIDEO, new Uint8Array(4096));
+  const row = postInRoom(page, fx.ben, `the meetup ${UP_VIDEO} and elsewhere ${ELSEWHERE_VIDEO}`, T0 + 940);
+  await settle();
+  const [mine, elsewhere] = cardsIn(row);
+  const want = UP_VIDEO + ".poster.jpg";
+  assert.equal(mine.dataset.filePoster, want, "a video on this server names its poster picture");
+  assert.ok(mine.html.includes(`<video controls playsinline preload="none" src="${UP_VIDEO}"></video>`), "still preload none: the video itself is not read before Play");
+  assert.equal(elsewhere.dataset.filePoster, undefined, "a video on another website has none (nothing is fetched there before a click)");
+  const watcher = observers.find((o) => o.watched.includes(mine));
+  assert.ok(watcher, "the card is watched until it is near the screen");
+  assert.ok(watcher.opt && /100%/.test(String(watcher.opt.rootMargin)), "within a screen's height of the view");
+  const player = mine.querySelector("video");
+  assert.equal(player.getAttribute("poster"), null, "nothing is put on its player before the card is near the screen");
+  assert.ok(!page.fetched.some((f) => f.includes(".poster.jpg")), "and nothing fetched for it");
+  watcher.cb([{ target: mine, isIntersecting: true }]);
+  assert.equal(player.getAttribute("poster"), want, "near the screen, its player gets poster=");
+  assert.ok(!watcher.watched.includes(mine), "and the card is let go");
+  assert.equal(page.fetched.filter((f) => f.startsWith("GET /uploads/") && !f.endsWith(".poster.jpg")).length, 0, "the video itself is still not fetched");
 });
 
 // Seen red 2026-10-12 with uploadPost's progress handler taken out: the upload line never had a number.

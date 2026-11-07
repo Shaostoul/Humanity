@@ -1,0 +1,15 @@
+{
+  "_doc": "Where a posted video's poster picture is, for the video's address, which both apps must agree on (2026-11-06, docs/design/media-player.md, 'Rung 2: the poster picture'): the desktop's src/gui/pages/chat/video_poster.rs `poster_url` (its test both_apps_find_a_poster_picture_at_the_same_address) and the website's web/shared/video-poster.js `posterUrlOf` (scripts/tests/video-poster-web.test.js). A video at /uploads/<name> (a bare name: no folder, no query, no fragment, not hidden) has its picture at the same address with .poster.jpg after it, as the relay keeps it (src/relay/storage/files.rs `poster_name`); any other address has none (null).",
+  "cases": [
+    { "video": "/uploads/1760000000000_meetup.mp4", "poster": "/uploads/1760000000000_meetup.mp4.poster.jpg" },
+    { "video": "https://hum.example/uploads/1760000000001_clip.webm", "poster": "https://hum.example/uploads/1760000000001_clip.webm.poster.jpg" },
+    { "video": "http://127.0.0.1:9/uploads/1760000000000_sliding_bar.mp4", "poster": "http://127.0.0.1:9/uploads/1760000000000_sliding_bar.mp4.poster.jpg" },
+    { "video": "/uploads/1760000000002_talk.mp4?t=30", "poster": null },
+    { "video": "/uploads/1760000000003_talk.mp4#t=30", "poster": null },
+    { "video": "/uploads/sub/1760000000004_talk.mp4", "poster": null },
+    { "video": "/uploads/.incoming-0a1b2c", "poster": null },
+    { "video": "/uploads/", "poster": null },
+    { "video": "https://example.com/talk.webm", "poster": null },
+    { "video": "/api/files/file/7?file=0", "poster": null }
+  ]
+}

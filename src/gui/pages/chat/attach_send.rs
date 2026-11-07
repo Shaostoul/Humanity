@@ -212,6 +212,9 @@ pub(crate) struct Upload {
     pub encrypted: bool,
     /// The person chose to keep the file's hidden details (`keep_metadata=1`, a public upload only).
     pub keep_metadata: bool,
+    /// A video's poster picture (a JPEG this app made, chat/video_poster.rs), sent as the form's
+    /// `poster` part before the file (2026-11-06): a public video only, never a private file.
+    pub poster: Option<Vec<u8>>,
 }
 
 /// The job for a file picked with Attach, sent to the conversation on screen. None, with
@@ -312,6 +315,11 @@ where
     if job.body.len() > limit {
         return Err(format!("the file is {} bytes, over the {limit} limit", job.body.len()));
     }
+    // A video going to a public place gets its poster picture, made here on the worker from the
+    // file itself (docs/design/media-player.md, "Rung 2: the poster picture"). Never for a private
+    // conversation: a plain picture of a sealed file, at an address anyone can fetch, would show what
+    // it holds. A video nothing here decodes goes without one.
+    let poster = if job.to.encrypts_file() || !super::video_poster::is_video_name(&job.filename) { None } else { poster_of(&job.body) };
     let mut bytes = attach_body::read(job.body, limit)?;
     // Part 1 of the files section of docs/design/files-showcase.md: the file is cleaned HERE, on the
     // sender's device, before it is encrypted or uploaded, so a DM's or a group's file (which the
@@ -331,7 +339,7 @@ where
         }
     }
     if !job.to.encrypts_file() {
-        let plain = Upload { filename: job.filename, mime: job.mime, bytes, share: job.share, encrypted: false, keep_metadata: !job.clean };
+        let plain = Upload { filename: job.filename, mime: job.mime, bytes, share: job.share, encrypted: false, keep_metadata: !job.clean, poster };
         return upload(&job.server, &job.token, plain);
     }
     let size = bytes.len() as u64;
@@ -343,10 +351,28 @@ where
         share: false,
         encrypted: true,
         keep_metadata: false,
+        poster: None,
     };
     let url = upload(&job.server, &job.token, sealed)?;
     let att = crate::net::dm_pq::DmAttachment { url, k, n, name: job.filename, mime: job.mime, size };
     Ok(if unchecked { crate::net::dm_pq::build_file_marker_unchecked(&att) } else { crate::net::dm_pq::build_file_marker(&att) })
+}
+
+/// The poster picture of the video in `body` (chat/video_poster.rs `make_poster`), or None (logged)
+/// when nothing here decodes it. A picked file is read where it is; bytes already in memory are
+/// written to a temporary file first (the player opens a file), removed once it is read.
+fn poster_of(body: &Body) -> Option<Vec<u8>> {
+    let made = match body {
+        Body::File { path, .. } => super::video_poster::make_poster(path),
+        Body::Bytes(bytes) => {
+            let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+            let tmp = std::env::temp_dir().join(format!("hos-poster-{}-{stamp}.video", std::process::id()));
+            let made = std::fs::write(&tmp, bytes).map_err(|e| e.to_string()).and_then(|_| super::video_poster::make_poster(&tmp));
+            let _ = std::fs::remove_file(&tmp);
+            made
+        }
+    };
+    made.map_err(|e| log::info!("No poster picture for this video: {e}")).ok()
 }
 
 /// Why a file that could not be checked was not sent to a private conversation: the person did not
@@ -363,7 +389,7 @@ pub(super) fn start(state: &mut GuiState, job: AttachJob) {
     std::thread::spawn(move || {
         let _ = tx.send(run(job, |server, key, up| {
             let flags = UploadFlags { share: up.share, encrypted: up.encrypted, keep_metadata: up.keep_metadata };
-            upload_flagged(server, key, &up.filename, &up.mime, up.bytes, flags)
+            upload_with_poster(server, key, &up.filename, &up.mime, up.bytes, flags, up.poster)
         }));
     });
     state.clipboard_upload = Some((state.chat_active_channel.clone(), rx));
@@ -583,9 +609,18 @@ pub(crate) fn upload_query(token: &str, flags: UploadFlags) -> String {
 /// is streamed around the file's own buffer (attach_body.rs `Multipart`), its length set so it is
 /// sent as it is: the file is never copied into a second buffer with its framing.
 pub(crate) fn upload_flagged(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags) -> Result<String, String> {
+    upload_with_poster(server_url, token, filename, mime, bytes, flags, None)
+}
+
+/// [`upload_flagged`] with a video's poster picture as the form's `poster` part, before the file's
+/// (2026-11-06, relay/poster.rs).
+pub(crate) fn upload_with_poster(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags, poster: Option<Vec<u8>>) -> Result<String, String> {
     let base = server_url.trim_end_matches('/');
     let upload_url = format!("{base}/api/upload?{}", upload_query(token, flags));
-    let body = attach_body::Multipart::new(filename, mime, bytes);
+    let body = match poster {
+        Some(p) => attach_body::Multipart::with_poster(filename, mime, bytes, &p),
+        None => attach_body::Multipart::new(filename, mime, bytes),
+    };
     let resp = ureq::post(&upload_url)
         .set("Content-Type", &format!("multipart/form-data; boundary={}", body.boundary))
         .set("Content-Length", &body.len().to_string())

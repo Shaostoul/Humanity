@@ -771,6 +771,21 @@ async function prepareAttachment(file, where, opts) {
   return d.action === 'refuse' ? null : d;
 }
 
+/**
+ * The poster picture of a video going to a public room (/shared/video-poster.js HosVideoPoster.make):
+ * a JPEG Blob, or null for a file that is not an MP4 or a WebM, a video this browser cannot decode,
+ * or a page without the module. Never throws.
+ */
+async function videoPosterFor(file, name) {
+  const V = typeof window !== 'undefined' ? window.HosVideoPoster : null;
+  if (!V || typeof V.make !== 'function' || !V.isVideoName(name)) return null;
+  try {
+    return await V.make(file);
+  } catch (e) {
+    return null;
+  }
+}
+
 async function uploadImage(file) {
   // Client-side size guard: abort before uploading anything over my limit here (attachmentLimit).
   if (attachmentTooLarge(file)) return null;
@@ -786,6 +801,12 @@ async function uploadImage(file) {
 
   try {
     const formData = new FormData();
+    // A video's poster picture (2026-11-06, docs/design/media-player.md, "Rung 2: the poster
+    // picture"): one small JPEG made here from the file, sent as its own part BEFORE the file, so
+    // every card shows it before Play. This is the public room's upload only: a private
+    // conversation's file never carries one. None when this browser cannot decode the video.
+    const poster = await videoPosterFor(ready.file, file.name);
+    if (poster) formData.append('poster', poster, 'poster.jpg');
     formData.append('file', ready.file, file.name);
 
     // Shared-file library (v0.675): attaching a 3D/model file in chat is an

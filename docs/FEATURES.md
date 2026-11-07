@@ -791,11 +791,34 @@ words beside Download. `src/gui/pages/chat/inline_video.rs` (`ChatVideos`, `draw
 `draw_video_window`, `end_frame`), drawn from `chat/public_files.rs` `draw_card`; the controls'
 bar `widgets/video_view.rs` `track_bar`; a wall screen showing the chat keeps a set of its own
 (`gui/screen_surface.rs` `ScreenTextures`). Website: `<video controls playsinline preload="none">`
-inline in the card (no poster: the server keeps no still), one playing at a time and a playing one
-scrolled out of view paused (`web/chat/app.js` `fileMediaOnePlaying`). Design:
-`docs/design/media-player.md`, "Videos inside chat messages". Tests:
-`gui::pages::chat::inline_video::tests`, `private-files-web.test.js` ("plays inline"). Snapshots:
-`tests/snapshots/chat_video_still.png`, `chat_video_playing.png`.
+inline in the card, one playing at a time and a playing one scrolled out of view paused
+(`web/chat/app.js` `fileMediaOnePlaying`). Design: `docs/design/media-player.md`, "Videos inside
+chat messages". Tests: `gui::pages::chat::inline_video::tests`, `private-files-web.test.js` ("plays
+inline"). Snapshots: `tests/snapshots/chat_video_still.png`, `chat_video_playing.png`.
+**A posted video's poster picture (2026-11-06, rung 2).** The app that posts a video in a public room
+makes one small JPEG of it (about a second in, at most 640 px on its longest side, aimed under 96 KB)
+and sends it in the same upload as a `poster` part before the file: desktop
+`src/gui/pages/chat/video_poster.rs` (`make_poster`, through the app's own player; called from
+`attach_send.rs` `run`, sent by `upload_with_poster`, framed by `attach_body.rs`
+`Multipart::with_poster`), website `web/shared/video-poster.js` (`make`, the browser's `<video>` and
+a canvas; called from `web/chat/chat-messages.js` `uploadImage`). Never for a private conversation's
+file. The relay (`src/relay/poster.rs` `check_poster`, `api.rs` `upload_file_in`) refuses a poster
+that is not a JPEG, over 640 px a side or 128 KB, a second one, one with a non-video or an
+`encrypted=1` file; cleans it with the picture strip; keeps it as `<stored name>.poster.jpg` beside
+the video (`storage/files.rs` `poster_name`), its size in `user_uploads.poster_bytes` (counted in the
+room, the day's allowance and the Media share); moves it with its file (`Folders::move_to`: a
+members-only item's poster leaves the public address) and deletes it on every road the file leaves
+by (`Folders::delete`, `files.rs` `delete_pruned`, Shared File removal) plus a deleted message's own
+chat files (`handlers/federation_log.rs` `delete_own_message_in`, `storage/uploads.rs`
+`forget_chat_files_of_deleted_message`); the expiry pass sweeps a lone one. Before Play the desktop row
+fetches it once on a worker and draws it under the Play mark (`inline_video.rs`
+`ChatVideos::want_poster`, at most 48 kept, only on-screen rows with reuse turned off); the website
+card carries `data-file-poster` and sets `poster=` once the card is near the screen
+(`app.js` `filePosterWatch`). A video from before keeps the black box. Design: media-player.md,
+"Rung 2: the poster picture". Tests: `relay::poster::tests`, `gui::pages::chat::video_poster::tests`,
+`inline_video::tests` ("poster"), `attach_send` tests, `video-poster-web.test.js`,
+`private-files-web.test.js` ("poster:"); addresses shared in
+`scripts/tests/fixtures/video-poster-addresses.json`. Snapshot: `tests/snapshots/chat_video_poster.png`.
 **Media card follow-ups (v0.1513.0).** The desktop card names a content label before the Media page has
 loaded ("Labelled: Flashing lights."); the desktop takes only a link to a picture as a picture (a bare
 "render.png" in a non-friend's message no longer withholds its card) and removes it word by word;

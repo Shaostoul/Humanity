@@ -308,6 +308,19 @@ impl Storage {
         })
     }
 
+    /// The words of this server's own message by `from_key` at `stamp`, if it holds one (read
+    /// before a delete, for the chat files it posted, 2026-11-06).
+    pub fn message_content(&self, from_key: &str, stamp: u64) -> Result<Option<String>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT content FROM messages WHERE from_key = ?1 AND timestamp = ?2 AND msg_type = 'chat' LIMIT 1",
+                params![from_key, stamp as i64],
+                |r| r.get(0),
+            )
+            .optional()
+        })
+    }
+
     /// The channel and author of this server's own message with row id `id`, if it holds one.
     pub fn message_by_id(&self, id: i64) -> Result<Option<(String, String, u64)>, rusqlite::Error> {
         self.with_conn(|conn| {

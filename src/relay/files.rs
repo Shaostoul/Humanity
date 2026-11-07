@@ -388,6 +388,17 @@ pub struct NewUpload<'a> {
     /// The resumable session whose pieces file this is (R3-5), which names the file while it waits
     /// to be stored (storage/upload_sessions.rs `staged_part_name`); None for a single request.
     pub session: Option<&'a str>,
+    /// A video's poster picture, already checked and cleaned (relay/poster.rs `check_poster`),
+    /// stored beside it as `<name>.poster.jpg` and counted with it (2026-11-06, docs/design/
+    /// media-player.md, "Rung 2: the poster picture"); None for every other upload.
+    pub poster: Option<&'a [u8]>,
+}
+
+impl NewUpload<'_> {
+    /// Its bytes and its poster picture's, as the room counts them.
+    fn bytes_with_poster(&self) -> u64 {
+        self.len + self.poster.map_or(0, |p| p.len() as u64)
+    }
 }
 
 /// What a single request's upload is held to and counted in when it is stored (R3-1, 2026-10-11):
@@ -449,7 +460,7 @@ pub fn private_room(db: &Storage, s: &ServerSettings, key: &str, limit: u64, len
 /// The room checks an upload is held to, in one place for [`store_upload`]'s two looks: the
 /// shelf's room ([`upload_room`]) and, for a private file, the person's own ([`private_room`]).
 fn room_for(db: &Storage, s: &ServerSettings, folders: Folders, u: &NewUpload) -> Result<(), Refused> {
-    upload_room(db, s, u.key, u.shelf, stored_bytes(folders), u.len)?;
+    upload_room(db, s, u.key, u.shelf, stored_bytes(folders), u.bytes_with_poster())?;
     match u.private_held_limit {
         Some(limit) => private_room(db, s, u.key, limit, u.len),
         None => Ok(()),
@@ -499,19 +510,53 @@ pub fn store_upload(
         let _ = std::fs::remove_file(&staged);
         return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")));
     }
+    // A video's poster picture is written under a hidden name of its own too (never served, never
+    // counted, cleared at start), and named only once its video is in place (2026-11-06).
+    let staged_poster = match u.poster {
+        Some(bytes) => {
+            let path = dest.join(staged_name());
+            if let Err(e) = std::fs::write(&path, bytes) {
+                let _ = std::fs::remove_file(&path);
+                unstage(&staged);
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write the poster picture: {e}")));
+            }
+            Some(path)
+        }
+        None => None,
+    };
+    let drop_poster = || {
+        if let Some(p) = &staged_poster {
+            let _ = std::fs::remove_file(p);
+        }
+    };
     #[cfg(test)]
     hold::wait_at(u.original_name);
     let _room = room_lock();
     let stored_at = now();
     if let Err(refused) = room_for(db, s, folders, u).and_then(|_| allowance_for(db, u, stored_at)) {
+        drop_poster();
         unstage(&staged);
         return Err(refused);
     }
     if let Err(e) = std::fs::rename(&staged, dest.join(u.name)) {
+        drop_poster();
         unstage(&staged);
         return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")));
     }
-    let old = db.record_upload(u.key, u.name, u.keep, u.shelf, u.original_name, u.len as i64).unwrap_or_else(|e| {
+    // The video is in place: its poster picture beside it. One that cannot be named is let go
+    // (the video stays, and its row draws the Play mark's box, as a video from before this rung).
+    let poster_bytes = match &staged_poster {
+        Some(p) => match std::fs::rename(p, dest.join(store::poster_name(u.name))) {
+            Ok(()) => u.poster.map_or(0, |b| b.len() as i64),
+            Err(e) => {
+                tracing::warn!("The poster picture of {} could not be put beside it: {e}", u.name);
+                drop_poster();
+                0
+            }
+        },
+        None => 0,
+    };
+    let old = db.record_upload_with_poster(u.key, u.name, u.keep, u.shelf, u.original_name, u.len as i64, poster_bytes).unwrap_or_else(|e| {
         tracing::error!("Failed to record upload: {e}");
         Vec::new()
     });
@@ -594,14 +639,19 @@ pub(crate) mod hold {
 }
 
 /// Delete the files the keep-N FIFO let go ([`store_upload`]'s answer) from the public folder,
-/// logging each. Blocking: called on a worker thread.
+/// logging each, each video's poster picture with it (2026-11-06). Blocking: called on a worker
+/// thread.
 pub fn delete_pruned(folders: Folders, old_files: &[String]) {
     for old_file in old_files {
+        if !store::bare_name(old_file) {
+            continue;
+        }
         if let Err(e) = std::fs::remove_file(folders.uploads.join(old_file)) {
             tracing::warn!("Failed to delete old upload {}: {e}", old_file);
         } else {
             tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
         }
+        let _ = std::fs::remove_file(folders.uploads.join(store::poster_name(old_file)));
     }
 }
 

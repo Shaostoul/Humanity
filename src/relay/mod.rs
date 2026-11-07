@@ -19,6 +19,9 @@ pub mod upload_limits;
 /// The rules every upload is held to (type lists, sharing switches, the picture strip, the
 /// stored name), shared by the single request and the resumable upload (2026-10-11).
 pub mod upload_rules;
+/// A video's poster picture, sent with the video and kept beside it (2026-11-06,
+/// docs/design/media-player.md, "Rung 2: the poster picture").
+pub mod poster;
 /// Resumable uploads: a big Media file sent in pieces (2026-10-11, docs/design/files-showcase.md
 /// "Resumable uploads, exact"); storage in storage/upload_sessions.rs.
 pub mod resumable;

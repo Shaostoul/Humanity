@@ -155,6 +155,40 @@ pub fn bare_name(name: &str) -> bool {
     !name.is_empty() && !name.contains('/') && !name.contains('\\') && !name.contains("..")
 }
 
+// ── A video's poster picture (2026-11-06, docs/design/media-player.md, "Rung 2: the poster
+// picture") ──
+
+/// What a video's poster picture's name adds to the video's stored name: `<video>.poster.jpg`,
+/// kept in the same folder as the video and served beside it (`/uploads/<video>.poster.jpg`).
+/// A stored name never holds two dots (upload_rules.rs `stored_name`: its stem has none), so no
+/// upload can ever be stored under a poster picture's name.
+pub const POSTER_SUFFIX: &str = ".poster.jpg";
+
+/// The name the poster picture of the video stored as `video` is kept under.
+pub fn poster_name(video: &str) -> String {
+    format!("{video}{POSTER_SUFFIX}")
+}
+
+/// The video a poster picture's name belongs to, or None for any other name.
+pub fn poster_video(name: &str) -> Option<&str> {
+    name.strip_suffix(POSTER_SUFFIX).filter(|v| !v.is_empty())
+}
+
+/// Remove from `dir` every poster picture whose video is not beside it (a relay stopped between
+/// deleting a video and its poster picture, or a move that took one and not the other); how many
+/// went. The expiry pass runs it over each stored-file folder (storage/expiry.rs).
+pub fn sweep_lone_posters(dir: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    entries
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            poster_video(&name).is_some_and(|video| !dir.join(video).is_file())
+        })
+        .filter(|e| std::fs::remove_file(e.path()).is_ok())
+        .count()
+}
+
 impl Folders<'_> {
     /// The folder of `spot`.
     pub fn dir(&self, spot: Spot) -> &Path {
@@ -179,7 +213,9 @@ impl Folders<'_> {
         [Spot::Members, Spot::Public, Spot::Waiting].into_iter().find(|s| self.dir(*s).join(name).is_file())
     }
 
-    /// Delete `name` from all three folders; whether a file was deleted.
+    /// Delete `name` from all three folders, and its poster picture with it wherever that is
+    /// (a video's, [`poster_name`]: every road a file leaves by takes its poster picture too);
+    /// whether a file was deleted (the poster picture does not count).
     pub fn delete(&self, name: &str) -> bool {
         if !bare_name(name) {
             return false;
@@ -187,6 +223,10 @@ impl Folders<'_> {
         let members = std::fs::remove_file(self.members.join(name)).is_ok();
         let public = std::fs::remove_file(self.uploads.join(name)).is_ok();
         let waiting = std::fs::remove_file(self.waiting.join(name)).is_ok();
+        let poster = poster_name(name);
+        for dir in [self.members, self.uploads, self.waiting] {
+            let _ = std::fs::remove_file(dir.join(&poster));
+        }
         members || public || waiting
     }
 
@@ -220,6 +260,18 @@ impl Folders<'_> {
             if let Err(e) = std::fs::remove_file(&src) {
                 let _ = std::fs::remove_file(&dst);
                 return Err(e);
+            }
+        }
+        // Its poster picture goes where it went (a video made members only takes its picture off
+        // the public address too). A poster picture that cannot follow is deleted rather than left
+        // more public than its video (2026-11-06).
+        let poster = poster_name(name);
+        let (poster_src, poster_dst) = (self.dir(from).join(&poster), dst_dir.join(&poster));
+        if poster_src.is_file() && std::fs::rename(&poster_src, &poster_dst).is_err() {
+            let copied = std::fs::copy(&poster_src, &poster_dst).is_ok();
+            if std::fs::remove_file(&poster_src).is_err() || !copied {
+                let _ = std::fs::remove_file(&poster_src);
+                let _ = std::fs::remove_file(&poster_dst);
             }
         }
         Ok(Some(from))
@@ -588,11 +640,12 @@ pub(crate) const KEPT_FILES: &str = "(SELECT upload_filename FROM media_items WH
 /// if it was a Media upload). An item's added files and cover are uploads made for Media and stay
 /// on the Media shelf, so they count by the first rule. For one person, the files an item the
 /// server keeps (A7) kept ([`KEPT_FILES`]) are left out: they count against the Media budget, not
-/// against their uploader's share.
+/// against their uploader's share. A video's poster picture counts with it (`poster_bytes`,
+/// 2026-11-06).
 fn media_bytes_on(conn: &Connection, key: Option<&str>, except: Option<&str>) -> Result<i64, rusqlite::Error> {
     conn.query_row(
         &format!(
-            "SELECT COALESCE(SUM(size_bytes), 0) FROM user_uploads
+            "SELECT COALESCE(SUM(size_bytes + poster_bytes), 0) FROM user_uploads
              WHERE (shared = ?1 OR filename IN (SELECT upload_filename FROM media_items))
                AND (?2 IS NULL OR public_key = ?2)
                AND (?2 IS NULL OR filename NOT IN {KEPT_FILES})
@@ -1285,13 +1338,13 @@ impl Storage {
             let used_bytes = media_bytes_on(conn, None, None)?;
             let items: i64 = conn.query_row("SELECT COUNT(*) FROM media_items", [], |r| r.get(0))?;
             let mut stmt = conn.prepare(&format!(
-                "SELECT u.public_key, COALESCE(sm.name, ''), SUM(u.size_bytes),
+                "SELECT u.public_key, COALESCE(sm.name, ''), SUM(u.size_bytes + u.poster_bytes),
                         (SELECT COUNT(*) FROM media_items m WHERE m.uploader_key = u.public_key)
                  FROM user_uploads u
                  LEFT JOIN server_members sm ON sm.public_key = u.public_key
                  WHERE (u.shared = ?1 OR u.filename IN (SELECT upload_filename FROM media_items))
                    AND u.filename NOT IN {KEPT_FILES}
-                 GROUP BY u.public_key ORDER BY SUM(u.size_bytes) DESC, u.public_key ASC"
+                 GROUP BY u.public_key ORDER BY SUM(u.size_bytes + u.poster_bytes) DESC, u.public_key ASC"
             ))?;
             let people = stmt
                 .query_map(params![MEDIA_SHELF], |r| Ok(PersonUse { key: r.get(0)?, name: r.get(1)?, bytes: r.get(2)?, items: r.get(3)? }))?
@@ -1326,7 +1379,7 @@ impl Storage {
                 least_viewed: items_ordered(conn, "m.views ASC, m.created_at ASC, m.id ASC", USAGE_LIST_LEN)?,
                 waiting,
                 kept_bytes: conn.query_row(
-                    &format!("SELECT COALESCE(SUM(size_bytes), 0) FROM user_uploads WHERE filename IN {KEPT_FILES}"),
+                    &format!("SELECT COALESCE(SUM(size_bytes + poster_bytes), 0) FROM user_uploads WHERE filename IN {KEPT_FILES}"),
                     [],
                     |r| r.get(0),
                 )?,

@@ -281,9 +281,10 @@ pub async fn delete_shared_upload(
     let is_admin = state.db.get_role(&body.key).unwrap_or_default() == "admin";
     match state.db.delete_shared_upload(filename, &body.key, is_admin) {
         Ok(Some(fname)) => {
-            // Unlink the on-disk file (best-effort; the row is already gone).
-            let path = std::path::Path::new("data/uploads").join(&fname);
-            let _ = std::fs::remove_file(&path);
+            // Unlink the on-disk file (best-effort; the row is already gone) from whichever folder
+            // holds it (a members-only item's is not in the public one), and a video's poster
+            // picture with it (2026-11-06): `Folders::delete` does both.
+            crate::relay::storage::files::Folders::live().delete(&fname);
             Ok(Json(serde_json::json!({ "ok": true, "removed": fname })))
         }
         Ok(None) => Err((
@@ -384,10 +385,21 @@ pub(crate) async fn upload_file_in(
         return Err(refusal);
     }
     let keep_metadata = query.keep_metadata == Some(1);
+    // A video's poster picture (2026-11-06, relay/poster.rs): its own form part, before the file's,
+    // read into memory (it is small, and refused the moment it is not) and checked once the file's
+    // kind is known.
+    let mut poster: Option<Vec<u8>> = None;
 
     while let Some(mut field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
     })? {
+        if field.name() == Some(super::poster::POSTER_FIELD) {
+            if poster.is_some() {
+                return Err((StatusCode::BAD_REQUEST, super::poster::TWO_POSTERS.to_string()));
+            }
+            poster = Some(super::poster::read_part(&mut field).await?);
+            continue;
+        }
         let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
         let filename = field.file_name().unwrap_or("upload").to_string();
 
@@ -400,6 +412,20 @@ pub(crate) async fn upload_file_in(
         // picture and file sharing switches, both before the body is read.
         let kind = check_type(&filename, &content_type, is_encrypted)?;
         sharing_check(&server_settings, &uploader_rdef, &content_type, is_encrypted)?;
+
+        // A poster picture only with a video in the open, held to what one must be and cleaned,
+        // all before a byte of the file is read (relay/poster.rs).
+        let poster = match poster.take() {
+            Some(bytes) => {
+                super::poster::allowed_with(file_type(&content_type, &kind.stored_ext(&content_type, is_encrypted), is_encrypted), is_encrypted)?;
+                let checked = tokio::task::spawn_blocking(move || super::poster::check_poster(bytes))
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))??;
+                Some(checked)
+            }
+            None => None,
+        };
+        let poster_len = poster.as_ref().map_or(0, |p| p.len() as u64);
 
         // The file arrives into a part file, never into memory whole (a video can be a GB), and is
         // refused the moment it passes the role's limit (a client that did not say its size up
@@ -482,7 +508,10 @@ pub(crate) async fn upload_file_in(
         let (shelf_fs, settings_fs) = (shelf, server_settings.clone()); // the shelf: media.rs `upload_shelf`
         let original_name_fs = filename.clone();
         let private_held_fs = if is_encrypted { super::upload_rules::private_held_limit(&uploader_rdef) } else { None };
-        let (role_fs, arrived) = (uploader_rdef.clone(), part.len as u64);
+        // The bytes that arrived: the file's and its poster picture's (counted in the day's
+        // allowance together, 2026-11-06).
+        let (role_fs, arrived) = (uploader_rdef.clone(), part.len as u64 + poster_len);
+        let poster_fs = poster;
         let owned = crate::relay::storage::files::OwnedFolders::of(folders);
         let fs_result = tokio::task::spawn_blocking(move || -> Result<(), (StatusCode, String)> {
             // Store in data/uploads/.
@@ -511,6 +540,7 @@ pub(crate) async fn upload_file_in(
                 private_held_limit: private_held_fs,
                 allowance: Some(super::files::Allowance { role: &role_fs, bytes: arrived, clock: &clock }),
                 session: None,
+                poster: poster_fs.as_deref(),
             };
             let old_files = super::files::store_upload(&state_fs.db, &settings_fs, folders, &new, |path| body.put(path), |path| body.unstage(path))
                 .inspect_err(|_| body.discard())?;
@@ -529,7 +559,13 @@ pub(crate) async fn upload_file_in(
         // counted against the allowances in the store (R3-1).
         fs_result?;
 
-        return Ok(Json(super::upload_rules::upload_answer(&unique_name, data_len as u64, file_type)));
+        let mut answer = super::upload_rules::upload_answer(&unique_name, data_len as u64, file_type);
+        // Where its poster picture is, once it is kept beside it (2026-11-06): the apps work the
+        // address out from the video's, and this says the server has it.
+        if poster_len > 0 && state.db.poster_bytes_of(&unique_name) > 0 {
+            answer["poster"] = serde_json::json!(format!("/uploads/{}", crate::relay::storage::files::poster_name(&unique_name)));
+        }
+        return Ok(Json(answer));
     }
 
     Err((StatusCode::BAD_REQUEST, "No file provided.".to_string()))

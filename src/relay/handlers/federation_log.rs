@@ -46,6 +46,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::relay::handlers::federation::{key_in_log, sign_with_server_key};
 use crate::relay::handlers::federation_flow::{Admit, FlowLimits, Kind, PeerFlow};
 use crate::relay::relay::{RelayMessage, RelayState};
+use crate::relay::storage::files::Folders;
 
 /// How many numbered frames one batch of a catch-up carries.
 pub const CHUNK: usize = 100;
@@ -667,9 +668,22 @@ fn resign_chat(state: &RelayState, author: &str, stamp: u64, new_content: &str) 
 /// Delete this server's own message, and when it was in a shared room, delete it on the linked
 /// servers too and scrub its words from the outbox. The answer of `Storage::delete_message`.
 pub async fn delete_own_message(state: &Arc<RelayState>, author: &str, stamp: u64) -> Result<bool, rusqlite::Error> {
+    delete_own_message_in(state, author, stamp, Folders::live()).await
+}
+
+/// [`delete_own_message`] with the upload folders named (a test's own). The chat files the
+/// message posted go with it (2026-11-06): its author's own files on the chat shelf that no other
+/// message links, and each video's poster picture with its file (`Storage::delete_files_of_
+/// deleted_message_in`). Before this a deleted message's video stayed at its address until the
+/// keep-N limit pushed it out.
+pub async fn delete_own_message_in(state: &Arc<RelayState>, author: &str, stamp: u64, folders: Folders<'_>) -> Result<bool, rusqlite::Error> {
     let channel = state.db.message_channel(author, stamp)?;
+    let content = state.db.message_content(author, stamp)?;
     let deleted = state.db.delete_message(author, stamp)?;
     if deleted {
+        if let Some(content) = content {
+            state.db.delete_files_of_deleted_message_in(author, &content, folders);
+        }
         after_delete(state, author, stamp, channel).await;
     }
     Ok(deleted)
@@ -677,9 +691,22 @@ pub async fn delete_own_message(state: &Arc<RelayState>, author: &str, stamp: u6
 
 /// `Storage::delete_message_by_id`, and the same for the linked servers.
 pub async fn delete_message_by_id(state: &Arc<RelayState>, id: i64, requester: &str, is_admin: bool) -> Result<Option<(String, String)>, rusqlite::Error> {
+    delete_message_by_id_in(state, id, requester, is_admin, Folders::live()).await
+}
+
+/// [`delete_message_by_id`] with the upload folders named; the message's chat files go with it as
+/// in [`delete_own_message_in`] (a moderator's delete too: the files are its author's).
+pub async fn delete_message_by_id_in(state: &Arc<RelayState>, id: i64, requester: &str, is_admin: bool, folders: Folders<'_>) -> Result<Option<(String, String)>, rusqlite::Error> {
     let found = state.db.message_by_id(id)?;
+    let content = match &found {
+        Some((author, _, stamp)) => state.db.message_content(author, *stamp)?,
+        None => None,
+    };
     let deleted = state.db.delete_message_by_id(id, requester, is_admin)?;
     if let (Some(_), Some((author, ch, stamp))) = (&deleted, found) {
+        if let Some(content) = content {
+            state.db.delete_files_of_deleted_message_in(&author, &content, folders);
+        }
         after_delete(state, &author, stamp, Some(ch)).await;
     }
     Ok(deleted)

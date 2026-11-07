@@ -92,6 +92,9 @@ pub(crate) use public_files::{draw_model_window, post_in};
 /// See `chat/inline_video.rs`.
 pub(crate) mod inline_video;
 pub(crate) use inline_video::{draw_video_window, sync_video_sound};
+/// A posted video's poster picture: made when it is posted, drawn before Play (2026-11-06). See
+/// `chat/video_poster.rs`.
+pub(crate) mod video_poster;
 /// Device-to-device big files (answer 10): a row per transfer at the top of a DM. See `chat/transfer_rows.rs`.
 mod transfer_rows;
 #[cfg(test)]

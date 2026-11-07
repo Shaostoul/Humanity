@@ -774,6 +774,8 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
         private_held_limit: None,
         allowance: None,
         session: Some(&s.id),
+        // A resumable upload is a Media file in pieces: no poster picture rides with it.
+        poster: None,
     };
     match files::store_upload(db, &settings, folders, &new, |path| body.put(path), |path| body.unstage(path)) {
         Ok(old_files) => {

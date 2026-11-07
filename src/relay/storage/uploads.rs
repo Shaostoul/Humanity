@@ -18,6 +18,26 @@ pub struct SharedUpload {
     pub uploader_name: String,
 }
 
+/// The stored names of the uploads a message's text links (`/uploads/<name>`, alone or inside a
+/// full address), in order, each once. A name is what a stored name can hold (letters, digits,
+/// `_`, `-`, `.`), a sentence's last dot taken off; anything else ends it. The message-delete road
+/// (2026-11-06, [`Storage::forget_chat_files_of_deleted_message`]) reads them.
+pub fn upload_names_in(text: &str) -> Vec<String> {
+    const LINK: &str = "/uploads/";
+    let mut names: Vec<String> = Vec::new();
+    let mut rest = text;
+    while let Some(at) = rest.find(LINK) {
+        rest = &rest[at + LINK.len()..];
+        let len = rest.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')).unwrap_or(rest.len());
+        let name = rest[..len].trim_end_matches('.');
+        if !name.is_empty() && !name.starts_with('.') && super::files::bare_name(name) && !names.iter().any(|n| n == name) {
+            names.push(name.to_string());
+        }
+        rest = &rest[len..];
+    }
+    names
+}
+
 impl Storage {
     // ── Upload tracking (per-user media FIFO + the shared-file library) ──
 
@@ -43,6 +63,24 @@ impl Storage {
         original_name: &str,
         size_bytes: i64,
     ) -> Result<Vec<String>, rusqlite::Error> {
+        self.record_upload_with_poster(public_key, filename, max_per_user, shared, original_name, size_bytes, 0)
+    }
+
+    /// [`Self::record_upload`] for a video stored with its poster picture beside it
+    /// (`poster_bytes`, its size; 0 for none), in the same row (2026-11-06, docs/design/
+    /// media-player.md, "Rung 2: the poster picture"). The keep-N FIFO counts the video once; a
+    /// pruned video's poster picture goes with its file (files.rs `delete_pruned`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn record_upload_with_poster(
+        &self,
+        public_key: &str,
+        filename: &str,
+        max_per_user: i64,
+        shared: impl Into<i64>,
+        original_name: &str,
+        size_bytes: i64,
+        poster_bytes: i64,
+    ) -> Result<Vec<String>, rusqlite::Error> {
         let max_per_user = max_per_user.max(1);
         let shared: i64 = shared.into();
         self.with_conn(|conn| {
@@ -53,9 +91,9 @@ impl Storage {
 
             // Insert the new upload record.
             conn.execute(
-                "INSERT INTO user_uploads (public_key, filename, uploaded_at, shared, original_name, size_bytes)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![public_key, filename, now, shared, original_name, size_bytes],
+                "INSERT INTO user_uploads (public_key, filename, uploaded_at, shared, original_name, size_bytes, poster_bytes)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![public_key, filename, now, shared, original_name, size_bytes, poster_bytes.max(0)],
             )?;
 
             // Count this key's NON-shared uploads (the media-FIFO population). Files from private
@@ -88,6 +126,68 @@ impl Storage {
 
             Ok(to_delete)
         })
+    }
+
+    /// The size of the poster picture kept beside the upload `filename` (0: none, or no such row).
+    pub fn poster_bytes_of(&self, filename: &str) -> i64 {
+        self.with_read_conn(|conn| {
+            conn.query_row("SELECT COALESCE(MAX(poster_bytes), 0) FROM user_uploads WHERE filename = ?1", params![filename], |r| r.get(0))
+        })
+        .unwrap_or(0)
+    }
+
+    /// A message by `author` that linked the chat files `names` was deleted (2026-11-06): forget
+    /// each of them that is `author`'s own chat file (the chat shelf, 0; never a Shared File, a
+    /// Media upload or a private conversation's `.enc`) and that no remaining message links, and
+    /// answer their names, for the caller to delete them (and their poster pictures) from disk.
+    /// Before this a deleted message's video stayed at its address until the keep-N limit pushed
+    /// it out. Called after the message's row is gone, so its own link no longer counts.
+    pub fn forget_chat_files_of_deleted_message(&self, author: &str, names: &[String]) -> Result<Vec<String>, rusqlite::Error> {
+        if names.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.with_conn(|conn| {
+            let mut gone = Vec::new();
+            for name in names {
+                if !super::files::bare_name(name) || name.to_ascii_lowercase().ends_with(".enc") || gone.contains(name) {
+                    continue;
+                }
+                let link = format!("/uploads/{name}");
+                let n = conn.execute(
+                    "DELETE FROM user_uploads
+                     WHERE filename = ?1 AND public_key = ?2 AND shared = 0
+                       AND NOT EXISTS (SELECT 1 FROM messages WHERE instr(content, ?3) > 0)",
+                    params![name, author, link],
+                )?;
+                if n > 0 {
+                    gone.push(name.clone());
+                }
+            }
+            Ok(gone)
+        })
+    }
+
+    /// The message by `author` whose words were `content` was deleted: delete the chat files only it
+    /// linked ([`Self::forget_chat_files_of_deleted_message`]), rows and files, each video's poster
+    /// picture with its file (`Folders::delete`). How many files went. A failure is logged, never
+    /// fatal: the message is gone either way.
+    pub fn delete_files_of_deleted_message_in(&self, author: &str, content: &str, folders: super::files::Folders) -> usize {
+        let names = upload_names_in(content);
+        match self.forget_chat_files_of_deleted_message(author, &names) {
+            Ok(gone) => {
+                for name in &gone {
+                    folders.delete(name);
+                }
+                if !gone.is_empty() {
+                    tracing::info!("Message deleted: removed {} chat file(s) only it linked", gone.len());
+                }
+                gone.len()
+            }
+            Err(e) => {
+                tracing::error!("Message deleted, but its chat files could not be looked up: {e}");
+                0
+            }
+        }
     }
 
     /// Get the number of uploads for a user (all kinds).
@@ -307,5 +407,52 @@ mod shared_library_tests {
 
         // A file that does not exist yields None (caller -> 403/404).
         assert_eq!(db.delete_shared_upload("3_ghost.obj", "operator", true).unwrap(), None);
+    }
+
+    /// STARTUP SURVIVES A DATABASE FROM BEFORE POSTER PICTURES (2026-11-06, BUG-046's rule): a
+    /// live `user_uploads` without `poster_bytes` opens, its old row reads as having no picture,
+    /// and a video with one is recorded with its size.
+    ///
+    /// Seen red 2026-11-06 with the ALTER line for `poster_bytes` taken out of `Storage::open`:
+    /// "startup must survive a DB from before poster pictures" held (the CREATE is a no-op there),
+    /// and `record_upload_with_poster` failed: "table user_uploads has no column named
+    /// poster_bytes".
+    #[test]
+    fn opens_a_database_from_before_poster_pictures_and_migrates_it() {
+        let path = humanity_core::test_temp::db("uploads_poster_mig");
+        {
+            let conn = rusqlite::Connection::open(&path).expect("raw open");
+            conn.execute_batch(
+                "CREATE TABLE user_uploads (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    public_key    TEXT NOT NULL,
+                    filename      TEXT NOT NULL,
+                    uploaded_at   INTEGER NOT NULL,
+                    shared        INTEGER NOT NULL DEFAULT 0,
+                    original_name TEXT NOT NULL DEFAULT '',
+                    size_bytes    INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO user_uploads (public_key, filename, uploaded_at, shared, original_name, size_bytes)
+                    VALUES ('carol', '1_old_clip.mp4', 1, 0, 'old_clip.mp4', 4096);",
+            )
+            .expect("seed the shape before poster pictures");
+        }
+        let db = Storage::open(&path).expect("startup must survive a DB from before poster pictures");
+        assert_eq!(db.poster_bytes_of("1_old_clip.mp4"), 0, "an old video has no poster picture");
+        db.record_upload_with_poster("carol", "2_new_clip.mp4", 4, 0, "new_clip.mp4", 4096, 31_000).unwrap();
+        assert_eq!(db.poster_bytes_of("2_new_clip.mp4"), 31_000, "a new one is recorded with its picture's size");
+    }
+
+    /// THE UPLOADS A MESSAGE LINKS, as its delete reads them: a bare address, a full one, one at the
+    /// end of a sentence, one inside markdown, each once; never a hidden name or a folder escape.
+    ///
+    /// Seen red 2026-11-06 with the sentence's last dot kept: "left: [\"1_clip.mp4.\", \"2_b-c.webm\",
+    /// \"3_pic.png\", \"1_clip.mp4\"]" (the first read with its dot, so the same file twice).
+    #[test]
+    fn the_uploads_a_message_links_are_read_from_its_words() {
+        let text = "see /uploads/1_clip.mp4. and https://hum.example/uploads/2_b-c.webm ![x](/uploads/3_pic.png) \
+                    again /uploads/1_clip.mp4 and /uploads/.incoming-x and /uploads/../etc and /uploads/";
+        assert_eq!(super::upload_names_in(text), vec!["1_clip.mp4", "2_b-c.webm", "3_pic.png"]);
+        assert!(super::upload_names_in("no files here").is_empty());
     }
 }

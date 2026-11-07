@@ -3105,7 +3105,12 @@ function fileCardHtml(url, ext) {
   const sound = FILE_CARD_SOUND.includes(kind);
   const video = FILE_CARD_VIDEO.includes(kind);
   const what = sound ? 'sound' : video ? 'video' : 'document';
-  const head = `<div class="file-card${sound || video ? ' file-card-media' : ''}" data-file-url="${url}" data-file-name="${name}" data-file-kind="${what}">`;
+  // A video on this server has its poster picture beside it (rung 2, /shared/video-poster.js
+  // posterUrlOf): named on the card, and put on its player once the card is on screen
+  // (filePosterWatch). Never a video on another website (nothing is fetched there before a click).
+  const posterAt = video && fileOnThisServer(address) && typeof window !== 'undefined' && window.HosVideoPoster ? window.HosVideoPoster.posterUrlOf(address) : null;
+  const poster = posterAt ? ` data-file-poster="${esc(posterAt)}"` : '';
+  const head = `<div class="file-card${sound || video ? ' file-card-media' : ''}" data-file-url="${url}" data-file-name="${name}" data-file-kind="${what}"${poster}>`;
   // Its type, just before its name, always (fileBadgeSlotHtml): the drawing, word and colour that
   // took the place of the card's old emoji icon.
   const info = '<div class="file-info">'
@@ -3121,8 +3126,10 @@ function fileCardHtml(url, ext) {
     // "Can we make the videos show in chat and playable in chat?"): preload="none" on every one, so
     // a chat full of videos fetches nothing as it loads (`metadata` read part of every video row).
     // It plays inline (playsinline: a phone does not take it full screen), one at a time
-    // (fileMediaOnePlaying). No poster: the server keeps no still of a video (docs/design/
-    // media-player.md, "Videos inside chat messages"). The desktop app's twin: chat/inline_video.rs.
+    // (fileMediaOnePlaying). Its poster picture, made when it was posted, is set once the card is
+    // on screen (filePosterWatch; docs/design/media-player.md, "Rung 2: the poster picture"); a
+    // video from before keeps the player's own black box. The desktop app's twin:
+    // chat/inline_video.rs.
     const preload = fileOnThisServer(address) ? 'metadata' : 'none';
     const player = sound
       ? `<audio controls preload="${preload}" src="${url}"></audio>`
@@ -3229,9 +3236,44 @@ function fillFileCards(root) {
   for (const card of Array.from(root.querySelectorAll(FILE_CARD_SELECTOR))) fillFileCard(card);
 }
 
+// ── A video's poster picture, once its card is on screen (rung 2, 2026-11-06) ──
+// docs/design/media-player.md, "Rung 2: the poster picture". A video card on this server names its
+// poster picture (`data-file-poster`, fileCardHtml); its <video> gets `poster="..."` only when the
+// card comes within a screen's height of the view, so a chat full of videos fetches only the
+// pictures of the cards near the screen, like a small picture each, and never the videos
+// (preload="none" stays). A browser without an IntersectionObserver sets it at once. A video
+// posted before poster pictures answers 404 there, and its player shows its own black box.
+let filePosterSeen = null;
+
+/** Put a card's poster picture on its player (once). */
+function filePosterShow(card) {
+  const at = card && card.dataset ? card.dataset.filePoster : '';
+  const player = at && typeof card.querySelector === 'function' ? card.querySelector('video') : null;
+  if (!player || player.getAttribute('poster')) return;
+  player.setAttribute('poster', at);
+}
+
+/** The IntersectionObserver's answer: a card near the screen gets its poster picture, and is let go. */
+function filePosterNear(entries) {
+  for (const entry of entries || []) {
+    if (!entry || !entry.isIntersecting || !entry.target) continue;
+    filePosterShow(entry.target);
+    if (filePosterSeen) { try { filePosterSeen.unobserve(entry.target); } catch (e) { /* not watched */ } }
+  }
+}
+
+/** Watch a video card that names a poster picture until it is near the screen. */
+function filePosterWatch(card) {
+  if (!card || !card.dataset || !card.dataset.filePoster) return;
+  if (typeof IntersectionObserver !== 'function') { filePosterShow(card); return; }
+  if (!filePosterSeen) filePosterSeen = new IntersectionObserver(filePosterNear, { rootMargin: '100% 0px' });
+  filePosterSeen.observe(card);
+}
+
 function fillFileCard(card) {
   if (!card || !card.dataset || card.dataset.fileFilled === '1') return;
   card.dataset.fileFilled = '1';
+  filePosterWatch(card);
   // Its type, drawn again once the list of kinds is in (by its name: nothing is read before a click).
   fileBadgeFill(card.querySelector('.file-badge-slot'), card.dataset.fileName || '', null);
   fileCautionFill(card.querySelector('.file-caution'), card.dataset.fileName || '', null);

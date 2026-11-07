@@ -672,7 +672,10 @@ impl Storage {
                 -- human filename (the stored name is timestamp-mangled).
                 shared        INTEGER NOT NULL DEFAULT 0,
                 original_name TEXT NOT NULL DEFAULT '',
-                size_bytes    INTEGER NOT NULL DEFAULT 0
+                size_bytes    INTEGER NOT NULL DEFAULT 0,
+                -- A video's poster picture (2026-11-06, docs/design/media-player.md, Rung 2:
+                -- the poster picture): its size, kept beside the video as <filename>.poster.jpg.
+                poster_bytes  INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE INDEX IF NOT EXISTS idx_user_uploads_key
@@ -938,6 +941,8 @@ impl Storage {
             "ALTER TABLE user_uploads ADD COLUMN shared        INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE user_uploads ADD COLUMN original_name TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE user_uploads ADD COLUMN size_bytes    INTEGER NOT NULL DEFAULT 0",
+            // A video's poster picture's size (2026-11-06), for DBs created before it.
+            "ALTER TABLE user_uploads ADD COLUMN poster_bytes  INTEGER NOT NULL DEFAULT 0",
         ] {
             let _ = conn.execute(alter, []);
         }

@@ -464,9 +464,10 @@ opened the video in a window of its own. Now the player sits inside the message,
   exactly the cost this design refuses. So the box is black with a Play mark and "Press Play to
   fetch and watch it here." until the first Play; after that, the picture last shown stays as the
   row's still (made small, at most 480 pixels wide, when the player goes) with the place it
-  reached, and Play carries on from there. The better still, a poster made once when the video is
-  posted and served beside it, needs the uploader's app to make one and the relay to keep it:
-  the next rung, and an operator question.
+  reached, and Play carries on from there. The better still, a poster picture made once when the
+  video is posted and served beside it, is the next rung, built the same day: "Rung 2: the poster
+  picture" below. Before Play a row now shows that picture under its Play mark; a video posted
+  before it (no poster picture) keeps the black box.
 - **One video plays at a time.** The last video Play was pressed on is the only one allowed to
   play; every other is paused at the end of the frame (`ChatVideos::end_frame`), which also
   catches a video whose fetch finishes after another was started.
@@ -485,10 +486,72 @@ opened the video in a window of its own. Now the player sits inside the message,
 
 **The website** (`web/chat/app.js` `fileCardHtml`): the browser's own `<video controls>` inline in
 the card, `preload="none"` on every video (it was `metadata` for this server's files, a read of
-every video row as the chat loaded), so nothing is fetched until Play. No poster: the server keeps
-none (the rung above). A capture-phase `play` listener pauses the card that played before, so one
-plays at a time, and a playing card scrolled out of view is paused (an IntersectionObserver). A
-file the browser cannot play says so in its card, as since 2026-10-17.
+every video row as the chat loaded), so nothing is fetched until Play. Its poster picture is set
+once the card is on screen (rung 2, below). A capture-phase `play` listener pauses the card that
+played before, so one plays at a time, and a playing card scrolled out of view is paused (an
+IntersectionObserver). A file the browser cannot play says so in its card, as since 2026-10-17.
+
+### Rung 2: the poster picture (2026-11-06)
+
+The first rung's own recommendation, which the orchestrator took: the app that posts a video makes
+a small still of it once, sends it with the video, and the server keeps it beside the file. A row
+then shows a picture of the video before Play at the cost of one small picture, and no row ever
+reads the video itself before Play.
+
+- **What it is.** A JPEG, its longest side at most 640 pixels, made at quality 80 and stepped down
+  (65, 50, 35) until it is under 96 KB; a few tens of KB for an ordinary frame. JPEG and not WebP:
+  both apps can make a JPEG everywhere (the `image` crate's WebP encoder is lossless only, and
+  Safari's canvas does not make WebP), and one type keeps the address predictable.
+- **Which frame.** About one second in (a first frame is often black or a fade), or the first frame
+  of a video shorter than that. The desktop app takes it with its own player (`media::VideoPlayer`,
+  which also opens an ordinary MP4 through Windows's own decoders): `chat/video_poster.rs`. The
+  website takes it with the browser's own `<video>` and a canvas, seeked a second in:
+  `web/shared/video-poster.js`. A video the app cannot decode gets no poster picture (no ffmpeg run
+  for one); the video still goes, and its row keeps the black box.
+- **How it travels.** In the same `POST /api/upload` as the video: a form part named `poster`,
+  before the `file` part, so the relay holds the small picture before the large file starts. Only
+  with a video (mp4 or webm); never with a file from a private conversation (an `encrypted=1`
+  upload is ciphertext, and a plain picture of it would be readable by anyone with its address:
+  the relay refuses one, and neither app makes one). The relay refuses a poster picture that is
+  not a JPEG, that does not decode, that is over 640 pixels on a side or over 128 KB, or a second
+  one, with words saying which. It is cleaned like every picture (`strip_image_metadata`), whatever
+  `keep_metadata` says: the app made it, so it has nothing of the person's to keep.
+- **Where it is kept.** As `<the video's stored name>.poster.jpg`, beside the video, in the same
+  folder (`storage::files::poster_name`). A stored name never holds two dots (its stem has none),
+  so no upload can ever be given a poster picture's name. Its size is the video's row's
+  `user_uploads.poster_bytes` (added by ALTER, BUG-046's rule), and it counts where the video
+  counts: the server's room (the folder's bytes), the day's allowance (the bytes that arrived) and,
+  for a video on the Media page, its uploader's share.
+- **Its address and who may fetch it.** `/uploads/<stored name>.poster.jpg`, the same service as
+  the video, so exactly as public as the video and never more. A Media item made members only
+  moves its file to the members' folder, and its poster picture moves with it
+  (`Folders::move_to`): the public address answers 404 to everyone, as the video's does. The
+  members' route serves an item's own files only, not poster pictures.
+- **It goes when its video goes, on every road.** `Folders::delete` (an erased account, a removed
+  Files item or file, a decided copyright report, a Media upload never published, a private file's
+  lifetime), the chat files' keep-N limit (`delete_pruned`), a removed Shared File, and, new with
+  this rung, a deleted message: deleting a message (its author, or a moderator) now deletes the
+  chat files it posted (its author's own, on the chat shelf; never a Shared File or a Media
+  upload), unless another message still links them. Before this a deleted message's video stayed
+  at its address until the keep-N limit pushed it out. The six-hour pass (and the start) removes
+  any poster picture whose video is no longer beside it, for a relay stopped between the two.
+  Still open: a message that leaves by the retention sweep or an admin's channel clear leaves its
+  video (and so its poster picture) until the keep-N limit (BUG-256).
+- **Drawn before Play.** The desktop app: a video row on screen asks for its poster picture once,
+  on a worker (at most 256 KB read, decoded there), and draws it in the picture box under the Play
+  mark; nothing else is fetched, and no player is made. A 404 (a video from before this rung)
+  leaves the black box. Kept in memory only, never on disk: at most 48 while reuse is on; with the
+  Dev page's "turn off all reuse" switch, a poster picture is kept only while its row stays on
+  screen and asked for again when it comes back. After a Play, the row's still (where it was left)
+  takes the poster picture's place. The website: a video card on this server carries
+  `data-poster`, and its `<video>` gets `poster="..."` when the card comes within a screen's
+  height of the view (an IntersectionObserver; at once in a browser without one); `preload="none"`
+  stays, so the video itself is still not read before Play.
+- **Below Verified** a person's files are plain words (chat access rung 1): no card, so no poster
+  picture is fetched for them.
+- **Not built:** a poster picture for a file in a private conversation (it would have to be sealed
+  with the file's own key and opened by the receiving app), and one for a Media item's own page
+  (an item has its cover).
 
 **What one playing video costs** is measured in "Measurements" below ("A video playing in a chat
 row").

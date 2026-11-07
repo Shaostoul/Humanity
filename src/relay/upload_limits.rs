@@ -9,9 +9,11 @@ use axum::http::StatusCode;
 /// `max_upload_mb` (Server Settings > Roles), and the server-wide `max_total_upload_mb` keeps the
 /// disk from filling.
 pub const UPLOAD_HARD_CEILING: u64 = 1024 * 1024 * 1024; // 1 GB
-/// What a multipart form adds around the file itself (boundaries, headers, the file name), allowed
-/// on top of a role's limit when the request's declared size is checked.
-pub const UPLOAD_FORM_OVERHEAD: u64 = 64 * 1024;
+/// What a multipart form adds around the file itself (boundaries, headers, the file name, and a
+/// video's poster picture, relay/poster.rs, since 2026-11-06), allowed on top of a role's limit
+/// when the request's declared size is checked. The file itself is still held to the role's limit
+/// as it streams; the poster picture is held to its own.
+pub const UPLOAD_FORM_OVERHEAD: u64 = 64 * 1024 + super::poster::POSTER_MAX_BYTES as u64;
 /// The body limit on the upload route (src/relay/mod.rs): the ceiling plus the form's overhead.
 pub const UPLOAD_BODY_LIMIT: usize = (UPLOAD_HARD_CEILING + UPLOAD_FORM_OVERHEAD) as usize;
 /// Where an upload is streamed while it arrives, apart from data/uploads (which is served to the

@@ -28,6 +28,15 @@
 //! pressed would need a range read of the MP4's index (often at the file's end), its first keyframe
 //! and a decode, for every video row on screen.
 //!
+//! **Before Play, its poster picture** (rung 2, 2026-11-06; docs/design/media-player.md, "Rung 2:
+//! the poster picture"): the app that posted the video made one small JPEG of it, which the relay
+//! keeps beside the file (chat/video_poster.rs makes and fetches it). A row on screen asks for it
+//! once ([`ChatVideos::want_poster`]), on a worker, and draws it under the Play mark; nothing else is
+//! fetched and no player is made. A video from before (no picture: the server answers 404) keeps the
+//! black box. The pictures are memory only: at most [`MAX_POSTERS`] while reuse is on; with the Dev
+//! page's "turn off all reuse" switch, one is kept only while its row stays on screen. Once played,
+//! the row's still (where it was left) takes the poster picture's place.
+//!
 //! Videos are known by their address (the card's resolved URL): the same video posted twice shows
 //! one player in both rows. Takes `use super::*` like the page's other children; the website's twin
 //! is the browser's own `<video>` in web/chat/app.js `fileCardHtml`.
@@ -52,6 +61,30 @@ const STILL_WIDTH: usize = 480;
 pub(crate) const MAX_STILLS: usize = 24;
 /// How wide the volume bar is, in points.
 const VOLUME_WIDTH: f32 = 72.0;
+/// How many poster pictures are kept while reuse is on; the one seen longest ago goes first.
+pub(crate) const MAX_POSTERS: usize = 48;
+
+/// Where a video's poster picture is: being fetched, here, or not to be had (a video from before
+/// poster pictures, a server that refused it, an address that is not one).
+enum PosterState {
+    Asking,
+    Ready(egui::TextureHandle),
+    Missing,
+}
+
+/// A video's poster picture and the frame its row was last on screen.
+struct Poster {
+    state: PosterState,
+    seen: u64,
+}
+
+/// What a poster picture's worker sends back: the video's address, then the picture (its width,
+/// height and RGBA pixels) or why there is none.
+type PosterResult = (String, Result<(u32, u32, Vec<u8>), String>);
+
+/// What fetches a poster picture in place of the network (tests only): its address in, its bytes out.
+#[cfg(test)]
+pub(crate) type PosterFetchForTest = std::sync::Arc<dyn Fn(&str) -> Result<Vec<u8>, String> + Send + Sync>;
 
 /// A video with a player: fetching, playing, paused or refused.
 struct Live {
@@ -96,8 +129,22 @@ pub(crate) struct ChatVideos {
     /// The chat videos' volume (0 to 1, on top of the app's) and Mute: one for them all, this run.
     pub volume: f32,
     pub muted: bool,
+    /// The poster pictures asked for, by the video's address (rung 2: memory only, under the reuse
+    /// switch), and the channel their workers answer on.
+    posters: HashMap<String, Poster>,
+    poster_tx: std::sync::mpsc::Sender<PosterResult>,
+    poster_rx: std::sync::mpsc::Receiver<PosterResult>,
     #[cfg(test)]
     pub(crate) fetch_for_test: Option<FetchForTest>,
+    /// Fetches a poster picture in place of the network (tests and snapshots).
+    #[cfg(test)]
+    pub(crate) poster_fetch_for_test: Option<PosterFetchForTest>,
+    /// Every poster picture address asked for, in order (tests: each is asked once).
+    #[cfg(test)]
+    pub(crate) poster_fetches: Vec<String>,
+    /// The reuse switch as a test sets it, in place of the Dev page's (which is the whole process's).
+    #[cfg(test)]
+    pub(crate) reuse_for_test: Option<bool>,
     /// How many fetches were started (tests: nothing is fetched before Play).
     #[cfg(test)]
     pub(crate) fetches: usize,
@@ -108,6 +155,7 @@ pub(crate) struct ChatVideos {
 
 impl Default for ChatVideos {
     fn default() -> Self {
+        let (poster_tx, poster_rx) = std::sync::mpsc::channel();
         ChatVideos {
             live: HashMap::new(),
             stills: HashMap::new(),
@@ -118,8 +166,17 @@ impl Default for ChatVideos {
             frame: 0,
             volume: 1.0,
             muted: false,
+            posters: HashMap::new(),
+            poster_tx,
+            poster_rx,
             #[cfg(test)]
             fetch_for_test: None,
+            #[cfg(test)]
+            poster_fetch_for_test: None,
+            #[cfg(test)]
+            poster_fetches: Vec::new(),
+            #[cfg(test)]
+            reuse_for_test: None,
             #[cfg(test)]
             fetches: 0,
             #[cfg(test)]
@@ -162,6 +219,38 @@ impl ChatVideos {
     #[cfg(test)]
     pub(crate) fn still_texture(&self, url: &str) -> Option<egui::TextureId> {
         self.stills.get(url).map(|s| s.texture.id())
+    }
+
+    /// The texture of the poster picture kept for the video at `url`, once it is here.
+    #[cfg(test)]
+    pub(crate) fn poster_texture(&self, url: &str) -> Option<egui::TextureId> {
+        match self.posters.get(url).map(|p| &p.state) {
+            Some(PosterState::Ready(t)) => Some(t.id()),
+            _ => None,
+        }
+    }
+
+    /// Whether a poster picture is known to be missing for the video at `url` (asked, none came).
+    #[cfg(test)]
+    pub(crate) fn poster_missing(&self, url: &str) -> bool {
+        matches!(self.posters.get(url).map(|p| &p.state), Some(PosterState::Missing))
+    }
+
+    /// How many poster pictures (or their answers) are kept.
+    #[cfg(test)]
+    pub(crate) fn posters_kept(&self) -> usize {
+        self.posters.len()
+    }
+
+    /// Take in poster pictures (10 ms apart, at most 10 s) until none is still on its way: for a
+    /// snapshot, which must draw a settled frame.
+    #[cfg(test)]
+    pub(crate) fn wait_for_posters(&mut self, ctx: &egui::Context) {
+        let started = std::time::Instant::now();
+        while self.posters.values().any(|p| matches!(p.state, PosterState::Asking)) && started.elapsed() < std::time::Duration::from_secs(10) {
+            self.take_posters(ctx);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     }
 
     /// Whether the video at `url` has a player with a picture come (its first frame shown).
@@ -247,6 +336,79 @@ impl ChatVideos {
         self.live.insert(url.to_string(), Live { name: name.to_string(), view, ffmpeg: ffmpeg.to_string(), seen: frame, polled: u64::MAX });
     }
 
+    /// The row of the video at `url` is on screen with nothing of the video to show (no player, no
+    /// still): ask for its poster picture, once, on a worker (chat/video_poster.rs `fetch_poster`),
+    /// and note the row was seen this frame. An address that is not one of `/uploads/<name>` (it
+    /// never is, for a video that plays here) is noted missing without asking anything.
+    pub(crate) fn want_poster(&mut self, url: &str) {
+        let frame = self.frame;
+        if let Some(p) = self.posters.get_mut(url) {
+            p.seen = frame;
+            return;
+        }
+        let Some(poster) = super::video_poster::poster_url(url) else {
+            self.posters.insert(url.to_string(), Poster { state: PosterState::Missing, seen: frame });
+            return;
+        };
+        self.posters.insert(url.to_string(), Poster { state: PosterState::Asking, seen: frame });
+        let (tx, key) = (self.poster_tx.clone(), url.to_string());
+        #[cfg(test)]
+        {
+            self.poster_fetches.push(poster.clone());
+            if let Some(fetch) = self.poster_fetch_for_test.clone() {
+                std::thread::spawn(move || {
+                    let _ = tx.send((key, fetch(&poster).and_then(|bytes| super::video_poster::decode_poster(&bytes))));
+                });
+                return;
+            }
+        }
+        let _ = std::thread::Builder::new().name("chat-video-poster".into()).spawn(move || {
+            let _ = tx.send((key, super::video_poster::fetch_poster(&poster)));
+        });
+    }
+
+    /// Take in the poster pictures the workers have finished: each made a texture (or noted missing,
+    /// a video from before poster pictures). One whose row was let go meanwhile is dropped.
+    fn take_posters(&mut self, ctx: &egui::Context) {
+        while let Ok((url, result)) = self.poster_rx.try_recv() {
+            let Some(p) = self.posters.get_mut(&url) else { continue };
+            p.state = match result {
+                Ok((w, h, rgba)) => {
+                    let image = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
+                    PosterState::Ready(ctx.load_texture(format!("chat_video_poster:{url}"), image, egui::TextureOptions::LINEAR))
+                }
+                Err(why) => {
+                    log::debug!("No poster picture for {url}: {why}");
+                    PosterState::Missing
+                }
+            };
+        }
+    }
+
+    /// Let go of the poster pictures past what is kept (the end of each frame): with reuse turned off,
+    /// every one whose row was not on screen this frame or the last (asked again when it comes back);
+    /// with it on, the ones seen longest ago past [`MAX_POSTERS`], never one on screen now.
+    fn trim_posters(&mut self) {
+        let frame = self.frame;
+        #[cfg(test)]
+        let reuse = self.reuse_for_test.unwrap_or_else(humanity_core::reuse::enabled);
+        #[cfg(not(test))]
+        let reuse = humanity_core::reuse::enabled();
+        if !reuse {
+            self.posters.retain(|_, p| p.seen + 1 >= frame);
+            return;
+        }
+        if self.posters.len() <= MAX_POSTERS {
+            return;
+        }
+        let mut away: Vec<(u64, String)> = self.posters.iter().filter(|(_, p)| p.seen + 1 < frame).map(|(u, p)| (p.seen, u.clone())).collect();
+        away.sort();
+        let over = self.posters.len() - MAX_POSTERS;
+        for (_, url) in away.into_iter().take(over) {
+            self.posters.remove(&url);
+        }
+    }
+
     /// The video at `url` was drawn on screen this frame: poll it (once a frame) and keep it.
     fn on_screen(&mut self, url: &str, ctx: &egui::Context) {
         let frame = self.frame;
@@ -277,6 +439,13 @@ impl ChatVideos {
         }
         if self.window.as_ref().is_some_and(|w| !self.live.contains_key(w)) {
             self.window = None;
+        }
+        // The poster pictures: the ones that came are taken in, the ones past what is kept let go,
+        // and while one is still on its way the next frame is asked for, so it shows when it comes.
+        self.take_posters(ctx);
+        self.trim_posters();
+        if self.posters.values().any(|p| matches!(p.state, PosterState::Asking)) {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
         self.frame += 1;
     }
@@ -344,9 +513,10 @@ pub(crate) fn draw_in_card(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVi
 fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &str, name: &str, ffmpeg: &str, max: egui::Vec2, in_window: bool) {
     let ctx = ui.ctx().clone();
     let elsewhere = !in_window && videos.window.as_deref() == Some(url);
-    // The shape: the picture's own once one has come, else 16:9.
+    // The shape: the picture's own once one has come (the player's, the still's, or the poster
+    // picture's), else 16:9.
     let aspect = {
-        let size = videos.live.get(url).and_then(|l| l.view.texture()).map(|t| t.size()).or_else(|| videos.stills.get(url).map(|s| s.texture.size()));
+        let size = videos.live.get(url).and_then(|l| l.view.texture()).map(|t| t.size()).or_else(|| videos.stills.get(url).map(|s| s.texture.size())).or_else(|| poster_of(videos, url).map(|t| t.size()));
         size.map_or(FIRST_ASPECT, |[w, h]| (w.max(1) as f32 / h.max(1) as f32).clamp(0.25, 4.0))
     };
     let mut width = if in_window { max.x } else { ui.available_width().min(max.x) }.max(160.0);
@@ -361,6 +531,10 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
     videos.pictures.insert(url.to_string(), picture);
     if (in_window || ui.is_rect_visible(picture)) && !elsewhere {
         videos.on_screen(url, &ctx);
+        // Nothing of the video to show yet (never played here): its poster picture, asked for once.
+        if !videos.live.contains_key(url) && !videos.stills.contains_key(url) {
+            videos.want_poster(url);
+        }
     }
     let mut asked = Asked { play: press.clicked() && !elsewhere, ..Default::default() };
     if ui.is_rect_visible(picture) {
@@ -442,7 +616,9 @@ fn paint_picture(ui: &egui::Ui, theme: &Theme, videos: &ChatVideos, url: &str, r
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, egui::CornerRadius::same(4), theme.bg_primary());
     let live = videos.live.get(url);
-    let texture = live.and_then(|l| l.view.texture()).or_else(|| videos.stills.get(url).map(|s| &s.texture));
+    // The player's picture, else the still of where it was left, else the poster picture made when it
+    // was posted (rung 2; it stays while the first Play fetches), else nothing: the black box.
+    let texture = live.and_then(|l| l.view.texture()).or_else(|| videos.stills.get(url).map(|s| &s.texture)).or_else(|| poster_of(videos, url));
     if let (Some(tex), false) = (texture, elsewhere) {
         let [w, h] = tex.size();
         let aspect = w.max(1) as f32 / h.max(1) as f32;
@@ -486,6 +662,14 @@ fn paint_picture(ui: &egui::Ui, theme: &Theme, videos: &ChatVideos, url: &str, r
         let back = egui::Rect::from_min_size(at, galley.size()).expand(theme.spacing_xs);
         painter.rect_filled(back, egui::CornerRadius::same(3), theme.bg_primary().gamma_multiply(0.7));
         painter.galley(at, galley, theme.text_secondary());
+    }
+}
+
+/// The poster picture of the video at `url`, once it is here.
+fn poster_of<'a>(videos: &'a ChatVideos, url: &str) -> Option<&'a egui::TextureHandle> {
+    match videos.posters.get(url).map(|p| &p.state) {
+        Some(PosterState::Ready(t)) => Some(t),
+        _ => None,
     }
 }
 
