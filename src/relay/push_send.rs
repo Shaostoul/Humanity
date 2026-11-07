@@ -2,17 +2,20 @@
 //! moved out of relay.rs unchanged (2026-11-01, notifications rung 3, to keep relay.rs within its
 //! file-size budget when the task notice joined). Who gets a push, and with what words, is the
 //! caller's (the DM, the mention and the task notice: `storage::notification_prefs` `wants_push`).
+//! The encryption and the VAPID token are `relay::web_push` (our own since 2026-11-06).
 
 use std::sync::Arc;
 
-use web_push_native::jwt_simple::prelude::ES256KeyPair;
-
 use super::RelayState;
+use crate::relay::web_push;
+
+/// The VAPID token's subject: who a push service contacts about our pushes (RFC 8292 section 2.1).
+const CONTACT: &str = "mailto:admin@united-humanity.us";
 
 impl RelayState {
     /// Send push notifications to all offline devices of a user.
     /// Fire-and-forget: spawns a tokio task, never blocks message routing.
-    /// Automatically deletes stale subscriptions on 410 Gone.
+    /// Automatically deletes stale subscriptions on 404 Not Found and 410 Gone.
     pub fn send_push_notification(
         self: &Arc<Self>,
         to_key: &str,
@@ -21,9 +24,7 @@ impl RelayState {
         tag: &str,
         url_path: &str,
     ) {
-        use base64ct::{Base64UrlUnpadded, Encoding};
-
-        let Some(ref vapid_kp) = self.vapid_key else { return };
+        if self.vapid_key.is_none() { return; }
 
         let subs = self.db.get_push_subscriptions(to_key);
         if subs.is_empty() { return; }
@@ -35,38 +36,26 @@ impl RelayState {
             "url": url_path,
         }).to_string();
 
-        let client = self.http_client.clone();
-        let vapid_bytes = vapid_kp.to_bytes();
         let state = self.clone();
 
         tokio::spawn(async move {
-            let Ok(vapid_kp) = ES256KeyPair::from_bytes(&vapid_bytes) else { return };
+            let Some(vapid) = state.vapid_key.as_ref() else { return };
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
 
             for sub in subs {
-                // Decode subscription keys from base64url.
-                let Ok(p256dh_bytes) = Base64UrlUnpadded::decode_vec(&sub.p256dh) else { continue };
-                let Ok(auth_bytes) = Base64UrlUnpadded::decode_vec(&sub.auth) else { continue };
-                let Ok(endpoint) = sub.endpoint.parse::<axum::http::Uri>() else { continue };
-                let Ok(ua_public) = web_push_native::p256::PublicKey::from_sec1_bytes(&p256dh_bytes) else { continue };
-                let ua_auth = web_push_native::Auth::clone_from_slice(&auth_bytes);
-
-                let builder = web_push_native::WebPushBuilder::new(endpoint, ua_public, ua_auth)
-                    .with_vapid(&vapid_kp, "mailto:admin@united-humanity.us");
-
-                let http_req = match builder.build(payload.as_bytes()) {
-                    Ok(r) => r,
+                let push = match web_push::build_request(&sub.endpoint, &sub.p256dh, &sub.auth, payload.as_bytes(), vapid, CONTACT, now) {
+                    Ok(p) => p,
                     Err(e) => {
                         tracing::warn!("Failed to build push message: {e}");
                         continue;
                     }
                 };
-
-                // Convert web_push_native http::Request to reqwest.
-                let (parts, body_bytes) = http_req.into_parts();
-                let url = parts.uri.to_string();
-                let mut req = client.post(&url).body(body_bytes);
-                for (k, v) in &parts.headers {
-                    req = req.header(k.as_str(), v.to_str().unwrap_or_default());
+                let mut req = state.http_client.post(&push.url).body(push.body);
+                for (k, v) in &push.headers {
+                    req = req.header(*k, v.as_str());
                 }
 
                 match req.send().await {

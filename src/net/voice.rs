@@ -366,7 +366,7 @@ where
 {
     device
         .build_input_stream(
-            cfg,
+            cfg.clone(), // cpal 0.18 takes the config by value
             move |data: &[T], _: &cpal::InputCallbackInfo| {
                 let mut peak = 0.0f32;
                 let mut i = 0;
@@ -401,7 +401,7 @@ where
 {
     device
         .build_output_stream(
-            cfg,
+            cfg.clone(), // cpal 0.18 takes the config by value
             move |out: &mut [T], _: &cpal::OutputCallbackInfo| {
                 let mut i = 0;
                 while i + out_ch <= out.len() {

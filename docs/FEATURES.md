@@ -991,8 +991,8 @@ Fibonacci backoff per public key to prevent spam.
 
 ### Push Subscribe/Unsubscribe
 Web Push API with VAPID keys.
-- Web: `web/shared/shell.js` (registration)
-- Server: `src/relay/storage/push.rs`, `src/relay/api.rs`
+- Web: `web/shared/shell.js` (registration), `web/chat/chat-ui.js` (subscribes with the server's key), `web/shared/sw.js` (shows the notice)
+- Server: `src/relay/storage/push.rs`, `src/relay/api.rs`, `src/relay/push_send.rs` (the send), `src/relay/web_push.rs` (our own RFC 8291 encryption and RFC 8292 VAPID token on p256, since 2026-11-06; the key is `data/vapid_private.key`)
 
 ### Notification Preferences
 Per-user DM/mention/task switches, quiet hours and (since 2026-10-31) the two quiet-hours

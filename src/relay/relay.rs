@@ -12,7 +12,6 @@ use tokio::sync::{broadcast, RwLock};
 use tracing::info;
 
 use crate::relay::storage::Storage;
-use web_push_native::jwt_simple::prelude::ES256KeyPair;
 
 use crate::relay::handlers::*;
 use crate::relay::handlers::game_state::GameWorld;
@@ -295,8 +294,8 @@ pub struct RelayState {
     /// only someone with host access can read it. `/claim <code>` promotes the
     /// sender to admin and burns it. None on any server that has an owner.
     pub claim_code: RwLock<Option<String>>,
-    /// VAPID keypair for WebPush notifications (P-256/ES256).
-    pub vapid_key: Option<ES256KeyPair>,
+    /// VAPID keypair for WebPush notifications (P-256/ES256, `relay::web_push`).
+    pub vapid_key: Option<crate::relay::web_push::VapidKey>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
     pub server_config: serde_json::Value,
     /// The capability manifest: which features this owner actually offers
@@ -538,32 +537,7 @@ impl RelayState {
     /// Load or generate the VAPID keypair for WebPush.
     /// Persists the private key to `data/vapid_private.key` (raw ES256 bytes, base64url).
     pub fn init_vapid_key(&mut self) {
-        use base64ct::{Base64UrlUnpadded, Encoding};
-
-        let key_path = "data/vapid_private.key";
-        if let Ok(encoded) = std::fs::read_to_string(key_path) {
-            match Base64UrlUnpadded::decode_vec(encoded.trim()) {
-                Ok(bytes) => match ES256KeyPair::from_bytes(&bytes) {
-                    Ok(kp) => {
-                        info!("VAPID key loaded from {key_path}");
-                        self.vapid_key = Some(kp);
-                        return;
-                    }
-                    Err(e) => tracing::error!("Failed to parse VAPID key: {e}"),
-                },
-                Err(e) => tracing::error!("Failed to decode VAPID key: {e}"),
-            }
-        }
-
-        // Generate new keypair.
-        let kp = ES256KeyPair::generate();
-        let encoded = Base64UrlUnpadded::encode_string(&kp.to_bytes());
-        if let Err(e) = std::fs::write(key_path, &encoded) {
-            tracing::error!("Failed to write VAPID key to {key_path}: {e}");
-            return;
-        }
-        info!("Generated new VAPID keypair → {key_path}");
-        self.vapid_key = Some(kp);
+        self.vapid_key = crate::relay::web_push::load_or_create_key(std::path::Path::new("data/vapid_private.key"));
     }
 
     /// Add a message to history, persist to DB, and broadcast it.

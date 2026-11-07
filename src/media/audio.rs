@@ -1,6 +1,6 @@
 //! Opus audio for the media player, delivered to kira as a streaming sound.
 //!
-//! kira 0.9 has exactly the hook we need: `sound::streaming::Decoder`, a pull
+//! kira (0.12; the trait is unchanged since 0.9) has exactly the hook we need: `sound::streaming::Decoder`, a pull
 //! trait its own decode thread drives (`decode()` for the next chunk of
 //! frames, `seek()` to move). So the hookup is direct: `OpusTrack` demuxes
 //! the file's Opus track on its own file handle, decodes each packet with

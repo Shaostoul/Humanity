@@ -92,7 +92,7 @@ Follow the same ownership pattern every other subsystem uses:
   `data/sounds.toml` entries should then reference `audio/<bus>/<name>.ogg`.
 - **Buses:** `ambient`, `music`, `sfx`, `voice`, `ui` (already the catalog's
   vocabulary).
-- **Format:** OGG Vorbis preferred. Kira 0.9 with default features decodes
+- **Format:** OGG Vorbis preferred. Kira 0.12, with the features the workspace enables, decodes
   ogg, wav, mp3, and flac. Use ogg for everything shipped (small, patent-free);
   wav is fine for tiny UI blips if quality demands it.
 - **Loudness:** normalize so `volume = 0.5` in the catalog sounds right;

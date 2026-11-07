@@ -81,6 +81,9 @@ pub mod turn;
 pub mod call_forwarder;
 pub mod call_credentials;
 pub mod stun_wire;
+/// Web Push, our own: RFC 8291 payload encryption and the RFC 8292 VAPID token on p256
+/// (2026-11-06; `relay.rs`'s `push_send` sends what it builds).
+pub mod web_push;
 /// Server→Services privilege bridge (v0.262.16). Tightly-allowlisted
 /// daemon start/stop for operator feature control. SECURITY-SENSITIVE —
 /// see the module docs; the allowlist is the trust boundary.
@@ -556,9 +559,9 @@ pub fn validate_environment() -> (String, std::net::SocketAddr) {
     if std::env::var("SERVER_NAME").is_err() {
         tracing::warn!("SERVER_NAME not set -- using default server identity");
     }
-    if std::env::var("VAPID_PRIVATE_KEY").is_err() {
-        tracing::warn!("VAPID keys not configured -- web push notifications will be disabled");
-    }
+    // No VAPID check here: the key is data/vapid_private.key, made on first start
+    // (relay::web_push::load_or_create_key, which logs it). This warned on every start about a
+    // VAPID_PRIVATE_KEY variable nothing reads, while Web Push worked (removed 2026-11-06).
     match std::env::var("API_SECRET") {
         Err(_) => {
             tracing::warn!("API_SECRET not set -- bot API endpoints will reject all requests");

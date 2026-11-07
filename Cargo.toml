@@ -24,7 +24,12 @@ noise = "0.9"
 rand = "0.9"
 rapier3d = "0.22"
 glam = { version = "0.29", features = ["serde"] }
-kira = { version = "0.9" }
+# Audio. 0.9 -> 0.12 (2026-11-06, the security cadence): 0.9 carried ringbuf 0.3
+# (RUSTSEC-2026-0293); 0.12 uses rtrb. 0.12 takes volumes in decibels and panning as -1..1, so
+# humanity_core::audio::{decibels, panning} convert at the edge. Default features off: the
+# defaults add cpal's `realtime-dbus`, which links libdbus on Linux; these are 0.9's decoders.
+# symphonia, cpal and rtrb below moved with it (0.6, 0.18, 0.4), so each is in the tree once.
+kira = { version = "0.12", default-features = false, features = ["cpal", "mp3", "ogg", "vorbis", "flac", "wav", "pcm"] }
 image = { version = "0.25", default-features = false, features = ["rayon", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 serde = { version = "1", features = ["derive"] }
 ron = "0.8"
@@ -86,8 +91,8 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
-relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
+native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
+relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:p256", "dep:hkdf", "dep:sha2_11", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
     "humanity-core/wasm",
@@ -122,7 +127,7 @@ kira = { workspace = true, optional = true }
 # The decoders kira already carries (MP3, Ogg Vorbis, FLAC, WAV), used directly to read a whole
 # sound once on a worker for the Media page's waveform and spectrum (2026-10-19,
 # gui/widgets/sound_view.rs). The same crate and features kira enables: nothing new is built.
-symphonia = { version = "0.5", optional = true, default-features = false, features = ["mp3", "ogg", "vorbis", "flac", "wav", "pcm"] }
+symphonia = { version = "0.6", optional = true, default-features = false, features = ["mp3", "ogg", "vorbis", "flac", "wav", "pcm"] }
 # Asset loading
 gltf = "1.4"
 # Without the AVIF encoder (2026-10-24): nothing here writes AVIF (every save path writes PNG or
@@ -193,7 +198,18 @@ pbkdf2 = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 bs58 = { workspace = true, optional = true }
-p256 = { version = "0.13", optional = true, features = ["ecdh", "pkcs8"] }
+# Web Push from the relay (2026-11-06, src/relay/web_push.rs): RFC 8291 payload encryption
+# (P-256 key agreement, HKDF-SHA-256, AES-128-GCM with aes-gcm above) and the RFC 8292 VAPID
+# token (ES256, ECDSA P-256), our own on these three, replacing web-push-native 0.4, whose
+# jwt-simple carried rsa (RUSTSEC-2023-0071, no fix) and elliptic-curve 0.13's crypto-bigint 0.5
+# (RUSTSEC-2026-0387). The same versions and features the calls' DTLS (str0m 0.25: dimpl,
+# str0m-rust-crypto) builds, so the desktop compiles nothing new for them. sha2 0.11 sits beside
+# the workspace's 0.10 because hkdf 0.13 is on digest 0.11 (p256 0.14 brings it anyway).
+# Until then p256 was a 0.13 native dependency nothing used (the ECDH DMs it served were deleted
+# with the post-quantum cutover).
+p256 = { version = "0.14", optional = true, features = ["ecdh"] }
+hkdf = { version = "0.13", optional = true }
+sha2_11 = { package = "sha2", version = "0.11", optional = true }
 # === Native WebRTC DataChannel P2P (sans-IO; no tokio reactor needed) ===
 # str0m is a sans-IO WebRTC implementation: it never touches the network or a
 # clock itself. We drive it from a single std::thread that owns a blocking
@@ -211,7 +227,12 @@ p256 = { version = "0.13", optional = true, features = ["ecdh", "pkcs8"] }
 # the rest of this project's crypto stack (aes-gcm, p256, ml-dsa, ml-kem). We
 # also drop the `examples` default feature (it pulls in rouille/rustls for the
 # bundled demo server, which we don't use).
-str0m = { version = "0.20", optional = true, default-features = false, features = ["rust-crypto"] }
+#
+# 0.20 -> 0.25 (2026-11-06, the security cadence): 0.20's DTLS (dimpl 0.6) sat on
+# elliptic-curve 0.13, whose crypto-bigint 0.5 has RUSTSEC-2026-0387 (timing variability in its
+# constant-time operations); 0.25's dimpl 0.9 is on p256 0.14 / crypto-bigint 0.7. Our call code
+# compiled against it unchanged.
+str0m = { version = "0.25", optional = true, default-features = false, features = ["rust-crypto"] }
 # === TURN relay client crypto (RFC 5766 long-term credential auth) ===
 # The native WebRTC TURN client (src/net/webrtc.rs, inc-3b) authenticates to the
 # operator's TURN server with the long-term-credential mechanism: a per-message
@@ -232,8 +253,8 @@ md-5 = { version = "0.10", optional = true }
 # the voice path 100% pure-Rust + browser-interoperable. `rtrb` is a wait-free
 # SPSC ring buffer for the realtime audio-callback boundary (no Mutex on the
 # audio thread). native feature only; the relay never captures audio.
-cpal = { version = "0.17", optional = true }
-rtrb = { version = "0.3", optional = true }
+cpal = { version = "0.18", optional = true }
+rtrb = { version = "0.4", optional = true }
 unsafe-libopus = { version = "0.2", optional = true }
 # Pure-Rust RNNoise port for the "Noise suppression" voice filter mode (removes
 # keyboard clicks, coughs, fans, and steady background noise even DURING speech;
@@ -314,7 +335,6 @@ tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter"] }
 reqwest = { workspace = true, optional = true }
 hmac = { version = "0.12", optional = true }
-web-push-native = { version = "0.4", optional = true }
 base64ct = { version = "1", optional = true, features = ["alloc"] }
 tokio-stream = { version = "0.1", optional = true }
 futures = { version = "0.3", optional = true }

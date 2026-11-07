@@ -1945,20 +1945,7 @@ pub async fn get_vapid_public_key(
 
     let kp = state.vapid_key.as_ref()
         .ok_or((StatusCode::SERVICE_UNAVAILABLE, "VAPID not configured.".into()))?;
-    // to_bytes() may return compressed (33 bytes) — browser needs uncompressed (65 bytes).
-    // If compressed, decompress via p256. If already 65 bytes, use as-is.
-    let pk_bytes = kp.public_key().to_bytes();
-    let uncompressed = if pk_bytes.len() == 65 {
-        pk_bytes
-    } else {
-        // Decompress via p256 crate.
-        use web_push_native::p256::PublicKey;
-        use web_push_native::p256::elliptic_curve::sec1::ToEncodedPoint;
-        let pk = PublicKey::from_sec1_bytes(&pk_bytes)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Key decode error: {e}")))?;
-        pk.to_encoded_point(false).as_bytes().to_vec()
-    };
-    let encoded = Base64UrlUnpadded::encode_string(&uncompressed);
+    let encoded = Base64UrlUnpadded::encode_string(&kp.public_key_uncompressed());
     Ok(Json(serde_json::json!({ "key": encoded })))
 }
 

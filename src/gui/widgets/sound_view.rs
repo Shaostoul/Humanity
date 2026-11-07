@@ -25,7 +25,7 @@ use std::time::Duration;
 use egui::RichText;
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
-use kira::tween::Tween;
+use kira::Tween;
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -327,7 +327,7 @@ impl SoundView {
         }
         if let Some(h) = self.handle.as_mut() {
             if self.volume_sent != Some(volume) {
-                h.set_volume(kira::Volume::Amplitude(volume), Tween { duration: Duration::from_millis(30), ..Default::default() });
+                h.set_volume(humanity_core::audio::decibels(volume), Tween { duration: Duration::from_millis(30), ..Default::default() });
                 self.volume_sent = Some(volume);
             }
         }
@@ -378,13 +378,14 @@ fn open_stream(path: &Path) -> Result<StreamingSoundData<FromFileError>, String>
 
 /// Read the whole sound at `path` once, a packet at a time, into its waveform and spectrum.
 pub fn analyse(path: &Path) -> Result<Analysis, String> {
-    use symphonia::core::audio::SampleBuffer;
-    use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
+    // symphonia 0.6 (2026-11-06, with kira 0.12, which plays with it): a probe hands back the
+    // format reader itself, a track's parameters are per kind (audio here), the end of the
+    // stream is next_packet's Ok(None), and a decoded buffer copies itself out interleaved.
+    use symphonia::core::codecs::CodecParameters;
     use symphonia::core::errors::Error;
-    use symphonia::core::formats::FormatOptions;
+    use symphonia::core::formats::probe::Hint;
+    use symphonia::core::formats::TrackType;
     use symphonia::core::io::MediaSourceStream;
-    use symphonia::core::meta::MetadataOptions;
-    use symphonia::core::probe::Hint;
     #[cfg(test)]
     tests::note("decode", path);
 
@@ -394,37 +395,36 @@ pub fn analyse(path: &Path) -> Result<Analysis, String> {
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
         hint.with_extension(ext);
     }
-    let probed = symphonia::default::get_probe()
-        .format(&hint, stream, &FormatOptions::default(), &MetadataOptions::default())
+    let mut format = symphonia::default::get_probe()
+        .probe(&hint, stream, Default::default(), Default::default())
         .map_err(|e| cannot_play_words(&e.to_string()))?;
-    let mut format = probed.format;
-    let track = format.tracks().iter().find(|t| t.codec_params.codec != CODEC_TYPE_NULL).cloned().ok_or_else(|| cannot_play_words("it holds no sound"))?;
-    let rate = track.codec_params.sample_rate.unwrap_or(44_100);
-    let mut decoder = symphonia::default::get_codecs().make(&track.codec_params, &DecoderOptions::default()).map_err(|e| cannot_play_words(&e.to_string()))?;
+    let (track_id, params) = {
+        let track = format.default_track(TrackType::Audio).ok_or_else(|| cannot_play_words("it holds no sound"))?;
+        match track.codec_params.as_ref() {
+            Some(CodecParameters::Audio(p)) => (track.id, p.clone()),
+            _ => return Err(cannot_play_words("it holds no sound")),
+        }
+    };
+    let rate = params.sample_rate.unwrap_or(44_100);
+    let mut decoder = symphonia::default::get_codecs().make_audio_decoder(&params, &Default::default()).map_err(|e| cannot_play_words(&e.to_string()))?;
     let mut builder = Builder::new(rate);
-    let mut buffer: Option<SampleBuffer<f32>> = None;
+    let mut samples: Vec<f32> = Vec::new();
     loop {
         let packet = match format.next_packet() {
-            Ok(p) => p,
+            Ok(Some(p)) => p,
+            Ok(None) => break,
             Err(Error::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
             Err(Error::ResetRequired) => break,
             Err(e) => return Err(cannot_play_words(&e.to_string())),
         };
-        if packet.track_id() != track.id {
+        if packet.track_id != track_id {
             continue;
         }
         match decoder.decode(&packet) {
             Ok(decoded) => {
-                let spec = *decoded.spec();
-                let channels = spec.channels.count();
-                let need = decoded.capacity() * channels;
-                if buffer.as_ref().is_none_or(|b| b.capacity() < need) {
-                    buffer = Some(SampleBuffer::new(decoded.capacity() as u64, spec));
-                }
-                if let Some(b) = buffer.as_mut() {
-                    b.copy_interleaved_ref(decoded);
-                    builder.push_interleaved(b.samples(), channels);
-                }
+                let channels = decoded.spec().channels().count();
+                decoded.copy_to_vec_interleaved(&mut samples);
+                builder.push_interleaved(&samples, channels);
             }
             // A damaged packet is passed over, as a player passes over it.
             Err(Error::DecodeError(_)) => continue,

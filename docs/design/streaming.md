@@ -6,7 +6,7 @@
 
 ## The one-paragraph summary
 
-The **transport is nearly free** and the **encoder is the blocker**. str0m 0.20 (already
+The **transport is nearly free** and the **encoder is the blocker**. str0m (0.20 when written, 0.25 since 2026-11-06; already
 a dependency) ships RTP packetizers for H264/VP8/VP9/AV1 and enables them by default, so
 the WebRTC send path for video is roughly an 80-line diff against the voice path that
 already ships. What does NOT exist is a way to turn frames into H.264 without a C
@@ -22,7 +22,7 @@ encoder as the next rung rather than a prerequisite.
 |---|---|---|
 | **Full real-time audio pipeline** | `src/net/voice.rs` | YES. cpal capture, resample, RNNoise, gate, **Opus encode** (`unsafe-libopus`), ring buffer, engine pump, RTP write via str0m. This is a complete, working media path. |
 | **WebRTC send/recv, ICE/STUN/TURN** | `src/net/webrtc.rs` | YES, codec-agnostic. Adding video = `add_media(MediaKind::Video, SendOnly)` + a `cmd_send_video` mirroring `cmd_send_voice` with `Frequency::NINETY_KHZ`. |
-| **str0m video packetizers** | str0m 0.20 `packet/{h264,vp8,vp9,av1}.rs` | YES. Already enabled by `Rtc::builder()`. The video transport is paid for. |
+| **str0m video packetizers** | str0m `packet/{h264,vp8,vp9,av1}.rs` (0.20 when written; still there in 0.25) | YES. Already enabled by `Rtc::builder()`. The video transport is paid for. |
 | **Browser already streams video** | `web/chat/chat-voice-webrtc.js`, `chat-voice-streaming.js` | YES. The WEB client already does camera + screen-share over WebRTC in voice rooms, with bitrate control. Nobody connected it to Studio. |
 | **GPU frame capture** | `src/renderer/mod.rs` `capture_current_frame` / `read_texture_to_png` | PARTIALLY. It allocates a fresh ~8 MB readback buffer per call and then does `device.poll(Maintain::Wait)`, a full GPU stall. Fine for a screenshot; it will tank the framerate if called per frame. Needs async double/triple-buffered readback. |
 | **Studio scenes/sources** | `src/gui/pages/studio.rs`, `data/studio/*.json` | The UI + data model exist. The canvases are `rect_filled` placeholders; no device is ever opened. |

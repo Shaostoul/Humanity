@@ -57,7 +57,7 @@ road to frames in a texture, and it is the road we can keep.
 | Container | MP4 (ISO/IEC 14496-12 and -14), for AV1 inside it (2026-11-03, BUG-228; `src/media/mp4.rs`) | `mp4-atom 0.17.0`, default features (none); it brings `derive_more 2.1.1` (MIT) and `num 0.4.3` (MIT OR Apache-2.0) | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE` in the crate) | No pool licenses the container; the base-format patents once in the MPEG-4 Systems pool expired in 2018; one open point (ISO's 2026 declarations unread): `docs/reference/findings/2026-11-03-mp4-container.md` |
 | Video | AV1 | `rav1d 1.1.0`, `default-features = false`, features `bitdepth_8`, `bitdepth_16` | BSD-2-Clause (`COPYING` in the crate: VideoLAN and dav1d authors, ISRG) | **Royalty-free.** The Alliance for Open Media publishes a royalty-free patent licence for AV1 implementations and content |
 | Audio | Opus | `unsafe-libopus 0.2.0` (already in the tree for voice chat) | BSD-3-Clause (`LICENSE` in the crate: Xiph.Org, Skype, Octasic and others) | **Royalty-free.** The Opus licence file itself points at the Xiph, Microsoft and Broadcom royalty-free patent statements filed with the IETF |
-| Playback | kira 0.9.6 `StreamingSoundData::from_decoder` | already a dependency | MIT | Not applicable |
+| Playback | kira 0.12 `StreamingSoundData::from_decoder` (0.9.6 until 2026-11-06) | already a dependency | MIT | Not applicable |
 | One errno | `libc 0.2` | for `EAGAIN` only | MIT OR Apache-2.0 | Not applicable |
 
 Every licence above was verified by opening the file in
@@ -245,7 +245,7 @@ Monotonic and audio-led:
 
 ### Audio through kira
 
-kira 0.9 exposes exactly the hook needed: `sound::streaming::Decoder`, a pull
+kira (0.9 then, 0.12 since 2026-11-06, the trait unchanged) exposes exactly the hook needed: `sound::streaming::Decoder`, a pull
 trait its own decode thread drives (`sample_rate`, `num_frames`, `decode()`
 for the next chunk, `seek(index)`). `OpusTrack` implements it over its own
 file handle, so the video thread and kira's thread never contend for the

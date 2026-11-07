@@ -72,7 +72,7 @@ use std::time::{Duration, Instant};
 
 use kira::sound::streaming::StreamingSoundHandle;
 use kira::sound::PlaybackState;
-use kira::tween::Tween;
+use kira::Tween;
 use matroska_demuxer::{Frame as MkvPacket, MatroskaFile, TrackType};
 
 /// Codec id Matroska uses for AV1 video, the only video codec this rung decodes.
@@ -192,8 +192,8 @@ pub struct VideoFrame {
 /// `volume` and `panning` are the mix the sound STARTS at, absolute (see
 /// `AudioManager::play_stream`): `volume` is the final amplitude, 1.0 = as
 /// decoded, 0.0 = silent, master and bus already multiplied in by the
-/// caller; `panning` is kira's 0 (hard left) .. 0.5 (centre) .. 1 (hard
-/// right). The default is a one-shot, as decoded, centred, which is what
+/// caller; `panning` runs 0 (hard left) .. 0.5 (centre) .. 1 (hard
+/// right), turned into kira's -1..1 by `humanity_core::audio::panning`. The default is a one-shot, as decoded, centred, which is what
 /// a caller with no placement to apply wants (`attach_audio` fills in the
 /// master volume on top).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1187,7 +1187,8 @@ impl VideoPlayer {
 
     /// Mix the attached sound: `volume` is an amplitude factor (1.0 = as
     /// decoded, 0.0 = silent) and `panning` runs 0..1 (0 = hard left, 0.5 =
-    /// centre, 1 = hard right, kira's own convention). Both are reached over
+    /// centre, 1 = hard right; `humanity_core::audio::panning` turns it into
+    /// kira 0.12's -1..1). Both are reached over
     /// `tween_ms` milliseconds so a listener walking past a screen hears a
     /// glide, not steps. This is how a caller PLACES the sound in the world:
     /// the in-world screen provider computes both from the distance and
@@ -1195,8 +1196,8 @@ impl VideoPlayer {
     pub fn set_audio_mix(&mut self, volume: f64, panning: f64, tween_ms: u64) {
         let Some(h) = &mut self.audio else { return };
         let tween = Tween { duration: Duration::from_millis(tween_ms), ..Default::default() };
-        h.set_volume(kira::Volume::Amplitude(volume.max(0.0)), tween);
-        h.set_panning(panning.clamp(0.0, 1.0), tween);
+        h.set_volume(humanity_core::audio::decibels(volume.max(0.0)), tween);
+        h.set_panning(humanity_core::audio::panning(panning), tween);
     }
 
     pub fn play(&mut self) {

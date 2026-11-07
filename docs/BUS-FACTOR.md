@@ -55,7 +55,7 @@ Secrets live in `/opt/Humanity/.env` on the VPS, mode 600, owned by the relay us
 |---|---|---|
 | `API_SECRET` | Bot authentication for `bot_*` keys + REST `Authorization: Bearer` | `openssl rand -hex 32`, edit `.env`, `systemctl restart humanity-relay`. Then update any bot configs that hold the old value. |
 | `WEBHOOK_SECRET` | GitHub webhook HMAC verification | `openssl rand -hex 32`, edit `.env`, **also** update the webhook secret in GitHub repo settings. |
-| `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` | Web Push notifications (P-256/ES256). | `node -e "const k=require('web-push').generateVAPIDKeys(); console.log(k)"`. New keys invalidate existing subscriptions; users must re-allow notifications. |
+| `data/vapid_private.key` (a file under the relay's WorkingDirectory, `/opt/Humanity`; not an env var) | Web Push notifications (P-256/ES256, `src/relay/web_push.rs`). | Stop the relay, delete the file, start it: a new key is made and written (0600). New keys invalidate existing subscriptions; users must re-allow notifications. (Until 2026-11-06 this row named `VAPID_*` env vars, which nothing reads.) |
 | `SERVER_NAME` | Display name on federation hello | Edit `.env`, restart. Cosmetic. |
 
 ### Third-party accounts (operator-controlled; not in repo)
