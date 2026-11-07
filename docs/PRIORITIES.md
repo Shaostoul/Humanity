@@ -2124,6 +2124,26 @@ Patreon are limited or closed, each said on screen). Nothing built.
   - the app lock after idle and on demand, the identity locked when the app closes (15.4);
   - a gentle check that the computer's disk is encrypted, with how to turn it on (15.5).
 
+### J. Music and the ship's hum (planned, designed 2026-11-06)
+
+Operator, 2026-11-06: "Can you make music for HumanityOS? Like chill orchestral sci-fi operatic soft
+metal? We need something that can play in the menus and in-game. Designed for a peaceful chill
+environment hanging out on the mothership. In 432Hz. And using other healing frequencies?" and the
+same evening "a subtle brown noise that acts like the hum of the engines and the resonance of
+everything". Design: `docs/design/music.md` (a generative, adaptive score composed live on the audio
+thread in a new pure crate, instruments and moods as data, Tuning A = 432 Hz by default, the ship's
+hum as its own ambience category tuned to the score's key, an opt-in "tones" layer labelled
+honestly, 10 rungs, 6 questions). Research: `docs/reference/findings/2026-11-06-music-sources.md`
+(CC0 libraries VSCO 2 CE, VCSL, Karoryfer and FreePats' Upright Piano KW can ship; Sonatina and the
+Philharmonia samples cannot; no AI route fits; no evidence that 432 Hz, solfeggio tones or brown
+noise do anything for health, so the app claims none). A 90-second direction sketch renders with
+`node scripts/music-sketch.js` (no samples, -18 LUFS, true peak -5.5 dBTP, the hum 18 LU under
+it). Nothing built in the app.
+- **Next rung, unblocked: rung 1, the score's skeleton plays aboard** (the pure crate with the
+  tuning function, a synth voice, the drone, the reverb; one mood file; kira `ScoreSound`; Music
+  on/off and Tuning in Settings). Rung 6 (sampled instruments) needs the operator's yes for the
+  downloads listed in the design's question 1.
+
 ---
 
 ## TIER 1: hardening before invites scale beyond a known group

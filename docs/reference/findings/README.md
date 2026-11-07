@@ -394,3 +394,18 @@ what we will say about it.
   exception needs a substantive review and a named responsible person; whether the project is a
   "provider" is open); California's bot law and the FTC do not require the label. The basis for
   `docs/design/outbox-and-inbox.md`. Extends the 2026-09-25 permission-routes finding (Discord).
+- [`2026-11-06-music-sources.md`](2026-11-06-music-sources.md),
+  which routes can give the CC0 app music anyone may redistribute, and what the research says about
+  A = 432 Hz, "healing" frequencies, relaxing music and brown noise. Sample libraries: VSCO 2 CE,
+  VCSL, Karoryfer's free libraries and FreePats' Upright Piano KW are CC0 (ship and render freely),
+  the Fluid soundfont MIT, Salamander CC BY 3.0; no CC0 choir exists; Sonatina (Sampling Plus,
+  retired 2011), the Philharmonia samples (never "as samples or as a sampler instrument"), Virtual
+  Playing Orchestra and No Budget Orchestra cannot ship in the app. Models: MusicGen weights CC
+  BY-NC, Stable Audio Open capped at USD 1 million revenue and weak at music, Magenta RealTime
+  Apache 2.0 with CC BY 4.0 weights and no claim on outputs but a GPU cost. Suno Free and Basic are
+  personal and non-commercial only; Udio's terms could not be read; the Copyright Office does not
+  protect material whose expressive elements an AI determined, which leaves CC0 working and CC BY
+  binding nothing. Contributors: CC0. Health: a few small, mixed 432 Hz trials, mostly one group,
+  no systematic review; no human trial of solfeggio frequencies against other music; brown noise
+  unstudied for attention, continuous noise "very low" evidence for sleep. The basis for
+  `docs/design/music.md`.
