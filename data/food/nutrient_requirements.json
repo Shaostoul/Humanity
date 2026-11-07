@@ -1,0 +1,118 @@
+{
+  "_about": [
+    "What one adult needs each day, nutrient by nutrient: the targets the survival garden optimiser",
+    "(scripts/survival-garden.js, docs/design/survival-garden.md) holds a garden to. Written 2026-11-06.",
+    "Energy and protein are the two tiers of data/closed_loop/person.ron (bare 2,100 kcal and 57 g,",
+    "comfort 2,600 kcal and 75 g), so the garden and the closed-loop test size the same person.",
+    "Everything else is the US Dietary Reference Intakes for adults aged 19 to 50. The garden must feed",
+    "whoever lives in the home, so design_target is the HIGHER of the male and female value, times a",
+    "factor where the DRI report itself says a plant-only diet needs more (iron 1.8, zinc up to 1.5).",
+    "An RDA covers nearly all healthy people (97 to 98 percent); an AI is set where no RDA could be.",
+    "kind: rda, ai, or derived (computed below from a cited pattern). from_plants: how a garden can meet it:",
+    "  yes        crops carry it and USDA measured it; the optimiser holds the garden to it",
+    "  medium     crops carry what their soil or nutrient solution gives them (USDA's value is US farm",
+    "             soil), so the garden is not sized to it: it is reported at USDA's value and closed in",
+    "             the medium (data/garden/survival_garden.json gaps). Holding it would size the whole",
+    "             garden to a number the bed, not the crop, decides (the first run did exactly that).",
+    "  no         no plant makes it (B12, vitamin D); the ship covers it, see data/garden/survival_garden.json gaps",
+    "  unmeasured USDA SR Legacy does not measure it for these foods; reported, never assumed",
+    "ul: the Tolerable Upper Intake Level and what it applies to. Where the DRI says a UL counts only",
+    "supplements or fortificants (magnesium, vitamin E, niacin, folate) or only preformed vitamin A,",
+    "food from a garden cannot reach it and the optimiser does not hold the garden to it."
+  ],
+  "sources": {
+    "dri_2019_tables": {
+      "title": "Dietary Reference Intakes for Sodium and Potassium (2019), Appendix J: Dietary Reference Intakes Summary Tables",
+      "by": "National Academies of Sciences, Engineering, and Medicine",
+      "url": "https://www.nationalacademies.org/read/25353/chapter/28",
+      "read": "2026-11-06",
+      "tables": "Recommended Dietary Allowances and Adequate Intakes, Vitamins; ... Elements; ... Total Water and Macronutrients; Acceptable Macronutrient Distribution Ranges; Tolerable Upper Intake Levels, Vitamins; ... Elements; Chronic Disease Risk Reduction Intakes"
+    },
+    "iom_2001_iron": {
+      "title": "Dietary Reference Intakes for Vitamin A, Vitamin K, Arsenic, Boron, Chromium, Copper, Iodine, Iron, Manganese, Molybdenum, Nickel, Silicon, Vanadium, and Zinc (2001), chapter 9 Iron",
+      "by": "Institute of Medicine, Food and Nutrition Board",
+      "url": "https://www.nationalacademies.org/read/10026/chapter/11",
+      "read": "2026-11-06",
+      "quote": "Hence the requirement for iron is 1.8 times higher for vegetarians."
+    },
+    "iom_2001_zinc": {
+      "title": "The same report, chapter 12 Zinc",
+      "by": "Institute of Medicine, Food and Nutrition Board",
+      "url": "https://www.nationalacademies.org/read/10026/chapter/14",
+      "read": "2026-11-06",
+      "quote": "The requirement for dietary zinc may be as much as 50 percent greater for vegetarians, ... and particularly for strict vegetarians whose major food staples are grains and legumes ... and whose dietary phytate:zinc molar ratio exceeds 15:1."
+    },
+    "fao_2013_protein_quality": {
+      "title": "Dietary protein quality evaluation in human nutrition, FAO Food and Nutrition Paper 92 (report of an FAO Expert Consultation, Auckland, 2011)",
+      "by": "Food and Agriculture Organization of the United Nations, Rome, 2013",
+      "url": "https://www.fao.org/ag/humannutrition/35978-02317b979a686a57aa4593304ffc17f06.pdf",
+      "read": "2026-11-06",
+      "quote": "TABLE 3. Amino acid scoring patterns for toddlers, children, adolescents and adults (amended values from the 2007 WHO/FAO/UNU report) ... scoring pattern mg/g protein requirement ... >18 15 30 59 45 22 38 23 6.0 39 [His Ile Leu Lys SAA AAA Thr Trp Val]; and: 'safe intake of any diet in relation to protein = safe protein requirement/DIAAS value of diet'"
+    },
+    "person_ron": {
+      "title": "data/closed_loop/person.ron, tiers bare and comfort",
+      "by": "this repository (its own sources quoted on each tier)",
+      "url": "data/closed_loop/person.ron",
+      "read": "2026-11-06"
+    }
+  },
+  "reference": {
+    "ages": "19 to 50 years, male and female, not pregnant or lactating",
+    "design_rule": "design_target = max(male, female) x factor"
+  },
+  "tiers": {
+    "bare": { "energy_kcal": 2100, "protein_g": 57, "source": "person_ron" },
+    "comfort": { "energy_kcal": 2600, "protein_g": 75, "source": "person_ron" }
+  },
+  "amino_acids": {
+    "_how": "Each indispensable amino acid's target is the FAO adult scoring pattern (mg per g of protein) times the tier's protein target, which is the FAO's own test of a diet: at its safe protein intake the score of every amino acid is at least 1. Counted as eaten: USDA gives total amino acids, not the share the gut absorbs (FAO's DIAAS uses ileal digestibility), so the report prints each amino acid's margin and says whether it would survive a digestibility of 85 percent.",
+    "source": "fao_2013_protein_quality",
+    "mg_per_g_protein": {
+      "histidine_g": 15, "isoleucine_g": 30, "leucine_g": 59, "lysine_g": 45,
+      "sulphur_aa_g": 22, "aromatic_aa_g": 38, "threonine_g": 23, "tryptophan_g": 6.0, "valine_g": 39
+    },
+    "sums": {
+      "sulphur_aa_g": ["methionine_g", "cystine_g"],
+      "aromatic_aa_g": ["phenylalanine_g", "tyrosine_g"]
+    }
+  },
+  "nutrients": [
+    { "key": "fiber_g", "label": "Fibre", "unit": "g", "kind": "ai", "male": 38, "female": 25, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "carb_g", "label": "Carbohydrate", "unit": "g", "kind": "rda", "male": 130, "female": 130, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "linoleic_g", "label": "Linoleic acid (omega-6)", "unit": "g", "kind": "ai", "male": 17, "female": 12, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "alpha_linolenic_g", "label": "Alpha-linolenic acid (omega-3)", "unit": "g", "kind": "ai", "male": 1.6, "female": 1.1, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "calcium_mg", "label": "Calcium", "unit": "mg", "kind": "rda", "male": 1000, "female": 1000, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul": 2500 },
+    { "key": "iron_mg", "label": "Iron", "unit": "mg", "kind": "rda", "male": 8, "female": 18, "factor": 1.8, "factor_why": "iom_2001_iron: plant iron is absorbed about 10 percent against 18 percent from a mixed diet", "from_plants": "yes", "source": "dri_2019_tables", "ul": 45, "ul_note": "reported, not held: the DRI set it from stomach upsets with iron supplements" },
+    { "key": "magnesium_mg", "label": "Magnesium", "unit": "mg", "kind": "rda", "male": 420, "female": 320, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul_note": "the UL (350 mg) counts a pharmacological agent only, not food" },
+    { "key": "phosphorus_mg", "label": "Phosphorus", "unit": "mg", "kind": "rda", "male": 700, "female": 700, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul": 4000 },
+    { "key": "potassium_mg", "label": "Potassium", "unit": "mg", "kind": "ai", "male": 3400, "female": 2600, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "zinc_mg", "label": "Zinc", "unit": "mg", "kind": "rda", "male": 11, "female": 8, "factor": 1.5, "factor_why": "iom_2001_zinc: up to 50 percent more for vegetarians, the top of the stated range", "from_plants": "yes", "source": "dri_2019_tables", "ul": 40 },
+    { "key": "copper_mg", "label": "Copper", "unit": "mg", "kind": "rda", "male": 0.9, "female": 0.9, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul": 10 },
+    { "key": "manganese_mg", "label": "Manganese", "unit": "mg", "kind": "ai", "male": 2.3, "female": 1.8, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul": 11 },
+    { "key": "selenium_ug", "label": "Selenium", "unit": "ug", "kind": "rda", "male": 55, "female": 55, "factor": 1, "from_plants": "medium", "medium_why": "plants do not need selenium and take up what the medium holds; USDA's values are US farm soils", "source": "dri_2019_tables", "ul": 400 },
+    { "key": "sodium_mg", "label": "Sodium", "unit": "mg", "kind": "ai", "male": 1500, "female": 1500, "factor": 1, "from_plants": "no", "no_why": "crops carry little; the body's need is met by salt (survival_garden.json gaps)", "source": "dri_2019_tables", "cdrr": 2300 },
+    { "key": "iodine_ug", "label": "Iodine", "unit": "ug", "kind": "rda", "male": 150, "female": 150, "factor": 1, "from_plants": "unmeasured", "source": "dri_2019_tables", "ul": 1100 },
+    { "key": "chloride_g", "label": "Chloride", "unit": "g", "kind": "ai", "male": 2.3, "female": 2.3, "factor": 1, "from_plants": "unmeasured", "source": "dri_2019_tables", "ul": 3.6 },
+    { "key": "chromium_ug", "label": "Chromium", "unit": "ug", "kind": "ai", "male": 35, "female": 25, "factor": 1, "from_plants": "unmeasured", "source": "dri_2019_tables" },
+    { "key": "molybdenum_ug", "label": "Molybdenum", "unit": "ug", "kind": "rda", "male": 45, "female": 45, "factor": 1, "from_plants": "unmeasured", "source": "dri_2019_tables", "ul": 2000 },
+    { "key": "fluoride_mg", "label": "Fluoride", "unit": "mg", "kind": "ai", "male": 4, "female": 3, "factor": 1, "from_plants": "unmeasured", "source": "dri_2019_tables", "ul": 10 },
+    { "key": "vitamin_a_rae_ug", "label": "Vitamin A", "unit": "ug RAE", "kind": "rda", "male": 900, "female": 700, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul_note": "the UL (3,000 ug) is preformed vitamin A only; plants carry carotenoids" },
+    { "key": "vitamin_c_mg", "label": "Vitamin C", "unit": "mg", "kind": "rda", "male": 90, "female": 75, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul": 2000 },
+    { "key": "vitamin_d_ug", "label": "Vitamin D", "unit": "ug", "kind": "rda", "male": 15, "female": 15, "factor": 1, "from_plants": "no", "no_why": "no green plant makes it; UV-flashed mushrooms, UV-B on skin, or a supplement (survival_garden.json gaps)", "source": "dri_2019_tables", "ul": 100 },
+    { "key": "vitamin_e_mg", "label": "Vitamin E", "unit": "mg", "kind": "rda", "male": 15, "female": 15, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul_note": "the UL (1,000 mg) counts supplemental alpha-tocopherol only" },
+    { "key": "vitamin_k_ug", "label": "Vitamin K", "unit": "ug", "kind": "ai", "male": 120, "female": 90, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "thiamin_mg", "label": "Thiamin (B1)", "unit": "mg", "kind": "rda", "male": 1.2, "female": 1.1, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "riboflavin_mg", "label": "Riboflavin (B2)", "unit": "mg", "kind": "rda", "male": 1.3, "female": 1.1, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "niacin_mg", "label": "Niacin (B3)", "unit": "mg", "kind": "rda", "male": 16, "female": 14, "factor": 1, "factor_why": "the RDA is niacin equivalents; USDA's niacin is the preformed vitamin only, so the tryptophan the diet also carries (60 mg makes 1 mg) is a margin not counted", "from_plants": "yes", "source": "dri_2019_tables", "ul_note": "the UL (35 mg) counts supplements and fortificants only" },
+    { "key": "pantothenic_mg", "label": "Pantothenic acid (B5)", "unit": "mg", "kind": "ai", "male": 5, "female": 5, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables" },
+    { "key": "vitamin_b6_mg", "label": "Vitamin B6", "unit": "mg", "kind": "rda", "male": 1.3, "female": 1.3, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul": 100 },
+    { "key": "folate_dfe_ug", "label": "Folate", "unit": "ug DFE", "kind": "rda", "male": 400, "female": 400, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul_note": "the UL (1,000 ug) counts synthetic folic acid only" },
+    { "key": "vitamin_b12_ug", "label": "Vitamin B12", "unit": "ug", "kind": "rda", "male": 2.4, "female": 2.4, "factor": 1, "from_plants": "no", "no_why": "only bacteria make it; a supplement or fortified food made by fermentation, or animal food (survival_garden.json gaps)", "source": "dri_2019_tables" },
+    { "key": "biotin_ug", "label": "Biotin", "unit": "ug", "kind": "ai", "male": 30, "female": 30, "factor": 1, "from_plants": "unmeasured", "source": "dri_2019_tables" },
+    { "key": "choline_mg", "label": "Choline", "unit": "mg", "kind": "ai", "male": 550, "female": 425, "factor": 1, "from_plants": "yes", "source": "dri_2019_tables", "ul": 3500 }
+  ],
+  "amdr_pct_energy": {
+    "_note": "Acceptable Macronutrient Distribution Ranges (dri_2019_tables): the comfort tier holds fat inside its range; the bare tier reports it only, because the range is about long-term disease risk, not survival.",
+    "fat": [20, 35], "linoleic": [5, 10], "alpha_linolenic": [0.6, 1.2], "carbohydrate": [45, 65], "protein": [10, 35]
+  }
+}

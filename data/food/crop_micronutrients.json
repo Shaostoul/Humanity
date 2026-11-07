@@ -1,0 +1,770 @@
+{
+  "_about": [
+    "Per-crop nutrient content for the survival garden optimiser (scripts/survival-garden.js) and, later, the",
+    "game's nutrition model. data/food/crop_nutrition.ron carries energy and three macros only (its trap 3:",
+    "\"not one micronutrient\"); this file carries the rest, per 100 g of the EDIBLE portion, raw, from the",
+    "same USDA release. Keyed by data/plants.csv id. A null is a nutrient USDA did not measure for that food",
+    "(the optimiser counts it as 0 and says so). Written 2026-11-06 by a node builder over the downloaded",
+    "files named under sources; regenerate rather than hand-edit a number.",
+    "refuse_pct: the inedible share of the food as purchased (SR28 FOOD_DES Refuse), applied to a harvest",
+    "item that is the whole vegetable. edible_share: for harvest items weighed in the shell or hull, the",
+    "kernel share data/food/crop_nutrition.ron already uses (refuse is then 0, the shell being the share's).",
+    "retention: USDA cooking retention factors (percent of the raw value kept), only the methods the garden",
+    "uses; a nutrient a method does not list (manganese, selenium, vitamins D, E, K, pantothenic acid, the",
+    "fatty and amino acids, energy) is kept whole, which is the table's own scope, not a measurement."
+  ],
+  "sources": {
+    "fdc": {
+      "title": "USDA FoodData Central, SR Legacy (April 2018 CSV release)",
+      "url": "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_csv_2018-04.zip",
+      "read": "2026-11-06"
+    },
+    "refuse": {
+      "title": "USDA National Nutrient Database for Standard Reference, Release 28 (ASCII), FOOD_DES.txt Refuse",
+      "url": "https://www.ars.usda.gov/ARSUserFiles/80400535/DATA/SR/sr28/dnload/sr28asc.zip",
+      "read": "2026-11-06"
+    },
+    "retention": {
+      "title": "USDA Table of Nutrient Retention Factors, Release 6 (December 2007)",
+      "url": "https://www.ars.usda.gov/ARSUserFiles/80400525/Data/retn/retn06.txt",
+      "read": "2026-11-06"
+    }
+  },
+  "units": {
+    "energy_kcal": {
+      "unit": "kcal",
+      "fdc_nutrient_id": [1008]
+    },
+    "water_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1051]
+    },
+    "protein_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1003]
+    },
+    "fat_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1004]
+    },
+    "carb_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1005]
+    },
+    "fiber_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1079]
+    },
+    "calcium_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1087]
+    },
+    "iron_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1089]
+    },
+    "magnesium_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1090]
+    },
+    "phosphorus_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1091]
+    },
+    "potassium_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1092]
+    },
+    "sodium_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1093]
+    },
+    "zinc_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1095]
+    },
+    "copper_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1098]
+    },
+    "manganese_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1101]
+    },
+    "selenium_ug": {
+      "unit": "ug",
+      "fdc_nutrient_id": [1103]
+    },
+    "vitamin_a_rae_ug": {
+      "unit": "ug",
+      "fdc_nutrient_id": [1106]
+    },
+    "vitamin_e_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1109]
+    },
+    "vitamin_d_ug": {
+      "unit": "ug",
+      "fdc_nutrient_id": [1114]
+    },
+    "vitamin_c_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1162]
+    },
+    "thiamin_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1165]
+    },
+    "riboflavin_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1166]
+    },
+    "niacin_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1167]
+    },
+    "pantothenic_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1170]
+    },
+    "vitamin_b6_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1175]
+    },
+    "folate_dfe_ug": {
+      "unit": "ug",
+      "fdc_nutrient_id": [1190,1177]
+    },
+    "vitamin_b12_ug": {
+      "unit": "ug",
+      "fdc_nutrient_id": [1178]
+    },
+    "choline_mg": {
+      "unit": "mg",
+      "fdc_nutrient_id": [1180]
+    },
+    "vitamin_k_ug": {
+      "unit": "ug",
+      "fdc_nutrient_id": [1185]
+    },
+    "linoleic_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1316,1269]
+    },
+    "alpha_linolenic_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1404,1270]
+    },
+    "epa_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1278]
+    },
+    "dha_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1272]
+    },
+    "histidine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1221]
+    },
+    "isoleucine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1212]
+    },
+    "leucine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1213]
+    },
+    "lysine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1214]
+    },
+    "methionine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1215]
+    },
+    "cystine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1216]
+    },
+    "phenylalanine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1217]
+    },
+    "tyrosine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1218]
+    },
+    "threonine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1211]
+    },
+    "tryptophan_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1210]
+    },
+    "valine_g": {
+      "unit": "g",
+      "fdc_nutrient_id": [1219]
+    }
+  },
+  "crops": {
+    "potato": {
+      "fdc_id": 170026,
+      "fdc_description": "Potatoes, flesh and skin, raw",
+      "ndb": "11352",
+      "refuse_pct": 5,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "note": "SR28 refuse 25% (Parings and trimmings) not applied: the row is flesh AND skin, so its 25% \"parings\" would discard the skin the row includes; 5% (an estimate) is left for eyes, sprouts and green patches, which must be cut away (UMN Extension, see docs/design/survival-garden.md, safety)",
+      "per_100g": {"energy_kcal":77,"water_g":79.25,"protein_g":2.05,"fat_g":0.09,"carb_g":17.49,"fiber_g":2.1,"calcium_mg":12,"iron_mg":0.81,"magnesium_mg":23,"phosphorus_mg":57,"potassium_mg":425,"sodium_mg":6,"zinc_mg":0.3,"copper_mg":0.11,"manganese_mg":0.153,"selenium_ug":0.4,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.01,"vitamin_d_ug":0,"vitamin_c_mg":19.7,"thiamin_mg":0.081,"riboflavin_mg":0.032,"niacin_mg":1.061,"pantothenic_mg":0.295,"vitamin_b6_mg":0.298,"folate_dfe_ug":15,"vitamin_b12_ug":0,"choline_mg":12.1,"vitamin_k_ug":2,"linoleic_g":0.032,"alpha_linolenic_g":0.01,"epa_g":0,"dha_g":0,"histidine_g":0.035,"isoleucine_g":0.066,"leucine_g":0.098,"lysine_g":0.107,"methionine_g":0.032,"cystine_g":0.024,"phenylalanine_g":0.081,"tyrosine_g":0.048,"threonine_g":0.067,"tryptophan_g":0.021,"valine_g":0.103}
+    },
+    "sweet_potato": {
+      "fdc_id": 168482,
+      "fdc_description": "Sweet potato, raw, unprepared (Includes foods for USDA's Food Distribution Program)",
+      "ndb": "11507",
+      "refuse_pct": 28,
+      "refuse_desc": "Parings and trimmings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":86,"water_g":77.28,"protein_g":1.57,"fat_g":0.05,"carb_g":20.12,"fiber_g":3,"calcium_mg":30,"iron_mg":0.61,"magnesium_mg":25,"phosphorus_mg":47,"potassium_mg":337,"sodium_mg":55,"zinc_mg":0.3,"copper_mg":0.151,"manganese_mg":0.258,"selenium_ug":0.6,"vitamin_a_rae_ug":709,"vitamin_e_mg":0.26,"vitamin_d_ug":0,"vitamin_c_mg":2.4,"thiamin_mg":0.078,"riboflavin_mg":0.061,"niacin_mg":0.557,"pantothenic_mg":0.8,"vitamin_b6_mg":0.209,"folate_dfe_ug":11,"vitamin_b12_ug":0,"choline_mg":12.3,"vitamin_k_ug":1.8,"linoleic_g":0.013,"alpha_linolenic_g":0.001,"epa_g":0,"dha_g":0,"histidine_g":0.031,"isoleucine_g":0.055,"leucine_g":0.092,"lysine_g":0.066,"methionine_g":0.029,"cystine_g":0.022,"phenylalanine_g":0.089,"tyrosine_g":0.034,"threonine_g":0.083,"tryptophan_g":0.031,"valine_g":0.086}
+    },
+    "soybean": {
+      "fdc_id": 174270,
+      "fdc_description": "Soybeans, mature seeds, raw",
+      "ndb": "16108",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":446,"water_g":8.54,"protein_g":36.49,"fat_g":19.94,"carb_g":30.16,"fiber_g":9.3,"calcium_mg":277,"iron_mg":15.7,"magnesium_mg":280,"phosphorus_mg":704,"potassium_mg":1797,"sodium_mg":2,"zinc_mg":4.89,"copper_mg":1.658,"manganese_mg":2.517,"selenium_ug":17.8,"vitamin_a_rae_ug":1,"vitamin_e_mg":0.85,"vitamin_d_ug":0,"vitamin_c_mg":6,"thiamin_mg":0.874,"riboflavin_mg":0.87,"niacin_mg":1.623,"pantothenic_mg":0.793,"vitamin_b6_mg":0.377,"folate_dfe_ug":375,"vitamin_b12_ug":0,"choline_mg":115.9,"vitamin_k_ug":47,"linoleic_g":9.925,"alpha_linolenic_g":1.33,"epa_g":null,"dha_g":null,"histidine_g":1.097,"isoleucine_g":1.971,"leucine_g":3.309,"lysine_g":2.706,"methionine_g":0.547,"cystine_g":0.655,"phenylalanine_g":2.122,"tyrosine_g":1.539,"threonine_g":1.766,"tryptophan_g":0.591,"valine_g":2.029}
+    },
+    "peanut": {
+      "fdc_id": 172430,
+      "fdc_description": "Peanuts, all types, raw",
+      "ndb": "16087",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 0.667,
+      "edible_share_source": "data/food/crop_nutrition.ron: harvest is peanuts in the shell, AFCM shelling percentage 0.667",
+      "note": "SR28 refuse 0% () not applied: the shell is handled by edible_share",
+      "per_100g": {"energy_kcal":567,"water_g":6.5,"protein_g":25.8,"fat_g":49.24,"carb_g":16.13,"fiber_g":8.5,"calcium_mg":92,"iron_mg":4.58,"magnesium_mg":168,"phosphorus_mg":376,"potassium_mg":705,"sodium_mg":18,"zinc_mg":3.27,"copper_mg":1.144,"manganese_mg":1.934,"selenium_ug":7.2,"vitamin_a_rae_ug":0,"vitamin_e_mg":8.33,"vitamin_d_ug":0,"vitamin_c_mg":0,"thiamin_mg":0.64,"riboflavin_mg":0.135,"niacin_mg":12.066,"pantothenic_mg":1.767,"vitamin_b6_mg":0.348,"folate_dfe_ug":240,"vitamin_b12_ug":0,"choline_mg":52.5,"vitamin_k_ug":0,"linoleic_g":15.555,"alpha_linolenic_g":0.003,"epa_g":0,"dha_g":0,"histidine_g":0.652,"isoleucine_g":0.907,"leucine_g":1.672,"lysine_g":0.926,"methionine_g":0.317,"cystine_g":0.331,"phenylalanine_g":1.377,"tyrosine_g":1.049,"threonine_g":0.883,"tryptophan_g":0.25,"valine_g":1.082}
+    },
+    "sunflower": {
+      "fdc_id": 170562,
+      "fdc_description": "Seeds, sunflower seed kernels, dried",
+      "ndb": "12036",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 0.75,
+      "edible_share_source": "data/food/crop_nutrition.ron: harvest is oil-type seed in the hull, Feedipedia kernel share 0.75",
+      "note": "SR28 refuse 46% (Hulls) not applied: the hull is handled by edible_share (0.75, oil type); SR28 46% is confectionery seed",
+      "per_100g": {"energy_kcal":584,"water_g":4.73,"protein_g":20.78,"fat_g":51.46,"carb_g":20,"fiber_g":8.6,"calcium_mg":78,"iron_mg":5.25,"magnesium_mg":325,"phosphorus_mg":660,"potassium_mg":645,"sodium_mg":9,"zinc_mg":5,"copper_mg":1.8,"manganese_mg":1.95,"selenium_ug":53,"vitamin_a_rae_ug":3,"vitamin_e_mg":35.17,"vitamin_d_ug":0,"vitamin_c_mg":1.4,"thiamin_mg":1.48,"riboflavin_mg":0.355,"niacin_mg":8.335,"pantothenic_mg":1.13,"vitamin_b6_mg":1.345,"folate_dfe_ug":227,"vitamin_b12_ug":0,"choline_mg":55.1,"vitamin_k_ug":0,"linoleic_g":23.05,"alpha_linolenic_g":0.06,"epa_g":0.014,"dha_g":0,"histidine_g":0.632,"isoleucine_g":1.139,"leucine_g":1.659,"lysine_g":0.937,"methionine_g":0.494,"cystine_g":0.451,"phenylalanine_g":1.169,"tyrosine_g":0.666,"threonine_g":0.928,"tryptophan_g":0.348,"valine_g":1.315}
+    },
+    "kale": {
+      "fdc_id": 168421,
+      "fdc_description": "Kale, raw",
+      "ndb": "11233",
+      "refuse_pct": 28,
+      "refuse_desc": "Stem ends, tough stems and tough midrib parts",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":35,"water_g":89.63,"protein_g":2.92,"fat_g":1.49,"carb_g":4.42,"fiber_g":4.1,"calcium_mg":254,"iron_mg":1.6,"magnesium_mg":33,"phosphorus_mg":55,"potassium_mg":348,"sodium_mg":53,"zinc_mg":0.39,"copper_mg":0.053,"manganese_mg":0.92,"selenium_ug":0.9,"vitamin_a_rae_ug":241,"vitamin_e_mg":0.66,"vitamin_d_ug":0,"vitamin_c_mg":93.4,"thiamin_mg":0.113,"riboflavin_mg":0.347,"niacin_mg":1.18,"pantothenic_mg":0.37,"vitamin_b6_mg":0.147,"folate_dfe_ug":62,"vitamin_b12_ug":0,"choline_mg":0.5,"vitamin_k_ug":389.6,"linoleic_g":0.291,"alpha_linolenic_g":0.378,"epa_g":0,"dha_g":0,"histidine_g":0.172,"isoleucine_g":0.175,"leucine_g":0.205,"lysine_g":0.175,"methionine_g":0.029,"cystine_g":0.038,"phenylalanine_g":0.15,"tyrosine_g":0.103,"threonine_g":0.131,"tryptophan_g":0.035,"valine_g":0.159}
+    },
+    "collard": {
+      "fdc_id": 170406,
+      "fdc_description": "Collards, raw",
+      "ndb": "11161",
+      "refuse_pct": 43,
+      "refuse_desc": "Stems",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":32,"water_g":89.62,"protein_g":3.02,"fat_g":0.61,"carb_g":5.42,"fiber_g":4,"calcium_mg":232,"iron_mg":0.47,"magnesium_mg":27,"phosphorus_mg":25,"potassium_mg":213,"sodium_mg":17,"zinc_mg":0.21,"copper_mg":0.046,"manganese_mg":0.658,"selenium_ug":1.3,"vitamin_a_rae_ug":251,"vitamin_e_mg":2.26,"vitamin_d_ug":0,"vitamin_c_mg":35.3,"thiamin_mg":0.054,"riboflavin_mg":0.13,"niacin_mg":0.742,"pantothenic_mg":0.267,"vitamin_b6_mg":0.165,"folate_dfe_ug":129,"vitamin_b12_ug":0,"choline_mg":23.2,"vitamin_k_ug":437.1,"linoleic_g":0.082,"alpha_linolenic_g":0.108,"epa_g":0,"dha_g":0,"histidine_g":0.047,"isoleucine_g":0.1,"leucine_g":0.151,"lysine_g":0.117,"methionine_g":0.033,"cystine_g":0.025,"phenylalanine_g":0.087,"tyrosine_g":0.066,"threonine_g":0.086,"tryptophan_g":0.031,"valine_g":0.12}
+    },
+    "chard": {
+      "fdc_id": 169991,
+      "fdc_description": "Chard, swiss, raw",
+      "ndb": "11147",
+      "refuse_pct": 8,
+      "refuse_desc": "Tough stems and damaged leaves",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":19,"water_g":92.66,"protein_g":1.8,"fat_g":0.2,"carb_g":3.74,"fiber_g":1.6,"calcium_mg":51,"iron_mg":1.8,"magnesium_mg":81,"phosphorus_mg":46,"potassium_mg":379,"sodium_mg":213,"zinc_mg":0.36,"copper_mg":0.179,"manganese_mg":0.366,"selenium_ug":0.9,"vitamin_a_rae_ug":306,"vitamin_e_mg":1.89,"vitamin_d_ug":0,"vitamin_c_mg":30,"thiamin_mg":0.04,"riboflavin_mg":0.09,"niacin_mg":0.4,"pantothenic_mg":0.172,"vitamin_b6_mg":0.099,"folate_dfe_ug":14,"vitamin_b12_ug":0,"choline_mg":18,"vitamin_k_ug":830,"linoleic_g":0.063,"alpha_linolenic_g":0.007,"epa_g":0,"dha_g":0,"histidine_g":0.036,"isoleucine_g":0.147,"leucine_g":0.13,"lysine_g":0.099,"methionine_g":0.019,"cystine_g":null,"phenylalanine_g":0.11,"tyrosine_g":null,"threonine_g":0.083,"tryptophan_g":0.017,"valine_g":0.11}
+    },
+    "spinach": {
+      "fdc_id": 168462,
+      "fdc_description": "Spinach, raw",
+      "ndb": "11457",
+      "refuse_pct": 28,
+      "refuse_desc": "Large stems and roots",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":23,"water_g":91.4,"protein_g":2.86,"fat_g":0.39,"carb_g":3.63,"fiber_g":2.2,"calcium_mg":99,"iron_mg":2.71,"magnesium_mg":79,"phosphorus_mg":49,"potassium_mg":558,"sodium_mg":79,"zinc_mg":0.53,"copper_mg":0.13,"manganese_mg":0.897,"selenium_ug":1,"vitamin_a_rae_ug":469,"vitamin_e_mg":2.03,"vitamin_d_ug":0,"vitamin_c_mg":28.1,"thiamin_mg":0.078,"riboflavin_mg":0.189,"niacin_mg":0.724,"pantothenic_mg":0.065,"vitamin_b6_mg":0.195,"folate_dfe_ug":194,"vitamin_b12_ug":0,"choline_mg":19.3,"vitamin_k_ug":482.9,"linoleic_g":0.026,"alpha_linolenic_g":0.138,"epa_g":0,"dha_g":0,"histidine_g":0.064,"isoleucine_g":0.147,"leucine_g":0.223,"lysine_g":0.174,"methionine_g":0.053,"cystine_g":0.035,"phenylalanine_g":0.129,"tyrosine_g":0.108,"threonine_g":0.122,"tryptophan_g":0.039,"valine_g":0.161}
+    },
+    "cabbage": {
+      "fdc_id": 169975,
+      "fdc_description": "Cabbage, raw",
+      "ndb": "11109",
+      "refuse_pct": 20,
+      "refuse_desc": "Outer leaves and core",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":25,"water_g":92.18,"protein_g":1.28,"fat_g":0.1,"carb_g":5.8,"fiber_g":2.5,"calcium_mg":40,"iron_mg":0.47,"magnesium_mg":12,"phosphorus_mg":26,"potassium_mg":170,"sodium_mg":18,"zinc_mg":0.18,"copper_mg":0.019,"manganese_mg":0.16,"selenium_ug":0.3,"vitamin_a_rae_ug":5,"vitamin_e_mg":0.15,"vitamin_d_ug":0,"vitamin_c_mg":36.6,"thiamin_mg":0.061,"riboflavin_mg":0.04,"niacin_mg":0.234,"pantothenic_mg":0.212,"vitamin_b6_mg":0.124,"folate_dfe_ug":43,"vitamin_b12_ug":0,"choline_mg":10.7,"vitamin_k_ug":76,"linoleic_g":0.017,"alpha_linolenic_g":0,"epa_g":0,"dha_g":0,"histidine_g":0.022,"isoleucine_g":0.03,"leucine_g":0.041,"lysine_g":0.044,"methionine_g":0.012,"cystine_g":0.011,"phenylalanine_g":0.032,"tyrosine_g":0.019,"threonine_g":0.035,"tryptophan_g":0.011,"valine_g":0.042}
+    },
+    "broccoli": {
+      "fdc_id": 170379,
+      "fdc_description": "Broccoli, raw",
+      "ndb": "11090",
+      "refuse_pct": 39,
+      "refuse_desc": "Leaves and tough stalks with trimmings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":34,"water_g":89.3,"protein_g":2.82,"fat_g":0.37,"carb_g":6.64,"fiber_g":2.6,"calcium_mg":47,"iron_mg":0.73,"magnesium_mg":21,"phosphorus_mg":66,"potassium_mg":316,"sodium_mg":33,"zinc_mg":0.41,"copper_mg":0.049,"manganese_mg":0.21,"selenium_ug":2.5,"vitamin_a_rae_ug":31,"vitamin_e_mg":0.78,"vitamin_d_ug":0,"vitamin_c_mg":89.2,"thiamin_mg":0.071,"riboflavin_mg":0.117,"niacin_mg":0.639,"pantothenic_mg":0.573,"vitamin_b6_mg":0.175,"folate_dfe_ug":63,"vitamin_b12_ug":0,"choline_mg":18.7,"vitamin_k_ug":101.6,"linoleic_g":0.049,"alpha_linolenic_g":0.063,"epa_g":0,"dha_g":0,"histidine_g":0.059,"isoleucine_g":0.079,"leucine_g":0.129,"lysine_g":0.135,"methionine_g":0.038,"cystine_g":0.028,"phenylalanine_g":0.117,"tyrosine_g":0.05,"threonine_g":0.088,"tryptophan_g":0.033,"valine_g":0.125}
+    },
+    "cauliflower": {
+      "fdc_id": 169986,
+      "fdc_description": "Cauliflower, raw",
+      "ndb": "11135",
+      "refuse_pct": 61,
+      "refuse_desc": "Leaf stalks, cores and trimmings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":25,"water_g":92.07,"protein_g":1.92,"fat_g":0.28,"carb_g":4.97,"fiber_g":2,"calcium_mg":22,"iron_mg":0.42,"magnesium_mg":15,"phosphorus_mg":44,"potassium_mg":299,"sodium_mg":30,"zinc_mg":0.27,"copper_mg":0.039,"manganese_mg":0.155,"selenium_ug":0.6,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.08,"vitamin_d_ug":0,"vitamin_c_mg":48.2,"thiamin_mg":0.05,"riboflavin_mg":0.06,"niacin_mg":0.507,"pantothenic_mg":0.667,"vitamin_b6_mg":0.184,"folate_dfe_ug":57,"vitamin_b12_ug":0,"choline_mg":44.3,"vitamin_k_ug":15.5,"linoleic_g":0.013,"alpha_linolenic_g":0.015,"epa_g":0,"dha_g":0,"histidine_g":0.056,"isoleucine_g":0.071,"leucine_g":0.106,"lysine_g":0.217,"methionine_g":0.02,"cystine_g":0.02,"phenylalanine_g":0.065,"tyrosine_g":0.051,"threonine_g":0.076,"tryptophan_g":0.02,"valine_g":0.125}
+    },
+    "carrot": {
+      "fdc_id": 170393,
+      "fdc_description": "Carrots, raw",
+      "ndb": "11124",
+      "refuse_pct": 11,
+      "refuse_desc": "Crown, tops and scrapings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":41,"water_g":88.29,"protein_g":0.93,"fat_g":0.24,"carb_g":9.58,"fiber_g":2.8,"calcium_mg":33,"iron_mg":0.3,"magnesium_mg":12,"phosphorus_mg":35,"potassium_mg":320,"sodium_mg":69,"zinc_mg":0.24,"copper_mg":0.045,"manganese_mg":0.143,"selenium_ug":0.1,"vitamin_a_rae_ug":835,"vitamin_e_mg":0.66,"vitamin_d_ug":0,"vitamin_c_mg":5.9,"thiamin_mg":0.066,"riboflavin_mg":0.058,"niacin_mg":0.983,"pantothenic_mg":0.273,"vitamin_b6_mg":0.138,"folate_dfe_ug":19,"vitamin_b12_ug":0,"choline_mg":8.8,"vitamin_k_ug":13.2,"linoleic_g":0.1,"alpha_linolenic_g":0.002,"epa_g":0,"dha_g":0,"histidine_g":0.04,"isoleucine_g":0.077,"leucine_g":0.102,"lysine_g":0.101,"methionine_g":0.02,"cystine_g":0.083,"phenylalanine_g":0.061,"tyrosine_g":0.043,"threonine_g":0.191,"tryptophan_g":0.012,"valine_g":0.069}
+    },
+    "beet": {
+      "fdc_id": 169145,
+      "fdc_description": "Beets, raw",
+      "ndb": "11080",
+      "refuse_pct": 33,
+      "refuse_desc": "Parings and part tops",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":43,"water_g":87.58,"protein_g":1.61,"fat_g":0.17,"carb_g":9.56,"fiber_g":2.8,"calcium_mg":16,"iron_mg":0.8,"magnesium_mg":23,"phosphorus_mg":40,"potassium_mg":325,"sodium_mg":78,"zinc_mg":0.35,"copper_mg":0.075,"manganese_mg":0.329,"selenium_ug":0.7,"vitamin_a_rae_ug":2,"vitamin_e_mg":0.04,"vitamin_d_ug":0,"vitamin_c_mg":4.9,"thiamin_mg":0.031,"riboflavin_mg":0.04,"niacin_mg":0.334,"pantothenic_mg":0.155,"vitamin_b6_mg":0.067,"folate_dfe_ug":109,"vitamin_b12_ug":0,"choline_mg":6,"vitamin_k_ug":0.2,"linoleic_g":0.055,"alpha_linolenic_g":0.005,"epa_g":0,"dha_g":0,"histidine_g":0.021,"isoleucine_g":0.048,"leucine_g":0.068,"lysine_g":0.058,"methionine_g":0.018,"cystine_g":0.019,"phenylalanine_g":0.046,"tyrosine_g":0.038,"threonine_g":0.047,"tryptophan_g":0.019,"valine_g":0.056}
+    },
+    "turnip": {
+      "fdc_id": 170465,
+      "fdc_description": "Turnips, raw",
+      "ndb": "11564",
+      "refuse_pct": 19,
+      "refuse_desc": "Parings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":28,"water_g":91.87,"protein_g":0.9,"fat_g":0.1,"carb_g":6.43,"fiber_g":1.8,"calcium_mg":30,"iron_mg":0.3,"magnesium_mg":11,"phosphorus_mg":27,"potassium_mg":191,"sodium_mg":67,"zinc_mg":0.27,"copper_mg":0.085,"manganese_mg":0.134,"selenium_ug":0.7,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.03,"vitamin_d_ug":0,"vitamin_c_mg":21,"thiamin_mg":0.04,"riboflavin_mg":0.03,"niacin_mg":0.4,"pantothenic_mg":0.2,"vitamin_b6_mg":0.09,"folate_dfe_ug":15,"vitamin_b12_ug":0,"choline_mg":11.1,"vitamin_k_ug":0.1,"linoleic_g":0.012,"alpha_linolenic_g":0.04,"epa_g":0,"dha_g":0,"histidine_g":0.014,"isoleucine_g":0.036,"leucine_g":0.033,"lysine_g":0.036,"methionine_g":0.011,"cystine_g":0.005,"phenylalanine_g":0.017,"tyrosine_g":0.013,"threonine_g":0.025,"tryptophan_g":0.009,"valine_g":0.03}
+    },
+    "parsnip": {
+      "fdc_id": 170417,
+      "fdc_description": "Parsnips, raw",
+      "ndb": "11298",
+      "refuse_pct": 15,
+      "refuse_desc": "Parings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":75,"water_g":79.53,"protein_g":1.2,"fat_g":0.3,"carb_g":17.99,"fiber_g":4.9,"calcium_mg":36,"iron_mg":0.59,"magnesium_mg":29,"phosphorus_mg":71,"potassium_mg":375,"sodium_mg":10,"zinc_mg":0.59,"copper_mg":0.12,"manganese_mg":0.56,"selenium_ug":1.8,"vitamin_a_rae_ug":0,"vitamin_e_mg":1.49,"vitamin_d_ug":0,"vitamin_c_mg":17,"thiamin_mg":0.09,"riboflavin_mg":0.05,"niacin_mg":0.7,"pantothenic_mg":0.6,"vitamin_b6_mg":0.09,"folate_dfe_ug":67,"vitamin_b12_ug":0,"choline_mg":null,"vitamin_k_ug":22.5,"linoleic_g":0.041,"alpha_linolenic_g":0.003,"epa_g":null,"dha_g":null,"histidine_g":null,"isoleucine_g":null,"leucine_g":null,"lysine_g":null,"methionine_g":null,"cystine_g":null,"phenylalanine_g":null,"tyrosine_g":null,"threonine_g":null,"tryptophan_g":null,"valine_g":null}
+    },
+    "onion": {
+      "fdc_id": 170000,
+      "fdc_description": "Onions, raw",
+      "ndb": "11282",
+      "refuse_pct": 10,
+      "refuse_desc": "Stem ends, sprouts and defects",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":40,"water_g":89.11,"protein_g":1.1,"fat_g":0.1,"carb_g":9.34,"fiber_g":1.7,"calcium_mg":23,"iron_mg":0.21,"magnesium_mg":10,"phosphorus_mg":29,"potassium_mg":146,"sodium_mg":4,"zinc_mg":0.17,"copper_mg":0.039,"manganese_mg":0.129,"selenium_ug":0.5,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.02,"vitamin_d_ug":0,"vitamin_c_mg":7.4,"thiamin_mg":0.046,"riboflavin_mg":0.027,"niacin_mg":0.116,"pantothenic_mg":0.123,"vitamin_b6_mg":0.12,"folate_dfe_ug":19,"vitamin_b12_ug":0,"choline_mg":6.1,"vitamin_k_ug":0.4,"linoleic_g":0.013,"alpha_linolenic_g":0.004,"epa_g":0,"dha_g":0,"histidine_g":0.014,"isoleucine_g":0.014,"leucine_g":0.025,"lysine_g":0.039,"methionine_g":0.002,"cystine_g":0.004,"phenylalanine_g":0.025,"tyrosine_g":0.014,"threonine_g":0.021,"tryptophan_g":0.014,"valine_g":0.021}
+    },
+    "garlic": {
+      "fdc_id": 169230,
+      "fdc_description": "Garlic, raw",
+      "ndb": "11215",
+      "refuse_pct": 13,
+      "refuse_desc": "Knob and skin",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":149,"water_g":58.58,"protein_g":6.36,"fat_g":0.5,"carb_g":33.06,"fiber_g":2.1,"calcium_mg":181,"iron_mg":1.7,"magnesium_mg":25,"phosphorus_mg":153,"potassium_mg":401,"sodium_mg":17,"zinc_mg":1.16,"copper_mg":0.299,"manganese_mg":1.672,"selenium_ug":14.2,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.08,"vitamin_d_ug":0,"vitamin_c_mg":31.2,"thiamin_mg":0.2,"riboflavin_mg":0.11,"niacin_mg":0.7,"pantothenic_mg":0.596,"vitamin_b6_mg":1.235,"folate_dfe_ug":3,"vitamin_b12_ug":0,"choline_mg":23.2,"vitamin_k_ug":1.7,"linoleic_g":0.229,"alpha_linolenic_g":0.02,"epa_g":0,"dha_g":0,"histidine_g":0.113,"isoleucine_g":0.217,"leucine_g":0.308,"lysine_g":0.273,"methionine_g":0.076,"cystine_g":0.065,"phenylalanine_g":0.183,"tyrosine_g":0.081,"threonine_g":0.157,"tryptophan_g":0.066,"valine_g":0.291}
+    },
+    "leek": {
+      "fdc_id": 169246,
+      "fdc_description": "Leeks, (bulb and lower leaf-portion), raw",
+      "ndb": "11246",
+      "refuse_pct": 56,
+      "refuse_desc": "Tops, root end and skin",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":61,"water_g":83,"protein_g":1.5,"fat_g":0.3,"carb_g":14.15,"fiber_g":1.8,"calcium_mg":59,"iron_mg":2.1,"magnesium_mg":28,"phosphorus_mg":35,"potassium_mg":180,"sodium_mg":20,"zinc_mg":0.12,"copper_mg":0.12,"manganese_mg":0.481,"selenium_ug":1,"vitamin_a_rae_ug":83,"vitamin_e_mg":0.92,"vitamin_d_ug":0,"vitamin_c_mg":12,"thiamin_mg":0.06,"riboflavin_mg":0.03,"niacin_mg":0.4,"pantothenic_mg":0.14,"vitamin_b6_mg":0.233,"folate_dfe_ug":64,"vitamin_b12_ug":0,"choline_mg":9.5,"vitamin_k_ug":47,"linoleic_g":0.067,"alpha_linolenic_g":0.099,"epa_g":0,"dha_g":0,"histidine_g":0.025,"isoleucine_g":0.052,"leucine_g":0.096,"lysine_g":0.078,"methionine_g":0.018,"cystine_g":0.025,"phenylalanine_g":0.055,"tyrosine_g":0.041,"threonine_g":0.063,"tryptophan_g":0.012,"valine_g":0.056}
+    },
+    "celery": {
+      "fdc_id": 169988,
+      "fdc_description": "Celery, raw",
+      "ndb": "11143",
+      "refuse_pct": 11,
+      "refuse_desc": "Roots and trimmings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":14,"water_g":95.43,"protein_g":0.69,"fat_g":0.17,"carb_g":2.97,"fiber_g":1.6,"calcium_mg":40,"iron_mg":0.2,"magnesium_mg":11,"phosphorus_mg":24,"potassium_mg":260,"sodium_mg":80,"zinc_mg":0.13,"copper_mg":0.035,"manganese_mg":0.103,"selenium_ug":0.4,"vitamin_a_rae_ug":22,"vitamin_e_mg":0.27,"vitamin_d_ug":0,"vitamin_c_mg":3.1,"thiamin_mg":0.021,"riboflavin_mg":0.057,"niacin_mg":0.32,"pantothenic_mg":0.246,"vitamin_b6_mg":0.074,"folate_dfe_ug":36,"vitamin_b12_ug":0,"choline_mg":6.1,"vitamin_k_ug":29.3,"linoleic_g":0.079,"alpha_linolenic_g":0,"epa_g":0,"dha_g":0,"histidine_g":0.012,"isoleucine_g":0.021,"leucine_g":0.032,"lysine_g":0.027,"methionine_g":0.005,"cystine_g":0.004,"phenylalanine_g":0.02,"tyrosine_g":0.009,"threonine_g":0.02,"tryptophan_g":0.009,"valine_g":0.027}
+    },
+    "lettuce": {
+      "fdc_id": 169247,
+      "fdc_description": "Lettuce, cos or romaine, raw",
+      "ndb": "11251",
+      "refuse_pct": 6,
+      "refuse_desc": "Core",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":17,"water_g":94.61,"protein_g":1.23,"fat_g":0.3,"carb_g":3.29,"fiber_g":2.1,"calcium_mg":33,"iron_mg":0.97,"magnesium_mg":14,"phosphorus_mg":30,"potassium_mg":247,"sodium_mg":8,"zinc_mg":0.23,"copper_mg":0.048,"manganese_mg":0.155,"selenium_ug":0.4,"vitamin_a_rae_ug":436,"vitamin_e_mg":0.13,"vitamin_d_ug":0,"vitamin_c_mg":4,"thiamin_mg":0.072,"riboflavin_mg":0.067,"niacin_mg":0.313,"pantothenic_mg":0.142,"vitamin_b6_mg":0.074,"folate_dfe_ug":136,"vitamin_b12_ug":0,"choline_mg":9.9,"vitamin_k_ug":102.5,"linoleic_g":0.047,"alpha_linolenic_g":0.113,"epa_g":0,"dha_g":0,"histidine_g":0.021,"isoleucine_g":0.045,"leucine_g":0.076,"lysine_g":0.064,"methionine_g":0.015,"cystine_g":0.006,"phenylalanine_g":0.065,"tyrosine_g":0.025,"threonine_g":0.043,"tryptophan_g":0.01,"valine_g":0.055}
+    },
+    "tomato": {
+      "fdc_id": 170457,
+      "fdc_description": "Tomatoes, red, ripe, raw, year round average",
+      "ndb": "11529",
+      "refuse_pct": 9,
+      "refuse_desc": "Core and stem ends",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":18,"water_g":94.52,"protein_g":0.88,"fat_g":0.2,"carb_g":3.89,"fiber_g":1.2,"calcium_mg":10,"iron_mg":0.27,"magnesium_mg":11,"phosphorus_mg":24,"potassium_mg":237,"sodium_mg":5,"zinc_mg":0.17,"copper_mg":0.059,"manganese_mg":0.114,"selenium_ug":0,"vitamin_a_rae_ug":42,"vitamin_e_mg":0.54,"vitamin_d_ug":0,"vitamin_c_mg":13.7,"thiamin_mg":0.037,"riboflavin_mg":0.019,"niacin_mg":0.594,"pantothenic_mg":0.089,"vitamin_b6_mg":0.08,"folate_dfe_ug":15,"vitamin_b12_ug":0,"choline_mg":6.7,"vitamin_k_ug":7.9,"linoleic_g":0.08,"alpha_linolenic_g":0.003,"epa_g":0,"dha_g":0,"histidine_g":0.014,"isoleucine_g":0.018,"leucine_g":0.025,"lysine_g":0.027,"methionine_g":0.006,"cystine_g":0.009,"phenylalanine_g":0.027,"tyrosine_g":0.014,"threonine_g":0.027,"tryptophan_g":0.006,"valine_g":0.018}
+    },
+    "pepper": {
+      "fdc_id": 170108,
+      "fdc_description": "Peppers, sweet, red, raw",
+      "ndb": "11821",
+      "refuse_pct": 18,
+      "refuse_desc": "Stem ends, seed and core",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":26,"water_g":92.21,"protein_g":0.99,"fat_g":0.3,"carb_g":6.03,"fiber_g":2.1,"calcium_mg":7,"iron_mg":0.43,"magnesium_mg":12,"phosphorus_mg":26,"potassium_mg":211,"sodium_mg":4,"zinc_mg":0.25,"copper_mg":0.017,"manganese_mg":0.112,"selenium_ug":0.1,"vitamin_a_rae_ug":157,"vitamin_e_mg":1.58,"vitamin_d_ug":0,"vitamin_c_mg":127.7,"thiamin_mg":0.054,"riboflavin_mg":0.085,"niacin_mg":0.979,"pantothenic_mg":0.317,"vitamin_b6_mg":0.291,"folate_dfe_ug":46,"vitamin_b12_ug":0,"choline_mg":5.6,"vitamin_k_ug":4.9,"linoleic_g":0.1,"alpha_linolenic_g":0.056,"epa_g":0,"dha_g":0,"histidine_g":0.017,"isoleucine_g":0.021,"leucine_g":0.036,"lysine_g":0.036,"methionine_g":0.006,"cystine_g":0.019,"phenylalanine_g":0.05,"tyrosine_g":0.009,"threonine_g":0.04,"tryptophan_g":0.012,"valine_g":0.031}
+    },
+    "strawberry": {
+      "fdc_id": 167762,
+      "fdc_description": "Strawberries, raw",
+      "ndb": "9316",
+      "refuse_pct": 6,
+      "refuse_desc": "Caps and stems",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":32,"water_g":90.95,"protein_g":0.67,"fat_g":0.3,"carb_g":7.68,"fiber_g":2,"calcium_mg":16,"iron_mg":0.41,"magnesium_mg":13,"phosphorus_mg":24,"potassium_mg":153,"sodium_mg":1,"zinc_mg":0.14,"copper_mg":0.048,"manganese_mg":0.386,"selenium_ug":0.4,"vitamin_a_rae_ug":1,"vitamin_e_mg":0.29,"vitamin_d_ug":0,"vitamin_c_mg":58.8,"thiamin_mg":0.024,"riboflavin_mg":0.022,"niacin_mg":0.386,"pantothenic_mg":0.125,"vitamin_b6_mg":0.047,"folate_dfe_ug":24,"vitamin_b12_ug":0,"choline_mg":5.7,"vitamin_k_ug":2.2,"linoleic_g":0.09,"alpha_linolenic_g":0.065,"epa_g":0,"dha_g":0,"histidine_g":0.012,"isoleucine_g":0.016,"leucine_g":0.034,"lysine_g":0.026,"methionine_g":0.002,"cystine_g":0.006,"phenylalanine_g":0.019,"tyrosine_g":0.022,"threonine_g":0.02,"tryptophan_g":0.008,"valine_g":0.019}
+    },
+    "cucumber": {
+      "fdc_id": 168409,
+      "fdc_description": "Cucumber, with peel, raw",
+      "ndb": "11205",
+      "refuse_pct": 3,
+      "refuse_desc": "Ends",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":15,"water_g":95.23,"protein_g":0.65,"fat_g":0.11,"carb_g":3.63,"fiber_g":0.5,"calcium_mg":16,"iron_mg":0.28,"magnesium_mg":13,"phosphorus_mg":24,"potassium_mg":147,"sodium_mg":2,"zinc_mg":0.2,"copper_mg":0.041,"manganese_mg":0.079,"selenium_ug":0.3,"vitamin_a_rae_ug":5,"vitamin_e_mg":0.03,"vitamin_d_ug":0,"vitamin_c_mg":2.8,"thiamin_mg":0.027,"riboflavin_mg":0.033,"niacin_mg":0.098,"pantothenic_mg":0.259,"vitamin_b6_mg":0.04,"folate_dfe_ug":7,"vitamin_b12_ug":0,"choline_mg":6,"vitamin_k_ug":16.4,"linoleic_g":0.028,"alpha_linolenic_g":0.005,"epa_g":0,"dha_g":0,"histidine_g":0.01,"isoleucine_g":0.021,"leucine_g":0.029,"lysine_g":0.029,"methionine_g":0.006,"cystine_g":0.004,"phenylalanine_g":0.019,"tyrosine_g":0.011,"threonine_g":0.019,"tryptophan_g":0.005,"valine_g":0.022}
+    },
+    "zucchini": {
+      "fdc_id": 169291,
+      "fdc_description": "Squash, summer, zucchini, includes skin, raw",
+      "ndb": "11477",
+      "refuse_pct": 5,
+      "refuse_desc": "Ends",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":17,"water_g":94.79,"protein_g":1.21,"fat_g":0.32,"carb_g":3.11,"fiber_g":1,"calcium_mg":16,"iron_mg":0.37,"magnesium_mg":18,"phosphorus_mg":38,"potassium_mg":261,"sodium_mg":8,"zinc_mg":0.32,"copper_mg":0.053,"manganese_mg":0.177,"selenium_ug":0.2,"vitamin_a_rae_ug":10,"vitamin_e_mg":0.12,"vitamin_d_ug":0,"vitamin_c_mg":17.9,"thiamin_mg":0.045,"riboflavin_mg":0.094,"niacin_mg":0.451,"pantothenic_mg":0.204,"vitamin_b6_mg":0.163,"folate_dfe_ug":24,"vitamin_b12_ug":0,"choline_mg":9.5,"vitamin_k_ug":4.3,"linoleic_g":0.03,"alpha_linolenic_g":0.061,"epa_g":0,"dha_g":0,"histidine_g":0.026,"isoleucine_g":0.044,"leucine_g":0.071,"lysine_g":0.067,"methionine_g":0.018,"cystine_g":0.012,"phenylalanine_g":0.043,"tyrosine_g":0.032,"threonine_g":0.029,"tryptophan_g":0.01,"valine_g":0.054}
+    },
+    "eggplant": {
+      "fdc_id": 169228,
+      "fdc_description": "Eggplant, raw",
+      "ndb": "11209",
+      "refuse_pct": 19,
+      "refuse_desc": "Ends, parings and trimmings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":25,"water_g":92.3,"protein_g":0.98,"fat_g":0.18,"carb_g":5.88,"fiber_g":3,"calcium_mg":9,"iron_mg":0.23,"magnesium_mg":14,"phosphorus_mg":24,"potassium_mg":229,"sodium_mg":2,"zinc_mg":0.16,"copper_mg":0.081,"manganese_mg":0.232,"selenium_ug":0.3,"vitamin_a_rae_ug":1,"vitamin_e_mg":0.3,"vitamin_d_ug":0,"vitamin_c_mg":2.2,"thiamin_mg":0.039,"riboflavin_mg":0.037,"niacin_mg":0.649,"pantothenic_mg":0.281,"vitamin_b6_mg":0.084,"folate_dfe_ug":22,"vitamin_b12_ug":0,"choline_mg":6.9,"vitamin_k_ug":3.5,"linoleic_g":0.063,"alpha_linolenic_g":0.013,"epa_g":0,"dha_g":0,"histidine_g":0.023,"isoleucine_g":0.045,"leucine_g":0.064,"lysine_g":0.047,"methionine_g":0.011,"cystine_g":0.006,"phenylalanine_g":0.043,"tyrosine_g":0.027,"threonine_g":0.037,"tryptophan_g":0.009,"valine_g":0.053}
+    },
+    "okra": {
+      "fdc_id": 169260,
+      "fdc_description": "Okra, raw",
+      "ndb": "11278",
+      "refuse_pct": 14,
+      "refuse_desc": "Crown and tips",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":33,"water_g":89.58,"protein_g":1.93,"fat_g":0.19,"carb_g":7.45,"fiber_g":3.2,"calcium_mg":82,"iron_mg":0.62,"magnesium_mg":57,"phosphorus_mg":61,"potassium_mg":299,"sodium_mg":7,"zinc_mg":0.58,"copper_mg":0.109,"manganese_mg":0.788,"selenium_ug":0.7,"vitamin_a_rae_ug":36,"vitamin_e_mg":0.27,"vitamin_d_ug":0,"vitamin_c_mg":23,"thiamin_mg":0.2,"riboflavin_mg":0.06,"niacin_mg":1,"pantothenic_mg":0.245,"vitamin_b6_mg":0.215,"folate_dfe_ug":60,"vitamin_b12_ug":0,"choline_mg":12.3,"vitamin_k_ug":31.3,"linoleic_g":0.026,"alpha_linolenic_g":0.001,"epa_g":0,"dha_g":0,"histidine_g":0.031,"isoleucine_g":0.069,"leucine_g":0.105,"lysine_g":0.081,"methionine_g":0.021,"cystine_g":0.019,"phenylalanine_g":0.065,"tyrosine_g":0.087,"threonine_g":0.065,"tryptophan_g":0.017,"valine_g":0.091}
+    },
+    "pea": {
+      "fdc_id": 170419,
+      "fdc_description": "Peas, green, raw",
+      "ndb": "11304",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "edible_share_source": "items.csv legume_pea_0 is green peas already shelled, so the pod refuse does not apply",
+      "note": "SR28 refuse 62% (Pods and inedible peas) not applied: items.csv legume_pea_0 is shelled green peas: the 62% pod refuse is not part of the harvest",
+      "per_100g": {"energy_kcal":81,"water_g":78.86,"protein_g":5.42,"fat_g":0.4,"carb_g":14.45,"fiber_g":5.7,"calcium_mg":25,"iron_mg":1.47,"magnesium_mg":33,"phosphorus_mg":108,"potassium_mg":244,"sodium_mg":5,"zinc_mg":1.24,"copper_mg":0.176,"manganese_mg":0.41,"selenium_ug":1.8,"vitamin_a_rae_ug":38,"vitamin_e_mg":0.13,"vitamin_d_ug":0,"vitamin_c_mg":40,"thiamin_mg":0.266,"riboflavin_mg":0.132,"niacin_mg":2.09,"pantothenic_mg":0.104,"vitamin_b6_mg":0.169,"folate_dfe_ug":65,"vitamin_b12_ug":0,"choline_mg":28.4,"vitamin_k_ug":24.8,"linoleic_g":0.152,"alpha_linolenic_g":0.035,"epa_g":0,"dha_g":0,"histidine_g":0.107,"isoleucine_g":0.195,"leucine_g":0.323,"lysine_g":0.317,"methionine_g":0.082,"cystine_g":0.032,"phenylalanine_g":0.2,"tyrosine_g":0.114,"threonine_g":0.203,"tryptophan_g":0.037,"valine_g":0.235}
+    },
+    "bean": {
+      "fdc_id": 175193,
+      "fdc_description": "Beans, kidney, all types, mature seeds, raw",
+      "ndb": "16027",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":333,"water_g":11.75,"protein_g":23.58,"fat_g":0.83,"carb_g":60.01,"fiber_g":24.9,"calcium_mg":143,"iron_mg":8.2,"magnesium_mg":140,"phosphorus_mg":407,"potassium_mg":1406,"sodium_mg":24,"zinc_mg":2.79,"copper_mg":0.958,"manganese_mg":1.021,"selenium_ug":3.2,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.22,"vitamin_d_ug":0,"vitamin_c_mg":4.5,"thiamin_mg":0.529,"riboflavin_mg":0.219,"niacin_mg":2.06,"pantothenic_mg":0.78,"vitamin_b6_mg":0.397,"folate_dfe_ug":394,"vitamin_b12_ug":0,"choline_mg":null,"vitamin_k_ug":19,"linoleic_g":0.178,"alpha_linolenic_g":0.279,"epa_g":0,"dha_g":0,"histidine_g":0.656,"isoleucine_g":1.041,"leucine_g":1.882,"lysine_g":1.618,"methionine_g":0.355,"cystine_g":0.256,"phenylalanine_g":1.275,"tyrosine_g":0.664,"threonine_g":0.992,"tryptophan_g":0.279,"valine_g":1.233}
+    },
+    "lentil": {
+      "fdc_id": 172420,
+      "fdc_description": "Lentils, raw",
+      "ndb": "16069",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":352,"water_g":8.26,"protein_g":24.63,"fat_g":1.06,"carb_g":63.35,"fiber_g":10.7,"calcium_mg":35,"iron_mg":6.51,"magnesium_mg":47,"phosphorus_mg":281,"potassium_mg":677,"sodium_mg":6,"zinc_mg":3.27,"copper_mg":0.754,"manganese_mg":1.393,"selenium_ug":0.1,"vitamin_a_rae_ug":2,"vitamin_e_mg":0.49,"vitamin_d_ug":0,"vitamin_c_mg":4.5,"thiamin_mg":0.873,"riboflavin_mg":0.211,"niacin_mg":2.605,"pantothenic_mg":2.14,"vitamin_b6_mg":0.54,"folate_dfe_ug":479,"vitamin_b12_ug":0,"choline_mg":96.4,"vitamin_k_ug":5,"linoleic_g":0.414,"alpha_linolenic_g":0.112,"epa_g":0,"dha_g":0,"histidine_g":0.693,"isoleucine_g":1.065,"leucine_g":1.786,"lysine_g":1.72,"methionine_g":0.21,"cystine_g":0.322,"phenylalanine_g":1.215,"tyrosine_g":0.658,"threonine_g":0.882,"tryptophan_g":0.221,"valine_g":1.223}
+    },
+    "chickpea": {
+      "fdc_id": 173756,
+      "fdc_description": "Chickpeas (garbanzo beans, bengal gram), mature seeds, raw",
+      "ndb": "16056",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":378,"water_g":7.68,"protein_g":20.47,"fat_g":6.04,"carb_g":62.95,"fiber_g":12.2,"calcium_mg":57,"iron_mg":4.31,"magnesium_mg":79,"phosphorus_mg":252,"potassium_mg":718,"sodium_mg":24,"zinc_mg":2.76,"copper_mg":0.656,"manganese_mg":4.15,"selenium_ug":0,"vitamin_a_rae_ug":3,"vitamin_e_mg":0.82,"vitamin_d_ug":0,"vitamin_c_mg":4,"thiamin_mg":0.477,"riboflavin_mg":0.212,"niacin_mg":1.541,"pantothenic_mg":1.588,"vitamin_b6_mg":0.535,"folate_dfe_ug":557,"vitamin_b12_ug":0,"choline_mg":99.3,"vitamin_k_ug":9,"linoleic_g":2.629,"alpha_linolenic_g":0.102,"epa_g":0,"dha_g":0,"histidine_g":0.566,"isoleucine_g":0.882,"leucine_g":1.465,"lysine_g":1.377,"methionine_g":0.27,"cystine_g":0.279,"phenylalanine_g":1.103,"tyrosine_g":0.512,"threonine_g":0.766,"tryptophan_g":0.2,"valine_g":0.865}
+    },
+    "cowpea": {
+      "fdc_id": 173758,
+      "fdc_description": "Cowpeas, common (blackeyes, crowder, southern), mature seeds, raw",
+      "ndb": "16062",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":336,"water_g":11.95,"protein_g":23.52,"fat_g":1.26,"carb_g":60.03,"fiber_g":10.6,"calcium_mg":110,"iron_mg":8.27,"magnesium_mg":184,"phosphorus_mg":424,"potassium_mg":1112,"sodium_mg":16,"zinc_mg":3.37,"copper_mg":0.845,"manganese_mg":1.528,"selenium_ug":9,"vitamin_a_rae_ug":3,"vitamin_e_mg":0.39,"vitamin_d_ug":0,"vitamin_c_mg":1.5,"thiamin_mg":0.853,"riboflavin_mg":0.226,"niacin_mg":2.075,"pantothenic_mg":1.496,"vitamin_b6_mg":0.357,"folate_dfe_ug":633,"vitamin_b12_ug":0,"choline_mg":94.7,"vitamin_k_ug":5,"linoleic_g":0.343,"alpha_linolenic_g":0.199,"epa_g":0,"dha_g":0,"histidine_g":0.73,"isoleucine_g":0.956,"leucine_g":1.802,"lysine_g":1.591,"methionine_g":0.335,"cystine_g":0.26,"phenylalanine_g":1.373,"tyrosine_g":0.76,"threonine_g":0.895,"tryptophan_g":0.29,"valine_g":1.121}
+    },
+    "fava_bean": {
+      "fdc_id": 175205,
+      "fdc_description": "Broadbeans (fava beans), mature seeds, raw",
+      "ndb": "16052",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":341,"water_g":10.98,"protein_g":26.12,"fat_g":1.53,"carb_g":58.29,"fiber_g":25,"calcium_mg":103,"iron_mg":6.7,"magnesium_mg":192,"phosphorus_mg":421,"potassium_mg":1062,"sodium_mg":13,"zinc_mg":3.14,"copper_mg":0.824,"manganese_mg":1.626,"selenium_ug":8.2,"vitamin_a_rae_ug":3,"vitamin_e_mg":0.05,"vitamin_d_ug":0,"vitamin_c_mg":1.4,"thiamin_mg":0.555,"riboflavin_mg":0.333,"niacin_mg":2.832,"pantothenic_mg":0.976,"vitamin_b6_mg":0.366,"folate_dfe_ug":423,"vitamin_b12_ug":0,"choline_mg":95.8,"vitamin_k_ug":9,"linoleic_g":0.581,"alpha_linolenic_g":0.046,"epa_g":0,"dha_g":0,"histidine_g":0.664,"isoleucine_g":1.053,"leucine_g":1.964,"lysine_g":1.671,"methionine_g":0.213,"cystine_g":0.334,"phenylalanine_g":1.103,"tyrosine_g":0.827,"threonine_g":0.928,"tryptophan_g":0.247,"valine_g":1.161}
+    },
+    "mung_bean": {
+      "fdc_id": 174256,
+      "fdc_description": "Mung beans, mature seeds, raw",
+      "ndb": "16080",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":347,"water_g":9.05,"protein_g":23.86,"fat_g":1.15,"carb_g":62.62,"fiber_g":16.3,"calcium_mg":132,"iron_mg":6.74,"magnesium_mg":189,"phosphorus_mg":367,"potassium_mg":1246,"sodium_mg":15,"zinc_mg":2.68,"copper_mg":0.941,"manganese_mg":1.035,"selenium_ug":8.2,"vitamin_a_rae_ug":6,"vitamin_e_mg":0.51,"vitamin_d_ug":0,"vitamin_c_mg":4.8,"thiamin_mg":0.621,"riboflavin_mg":0.233,"niacin_mg":2.251,"pantothenic_mg":1.91,"vitamin_b6_mg":0.382,"folate_dfe_ug":625,"vitamin_b12_ug":0,"choline_mg":97.9,"vitamin_k_ug":9,"linoleic_g":0.357,"alpha_linolenic_g":0.027,"epa_g":0,"dha_g":0,"histidine_g":0.695,"isoleucine_g":1.008,"leucine_g":1.847,"lysine_g":1.664,"methionine_g":0.286,"cystine_g":0.21,"phenylalanine_g":1.443,"tyrosine_g":0.714,"threonine_g":0.782,"tryptophan_g":0.26,"valine_g":1.237}
+    },
+    "lupin": {
+      "fdc_id": 172423,
+      "fdc_description": "Lupins, mature seeds, raw",
+      "ndb": "16076",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":371,"water_g":10.44,"protein_g":36.17,"fat_g":9.74,"carb_g":40.37,"fiber_g":18.9,"calcium_mg":176,"iron_mg":4.36,"magnesium_mg":198,"phosphorus_mg":440,"potassium_mg":1013,"sodium_mg":15,"zinc_mg":4.75,"copper_mg":1.022,"manganese_mg":2.382,"selenium_ug":8.2,"vitamin_a_rae_ug":0,"vitamin_e_mg":null,"vitamin_d_ug":0,"vitamin_c_mg":4.8,"thiamin_mg":0.64,"riboflavin_mg":0.22,"niacin_mg":2.19,"pantothenic_mg":0.75,"vitamin_b6_mg":0.357,"folate_dfe_ug":355,"vitamin_b12_ug":0,"choline_mg":null,"vitamin_k_ug":null,"linoleic_g":1.995,"alpha_linolenic_g":0.446,"epa_g":null,"dha_g":null,"histidine_g":1.03,"isoleucine_g":1.615,"leucine_g":2.743,"lysine_g":1.933,"methionine_g":0.255,"cystine_g":0.446,"phenylalanine_g":1.435,"tyrosine_g":1.36,"threonine_g":1.331,"tryptophan_g":0.289,"valine_g":1.51}
+    },
+    "wheat": {
+      "fdc_id": 168889,
+      "fdc_description": "Wheat, hard red spring",
+      "ndb": "20071",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":329,"water_g":12.76,"protein_g":15.4,"fat_g":1.92,"carb_g":68.03,"fiber_g":12.2,"calcium_mg":25,"iron_mg":3.6,"magnesium_mg":124,"phosphorus_mg":332,"potassium_mg":340,"sodium_mg":2,"zinc_mg":2.78,"copper_mg":0.41,"manganese_mg":4.055,"selenium_ug":70.7,"vitamin_a_rae_ug":0,"vitamin_e_mg":1.01,"vitamin_d_ug":0,"vitamin_c_mg":0,"thiamin_mg":0.504,"riboflavin_mg":0.11,"niacin_mg":5.71,"pantothenic_mg":0.935,"vitamin_b6_mg":0.336,"folate_dfe_ug":43,"vitamin_b12_ug":0,"choline_mg":31.2,"vitamin_k_ug":1.9,"linoleic_g":0.727,"alpha_linolenic_g":0.036,"epa_g":0,"dha_g":0,"histidine_g":0.33,"isoleucine_g":0.541,"leucine_g":1.038,"lysine_g":0.404,"methionine_g":0.23,"cystine_g":0.404,"phenylalanine_g":0.724,"tyrosine_g":0.441,"threonine_g":0.433,"tryptophan_g":0.195,"valine_g":0.679}
+    },
+    "oat": {
+      "fdc_id": 169705,
+      "fdc_description": "Oats (Includes foods for USDA's Food Distribution Program)",
+      "ndb": "20038",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 0.75,
+      "edible_share_source": "data/food/crop_nutrition.ron: harvest is whole oats in the hull, groat share 0.75",
+      "note": "SR28 refuse 0% () not applied: the hull is handled by edible_share",
+      "per_100g": {"energy_kcal":389,"water_g":8.22,"protein_g":16.89,"fat_g":6.9,"carb_g":66.27,"fiber_g":10.6,"calcium_mg":54,"iron_mg":4.72,"magnesium_mg":177,"phosphorus_mg":523,"potassium_mg":429,"sodium_mg":2,"zinc_mg":3.97,"copper_mg":0.626,"manganese_mg":4.916,"selenium_ug":null,"vitamin_a_rae_ug":0,"vitamin_e_mg":null,"vitamin_d_ug":0,"vitamin_c_mg":0,"thiamin_mg":0.763,"riboflavin_mg":0.139,"niacin_mg":0.961,"pantothenic_mg":1.349,"vitamin_b6_mg":0.119,"folate_dfe_ug":56,"vitamin_b12_ug":0,"choline_mg":null,"vitamin_k_ug":null,"linoleic_g":2.424,"alpha_linolenic_g":0.111,"epa_g":null,"dha_g":null,"histidine_g":0.405,"isoleucine_g":0.694,"leucine_g":1.284,"lysine_g":0.701,"methionine_g":0.312,"cystine_g":0.408,"phenylalanine_g":0.895,"tyrosine_g":0.573,"threonine_g":0.575,"tryptophan_g":0.234,"valine_g":0.937}
+    },
+    "barley": {
+      "fdc_id": 170283,
+      "fdc_description": "Barley, hulled",
+      "ndb": "20004",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 0.87,
+      "edible_share_source": "data/food/crop_nutrition.ron: harvest is covered barley, hull on, share 0.87",
+      "note": "SR28 refuse 0% () not applied: the hull is handled by edible_share",
+      "per_100g": {"energy_kcal":354,"water_g":9.44,"protein_g":12.48,"fat_g":2.3,"carb_g":73.48,"fiber_g":17.3,"calcium_mg":33,"iron_mg":3.6,"magnesium_mg":133,"phosphorus_mg":264,"potassium_mg":452,"sodium_mg":12,"zinc_mg":2.77,"copper_mg":0.498,"manganese_mg":1.943,"selenium_ug":37.7,"vitamin_a_rae_ug":1,"vitamin_e_mg":0.57,"vitamin_d_ug":0,"vitamin_c_mg":0,"thiamin_mg":0.646,"riboflavin_mg":0.285,"niacin_mg":4.604,"pantothenic_mg":0.282,"vitamin_b6_mg":0.318,"folate_dfe_ug":19,"vitamin_b12_ug":0,"choline_mg":null,"vitamin_k_ug":2.2,"linoleic_g":0.999,"alpha_linolenic_g":0.11,"epa_g":0,"dha_g":0,"histidine_g":0.281,"isoleucine_g":0.456,"leucine_g":0.848,"lysine_g":0.465,"methionine_g":0.24,"cystine_g":0.276,"phenylalanine_g":0.7,"tyrosine_g":0.358,"threonine_g":0.424,"tryptophan_g":0.208,"valine_g":0.612}
+    },
+    "rice": {
+      "fdc_id": 169703,
+      "fdc_description": "Rice, brown, long-grain, raw (Includes foods for USDA's Food Distribution Program)",
+      "ndb": "20036",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 0.8,
+      "edible_share_source": "data/food/crop_nutrition.ron: harvest is paddy rice in the hull, IRRI brown rice share 0.80",
+      "note": "SR28 refuse 0% () not applied: the hull is handled by edible_share",
+      "per_100g": {"energy_kcal":367,"water_g":11.8,"protein_g":7.54,"fat_g":3.2,"carb_g":76.25,"fiber_g":3.6,"calcium_mg":9,"iron_mg":1.29,"magnesium_mg":116,"phosphorus_mg":311,"potassium_mg":250,"sodium_mg":5,"zinc_mg":2.13,"copper_mg":0.302,"manganese_mg":2.853,"selenium_ug":17.1,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.6,"vitamin_d_ug":0,"vitamin_c_mg":0,"thiamin_mg":0.541,"riboflavin_mg":0.095,"niacin_mg":6.494,"pantothenic_mg":1.065,"vitamin_b6_mg":0.477,"folate_dfe_ug":23,"vitamin_b12_ug":0,"choline_mg":21.5,"vitamin_k_ug":0.6,"linoleic_g":0.967,"alpha_linolenic_g":0.032,"epa_g":0,"dha_g":0,"histidine_g":0.202,"isoleucine_g":0.336,"leucine_g":0.657,"lysine_g":0.303,"methionine_g":0.179,"cystine_g":0.096,"phenylalanine_g":0.41,"tyrosine_g":0.298,"threonine_g":0.291,"tryptophan_g":0.101,"valine_g":0.466}
+    },
+    "buckwheat": {
+      "fdc_id": 170286,
+      "fdc_description": "Buckwheat",
+      "ndb": "20008",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":343,"water_g":9.75,"protein_g":13.25,"fat_g":3.4,"carb_g":71.5,"fiber_g":10,"calcium_mg":18,"iron_mg":2.2,"magnesium_mg":231,"phosphorus_mg":347,"potassium_mg":460,"sodium_mg":1,"zinc_mg":2.4,"copper_mg":1.1,"manganese_mg":1.3,"selenium_ug":8.3,"vitamin_a_rae_ug":0,"vitamin_e_mg":null,"vitamin_d_ug":0,"vitamin_c_mg":0,"thiamin_mg":0.101,"riboflavin_mg":0.425,"niacin_mg":7.02,"pantothenic_mg":1.233,"vitamin_b6_mg":0.21,"folate_dfe_ug":30,"vitamin_b12_ug":0,"choline_mg":null,"vitamin_k_ug":null,"linoleic_g":0.961,"alpha_linolenic_g":0.078,"epa_g":0,"dha_g":0,"histidine_g":0.309,"isoleucine_g":0.498,"leucine_g":0.832,"lysine_g":0.672,"methionine_g":0.172,"cystine_g":0.229,"phenylalanine_g":0.52,"tyrosine_g":0.241,"threonine_g":0.506,"tryptophan_g":0.192,"valine_g":0.678}
+    },
+    "quinoa": {
+      "fdc_id": 168874,
+      "fdc_description": "Quinoa, uncooked",
+      "ndb": "20035",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":368,"water_g":13.28,"protein_g":14.12,"fat_g":6.07,"carb_g":64.16,"fiber_g":7,"calcium_mg":47,"iron_mg":4.57,"magnesium_mg":197,"phosphorus_mg":457,"potassium_mg":563,"sodium_mg":5,"zinc_mg":3.1,"copper_mg":0.59,"manganese_mg":2.033,"selenium_ug":8.5,"vitamin_a_rae_ug":1,"vitamin_e_mg":2.44,"vitamin_d_ug":0,"vitamin_c_mg":null,"thiamin_mg":0.36,"riboflavin_mg":0.318,"niacin_mg":1.52,"pantothenic_mg":0.772,"vitamin_b6_mg":0.487,"folate_dfe_ug":184,"vitamin_b12_ug":0,"choline_mg":70.2,"vitamin_k_ug":0,"linoleic_g":2.977,"alpha_linolenic_g":0.26,"epa_g":0,"dha_g":0.047,"histidine_g":0.407,"isoleucine_g":0.504,"leucine_g":0.84,"lysine_g":0.766,"methionine_g":0.309,"cystine_g":0.203,"phenylalanine_g":0.593,"tyrosine_g":0.267,"threonine_g":0.421,"tryptophan_g":0.167,"valine_g":0.594}
+    },
+    "amaranth": {
+      "fdc_id": 170682,
+      "fdc_description": "Amaranth grain, uncooked",
+      "ndb": "20001",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":371,"water_g":11.29,"protein_g":13.56,"fat_g":7.02,"carb_g":65.25,"fiber_g":6.7,"calcium_mg":159,"iron_mg":7.61,"magnesium_mg":248,"phosphorus_mg":557,"potassium_mg":508,"sodium_mg":4,"zinc_mg":2.87,"copper_mg":0.525,"manganese_mg":3.333,"selenium_ug":18.7,"vitamin_a_rae_ug":0,"vitamin_e_mg":1.19,"vitamin_d_ug":0,"vitamin_c_mg":4.2,"thiamin_mg":0.116,"riboflavin_mg":0.2,"niacin_mg":0.923,"pantothenic_mg":1.457,"vitamin_b6_mg":0.591,"folate_dfe_ug":82,"vitamin_b12_ug":0,"choline_mg":69.8,"vitamin_k_ug":0,"linoleic_g":2.736,"alpha_linolenic_g":0.042,"epa_g":null,"dha_g":null,"histidine_g":0.389,"isoleucine_g":0.582,"leucine_g":0.879,"lysine_g":0.747,"methionine_g":0.226,"cystine_g":0.191,"phenylalanine_g":0.542,"tyrosine_g":0.329,"threonine_g":0.558,"tryptophan_g":0.181,"valine_g":0.679}
+    },
+    "sesame": {
+      "fdc_id": 170150,
+      "fdc_description": "Seeds, sesame seeds, whole, dried",
+      "ndb": "12023",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":573,"water_g":4.69,"protein_g":17.73,"fat_g":49.67,"carb_g":23.45,"fiber_g":11.8,"calcium_mg":975,"iron_mg":14.55,"magnesium_mg":351,"phosphorus_mg":629,"potassium_mg":468,"sodium_mg":11,"zinc_mg":7.75,"copper_mg":4.082,"manganese_mg":2.46,"selenium_ug":34.4,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.25,"vitamin_d_ug":0,"vitamin_c_mg":0,"thiamin_mg":0.791,"riboflavin_mg":0.247,"niacin_mg":4.515,"pantothenic_mg":0.05,"vitamin_b6_mg":0.79,"folate_dfe_ug":97,"vitamin_b12_ug":0,"choline_mg":25.6,"vitamin_k_ug":0,"linoleic_g":21.375,"alpha_linolenic_g":0.376,"epa_g":0,"dha_g":0,"histidine_g":0.522,"isoleucine_g":0.763,"leucine_g":1.358,"lysine_g":0.569,"methionine_g":0.586,"cystine_g":0.358,"phenylalanine_g":0.94,"tyrosine_g":0.743,"threonine_g":0.736,"tryptophan_g":0.388,"valine_g":0.99}
+    },
+    "corn": {
+      "fdc_id": 169998,
+      "fdc_description": "Corn, sweet, yellow, raw",
+      "ndb": "11167",
+      "refuse_pct": 64,
+      "refuse_desc": "35% husk, silk, trimmings; 29% cob",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":86,"water_g":76.05,"protein_g":3.27,"fat_g":1.35,"carb_g":18.7,"fiber_g":2,"calcium_mg":2,"iron_mg":0.52,"magnesium_mg":37,"phosphorus_mg":89,"potassium_mg":270,"sodium_mg":15,"zinc_mg":0.46,"copper_mg":0.054,"manganese_mg":0.163,"selenium_ug":0.6,"vitamin_a_rae_ug":9,"vitamin_e_mg":0.07,"vitamin_d_ug":0,"vitamin_c_mg":6.8,"thiamin_mg":0.155,"riboflavin_mg":0.055,"niacin_mg":1.77,"pantothenic_mg":0.717,"vitamin_b6_mg":0.093,"folate_dfe_ug":42,"vitamin_b12_ug":0,"choline_mg":23,"vitamin_k_ug":0.3,"linoleic_g":0.468,"alpha_linolenic_g":0.014,"epa_g":0,"dha_g":0,"histidine_g":0.089,"isoleucine_g":0.129,"leucine_g":0.348,"lysine_g":0.137,"methionine_g":0.067,"cystine_g":0.026,"phenylalanine_g":0.15,"tyrosine_g":0.123,"threonine_g":0.129,"tryptophan_g":0.023,"valine_g":0.185}
+    },
+    "squash": {
+      "fdc_id": 170487,
+      "fdc_description": "Squash, summer, all varieties, raw",
+      "ndb": "11641",
+      "refuse_pct": 5,
+      "refuse_desc": "Ends",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":16,"water_g":94.64,"protein_g":1.21,"fat_g":0.18,"carb_g":3.35,"fiber_g":1.1,"calcium_mg":15,"iron_mg":0.35,"magnesium_mg":17,"phosphorus_mg":38,"potassium_mg":262,"sodium_mg":2,"zinc_mg":0.29,"copper_mg":0.051,"manganese_mg":0.175,"selenium_ug":0.2,"vitamin_a_rae_ug":10,"vitamin_e_mg":0.12,"vitamin_d_ug":0,"vitamin_c_mg":17,"thiamin_mg":0.048,"riboflavin_mg":0.142,"niacin_mg":0.487,"pantothenic_mg":0.155,"vitamin_b6_mg":0.218,"folate_dfe_ug":29,"vitamin_b12_ug":0,"choline_mg":6.7,"vitamin_k_ug":3,"linoleic_g":0.033,"alpha_linolenic_g":0.056,"epa_g":0,"dha_g":0,"histidine_g":0.025,"isoleucine_g":0.042,"leucine_g":0.069,"lysine_g":0.065,"methionine_g":0.017,"cystine_g":0.012,"phenylalanine_g":0.041,"tyrosine_g":0.031,"threonine_g":0.028,"tryptophan_g":0.011,"valine_g":0.053}
+    },
+    "pumpkin": {
+      "fdc_id": 168448,
+      "fdc_description": "Pumpkin, raw",
+      "ndb": "11422",
+      "refuse_pct": 30,
+      "refuse_desc": "Seeds, rind and stem",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":26,"water_g":91.6,"protein_g":1,"fat_g":0.1,"carb_g":6.5,"fiber_g":0.5,"calcium_mg":21,"iron_mg":0.8,"magnesium_mg":12,"phosphorus_mg":44,"potassium_mg":340,"sodium_mg":1,"zinc_mg":0.32,"copper_mg":0.127,"manganese_mg":0.125,"selenium_ug":0.3,"vitamin_a_rae_ug":426,"vitamin_e_mg":1.06,"vitamin_d_ug":0,"vitamin_c_mg":9,"thiamin_mg":0.05,"riboflavin_mg":0.11,"niacin_mg":0.6,"pantothenic_mg":0.298,"vitamin_b6_mg":0.061,"folate_dfe_ug":16,"vitamin_b12_ug":0,"choline_mg":8.2,"vitamin_k_ug":1.1,"linoleic_g":0.002,"alpha_linolenic_g":0.003,"epa_g":0,"dha_g":0,"histidine_g":0.016,"isoleucine_g":0.031,"leucine_g":0.046,"lysine_g":0.054,"methionine_g":0.011,"cystine_g":0.003,"phenylalanine_g":0.032,"tyrosine_g":0.042,"threonine_g":0.029,"tryptophan_g":0.012,"valine_g":0.035}
+    },
+    "button_mushroom": {
+      "fdc_id": 169251,
+      "fdc_description": "Mushrooms, white, raw",
+      "ndb": "11260",
+      "refuse_pct": 3,
+      "refuse_desc": "Trimmings",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":22,"water_g":92.45,"protein_g":3.09,"fat_g":0.34,"carb_g":3.26,"fiber_g":1,"calcium_mg":3,"iron_mg":0.5,"magnesium_mg":9,"phosphorus_mg":86,"potassium_mg":318,"sodium_mg":5,"zinc_mg":0.52,"copper_mg":0.318,"manganese_mg":0.047,"selenium_ug":9.3,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.01,"vitamin_d_ug":0.2,"vitamin_c_mg":2.1,"thiamin_mg":0.081,"riboflavin_mg":0.402,"niacin_mg":3.607,"pantothenic_mg":1.497,"vitamin_b6_mg":0.104,"folate_dfe_ug":17,"vitamin_b12_ug":0.04,"choline_mg":17.3,"vitamin_k_ug":0,"linoleic_g":0.16,"alpha_linolenic_g":0,"epa_g":0,"dha_g":0,"histidine_g":0.057,"isoleucine_g":0.076,"leucine_g":0.12,"lysine_g":0.107,"methionine_g":0.031,"cystine_g":0.012,"phenylalanine_g":0.085,"tyrosine_g":0.044,"threonine_g":0.107,"tryptophan_g":0.035,"valine_g":0.232}
+    },
+    "oyster_mushroom": {
+      "fdc_id": 168580,
+      "fdc_description": "Mushrooms, oyster, raw",
+      "ndb": "11987",
+      "refuse_pct": 11,
+      "refuse_desc": "Stems",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":33,"water_g":89.18,"protein_g":3.31,"fat_g":0.41,"carb_g":6.09,"fiber_g":2.3,"calcium_mg":3,"iron_mg":1.33,"magnesium_mg":18,"phosphorus_mg":120,"potassium_mg":420,"sodium_mg":18,"zinc_mg":0.77,"copper_mg":0.244,"manganese_mg":0.113,"selenium_ug":2.6,"vitamin_a_rae_ug":2,"vitamin_e_mg":0,"vitamin_d_ug":0.7,"vitamin_c_mg":0,"thiamin_mg":0.125,"riboflavin_mg":0.349,"niacin_mg":4.956,"pantothenic_mg":1.294,"vitamin_b6_mg":0.11,"folate_dfe_ug":38,"vitamin_b12_ug":0,"choline_mg":48.7,"vitamin_k_ug":0,"linoleic_g":0.123,"alpha_linolenic_g":0,"epa_g":0,"dha_g":0,"histidine_g":0.07,"isoleucine_g":0.112,"leucine_g":0.168,"lysine_g":0.126,"methionine_g":0.042,"cystine_g":0.028,"phenylalanine_g":0.112,"tyrosine_g":0.084,"threonine_g":0.14,"tryptophan_g":0.042,"valine_g":0.197}
+    },
+    "shiitake": {
+      "fdc_id": 169242,
+      "fdc_description": "Mushrooms, shiitake, raw",
+      "ndb": "11238",
+      "refuse_pct": 0,
+      "refuse_desc": "",
+      "edible_share": 1,
+      "per_100g": {"energy_kcal":34,"water_g":89.74,"protein_g":2.24,"fat_g":0.49,"carb_g":6.79,"fiber_g":2.5,"calcium_mg":2,"iron_mg":0.41,"magnesium_mg":20,"phosphorus_mg":112,"potassium_mg":304,"sodium_mg":9,"zinc_mg":1.03,"copper_mg":0.142,"manganese_mg":0.23,"selenium_ug":5.7,"vitamin_a_rae_ug":null,"vitamin_e_mg":null,"vitamin_d_ug":0.4,"vitamin_c_mg":null,"thiamin_mg":0.015,"riboflavin_mg":0.217,"niacin_mg":3.877,"pantothenic_mg":1.5,"vitamin_b6_mg":0.293,"folate_dfe_ug":13,"vitamin_b12_ug":null,"choline_mg":null,"vitamin_k_ug":null,"linoleic_g":null,"alpha_linolenic_g":null,"epa_g":null,"dha_g":null,"histidine_g":0.056,"isoleucine_g":0.111,"leucine_g":0.189,"lysine_g":0.134,"methionine_g":0.033,"cystine_g":0.022,"phenylalanine_g":0.111,"tyrosine_g":0.078,"threonine_g":0.134,"tryptophan_g":0.011,"valine_g":0.145}
+    }
+  },
+  "ship_foods": {
+    "tilapia": {
+      "fdc_id": 175176,
+      "fdc_description": "Fish, tilapia, raw",
+      "refuse_pct": 0,
+      "per_100g": {"energy_kcal":96,"water_g":78.08,"protein_g":20.08,"fat_g":1.7,"carb_g":0,"fiber_g":0,"calcium_mg":10,"iron_mg":0.56,"magnesium_mg":27,"phosphorus_mg":170,"potassium_mg":302,"sodium_mg":52,"zinc_mg":0.33,"copper_mg":0.075,"manganese_mg":0.037,"selenium_ug":41.8,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.4,"vitamin_d_ug":3.1,"vitamin_c_mg":0,"thiamin_mg":0.041,"riboflavin_mg":0.063,"niacin_mg":3.903,"pantothenic_mg":0.487,"vitamin_b6_mg":0.162,"folate_dfe_ug":24,"vitamin_b12_ug":1.58,"choline_mg":42.5,"vitamin_k_ug":1.4,"linoleic_g":0.158,"alpha_linolenic_g":0.033,"epa_g":0.005,"dha_g":0.086,"histidine_g":0.47,"isoleucine_g":0.93,"leucine_g":1.603,"lysine_g":1.81,"methionine_g":0.593,"cystine_g":0.22,"phenylalanine_g":0.81,"tyrosine_g":0.68,"threonine_g":0.95,"tryptophan_g":0.21,"valine_g":0.97}
+    },
+    "egg": {
+      "fdc_id": 171287,
+      "fdc_description": "Egg, whole, raw, fresh",
+      "refuse_pct": 12,
+      "per_100g": {"energy_kcal":143,"water_g":76.15,"protein_g":12.56,"fat_g":9.51,"carb_g":0.72,"fiber_g":0,"calcium_mg":56,"iron_mg":1.75,"magnesium_mg":12,"phosphorus_mg":198,"potassium_mg":138,"sodium_mg":142,"zinc_mg":1.29,"copper_mg":0.072,"manganese_mg":0.028,"selenium_ug":30.7,"vitamin_a_rae_ug":160,"vitamin_e_mg":1.05,"vitamin_d_ug":2,"vitamin_c_mg":0,"thiamin_mg":0.04,"riboflavin_mg":0.457,"niacin_mg":0.075,"pantothenic_mg":1.533,"vitamin_b6_mg":0.17,"folate_dfe_ug":47,"vitamin_b12_ug":0.89,"choline_mg":293.8,"vitamin_k_ug":0.3,"linoleic_g":1.531,"alpha_linolenic_g":0.036,"epa_g":0,"dha_g":0.058,"histidine_g":0.309,"isoleucine_g":0.671,"leucine_g":1.086,"lysine_g":0.912,"methionine_g":0.38,"cystine_g":0.272,"phenylalanine_g":0.68,"tyrosine_g":0.499,"threonine_g":0.556,"tryptophan_g":0.167,"valine_g":0.858}
+    },
+    "table_salt": {
+      "fdc_id": 173468,
+      "fdc_description": "Salt, table",
+      "refuse_pct": 0,
+      "per_100g": {"energy_kcal":0,"water_g":0.2,"protein_g":0,"fat_g":0,"carb_g":0,"fiber_g":0,"calcium_mg":24,"iron_mg":0.33,"magnesium_mg":1,"phosphorus_mg":0,"potassium_mg":8,"sodium_mg":38758,"zinc_mg":0.1,"copper_mg":0.03,"manganese_mg":0.1,"selenium_ug":0.1,"vitamin_a_rae_ug":0,"vitamin_e_mg":0,"vitamin_d_ug":0,"vitamin_c_mg":0,"thiamin_mg":0,"riboflavin_mg":0,"niacin_mg":0,"pantothenic_mg":0,"vitamin_b6_mg":0,"folate_dfe_ug":0,"vitamin_b12_ug":0,"choline_mg":0,"vitamin_k_ug":0,"linoleic_g":0,"alpha_linolenic_g":0,"epa_g":0,"dha_g":0,"histidine_g":0,"isoleucine_g":0,"leucine_g":0,"lysine_g":0,"methionine_g":0,"cystine_g":0,"phenylalanine_g":0,"tyrosine_g":0,"threonine_g":0,"tryptophan_g":0,"valine_g":0}
+    },
+    "spirulina_dried": {
+      "fdc_id": 170495,
+      "fdc_description": "Seaweed, spirulina, dried",
+      "refuse_pct": 0,
+      "per_100g": {"energy_kcal":290,"water_g":4.68,"protein_g":57.47,"fat_g":7.72,"carb_g":23.9,"fiber_g":3.6,"calcium_mg":120,"iron_mg":28.5,"magnesium_mg":195,"phosphorus_mg":118,"potassium_mg":1363,"sodium_mg":1048,"zinc_mg":2,"copper_mg":6.1,"manganese_mg":1.9,"selenium_ug":7.2,"vitamin_a_rae_ug":29,"vitamin_e_mg":5,"vitamin_d_ug":0,"vitamin_c_mg":10.1,"thiamin_mg":2.38,"riboflavin_mg":3.67,"niacin_mg":12.82,"pantothenic_mg":3.48,"vitamin_b6_mg":0.364,"folate_dfe_ug":94,"vitamin_b12_ug":0,"choline_mg":66,"vitamin_k_ug":25.5,"linoleic_g":1.254,"alpha_linolenic_g":0.823,"epa_g":0,"dha_g":0,"histidine_g":1.085,"isoleucine_g":3.209,"leucine_g":4.947,"lysine_g":3.025,"methionine_g":1.149,"cystine_g":0.662,"phenylalanine_g":2.777,"tyrosine_g":2.584,"threonine_g":2.97,"tryptophan_g":0.929,"valine_g":3.512}
+    },
+    "laver_raw": {
+      "fdc_id": 168458,
+      "fdc_description": "Seaweed, laver, raw",
+      "refuse_pct": 0,
+      "per_100g": {"energy_kcal":35,"water_g":85.03,"protein_g":5.81,"fat_g":0.28,"carb_g":5.11,"fiber_g":0.3,"calcium_mg":70,"iron_mg":1.8,"magnesium_mg":2,"phosphorus_mg":58,"potassium_mg":356,"sodium_mg":48,"zinc_mg":1.05,"copper_mg":0.264,"manganese_mg":0.988,"selenium_ug":0.7,"vitamin_a_rae_ug":260,"vitamin_e_mg":1,"vitamin_d_ug":0,"vitamin_c_mg":39,"thiamin_mg":0.098,"riboflavin_mg":0.446,"niacin_mg":1.47,"pantothenic_mg":0.521,"vitamin_b6_mg":0.159,"folate_dfe_ug":146,"vitamin_b12_ug":0,"choline_mg":10.4,"vitamin_k_ug":4,"linoleic_g":0.004,"alpha_linolenic_g":0.001,"epa_g":0.08,"dha_g":0,"histidine_g":0.14,"isoleucine_g":0.259,"leucine_g":0.501,"lysine_g":0.222,"methionine_g":0.145,"cystine_g":0.1,"phenylalanine_g":0.273,"tyrosine_g":0.254,"threonine_g":0.232,"tryptophan_g":0.043,"valine_g":0.402}
+    },
+    "kelp_raw": {
+      "fdc_id": 168457,
+      "fdc_description": "Seaweed, kelp, raw",
+      "refuse_pct": 0,
+      "per_100g": {"energy_kcal":43,"water_g":81.58,"protein_g":1.68,"fat_g":0.56,"carb_g":9.57,"fiber_g":1.3,"calcium_mg":168,"iron_mg":2.85,"magnesium_mg":121,"phosphorus_mg":42,"potassium_mg":89,"sodium_mg":233,"zinc_mg":1.23,"copper_mg":0.13,"manganese_mg":0.2,"selenium_ug":0.7,"vitamin_a_rae_ug":6,"vitamin_e_mg":0.87,"vitamin_d_ug":0,"vitamin_c_mg":3,"thiamin_mg":0.05,"riboflavin_mg":0.15,"niacin_mg":0.47,"pantothenic_mg":0.642,"vitamin_b6_mg":0.002,"folate_dfe_ug":180,"vitamin_b12_ug":0,"choline_mg":12.8,"vitamin_k_ug":66,"linoleic_g":0.02,"alpha_linolenic_g":0.004,"epa_g":0.004,"dha_g":0,"histidine_g":0.024,"isoleucine_g":0.076,"leucine_g":0.083,"lysine_g":0.082,"methionine_g":0.025,"cystine_g":0.098,"phenylalanine_g":0.043,"tyrosine_g":0.026,"threonine_g":0.055,"tryptophan_g":0.048,"valine_g":0.072}
+    },
+    "button_mushroom_uv": {
+      "fdc_id": 169376,
+      "fdc_description": "Mushroom, white, exposed to ultraviolet light, raw",
+      "refuse_pct": 0,
+      "per_100g": {"energy_kcal":22,"water_g":92.45,"protein_g":3.09,"fat_g":0.34,"carb_g":3.26,"fiber_g":1,"calcium_mg":3,"iron_mg":0.5,"magnesium_mg":9,"phosphorus_mg":86,"potassium_mg":318,"sodium_mg":5,"zinc_mg":0.52,"copper_mg":0.318,"manganese_mg":0.047,"selenium_ug":9.3,"vitamin_a_rae_ug":null,"vitamin_e_mg":0.01,"vitamin_d_ug":26.2,"vitamin_c_mg":2.1,"thiamin_mg":0.081,"riboflavin_mg":0.402,"niacin_mg":3.607,"pantothenic_mg":1.497,"vitamin_b6_mg":0.104,"folate_dfe_ug":17,"vitamin_b12_ug":0,"choline_mg":17.3,"vitamin_k_ug":0,"linoleic_g":0.16,"alpha_linolenic_g":0,"epa_g":0,"dha_g":0,"histidine_g":null,"isoleucine_g":null,"leucine_g":null,"lysine_g":null,"methionine_g":null,"cystine_g":null,"phenylalanine_g":null,"tyrosine_g":null,"threonine_g":null,"tryptophan_g":null,"valine_g":null}
+    },
+    "flaxseed": {
+      "fdc_id": 169414,
+      "fdc_description": "Seeds, flaxseed",
+      "refuse_pct": 0,
+      "per_100g": {"energy_kcal":534,"water_g":6.96,"protein_g":18.29,"fat_g":42.16,"carb_g":28.88,"fiber_g":27.3,"calcium_mg":255,"iron_mg":5.73,"magnesium_mg":392,"phosphorus_mg":642,"potassium_mg":813,"sodium_mg":30,"zinc_mg":4.34,"copper_mg":1.22,"manganese_mg":2.482,"selenium_ug":25.4,"vitamin_a_rae_ug":0,"vitamin_e_mg":0.31,"vitamin_d_ug":0,"vitamin_c_mg":0.6,"thiamin_mg":1.644,"riboflavin_mg":0.161,"niacin_mg":3.08,"pantothenic_mg":0.985,"vitamin_b6_mg":0.473,"folate_dfe_ug":87,"vitamin_b12_ug":0,"choline_mg":78.7,"vitamin_k_ug":4.3,"linoleic_g":5.903,"alpha_linolenic_g":22.813,"epa_g":0,"dha_g":0,"histidine_g":0.472,"isoleucine_g":0.896,"leucine_g":1.235,"lysine_g":0.862,"methionine_g":0.37,"cystine_g":0.34,"phenylalanine_g":0.957,"tyrosine_g":0.493,"threonine_g":0.766,"tryptophan_g":0.297,"valine_g":1.072}
+    },
+    "chia_seed": {
+      "fdc_id": 170554,
+      "fdc_description": "Seeds, chia seeds, dried",
+      "refuse_pct": 0,
+      "per_100g": {"energy_kcal":486,"water_g":5.8,"protein_g":16.54,"fat_g":30.74,"carb_g":42.12,"fiber_g":34.4,"calcium_mg":631,"iron_mg":7.72,"magnesium_mg":335,"phosphorus_mg":860,"potassium_mg":407,"sodium_mg":16,"zinc_mg":4.58,"copper_mg":0.924,"manganese_mg":2.723,"selenium_ug":55.2,"vitamin_a_rae_ug":null,"vitamin_e_mg":0.5,"vitamin_d_ug":null,"vitamin_c_mg":1.6,"thiamin_mg":0.62,"riboflavin_mg":0.17,"niacin_mg":8.83,"pantothenic_mg":null,"vitamin_b6_mg":null,"folate_dfe_ug":49,"vitamin_b12_ug":0,"choline_mg":null,"vitamin_k_ug":null,"linoleic_g":5.835,"alpha_linolenic_g":17.83,"epa_g":null,"dha_g":null,"histidine_g":0.531,"isoleucine_g":0.801,"leucine_g":1.371,"lysine_g":0.97,"methionine_g":0.588,"cystine_g":0.407,"phenylalanine_g":1.016,"tyrosine_g":0.563,"threonine_g":0.709,"tryptophan_g":0.436,"valine_g":0.95}
+    }
+  },
+  "retention": {
+    "3006": {
+      "description": "VEG,GREENS,BOILED,WATER USED",
+      "percent": {"calcium_mg":100,"iron_mg":100,"magnesium_mg":100,"phosphorus_mg":100,"potassium_mg":100,"sodium_mg":100,"zinc_mg":100,"copper_mg":100,"vitamin_c_mg":70,"thiamin_mg":90,"riboflavin_mg":95,"niacin_mg":95,"vitamin_b6_mg":95,"folate_dfe_ug":75,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":95}
+    },
+    "3301": {
+      "description": "POTATOES,BAKED IN SKIN",
+      "percent": {"calcium_mg":100,"iron_mg":100,"magnesium_mg":100,"phosphorus_mg":100,"potassium_mg":100,"sodium_mg":100,"zinc_mg":100,"copper_mg":100,"vitamin_c_mg":80,"thiamin_mg":85,"riboflavin_mg":95,"niacin_mg":95,"vitamin_b6_mg":95,"folate_dfe_ug":90,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":100}
+    },
+    "3307": {
+      "description": "POTATOES,BOILED IN SKIN",
+      "percent": {"calcium_mg":95,"iron_mg":95,"magnesium_mg":95,"phosphorus_mg":95,"potassium_mg":90,"sodium_mg":95,"zinc_mg":95,"copper_mg":95,"vitamin_c_mg":75,"thiamin_mg":80,"riboflavin_mg":95,"niacin_mg":95,"vitamin_b6_mg":95,"folate_dfe_ug":90,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":100}
+    },
+    "3456": {
+      "description": "VEG,ROOTS,ETC,BOILED,WATER USED",
+      "percent": {"calcium_mg":100,"iron_mg":100,"magnesium_mg":100,"phosphorus_mg":100,"potassium_mg":100,"sodium_mg":100,"zinc_mg":100,"copper_mg":100,"vitamin_c_mg":75,"thiamin_mg":90,"riboflavin_mg":95,"niacin_mg":95,"vitamin_b6_mg":95,"folate_dfe_ug":80,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":90}
+    },
+    "3707": {
+      "description": "SWEETPOTATOES,BOILED IN SKIN",
+      "percent": {"calcium_mg":95,"iron_mg":95,"magnesium_mg":95,"phosphorus_mg":95,"potassium_mg":90,"sodium_mg":95,"zinc_mg":95,"copper_mg":95,"vitamin_c_mg":75,"thiamin_mg":80,"riboflavin_mg":95,"niacin_mg":95,"vitamin_b6_mg":95,"folate_dfe_ug":90,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":85}
+    },
+    "0358": {
+      "description": "CEREAL,REG/QUICK,COOKED",
+      "percent": {"calcium_mg":100,"iron_mg":95,"magnesium_mg":100,"phosphorus_mg":95,"potassium_mg":95,"sodium_mg":100,"zinc_mg":100,"copper_mg":95,"vitamin_c_mg":80,"thiamin_mg":80,"riboflavin_mg":90,"niacin_mg":90,"vitamin_b6_mg":90,"folate_dfe_ug":70,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":90}
+    },
+    "0502": {
+      "description": "LEGUMES,CKD 15/20MIN,BLD,WATER USED",
+      "percent": {"calcium_mg":90,"iron_mg":90,"magnesium_mg":85,"phosphorus_mg":95,"potassium_mg":80,"sodium_mg":95,"zinc_mg":90,"copper_mg":75,"vitamin_c_mg":70,"thiamin_mg":70,"riboflavin_mg":80,"niacin_mg":75,"vitamin_b6_mg":75,"folate_dfe_ug":65,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":90}
+    },
+    "0542": {
+      "description": "LEGUMES,CKD 2/2.5HRS,BLD,WATER USED",
+      "percent": {"calcium_mg":90,"iron_mg":80,"magnesium_mg":75,"phosphorus_mg":85,"potassium_mg":70,"sodium_mg":95,"zinc_mg":90,"copper_mg":60,"vitamin_c_mg":70,"thiamin_mg":45,"riboflavin_mg":80,"niacin_mg":60,"vitamin_b6_mg":55,"folate_dfe_ug":35,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":90}
+    },
+    "0522": {
+      "description": "LEGUMES,CKD 45/75MIN,BLD,WATER USED",
+      "percent": {"calcium_mg":90,"iron_mg":85,"magnesium_mg":80,"phosphorus_mg":90,"potassium_mg":75,"sodium_mg":95,"zinc_mg":90,"copper_mg":70,"vitamin_c_mg":70,"thiamin_mg":65,"riboflavin_mg":75,"niacin_mg":70,"vitamin_b6_mg":70,"folate_dfe_ug":50,"choline_mg":100,"vitamin_b12_ug":100,"vitamin_a_rae_ug":90}
+    }
+  }
+}

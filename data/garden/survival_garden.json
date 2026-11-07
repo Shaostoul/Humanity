@@ -1,0 +1,239 @@
+{
+  "_about": [
+    "The starter survival garden's settings: what scripts/survival-garden.js optimises, and the facts it",
+    "needs that the game's own crop files do not carry. Design: docs/design/survival-garden.md. Written",
+    "2026-11-06. Yields per plant, spacing, days to harvest and picking windows are NOT here: the script",
+    "reads them from data/plants.csv, data/garden/yields.ron, data/garden/harvest_windows.ron and",
+    "data/items.csv, so the answer moves when those files do. Nutrients per 100 g come from",
+    "data/food/crop_micronutrients.json and the targets from data/food/nutrient_requirements.json.",
+    "Every number below carries its source or the word estimate. An estimate is a design choice to be",
+    "replaced by a sourced figure; docs/design/survival-garden.md lists them under 'Not confirmed'."
+  ],
+
+  "sunline": {
+    "_why": "The drum's light (docs/design/mothership-master-plan.md question 3) on the game's 06:00 to 18:00 solar dial. 12 h at 28 mol per m2 a day is the regime NASA's Biomass Production Chamber grew potato, sweet potato, soybean and peanut in (BVAD 2022 Table 4-89: 28, 28, 28 and 27 mol/(m2 d), photoperiod 12 h), so the comfort tier's yields were measured under this very light.",
+    "photoperiod_h": 12,
+    "dli_mol_m2_d": 28,
+    "ppfd_umol_m2_s": 648,
+    "led_umol_per_j": 2.8,
+    "led_source": "kusuma-2020 in data/closed_loop/sources.ron: 'fixture efficacies of 2.5 to 2.8 umol J-1 for white + red fixtures ... have been achieved'",
+    "lamp_note": "Between the stars the sunline is lamps. Photons delivered to the canopy only: light lost to walls and aisles is not counted, so a real installation draws more."
+  },
+
+  "layout": {
+    "plot_m2": 1.0,
+    "plot_source": "data/garden/grow_media.ron: 'a 2 x 1 m bed or tray is two 1 m2 plots'; a plot holds floor(plot area / area_per_plant_m2) plants (data/garden/yields.ron, The rule)",
+    "bed_machine": "potato_grow_bed",
+    "bed_m2": 2.0,
+    "path_factor": 1.3,
+    "path_source": "docs/design/closed-loop-test.md: 50 m2 of lit canopy needs 65 m2 of growing floor with crew access (bvad-2022 section 4.14: access is 25 to 50 percent of the canopy)",
+    "ul_margin": 0.97,
+    "ul_margin_why": "estimate: a Tolerable Upper Intake Level the garden is held to (manganese, zinc, copper, calcium and the rest that count food) is planned at 97 percent of its value, so rounding the areas up to whole plots does not carry the diet over it",
+    "mushroom_rack_shelf_m2": 0.72,
+    "mushroom_rack_shelves": 5,
+    "mushroom_rack_source": "data/garden/yields.ron MUSHROOMS, THE RACK: five shelves of 1.2 x 0.6 m"
+  },
+
+  "tiers": {
+    "bare": {
+      "label": "Bare minimum: soil beds under the sunline, field yields, the fewest crops",
+      "person_tier": "bare",
+      "yields": "field",
+      "kcal_max_factor": 1.10,
+      "kcal_max_why": "estimate: food eaten within 10 percent of the energy target; more would be grown and not eaten, so its nutrients would not count",
+      "max_eaten_g_per_day": 3000,
+      "max_eaten_why": "estimate: the most fresh food (weighed raw, as harvested less refuse) one person is assumed to eat in a day. Without a cap the least-area answer is a diet of over 3 kg of carrots and 1.5 kg of lettuce a day (the report prints that run), because the leafy and root crops are cheap in area and cost nothing in mass. NASA's reference crewmember eats 1.56 kg a day as packaged, water included (bvad-2022 Table 3-31), at 3,054 kcal; a whole-plant diet is bulkier, hence the higher figure. The design states the cap and the result without it.",
+      "max_eaten_g_per_crop": 1000,
+      "max_eaten_per_crop_why": "estimate: no more than a kilogram of any one food a day. Without it the least-area survival diet is about two kilograms of carrots a day (the report prints the run without the caps); with it the potato comes back, for almost the same area",
+      "fat_pct_energy": null,
+      "max_kcal_share_per_crop": null,
+      "variety_min_m2": {},
+      "search_max_crops": 6,
+      "choose": "fewest",
+      "choose_why": "the operator asked for the smallest set of crops in the least space: the fewest crops that can meet every target, and of those the set with the least area; the report prints how much area more crops would save"
+    },
+    "comfort": {
+      "label": "Comfort with current technology: hydroponic yields where NASA measured them, fat inside the AMDR, variety",
+      "person_tier": "comfort",
+      "yields": "cea",
+      "kcal_max_factor": 1.10,
+      "kcal_max_why": "as bare",
+      "max_eaten_g_per_day": 2500,
+      "max_eaten_why": "estimate: as bare, lower for a diet with more oil and seed in it",
+      "fat_pct_energy": [20, 35],
+      "fat_why": "the DRI Acceptable Macronutrient Distribution Range for fat (data/food/nutrient_requirements.json amdr_pct_energy)",
+      "max_kcal_share_per_crop": 0.5,
+      "max_kcal_share_why": "estimate: no single food above half the day's energy, for a diet a person would choose to keep eating",
+      "variety_min_m2": { "tomato": 2, "strawberry": 2, "pepper": 1, "onion": 1, "garlic": 1, "carrot": 1, "lettuce": 1 },
+      "choose": "all",
+      "choose_why": "the linear program over every candidate: comfort is not about the fewest crops",
+      "variety_why": "estimate: one or two plots of each flavour crop, for meals, not for any nutrient; their nutrients still count"
+    }
+  },
+
+  "variants": {
+    "bare_with_mushroom_room": {
+      "base": "bare",
+      "label": "Bare minimum with the mushroom room: the same, plus mushrooms grown in the dark on racks",
+      "extra_candidates": ["oyster_mushroom", "button_mushroom"],
+      "max_shelf_m2": 7.2,
+      "max_shelf_why": "the solo homestead's two mushroom racks (data/machines/home_solo.ron arrays, mushroom_rack rows 2, cols 1; five 0.72 m2 shelves each); one shelf of button mushrooms, UV-flashed, is the vitamin D shelf",
+      "why": "fungi, not plants: they use no light and stack five shelves high, so the objective counts their shelf at a fifth (floor_weight); their substrate is straw, sawdust or compost, which the garden's own residue could become (not quantified here)"
+    }
+  },
+
+  "candidates": [
+    "potato", "sweet_potato", "soybean", "sunflower", "kale", "spinach", "cabbage", "broccoli", "cauliflower",
+    "carrot", "beet", "turnip", "parsnip", "onion", "garlic", "leek", "celery", "lettuce", "tomato", "pepper",
+    "strawberry", "cucumber", "zucchini", "eggplant", "okra", "pea", "bean", "lentil", "chickpea", "wheat",
+    "oat", "barley", "rice", "peanut"
+  ],
+
+  "crops": {
+    "potato": {
+      "prepared_as": "3307",
+      "seed_fraction": 0.039,
+      "seed_source": "derived: UMN Extension 'Growing potatoes in home gardens' (Schuh and Tong, reviewed 2026) cuts seed into '1 1/4-inch chunks' (the page's own glyph is a fraction sign), about 32 cm3, about 35 g at a tuber density near 1.08 g/cm3 (the density is an estimate), against yields.ron's 0.898 kg a plant",
+      "storage_loss": 0.03,
+      "cea": { "edible_fresh_g_m2_d": 105.30, "harvest_index_pct": 70, "inedible_fresh_g_m2_d": 90.25, "dli": 28, "photoperiod_h": 12, "days": 132, "o2_g_m2_d": 32.23, "transpiration_kg_m2_d": 4.00 },
+      "sunline_note": "BVAD grew it at 12 h; some cultivars are injured by continuous light (data/garden/lighting.ron, Wheeler et al.)"
+    },
+    "sweet_potato": {
+      "prepared_as": "3707",
+      "seed_fraction": 0.02,
+      "seed_source": "estimate: grown from slips sprouted from a few bedded roots",
+      "storage_loss": 0.03,
+      "proposed_row": {
+        "per_plant_kg": 0.989,
+        "area_per_plant_m2": 0.4645,
+        "source": "NCSU CEFS Vegetable Planting Guide (K. Baldwin 2011), row Sweet potatoes: 19,000 lb per acre from 8,712 plants per acre at 12 x 60 in (read 2026-11-06, https://cefs.ncsu.edu/wp-content/uploads/sfu-vegetable-planting-guide.pdf, pdftotext -raw); growth_days stays plants.csv's 120",
+        "proposal": "fill plants.csv sweet_potato yield_min/max (0.989 kg / 0.3 kg item = 3.297 items) and area_per_plant_m2 0.4645, and cite it in yields.ron"
+      },
+      "cea": { "edible_fresh_g_m2_d": 51.72, "harvest_index_pct": 60, "inedible_fresh_g_m2_d": 225.00, "dli": 28, "photoperiod_h": 12, "days": 85, "o2_g_m2_d": 41.12, "transpiration_kg_m2_d": 2.88, "flag": "BVAD's own row disagrees with itself: 24.7 g dry at 71 percent water is 85 g fresh, not 51.72. The lower fresh figure is used." }
+    },
+    "soybean": {
+      "prepared_as": "0542",
+      "seed_fraction": 0.015,
+      "seed_source": "estimate: one seed of about 0.15 to 0.18 g per established plant against yields.ron's 13.8 g a plant",
+      "storage_loss": 0.01,
+      "cea": { "edible_fresh_g_m2_d": 5.04, "harvest_index_pct": 40, "inedible_fresh_g_m2_d": 68.04, "dli": 28, "photoperiod_h": 12, "days": 97, "o2_g_m2_d": 13.91, "transpiration_kg_m2_d": 4.70 },
+      "sunline_note": "a short-day plant: a 12 h day makes it flower; BVAD grew it at 12 h"
+    },
+    "peanut": {
+      "prepared_as": "raw",
+      "seed_fraction": 0.03,
+      "seed_source": "estimate",
+      "storage_loss": 0.01,
+      "field_excluded": "no sourced field yield in yields.ron (plants.csv peanut is an old unsourced row)",
+      "cea": { "edible_fresh_g_m2_d": 5.96, "edible_share": 1.0, "edible_share_why": "BVAD's edible biomass is the seed; the shell is inedible biomass", "harvest_index_pct": 25, "inedible_fresh_g_m2_d": 168.75, "dli": 27, "photoperiod_h": 12, "days": 104, "o2_g_m2_d": 35.84, "transpiration_kg_m2_d": 2.77 }
+    },
+    "sunflower": { "prepared_as": "raw", "seed_fraction": 0.002, "seed_source": "estimate", "storage_loss": 0.01 },
+    "kale": {
+      "prepared_as": "3006", "seed_fraction": 0.01, "seed_source": "estimate: a few plants left to flower; kale is biennial (see the calendar)",
+      "storage_loss": 0.02
+    },
+    "spinach": { "prepared_as": "3006", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.02,
+      "cea": { "edible_fresh_g_m2_d": 72.97, "harvest_index_pct": 90, "inedible_fresh_g_m2_d": 7.30, "dli": 17, "photoperiod_h": 16, "days": 30, "o2_g_m2_d": 7.78, "transpiration_kg_m2_d": 1.77 } },
+    "cabbage": { "prepared_as": "3006", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.02,
+      "cea": { "edible_fresh_g_m2_d": 75.78, "harvest_index_pct": 90, "inedible_fresh_g_m2_d": 6.74, "dli": 28, "photoperiod_h": null, "days": 85, "o2_g_m2_d": 7.19, "transpiration_kg_m2_d": 1.77 } },
+    "broccoli": { "prepared_as": "3006", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.02 },
+    "cauliflower": { "prepared_as": "3006", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.02 },
+    "carrot": { "prepared_as": "raw", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.03,
+      "cea": { "edible_fresh_g_m2_d": 74.83, "harvest_index_pct": 60, "inedible_fresh_g_m2_d": 59.87, "dli": 28, "photoperiod_h": null, "days": 75, "o2_g_m2_d": 16.36, "transpiration_kg_m2_d": 1.77 } },
+    "beet": { "prepared_as": "3456", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.03,
+      "cea": { "edible_fresh_g_m2_d": 32.50, "harvest_index_pct": 65, "inedible_fresh_g_m2_d": 35.00, "dli": 17, "photoperiod_h": 16, "days": 40, "o2_g_m2_d": 7.11, "transpiration_kg_m2_d": 1.77 } },
+    "turnip": { "prepared_as": "3456", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.03 },
+    "parsnip": { "prepared_as": "3456", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.03 },
+    "onion": { "prepared_as": "raw", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.03,
+      "cea": { "edible_fresh_g_m2_d": 81.82, "harvest_index_pct": 80, "inedible_fresh_g_m2_d": 22.50, "dli": 17, "photoperiod_h": null, "days": 50, "o2_g_m2_d": 12.00, "transpiration_kg_m2_d": 1.74 },
+      "sunline_note": "bulbing follows day length: a long-day onion will not bulb in a 12 h day, so the sunline needs short-day varieties (unconfirmed in this pass)" },
+    "garlic": { "prepared_as": "raw", "seed_fraction": 0.12, "seed_source": "estimate: planted from cloves kept back from the harvest", "storage_loss": 0.03 },
+    "leek": { "prepared_as": "3456", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.02 },
+    "celery": { "prepared_as": "raw", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.02,
+      "cea": { "edible_fresh_g_m2_d": 103.27, "harvest_index_pct": 90, "inedible_fresh_g_m2_d": 11.47, "dli": 17, "photoperiod_h": null, "days": 75, "o2_g_m2_d": 12.24, "transpiration_kg_m2_d": 1.24 } },
+    "lettuce": { "prepared_as": "raw", "seed_fraction": 0.01, "seed_source": "estimate", "storage_loss": 0.02,
+      "cea": { "edible_fresh_g_m2_d": 131.35, "harvest_index_pct": 90, "inedible_fresh_g_m2_d": 7.30, "dli": 17, "photoperiod_h": 16, "days": 28, "o2_g_m2_d": 7.78, "transpiration_kg_m2_d": 2.10 } },
+    "tomato": { "lp_excluded": "its field daily rate is too high in the game data: data/garden/harvest_windows.ron, UMN Hoidal: yields.ron takes the HIGH TUNNEL yield for tomato, pepper and cucumber, so for those three the season total is a high tunnel's and the window a field crop's: the total is right and the daily rate is high. Kept as a variety crop, never as a reason to size the garden.", "prepared_as": "raw", "seed_fraction": 0.002, "seed_source": "estimate", "storage_loss": 0.03,
+      "cea": { "edible_fresh_g_m2_d": 173.76, "harvest_index_pct": 45, "inedible_fresh_g_m2_d": 127.43, "dli": 27, "photoperiod_h": 12, "days": 85, "o2_g_m2_d": 26.36, "transpiration_kg_m2_d": 2.77 } },
+    "pepper": { "lp_excluded": "its field daily rate is too high in the game data: data/garden/harvest_windows.ron, UMN Hoidal: yields.ron takes the HIGH TUNNEL yield for tomato, pepper and cucumber, so for those three the season total is a high tunnel's and the window a field crop's: the total is right and the daily rate is high. Kept as a variety crop, never as a reason to size the garden.", "prepared_as": "raw", "seed_fraction": 0.002, "seed_source": "estimate", "storage_loss": 0.03,
+      "cea": { "edible_fresh_g_m2_d": 148.94, "harvest_index_pct": 45, "inedible_fresh_g_m2_d": 127.43, "dli": 27, "photoperiod_h": null, "days": 85, "o2_g_m2_d": 24.71, "transpiration_kg_m2_d": 2.77 } },
+    "strawberry": { "prepared_as": "raw", "seed_fraction": 0.0, "seed_source": "propagated by runners", "storage_loss": 0.05,
+      "cea": { "edible_fresh_g_m2_d": 77.88, "harvest_index_pct": 35, "inedible_fresh_g_m2_d": 144.46, "dli": 22, "photoperiod_h": 12, "days": 100, "o2_g_m2_d": 25.32, "transpiration_kg_m2_d": 2.22 } },
+    "cucumber": { "lp_excluded": "its field daily rate is too high in the game data: data/garden/harvest_windows.ron, UMN Hoidal: yields.ron takes the HIGH TUNNEL yield for tomato, pepper and cucumber, so for those three the season total is a high tunnel's and the window a field crop's: the total is right and the daily rate is high. Kept as a variety crop, never as a reason to size the garden.", "prepared_as": "raw", "seed_fraction": 0.002, "seed_source": "estimate", "storage_loss": 0.03 },
+    "zucchini": { "prepared_as": "raw", "seed_fraction": 0.002, "seed_source": "estimate", "storage_loss": 0.03 },
+    "eggplant": { "prepared_as": "3456", "seed_fraction": 0.002, "seed_source": "estimate", "storage_loss": 0.03 },
+    "okra": { "prepared_as": "3456", "seed_fraction": 0.005, "seed_source": "estimate", "storage_loss": 0.03 },
+    "pea": { "prepared_as": "0502", "seed_fraction": 0.05, "seed_source": "estimate: seed peas must be left to dry on separate plants", "storage_loss": 0.02,
+      "cea_excluded": "BVAD's pea row is DRY peas (12 percent water); the game's pea is green peas, so the two are not the same food" },
+    "oyster_mushroom": { "prepared_as": "raw", "seed_fraction": 0, "seed_source": "grown from spawn, not from its own harvest", "storage_loss": 0.05, "floor_weight": 0.2, "floor_weight_why": "a rack stacks five shelves over one shelf of floor (layout.mushroom_rack_shelves)", "substrate": "a 5 lb (2.268 kg) wet substrate block a 0.4536 kg crop (data/garden/yields.ron, Agrodok 40: about 20 percent of the wet substrate weight); Royse, Penn State, Cultivation of Oyster Mushrooms (2003): 'the primary ingredients used for Pleurotus spp. production are chopped wheat straw ... or cottonseed hulls ... or mixtures of both'" },
+    "button_mushroom": { "prepared_as": "raw", "seed_fraction": 0, "seed_source": "grown from spawn", "storage_loss": 0.05, "floor_weight": 0.2, "floor_weight_why": "as oyster_mushroom", "substrate": "a cased compost bed (data/garden/yields.ron MUSHROOMS)" },
+    "bean": { "prepared_as": "0522", "seed_fraction": 0.025, "seed_source": "estimate", "storage_loss": 0.01,
+      "growth_days_override": 85,
+      "growth_days_why": "plants.csv bean says 60 days, a snap bean's clock, against a DRY bean harvest (items.csv legume_bean_0); BVAD 2022 Table 4-89 grows dry bean in 85 days. Proposal: plants.csv bean growth_days 85, or a sourced field figure for dry beans",
+      "cea": { "edible_fresh_g_m2_d": 11.11, "harvest_index_pct": 40, "inedible_fresh_g_m2_d": 150.00, "dli": 24, "photoperiod_h": 18, "days": 85, "o2_g_m2_d": 30.67, "transpiration_kg_m2_d": 2.53 } },
+    "lentil": { "prepared_as": "0502", "seed_fraction": 0.05, "seed_source": "estimate", "storage_loss": 0.01 },
+    "chickpea": { "prepared_as": "0522", "seed_fraction": 0.08, "seed_source": "estimate: a large seed against yields.ron's 3.2 g a plant", "storage_loss": 0.01 },
+    "wheat": { "prepared_as": "0358", "seed_fraction": 0.04, "seed_source": "estimate", "storage_loss": 0.01,
+      "cea_excluded": "BVAD grew wheat at 115 mol per m2 a day for 20 to 24 h, four times the sunline: it needs its own lamp bay" },
+    "oat": { "prepared_as": "0358", "seed_fraction": 0.04, "seed_source": "estimate", "storage_loss": 0.01 },
+    "barley": { "prepared_as": "0358", "seed_fraction": 0.04, "seed_source": "estimate", "storage_loss": 0.01 },
+    "rice": { "prepared_as": "0358", "seed_fraction": 0.03, "seed_source": "estimate", "storage_loss": 0.01,
+      "cea_excluded": "BVAD grew rice at 33 mol per m2 a day, above the sunline's 28" }
+  },
+
+  "cea_source": "bvad-2022 in data/closed_loop/sources.ron (Anderson, Ewert and Keener, NASA/TP-2015-218570/REV2, February 2022), Table 4-89 (light, photoperiod, growth period), Table 4-90 (edible and inedible productivity, fresh and dry, harvest index) and Table 4-91 (oxygen, carbon dioxide, transpiration). Read 2026-11-06 with pdftotext -raw. The nominal rates are from the Biomass Production Chamber at Kennedy Space Center; BVAD: 'These maximal rates are generally for small chambers under ideal conditions' (the HIGH rates), and the nominal ones are 'lower partly because of the lower light levels'.",
+
+  "treatments": {
+    "uv_flash": {
+      "crop": "button_mushroom",
+      "vitamin_d_ug_per_100g": 10,
+      "why": "Cardwell, Bornman, James and Black 2018, 'A Review of Mushrooms as a Potential Source of Dietary Vitamin D', Nutrients 10: 1498 (doi 10.3390/nu10101498, abstract read 2026-11-06 through Europe PMC): 'if they are consumed before the best-before date, vitamin D2 level is likely to remain above 10 ug/100 g fresh weight'. USDA's raw UV-exposed white mushroom (FDC 169376, data/food/crop_micronutrients.json ship_foods) holds 26.2 ug/100 g before storage and cooking; the design uses the lower figure."
+    }
+  },
+
+  "gaps": {
+    "vitamin_b12_ug": {
+      "plants": "none: B12 is made only by bacteria. Martens, Barg, Warren and Jahn 2002, 'Microbial production of vitamin B12', Appl Microbiol Biotechnol 58: 275-285 (abstract read 2026-11-06, Europe PMC): its biosynthesis is 'confined to certain members of the prokaryotic world', and 'commercially more than 10 t of B12 are produced each year from a number of bacterial species'.",
+      "refuted": "Spirulina is not a source: Watanabe et al. 1999, J Agric Food Chem 47: 4736-4741, found the intrinsic-factor-active cobamides of spirulina tablets were 83 percent pseudovitamin B12 and 17 percent vitamin B12; USDA lists dried spirulina (FDC 170495) at 0 ug.",
+      "ship_covers": [
+        { "option": "a B12 supplement or B12-fortified food from the ship's fermentation plant", "amount": "2.4 ug a day", "cannot_close": "raw chemistry inputs (industrial fermentation and purification)" },
+        { "option": "fish from the homestead's aquaponic tank", "amount": "152 g of tilapia a day (FDC 175176, 1.58 ug/100 g raw)", "note": "the fish eat feed the garden or the ship must supply" },
+        { "option": "eggs, where a home keeps hens", "amount": "270 g, about five eggs, a day (FDC 171287, 0.89 ug/100 g)", "note": "too many to be the plan; a part share at most" }
+      ]
+    },
+    "vitamin_d_ug": {
+      "plants": "none: no green plant makes it. Mushrooms make vitamin D2 under ultraviolet light (treatments.uv_flash).",
+      "ship_covers": [
+        { "option": "UV-flashed button mushrooms grown in the homestead's mushroom room", "amount": "150 g a day at 10 ug/100 g; the script sizes the shelf", "cannot_close": "the UV lamp itself (electronics and semiconductors)" },
+        { "option": "a vitamin D supplement from the ship", "amount": "15 ug a day", "cannot_close": "medicine synthesis / raw chemistry inputs" },
+        { "option": "UV-B in the sunline, so skin makes it", "amount": "not designed: no dose and no skin-cancer trade-off was sourced in this pass", "status": "unconfirmed" }
+      ],
+      "note": "The DRI counts vitamins D2 and D3 alike; studies differ on how well D2 holds blood levels, which is not settled here."
+    },
+    "iodine_ug": {
+      "plants": "unmeasured in USDA SR Legacy, and a crop carries what its medium gives it.",
+      "ship_covers": [
+        { "option": "iodized salt, the salt the body needs anyway", "amount": "3.9 g of salt a day (the sodium AI) iodized at 49 mg iodine per kg", "why": "WHO 2014 salt fortification guideline, Table 1, as reproduced in Greenwald, Childs, Pachón, Timmer, Houston and Codling 2022, 'Comparison of Salt Iodization Requirements in National Standards with Global Guidelines', Curr Dev Nutr 6: nzac116 (full text read 2026-11-06 through Europe PMC): 4 g of salt a day, 49 mg/kg; 'calculated based on the mean RNI of 150 ug iodine/d + 30% losses from production to household level before consumption, and a 92% iodine bioavailability'. The often-quoted 20 to 40 mg/kg is WHO's 1996 figure for 10 g of salt a day.", "cannot_close": "raw chemistry inputs (salt, potassium iodate)" }
+      ]
+    },
+    "sodium_mg": {
+      "plants": "a little (the script reports it); not enough",
+      "ship_covers": [ { "option": "salt", "amount": "3.9 g of table salt a day carries 1,500 mg of sodium (FDC 173468, 38,758 mg/100 g) and 2.35 g of chloride (NaCl is 60.7 percent chlorine by mass)", "cannot_close": "raw chemistry inputs" } ],
+      "loop_note": "The salt leaves the body in urine, and urine feeds the garden; crops take up little sodium, so it builds up in a closed bed unless something removes it (not quantified in this pass)."
+    },
+    "chloride_g": { "plants": "unmeasured", "ship_covers": [ { "option": "the same salt", "amount": "2.35 g a day" } ] },
+    "epa_dha": {
+      "plants": "none: no DRI sets a need for them; the garden supplies their precursor, alpha-linolenic acid.",
+      "why": "Burdge and Calder 2005, Reprod Nutr Dev 45: 581-597 (abstract, Europe PMC, read 2026-11-06): 'conversion of alphaLNA to EPA occurs but is limited in men and that further transformation to DHA is very low'.",
+      "ship_covers": [ { "option": "DHA-rich microalgae oil, optional", "why": "Doughman, Krupanidhi and Sanjeevi 2007, Curr Diabetes Rev 3: 198-203 (abstract, Europe PMC, read 2026-11-06): 'the origin of EPA/DHA in aquatic ecosystems is algae. Certain microalgae produce high levels of EPA or DHA.'" } ]
+    },
+    "selenium_ug": {
+      "plants": "medium-dependent: counted at USDA's US-soil values, flagged",
+      "ship_covers": [ { "option": "selenate in the fertiliser, as Finland has done since 1985", "why": "Alfthan et al. 2015, J Trace Elem Med Biol 31: 142-147 (abstract, Europe PMC, read 2026-11-06): 'Currently all crop fertilizers contain 15 mg Se/kg'; spring cereals' selenium rose 'on average 15-fold'.", "cannot_close": "raw chemistry inputs" } ]
+    },
+    "unmeasured": {
+      "keys": ["biotin_ug", "chromium_ug", "molybdenum_ug", "fluoride_mg", "iodine_ug", "chloride_g"],
+      "note": "USDA SR Legacy carries no values for these in these foods. The design does not claim the garden covers them or that it does not."
+    }
+  }
+}

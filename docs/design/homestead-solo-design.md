@@ -163,6 +163,13 @@ filter), `sink`, `shower_unit` (in wetroom equipment), `toilet`,
 
 ## 3. FOOD — the weakest loop (honest, per self-sufficiency.md's light cap)
 
+> **Complete nutrition, worked out (2026-11-06): [survival-garden.md](survival-garden.md).**
+> This section sizes the garden by calories. Held to every Dietary Reference Intake, the smallest
+> soil-bed garden for one resident under the drum's sunline is four crops (soybean, broccoli,
+> carrot, potato) on about 135 m2 of lit beds, computed from the game's own crop files by
+> `scripts/survival-garden.js`, and it names what no garden supplies (vitamin B12, salt and its
+> iodine, and vitamin D without ultraviolet light).
+
 ### Demand: 2,200 kcal/day + complete nutrition, one person.
 
 ### The canopy cap (why this is the binding loop)
