@@ -161,6 +161,33 @@ control's binding (a tuple binding too), a `with_hint` closure around it, and th
 description line right after it; the web scanner reads the attributes as written, so write
 `data-i18n-tip` / `data-tip-desc` out in markup rather than through a helper that returns them.
 
+## The layer rule: every surface takes its place in one order (2026-11-04)
+
+What is drawn over what is one order for the whole app, the operator's (docs/design/navigation.md
+section 6), nearest the viewer first: 1 tooltips, hints and toasts; 2 urgent (an incoming call, an
+emergency alert); 3, 4 and 5 a full-screen popup's controls, its window and its shade, which dims and
+blocks everything farther away, both menus and the warning included; 9 the primary row's drop-downs
+(the notices and help panels); 10 the primary menu; 19 and 20 the secondary row's More and the row;
+21 the unfinished-software warning; 30 the footer chat; 40 the page's drop-downs and windows that are
+not full-screen popups (in the world, the HUD and its panels); 41 and up the page.
+
+- **Native:** every floating surface picks its layer from `src/gui/layers.rs`:
+  `layers::area(ctx, id, Layer::...)`, `layers::window(ctx, id, title, Layer::...)`,
+  `layers::painter(ctx, id, Layer::...)`. A full-screen popup is `widgets::dialog` (the default), or,
+  when its window needs a frame of its own, `layers::shade(ctx, id, Close::..., dim)` drawn before
+  its window on `Layer::PopupWindow`, then `layers::seat(ctx, &shade, window_layer)`. The shade says
+  how it may be closed (`Close::Any`: a click on it, Back and Escape; `Close::Keys`: Back and Escape
+  only; `Close::Decide`: its own buttons only, and Back and Escape leave the page under it where it
+  is), and Back and Escape reach every popup through the one close path (`history::close_popup`,
+  `layers::close_nearest`). `tests/layer_lint.rs` (in `just lints`) refuses `egui::Area::new`,
+  `egui::Window::new` or an `egui::Order` outside layers.rs. lib.rs calls `layers::arrange` last in
+  the frame.
+- **Web:** every `z-index` is a step of the theme's `--z-*` scale (`data/gui/theme.ron`'s `z_*`
+  tokens, written into theme.css by `node scripts/gen-theme-css.js`): `var(--z-shade)` for a popup's
+  shade, `var(--z-page-float)` for a page's drop-down, `calc(var(--z-page) + N)` for a part raised
+  over its neighbours inside the page. A popup's shade covers the whole window (`inset: 0`), never
+  stopping at the warning. `scripts/tests/z-index-scale-web.test.js` refuses a number.
+
 ## Component registry
 
 Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS class or shared JS component), with the same visual signature and the same theme tokens consumed.
@@ -203,6 +230,7 @@ Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS cl
 | Quest card and chain window (2026-10-30) | `pages/quests.rs` (`active_card`, `step_meter`, `now_block`) and `pages/quests/chain_window.rs` on `widgets::dialog::dialog_scrolling` | `.chain-card` / `.chain-meter` / `.chain-now` and `.chain-backdrop` / `.chain-modal` / `.quest-step` (`onboarding.html`, the learn-by-doing chains) | `bg_card`, `border`, `accent` (and its faint tint), `success`, `slider_track`, `text_muted` for what is not reached, `border_radius(_lg)`, spacing. On the desktop the learn-by-doing chains are the Tasks page's suggested cards in Todo (2026-10-30), a pattern of their own; the website shows them in TWO places, its Tasks page's suggested cards (the desktop's mirror) and `/onboarding` as these quest cards, both with the chain's `purpose` line and, on a step with a written how-to, Open the how-to (`tasks.suggested_how_to`). The second place is a known difference, kept until the chains become how-tos (`docs/design/how-to.md`, increment 6) |
 | Panes (2026-10-19) | `widgets::panes::{arrange_for, show}` | the website's Files page (`web/pages/files-panes.js`), its places too (2026-10-19) | `bg_card`, `border`, `border_radius`, `accent`, `spacing_sm/md/lg` |
 | Waveform and sound player (2026-10-19) | `widgets::waveform::show`, `widgets::sound_view::SoundView` | the browser's `<audio>` | `bg_tertiary`, `accent`, `text_muted`, `text_primary`, `border`, `border_radius`, `spacing_xs/sm`, `font_size_small`, `button_height` |
+| Video in a chat message, and its place and volume bar (2026-11-06) | `pages/chat/inline_video.rs` (`draw_in_card`: the picture box with a drawn Play mark, the seek bar, Play or Pause, the time, Mute, the volume, Full window) on `widgets::video_view::{VideoView, track_bar}` (a plain bar: no gradient and no animated ring, so a paused row asks for no repaint) | the browser's own `<video controls>` in the chat's file card (`web/chat/app.js` `fileCardHtml`) | `bg_primary` (the picture box), `bg_card`, `border`, `text_primary`, `text_secondary`, `text_muted`, `danger`, `accent`, `slider_track`, `slider_track_height`, `slider_thumb_radius`, `spacing_xs/sm/md`, `font_size_small`, `button_height` |
 | Cover slot, thin bar, choice pills, fixed table cell (2026-10-19) | `widgets::cover_tile::{paint_cover, paint_cover_without_letter, thin_bar, choice_pills, fixed_cell}`; an empty title paints the plain panel alone (a name is drawn once: on the cover, or under a picture) | the website's Apps page's plain covers (`apps-app.js`, 2026-10-20) | `bg_tertiary`, `bg_card`, `text_primary`, `text_strong`, `border`, `slider_track`, `accent`, `text_on_accent`, `bg_secondary`, `pill_radius`, spacing |
 | Library shelf (2026-10-19) | `widgets::shelf::{toolbar, grid, tile_frame, list_headings, list_row, details_panel, section_heading, facts}`; a tile's card margin is `spacing_xs` plus a pixel (the Apps page's short tiles) | the website's Apps page (`apps-app.js`, 2026-10-20) | `bg_card`, `border`, `accent`, `accent_hover`, `row_stripe`, `border_radius(_lg)`, spacing |
 | Tinted section, six colours (2026-10-17; cyan, magenta, yellow 2026-10-19) | `widgets::tint_section::{show, color, edge, Tint}`: Red, Green, Blue (the chat sidebar's `dm_bg`, `group_bg`, `server_bg`, edged in `nav_legacy_*`) and Cyan, Magenta, Yellow (`section_cyan_bg`/`section_cyan` and kin). A section always carries its name too: never the colour alone | `.tint-section` (`tint-red/green/blue`); `--section-cyan(-bg)` and kin in `theme.css` | the tokens named |

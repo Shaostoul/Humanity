@@ -1791,6 +1791,21 @@
       "section": "About HumanityOS"
     },
     {
+      "name": "Your Privacy",
+      "docs": [
+        {
+          "title": "What Do These Labels Mean to You?",
+          "src": "docs/outreach/what_do_these_labels_mean.md",
+          "tags": [
+            "project",
+            "beginner",
+            "real"
+          ]
+        }
+      ],
+      "section": "About HumanityOS"
+    },
+    {
       "name": "Getting Started",
       "docs": [
         {

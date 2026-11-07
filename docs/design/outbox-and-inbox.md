@@ -1,7 +1,8 @@
 # The Outbox and the Inbox: post once everywhere, read every reply in one place
 
 **Status: design 2026-11-06, changed the same day by the operator's answers (section 17.1); nothing
-built.** The whole feature is planned here with all its parts (CLAUDE.md, "Plan the whole feature,
+built. The project's own accounts post nothing until the security work in section 14's gate is
+finished (his answer the same evening).** The whole feature is planned here with all its parts (CLAUDE.md, "Plan the whole feature,
 build it in rungs"), then cut into rungs (section 16), smallest first. What each platform allows rests on the dated research in
 [`docs/reference/findings/2026-11-06-social-platform-apis.md`](../reference/findings/2026-11-06-social-platform-apis.md);
 references like MA-11 or EU-9 below are that finding's numbered findings.
@@ -80,6 +81,42 @@ and posting for the person is a later layer on the same shaped post. The second 
 recommended default of question 8: the Inbox keeps messages permanently unless the person chooses
 otherwise, with the choice always one tap away (section 7.6). What each answer decided, and which
 questions stay open, is in section 17.1.
+
+Later the same evening (2026-11-06), on the rest of the questions, verbatim as relayed. On starting
+automatic posting with Mastodon, then Bluesky:
+
+> "Let's get more of the security stuff finished before you start posting."
+
+On the accounts' name:
+
+> "We'll have to figure out a name we can consistently use across all platforms."
+
+On replies never going out without his tap:
+
+> "Agreed."
+
+On X, after asking what "bring your own developer account" means and hearing the answer (17.1), he
+said he does not plan to pay X "until my income increases somehow". On the profile line "Drafted
+with AI help (Claude), checked by Shaostoul":
+
+> "I think that's fair. How do we mention HumanityOS and the website?"
+
+On asking the EU AI Act Service Desk:
+
+> "We'll wait until later to figure this out."
+
+On the test of the badge's words:
+
+> "You'll need to draft the doc and have it in the library so I can share it with people."
+
+On where the long privacy post lives, and when:
+
+> "Library makes sense. Not sure which subcategory."
+
+> "Yeah, we're waiting until after."
+
+(after the DM mailbox fix lands). The first put all posting by the project's accounts behind the
+security work in hand (section 14, "The gate before any posting"); the rest are in 17.1 and 17.2.
 
 ## 2. The rules every part follows
 
@@ -585,6 +622,35 @@ comprehension on cold readers, do not re-judge taste). **The test:**
    correctly.
 5. The winning words go into `en.json`; the answers are kept beside this design (no names).
 
+**The shareable page (2026-11-06).** The operator: "You'll need to draft the doc and have it in the
+library so I can share it with people." So the first round runs as a Library page anyone can be
+sent: [`docs/outreach/what_do_these_labels_mean.md`](../outreach/what_do_these_labels_mean.md)
+(About HumanityOS > Your Privacy; united-humanity.us/library#what-do-these-labels-mean, a title and
+address that say nothing about privacy, so the link does not give the answer away). How it differs
+from steps 1 to 5, and how its answers are read:
+
+- **The words alone:** each wording beside the same three messages (a reply to the reader's post on
+  Mastodon, a Bluesky message, a HumanityOS message), with no icon and no hint, a stricter test than
+  the app's.
+  The meaning is explained only after a stop line at the end of the page.
+- **Every reader sees all three**, one set at a time, starting with the set for the month they were
+  born (January to April A, May to August B, September to December C), so each wording gets about a
+  third of the first readings. For step 4's pass mark, only each reader's FIRST set counts, because
+  only it is read cold; all three count toward the page's last question, which set was clearest.
+- **Open questions in place of step 3's:** "What do you think each label means?" and "Would any of
+  these labels make you do anything differently?" An answer passes when the reader's own words say
+  who could read each message; reading a "can read" label as private fails it, as in step 4. The
+  legal half ("If the police went to court...") is not asked, because asking it steers every answer;
+  it and the hint sentences go to a second round, steps 3 and 4 as written, once the words are
+  chosen.
+- **Where the answers land:** the #feedback room, written as its full address
+  (https://united-humanity.us/chat#feedback), which anyone can read, so a later reader can see
+  earlier answers. The page asks for answers before reading anyone else's, and its fill-in block
+  asks which set the reader started with, whether they have used HumanityOS before, and how much
+  they use phones and computers, so answers from people who have used it, or that echo one above
+  them, are counted apart. Step 5 holds: the answers are copied beside this design without the names
+  people chose.
+
 ### 7.4 Replying from the Inbox
 
 - A reply goes out on the same platform and account the message came from, through the same
@@ -879,10 +945,56 @@ out by hand. The Outbox replaces the copying, from rung 1 on:
 3. **He copies and opens each platform from his device** (4.0), the post already shaped for it,
    each copy carrying "Drafted with AI" and the link back to the Devlog card; once Mastodon's and
    Bluesky's posting layers are built (rungs 2 and 3) and the project accounts connected, those two
-   are posted by the app on his tap (which accounts: open questions 2 and 3).
-4. **The accounts' profiles name who is responsible** (5.2, open question 9).
+   are posted by the app on his tap (which accounts: open questions 2 and 3). None of this starts
+   before the gate below is lifted.
+4. **The accounts' profiles name who is responsible** (5.2): "Drafted with AI help (Claude), checked
+   by Shaostoul", which he called fair (17.1, question 9). The profile text for each platform, and the
+   name check behind question 2, are in
+   [`docs/outreach/2026-11-06-account-name-check.md`](../outreach/2026-11-06-account-name-check.md).
 5. **YouTube for his own channel's clips** uses his own Google project, its credentials in his vault
    (not in the repository, YT-8), when that rung comes.
+6. **X stays copy and open** for the project's account, free (17.1, question 7).
+
+### The gate before any posting (operator, 2026-11-06)
+
+Asked whether to start posting automatically with Mastodon, then Bluesky, he answered: "Let's get
+more of the security stuff finished before you start posting." So **HumanityOS's own accounts post
+nothing on any outside platform**, neither by copy and open nor by the app, until the security work
+in hand is finished. Building goes on: every rung is built and tested as planned, and only the
+project's own posting waits. Adding a page to the Library is not posting.
+
+His words name no list. "The security work in hand" is read here as what the 6 November checks
+found, each closed with its test seen red first:
+
+1. **The DM mailbox's row order.** `src/relay/storage/dms.rs` numbers mailbox rows in arrival order,
+   and both apps send a direct message's copy for the recipient and the sender's own copy back to
+   back, at the same padded size, so a copy of the database pairs a message with its sender (the
+   privacy draft's notes, A.2 and C.1:
+   [`DRAFT-privacy-compared-notes.md`](../outreach/posts/DRAFT-privacy-compared-notes.md)). The fix:
+   rows kept in an order that does not follow arrival, and the two copies sent apart, with a test
+   that two puts in a row cannot be paired.
+2. **The choice for a picture the server cannot clean.** The draft's check found that a picture
+   whose structure the server's strip cannot read is stored as it came (`src/relay/upload_rules.rs`
+   `finish_picture`), while a video in that state is refused (`VIDEO_UNREADABLE`). The operator's
+   answer the same evening, as the journal relays it: "can we have an option to send or refuse?"
+   Being built in that shape (the journal, 2026-11-06): refused by default, the app asks, and "Send
+   anyway" is a signed flag.
+3. **BUG-256** ([`docs/BUGS.md`](../BUGS.md)): a chat file outlives its message when the message
+   leaves by the retention sweep or an admin's channel clear, still reachable at its address.
+4. **The group-metadata finding.** The relay's own tables hold each P2P group's name, its member
+   list, and each message's author and time in plain text (`p2p_groups`, `p2p_group_roster`,
+   `p2p_group_messages` in `src/relay/storage/mod.rs`; the draft's notes B and C.2). The fix: the
+   name sealed like the messages, the author inside the sealed part, times coarsened like the
+   mailbox's. Medium to large: the group object format on both apps and the relay.
+5. **The draft's own checks before its post goes out** (its notes, A and D): the long version's page
+   in the Library, which waits for item 1 by his choice ("Yeah, we're waiting until after."), and the
+   fact-check list's open lines (the promise "We are fixing it", which the landing steps take out,
+   and the short version's count once its link is final).
+
+Recommended next, but not part of the gate: a way to compare keys in person, and the onion door
+opened on united-humanity.us (the draft's C.5 and C.8, both small). **The gate lifts** when he says
+so, once these five are reported done; the accounts' name (question 2) is needed by then, and
+reserving the name meanwhile is not posting.
 
 ## 15. Protections beyond this feature
 
@@ -1157,51 +1269,88 @@ includes a headless frame of its screens.
   server's own admin enters left outside the guard. His answer: "Your recommendations continue to be
   good." What it means here: 15.1.
 
-**Not marked decided, and why.** The recommendations of questions 2, 3, 4, 5, 7, 9 and 11, and the
-order in question 1, were relayed as ones he agrees with, but no words of his agreeing to them are on
-record: "Your recommendations continue to be good." answered the outbound guard's two questions, and
-his earlier "Your recommendations sound good." (2026-11-03) answered three questions about
-per-person controls (`docs/design/per-person-controls.md`, 8.1). A decision is never attributed to
-him that he did not make (CLAUDE.md), so they stay open below with their recommendations until he
-says so; when he does, they move up here with his words.
+Later the same evening (section 1 has each answer with what it answered):
+
+- **Posting by the project's accounts waits for the security work: decided.** Asked about starting
+  automatic posting with Mastodon, then Bluesky: "Let's get more of the security stuff finished
+  before you start posting." So nothing is posted on any outside platform by HumanityOS's own
+  accounts, by copy and open or by the app, until the work in section 14's gate is finished. It
+  answers when posting starts, not the order of the posting layers, which stays open (17.2, question
+  1).
+- **Question 4, replies never without a person's tap: decided.** His answer: "Agreed." No reply goes
+  out without a person's tap, and an automatic reply is not offered as an option.
+- **Question 7, paying for X: decided for the project's account.** He asked what "bring your own
+  developer account" means. The answer given: X charges for each call to its interface; the app never
+  makes the project pay; a person who wants automatic posting to X registers their own X developer
+  app and pastes its keys into the app, paying X for their own posts; everyone else uses copy and
+  open, which is free. He said he does not plan to pay X "until my income increases somehow". So
+  HumanityOS's own X account uses copy and open, free, and automatic X posting exists only for
+  people who bring their own X developer app (rung 12). If he ever buys credits, this reopens.
+- **Question 9, the line on the accounts' profiles: decided.** Of "Drafted with AI help (Claude),
+  checked by Shaostoul" he said: "I think that's fair. How do we mention HumanityOS and the website?"
+  The profile text for X, Bluesky, Mastodon and the rest, each naming HumanityOS, what it is and
+  united-humanity.us, with the line whole, is drafted for his look in
+  [`docs/outreach/2026-11-06-account-name-check.md`](../outreach/2026-11-06-account-name-check.md).
+- **Question 5, how the badge's words are tested: decided in form.** "You'll need to draft the doc
+  and have it in the library so I can share it with people." The page and how its answers are read:
+  7.3.2. The words themselves wait for the answers (17.2, question 5).
+- **The privacy post's long version: in the Library, after the DM mailbox fix.** "Library makes
+  sense. Not sure which subcategory." and, on waiting for the fix, "Yeah, we're waiting until after."
+  The category, "Your Privacy" (About HumanityOS), is our recommendation, made for the badge test's
+  page, not his choice. The page is ready to land, with its exact catalog entry and steps:
+  [`docs/outreach/posts/DRAFT-privacy-compared-notes.md`](../outreach/posts/DRAFT-privacy-compared-notes.md).
+
+**Not marked decided, and why.** The recommendations of questions 2, 3 and 5, and the order in
+question 1, were relayed as ones he agrees with, but no words of his agreeing to them are on record:
+"Your recommendations continue to be good." answered the outbound guard's two questions, and his
+earlier "Your recommendations sound good." (2026-11-03) answered three questions about per-person
+controls (`docs/design/per-person-controls.md`, 8.1). His later answers settle 4, 7 and 9 in his own
+words (above), put 2 back to us as a name still to find, and defer 11. A decision is never
+attributed to him that he did not make (CLAUDE.md), so the rest stay open below with their
+recommendations until he says so; when he does, they move up here with his words.
 
 ### 17.2 Still open, each with its recommendation
 
 1. **Which platform's posting layer first?** Recommendation: Mastodon (rung 2) then Bluesky (rung 3),
    the two that fit fully; Discord webhooks and LinkedIn after; X only with the person's own
-   developer account. (Copy and open serves every platform before any of them, as decided.)
-2. **The HumanityOS accounts' names.** Recommendation: "HumanityOS" everywhere; on Bluesky, the
-   website's own domain as the handle (@united-humanity.us) if Bluesky's domain handles are confirmed
-   in rung 3 (not in the finding), so the handle itself proves who it is; on Mastodon, @humanityos on a
-   server you choose (mastodon.social's rules require AI use to be disclosed, which the label does,
-   MA-7).
+   developer account. (Copy and open serves every platform before any of them, as decided. The
+   project's own accounts post nothing until section 14's gate is lifted, so this order matters for
+   building, not yet for posting.)
+2. **The HumanityOS accounts' names.** His answer, 2026-11-06: "We'll have to figure out a name we can
+   consistently use across all platforms." Checked that day on all 14 platforms
+   ([`docs/outreach/2026-11-06-account-name-check.md`](../outreach/2026-11-06-account-name-check.md)):
+   the plain "HumanityOS" is already taken on X, YouTube, Telegram and TikTok. Recommendation: the
+   handle `JoinHumanityOS` everywhere (free on all 8 platforms an automated reader could check, 14
+   letters, within X's 15), the display name "HumanityOS"; on Bluesky, the website's own domain as the
+   handle (`@united-humanity.us`, so the handle itself proves who it is; domain handles confirmed from
+   the AT Protocol's handle specification on 2026-11-06, and nobody has set this one up); on Mastodon,
+   a server you choose (mastodon.social's rules require AI use to be disclosed, which the profile line
+   does, MA-7). Runner-up: `HumanityOSApp`, if the empty TikTok account `@humanityosapp` (display
+   name "HumanityOS") is yours.
 3. **New project accounts, or your @Shaostoul?** Recommendation: new project accounts. The project's
    voice should outlive any one person (`docs/BUS-FACTOR.md`), a group Outbox can later let others
-   help, and your own accounts stay your own voice.
-4. **Do replies ever go out without your tap?** Recommendation: no, and not offered as an option for
-   now: EU law would require each one to say it is AI and for whom, Bluesky counts it as spam, X needs
-   written approval, and one wrong automatic reply costs more trust than every tap saves. (Rule 1 of
-   section 2, a person's tap on every post, stands either way: it was part of the plan he liked.)
+   help, and your own accounts stay your own voice. (Your answer to question 2 speaks of one name for
+   every platform, which reads as new accounts, but this question has not been answered in words.)
+
+(Question 4 is decided: 17.1.)
+
 5. **The badge's words.** Recommendation: wording A ("Public", "<Bluesky> can read", "Only you two"),
-   but only after the comprehension test in 7.3.2 picks between A, B and C.
+   but only after the comprehension test in 7.3.2 picks between A, B and C. The test's page is in the
+   Library to share (7.3.2); the words wait for its answers.
 6. **Platform sign-ins on the website?** Recommendation: not at first (section 10); the website drafts,
    approves and copies and opens, the desktop posts for connected accounts; Mastodon and Bluesky
    sign-ins on the website later as an opt-in after a security review.
-7. **Paying for X?** Recommendation: no project money for X's per-post prices ($0.20 for every post
-   with a link). X posted for you only for people who bring their own developer account; HumanityOS's
-   own X posts stay copy and open unless you choose to buy credits yourself.
 
-(Question 8 is decided: 17.1.)
+(Question 7 is decided for the project's account, and questions 8 and 9 are decided: 17.1.)
 
-9. **The responsible-person line on the HumanityOS accounts** (the EU guidelines' paragraph 138).
-   Recommendation: "Posts by the HumanityOS project, drafted with AI help (Claude) and checked by
-   Shaostoul before posting. Contact: united-humanity.us", with your name as you want it shown.
 10. **A full Telegram client ever?** Recommendation: no; a bot posting into channels is enough. A full
     client must show Telegram's sponsored messages and keep credentials out of the source (TG-2,
     TG-6), and its AI rule switches the helper off (TG-4).
 11. **Ask the EU AI Act Service Desk whether the project is a "provider"** (the finding's first unknown)
-    before the helper drafts for people in the EU? Recommendation: yes, a short written question; it is
-    free and settles whether drafted text must also carry a machine-readable mark.
+    before the helper drafts for people in the EU? **Deferred by the operator, 2026-11-06:** "We'll
+    wait until later to figure this out." Recommendation unchanged: a short written question, free,
+    which settles whether drafted text must also carry a machine-readable mark. It is needed before
+    the helper drafts for people in the EU (rung 5), not before rung 1.
 12. **When two groups on the same layer disagree, which wins?** (15.2) Recommendation: the more
     protective setting (fewer notices, files asked about, calls kept private), with the card saying
     which group decided.

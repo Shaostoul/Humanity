@@ -2066,10 +2066,41 @@ HumanityOS profile, chat channels and your connected accounts; replies, mentions
 beside HumanityOS's own, each with a plain badge saying who else can read it; sign-ins on your own
 device, never through our servers; an AI helper drafts, a person taps Post, the app labels it;
 groups share an Outbox with roles and approvals. Design: `docs/design/outbox-and-inbox.md` (13
-rungs, 14 questions for the operator, two answered on 2026-11-06, section 17.1); research:
+rungs, 14 questions for the operator, most answered on 2026-11-06, section 17.1); research:
 `docs/reference/findings/2026-11-06-social-platform-apis.md` (Mastodon and Bluesky fit fully; X is
 paid per call; LinkedIn bars automated posting; Discord, Telegram, Meta, YouTube, Reddit, Rumble and
 Patreon are limited or closed, each said on screen). Nothing built.
+- **GATE: the project's own accounts post nothing until the security work is finished.** The
+  operator, 2026-11-06, on starting automatic posting with Mastodon then Bluesky: "Let's get more of
+  the security stuff finished before you start posting." No posting on any outside platform by
+  HumanityOS's accounts, by copy and open or by the app; building the rungs goes on. The security
+  work (design section 14, "The gate before any posting"): (1) the DM mailbox's row order, which lets
+  a copy of the database pair a message with its sender (`src/relay/storage/dms.rs`, both apps'
+  back-to-back puts; the privacy draft's notes A.2 and C.1); (2) the choice for a picture the server
+  cannot clean (`finish_picture` stores it as it came; a video in that state is refused); his answer:
+  "can we have an option to send or refuse?", being built as refused by default, the app asks, "Send
+  anyway" a signed flag; (3) BUG-256 (a chat file
+  outliving its message on the retention sweep and a channel clear); (4) the group-metadata finding
+  (the relay holds each P2P group's name, members, and each message's author and time in plain
+  text); (5) the privacy draft's own pre-posting checks (its page in the Library after (1), its open
+  fact-check lines). He lifts the gate when these are reported done.
+- **Decided the same evening (design 17.1, his words there):** replies never go out without a
+  person's tap ("Agreed."); the project's X account stays copy and open, automatic X only for people
+  who bring their own X developer app (he will not pay X "until my income increases somehow"); the
+  profile line "Drafted with AI help (Claude), checked by Shaostoul" ("I think that's fair. How do we
+  mention HumanityOS and the website?"). Still open: the accounts' name ("We'll have to figure out a
+  name we can consistently use across all platforms."; checked on 14 platforms, recommendation
+  `JoinHumanityOS` with `@united-humanity.us` on Bluesky, profile text drafted:
+  `docs/outreach/2026-11-06-account-name-check.md`); the EU AI Act Service Desk question, deferred
+  ("We'll wait until later to figure this out.").
+- **The badge words' test is in the Library to share** (his ask: "You'll need to draft the doc and
+  have it in the library so I can share it with people."): About HumanityOS > Your Privacy, "What Do
+  These Labels Mean to You?" (`docs/outreach/what_do_these_labels_mean.md`,
+  united-humanity.us/library#what-do-these-labels-mean); answers arrive in #feedback and are read as
+  design 7.3.2 says. **The privacy comparison post** goes into the same shelf after the DM mailbox
+  fix ("Library makes sense. Not sure which subcategory." / "Yeah, we're waiting until after."):
+  ready, with its exact catalog entry and landing steps, in
+  `docs/outreach/posts/DRAFT-privacy-compared-notes.md`.
 - **Next rung, unblocked: rung 1, copy and open for every platform, no sign-ins.** The operator,
   2026-11-06: "I guess we should format it from the base method of copy and open then make the GUI
   elements for autoposting or whatever, we provide the full concise details." Each platform's
@@ -2080,7 +2111,7 @@ Patreon are limited or closed, each said on screen). Nothing built.
   The Inbox keeps messages permanently by default, the choice always on the Inbox itself (his answer
   the same day: "I feel like we should keep the permanent with access to the toggle always
   accessible."). Questions 2 and 3 (the account names, new accounts or @Shaostoul) are needed by
-  rung 2, not rung 1.
+  rung 2 and by the end of the gate, not by rung 1.
 - **Beyond this feature, planned (designed in its section 15, each needing its own short design
   where it belongs):**
   - every link drawn with its real site highlighted, look-alike names warned, and "Where does this
