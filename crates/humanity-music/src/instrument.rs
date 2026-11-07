@@ -345,14 +345,25 @@ fn default_sampler_env() -> EnvSpec {
 // The sampler seam: what the instrument library's loader fills.
 // --------------------------------------------------------------------------------------------
 
-/// One recording: stereo frames at their own rate (shared, so a bank and the voice reading it never
-/// copy them), the frequency of the note in it (at the library's own tuning: a sample library
+/// A recording's frames are kept as 16-bit samples (CD resolution: the noise of the rounding sits
+/// 96 dB under full scale), half the memory of 32-bit floats, so the core set's recordings fit
+/// music.md section 14's 64 MB (BUG-266). A voice reads them times this.
+pub const SAMPLE_SCALE: f32 = 1.0 / 32768.0;
+
+/// Decoded frames (-1..1) as the 16-bit frames a `SampleZone` keeps.
+pub fn frames16(frames: impl Iterator<Item = [f32; 2]>) -> Vec<[i16; 2]> {
+    let q = |x: f32| (x * 32768.0).round().clamp(-32768.0, 32767.0) as i16;
+    frames.map(|[l, r]| [q(l), q(r)]).collect()
+}
+
+/// One recording: stereo frames at their own rate, 16-bit ([`SAMPLE_SCALE`]; shared, so a bank and
+/// the voice reading it never copy them), the frequency of the note in it (at the library's own tuning: a sample library
 /// recorded at A = 440 has its A4 at 440 Hz here, and the engine plays it 31.77 cents slower at
 /// A = 432; 0 for an unpitched hit such as a drum, played at its recorded rate), the notes and
 /// velocity it covers, and an optional loop for sustained notes.
 #[derive(Clone, Debug)]
 pub struct SampleZone {
-    pub frames: Arc<Vec<[f32; 2]>>,
+    pub frames: Arc<Vec<[i16; 2]>>,
     pub rate: f32,
     pub recorded_hz: f32,
     pub low_note: i32,
@@ -361,6 +372,13 @@ pub struct SampleZone {
     pub velocity: f32,
     /// A loop (start, end) in frames, for notes held longer than the recording.
     pub loop_range: Option<(usize, usize)>,
+    /// 0: `loop_range` is seamless as recorded (the pipeline found it), played as it always was.
+    /// Otherwise a CROSSFADED loop of this many frames: a sustained recording made without loop
+    /// points (a string section's 8 s note) is held past its end by fading, over its last frames
+    /// before the loop's end, from itself into the frames before the loop's start, then going on
+    /// from the start (equal power), so a chord held longer than the recording never falls silent
+    /// (BUG-266; src/instrument_packs/score.rs sets it for the parts that sustain).
+    pub loop_xfade: usize,
 }
 
 /// How the engine asks a loaded instrument for a recording. `Send + Sync` because the score

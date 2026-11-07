@@ -20,9 +20,13 @@
 //! context's fonts borrow one copy of the font files read at startup (`gui::fonts`), and a page
 //! screen's first sight comes over its first turns (`gui::screen_surface::turn_plan`); with the
 //! switch off each context builds its own fonts and a first sight runs twice and paints on one
-//! frame, as before. The instrument library's decoded samples (2026-11-06,
-//! `instrument_packs::samples::SampleBank`) are kept by file while it is on and decoded again for
-//! every note while it is off. A new reuse that does not ask is a bug.
+//! frame, as before. The live music (2026-11-07, BUG-267: `engine::music`): while the switch is
+//! on, the score plays from the data and the recordings it was built from (its samples decoded once
+//! through `instrument_packs::samples::SampleBank`, which keeps them between builds); while it is
+//! off, a new score is built from the files read again and every recording decoded again (the bank
+//! keeping nothing) once every phrase, taking over at the next phrase boundary, and the music's
+//! data for the hum and Settings' lists is read again every few seconds. A new reuse that does not
+//! ask is a bug.
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

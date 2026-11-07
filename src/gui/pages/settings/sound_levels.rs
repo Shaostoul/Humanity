@@ -61,8 +61,8 @@ pub(crate) struct SoundLevelsUi {
     pub search: String,
     /// The sound a Play asked for, which the engine plays and clears ([`play_preview`]).
     pub preview: Option<String>,
-    /// Where the data and the sound files are: the app's `data` and `assets` beside it (a test
-    /// points them at the repo's).
+    /// Where the data and the sound files are: the data folder the app resolved and the `assets`
+    /// beside it (`storage::data_dir`, `storage::assets_dir`; a test points them at the repo's).
     pub data_dir: PathBuf,
     pub assets_dir: PathBuf,
     /// The shipped sounds and when they were read (egui's clock), rebuilt every
@@ -72,13 +72,22 @@ pub(crate) struct SoundLevelsUi {
 
 impl Default for SoundLevelsUi {
     fn default() -> Self {
-        SoundLevelsUi::reading(PathBuf::from("data"), PathBuf::from("assets"))
+        // The folders the app resolved, never a relative "data" and "assets", which missed whenever
+        // the app started outside its own folder (BUG-268).
+        SoundLevelsUi::for_data(humanity_core::storage::data_dir())
     }
 }
 
 impl SoundLevelsUi {
-    /// The section reading the data and the sound files from these folders (the app's are `data`
-    /// and `assets` beside it; a test or a snapshot points them at the repo's).
+    /// The section reading the data folder `data` and the app's `assets` beside it, found the way
+    /// the rest of the app finds them (`storage::assets_dir_for`).
+    pub(crate) fn for_data(data: PathBuf) -> Self {
+        let assets = humanity_core::storage::assets_dir_for(&data);
+        SoundLevelsUi::reading(data, assets)
+    }
+
+    /// The section reading the data and the sound files from these folders (the app's resolved
+    /// ones by default; a test or a snapshot points them at the repo's).
     pub(crate) fn reading(data_dir: PathBuf, assets_dir: PathBuf) -> Self {
         SoundLevelsUi { search: String::new(), preview: None, data_dir, assets_dir, list: None }
     }
@@ -233,11 +242,13 @@ pub(crate) fn play_preview<B: kira::backend::Backend>(ctx: &egui::Context, audio
 
 /// Play the sound `id` the way the game plays it (its authored volume and bus from the catalogue,
 /// its loudness level, and the person's level for it as it is now), stopping the last preview. The
-/// amplitude it played at, for the tests.
-fn play<B: kira::backend::Backend>(id: &str, assets_dir: &Path, audio: &mut humanity_core::audio::AudioManager<B>, catalog: &SoundCatalog) -> Option<f64> {
+/// amplitude it played at, for the tests. The bus is the catalogue's, which is the bus the game's
+/// queue plays the sound on too (engine/sfx.rs, BUG-265); a notice plays its sound on the
+/// notifications bus whatever file it is, which for the chimes is their catalogue bus.
+pub(crate) fn play<B: kira::backend::Backend>(id: &str, assets_dir: &Path, audio: &mut humanity_core::audio::AudioManager<B>, catalog: &SoundCatalog) -> Option<f64> {
     let entry = catalog.get(id)?;
-    // Spelled as the game spells a sound's path (`assets/<path>`), so both share one decoded copy.
-    let path = format!("{}/{}", assets_dir.display(), entry.path);
+    // Spelled as the game spells a sound's path, so both share one decoded copy.
+    let path = humanity_core::audio::sounds::asset_path(assets_dir, &entry.path);
     match audio.preview(&path, entry.volume as f64, &entry.bus) {
         Ok(amplitude) => Some(amplitude),
         Err(e) => {

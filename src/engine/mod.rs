@@ -92,6 +92,8 @@ pub mod fleet;
 pub mod mess_hall;
 /// The live music and the ship's hum, wired into the frame (2026-11-06, crates/humanity-music).
 pub mod music;
+/// The game's one-shot sounds on the volume slider each belongs to, and the volumes' push (BUG-265).
+pub mod sfx;
 pub mod home_spawn;
 /// The F10 sidebar's key rules (F10 toggle, Escape-closes-first), the
 /// cursor-free predicate and the flag-by-name lookup the dev IPC reports

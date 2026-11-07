@@ -125,10 +125,10 @@ pub(crate) struct EngineState {
     /// Data-driven sound catalog (data/sounds.toml, ids like
     /// "sfx.button_click" -> assets/audio paths).
     pub(crate) sound_catalog: humanity_core::audio::sounds::SoundCatalog,
-    /// Last (master, music, sfx, ui) volumes pushed into the audio engine, so
-    /// the per-frame sync only touches kira when a slider actually moved. The
-    /// 4th slot is the independent interface-sound bus (v0.1112).
-    pub(crate) audio_volumes_applied: (f32, f32, f32, f32),
+    /// The last volumes pushed into the audio engine (master, music, sound effects, interface,
+    /// notifications, ambience: `engine::sfx::wanted_volumes`), so the per-frame sync only touches
+    /// kira when a slider actually moved.
+    pub(crate) audio_volumes_applied: [f32; 6],
     /// The live music and the ship's hum (engine/music.rs, docs/design/music.md).
     pub(crate) music: crate::engine::music::MusicRuntime,
     /// One-shot guard for the tree-card atlas bake (v0.961): a FAILED bake
@@ -517,10 +517,13 @@ pub(crate) struct EngineState {
     /// piece, F's take-down), so a shut door stops both.
     pub(crate) shut_doors: Vec<humanity_ship::wall_collision::WallSegment>,
     /// One-shot SFX queue (v0.983): gameplay sites push (catalog id, fallback
-    /// path) pairs; the audio frame-sync block drains and plays them through
-    /// the kira sfx bus. Keeps action code free of audio borrows and gives
+    /// path) pairs; the audio stage plays each on its catalogue bus (`engine::sfx`, BUG-265: they
+    /// all played on the sound-effects bus). Keeps action code free of audio borrows and gives
     /// every sound one catalog-driven play path.
     pub(crate) pending_sfx: Vec<(&'static str, &'static str)>,
+    /// A notice's sound (engine/notify.rs), the same pairs: played on the notifications bus
+    /// whatever file the person picked for it (`engine::sfx::NOTICE_BUS`).
+    pub(crate) pending_notice_sfx: Vec<(&'static str, &'static str)>,
     /// Static SIGHT-blocking segments (v0.975): the collision spans with window apertures cut
     /// open, so nameplates/machine cards hide behind solid walls but stay visible through glass
     /// and doorways. Rebuilt alongside `wall_colliders`; live closed doors are appended per

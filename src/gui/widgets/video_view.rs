@@ -203,6 +203,11 @@ impl VideoView {
         self.texture.as_ref()
     }
 
+    /// Whether its player has a sound track (a video with none is never heard).
+    pub fn has_sound_track(&self) -> bool {
+        self.player.as_ref().is_some_and(|p| p.info().audio_track.is_some())
+    }
+
     /// Whether it is playing now.
     pub fn is_playing(&self) -> bool {
         self.player.as_ref().is_some_and(|p| p.is_playing())

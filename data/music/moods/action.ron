@@ -44,8 +44,8 @@ Mood(
     roles: [
         (role: Pad, instrument: "brass_stab", low: "D3", high: "D4", voices: 4),
         (role: Bass, instrument: "pulse_bass", low: "D1", high: "C#2"),
-        (role: Drone, instrument: "drone", low: "D2", high: "C#3", level_db: -3.0),
-        (role: Bells, instrument: "celesta", low: "D5", high: "D6", density: 0.7, level_db: -5.0),
+        (role: Drone, instrument: "drone", part: Some("bass_strings"), low: "D2", high: "C#3", level_db: -3.0),
+        (role: Bells, instrument: "celesta", part: Some("glockenspiel"), low: "D5", high: "D6", density: 0.7, level_db: -5.0),
         (role: Choir, instrument: "choir_ah", low: "D4", high: "D5", voices: 3, density: 0.8, min_intensity: 0.85),
     ],
     motifs: [

@@ -374,10 +374,11 @@ fn note_notice(rt: &mut n::Runtime, c: &Candidate, now: i64) {
     last.insert(n::decide::burst_key(c), now);
 }
 
-/// Queue the sound `id` from the data file (its catalog entry, or the file's path for it).
+/// Queue the sound `id` from the data file (its catalog entry, or the file's path for it), as a
+/// notice's: on the notifications volume whatever file it is (engine/sfx.rs, BUG-265).
 fn play(state: &mut EngineState, id: &str) {
     if let Some(s) = n::data::get().sound(id) {
-        state.pending_sfx.push((s.id.as_str(), s.path.as_str()));
+        state.pending_notice_sfx.push((s.id.as_str(), s.path.as_str()));
     }
 }
 

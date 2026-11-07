@@ -25,10 +25,10 @@ Mood(
     chord_bars: (3, 4),
     tempo_bpm: (60.0, 60.0),
     roles: [
-        (role: Pad, instrument: "soft_saw_pad", low: "B2", high: "B4", voices: 5),
+        (role: Pad, instrument: "soft_saw_pad", part: Some("strings_high"), low: "B2", high: "B4", voices: 5),
         (role: Choir, instrument: "choir_ah", low: "D4", high: "D5", voices: 3, density: 0.5),
-        (role: Drone, instrument: "drone", low: "D2", high: "C#3"),
-        (role: Bells, instrument: "celesta", low: "D5", high: "A6", density: 0.25),
+        (role: Drone, instrument: "drone", part: Some("bass_strings"), low: "D2", high: "C#3"),
+        (role: Bells, instrument: "celesta", part: Some("vibraphone"), low: "D5", high: "A6", density: 0.25),
     ],
     motifs: [
         (steps: [0, 2, 1], beats: [1.0, 1.5, 1.0]),

@@ -4,8 +4,12 @@
 //! in config.json as one `music` object.
 //!
 //! The style list is the music's own data (data/music/styles/*.ron, community styles included: a
-//! file dropped there is in the list), read by the engine when the music starts and passed here in
-//! the Dev card's readout; before the music has ever started the list holds the default alone.
+//! file dropped there is in the list), read by the engine on its music thread from the first frame,
+//! music played or not, with or without an audio device (engine/music.rs; BUG-273: it was read only
+//! when a sound started, so until the music had played once the list held the default alone), and
+//! passed here in the Dev card's readout. With the Dev page's "turn off all reuse" switch off it is
+//! read again every few seconds. Only in the first moment of a run, before that read lands, does the
+//! list hold the default alone.
 //!
 //! The words about tuning, tones and the hum are exactly the design's (section 15): no health claim
 //! anywhere ("Some people find these tones calming; there is no good evidence that they heal").

@@ -5,7 +5,14 @@
 // swing-era brass and clarinet, and dubstep's drop on a loud, dense mix, so both wait for later rungs.
 // Swung sixteenths, a lazy backbeat, the electric piano comping on a pattern, the bass on its own,
 // seventh chords on every chord, one or two bars each, a worn-tape low-pass, wow and saturation, a
-// drier room. The steel pan stays as a colour; the choir, the drone and the deep drums step out.
+// drier room. The choir, the drone and the deep drums step out.
+//
+// Recorded instruments where they are installed (2026-11-07, BUG-266; data/music/parts.ron): the
+// comping keys are the piano part (the core set's upright, a grand from the keys pack), the lead
+// the guitar part (the guitars pack's hollowbody electrics, the soft lead without it), and the
+// melody the handpan part, low (D3 to A4, the Hang's own nine notes): the percussion pack's Hang
+// where it has the note, the steel pan for the rest and without the pack. Each falls back to the
+// synthesised voice named beside it.
 Style(
     id: "lofi",
     words: "music.style.lofi",
@@ -22,8 +29,9 @@ Style(
     bass_pattern: Some("x.......5.....x."),
     harmony: (sevenths: true, chord_bars: Some((1, 2))),
     palette: [
-        (role: Pad, instrument: "electric_piano"),
-        (role: Bells, instrument: "soft_lead", level_db: -2.0),
+        (role: Pad, instrument: "electric_piano", part: Some("piano")),
+        (role: Bells, instrument: "soft_lead", level_db: -2.0, part: Some("guitar")),
+        (role: Melody, instrument: "steel_pan", part: Some("handpan"), low: Some("D3"), high: Some("A4")),
     ],
     roles_off: [Choir, Drone, Percussion],
     roles_add: [

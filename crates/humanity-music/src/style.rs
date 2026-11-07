@@ -122,6 +122,17 @@ pub struct PaletteEntry {
     /// Its level, dB, over the mood's for that role.
     #[serde(default)]
     pub level_db: f32,
+    /// The part of the score it plays (data/music/parts.ron), as a mood's role names one: when a
+    /// recorded instrument for that part is installed it plays instead of `instrument`
+    /// (src/instrument_packs/score.rs), and `instrument` is its synthesised fallback.
+    #[serde(default)]
+    pub part: Option<String>,
+    /// A register of its own (note names), for an instrument that sits elsewhere than the mood's
+    /// role (a guitar playing the bells' motifs an octave or two down, a handpan's nine notes).
+    #[serde(default)]
+    pub low: Option<String>,
+    #[serde(default)]
+    pub high: Option<String>,
 }
 
 /// A style.

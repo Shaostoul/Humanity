@@ -519,6 +519,32 @@ per channel included; in Rust, a budget of 0.02 ms per 128-frame block (section 
 - **Other sound wins**: a video with sound, the Media page player or a voice call duck or pause the
   score (section 8); interface clicks and notifications pass over it untouched.
 
+## 12a. As built (2026-11-07): ducking, the world behind a page, the build on its own thread
+
+- **A chat video wins** (BUG-269): while any chat video's sound plays (on the app's screen, docked,
+  in its Full window, or on a screen in the world: `ChatVideos::sounding`), the score sits 12 dB
+  under itself (`engine::music::VIDEO_DUCK_DB`; a voice gets about 9 dB in section 8, a video carries
+  music of its own, so a little more), going down within 1 dB of that in 0.3 s and coming back within
+  1 dB in 1.5 s (`MusicContext::duck_db` and the score's own duck, `DUCK_DOWN_S` 0.08 s and
+  `DUCK_UP_S` 0.5 s). The hum is not ducked. Not paused at a phrase end (section 8's first plan): the
+  score stays faintly there, the way a film's room keeps its sound. Still to come: the Media page's
+  player and voice calls.
+- **The world behind a page** (section 12's escape menu, BUG-269): the escape menu became the
+  navigation of 2026-11-03, where Escape in the world opens the page you came from. So a page opened
+  from the world (Escape, or a key such as the inventory's) keeps the world's music and hum playing
+  6 dB down (`OVER_WORLD_DB`) until the person moves on to another page or goes back in; any other
+  page is an app page (no music unless "on the app's pages" is on). The low-pass "as if through a
+  door" is not built.
+- **The build runs on a worker thread** (BUG-270): reading the data, choosing and decoding the
+  recordings and resolving them took the game thread about half a second at world entry (445 ms to
+  decode main's 35 recordings, optimised); now `engine::music::build` runs on its own thread and the
+  frame only starts it, polls it and starts the score when it is done.
+- **A new score takes over at a phrase**: a build that finishes while a score plays starts at the
+  playing score's next phrase boundary and the old one fades out (the score's 1.5 s fade). Builds are
+  asked for when what is installed changes (a pack installed or removed, BUG-266), when the styles in
+  use change (only their parts' recordings are decoded), and, with the Dev page's "turn off all
+  reuse" switch off, once every phrase (BUG-267), so nothing stale survives a phrase.
+
 ## 13. Loudness
 
 - Music and ambience are categories in the loudness design (`docs/design/loudness.md` once it
@@ -560,6 +586,16 @@ ambient target); at its default level (0.35) about 17 LU under the music.
 
 The audio thread is real time: the budget is checked in tests by rendering offline at the same
 block size and timing the worst block, and on the operator's machine by the Dev page's live meter.
+
+**Measured 2026-11-07 with the core set's recordings playing their parts** (BUG-266; the ignored
+`engine::music::runtime_tests::the_score_with_recordings_measured`, 60 s, 128-frame blocks): mothership
+calm 0.034 ms a block on average (0.054 ms at the 99th percentile), night watch 0.029, garden
+morning 0.016, menu 0.031, lo-fi 0.028, action at 0.9 0.116 (0.165): the recordings cost less than
+the synthesised voices they replace. **Memory**: recordings are kept as 16-bit frames and only the
+parts the styles in use can sound are decoded, 54.7 MiB in the default style and 30.6 MiB with
+lo-fi, under the 64 MB above (all ten core instruments as 32-bit floats would be 182.7 MiB). The
+calm moods measure 1 to 2 LU under the music target with them (-19.1 to -20.2 LUFS; they are
+levelled at -18 with the synthesised voices): rung 5's self-meter is the fix.
 
 **Measured 2026-11-06** (release-optimised, 128-frame blocks at 48 kHz, on the operator's i7-8700K
 while other builds ran): the calm score 0.048 ms a block on average (1.8% of the block), 0.1 ms at
@@ -737,6 +773,8 @@ and shipped before the next. All native-gated except the pure crate.
    Audio > Instruments, the choice per part with synthesis as the fallback, the licence and source
    check, retuning by playback rate (measured at 432.00 and 440.00 Hz through a stub of the engine's
    instrument trait). Left for the engine's crate: its real `sampler` voice playing them in the score.
+   (Built: the sampler plays them, and since 2026-11-07 the moods and lo-fi name the parts their
+   synthesised voices stood in for, section 23.)
 7. **Intensity, stingers, quiet gaps, and the tones layer.** Activity to intensity, the event
    gestures, the gaps setting, and the opt-in tones with their words. Tests: a stinger lands on a
    beat and never above the score's level; tones are silent unless on, and play only with the music
@@ -862,6 +900,17 @@ part now. Settings has no Music section yet; the music's controls (section 15) l
 Audio, so the list sits there under its own heading. A download is checked against its SHA-256
 before anything is unpacked and swapped in whole (`src/instrument_packs/install.rs`); a damaged one
 is refused and deleted.
+
+**What the music plays from it** (2026-11-07, BUG-266): the calm moods' pads are the string sections
+(`strings_high` for the soft saw pad, `strings_low` for the dark pad), their bells the glockenspiel or
+the vibraphone, their drones the double bass (the strings pack); lo-fi's comping keys are the piano,
+its lead a guitar (the guitars pack) and its melody the handpan, low (the percussion pack's Hang,
+with the steel pan for its missing notes and without the pack: `fallback_part`). A sustained part's
+recordings made without loop points are held by a crossfaded loop and levelled over a chord's
+length. Parts no mood or style plays yet are marked `not_used_yet` in `parts.ron`, and Settings >
+Audio > Instruments says so for them; a data test holds the marks to the music. Danger (action)
+keeps its brass stabs and taiko: no CC0 recordings of those were found, and rung 8's guitar is the
+soft-metal colour's own work.
 
 **Always music.** Each instrument names its `part` (`data/music/parts.ron`) and a `rank`; for each
 part the best installed instrument plays, and when none is installed, that part's synthesised voice

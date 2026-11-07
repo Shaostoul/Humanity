@@ -38,10 +38,10 @@ Mood(
     ],
     bass_pattern: Some("x.x.x.x.x.x.x.x."),
     roles: [
-        (role: Pad, instrument: "dark_pad", low: "A2", high: "A4", voices: 4),
+        (role: Pad, instrument: "dark_pad", part: Some("strings_low"), low: "A2", high: "A4", voices: 4),
         (role: Bass, instrument: "pulse_bass", low: "D1", high: "C#2"),
-        (role: Drone, instrument: "drone", low: "D2", high: "C#3", level_db: -2.0),
-        (role: Melody, instrument: "celesta", low: "D5", high: "D6", density: 0.8, level_db: -4.0),
+        (role: Drone, instrument: "drone", part: Some("bass_strings"), low: "D2", high: "C#3", level_db: -2.0),
+        (role: Melody, instrument: "celesta", part: Some("glockenspiel"), low: "D5", high: "D6", density: 0.8, level_db: -4.0),
         (role: Choir, instrument: "choir_ah", low: "A3", high: "A4", voices: 3, density: 0.5, level_db: -3.0),
     ],
     motifs: [

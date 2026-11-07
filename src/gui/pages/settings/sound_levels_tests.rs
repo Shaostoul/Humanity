@@ -118,7 +118,7 @@ fn the_list_shows_only_shipped_files() {
     assert!(want.len() >= 20 && named > want.len(), "the catalogue names more sounds ({named}) than ship ({})", want.len());
     let kind = |id: &str| rows.iter().find(|r| r.id == id).map(|r| r.kind.as_str()).unwrap_or_else(|| panic!("{id} is listed"));
     assert_eq!(kind("sfx.button_click"), "interface", "the click is an interface sound (its bus, ui)");
-    assert_eq!(kind("sfx.chat_message"), "notification", "the chat chime is a notification (its category)");
+    assert_eq!(kind("sfx.chat_message"), "notification", "the chat chime is a notification (its bus, notifications)");
     assert_eq!(kind("sfx.crash"), "sfx");
     for r in &rows {
         let key = format!("sound_names.{}", r.id);
@@ -161,7 +161,7 @@ fn play_previews_at_the_sliders_level() {
     assert!(play_preview(&ctx, &mut audio, &catalog).is_none(), "so the next frame plays nothing");
     // The game's own call: the catalogue's path and its volume as the catalogue gives it
     // (`volume_or_default`, an f32 widened, 0.2000000029...: a literal 0.2 differs in the 8th digit).
-    let click = format!("{}/audio/ui/button_click.ogg", repo().join("assets").display());
+    let click = humanity_core::audio::sounds::asset_path(&repo().join("assets"), "audio/ui/button_click.ogg");
     let vol = catalog.volume_or_default("sfx.button_click");
     let (_, game) = audio.one_shot(&click, vol, "ui").unwrap();
     assert_eq!(heard, game, "the preview plays at the slider's level, as the game would");
@@ -209,6 +209,26 @@ fn the_search_shows_only_matching_sounds() {
     s.search = "no sound is called this".into();
     let shown: Vec<String> = texts(&settled(&ctx, &theme, &mut s)).into_iter().map(|(t, _)| t).collect();
     assert!(shown.iter().any(|t| t == t_dyn("sound_levels.none_found")), "an empty search says so");
+}
+
+/// THE SECTION READS THE FOLDERS THE APP RESOLVED (BUG-268): built for a data folder outside the
+/// working directory (an app folder unpacked somewhere else, its `data/` and `assets/` side by
+/// side), it lists that folder's one shipped sound, read from that folder's catalogue and found in
+/// the `assets` beside it, and nothing of the repo's (the tests run from the repo root, so a
+/// relative "data" or "assets" would read the repo's sounds instead). RED first (2026-11-07) with
+/// `for_data` keeping the old relative "assets": "the assets beside the data folder (left:
+/// "assets", right: the temp app folder's assets)".
+#[test]
+fn the_section_reads_the_folders_the_app_resolved() {
+    let app = humanity_core::test_temp::dir("sound_levels_app_folder");
+    std::fs::create_dir_all(app.join("data")).unwrap();
+    std::fs::create_dir_all(app.join("assets/audio/ui")).unwrap();
+    std::fs::write(app.join("data/sounds.toml"), "[sfx.only_here]\npath = \"audio/ui/only_here.ogg\"\nbus = \"ui\"\n").unwrap();
+    std::fs::copy(repo().join("assets/audio/ui/button_click.ogg"), app.join("assets/audio/ui/only_here.ogg")).unwrap();
+    let s = SoundLevelsUi::for_data(app.join("data"));
+    assert_eq!(s.assets_dir, app.join("assets"), "the assets beside the data folder");
+    let rows: Vec<String> = shipped_rows(&s.data_dir, &s.assets_dir).into_iter().map(|r| r.id).collect();
+    assert_eq!(rows, vec!["sfx.only_here".to_string()], "the app folder's own sound");
 }
 
 /// This thread's levels, empty.

@@ -258,11 +258,22 @@ impl VoicePool {
     pub fn note_on(&mut self, n: NoteOn, insts: &[Instrument], banks: &[Option<Arc<dyn SampleBank>>], rate: f32) {
         let Some(inst) = insts.get(n.inst as usize) else { return };
         // A recorded instrument that has no recording for this note (exact keys, or no bank) plays
-        // it on its synthesised fallback, so no note is lost.
+        // it on its fallback, so no note is lost: a recorded fallback that has the note (the Hang's
+        // missing notes on the recorded steel pan, data/music/parts.ron's `fallback_part`), else the
+        // first synthesised one along the chain. Never more than two steps, so no chain can loop.
         if let InstrumentKind::Sampler(s) = &inst.kind {
-            let has = banks.get(n.inst as usize).and_then(|b| b.as_ref()).is_some_and(|b| b.pick(n.midi.round() as i32, n.vel, self.started.wrapping_add(1)).is_some());
-            if !has {
-                if let Some(fb) = s.fallback_index.filter(|&fb| fb != n.inst && !matches!(insts.get(fb as usize).map(|i| &i.kind), Some(InstrumentKind::Sampler(_)))) {
+            let midi = n.midi.round() as i32;
+            let rr = self.started.wrapping_add(1);
+            let has = |i: u16| banks.get(i as usize).and_then(|b| b.as_ref()).is_some_and(|b| b.pick(midi, n.vel, rr).is_some());
+            if !has(n.inst) {
+                let synthesised = |i: u16| !matches!(insts.get(i as usize).map(|x| &x.kind), Some(InstrumentKind::Sampler(_)));
+                let fb = s.fallback_index.filter(|&fb| fb != n.inst).and_then(|fb| match insts.get(fb as usize).map(|x| &x.kind) {
+                    Some(InstrumentKind::Sampler(_)) if has(fb) => Some(fb),
+                    Some(InstrumentKind::Sampler(f)) => f.fallback_index.filter(|&x| x != fb && x != n.inst && synthesised(x)),
+                    Some(_) => Some(fb),
+                    None => None,
+                });
+                if let Some(fb) = fb {
                     self.note_on(NoteOn { inst: fb, ..n }, insts, banks, rate);
                 }
                 return;
@@ -806,14 +817,52 @@ fn render_voice(
             };
             let len = zone.frames.len();
             let step = st.step * p.pitch_mul as f64;
+            // A crossfaded loop (SampleZone::loop_xfade) while the note is held: (start, end, the
+            // fade's length), all in frames.
+            let soft = match zone.loop_range {
+                Some((a, b)) if zone.loop_xfade > 0 && !v.released && a >= zone.loop_xfade && b > a + zone.loop_xfade && b <= len => Some((a as f64, b as f64, zone.loop_xfade as f64)),
+                _ => None,
+            };
+            let sc = crate::instrument::SAMPLE_SCALE;
+            let at = |pos: f64| -> (f32, f32) {
+                let idx = (pos.max(0.0) as usize).min(len - 1);
+                let fr = (pos - idx as f64).clamp(0.0, 1.0) as f32;
+                let [al, ar] = zone.frames[idx];
+                let [bl, br] = zone.frames[(idx + 1).min(len - 1)];
+                let (al, ar, bl, br) = (al as f32 * sc, ar as f32 * sc, bl as f32 * sc, br as f32 * sc);
+                (al + (bl - al) * fr, ar + (br - ar) * fr)
+            };
+            if let Some((a, b, x)) = soft {
+                for i in 0..n {
+                    let e = v.env.next();
+                    if st.pos >= b {
+                        st.pos -= b - a;
+                    }
+                    let (mut l, mut r) = at(st.pos);
+                    let fade_from = b - x;
+                    if st.pos >= fade_from {
+                        // Into the frames just before the loop's start, which play on from there.
+                        let t = ((st.pos - fade_from) / x) as f32;
+                        let (l2, r2) = at(st.pos - (b - a));
+                        let (g1, g2) = ((1.0 - t).max(0.0).sqrt(), t.min(1.0).sqrt());
+                        l = l * g1 + l2 * g2;
+                        r = r * g1 + r2 * g2;
+                    }
+                    st.pos += step;
+                    let g = e * v.amp;
+                    out(i, l * g, r * g);
+                }
+                if v.env.done() {
+                    v.active = false;
+                }
+                return;
+            }
             for i in 0..n {
                 let e = v.env.next();
-                let mut idx = st.pos as usize;
-                if idx + 1 >= len {
+                if st.pos as usize + 1 >= len {
                     match zone.loop_range {
                         Some((a, b)) if !v.released && b > a + 1 && b <= len => {
                             st.pos -= (b - a) as f64;
-                            idx = st.pos as usize;
                         }
                         _ => {
                             v.active = false;
@@ -821,11 +870,7 @@ fn render_voice(
                         }
                     }
                 }
-                let fr = (st.pos - idx as f64) as f32;
-                let [al, ar] = zone.frames[idx];
-                let [bl, br] = zone.frames[(idx + 1).min(len - 1)];
-                let l = al + (bl - al) * fr;
-                let r = ar + (br - ar) * fr;
+                let (l, r) = at(st.pos);
                 st.pos += step;
                 let g = e * v.amp;
                 out(i, l * g, r * g);

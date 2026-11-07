@@ -1,10 +1,13 @@
 //! Decoded sample audio, and a voice that plays one sample at a rate.
 //!
 //! Decoding an Ogg Vorbis file takes a few milliseconds, so the bank keeps each one decoded while
-//! the Dev page's "turn off all reuse" switch is on (CLAUDE.md, the reuse rule: kept data cannot
-//! go stale here, because an installed sample file never changes; removing its pack removes the
-//! instrument). With the switch off the bank keeps nothing: every request decodes its file again,
-//! the way the audio manager's sounds do since BUG-257's fix.
+//! the Dev page's "turn off all reuse" switch is on. It is THE path the live score's recordings are
+//! decoded through (engine/music.rs's build, on its worker thread, BUG-267): with reuse on, a
+//! recording decoded for one score is handed to the next (a new piece, an install) without decoding
+//! it again; the music empties the bank when an install or removal changes what is installed (a pack
+//! updated in place writes new files at the same paths) and when no music has played for a while.
+//! With the switch off the bank keeps nothing: every build decodes every file again, the way the
+//! audio manager's sounds do since BUG-257's fix (CLAUDE.md, the reuse rule).
 //!
 //! [`SampleVoice::render`] allocates nothing (the audio thread's rule, music.md section 4.2): the
 //! decoded frames are shared through an `Arc` made before the note starts.
@@ -15,17 +18,18 @@ use std::sync::Arc;
 
 use super::definition::Zone;
 
-/// One sample, decoded to stereo frames.
+/// One sample, decoded to 16-bit stereo frames (`humanity_music::instrument::SAMPLE_SCALE`; shared:
+/// a score's zone holds the same frames, never a copy).
 #[derive(Debug, Clone, PartialEq)]
 pub struct DecodedSample {
     pub sample_rate: u32,
-    pub frames: Vec<[f32; 2]>,
+    pub frames: Arc<Vec<[i16; 2]>>,
 }
 
 /// Decode an audio file (Ogg Vorbis, FLAC, WAV: whatever kira and symphonia read).
 pub fn decode_file(path: &Path) -> Result<DecodedSample, String> {
     let data = kira::sound::static_sound::StaticSoundData::from_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(DecodedSample { sample_rate: data.sample_rate, frames: data.frames.iter().map(|f| [f.left, f.right]).collect() })
+    Ok(DecodedSample { sample_rate: data.sample_rate, frames: Arc::new(humanity_music::instrument::frames16(data.frames.iter().map(|f| [f.left, f.right]))) })
 }
 
 /// Decoded samples by path, kept while reuse is on.
@@ -61,6 +65,16 @@ impl SampleBank {
     /// How many samples are kept decoded now.
     pub fn kept(&self) -> usize {
         self.kept.len()
+    }
+
+    /// The memory the kept samples hold, bytes (16-bit stereo frames).
+    pub fn bytes(&self) -> usize {
+        self.kept.values().map(|s| s.frames.len() * 4).sum()
+    }
+
+    /// Let go of every kept sample (what is installed changed, or no music has played for a while).
+    pub fn clear(&mut self) {
+        self.kept.clear();
     }
 }
 
@@ -115,8 +129,9 @@ impl SampleVoice {
                 return;
             }
             let t = (self.pos - i as f64) as f32;
-            let a = frames[i];
-            let b = frames[i + 1];
+            let sc = humanity_music::instrument::SAMPLE_SCALE;
+            let a = [frames[i][0] as f32 * sc, frames[i][1] as f32 * sc];
+            let b = [frames[i + 1][0] as f32 * sc, frames[i + 1][1] as f32 * sc];
             let mut g = self.gain;
             if let Some(left) = self.release_left.as_mut() {
                 if *left == 0 {

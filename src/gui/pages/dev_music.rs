@@ -34,6 +34,14 @@ pub struct MusicReadout {
     /// The named tones Settings offers, hertz.
     pub tones: Vec<f32>,
     pub load_error: Option<String>,
+    /// How long the last build took on its own thread, milliseconds (engine/music.rs: the data read,
+    /// the recordings decoded and resolved; the game thread never waits for it).
+    pub build_ms: Option<f32>,
+    /// How many scores have started this run (a new one takes over at a phrase after an install, and
+    /// every phrase with reuse off).
+    pub pieces: u64,
+    /// How far under itself the score sits now, dB (a chat video playing, the world behind a page).
+    pub duck_db: f32,
 }
 
 /// The Music card's state: the knob and the readout.
@@ -88,6 +96,7 @@ pub fn draw_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if let Some(b) = r.bed {
             line(ui, t("dev.music.hum"), format!("{:+.1} dB  {:.0} Hz  {} {:.2}  {:.3} ms", r.hum_level_db, b.cutoff_hz, t("dev.music.alarm"), b.alarm_level, b.block_us_mean / 1000.0));
         }
+        line(ui, t("dev.music.build"), format!("{}  {} {}  {} {:+.0} dB", r.build_ms.map_or("-".to_string(), |ms| format!("{ms:.0} ms")), t("dev.music.pieces"), r.pieces, t("dev.music.duck"), r.duck_db));
         line(ui, t("dev.music.zone"), if r.zone.is_empty() { "-".to_string() } else { r.zone.clone() });
         line(ui, t("dev.music.seed"), r.seed.to_string());
     });

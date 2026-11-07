@@ -1782,15 +1782,14 @@ mod native_app {
                 // None for a background (script-launched) instance until a
                 // person clicks into it (engine::launch_focus::launch_audio).
                 audio: crate::engine::launch_focus::launch_audio(),
-                sound_catalog: humanity_core::audio::sounds::SoundCatalog::load(std::path::Path::new(
-                    "data",
-                )),
-                audio_volumes_applied: (-1.0, -1.0, -1.0, -1.0),
+                // The data folder the app resolved, not a relative "data" (BUG-268).
+                sound_catalog: humanity_core::audio::sounds::SoundCatalog::load(&data_dir),
+                audio_volumes_applied: [-1.0; 6],
                 music: Default::default(),
                 tree_atlas_attempted: false,
                 particle_system: {
                     let mut ps = crate::renderer::particles::ParticleSystem::new();
-                    ps.load_defs(std::path::Path::new("data"));
+                    ps.load_defs(&data_dir);
                     ps
                 },
                 prev_ship_world_pos: glam::DVec3::ZERO,
@@ -1904,6 +1903,7 @@ mod native_app {
                 wall_colliders: Vec::new(),
                 shut_doors: Vec::new(),
                 pending_sfx: Vec::new(),
+                pending_notice_sfx: Vec::new(),
                 sight_colliders: Vec::new(),
                 connection_objects: Vec::new(),
                 connection_flow_paths: Vec::new(),
@@ -15532,24 +15532,12 @@ mod native_app {
                                 // Settings > Audio > Even out loudness (2026-11-06): read as each
                                 // sound starts (humanity_core::audio::levels).
                                 audio.set_even_loudness(state.gui_state.settings.even_loudness);
-                                // Honest volume sliders: push Settings values
-                                // into kira only when one actually moved. The
-                                // 4th slot is the independent interface-sound
-                                // bus (v0.1112): clicks/UI feedback ride it so
-                                // they can be quieted without touching sfx.
-                                let vols = (
-                                    state.gui_state.settings.master_volume,
-                                    state.gui_state.settings.music_volume,
-                                    state.gui_state.settings.sfx_volume,
-                                    state.gui_state.settings.ui_volume,
-                                );
-                                if vols != state.audio_volumes_applied {
-                                    audio.set_master_volume(vols.0 as f64);
-                                    audio.set_music_volume(vols.1 as f64);
-                                    audio.set_sfx_volume(vols.2 as f64);
-                                    audio.set_ui_volume(vols.3 as f64);
-                                    state.audio_volumes_applied = vols;
-                                }
+                            }
+                            // Honest volume sliders: every bus's slider into kira, only when one
+                            // moved (engine/sfx.rs: master, music, sound effects, interface,
+                            // notifications, ambience).
+                            crate::engine::sfx::sync_volumes(state);
+                            if let Some(audio) = state.audio.as_mut() {
                                 // Settings > Audio > Sound levels' Play (2026-11-06): the sound at
                                 // the person's level for it now, after the volumes above.
                                 crate::gui::pages::settings::sound_levels::play_preview(&state.egui_ctx, audio, &state.sound_catalog);
@@ -15607,45 +15595,11 @@ mod native_app {
                                             let vol = state
                                                 .sound_catalog
                                                 .volume_or_default(surface.footstep_id());
-                                            let path = format!("assets/{rel}");
+                                            let path = humanity_core::audio::sounds::asset_path(&humanity_core::storage::assets_dir(), &rel);
                                             let _ = audio.play_sound_vol(&path, vol);
                                         }
                                     } else if step >= 2.0 {
                                         state.stride_accum = 0.0;
-                                    }
-                                }
-                                // One-shot gameplay SFX queue (v0.983): drain
-                                // whatever action sites pushed this frame
-                                // (collect pickup, door open/close edges) -
-                                // each id resolves through the catalog.
-                                for (id, fallback) in state.pending_sfx.drain(..) {
-                                    let path = format!(
-                                        "assets/{}",
-                                        state.sound_catalog.path_or(id, fallback)
-                                    );
-                                    let vol = state.sound_catalog.volume_or_default(id);
-                                    if let Err(e) = audio.play_sound_vol(&path, vol) {
-                                        static WARNED: std::sync::Once = std::sync::Once::new();
-                                        WARNED.call_once(|| log::warn!("[Audio] sfx {id}: {e}"));
-                                    }
-                                }
-                                // ECS-system SFX channel (v0.985): construction
-                                // and crafting completions arrive here (systems
-                                // have no engine state - see push_sfx_event).
-                                let system_sfx: Vec<(String, String)> = state
-                                    .data_store
-                                    .get::<std::sync::Mutex<Vec<(String, String)>>>("sfx_events")
-                                    .and_then(|m| m.lock().ok().map(|mut e| e.drain(..).collect()))
-                                    .unwrap_or_default();
-                                for (id, fallback) in system_sfx {
-                                    let path = format!(
-                                        "assets/{}",
-                                        state.sound_catalog.path_or(&id, &fallback)
-                                    );
-                                    let vol = state.sound_catalog.volume_or_default(&id);
-                                    if let Err(e) = audio.play_sound_vol(&path, vol) {
-                                        static WARNED2: std::sync::Once = std::sync::Once::new();
-                                        WARNED2.call_once(|| log::warn!("[Audio] sfx {id}: {e}"));
                                     }
                                 }
                                 // UI click (v0.1112): fire ONLY when egui
@@ -15659,31 +15613,20 @@ mod native_app {
                                 // the screen makes a sound even if I don't click
                                 // anything"). platform_output.events carries an
                                 // OutputEvent::Clicked only on genuine activation.
-                                // Read it HERE - handle_platform_output consumes
-                                // full_output.platform_output below. The catalog
-                                // drives the file, and the "ui" bus routes the
-                                // sound through the independent interface volume.
-                                let real_click = crate::gui::ui_click_should_sound(
-                                    &full_output.platform_output.events,
-                                    state.gui_state.settings.ui_sounds_enabled,
-                                );
-                                if real_click {
-                                    let path = format!(
-                                        "assets/{}",
-                                        state.sound_catalog.path_or(
-                                            "sfx.button_click",
-                                            "audio/ui/button_click.ogg"
-                                        )
-                                    );
-                                    let vol = state
-                                        .sound_catalog
-                                        .volume_or_default("sfx.button_click");
-                                    if let Err(e) = audio.play_sound_bus(&path, vol, "ui") {
-                                        // Once per session is plenty.
-                                        static WARNED: std::sync::Once = std::sync::Once::new();
-                                        WARNED.call_once(|| log::warn!("[Audio] ui click: {e}"));
-                                    }
-                                }
+                            }
+                            // The sounds actions, notices and the ECS systems queued this frame,
+                            // each on its bus (engine/sfx.rs, BUG-265).
+                            crate::engine::sfx::play_queued(state);
+                            // UI click (v0.1112): fire ONLY when egui reported a REAL widget
+                            // activation this frame (a button, link or toggle actually clicked),
+                            // not merely a press over some egui area ("clicking on the screen
+                            // makes a sound even if I don't click anything"):
+                            // platform_output.events carries an OutputEvent::Clicked only on
+                            // genuine activation. Read it HERE: handle_platform_output consumes
+                            // full_output.platform_output below. The catalogue drives the file and
+                            // its "ui" bus the interface volume.
+                            if crate::gui::ui_click_should_sound(&full_output.platform_output.events, state.gui_state.settings.ui_sounds_enabled) {
+                                crate::engine::sfx::play_click(state);
                             }
 
                             // Handle egui platform output (cursor changes, clipboard, etc.)

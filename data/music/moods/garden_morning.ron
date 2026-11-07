@@ -30,8 +30,8 @@ Mood(
     tempo_bpm: (66.0, 72.0),
     beat_felt: true,
     roles: [
-        (role: Pad, instrument: "soft_saw_pad", low: "D3", high: "D5", voices: 5, level_db: -3.0),
-        (role: Bells, instrument: "celesta", low: "G5", high: "B6", density: 0.6),
+        (role: Pad, instrument: "soft_saw_pad", part: Some("strings_high"), low: "D3", high: "D5", voices: 5, level_db: -3.0),
+        (role: Bells, instrument: "celesta", part: Some("glockenspiel"), low: "G5", high: "B6", density: 0.6),
         (role: Melody, instrument: "harp", part: Some("harp"), low: "G3", high: "G5", density: 0.55),
         (role: Bass, instrument: "round_bass", low: "E1", high: "D2", level_db: -6.0),
     ],

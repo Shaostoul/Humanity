@@ -31,7 +31,7 @@ pub(crate) fn heavy() -> std::sync::MutexGuard<'static, ()> {
 
 fn ctx(lib: &crate::MusicLibrary, mood: &str, style: &str, intensity: f32) -> MusicContext {
     let s = lib.style_index(style).unwrap() as u16;
-    MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, style_a: s, style_b: s, blend: 0.0, intensity }
+    MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, style_a: s, style_b: s, blend: 0.0, intensity, duck_db: 0.0 }
 }
 
 fn score(lib: &crate::MusicLibrary, mood: &str, style: &str, seed: u64) -> ScoreEngine {
@@ -268,6 +268,45 @@ fn the_same_seed_renders_the_same_samples() {
     assert_ne!(hash(4), hash(5));
 }
 
+/// OTHER SOUND WINS: THE DUCK (music.md section 8, rung 4; BUG-269). Asked to sit 12 dB under itself
+/// (a chat video playing), the score is within 1 dB of -12 dB 0.3 s later and its output is 12 dB
+/// quieter than the same seed undocked over the next seconds; asked back to 0, it is still well
+/// under after 0.3 s (it comes back slowly) and within 1 dB of 0 after 1.5 s; asked for -6 dB (the
+/// world behind a page), it settles at -6. RED first (2026-11-07) with `duck_db` read by no one:
+/// "the duck is within 1 dB of -12 dB after 0.3 s (0.00 dB)".
+#[test]
+fn the_score_ducks_quickly_and_comes_back_slowly() {
+    let _heavy = heavy();
+    let lib = shipped();
+    let db = |a: f32| 20.0 * a.max(1e-9).log10();
+    let rms = |f: &[[f32; 2]]| (f.iter().map(|x| (x[0] as f64).powi(2) + (x[1] as f64).powi(2)).sum::<f64>() / (2 * f.len().max(1)) as f64).sqrt();
+    let mut plain = score(&lib, "mothership_calm", "mothership_calm", 31);
+    let mut ducked = score(&lib, "mothership_calm", "mothership_calm", 31);
+    // Both fade in the same way first, at the same seed.
+    render_score(&mut plain, RATE, 6.0);
+    render_score(&mut ducked, RATE, 6.0);
+    ducked.set_context(MusicContext { duck_db: -12.0, ..ducked.context() });
+    render_score(&mut plain, RATE, 0.3);
+    render_score(&mut ducked, RATE, 0.3);
+    let at = db(ducked.status().duck);
+    assert!((at + 12.0).abs() < 1.0, "the duck is within 1 dB of -12 dB after 0.3 s ({at:.2} dB)");
+    let a = render_score(&mut plain, RATE, 3.0);
+    let b = render_score(&mut ducked, RATE, 3.0);
+    let under = 20.0 * (rms(&b.frames) / rms(&a.frames).max(1e-12)).log10();
+    assert!((under + 12.0).abs() < 0.5, "the same music 12 dB quieter while ducked ({under:.2} dB)");
+    ducked.set_context(MusicContext { duck_db: 0.0, ..ducked.context() });
+    render_score(&mut ducked, RATE, 0.3);
+    let rising = db(ducked.status().duck);
+    assert!(rising < -3.0, "it comes back slowly: {rising:.2} dB after 0.3 s");
+    render_score(&mut ducked, RATE, 1.2);
+    let back = db(ducked.status().duck);
+    assert!(back > -1.0, "back within 1 dB of 0 after 1.5 s ({back:.2} dB)");
+    ducked.set_context(MusicContext { duck_db: -6.0, ..ducked.context() });
+    render_score(&mut ducked, RATE, 1.0);
+    let six = db(ducked.status().duck);
+    assert!((six + 6.0).abs() < 0.2, "the world behind a page: -6 dB ({six:.2} dB)");
+}
+
 /// THE HUM: silent off the ship (it fades out), at the ambient category's loudness in an open space
 /// at gain 1, softer in a cabin than in the Commons, louder and darker near the drive at the stern
 /// (data/audio/hum_sources.ron), with its resonances on the key's root and fifth at A = 432 (D2 72.08
@@ -491,12 +530,12 @@ fn render_allocates_nothing() {
 /// two seconds, with a loop.
 fn sine_bank(recorded_hz: f32, lib_a4: f32) -> SampleSet {
     let rate = 44100.0;
-    let frames: Arc<Vec<[f32; 2]>> = Arc::new((0..(2.0 * rate) as usize).map(|i| {
+    let frames: Arc<Vec<[i16; 2]>> = Arc::new(crate::instrument::frames16((0..(2.0 * rate) as usize).map(|i| {
         let v = (2.0 * std::f32::consts::PI * recorded_hz * i as f32 / rate).sin() * 0.5;
         [v, v]
-    }).collect());
+    })));
     let _ = lib_a4;
-    SampleSet { zones: vec![SampleZone { frames, rate, recorded_hz, low_note: 0, high_note: 127, velocity: 0.8, loop_range: Some((44100, 88200)) }], exact_keys: false }
+    SampleSet { zones: vec![SampleZone { frames, rate, recorded_hz, low_note: 0, high_note: 127, velocity: 0.8, loop_range: Some((44100, 88200)), loop_xfade: 0 }], exact_keys: false }
 }
 
 /// A RECORDED INSTRUMENT WITH EXACT KEYS (a Hang: only its nine notes, its makers asking that the
@@ -529,6 +568,103 @@ fn a_recorded_instrument_with_exact_keys_plays_the_rest_on_its_fallback() {
     };
     assert_eq!(played(62.0), Some(hang), "the Hang's own D4 plays its recording");
     assert_eq!(played(63.0), Some(pan), "a key the Hang lacks plays on the steel pan");
+}
+
+/// AN EXACT-KEY RECORDING'S MISSING NOTES PLAY ON A RECORDED FALLBACK (BUG-266): lo-fi's handpan
+/// part falls back to the steel pan part (`fallback_part`), which plays the core set's recorded steel
+/// pan; so a key the Hang lacks plays on that recording, and on its synthesised steel pan when the
+/// recording lacks it too. RED first (2026-11-07) with `note_on` refusing any recorded fallback (as
+/// before: only a synthesised one): "a key the Hang lacks plays on the recorded steel pan (left:
+/// None, right: Some(20))".
+#[test]
+fn an_exact_key_recordings_missing_notes_play_on_a_recorded_fallback() {
+    let _heavy = heavy();
+    let mut lib = shipped();
+    let pan: crate::instrument::Instrument = ron::from_str(r#"Instrument(id: "test_pan", kind: Sampler((pack: "core", folder: "test", fallback: "steel_pan")))"#).unwrap();
+    let hang: crate::instrument::Instrument = ron::from_str(r#"Instrument(id: "test_hang", kind: Sampler((pack: "test", folder: "test", fallback: "test_pan")))"#).unwrap();
+    lib.instruments.push(pan);
+    lib.instruments.push(hang);
+    let mut hang_set = sine_bank(293.66, 440.0);
+    hang_set.zones[0].low_note = 62;
+    hang_set.zones[0].high_note = 62;
+    hang_set.exact_keys = true;
+    let mut pan_set = sine_bank(311.13, 440.0);
+    pan_set.zones[0].low_note = 63;
+    pan_set.zones[0].high_note = 63;
+    pan_set.exact_keys = true;
+    let mut samples = SampleLibrary::new();
+    samples.insert("test_hang".into(), Arc::new(hang_set) as Arc<dyn SampleBank>);
+    samples.insert("test_pan".into(), Arc::new(pan_set) as Arc<dyn SampleBank>);
+    let res = Resolved::new(&lib, &samples).unwrap();
+    let id = |s: &str| lib.instrument_index(s).unwrap() as u16;
+    let played = |midi: f32| {
+        let mut pool = VoicePool::new(1);
+        pool.note_on(NoteOn { inst: id("test_hang"), role: 0, midi, a4: 432.0, vel: 0.8, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
+        pool.voices.iter().find(|v| v.active).map(|v| v.inst)
+    };
+    assert_eq!(played(62.0), Some(id("test_hang")), "the Hang's own note");
+    assert_eq!(played(63.0), Some(id("test_pan")), "a key the Hang lacks plays on the recorded steel pan");
+    assert_eq!(played(64.0), Some(id("steel_pan")), "a key both lack plays on the synthesised steel pan");
+}
+
+/// A SUSTAIN RECORDED WITHOUT LOOP POINTS IS HELD PAST ITS END, WITHOUT A JUMP (BUG-266): a string
+/// section's note is an 8 s recording with no loop, and a calm chord lasts up to 13 s. A one-second
+/// "recording" (a sine whose level breathes, like a bowed note's vibrato, whose loop is a quarter
+/// cycle out of phase, as a real recording's always is somewhere) with a crossfaded loop over its
+/// middle (`loop_xfade`), held for four seconds, never falls below 6 dB under its first second and
+/// never jumps (no step between samples more than twice the largest the recording itself has); let
+/// go, it ends. RED first (2026-11-07) with the voice ignoring `loop_xfade` (the loop played as a
+/// recorded loop, a plain jump): "no jump while held: 0.2261 against the recording's own 0.0082".
+/// (A first version, its sine whole cycles round the loop,
+/// passed red: a plain jump was seamless.)
+#[test]
+fn a_sustain_without_loop_points_is_held_past_its_end() {
+    let _heavy = heavy();
+    let mut lib = shipped();
+    let strings: crate::instrument::Instrument = ron::from_str(r#"Instrument(id: "test_strings", kind: Sampler((pack: "test", folder: "test", fallback: "soft_saw_pad", envelope: (attack_s: 0.002, decay_s: 0.0, sustain: 1.0, release_s: 0.1))))"#).unwrap();
+    lib.instruments.push(strings);
+    let rate = 48000.0f32;
+    let n = rate as usize;
+    let wave: Vec<[f32; 2]> = (0..n).map(|i| {
+        let t = i as f32 / rate;
+        // 220.5556 Hz: 99.25 cycles in the 0.45 s loop, so a plain jump lands a quarter cycle out.
+        let v = (2.0 * std::f32::consts::PI * 220.5556 * t).sin() * (0.4 + 0.1 * (2.0 * std::f32::consts::PI * 5.0 * t).sin());
+        [v, v]
+    }).collect();
+    let max_step = wave.windows(2).map(|w| (w[1][0] - w[0][0]).abs()).fold(0.0f32, f32::max);
+    let frames = Arc::new(crate::instrument::frames16(wave.into_iter()));
+    let zone = SampleZone { frames, rate, recorded_hz: 220.0, low_note: 0, high_note: 127, velocity: 0.8, loop_range: Some((n * 2 / 5, n * 17 / 20)), loop_xfade: (0.15 * rate) as usize };
+    let mut samples = SampleLibrary::new();
+    samples.insert("test_strings".into(), Arc::new(SampleSet { zones: vec![zone], exact_keys: false }) as Arc<dyn SampleBank>);
+    let res = Resolved::new(&lib, &samples).unwrap();
+    let i = lib.instrument_index("test_strings").unwrap() as u16;
+    let mut pool = VoicePool::new(1);
+    pool.note_on(NoteOn { inst: i, role: 0, midi: 57.0, a4: 440.0, vel: 0.8, pan: 0.0, hold_s: 4.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
+    let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
+    let p = BlockParams { rate: RATE, pitch_mul: 1.0, beat_hz: 1.0, vowel: &vowel };
+    let mut x = Vec::new();
+    let (mut l, mut r, mut sl, mut sr) = ([0f32; 64], [0f32; 64], [0f32; 64], [0f32; 64]);
+    for _ in 0..(5.0 * RATE / 64.0) as usize {
+        l.fill(0.0);
+        r.fill(0.0);
+        pool.render(&res.instruments, &res.banks, &p, &mut l, &mut r, &mut sl, &mut sr, 64);
+        x.extend_from_slice(&l);
+    }
+    let window = |from_s: f32| rms_db(&x[(from_s * RATE) as usize..((from_s + 0.1) * RATE) as usize]);
+    let first = rms_db(&x[(0.05 * RATE) as usize..RATE as usize]);
+    let mut t = 0.2;
+    while t < 3.85 {
+        let w = window(t);
+        assert!(w > first - 6.0, "held for 4 s it still sounds at {t:.2} s ({w:.1} dB against {first:.1})");
+        t += 0.05;
+    }
+    // The recording's own largest step as the voice plays it (its first 0.35 s, before any loop).
+    let step = |s: &[f32]| s.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0.0f32, f32::max);
+    let natural = step(&x[(0.05 * RATE) as usize..(0.35 * RATE) as usize]);
+    assert!(natural > 0.0 && max_step > 0.0, "the recording sounds");
+    let jump = step(&x[(0.05 * RATE) as usize..(3.9 * RATE) as usize]);
+    assert!(jump < 2.0 * natural, "no jump while held: {jump:.4} against the recording's own {natural:.4}");
+    assert!(window(4.6) < first - 40.0, "let go, it ends ({:.1} dB)", window(4.6));
 }
 
 /// THE SAMPLER SEAM (rung 6's interface, which the instrument library fills): a recording made at

@@ -65,25 +65,37 @@ pub fn render_bed(engine: &mut BedEngine, rate: f32, seconds: f64) -> Rendered {
 /// instrument library levels a recording to the synthesised voice it replaces with it, so the
 /// mood's balance holds whichever plays.
 pub fn note_rms(res: &crate::Resolved, inst: u16, midi: f32, a4: f32, seconds: f32, rate: f32) -> f32 {
+    note_rms_between(res, inst, midi, a4, 0.0, seconds, rate)
+}
+
+/// The RMS of one held note of instrument `inst` between `from_s` and `to_s` after it starts: a
+/// pad's or a drone's sustained level, past its slow attack (the instrument library levels a
+/// sustained recording against it, BUG-266: measured over the first second, a slow pad read 5 to 8
+/// dB under its sustain, and the strings that replaced it played that much too quiet).
+pub fn note_rms_between(res: &crate::Resolved, inst: u16, midi: f32, a4: f32, from_s: f32, to_s: f32, rate: f32) -> f32 {
     use crate::dsp::SvfCoefs;
     use crate::voice::{BlockParams, NoteOn, VoicePool};
     let mut pool = VoicePool::new(1);
     pool.note_on(NoteOn { inst, role: 0, midi, a4, vel: 1.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, rate);
     let vowel = [(SvfCoefs::new(800.0, 10.0, rate), 1.0); 5];
     let p = BlockParams { rate, pitch_mul: 1.0, beat_hz: 1.0, vowel: &vowel };
-    let total = (seconds * rate) as usize;
-    let (mut sum, mut n) = (0.0f64, 0usize);
+    let total = (to_s * rate) as usize;
+    let skip = (from_s.max(0.0) * rate) as usize;
+    let (mut sum, mut n, mut counted) = (0.0f64, 0usize, 0usize);
     let (mut l, mut r, mut sl, mut sr) = ([0f32; 64], [0f32; 64], [0f32; 64], [0f32; 64]);
     while n < total {
         l.fill(0.0);
         r.fill(0.0);
         pool.render(&res.instruments, &res.banks, &p, &mut l, &mut r, &mut sl, &mut sr, 64);
         for i in 0..64 {
-            sum += (l[i] as f64).powi(2) + (r[i] as f64).powi(2);
+            if n + i >= skip {
+                sum += (l[i] as f64).powi(2) + (r[i] as f64).powi(2);
+                counted += 1;
+            }
         }
         n += 64;
     }
-    (sum / (2 * n.max(1)) as f64).sqrt() as f32
+    (sum / (2 * counted.max(1)) as f64).sqrt() as f32
 }
 
 /// A default context for offline renders: full gain, A = 432, the given mood and style.

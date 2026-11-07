@@ -313,7 +313,7 @@ window.HOS_I18N_EN = {
       "ship_hum": "Ship hum",
       "ship_hum_hint": "The soft sound of the ship's engines and structure while you are aboard. Louder near the engines, quieter in small rooms.",
       "ship_hum_level": "Ship hum level",
-      "ship_hum_level_hint": "How loud the hum is compared with the music.",
+      "ship_hum_level_hint": "How loud the ship's hum is among the background sounds. It follows Ambience Volume and Master Volume, not the music's volume, so the hum stays when the music is off.",
       "tones": "Tones",
       "tones_on": "Tones",
       "tones_on_hint": "Steady tones some people like to listen to. Some people find these tones calming; there is no good evidence that they heal. They play when the music is off or quiet.",
@@ -322,7 +322,9 @@ window.HOS_I18N_EN = {
       "hz_suffix": " Hz",
       "tone_volume": "Tone volume",
       "tone_volume_hint": "How loud the tone is."
-    }
+    },
+    "notifications_volume": "Notifications Volume",
+    "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume."
   },
   "laws": {
     "title": "Laws and rights",
@@ -2425,7 +2427,10 @@ window.HOS_I18N_EN = {
       "hum": "Hum",
       "alarm": "alarm",
       "zone": "Zone",
-      "seed": "Seed"
+      "seed": "Seed",
+      "build": "Build:",
+      "pieces": "pieces",
+      "duck": "duck"
     }
   },
   "dev_journal": {
@@ -3486,7 +3491,7 @@ window.HOS_I18N_EN = {
     "update": "Update",
     "update_hint": "Download the newer version of this pack and install it in place of the one on this computer.",
     "remove": "Remove",
-    "remove_hint": "Delete this pack from this computer. The parts it played go to the next best instrument installed, or to the music's own synthesised voice.",
+    "remove_hint": "Delete this pack from this computer. The parts it played go to the next best instrument installed, or to the music's own synthesised voice, from the music's next phrase.",
     "retry": "Try again",
     "retry_hint": "Start the download of this pack again.",
     "stage": {
@@ -3507,7 +3512,9 @@ window.HOS_I18N_EN = {
     "use": {
       "in_use": "{{instrument}}: plays the {{part}} part",
       "standing_by": "{{instrument}}: ready for the {{part}} part ({{other}} plays it now)",
-      "would_play": "{{instrument}}: would play the {{part}} part (now: {{now}})"
+      "would_play": "{{instrument}}: would play the {{part}} part (now: {{now}})",
+      "not_used_yet": "{{instrument}}: for the {{part}} part, which the music does not use yet",
+      "not_used_yet_installed": "{{instrument}}: installed for the {{part}} part, which the music does not use yet"
     },
     "synth_voice": "the music's own synthesised voice",
     "fallback_note": "Without a pack, its parts play on the next best instrument installed, or on the music's own synthesised voices: the music always plays.",

@@ -233,6 +233,44 @@ mod device_tests {
         assert!(fading < s.gain && gone < 1e-4, "it fades out after a stop: {fading} then {gone}");
     }
 
+    /// WHAT STARTING THE SCORE COSTS, measured in an optimised build (BUG-270): reading the music's
+    /// data, resolving it, and decoding the core set's recordings through kira (as the engine's build
+    /// does, `src/instrument_packs/samples.rs`), for the three folders the music used before
+    /// 2026-11-07 (the harp, the steel pan, the bass drum: the game thread's stall at world entry
+    /// until then) and the seven the default style sounds now (adding the violins, cellos,
+    /// glockenspiel and vibraphone: the work the worker thread does now). Printed for the record, not
+    /// a gate. Run: cargo test --release -p humanity-music --lib decode_cost -- --ignored --nocapture
+    #[test]
+    #[ignore = "a measurement printed for the record; run in release: cargo test --release -p humanity-music --lib decode_cost -- --ignored --nocapture"]
+    fn decode_cost_of_starting_the_score() {
+        let data = crate::tests::data_dir();
+        let decode = |folders: &[&str]| -> (f64, usize, usize) {
+            let t0 = std::time::Instant::now();
+            let (mut files, mut frames) = (0, 0);
+            for f in folders {
+                for e in std::fs::read_dir(data.join("music/samples").join(f)).unwrap().flatten() {
+                    if e.path().extension().is_some_and(|x| x == "ogg") {
+                        let d = kira::sound::static_sound::StaticSoundData::from_file(e.path()).unwrap();
+                        let s = crate::instrument::frames16(d.frames.iter().map(|f| [f.left, f.right]));
+                        frames += s.len();
+                        files += 1;
+                    }
+                }
+            }
+            (t0.elapsed().as_secs_f64() * 1000.0, files, frames)
+        };
+        let t0 = std::time::Instant::now();
+        let lib = shipped();
+        let res = Resolved::new(&lib, &SampleLibrary::new()).unwrap();
+        let load_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        drop(res);
+        let (before_ms, bf, bn) = decode(&["concert_harp_small", "steel_pan_small", "bass_drum_small"]);
+        let (now_ms, nf, nn) = decode(&["concert_harp_small", "steel_pan_small", "bass_drum_small", "violins_small", "cellos_small", "glockenspiel_small", "vibraphone_small"]);
+        println!("the music's data read and resolved: {load_ms:.1} ms");
+        println!("before (harp, steel pan, bass drum): {bf} files decoded in {before_ms:.0} ms, {:.1} MiB as 32-bit floats", bn as f64 * 8.0 / 1048576.0);
+        println!("now (the default style's seven): {nf} files decoded in {now_ms:.0} ms, {:.1} MiB as 16-bit", nn as f64 * 4.0 / 1048576.0);
+    }
+
     /// THE HUM PLAYS ON A DEVICE (rung 2), at its level aboard, and fades away off the ship. RED first
     /// (2026-11-06) with `aboard` ignored by the bed: "off the ship it fades: 0.00046837216 from
     /// 0.00042681626" (a first version at gain 0 could not fail: nothing to fade from).

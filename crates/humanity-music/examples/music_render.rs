@@ -150,7 +150,7 @@ fn main() {
         None => (style, 0.0),
     };
     let out = arg(&args, "--out").map(PathBuf::from).unwrap_or_else(|| std::env::temp_dir().join(format!("humanityos-music-{mood_id}-{style_id}-{}.wav", a4 as u32)));
-    let ctx_at = |t: f64| MusicContext { gain: 1.0, a4_hz: a4, mood: mood as u16, style_a: style as u16, style_b: style_b as u16, blend, intensity: ramp_at(&ramp, t, steady) };
+    let ctx_at = |t: f64| MusicContext { gain: 1.0, a4_hz: a4, mood: mood as u16, style_a: style as u16, style_b: style_b as u16, blend, intensity: ramp_at(&ramp, t, steady), duck_db: 0.0 };
 
     // (frames, mean us, worst us, limiter samples, the 99.9th percentile block us)
     let render = |lib: &MusicLibrary, style: usize| -> (Vec<[f32; 2]>, f64, f64, u64, f64) {

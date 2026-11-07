@@ -20,9 +20,11 @@
 //! **Not a cache.** An installed pack is data the person chose to install, the way a program is
 //! installed: it is never worked out again from anything, it is checked against its published
 //! SHA-256 before it lands, and removing it changes what plays (that part falls back to the next
-//! instrument or to synthesis), so nothing stale can hide in it. The only thing kept in memory
-//! between notes is decoded sample audio ([`samples::SampleBank`]), which obeys the Dev page's
-//! "turn off all reuse" switch: off, every note decodes its file again.
+//! instrument or to synthesis), so nothing stale can hide in it. What is kept in memory is decoded
+//! sample audio: a score holds the recordings it was built with, and [`samples::SampleBank`], the
+//! path the music decodes through (engine/music.rs's build, BUG-267), keeps them between builds
+//! while the Dev page's "turn off all reuse" switch is on; off, every build (one a phrase) decodes
+//! every file again and the bank keeps nothing.
 //!
 //! The website does not play music yet (music.md rung 9 compiles the score to WebAssembly), so it
 //! has no Instruments list; when it plays music, it mirrors this section.

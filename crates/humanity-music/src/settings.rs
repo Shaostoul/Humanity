@@ -26,7 +26,9 @@ pub struct MusicSettings {
     pub places_pick_style: bool,
     /// Background sounds of places (the ship's hum), separate from the music, 0..1.
     pub ambience_volume: f32,
-    /// The ship's hum aboard, and its level against the music (0.35 is about 18 LU under it).
+    /// The ship's hum aboard, and its level among the background sounds: the hum follows the
+    /// Ambience Volume and this, never the Music Volume (0.35 puts it about 18 LU under the music
+    /// with both volumes at the same setting).
     pub ship_hum: bool,
     pub ship_hum_level: f32,
     /// The optional tones layer: off by default; it plays only while the music is off.

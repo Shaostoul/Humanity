@@ -728,6 +728,11 @@ impl ScreenCore {
         self.textures.chat_video.sync_sound(audio, place);
     }
 
+    /// Is one of this screen's chat videos' sound playing (the live music sits under it: BUG-269)?
+    pub(crate) fn chat_video_sounding(&self) -> bool {
+        self.textures.chat_video.sounding()
+    }
+
     /// This screen's chat videos give way to a chat video started since anywhere else (the app
     /// screen, another wall screen): one at a time across them all (2026-11-06,
     /// `engine::screens::chat_videos_one_at_a_time`, every frame, framed or not).

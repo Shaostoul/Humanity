@@ -64,12 +64,13 @@ pub struct SoundEntry {
     /// Maximum falloff distance for spatial sounds.
     #[serde(default = "default_falloff_max")]
     pub falloff_max: f32,
-    /// Audio bus: "ambient", "music", "sfx", "voice", "ui".
+    /// Audio bus, the volume slider it follows: "ambient", "music", "sfx", "voice", "ui", or
+    /// "notifications" (a notice's chime: Settings > Audio's Notifications volume, BUG-265).
     #[serde(default = "default_bus")]
     pub bus: String,
     /// The kind of sound it is for "Even out loudness" (a kind in data/audio/loudness.toml:
-    /// "notification", "interface", ...), when its bus does not already say it (a chat message's
-    /// chime rides the "ui" bus but is levelled as a notification). None: its bus's kind.
+    /// "notification", "interface", ...), when its bus does not already say it. None: its bus's
+    /// kind.
     #[serde(default)]
     pub category: Option<String>,
     /// Alternative audio file variations for randomization.
@@ -154,6 +155,14 @@ impl SoundCatalog {
         self.entries.get(id).map(|e| e.volume as f64).unwrap_or(0.5)
     }
 
+    /// The catalogue bus of a sound ID ("sfx" when the id is unknown, the parser's default): the
+    /// volume slider it follows (`AudioManager::one_shot`). The game plays every catalogued sound on
+    /// this bus, and Settings > Audio > Sound levels' Play does too, so the two always agree
+    /// (BUG-265: the game's queue played every one of them on "sfx").
+    pub fn bus_or_default(&self, id: &str) -> &str {
+        self.entries.get(id).map_or("sfx", |e| e.bus.as_str())
+    }
+
     /// Get all sound IDs in this catalog.
     pub fn ids(&self) -> impl Iterator<Item = &String> {
         self.entries.keys()
@@ -211,6 +220,13 @@ impl SoundCatalog {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+}
+
+/// The path a catalogued sound is played from: its catalogue `path` (relative to the assets
+/// folder) under `assets_dir` (`storage::assets_dir()` in the app). One spelling for the game's
+/// sounds and Settings > Audio > Sound levels' Play, so both decode one shared copy.
+pub fn asset_path(assets_dir: &std::path::Path, rel: &str) -> String {
+    assets_dir.join(rel).to_string_lossy().into_owned()
 }
 
 impl Default for SoundCatalog {

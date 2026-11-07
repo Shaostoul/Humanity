@@ -368,22 +368,9 @@ fn tick(state: &mut EngineState, now: Instant) {
     state.tray.last_tick = Some(now);
     state.tray.next_tick = Some(now + TICK);
     crate::engine::frame_net::pump(state, dt);
-    play_queued_sounds(state);
-}
-
-/// The sounds queued since the last tick, as the frame's audio stage plays them.
-fn play_queued_sounds(state: &mut EngineState) {
-    let Some(audio) = state.audio.as_mut() else {
-        state.pending_sfx.clear();
-        return;
-    };
-    for (id, fallback) in state.pending_sfx.drain(..) {
-        let path = format!("assets/{}", state.sound_catalog.path_or(id, fallback));
-        let vol = state.sound_catalog.volume_or_default(id);
-        if let Err(e) = audio.play_sound_vol(&path, vol) {
-            log::debug!("[Audio] sfx {id}: {e}");
-        }
-    }
+    // The sounds queued since the last tick, as the frame's audio stage plays them (each on its
+    // bus: a notice's on the notifications volume, BUG-265).
+    crate::engine::sfx::play_queued(state);
 }
 
 #[cfg(test)]

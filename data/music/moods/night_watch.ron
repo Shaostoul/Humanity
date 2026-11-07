@@ -29,10 +29,10 @@ Mood(
     chord_bars: (2, 4),
     tempo_bpm: (52.0, 58.0),
     roles: [
-        (role: Pad, instrument: "dark_pad", low: "A2", high: "A4", voices: 5),
+        (role: Pad, instrument: "dark_pad", part: Some("strings_low"), low: "A2", high: "A4", voices: 5),
         (role: Choir, instrument: "choir_ah", low: "C4", high: "C5", voices: 3, density: 0.4, level_db: -4.0),
-        (role: Drone, instrument: "drone", low: "E2", high: "D#3"),
-        (role: Bells, instrument: "celesta", low: "A4", high: "E6", density: 0.25, level_db: -3.0),
+        (role: Drone, instrument: "drone", part: Some("bass_strings"), low: "E2", high: "D#3"),
+        (role: Bells, instrument: "celesta", part: Some("vibraphone"), low: "A4", high: "E6", density: 0.25, level_db: -3.0),
         (role: Melody, instrument: "steel_pan", part: Some("steel_pan"), low: "A3", high: "A5", density: 0.15, level_db: -4.0),
         (role: Percussion, instrument: "deep_drum", part: Some("deep_drum"), low: "A1", high: "G#2", density: 0.25, level_db: -4.0, pulse: Some((every_bars: 2, hits: [(0.0, 0.55)]))),
     ],

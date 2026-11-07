@@ -4,7 +4,12 @@
 # All paths relative to assets/audio/. Format: .ogg (Vorbis).
 # Hot-reloadable via FileWatcher.
 #
-# Bus types: "ambient", "music", "sfx", "voice", "ui"
+# Bus types: "ambient", "music", "sfx", "voice", "ui", "notifications". The bus is the volume slider
+# in Settings > Audio a sound follows (AudioManager::one_shot), and the game plays every catalogued
+# sound on its own bus: "ui" the interface volume (clicks and the menu sounds), "notifications" the
+# notifications volume (the chimes a notice plays, so turning the clicks down never silences one;
+# a notice plays its chosen sound on it whatever that sound's bus here, engine/sfx.rs), "ambient"
+# the ambience volume, "music" the music volume, "sfx" and "voice" the sound-effects volume.
 # Spatial sounds use inverse-distance falloff between falloff_min and falloff_max.
 #
 # Loudness (Settings > Audio > "Even out loudness", on by default; docs/design/loudness.md): each
@@ -492,9 +497,9 @@ path = "audio/ui/notification.ogg"
 volume = 0.6
 loop = false
 spatial = false
-bus = "ui"
-# Levelled as a notification, not a click (data/audio/loudness.toml).
-category = "notification"
+# A notice's chime: the notifications volume, and levelled as a notification (loudness.toml's
+# [buses]), not as a click (BUG-265).
+bus = "notifications"
 tags = ["interface", "alert"]
 
 [sfx.error]
@@ -510,7 +515,8 @@ path = "audio/ui/success.ogg"
 volume = 0.5
 loop = false
 spatial = false
-bus = "ui"
+# A notice's "bright" chime (notifications.json) and played nowhere else: a notification.
+bus = "notifications"
 tags = ["interface", "alert", "positive"]
 
 [sfx.chat_message]
@@ -518,9 +524,8 @@ path = "audio/ui/chat_message.ogg"
 volume = 0.4
 loop = false
 spatial = false
-bus = "ui"
-# Levelled as a notification, not a click (data/audio/loudness.toml).
-category = "notification"
+# A notice's chime (a message arrived): the notifications volume, levelled as a notification.
+bus = "notifications"
 tags = ["interface", "social"]
 
 [sfx.inventory_pickup]

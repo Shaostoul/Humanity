@@ -88,8 +88,16 @@ And 1 more items, 1 references (`node scripts/crate-cards.js --interface humanit
   repeats and voice leading, the style layer, the intensity bands); `src/tests_audio.rs` the ones that
   render and measure (tuning in the audio, the steel pan's and deep drum's partials and decay, the
   hum and its alarm, loudness and true peak with humanity_core's BS.1770 meter, determinism, the
-  cost per block, no allocation, the sampler seam). The crate is optimised in dev and test builds
-  (the root Cargo.toml), so its timing tests measure the game's speed.
+  cost per block, no allocation, the sampler seam, the duck, a sustain held past its recording by a
+  crossfaded loop). The crate is optimised in dev and test builds (the root Cargo.toml), so its
+  timing tests measure the game's speed.
+- **What starting the score costs, optimised:** the ignored `kira_sound::device_tests::
+  decode_cost_of_starting_the_score` (`cargo test --release -p humanity-music --lib decode_cost --
+  --ignored --nocapture`): the data read and the core set decoded as the engine's build does.
+- **The engine's side** (`src/engine/music_tests.rs`): where the music is heard from, the gains and
+  ducks, the build on its worker thread, a new score taking over at a phrase after an install, the
+  reuse switch, and the ignored `the_score_with_recordings_measured` (each mood with the core set's
+  recordings attached: loudness, true peak, cost per block, decoded memory).
 - **The shipped data:** `the_shipped_music_data_parses` runs in `just validate-data`.
 - **Listen and measure offline:** `just music-render <mood> <style> <seconds>` (options: `--ramp`
   for an intensity over time, `--hum`, `--breach`, `--blend`, `--stems` for each role's loudness
@@ -102,17 +110,22 @@ And 1 more items, 1 references (`node scripts/crate-cards.js --interface humanit
 
 ## Open work
 
-- **Rungs 4 to 10 of the music** (menus and ducking, the self-meter and `music_state` on the IPC,
+- **Rungs 4 to 10 of the music** (the menu mood on the title screens, voice-call ducking, the self-meter and `music_state` on the IPC,
   sampled instruments, stingers and gaps, the soft-metal guitar and the soprano, the website,
   making music in the app), and the styles' later rungs (electroswing, dubstep, a danger palette
   per style). Source: [music.md](../design/music.md), sections 7a, 7b and 20.
 - **Recorded instruments play by part** (2026-11-06): roles name parts, and
   `src/instrument_packs/score.rs` (the instrument library's module, in the engine) attaches the best
-  installed recording of each into this crate's `SampleSet`; the deep drum, the steel pan and the
-  harp are parts in the shipped moods so far. A recording with exact keys (the Hang) plays its own
-  notes and the rest on its fallback (`SamplerSpec::fallback_index`). Decoding happens on the game thread when a score starts (a
-  hitch of tens of milliseconds for the core set); a worker could take it. Source:
-  [music.md](../design/music.md), section 6a.
+  installed recording of each into this crate's `SampleSet` (16-bit frames, `SAMPLE_SCALE`); since
+  2026-11-07 the moods' pads are string sections, their bells a glockenspiel or a vibraphone, their
+  drones the double bass, and lo-fi's keys, lead and melody the piano, a guitar and the handpan
+  (BUG-266), each falling back to its synthesised voice. A recording with exact keys (the Hang) plays
+  its own notes and the rest on its fallback (`SamplerSpec::fallback_index`); a sustained one with no
+  loop points of its own is held by a crossfaded loop (`SampleZone::loop_xfade`). The engine builds
+  on a worker thread and a new score takes over at a phrase (src/engine/music.rs). With the core
+  set's recordings the calm moods measure 1 to 2 LU under the music target (-19.1 to -20.2 LUFS,
+  2026-11-07): the self-meter of rung 5 is the planned fix. Source: [music.md](../design/music.md),
+  sections 6a, 14 and 23.
 - **The danger intensity is a dev knob today.** Game systems (a hull breach, a meteor storm, an
   invasion, combat) are to raise it; none exists yet. Source: music.md section 7b.
 - **The danger moods cost more than the calm budget** (action at its peak about 0.13 ms a block,

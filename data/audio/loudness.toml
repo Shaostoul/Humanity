@@ -62,6 +62,7 @@ target_lufs = -15.0
 [buses]
 sfx = "sfx"
 ui = "interface"
+notifications = "notification"
 music = "music"
 ambient = "ambient"
 voice = "speech"

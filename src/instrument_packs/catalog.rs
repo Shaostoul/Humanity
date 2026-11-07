@@ -105,6 +105,20 @@ pub struct Part {
     pub words: String,
     /// The synthesised voice that plays this part when no recorded instrument for it is installed.
     pub synth: SynthFallback,
+    /// Another part that plays this one when no recording of it is installed, and plays the notes
+    /// its recording lacks (the handpan's nine notes, the rest on the steel pan): what that part
+    /// plays now, a recording or its synthesised voice. None: the role's own synthesised voice.
+    #[serde(default)]
+    pub fallback_part: Option<String>,
+    /// No mood or style plays this part yet (its instruments install and wait): Settings > Audio >
+    /// Instruments says so, and a data test fails when a part no music names is not marked, or a
+    /// marked one is named (data_tests.rs).
+    #[serde(default)]
+    pub not_used_yet: bool,
+    /// Its notes are held (string sections, a bowed vibraphone, a glass): a recording of it with no
+    /// loop points is held past its end by a crossfaded loop (`SampleZone::loop_xfade`).
+    #[serde(default)]
+    pub sustained: bool,
 }
 
 /// One of music.md's synthesised voices (section 6: `synth`, `choir`, `modal`, `plucked`) and the

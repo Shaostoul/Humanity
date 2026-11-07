@@ -46,7 +46,9 @@ pub struct AudioManager<B: kira::backend::Backend = kira::DefaultBackend> {
     ids: HashMap<String, String>,
     /// Whether `levels` and `ids` were read (with reuse off they are read again at every play).
     levels_read: bool,
-    /// Where the data folder is (the app's "data" beside it; tests point at the repo's).
+    /// Where the data folder is: the one the app resolved (`storage::data_dir()`, BUG-268: a
+    /// relative "data" missed whenever the app started outside its own folder); tests point at the
+    /// repo's.
     data_dir: std::path::PathBuf,
     /// Current music track handle (if playing).
     music_handle: Option<kira::sound::static_sound::StaticSoundHandle>,
@@ -62,6 +64,10 @@ pub struct AudioManager<B: kira::backend::Backend = kira::DefaultBackend> {
     /// `sfx_volume`, so a user can quiet clicks without silencing footsteps
     /// and machines. Default 1.0.
     ui_volume: f64,
+    /// Notifications bus gain (0.0 - 1.0, Settings > Audio's Notifications volume, BUG-265): a
+    /// notice's chime, and every catalogued sound whose `bus` is "notifications", so turning the
+    /// interface clicks down never silences a notice (docs/design/loudness.md, rung 4).
+    notifications_volume: f64,
     /// The sound Settings > Audio > Sound levels' Play started last, stopped when the next starts
     /// (so a long sound previewed twice does not play twice over itself).
     preview_handle: Option<kira::sound::static_sound::StaticSoundHandle>,
@@ -110,13 +116,14 @@ impl<B: kira::backend::Backend> AudioManager<B> {
             levels: None,
             ids: HashMap::new(),
             levels_read: false,
-            data_dir: std::path::PathBuf::from("data"),
+            data_dir: crate::storage::data_dir(),
             music_handle: None,
             master_volume: 1.0,
             music_volume: 0.7,
             sfx_volume: 1.0,
             ambience_volume: 0.6,
             ui_volume: 1.0,
+            notifications_volume: 1.0,
             preview_handle: None,
         }
     }
@@ -135,36 +142,32 @@ impl<B: kira::backend::Backend> AudioManager<B> {
     /// [`play_sound_bus`](Self::play_sound_bus) with `"ui"` so the separate
     /// interface-volume control governs them.
     pub fn play_sound_vol(&mut self, path: &str, vol: f64) -> Result<(), String> {
-        self.play_sound_bus(path, vol, "sfx")
+        self.play_sound_bus(path, vol, "sfx").map(|_| ())
     }
 
-    /// Play a one-shot routed through a named audio bus (v0.1112). The "ui"
-    /// bus carries its own volume so a user can quiet interface clicks without
-    /// touching footsteps and machines; every other bus routes through sfx.
-    /// This is what finally makes the `bus` field in data/sounds.toml
-    /// load-bearing - before this it was parsed and ignored.
-    pub fn play_sound_bus(&mut self, path: &str, vol: f64, bus: &str) -> Result<(), String> {
+    /// Play a one-shot routed through a named audio bus (v0.1112): the volume slider of that bus
+    /// governs it ([`Self::one_shot`] says which bus is which). This is what makes the `bus` field
+    /// in data/sounds.toml load-bearing; the game's queue of sounds raised by actions plays each one
+    /// on its catalogue bus through here (engine/sfx.rs, BUG-265). The amplitude it played at.
+    pub fn play_sound_bus(&mut self, path: &str, vol: f64, bus: &str) -> Result<f64, String> {
         let (data, amplitude) = self.one_shot(path, vol, bus)?;
         let settings = kira::sound::static_sound::StaticSoundSettings::default().volume(decibels(amplitude));
         let data_with_settings = data.with_settings(settings);
         self.manager
             .play(data_with_settings)
             .map_err(|e| format!("Play error: {}", e))?;
-        Ok(())
+        Ok(amplitude)
     }
 
     /// The decoded sound at `path` and the amplitude a one-shot of it plays at on `bus` with its
     /// authored volume `vol`: master x bus x volume x its loudness level ([`Self::level_for`], 1.0
     /// with "Even out loudness" off) x the person's own level for it ([`Self::persons_level`],
     /// Settings > Audio > Sound levels). One function, so what is played and what a test checks
-    /// are the same number. The "ui" bus is the interface volume, "music" the music volume, any
-    /// other the sound-effects volume.
+    /// are the same number. The "ui" bus is the interface volume, "notifications" the notifications
+    /// volume, "music" the music volume, "ambient" the ambience volume (BUG-271: it fell through to
+    /// the sound-effects volume), any other ("sfx", "voice") the sound-effects volume.
     pub fn one_shot(&mut self, path: &str, vol: f64, bus: &str) -> Result<(kira::sound::static_sound::StaticSoundData, f64), String> {
-        let bus_gain = match bus {
-            "ui" => self.ui_volume,
-            "music" => self.music_volume,
-            _ => self.sfx_volume,
-        };
+        let bus_gain = self.bus_volume(bus);
         let data = self.load_sound(path)?;
         self.read_data();
         let vol = vol.clamp(0.0, 2.0);
@@ -334,6 +337,23 @@ impl<B: kira::backend::Backend> AudioManager<B> {
     /// Set interface-sound volume (0.0 - 1.0). Governs sounds on the "ui" bus.
     pub fn set_ui_volume(&mut self, vol: f64) {
         self.ui_volume = vol.clamp(0.0, 1.0);
+    }
+
+    /// Set the notifications volume (0.0 - 1.0). Governs sounds on the "notifications" bus: every
+    /// notice's chime (BUG-265).
+    pub fn set_notifications_volume(&mut self, vol: f64) {
+        self.notifications_volume = vol.clamp(0.0, 1.0);
+    }
+
+    /// The volume slider a bus follows (0.0 - 1.0), Master not included: see [`Self::one_shot`].
+    pub fn bus_volume(&self, bus: &str) -> f64 {
+        match bus {
+            "ui" => self.ui_volume,
+            "notifications" => self.notifications_volume,
+            "music" => self.music_volume,
+            "ambient" => self.ambience_volume,
+            _ => self.sfx_volume,
+        }
     }
 
     /// The current master volume (0.0 - 1.0). A long-lived sound whose

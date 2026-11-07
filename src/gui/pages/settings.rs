@@ -2746,10 +2746,16 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "Loudness of interface clicks only. Separate from game sound effects; scales together with Master Volume.");
-        // Even out loudness (2026-11-06, docs/design/loudness.md): every sound at its kind's
-        // loudness (humanity_core::audio::levels). Words by key, its hint its description.
         use humanity_core::i18n::t;
         use crate::gui::widgets::with_hint;
+        // Notifications (2026-11-07, BUG-265; docs/design/loudness.md rung 4): every notice's chime
+        // rides its own bus, so the clicks above can go silent without silencing a notice.
+        if with_hint(ui, "settings.notifications_volume_hint", |ui| widgets::labeled_slider(ui, theme, t("settings.notifications_volume"), &mut state.settings.notifications_volume, 0.0..=1.0)) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, t("settings.notifications_volume_hint"));
+        // Even out loudness (2026-11-06, docs/design/loudness.md): every sound at its kind's
+        // loudness (humanity_core::audio::levels). Words by key, its hint its description.
         if with_hint(ui, "settings.even_loudness_hint", |ui| widgets::toggle(ui, theme, t("settings.even_loudness"), &mut state.settings.even_loudness)) {
             state.settings_dirty = true;
         }

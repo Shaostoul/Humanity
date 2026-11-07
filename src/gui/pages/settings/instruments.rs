@@ -158,12 +158,20 @@ fn draw_pack(ui: &mut egui::Ui, theme: &Theme, entry: &PackEntry, packs: &mut Pa
 }
 
 /// For each instrument: the part it plays, and whether the music uses it now, has a better one, or
-/// (its pack not installed) what plays that part instead.
+/// (its pack not installed) what plays that part instead; and, for a part no mood or style of the
+/// music names (`PacksUi::used_parts`), that the music does not use that part yet (BUG-266: every
+/// listed instrument was said to "play the part" whenever it was the best for it, heard or not).
 fn draw_uses(ui: &mut egui::Ui, theme: &Theme, packs: &PacksUi, refs: &[InstrumentRef], installed: bool) {
     muted(ui, theme, t("instrument_packs.uses_title"));
     for r in refs {
         let name = instrument_name(&r.id);
         let part_name = t_dyn(&format!("instrument_packs.part.{}", r.part));
+        if packs.used_parts.as_ref().is_some_and(|used| !used.contains(&r.part)) {
+            let args: &[(&str, &dyn std::fmt::Display)] = &[("instrument", &name), ("part", &part_name)];
+            let line = if installed { tf("instrument_packs.use.not_used_yet_installed", args) } else { tf("instrument_packs.use.not_used_yet", args) };
+            muted(ui, theme, format!("  {line}"));
+            continue;
+        }
         let now = match packs.parts.as_ref().and_then(|p| packs.library.choose(&r.part, p)) {
             Some(Choice::Sampled(a)) => Some((a.def.id.clone(), instrument_name(&a.def.id))),
             _ => None,

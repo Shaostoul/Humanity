@@ -9,30 +9,37 @@
 // modal, membrane, fm, plucked, noise); src/instrument_packs/data_tests.rs holds both to the music's
 // data. A mood's role names its part (`part: Some("deep_drum")`) beside its own synthesised
 // instrument, which is what plays when the part has no recording.
+//
+// `fallback_part`: another part that plays this one when no recording of it is installed, and the
+// notes its recording lacks (the handpan's nine notes; the rest on the steel pan). `sustained`: its
+// notes are held, so a recording of it made without loop points is held past its end by a
+// crossfaded loop. `not_used_yet`: no mood or style plays this part yet; its instruments install
+// and wait, and Settings > Audio > Instruments says so (a data test fails when a part no music names
+// is not marked, or a marked part is named: src/instrument_packs/data_tests.rs).
 Parts(
     parts: [
         (id: "piano", words: "instrument_packs.part.piano", synth: (kind: "fm", preset: "electric_piano")),
         (id: "harp", words: "instrument_packs.part.harp", synth: (kind: "plucked", preset: "harp")),
-        (id: "strings_high", words: "instrument_packs.part.strings_high", synth: (kind: "synth", preset: "soft_saw_pad")),
-        (id: "strings_mid", words: "instrument_packs.part.strings_mid", synth: (kind: "synth", preset: "soft_saw_pad")),
-        (id: "strings_low", words: "instrument_packs.part.strings_low", synth: (kind: "synth", preset: "dark_pad")),
-        (id: "bass_strings", words: "instrument_packs.part.bass_strings", synth: (kind: "synth", preset: "drone")),
-        (id: "strings_pizzicato", words: "instrument_packs.part.strings_pizzicato", synth: (kind: "plucked", preset: "harp")),
-        (id: "solo_violin", words: "instrument_packs.part.solo_violin", synth: (kind: "synth", preset: "soft_lead")),
+        (id: "strings_high", words: "instrument_packs.part.strings_high", synth: (kind: "synth", preset: "soft_saw_pad"), sustained: true),
+        (id: "strings_mid", words: "instrument_packs.part.strings_mid", synth: (kind: "synth", preset: "soft_saw_pad"), sustained: true, not_used_yet: true),
+        (id: "strings_low", words: "instrument_packs.part.strings_low", synth: (kind: "synth", preset: "dark_pad"), sustained: true),
+        (id: "bass_strings", words: "instrument_packs.part.bass_strings", synth: (kind: "synth", preset: "drone"), sustained: true),
+        (id: "strings_pizzicato", words: "instrument_packs.part.strings_pizzicato", synth: (kind: "plucked", preset: "harp"), not_used_yet: true),
+        (id: "solo_violin", words: "instrument_packs.part.solo_violin", synth: (kind: "synth", preset: "soft_lead"), sustained: true, not_used_yet: true),
         (id: "vibraphone", words: "instrument_packs.part.vibraphone", synth: (kind: "modal", preset: "celesta")),
-        (id: "bowed_vibraphone", words: "instrument_packs.part.bowed_vibraphone", synth: (kind: "modal", preset: "celesta")),
+        (id: "bowed_vibraphone", words: "instrument_packs.part.bowed_vibraphone", synth: (kind: "modal", preset: "celesta"), sustained: true, not_used_yet: true),
         (id: "glockenspiel", words: "instrument_packs.part.glockenspiel", synth: (kind: "modal", preset: "celesta")),
-        (id: "tubular_bells", words: "instrument_packs.part.tubular_bells", synth: (kind: "modal", preset: "celesta")),
-        (id: "hand_chimes", words: "instrument_packs.part.hand_chimes", synth: (kind: "modal", preset: "celesta")),
-        (id: "wine_glass", words: "instrument_packs.part.wine_glass", synth: (kind: "modal", preset: "celesta")),
-        (id: "marimba", words: "instrument_packs.part.marimba", synth: (kind: "modal", preset: "celesta")),
-        (id: "xylophone", words: "instrument_packs.part.xylophone", synth: (kind: "modal", preset: "celesta")),
+        (id: "tubular_bells", words: "instrument_packs.part.tubular_bells", synth: (kind: "modal", preset: "celesta"), not_used_yet: true),
+        (id: "hand_chimes", words: "instrument_packs.part.hand_chimes", synth: (kind: "modal", preset: "celesta"), not_used_yet: true),
+        (id: "wine_glass", words: "instrument_packs.part.wine_glass", synth: (kind: "modal", preset: "celesta"), sustained: true, not_used_yet: true),
+        (id: "marimba", words: "instrument_packs.part.marimba", synth: (kind: "modal", preset: "celesta"), not_used_yet: true),
+        (id: "xylophone", words: "instrument_packs.part.xylophone", synth: (kind: "modal", preset: "celesta"), not_used_yet: true),
         (id: "steel_pan", words: "instrument_packs.part.steel_pan", synth: (kind: "modal", preset: "steel_pan")),
-        (id: "handpan", words: "instrument_packs.part.handpan", synth: (kind: "modal", preset: "steel_pan")),
+        (id: "handpan", words: "instrument_packs.part.handpan", synth: (kind: "modal", preset: "steel_pan"), fallback_part: Some("steel_pan")),
         (id: "guitar", words: "instrument_packs.part.guitar", synth: (kind: "plucked", preset: "harp")),
         (id: "deep_drum", words: "instrument_packs.part.deep_drum", synth: (kind: "membrane", preset: "deep_drum")),
-        (id: "timpani", words: "instrument_packs.part.timpani", synth: (kind: "membrane", preset: "taiko_hit")),
-        (id: "frame_drum", words: "instrument_packs.part.frame_drum", synth: (kind: "membrane", preset: "taiko")),
-        (id: "gong", words: "instrument_packs.part.gong", synth: (kind: "membrane", preset: "taiko_hit")),
+        (id: "timpani", words: "instrument_packs.part.timpani", synth: (kind: "membrane", preset: "taiko_hit"), not_used_yet: true),
+        (id: "frame_drum", words: "instrument_packs.part.frame_drum", synth: (kind: "membrane", preset: "taiko"), not_used_yet: true),
+        (id: "gong", words: "instrument_packs.part.gong", synth: (kind: "membrane", preset: "taiko_hit"), not_used_yet: true),
     ],
 )

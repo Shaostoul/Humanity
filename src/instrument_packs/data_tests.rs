@@ -101,3 +101,71 @@ fn the_instrument_data_parses_and_every_sample_has_its_licence() {
         assert!(has_words(&format!("instrument_packs.instrument.{}", r.id)), "{} has its name in en.json", r.id);
     }
 }
+
+/// EVERY PART THE INSTRUMENTS LIST IS PLAYED BY THE MUSIC OR SAYS IT IS NOT YET (BUG-266): each part
+/// `parts.ron` and `packs.ron` list is named by a mood's role or a style's added role or palette
+/// (`score::named_parts`, what the score attaches recordings to), unless `parts.ron` marks it
+/// `not_used_yet` (Settings > Audio > Instruments then says the music does not use it yet); a
+/// marked part the music does name fails too, so the mark cannot go stale; and a `fallback_part` is a
+/// part. RED first (2026-11-07) against the data before the fix (only harp, steel_pan and deep_drum
+/// named, no marks): "packs.ron and parts.ron list parts no mood or style plays, unmarked: [\"bass_strings\",
+/// \"bowed_vibraphone\", ...]".
+#[test]
+fn every_part_listed_is_played_or_marked_not_used_yet() {
+    let data = data();
+    let parts = Parts::load(&data).expect("parts.ron");
+    let catalog = PackCatalog::load(&data).expect("packs.ron");
+    let music = humanity_music::MusicLibrary::load(&data).expect("the music's data loads");
+    let named: BTreeSet<String> = super::score::named_parts(&music).into_iter().map(|(p, _, _)| p).collect();
+    let listed: BTreeSet<String> = parts
+        .parts
+        .iter()
+        .map(|p| p.id.clone())
+        .chain(catalog.core.instruments.iter().chain(catalog.packs.iter().flat_map(|p| p.instruments.iter())).map(|r| r.part.clone()))
+        .collect();
+    let marked = |id: &str| parts.part(id).is_some_and(|p| p.not_used_yet);
+    let unmarked: Vec<&String> = listed.iter().filter(|p| !named.contains(*p) && !marked(p)).collect();
+    assert!(unmarked.is_empty(), "packs.ron and parts.ron list parts no mood or style plays, unmarked: {unmarked:?}");
+    let stale: Vec<&String> = listed.iter().filter(|p| named.contains(*p) && marked(p)).collect();
+    assert!(stale.is_empty(), "parts marked not_used_yet that the music does play: {stale:?}");
+    for p in &parts.parts {
+        if let Some(f) = &p.fallback_part {
+            assert!(parts.part(f).is_some() && f != &p.id, "part {}: its fallback_part {f} is another part", p.id);
+        }
+    }
+}
+
+/// A SUSTAINED PART'S RECORDINGS ARE HELD PAST THEIR END (BUG-266): the core set's violins have no
+/// loop points of their own (8 s recordings) and a calm chord lasts up to 13 s, so attached to the
+/// score each zone gets a crossfaded loop over its middle (`score::soft_loop`), while a struck
+/// bell's recordings are left to ring out. Only those two parts are attached here (the rest of the
+/// music's parts set aside), to keep the decoding short. RED first (2026-11-07) with `attach` giving
+/// no zone a loop of its own making: "the violins' zone for middle C loops (None, 0)".
+#[test]
+fn sustained_recordings_get_a_crossfaded_loop() {
+    let data = data();
+    let mut music = humanity_music::MusicLibrary::load(&data).expect("the music");
+    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut()).chain(music.styles.iter_mut().flat_map(|s| s.roles_add.iter_mut())) {
+        if !matches!(r.part.as_deref(), Some("strings_high" | "glockenspiel")) {
+            r.part = None;
+        }
+    }
+    for e in music.styles.iter_mut().flat_map(|s| s.palette.iter_mut()) {
+        e.part = None;
+    }
+    let parts = Parts::load(&data).expect("parts.ron");
+    let installed = InstrumentLibrary::load_roots(&[(data.join("music"), None)]);
+    let attached = super::score::attach(&mut music, &installed, &parts, 432.0, &mut super::samples::SampleBank::new(), None);
+    assert!(attached.problems.is_empty(), "{:?}", attached.problems);
+    let zone = |id: &str, midi: i32| {
+        let b = attached.samples.get(&super::score::recorded_id(id)).unwrap_or_else(|| panic!("{id} is attached"));
+        let z = b.zone(b.pick(midi, 0.8, 0).expect("a zone"));
+        (z.loop_range, z.loop_xfade, z.frames.len())
+    };
+    let (range, xfade, len) = zone("violins_small", 60);
+    assert!(range.is_some() && xfade > 0, "the violins' zone for middle C loops ({range:?}, {xfade})");
+    let (a, b) = range.unwrap();
+    assert!(a >= xfade && b > a + xfade && b <= len, "inside the recording: {a}..{b} of {len}, faded over {xfade}");
+    let (range, xfade, _) = zone("glockenspiel_small", 84);
+    assert!(range.is_none() && xfade == 0, "a struck bell rings out: {range:?}");
+}

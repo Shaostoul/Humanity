@@ -105,8 +105,9 @@ pub struct RStyle {
     pub pad_pattern: Option<Vec<f32>>,
     pub bass_pattern: Option<Vec<u8>>,
     pub harmony: HarmonyRule,
-    /// Per role: the palette's instrument and its level change (dB).
-    pub palette: [Option<(u16, f32)>; 8],
+    /// Per role: the palette's instrument, its level change (dB) and its own register (MIDI low,
+    /// high), if it has one.
+    pub palette: [Option<(u16, f32, Option<(i32, i32)>)>; 8],
     pub roles_off: [bool; 8],
     pub roles_add: [Option<RRole>; 8],
     pub recipe: Recipe,
@@ -240,9 +241,14 @@ impl Resolved {
         for s in &lib.styles {
             let owner = format!("style {}", s.id);
             let drums = drums_of(&s.drums, &owner)?;
-            let mut palette: [Option<(u16, f32)>; 8] = Default::default();
+            let mut palette: [Option<(u16, f32, Option<(i32, i32)>)>; 8] = Default::default();
             for p in &s.palette {
-                palette[p.role.index()] = Some((inst_of(&p.instrument, &owner)?, p.level_db));
+                let register = match (&p.low, &p.high) {
+                    (Some(lo), Some(hi)) => Some((note(lo, &owner)?, note(hi, &owner)?)),
+                    (None, None) => None,
+                    _ => return Err(format!("{owner}: a palette entry's register needs both low and high")),
+                };
+                palette[p.role.index()] = Some((inst_of(&p.instrument, &owner)?, p.level_db, register));
             }
             let mut roles_off = [false; 8];
             for r in &s.roles_off {

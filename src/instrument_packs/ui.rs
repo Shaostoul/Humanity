@@ -10,8 +10,9 @@
 //! read again after every install and removal; with the Dev page's "turn off all reuse" switch off
 //! it is read again every frame the section is on screen, so nothing it shows can be stale.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::catalog::{packs_dir, PackCatalog, Parts};
 use super::install::{self, InstalledPack, ProgressHandle, Stage};
@@ -34,6 +35,10 @@ pub struct PacksUi {
     pub load_error: Option<String>,
     pub installed: BTreeMap<String, InstalledPack>,
     pub library: InstrumentLibrary,
+    /// The parts the music plays (its moods' and styles' roles and palettes name them,
+    /// `score::named_parts`): a part outside it is shown as not used yet (BUG-266). None when the
+    /// music's data did not load.
+    pub used_parts: Option<BTreeSet<String>>,
     /// The pack downloading now, and its progress (kept after a failure until the next try).
     pub download: Option<(String, ProgressHandle)>,
     /// Requests from the section, acted on by `tick`.
@@ -55,6 +60,7 @@ impl PacksUi {
         for p in &self.library.problems {
             log::warn!("[Instruments] {p}");
         }
+        self.used_parts = humanity_music::MusicLibrary::load(data_dir).ok().map(|m| super::score::named_parts(&m).into_iter().map(|(p, _, _)| p).collect());
         self.loaded = true;
     }
 
@@ -70,6 +76,20 @@ impl PacksUi {
             _ => false,
         }
     }
+}
+
+/// Bumped each time an install or a removal finishes: the live music compares it with the one its
+/// score was built from and builds again, taking over at the next phrase (engine/music.rs, BUG-266).
+static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// How many installs and removals have finished this run.
+pub fn installed_generation() -> u64 {
+    GENERATION.load(Ordering::Relaxed)
+}
+
+/// An install or a removal finished: what is installed changed.
+pub fn installed_changed() {
+    GENERATION.fetch_add(1, Ordering::Relaxed);
 }
 
 /// The section's state for this run. Locked by the Settings section while it draws and by `tick`
@@ -117,11 +137,13 @@ pub fn tick(state: &mut PacksUi, data_dir: &Path) {
             }
             Err(e) => state.remove_error = Some((id, e)),
         }
+        installed_changed();
         state.reload(data_dir);
     }
     let finished = state.download.as_ref().is_some_and(|(_, p)| p.lock().map(|g| g.stage == Stage::Done).unwrap_or(false));
     if finished {
         state.download = None;
+        installed_changed();
         state.reload(data_dir);
     }
 }

@@ -583,9 +583,13 @@ impl Composer {
                     (Some(m), None) if !off => Some(base(m)),
                     _ => None,
                 }?;
-                if let Some((inst, db)) = s.and_then(|s| s.palette[k]) {
+                if let Some((inst, db, register)) = s.and_then(|s| s.palette[k]) {
                     r.inst = inst;
                     r.level *= crate::dsp::db_to_amp(db);
+                    if let Some((lo, hi)) = register {
+                        r.low = lo;
+                        r.high = hi;
+                    }
                 }
                 Some(r)
             };

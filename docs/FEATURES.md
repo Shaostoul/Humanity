@@ -2766,8 +2766,13 @@ bar-line transitions, taiko ostinatos, brass stabs; the Dev page's knob and the 
 `music_breach` showcase verbs); the ship's hum (brown noise with resonances on the key at 432, louder
 and darker toward the drive at the stern, softer in small rooms, silent off the ship, a stressed
 breach alarm with a klaxon tuned to the key); the optional tones (off by default, honest words);
-Settings > Music; `just music-render` renders offline. Rungs 4 to 10 (menus and ducking, the
-self-meter, sampled instruments, the website...) are planned in `docs/design/music.md`.
+Settings > Music; `just music-render` renders offline. Since 2026-11-07 (BUG-266 to 270): the build
+(the data read, the recordings decoded) runs on its own thread and a new score takes over at a
+phrase (after an instrument install, a change of style, and every phrase with "turn off all reuse"
+off); the music sits 12 dB under a playing chat video's sound and 6 dB under on a page opened from
+the world; the moods' pads, bells and drones and lo-fi's keys, lead and melody play recorded
+instruments where installed. Rungs 5 to 10 (the self-meter, voice-call ducking, the website...) are
+planned in `docs/design/music.md`.
 - Native: `crates/humanity-music/` (the crate: `composer.rs`, `voice.rs`, `score.rs`, `bed.rs`,
   `intensity.rs`, `kira_sound.rs`, card `docs/crates/humanity-music.md`), `src/engine/music.rs` (the
   frame wiring), `src/gui/pages/settings_music.rs`, `src/gui/pages/dev_music.rs`,
@@ -2789,6 +2794,10 @@ browser, `hos_sound_levels`; a level past the `<audio>` element's volume goes th
   backend), `src/gui/pages/settings/sound_levels.rs` (the section and `play_preview`), `src/config.rs`
 - Web: `web/shared/sound-levels.js`, Settings > Audio & Video > Sound levels (`web/pages/settings.html`),
   `web/chat/chat-notify.js` (`playSound` plays at the level)
+- Buses (2026-11-07, BUG-265): the game plays every catalogued sound on its catalogue bus, as Play
+  does (`src/engine/sfx.rs`); a NOTIFICATIONS volume (Settings > Audio > Volumes, `AppConfig::
+  notifications_volume`) carries every notice's chime, so turning the clicks down never silences
+  one; the "ambient" bus follows the ambience volume.
 
 ### Free instrument library: the core set, downloadable packs, Settings > Audio > Instruments (2026-11-06)
 Real recorded instruments for the live score (`docs/design/music.md` rung 6, section 23), all public

@@ -177,7 +177,15 @@ person's own ear, a slider in Settings > Audio > Sound levels (section 3).
 4. **Per-kind sliders: rung 4.** Settings > Audio gains a slider per kind the person meets (Speech,
    Video, Notifications beside the existing Music, Sound effects and Interface), read from the kinds
    in the data file, so a new kind brings its slider. (Each single sound already has its own level,
-   section 3; a kind's slider will sit between the bus sliders and those.)
+   section 3; a kind's slider will sit between the bus sliders and those.) **Notifications is
+   built (2026-11-07, BUG-265)**: a "notifications" bus in `AudioManager` with its own slider,
+   Settings > Audio > Volumes' Notifications Volume (saved as `AppConfig::notifications_volume`).
+   The chimes are catalogued on it (`sfx.notification`, `sfx.chat_message` and `sfx.success`, the
+   three sounds a notice plays and nothing else does; `[buses]` maps it to the notification kind),
+   and a notice plays its chosen sound on it whatever that sound's own bus (the "soft" and "pop"
+   choices are the menu-open and item-pickup files, which stay interface sounds elsewhere), so the
+   UI Volume at 0 never silences a notice. `sfx.error` stays an interface sound: it answers the
+   person's own action, as a click does, and nothing plays it as a notice.
 5. **Dual modes** (CLAUDE.md, every deep system): the full mode is levelling on; the simple one is
    the switch off, every file as recorded.
 
@@ -267,12 +275,14 @@ of "Even out loudness".
   (`sound_levels::play_preview`) plays it through `AudioManager::preview`, which is the game's own
   one-shot of it (its authored volume, its bus, its loudness level, the level as it is now) and
   stops the previous preview first. So a slider just moved is heard at once, exactly as the game
-  will play it. The bus is the catalogue's: the interface volume for an interface sound, the music
-  volume for music, the sound-effects volume otherwise. (Seam noted 2026-11-06: the game's queue of
-  sounds raised by actions, `pending_sfx`, plays every sound on the sound-effects bus whatever its
-  catalogue bus, so a notification chime or the item pickup, both `bus = "ui"`, follow the
-  sound-effects volume in play and the interface volume in Play. Only the click goes through
-  `play_sound_bus(.., "ui")`.)
+  will play it. The bus is the catalogue's: the interface volume for an interface sound, the
+  notifications volume for a chime, the music volume for music, the ambience volume for an ambient
+  sound, the sound-effects volume otherwise. The game plays every catalogued sound on that same bus
+  (`engine/sfx.rs`: the queue of sounds raised by actions, the ECS systems' channel and the click),
+  so Play and the game agree; a notice plays its sound on the notifications bus, which for the chimes
+  is their catalogue bus too. (Until BUG-265, 2026-11-07, the queue played every sound on the
+  sound-effects bus: with the UI Volume at 0 a chime still sounded and its Play was silent.
+  `engine::sfx::tests::a_chime_plays_at_its_play_level_on_the_notifications_volume` holds it.)
 - **The list** is read from the data and the disk when the section is drawn, again every 5 s while
   it is open, and every frame with the Dev page's "turn off all reuse" switch off.
 - **The website** plays no game sounds: its only sounds are the notification sounds of
@@ -282,7 +292,10 @@ of "Even out loudness".
   its Settings > Audio & Video > Sound levels lists those five, named as the notification sound
   picker names them, with the same slider, Play, Reset and Reset all, and says every other sound is
   set in the desktop app (`web/shared/sound-levels.js`). Kept in the browser (`hos_sound_levels`),
-  separate from the desktop app's. 0 dB there is the website's 60%; a browser's `<audio>` volume
+  separate from the desktop app's. It has no Notifications volume (BUG-265 gave the desktop one):
+  every sound the website plays is a notice's, so a bus slider there would be a second control over
+  the same five sounds, which the browser's and the system's own volume already scale; the website
+  has no volume slider for any sound, only each sound's level. 0 dB there is the website's 60%; a browser's `<audio>` volume
   stops at 1.0 (+4.4 dB over 60%), so a level past it goes through Web Audio (the element at full
   volume into a `GainNode`; the files are on the page's own server, so Web Audio may read them),
   and plays at full volume where Web Audio is missing. The website does not level loudness (rung 2

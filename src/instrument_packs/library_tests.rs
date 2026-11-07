@@ -46,7 +46,7 @@ fn score_for(data: &Path) -> Score {
     let parts = Parts::load(data).expect("parts.ron");
     let installed = InstrumentLibrary::load(data);
     assert!(installed.problems.is_empty(), "{:?}", installed.problems);
-    let attached = attach(&mut music, &installed, &parts, 432.0);
+    let attached = attach(&mut music, &installed, &parts, 432.0, &mut SampleBank::new(), None);
     assert!(attached.problems.is_empty(), "{:?}", attached.problems);
     let mood = music.mood_index("seam").unwrap();
     Score { res: Resolved::new(&music, &attached.samples).expect("resolves"), plays: attached.plays, mood }

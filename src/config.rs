@@ -342,6 +342,11 @@ pub struct AppConfig {
     /// unchanged for existing users.
     #[serde(default = "default_ui_volume")]
     pub ui_volume: f32,
+    /// The notifications volume (Settings > Audio > Volumes, 2026-11-07, BUG-265): the chimes a
+    /// notice plays ride their own "notifications" bus, so turning the interface clicks down never
+    /// silences one (docs/design/loudness.md, rung 4). Default 1.0.
+    #[serde(default = "default_ui_volume")]
+    pub notifications_volume: f32,
     /// Whether interface sounds (button clicks, UI feedback) play at all.
     /// On by default; the toggle sits above the UI-volume slider in
     /// Settings > Audio so anyone bothered by the click can silence it outright.
@@ -1598,6 +1603,7 @@ impl AppConfig {
             music_volume: state.settings.music_volume,
             sfx_volume: state.settings.sfx_volume,
             ui_volume: state.settings.ui_volume,
+            notifications_volume: state.settings.notifications_volume,
             ui_sounds_enabled: state.settings.ui_sounds_enabled,
             even_loudness: state.settings.even_loudness,
             video_start: humanity_core::audio::start_volume::choice().0.as_str().to_string(),
@@ -1813,6 +1819,7 @@ impl AppConfig {
         state.settings.music_volume = self.music_volume;
         state.settings.sfx_volume = self.sfx_volume;
         state.settings.ui_volume = self.ui_volume;
+        state.settings.notifications_volume = self.notifications_volume.clamp(0.0, 1.0);
         state.settings.ui_sounds_enabled = self.ui_sounds_enabled;
         state.settings.even_loudness = self.even_loudness;
         // The video start volume is held process-wide (every player asks it when a video starts).
@@ -2994,6 +3001,7 @@ mod pbkdf2_migration_tests {
         // Interface-sound control (v0.1112): default full volume, enabled, so
         // the quiet click is unchanged for a fresh install.
         assert_eq!(c.ui_volume, 1.0);
+        assert_eq!(c.notifications_volume, 1.0, "the notifications volume starts full (BUG-265)");
         assert!(c.ui_sounds_enabled);
         assert_eq!(c.vitals_drain, 1.0);
         // Body heat starts Forgiving (the simplified mode is the default).

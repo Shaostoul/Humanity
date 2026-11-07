@@ -4513,6 +4513,8 @@ pub struct SettingsState {
     /// Independent interface-sound volume (button clicks / UI feedback). Routed
     /// through the "ui" bus, so it is separate from `sfx_volume`. See AppConfig::ui_volume.
     pub ui_volume: f32,
+    /// The notifications volume: every notice's chime, the "notifications" bus (BUG-265).
+    pub notifications_volume: f32,
     /// Whether interface sounds play at all (the "Interface sounds" toggle).
     pub ui_sounds_enabled: bool,
     /// "Even out loudness" (Settings > Audio, 2026-11-06): every sound played at its kind's loudness
@@ -4730,6 +4732,7 @@ impl Default for SettingsState {
             music_volume: 0.5,
             sfx_volume: 0.7,
             ui_volume: 1.0,
+            notifications_volume: 1.0,
             ui_sounds_enabled: true,
             even_loudness: true,
             mouse_sensitivity: 0.25,

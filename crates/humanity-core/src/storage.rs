@@ -66,6 +66,28 @@ pub fn data_dir() -> PathBuf {
     here
 }
 
+/// The app's `assets` folder (sounds, models, textures, shaders): the one beside the data folder
+/// [`data_dir`] resolves, the folder above `data/` holding both, as the downloaded zip and a
+/// checkout lay them out (`AssetManager::resolve_model_path` finds models the same way). With the
+/// data folder never resolved (a test, "data"), the relative "assets", as before.
+///
+/// The sound paths were relative ("assets/<path>") and the sound catalogue, the loudness data and
+/// Settings > Audio > Sound levels read a relative "data" (BUG-268), so they worked only when the
+/// process started in the app's own folder: started from anywhere else (a terminal, a shortcut with
+/// no "Start in"), every sound and every level was missing while the music, reading this resolver's
+/// folder, played.
+pub fn assets_dir() -> PathBuf {
+    assets_dir_for(&data_dir())
+}
+
+/// The `assets` folder beside `data` (the folder above it): see [`assets_dir`].
+pub fn assets_dir_for(data: &Path) -> PathBuf {
+    match data.parent() {
+        Some(above) => above.join("assets"),
+        None => PathBuf::from("assets"),
+    }
+}
+
 /// The four storage states. See the module docs for what each means.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageMode {

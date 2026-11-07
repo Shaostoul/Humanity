@@ -305,6 +305,12 @@ impl ChatVideos {
         self.live.iter().find(|(_, l)| l.view.is_playing()).map(|(k, _)| k.as_str())
     }
 
+    /// Is one of these videos' sound playing now: playing, with a sound track, not muted and not at
+    /// zero volume? The live music sits under it while it is (engine/music.rs, BUG-269).
+    pub(crate) fn sounding(&self) -> bool {
+        !self.muted && self.volume > 0.0 && self.live.values().any(|l| l.view.is_playing() && l.view.has_sound_track())
+    }
+
     /// Whether the video at `url` has a player and it is playing.
     #[cfg(test)]
     pub(crate) fn is_playing(&self, url: &str) -> bool {

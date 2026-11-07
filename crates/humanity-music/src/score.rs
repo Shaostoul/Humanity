@@ -4,7 +4,10 @@
 //! The game sends a small `Copy` [`MusicContext`] (kira's latest-value channel, kira_sound.rs); the
 //! score reads it at the start of each block, steers the composer with it (the mood, the style or
 //! blend, the tuning, applied at the next phrase) and moves its output gain toward the context's
-//! with a 1.5 s time constant (so music fades rather than cuts). Everything is made in
+//! with a 1.5 s time constant (so music fades rather than cuts). On top of that gain, the DUCK
+//! (`MusicContext::duck_db`, docs/design/music.md section 8, rung 4): other sound wins, so the game
+//! asks the score to sit some dB under itself (a chat video playing, the world behind a page) and
+//! the score goes down quickly and comes back slowly ([`DUCK_DOWN_S`], [`DUCK_UP_S`]). Everything is made in
 //! [`ScoreEngine::new`]; [`ScoreEngine::render`] allocates nothing (a counting-allocator test holds
 //! it to that).
 
@@ -32,11 +35,21 @@ pub struct MusicContext {
     pub blend: f32,
     /// 0..1: how much is going on (layers join at their `min_intensity`).
     pub intensity: f32,
+    /// How far under itself the score sits now, dB (0 = not ducked; negative, down): other sound
+    /// wins (a chat video's sound, the world heard from a page). Moved toward with its own ramp.
+    pub duck_db: f32,
 }
+
+/// The duck's time constant going down, seconds: within 1 dB of a 12 dB duck in 0.3 s (docs/design/
+/// music.md section 8: "drops ... over 300 ms").
+pub const DUCK_DOWN_S: f32 = 0.08;
+/// And coming back up: within 1 dB in about 1.5 s ("comes back over 2 s"; leaving the escape
+/// menu "opens it back up over a second").
+pub const DUCK_UP_S: f32 = 0.5;
 
 impl Default for MusicContext {
     fn default() -> Self {
-        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, style_a: 0, style_b: 0, blend: 0.0, intensity: 0.3 }
+        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, style_a: 0, style_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0 }
     }
 }
 
@@ -53,6 +66,8 @@ pub struct MusicStatus {
     pub seconds: f64,
     /// The output gain right now (after the fade).
     pub gain: f32,
+    /// The duck right now, as an amplitude (1 = not ducked).
+    pub duck: f32,
     /// The audio thread's cost: the mean and the worst block so far, microseconds (kira_sound.rs
     /// times each `process`; the offline renderer times its own).
     pub block_us_mean: f32,
@@ -95,6 +110,9 @@ pub struct ScoreEngine {
     ctx: MusicContext,
     gain: Smoother,
     level: Smoother,
+    /// The duck as an amplitude, and whether its ramp is the falling one.
+    duck: Smoother,
+    duck_down: bool,
     wow: Lfo,
     flutter: Lfo,
     tape_l: Svf,
@@ -123,6 +141,8 @@ impl ScoreEngine {
             ctx,
             gain: Smoother::new(0.0, 1.5, rate),
             level: Smoother::new(0.0, 4.0, rate),
+            duck: Smoother::new(db_to_amp(ctx.duck_db.min(0.0)), DUCK_UP_S, rate),
+            duck_down: false,
             wow: Lfo::new(0.0),
             flutter: Lfo::new(0.37),
             tape_l: Svf::default(),
@@ -156,9 +176,10 @@ impl ScoreEngine {
         self.composer.set_rate(rate);
         self.reverb.set_rate(rate);
         self.limiter = Limiter::new(-1.0, rate);
-        let (g, l) = (self.gain.value, self.level.value);
+        let (g, l, d) = (self.gain.value, self.level.value, self.duck.value);
         self.gain = Smoother::new(g, 1.5, rate);
         self.level = Smoother::new(l, 4.0, rate);
+        self.duck = Smoother::new(d, if self.duck_down { DUCK_DOWN_S } else { DUCK_UP_S }, rate);
     }
 
     /// Fade out over about two seconds, then [`ScoreEngine::finished`] is true.
@@ -203,6 +224,12 @@ impl ScoreEngine {
     pub fn render(&mut self, out: &mut [[f32; 2]]) {
         let rate = self.rate;
         let target_gain = if self.stopping { 0.0 } else { self.ctx.gain.clamp(0.0, 2.0) };
+        let duck_target = db_to_amp(self.ctx.duck_db.clamp(-60.0, 0.0));
+        let down = duck_target < self.duck.value;
+        if down != self.duck_down {
+            self.duck_down = down;
+            self.duck.set_time(if down { DUCK_DOWN_S } else { DUCK_UP_S }, rate);
+        }
         let mut done = 0;
         while done < out.len() {
             {
@@ -249,7 +276,7 @@ impl ScoreEngine {
                     l = self.tape_l.lp(c, l);
                     r = self.tape_r.lp(c, r);
                 }
-                let g = self.gain.next(target_gain) * self.level.next(level_target);
+                let g = self.gain.next(target_gain) * self.level.next(level_target) * self.duck.next(duck_target);
                 l *= g;
                 r *= g;
                 if sat > 0.0 {
@@ -274,6 +301,7 @@ impl ScoreEngine {
         s.voices = self.pool.active() as u16;
         s.seconds = self.composer.seconds();
         s.gain = self.gain.value;
+        s.duck = self.duck.value;
         s.limited = self.limiter.engaged;
     }
 }

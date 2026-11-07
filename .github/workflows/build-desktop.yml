@@ -113,6 +113,11 @@ jobs:
           cp -r assets/shaders/ dist/HumanityOS/assets/shaders/
           cp -r assets/models/ dist/HumanityOS/assets/models/
           cp -r assets/textures/ dist/HumanityOS/assets/textures/
+          # The game's sounds (BUG-268, 2026-11-07): every sound effect, interface click and notice
+          # chime the game plays is a file under assets/audio (about 0.3 MB), and it was never
+          # copied, so a downloaded build played none of them and Settings > Audio > Sound levels
+          # listed nothing. The music's own recordings live under data/music and already shipped.
+          cp -r assets/audio/ dist/HumanityOS/assets/audio/
           # Remove large audio placeholders if they exist
           rm -rf dist/HumanityOS/data/audio/sfx/* dist/HumanityOS/data/audio/music/* dist/HumanityOS/data/audio/ambient/* 2>/dev/null || true
           # Create the bundle archives (binary + data + assets) for fresh installs.
@@ -308,7 +313,8 @@ jobs:
             assets/icons/ \
             assets/shaders/ \
             assets/models/ \
-            assets/textures/
+            assets/textures/ \
+            assets/audio/
 
       - name: Generate per-file data manifest
         run: node scripts/gen-data-manifest.js ${{ github.ref_name }}
