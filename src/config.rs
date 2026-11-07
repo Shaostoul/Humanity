@@ -339,6 +339,21 @@ pub struct AppConfig {
     /// Settings > Audio so anyone bothered by the click can silence it outright.
     #[serde(default = "default_true")]
     pub ui_sounds_enabled: bool,
+    /// "Even out loudness" (Settings > Audio, 2026-11-06; docs/design/loudness.md): every sound
+    /// played at the loudness of its kind (data/audio/loudness.toml). On by default.
+    #[serde(default = "default_true")]
+    pub even_loudness: bool,
+    /// Where a new video's volume comes from (Settings > Audio, 2026-11-06): "last", the volume the
+    /// last video was left at, or "set", `video_start_volume` for every video. Held at run time by
+    /// humanity_core::audio::start_volume, which this is read from at save and given to at load.
+    #[serde(default = "default_video_start")]
+    pub video_start: String,
+    /// The volume every new video starts at when `video_start` is "set", 0 to 1.
+    #[serde(default = "default_full_volume")]
+    pub video_start_volume: f32,
+    /// The volume the last video was left at, 0 to 1, kept across restarts.
+    #[serde(default = "default_full_volume")]
+    pub video_last_volume: f32,
     #[serde(default)]
     pub fullscreen: bool,
     /// How the window is presented (v0.454). Supersedes the legacy `fullscreen` bool.
@@ -1127,6 +1142,8 @@ fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_star_catalog_tier() -> String { "auto".to_string() }
 fn default_true() -> bool { true }
+fn default_video_start() -> String { "last".to_string() }
+fn default_full_volume() -> f32 { 1.0 }
 fn default_dm_preview_lines() -> u8 { crate::gui::pages::chat::dm_rows::DEFAULT_LINES }
 fn default_language() -> String { "en".to_string() }
 // Settings that were reachable in the UI but never persisted until v0.1066.
@@ -1556,6 +1573,10 @@ impl AppConfig {
             sfx_volume: state.settings.sfx_volume,
             ui_volume: state.settings.ui_volume,
             ui_sounds_enabled: state.settings.ui_sounds_enabled,
+            even_loudness: state.settings.even_loudness,
+            video_start: humanity_core::audio::start_volume::choice().0.as_str().to_string(),
+            video_start_volume: humanity_core::audio::start_volume::choice().1,
+            video_last_volume: humanity_core::audio::start_volume::last_volume(),
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             nav_display_mode: state.nav_display_mode,
@@ -1762,6 +1783,10 @@ impl AppConfig {
         state.settings.sfx_volume = self.sfx_volume;
         state.settings.ui_volume = self.ui_volume;
         state.settings.ui_sounds_enabled = self.ui_sounds_enabled;
+        state.settings.even_loudness = self.even_loudness;
+        // The video start volume is held process-wide (every player asks it when a video starts).
+        humanity_core::audio::start_volume::set_choice(humanity_core::audio::start_volume::StartAt::from_config_str(&self.video_start), self.video_start_volume);
+        humanity_core::audio::start_volume::restore_last_volume(self.video_last_volume);
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.nav_display_mode = self.nav_display_mode;
@@ -2423,6 +2448,33 @@ mod play_mode_tests {
         let loaded: AppConfig = serde_json::from_str(with_old_field).expect("an old config with profile_visible still loads");
         assert!(!loaded.online_status_visible, "the settings beside it still load");
         assert!(!serde_json::to_string(&loaded).unwrap().contains("profile_visible"), "the next save drops it");
+    }
+
+    /// THE VIDEO VOLUME CHOICES SURVIVE A RESTART (2026-11-06): the last volume a video was left
+    /// at, the choice of where a new video starts and its set volume, and "Even out loudness" off,
+    /// written by `from_gui_state` and given back by `apply_to_gui_state`, through the JSON a
+    /// restart reads; and a config that predates them starts at the defaults (my last volume, full,
+    /// levelling on). On this thread's own choice (`use_on_this_thread`), so no other test sees it.
+    /// RED first: with `video_last_volume` written as the default 1.0 instead of the last volume,
+    /// "the remembered volume survives a restart" failed (left: 1.0, right: 0.3).
+    #[test]
+    fn the_video_volume_choices_survive_a_restart() {
+        use humanity_core::audio::start_volume::{self as sv, StartAt};
+        sv::use_on_this_thread(StartAt::Last, 1.0, 1.0);
+        sv::note_volume(0.3);
+        sv::set_choice(StartAt::Set, 0.05);
+        let mut gui = crate::gui::GuiState::default();
+        gui.settings.even_loudness = false;
+        let saved = serde_json::to_string_pretty(&AppConfig::from_gui_state(&gui)).unwrap();
+        // The restart: the app's own choice back at its defaults, then the config read.
+        sv::use_on_this_thread(StartAt::Last, 1.0, 1.0);
+        let mut after = crate::gui::GuiState::default();
+        serde_json::from_str::<AppConfig>(&saved).expect("the config loads").apply_to_gui_state(&mut after);
+        assert_eq!(sv::last_volume(), 0.3, "the remembered volume survives a restart");
+        assert_eq!(sv::choice(), (StartAt::Set, 0.05), "and the choice with its set volume");
+        assert!(!after.settings.even_loudness, "Even out loudness off stays off");
+        let old: AppConfig = serde_json::from_str(r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#).unwrap();
+        assert_eq!((old.video_start.as_str(), old.video_start_volume, old.video_last_volume, old.even_loudness), ("last", 1.0, 1.0, true), "an older config starts at the defaults");
     }
 
     /// The readable-web opt-in (2026-09-16) must default OFF for a config

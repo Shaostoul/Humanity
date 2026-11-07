@@ -2661,6 +2661,47 @@ pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
     });
 }
 
+/// Settings > Audio > Videos: where a new video's volume comes from, "My last volume" or "A set
+/// volume" with its slider (shown when chosen). The choice is held process-wide
+/// (humanity_core::audio::start_volume), edited here; true when it changed (the caller saves).
+/// Two choices and a slider, not a third "full" choice: full is the set volume at 100% (the
+/// module's doc says why).
+fn video_start_choices(ui: &mut egui::Ui, theme: &Theme, hint: crate::gui::HintDisplay, accent: Color32) -> bool {
+    use humanity_core::audio::start_volume::{self as start, StartAt};
+    use humanity_core::i18n::t;
+    use crate::gui::widgets::with_hint;
+    let (mut at, mut set) = start::choice();
+    let mut changed = false;
+    widgets::subsection_header(ui, theme, accent, t("settings.videos"), "");
+    widgets::card(ui, theme, |ui| {
+        widgets::settings_row(ui, theme, t("settings.video_start"), |ui| {
+            for (choice, label, hint_key) in [
+                (StartAt::Last, t("settings.video_start_last"), "settings.video_start_last_hint"),
+                (StartAt::Set, t("settings.video_start_set"), "settings.video_start_set_hint"),
+            ] {
+                let active = at == choice;
+                if widgets::Button::secondary(label).hint(hint_key).active(active).show(ui, theme) && !active {
+                    at = choice;
+                    changed = true;
+                }
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, t("settings.video_start_hint"));
+        if at == StartAt::Set {
+            let mut pct = set * 100.0;
+            if with_hint(ui, "settings.video_start_volume_hint", |ui| widgets::labeled_slider(ui, theme, t("settings.video_start_volume"), &mut pct, 0.0..=100.0)) {
+                set = (pct / 100.0).clamp(0.0, 1.0);
+                changed = true;
+            }
+            widgets::setting_hint(ui, theme, hint, t("settings.video_start_volume_hint"));
+        }
+    });
+    if changed {
+        start::set_choice(at, set);
+    }
+    changed
+}
+
 pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let hint = state.settings.hint_display;
     let accent = section_accent(SettingsCategory::Audio, theme);
@@ -2692,7 +2733,20 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "Loudness of interface clicks only. Separate from game sound effects; scales together with Master Volume.");
+        // Even out loudness (2026-11-06, docs/design/loudness.md): every sound at its kind's
+        // loudness (humanity_core::audio::levels). Words by key, its hint its description.
+        use humanity_core::i18n::t;
+        use crate::gui::widgets::with_hint;
+        if with_hint(ui, "settings.even_loudness_hint", |ui| widgets::toggle(ui, theme, t("settings.even_loudness"), &mut state.settings.even_loudness)) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, t("settings.even_loudness_hint"));
     });
+    // What volume a new video starts at (2026-11-06; humanity_core::audio::start_volume): every
+    // video the app plays, in chat, on the Media page and on a screen in the world.
+    if video_start_choices(ui, theme, hint, accent) {
+        state.settings_dirty = true;
+    }
     // Voice (v0.485). Device selectors + a mic loopback test (toggle) with a live
     // level meter, so you can confirm capture + playback and pick devices. The
     // full in-app voice transport is being built in phases.

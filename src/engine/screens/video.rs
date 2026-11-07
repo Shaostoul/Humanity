@@ -269,13 +269,15 @@ pub fn audio_placement(screen: Vec3, listener: Vec3, right: Vec3) -> (f64, f64) 
 
 /// The amplitude a screen's sound plays at: the master slider, the sfx bus
 /// slider (a film on the wall is a world sound, on the same bus as
-/// footsteps and machines, so the Settings sliders govern it) and the
-/// distance falloff from `audio_placement`, multiplied. All three are 0..1.
-/// Pure, so the composition is a unit test and not an ear test: a bus
-/// forgotten here (the sfx slider silently not governing films) fails the
-/// test instead of going unnoticed until someone turns the slider down.
-pub fn compose_mix(master: f64, sfx: f64, falloff: f64) -> f64 {
-    master * sfx * falloff
+/// footsteps and machines, so the Settings sliders govern it), the clip's
+/// own volume (the strip's bar, starting at Settings > Audio's start volume;
+/// 2026-11-06) and the distance falloff from `audio_placement`, multiplied.
+/// All four are 0..1. Pure, so the composition is a unit test and not an ear
+/// test: a bus forgotten here (the sfx slider silently not governing films)
+/// fails the test instead of going unnoticed until someone turns the slider
+/// down.
+pub fn compose_mix(master: f64, sfx: f64, own: f64, falloff: f64) -> f64 {
+    master * sfx * own * falloff
 }
 
 /// The change gate: whether `next` differs from the last mix `sent` by more
@@ -407,6 +409,8 @@ pub struct ScreenView {
     pub has_sound: bool,
     /// The player turned the sound on (the button reads Mute).
     pub sound_on: bool,
+    /// The clip's own volume, 0 to 1 (the strip's volume bar; 2026-11-06).
+    pub volume: f32,
     /// The file name shown on the strip.
     pub name: String,
     /// The strip's right-hand text: the time, or the conversion percentage.
@@ -429,6 +433,8 @@ pub struct ScreenActions {
     pub toggle: bool,
     /// The Mute / Unmute button.
     pub sound: bool,
+    /// Where the volume bar was put (0 to 1), on every frame of a drag.
+    pub volume: Option<f32>,
     /// A position on the seek bar, in seconds, from a click or the end of a
     /// drag. Only the END of a drag: scrubbing sends one seek when the
     /// pointer is released, not one per frame, because each seek throws away
@@ -457,6 +463,12 @@ thread_local! {
 #[cfg(test)]
 pub(crate) fn test_last_seek_rect() -> Option<egui::Rect> {
     LAST_SEEK_RECT.with(|r| *r.borrow())
+}
+
+// Where the volume bar last laid itself out (2026-11-06), for the same reason.
+#[cfg(test)]
+thread_local! {
+    static LAST_VOLUME_RECT: std::cell::RefCell<Option<egui::Rect>> = const { std::cell::RefCell::new(None) };
 }
 
 /// The seek bar: a track across the strip with the played part filled and a
@@ -601,6 +613,14 @@ pub fn draw_screen(
                                 if widgets::compact_button(ui, theme, label, ButtonVariant::Secondary) {
                                     actions.sound = true;
                                 }
+                                // Its own volume (2026-11-06): it starts at Settings > Audio's start
+                                // volume; a move is the last volume the next video starts at.
+                                let (bar, _rect) = crate::gui::widgets::video_view::track_bar_at(ui, theme, "screen_volume", view.volume, crate::gui::widgets::video_view::VOLUME_BAR_WIDTH, view.sound_on, crate::gui::widgets::video_view::TrackReport::Live, "video.volume_hint");
+                                #[cfg(test)]
+                                LAST_VOLUME_RECT.with(|r| *r.borrow_mut() = Some(_rect));
+                                if bar.is_some() {
+                                    actions.volume = bar;
+                                }
                             }
                             ui.add_space(theme.spacing_xs);
                             ui.label(
@@ -702,6 +722,10 @@ pub struct VideoProvider {
     /// the workshop screen's demo clip (a 440 Hz test tone, looping) started
     /// sounding on every boot. Not saved: a fresh boot is quiet again.
     sound_on: bool,
+    /// The clip's own volume, 0 to 1, on top of the master and sound-effects sliders and the
+    /// distance (2026-11-06): a clip that opens starts at Settings > Audio's start volume
+    /// (humanity_core::audio::start_volume, my last volume or a set one); the strip's bar moves it.
+    volume: f32,
     /// The Open picker while it is up.
     picker: Option<FilePickerState>,
     strip: StripTimer,
@@ -751,6 +775,7 @@ impl VideoProvider {
             display_px: None,
             sound: SoundLink::default(),
             sound_on: false,
+            volume: 1.0,
             picker: None,
             strip: StripTimer::default(),
             strip_shown: false,
@@ -797,6 +822,8 @@ impl VideoProvider {
                 if self.want_playing {
                     p.play();
                 }
+                // A clip that opens is a new video: it starts at the start volume (Settings > Audio).
+                self.volume = humanity_core::audio::start_volume::start_volume();
                 log::info!(
                     "[Screens] video {:?} opened from {} ({}x{}, {:.2} s, audio: {})",
                     self.current_name(),
@@ -1120,6 +1147,7 @@ impl VideoProvider {
             paused: !self.want_playing,
             has_sound: self.player.as_ref().map_or(false, |p| p.info().audio_codec.is_some()),
             sound_on: self.sound_on,
+            volume: self.volume,
             name: self.current_name(),
             right_text: self.right_text(),
             position_s: self.player.as_ref().map_or(0.0, |p| p.position_s()),
@@ -1240,6 +1268,10 @@ impl VideoProvider {
         if actions.sound {
             self.sound_on = !self.sound_on;
         }
+        if let Some(v) = actions.volume {
+            self.volume = v;
+            humanity_core::audio::start_volume::note_volume(v);
+        }
         if let Some(t) = actions.seek_to {
             if let Some(p) = self.player.as_mut() {
                 p.seek_to(t);
@@ -1355,6 +1387,7 @@ impl ScreenProvider for VideoProvider {
             "loops": self.loops,
             "audio": audio,
             "sound_on": self.sound_on,
+            "volume": self.volume,
             "strip": self.strip_shown,
             "picker": self.picker.is_some(),
             "error": self.error,
@@ -1429,7 +1462,7 @@ impl ScreenProvider for VideoProvider {
         );
         // Muted after it was on: the stream stays attached and runs at
         // silence, so Unmute picks up in step with the picture.
-        let volume = if self.sound_on { compose_mix(audio.master_volume(), audio.sfx_volume(), falloff) } else { 0.0 };
+        let volume = if self.sound_on { compose_mix(audio.master_volume(), audio.sfx_volume(), self.volume.clamp(0.0, 1.0) as f64, falloff) } else { 0.0 };
         match self.sound.step(volume, pan) {
             SoundStep::Attach { volume, pan } => {
                 // The stream starts AT this mix; see `SoundStep::Attach` for
@@ -1604,6 +1637,63 @@ mod tests {
         p.plan_frame(&mut core, t0);
         let (drawn, _, rect) = run_draw_find(&mut core, &mut state, &mut p, "Mute");
         assert!(rect.is_some(), "with the sound on the strip offers Mute: {drawn:?}");
+    }
+
+    /// THE START VOLUME APPLIES TO A SCREEN'S VIDEO (2026-11-06): with "a set volume" of 5% a clip
+    /// that opens starts at 5% (and the status says so); a press on the strip's volume bar a quarter
+    /// along sets the clip to about 25% and makes that the last volume; then, with "my last volume",
+    /// the next clip opened starts there. On this thread's own choice (`use_on_this_thread`). RED
+    /// first: with `open_player` not asking the start volume, "a set 5%: the clip starts at 5%"
+    /// failed (left: 1.0, right: 0.05).
+    #[test]
+    fn a_screen_video_starts_at_the_chosen_start_volume_and_its_bar_sets_the_last() {
+        use humanity_core::audio::start_volume::{self as sv, StartAt};
+        sv::use_on_this_thread(StartAt::Set, 0.05, 0.8);
+        let mut state = GuiState::default();
+        let theme = load_theme();
+        let mut core = ScreenCore::new("s", "video:x", 1280, 720, &theme);
+        let mut p = VideoProvider::new(DEMO);
+        p.open_with(&data_dir(), core.size());
+        assert!(p.error().is_none(), "{:?}", p.error());
+        assert_eq!(p.volume, 0.05, "a set 5%: the clip starts at 5%");
+        assert_eq!(p.status()["volume"].as_f64().map(|v| (v * 100.0).round()), Some(5.0), "and the status says so");
+
+        // Unmute (the bar is live once the sound is on), then press the bar a quarter along.
+        for i in 0..4 {
+            core.pointer_moved((0.2 + i as f32 * 0.05, 0.4));
+        }
+        let t0 = Instant::now();
+        p.plan_frame(&mut core, t0);
+        let (drawn, _, rect) = run_draw_find(&mut core, &mut state, &mut p, "Unmute");
+        let rect = rect.unwrap_or_else(|| panic!("the strip offers Unmute: {drawn:?}"));
+        let (w, h) = core.size();
+        let press = |core: &mut ScreenCore, at: egui::Pos2| {
+            let uv = (at.x / w as f32, at.y / h as f32);
+            core.button(uv, true);
+            core.button(uv, false);
+        };
+        press(&mut core, rect.center());
+        p.plan_frame(&mut core, t0);
+        let (_, actions) = run_draw(&mut core, &mut state, &mut p);
+        p.apply_actions(actions, None);
+        assert!(p.sound_on, "Unmute turned the sound on");
+        p.plan_frame(&mut core, t0);
+        let _ = run_draw(&mut core, &mut state, &mut p);
+        let bar = LAST_VOLUME_RECT.with(|r| *r.borrow()).expect("the strip drew its volume bar");
+        let knob = theme.slider_thumb_radius;
+        press(&mut core, egui::pos2(bar.left() + knob + (bar.width() - 2.0 * knob) * 0.25, bar.center().y));
+        p.plan_frame(&mut core, t0);
+        let (_, actions) = run_draw(&mut core, &mut state, &mut p);
+        let put = actions.volume.expect("the press reached the volume bar");
+        p.apply_actions(actions, None);
+        assert!((p.volume - 0.25).abs() < 0.03, "the bar set the clip to about 25%: {}", p.volume);
+        assert!((sv::last_volume() - p.volume).abs() < 1e-6 && (put - p.volume).abs() < 1e-6, "and that is the last volume now");
+
+        // My last volume: the next clip opened starts where the bar was left.
+        sv::set_choice(StartAt::Last, 0.05);
+        let mut next = VideoProvider::new(DEMO);
+        next.open_with(&data_dir(), core.size());
+        assert!((next.volume - p.volume).abs() < 1e-6, "my last volume: the next clip starts at {}, got {}", p.volume, next.volume);
     }
 
     /// The registry serves `video:` with this provider and nothing else
@@ -1957,21 +2047,25 @@ mod tests {
         assert_eq!((here, pan_here), (1.0, 0.5), "at the screen: full volume, centred");
     }
 
-    /// The mix is master x sfx x falloff, each slider really in it: zero any
-    /// one and the film is silent, halve any one and the film halves.
+    /// The mix is master x sfx x the clip's own volume x falloff, each really
+    /// in it: zero any one and the film is silent, halve any one and the film
+    /// halves. RED first for the own volume (2026-11-06): with it left out of
+    /// the product, "the clip's own volume off silences it" failed (left: 1.0).
     #[test]
-    fn mix_composition_multiplies_master_sfx_and_falloff() {
-        assert_eq!(compose_mix(1.0, 1.0, 1.0), 1.0);
-        assert_eq!(compose_mix(0.0, 1.0, 1.0), 0.0, "master off silences a film");
-        assert_eq!(compose_mix(1.0, 0.0, 1.0), 0.0, "the sfx bus off silences a film");
-        assert_eq!(compose_mix(1.0, 1.0, 0.0), 0.0, "out of range is silent");
-        assert!((compose_mix(0.5, 1.0, 1.0) - 0.5).abs() < 1e-12);
-        assert!((compose_mix(1.0, 0.5, 1.0) - 0.5).abs() < 1e-12);
-        assert!((compose_mix(1.0, 1.0, 0.5) - 0.5).abs() < 1e-12);
+    fn mix_composition_multiplies_master_sfx_own_volume_and_falloff() {
+        assert_eq!(compose_mix(1.0, 1.0, 1.0, 1.0), 1.0);
+        assert_eq!(compose_mix(0.0, 1.0, 1.0, 1.0), 0.0, "master off silences a film");
+        assert_eq!(compose_mix(1.0, 0.0, 1.0, 1.0), 0.0, "the sfx bus off silences a film");
+        assert_eq!(compose_mix(1.0, 1.0, 0.0, 1.0), 0.0, "the clip's own volume off silences it");
+        assert_eq!(compose_mix(1.0, 1.0, 1.0, 0.0), 0.0, "out of range is silent");
+        assert!((compose_mix(0.5, 1.0, 1.0, 1.0) - 0.5).abs() < 1e-12);
+        assert!((compose_mix(1.0, 0.5, 1.0, 1.0) - 0.5).abs() < 1e-12);
+        assert!((compose_mix(1.0, 1.0, 0.5, 1.0) - 0.5).abs() < 1e-12);
+        assert!((compose_mix(1.0, 1.0, 1.0, 0.5) - 0.5).abs() < 1e-12);
         // The reviewer's case: sfx at 10 percent, a screen at 35 m (falloff 0.3).
         let (falloff, _) = audio_placement(Vec3::new(0.0, 0.0, -35.0), Vec3::ZERO, Vec3::X);
         assert!((falloff - 0.3).abs() < 1e-6);
-        assert!((compose_mix(1.0, 0.1, falloff) - 0.03).abs() < 1e-6, "the f32 falloff carries a 1e-9 rounding");
+        assert!((compose_mix(1.0, 0.1, 1.0, falloff) - 0.03).abs() < 1e-6, "the f32 falloff carries a 1e-9 rounding");
     }
 
     /// The epsilon gate: nothing sent yet always moves; the same value does
@@ -2023,7 +2117,7 @@ mod tests {
     #[test]
     fn the_stream_starts_at_the_placed_mix_not_at_full_volume() {
         let (falloff, pan) = audio_placement(Vec3::new(0.0, 1.0, -35.0), Vec3::new(0.0, 1.0, 0.0), Vec3::X);
-        let volume = compose_mix(1.0, 0.1, falloff);
+        let volume = compose_mix(1.0, 0.1, 1.0, falloff);
         let mut link = SoundLink::default();
         let SoundStep::Attach { volume: v0, pan: p0 } = link.step(volume, pan) else {
             panic!("the first step is the attach");
@@ -2547,7 +2641,7 @@ mod tests {
         p.sound_on = true;
         // Tick 2: the attach, at the composed mix.
         p.world_update(&mut world([0.0, 1.0, 0.0], &mut audio));
-        let expected = compose_mix(0.02, 0.1, 0.3);
+        let expected = compose_mix(0.02, 0.1, 1.0, 0.3);
         assert!(p.sound.attached);
         let (v, pan) = p.sound.sent.expect("the attach mix was recorded");
         assert!((v - expected).abs() < 1e-9, "attached at {v}, expected master x sfx x falloff = {expected}");

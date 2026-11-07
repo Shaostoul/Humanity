@@ -4520,6 +4520,10 @@ pub struct SettingsState {
     pub ui_volume: f32,
     /// Whether interface sounds play at all (the "Interface sounds" toggle).
     pub ui_sounds_enabled: bool,
+    /// "Even out loudness" (Settings > Audio, 2026-11-06): every sound played at its kind's loudness
+    /// (humanity_core::audio::levels; the engine hands it to the mixer every frame). See
+    /// AppConfig::even_loudness.
+    pub even_loudness: bool,
     // Controls
     pub mouse_sensitivity: f32,
     pub invert_y: bool,
@@ -4726,6 +4730,7 @@ impl Default for SettingsState {
             sfx_volume: 0.7,
             ui_volume: 1.0,
             ui_sounds_enabled: true,
+            even_loudness: true,
             mouse_sensitivity: 0.25,
             invert_y: false,
             dark_mode: true,

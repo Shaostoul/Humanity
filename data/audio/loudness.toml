@@ -1,0 +1,67 @@
+# How loud each kind of sound plays with Settings > Audio > "Even out loudness" on.
+# Read by crates/humanity-core/src/audio/levels.rs; the design, the sources for every number and
+# the honest limits are in docs/design/loudness.md.
+#
+# Loudness is ITU-R BS.1770 loudness in LUFS (1 LU is 1 dB): the integrated loudness of a sound
+# longer than 3 s, the loudest 400 ms of a shorter one-shot, measured as it plays on two speakers.
+# Each shipped sound file's own loudness is in measured_loudness.toml (generated: `just loudness`).
+#
+# A target is the loudness of a sound of that kind at volume 1.0. A sound is levelled to its kind's
+# target, then its authored `volume` in data/sounds.toml says how far under it the sound sits (0.25
+# is 12 dB under: a footstep is softer than a crash), and the person's own sliders apply on top. So
+# a video or a voice, which has no authored volume, plays AT its target; a click plays under its.
+# A new kind is a new [categories.<name>] table here, no code.
+
+# No sound is raised so far that its highest point as played (its true peak, BS.1770 Annex 2, at
+# its authored volume) passes this, in dBTP. -1 dBTP is EBU R 128's maximum true-peak level.
+ceiling_dbtp = -1.0
+
+# No sound is raised by more than this many dB: a nearly silent file stays quiet instead of having
+# its hiss brought up to full loudness.
+max_boost_db = 12.0
+
+# The kind of a sound that names no kind and rides a bus not listed below.
+default_category = "sfx"
+
+# Speech: a person talking (voice chat, a recorded voice). -16 LUFS is the AES streaming
+# recommendation's loud end and Apple's target for spoken word (docs/design/loudness.md, Sources).
+[categories.speech]
+target_lufs = -16.0
+
+# A video: one mixed track (speech, music and effects together), levelled as a whole, as loud as
+# a person talking.
+[categories.video]
+target_lufs = -16.0
+
+# Music: the game's background music and songs. 2 LU under speech, so a voice stays clear over it;
+# the Music slider moves it from there.
+[categories.music]
+target_lufs = -18.0
+
+# Game sound effects: footsteps, machines, doors, tools (the loudest 400 ms of each one-shot). Set
+# at the average of the shipped effects (2026-11-06: -20.9), so turning levelling on keeps a typical
+# effect where it was and brings the loud and quiet files to it.
+[categories.sfx]
+target_lufs = -21.0
+
+# Ambience: weather, wildlife and room tone loops, a bed under everything else.
+[categories.ambient]
+target_lufs = -26.0
+
+# Interface feedback: clicks, menus opening, picking an item up. The average of the shipped
+# interface sounds (2026-11-06: -19.5); their authored volumes (0.2 to 0.55) put them well under it.
+[categories.interface]
+target_lufs = -20.0
+
+# Notifications: a chat message's chime, an alert, heard over a video or the game. The average of
+# the two shipped ones (2026-11-06: -15.0).
+[categories.notification]
+target_lufs = -15.0
+
+# Which kind each bus of data/sounds.toml is, for a sound whose entry names no `category`.
+[buses]
+sfx = "sfx"
+ui = "interface"
+music = "music"
+ambient = "ambient"
+voice = "speech"

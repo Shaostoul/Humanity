@@ -286,6 +286,12 @@ and `audio_state()` expose kira's own reading of the sound (its position,
 which wraps on a loop and is not the monotonic clock, and its
 `PlaybackState`), read-only, for status and for the device tests.
 
+**Volume and loudness (2026-11-06): `docs/design/loudness.md`.** A video's own volume starts at
+Settings > Audio's choice ("My last volume", kept across restarts, or "A set volume"), the same for a
+chat video, the Media page and a screen. Levelling a video's loudness as it plays (a wrapper around
+this `Decoder` on kira's decode thread, Short-term loudness driving a slow gain, a true-peak limiter)
+is that design's rung 2; rung 1 levels the shipped sound files.
+
 ### Colour
 
 rav1d hands out planar YUV (I420 in every file ffmpeg produces by default;

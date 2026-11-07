@@ -6,6 +6,12 @@
 #
 # Bus types: "ambient", "music", "sfx", "voice", "ui"
 # Spatial sounds use inverse-distance falloff between falloff_min and falloff_max.
+#
+# Loudness (Settings > Audio > "Even out loudness", on by default; docs/design/loudness.md): each
+# sound is first levelled to the loudness of its kind (data/audio/loudness.toml; the kind is the
+# entry's `category`, else its bus's), and `volume` then says how far under that it sits (0.25 is
+# 12 dB under). With the setting off, `volume` scales the file as it was recorded. A changed sound
+# file needs `just loudness` (data/audio/measured_loudness.toml; a lib test catches a stale one).
 
 # =============================================================================
 #  AMBIENT (15), looping environmental soundscapes
@@ -482,6 +488,8 @@ volume = 0.6
 loop = false
 spatial = false
 bus = "ui"
+# Levelled as a notification, not a click (data/audio/loudness.toml).
+category = "notification"
 tags = ["interface", "alert"]
 
 [sfx.error]
@@ -506,6 +514,8 @@ volume = 0.4
 loop = false
 spatial = false
 bus = "ui"
+# Levelled as a notification, not a click (data/audio/loudness.toml).
+category = "notification"
 tags = ["interface", "social"]
 
 [sfx.inventory_pickup]

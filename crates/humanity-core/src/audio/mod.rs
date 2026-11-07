@@ -5,6 +5,13 @@
 
 pub mod spatial;
 
+/// ITU-R BS.1770 loudness: the meter that says how loud a sound is (docs/design/loudness.md).
+pub mod loudness;
+/// "Even out loudness": the kinds of sound, their targets and the shipped sounds' measurements.
+pub mod levels;
+/// What volume a new video starts at (Settings > Audio, 2026-11-06).
+pub mod start_volume;
+
 #[cfg(feature = "native")]
 pub mod sounds;
 
@@ -15,8 +22,21 @@ use std::collections::HashMap;
 #[cfg(feature = "native")]
 pub struct AudioManager {
     manager: kira::AudioManager,
-    /// Cached sound data by path.
+    /// Decoded sound data by path, kept while reuse is on (the Dev page's switch: off, every play
+    /// decodes its file again).
     sound_cache: HashMap<String, kira::sound::static_sound::StaticSoundData>,
+    /// How loud each sound the measured data does not list was found to be when it loaded, kept
+    /// while reuse is on (off: measured again at every play).
+    measured_cache: HashMap<String, loudness::SoundLoudness>,
+    /// "Even out loudness" (Settings > Audio, on by default): each sound played at its kind's
+    /// loudness (`levels`).
+    even_loudness: bool,
+    /// The targets and measurements, read from `data_dir` the first time a sound plays with the
+    /// setting on (None after that only when the targets could not be read: nothing is levelled).
+    levels: Option<levels::LoudnessLevels>,
+    levels_read: bool,
+    /// Where the data folder is (the app's "data" beside it; tests point at the repo's).
+    data_dir: std::path::PathBuf,
     /// Current music track handle (if playing).
     music_handle: Option<kira::sound::static_sound::StaticSoundHandle>,
     /// Volume settings (0.0 - 1.0).
@@ -49,6 +69,11 @@ impl AudioManager {
         Ok(Self {
             manager,
             sound_cache: HashMap::new(),
+            measured_cache: HashMap::new(),
+            even_loudness: true,
+            levels: None,
+            levels_read: false,
+            data_dir: std::path::PathBuf::from("data"),
             music_handle: None,
             master_volume: 1.0,
             music_volume: 0.7,
@@ -80,15 +105,8 @@ impl AudioManager {
     /// This is what finally makes the `bus` field in data/sounds.toml
     /// load-bearing - before this it was parsed and ignored.
     pub fn play_sound_bus(&mut self, path: &str, vol: f64, bus: &str) -> Result<(), String> {
-        let bus_gain = if bus == "ui" {
-            self.ui_volume
-        } else {
-            self.sfx_volume
-        };
-        let data = self.load_sound(path)?;
-        let settings = kira::sound::static_sound::StaticSoundSettings::default().volume(
-            decibels(self.master_volume * bus_gain * vol.clamp(0.0, 2.0)),
-        );
+        let (data, amplitude) = self.one_shot(path, vol, bus)?;
+        let settings = kira::sound::static_sound::StaticSoundSettings::default().volume(decibels(amplitude));
         let data_with_settings = data.with_settings(settings);
         self.manager
             .play(data_with_settings)
@@ -96,11 +114,80 @@ impl AudioManager {
         Ok(())
     }
 
+    /// The decoded sound at `path` and the amplitude a one-shot of it plays at on `bus` with its
+    /// authored volume `vol`: master x bus x volume x its loudness level ([`Self::level_for`], 1.0
+    /// with "Even out loudness" off). One function, so what is played and what a test checks are
+    /// the same number.
+    pub fn one_shot(&mut self, path: &str, vol: f64, bus: &str) -> Result<(kira::sound::static_sound::StaticSoundData, f64), String> {
+        let bus_gain = if bus == "ui" {
+            self.ui_volume
+        } else {
+            self.sfx_volume
+        };
+        let data = self.load_sound(path)?;
+        let vol = vol.clamp(0.0, 2.0);
+        let level = self.level_for(path, &data, vol);
+        Ok((data, self.master_volume * bus_gain * vol * level))
+    }
+
+    /// "Even out loudness" on or off (Settings > Audio; the engine sends it every frame). Applies to
+    /// sounds that start from now on.
+    pub fn set_even_loudness(&mut self, on: bool) {
+        self.even_loudness = on;
+    }
+
+    /// Whether "Even out loudness" is on.
+    pub fn even_loudness(&self) -> bool {
+        self.even_loudness
+    }
+
+    /// Read the loudness data from `dir` instead of the app's `data` folder (tests: the repo's).
+    pub fn set_data_dir(&mut self, dir: &std::path::Path) {
+        self.data_dir = dir.to_path_buf();
+        self.levels = None;
+        self.levels_read = false;
+    }
+
+    /// The loudness level of the sound at `path` (decoded as `data`, played at authored `volume`):
+    /// 1.0 with "Even out loudness" off; else the gain to its kind's loudness (`levels`), from the
+    /// measured data, or, for a file the data does not list or with reuse off, from measuring `data`
+    /// now. The targets are read the first time this is asked with the setting on.
+    fn level_for(&mut self, path: &str, data: &kira::sound::static_sound::StaticSoundData, volume: f64) -> f64 {
+        if !self.even_loudness {
+            return 1.0;
+        }
+        if !self.levels_read {
+            self.levels_read = true;
+            let catalog = sounds::SoundCatalog::load(&self.data_dir);
+            match levels::LoudnessLevels::load(&self.data_dir, catalog.loudness_sources()) {
+                Ok(l) => self.levels = Some(l),
+                Err(e) => log::warn!("[Audio] Even out loudness is off for this run: {e}"),
+            }
+        }
+        let reuse = crate::reuse::enabled();
+        if !reuse {
+            self.measured_cache.clear();
+        }
+        let key = levels::sound_key(path);
+        let cache = &mut self.measured_cache;
+        levels::level_for(self.levels.as_ref(), true, path, volume, reuse, || {
+            if let Some(s) = cache.get(&key) {
+                return Some(*s);
+            }
+            let s = measure_static(data);
+            if reuse {
+                cache.insert(key.clone(), s);
+            }
+            Some(s)
+        })
+    }
+
     /// Play looping background music (stops previous track).
     pub fn play_music(&mut self, path: &str, volume: f64) -> Result<(), String> {
         self.stop_music();
         let data = self.load_sound(path)?;
-        let effective_vol = self.master_volume * self.music_volume * volume;
+        let level = self.level_for(path, &data, volume);
+        let effective_vol = self.master_volume * self.music_volume * volume * level;
         let settings = kira::sound::static_sound::StaticSoundSettings::new()
             .volume(decibels(effective_vol))
             .loop_region(..);
@@ -177,12 +264,12 @@ impl AudioManager {
             return Ok(()); // Too far, don't play
         }
         let falloff = (1.0 - distance / max_distance).max(0.0) as f64;
-        let vol = self.master_volume * self.sfx_volume * falloff;
+        let data = self.load_sound(path)?;
+        let vol = self.master_volume * self.sfx_volume * falloff * self.level_for(path, &data, 1.0);
 
         // Simple stereo panning from X offset
         let pan = (dx / max_distance).clamp(-1.0, 1.0) as f64;
 
-        let data = self.load_sound(path)?;
         let settings = kira::sound::static_sound::StaticSoundSettings::default()
             .volume(decibels(vol))
             .panning(panning(0.5 + pan * 0.5)); // ours: 0.0=left, 0.5=center, 1.0=right
@@ -225,19 +312,61 @@ impl AudioManager {
             .map_err(|e| format!("Stream play error: {e}"))
     }
 
-    /// Load and cache sound data from a file path.
+    /// Load a sound file, kept decoded by path while reuse is on. With the Dev page's "turn off all
+    /// reuse" switch off (CLAUDE.md, the reuse rule: every reuse obeys it), the kept copies go and
+    /// each play decodes its file again, so a sound file changed on disk plays as it is now.
     fn load_sound(
         &mut self,
         path: &str,
     ) -> Result<kira::sound::static_sound::StaticSoundData, String> {
-        if let Some(data) = self.sound_cache.get(path) {
+        let reuse = crate::reuse::enabled();
+        if !reuse {
+            self.sound_cache.clear();
+        } else if let Some(data) = self.sound_cache.get(path) {
             return Ok(data.clone());
         }
         let data = kira::sound::static_sound::StaticSoundData::from_file(path)
             .map_err(|e| format!("Failed to load '{}': {}", path, e))?;
-        self.sound_cache.insert(path.to_string(), data.clone());
+        if reuse {
+            self.sound_cache.insert(path.to_string(), data.clone());
+        }
         Ok(data)
     }
+}
+
+/// How loud a decoded sound is, measured as it plays: kira's frames are always two channels (a mono
+/// file is sent to both speakers), so it is measured as two. A few hundred microseconds for a
+/// one-second one-shot in a release build.
+#[cfg(feature = "native")]
+pub fn measure_static(data: &kira::sound::static_sound::StaticSoundData) -> loudness::SoundLoudness {
+    let mut samples = Vec::with_capacity(data.frames.len() * 2);
+    for f in data.frames.iter() {
+        samples.push(f.left);
+        samples.push(f.right);
+    }
+    loudness::measure_sound(data.sample_rate, 2, &samples)
+}
+
+/// Decode the sound file at `path` and measure it ([`measure_static`]).
+#[cfg(feature = "native")]
+pub fn measure_file(path: &std::path::Path) -> Result<loudness::SoundLoudness, String> {
+    let data = kira::sound::static_sound::StaticSoundData::from_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(measure_static(&data))
+}
+
+/// Measure every sound file the catalog under `repo/data` names that exists under `repo/assets`:
+/// what `data/audio/measured_loudness.toml` holds (`just loudness` writes it, a lib test checks it).
+#[cfg(feature = "native")]
+pub fn measure_shipped(repo: &std::path::Path) -> Result<levels::MeasuredSounds, String> {
+    let catalog = sounds::SoundCatalog::load(&repo.join("data"));
+    let mut out = levels::MeasuredSounds::default();
+    for (path, _) in catalog.loudness_sources() {
+        let file = repo.join("assets").join(&path);
+        if file.exists() {
+            out.sounds.insert(levels::sound_key(&path), measure_file(&file)?);
+        }
+    }
+    Ok(out)
 }
 
 /// An amplitude (1.0 = as recorded, 0.0 = silent, up to 2.0) as the decibels kira takes.
@@ -336,6 +465,48 @@ mod kira_edge_tests {
         assert_eq!(state, Some(kira::sound::PlaybackState::Playing), "the music loops on");
         audio.stop_music();
         assert!(audio.music_handle.is_none());
+    }
+
+    /// "EVEN OUT LOUDNESS" REACHES WHAT A ONE-SHOT PLAYS AT, on a real device (2026-11-06): the
+    /// quietest shipped footstep's amplitude with the setting on is its amplitude off times exactly
+    /// the level the shipped data gives it (read by the manager itself from the data folder); with
+    /// reuse off the manager measures the file on the spot and lands within 0.01 dB of the table;
+    /// and the sound then plays (silently, master 0) both ways. A smoke check run by hand (the
+    /// pure parts are lib tests in levels_tests.rs). Reuse is a process-wide switch, so run it on its
+    /// own, as the command says. Seen failing first (2026-11-06) with `one_shot` leaving the level
+    /// out: "on is off times the level (left: 1, right: 1.72)".
+    #[test]
+    #[ignore = "needs an audio output device; run: node scripts/lib-tests.js --crate humanity-core even_out_loudness_reaches --ignored --nocapture"]
+    fn even_out_loudness_reaches_a_one_shots_volume_on_a_device() {
+        let mut audio = match AudioManager::try_new() {
+            Ok(a) => a,
+            Err(e) => {
+                println!("skipped: no audio device ({e})");
+                return;
+            }
+        };
+        let repo = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
+        audio.set_data_dir(&repo.join("data"));
+        audio.set_master_volume(0.5);
+        let file = repo.join("assets/audio/sfx/footstep_grass.ogg");
+        let path = file.to_str().unwrap();
+        audio.set_even_loudness(false);
+        let (_, off) = audio.one_shot(path, 0.25, "sfx").expect("off");
+        audio.set_even_loudness(true);
+        let (_, on) = audio.one_shot(path, 0.25, "sfx").expect("on");
+        let levels = audio.levels.clone().expect("the manager read the loudness data");
+        let want = levels.gain_for(path, levels.measured(path).expect("the footstep is measured"), 0.25);
+        assert!(want > 1.2, "the grass footstep is a quiet file, raised: {want}");
+        assert!(((on / off) - want).abs() < 1e-9, "on is off times the level (left: {}, right: {want:.2})", on / off);
+        crate::reuse::set_enabled(false);
+        let (_, measured_now) = audio.one_shot(path, 0.25, "sfx").expect("reuse off");
+        crate::reuse::set_enabled(true);
+        assert!((20.0 * (measured_now / on).log10()).abs() < 0.01, "measured on the spot: {measured_now} against the table's {on}");
+        audio.set_master_volume(0.0);
+        audio.play_sound_vol(path, 0.25).expect("plays with the setting on");
+        audio.set_even_loudness(false);
+        audio.play_sound_vol(path, 0.25).expect("plays with it off");
+        println!("grass footstep at volume 0.25, master 0.5: off {off:.4}, on {on:.4} (x{want:.3}, {:+.2} dB)", 20.0 * want.log10());
     }
 }
 

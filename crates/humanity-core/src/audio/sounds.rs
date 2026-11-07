@@ -67,6 +67,11 @@ pub struct SoundEntry {
     /// Audio bus: "ambient", "music", "sfx", "voice", "ui".
     #[serde(default = "default_bus")]
     pub bus: String,
+    /// The kind of sound it is for "Even out loudness" (a kind in data/audio/loudness.toml:
+    /// "notification", "interface", ...), when its bus does not already say it (a chat message's
+    /// chime rides the "ui" bus but is levelled as a notification). None: its bus's kind.
+    #[serde(default)]
+    pub category: Option<String>,
     /// Alternative audio file variations for randomization.
     #[serde(default)]
     pub variations: Vec<String>,
@@ -155,6 +160,21 @@ impl SoundCatalog {
     /// Get all entries in this catalog.
     pub fn entries(&self) -> &HashMap<String, SoundEntry> {
         &self.entries
+    }
+
+    /// Every sound file the catalog names (each entry's path and its variations) with the kind it is
+    /// levelled as: its own `category`, else its bus (data/audio/loudness.toml maps buses to kinds).
+    /// What `levels::LoudnessLevels` is built from.
+    pub fn loudness_sources(&self) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for e in self.entries.values() {
+            let kind = e.category.clone().unwrap_or_else(|| e.bus.clone());
+            out.push((e.path.clone(), kind.clone()));
+            for v in &e.variations {
+                out.push((v.clone(), kind.clone()));
+            }
+        }
+        out
     }
 
     /// Number of loaded sound entries.

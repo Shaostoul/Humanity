@@ -412,6 +412,33 @@ fn bench_one_playing_video_frame_cost() {
     }
 }
 
+/// THE START VOLUME APPLIES TO A NEW CHAT VIDEO (2026-11-06; Settings > Audio, Videos): with "a set
+/// volume" of 5%, a video Play starts begins at 5%, and so does the next one whatever the last was
+/// turned to; with "my last volume" a fresh start begins where the last volume bar was left (what the
+/// row's bar does on a move: the chat volume and `start_volume::note_volume`). The fetch fails at
+/// once (nothing to fetch here): the volume is set as Play starts the video. On this thread's own
+/// choice, so no other test sees it. RED first: with neither `ChatVideos::start` nor the
+/// `VideoView::start` under it asking the start volume, "a set 5%: the video starts at 5%" failed
+/// (left: (1.0, 1.0), right: (0.05, 0.05)).
+#[test]
+fn a_new_chat_video_starts_at_the_chosen_start_volume() {
+    use humanity_core::audio::start_volume::{self as sv, StartAt};
+    sv::use_on_this_thread(StartAt::Set, 0.05, 0.8);
+    let mut videos = ChatVideos::default();
+    videos.fetch_for_test = Some(std::sync::Arc::new(|_: &str| Err("not fetched in this test".to_string())));
+    let (a, b) = ("http://127.0.0.1:9/uploads/a.mp4", "http://127.0.0.1:9/uploads/b.mp4");
+    videos.press_play(a, "a.mp4", "");
+    assert_eq!((videos.volume, videos.live[a].view.volume), (0.05, 0.05), "a set 5%: the video starts at 5%");
+    videos.volume = 0.6;
+    sv::note_volume(0.6);
+    videos.press_play(b, "b.mp4", "");
+    assert_eq!((videos.volume, videos.live[b].view.volume), (0.05, 0.05), "the next video starts at 5% too, whatever the last was turned to");
+    sv::set_choice(StartAt::Last, 0.05);
+    videos.live.remove(a);
+    videos.press_play(a, "a.mp4", "");
+    assert_eq!((videos.volume, videos.live[a].view.volume), (0.6, 0.6), "my last volume: where the last bar was left");
+}
+
 // ── Rung 2: the poster picture (2026-11-06) ──
 
 /// A poster picture as the posting app makes one (chat/video_poster.rs `encode_poster`): a 320 x 180

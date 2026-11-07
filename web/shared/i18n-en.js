@@ -270,7 +270,18 @@ window.HOS_I18N_EN = {
     "theme_nav_secondary_font_size": "Second row word size",
     "nav_preview": "Show a category's pages when the pointer rests on it",
     "nav_preview_desc": "Rest the pointer on a button in the top row for a moment, and the row under it shows that category's pages, so you can see what is inside before going there. Off: the second row changes only when you click.",
-    "row_accent_width": "Row Accent Width"
+    "row_accent_width": "Row Accent Width",
+    "even_loudness": "Even out loudness",
+    "even_loudness_hint": "Plays each sound at the same loudness as others of its kind: voices with voices, sound effects with sound effects. A sound recorded too quiet or too loud no longer stands out. Your volume sliders still work on top.",
+    "videos": "Videos",
+    "video_start": "New videos start at",
+    "video_start_hint": "The volume a video starts at when you play it, in chat, on the Media page and on a screen in the world. Each video's own volume bar still turns it up or down.",
+    "video_start_last": "My last volume",
+    "video_start_last_hint": "Each new video starts where you left the last video's volume, even after the app is closed and opened again.",
+    "video_start_set": "A set volume",
+    "video_start_set_hint": "Every new video starts at the same volume, the one you choose below, whatever the last video was turned to.",
+    "video_start_volume": "Set volume %",
+    "video_start_volume_hint": "The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting."
   },
   "laws": {
     "title": "Laws and rights",
@@ -3216,7 +3227,8 @@ window.HOS_I18N_EN = {
     "elsewhere": "Or download it and watch it in another player, such as VLC, which plays almost every kind.",
     "converting": "Converting it to play here: {{pct}}%",
     "convert_failed": "{{name}} could not be converted: {{error}}.",
-    "stopped": "The video stopped: {{error}}"
+    "stopped": "The video stopped: {{error}}",
+    "volume_hint": "How loud this video plays, on top of the app's own volume. A new video starts at the volume chosen in Settings > Audio."
   },
   "files": {
     "places": {
@@ -3345,7 +3357,9 @@ window.HOS_I18N_EN = {
     "full_window_hint": "Shows the video bigger, in a window of its own over the chat.",
     "in_window": "Playing in its own window.",
     "close_window": "Close the window",
-    "close_window_hint": "Closes the big window. The video goes back to its message."
+    "close_window_hint": "Closes the big window. The video goes back to its message.",
+    "volume_settings": "Volume settings",
+    "volume_settings_hint": "Opens Settings > Audio, where you choose what volume a new video starts at."
   },
   "model_view": {
     "help": "{{name}}: drag to turn it, scroll to zoom, right-drag or Shift-drag to move it, double-click to start over. {{triangles}} triangles.",

@@ -2667,6 +2667,25 @@ Rigid bodies, colliders, raycasting, simulation stepping.
 Sound effects, music, spatial audio with distance falloff, volume controls.
 - Native: `crates/humanity-core/src/audio/mod.rs`, `crates/humanity-core/src/audio/sounds.rs`
 
+### Loudness: "Even out loudness" and the video start volume (2026-11-06)
+Every sound played at the loudness of its kind (speech, video, music, sound effects, ambience,
+interface, notifications; targets in LUFS as data), an ITU-R BS.1770 meter written here (tested on
+EBU Tech 3341's signals), the shipped sounds measured into data by `just loudness`; Settings >
+Audio "Even out loudness" (on by default). And the volume a new video starts at, one choice for chat
+videos, the Media page and in-world screens ("My last volume", kept across restarts, or "A set
+volume"), in both apps, with a volume bar on the Media page's player and a screen's strip and a
+"Volume settings" cog beside a chat video's bar. Rungs 2 to 5 (videos and received files levelled as
+they play, voices levelled per person, a slider per kind, an opt-in mic level) are planned in
+`docs/design/loudness.md`.
+- Native: `crates/humanity-core/src/audio/loudness.rs` (meter), `audio/levels.rs` (kinds, gains),
+  `audio/start_volume.rs` (the video choice), `audio/mod.rs` (`AudioManager::one_shot`, the reuse
+  switch), `src/gui/pages/settings.rs` (`video_start_choices`), `src/gui/widgets/video_view.rs`,
+  `src/gui/pages/chat/inline_video.rs`, `src/engine/screens/video.rs` (`compose_mix` with the clip's
+  own volume)
+- Data: `data/audio/loudness.toml`, `data/audio/measured_loudness.toml` (generated), `category` in
+  `data/sounds.toml`
+- Web: `web/shared/video-volume.js`, Settings > Audio & Video > Videos (`web/pages/settings.html`)
+
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
 - Native: `crates/humanity-core/src/ecs/systems.rs`, `crates/humanity-core/src/ecs/components.rs`

@@ -95,6 +95,16 @@ pub(crate) use inline_video::{draw_video_window, sync_video_sound};
 /// A posted video's poster picture: made when it is posted, drawn before Play (2026-11-06). See
 /// `chat/video_poster.rs`.
 pub(crate) mod video_poster;
+
+/// A chat video's "Volume settings" link was pressed (inline_video.rs, `ChatVideos::open_volume_settings`):
+/// open Settings > Audio, where the choice of what volume a new video starts at is (2026-11-06). The
+/// main loop asks after the video window each frame, and the page asks as it starts, which is what
+/// catches a press on a wall screen showing the chat (it draws with its own `ChatVideos` swapped in).
+pub(crate) fn follow_volume_settings_link(state: &mut GuiState) {
+    if std::mem::take(&mut state.chat_video.open_volume_settings) {
+        state.go_to(crate::gui::history::Place::settings(crate::gui::SettingsCategory::Audio), crate::gui::How::Beside);
+    }
+}
 /// Device-to-device big files (answer 10): a row per transfer at the top of a DM. See `chat/transfer_rows.rs`.
 mod transfer_rows;
 #[cfg(test)]
@@ -147,6 +157,7 @@ const MAX_PANEL_WIDTH: f32 = 400.0;
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     crate::engine::warnings::ensure_loaded(state); // step F's patterns, read once
     reply::drop_if_elsewhere(state); // a reply belongs to the conversation it was started in
+    follow_volume_settings_link(state); // a video's "Volume settings" pressed last frame (a wall screen's too)
     // ── Clipboard image paste detection ──
     // The Ctrl+V key event is detected at the RAW WINIT LAYER (see
     // src/lib.rs window_event) which sets state.pending_clipboard_paste.

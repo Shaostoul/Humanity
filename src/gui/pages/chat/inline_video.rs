@@ -126,9 +126,15 @@ pub(crate) struct ChatVideos {
     /// the last" is told by. Its own count, not egui's pass number, because a wall screen showing
     /// the chat draws it under a context of its own (gui/screen_surface.rs, with a set of its own).
     frame: u64,
-    /// The chat videos' volume (0 to 1, on top of the app's) and Mute: one for them all, this run.
+    /// The chat videos' volume (0 to 1, on top of the app's) and Mute: one for them all (one plays at
+    /// a time), Mute for this run. A video starting fresh starts at Settings > Audio's start volume
+    /// (humanity_core::audio::start_volume: my last volume, or a set one), and a moved volume bar is
+    /// the last volume, kept across restarts (2026-11-06).
     pub volume: f32,
     pub muted: bool,
+    /// The "Volume settings" mark beside the volume bar was pressed: Settings > Audio opens
+    /// (`chat::follow_volume_settings_link`, which has the app's state).
+    pub(crate) open_volume_settings: bool,
     /// The poster pictures asked for, by the video's address (rung 2: memory only, under the reuse
     /// switch), and the channel their workers answer on.
     posters: HashMap<String, Poster>,
@@ -166,6 +172,7 @@ impl Default for ChatVideos {
             frame: 0,
             volume: 1.0,
             muted: false,
+            open_volume_settings: false,
             posters: HashMap::new(),
             poster_tx,
             poster_rx,
@@ -315,6 +322,8 @@ impl ChatVideos {
         self.problems.remove(url);
         let mut view = VideoView::default();
         view.start_at = self.stills.get(url).map_or(0.0, |s| s.place_s);
+        // A video starting fresh starts at Settings > Audio's start volume (2026-11-06).
+        self.volume = humanity_core::audio::start_volume::start_volume();
         view.volume = self.volume;
         view.muted = self.muted;
         #[cfg(test)]
@@ -568,6 +577,10 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
             if !in_window && widgets::Button::ghost(t("chat_video.full_window")).size(small).hint("chat_video.full_window_hint").show(ui, theme) {
                 asked.window = true;
             }
+            // Settings > Audio's video volume choices, a small mark beside the bar (2026-11-06).
+            if video_view::volume_settings_mark(ui, theme) {
+                videos.open_volume_settings = true;
+            }
             asked.volume = video_view::track_bar(ui, theme, "volume", videos.volume, VOLUME_WIDTH, !videos.muted, TrackReport::Live, "chat_video.volume_hint");
             if widgets::Button::ghost(if videos.muted { t("chat_video.unmute") } else { t("chat_video.mute") }).size(small).hint("chat_video.mute_hint").show(ui, theme) {
                 asked.mute = true;
@@ -600,6 +613,8 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
     }
     if let Some(v) = asked.volume {
         videos.volume = v;
+        // The last volume, which the next video starts at with "my last volume" (saved).
+        humanity_core::audio::start_volume::note_volume(v);
     }
     if asked.window {
         if !videos.live.get(url).is_some_and(|l| l.view.is_playing()) {

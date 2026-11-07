@@ -744,6 +744,13 @@ function updateRangeLabels() {
   const volEl = document.getElementById('pref-speaker-vol');
   const volLabel = document.getElementById('speaker-vol-label');
   if (volEl && volLabel) volLabel.textContent = volEl.value + '%';
+  // Videos (2026-11-06): the set volume shows its percent, and only with "A set volume" chosen.
+  const startEl = document.getElementById('pref-video-start');
+  const pctEl = document.getElementById('pref-video-start-pct');
+  const pctLabel = document.getElementById('video-start-pct-label');
+  const pctRow = document.getElementById('video-start-pct-row');
+  if (pctEl && pctLabel) pctLabel.textContent = pctEl.value + '%';
+  if (startEl && pctRow) pctRow.style.display = startEl.value === 'set' ? '' : 'none';
 }
 
 // Patch savePref to also update range labels

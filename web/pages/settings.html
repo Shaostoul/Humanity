@@ -1674,6 +1674,31 @@
         </div>
       </div>
 
+      <!-- What volume a video starts at (2026-11-06): the desktop app's Settings > Audio > Videos.
+           Kept in this browser; /shared/video-volume.js gives each video on the chat and Media
+           pages its start volume. -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="settings.videos">Videos</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong id="lbl-video-start" data-i18n="settings.video_start">New videos start at</strong>
+            <span data-i18n="settings.video_start_hint">The volume a video starts at when you play it, in chat, on the Media page and on a screen in the world. Each video's own volume bar still turns it up or down.</span>
+          </div>
+          <select class="setting-select" id="pref-video-start" aria-labelledby="lbl-video-start" onchange="savePref()" data-i18n-tip="settings.video_start_hint" data-tip-desc="The volume a video starts at when you play it, in chat, on the Media page and on a screen in the world. Each video's own volume bar still turns it up or down.">
+            <option value="last" data-i18n="settings.video_start_last">My last volume</option>
+            <option value="set" data-i18n="settings.video_start_set">A set volume</option>
+          </select>
+        </div>
+        <div class="setting-row" id="video-start-pct-row">
+          <div class="setting-label">
+            <strong id="lbl-video-start-pct" data-i18n="settings.video_start_volume">Set volume %</strong>
+            <span data-i18n="settings.video_start_volume_hint">The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting.</span>
+          </div>
+          <input type="range" class="setting-range" id="pref-video-start-pct" aria-labelledby="lbl-video-start-pct" min="0" max="100" value="100" oninput="savePref()" data-i18n-tip="settings.video_start_volume_hint" data-tip-desc="The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting.">
+          <span id="video-start-pct-label" style="font-size:0.8rem;color:var(--text-muted);min-width:36px;text-align:right;">100%</span>
+        </div>
+      </div>
+
       <div class="settings-group">
         <div class="settings-group-title">Camera</div>
         <div class="setting-row">

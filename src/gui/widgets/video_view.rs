@@ -42,6 +42,9 @@ pub const UNMUTE: &str = "Unmute";
 pub const FETCHING: &str = "Fetching the video...";
 pub const STARTING: &str = "Starting...";
 
+/// How wide a player's volume bar is, in points.
+pub const VOLUME_BAR_WIDTH: f32 = 72.0;
+
 /// What the view says under a video whose sound the computer cannot play here.
 pub fn sound_lost_words(codec: &str) -> String {
     format!("Its sound ({codec}) is in a format this computer cannot play here. Download it to hear it in another player.")
@@ -112,6 +115,9 @@ impl VideoView {
     pub fn start(&mut self, ffmpeg_setting: &str, name: &str, fetch: impl FnOnce() -> Result<PathBuf, String> + Send + 'static) {
         let (tx, rx) = std::sync::mpsc::channel();
         self.name = name.to_string();
+        // A new video starts at Settings > Audio's start volume (2026-11-06): my last volume, or a
+        // set one (humanity_core::audio::start_volume).
+        self.volume = humanity_core::audio::start_volume::start_volume();
         let (ffmpeg_setting, name) = (ffmpeg_setting.to_string(), name.to_string());
         std::thread::spawn(move || {
             let fetched = fetch().map(|copy| {
@@ -312,6 +318,14 @@ impl VideoView {
                 if player.has_audio() && widgets::Button::ghost(if self.muted { UNMUTE } else { MUTE }).show(ui, theme) {
                     self.muted = !self.muted;
                 }
+                // Its own volume (2026-11-06): a new video starts at Settings > Audio's start volume,
+                // and a move here is the last volume the next one starts at with "my last volume".
+                if player.has_audio() {
+                    if let Some(v) = track_bar(ui, theme, "video_volume", self.volume, VOLUME_BAR_WIDTH, !self.muted, TrackReport::Live, "video.volume_hint") {
+                        self.volume = v;
+                        humanity_core::audio::start_volume::note_volume(v);
+                    }
+                }
                 ui.label(small(&format!("{} of {}", clock(player.position_s()), clock(player.duration_s()))));
             });
             if let Some(codec) = player.info().sound_lost.as_deref() {
@@ -440,6 +454,12 @@ pub enum TrackReport {
 /// website's twin is the browser's own `<video controls>` bar.
 #[allow(clippy::too_many_arguments)]
 pub fn track_bar(ui: &mut egui::Ui, theme: &Theme, id_salt: impl std::hash::Hash, value: f32, width: f32, enabled: bool, report: TrackReport, hint_key: &'static str) -> Option<f32> {
+    track_bar_at(ui, theme, id_salt, value, width, enabled, report, hint_key).0
+}
+
+/// [`track_bar`], and where it was laid out (a test aims a press at it: a screen's volume bar).
+#[allow(clippy::too_many_arguments)]
+pub fn track_bar_at(ui: &mut egui::Ui, theme: &Theme, id_salt: impl std::hash::Hash, value: f32, width: f32, enabled: bool, report: TrackReport, hint_key: &'static str) -> (Option<f32>, egui::Rect) {
     use crate::gui::widgets::hint::Hint;
     let knob = theme.slider_thumb_radius;
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width.max(knob * 4.0), knob * 2.0 + 4.0), egui::Sense::hover());
@@ -488,5 +508,46 @@ pub fn track_bar(ui: &mut egui::Ui, theme: &Theme, id_salt: impl std::hash::Hash
         painter.circle_filled(egui::pos2(x, y), knob, dim(knob_fill));
     }
     crate::gui::widgets::focus_ring(ui, theme, &resp);
-    put
+    (put, rect)
+}
+
+/// The small "Volume settings" mark beside a video's volume bar (2026-11-06): a cog, drawn (no
+/// glyph), its words a hint and its name for a screen reader. True when it was pressed; the caller
+/// opens Settings > Audio, where the choice of what volume a new video starts at is.
+pub fn volume_settings_mark(ui: &mut egui::Ui, theme: &Theme) -> bool {
+    use crate::gui::widgets::hint::Hint;
+    let size = theme.font_size_small + 4.0;
+    let (rect, resp) = crate::gui::widgets::icons::icon_button(ui, size);
+    let resp = resp.hint("chat_video.volume_settings_hint");
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, t("chat_video.volume_settings")));
+    if ui.is_rect_visible(rect) {
+        let color = if resp.hovered() || resp.has_focus() { theme.text_primary() } else { theme.text_muted() };
+        crate::gui::widgets::icons::paint_cog(ui.painter(), rect.shrink(2.0), color);
+    }
+    crate::gui::widgets::focus_ring(ui, theme, &resp);
+    resp.clicked()
+}
+
+#[cfg(test)]
+mod start_volume_tests {
+    use super::*;
+    use humanity_core::audio::start_volume::{self as sv, StartAt};
+
+    /// THE START VOLUME APPLIES TO THE MEDIA PAGE'S PLAYER (2026-11-06): Play here
+    /// (`files::open::start_play`, which calls `VideoView::start`) starts a video at a set 5%; with
+    /// "my last volume" at the volume the last video was left at. The fetch fails at once (no
+    /// network here): the volume is the view's from the moment it starts. On this thread's own
+    /// choice. RED first: with `start` not asking the start volume, "a set 5%" failed (left: 1.0,
+    /// right: 0.05).
+    #[test]
+    fn a_media_page_video_starts_at_the_chosen_start_volume() {
+        sv::use_on_this_thread(StartAt::Set, 0.05, 0.8);
+        let mut v = VideoView::default();
+        v.start("", "clip", || Err("not fetched in this test".to_string()));
+        assert_eq!(v.volume, 0.05, "a set 5%");
+        sv::set_choice(StartAt::Last, 0.05);
+        let mut w = VideoView::default();
+        w.start("", "clip", || Err("not fetched in this test".to_string()));
+        assert_eq!(w.volume, 0.8, "my last volume");
+    }
 }
