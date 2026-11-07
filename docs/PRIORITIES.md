@@ -2065,14 +2065,22 @@ idea. Can we do a unified inbox too? Or like receiving full replies/DMs?" Post o
 HumanityOS profile, chat channels and your connected accounts; replies, mentions and DMs from them
 beside HumanityOS's own, each with a plain badge saying who else can read it; sign-ins on your own
 device, never through our servers; an AI helper drafts, a person taps Post, the app labels it;
-groups share an Outbox with roles and approvals. Design: `docs/design/outbox-and-inbox.md` (12
-rungs, 14 questions for the operator); research:
+groups share an Outbox with roles and approvals. Design: `docs/design/outbox-and-inbox.md` (13
+rungs, 14 questions for the operator, two answered on 2026-11-06, section 17.1); research:
 `docs/reference/findings/2026-11-06-social-platform-apis.md` (Mastodon and Bluesky fit fully; X is
 paid per call; LinkedIn bars automated posting; Discord, Telegram, Meta, YouTube, Reddit, Rumble and
 Patreon are limited or closed, each said on screen). Nothing built.
-- **Next rung, unblocked: rung 1**, one person, the Outbox, Mastodon, post only (with copy and
-  share-window buttons for the platforms with no API), once the operator answers the design's
-  questions 1 to 3 (which platforms, the account names, new accounts or @Shaostoul).
+- **Next rung, unblocked: rung 1, copy and open for every platform, no sign-ins.** The operator,
+  2026-11-06: "I guess we should format it from the base method of copy and open then make the GUI
+  elements for autoposting or whatever, we provide the full concise details." Each platform's
+  version of the post shaped from data (length, link, hashtags, the picture or clip, its
+  description), copied, and the platform's own page for writing a post opened, with the details
+  beside it; "Open a draft" for the `docs/outreach/posts/` files. Posting for the person comes later,
+  on the same shaped post (rungs 2 and 3: Mastodon then Bluesky, recommended, not yet confirmed).
+  The Inbox keeps messages permanently by default, the choice always on the Inbox itself (his answer
+  the same day: "I feel like we should keep the permanent with access to the toggle always
+  accessible."). Questions 2 and 3 (the account names, new accounts or @Shaostoul) are needed by
+  rung 2, not rung 1.
 - **Beyond this feature, planned (designed in its section 15, each needing its own short design
   where it belongs):**
   - every link drawn with its real site highlighted, look-alike names warned, and "Where does this

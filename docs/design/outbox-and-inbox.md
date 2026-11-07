@@ -1,19 +1,24 @@
 # The Outbox and the Inbox: post once everywhere, read every reply in one place
 
-**Status: design 2026-11-06; nothing built.** The whole feature is planned here with all its parts
-(CLAUDE.md, "Plan the whole feature, build it in rungs"), then cut into rungs (section 16), smallest
-first. What each platform allows rests on the dated research in
+**Status: design 2026-11-06, changed the same day by the operator's answers (section 17.1); nothing
+built.** The whole feature is planned here with all its parts (CLAUDE.md, "Plan the whole feature,
+build it in rungs"), then cut into rungs (section 16), smallest first. What each platform allows rests on the dated research in
 [`docs/reference/findings/2026-11-06-social-platform-apis.md`](../reference/findings/2026-11-06-social-platform-apis.md);
 references like MA-11 or EU-9 below are that finding's numbered findings.
 
 ## 0. In plain words
 
 - **The Outbox** is one place in the app where you write a post once and send it to your
-  HumanityOS profile, to chat channels, and to your accounts on other platforms (Mastodon, Bluesky,
-  and others where they allow it). You see how it will look on each, you tap Post, and you get a
-  few seconds to take it back.
+  HumanityOS profile, to chat channels, and to your accounts on other platforms. You see how it will
+  look on each. **For every platform, the app first shapes the post to fit it, copies it and opens
+  that platform's own page for writing a post**, with everything you need to finish there listed
+  beside it (the picture, its description, where the link goes). Where a platform lets apps post
+  (Mastodon and Bluesky first), a later version posts for you on a tap, from the same shaped post,
+  and gives you a few seconds to take it back.
 - **The Inbox** puts the replies, mentions and messages from those accounts beside your HumanityOS
-  messages, each one marked with where it came from and **who else can read it**.
+  messages, each one marked with where it came from and **who else can read it**. It keeps them on
+  your device, locked with your identity, until you say otherwise, and the keep-or-forget choice is
+  right there on the Inbox.
 - **Your sign-ins stay on your device**, locked with your identity. Posts and messages go straight
   between your device and each platform, never through our servers.
 - **An AI helper can draft** a post or a reply, but nothing goes out until a person taps Post, and
@@ -60,6 +65,22 @@ choices, disappearing messages, the app lock, the disk check) are in section 15,
 belongs and a line in `docs/PRIORITIES.md`. His third question corrected the first draft of 7.4:
 the app does not read a conversation and guess; see 7.4.
 
+Then, on the design's questions (section 17), the same day (2026-11-06), verbatim as relayed:
+
+> "I guess we should format it from the base method of copy and open then make the GUI elements for autoposting or whatever, we provide the full concise details."
+
+> "I feel like we should keep the permanent with access to the toggle always accessible."
+
+And, on the relay's outbound guard (BUG-255; section 15.1):
+
+> "Your recommendations continue to be good."
+
+The first changed the Outbox's shape: copy and open is the base for every platform (section 4.0),
+and posting for the person is a later layer on the same shaped post. The second reversed the
+recommended default of question 8: the Inbox keeps messages permanently unless the person chooses
+otherwise, with the choice always one tap away (section 7.6). What each answer decided, and which
+questions stay open, is in section 17.1.
+
 ## 2. The rules every part follows
 
 1. **Nothing posts or sends without a person's tap.** Not a draft from the AI helper, not a
@@ -77,8 +98,10 @@ the app does not read a conversation and guess; see 7.4.
    text; it cannot press a button (section 8).
 4. **Say plainly how private each thing is.** Every message, every connected account and every
    Outbox destination carries the same badge (section 7.3).
-5. **Keep less.** Fetch what the person asks for, keep only what they choose, for as long as they
-   choose and the platform allows (section 7.6).
+5. **Keep what the person chooses, where they can see it.** Fetch what the person asks for; keep it
+   on their own device only, for as long as they choose and the platform allows: permanently by
+   default, with "keep for a while" and "show and forget" always one tap away on the Inbox itself
+   (section 7.6; operator, 2026-11-06).
 6. **Ask each platform for the least.** A connection asks only for the permissions in use (post-only
    until the Inbox is switched on for it), and shows what it may do (section 4.6).
 7. **Say what we will not build, and why**, in the person's way at the moment they meet it, naming
@@ -109,13 +132,19 @@ answer, so a reader can check it and a later finding can change it.
   "name_key": "social.platform.mastodon",
   "finding": "2026-11-06-social-platform-apis.md#findings-mastodon-and-the-fediverse-through-activitypub",
   "post": {
-    "how": "api",
-    "max_chars": { "from_server": true, "default": 500 },
-    "url_counts_as": 23,
-    "media": { "images": 4, "image_mb": 16 },
-    "ai_label": "text",
-    "schedule": "unknown",
-    "source": ["MA-1", "MA-14"]
+    "format": {
+      "max_chars": { "from_server": true, "default": 500 },
+      "count": "characters",
+      "url_counts_as": 23,
+      "link": "end",
+      "hashtags": { "max": null, "where": "end" },
+      "media": { "images": 4, "image_mb": 16 },
+      "alt_text": "unread",
+      "ai_label": "text",
+      "source": ["MA-14"]
+    },
+    "open": { "compose": "unread", "prefill": "unread", "source": [] },
+    "auto": { "how": "api", "schedule": "unknown", "source": ["MA-1"] }
   },
   "read": { "mentions": "stream", "replies": "stream", "dms": "stream", "source": ["MA-4", "MA-5", "MA-16"] },
   "sign_in": { "kind": "oauth_register_per_server", "pkce": "S256", "secret": "per_install", "return": ["loopback", "oob"], "source": ["MA-2", "MA-11", "MA-12"] },
@@ -129,22 +158,39 @@ answer, so a reader can check it and a later finding can change it.
 }
 ```
 
-A platform that blocks something carries the reason, the kind of reason and the words shown:
+A platform that blocks something carries the reason, the kind of reason and the words shown. It
+still has its `format` and `open`, because copy and open works everywhere:
 
 ```json
 {
   "id": "reddit",
-  "post": { "how": "copy" },
+  "post": {
+    "format": { "max_chars": null, "link": "end", "alt_text": "unread", "source": [] },
+    "open": { "compose": "unread", "prefill": "unread", "source": [] },
+    "auto": { "how": "none" }
+  },
   "read": { "mentions": "none", "replies": "none", "dms": "none" },
   "blocked": [
-    { "what": "post_and_read", "why": "platform_rule", "words_key": "social.blocked.reddit", "source": ["RD-1"] }
+    { "what": "auto_post_and_read", "why": "platform_rule", "words_key": "social.blocked.reddit", "source": ["RD-1"] }
   ]
 }
 ```
 
-- **`post.how`**: `api` (the app posts), `handoff` (the app opens the platform's own share page with
-  the link ready, as Facebook's Share dialog, FB-1), `copy` (the app copies the text for the person
-  to paste), or `none`.
+- **`post.format`**: how a post is shaped for this platform (section 4.0): the length and how it is
+  counted (`characters`, `graphemes` on Bluesky, BS-16; `weighted` on X with links as 23, X-21),
+  where the link goes, how many hashtags and where, how many pictures or which clip and their
+  limits, whether each picture takes a description (alt text) and how long, and the AI label's form
+  (in the text, or a switch on the platform's own page). `null` or `"unread"` means no finding has
+  read it yet; the shaper then uses the safe default (the full text with the link written out at the
+  end, no hashtags added, a description offered for every picture) and says the rule was not read.
+- **`post.open`**: the platform's own page for writing a post and what it can be handed (`text`,
+  `link`, or nothing, so the text goes only on the clipboard). Facebook's Share dialog takes a link
+  but no post text (FB-1). Every other platform's page and what it accepts are read from its own
+  documentation in rung 1 and added to the finding, dated, before the row says anything but
+  `"unread"`; until then "open" opens the platform's home page.
+- **`post.auto.how`**: the later layer only, the one that posts FOR the person: `api` (the app posts
+  through the platform's interface), `webhook` (Discord, into a channel), `bot` (Telegram, into a
+  channel), or `none`. Whatever it says, the platform keeps its copy and open (section 4.0).
 - **`read.*`**: `stream` (a connection the app opens itself, MA-16), `poll`, `none`.
 - **`privacy.dms`**: `platform_can_read`, `sealed` (only the people in it), `mixed` (X: X Chat is
   sealed, older DMs are not, X-22), `none`.
@@ -154,25 +200,90 @@ A platform that blocks something carries the reason, the kind of reason and the 
 - **A Mastodon server's own numbers win**: the app reads `configuration.statuses.max_characters` and
   the media limits from the person's server (MA-14), the row's numbers being the fallback.
 
-**The platforms at the start, from the finding** (section 16 says which rung adds which):
+**The platforms at the start, from the finding** (section 16 says which rung adds which). Copy and
+open comes first for every platform (rung 1); the "posted for you" column is the later layer:
 
-| Platform | Outbox | Inbox | Why not more (section 12) |
-|---|---|---|---|
-| HumanityOS profile and chat channels | posts | mentions, DMs (sealed) | |
-| Mastodon | posts (api) | mentions, replies, DMs (stream) | |
-| Bluesky | posts (api, post-only permission) | mentions, replies (poll); DMs with a second permission | automatic replies are spam there (BS-8) |
-| Discord | into a channel by a webhook the person makes | none | no app may act as the person (DC-1) or read their DMs (DC-3) |
-| Telegram | into a channel by the person's own bot | none at first | full client: credentials and sponsored messages (TG-2, TG-6); AI off (TG-4) |
-| LinkedIn | posts to the person's own profile, on a tap only, once LinkedIn enables secret-free sign-in (LI-7) | none | no automated posting (LI-4); reading closed (LI-3) |
-| YouTube | video uploads, the operator's own channel first | comments | no community posts or messages API (YT-3, YT-5); credentials in open source (YT-8) |
-| X | only with the person's own X developer account and credits | mentions, DMs, at the person's cost | paid per call (X-1) |
-| Rumble | copy | the creator's own live chat while live (read only) | no posting API, automation needs written permission (RU-1) |
-| Facebook | handoff (Share dialog, personal profiles); Pages: copy | none | no app posts to a personal profile (FB-1); Pages need review and the secret (FB-2, FB-8) |
-| Instagram, Threads | copy | none | review, business verification and the secret (IG-2, IG-6, TH-3, TH-8) |
-| Reddit | copy | none | new access closed, public API ends March 2027 (RD-1) |
-| Patreon | copy | none | the API cannot make posts or reach messages (PA-1, PA-2) |
+| Platform | Outbox: copy and open (rung 1) | Outbox: posted for you (later) | Inbox | Why not more (section 12) |
+|---|---|---|---|---|
+| HumanityOS profile and chat channels | (posted by the app: they are ours) | | mentions, DMs (sealed) | |
+| Mastodon | yes | api (rung 2) | mentions, replies, DMs (stream) | |
+| Bluesky | yes | api, post-only permission (rung 3) | mentions, replies (poll); DMs with a second permission | automatic replies are spam there (BS-8) |
+| Discord | yes | into a channel by a webhook the person makes (rung 12) | none | no app may act as the person (DC-1) or read their DMs (DC-3) |
+| Telegram | yes | into a channel by the person's own bot (rung 12) | none at first | full client: credentials and sponsored messages (TG-2, TG-6); AI off (TG-4) |
+| LinkedIn | yes | to the person's own profile, on a tap only, once LinkedIn enables secret-free sign-in (LI-7; rung 12) | none | no automated posting (LI-4); reading closed (LI-3) |
+| YouTube | yes (the clip, cleaned, saved for uploading by hand) | video uploads, the operator's own channel first (rung 12) | comments | no community posts or messages API (YT-3, YT-5); credentials in open source (YT-8) |
+| X | yes | only with the person's own X developer account and credits (rung 12) | mentions, DMs, at the person's cost | paid per call (X-1) |
+| Rumble | yes | none | the creator's own live chat while live (read only) | no posting API, automation needs written permission (RU-1) |
+| Facebook | yes: personal profiles through the Share dialog with the link (FB-1), Pages by the clipboard | none | none | no app posts to a personal profile (FB-1); Pages need review and the secret (FB-2, FB-8) |
+| Instagram, Threads | yes | none | none | review, business verification and the secret (IG-2, IG-6, TH-3, TH-8) |
+| Reddit | yes | none | none | new access closed, public API ends March 2027 (RD-1) |
+| Patreon | yes | none | none | the API cannot make posts or reach messages (PA-1, PA-2) |
 
 ## 4. The Outbox, for one person
+
+### 4.0 Copy and open: the base for every platform
+
+The operator, 2026-11-06, on which platforms come first: "I guess we should format it from the base
+method of copy and open then make the GUI elements for autoposting or whatever, we provide the full
+concise details." So the Outbox has two layers, built in that order:
+
+1. **Copy and open, for every platform** (rung 1). The app shapes the post for each platform from
+   its row (`post.format`, section 3), copies it, and opens that platform's own page for writing a
+   post (`post.open`), with the full, concise details of what to do there shown beside it. It works
+   for all thirteen platforms on the first day, the ones closed to apps included, and needs no
+   sign-in to any of them.
+2. **Posted for you, platform by platform** (rungs 2, 3 and 12), only where the platform allows it
+   (`post.auto`). It is a later layer ON THE SAME SHAPED POST, never a separate path: the text, the
+   checks (4.3), the preview and the details are the ones copy and open already uses; connecting an
+   account turns that platform's "Copy and open" into "Post" with the undo window (4.4). Copy and
+   open stays on every platform even when an account is connected, for a person who prefers to post
+   by hand.
+
+**Shaping the post, from data.** For each ticked platform the shaper makes that platform's version
+of the one text: cut at the platform's limit and counted its way (never silently: the preview shows
+where it ends, and a per-platform override is kept with the draft, 4.1); the link placed where the
+row says, written out in full, and counted the platform's way; hashtags kept within the row's limit
+and put where it says (none added that the person did not write); the pictures or the clip chosen
+within the row's count and size; the AI label in the text where the platform has no switch for it
+(5.1). Where a row says `"unread"`, the safe default applies (section 3) and the details say the rule
+was not read.
+
+**The steps, one platform at a time** (a clipboard holds one thing at once):
+
+```
+  ── Copy and open ──────────────────── 2 of 4: Bluesky ──
+  The text (291 / 300, counted as Bluesky does)             [ Copy text ]
+    Our water filter guide is now in the Library ...
+  The link: united-humanity.us/p/3f9a  (at the end, written out in full)
+  Picture 1 of 1: cleaned on this device (location removed)  [ Copy picture ] [ Show file ]
+    Its description (alt text), 118 characters               [ Copy description ]
+  Drafted with AI: the label is in the text (Bluesky has no switch for it)
+  [ Copy and open Bluesky ]     [ Done: I posted it ]     [ Skip ]     Next: Facebook
+```
+
+- **"Copy and open <platform>"** copies the text and opens the platform's page in the person's own
+  browser: its page for writing a post, handed the text or the link where `post.open` says it takes
+  them, otherwise its home page. **"Copy text" alone** is always there too.
+- **The details beside it, concise and complete:** the text as copied with its count against the
+  limit; the link and where it sits; each picture or the clip, already cleaned on the device (4.1),
+  with "Copy picture" where the system's clipboard takes pictures and "Show file" for the cleaned
+  copy saved in the Outbox's folder for attaching by hand; each picture's description with its own
+  Copy button; where the platform's own page has an AI-label switch, a line saying to set it (the
+  app cannot set it for a post it does not send; which pages have one is read per platform in rung
+  1); and any platform rule that bears on this post (4.3).
+- **"Done: I posted it"** marks that platform done, with an optional box to paste the copy's
+  address, so the post's home (4.2) can list where else it is and Delete everywhere (4.4) can say
+  where to delete it by hand. "Skip" leaves it unticked for this post.
+- **What leaves the device: nothing**, until the person posts on the platform themselves. A
+  platform's page handed the text carries it in the page's address, which that platform receives
+  when the page opens (it was going there anyway) and the browser's history keeps; the details say
+  so once, and "Copy text" alone avoids it.
+- **Why this layer first:** no platform sign-in exists to steal, leak or revoke; every platform is
+  served at once, so nobody waits for the platforms that will never open to apps; it replaces the
+  operator's hand-copying of `docs/outreach/posts/` drafts straight away (section 14); and the
+  shaper, the checks and the details it needs are exactly what posting for the person reuses later.
+- **The website does all of it** (the browser's clipboard, the platform opened in a new tab, the
+  cleaned pictures saved for attaching), so rung 1 lands on both apps in full.
 
 ### 4.1 Writing a post
 
@@ -183,16 +294,20 @@ A platform that blocks something carries the reason, the kind of reason and the 
   [ + Picture ]  [ + Video ]   Link back: united-humanity.us/p/3f9a   (on)
 
   Send to                                   Who can see it
-  [x] Your HumanityOS profile               (globe) Public
-  [x] #global on united-humanity.us         (globe) Public
-  [x] Mastodon  @you@mastodon.social        (globe) Public    482 / 500
-  [x] Bluesky   @you.bsky.social            (globe) Public    291 / 300  (cut: see preview)
-  [ ] X                                     Connect your own X developer account
-  [ ] Reddit                                Copy for Reddit   (why?)
+  [x] Your HumanityOS profile               (globe) Public                 posted by the app
+  [x] #global on united-humanity.us         (globe) Public                 posted by the app
+  [x] Mastodon                              (globe) Public    482 / 500    copy and open
+  [x] Bluesky                               (globe) Public    291 / 300    copy and open  (cut: see preview)
+  [x] X                                     (globe) Public    271 / 280    copy and open
+  [ ] Reddit                                (globe) Public                 copy and open  (why not more?)
 
   Checks: (!) This photo has a location in it. It will be removed before sending.   [Show]
-  [ Preview each ]        [ Schedule ]              [ Post ]
+  [ Preview each ]     [ Schedule ]     [ Post to HumanityOS, then copy and open the rest ]
 ```
+
+Once a platform's posting layer is built and the person has connected an account there (4.6), its
+row shows the account (`Mastodon  @you@mastodon.social`) and says "posted by the app", and the button
+reads "Post" for it.
 
 - **One text, previews per platform.** The composer counts each platform's way (graphemes on
   Bluesky, BS-16; weighted characters with links as 23 on X, X-21; the server's limit on Mastodon).
@@ -246,8 +361,10 @@ The phone, email and address patterns, and the share-unsafe phrases, are a data 
 
 - **Preview each** shows the post as each platform will show it: the text as cut, the pictures, the
   link card, the AI label, the badge.
-- **Post** starts a countdown (10 seconds by default, Settings: 0 to 60) with **Undo** on screen.
-  Nothing leaves the device until it ends. After it, each copy is sent; the row shows each one's link
+- **Post** starts a countdown (10 seconds by default, Settings: 0 to 60) with **Undo** on screen,
+  for what the app itself sends: the HumanityOS destinations and, once their layer is built,
+  connected accounts. Copy and open needs no countdown: nothing leaves until the person posts on the
+  platform (4.0). Nothing leaves the device until the countdown ends. After it, each copy is sent; the row shows each one's link
   as it lands, or the platform's refusal in plain words ("Mastodon said: the post is too long for
   this server (500).").
 - **After posting**, Delete everywhere removes the copies where the platform's API allows it and says
@@ -262,13 +379,18 @@ The phone, email and address patterns, and the share-unsafe phrases, are a data 
   If the time passed while it was off, the app asks at the next start: "This post was due at 09:00.
   Post it now, change the time, or keep it as a draft?" It never posts a stale post silently.
 - The person's other devices show the scheduled post (section 9.4) and which device will send it.
-- **Not for LinkedIn**: its API terms forbid automated posting (LI-4); the platform is unticked with
-  the words in section 12. Each platform's `post.schedule` in the data file is `unknown` until a
-  finding reads its rules; `unknown` platforms are allowed with a line saying the rule was not read.
+- **For a copy-and-open platform the time is a reminder**: when it comes, the app shows the post
+  ready to copy and open (4.0), and posts nothing. A reminder to a person is not automated posting,
+  so it serves every platform, LinkedIn included.
+- **Posted for you on a schedule: not for LinkedIn**: its API terms forbid automated posting (LI-4);
+  the platform gets the reminder instead, with the words in section 12. Each platform's
+  `post.auto.schedule` in the data file is `unknown` until a finding reads its rules; `unknown`
+  platforms are allowed with a line saying the rule was not read.
 
 ### 4.6 Connected accounts
 
-Settings > Connected accounts (and a link from the Outbox), native and web:
+Not in rung 1, which holds no sign-in: the first connected account arrives with Mastodon's posting
+layer (rung 2). Settings > Connected accounts (and a link from the Outbox), native and web:
 
 ```
   Mastodon  @you@mastodon.social        (globe) Posts are public   (eye) Messages: server owners can read
@@ -297,8 +419,10 @@ Settings > Connected accounts (and a link from the Outbox), native and web:
   changed, carries the label "Drafted with AI" in the text where the platform has no field for it
   (X, Mastodon, Bluesky, LinkedIn: X-13), and the platform's own flag where it has one (Threads
   `is_made_with_ai`, TH-6; Instagram `is_ai_generated`, IG-4; YouTube `containsSyntheticMedia` only
-  for realistic synthetic video, YT-6). A person may edit the label's wording within its key's
-  choices but cannot remove it from a draft the helper wrote. This is beyond what any law read
+  for realistic synthetic video, YT-6). A platform flag can be set only by a post the app sends;
+  for a copied post the details tell the person to set the platform's own switch where its page has
+  one (4.0). A person may edit the label's wording within its key's choices but cannot remove it
+  from a draft the helper wrote. This is beyond what any law read
   requires (the finding's short answer) and satisfies mastodon.social's rule (MA-7).
 - **A later per-account opt-in, never a default.** A person could one day let the helper send
   replies on one account without a tap. It stays off and is not offered at first: EU law then
@@ -343,7 +467,11 @@ can switch on an Outbox for accounts it shares.
   helper with its own HumanityOS identity can be a drafter (section 14), never an approver.
 - **N approvals:** each account has its number (1 by default); a post goes out when N approvers other
   than its drafter have approved its exact words (5.2's hash).
-- **Where the sign-in lives, by what the platform allows** (`shared_sign_in`, section 3):
+- **Copy and open needs no shared sign-in** (4.0): once a post holds its N approvals, any approver
+  (or its drafter) can copy and open it on each platform and mark it done, and the audit log
+  records who did. Every platform works this way for a group from the first group rung.
+- **Where the sign-in lives, for the posting layer, by what the platform allows**
+  (`shared_sign_in`, section 3):
   - **The holder posts (the default, every platform).** The sign-in stays on the device of the admin
     who connected the account. Drafts and approvals travel as signed group messages; the holder's
     device sends the post once it holds N approvals and is running, and tells the group.
@@ -425,9 +553,10 @@ destination.
 
 `data/glossary.json` gains `subpoena`: "A subpoena, a court order or a search warrant is a legal
 paper that can make a company hand over what it keeps about you. A company can only hand over what
-it can read: a sealed message reaches it as locked data it cannot open. Who needs which paper
-differs by company; each one's own rules are listed in our research notes." with the link to the
-finding. The words of every badge and card go through the comprehension test (7.3.2) before they
+it can read: a sealed message reaches it as locked data it cannot open. A copy kept on your own
+device is not with the company at all: reaching it takes your device, unlocked or forced open. Who
+needs which paper differs by company; each one's own rules are listed in our research notes." with
+the link to the finding. The words of every badge and card go through the comprehension test (7.3.2) before they
 ship.
 
 #### 7.3.2 The words, and testing them on people who have never seen the app
@@ -495,17 +624,54 @@ comprehension on cold readers, do not re-judge taste). **The test:**
 - **Link previews are made on the device and only when asked.** No preview is fetched automatically;
   "Show a preview" fetches the page from this device, never through our relay.
 
-### 7.6 Keep less
+### 7.6 What the Inbox keeps: permanent by default, the choice always one tap away
 
-- **Per account, the person chooses how much the Inbox keeps** (protection 1): **Show and forget**
-  (the default: fetched messages are shown and dropped when the app closes; the next start fetches
-  again from the platform, which keeps them anyway), **Keep the last 7 days**, **Keep the last 30
-  days**. The choice is shown on the account's row with what it means for this device.
-- **Each platform's limit wins** when shorter: YouTube's 30 days, then refresh or delete (YT-7);
-  X's deletions followed within 24 hours (X-15); every platform's deletions are applied at the next
-  fetch; LinkedIn's "only as long as necessary" (LI-6). The data file's `keep.max_days` holds them.
-- **What is always kept** is only what makes the Inbox work: the "read" and "done" marks and the
-  group's assignment marks (section 7.9), by platform message id, with no message text.
+The operator, 2026-11-06, on question 8 (whose recommendation was "Show and forget"): "I feel like we
+should keep the permanent with access to the toggle always accessible." So (protection 1):
+
+- **Kept, by default.** Every fetched message is kept on this device, in the encrypted Inbox store
+  (9.2), until the person forgets it, chooses a shorter keep, or the platform's own rule says to
+  remove it. Like the HumanityOS message history, which is already kept on the device the same way.
+- **The choice is on the Inbox itself, never only in Settings.** A keep control sits in the Inbox's
+  header (for every account) and on each account's chip in it, one tap from any conversation:
+  **Keep** (the default), **Keep for a while** (7 days or 30 days; the lengths are rows in
+  `data/social/keep_choices.json`, so more are data), and **Show and forget** (shown, then dropped
+  when the app closes; the next start fetches again from the platform, which keeps its own copy
+  anyway). Each conversation also has **Forget this conversation** in its menu. Settings > Connected
+  accounts shows the same choice, as a mirror, not the only place.
+- **A shorter choice says what it removes, then removes it at once:** "This removes 1,240 messages
+  older than 30 days from this device. The platform keeps its own copy." Nothing kept is ever
+  dropped without the person's tap, except by the platform's rule below.
+- **Each platform's limit still wins** when shorter, whatever the choice: YouTube's 30 days, then
+  refresh or delete (YT-7); X's deletions followed within 24 hours (X-15); every platform's deletions
+  are applied at the next fetch (a message its sender deleted leaves the kept store too); LinkedIn's
+  "only as long as necessary" (LI-6). The data file's `keep.max_days` holds them, and the keep
+  control says so on that account ("YouTube allows 30 days").
+- **What it means for the badge (7.3).** The badge says who ELSE can read a message where it is held
+  away from this device; keeping adds one more place, this device. So the badge's sentence on tap
+  gains a line from the keep choice: "A copy is kept on this device, locked with your identity.",
+  "Kept on this device for 30 days.", or "Not kept on this device after you close the app." Keeping
+  never changes who else can read a "can read" message (the platform holds its copy whatever this
+  device does); it does mean that anyone who opens this device while it is unlocked, or forces it
+  open, can read the kept copy, which is why the line is there and why the app lock (15.4) and the
+  disk check (15.5) matter more with permanent keeping. A court order to the platform reaches the
+  platform's copy; the kept copy is reachable only through the device. The glossary card (7.3.1)
+  says both.
+- **What it means for size.** About 1 KB a message as kept (the text, who wrote it, the platform's
+  ids and times, link addresses; an estimate, to be measured in rung 6), with pictures and media
+  never kept, only their addresses (they load on a tap, 7.5), unless the person saves one: about
+  36 MB a year for an account receiving 100 messages a day, about 365 MB for a very busy one at
+  1,000 a day. The keep control shows each account's kept count and size ("Kept: 12,400 messages,
+  13 MB"). The vault file itself does not grow: it holds only the identity key (the glossary's
+  `vault`), and the Inbox store is its own file beside it under its own derived key (9.2), readable
+  only while the identity is unlocked.
+- **Written so permanent stays cheap.** The store keeps each message as its own sealed record
+  appended to segment files (each record its own AES-256-GCM seal), so a write costs the size of what
+  arrived, never the whole store's; forgetting rewrites only the segments it touches. At most one
+  write per account per minute (section 13).
+- **What is kept even under "Show and forget"** is only what makes the Inbox work: the "read" and
+  "done" marks and the group's assignment marks (section 7.9), by platform message id, with no
+  message text.
 
 ### 7.7 Notices
 
@@ -579,8 +745,10 @@ the message on the platform.
 
 ### 9.2 Drafts, scheduled posts and kept messages
 
-The same way, each under its own derived key (`hum/social-drafts/v1`, `hum/social-inbox/v1`), only
-as much as section 7.6 keeps.
+The same way, each under its own derived key (`hum/social-drafts/v1`, `hum/social-inbox/v1`), as
+much as section 7.6 keeps: by default every fetched message the platform allows, for as long as it
+allows, as sealed records appended to segment files (7.6). The rung that builds the store adds its
+rows to `docs/reference/cryptography.md` in the same commit.
 
 ### 9.3 Never on our relay
 
@@ -611,8 +779,8 @@ description every Bluesky app publishes, BS-12), which names the app and holds n
 
 CLAUDE.md's rule is no caches kept across runs during development: "Every cache is a chance to
 encounter a bug." The kept Inbox is not one. A cache is a copy kept to skip work, which can go stale
-unseen. The kept Inbox is the person's record, kept because they chose "Keep 7 days", exactly as
-their HumanityOS message history is kept: the app never skips a fetch because a copy exists, every
+unseen. The kept Inbox is the person's record, kept because that is the default they can change at
+a tap on the Inbox (7.6), exactly as their HumanityOS message history is kept: the app never skips a fetch because a copy exists, every
 message shows when it was fetched, and the platform's deletions and edits are applied at every
 fetch. The one thing that would be an optimisation, a saved "fetch from here" point per account, is
 never trusted alone: each start, and once a day, the app fetches the whole window the platform
@@ -622,9 +790,9 @@ on, every fetch is a whole window.
 ## 10. The website
 
 **Decision for the first web rungs: the website holds no platform sign-ins.** It mirrors the Outbox
-and the Inbox (the same layout, words and badges), writes and approves drafts, shows a group's audit
-log and HumanityOS messages, and says "Your connected accounts post from your desktop app." on each
-platform row. Why: a sign-in kept in a web page is reachable by any script that page runs, and the
+and the Inbox (the same layout, words and badges), writes and approves drafts, copies and opens every
+platform (4.0, which needs no sign-in), shows a group's audit log and HumanityOS messages, and says
+"Your connected accounts post from your desktop app." on each connected platform's row. Why: a sign-in kept in a web page is reachable by any script that page runs, and the
 website's sealed DM history is the only private thing it keeps today; a platform sign-in there is a
 new kind of risk that deserves its own review. The desktop app runs no third-party script.
 
@@ -653,23 +821,24 @@ localStorage, for people who use only the website (open question 6).
 
 Shown on the platform's row in the Outbox, in Connected accounts, and wherever the person meets the
 gap, with a "Why?" link to the finding. Each names the kind of reason. No patent blocks anything
-here.
+here. Copy and open (4.0) works on every one of these platforms; the words explain only why the
+app cannot post FOR the person there, or read for them.
 
 | Where | Kind | Words (proposed, by key) |
 |---|---|---|
 | Facebook, a personal profile | PLATFORM HOLDER'S RULE | "Facebook does not let any app post to a personal profile (its rule since 2018). We can open Facebook's own share window with your link, and you finish the post there." |
-| Facebook Pages, Instagram, Threads | PLATFORM HOLDER'S RULE | "Meta lets only apps it has reviewed post for other people, and its sign-in needs a secret key that cannot be kept inside open-source software like this. We copy your post so you can paste it there." |
-| Reddit | PLATFORM HOLDER'S RULE | "Reddit stopped letting new apps connect on 31 October 2026 and is closing its connection for all apps in March 2027. We copy your post so you can paste it on Reddit." |
-| X | PLATFORM HOLDER'S RULE (price) | "X charges for every post an app makes ($0.015, or $0.20 with a link), paid by whoever owns the app's X developer account. To post to X from here, connect your own X developer account; X bills you directly." |
+| Facebook Pages, Instagram, Threads | PLATFORM HOLDER'S RULE | "Meta lets only apps it has reviewed post for other people, and its sign-in needs a secret key that cannot be kept inside open-source software like this. We copy your post and open their page, so you can paste it there." |
+| Reddit | PLATFORM HOLDER'S RULE | "Reddit stopped letting new apps connect on 31 October 2026 and is closing its connection for all apps in March 2027. We copy your post and open Reddit, so you can paste it there." |
+| X | PLATFORM HOLDER'S RULE (price) | "X charges for every post an app makes ($0.015, or $0.20 with a link), paid by whoever owns the app's X developer account. Copy and open works as for every platform; to have the app post to X for you, connect your own X developer account, and X bills you directly." |
 | X, replies | PLATFORM HOLDER'S RULE | "X lets apps reply only to posts that mention you or quote you." |
-| LinkedIn, scheduling | PLATFORM HOLDER'S RULE | "LinkedIn's rules forbid apps to post on a schedule, so posts to LinkedIn go out only when you tap Post." |
+| LinkedIn, scheduling | PLATFORM HOLDER'S RULE | "LinkedIn's rules forbid apps to post on a schedule, so a scheduled post to LinkedIn is a reminder: at the time, we have it ready for you to copy and open." |
 | LinkedIn, Inbox | PLATFORM HOLDER'S RULE | "LinkedIn does not let apps read your comments or messages." |
 | Discord | PLATFORM HOLDER'S RULE | "Discord does not let any app act as your account or read your messages (its rule). You can post into a channel with a webhook made in that channel's settings." |
 | Telegram, the AI helper | PLATFORM HOLDER'S RULE | "Telegram's rules forbid using Telegram messages to run AI, so the helper does not read or draft for Telegram." |
 | Bluesky, automatic replies | PLATFORM HOLDER'S RULE | "Bluesky counts automatic replies and messages as spam, so a reply to Bluesky always waits for your tap." |
 | YouTube | PLATFORM HOLDER'S RULE | "YouTube gives apps no way to make community posts or read messages. Video uploads and comments can come later." |
 | Rumble | PLATFORM HOLDER'S RULE | "Rumble's rules forbid apps to post for you without its written permission. During your own live streams we can show your live chat." |
-| Patreon | PLATFORM HOLDER'S RULE | "Patreon's connection for apps can read your posts but not make them, and cannot reach comments or messages." |
+| Patreon | PLATFORM HOLDER'S RULE | "Patreon's connection for apps can read your posts but not make them, and cannot reach comments or messages. We copy your post and open Patreon, so you can paste it there." |
 | Any automatic reply, if ever offered | LAW | "EU law requires a message written by AI to say so, and for whom. This one will." |
 
 ## 13. The compute and network budget
@@ -687,7 +856,8 @@ here.
   an optional schedule shown with its monthly cost. A refusal for rate (HTTP 429) backs off by the
   platform's own wait.
 - **Memory:** at most 500 messages per account in memory; older kept ones paged from the store on
-  scroll. **Disk:** writes batched, at most one per account per minute.
+  scroll. **Disk:** writes batched, at most one per account per minute, each appending only what
+  arrived; the kept store grows about 1 KB a message, permanent by default (7.6).
 - **Network:** a poll is a page of a few to a few tens of KB; pictures only on a tap (7.5); a post
   sends its text and media once.
 - **The relay's share:** none beyond a public post and the sealed notes it already carries.
@@ -696,17 +866,20 @@ here.
 
 Today Claude drafts update posts as files (`docs/outreach/posts/`, one per update with a section per
 platform, the voice and the facts checked against the release notes) and the operator copies them
-out by hand. The Outbox replaces the copying:
+out by hand. The Outbox replaces the copying, from rung 1 on:
 
 1. **Drafts arrive in the HumanityOS Outbox.** A draft file in the same Markdown shape (a header
    naming the platforms, the sources, and "Drafted with AI (Claude)") opens in the Outbox with "Open
-   a draft". The release skill and the update-post workflow write into it from the devlog, the
-   release notes and the clips (`just clips`). Later, with groups (rung 9), Claude is a drafter
-   member of the HumanityOS Outbox group with its own identity, and drafts arrive as signed group
-   messages instead of files.
-2. **The operator reviews against the sources** (5.2), ticks, and taps Post.
-3. **The posts go out from his device** to the HumanityOS accounts (which ones: open questions 1 to
-   3), each carrying "Drafted with AI" and the link back to the Devlog card.
+   a draft" (rung 1), each platform's section becoming that platform's override (4.1) and the
+   header's AI line its label (5.1). The release skill and the update-post workflow write into it
+   from the devlog, the release notes and the clips (`just clips`). Later, with groups (rung 10),
+   Claude is a drafter member of the HumanityOS Outbox group with its own identity, and drafts
+   arrive as signed group messages instead of files.
+2. **The operator reviews against the sources** (5.2; the review tick arrives in rung 5).
+3. **He copies and opens each platform from his device** (4.0), the post already shaped for it,
+   each copy carrying "Drafted with AI" and the link back to the Devlog card; once Mastodon's and
+   Bluesky's posting layers are built (rungs 2 and 3) and the project accounts connected, those two
+   are posted by the app on his tap (which accounts: open questions 2 and 3).
 4. **The accounts' profiles name who is responsible** (5.2, open question 9).
 5. **YouTube for his own channel's clips** uses his own Google project, its credentials in his vault
    (not in the repository, YT-8), when that rung comes.
@@ -722,13 +895,13 @@ The nine protections put to him, numbered as they are cited in this design, and 
 
 | # | Protection | Where | Rung |
 |---|---|---|---|
-| 1 | Keep less: the Inbox keeps only what the person chooses | 7.6 | 5 |
-| 2 | Pictures and links from other platforms load only on a tap; previews made on the device when asked | 7.5 | 5 |
-| 3 | Notices show no message text by default | 7.7 | 5 |
+| 1 | The Inbox keeps what the person chooses: permanent by default, forgetting one tap away on the Inbox, never on our relay (operator, 2026-11-06) | 7.6 | 6 |
+| 2 | Pictures and links from other platforms load only on a tap; previews made on the device when asked | 7.5 | 6 |
+| 3 | Notices show no message text by default | 7.7 | 6 |
 | 4 | The app lock, and the identity locked when the app closes | 15.4 | beyond this feature |
-| 5 | The scam guard in the Inbox (and every link's real site, 15.1) | 7.8, 15.1 | 5; 15.1 beyond this feature |
-| 6 | "Continue privately on HumanityOS", and the warning from a fact | 7.4 | 6 |
-| 7 | Least-privilege connections, what each may do, Disconnect that revokes | 4.6 | 1 |
+| 5 | The scam guard in the Inbox (and every link's real site, 15.1) | 7.8, 15.1 | 6; 15.1 beyond this feature |
+| 6 | "Continue privately on HumanityOS", and the warning from a fact | 7.4 | 7 |
+| 7 | Least-privilege connections, what each may do, Disconnect that revokes | 4.6 | 2 |
 | 8 | Photos cleaned on the device before they leave | 4.1 | 1 |
 | 9 | A gentle check that the disk is encrypted | 15.5 | beyond this feature |
 
@@ -771,14 +944,23 @@ redirect points to?" Yes to both, with one honest limit. Belongs with the safety
   - **The honest limit:** a page that sends the visitor on with a script cannot be followed without
     running the page, which this will never do. The answer then says so instead of guessing: "This
     page sends you on with a script; we cannot see where."
-  - **What exists to build on, and must not be reused as is:** the relay's link-preview fetcher
-    (`src/relay/handlers/utils.rs` `fetch_link_preview`, not called anywhere today: chat link
-    previews are planned in `docs/design/chat-access.md` rung 3) resolves the name once before
-    connecting, lets the HTTP library follow three redirects without checking where they go, treats
-    only IPv6 loopback and unspecified addresses as private, and fetches anyway when the name does not
-    resolve. The hop follower needs every hop checked and connected by checked address, and the
-    preview fetcher should get the same before it is ever switched on. The website's rule that
-    preview pictures load only from this site (`scripts/tests/link-preview-pictures.test.js`) stays.
+  - **What exists to build on:** the relay's link-preview fetcher (`src/relay/handlers/utils.rs`
+    `fetch_link_preview`, not called anywhere today: chat link previews are planned in
+    `docs/design/chat-access.md` rung 3) had exactly the holes this check must not have (one lookup,
+    then three redirects followed unchecked, only IPv6 loopback counted as private, a fetch even when
+    the name did not resolve). Since 2026-11-06 (BUG-255) it goes through `OutboundGuard::get`, every
+    hop checked and connected by checked address; the hop follower is that `get` reporting each hop
+    instead of only the last page. The website's rule that preview pictures load only from this site
+    (`scripts/tests/link-preview-pictures.test.js`) stays.
+  - **The guard's two open questions, answered.** Put to the operator on 2026-11-06 with BUG-255's
+    fix, as relayed: a push service on a server's own local network stays refused until someone asks
+    for it (no switch to allow private addresses), and addresses a server's own admin enters stay
+    outside the guard. His answer: "Your recommendations continue to be good." For this design that
+    means the hop follower gets no "allow my local network" switch either (a hop to a private address
+    is refused and named as such in the answer), and nothing in the Outbox or the Inbox is an
+    admin-entered address: their requests to platforms go from the person's own device (sections 2
+    and 9), and the link check is the only request the relay makes for this feature, always through
+    the guard.
 
 ### 15.2 One layering for every notification and per-person choice
 
@@ -868,79 +1050,129 @@ Each rung lands on both apps where the website can do it (section 10), with its 
 first. Every rung's words go through `i18n-add.js`, its widgets through the theme, and its proof
 includes a headless frame of its screens.
 
-1. **One person, the Outbox, Mastodon, post only.** The data file (all thirteen platforms' rows from
-   the finding, with `blocked` reasons and words) and its loader in `just validate-data`; Connected
-   accounts with Mastodon (per-server registration, PKCE, loopback return with the out-of-band code
-   as fallback, post-only permissions, Disconnect); the encrypted sign-in store (9.1); the composer
-   with per-platform counts, the HumanityOS profile post and #global as destinations, pictures cleaned
-   on the device (4.1); the checks of 4.3 (the recovery-phrase guard reused); the undo window;
-   "Copy for <platform>" and Facebook's share window for every platform without an API, each with its
-   section 12 words; the badge on destinations and accounts. **Tests:** the data file's loader against
-   a malformed row; the sign-in store's round trip and that a copied file opens nothing without the
-   identity; the composer's count for Mastodon from a fake server's limit; the checks over shared
-   cases on both apps; the cleaning of a photo with a location (`describe_metadata` finds nothing
-   after); a fake Mastodon server on 127.0.0.1 receiving exactly one post with its Idempotency-Key
-   after the undo window, and none when Undo is pressed; no request to the relay during a post;
-   Disconnect deleting the sign-in.
-2. **Bluesky, post only.** The public client description file on the website; PKCE, PAR and DPoP;
-   the post-only permission set; grapheme counting; the two-week session's re-sign-in said plainly
-   ("Bluesky asks apps like this one to sign in again every two weeks."). The return path: loopback if
-   unknown 6 in the finding is answered yes; otherwise a custom address scheme, accepting the costs
+1. **Copy and open, every platform (one person, no sign-ins).** The data file (all thirteen
+   platforms' rows from the finding, each with `format`, `open`, `auto` and its `blocked` reasons and
+   words) and its loader in `just validate-data`; first, a dated addition to the finding reading each
+   platform's own documentation for its page for writing a post and what that page accepts, its
+   picture-description (alt text) and hashtag rules, so as few rows as possible say `"unread"`; the
+   shaper (4.0: each platform's count, link placement, hashtags, pictures or clip, descriptions, the
+   AI label in the text); the composer with per-platform previews and overrides, #global as a
+   destination posted by the app with the undo window (4.4); pictures cleaned on the device (4.1);
+   the checks of 4.3 (the recovery-phrase guard reused); the copy-and-open steps with their details,
+   "Done: I posted it" and the optional pasted address; Facebook's Share dialog with the link;
+   "Open a draft" for the `docs/outreach/posts/` shape, its header's AI line becoming the label
+   (section 14); each platform's section 12 words; the badge on destinations. **Tests:** the data
+   file's loader against a malformed row; the shaper over shared cases on both apps (a text over
+   each platform's limit cut where the preview says, a link counted as 23 on X, a text with emoji and
+   joined characters counted as graphemes for Bluesky, hashtags held to a row's limit and never
+   added, a description offered for every picture, `"unread"` falling back to the safe default and
+   saying so); the checks over shared cases on both apps; the cleaning of a photo with a location
+   (`describe_metadata` finds nothing after); copy and open making no network request at all (the
+   opener stubbed: the address opened carries only what `post.open` allows, and nothing reaches the
+   relay or a platform); "Open a draft" turning each platform's section into its override, with the
+   label; #global receiving one post after the undo window and none when Undo is pressed.
+2. **Mastodon, posted for you.** Connected accounts with Mastodon (per-server registration, PKCE,
+   loopback return with the out-of-band code as fallback, post-only permissions, Disconnect); the
+   encrypted sign-in store (9.1); the server's own limits read (MA-14); "Post" with the undo window
+   in place of "Copy and open" for a connected account; the badge on accounts. **Tests:** the sign-in
+   store's round trip and that a copied file opens nothing without the identity; the composer's count
+   for Mastodon from a fake server's limit; a fake Mastodon server on 127.0.0.1 receiving exactly one
+   post with its Idempotency-Key after the undo window, and none when Undo is pressed; **the text
+   posted byte for byte the text copy and open would have copied** (one shaper, never a second path);
+   no request to the relay during a post; Disconnect deleting the sign-in.
+3. **Bluesky, posted for you.** The public client description file on the website; PKCE, PAR and
+   DPoP; the post-only permission set; the two-week session's re-sign-in said plainly ("Bluesky asks
+   apps like this one to sign in again every two weeks."). The return path: loopback if unknown 6 in
+   the finding is answered yes; otherwise a custom address scheme, accepting the costs
    `docs/design/notifications.md` gave for avoiding `humanityos://` (a second copy of the program per
    click, a registration each build overwrites). **Tests:** a fake authorisation server on 127.0.0.1
-   checking PAR, PKCE and a DPoP proof; the count of a text with emoji and joined characters.
-3. **Our site first.** `social_post_v1`, the profile's Posts section on both apps, `/p/<id>` with link
-   previews, the link back on every copy, the share-safe check. **Tests:** the signed object's schema
-   and its federation copy; the page's preview tags; a copy's text carrying the link.
-4. **The AI helper and HumanityOS's own accounts.** Drafts with sources, the review tick, the
-   approved-words hash, the label in text and in platform flags, the per-account reading choice
-   ("my drafts only" by default), "Open a draft" for the `docs/outreach/posts/` shape, the responsible
-   person's line. **Tests:** a change after approval clearing the tick; the label present on every
-   helper-touched draft and absent otherwise; the helper sent nothing beyond the chosen reading.
-5. **The Inbox, read.** Mastodon (stream) and Bluesky (poll) mentions and replies beside HumanityOS's
-   in the Chat page's list; the badge with its hint and glossary card (after the comprehension test,
-   7.3.2); keep-less with Show and forget by default; pictures and links on a tap; notices through THE
-   rule; the scam guard; links drawn with their real site (15.1, built before or with this rung; until
-   then a link opens only on a tap with its address written out); the injection flag. **Tests:** a
-   fake stream's mention appearing in the list; nothing kept after close under Show and forget; a
-   platform deletion removing a kept message at the next fetch; a picture not fetched until tapped; a
-   notice with no text by default; the warnings' shared cases; the reuse switch forcing a
-   whole-window fetch.
-6. **DMs in the Inbox, and replying.** Mastodon direct messages; Bluesky chat with its separate
+   checking PAR, PKCE and a DPoP proof; the text posted the same as the text copied, as in rung 2.
+4. **Our site first.** `social_post_v1`, the profile's Posts section on both apps (and the profile as
+   an Outbox destination), `/p/<id>` with link previews, the link back on every copy, the share-safe
+   check. **Tests:** the signed object's schema and its federation copy; the page's preview tags; a
+   copy's text carrying the link.
+5. **The AI helper.** Drafts with sources, the review tick, the approved-words hash, the label in the
+   text and in platform flags for posts the app sends, the per-account reading choice ("my drafts
+   only" by default), the responsible person's line. **Tests:** a change after approval clearing the
+   tick; the label present on every helper-touched draft and absent otherwise; the helper sent nothing
+   beyond the chosen reading.
+6. **The Inbox, read.** Mastodon (stream) and Bluesky (poll) mentions and replies beside HumanityOS's
+   in the Chat page's list; the badge with its hint, its keep line and its glossary card (after the
+   comprehension test, 7.3.2); the keep choice of 7.6 (Keep by default; Keep for a while; Show and
+   forget) on the Inbox's header and each account's chip, with each account's kept count and size,
+   the store of appended sealed records; pictures and links on a tap; notices through THE rule; the
+   scam guard; links drawn with their real site (15.1, built before or with this rung; until then a
+   link opens only on a tap with its address written out); the injection flag. **Tests:** a fake
+   stream's mention appearing in the list; under Keep, the messages still there after a restart, and
+   under Show and forget, nothing kept after close; a shorter choice removing exactly the messages
+   older than it and saying how many first; the keep control reachable from the Inbox itself (a
+   headless frame of it); a write growing the store by what arrived, not rewriting it; a platform
+   deletion removing a kept message at the next fetch; YouTube's 30 days holding under Keep; a picture
+   not fetched until tapped; a notice with no text by default; the warnings' shared cases; the reuse
+   switch forcing a whole-window fetch.
+7. **DMs in the Inbox, and replying.** Mastodon direct messages; Bluesky chat with its separate
    permission; replying from the Inbox through the review and undo window; "Continue privately on
    HumanityOS" (always there); the sealed-conversation warning from a recorded fact; the optional
    hints, off by default. **Tests:** a reply leaving on the right platform and account; the warning
    shown only when a move, a link the person made or a two-way profile link is recorded, never from
    the text of a message; the hints never running while off, and never on the other person's
    messages; the invitation's words chosen before sending.
-7. **Several devices.** The notes to oneself for connected accounts, drafts, schedules and marks;
-   Disconnect everywhere. **Tests:** two devices' notes settling the same in either order; a sign-in
-   never inside a note (the note's text checked).
-8. **Scheduled posts.** On the scheduling device, the late-post question, LinkedIn excluded. **Tests:**
-   a post due while the app was closed asking, not posting.
-9. **Groups: a shared Outbox.** Roles, N approvals, holder-posts, the audit log, then the sign-in
-   sealed to approvers' key cards for platforms whose `shared_sign_in` allows it; the AI helper as a
-   drafter member. **Tests:** a post not sent with N-1 approvals; an approval of changed words not
-   counting; a sealed sign-in only to checked key cards; Bluesky refusing the sealed mode; the audit
-   log's signatures.
-10. **A group's shared Inbox.** Assignment, "answering now", done. **Tests:** two members' marks
+8. **Several devices.** The notes to oneself for connected accounts, drafts, schedules, marks and
+   keep choices; Disconnect everywhere. **Tests:** two devices' notes settling the same in either
+   order; a sign-in never inside a note (the note's text checked).
+9. **Scheduled posts.** Reminders for copy-and-open platforms (LinkedIn included); posting for
+   connected accounts on the scheduling device, never LinkedIn; the late-post question. **Tests:** a
+   post due while the app was closed asking, not posting; a reminder never posting anything.
+10. **Groups: a shared Outbox.** Roles, N approvals, copy and open by any approver, holder-posts, the
+    audit log, then the sign-in sealed to approvers' key cards for platforms whose `shared_sign_in`
+    allows it; the AI helper as a drafter member. **Tests:** a post not sent, and copy and open not
+    offered, with N-1 approvals; an approval of changed words not counting; a sealed sign-in only to
+    checked key cards; Bluesky refusing the sealed mode; the audit log's signatures.
+11. **A group's shared Inbox.** Assignment, "answering now", done. **Tests:** two members' marks
     settling the same; a member who left seeing no new marks.
-11. **More platforms, one at a time, each with its own dated check of the platform's current rules
-    first:** Discord webhooks into channels; a Telegram bot into channels; LinkedIn posting once
-    LinkedIn enables secret-free sign-in; YouTube uploads and comments for the operator's own channel;
-    X with the person's own developer account and a cost meter; Rumble live chat in the Inbox while
-    live.
-12. **The website's sign-ins** (section 10's later opt-in), after its security review.
+12. **More platforms posted for you, one at a time, each with its own dated check of the platform's
+    current rules first:** Discord webhooks into channels; a Telegram bot into channels; LinkedIn
+    posting once LinkedIn enables secret-free sign-in; YouTube uploads and comments for the
+    operator's own channel; X with the person's own developer account and a cost meter; Rumble live
+    chat in the Inbox while live.
+13. **The website's sign-ins** (section 10's later opt-in), after its security review.
 
-## 17. Questions only the operator can answer
+## 17. Questions for the operator, and his answers
 
-1. **Which platforms first?** Recommendation: Mastodon (rung 1) then Bluesky (rung 2), the two that
-   fit fully; copy and share-window buttons for X, Facebook, LinkedIn and Discord from rung 1 (where
-   the update posts go today); Discord webhooks and LinkedIn after; X only with the person's own
-   developer account.
+### 17.1 Decided (2026-11-06)
+
+- **Question 1, which platforms first: decided in shape.** His answer: "I guess we should format it
+  from the base method of copy and open then make the GUI elements for autoposting or whatever, we
+  provide the full concise details." So copy and open comes first, for every platform, with the full
+  concise details beside it (4.0, rung 1), and posting for the person comes after, platform by
+  platform, on the same shaped post (rungs 2, 3 and 12). Which platform gets its posting layer first
+  was not in his answer, so that half stays open (17.2, question 1).
+- **Question 8, the Inbox's default keep choice: decided, against the recommendation** (which was
+  "Show and forget"). His answer: "I feel like we should keep the permanent with access to the toggle
+  always accessible." So the Inbox keeps messages permanently by default, on the device and encrypted
+  under the identity, with Keep for a while and Show and forget always one tap away on the Inbox
+  itself (7.6, which also says what it means for the badge and for size).
+- **The relay's outbound guard, its two questions** (BUG-255; not numbered in this list): a push
+  service on a server's own local network refused until someone asks for it, and addresses a
+  server's own admin enters left outside the guard. His answer: "Your recommendations continue to be
+  good." What it means here: 15.1.
+
+**Not marked decided, and why.** The recommendations of questions 2, 3, 4, 5, 7, 9 and 11, and the
+order in question 1, were relayed as ones he agrees with, but no words of his agreeing to them are on
+record: "Your recommendations continue to be good." answered the outbound guard's two questions, and
+his earlier "Your recommendations sound good." (2026-11-03) answered three questions about
+per-person controls (`docs/design/per-person-controls.md`, 8.1). A decision is never attributed to
+him that he did not make (CLAUDE.md), so they stay open below with their recommendations until he
+says so; when he does, they move up here with his words.
+
+### 17.2 Still open, each with its recommendation
+
+1. **Which platform's posting layer first?** Recommendation: Mastodon (rung 2) then Bluesky (rung 3),
+   the two that fit fully; Discord webhooks and LinkedIn after; X only with the person's own
+   developer account. (Copy and open serves every platform before any of them, as decided.)
 2. **The HumanityOS accounts' names.** Recommendation: "HumanityOS" everywhere; on Bluesky, the
    website's own domain as the handle (@united-humanity.us) if Bluesky's domain handles are confirmed
-   in rung 2 (not in the finding), so the handle itself proves who it is; on Mastodon, @humanityos on a
+   in rung 3 (not in the finding), so the handle itself proves who it is; on Mastodon, @humanityos on a
    server you choose (mastodon.social's rules require AI use to be disclosed, which the label does,
    MA-7).
 3. **New project accounts, or your @Shaostoul?** Recommendation: new project accounts. The project's
@@ -948,17 +1180,19 @@ includes a headless frame of its screens.
    help, and your own accounts stay your own voice.
 4. **Do replies ever go out without your tap?** Recommendation: no, and not offered as an option for
    now: EU law would require each one to say it is AI and for whom, Bluesky counts it as spam, X needs
-   written approval, and one wrong automatic reply costs more trust than every tap saves.
+   written approval, and one wrong automatic reply costs more trust than every tap saves. (Rule 1 of
+   section 2, a person's tap on every post, stands either way: it was part of the plan he liked.)
 5. **The badge's words.** Recommendation: wording A ("Public", "<Bluesky> can read", "Only you two"),
    but only after the comprehension test in 7.3.2 picks between A, B and C.
-6. **Platform sign-ins on the website?** Recommendation: not at first (section 10); the website drafts
-   and approves, the desktop posts; Mastodon and Bluesky sign-ins on the website later as an opt-in
-   after a security review.
+6. **Platform sign-ins on the website?** Recommendation: not at first (section 10); the website drafts,
+   approves and copies and opens, the desktop posts for connected accounts; Mastodon and Bluesky
+   sign-ins on the website later as an opt-in after a security review.
 7. **Paying for X?** Recommendation: no project money for X's per-post prices ($0.20 for every post
-   with a link). X only for people who bring their own developer account; HumanityOS's own X posts
-   stay copy-and-paste unless you choose to buy credits yourself.
-8. **The Inbox's default keep choice.** Recommendation: Show and forget, with Keep 7 or 30 days one tap
-   away.
+   with a link). X posted for you only for people who bring their own developer account; HumanityOS's
+   own X posts stay copy and open unless you choose to buy credits yourself.
+
+(Question 8 is decided: 17.1.)
+
 9. **The responsible-person line on the HumanityOS accounts** (the EU guidelines' paragraph 138).
    Recommendation: "Posts by the HumanityOS project, drafted with AI help (Claude) and checked by
    Shaostoul before posting. Contact: united-humanity.us", with your name as you want it shown.
@@ -980,7 +1214,9 @@ includes a headless frame of its screens.
 ## 18. Not done here
 
 - No code, data file or glossary entry was written: this is the design. The data file's first rows
-  are the finding's answers, written in rung 1.
+  are the finding's answers, written in rung 1, after the dated addition that reads each platform's
+  page for writing a post and its description and hashtag rules (the `"unread"` entries of
+  section 3).
 - `docs/FEATURES.md` gains a line when rung 1 is built, not before.
 - The finding's open questions (its "What is still unknown") are each tied to the rung that needs the
   answer; none blocks rung 1.
