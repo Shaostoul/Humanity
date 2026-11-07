@@ -19,12 +19,12 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
   - `feature = "native"`: `crates/humanity-core/src/play_journal.rs`, `crates/humanity-core/src/raw_frame.rs`, `crates/humanity-core/src/i18n.rs`, `crates/humanity-core/src/mods/`, `crates/humanity-core/src/auto_unlock.rs`
   - `any(test, feature = "test-support")`: `crates/humanity-core/src/test_clock.rs`, `crates/humanity-core/src/test_temp.rs`, `crates/humanity-core/src/test_log.rs`
   - `all(any(test, feature = "test-support"), feature = "native")`: `crates/humanity-core/src/test_gpu.rs`
-- **Size:** 15,613 lines in 54 files, 408 of them in 1 test files.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 32, `test-support` 9, `wasm` 4.
+- **Size:** 15,713 lines in 54 files, 408 of them in 1 test files.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 34, `test-support` 9, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): protocol, ship, terrain, systems, relay, net, renderer, gui, engine. **Used today by:** engine 602, systems 463, gui 404, renderer 61, ship 57, net 47, relay 29, terrain 4.
+- **May be used by** (the plan): protocol, ship, terrain, systems, relay, net, renderer, gui, engine. **Used today by:** engine 604, systems 463, gui 420, renderer 61, ship 57, net 47, relay 29, terrain 4.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 179 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 182 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-core
@@ -34,23 +34,23 @@ just test-lib --crate humanity-core
 
 | Item | References | From |
 |---|---:|---|
-| `hot_reload::data_store::DataStore` | 120 | systems 80, engine 38, net 1, ship 1 |
+| `hot_reload::data_store::DataStore` | 121 | systems 80, engine 39, net 1, ship 1 |
 | `debug::push_debug` | 83 | gui 42, net 23, engine 18 |
 | `ecs::components` | 77 | systems 58, engine 18, ship 1 |
 | `storage::data_dir` | 72 | gui 36, systems 21, engine 7, ship 5, relay 2, net 1 |
 | `embedded_data::note_builtin_copy` | 59 | ship 15, systems 14, relay 13, gui 8, renderer 6, engine 1, net 1, terrain 1 |
 | `ecs::components::Transform` | 57 | engine 38, systems 15, gui 1, net 1, relay 1, ship 1 |
-| `i18n::t` | 52 | gui 46, engine 5, systems 1 |
+| `i18n::t` | 55 | gui 49, engine 5, systems 1 |
 | `frame_costs::span` | 49 | engine 49 |
 | `ecs::components::Controllable` | 46 | systems 26, engine 19, gui 1 |
 | `frame_costs::stage` | 46 | engine 25, systems 16, gui 4, renderer 1 |
+| `i18n` | 45 | gui 45 |
 | `ecs::systems::System` | 43 | systems 41, engine 1, net 1 |
-| `i18n` | 41 | gui 41 |
 | `vertex::Vertex` | 34 | engine 15, renderer 9, ship 7, terrain 3 |
 | `cosmos::find_body` | 32 | engine 26, gui 4, renderer 2 |
 | `embedded_data::load_data_or_embedded` | 32 | systems 13, gui 8, net 6, engine 3, relay 1, ship 1 |
 
-And 220 more items, 824 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
+And 222 more items, 834 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
 <!-- end generated -->
 
 ## Rules

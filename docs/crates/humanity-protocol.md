@@ -22,7 +22,7 @@ side (net) and the server (relay) compile side by side.
 - **Size:** 13,559 lines in 29 files, 1,258 of them in 5 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 3, `native` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 141, gui 78, net 32, engine 13.
+- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 141, gui 77, net 32, engine 13.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 180 tests, and this runs exactly them, checked against every test's name:
 
@@ -34,7 +34,7 @@ just test-lib --crate humanity-protocol
 
 | Item | References | From |
 |---|---:|---|
-| `chat_access::MAIN_CHANNEL` | 57 | relay 31, gui 18, engine 8 |
+| `chat_access::MAIN_CHANNEL` | 56 | relay 31, gui 17, engine 8 |
 | `did::did_for_pubkey` | 17 | relay 13, gui 4 |
 | `object::Object` | 16 | relay 11, gui 4, net 1 |
 | `pq_crypto` | 15 | relay 9, net 4, gui 2 |

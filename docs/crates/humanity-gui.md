@@ -19,13 +19,13 @@ household permits, low impact). The native app is the source of truth; the websi
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `gui/`, `config.rs`, `notifications/`, `games/`, `software/`, `media/`, `web_reader/`, `updater.rs`, `release_update.rs`, `engine/protected.rs`, `engine/warnings.rs`, `engine/dm.rs`, `engine/block.rs`, `engine/report.rs`, `engine/reach.rs`, `engine/key_cards.rs`, `engine/group_report.rs`, `engine/file_transfer.rs`, `engine/friend_code.rs`, `engine/choice.rs`, `engine/put_answer.rs`, `engine/household.rs`, `engine/low_impact.rs`, `engine/quiet_allow.rs`, `engine/mine_tasks.rs`
-- **Size:** 205,828 lines in 428 files, 36,031 of them in 103 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `gui/pages/maps/sky_events.rs` 463 of 465, `gui/pages/chat/modals.rs` 1,541 of 1,550, `gui/mod.rs` 4,762 of 4,800, `gui/pages/maps/ship_view.rs` 406 of 410, `gui/state_types.rs` 1,822 of 1,850, `gui/pages/maps/time_bar.rs` 245 of 250, `gui/pages/maps/system_view.rs` 774 of 790, `gui/loaders.rs` 1,609 of 1,650, `gui/pages/maps/bodies.rs` 346 of 355, `gui/pages/maps/mod.rs` 346 of 355, `gui/pages/maps/overlays.rs` 458 of 470, `gui/pages/maps/camera.rs` 526 of 540, `gui/pages/chat/left_panel.rs` 1,849 of 1,900, `gui/pages/chat/p2p_groups.rs` 776 of 800, `gui/pages/construction.rs` 4,120 of 4,250, `gui/pages/maps/you_layer.rs` 266 of 275, `gui/pages/maps/body_list.rs` 353 of 365, `gui/pages/maps/scene.rs` 140 of 145, `gui/pages/maps/labels.rs` 154 of 160, `gui/pages/maps/galaxy_view.rs` 380 of 395, `gui/pages/maps/planet_view.rs` 418 of 435, `gui/pages/maps/controls.rs` 120 of 125, `gui/pages/maps/orbits.rs` 278 of 290, `gui/pages/maps/night_sky.rs` 254 of 265, `gui/pages/maps/diagram.rs` 114 of 120, `gui/widgets/level_picker.rs` 151 of 160, `gui/pages/maps/stations.rs` 117 of 125, `gui/pages/maps/world_layer.rs` 135 of 145, `gui/pages/chat.rs` 4,300 of 4,700, `gui/pages/maps/belts.rs` 318 of 385, `gui/pages/chat/right_panel.rs` 476 of 600.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 208.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer. **Uses today** (references in non-test code): core 404, net 344, systems 162, ship 160, relay 104, protocol 78, renderer 28, terrain 25.
-- **May be used by** (the plan): engine. **Used today by:** engine 540.
+- **Size:** 208,326 lines in 432 files, 37,294 of them in 105 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `gui/mod.rs` 4,781 of 4,800, `gui/pages/maps/sky_events.rs` 463 of 465, `gui/pages/chat/modals.rs` 1,541 of 1,550, `gui/pages/maps/ship_view.rs` 406 of 410, `gui/state_types.rs` 1,822 of 1,850, `gui/pages/chat/left_panel.rs` 1,868 of 1,900, `gui/pages/maps/time_bar.rs` 245 of 250, `gui/pages/maps/system_view.rs` 774 of 790, `gui/loaders.rs` 1,609 of 1,650, `gui/pages/maps/bodies.rs` 346 of 355, `gui/pages/maps/mod.rs` 346 of 355, `gui/pages/maps/overlays.rs` 458 of 470, `gui/pages/maps/camera.rs` 526 of 540, `gui/pages/chat/p2p_groups.rs` 776 of 800, `gui/pages/construction.rs` 4,120 of 4,250, `gui/pages/maps/you_layer.rs` 266 of 275, `gui/pages/maps/body_list.rs` 353 of 365, `gui/pages/maps/scene.rs` 140 of 145, `gui/pages/maps/labels.rs` 154 of 160, `gui/pages/maps/galaxy_view.rs` 380 of 395, `gui/pages/maps/planet_view.rs` 418 of 435, `gui/pages/maps/controls.rs` 120 of 125, `gui/pages/maps/orbits.rs` 278 of 290, `gui/pages/maps/night_sky.rs` 254 of 265, `gui/pages/maps/diagram.rs` 114 of 120, `gui/widgets/level_picker.rs` 151 of 160, `gui/pages/maps/stations.rs` 117 of 125, `gui/pages/maps/world_layer.rs` 135 of 145, `gui/pages/chat.rs` 4,304 of 4,700, `gui/pages/maps/belts.rs` 318 of 385, `gui/pages/chat/right_panel.rs` 476 of 600.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 209.
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer. **Uses today** (references in non-test code): core 420, net 344, systems 162, ship 160, relay 104, protocol 77, renderer 28, terrain 25.
+- **May be used by** (the plan): engine. **Used today by:** engine 541.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 1,492 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 1,512 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-engine gui:: config:: notifications:: games:: software:: media:: web_reader:: updater:: release_update:: engine::protected:: engine::warnings:: engine::dm:: engine::block:: engine::report:: engine::reach:: engine::key_cards:: engine::group_report:: engine::file_transfer:: engine::friend_code:: engine::choice:: engine::put_answer:: engine::household:: engine::low_impact:: engine::quiet_allow:: engine::mine_tasks::
@@ -35,7 +35,7 @@ just test-lib --crate humanity-engine gui:: config:: notifications:: games:: sof
 
 | Item | References | From |
 |---|---:|---|
-| `gui::GuiState` | 39 | engine 39 |
+| `gui::GuiState` | 40 | engine 40 |
 | `gui::pages::chat::norm_server_url` | 22 | engine 22 |
 | `config::AppConfig` | 16 | engine 16 |
 | `gui::GuiPage` | 14 | engine 14 |
