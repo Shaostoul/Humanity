@@ -149,10 +149,16 @@ agent's job; **uploading them is publishing, so it is the operator's step**. An 
 2. Upload (the operator; the first time creates the release, later times replace the assets):
 
    ```bash
-   gh release create assets-instruments-1 --repo Shaostoul/Humanity --title "Instrument packs" --notes "CC0 instrument packs for Settings > Audio > Instruments. Built by just instrument-packs; sources in docs/reference/instrument-sources.md." E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
+   gh release create assets-instruments-1 --repo Shaostoul/Humanity --latest=false --title "Instrument packs" --notes "CC0 instrument packs for Settings > Audio > Instruments. Built by just instrument-packs; sources in docs/reference/instrument-sources.md." E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
    # later rebuilds:
    gh release upload assets-instruments-1 --repo Shaostoul/Humanity --clobber E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
    ```
+
+   **Never let an asset release take GitHub's "Latest" label** (`--latest=false` above). The
+   download page, `web/shared/shell.js`'s version check and the relay's `releases/latest/download/`
+   links all read `releases/latest`, which must always be the newest GAME release. On 2026-11-07
+   the first upload was made without the flag and became Latest, so the download page found no
+   app; `gh release edit v<newest game version> --repo Shaostoul/Humanity --latest` put it back.
 
 3. Commit `data/music/` (the core set and the catalog) from the SAME run, then ship. A pack whose
    contents change gets its `version` raised in `scripts/instrument-recipes.json` first, so its file
