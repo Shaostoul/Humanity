@@ -1,0 +1,16 @@
+// Lo-fi's kick: one skin mode whose pitch falls from three times its note in 30 ms, and a click.
+Instrument(
+    id: "lofi_kick",
+    words: "music.instrument.lofi_kick",
+    kind: Membrane((
+        modes: [(1.0, 1.0, 0.35), (1.594, 0.15, 0.12)],
+        pitch_drop: 2.0,
+        pitch_drop_s: 0.03,
+        noise: 0.3,
+        noise_hz: 2000.0,
+        noise_decay_s: 0.01,
+        attack_s: 0.001,
+    )),
+    level_db: -6.0,
+    reverb_send: 0.05,
+)

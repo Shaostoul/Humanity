@@ -90,6 +90,8 @@ pub mod fleet;
 /// The mess hall's serving counter (ship homes increment 6): a free crew meal, the server's in
 /// the shared world and the ship's stores on this computer elsewhere, and drinking water.
 pub mod mess_hall;
+/// The live music and the ship's hum, wired into the frame (2026-11-06, crates/humanity-music).
+pub mod music;
 pub mod home_spawn;
 /// The F10 sidebar's key rules (F10 toggle, Escape-closes-first), the
 /// cursor-free predicate and the flag-by-name lookup the dev IPC reports

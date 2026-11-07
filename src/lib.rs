@@ -1786,6 +1786,7 @@ mod native_app {
                     "data",
                 )),
                 audio_volumes_applied: (-1.0, -1.0, -1.0, -1.0),
+                music: Default::default(),
                 tree_atlas_attempted: false,
                 particle_system: {
                     let mut ps = crate::renderer::particles::ParticleSystem::new();
@@ -15521,6 +15522,8 @@ mod native_app {
 
                             // ── Game audio frame sync (v0.960, first CC0 sounds) ──
                             humanity_core::frame_costs::span("cpu.span.audio");
+                            // The live music and the ship's hum (2026-11-06, engine/music.rs).
+                            crate::engine::music::frame(state);
                             if let Some(audio) = state.audio.as_mut() {
                                 // The Media page's video (and its window over the chat) and a video posted
                                 // in chat play their sound here.

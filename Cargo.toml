@@ -2,7 +2,7 @@
 # humanity-engine (the app, the server mode and the binary), and the crates cut out of it so far, each in
 # crates/<name>/ with a one-page card in docs/crates/. The plan for all ten is scripts/crate-layers.json.
 [workspace]
-members = [".", "crates/humanity-core", "crates/humanity-protocol", "crates/humanity-ship", "crates/humanity-terrain", "crates/humanity-systems"]
+members = [".", "crates/humanity-core", "crates/humanity-protocol", "crates/humanity-ship", "crates/humanity-terrain", "crates/humanity-systems", "crates/humanity-music"]
 # vendor/rav1d is a patched dependency ([patch.crates-io] below), not one of ours.
 exclude = ["vendor"]
 resolver = "2"
@@ -91,7 +91,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
+native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
 relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:p256", "dep:hkdf", "dep:sha2_11", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -109,6 +109,9 @@ humanity-protocol = { path = "crates/humanity-protocol", default-features = fals
 humanity-ship = { path = "crates/humanity-ship", default-features = false }
 humanity-terrain = { path = "crates/humanity-terrain", default-features = false }
 humanity-systems = { path = "crates/humanity-systems", default-features = false }
+# The game's live music and the ship's hum (docs/design/music.md, 2026-11-06): the pure composer and
+# synthesis crate plus its kira adapter. Desktop only (`native`): the server build never compiles audio.
+humanity-music = { path = "crates/humanity-music", optional = true }
 # Data parallelism (v0.1067). The particle update + vertex-collect loop is
 # embarrassingly parallel and was MEASURED at 17-20 ns per particle per frame
 # on one core, which put the practical ceiling near 50k particles at 120 fps.
@@ -428,6 +431,13 @@ debug = "line-tables-only"
 debug = false
 
 [profile.dev.package.rav1d]
+opt-level = 3
+
+# The music engine (crates/humanity-music, 2026-11-06) renders sound on kira's real-time audio thread:
+# unoptimised, its synthesis and reverb run several times slower and a dev build of the game would
+# starve the sound card (crackles). Small and quick to optimise, so its tests and `just music-render` also
+# run at the speed the budget (docs/design/music.md, section 14) is measured at.
+[profile.dev.package.humanity-music]
 opt-level = 3
 
 # The libraries the test suite spends its time in, optimised in dev and test builds (2026-10-18):

@@ -1,0 +1,64 @@
+// "Mothership calm": aboard, homes and the Commons by day (docs/design/music.md, sections 5 and 7).
+// D Lydian colour (the raised fourth for wonder), slow chords two to three bars long, a beat barely
+// felt at 56 to 64 bpm; pads, a wordless choir on some chords, celesta-like bells and the STEEL PAN
+// as gentle motif colours, a drone on the key's root, and the DEEP DRUMS' slow heartbeat in some
+// phrases (operator, 2026-11-06: "Could we deep drums and steel drums"). The chords are the
+// direction sketch's (scripts/music-sketch.js), now a graph the composer walks, plus E major, the
+// Lydian II. Every chord's root is in semitones above the key centre; keys are transpositions.
+Mood(
+    id: "mothership_calm",
+    words: "music.mood.mothership_calm",
+    keys: [(root: "D", mode: Lydian, weight: 4.0), (root: "A", mode: Lydian, weight: 1.0), (root: "G", mode: Lydian, weight: 1.0)],
+    chords: [
+        (name: "Dmaj9", root: 0, notes: [0, 4, 7, 11, 14]),
+        (name: "Bm9", root: 9, notes: [0, 3, 7, 10, 14]),
+        (name: "Gmaj7#11", root: 5, notes: [0, 4, 7, 11, 18]),
+        (name: "Asus2", root: 7, notes: [0, 2, 7]),
+        (name: "F#m7", root: 4, notes: [0, 3, 7, 10]),
+        (name: "Gmaj9", root: 5, notes: [0, 4, 7, 11, 14]),
+        (name: "Em9", root: 2, notes: [0, 3, 7, 10, 14]),
+        (name: "Asus4", root: 7, notes: [0, 5, 7]),
+        (name: "Bm11", root: 9, notes: [0, 3, 7, 10, 14, 17]),
+        (name: "Dadd9", root: 0, notes: [0, 4, 7, 14]),
+        (name: "Eadd9", root: 2, notes: [0, 4, 7, 14]),
+    ],
+    moves: [
+        ("Dmaj9", "Bm9", 3.0), ("Dmaj9", "Gmaj7#11", 2.0), ("Dmaj9", "Eadd9", 1.5), ("Dmaj9", "Asus2", 1.0),
+        ("Bm9", "Gmaj7#11", 3.0), ("Bm9", "Em9", 1.5), ("Bm9", "F#m7", 1.0),
+        ("Gmaj7#11", "Asus2", 3.0), ("Gmaj7#11", "Dmaj9", 1.5), ("Gmaj7#11", "Eadd9", 1.0),
+        ("Asus2", "F#m7", 2.5), ("Asus2", "Dmaj9", 2.0), ("Asus2", "Bm11", 1.0),
+        ("F#m7", "Gmaj9", 3.0), ("F#m7", "Bm9", 1.5),
+        ("Gmaj9", "Em9", 2.5), ("Gmaj9", "Asus4", 1.5), ("Gmaj9", "Dadd9", 1.0),
+        ("Em9", "Asus4", 3.0), ("Em9", "Gmaj9", 1.0),
+        ("Asus4", "Bm11", 2.0), ("Asus4", "Dmaj9", 2.0), ("Asus4", "Dadd9", 1.5),
+        ("Bm11", "Gmaj7#11", 3.0), ("Bm11", "Em9", 1.0),
+        ("Dadd9", "Bm9", 2.0), ("Dadd9", "Gmaj7#11", 2.0), ("Dadd9", "Eadd9", 1.0),
+        ("Eadd9", "Gmaj7#11", 2.0), ("Eadd9", "Dmaj9", 2.0), ("Eadd9", "Asus2", 1.0),
+    ],
+    cadences: ["Dmaj9", "Dadd9", "Asus4"],
+    start: "Dmaj9",
+    phrase_bars: [8, 16],
+    chord_bars: (2, 3),
+    tempo_bpm: (56.0, 64.0),
+    beat_felt: false,
+    beats_per_bar: 4,
+    roles: [
+        (role: Pad, instrument: "soft_saw_pad", low: "B2", high: "B4", voices: 5),
+        (role: Choir, instrument: "choir_ah", low: "D4", high: "D5", voices: 3, density: 0.75),
+        (role: Drone, instrument: "drone", low: "D2", high: "C#3"),
+        (role: Bells, instrument: "celesta", low: "D5", high: "A6", density: 0.55),
+        (role: Melody, instrument: "steel_pan", part: Some("steel_pan"), low: "D4", high: "D6", density: 0.3),
+        (role: Percussion, instrument: "deep_drum", part: Some("deep_drum"), low: "A1", high: "G#2", density: 0.45, pulse: Some((every_bars: 1, hits: [(0.0, 0.75), (0.42, 0.45)]))),
+    ],
+    motifs: [
+        (steps: [0, 2, 1], beats: [1.0, 1.5, 1.0]),
+        (steps: [0, 1, 2, 4], beats: [1.0, 0.5, 0.5, 2.0]),
+        (steps: [4, 2, 1, 0], beats: [1.0, 1.0, 1.0, 2.0]),
+        (steps: [0, -1, 1], beats: [1.5, 1.0, 2.0]),
+        (steps: [2, 1, 0, 1, 2], beats: [0.5, 0.5, 1.0, 1.0, 2.0]),
+    ],
+    level_db: 2.0,
+    no_repeat_s: 600.0,
+    reverb_t60_s: 4.8,
+    reverb_wet: 0.55,
+)

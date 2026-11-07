@@ -1,0 +1,16 @@
+// An electric piano by two-operator FM (the classic tine piano's recipe: a 1:1 pair whose
+// brightness falls after the strike, and a faint high tine). Lo-fi's comping voice.
+Instrument(
+    id: "electric_piano",
+    words: "music.instrument.electric_piano",
+    kind: Fm((
+        ratio: 1.0,
+        index: 1.8,
+        index_sustain: 0.3,
+        index_decay_s: 0.9,
+        envelope: (attack_s: 0.003, decay_s: 2.5, sustain: 0.25, release_s: 0.5),
+        tine: Some((7.0, 0.04, 0.4)),
+    )),
+    level_db: -21.0,
+    reverb_send: 0.25,
+)

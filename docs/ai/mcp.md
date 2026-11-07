@@ -65,7 +65,7 @@ state, and closes the game.
 | `game_player_state` | Camera position and look, world loaded, aboard, the storey and the room the HUD names, health, food and water, what is carried, credits, which save; `full` for the whole reading | `remote_players_request` with `{"seconds":0}` |
 | `game_camera` | Park the camera (over a body, aboard the home, facing a screen) and return where it really went | `camera_request` |
 | `game_console` | One build-console line on the live home, this session only; returns what the console said | showcase `console` |
-| `game_showcase` | Any showcase verbs and pins (time, weather, hud, fov, wind, walk, face, hold, ...) | `showcase_request` |
+| `game_showcase` | Any showcase verbs and pins (time, weather, hud, fov, wind, walk, face, hold, ...; the music's danger knob: `music_intensity` 0..1 and `music_breach` 0 or 1, docs/design/music.md 7b) | `showcase_request` |
 | `game_open_page` | Open a page by id (`homes`, `maps`, `dev`, `none`, ...) | showcase `page` |
 | `game_map` | The Maps page's verbs, returning its report | showcase `map*`, `debug/map_done.json` |
 | `game_home_state` | The home's power, water and air as the HUD shows them, the storey and elevators, the room GI table | the recorder's `home_systems`, `debug/room_gi.json` |

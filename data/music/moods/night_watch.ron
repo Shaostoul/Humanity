@@ -1,0 +1,47 @@
+// "Night watch": the ship's night, the corridors, the observation spaces (docs/design/music.md,
+// section 7). A Aeolian with m11 and open fifths, no beat at 52 to 58 bpm, deep pads, a distant
+// choir, the drone, sparse bells, the deep drums very rarely and very soft.
+Mood(
+    id: "night_watch",
+    words: "music.mood.night_watch",
+    keys: [(root: "A", mode: Aeolian, weight: 3.0), (root: "E", mode: Aeolian, weight: 1.0), (root: "D", mode: Aeolian, weight: 1.0)],
+    chords: [
+        (name: "Am11", root: 0, notes: [0, 3, 7, 10, 14, 17]),
+        (name: "Fmaj7", root: 8, notes: [0, 4, 7, 11]),
+        (name: "Cmaj9", root: 3, notes: [0, 4, 7, 11, 14]),
+        (name: "G6sus2", root: 10, notes: [0, 2, 7, 9]),
+        (name: "Em9", root: 7, notes: [0, 3, 7, 10, 14]),
+        (name: "Dm9", root: 5, notes: [0, 3, 7, 10, 14]),
+        (name: "A5", root: 0, notes: [0, 7, 12]),
+    ],
+    moves: [
+        ("Am11", "Fmaj7", 3.0), ("Am11", "Dm9", 2.0), ("Am11", "Em9", 1.0),
+        ("Fmaj7", "Cmaj9", 2.0), ("Fmaj7", "G6sus2", 2.0),
+        ("Cmaj9", "G6sus2", 2.0), ("Cmaj9", "Am11", 2.0),
+        ("G6sus2", "Am11", 2.0), ("G6sus2", "A5", 2.0),
+        ("Em9", "Fmaj7", 2.0), ("Em9", "Am11", 2.0),
+        ("Dm9", "Em9", 2.0), ("Dm9", "Am11", 1.0), ("Dm9", "Fmaj7", 1.0),
+        ("A5", "Fmaj7", 2.0), ("A5", "Dm9", 2.0),
+    ],
+    cadences: ["Am11", "A5"],
+    start: "Am11",
+    phrase_bars: [8, 16],
+    chord_bars: (2, 4),
+    tempo_bpm: (52.0, 58.0),
+    roles: [
+        (role: Pad, instrument: "dark_pad", low: "A2", high: "A4", voices: 5),
+        (role: Choir, instrument: "choir_ah", low: "C4", high: "C5", voices: 3, density: 0.4, level_db: -4.0),
+        (role: Drone, instrument: "drone", low: "E2", high: "D#3"),
+        (role: Bells, instrument: "celesta", low: "A4", high: "E6", density: 0.25, level_db: -3.0),
+        (role: Melody, instrument: "steel_pan", part: Some("steel_pan"), low: "A3", high: "A5", density: 0.15, level_db: -4.0),
+        (role: Percussion, instrument: "deep_drum", part: Some("deep_drum"), low: "A1", high: "G#2", density: 0.25, level_db: -4.0, pulse: Some((every_bars: 2, hits: [(0.0, 0.55)]))),
+    ],
+    motifs: [
+        (steps: [0, -1, -2], beats: [1.5, 1.0, 2.5]),
+        (steps: [0, 2, 1], beats: [2.0, 1.0, 2.0]),
+        (steps: [4, 3, 1, 0], beats: [1.0, 1.0, 1.0, 3.0]),
+    ],
+    level_db: 3.5,
+    reverb_t60_s: 6.0,
+    reverb_wet: 0.6,
+)

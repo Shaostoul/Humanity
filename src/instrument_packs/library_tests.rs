@@ -1,90 +1,108 @@
 //! THE SEAM WITH THE MUSIC ENGINE: for each part of the score the engine plays the best recorded
 //! instrument installed, and its synthesised voice when there is none, so the music always plays.
 //!
-//! The music engine's crate (crates/humanity-music, music.md section 4.3) was not on main when this
-//! was written (2026-11-06; another agent was building its first rung in parallel), so its
-//! instrument trait is STUBBED here as music.md describes a voice: a note starts at a key, a
-//! velocity and a tuning, and renders into stereo frames. When the crate lands, these tests should
-//! drive its real trait and its sampler voice instead of `Stub` and `Sampled` below.
+//! First written (2026-11-06) against a STUB of the engine's instrument trait, because the music
+//! engine's crate was being built in parallel; since the crate landed the same day, the seam test
+//! drives the REAL engine: the bridge (`super::score::attach`) decodes the installed recordings into
+//! humanity-music's sample bank by part, `Resolved` picks each role's instrument (the recording, or
+//! the role's synthesised voice without it), and the notes are played by humanity-music's own
+//! `VoicePool` (its sampler voice and its membrane drum).
 
 use std::path::{Path, PathBuf};
 
-use super::catalog::{packs_dir, Parts, SynthFallback};
-use super::definition::note_hz;
+use humanity_music::mood::RoleKind;
+use humanity_music::voice::{BlockParams, NoteOn, VoicePool};
+use humanity_music::{MusicLibrary, Resolved};
+
+use super::catalog::{packs_dir, Parts};
 use super::install;
 use super::install_tests::{fixture_dir, fixture_entry, fixture_tar};
-use super::library::{Available, Choice, InstrumentLibrary};
-use super::samples::{SampleBank, SampleVoice};
+use super::library::{Choice, InstrumentLibrary};
+use super::samples::SampleBank;
+use super::score::{attach, PartPlays};
 
 const RATE: u32 = 48_000;
 
-/// STUB of the music engine's instrument trait (see the file's head).
-trait Instrument {
-    fn note_on(&mut self, key: u8, velocity: u8, a4_hz: f64);
-    fn render(&mut self, out: &mut [[f32; 2]]);
-    /// What plays (for the assertions).
-    fn what(&self) -> String;
+/// The live score as the game builds it, for the fixture's data folder: the shipped music (its
+/// instruments, its moods) plus a mood whose roles name the two parts the fixture covers (the deep
+/// drum on the percussion role, the piano on the pad), with the installed recordings attached by
+/// part through the real bridge, and resolved the way `ScoreEngine` takes it.
+struct Score {
+    res: Resolved,
+    plays: Vec<(String, PartPlays)>,
+    mood: usize,
 }
 
-/// STUB of a synthesised voice: a sine at the note, named by the part's fallback preset.
-struct Stub {
-    preset: String,
-    hz: f64,
-    phase: f64,
+fn score_for(data: &Path) -> Score {
+    let mut music = MusicLibrary::load(&PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data")).expect("the shipped music");
+    let seam: humanity_music::mood::Mood = ron::from_str(
+        r#"Mood(id: "seam", keys: [(root: "D", mode: Ionian)], chords: [(name: "D", root: 0, notes: [0, 4, 7])],
+            moves: [("D", "D", 1.0)], cadences: ["D"], start: "D", phrase_bars: [8], chord_bars: (2, 2), tempo_bpm: (60.0, 60.0),
+            roles: [(role: Percussion, instrument: "deep_drum", part: Some("deep_drum"), low: "A1", high: "G#2"),
+                    (role: Pad, instrument: "electric_piano", part: Some("piano"), low: "C3", high: "C5", voices: 3)])"#,
+    )
+    .expect("the seam mood");
+    music.moods.push(seam);
+    let parts = Parts::load(data).expect("parts.ron");
+    let installed = InstrumentLibrary::load(data);
+    assert!(installed.problems.is_empty(), "{:?}", installed.problems);
+    let attached = attach(&mut music, &installed, &parts, 432.0);
+    assert!(attached.problems.is_empty(), "{:?}", attached.problems);
+    let mood = music.mood_index("seam").unwrap();
+    Score { res: Resolved::new(&music, &attached.samples).expect("resolves"), plays: attached.plays, mood }
 }
 
-impl Instrument for Stub {
-    fn note_on(&mut self, key: u8, _velocity: u8, a4_hz: f64) {
-        self.hz = note_hz(key as f64, a4_hz);
-        self.phase = 0.0;
-    }
-    fn render(&mut self, out: &mut [[f32; 2]]) {
-        for o in out.iter_mut() {
-            let v = (self.phase * std::f64::consts::TAU).sin() as f32 * 0.5;
-            o[0] += v;
-            o[1] += v;
-            self.phase = (self.phase + self.hz / RATE as f64).fract();
+impl Score {
+    /// What plays `part`: "sampled:<definition>" or "synth:<the score's instrument>".
+    fn what(&self, part: &str) -> String {
+        match self.plays.iter().find(|(p, _)| p == part).map(|(_, x)| x) {
+            Some(PartPlays::Recorded { id }) => format!("sampled:{id}"),
+            Some(PartPlays::Synth { instrument }) => format!("synth:{instrument}"),
+            None => "nothing".into(),
         }
     }
-    fn what(&self) -> String {
-        format!("synth:{}", self.preset)
-    }
-}
 
-/// A sampled instrument through this module's parts: the zone, the decoded sample, the rate that
-/// tunes it, the voice that plays it.
-struct Sampled<'a> {
-    available: &'a Available,
-    bank: SampleBank,
-    voice: Option<SampleVoice>,
-    turn: usize,
-}
-
-impl Instrument for Sampled<'_> {
-    fn note_on(&mut self, key: u8, velocity: u8, a4_hz: f64) {
-        let sampler = self.available.sampler();
-        let zone = sampler.zone_for(key, velocity, self.turn).expect("a zone").clone();
-        self.turn += 1;
-        let sample = self.bank.get(&self.available.zone_path(&zone.file)).expect("the sample decodes");
-        let rate = sampler.playback_rate(&zone, key, a4_hz);
-        self.voice = Some(SampleVoice::start(sample, &zone, rate, RATE, 1.0));
-    }
-    fn render(&mut self, out: &mut [[f32; 2]]) {
-        if let Some(v) = self.voice.as_mut() {
-            v.render(out);
+    /// One note of the role that plays `role`, through humanity-music's own voices.
+    fn play(&self, role: RoleKind, key: u8, velocity: u8, a4: f32, frames: usize) -> Vec<[f32; 2]> {
+        let inst = self.res.moods[self.mood].roles[role.index()].as_ref().expect("the role").inst;
+        let mut pool = VoicePool::new(1);
+        pool.note_on(NoteOn { inst, role: 0, midi: key as f32, a4, vel: velocity as f32 / 127.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &self.res.instruments, &self.res.banks, RATE as f32);
+        let vowel = [(humanity_music::dsp::SvfCoefs::new(800.0, 10.0, RATE as f32), 1.0); 5];
+        let p = BlockParams { rate: RATE as f32, pitch_mul: 1.0, beat_hz: 1.0, vowel: &vowel };
+        let mut out = Vec::with_capacity(frames);
+        let (mut l, mut r, mut sl, mut sr) = ([0f32; 64], [0f32; 64], [0f32; 64], [0f32; 64]);
+        while out.len() < frames {
+            l.fill(0.0);
+            r.fill(0.0);
+            pool.render(&self.res.instruments, &self.res.banks, &p, &mut l, &mut r, &mut sl, &mut sr, 64);
+            out.extend(l.iter().zip(r.iter()).map(|(a, b)| [*a, *b]));
         }
-    }
-    fn what(&self) -> String {
-        format!("sampled:{}", self.available.def.id)
+        out.truncate(frames);
+        out
     }
 }
 
-/// What the engine would build for `part`.
-fn instrument_for<'a>(lib: &'a InstrumentLibrary, parts: &'a Parts, part: &str) -> Box<dyn Instrument + 'a> {
-    match lib.choose(part, parts).expect("a known part") {
-        Choice::Sampled(a) => Box::new(Sampled { available: a, bank: SampleBank::new(), voice: None, turn: 0 }),
-        Choice::Synth(SynthFallback { preset, .. }) => Box::new(Stub { preset: preset.clone(), hz: 0.0, phase: 0.0 }),
+/// The strongest frequency between lo and hi Hz in the left channel (a Hann-windowed Goertzel scan).
+fn peak_hz(frames: &[[f32; 2]], lo: f64, hi: f64) -> f64 {
+    let n = frames.len();
+    let mut best = (lo, 0.0);
+    let mut f = lo;
+    while f <= hi {
+        let cw = 2.0 * (std::f64::consts::TAU * f / RATE as f64).cos();
+        let (mut q1, mut q2) = (0.0f64, 0.0f64);
+        for (i, x) in frames.iter().enumerate() {
+            let w = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos();
+            let q0 = cw * q1 - q2 + x[0] as f64 * w;
+            q2 = q1;
+            q1 = q0;
+        }
+        let p = q1 * q1 + q2 * q2 - cw * q1 * q2;
+        if p > best.1 {
+            best = (f, p);
+        }
+        f += 0.05;
     }
+    best.0
 }
 
 /// The fixture's data folder (its core set: `fixture_upright`, the piano part, rank 10) with the
@@ -124,70 +142,68 @@ fn frequency(frames: &[[f32; 2]]) -> f64 {
     RATE as f64 * periods / (crossings[crossings.len() - 1] - crossings[0])
 }
 
-fn play(inst: &mut dyn Instrument, key: u8, velocity: u8, a4: f64, frames: usize) -> Vec<[f32; 2]> {
-    let mut out = vec![[0.0f32; 2]; frames];
-    inst.note_on(key, velocity, a4);
-    for block in out.chunks_mut(128) {
-        inst.render(block);
-    }
-    out
-}
-
 /// THE MUSIC FALLS BACK TO SYNTHESIS WITHOUT THE PACK AND PLAYS ITS SAMPLES WITH IT.
 ///
-/// Without the fixture pack: the deep drum part has no recorded instrument, so its synthesised
-/// voice (parts.ron's `membrane_low`) plays; the piano part has the core set's upright. With the
-/// pack installed (from its archive, checked): the drum part plays the pack's drum, whose sound is
-/// the decoded sample itself (an unpitched hit, played at its recorded rate), and the piano part
-/// takes the pack's grand (rank 90 over the core's 10), recorded at A = 440 and measured at 432.00
-/// and 440.00 Hz when played at each tuning: the sample is retuned as it plays, never on disk.
-/// Removed, the drum part falls back to its synthesised voice again.
+/// Through the REAL engine (humanity-music). Without the fixture pack: the deep drum part has no
+/// recorded instrument, so the score's own synthesised deep drum (a membrane voice) plays, its A2
+/// landing on 108.0 Hz at A = 432; the piano part has the core set's upright. With the pack
+/// installed (from its archive, checked): the drum part plays the pack's drum through the engine's
+/// sampler voice, whose sound is the decoded sample itself scaled by one gain (an unpitched hit,
+/// played at its recorded rate), and the piano part takes the pack's grand (rank 90 over the core's
+/// 10), recorded at A = 440 and measured at 432.00 and 440.00 Hz when played at each tuning: the
+/// sample is retuned as it plays, never on disk. Removed, the drum part falls back to its
+/// synthesised voice again.
 ///
-/// Seen red 2026-11-06, under one mutation at a time: `best_for` comparing ranks the wrong way
-/// round, "with the pack, the piano part takes its grand" (left: "sampled:fixture_upright");
-/// `playback_rate` ignoring the tuning, "A4 at 432 measures 432 Hz: 439.98153349734014"; its
-/// pitched / unpitched rule inverted, "the drum's sound is its sample, frame 1".
+/// Seen red 2026-11-06 against the stub, under one mutation at a time: `best_for` comparing ranks
+/// the wrong way round, "with the pack, the piano part takes its grand" (left:
+/// "sampled:fixture_upright"); `playback_rate` ignoring the tuning, "A4 at 432 measures 432 Hz:
+/// 439.98153349734014"; its pitched / unpitched rule inverted, "the drum's sound is its sample,
+/// frame 1". Against the real engine, with the bridge's sample path disabled (every part left to
+/// synthesis): "the core set's piano" (left: "synth:electric_piano", right: "sampled:fixture_upright").
 #[test]
 fn the_music_falls_back_to_synthesis_without_the_pack_and_plays_its_samples_with_it() {
     let data = data_folder("instr_seam");
-    let parts = Parts::load(&data).expect("parts.ron");
-
-    let lib = InstrumentLibrary::load(&data);
-    assert!(lib.problems.is_empty(), "{:?}", lib.problems);
-    assert_eq!(instrument_for(&lib, &parts, "deep_drum").what(), "synth:membrane_low", "no drum installed: the synthesised voice");
-    assert_eq!(instrument_for(&lib, &parts, "piano").what(), "sampled:fixture_upright", "the core set's piano");
-    let mut drum = instrument_for(&lib, &parts, "deep_drum");
-    let synth_hz = frequency(&play(drum.as_mut(), 45, 100, 432.0, RATE as usize / 2));
-    assert!((synth_hz - 108.0).abs() < 0.05, "the stub synth plays A2 at 432: {synth_hz}");
+    let score = score_for(&data);
+    assert_eq!(score.what("deep_drum"), "synth:deep_drum", "no drum installed: the score's synthesised deep drum");
+    assert_eq!(score.what("piano"), "sampled:fixture_upright", "the core set's piano");
+    let synth = score.play(RoleKind::Percussion, 45, 100, 432.0, RATE as usize);
+    let synth_hz = peak_hz(&synth[(0.15 * RATE as f64) as usize..], 100.0, 116.0);
+    assert!((synth_hz - 108.0).abs() < 0.3, "the synthesised drum plays A2 at 432: {synth_hz}");
 
     install::install_from_reader(&mut fixture_tar().as_slice(), &fixture_entry(), &packs_dir(&data), &install::new_progress()).expect("the pack installs");
+    let score = score_for(&data);
+    assert_eq!(score.what("piano"), "sampled:fixture_grand", "with the pack, the piano part takes its grand");
+    assert_eq!(score.what("deep_drum"), "sampled:fixture_drum", "with the pack, the drum part plays its samples");
+    let hit = score.play(RoleKind::Percussion, 36, 120, 432.0, 4096);
     let lib = InstrumentLibrary::load(&data);
-    assert!(lib.problems.is_empty(), "{:?}", lib.problems);
-    assert_eq!(instrument_for(&lib, &parts, "piano").what(), "sampled:fixture_grand", "with the pack, the piano part takes its grand");
-    let mut drum = instrument_for(&lib, &parts, "deep_drum");
-    assert_eq!(drum.what(), "sampled:fixture_drum");
-    let hit = play(drum.as_mut(), 36, 120, 432.0, 4096);
     let drum_avail = lib.get("fixture_drum").unwrap();
     let zone = drum_avail.sampler().zone_for(36, 120, 0).unwrap().clone();
     let sample = SampleBank::new().get(&drum_avail.zone_path(&zone.file)).unwrap();
     assert_eq!(sample.sample_rate, RATE);
-    for i in 0..4096 {
-        assert!((hit[i][0] - sample.frames[i][0]).abs() < 1e-6, "the drum's sound is its sample, frame {i}");
+    // Past the voice's 2 ms rise, the engine's output is the sample times one gain (its level and
+    // velocity): fitted by least squares, the rest is nothing.
+    let range = 200..4096;
+    let (num, den) = range.clone().fold((0.0f64, 0.0f64), |(n, d), i| (n + hit[i][0] as f64 * sample.frames[i][0] as f64, d + (sample.frames[i][0] as f64).powi(2)));
+    let k = num / den.max(1e-12);
+    let peak = range.clone().map(|i| sample.frames[i][0].abs() as f64).fold(0.0, f64::max);
+    for i in range {
+        assert!((hit[i][0] as f64 - k * sample.frames[i][0] as f64).abs() < 1e-3 * k.abs() * peak.max(1e-9), "the drum's sound is its sample, frame {i}");
     }
-    assert!(hit.iter().map(|f| f[0].abs()).fold(0.0, f32::max) > 0.05, "and it is not silence");
-
-    let mut piano = instrument_for(&lib, &parts, "piano");
-    for a4 in [432.0, 440.0] {
-        let hz = frequency(&play(piano.as_mut(), 69, 100, a4, RATE as usize / 2));
-        assert!((hz - a4).abs() < 0.05, "A4 at {a4} measures {a4} Hz: {hz}");
+    assert!(hit.iter().map(|f| f[0].abs()).fold(0.0, f32::max) > 1e-3 && k > 0.0, "and it is not silence (gain {k})");
+    for a4 in [432.0f32, 440.0] {
+        let hz = frequency(&score.play(RoleKind::Pad, 69, 100, a4, RATE as usize / 2));
+        assert!((hz - a4 as f64).abs() < 0.05, "A4 at {a4} measures {a4} Hz: {hz}");
     }
-    let low = frequency(&play(piano.as_mut(), 57, 30, 432.0, RATE as usize / 2));
+    let low = frequency(&score.play(RoleKind::Pad, 57, 30, 432.0, RATE as usize / 2));
     assert!((low - 216.0).abs() < 0.05, "A3 at 432 measures 216 Hz: {low}");
 
     install::remove_pack(&packs_dir(&data), "fixture").expect("removes");
-    let lib = InstrumentLibrary::load(&data);
-    assert_eq!(instrument_for(&lib, &parts, "deep_drum").what(), "synth:membrane_low", "removed: the synthesised voice again");
-    assert_eq!(instrument_for(&lib, &parts, "piano").what(), "sampled:fixture_upright");
+    let score = score_for(&data);
+    assert_eq!(score.what("deep_drum"), "synth:deep_drum", "removed: the synthesised voice again");
+    assert_eq!(score.what("piano"), "sampled:fixture_upright");
+    // The library's own choice agrees with what the score plays.
+    let parts = Parts::load(&data).unwrap();
+    assert!(matches!(InstrumentLibrary::load(&data).choose("deep_drum", &parts), Some(Choice::Synth(_))));
 }
 
 /// DECODED SAMPLES OBEY THE "TURN OFF ALL REUSE" SWITCH: with reuse on, a sample decoded once is

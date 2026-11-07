@@ -1,0 +1,59 @@
+// "Action": the danger at its height (intensity 0.7 and up: meteors punching through the hull, an
+// invasion, combat; docs/design/music.md section 7b). D Phrygian power chords (open fifths, the
+// soft-metal colour), 118 to 132 bpm rising with the intensity. An URGENT mood. Taiko driving a
+// ostinato with the big drum on the downbeats, a backbeat, the taiko's sixteenths joining past 0.85;
+// low brass stabs on a pattern; a galloping bass; the celesta's alarm; the choir only at the very
+// peak.
+Mood(
+    id: "action",
+    words: "music.mood.action",
+    keys: [(root: "D", mode: Phrygian)],
+    chords: [
+        (name: "D5", root: 0, notes: [0, 7, 12]),
+        (name: "Bb5", root: 8, notes: [0, 7, 12]),
+        (name: "C5", root: 10, notes: [0, 7, 12]),
+        (name: "Eb5", root: 1, notes: [0, 7, 12]),
+        (name: "F5", root: 3, notes: [0, 7, 12]),
+        (name: "Dm", root: 0, notes: [0, 3, 7]),
+    ],
+    moves: [
+        ("D5", "Bb5", 3.0), ("D5", "Eb5", 1.5), ("D5", "F5", 1.0),
+        ("Bb5", "C5", 3.0), ("Bb5", "D5", 1.0),
+        ("C5", "D5", 3.0), ("C5", "Dm", 1.0),
+        ("Eb5", "D5", 3.0),
+        ("F5", "C5", 2.0), ("F5", "Eb5", 1.0),
+        ("Dm", "Bb5", 2.0), ("Dm", "Eb5", 1.0),
+    ],
+    cadences: ["D5", "Dm"],
+    start: "D5",
+    phrase_bars: [4, 8],
+    chord_bars: (1, 1),
+    tempo_bpm: (118.0, 132.0),
+    tempo_follows_intensity: true,
+    beat_felt: true,
+    urgent: true,
+    groove: Some((swing: 0.5, subdivision: 4, syncopation: 0.1, humanize_ms: 3.0)),
+    drums: [
+        (instrument: "taiko_hit", note: "A1", velocity: 1.0, patterns: ["x.......x.......", "x.........x....."]),
+        (instrument: "taiko", note: "D2", velocity: 0.85, patterns: ["x..xx..xx..xx..x", "x.x.x..xx.x.x..x"]),
+        (instrument: "lofi_snare", note: "D3", velocity: 0.7, patterns: ["....x.......x...", "....x.......x..x"]),
+        (instrument: "taiko", note: "A2", velocity: 0.5, min_intensity: 0.85, patterns: ["xgxgxgxgxgxgxgxg"]),
+    ],
+    pad_pattern: Some("x.....x.x.....x."),
+    bass_pattern: Some("x.xxx.xxx.xxx.x."),
+    roles: [
+        (role: Pad, instrument: "brass_stab", low: "D3", high: "D4", voices: 4),
+        (role: Bass, instrument: "pulse_bass", low: "D1", high: "C#2"),
+        (role: Drone, instrument: "drone", low: "D2", high: "C#3", level_db: -3.0),
+        (role: Bells, instrument: "celesta", low: "D5", high: "D6", density: 0.7, level_db: -5.0),
+        (role: Choir, instrument: "choir_ah", low: "D4", high: "D5", voices: 3, density: 0.8, min_intensity: 0.85),
+    ],
+    motifs: [
+        (steps: [0, 1, 0, 1, 0, 1, 0, 1], beats: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25]),
+        (steps: [0, 1, 0, 1], beats: [0.5, 0.5, 0.5, 0.5]),
+    ],
+    level_db: -1.5,
+    no_repeat_s: 300.0,
+    reverb_t60_s: 2.6,
+    reverb_wet: 0.35,
+)

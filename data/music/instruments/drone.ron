@@ -1,0 +1,17 @@
+// The drone: the key's root low down with its octave and fifth, breathing over 19 seconds (the
+// sketch's drone: 1.0, 0.18 and 0.25).
+Instrument(
+    id: "drone",
+    words: "music.instrument.drone",
+    kind: Synth((
+        oscillators: [
+            (wave: Sine, level: 1.0),
+            (wave: Sine, semitones: 12.0, level: 0.18),
+            (wave: Sine, semitones: 7.0, level: 0.25),
+        ],
+        envelope: (attack_s: 6.0, release_s: 8.0),
+        tremolo: Some((0.0526, 0.2)),
+    )),
+    level_db: -21.0,
+    reverb_send: 0.15,
+)

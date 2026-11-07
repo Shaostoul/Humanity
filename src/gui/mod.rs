@@ -554,6 +554,7 @@ pub struct GuiState {
     pub pending_dev_despawn_creatures: bool,
     /// Search box text on the Dev page's species list.
     pub dev_spawn_filter: String,
+    pub music_dev: crate::gui::pages::dev_music::MusicDev, // the Dev page's Music card (engine/music.rs)
     /// Live count of Creature entities, mirrored from the ECS each frame so the
     /// Dev page can show "N creatures in the world" without a world handle.
     pub dev_creature_count: usize,
@@ -3216,6 +3217,7 @@ impl Default for GuiState {
             pending_dev_spawn: None,
             pending_dev_despawn_creatures: false,
             dev_spawn_filter: String::new(),
+            music_dev: Default::default(),
             dev_creature_count: 0,
             planet_tuner: Default::default(),
             dev_edit_target: None,
@@ -4231,6 +4233,7 @@ pub enum SettingsCategory {
     Notifications,
     Wallet,
     Audio,
+    Music, // the live music, its style and tuning, the ship's hum, the tones (2026-11-06)
     Graphics,
     Gameplay,
     Controls,
@@ -4246,25 +4249,9 @@ pub enum SettingsCategory {
     Credits,
 }
 
-/// Profile page sidebar sections.
+/// The Profile page's sidebar sections: owned by pages/profile.rs (moved 2026-11-06), named here too.
 #[cfg(feature = "native")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProfileSection {
-    // Private (red)
-    BodyMeasurements,
-    Identity,
-    PrivateNotes,
-    // Personal (orange)
-    NetworkProfile,
-    Interests,
-    Skills,
-    // v0.415.0: Quests section removed — live game quests render on the
-    // top-level Quests page beside the learn-by-doing chains (the operator's
-    // "one page, two kinds" model), not buried in Profile.
-    // Public (green)
-    SocialLinks,
-    Streaming,
-}
+pub use pages::profile::ProfileSection;
 
 #[cfg(feature = "native")]
 pub struct SettingsState {
@@ -4390,6 +4377,7 @@ pub struct SettingsState {
     /// docs/design/farm-clock.md rung 2; Settings > Gameplay > Garden updates;
     /// farming::clock). Every second by default.
     pub garden_update_s: f32,
+    pub music: humanity_music::MusicSettings, // Settings > Music (docs/design/music.md 15), config's `music`
     /// Offline progression (operator, 2026-09-21; docs/design/offline-
     /// progression.md): while the game is closed your character keeps living,
     /// so crops grow by the time you were away. Read once when a save is
@@ -4704,6 +4692,7 @@ impl Default for SettingsState {
             days_per_year: humanity_systems::time::DEFAULT_DAYS_PER_YEAR,
             pest_severity: humanity_systems::farming::pests::DEFAULT_PEST_SEVERITY,
             garden_update_s: humanity_systems::farming::clock::DEFAULT_INTERVAL_S as f32,
+            music: humanity_music::MusicSettings::default(),
             offline_progression: true,
             // Progress is kept between launches by default (2026-10-04).
             fresh_world_each_launch: false,

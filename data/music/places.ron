@@ -1,0 +1,31 @@
+// Which mood plays where and when aboard (docs/design/music.md, sections 7 and 8). The most specific
+// matching rule wins: a room (4) beats a zone (2) beats the hours alone (1); a rule with both adds
+// them. Zone purposes are data/blueprints/ship_structure.ron's (residence, commons, street, bay,
+// agriculture, corridor); a room matches when its id or name contains the word. Hours are the ship's
+// day on a 24-hour dial and wrap past midnight.
+Places(
+    default_mood: "mothership_calm",
+    rules: [
+        (hours: Some((21.0, 5.0)), mood: "night_watch"),
+        (zone: Some("residence"), mood: "mothership_calm"),
+        (zone: Some("commons"), mood: "mothership_calm"),
+        (zone: Some("street"), mood: "mothership_calm"),
+        (zone: Some("bay"), mood: "mothership_calm"),
+        (zone: Some("corridor"), mood: "night_watch"),
+        (zone: Some("agriculture"), mood: "garden_morning"),
+        (zone: Some("residence"), hours: Some((21.0, 5.0)), mood: "night_watch"),
+        (zone: Some("commons"), hours: Some((21.0, 5.0)), mood: "night_watch"),
+        (zone: Some("street"), hours: Some((21.0, 5.0)), mood: "night_watch"),
+        (zone: Some("agriculture"), hours: Some((21.0, 5.0)), mood: "night_watch"),
+        (room: Some("garden"), hours: Some((5.0, 12.0)), mood: "garden_morning"),
+        (room: Some("greenhouse"), hours: Some((5.0, 21.0)), mood: "garden_morning"),
+        (room: Some("hydroponics"), hours: Some((5.0, 21.0)), mood: "garden_morning"),
+        (room: Some("observatory"), mood: "night_watch"),
+    ],
+    // A livelier style for a place, used ONLY if the person allows it (Settings > Music, "Let places
+    // pick a livelier style"; off by default).
+    style_suggestions: [
+        (room: Some("gym"), style: "lofi"),
+        (room: Some("workshop"), style: "lofi"),
+    ],
+)

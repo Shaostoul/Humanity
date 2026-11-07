@@ -285,7 +285,44 @@ window.HOS_I18N_EN = {
     "video_start_set": "A set volume",
     "video_start_set_hint": "Every new video starts at the same volume, the one you choose below, whatever the last video was turned to.",
     "video_start_volume": "Set volume %",
-    "video_start_volume_hint": "The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting."
+    "video_start_volume_hint": "The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting.",
+    "music": {
+      "title": "Music",
+      "music": "Music",
+      "music_on": "Music",
+      "music_on_hint": "The game's own calm music, composed live as you play. It never repeats.",
+      "music_on_pages": "Music on the app's pages",
+      "music_on_pages_hint": "Also play the music on everyday pages like Chat and Tasks, not only in the game.",
+      "tuning": "Tuning",
+      "tuning_432": "A = 432 Hz",
+      "tuning_440": "A = 440 Hz",
+      "tuning_hint": "The pitch every note is tuned to. 432 sounds very slightly lower than the usual 440. A matter of taste: no health effect is claimed.",
+      "style": "Style",
+      "style_hint": "How the music sounds. Mothership calm is the ship's own; other styles change the speed, the rhythm and the instruments. A style is a file, so anyone can make one and share it.",
+      "blend_with": "Blend with",
+      "blend_none": "None",
+      "blend_with_hint": "Mix in a second style. The slider below sets how much of it you hear.",
+      "blend": "How much of the second style",
+      "blend_hint": "Far left is all your first style, far right all the second; in between, each part of the music takes one or the other.",
+      "places_pick_style": "Let places pick a livelier style",
+      "places_pick_style_hint": "Some places, like a gym or a workshop, may play a livelier style while you are there. Off by default.",
+      "recordings_note": "Some kinds of music sound right only with recorded instruments, like swing-era brass or sung voices. The app uses only recordings that are free to share, and never samples copyrighted recordings: copyright law forbids it.",
+      "hum": "Ship hum and ambience",
+      "ambience_volume": "Ambience Volume",
+      "ambience_volume_hint": "Background sounds of places, like the ship's hum. Separate from the music.",
+      "ship_hum": "Ship hum",
+      "ship_hum_hint": "The soft sound of the ship's engines and structure while you are aboard. Louder near the engines, quieter in small rooms.",
+      "ship_hum_level": "Ship hum level",
+      "ship_hum_level_hint": "How loud the hum is compared with the music.",
+      "tones": "Tones",
+      "tones_on": "Tones",
+      "tones_on_hint": "Steady tones some people like to listen to. Some people find these tones calming; there is no good evidence that they heal. They play when the music is off or quiet.",
+      "tone_hz": "Tone",
+      "tone_hz_hint": "The tone's pitch in hertz.",
+      "hz_suffix": " Hz",
+      "tone_volume": "Tone volume",
+      "tone_volume_hint": "How loud the tone is."
+    }
   },
   "laws": {
     "title": "Laws and rights",
@@ -2364,7 +2401,32 @@ window.HOS_I18N_EN = {
   },
   "dev": {
     "journal_marked": "Marked #{{n}}. A Claude session can read what happened around it (the play journal).",
-    "journal_not_running": "The play journal is not running, so nothing was marked."
+    "journal_not_running": "The play journal is not running, so nothing was marked.",
+    "music": {
+      "title": "Music",
+      "about": "What the live music is doing, and the danger knob: raise the intensity to hear the score rise from calm into tension and action, and settle back when you lower it.",
+      "intensity": "Danger intensity",
+      "intensity_hint": "0 is calm. Past about a third the music turns tense; past two thirds it is action, like a meteor storm or an attack. Game events will set this too.",
+      "breach": "Hull breach alarm",
+      "breach_hint": "The ship's hum strains and a distant two-tone alarm sounds, louder as the intensity rises.",
+      "restart": "Restart the music",
+      "restart_hint": "Read the music's files again and start a new piece, after editing a mood, a style or an instrument.",
+      "load_error": "The music's files did not load:",
+      "no_device": "No sound device is open, so nothing plays. A game started by a script opens none; click in the window to open it.",
+      "mood": "Mood",
+      "place_asks": "the place asks for",
+      "silent": "silent",
+      "key": "Key",
+      "phrase": "phrase",
+      "bar": "bar",
+      "voices": "Voices",
+      "mean": "mean",
+      "worst": "worst",
+      "hum": "Hum",
+      "alarm": "alarm",
+      "zone": "Zone",
+      "seed": "Seed"
+    }
   },
   "dev_journal": {
     "title": "Play journal",
@@ -3603,6 +3665,44 @@ window.HOS_I18N_EN = {
       "door_close": "Door closes",
       "switch_toggle": "Switch flipped",
       "crash": "Crash"
+    }
+  },
+  "music": {
+    "style": {
+      "mothership_calm": "Mothership calm",
+      "mothership_calm_about": "The ship's own music: slow, spacious, pads and a wordless choir, bells, a steel pan and soft deep drums.",
+      "lofi": "Lo-fi",
+      "lofi_about": "Relaxed and a little worn: swung beats, an electric piano, a round bass, tape wobble and vinyl crackle."
+    },
+    "mood": {
+      "mothership_calm": "Mothership calm",
+      "menu": "Menu",
+      "garden_morning": "Garden morning",
+      "night_watch": "Night watch",
+      "tension": "Tension",
+      "action": "Action"
+    },
+    "instrument": {
+      "soft_saw_pad": "Soft pad",
+      "dark_pad": "Dark pad",
+      "choir_ah": "Wordless choir",
+      "celesta": "Celesta bells",
+      "drone": "Drone",
+      "steel_pan": "Steel pan",
+      "deep_drum": "Deep drum",
+      "taiko": "Taiko",
+      "taiko_hit": "Big drum",
+      "brass_stab": "Low brass stabs",
+      "pulse_bass": "Pulse bass",
+      "riser": "Riser",
+      "electric_piano": "Electric piano",
+      "soft_lead": "Soft lead",
+      "round_bass": "Round bass",
+      "harp": "Harp",
+      "lofi_kick": "Lo-fi kick",
+      "lofi_snare": "Lo-fi snare",
+      "lofi_hat": "Lo-fi hi-hat",
+      "vinyl_crackle": "Vinyl crackle"
     }
   }
 };

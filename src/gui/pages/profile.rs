@@ -12,8 +12,28 @@
 //! Real tab dropped it). It is now an alias that lands on the Real page, see
 //! [`draw`].
 
+/// Profile page sidebar sections (moved here from gui/mod.rs on 2026-11-06; `crate::gui::ProfileSection`
+/// still names it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileSection {
+    // Private (red)
+    BodyMeasurements,
+    Identity,
+    PrivateNotes,
+    // Personal (orange)
+    NetworkProfile,
+    Interests,
+    Skills,
+    // v0.415.0: Quests section removed — live game quests render on the
+    // top-level Quests page beside the learn-by-doing chains (the operator's
+    // "one page, two kinds" model), not buried in Profile.
+    // Public (green)
+    SocialLinks,
+    Streaming,
+}
+
 use egui::{RichText, CornerRadius, Stroke, Vec2};
-use crate::gui::{GuiState, ProfileSection};
+use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 

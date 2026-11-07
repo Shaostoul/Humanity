@@ -1,0 +1,19 @@
+// Low brass and synth stabs for action: detuned saws and a square an octave down, the filter
+// opening with each strike and closing again (the "blat" of low brass), a little drive. A
+// synthesised stand-in: a CC0 low brass recording can replace it.
+Instrument(
+    id: "brass_stab",
+    words: "music.instrument.brass_stab",
+    kind: Synth((
+        oscillators: [
+            (wave: Saw, detune_cents: -9.0, pan: -0.4),
+            (wave: Saw, detune_cents: 8.0, pan: 0.4),
+            (wave: Square, semitones: -12.0, level: 0.5),
+        ],
+        filter: Some((kind: LowPass, cutoff_hz: 380.0, q: 0.9, key_track: 0.5, env_hz: 2600.0)),
+        envelope: (attack_s: 0.012, decay_s: 0.35, sustain: 0.15, release_s: 0.2),
+        drive: 0.3,
+    )),
+    level_db: -17.0,
+    reverb_send: 0.25,
+)

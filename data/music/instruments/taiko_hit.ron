@@ -1,0 +1,16 @@
+// The big hit: the largest drum, struck once for a stinger or a downbeat, ringing long.
+Instrument(
+    id: "taiko_hit",
+    words: "music.instrument.taiko_hit",
+    kind: Membrane((
+        modes: [(1.0, 1.0, 3.2), (1.594, 0.5, 1.4), (2.136, 0.3, 1.0), (2.296, 0.35, 1.1), (2.653, 0.18, 0.7), (2.918, 0.14, 0.6), (3.156, 0.1, 0.5), (3.501, 0.08, 0.4)],
+        pitch_drop: 0.12,
+        pitch_drop_s: 0.09,
+        noise: 0.6,
+        noise_hz: 700.0,
+        noise_decay_s: 0.05,
+        attack_s: 0.004,
+    )),
+    level_db: -6.0,
+    reverb_send: 0.4,
+)

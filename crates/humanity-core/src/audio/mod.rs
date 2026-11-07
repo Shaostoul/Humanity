@@ -54,6 +54,9 @@ pub struct AudioManager<B: kira::backend::Backend = kira::DefaultBackend> {
     master_volume: f64,
     music_volume: f64,
     sfx_volume: f64,
+    /// Ambience gain (0.0 - 1.0): background sounds of places (the ship's hum), separate from the
+    /// music (Settings > Music, docs/design/music.md). The hum's sound reads it each frame.
+    ambience_volume: f64,
     /// Interface-sound bus gain (0.0 - 1.0). Sounds whose catalog `bus` is
     /// "ui" (button clicks / UI feedback) route through this instead of
     /// `sfx_volume`, so a user can quiet clicks without silencing footsteps
@@ -112,6 +115,7 @@ impl<B: kira::backend::Backend> AudioManager<B> {
             master_volume: 1.0,
             music_volume: 0.7,
             sfx_volume: 1.0,
+            ambience_volume: 0.6,
             ui_volume: 1.0,
             preview_handle: None,
         }
@@ -299,6 +303,32 @@ impl<B: kira::backend::Backend> AudioManager<B> {
     /// Set SFX volume (0.0 - 1.0).
     pub fn set_sfx_volume(&mut self, vol: f64) {
         self.sfx_volume = vol.clamp(0.0, 1.0);
+    }
+
+    /// Set the ambience volume (0.0 - 1.0): the ship's hum and, later, other places' beds.
+    pub fn set_ambience_volume(&mut self, vol: f64) {
+        self.ambience_volume = vol.clamp(0.0, 1.0);
+    }
+
+    /// The ambience volume (0.0 - 1.0).
+    pub fn ambience_volume(&self) -> f64 {
+        self.ambience_volume
+    }
+
+    /// The music volume (0.0 - 1.0). The live score (humanity-music) takes its gain from this and
+    /// master each frame, through its own channel.
+    pub fn music_volume(&self) -> f64 {
+        self.music_volume
+    }
+
+    /// Play any kira sound: the generated score and the ship's hum (humanity-music's
+    /// `ScoreSoundData` and `BedSoundData`, docs/design/music.md). Their volumes travel in their own
+    /// context each frame, so nothing here is multiplied in; the handle is theirs.
+    pub fn play_data<D: kira::sound::SoundData>(&mut self, data: D) -> Result<D::Handle, String>
+    where
+        D::Error: std::fmt::Debug,
+    {
+        self.manager.play(data).map_err(|e| format!("play error: {e:?}"))
     }
 
     /// Set interface-sound volume (0.0 - 1.0). Governs sounds on the "ui" bus.

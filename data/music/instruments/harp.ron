@@ -1,0 +1,15 @@
+// A harp-like pluck: brighter, ringing longer, a little body.
+Instrument(
+    id: "harp",
+    words: "music.instrument.harp",
+    kind: Plucked((
+        decay_s: 3.0,
+        brightness: 0.7,
+        body_hz: 300.0,
+        body_level: 0.2,
+        damping_on_release: 1.0,
+    )),
+    level_db: -13.0,
+    reverb_send: 0.5,
+    pan_spread: 0.4,
+)

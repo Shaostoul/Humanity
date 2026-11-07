@@ -1070,6 +1070,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // under their own rules (at the counter; in a server's world the meal is the server's). The
     // sentence each said is the card's (`fleet.counter_status`, the probe's `counter`).
     // verify-starts eats and fills its bottles with them. Permanent dev tooling.
+    // {"music_intensity":"0.8"} / {"music_breach":"1"} (2026-11-06): the music's danger knob, the
+    // Dev page's Music card from a rig (engine/music.rs; docs/ai/mcp.md: `game_showcase`).
+    for said in crate::engine::music::showcase_verbs(state, grab("music_intensity"), grab("music_breach")) {
+        log::info!("Showcase: {said}");
+    }
     if counter_press(grab("meal").as_deref()) {
         let said = crate::engine::mess_hall::take_meal(state);
         note_home_verb("meal", "1", true, &said);

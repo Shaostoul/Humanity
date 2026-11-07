@@ -129,6 +129,8 @@ pub(crate) struct EngineState {
     /// the per-frame sync only touches kira when a slider actually moved. The
     /// 4th slot is the independent interface-sound bus (v0.1112).
     pub(crate) audio_volumes_applied: (f32, f32, f32, f32),
+    /// The live music and the ship's hum (engine/music.rs, docs/design/music.md).
+    pub(crate) music: crate::engine::music::MusicRuntime,
     /// One-shot guard for the tree-card atlas bake (v0.961): a FAILED bake
     /// must log once and stop, not re-parse 12 GLTFs every frame.
     pub(crate) tree_atlas_attempted: bool,

@@ -39,6 +39,9 @@ pub mod install;
 pub mod library;
 /// Decoded sample audio and a voice that plays it.
 pub mod samples;
+/// The bridge into the live score: the best recording of each part its roles name, decoded into the
+/// engine's sample bank and levelled to the synthesised voice it replaces (2026-11-06).
+pub mod score;
 /// Reading a pack archive (plain ustar), refusing anything that could write outside its folder.
 pub mod tar;
 /// The Settings section's state, and the frame step that runs its downloads and removals.

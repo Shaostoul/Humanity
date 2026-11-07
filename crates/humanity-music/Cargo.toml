@@ -1,0 +1,45 @@
+# humanity-music (docs/crates/humanity-music.md): the game's live music and the ship's hum, composed and
+# synthesised in plain Rust (docs/design/music.md). The composer, the voices (synth, choir, modal bells and
+# steel pan, membrane drums, FM keys, plucked strings, noise, and the sampler seam the instrument library
+# fills), the reverb, the limiter, the hum and the tones render into a plain buffer: no audio device, no
+# GPU, no I/O on the hot path, so it is tested headless faster than real time and renders offline
+# (`just music-render`). The kira adapter that plays it on the sound card is behind the `kira` feature,
+# which only the desktop app turns on; the server build never compiles this crate (2026-11-06).
+[package]
+name = "humanity-music"
+version.workspace = true
+edition.workspace = true
+publish = false
+# Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
+build = "../repo_root.rs"
+
+[features]
+# The same default as the desktop app, so `cargo test -p humanity-music` (and `just test-lib`, which builds
+# every member with `--features native`) tests what the app plays.
+default = ["native"]
+# The desktop app's parts: the kira adapter below. The server build never compiles this crate at all (the
+# root package names it only under its own `native`).
+native = ["kira"]
+# The kira 0.12 adapter (kira_sound.rs): `ScoreSoundData` and `BedSoundData`, kira `Sound`s over the pure
+# engines, with their latest-value command channels. The desktop app's `native` turns it on.
+kira = ["dep:kira"]
+
+[dependencies]
+serde = { workspace = true }
+ron = { workspace = true }
+log = { workspace = true }
+kira = { workspace = true, optional = true }
+
+[dev-dependencies]
+# The BS.1770 loudness meter the tests and the offline renderer measure with (humanity_core::audio::loudness,
+# docs/design/loudness.md): one meter for the whole app, so the music is held to the same numbers as
+# every other sound.
+humanity-core = { path = "../humanity-core", default-features = false }
+# Reads data/i18n/en.json in the data test (every words key the music data names has English).
+serde_json = { workspace = true }
+
+[[example]]
+# `just music-render <mood> <style> <seconds>`: renders the real engine offline to a WAV (never in the repo)
+# and reports its loudness, true peak, tuning and the audio thread's cost per block.
+name = "music-render"
+path = "examples/music_render.rs"

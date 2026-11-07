@@ -1,0 +1,47 @@
+// "Garden morning": the agriculture zones and the grow rooms in the ship's morning (docs/design/music.md,
+// section 7). G Ionian with add9 and sus4 colour, a gentle pulse at 66 to 72 bpm, a harp-like pluck
+// and the steel pan as motif voices, celesta sparkle, light pads.
+Mood(
+    id: "garden_morning",
+    words: "music.mood.garden_morning",
+    keys: [(root: "G", mode: Ionian, weight: 3.0), (root: "D", mode: Ionian, weight: 1.0), (root: "C", mode: Ionian, weight: 1.0)],
+    chords: [
+        (name: "Gadd9", root: 0, notes: [0, 4, 7, 14]),
+        (name: "Cmaj7", root: 5, notes: [0, 4, 7, 11]),
+        (name: "Em7", root: 9, notes: [0, 3, 7, 10]),
+        (name: "Dsus4", root: 7, notes: [0, 5, 7]),
+        (name: "Am9", root: 2, notes: [0, 3, 7, 10, 14]),
+        (name: "Dadd9", root: 7, notes: [0, 4, 7, 14]),
+        (name: "Bm7", root: 4, notes: [0, 3, 7, 10]),
+    ],
+    moves: [
+        ("Gadd9", "Cmaj7", 3.0), ("Gadd9", "Em7", 2.0), ("Gadd9", "Am9", 1.0),
+        ("Cmaj7", "Dsus4", 2.0), ("Cmaj7", "Am9", 2.0), ("Cmaj7", "Gadd9", 1.0),
+        ("Em7", "Cmaj7", 2.0), ("Em7", "Am9", 2.0),
+        ("Dsus4", "Dadd9", 2.0), ("Dsus4", "Gadd9", 2.0),
+        ("Am9", "Dsus4", 2.0), ("Am9", "Bm7", 1.0), ("Am9", "Dadd9", 1.0),
+        ("Dadd9", "Gadd9", 3.0), ("Dadd9", "Em7", 1.0),
+        ("Bm7", "Em7", 2.0), ("Bm7", "Cmaj7", 2.0),
+    ],
+    cadences: ["Gadd9", "Dadd9"],
+    start: "Gadd9",
+    phrase_bars: [8, 16],
+    chord_bars: (2, 2),
+    tempo_bpm: (66.0, 72.0),
+    beat_felt: true,
+    roles: [
+        (role: Pad, instrument: "soft_saw_pad", low: "D3", high: "D5", voices: 5, level_db: -3.0),
+        (role: Bells, instrument: "celesta", low: "G5", high: "B6", density: 0.6),
+        (role: Melody, instrument: "harp", part: Some("harp"), low: "G3", high: "G5", density: 0.55),
+        (role: Bass, instrument: "round_bass", low: "E1", high: "D2", level_db: -6.0),
+    ],
+    motifs: [
+        (steps: [0, 1, 2, 3, 4], beats: [0.5, 0.5, 0.5, 0.5, 2.0]),
+        (steps: [0, 2, 4, 2], beats: [0.5, 0.5, 0.5, 1.5]),
+        (steps: [4, 3, 2, 0], beats: [1.0, 0.5, 0.5, 2.0]),
+        (steps: [0, 2, 1, 3], beats: [1.0, 1.0, 1.0, 1.0]),
+    ],
+    level_db: 5.0,
+    reverb_t60_s: 3.6,
+    reverb_wet: 0.45,
+)

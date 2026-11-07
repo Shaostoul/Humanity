@@ -1,0 +1,14 @@
+// Vinyl crackle: pops at random (about six a second) and a faint hiss, running under the music.
+Instrument(
+    id: "vinyl_crackle",
+    words: "music.instrument.vinyl_crackle",
+    kind: Noise((
+        filter: (kind: HighPass, cutoff_hz: 1500.0),
+        envelope: (attack_s: 1.0, release_s: 1.5),
+        noise_level: 0.0,
+        crackle_per_s: 6.0,
+        hiss: 0.05,
+    )),
+    level_db: -30.0,
+    reverb_send: 0.0,
+)

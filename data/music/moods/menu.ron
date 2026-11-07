@@ -1,0 +1,38 @@
+// "Menu": the game's menus and the character showroom (docs/design/music.md, section 7; rung 4 wires
+// the menus). The calm keys, simpler: long held chords, no felt beat, one motif in the bells now and
+// then.
+Mood(
+    id: "menu",
+    words: "music.mood.menu",
+    keys: [(root: "D", mode: Lydian)],
+    chords: [
+        (name: "Dmaj9", root: 0, notes: [0, 4, 7, 11, 14]),
+        (name: "Gmaj7#11", root: 5, notes: [0, 4, 7, 11, 18]),
+        (name: "Bm9", root: 9, notes: [0, 3, 7, 10, 14]),
+        (name: "Asus2", root: 7, notes: [0, 2, 7]),
+        (name: "Dadd9", root: 0, notes: [0, 4, 7, 14]),
+    ],
+    moves: [
+        ("Dmaj9", "Gmaj7#11", 3.0), ("Dmaj9", "Bm9", 2.0),
+        ("Gmaj7#11", "Asus2", 2.0), ("Gmaj7#11", "Dadd9", 2.0),
+        ("Bm9", "Gmaj7#11", 3.0),
+        ("Asus2", "Dmaj9", 3.0),
+        ("Dadd9", "Bm9", 2.0), ("Dadd9", "Gmaj7#11", 1.0),
+    ],
+    cadences: ["Dmaj9", "Dadd9"],
+    start: "Dmaj9",
+    phrase_bars: [8, 16],
+    chord_bars: (3, 4),
+    tempo_bpm: (60.0, 60.0),
+    roles: [
+        (role: Pad, instrument: "soft_saw_pad", low: "B2", high: "B4", voices: 5),
+        (role: Choir, instrument: "choir_ah", low: "D4", high: "D5", voices: 3, density: 0.5),
+        (role: Drone, instrument: "drone", low: "D2", high: "C#3"),
+        (role: Bells, instrument: "celesta", low: "D5", high: "A6", density: 0.25),
+    ],
+    motifs: [
+        (steps: [0, 2, 1], beats: [1.0, 1.5, 1.0]),
+        (steps: [4, 2, 1, 0], beats: [1.0, 1.0, 1.0, 2.0]),
+    ],
+    level_db: 2.5,
+)

@@ -1,0 +1,13 @@
+// A soft, flute-like lead: a triangle and a sine an octave up under a gentle low-pass, with vibrato.
+Instrument(
+    id: "soft_lead",
+    words: "music.instrument.soft_lead",
+    kind: Synth((
+        oscillators: [(wave: Triangle), (wave: Sine, semitones: 12.0, level: 0.15)],
+        filter: Some((kind: LowPass, cutoff_hz: 1800.0, q: 0.7, key_track: 0.5)),
+        envelope: (attack_s: 0.04, decay_s: 0.3, sustain: 0.7, release_s: 0.6),
+        vibrato: Some((5.0, 8.0)),
+    )),
+    level_db: -16.0,
+    reverb_send: 0.35,
+)

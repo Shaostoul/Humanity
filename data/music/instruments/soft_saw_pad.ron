@@ -1,0 +1,17 @@
+// Pads: three detuned saws through a slowly breathing low-pass, wide (the direction sketch's pad,
+// scripts/music-sketch.js). docs/design/music.md section 6.
+Instrument(
+    id: "soft_saw_pad",
+    words: "music.instrument.soft_saw_pad",
+    kind: Synth((
+        oscillators: [
+            (wave: Saw, detune_cents: -7.0, pan: -0.65),
+            (wave: Saw, detune_cents: 0.5, pan: 0.0),
+            (wave: Saw, detune_cents: 6.5, pan: 0.65),
+        ],
+        filter: Some((kind: LowPass, cutoff_hz: 850.0, q: 0.75, key_track: 1.5, lfo_hz: 0.045, lfo_depth_hz: 650.0)),
+        envelope: (attack_s: 3.5, release_s: 5.5),
+    )),
+    level_db: -22.0,
+    reverb_send: 0.4,
+)

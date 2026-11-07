@@ -1,0 +1,12 @@
+// The riser: noise through a band-pass that opens as it builds, held to the bar line where the
+// danger begins (intensity.ron).
+Instrument(
+    id: "riser",
+    words: "music.instrument.riser",
+    kind: Noise((
+        filter: (kind: BandPass, cutoff_hz: 250.0, q: 1.4, env_hz: 5500.0),
+        envelope: (attack_s: 2.5, release_s: 0.25),
+    )),
+    level_db: -20.0,
+    reverb_send: 0.5,
+)

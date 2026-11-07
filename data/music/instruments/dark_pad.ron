@@ -1,0 +1,17 @@
+// A darker pad for the night watch and for tension: two saws and a sine an octave down, under a
+// low cutoff that barely moves.
+Instrument(
+    id: "dark_pad",
+    words: "music.instrument.dark_pad",
+    kind: Synth((
+        oscillators: [
+            (wave: Saw, detune_cents: -5.0, pan: -0.5),
+            (wave: Saw, detune_cents: 5.0, pan: 0.5),
+            (wave: Sine, semitones: -12.0, level: 0.6),
+        ],
+        filter: Some((kind: LowPass, cutoff_hz: 420.0, q: 0.8, key_track: 0.8, lfo_hz: 0.03, lfo_depth_hz: 260.0)),
+        envelope: (attack_s: 4.0, release_s: 6.0),
+    )),
+    level_db: -21.0,
+    reverb_send: 0.45,
+)

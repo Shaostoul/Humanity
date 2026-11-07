@@ -2970,6 +2970,7 @@ dependencies = [
  "hmac 0.12.1",
  "html5ever",
  "humanity-core",
+ "humanity-music",
  "humanity-protocol",
  "humanity-ship",
  "humanity-systems",
@@ -3037,6 +3038,18 @@ dependencies = [
  "windows-core 0.62.2",
  "winit",
  "winres",
+]
+
+[[package]]
+name = "humanity-music"
+version = "0.1549.0"
+dependencies = [
+ "humanity-core",
+ "kira",
+ "log",
+ "ron",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

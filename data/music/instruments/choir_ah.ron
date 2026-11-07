@@ -1,0 +1,14 @@
+// The wordless choir: formant synthesis, two singers a note, gliding between "ah" and "oh" (the
+// sketch's choir). Good as a pad; it does not sing words (docs/design/music.md section 6).
+Instrument(
+    id: "choir_ah",
+    words: "music.instrument.choir_ah",
+    kind: Choir((
+        singers: 2,
+        envelope: (attack_s: 4.0, release_s: 6.5),
+        vibrato: (5.2, 6.0),
+        breath: 0.06,
+    )),
+    level_db: -14.0,
+    reverb_send: 0.6,
+)

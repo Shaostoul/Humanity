@@ -42,6 +42,14 @@
       ]
     },
     {
+      "name": "humanity-music",
+      "why": "The game's live music and the ship's hum (docs/design/music.md, 2026-11-06): the composer, the synthesised voices, the reverb, the limiter, the hum and the tones, rendering into a plain buffer, with the kira adapter behind its native feature. Pure and small, so its tests render faster than real time and `just music-render` works offline; edited often while the music grows, so it sits low and an edit to it rebuilds only the GUI and the engine above. The server build never compiles it.",
+      "dir": "crates/humanity-music",
+      "uses": [
+        "humanity-core"
+      ]
+    },
+    {
       "name": "humanity-relay",
       "why": "The server. The VPS build is this crate and what it uses, with no GPU code in it.",
       "paths": [
@@ -117,7 +125,8 @@
         "humanity-systems",
         "humanity-relay",
         "humanity-net",
-        "humanity-renderer"
+        "humanity-renderer",
+        "humanity-music"
       ]
     },
     {
@@ -142,7 +151,8 @@
         "humanity-relay",
         "humanity-net",
         "humanity-renderer",
-        "humanity-gui"
+        "humanity-gui",
+        "humanity-music"
       ]
     }
   ],

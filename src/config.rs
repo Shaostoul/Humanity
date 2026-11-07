@@ -711,6 +711,11 @@ pub struct AppConfig {
     /// A config written before it reads as every second, the default.
     #[serde(default = "default_garden_update_s")]
     pub garden_update_s: f32,
+    /// Settings > Music (2026-11-06, docs/design/music.md section 15): music on or off, the style
+    /// and a blend, the tuning (A = 432 Hz by default), the ship's hum and its level, the tones. One
+    /// object; every field has its default, so a config from before reads with the defaults.
+    #[serde(default)]
+    pub music: humanity_music::MusicSettings,
     /// Soil pH in the garden (2026-09-26, farming::soil_ph): On models it,
     /// Off freezes it and hides it. On by default.
     #[serde(default = "default_true")]
@@ -1676,6 +1681,7 @@ impl AppConfig {
             days_per_year: state.settings.days_per_year,
             pest_severity: state.settings.pest_severity,
             garden_update_s: state.settings.garden_update_s,
+            music: state.settings.music.clone(),
             soil_ph: !state.garden_pests.soil_ph_off,
             pollination: !state.garden_pests.pollination_off,
             picking_realistic: state.garden_pests.picking_realistic,
@@ -1988,6 +1994,7 @@ impl AppConfig {
         // Clamped on the way in like the clock: a hand-edited config past an hour (the longest
         // choice), or not a number, is taken as the nearest choice allows.
         state.settings.garden_update_s = humanity_systems::farming::clock::clamp_choice(f64::from(self.garden_update_s)) as f32;
+        state.settings.music = self.music.clone();
         state.garden_pests.soil_ph_off = !self.soil_ph;
         state.garden_pests.pollination_off = !self.pollination;
         state.garden_pests.picking_realistic = self.picking_realistic;

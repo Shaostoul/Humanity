@@ -120,6 +120,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // ── Travel (v0.791.x): teleport + FTL fly speed ──
             draw_travel_card(ui, theme, state);
             ui.add_space(theme.spacing_sm);
+            // ── Music (2026-11-06): the danger knob and what the music is doing ──
+            crate::gui::pages::dev_music::draw_card(ui, theme, state);
+            ui.add_space(theme.spacing_sm);
 
             // Status + cleanup.
             widgets::card(ui, theme, |ui| {

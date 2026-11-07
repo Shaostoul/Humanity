@@ -478,6 +478,17 @@ instrument-packs *args:
 loudness:
     HUMANITY_WRITE_LOUDNESS=1 node scripts/lib-tests.js --crate humanity-core the_measured_loudness_data_matches_the_shipped_sounds --nocapture
 
+# Render the game's live music offline with the real engine (crates/humanity-music) to a WAV in the
+# temp folder or --out (never into the repo), and report its BS.1770 loudness, true peak, loudness
+# range, tuning and the audio thread's cost per block (docs/design/music.md, section 16). Moods and
+# styles are the ids in data/music/. Options: --a4 440, --seed N, --out PATH, --blend STYLE:T,
+# --intensity V, --ramp "S:V,S:V" (the danger intensity over time), --hum, --breach, --stems.
+#   just music-render mothership_calm mothership_calm 90
+#   just music-render mothership_calm mothership_calm 80 --ramp "0:0,20:0,32:0.95,55:0.95,62:0" --breach
+# Render the live music offline to a WAV and report how it measures
+music-render mood style seconds *args:
+    cargo run -q -p humanity-music --example music-render -- {{mood}} {{style}} {{seconds}} {{args}}
+
 # Full local verification: both feature builds + lib tests + the GUI lints.
 # Mirrors what CI cares about (the relay build is the one CI deploys with).
 # just aborts the recipe on the first failing line, so this fails fast.

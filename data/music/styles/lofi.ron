@@ -1,0 +1,35 @@
+// "Lo-fi", the first extra style (docs/design/music.md, section 7a): the style seam's working rung.
+// Chosen before electroswing or dubstep because the default world is calm and lo-fi is calm too
+// (70 to 82 bpm), and because every timbre it needs synthesises well here (an FM electric piano, a
+// round plucked bass, soft synthesised drums, vinyl crackle, tape wow): electroswing leans on recorded
+// swing-era brass and clarinet, and dubstep's drop on a loud, dense mix, so both wait for later rungs.
+// Swung sixteenths, a lazy backbeat, the electric piano comping on a pattern, the bass on its own,
+// seventh chords on every chord, one or two bars each, a worn-tape low-pass, wow and saturation, a
+// drier room. The steel pan stays as a colour; the choir, the drone and the deep drums step out.
+Style(
+    id: "lofi",
+    words: "music.style.lofi",
+    about_words: "music.style.lofi_about",
+    tempo_bpm: Some((70.0, 82.0)),
+    beat_felt: Some(true),
+    groove: Some((swing: 0.6, subdivision: 4, syncopation: 0.2, humanize_ms: 9.0)),
+    drums: [
+        (instrument: "lofi_kick", note: "A1", velocity: 0.9, patterns: ["x.........x.....", "x......x..x.....", "x.........x..x.."]),
+        (instrument: "lofi_snare", note: "D3", velocity: 0.7, patterns: ["....x.......x...", "....x.......x..g"]),
+        (instrument: "lofi_hat", note: "D5", velocity: 0.45, patterns: ["x.x.x.x.x.x.x.x.", "x.xgx.x.x.xgx.x.", "x.x.x.xxx.x.x.x."]),
+    ],
+    pad_pattern: Some("x.........x....."),
+    bass_pattern: Some("x.......5.....x."),
+    harmony: (sevenths: true, chord_bars: Some((1, 2))),
+    palette: [
+        (role: Pad, instrument: "electric_piano"),
+        (role: Bells, instrument: "soft_lead", level_db: -2.0),
+    ],
+    roles_off: [Choir, Drone, Percussion],
+    roles_add: [
+        (role: Bass, instrument: "round_bass", low: "G1", high: "G2"),
+        (role: Texture, instrument: "vinyl_crackle", low: "C4", high: "C4"),
+    ],
+    recipe: (wow_cents: 7.0, wow_hz: 0.45, flutter_cents: 1.5, flutter_hz: 6.0, lowpass_hz: 5200.0, saturation: 0.25, reverb_scale: 0.45),
+    level_db: 4.9,
+)

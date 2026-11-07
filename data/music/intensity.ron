@@ -1,0 +1,20 @@
+// Danger and action (docs/design/music.md, section 7b; crates/humanity-music/src/intensity.rs). The game
+// sets an intensity, 0..1 (a hull breach, a meteor storm, an invasion, combat; today the Dev page's
+// slider and the "music_intensity" showcase verb). Each band names the mood it plays (none: the place's
+// own, so calm is wherever you are). Rising into a band: the stinger on the next beat, the riser to the
+// next bar line, the danger mood from that bar. Falling: at the next fall_bars boundary, quietly.
+IntensityMap(
+    bands: [
+        (from: 0.0),
+        (from: 0.35, mood: Some("tension")),
+        (from: 0.7, mood: Some("action")),
+    ],
+    hysteresis: 0.08,
+    stinger: [
+        (instrument: "taiko_hit", note: "D2", velocity: 1.0),
+        (instrument: "celesta", note: "D6", velocity: 0.8),
+        (instrument: "celesta", note: "A5", velocity: 0.7, beat: 0.5),
+    ],
+    riser: Some((instrument: "riser", note: "D4", velocity: 0.8)),
+    fall_bars: 2,
+)

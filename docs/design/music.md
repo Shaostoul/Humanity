@@ -1,11 +1,14 @@
 # Music and the ship's hum: a calm score composed live, tuned to A = 432 Hz
 
-**Status: design 2026-11-06.** A listenable direction sketch exists (section 19). **Built the same
-day: rung 6's instrument library** (section 23): the CC0 libraries downloaded and recorded, the
-pipeline that makes instruments from them (`just instrument-packs`), the core set inside the app,
-the downloadable packs, Settings > Audio > Instruments, and the choice of instrument per part with
-synthesis as the fallback. The sampler voice inside the score waits for the engine's crate. The whole feature is planned here with all its parts (CLAUDE.md, "Plan the whole
-feature, build it in rungs"), then cut into rungs (section 20), smallest first. What can legally be
+**Status (2026-11-06): rungs 1 to 3 BUILT** (the score plays aboard, the hum and the Ambience
+category, the composer and the moods, with the deep drums and the steel pan), **the first rung of
+STYLES** (section 7a: lo-fi, blends, places that may pick a style) and **the first rung of DANGER
+AND ACTION** (section 7b: tension and action moods the game's intensity raises, the hum's breach
+alarm, the Dev page's knob). The engine is `crates/humanity-music` (its card:
+[docs/crates/humanity-music.md](../crates/humanity-music.md)); what was measured is in sections 13,
+14 and 19a. Rung 6's **instrument library** was built beside it (section 23): the CC0 core set, the downloadable packs, Settings > Audio > Instruments; the score plays the best recorded instrument installed for each part its roles name, and the part's synthesised voice without one. Rungs 4, 5 and 7 to 10 remain (section 20). A listenable direction sketch came first (section 19).
+The whole feature is planned here with all its parts (CLAUDE.md, "Plan the whole feature, build it
+in rungs"), then cut into rungs (section 20), smallest first. What can legally be
 shipped, and what the research says about 432 Hz, "healing frequencies" and brown noise, rests on
 the dated finding
 [`docs/reference/findings/2026-11-06-music-sources.md`](../reference/findings/2026-11-06-music-sources.md).
@@ -158,9 +161,13 @@ making it place-aware aboard a ship.
   plain `&mut [[f32; 2]]`. Pure means it is testable headless at faster than real time, it can
   render offline (`just music-render`, section 16), and it compiles to WebAssembly for the website's
   AudioWorklet (rung 9). It gets a crate card in `docs/crates/` when built, per the crate split.
-- **A thin adapter in `humanity_core::audio`** (native only, like the rest of kira's use):
-  `ScoreSound` and `AmbientBedSound` implement kira's `SoundData`/`Sound` over the crate, plus
-  `AudioManager::start_score`, `set_music_context`, and an ambience volume beside music, SFX and UI.
+- **A thin adapter, AS BUILT in the crate itself** (`humanity_music::kira_sound`, behind the crate's
+  `native` feature, which only the desktop app turns on): `ScoreSoundData` and `BedSoundData`
+  implement kira's `SoundData`/`Sound` over the engines, with `ScoreHandle`/`BedHandle` carrying the
+  latest-value context in and status out. The design first put it in `humanity_core::audio`; that
+  would have made the core (the bottom of the stack, "rarely edited, so every edit above it skips
+  it") depend on the music, so every music edit would rebuild the whole workspace. The core gained
+  only `AudioManager::play_data` (play any kira sound) and an ambience volume beside music, SFX and UI.
 - **The engine side** (`src/engine/music.rs`, native only): builds `MusicContext` each frame from
   state the game already has (section 8) and hands it over. No change to `src/lib.rs` beyond one
   call in the audio block.
@@ -234,6 +241,46 @@ the frequency it was recorded at), written by `just instrument-packs`; each defi
 `part` of the score it plays and a `rank` (the best installed wins), and carries `licence`, `source`
 and `credit`.
 
+### 6a. As built (2026-11-06)
+
+Twenty instruments in `data/music/instruments/`, of eight kinds: `Synth`, `Choir`, `Modal`, and,
+beyond the table above, `Membrane` (a struck skin), `Fm` (two-operator FM), `Plucked`
+(Karplus-Strong), `Noise` (filtered noise with a tonal body and crackle) and `Sampler` (the seam).
+
+- **The steel pan** (operator, 2026-11-06: "Could we deep drums and steel drums"): modal synthesis.
+  A pan's note area is hammered so its fundamental, octave (2:1) and twelfth (3:1) are in tune with
+  each other; around them ring weaker inharmonic modes and a second mode a few cents off the
+  fundamental (the shimmer, about 1.5 Hz of beating at A4 = 432); a short rubber-mallet strike sits
+  on top. Every partial follows `note_hz`, so the pan is tuned to 432 like everything else. In
+  "mothership calm" it is a gentle motif colour (the Melody role, density 0.3, about 9 LU under the
+  whole).
+- **The deep drum** (taiko, frame drum, timpani-like): modal synthesis of an ideal circular membrane
+  (its modes at the Bessel-zero ratios 1, 1.594, 2.136, 2.296, 2.653, 2.918, 3.156, 3.501), struck
+  near the centre; the pitch starts 6% sharp and falls back in 80 ms (the skin's tension rising as it
+  is hit), a felt mallet's 8 ms rise and a low thud. Tuned to the key's root (D2, 72.08 Hz at 432).
+  In "mothership calm" it plays slow heartbeat pulses ("lub-dub" once a bar, in about half the
+  phrases, about 8 LU under the whole), never busy. `taiko` and `taiko_hit` are harder-struck
+  versions for the danger moods. Samples replace them when a CC0 set is approved.
+- **The sampler seam, joined to the instrument library** (rung 6; section 23): a mood's role names
+  the PART it plays (`part: Some("deep_drum")`, an id of `data/music/parts.ron`) beside its own
+  synthesised `instrument`. When a score starts, `src/instrument_packs/score.rs` asks the instrument
+  library for the best recording installed for each part the roles name, decodes its zones into the
+  engine's `SampleSet` (`SampleZone`: shared stereo frames, their rate, the frequency recorded at the
+  library's own tuning, 0 for an unpitched hit, the keys and velocity it covers, a loop), adds it as a
+  `Sampler` instrument whose fallback is the role's synthesised voice, levels it to that voice (one
+  note's RMS each) so the mood's balance holds, and points the roles at it; with no recording the
+  role keeps its synthesised voice, so the music always plays. Retuning is by playback rate (a
+  recording made at A = 440 plays 31.77 cents slower at 432: the seam test measures 432.00 Hz through
+  the engine's sampler voice). Recorded definitions share `data/music/instruments/` with the
+  synthesised ones; each loader leaves the other's alone. Today three of the score's voices are parts:
+  the deep drum's heartbeat (the best installed of the drum part, `big_tom_22` first since
+  2026-11-07), the steel pan's colour (calm, night watch: the core set's small steel pan) and the
+  garden's harp; the rest of the score stays synthesised until a mood names more parts. A recording
+  with exact keys (the Hang, `handpan`: only its nine D-minor notes, as its makers ask) plays the keys
+  it has and every other key on its synthesised fallback (the steel pan voice), so no note goes
+  silent; no style uses the handpan yet. `parts.ron`'s synthesised voices are instruments of the
+  score (a test holds them to it).
+
 ## 7. Moods and compositions as data
 
 `data/music/moods/<id>.ron`. A mood is a style the composer improvises in:
@@ -258,6 +305,104 @@ The first four:
 
 `data/music/places.ron` maps a place (zone purpose, room purpose, room id) and a time of day to
 mood weights; the composer moves toward the heaviest mood at the next phrase boundary.
+
+**As built:** the four moods above plus `tension` and `action` (section 7b) are files in
+`data/music/moods/`. Chords are written relative to the key centre (a chord's root in semitones
+above it), so a mood's keys are transpositions; the chord graph is weighted moves between named
+chords, phrases end on a cadence chord, and each phrase is re-planned if it repeats one played in the
+mood's `no_repeat_s` (ten minutes by default). Places: the most specific rule wins (a room 4, a zone
+2, the hours 1, added), so the residence by night is the night watch and a greenhouse by day the
+garden morning. A room is matched by a word in its id or name (`RoomBounds` carries no type key; a
+`type_key` there would be cleaner).
+
+## 7a. Styles: tailoring the music to different tastes
+
+The operator, 2026-11-06: "Your procedural idea is actually really cool. I'm curious how we could
+tailor it to different tastes. Like what if someone likes dubstep or electroswing or whatever." And
+then: "Loving this idea."
+
+**A style is a layer of data over a mood** (`data/music/styles/<id>.ron`): the mood says where you
+are and what the music is about; the style says how it sounds. Every field is optional, so the
+default style, "Mothership calm", changes nothing. A style may set:
+
+| Part | What it is | Lo-fi (built) |
+|---|---|---|
+| Tempo range, a felt beat | over the mood's | 70 to 82 bpm, felt |
+| Groove | swing (where the second of each pair of grid steps lands: 0.5 straight, 0.667 triplet), the grid (eighths or sixteenths), syncopation, humanised timing | swung sixteenths at 0.6, 9 ms |
+| Drum pattern grammar | each part an instrument and patterns written as text over the grid (`x` a hit, `o` softer, `g` a ghost, `.` a rest); a phrase picks one | kick, brushed snare, hats |
+| Pad and bass patterns | the chord restruck on a pattern (comping), the bass on its own (`x` root, `5` fifth, `o` octave, `3` third) | electric piano comps; bass root and fifth |
+| Harmony rules | every chord its diatonic seventh, or plain triads, chord lengths | sevenths, 1 to 2 bars |
+| Palette | which instrument plays each role; roles turned off or added | FM electric piano, soft lead, round plucked bass, vinyl crackle; no choir, drone or deep drums |
+| Sound-design recipe | tape wow and flutter, a low-pass over the mix, saturation, the reverb's share | wow 7 cents, low-pass 5.2 kHz, drier |
+| Level | so the style still renders at the music category's loudness | +4.9 dB |
+
+**Why lo-fi first** (the brief asked for electroswing or a gentle lo-fi before dubstep): the default
+world is calm and lo-fi is calm too, and every timbre it needs synthesises well here (an FM electric
+piano, a plucked bass, soft drums, crackle, tape wow). Electroswing leans on recorded swing-era brass
+and clarinet, and dubstep's drop on a loud, dense mix, so both wait for later rungs.
+
+**Designed, not built yet:**
+
+- **Electroswing**: swing eighths around 120 to 130 bpm (swing 0.66), a walking upright bass (a new
+  bass behaviour: chord tones and passing notes on every beat), brass and clarinet stabs on the
+  off-beats, a four-on-the-floor kick under the swing, vinyl crackle, a little tape. Honest limit: the
+  brass and clarinet need CC0 recordings to sound right; synthesised stand-ins play until a pack is
+  approved.
+- **Dubstep**: a half-time feel around 140 bpm (snare on beat 3), a wobble bass (a saw stack through
+  a low-pass swept by an LFO in time with the beat: the `lfo_per_beat` field already exists in the
+  synth's filter), a sine sub bass, and a build-and-drop structure (a phrase plan of build bars with a
+  riser, then the drop: a new `structure` field in the style). Kept calm-friendly as a choice, never a
+  default.
+
+**A person's choice** is in Settings > Music: the style (the list is the files, so a dropped-in file
+appears), a second style to **blend** with and a slider (tempo, swing and the recipe move smoothly;
+each role takes the second style's instrument with a chance equal to the blend; both styles' drums
+play, each at its share), and **"Let places pick a livelier style"** (off by default): with it on, a
+place in `places.ron`'s `style_suggestions` (a gym, a workshop) plays its style while you are there.
+
+**Community styles** are files: anyone can write one and share it, as a mod. A file with no words key
+in en.json gives its name in plain words (`name`, `about`).
+
+**What we will not do, and why** (said in Settings too): genres built on RECORDED timbres (swing-era
+brass, vocal chops) need samples; the app uses only recordings free to share (CC0), and **never
+samples copyrighted recordings, because copyright law forbids it** (a law, not a platform rule).
+Public-domain recordings (old 78s) might be usable, but that needs a dated legal finding first
+(CLAUDE.md, "Research a legal question, then write it down and date it"); none has been written,
+and nothing here decides it.
+
+## 7b. Danger and action: the score rising with the game
+
+The operator, 2026-11-06: "Let's also see what we can generate for high octane situations like a
+meteor storm puncturing a bunch of holes through the ship or an alien invasion."
+
+- **An intensity, 0..1, that the game sets** (a hull breach, a meteor storm, an invasion, combat).
+  Today it is the Dev page's Music card (a slider and a hull-breach toggle) and the
+  `music_intensity` / `music_breach` showcase verbs (a rig drives them through the MCP's
+  `game_showcase`); game systems raise the same value when they exist.
+- **Bands as data** (`data/music/intensity.ron`): from 0 the place's own mood (calm is wherever you
+  are), from 0.35 `tension`, from 0.7 `action`, with a hysteresis of 0.08 so an intensity hovering
+  at an edge never flips the band every bar.
+- **Transitions never cut.** Rising into a band: on the next beat a STINGER (the big drum and a
+  two-note alarm in the bells), a RISER (noise through an opening band-pass) building to the next bar
+  line (the one after if the bar is nearly over), and at that bar line the danger mood begins a new
+  phrase. Falling back: at the next two-bar boundary, quietly; the long pad envelopes carry the settle.
+- **Tension** (D Phrygian, the flat second's dread; the key stays on D, so the hum stays in tune):
+  taiko on the beat, a second taiko past 0.5, a pulsing eighth-note bass, the celesta as an alarm (a
+  minor third rocking), a dark pad, a low choir; 84 to 100 bpm rising with the intensity.
+  **Action** (D Phrygian power chords, the soft-metal colour): the big drum on the downbeats, a taiko
+  ostinato, a backbeat, the taiko's sixteenths from 0.85, low brass stabs on a pattern, a galloping
+  bass, the bells' alarm, the choir only at the very peak; 118 to 132 bpm. Both are URGENT moods:
+  they play as written in every style (danger sounds like danger), and the style keeps only its
+  recipe and level.
+- **The hum strains in a breach** (`hum_sources.ron`'s `alarm`): louder by 5 dB, its low-pass opened,
+  its resonances wavering 25 cents, and a distant two-tone klaxon tuned to the key (A4 and D5, 432.0
+  and 576.7 Hz at A = 432), heard through the walls (a low-pass); the alarm follows the intensity
+  above 0.35 while the breach toggle is on.
+- **Loudness**: a danger peak sits louder than calm (tension about -17 LUFS, action about -16.5,
+  calm -18) and under the same -1 dBTP ceiling; the limiter catches the drums' transients (under 1%
+  of samples in the meteor storm render).
+- **Later rungs**: a danger palette per style (lo-fi's own tension), game systems setting the
+  intensity, a "dread" band under tension for slow threats, stingers per event kind.
 
 ## 8. Adaptivity: what steers it
 
@@ -393,6 +538,13 @@ per channel included; in Rust, a budget of 0.02 ms per 128-frame block (section 
 - Nothing is cached: the meter and the trim run live; nothing is stored between runs. If any measured
   value were ever reused across frames it would obey the Dev page's "turn off all reuse" switch.
 
+**Measured 2026-11-06** (`just music-render`, humanity_core's BS.1770 meter, 60 s, A = 432, the
+tests in crates/humanity-music hold each to its target within 1 LU): mothership calm -18.0 LUFS,
+true peak -5.5 dBTP, loudness range 3.3 LU, largest one-second change of short-term loudness 3.2 LU;
+lo-fi -18.1; menu, garden morning and night watch levelled to -18; tension -16.9 and action about
+-16.5, true peak held at -2.7 dBTP by the limiter. The hum at gain 1 in an open space -26 LUFS (the
+ambient target); at its default level (0.35) about 17 LU under the music.
+
 ## 14. The budget
 
 | Where | Budget | Basis |
@@ -408,6 +560,17 @@ per channel included; in Rust, a budget of 0.02 ms per 128-frame block (section 
 
 The audio thread is real time: the budget is checked in tests by rendering offline at the same
 block size and timing the worst block, and on the operator's machine by the Dev page's live meter.
+
+**Measured 2026-11-06** (release-optimised, 128-frame blocks at 48 kHz, on the operator's i7-8700K
+while other builds ran): the calm score 0.048 ms a block on average (1.8% of the block), 0.1 ms at
+the 99th percentile (the gate: `the_audio_thread_cost_per_block_is_within_the_budget`, the best of
+five runs); the hum 0.006 ms; menu 0.042, garden morning 0.025, night watch 0.045, lo-fi 0.057,
+tension about 0.08 and **action at its peak about 0.13 ms (5%) with more than 40 voices**: over the
+calm budget, accepted for the moments of danger (the first lever: a cheaper taiko). Getting the calm
+score under 0.05 took the reverb's lines as fixed arrays with its modulation moved once per 16
+samples (a third of its cost), the choir's vibrato once a block, its 50-dB-down fifth formant
+skipped, and voices ended 60 dB down. The worst single block in an offline loop includes the OS
+preempting it, so the gate reads the 99th percentile; kira's own buffering covers a rare slow block.
 
 ## 15. Settings, and the words
 
@@ -432,6 +595,15 @@ In Settings > Audio, beside the existing sliders. Keys go into `data/i18n/en.jso
 Every word a person reads about tuning, tones and the hum is in this table; nothing anywhere else in
 the app may say more (no "healing", no "432 Hz is natural", no "brown noise helps you focus").
 
+**As built (2026-11-06):** Settings > Music is its own section (`SettingsCategory::Music`,
+`src/gui/pages/settings_music.rs`): Music on, Music on the app's pages, Tuning (A = 432 Hz default),
+Style, Blend with and its slider, Let places pick a livelier style, the recordings note, Ambience
+Volume, Ship hum and its level, Tones (off by default) with its tone and volume. Every word by key
+(`settings.music.*` in data/i18n/en.json), every control with its hint. Saved as config.json's
+`music` object (`humanity_music::MusicSettings`). The website plays no music yet (rung 9), so it has
+no mirror of this section; it gains one with the WebAssembly score. Quiet gaps, "Lower music while
+people talk" and Music on the menus wait for rungs 4 and 7.
+
 ## 16. Dev tooling (permanent)
 
 - **The Dev page's Music panel**: current mood and its weights, key, chord, phrase position, tempo,
@@ -444,6 +616,15 @@ the app may say more (no "healing", no "432 Hz is natural", no "brown noise help
   engine offline to a WAV, with the levels report (BS.1770 loudness, true peak, loudness range, the
   measured tuning), for listening and for review without booting the game.
 - **`HUMANITY_MUSIC_SEED`** fixes the composer's seed for rigs and tests.
+
+**As built (2026-11-06):** the Dev page's Music card (`src/gui/pages/dev_music.rs`) holds the
+danger knob (intensity slider, hull-breach toggle, "Restart the music", which reads the files again)
+and the readout (mood and the place's mood, key, tempo, phrase and bar, voices, the audio thread's
+mean and worst block, the hum's level, cutoff and alarm, the zone, the seed); the showcase verbs
+`music_intensity` and `music_breach` (engine/ipc.rs) reach the knob from a rig. `just music-render
+<mood> <style> <seconds>` is built (`--ramp` automates the intensity, `--breach` the alarm,
+`--stems` gives each role's loudness against the whole). `music_state` on the IPC and the force
+buttons wait for rung 5.
 - **The sketch** (`scripts/music-sketch.js`, section 19) stays as the reference the engine's first
   rung is compared against.
 
@@ -499,6 +680,19 @@ real score composes with a chord graph, moods and places; the sketch plays one w
 - Balance (stems against all the music): pads -1.7 LU, bells -5.9 LU, choir -6.7 LU, drone -11.7 LU.
   The spectrum is warm by design (41.6% of the energy at 60 to 250 Hz, 55.2% at 250 to 2,000 Hz,
   1.3% above 2 kHz); brightness is a data knob in the real engine.
+
+## 19a. What the operator can listen to (2026-11-06)
+
+Rendered by `just music-render` from the real engine at A = 432 Hz into the session's scratchpad
+(never the repo): 90 s of "mothership calm" with the deep drums and the steel pan, 60 s of lo-fi, and
+a meteor storm (calm, the intensity rising to 0.95 with the hull-breach alarm, the peak, and calm
+again), each with the ship's hum under it at its default level, faded out over the last 6 s:
+
+| File | Integrated | True peak | Loudness range | Notes |
+|---|---|---|---|---|
+| mothership calm, 90 s | -18.1 LUFS | -5.0 dBTP | 3.0 LU | the hum 17.0 LU under the music; the drone's D2 found at 72.07 Hz |
+| lo-fi, 60 s | -18.1 LUFS | -3.6 dBTP | 2.2 LU | the hum 17.1 LU under |
+| meteor storm, 85 s (`--ramp "0:0,18:0,30:0.6,36:0.95,60:0.95,66:0,85:0" --breach`) | -16.5 LUFS | -1.55 dBTP | 5.9 LU | the music alone -16.8 LUFS; the limiter caught the drums' peaks on 0.8% of samples |
 
 ## 20. The rungs
 
@@ -557,6 +751,12 @@ and shipped before the next. All native-gated except the pure crate.
 10. **Making music in the app.** The Music panel becomes an editor for moods and motifs with live
     reload; a contributor guide for CC0 moods, presets, stems and recorded choirs.
 
+**Rungs 1 to 3 as built (2026-11-06):** all three, with these departures: the adapter lives in the
+crate (section 4.3); the drone, pads and choir are written per mood rather than a single written
+progression (rung 3's chord graph came at once); the Dev page's Music card arrived early (rung 5's
+readout, without its force buttons). The tests (each seen red first, the red in its comment) are
+listed in docs/crates/humanity-music.md, "How to test it".
+
 ## 21. Questions for the operator, each with a recommendation
 
 1. **Real instruments: which route?** Recommendation: **CC0 sample libraries played live by our own
@@ -585,6 +785,21 @@ and shipped before the next. All native-gated except the pure crate.
    A of about 444 Hz, which works against your 432 choice.
 6. **The hum's default level.** Recommendation: **about 18 LU under the music**, as in the sketch;
    listen to the hum file alone and in the mix and say if it should be more present.
+
+Added with the build (2026-11-06):
+
+7. **Which style next: electroswing or dubstep?** Recommendation: **electroswing**, once a CC0
+   brass and clarinet set is approved (its groove, walking bass and four-on-the-floor are ready to
+   write as data now; without recordings the brass is a synthesised stand-in). Dubstep after, as an
+   opt-in style, never a place's default.
+8. **Public-domain recordings (old 78s) as sample sources?** Recommendation: **not without a dated
+   legal finding first** (copyright terms for sound recordings differ from compositions and by
+   country); nothing has been decided here.
+9. **The danger moods' cost** (action at its peak about 0.13 ms a block, 2.5 times the calm budget,
+   for the moments of danger). Recommendation: **accept it for now**, and make the taiko cheaper in
+   the next rung if a rig shows frame or audio trouble during a storm.
+10. **The hum's place**: today's stern, past p12, per the master plan's section 6.6; it moves to Sector
+    1's spine with the wipe. Recommendation: **as placed**; listen at the end of First Street.
 
 ## 22. Not done here
 

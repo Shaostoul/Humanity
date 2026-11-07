@@ -1,0 +1,56 @@
+// "Tension": danger building (intensity 0.35 to 0.7: a hull breach, a meteor storm closing in,
+// docs/design/music.md section 7b). D Phrygian, the flat second's dread; the key stays on D, so the
+// ship's hum stays in tune with it. An URGENT mood: it plays as written in every style. Taiko on the
+// beat, a second taiko joining past 0.5, a pulsing eighth-note bass, the celesta as an alarm figure (a
+// minor third rocking), a dark pad, a low choir. The tempo rises with the intensity, 84 to 100 bpm.
+Mood(
+    id: "tension",
+    words: "music.mood.tension",
+    keys: [(root: "D", mode: Phrygian, weight: 3.0), (root: "A", mode: Phrygian, weight: 1.0)],
+    chords: [
+        (name: "D5", root: 0, notes: [0, 7, 12]),
+        (name: "Dm", root: 0, notes: [0, 3, 7]),
+        (name: "Eb", root: 1, notes: [0, 4, 7]),
+        (name: "Bbmaj7", root: 8, notes: [0, 4, 7, 11]),
+        (name: "Cm", root: 10, notes: [0, 3, 7]),
+        (name: "Gm", root: 5, notes: [0, 3, 7]),
+    ],
+    moves: [
+        ("D5", "Eb", 3.0), ("D5", "Bbmaj7", 2.0), ("D5", "Gm", 1.0),
+        ("Dm", "Eb", 2.0), ("Dm", "Cm", 2.0),
+        ("Eb", "D5", 3.0), ("Eb", "Dm", 1.0),
+        ("Bbmaj7", "Cm", 2.0), ("Bbmaj7", "Eb", 1.0),
+        ("Cm", "D5", 3.0), ("Cm", "Dm", 1.0),
+        ("Gm", "D5", 2.0), ("Gm", "Eb", 1.0),
+    ],
+    cadences: ["D5", "Dm"],
+    start: "D5",
+    phrase_bars: [4, 8],
+    chord_bars: (1, 2),
+    tempo_bpm: (84.0, 100.0),
+    tempo_follows_intensity: true,
+    beat_felt: true,
+    urgent: true,
+    groove: Some((swing: 0.5, subdivision: 4, humanize_ms: 4.0)),
+    drums: [
+        (instrument: "taiko", note: "D2", velocity: 0.75, patterns: ["x...x...x...x...", "x...x...x..xx..."]),
+        (instrument: "taiko", note: "A1", velocity: 0.65, min_intensity: 0.5, patterns: ["..x...x...x...xx", "..x..xx...x...x."]),
+    ],
+    bass_pattern: Some("x.x.x.x.x.x.x.x."),
+    roles: [
+        (role: Pad, instrument: "dark_pad", low: "A2", high: "A4", voices: 4),
+        (role: Bass, instrument: "pulse_bass", low: "D1", high: "C#2"),
+        (role: Drone, instrument: "drone", low: "D2", high: "C#3", level_db: -2.0),
+        (role: Melody, instrument: "celesta", low: "D5", high: "D6", density: 0.8, level_db: -4.0),
+        (role: Choir, instrument: "choir_ah", low: "A3", high: "A4", voices: 3, density: 0.5, level_db: -3.0),
+    ],
+    motifs: [
+        (steps: [0, 1, 0, 1], beats: [0.5, 0.5, 0.5, 0.5]),
+        (steps: [0, 1, 0, 1, 0, 1], beats: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]),
+        (steps: [1, 0, -1, 0], beats: [0.5, 0.5, 0.5, 1.5]),
+    ],
+    level_db: 2.3,
+    no_repeat_s: 300.0,
+    reverb_t60_s: 3.2,
+    reverb_wet: 0.4,
+)

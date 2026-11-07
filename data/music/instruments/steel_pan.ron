@@ -1,0 +1,31 @@
+// STEEL PAN (operator, 2026-11-06: "Could we deep drums and steel drums"), by modal synthesis. A
+// pan's note area is hammered so its fundamental, its octave (2:1) and its twelfth (3:1) are in
+// tune with each other, the tuner's craft (the octave is often as strong as the fundamental at the
+// strike); around them ring weaker inharmonic modes of the skirt and the neighbouring notes, and a
+// second mode a few cents off the fundamental gives the shimmer (about 1.5 Hz of beating at A4 =
+// 432). Every partial follows the note's frequency, so the pan is tuned to A = 432 like everything
+// else. A short mallet strike (rubber-tipped sticks) sits on top. Used sparingly: a gentle melodic
+// colour in "mothership calm".
+Instrument(
+    id: "steel_pan",
+    words: "music.instrument.steel_pan",
+    kind: Modal((
+        partials: [
+            (1.0, 1.0, 1.8),
+            (1.0035, 0.25, 1.6),
+            (2.0, 0.85, 1.1),
+            (3.0, 0.35, 0.6),
+            (4.0, 0.12, 0.4),
+            (2.76, 0.06, 0.25),
+            (5.05, 0.05, 0.2),
+            (6.12, 0.03, 0.15),
+        ],
+        attack_s: 0.002,
+        strike_noise: 0.25,
+        strike_ms: 6.0,
+        decay_pitch_scale: 0.3,
+    )),
+    level_db: -17.5,
+    reverb_send: 0.5,
+    pan_spread: 0.3,
+)

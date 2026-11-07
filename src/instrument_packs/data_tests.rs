@@ -31,7 +31,20 @@ fn the_instrument_data_parses_and_every_sample_has_its_licence() {
     assert_eq!(part_ids.len(), parts.parts.len(), "no part is listed twice");
     for p in &parts.parts {
         assert!(has_words(&p.words), "part {}: its name {} is in en.json", p.id, p.words);
-        assert!(["synth", "choir", "modal", "plucked"].contains(&p.synth.kind.as_str()), "part {}: {} is one of music.md's synthesised kinds", p.id, p.synth.kind);
+        assert!(["synth", "choir", "modal", "membrane", "fm", "plucked", "noise"].contains(&p.synth.kind.as_str()), "part {}: {} is one of the music engine's synthesised kinds", p.id, p.synth.kind);
+    }
+    // Each part's synthesised voice is an instrument of the score, of the kind it says, and every
+    // part a mood's role names is a part here (2026-11-06, with crates/humanity-music on main).
+    let music = humanity_music::MusicLibrary::load(&data).expect("the music's data loads");
+    for p in &parts.parts {
+        let inst = music.instruments.iter().find(|i| i.id == p.synth.preset);
+        let kind = inst.map(|i| format!("{:?}", i.kind).split('(').next().unwrap_or("").to_ascii_lowercase());
+        assert_eq!(kind.as_deref(), Some(p.synth.kind.as_str()), "part {}: its voice {} is a {} instrument of the score", p.id, p.synth.preset, p.synth.kind);
+    }
+    for r in music.moods.iter().flat_map(|m| m.roles.iter()).chain(music.styles.iter().flat_map(|s| s.roles_add.iter())) {
+        if let Some(part) = &r.part {
+            assert!(part_ids.contains(part.as_str()), "a role names the part {part}, which parts.ron does not list");
+        }
     }
 
     // The core set: every instrument in the catalog is in data/music, loads, and carries its

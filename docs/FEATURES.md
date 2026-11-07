@@ -2753,6 +2753,29 @@ they play, voices levelled per person, a slider per kind, an opt-in mic level) a
   `data/sounds.toml`
 - Web: `web/shared/video-volume.js`, Settings > Audio & Video > Videos (`web/pages/settings.html`)
 
+### Live music and the ship's hum (2026-11-06)
+The game composes its own music live at A = 432 Hz (440 one setting away): a composer walks each
+mood's chord graph with voice leading, varies motifs and never repeats a phrase within ten minutes;
+synthesised voices (pads, a formant choir, celesta bells, the STEEL PAN, membrane DEEP DRUMS and
+taiko, FM electric piano, plucked bass and harp, noise drums, vinyl crackle) with a reverb and a
+limiter, levelled to the music category's loudness. Six moods (mothership calm, menu, garden
+morning, night watch, tension, action), places and the ship's hour choosing among them; STYLES as
+data over the moods (mothership calm, lo-fi; a blend slider; places that may pick a livelier style;
+community styles are files); DANGER AND ACTION driven by an intensity the game sets (stinger, riser,
+bar-line transitions, taiko ostinatos, brass stabs; the Dev page's knob and the `music_intensity` /
+`music_breach` showcase verbs); the ship's hum (brown noise with resonances on the key at 432, louder
+and darker toward the drive at the stern, softer in small rooms, silent off the ship, a stressed
+breach alarm with a klaxon tuned to the key); the optional tones (off by default, honest words);
+Settings > Music; `just music-render` renders offline. Rungs 4 to 10 (menus and ducking, the
+self-meter, sampled instruments, the website...) are planned in `docs/design/music.md`.
+- Native: `crates/humanity-music/` (the crate: `composer.rs`, `voice.rs`, `score.rs`, `bed.rs`,
+  `intensity.rs`, `kira_sound.rs`, card `docs/crates/humanity-music.md`), `src/engine/music.rs` (the
+  frame wiring), `src/gui/pages/settings_music.rs`, `src/gui/pages/dev_music.rs`,
+  `crates/humanity-core/src/audio/mod.rs` (`AudioManager::play_data`, the ambience volume)
+- Data: `data/music/instruments/*.ron`, `data/music/moods/*.ron`, `data/music/styles/*.ron`,
+  `data/music/places.ron`, `data/music/intensity.ron`, `data/music/tones.ron`, `data/audio/hum_sources.ron`
+- Tools: `just music-render <mood> <style> <seconds>`, the example `crates/humanity-music/examples/music_render.rs`
+
 ### Sound levels: each shipped sound's own level (2026-11-06)
 Settings > Audio > "Sound levels": every sound the game ships (each `data/sounds.toml` entry whose
 file exists), grouped by kind, each with its name by key (`sound_names.<id>`), a level slider from
@@ -2784,7 +2807,7 @@ in plain words, installed or not, Download / Remove with progress, and what the 
 part now. Each pack is checked against its SHA-256 before it is unpacked; a damaged one is refused.
 For each part of the score the best instrument installed plays, and its synthesised voice when none
 is (`data/music/parts.ron`), so the music always plays. Decoded samples obey the "turn off all
-reuse" switch. The sampler voice inside the score waits for the music engine's crate.
+reuse" switch. The score plays them through its sampler voice (`src/instrument_packs/score.rs` attaches them by part).
 - Native: `src/instrument_packs/` (catalog, definition, install, library, samples, tar, ui),
   `src/gui/pages/settings/instruments.rs`, `instrument_packs::ui::tick` in `src/lib.rs`
 - Data: `data/music/packs.ron` (generated), `data/music/parts.ron`, `data/music/instruments/*.ron`

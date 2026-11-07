@@ -1,0 +1,12 @@
+// Lo-fi's hat: high-passed noise, short.
+Instrument(
+    id: "lofi_hat",
+    words: "music.instrument.lofi_hat",
+    kind: Noise((
+        filter: (kind: HighPass, cutoff_hz: 7000.0, q: 0.7),
+        envelope: (attack_s: 0.001, decay_s: 0.05, sustain: 0.0, release_s: 0.03),
+    )),
+    level_db: -20.0,
+    reverb_send: 0.05,
+    pan_spread: 0.3,
+)

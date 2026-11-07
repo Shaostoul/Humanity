@@ -1,0 +1,17 @@
+// A pulsing bass for the danger moods' ostinatos: a saw and a square an octave down, plucked by
+// the filter.
+Instrument(
+    id: "pulse_bass",
+    words: "music.instrument.pulse_bass",
+    kind: Synth((
+        oscillators: [
+            (wave: Saw),
+            (wave: Square, semitones: -12.0, level: 0.6),
+        ],
+        filter: Some((kind: LowPass, cutoff_hz: 260.0, q: 1.0, key_track: 1.0, env_hz: 900.0)),
+        envelope: (attack_s: 0.003, decay_s: 0.18, sustain: 0.4, release_s: 0.08),
+        drive: 0.2,
+    )),
+    level_db: -15.0,
+    reverb_send: 0.05,
+)

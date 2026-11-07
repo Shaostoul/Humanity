@@ -1,0 +1,22 @@
+// DEEP DRUM (operator, 2026-11-06), a big low membrane like a taiko or a frame drum, by modal
+// synthesis of a struck circular skin: the modes of an ideal membrane (the zeros of the Bessel
+// functions over the first: 1.594, 2.136, 2.296, 2.653, 2.918, 3.156, 3.501), struck near the
+// centre so the fundamental and the (0,2) mode lead; the pitch starts 6% sharp and falls back in
+// 80 ms (the skin's tension rising as it is hit); a soft felt mallet's 8 ms rise and a low thud of
+// noise. Tuned to the key's root (D2 is 72.1 Hz at A = 432). In "mothership calm" it plays slow,
+// soft, heartbeat-like pulses, never busy. Samples can replace it when a CC0 set arrives.
+Instrument(
+    id: "deep_drum",
+    words: "music.instrument.deep_drum",
+    kind: Membrane((
+        modes: [(1.0, 1.0, 2.4), (1.594, 0.45, 1.0), (2.136, 0.28, 0.7), (2.296, 0.3, 0.8), (2.653, 0.15, 0.5), (2.918, 0.12, 0.45), (3.156, 0.08, 0.35), (3.501, 0.06, 0.3)],
+        pitch_drop: 0.06,
+        pitch_drop_s: 0.08,
+        noise: 0.25,
+        noise_hz: 400.0,
+        noise_decay_s: 0.04,
+        attack_s: 0.008,
+    )),
+    level_db: -12.0,
+    reverb_send: 0.3,
+)

@@ -1,0 +1,30 @@
+// Where the mothership hums from (docs/design/music.md, section 11; crates/humanity-music/src/bed.rs).
+// Positions are SHIP metres, the frame of data/blueprints/ship_structure.ron (y up, the origin at plot
+// p1's corner). docs/design/mothership-master-plan.md puts the reactors and the main drive in the
+// spine toward the stern (3.3, 3.8); the ship has no engine space yet, so per that plan's section 6.6
+// ("if it lands before the wipe, its stern is today's slab's end past p12") the drive and the reactor
+// pair sit at today's stern, past p12 (z 1089 to 1178) and the end of First Street (z 1185), on the
+// slab's middle line. When the wipe builds Sector 1, they move to its spine: the engineering segment
+// at axial 1,500 to 1,850 m and the drive past its aft end (the plan's rung 5 adds the rest).
+// Strength is power over the ship's everywhere-hum at 4 m; each falls about 6 dB per doubling of
+// distance and wall_db per room boundary between.
+HumSources(
+    max_boost_db: 12.0,
+    wall_db: 6.0,
+    sources: [
+        (id: "main_drive", kind: "drive", position: (42.0, 3.0, 1215.0), strength: 400.0, colour: 1.0),
+        (id: "reactor_pair_1", kind: "reactor", position: (42.0, 3.0, 1195.0), strength: 60.0, colour: 0.7),
+    ],
+    // The stressed layer during a hull breach: the structure strains and a distant two-tone klaxon,
+    // tuned to the score's key (A4 and D5 in D, 432.0 and 576.7 Hz at A = 432).
+    alarm: (
+        tones: (19.0, 24.0),
+        rate_hz: 1.2,
+        level_db: -10.0,
+        muffle_hz: 1800.0,
+        stress_db: 5.0,
+        open_hz: 380.0,
+        waver_cents: 25.0,
+        waver_hz: 0.35,
+    ),
+)

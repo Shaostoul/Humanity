@@ -1,0 +1,14 @@
+// Lo-fi's snare: band-passed noise with a shell tone under it, soft (a brush more than a stick).
+Instrument(
+    id: "lofi_snare",
+    words: "music.instrument.lofi_snare",
+    kind: Noise((
+        filter: (kind: BandPass, cutoff_hz: 1800.0, q: 0.8),
+        envelope: (attack_s: 0.001, decay_s: 0.18, sustain: 0.0, release_s: 0.1),
+        tone_hz: 190.0,
+        tone_level: 0.4,
+        tone_decay_s: 0.08,
+    )),
+    level_db: -12.0,
+    reverb_send: 0.15,
+)

@@ -1,0 +1,15 @@
+// A round, upright-like bass by Karplus-Strong: a dark pluck that rings and is damped when let go,
+// with a low body resonance.
+Instrument(
+    id: "round_bass",
+    words: "music.instrument.round_bass",
+    kind: Plucked((
+        decay_s: 2.2,
+        brightness: 0.25,
+        body_hz: 110.0,
+        body_level: 0.3,
+        damping_on_release: 6.0,
+    )),
+    level_db: -9.0,
+    reverb_send: 0.05,
+)

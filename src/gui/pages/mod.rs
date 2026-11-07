@@ -5,6 +5,8 @@ pub mod escape_menu;
 pub mod settings;
 pub mod settings_time;
 pub mod settings_garden;
+/// Settings > Music: the live music, its style, the tuning, the ship's hum, the tones (2026-11-06).
+pub mod settings_music;
 pub mod inventory;
 pub mod chat;
 pub mod chat_text;
@@ -106,6 +108,8 @@ pub mod maps;
 pub mod testing;
 pub mod browser;
 pub mod dev;
+/// The Dev page's Music card: the danger knob and what the music is doing (2026-11-06).
+pub mod dev_music;
 pub mod planet_tuner;
 // Resource budgets increment 1: the live GPU/CPU/VRAM/RAM pies, shown as a
 // section of the Dev tab (the page-sized sibling of the F2 overlay).

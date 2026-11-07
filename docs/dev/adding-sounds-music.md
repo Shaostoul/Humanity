@@ -4,7 +4,29 @@ How audio works in HumanityOS today, and how to add the first real game sounds.
 Written for contributors, the operator, and AI agents alike. Everything here is
 grounded in the actual code, read the cited files before changing anything.
 
-## Honest current state (2026-07-20)
+## Music (2026-11-06): composed live, added as data
+
+The game's music is not tracks: `crates/humanity-music` composes it live (docs/design/music.md;
+the crate card docs/crates/humanity-music.md). To add music you add DATA, no code:
+
+- **An instrument**: a file in `data/music/instruments/` of one of the kinds (Synth, Choir, Modal,
+  Membrane, Fm, Plucked, Noise, Sampler). A recorded instrument (a CC0 sample pack) is a `Sampler`
+  with a synthesised `fallback`, so music plays without the pack.
+- **A mood** (where and what): `data/music/moods/`: keys, chords and the moves between them, phrase
+  and chord lengths, tempo, which instrument plays each role, motifs.
+- **A style** (how it sounds): `data/music/styles/`: tempo, groove, drum patterns as text, harmony
+  rules, a palette, a sound-design recipe. A community style is a file too.
+- **Where a mood plays**: `data/music/places.ron`; **danger bands**: `data/music/intensity.ron`; **the
+  ship's hum sources**: `data/audio/hum_sources.ron`.
+- Then `just validate-data` (the music data must resolve), `just music-render <mood> <style> 60` to
+  hear it and see its loudness, and re-level the mood or style (`level_db`) if it moved off -18 LUFS.
+
+`AudioManager::play_music` (looping a file) still exists for a recorded track, and the
+`[music.*]` entries in `data/sounds.toml` still name files that do not exist; the live score does
+not use them. Everything below is the sound-effects story, from 2026-07-20; sounds have been wired
+since v0.960.
+
+## Honest current state (2026-07-20, before sounds were wired in v0.960)
 
 **The game currently plays no sound.** All the plumbing exists but nothing is
 connected:
