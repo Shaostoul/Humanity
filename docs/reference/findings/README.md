@@ -409,3 +409,20 @@ what we will say about it.
   no systematic review; no human trial of solfeggio frequencies against other music; brown noise
   unstudied for attention, continuous noise "very low" evidence for sleep. The basis for
   `docs/design/music.md`.
+- [`2026-11-06-space-program-sources.md`](2026-11-06-space-program-sources.md),
+  where the mothership's space program gets its area per person for every kind of space. NASA
+  SP-413 (1977) sized its 10,000-person settlement exactly this way: 47 m2 of projected area a
+  person for the community and 20 m2 for agriculture, from a table of space uses (homes 49 m2 of
+  floor on four storeys, open space 10, transportation 12, a quarter of a car city's, storage 5,
+  and the rest), all quoted; circulation inside buildings adds 40 to 60% (GSA, 2012); farm area from
+  the 2026-10-03 finding. No sourced floor area for hangars, a bridge, reactor halls or heavy
+  industry: the program marks those Proposals. The basis for `data/ship/space_program.toml`.
+- [`2026-11-06-noise-and-sleep.md`](2026-11-06-noise-and-sleep.md),
+  how quiet a home must be and the other crew-health factors a ship's layout decides. WHO: 30 dB
+  inside a bedroom at night with events under 45 dB, 35 dB indoors by day (1999, kept valid in
+  2018), 40 dB outside at night (2009), lower for low-frequency noise; NASA: NC-40 in sleep areas,
+  events at most 10 dB over background; a closed shell takes off about 25 dB, England asks 45 dB
+  between flats. Light: 250 lux melanopic EDI by day, 10 in the evening, 1 at night (Brown 2022).
+  Green space of 0.5 to 1 ha within 300 m (WHO 2017), the 3-30-300 rule, WHO crowding and
+  accessibility recommendations (2018) and air quality levels (2021). The basis for the master
+  plan's crew-health rules.

@@ -1,0 +1,595 @@
+# THE MOTHERSHIP'S SPACE PROGRAM: how big the ship has to be, measured from the bottom up.
+#
+# The operator, 2026-11-06: "How do we end up measuring the total size of the ship? Do we need to
+# plot the size for each home, hangar, engineering bay, industrial zone, reactor room, bridge,
+# storage areas, transportation like railways and elevetors, etc?"
+#
+# Yes. Architects size a building, and NASA's 1975 summer study sized a space settlement, the same
+# way: list every kind of space, give each an area per person (or per unit, with how many people
+# one unit serves), multiply by the population, add circulation and structure, and the total is
+# the size. This file is that list. Change a number and the ship changes with it:
+#
+#     node scripts/space-program.js 1000          (totals for 1,000 people, and whether Sector 1 holds them)
+#     node scripts/space-program.js 10000 --mix homestead=0.05,cabin=0.25,apartment=0.70
+#     node scripts/space-program.js --sources     (where every number comes from)
+#
+# The design that uses it: docs/design/mothership-master-plan.md, section 3.12. The sources, quoted
+# and dated: docs/reference/findings/2026-11-06-space-program-sources.md. Every row says which
+# source it rests on (`source`, a key of the [[source]] table at the end), and "proposal" marks a
+# number this project chose with no outside source behind it.
+#
+# The game does not read this file yet: scripts/space-program.js is its reader. When neighbourhoods
+# become data (the master plan's rung 3), the generator and the planning-rule tests read it too.
+#
+# HOW A ROW IS COUNTED
+#   zone      where it goes: "drum" (the spinning drum's floor, 1 g; the area that counts is the
+#             FLOOR it covers, its gross area divided by its `levels`), "spine" (the non-rotating
+#             spine's decks; deck area), "bow" (the docking end's decks), "stern" (the drive),
+#             "end_cap" (the drum's end walls: lifts and risers), "exterior" (outside the hull:
+#             radiator fins). Only drum, spine and bow are checked against the room Sector 1 has.
+#   per       "person" (m2_per_person times the people it serves), "unit" (unit_m2 times
+#             ceil(people / people_per_unit), at least min_units, plus spare_units),
+#             "neighbourhood" (unit_m2 per neighbourhood), "sector" (units_per_sector), "ship"
+#             (once for the whole ship).
+#   who       the people a per-person or per-unit row serves: "all" (default) or "fed_by_ship"
+#             (everyone whose home does not grow its own food: the ship's farms feed them).
+#   net       true when the area is the room alone; the indoor circulation multiplier and the
+#             structure allowance below are then added. false when the source's figure already
+#             includes walkways and access (NASA SP-413's figures do).
+#   levels    how many storeys the space stacks into on the drum floor (NASA SP-413's "No. of
+#             levels"); the floor it covers is its area divided by this.
+#   min_m2    the least area the row may have whatever the population (a hospital needs a room
+#             even for 100 people).
+#   min_m2_per_neighbourhood   the same, per neighbourhood (the WHO's green space near every home).
+
+schema = 1
+
+[defaults]
+# Used when the command line gives no population.
+population = 1000
+# A neighbourhood: a few hundred people around one node (master plan section 3.5, the Dunbar band
+# of mothership-superstructure.md). The per-neighbourhood rows and the WHO green-space minimum
+# count neighbourhoods as ceil(population / neighbourhood_people).
+neighbourhood_people = 300
+# GSA, "Circulation: Defining and Planning" (2012): "Circulation Multipliers will typically range
+# between 1.4 to 1.6." The low end, because the ship's buildings are mostly enclosed rooms.
+indoor_circulation = 1.4
+# Walls, columns, shafts, ducts and service runs inside buildings, as a share of a net room's area
+# after circulation. Proposal: no outside source was found for one figure (finding, unknowns).
+structure_allowance = 0.10
+
+# ---------------------------------------------------------------------------------------------
+# THE SECTOR THE PROGRAM IS CHECKED AGAINST
+#
+# Sector 1 as the master plan lays it out: the drum the operator sized (250 m radius, 2 km long,
+# decided 2026-09-15) and the spine segment that runs through it (60 m across, decks every 5 m,
+# every 10 m for industry; master plan section 3.3, Proposal). The bow is checked alongside it:
+# it is not part of a sector, but Sector 1's people dock and store their craft there.
+
+[sector]
+id = "s1"
+drum_radius_m = 250.0
+drum_length_m = 2000.0
+# Share of the drum floor the program may use. 1.0: streets, parks and farms are rows of the
+# program, so nothing is held back twice.
+drum_usable = 1.0
+spine_radius_m = 30.0
+# Share of each spine deck left after the axial rail, the lift shafts and the utility trunks.
+# Proposal.
+spine_usable = 0.8
+# The spine segment's stretches, fore to aft, each with its deck spacing (master plan section 3.3).
+spine_segments = [
+    # [from_m, to_m, deck spacing m]
+    [0.0, 150.0, 5.0],      # fore hub: the spoke lifts' tops, the passenger rail station
+    [150.0, 900.0, 5.0],    # storage and the cargo tunnels
+    [900.0, 1500.0, 10.0],  # industry
+    [1500.0, 1850.0, 5.0],  # sector engineering: reactors, air, water, waste
+    [1850.0, 2000.0, 5.0],  # aft hub: freight lifts, utility risers
+]
+# The shell over the drum: radiation shielding by mass per square metre of hull (closed-loop-test.md,
+# 4.5 t/m2). Reported, not checked: it is hull, not floor.
+shield_t_per_m2 = 4.5
+
+[bow]
+radius_m = 60.0
+length_m = 300.0
+# Hangars need height: a deck every 15 m.
+deck_spacing_m = 15.0
+usable = 0.7
+
+# ---------------------------------------------------------------------------------------------
+# HOMES: who lives in what. `share` is the share of RESIDENTS (they sum to 1). The default mix is
+# a Proposal: the master plan's bands hold about 85 homesteads (N1's 12 and the homestead ring's
+# H1 to H4), so a few per cent of a full sector's people are homesteaders; most live in cabins and
+# apartment blocks by the landing, and the ship's farms feed them (decided 2026-10-03).
+
+[[home]]
+id = "homestead"
+name = "Homestead"
+share = 0.08
+people_per_home = 2.5
+# The shipped design's plot, 55 x 89 m (data/homes/homestead.ron).
+plot_m2 = 4895.0
+# The plot plus its share of the 10 m street in front and the 10 m gap beside it, from rung 1's
+# N1 layout (a 65 x 99 m cell per 55 x 89 m plot; computed).
+plot_gross = 1.315
+# The homestead grows its own food on its acre (decided 2026-10-03), so its residents need no
+# ship farm.
+feeds_itself = true
+source = "ship-homes"
+
+[[home]]
+id = "cabin"
+name = "Cabin"
+share = 0.22
+people_per_home = 1.0
+# A single bedroom, "no less than 7.5 m2" (Nationally Described Space Standard, cited in
+# ship-homes-and-logistics.md section 1.2).
+unit_m2 = 7.5
+# The block's shared rooms per resident: washrooms, laundry, lockers. Proposal.
+shared_m2 = 2.0
+# A cabin block may stack: tight-packed arrangements may be multi-storey (decided 2026-11-06).
+storeys = 2
+net = true
+feeds_itself = false
+source = "ship-homes"
+
+[[home]]
+id = "apartment"
+name = "Apartment"
+share = 0.70
+# The block's own data: storeys, units, the atrium, lifts and stairs. Its residents and the floor
+# it covers come from there.
+template = "blocks/apartment_atrium.toml"
+feeds_itself = false
+source = "ship-homes"
+
+# ---------------------------------------------------------------------------------------------
+# SPACES: everything that is not a home.
+
+# --- The community, from NASA SP-413's Table 3-2 (1977), for a settlement of 10,000 -------------
+
+[[space]]
+id = "shops"
+name = "Shops and the market"
+zone = "drum"
+per = "person"
+m2_per_person = 2.3
+levels = 2
+height_m = 4.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "offices"
+name = "Offices"
+zone = "drum"
+per = "person"
+m2_per_person = 1.0
+levels = 3
+height_m = 4.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "schools"
+name = "Schools and the Library hall"
+zone = "drum"
+per = "person"
+m2_per_person = 1.0
+levels = 3
+height_m = 3.8
+net = false
+min_m2 = 200.0
+source = "sp413"
+
+[[space]]
+id = "hospital"
+name = "Medical Bay (hospital)"
+zone = "drum"
+per = "person"
+# 50 beds for 10,000 people at 58 m2 a bed, "administrative, diagnostic, treatment, nursery,
+# surgical, obstetrical, service, and circulation facilities" included.
+m2_per_person = 0.3
+levels = 1
+height_m = 5.0
+net = false
+min_m2 = 300.0
+source = "sp413"
+
+[[space]]
+id = "assembly"
+name = "Assembly halls (meeting halls, theatres, places of worship)"
+zone = "drum"
+per = "person"
+m2_per_person = 1.5
+levels = 1
+height_m = 10.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "recreation"
+name = "Recreation and entertainment"
+zone = "drum"
+per = "person"
+m2_per_person = 1.0
+levels = 1
+height_m = 3.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "open_space"
+name = "Public open space: the greenbelt, parks, the lake, the arena field"
+zone = "drum"
+per = "person"
+m2_per_person = 10.0
+levels = 1
+height_m = 50.0
+net = false
+# The WHO's rule of thumb: public green space "of at least 0.5-1 hectare within 300 metres' linear
+# distance" of every home (noise-and-sleep finding). At least half a hectare per neighbourhood.
+min_m2_per_neighbourhood = 5000.0
+source = "sp413"
+
+[[space]]
+id = "workshops"
+name = "Service industry: workshops, repair, laundries, bakeries"
+zone = "drum"
+per = "person"
+m2_per_person = 4.0
+levels = 2
+height_m = 6.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "streets"
+name = "Streets, paths and the rail line on the drum floor"
+zone = "drum"
+per = "person"
+# A quarter of the 48 m2 a person US metropolitan areas give to transportation: no cars.
+m2_per_person = 12.0
+levels = 1
+height_m = 6.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "misc"
+name = "Everything else (SP-413's miscellaneous)"
+zone = "drum"
+per = "person"
+m2_per_person = 2.9
+levels = 3
+height_m = 3.8
+net = false
+source = "sp413"
+
+# --- The neighbourhood node and the landings (the master plan's places) -------------------------
+
+[[space]]
+id = "commons"
+name = "Neighbourhood commons: mess hall, recreation room, washrooms, garden court, market row, clinic room"
+zone = "drum"
+per = "neighbourhood"
+# Today's Commons zone is 34 x 55 m (data/blueprints/ship_structure.ron); kept as the node's size.
+unit_m2 = 1870.0
+levels = 1
+height_m = 8.0
+net = false
+source = "ship-file"
+
+[[space]]
+id = "general_services"
+name = "General Services: barracks, the public respawner, the medbay's front desk"
+zone = "drum"
+per = "unit"
+unit_m2 = 600.0
+people_per_unit = 2500.0
+min_units = 1
+levels = 2
+height_m = 4.0
+net = false
+source = "proposal"
+
+[[space]]
+id = "rail_stations"
+name = "Axial rail stations (Fore Landing, mid-drum, Aft Landing)"
+zone = "drum"
+per = "sector"
+units_per_sector = 3
+unit_m2 = 1000.0
+levels = 1
+height_m = 6.0
+net = false
+source = "proposal"
+
+[[space]]
+id = "spoke_lifts"
+name = "Spoke lifts down the end caps (four a cap) and their stairs"
+zone = "end_cap"
+per = "sector"
+units_per_sector = 8
+unit_m2 = 40.0
+levels = 1
+height_m = 250.0
+net = false
+source = "proposal"
+
+# --- The ship's farms: everyone the homes do not feed --------------------------------------------
+
+[[space]]
+id = "farm_growing"
+name = "Ship's farms: growing floor (crops under the sunline, crew access included)"
+zone = "drum"
+per = "person"
+who = "fed_by_ship"
+# NASA's Baseline Values and Assumptions Document (2022): 65.29 m2 a crew member for its most
+# closed diet (food-land finding of 2026-10-03; closed-loop-test.md's 65 m2 growing floor). One
+# level: the sunline lights the open fields. Stacking under lamps is the lever when the floor runs
+# short (SP-413 stacked its plant areas three high).
+m2_per_person = 65.29
+levels = 1
+height_m = 15.0
+net = false
+source = "food-land"
+
+[[space]]
+id = "farm_animals"
+name = "Ship's farms: animal areas (aquaculture, poultry, small stock)"
+zone = "drum"
+per = "person"
+who = "fed_by_ship"
+m2_per_person = 5.0
+levels = 3
+height_m = 15.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "farm_processing"
+name = "Ship's farms: food processing, collection and storage"
+zone = "drum"
+per = "person"
+who = "fed_by_ship"
+m2_per_person = 4.0
+levels = 3
+height_m = 15.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "farm_drying"
+name = "Ship's farms: drying (grain, beans, herbs)"
+zone = "drum"
+per = "person"
+who = "fed_by_ship"
+m2_per_person = 8.0
+levels = 3
+height_m = 15.0
+net = false
+source = "sp413"
+
+# --- Life support, power and engineering (the spine's engineering segment) -----------------------
+
+[[space]]
+id = "water_and_waste"
+name = "Water recovery, waste treatment and recycling"
+zone = "spine"
+per = "person"
+# 40,000 m2 for 10,000 people.
+m2_per_person = 4.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "electrical"
+name = "Electrical supply and distribution (switchgear)"
+zone = "spine"
+per = "person"
+m2_per_person = 0.1
+net = false
+source = "sp413"
+
+[[space]]
+id = "communications"
+name = "Communication distribution and switching"
+zone = "spine"
+per = "person"
+m2_per_person = 0.05
+net = false
+source = "sp413"
+
+[[space]]
+id = "air_plant"
+name = "Air plant: the machines behind the crops (CO2 removal, oxygen, trace gases)"
+zone = "spine"
+per = "person"
+# The crops make the oxygen (closed-loop-test.md); this is the physical and chemical backup a
+# ship cannot do without. Proposal.
+m2_per_person = 0.3
+min_m2 = 500.0
+net = true
+source = "proposal"
+
+[[space]]
+id = "reactor_pair"
+name = "Reactor pair with its turbines, pumps and control room (KLT-40S class, 60 MW net)"
+zone = "spine"
+per = "unit"
+# 60 MW net at 10.8 kW a person (closed-loop-test.md) serves about 5,560 people.
+people_per_unit = 5560.0
+min_units = 1
+# One pair more than the load needs, so a pair can be down for refuelling or repair without a
+# blackout (the master plan's resilience rule). Proposal.
+spare_units = 1
+# Deck area of one pair's halls across its decks. Proposal: no sourced floor area was found.
+unit_m2 = 4000.0
+net = false
+source = "closed-loop"
+
+[[space]]
+id = "sector_control"
+name = "Sector engineering control room"
+zone = "spine"
+per = "sector"
+units_per_sector = 1
+unit_m2 = 300.0
+net = true
+source = "proposal"
+
+[[space]]
+id = "storage"
+name = "Storage: wholesale stores, the sector's warehouses, cold stores"
+zone = "spine"
+per = "person"
+m2_per_person = 5.0
+net = false
+source = "sp413"
+
+[[space]]
+id = "heavy_industry"
+name = "Heavy industry: fabrication, smelting, machine shops, the factory district"
+zone = "spine"
+per = "person"
+# SP-413's settlement had light industry only (its heavy work happened in a separate zero-g
+# factory), and the mothership has no Earth to trade with. Proposal.
+m2_per_person = 6.0
+net = false
+source = "proposal"
+
+[[space]]
+id = "freight"
+name = "Freight rail, cargo tunnels and freight lifts"
+zone = "spine"
+per = "person"
+m2_per_person = 1.0
+net = false
+source = "proposal"
+
+# --- The bow: docking, craft, the bridge ---------------------------------------------------------
+
+[[space]]
+id = "bridge"
+name = "The bridge (the ship's command)"
+zone = "bow"
+per = "ship"
+unit_m2 = 800.0
+net = true
+source = "proposal"
+
+[[space]]
+id = "arrivals"
+name = "The Arrivals hall, the receptionist's desk, customs and freight intake"
+zone = "bow"
+per = "ship"
+unit_m2 = 1500.0
+net = false
+source = "proposal"
+
+[[space]]
+id = "hangar_bays"
+name = "Hangar bays for the transports"
+zone = "bow"
+per = "unit"
+# Today's Hangar Bay 1 district is 50 x 40 m (data/blueprints/ship_structure.ron); one bay per
+# thousand people. Proposal.
+unit_m2 = 2000.0
+people_per_unit = 1000.0
+min_units = 1
+net = false
+source = "proposal"
+
+[[space]]
+id = "craft_cradles"
+name = "Cradles for private craft (\"the hangar where all the private spaceships are stored\")"
+zone = "bow"
+per = "unit"
+# A 12 x 12 m cradle, one for every 20 people. Proposal.
+unit_m2 = 150.0
+people_per_unit = 20.0
+min_units = 1
+net = false
+source = "proposal"
+
+[[space]]
+id = "mech_bays"
+name = "Mech and vehicle bays"
+zone = "bow"
+per = "unit"
+unit_m2 = 600.0
+people_per_unit = 2000.0
+min_units = 1
+net = false
+source = "proposal"
+
+[[space]]
+id = "drone_bay"
+name = "Mining drone bay: launch cradles, propellant, the ore intake (docs/design/drone-mining.md)"
+zone = "bow"
+per = "unit"
+unit_m2 = 300.0
+people_per_unit = 500.0
+min_units = 1
+net = false
+source = "proposal"
+
+# --- Outside the hull and at the stern -----------------------------------------------------------
+
+[[space]]
+id = "radiators"
+name = "Radiator fin: the habitat's heat and the reactors' (closed-loop-test.md)"
+zone = "exterior"
+per = "person"
+m2_per_person = 67.0
+net = false
+source = "closed-loop"
+
+[[space]]
+id = "drive"
+name = "The main drive, its propellant and its radiators (sized by the ship's mass, still open)"
+zone = "stern"
+per = "ship"
+unit_m2 = 0.0
+net = false
+source = "proposal"
+
+# ---------------------------------------------------------------------------------------------
+# SOURCES: the keys the rows name. The quotations and their dates are in the finding.
+
+[[source]]
+id = "sp413"
+what = "NASA SP-413, Space Settlements: A Design Study (1977), Table 3-2 and Appendix B of chapter 3"
+where = "docs/reference/findings/2026-11-06-space-program-sources.md, S1 to S9"
+
+[[source]]
+id = "gsa-circulation"
+what = "U.S. General Services Administration, Circulation: Defining and Planning (May 11, 2012)"
+where = "docs/reference/findings/2026-11-06-space-program-sources.md, S10"
+
+[[source]]
+id = "food-land"
+what = "NASA BVAD 2022 and the other growing-area figures, read 2026-10-03"
+where = "docs/reference/findings/2026-10-03-food-land-and-transport-speeds.md, F10; space-program finding S11"
+
+[[source]]
+id = "closed-loop"
+what = "The ship's closed-loop budget: 10.8 kW, 67 m2 of radiator and a 60 MW reactor pair per person-load"
+where = "docs/design/closed-loop-test.md (its own sources); space-program finding S12"
+
+[[source]]
+id = "ship-homes"
+what = "Home kinds and sizes: the space standard, cohousing blocks, the homestead plot"
+where = "docs/design/ship-homes-and-logistics.md section 1.2 (its own sources, read 2026-10-03)"
+
+[[source]]
+id = "ship-file"
+what = "Sizes of places already built in the game"
+where = "data/blueprints/ship_structure.ron"
+
+[[source]]
+id = "proposal"
+what = "This project's choice, with no outside source behind it; change it freely"
+where = "docs/design/mothership-master-plan.md section 3.12"

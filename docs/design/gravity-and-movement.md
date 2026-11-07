@@ -457,6 +457,10 @@ The two habitats stop being separate ideas and become one object.
   cost, and matches this project's teaching intent.
 - **What is cruise thrust?** It sets the permanent floor tilt. 0.05 to 0.1 g
   gives a 3 to 6 degree lean, which reads as characterful rather than annoying.
+  *2026-11-06: the operator asked whether 0.05 g cruise means 5% gravity aboard (it does not:
+  1 g on the drum floor, leaning 2.86 degrees while burning); the answer, and the question it
+  raises (burn all the time, or coast between burns, since steady motion gives no weight), are in
+  [mothership-master-plan.md](mothership-master-plan.md) section 3.14.*
 - **Do NPC inhabitants respond to burns?** If the crowd runs to couches when the
   burn alarm sounds, the ship feels alive in a way no ambient chatter achieves.
   This is a good early use of the crowd timetable.

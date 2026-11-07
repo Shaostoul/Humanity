@@ -1,0 +1,159 @@
+# THE ATRIUM APARTMENT BLOCK: the template every apartment block on the drum floor is drawn from.
+#
+# The operator, 2026-11-06: "I wouldn't mind apartments and other tight packed arrangements being
+# multiple stories. That way we could have like an atrium with trees and a common gathering area."
+# Homesteads stay one per plot on the drum floor and are never stacked; an apartment block is ONE
+# building on its own plot that stacks homes inside itself, around a planted atrium open to the
+# sunline, with the block's common house on the ground floor.
+#
+# A TEMPLATE, not a finished design: storeys, unit kinds and counts, the atrium, the cores (lifts
+# and stairs), the common house and the rules a design drawn from it must keep. Read today by
+# scripts/space-program.js (`node scripts/space-program.js --block` prints its numbers and checks
+# them); the master plan's rung 3 generator turns it into a design file like
+# data/homes/shipped/*.ron. Everything here is a Proposal unless a line names its source. Design
+# notes: docs/design/mothership-master-plan.md section 3.6.
+#
+# Plan, to scale (1 character = about 2 m), one residential storey:
+#
+#     +--------------------+
+#     | U  U  U  CORE U  U |   outer 40 x 40 m; homes 8 m deep, each with a window on the street
+#     | U +------------+ U |   side and one on the gallery
+#     | U | gallery    | U |   gallery: 2 m wide, open to the atrium, the way to every front door
+#     | U |  ATRIUM    | U |   atrium: 20 x 20 m, trees and the common gathering area on its floor,
+#     | U |  trees     | U |   glazed roof, the sunline overhead
+#     | U |            | U |
+#     | U +------------+ U |
+#     | U  U  CORE  U  U U |   two cores, opposite corners: a lift and a stair each
+#     +--------------------+
+
+schema = 1
+id = "apartment_atrium"
+name = "Atrium apartment block"
+
+[footprint]
+outer_w_m = 40.0
+outer_d_m = 40.0
+atrium_w_m = 20.0
+atrium_d_m = 20.0
+# The gallery that runs round the atrium on every residential storey: the front-door side of
+# every home.
+gallery_w_m = 2.0
+# The block's own plot reaches this far past its walls on every side: the entrance forecourt,
+# planting, the parcel lockers on the freight side.
+plot_margin_m = 5.0
+
+[storeys]
+# Ground floor (storey 1): the common house and the block's services. Storeys 2 to 4: homes.
+count = 4
+height_m = 3.2
+first_residential = 2
+# Gravity falls with height on a 250 m drum: the top floor (9.6 m up) feels 0.96 g and the roof
+# (12.8 m) 0.95 g (computed: g = omega^2 * (250 m - height)). Four storeys keep every home within
+# 4% of the floor's 1 g.
+
+[atrium]
+open_to_sunline = true
+# Glazed: the drum's air is shared, so glass keeps the block's own air and noise in, not weather
+# out. An open roof is the other choice.
+roof = "glazed"
+# The planted floor and the gathering place the operator asked for.
+ground = "garden"
+gathering_area_m2 = 120.0
+seating = true
+# Every home faces the atrium, so trees there are in view from every home: the 3-30-300 rule's
+# "at least 3 well-established trees in view from every home" (noise-and-sleep finding, F11).
+trees = 4
+# The daytime light a home should get at the eye (Brown et al. 2022, noise-and-sleep finding F8):
+# the sunline through the glazed roof and the windows has to reach it.
+day_melanopic_edi_lux = 250.0
+
+[[core]]
+id = "core_a"
+# Each core: a lift for every storey and a stair beside it.
+lift = true
+stair = true
+area_m2 = 35.0
+
+[[core]]
+id = "core_b"
+lift = true
+stair = true
+area_m2 = 35.0
+
+# Ground floor rooms (storey 1), their net areas. They must fit in the ring around the atrium.
+[[ground_room]]
+id = "common_house"
+name = "Common house: kitchen, dining room, laundry, workshop, children's room, guest room"
+# Cohousing common houses "average 2,000 ft2 (186 m2) to 8,000 ft2 (743 m2)" (Coldham 1999, cited
+# in ship-homes-and-logistics.md section 1.2).
+net_m2 = 420.0
+
+[[ground_room]]
+id = "lobby"
+name = "Entrance lobby with the parcel room"
+net_m2 = 80.0
+
+[[ground_room]]
+id = "plant"
+name = "Plant room: the block's air handling, water and power"
+net_m2 = 90.0
+
+[[ground_room]]
+id = "stores"
+name = "Residents' stores, bikes and carts"
+net_m2 = 150.0
+
+[[ground_room]]
+id = "corner_room"
+name = "A corner room for a cafe, a clinic room or a shop"
+net_m2 = 120.0
+
+# Home kinds on each residential storey, sized by the Nationally Described Space Standard (cited
+# in ship-homes-and-logistics.md section 1.2: a one-bedroom one-person flat with a shower 37 m2,
+# one-bedroom two-person 50 m2, two-bedroom four-person 70 m2). `people` is the design occupancy:
+# the most people the home is drawn for, never exceeded (crowding rule, master plan section 3.13).
+[[unit]]
+id = "studio"
+name = "One bedroom, one person"
+net_m2 = 37.0
+bedrooms = 1
+people = 1
+per_storey = 4
+
+[[unit]]
+id = "one_bed"
+name = "One bedroom, two people"
+net_m2 = 50.0
+bedrooms = 1
+people = 2
+per_storey = 8
+
+[[unit]]
+id = "two_bed"
+name = "Two bedrooms, four people (the corners)"
+net_m2 = 70.0
+bedrooms = 2
+people = 4
+per_storey = 4
+
+[rules]
+# Every storey is reached by a lift, so every home is reachable step-free: the WHO asks that "an
+# adequate proportion of the housing stock should be accessible" (noise-and-sleep finding F14);
+# to maximize crew health this block makes it all of them.
+lift_to_every_storey = true
+step_free_entrance = true
+# Two separate stairs, so no single blocked stair cuts a storey off (the master plan's
+# resilience rule). Proposal.
+stairs = 2
+# The farthest front door from a stair, along the gallery. Proposal: real codes set escape
+# distances by occupancy, not researched here.
+max_door_to_stair_m = 30.0
+# Every home has a window on the street side and one on the gallery side (dual aspect): daylight
+# and air from two sides, and the bedroom can sit on the quieter side.
+dual_aspect = true
+bedrooms_face = "atrium"
+# Walls and floors between homes keep at least the airborne sound insulation England requires of
+# new flats (Approved Document E, Table 0.1a: 45 dB DnT,w + Ctr; noise-and-sleep finding F7).
+separating_insulation_db = 45.0
+# The night-time target inside a bedroom (WHO 1999, still valid; noise-and-sleep finding F3).
+bedroom_night_laeq_db = 30.0
