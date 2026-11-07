@@ -328,7 +328,7 @@ The operator's asks of 2026-10-12 keep his numbers: (1) edit where it is, (2) se
     - 413, the role's words;
     - 409 "That upload is already part of a Media item.".
 - **`POST /api/media/files/remove`:** `{"key","timestamp","sig","id":12,"filename":"1760_x.png","file":7,"file_name":"1761_y.zip"}`. Purpose: `media_file_remove:12:7`. Uploader or admin.
-  - File 0 is refused with 400: "The first file is the item itself: remove the item instead."
+  - File 0 is refused with 400: "The first file is the item itself: remove the item instead." (Superseded 2026-11-06 by BUG-250, the operator: "We need to be able to remove all files and add new ones": file 0 is taken off while the item has another file, the next file becoming the item's own; only the item's last file is refused, with the relay's `ONLY_FILE` words. docs/BUGS.md BUG-250 has the rules.)
   - A `file_name` that is not that file's name is refused with 409, in the W5 words.
   - The file was uploaded for Media, so its row and its file are deleted. Answer: `{ok, item, file_removed: true}`.
 - **`POST /api/media/feature`:** `{..., "id", "filename", "featured": "main"|"category"|"none"}`. Purpose: `media_feature:12:category`. Admins only.

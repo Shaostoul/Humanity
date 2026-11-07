@@ -49,6 +49,11 @@
 //     nor the cover; it sends files/cover and the page says "That picture is the cover now."
 // 17. (2026-10-17) A refused rename or cover shows the relay's words in Edit's problem line, and a
 //     refused rename keeps its box.
+// 18. (2026-11-06, BUG-250) The main file has Remove while the item has another: its question names
+//     the file that becomes the main one, the relay's answer makes it so, and Save names the item by
+//     it; the only file has no Remove and says why it stays.
+// 19. (2026-11-06) On an item the server keeps, the main file's question says the keep ends if the
+//     next file was added after it.
 //
 // Seen red 2026-10-12: each with one break made in a copy of web/ under HOS_WEB_DIR, then green
 // again on the real web/: see the note above each test.
@@ -642,20 +647,21 @@ test("13. Edit is in three tinted parts (About it, Who can see it, Files) with S
   assert.ok(kids.indexOf(files) < kids.findIndex((c) => within(c, byId(doc, "files-edit-save"))), "Save comes under them");
   assert.equal(form.querySelectorAll("h4").length, 0, "the files part's own heading went: its part says Files");
 
-  // Its rows: the item itself, then the added file and the cover, each with its badge first.
+  // Its rows: the main file ("name, main file, size", BUG-250), then the added file and the cover, each with its badge first.
   const list = byId(doc, "files-edit-files");
   const firstRow = list.children[0];
-  assert.equal(firstRow.children[0].className, "file-badge level-unknown", "the item itself: its badge first, grey before the list is in");
-  assert.equal(text(firstRow.children[1]), ED.firstFileWords("dusk.png"));
-  const editRows = list.querySelectorAll("[data-edit-file]");
+  assert.equal(firstRow.children[0].className, "file-badge level-unknown", "the main file: its badge first, grey before the list is in");
+  assert.equal(text(firstRow.children[1]), ED.mainFileWords("dusk.png", "1 KB"));
+  const added = (el) => el.querySelectorAll("[data-edit-file]").filter((r) => r.dataset.editFile !== "0");
+  const editRows = added(list);
   assert.deepEqual(editRows.map((r) => text(r.querySelector(".files-item-file-name"))), ["textures.zip, 4 KB", "cover.jpg, cover picture, 5 KB"], "name, size; the cover says so");
   assert.ok(editRows[1].children[0].className.startsWith("file-badge"), "the cover's row: its badge first");
   late.release();
   for (let i = 0; i < 4; i++) await settle();
   const after = byId(doc, "files-edit-files");
-  assert.equal(after.querySelectorAll("[data-edit-file]")[0].children[0].className, "file-badge level-care", "the editor's archive, once the list is in");
-  assert.deepEqual(badgeParts(after.children[0].children[0]), badgeHtmlParts("dusk.png"), "the item itself: the badge file-risk.js draws");
-  assert.deepEqual(badgeParts(after.querySelectorAll("[data-edit-file]")[1].children[0]), badgeHtmlParts("cover.jpg"), "the cover: the badge file-risk.js draws");
+  assert.equal(added(after)[0].children[0].className, "file-badge level-care", "the editor's archive, once the list is in");
+  assert.deepEqual(badgeParts(after.children[0].children[0]), badgeHtmlParts("dusk.png"), "the main file: the badge file-risk.js draws");
+  assert.deepEqual(badgeParts(added(after)[1].children[0]), badgeHtmlParts("cover.jpg"), "the cover: the badge file-risk.js draws");
 });
 
 // ── 14 to 17. Rename and Use as cover in Edit (2026-10-17) ──────────────
@@ -812,7 +818,7 @@ test("15. Save name sends the name with its ending put back, signed over the BLA
   const b0 = sent()[1].body;
   assert.deepEqual(
     [b0.file, b0.file_name, b0.name, b0.sig, text(filesBox(doc).children[0].children[1])],
-    [0, "1760_cap.blend", "Dragon egg.blend", "sig:media_file_rename:1:0:" + await nobleBlake3Hex(new TextEncoder().encode("Dragon egg.blend")), ED.firstFileWords("Dragon egg.blend")],
+    [0, "1760_cap.blend", "Dragon egg.blend", "sig:media_file_rename:1:0:" + await nobleBlake3Hex(new TextEncoder().encode("Dragon egg.blend")), ED.mainFileWords("Dragon egg.blend", "5 KB")],
     "the item's own file, by its own stored name, its ending put back; its row says its new name",
   );
 });
@@ -848,11 +854,11 @@ test("16. Use as cover is on a picture that is not the cover, for the uploader; 
   assert.equal(statusLine(doc), "That picture is the cover now.", "the page says so");
   assert.deepEqual(
     [filesBox(doc).querySelectorAll(".files-item-file-name").map(text), coverButtons(doc).map((b) => b.dataset.useAsCover)],
-    [["Cap.STL, 3 KB", "src.tar.gz, 1000 bytes", "1762_c.jpg, 5 KB", "photo.png, cover picture, 2 KB"], ["2"]],
+    [["cap.blend, main file, 5 KB", "Cap.STL, 3 KB", "src.tar.gz, 1000 bytes", "1762_c.jpg, 5 KB", "photo.png, cover picture, 2 KB"], ["2"]],
     "the answer's item: the picture the cover, the old cover one of its files, and may be the cover again",
   );
 
-  // A picture as the item's own file: never on it (it is the item itself), nor on the cover.
+  // A picture as the item's own file: never on it (it is the main file), nor on the cover.
   const pic = await openEditOf(fxItem({ uploader_key: ME, uploader_name: "Me" }));
   assert.deepEqual(coverButtons(pic.doc).map((b) => b.dataset.useAsCover), [], "not on the item's own picture, the zip or the cover");
   const adm = await openEditOf(partsItem(), { session: fakeSession({ role: "admin" }) });
@@ -892,4 +898,71 @@ test("17. a refused rename or cover shows the relay's words in Edit's problem li
   assert.equal(text(byId(doc, "files-edit-problem")), "That is not the item you were looking at: the page is out of date. Load it again.", "a refused cover: its words in the problem line");
   assert.notEqual(statusLine(doc), "That picture is the cover now.", "nothing is said to be the cover");
   assert.deepEqual(coverButtons(doc).map((b) => b.disabled), [false], "Use as cover may be pressed again");
+});
+
+// ── 18. The main file comes off in Edit (BUG-250, 2026-11-06) ─────────────
+//
+// The operator (2026-11-04), editing his Samsung_A16_5g item: "I'm editing an upload but, I can't
+// remove this GLB. I think it's cause it is the first item that the app uploaded. We need to be able
+// to remove all files and add new ones." The item, the relay's answer to taking its main file off
+// and its refusal of the only one are the relay's own (the fixture's remove_main, made by
+// src/relay/files_round5_tests.rs through files_remove_core). The desktop's twin is
+// src/gui/pages/files/relay_round5_tests.rs the_main_file_comes_off_from_the_edit_form_on_the_real_relay.
+// Seen red 2026-11-06, each by one break in a copy of web/pages/files-edit.js through HOS_WEB_DIR:
+// the main file's row without its Remove (as main's had only Rename and the words "the item
+// itself"): "the main file's row has Remove" (actual null); save() naming the item by the file it
+// had when Edit opened (`c.lib.itemFileName(item)`, as it did): "Save names the item by its new
+// main file (W5)" (actual '1764_p.glb').
+test("18. the main file comes off in Edit while the item has another; the question names the next; the only file says why it stays", async () => {
+  const RM = FX.remove_main;
+  const mine = Object.assign({}, RM.item, { uploader_key: ME, uploader_name: "Me" });
+  const after = Object.assign({}, RM.answer.item, { uploader_key: ME, uploader_name: "Me" });
+  const { doc, net, confirms } = await openEditOf(mine, { routes: [
+    [at("/api/files/item-files/remove", "POST"), () => respond(200, Object.assign({}, RM.answer, { item: after }))],
+    [at("/api/files/edit", "POST"), () => respond(200, { ok: true, item: Object.assign({}, after, { title: "Phone 2" }) })],
+  ] });
+  const row0 = () => filesBox(doc).querySelectorAll("[data-edit-file]").find((r) => r.dataset.editFile === "0");
+  assert.equal(text(row0().querySelector(".files-item-file-name")), ED.mainFileWords("Samsung_A16_5g.glb", "5 KB"), "the main file's row says so");
+  const remove = row0().querySelector("[data-remove-file]");
+  assert.ok(remove, "the main file's row has Remove");
+  assert.equal(remove.title, ED.removeMainTip(), "its hint says the next file becomes the main one");
+  assert.equal(filesBox(doc).querySelector("[data-only-file]"), null, "two files: nothing says it must stay");
+  remove.click();
+  await settle();
+  assert.deepEqual(confirms, [ED.removeMainWords("Samsung_A16_5g.glb", "phone.stl", false)], "the question names the file that becomes the main one");
+  const sent = net.calls.filter((c) => c.url === "/api/files/item-files/remove").map((c) => [c.body.id, c.body.filename, c.body.file, c.body.file_name, c.body.sig]);
+  assert.deepEqual(sent, [[3, "1764_p.glb", 0, "1764_p.glb", "sig:" + RM.purpose]], "file 0, by the item's own stored name, signed over the relay's purpose");
+  assert.equal(statusLine(doc), "Removed from the item.");
+
+  // The answer's item: the STL is the main file, and the only one: no Remove, and why.
+  assert.equal(text(row0().querySelector(".files-item-file-name")), ED.mainFileWords("phone.stl", "3 KB"), "the next file is the main one");
+  assert.equal(row0().querySelector("[data-remove-file]"), null, "the only file has no Remove");
+  assert.equal(text(filesBox(doc).querySelector("[data-only-file]")), ED.onlyFileWords("phone.stl"), "and says why");
+  assert.ok(RM.refused_only.words.startsWith("This is the item's only file"), "test setup: the relay refuses it too, in its own words");
+
+  // Save goes, the item named by its new main file (W5).
+  typeInto(byId(doc, "files-edit-title"), "Phone 2");
+  byId(doc, "files-edit-save").click();
+  await settle();
+  const edit = net.calls.find((c) => c.url === "/api/files/edit");
+  assert.ok(edit, "the edit goes");
+  assert.equal(edit.body.filename, "1765_p.stl", "Save names the item by its new main file (W5)");
+});
+
+// On an item the server keeps (A7), the main file's question says the keep ends if the next file
+// was added after it (the relay's detach_media_file ends it then; the page cannot see when a file
+// was added, so it is said as an if). Not on an item nobody keeps.
+// Seen red 2026-11-06 with removeFile asking the plain question on a kept item (the note left
+// off): "a kept item's question says the keep may end" (actual: the question without the note).
+test("19. on a kept item the main file's question says the keep ends if the next file came after it", async () => {
+  const RM = FX.remove_main;
+  const kept = Object.assign({}, RM.item, { uploader_key: ME, uploader_name: "Me", kept: true });
+  const { doc, confirms } = await openEditOf(kept, { routes: [
+    [at("/api/files/item-files/remove", "POST"), () => respond(200, RM.answer)],
+  ] });
+  filesBox(doc).querySelectorAll("[data-edit-file]").find((r) => r.dataset.editFile === "0").querySelector("[data-remove-file]").click();
+  await settle();
+  const plain = ED.removeMainWords("Samsung_A16_5g.glb", "phone.stl", false);
+  assert.deepEqual(confirms, [plain + " " + ED.keptNoteWords("phone.stl")], "a kept item's question says the keep may end");
+  assert.ok(ED.keptNoteWords("phone.stl").includes("until an admin keeps it again"), "in the words both apps use");
 });

@@ -332,3 +332,47 @@ fn an_item_from_a_chat_card_opens_in_a_window_with_the_same_two_parts() {
     assert!(picture.right() < copy.left(), "the picture left of its details: {picture:?} {copy:?}");
     assert!(state.files.item.as_ref().is_some_and(|p| p.window), "in its window");
 }
+
+/// THE FILES PAGE'S 3D VIEW KEEPS ITS CLOSE BUTTON INSIDE ITS PANE AT EVERY WINDOW SIZE AND FONT
+/// SIZE (BUG-251: the chat's 3D window cut its Close button off, and the middle pane draws the same
+/// viewer, its height guessed from two and a half lines of help). A model's item shown, its 3D view
+/// open in the middle pane, a long file name making the help line wrap, on screens of 1024x640 to
+/// 2560x1440 at Font Size 100% to 200%: Close the 3D view lies inside what of the pane can be seen.
+///
+/// Seen red 2026-11-06 with the pane as it was (the view the pane's height less a guess of two and
+/// a half lines for the help line and the button): "Close the 3D view lies inside its pane" at 19
+/// of the 20 sizes (all but 2560x1440 at 100%), e.g. "2560x1440 at 200%: button [[369.7 697.1] -
+/// [524.2 725.6]], seen [[369.7 64.0] - [885.2 712.0]]" and, where it fell wholly off the pane,
+/// "1024x640 at 100%: no Close the 3D view drawn". The new layout first failed at 1280x720 and
+/// 1024x640 at 200%, where the stacked panes are about 60 points tall: the line under the view now
+/// gives way there.
+#[test]
+fn the_files_3d_view_keeps_its_close_button_inside_its_pane_at_every_size() {
+    use crate::gui::model_view::tests::{inside, painted_button, screens_and_font_sizes};
+    let cube = std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/model-cube.glb")).expect("the cube fixture");
+    let model = crate::gui::model_view::load::load("cube.glb", &cube).expect("reads");
+    let mut bad = Vec::new();
+    for (px, percent) in screens_and_font_sizes() {
+        let (ctx, theme) = ctx_and_theme();
+        let item = rich_item(("me", "Me"));
+        let mut state = page_on(SERVER, answer_of(vec![item.clone()]), "tok");
+        item_view::open(&mut state, &item);
+        let name = "Samsung_A16_5g phone case, version 2, with the camera cut-out.glb";
+        state.files.open.as_mut().expect("the item's transfers").viewer = Some(crate::gui::model_view::Viewer::with_model(name, model.clone()));
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, px / (percent / 100.0));
+        let mut size = percent;
+        let mut out = None;
+        for _ in 0..4 {
+            let mut input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+            crate::gui::font_size::before_frame(&ctx, &mut input, &mut size);
+            out = Some(ctx.run(input, |ctx| draw(ctx, &theme, &mut state)));
+        }
+        let out = out.expect("four passes ran");
+        match painted_button(&out, crate::gui::model_view::CLOSE) {
+            Some((button, seen)) if inside(seen, button) => {}
+            Some((button, seen)) => bad.push(format!("{}x{} at {percent}%: button {button:?}, seen {seen:?}", px.x, px.y)),
+            None => bad.push(format!("{}x{} at {percent}%: no Close the 3D view drawn", px.x, px.y)),
+        }
+    }
+    assert!(bad.is_empty(), "Close the 3D view lies inside its pane:\n{}", bad.join("\n"));
+}

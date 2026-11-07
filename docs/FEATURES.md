@@ -797,6 +797,14 @@ ending is put back by `shown_name_for`) and `POST /api/media/files/cover` (`medi
 uploader only) in `src/relay/media_edit.rs`, storage `rename_media_file` / `cover_from_file` in
 `src/relay/storage/media_files.rs`; native `src/gui/pages/media/edit.rs` (`draw_files`), web
 `web/pages/media-edit.js`.
+**Remove any file of an item, its main file too (BUG-250, 2026-11-06).** In Edit the item's main
+file ("name, main file, size") has Remove while the item has another file: the relay makes the next
+file the item's own (its card, preview and page chosen from it), and a main file that came from a
+chat or Shared files goes back there with its file kept; the only file has no Remove and says why
+(remove the item instead, or add the new file first). Relay `POST /api/files/item-files/remove` with
+file 0 (`src/relay/storage/files_items.rs` `detach_media_file`, `ONLY_FILE`); native
+`src/gui/pages/files/edit.rs` `draw_files` and `item_view.rs` `remove_question`; web
+`web/pages/files-edit.js`. Words `files.edit.*`.
 **The file picker's views (v0.1511.0).** List (a badge per row, folders with a folder drawing),
 Details (type, name, size, date changed; a click on a heading sorts, a second reverses; folders
 first) and Pictures (1 to 8 across with a slider: a picture's own preview, read and shrunk on

@@ -1346,8 +1346,8 @@ pub use extra::MyWaitingUpload;
 #[path = "files_items.rs"]
 mod files;
 pub use files::{
-    cursor_text, parse_cursor, shown_name_for, Attached, Edit, Featured, ItemFile, LicenceChoice, Signed, Sort, ALREADY_ON_AN_ITEM, FILE_NAME_MAX,
-    ITEM_FILES_MAX, OUT_OF_DATE, ROLE_COVER, ROLE_FILE,
+    cursor_text, parse_cursor, shown_name_for, Attached, Detached, Edit, Featured, ItemFile, LicenceChoice, Signed, Sort, ALREADY_ON_AN_ITEM,
+    FILE_NAME_MAX, ITEM_FILES_MAX, ONLY_FILE, OUT_OF_DATE, ROLE_COVER, ROLE_FILE,
 };
 
 #[cfg(test)]

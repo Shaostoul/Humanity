@@ -1,7 +1,8 @@
 //! The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the
 //! person presses View in 3D, read on a worker, drawn with the app's own GPU, turned and zoomed
-//! with the mouse. Used by the Media item page (files/item_view.rs). The website mirrors it in
-//! web/shared/model-view.js.
+//! with the mouse. Used by the Files page's middle pane (files/viewer.rs) and the chat's 3D window
+//! ([`draw_window`]); both fit it into their room with [`Viewer::show_fit`], the line under the view
+//! and the Close button laid out first (BUG-251). The website mirrors it in web/shared/model-view.js.
 
 pub mod camera;
 pub mod gpu;
@@ -10,6 +11,7 @@ pub mod load;
 use crate::gui::theme::Theme;
 use camera::Orbit;
 use egui::{RichText, Ui};
+use humanity_core::i18n::{t, tf};
 use load::Model;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -157,37 +159,71 @@ impl Viewer {
         }
     }
 
-    /// Draw the viewer `width` points wide: the words while it loads or if it cannot, else the
-    /// view (drag, right-drag, scroll, double-click) and the line under it.
+    /// Draw the viewer `width` points wide, its view at [`preferred_canvas`] and the line under it
+    /// (the words while it loads or if it cannot), with nothing after it.
     pub fn show(&mut self, ui: &mut Ui, theme: &Theme, width: f32) {
-        self.show_sized(ui, theme, width, (width * 0.62).clamp(160.0, 480.0));
+        self.show_fit(ui, theme, egui::vec2(width, f32::INFINITY), preferred_canvas(width), &mut |_| {});
     }
 
-    /// The viewer drawn `width` by `height` points, as [`Viewer::show`] (the Media page's middle
-    /// pane fits it to its area, 2026-10-19). The line under it is extra.
-    pub fn show_sized(&mut self, ui: &mut Ui, theme: &Theme, width: f32, height: f32) {
+    /// The viewer and `foot` (its Close the 3D view) in `room`: `room.x` points wide, and together
+    /// at most `room.y` tall. The line under the view and the foot are laid out FIRST and the view
+    /// takes the height left, never more than `canvas_most` (BUG-251, operator 2026-11-04: "The
+    /// close 3D view button at the bottom left of the file upload is pushed offscreen a bit." The
+    /// view was sized from the width alone, the line and the button after it, so a short window, a
+    /// long name or a large Font Size pushed the button past its panel's edge). While the model
+    /// loads, or when it cannot be shown, the words, then the foot.
+    pub fn show_fit(&mut self, ui: &mut Ui, theme: &Theme, room: egui::Vec2, canvas_most: f32, foot: &mut dyn FnMut(&mut Ui)) {
         self.poll();
         let size_words = crate::gui::pages::files::api::size_words(self.size);
         let (model, key) = match &self.stage {
             Stage::Fetching(_) => {
                 ui.label(RichText::new(format!("Fetching {} ({size_words})...", self.name)).size(theme.font_size_body).color(theme.text_muted()));
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+                foot(ui);
                 return;
             }
             Stage::Reading(_) => {
                 ui.label(RichText::new("Reading the model...").size(theme.font_size_body).color(theme.text_muted()));
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+                foot(ui);
                 return;
             }
             Stage::Failed(words) => {
                 ui.label(RichText::new(words.as_str()).size(theme.font_size_body).color(theme.warning()));
+                foot(ui);
                 return;
             }
             Stage::Ready { model, key } => (model.clone(), *key),
         };
+        let width = room.x.max(1.0);
+        // The line under the view, laid out at the view's width, and the foot, measured where
+        // nobody sees it: the view is given what they leave.
+        let help = tf("model_view.help", &[("name", &self.name), ("triangles", &load::thousands(model.triangles))]);
+        let help = ui.painter().layout(help, egui::FontId::proportional(theme.font_size_small), theme.text_muted(), width);
+        let foot_height = measured_height(ui, width, foot);
+        let gap = ui.spacing().item_spacing.y;
+        let with_help = room.y - help.size().y - foot_height - 2.0 * gap;
+        // A room too short for a view worth turning AND the line (a stacked pane on a short window)
+        // keeps the view and Close: the line is how-to words, the view is the thing.
+        let keep_help = with_help >= MIN_VIEW.min(canvas_most);
+        let height = if keep_help { with_help } else { room.y - foot_height - gap }.min(canvas_most);
+        if height >= 1.0 {
+            self.canvas(ui, theme, &model, key, egui::vec2(width, height));
+        }
+        if keep_help {
+            // The galley as measured, so the line takes exactly the room it was given.
+            ui.add(egui::Label::new(help));
+        }
+        foot(ui);
+    }
+
+    /// The view itself, `size` points: the person's hands on it (drag turns, right-drag or
+    /// Shift-drag moves, scroll zooms, double-click starts over), and the GPU's picture of it.
+    fn canvas(&mut self, ui: &mut Ui, theme: &Theme, model: &Arc<Model>, key: u64, size: egui::Vec2) {
+        let viewer = self.id;
         let Some(orbit) = self.orbit.as_mut() else { return };
-        let height = height.max(80.0);
-        let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::click_and_drag());
+        let height = size.y;
+        let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
 
         // The person's hands on it.
         let shift = ui.input(|i| i.modifiers.shift);
@@ -216,7 +252,7 @@ impl Viewer {
         let px = [(rect.width() * ppp).round().max(1.0) as u32, (rect.height() * ppp).round().max(1.0) as u32];
         let view = orbit.view();
         let paint = gpu::Paint {
-            viewer: self.id,
+            viewer,
             model: model.clone(),
             model_key: key,
             view,
@@ -226,18 +262,51 @@ impl Viewer {
             background: egui::Rgba::from(theme.bg_card()).to_array(),
         };
         ui.painter().add(egui_wgpu::Callback::new_paint_callback(rect, paint));
-        ui.label(
-            RichText::new(format!(
-                "{}: drag to turn it, scroll to zoom, right-drag or Shift-drag to move it, double-click to start over. {} triangles.",
-                self.name,
-                load::thousands(model.triangles)
-            ))
-            .size(theme.font_size_small)
-            .color(theme.text_muted()),
-        );
+    }
+}
+
+/// The shortest view worth turning, in points: below it [`Viewer::show_fit`] leaves out the line
+/// under the view rather than squeeze the view to nothing.
+pub const MIN_VIEW: f32 = 64.0;
+
+/// The view's height where nothing limits it, for a viewer `width` points wide.
+pub fn preferred_canvas(width: f32) -> f32 {
+    (width * 0.62).clamp(160.0, 480.0)
+}
+
+/// How tall `add` lays out `width` points wide, laid out once in a part of `ui` nobody sees (it is
+/// not drawn and answers nothing), so what comes before it can be given the rest.
+fn measured_height(ui: &mut Ui, width: f32, add: &mut dyn FnMut(&mut Ui)) -> f32 {
+    let at = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(width, 100_000.0));
+    let mut probe = ui.new_child(egui::UiBuilder::new().max_rect(at).layout(*ui.layout()).invisible());
+    add(&mut probe);
+    probe.min_rect().height()
+}
+
+/// The id of the chat's 3D window.
+pub const CHAT_WINDOW_ID: &str = "chat_model_view";
+
+/// The window a model posted in chat opens in (View in 3D on its card), with Close the 3D view:
+/// its body held to the room a dialog has on this screen (`widgets::dialog::body_room`) and the
+/// viewer fitted into it, so the button always sits inside the window at every window size and
+/// Font Size (BUG-251).
+pub fn draw_window(ctx: &egui::Context, theme: &Theme, model_view: &mut Option<Viewer>) {
+    let Some(viewer) = model_view.as_mut() else { return };
+    let mut open = true;
+    let mut close = false;
+    let title = viewer.name.clone();
+    let room = crate::gui::widgets::dialog::body_room(ctx, theme);
+    crate::gui::widgets::dialog(ctx, theme, CHAT_WINDOW_ID, &title, &mut open, |ui| {
+        let width = ui.available_width().clamp(320.0, 720.0).min(room.x);
+        viewer.show_fit(ui, theme, egui::vec2(width, room.y), preferred_canvas(width), &mut |ui| {
+            close |= crate::gui::widgets::Button::secondary(CLOSE).tooltip(t("model_view.close_hint")).show(ui, theme);
+        });
+    });
+    if !open || close {
+        *model_view = None;
     }
 }
 
 #[cfg(test)]
 #[path = "tests.rs"]
-mod tests;
+pub(crate) mod tests;

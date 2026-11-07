@@ -118,10 +118,11 @@ pub(crate) fn take_item(state: &mut GuiState, item: Item) {
     }
     if let Some(page) = state.files.item.as_mut().filter(|p| p.id == item.id) {
         if let Some(form) = page.edit.as_mut() {
-            // The edit form's files follow the item (a file added or taken off while it is open);
-            // the words being edited are the person's and stay as they are.
-            form.was.files = item.files.clone();
-            form.was.cover = item.cover.clone();
+            // The edit form follows the item (a file added or taken off while it is open): its
+            // files, and, once its main file came off (BUG-250), the file that names it now (W5),
+            // its kind and where its file came from. The words being edited are the person's, in
+            // the form's own fields, and stay as they are.
+            form.was = item.clone();
         }
         page.item = Some(item);
     }
@@ -400,6 +401,12 @@ pub(crate) fn take(state: &mut GuiState) -> Option<(ItemPage, Option<Opened>)> {
     let mut opened = state.files.open.take().filter(|o| o.item.id == page.id);
     if let Some(item) = page.item.clone() {
         let o = opened.get_or_insert_with(|| Opened::new(item.clone()));
+        if o.item.stored != item.stored {
+            // Its main file came off and the next one is its own (BUG-250): what showed or fetched
+            // the old one (a video, a sound, a 3D view, the downloads by file number) goes, and the
+            // middle pane shows the new one afresh.
+            *o = Opened::new(item.clone());
+        }
         o.item = item;
     }
     Some((page, opened))
@@ -804,9 +811,9 @@ fn draw_confirmations(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, 
     if let Some(f) = page.confirm_file.clone() {
         let mut open = true;
         let (mut yes, mut no) = (false, false);
-        let name = open::shown_file_name(&item, &f);
+        let question = remove_question(&item, &f);
         widgets::dialog(ctx, theme, "media_item_confirm_file", "Remove a file", &mut open, |ui| {
-            ui.label(RichText::new(format!("Remove {name} from this item? It is deleted from the server.")).size(theme.font_size_body).color(theme.text_primary()));
+            ui.label(RichText::new(question).size(theme.font_size_body).color(theme.text_primary()));
             ui.horizontal(|ui| {
                 yes = widgets::Button::danger("Remove the file").show(ui, theme);
                 no = widgets::Button::secondary("Keep it").show(ui, theme);
@@ -866,12 +873,33 @@ pub(crate) fn cover_from_file(state: &mut GuiState, item: &Item, f: &ItemFile) -
     Ok(())
 }
 
-/// Take file `f` off `item` (`POST /api/files/item-files/remove`, by its number and its own stored name).
-pub(crate) fn remove_file(state: &mut GuiState, page: &mut ItemPage, item: &Item, f: &ItemFile) {
-    if f.file == 0 {
-        page.status = "The first file is the item itself: remove the item instead.".to_string();
-        return;
+/// What a file's Remove asks first. For the item's main file (file 0, BUG-250) it names the file
+/// that becomes the main one, says whether the file goes back where it was shared (an item made
+/// from a chat or Shared files upload keeps it there) or is deleted, and, on an item the server
+/// keeps, that the keep ends if the next file was added after it.
+pub(crate) fn remove_question(item: &Item, f: &ItemFile) -> String {
+    let name = open::shown_file_name(item, f);
+    let next = files_of(item).into_iter().find(|x| x.file != 0).filter(|_| f.file == 0);
+    match next {
+        Some(next) => {
+            let next = open::shown_file_name(item, &next);
+            let key = if item.keeps_file { "files.edit.remove_main_question_kept" } else { "files.edit.remove_main_question" };
+            let question = humanity_core::i18n::tf(key, &[("name", &name), ("next", &next)]);
+            if !item.kept {
+                return question;
+            }
+            // Kept by the server (A7): a next file added after the keep ends it (the relay's
+            // detach_media_file), which this app cannot see, so it is said as an if.
+            format!("{question} {}", humanity_core::i18n::tf("files.edit.remove_main_kept_note", &[("next", &next)]))
+        }
+        None => humanity_core::i18n::tf("files.edit.remove_question", &[("name", &name)]),
     }
+}
+
+/// Take file `f` off `item` (`POST /api/files/item-files/remove`, by its number and its own stored
+/// name). The main file (file 0) too: the relay makes the next one the main file, or refuses the
+/// only one in its own words (BUG-250).
+pub(crate) fn remove_file(state: &mut GuiState, page: &mut ItemPage, item: &Item, f: &ItemFile) {
     let (Ok(r), Some(signer)) = (item.reference(), signer_or_say(state)) else {
         page.status = super::UNLOCK_LINE.to_string();
         return;
@@ -901,8 +929,8 @@ mod tests {
         assert_eq!(state.files.item.as_ref().and_then(|p| p.item.as_ref()).map(|i| i.title.as_str()), Some("New"));
         assert_eq!(state.files.list.items[0].title, "New", "the grid shows the edited title");
         assert!(state.files.list.items[0].featured.is_on());
-        on_answer(&mut state, Job::FileRemove { id: 4, file: 7 }, Err(Refusal::new(400, "The first file is the item itself: remove the item instead.")));
-        assert_eq!(state.files.item.as_ref().map(|p| p.status.as_str()), Some("The first file is the item itself: remove the item instead."));
+        on_answer(&mut state, Job::FileRemove { id: 4, file: 7 }, Err(Refusal::new(400, "This is the item's only file, and an item needs one.")));
+        assert_eq!(state.files.item.as_ref().map(|p| p.status.as_str()), Some("This is the item's only file, and an item needs one."));
         state.files.item = None;
         on_answer(&mut state, Job::Item { id: 9 }, Ok(serde_json::json!({ "items": [] })));
         assert_eq!(state.files.item.as_ref().map(|p| (p.id, p.status.as_str(), p.item.is_none())), Some((9, NOT_THERE, true)));

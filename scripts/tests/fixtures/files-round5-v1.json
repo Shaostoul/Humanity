@@ -1,5 +1,5 @@
 {
-  "about": "Media round 5's contract (docs/design/media-round-5-plan.md 3.2 to 3.4 and 3.12, with section 10's answers). Made by the relay's own code from fixed rows (src/relay/files_round5_tests.rs, write_the_files_round5_fixture; checked by the_shared_fixture_is_what_the_relay_makes); read by both apps' tests. `item_members_view` is one item as a member sees it in the list (picked_by_me included); `item_members_only` the same item once it is members only (every url through /api/files/file/<id>?file=<n>); `list_by_downloads` the list's answer to `list_request` (sort downloads, one to a page) with its next_cursor and the server's licences; `licences` that answer's licences on their own (the offered licences, the game tick, the two warnings and the hosting paragraph shown beside Add to Files); `edit` an edit request's body exactly as sent, its `edit` member's text (keys in name order) and the purpose signed over its BLAKE3; `purposes` the other writes' purposes. Keys are stand-ins and `SIG` stands for a Dilithium3 signature over `purpose\\ntimestamp`.",
+  "about": "Media round 5's contract (docs/design/media-round-5-plan.md 3.2 to 3.4 and 3.12, with section 10's answers). Made by the relay's own code from fixed rows (src/relay/files_round5_tests.rs, write_the_files_round5_fixture; checked by the_shared_fixture_is_what_the_relay_makes); read by both apps' tests. `item_members_view` is one item as a member sees it in the list (picked_by_me included); `item_members_only` the same item once it is members only (every url through /api/files/file/<id>?file=<n>); `list_by_downloads` the list's answer to `list_request` (sort downloads, one to a page) with its next_cursor and the server's licences; `licences` that answer's licences on their own (the offered licences, the game tick, the two warnings and the hosting paragraph shown beside Add to Files); `edit` an edit request's body exactly as sent, its `edit` member's text (keys in name order) and the purpose signed over its BLAKE3; `purposes` the other writes' purposes; `remove_main` an item of two files (`item`), the purpose of taking its main file (file 0) off, the route's answer to it (the next file the item's own, BUG-250), and the route's refusal of the only file left. Keys are stand-ins and `SIG` stands for a Dilithium3 signature over `purpose\\ntimestamp`.",
   "edit": {
     "body": "{\"key\":\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\",\"timestamp\":1760000003000,\"sig\":\"SIG\",\"id\":1,\"filename\":\"1760_x.png\",\"edit\":{\"category_id\":2,\"description\":\"First line\\nThe rest\",\"labels\":[\"flashing\"],\"licence\":\"cc_by_4\",\"project_use\":true,\"title\":\"Dusk\"}}",
     "filename": "1760_x.png",
@@ -359,5 +359,109 @@
     "file_remove": "media_file_remove:1:1",
     "publish": "media_publish:1760_x.png:cc_by_4:1",
     "publish_default": "media_publish:1763_z.glb:all_rights_reserved:0"
+  },
+  "remove_main": {
+    "answer": {
+      "file_kept": false,
+      "file_removed": true,
+      "item": {
+        "category": {
+          "id": 1,
+          "name": "General"
+        },
+        "cover": null,
+        "description": "",
+        "downloads": 0,
+        "featured": "none",
+        "file_count": 1,
+        "filename": "1765_p.stl",
+        "files": [
+          {
+            "file": 0,
+            "filename": "1765_p.stl",
+            "kind": "model",
+            "original_name": "phone.stl",
+            "size_bytes": 3000,
+            "url": "/uploads/1765_p.stl"
+          }
+        ],
+        "id": 3,
+        "keeps_file": false,
+        "kept": false,
+        "kind": "model",
+        "labels": [],
+        "licence": "all_rights_reserved",
+        "link": "/files/3",
+        "original_name": "phone.stl",
+        "picks": 0,
+        "project_use": false,
+        "published_at": 1760000001003,
+        "size_bytes": 3000,
+        "title": "Phone",
+        "total_bytes": 3000,
+        "uploaded_at": 1760000000000,
+        "uploader_key": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "uploader_name": "Ann",
+        "url": "/uploads/1765_p.stl",
+        "views": 0,
+        "visibility": "public"
+      },
+      "ok": true
+    },
+    "item": {
+      "category": {
+        "id": 1,
+        "name": "General"
+      },
+      "cover": null,
+      "description": "",
+      "downloads": 0,
+      "featured": "none",
+      "file_count": 2,
+      "filename": "1764_p.glb",
+      "files": [
+        {
+          "file": 0,
+          "filename": "1764_p.glb",
+          "kind": "model",
+          "original_name": "Samsung_A16_5g.glb",
+          "size_bytes": 5000,
+          "url": "/uploads/1764_p.glb"
+        },
+        {
+          "file": 3,
+          "filename": "1765_p.stl",
+          "kind": "model",
+          "original_name": "phone.stl",
+          "size_bytes": 3000,
+          "url": "/uploads/1765_p.stl"
+        }
+      ],
+      "id": 3,
+      "keeps_file": false,
+      "kept": false,
+      "kind": "model",
+      "labels": [],
+      "licence": "all_rights_reserved",
+      "link": "/files/3",
+      "original_name": "Samsung_A16_5g.glb",
+      "picks": 0,
+      "project_use": false,
+      "published_at": 1760000001003,
+      "size_bytes": 5000,
+      "title": "Phone",
+      "total_bytes": 8000,
+      "uploaded_at": 1760000000000,
+      "uploader_key": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "uploader_name": "Ann",
+      "url": "/uploads/1764_p.glb",
+      "views": 0,
+      "visibility": "public"
+    },
+    "purpose": "media_file_remove:3:0",
+    "refused_only": {
+      "status": 400,
+      "words": "This is the item's only file, and an item needs one. To take it away, remove the item; to swap it for another, add the new file first, then remove this one."
+    }
   }
 }

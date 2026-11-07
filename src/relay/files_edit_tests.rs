@@ -11,7 +11,7 @@ use super::*;
 use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use crate::relay::files::{file_from, publish_core, remove_core, visibility_core, PublishBody, RemoveTarget, TokenQuery, UPLOAD_TOKEN_HEADER};
 use crate::relay::files_licences::{parse_licences, NOT_FOR_GAME, NOT_OFFERED};
-use crate::relay::storage::files::{shown_name_for, FilesItem, ITEM_FILES_MAX, MEDIA_SHELF, OUT_OF_DATE};
+use crate::relay::storage::files::{shown_name_for, FilesItem, ITEM_FILES_MAX, MEDIA_SHELF, ONLY_FILE, OUT_OF_DATE};
 
 /// A person: their key (the Dilithium public key in hex) and the key pair that signs for them.
 struct Person {
@@ -439,16 +439,35 @@ fn an_item_holds_at_most_twenty_files() {
     assert!(holds(&add(db, &d, "ann", &item, "cover.png", "cover").expect("a cover is not counted").0, "cover.png"));
 }
 
-/// REMOVE A FILE, BUT NEVER THE FIRST: file 0 is the item itself and is refused with the words
-/// (remove the item instead); a file named by another file's name is the stale-page refusal
-/// (409); a moderator and another member cannot; the uploader can (through the signed route), and
-/// so can an admin. Each removed file's row and file are gone.
+/// The uploader `p` takes file `file` (stored as `name`) off item `id`, which `own` names (W5),
+/// through the signed route as the apps send it.
+async fn take_off_signed(state: &RelayState, d: &Dirs, p: &Person, id: i64, own: &str, file: i64, name: &str) -> Result<serde_json::Value, (u16, String)> {
+    let ts = now_ms();
+    let body = FileRemoveBody { key: p.key.clone(), timestamp: ts, sig: p.sign(&file_remove_purpose(id, file), ts), id, filename: own.into(), file, file_name: name.into() };
+    files_remove_in(state, d.folders(), &body).await.map(|a| a.0).map_err(|e| (e.0.as_u16(), e.1))
+}
+
+/// The numbers of an answer's item's files, in order (0, its own, first).
+fn file_numbers(answer: &serde_json::Value) -> Vec<i64> {
+    answer["item"]["files"].as_array().map(|f| f.iter().map(|x| x["file"].as_i64().unwrap()).collect()).unwrap_or_default()
+}
+
+/// EVERY FILE COMES OFF, THE FIRST INCLUDED, WHILE ONE STAYS (BUG-250; the operator, 2026-11-04:
+/// "I can't remove this GLB. I think it's cause it is the first item that the app uploaded. We need
+/// to be able to remove all files and add new ones"). Through the signed route: the uploader takes
+/// the item's own file (file 0) off and the next file becomes the item's own (its name, kind and
+/// size; its preview is chosen from it), the old one's row and file gone; from then on the item is
+/// named by its new own file (W5), so the old name is out of date; an admin can too, and a
+/// moderator and another member cannot; a file named by another file's name is out of date; the
+/// cover comes off; and the item's only file is refused with the words, and stays.
 ///
-/// Seen red 2026-10-12 with file 0 allowed (the `file_no == 0` refusal removed from
-/// storage/files_items.rs `detach_media_file`): "file 0 is the item itself / left: (404, \"That
-/// Media item has no file with that number.\") / right: (400, ...)".
+/// Seen red 2026-11-06 with the old rule put back (`file_no == 0` refused first in
+/// storage/files_items.rs `detach_media_file`, as it was): "file 0 by another file's name / left:
+/// (400, \"The first file is the item itself: remove the item instead.\") / right: (409, \"That is
+/// not the item you were looking at: ...\")". The storage test `files_are_added_and_taken_off_by_the_rules`
+/// went red the same way at its own file-0 line.
 #[tokio::test]
-async fn remove_a_file_but_never_the_first() {
+async fn every_file_comes_off_the_first_included_while_one_stays() {
     let state = relay("me_remove");
     let d = dirs("me_remove");
     let db = &state.db;
@@ -459,41 +478,135 @@ async fn remove_a_file_but_never_the_first() {
     db.set_role("root", "admin").unwrap();
     db.set_role("mo", "mod").unwrap();
     let item = published(db, &d, &ann.key, "1_staff.glb", "public");
-    for (file, role) in [("2_a.zip", "file"), ("3_b.zip", "file"), ("4_cover.png", "cover")] {
-        waiting(db, &d, &ann.key, file, b"x");
+    for (file, role, bytes) in [("2_a.zip", "file", &b"AAA"[..]), ("3_b.png", "file", &b"BB"[..]), ("4_cover.png", "cover", &b"x"[..])] {
+        waiting(db, &d, &ann.key, file, bytes);
         assert!(holds(&add(db, &d, &ann.key, &item, file, role).unwrap().0, file));
     }
     let item = db.media_item(item.id).unwrap().unwrap();
     let (a, b, cover) = (item.files[0].file, item.files[1].file, item.cover.clone().unwrap().file);
 
-    assert_eq!(
-        words(take_off(db, &d, &ann.key, &item, 0, "1_staff.glb")),
-        (StatusCode::BAD_REQUEST, "The first file is the item itself: remove the item instead.".to_string()),
-        "file 0 is the item itself"
-    );
-    assert_eq!(d.spot("1_staff.glb"), Some(Spot::Public), "and stays");
-    assert_eq!(words(take_off(db, &d, &ann.key, &item, a, "3_b.zip")), (StatusCode::CONFLICT, OUT_OF_DATE.to_string()));
-    assert_eq!(words(take_off(db, &d, "mo", &item, a, "2_a.zip")).0, StatusCode::FORBIDDEN, "a moderator cannot");
-    assert_eq!(words(take_off(db, &d, "cal", &item, a, "2_a.zip")).0, StatusCode::FORBIDDEN, "nor another member");
+    assert_eq!(words(take_off(db, &d, &ann.key, &item, a, "3_b.png")), (StatusCode::CONFLICT, OUT_OF_DATE.to_string()));
+    assert_eq!(words(take_off(db, &d, &ann.key, &item, 0, "2_a.zip")), (StatusCode::CONFLICT, OUT_OF_DATE.to_string()), "file 0 by another file's name");
+    assert_eq!(words(take_off(db, &d, "mo", &item, 0, "1_staff.glb")).0, StatusCode::FORBIDDEN, "a moderator cannot");
+    assert_eq!(words(take_off(db, &d, "cal", &item, 0, "1_staff.glb")).0, StatusCode::FORBIDDEN, "nor another member");
 
-    let ts = now_ms();
-    let body = FileRemoveBody {
-        key: ann.key.clone(),
-        timestamp: ts,
-        sig: ann.sign(&file_remove_purpose(item.id, a), ts),
-        id: item.id,
-        filename: item.upload_filename.clone(),
-        file: a,
-        file_name: "2_a.zip".into(),
-    };
-    let answer = files_remove_in(&state, d.folders(), &body).await.map_err(|e| (e.0.as_u16(), e.1)).expect("the uploader removes it").0;
-    assert_eq!((answer["ok"].as_bool(), answer["file_removed"].as_bool()), (Some(true), Some(true)));
-    assert_eq!(answer["item"]["files"].as_array().map(|f| f.iter().map(|x| x["file"].as_i64().unwrap()).collect::<Vec<_>>()), Some(vec![0, b]));
-    assert_eq!((d.spot("2_a.zip"), count(db, "SELECT COUNT(*) FROM user_uploads WHERE filename = '2_a.zip'")), (None, 0));
+    // The uploader takes the first file off: the next one is the item's own.
+    let answer = take_off_signed(&state, &d, &ann, item.id, "1_staff.glb", 0, "1_staff.glb").await;
+    let answer = answer.expect("the uploader takes the first file off");
+    assert_eq!((answer["ok"].as_bool(), answer["file_removed"].as_bool(), answer["file_kept"].as_bool()), (Some(true), Some(true), Some(false)));
+    let now = &answer["item"];
+    assert_eq!((now["filename"].as_str(), now["kind"].as_str(), now["size_bytes"].as_i64()), (Some("2_a.zip"), Some("file"), Some(3)), "2_a.zip is the item's own now");
+    assert_eq!(now["url"].as_str(), Some("/uploads/2_a.zip"));
+    assert_eq!((file_numbers(&answer), now["file_count"].as_i64()), (vec![0, b], Some(2)), "its own, then 3_b.png");
+    assert_eq!(now["cover"]["filename"].as_str(), Some("4_cover.png"), "the cover stays");
+    assert_eq!((d.spot("1_staff.glb"), count(db, "SELECT COUNT(*) FROM user_uploads WHERE filename = '1_staff.glb'")), (None, 0), "the old own file is gone");
+    assert_eq!(d.spot("2_a.zip"), Some(Spot::Public), "the new one stays where it was");
+    assert_eq!(count(db, "SELECT COUNT(*) FROM media_item_files WHERE upload_filename = '2_a.zip'"), 0, "and is no longer an added file");
+    assert_eq!(db.media_item_holding("2_a.zip").unwrap(), Some((item.id, 0)));
+    // Named by the old own file, the page is out of date.
+    assert_eq!(take_off_signed(&state, &d, &ann, item.id, "1_staff.glb", b, "3_b.png").await, Err((409, OUT_OF_DATE.to_string())), "the old name is out of date");
 
-    let answer = take_off(db, &d, "root", &item, cover, "4_cover.png").expect("an admin removes the cover").0;
-    assert!(answer["item"]["cover"].is_null());
+    // An admin removes the cover, then the first file again: the picture is the item's own.
+    let item = db.media_item(item.id).unwrap().unwrap();
+    assert!(take_off(db, &d, "root", &item, cover, "4_cover.png").expect("an admin removes the cover").0["item"]["cover"].is_null());
     assert_eq!(d.spot("4_cover.png"), None);
+    let answer = take_off(db, &d, "root", &item, 0, "2_a.zip").expect("an admin takes the first file off").0;
+    assert_eq!((answer["item"]["filename"].as_str(), answer["item"]["kind"].as_str()), (Some("3_b.png"), Some("picture")), "a picture now: its preview is itself");
+
+    // The only file left stays, and says why.
+    let item = db.media_item(item.id).unwrap().unwrap();
+    assert_eq!(words(take_off(db, &d, &ann.key, &item, 0, "3_b.png")), (StatusCode::BAD_REQUEST, ONLY_FILE.to_string()), "the item's only file");
+    assert_eq!((d.spot("3_b.png"), db.media_item(item.id).unwrap().unwrap().upload_filename), (Some(Spot::Public), "3_b.png".to_string()), "and it stays");
+}
+
+/// THE FIRST FILE OF AN ITEM FROM CHAT GOES BACK TO CHAT, AND A MEMBERS-ONLY ITEM KEEPS ITS FILES
+/// WHERE THEY ARE (BUG-250). An item whose own file came from a chat message: taking that file off
+/// gives it back to chat (its row on the chat shelf, its file at its public address, the message
+/// still finds it), the added file is the item's own and the item is now one made for Media (so it
+/// may be made members only). A members-only item's next file stays in the members' folder and is
+/// served as the item's own by the members' route.
+///
+/// Seen red 2026-11-06 with the old own file's row deleted whatever it came from (the `was_public`
+/// branch taken out of `detach_media_file`): "the chat file is given back / left: (false, None)
+/// / right: (true, Some(Public))".
+#[tokio::test]
+async fn the_first_file_from_chat_goes_back_and_members_files_stay_put() {
+    let state = relay("me_remove_back");
+    let d = dirs("me_remove_back");
+    let db = &state.db;
+    db.join_server("ann", "Ann").unwrap();
+    db.join_server("bea", "Bea").unwrap();
+    std::fs::write(d.uploads.join("5_chat.png"), b"chat").unwrap();
+    db.record_upload("ann", "5_chat.png", 100, 0i64, "chat.png", 4).unwrap();
+    let s = db.get_server_settings().unwrap();
+    let chat = publish_core(db, &s, &[], d.folders(), &PublishBody { key: "ann".into(), filename: "5_chat.png".into(), ..Default::default() }).unwrap().0;
+    let chat = db.media_item(chat["item"]["id"].as_i64().unwrap()).unwrap().unwrap();
+    assert!(chat.keeps_file, "test setup: an item from chat");
+    waiting(db, &d, "ann", "6_model.stl", b"solid");
+    assert!(holds(&add(db, &d, "ann", &chat, "6_model.stl", "file").unwrap().0, "6_model.stl"));
+
+    let answer = take_off(db, &d, "ann", &chat, 0, "5_chat.png").expect("the chat file comes off").0;
+    assert_eq!((answer["file_kept"].as_bool(), d.spot("5_chat.png")), (Some(true), Some(Spot::Public)), "the chat file is given back");
+    assert_eq!(count(db, "SELECT shared FROM user_uploads WHERE filename = '5_chat.png'"), 0, "on the chat shelf again");
+    assert_eq!(public_status(&d, "5_chat.png").await, 200, "at its public address, where its message finds it");
+    assert_eq!((answer["item"]["filename"].as_str(), answer["item"]["kind"].as_str(), answer["item"]["keeps_file"].as_bool()), (Some("6_model.stl"), Some("model"), Some(false)), "the model is its own, made for Media");
+    assert_eq!(db.media_item_holding("5_chat.png").unwrap(), None, "on no item now");
+
+    // Members only: the next file stays in the members' folder and the members' route serves it.
+    let item = published(db, &d, "ann", "7_clip.mp4", "members");
+    waiting(db, &d, "ann", "8_next.mp4", b"NEXT");
+    assert!(holds(&add(db, &d, "ann", &item, "8_next.mp4", "file").unwrap().0, "8_next.mp4"));
+    let answer = take_off(db, &d, "ann", &item, 0, "7_clip.mp4").expect("the members' first file comes off").0;
+    assert_eq!((answer["item"]["filename"].as_str(), answer["item"]["url"].as_str()), (Some("8_next.mp4"), Some(format!("/api/files/file/{}", item.id).as_str())));
+    assert_eq!((d.spot("7_clip.mp4"), d.spot("8_next.mp4")), (None, Some(Spot::Members)));
+    state.upload_tokens.write().await.insert("tok_bea".into(), "bea".into());
+    let req = axum::http::Request::builder().uri("/api/files/file").header(UPLOAD_TOKEN_HEADER, "tok_bea").body(axum::body::Body::empty()).unwrap();
+    let res = file_from(&state, d.folders(), item.id, TokenQuery::default(), req).await;
+    assert_eq!((res.status().as_u16(), axum::body::to_bytes(res.into_body(), 1 << 20).await.unwrap().to_vec()), (200, b"NEXT".to_vec()), "served as the item's own");
+}
+
+/// A KEPT ITEM'S MAIN FILE MAKES WAY ONLY FOR A FILE THE KEEP COVERS (BUG-250 and the round-5 rule
+/// of KEPT_FILES, storage/files.rs: "A file added after the keep counts against its uploader's
+/// share until someone keeps the item again"). Ann's item, kept by an admin with a file added
+/// before the keep and one after: taking the main file off promotes the file from before, and the
+/// item stays kept (its bytes in nobody's share); taking it off again promotes the file added
+/// after the keep, and the keep ends, so that file counts against Ann's share as it did while it
+/// was an added file, until an admin keeps the item again.
+///
+/// Seen red 2026-11-06 with the keep left as it was (the new check skipped): "the keep ends for a
+/// file added after it / left: Some(true) / right: Some(false)".
+#[test]
+fn a_kept_items_main_file_makes_way_only_for_a_file_the_keep_covers() {
+    let state = relay("me_remove_kept");
+    let d = dirs("me_remove_kept");
+    let db = &state.db;
+    db.join_server("ann", "Ann").unwrap();
+    db.join_server("root", "Root").unwrap();
+    db.set_role("root", "admin").unwrap();
+    let item = published(db, &d, "ann", "1_main.glb", "public");
+    waiting(db, &d, "ann", "2_before.stl", b"BEFORE");
+    assert!(holds(&add(db, &d, "ann", &item, "2_before.stl", "file").unwrap().0, "2_before.stl"));
+    db.with_conn(|c| c.execute("UPDATE media_item_files SET added_at = 1000", [])).unwrap();
+    db.set_media_kept(item.id, Some("root"), 2000).unwrap();
+    waiting(db, &d, "ann", "3_after.zip", b"AFTER, LONGER");
+    assert!(holds(&add(db, &d, "ann", &item, "3_after.zip", "file").unwrap().0, "3_after.zip"));
+    db.with_conn(|c| c.execute("UPDATE media_item_files SET added_at = 3000 WHERE upload_filename = '3_after.zip'", [])).unwrap();
+    let after_size = b"AFTER, LONGER".len() as i64;
+    assert_eq!(db.media_bytes(Some("ann")), after_size, "test setup: only the file added after the keep is in Ann's share");
+
+    // A file that was on it when it was kept: the keep stays.
+    let item = db.media_item(item.id).unwrap().unwrap();
+    let answer = take_off(db, &d, "ann", &item, 0, "1_main.glb").expect("the main file comes off").0;
+    assert_eq!((answer["item"]["filename"].as_str(), answer["item"]["kept"].as_bool()), (Some("2_before.stl"), Some(true)), "a file from before the keep keeps it");
+    assert_eq!(db.media_bytes(Some("ann")), after_size, "and Ann's share is as it was");
+
+    // A file added after the keep: the keep ends, and its bytes are Ann's again.
+    let item = db.media_item(item.id).unwrap().unwrap();
+    let answer = take_off(db, &d, "ann", &item, 0, "2_before.stl").expect("the main file comes off again").0;
+    assert_eq!(answer["item"]["filename"].as_str(), Some("3_after.zip"));
+    assert_eq!(answer["item"]["kept"].as_bool(), Some(false), "the keep ends for a file added after it");
+    assert_eq!(db.media_kept_by(item.id).unwrap(), None, "nobody keeps it now");
+    assert_eq!(db.media_bytes(Some("ann")), after_size, "the file added after the keep counts against Ann's share");
 }
 
 /// REMOVING AN ITEM DELETES ITS ADDED FILES AND COVER: an item made for Media with two added files

@@ -628,6 +628,15 @@
     /** Put `item` wherever the page shows it: the grid, the shelf and this page. */
     function takeItem(item) {
       if (!item || item.id == null) return;
+      const was = current(item.id);
+      if (was && lib.itemFileName(was) !== lib.itemFileName(item)) {
+        // Its main file came off and the next one is its own (BUG-250): what showed or fetched the
+        // old one (a members-only picture, a ticket, the 3D view, a sound) goes, and the viewer
+        // shows the new one afresh.
+        tickets.delete(item.id);
+        if (typeof c.dropBlob === 'function') c.dropBlob(item.id);
+        if (st.viewer && st.viewer.id === item.id) { closeModel(true); closeSound(); }
+      }
       st.items = st.items.map((i) => (i.id === item.id ? item : i));
       st.featured = st.featured.map((i) => (i.id === item.id ? item : i));
       if (st.viewer && st.viewer.id === item.id) st.viewer = item;

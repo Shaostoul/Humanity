@@ -20,6 +20,7 @@
 //! waits, each with Show it.
 
 use egui::{RichText, Sense, Vec2};
+use humanity_core::i18n::t;
 
 use super::api::{self, Item};
 use super::item_view::{files_of, ItemPage, Pressed};
@@ -82,11 +83,16 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, page:
         tiles::Show::TooBig | tiles::Show::Load => {}
     }
 
-    // A model in 3D fills the pane.
+    // A model in 3D fills the pane: the line under it and Close the 3D view laid out first, the
+    // view given what they leave, so the button always sits inside the pane (BUG-251).
     if let Some(viewer) = opened.viewer.as_mut() {
-        let line_h = theme.font_size_small * 2.6 + theme.spacing_sm;
-        viewer.show_sized(ui, theme, area.x, (area.y - line_h - row_h).max(120.0));
-        pressed.close_3d = widgets::Button::secondary(crate::gui::model_view::CLOSE).show(ui, theme);
+        // What of the pane can be seen (whatever holds the pane may cut it short): the view fits
+        // that, so Close stays on it.
+        let seen = ui.max_rect().bottom().min(ui.clip_rect().bottom());
+        let room = egui::vec2(area.x, (seen - ui.cursor().top()).max(0.0));
+        viewer.show_fit(ui, theme, room, f32::INFINITY, &mut |ui| {
+            pressed.close_3d |= widgets::Button::secondary(crate::gui::model_view::CLOSE).tooltip(t("model_view.close_hint")).show(ui, theme);
+        });
         return;
     }
 

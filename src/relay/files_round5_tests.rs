@@ -5,7 +5,7 @@
 //! break it was seen failing against ("Seen red").
 
 use super::*;
-use crate::relay::files_edit::{edit_purpose, edit_request, file_add_purpose, file_remove_purpose};
+use crate::relay::files_edit::{edit_purpose, edit_request, file_add_purpose, file_remove_purpose, files_remove_core, FileRemoveBody};
 use crate::relay::storage::files::{CategoryEdit, ROLE_COVER, ROLE_FILE};
 
 /// A GET of file `file` of item `id` with `ticket` (`?file=` left out when `file` is None).
@@ -135,8 +135,30 @@ fn fixture_now() -> Value {
     assert_eq!(sent, edit_text, "the edit as sent is the text hashed");
     let file_no = db.media_item(1).unwrap().unwrap().files[0].file;
 
+    // BUG-250: Ann's "Phone" (a model and an added STL) loses its main file through the route, and
+    // the STL, then its only file, is refused.
+    for (file, original, size) in [("1764_p.glb", "Samsung_A16_5g.glb", 5000), ("1765_p.stl", "phone.stl", 3000)] {
+        std::fs::write(d.waiting.join(file), b"x").unwrap();
+        db.record_upload(ANN, file, 100, MEDIA_SHELF, original, size).unwrap();
+    }
+    let phone = PublishBody { key: ANN.into(), filename: "1764_p.glb".into(), title: "Phone".into(), ..Default::default() };
+    let phone = publish_core(db, &s, labels(), d.folders(), &phone).expect("Phone is published").0["item"]["id"].as_i64().unwrap();
+    db.attach_media_file(ANN, phone, "1765_p.stl", ROLE_FILE, 0, |members| f.place("1765_p.stl", members)).unwrap();
+    db.with_conn(|c| {
+        c.execute_batch(
+            "UPDATE user_uploads SET uploaded_at = 1760000000000;
+             UPDATE media_items SET created_at = 1760000001000 + id;
+             UPDATE media_item_files SET added_at = 1760000002000;",
+        )
+    })
+    .unwrap();
+    let phone_before = item_json(&db.media_item(phone).unwrap().unwrap());
+    let remove = |own: &str| FileRemoveBody { key: ANN.into(), id: phone, filename: own.into(), file: 0, file_name: own.into(), ..Default::default() };
+    let removed = files_remove_core(db, d.folders(), &remove("1764_p.glb")).expect("the main file comes off").0;
+    let refused_only = files_remove_core(db, d.folders(), &remove("1765_p.stl")).expect_err("the only file stays");
+
     json!({
-        "about": "Media round 5's contract (docs/design/media-round-5-plan.md 3.2 to 3.4 and 3.12, with section 10's answers). Made by the relay's own code from fixed rows (src/relay/files_round5_tests.rs, write_the_files_round5_fixture; checked by the_shared_fixture_is_what_the_relay_makes); read by both apps' tests. `item_members_view` is one item as a member sees it in the list (picked_by_me included); `item_members_only` the same item once it is members only (every url through /api/files/file/<id>?file=<n>); `list_by_downloads` the list's answer to `list_request` (sort downloads, one to a page) with its next_cursor and the server's licences; `licences` that answer's licences on their own (the offered licences, the game tick, the two warnings and the hosting paragraph shown beside Add to Files); `edit` an edit request's body exactly as sent, its `edit` member's text (keys in name order) and the purpose signed over its BLAKE3; `purposes` the other writes' purposes. Keys are stand-ins and `SIG` stands for a Dilithium3 signature over `purpose\\ntimestamp`.",
+        "about": "Media round 5's contract (docs/design/media-round-5-plan.md 3.2 to 3.4 and 3.12, with section 10's answers). Made by the relay's own code from fixed rows (src/relay/files_round5_tests.rs, write_the_files_round5_fixture; checked by the_shared_fixture_is_what_the_relay_makes); read by both apps' tests. `item_members_view` is one item as a member sees it in the list (picked_by_me included); `item_members_only` the same item once it is members only (every url through /api/files/file/<id>?file=<n>); `list_by_downloads` the list's answer to `list_request` (sort downloads, one to a page) with its next_cursor and the server's licences; `licences` that answer's licences on their own (the offered licences, the game tick, the two warnings and the hosting paragraph shown beside Add to Files); `edit` an edit request's body exactly as sent, its `edit` member's text (keys in name order) and the purpose signed over its BLAKE3; `purposes` the other writes' purposes; `remove_main` an item of two files (`item`), the purpose of taking its main file (file 0) off, the route's answer to it (the next file the item's own, BUG-250), and the route's refusal of the only file left. Keys are stand-ins and `SIG` stands for a Dilithium3 signature over `purpose\\ntimestamp`.",
         "item_members_view": list["items"][0],
         "item_members_only": members_only,
         "list_request": { "sort": "downloads", "limit": 1 },
@@ -152,6 +174,12 @@ fn fixture_now() -> Value {
             "file_add": file_add_purpose(1, "1761_y.zip", "file"),
             "cover_add": file_add_purpose(1, "1762_c.jpg", "cover"),
             "file_remove": file_remove_purpose(1, file_no),
+        },
+        "remove_main": {
+            "item": phone_before,
+            "purpose": file_remove_purpose(phone, 0),
+            "answer": removed,
+            "refused_only": { "status": refused_only.0.as_u16(), "words": refused_only.1 },
         },
     })
 }
@@ -191,5 +219,8 @@ fn the_shared_fixture_is_what_the_relay_makes() {
     assert_eq!(purpose, edit_purpose(1, fx["edit"]["text"].as_str().unwrap()));
     let changed = fx["edit"]["body"].as_str().unwrap().replace("\"title\":\"Dusk\"", "\"title\":\"Dawn\"");
     assert_ne!(edit_request(&changed).unwrap().2, purpose, "an edit changed after it was signed has another purpose");
+    let rm = &fx["remove_main"];
+    assert_eq!((rm["item"]["filename"].as_str(), rm["answer"]["item"]["filename"].as_str()), (Some("1764_p.glb"), Some("1765_p.stl")), "BUG-250: the next file is the item's own");
+    assert_eq!(rm["refused_only"]["words"].as_str(), Some(crate::relay::storage::files::ONLY_FILE), "and the only file stays");
     assert!(text == made, "the fixture is what the relay makes today (run write_the_files_round5_fixture after an intended change)");
 }

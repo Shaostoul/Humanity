@@ -11,14 +11,15 @@
 //!   everything that names an item by its file (W5, tickets, Keep, Remove) works as before.
 //! - [`Storage::media_item_holding`]: the item a file is on, as its own file or an added one.
 //! - [`Storage::attach_media_file`], [`Storage::detach_media_file`]: adding a file or the cover
-//!   (the uploader's own upload, waiting on the Media shelf) and taking one off.
+//!   (the uploader's own upload, waiting on the Media shelf) and taking one off, the item's own
+//!   included while it keeps a file (its next file then becomes its own, BUG-250).
 //! - [`Storage::edit_media`]: the words, category, labels, licence and permission. A licence is
 //!   the rights holder's grant, so only the uploader changes it or the game tick (decision 1);
 //!   each choice is kept with the signature over it (`media_licence_log`, decision 8).
 //! - [`Storage::add_media_view`], [`Storage::add_media_download`]: the counters (who counted is
 //!   decided in memory, relay/files_counts.rs; only the numbers are written).
 
-use super::{clipped, item_by_id, kind_of, now_ms, refused, FilesError, FilesItem, Refusal, MEDIA_DESCRIPTION_MAX, MEDIA_SHELF, MEDIA_TITLE_MAX};
+use super::{clipped, item_by_id, kind_of, now_ms, refused, was_public, FilesError, FilesItem, Refusal, MEDIA_DESCRIPTION_MAX, MEDIA_SHELF, MEDIA_TITLE_MAX};
 use crate::relay::storage::Storage;
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashMap;
@@ -287,6 +288,20 @@ pub struct Attached {
     pub replaced: Option<String>,
 }
 
+/// A file taken off an item ([`Storage::detach_media_file`]): the item as it now is, the stored
+/// name of the file taken off, and whether that file stays (`kept`: an item's own file that came
+/// from chat or Shared Files, given back there) or the route deletes it (one uploaded for Media).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Detached {
+    pub item: FilesItem,
+    pub name: String,
+    pub kept: bool,
+}
+
+/// What taking off an item's only file is told (BUG-250): an item needs one.
+pub const ONLY_FILE: &str =
+    "This is the item's only file, and an item needs one. To take it away, remove the item; to swap it for another, add the new file first, then remove this one.";
+
 const MIB: i64 = 1024 * 1024;
 
 impl Storage {
@@ -475,23 +490,78 @@ impl Storage {
         })
     }
 
-    /// Take file `file_no` off item `id`: its uploader, or an admin. Never file 0, the item itself
-    /// (remove the item instead); `file_name` must be that file's stored name (W5). The file was
-    /// uploaded for Media, so its rows go; returns the item as it now is and the stored name, whose
-    /// file the route deletes.
-    pub fn detach_media_file(&self, requester: &str, is_admin: bool, id: i64, file_no: i64, file_name: &str) -> Result<(FilesItem, String), FilesError> {
+    /// Take file `file_no` off item `id`: its uploader, or an admin. `file_name` must be that file's
+    /// stored name (W5). An added file or the cover was uploaded for Media, so its rows go and the
+    /// route deletes its file.
+    ///
+    /// The item's own file (file 0) goes too, as long as the item keeps a file (BUG-250, operator
+    /// 2026-11-04: "We need to be able to remove all files and add new ones"): its first added file
+    /// becomes the item's own, named by it from now on (W5 names that one), its kind and size the
+    /// item's, so its preview and its card are chosen again from it. Every added file was uploaded
+    /// for Media, so the item is then one made for Media (`from_shelf` 2). On an item the server
+    /// keeps (A7), a next file added after the keep ends the keep (its bytes were never kept); one
+    /// that was on the item when it was kept keeps it. The old own file goes
+    /// back where it was shared from when it came from chat or Shared Files, its file kept (as
+    /// removing the item gives it back), else its row goes and the route deletes it. The item's only
+    /// file is refused ([`ONLY_FILE`]; the cover is not one of its files). Returns the item as it
+    /// now is and what the route does with the file taken off.
+    pub fn detach_media_file(&self, requester: &str, is_admin: bool, id: i64, file_no: i64, file_name: &str) -> Result<Detached, FilesError> {
         self.with_conn_mut(|conn| {
             let tx = conn.transaction()?;
-            let uploader: Option<String> =
-                tx.query_row("SELECT uploader_key FROM media_items WHERE id = ?1", params![id], |r| r.get(0)).optional()?;
-            let Some(uploader) = uploader else {
+            let found: Option<(String, String, i64)> = tx
+                .query_row("SELECT uploader_key, upload_filename, from_shelf FROM media_items WHERE id = ?1", params![id], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+                })
+                .optional()?;
+            let Some((uploader, own, from_shelf)) = found else {
                 return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader != requester && !is_admin {
                 return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can remove a file from an item.");
             }
             if file_no == 0 {
-                return refused(Refusal::Bad, "The first file is the item itself: remove the item instead.");
+                if own != file_name.trim().trim_start_matches("/uploads/") {
+                    return refused(Refusal::Conflict, OUT_OF_DATE);
+                }
+                // The next file, in the order the item lists them, becomes its own.
+                let next: Option<(i64, String, i64)> = tx
+                    .query_row(
+                        "SELECT id, upload_filename, added_at FROM media_item_files WHERE item_id = ?1 AND role = ?2 ORDER BY position, id LIMIT 1",
+                        params![id, ROLE_FILE],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )
+                    .optional()?;
+                let Some((next_no, next, added_at)) = next else {
+                    return refused(Refusal::Bad, ONLY_FILE);
+                };
+                // A kept item (A7) keeps the files that were on it when it was kept (KEPT_FILES); its
+                // own file counts as kept whatever it is. A file added after the keep, made its own,
+                // would turn bytes nobody kept into the server's, and let the content of a kept item
+                // be swapped for something no admin kept: the keep ends, until someone keeps it
+                // again. A file that was on it when it was kept keeps the keep.
+                let kept: (Option<String>, Option<i64>) =
+                    tx.query_row("SELECT kept_by, kept_at FROM media_items WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+                if kept.0.is_some() && kept.1.is_none_or(|at| added_at > at) {
+                    tx.execute("UPDATE media_items SET kept_by = NULL, kept_at = NULL WHERE id = ?1", params![id])?;
+                }
+                let size: i64 = tx
+                    .query_row("SELECT size_bytes FROM user_uploads WHERE filename = ?1 ORDER BY id LIMIT 1", params![next], |r| r.get(0))
+                    .optional()?
+                    .unwrap_or(0);
+                tx.execute(
+                    "UPDATE media_items SET upload_filename = ?1, kind = ?2, size_bytes = ?3, from_shelf = ?4 WHERE id = ?5",
+                    params![next, kind_of(&next), size, MEDIA_SHELF, id],
+                )?;
+                tx.execute("DELETE FROM media_item_files WHERE id = ?1", params![next_no])?;
+                let kept = was_public(from_shelf);
+                if kept {
+                    tx.execute("UPDATE user_uploads SET shared = ?1 WHERE filename = ?2", params![from_shelf, own])?;
+                } else {
+                    tx.execute("DELETE FROM user_uploads WHERE filename = ?1", params![own])?;
+                }
+                let item = item_by_id(&tx, id)?.ok_or(FilesError::Db(rusqlite::Error::QueryReturnedNoRows))?;
+                tx.commit()?;
+                return Ok(Detached { item, name: own, kept });
             }
             let name: Option<String> = tx
                 .query_row("SELECT upload_filename FROM media_item_files WHERE id = ?1 AND item_id = ?2", params![file_no, id], |r| r.get(0))
@@ -506,7 +576,7 @@ impl Storage {
             tx.execute("DELETE FROM user_uploads WHERE filename = ?1 AND shared = ?2", params![name, MEDIA_SHELF])?;
             let item = item_by_id(&tx, id)?.ok_or(FilesError::Db(rusqlite::Error::QueryReturnedNoRows))?;
             tx.commit()?;
-            Ok((item, name))
+            Ok(Detached { item, name, kept: false })
         })
     }
 

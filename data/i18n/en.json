@@ -3229,6 +3229,15 @@
       "server_folder_hint": "For this server's admins: the files the server reads for its plants, recipes and maps, to read and change.",
       "shared_files_empty": "No shared files yet.",
       "private_web": "In the desktop app: the HumanityOS folder and Your folders, which stay on your own computer. A website cannot look through your folders the same way in every browser."
+    },
+    "edit": {
+      "main_file_line": "{{name}}, main file, {{size}}",
+      "only_file": "{{name}} is this item's only file, and an item needs one. To take it away, remove the item. To swap it for another, add the new file first, then remove this one.",
+      "remove_main_hint": "Take it off this item. The next file becomes its main file, shown on its card and page.",
+      "remove_main_question": "Remove {{name}} from this item? {{next}} becomes its main file, shown on its card and page, and {{name}} is deleted from the server.",
+      "remove_main_question_kept": "Remove {{name}} from this item? {{next}} becomes its main file, shown on its card and page. {{name}} stays where it was shared, in its chat or in Shared files.",
+      "remove_question": "Remove {{name}} from this item? It is deleted from the server.",
+      "remove_main_kept_note": "This item is kept by the server. If {{next}} was added after it was kept, removing the main file ends that until an admin keeps it again."
     }
   },
   "hud": {
@@ -3296,5 +3305,9 @@
     "shade_hint": "Press anywhere outside the box to close it, or press Escape or Back.",
     "shade_keys_hint": "Press Escape or Back to close this box, or use its own buttons.",
     "shade_decide_hint": "This box needs an answer first: use its own buttons."
+  },
+  "model_view": {
+    "help": "{{name}}: drag to turn it, scroll to zoom, right-drag or Shift-drag to move it, double-click to start over. {{triangles}} triangles.",
+    "close_hint": "Stop showing the model here. The file stays where it is."
   }
 }

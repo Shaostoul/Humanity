@@ -38,6 +38,7 @@
 use std::collections::BTreeSet;
 
 use egui::RichText;
+use humanity_core::i18n::{t, tf};
 
 use super::api::{self, Item, ItemFile, Licences};
 use super::api_items::{edit_request, visibility_request, AttachTo, EditFields, FileRole};
@@ -416,12 +417,16 @@ pub const ABOUT_IT: &str = "About it";
 pub const WHO_CAN_SEE_IT: &str = "Who can see it";
 pub const FILES: &str = "Files";
 
-/// The files part of the edit form: each added file and the cover with Remove (file 0 is the
-/// item itself: never removed here), the uploads on their way to it, and, for the uploader, Add a
-/// file and Cover picture.
+/// The files part of the edit form: every file and the cover with Remove, the item's main file
+/// (file 0) included while it has another (BUG-250, operator 2026-11-04: "We need to be able to
+/// remove all files and add new ones": the next file then becomes the main one), and the only file
+/// saying plainly why it stays; the uploads on their way to it; and, for the uploader, Add a file
+/// and Cover picture.
 fn draw_files(ui: &mut egui::Ui, theme: &Theme, item: &Item, own: bool, uploads: &[(String, String)], renaming: &mut Option<(i64, String)>, pressed: &mut Pressed) {
     let small = widgets::ButtonSize::Small;
     let files = item_view::files_of(item);
+    // The cover is not one of its files: an item with one file keeps it.
+    let only = files.len() <= 1;
     // Each file's type first, always (widgets/file_badge.rs, 2026-10-17).
     let badge = |ui: &mut egui::Ui, name: &str| widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(name, None));
     for f in files.iter().chain(item.cover.iter()) {
@@ -451,26 +456,39 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, item: &Item, own: bool, uploads:
             }
             continue;
         }
+        let main = f.file == 0;
         ui.horizontal_wrapped(|ui| {
             badge(ui, &name);
-            if f.file == 0 {
-                widgets::body_hint(ui, theme, &format!("{name}: the item itself. To take it away, remove the item."));
+            let size = api::size_words(f.size_bytes);
+            let line = if main {
+                tf("files.edit.main_file_line", &[("name", &name), ("size", &size)])
+            } else if cover {
+                format!("{name}, cover picture, {size}")
             } else {
-                let line = if cover { format!("{name}, cover picture, {}", api::size_words(f.size_bytes)) } else { format!("{name}, {}", api::size_words(f.size_bytes)) };
-                ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_primary()));
-            }
+                format!("{name}, {size}")
+            };
+            ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_primary()));
             if widgets::Button::secondary(RENAME).size(small).tooltip(RENAME_TIP).show(ui, theme) {
                 *renaming = Some((f.file, stem_of(&name, &stored_ending(&f.filename))));
             }
             // A picture already on the item can be its cover (operator: "I uploaded a png with the
             // blend and STL files but, I can't seem to assign it as the preview photo").
-            if own && !cover && f.file != 0 && f.kind == "picture" && widgets::Button::secondary(USE_AS_COVER).size(small).tooltip(USE_AS_COVER_TIP).show(ui, theme) {
+            if own && !cover && !main && f.kind == "picture" && widgets::Button::secondary(USE_AS_COVER).size(small).tooltip(USE_AS_COVER_TIP).show(ui, theme) {
                 pressed.cover = Some(f.clone());
             }
-            if f.file != 0 && widgets::Button::danger("Remove").size(small).tooltip("Take it off this item. It is deleted from the server.").show(ui, theme) {
+            if !(main && only)
+                && widgets::Button::danger("Remove")
+                    .size(small)
+                    .tooltip(if main { t("files.edit.remove_main_hint") } else { "Take it off this item. It is deleted from the server." })
+                    .show(ui, theme)
+            {
                 pressed.remove = Some(f.clone());
             }
         });
+        if main && only {
+            // Why the only file has no Remove, said where it is (the relay refuses it in its words too).
+            widgets::body_hint(ui, theme, &tf("files.edit.only_file", &[("name", &name)]));
+        }
     }
     for (heading, words) in uploads {
         ui.label(RichText::new(format!("{heading}: {words}")).size(theme.font_size_small).color(theme.text_secondary()));

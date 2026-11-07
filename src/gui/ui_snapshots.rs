@@ -2616,7 +2616,7 @@ fn snapshot_files_item() {
 /// description, the description, the two content labels, Public or Members only, the licence (CC BY
 /// 4.0) with the server's line for it, its warning that a Creative Commons licence cannot be taken
 /// back, and "Offer this for the game" ticked, the hosting paragraph in the server's words, the
-/// files each with Rename (the model too), Remove on the added ones and the cover, and Use as cover
+/// files each with Rename and Remove (the model too, its row "main file": BUG-250) and the cover, and Use as cover
 /// on the photo added to it, Add a file and Replace the cover picture (the form scrolls to them),
 /// then Save and Cancel at the pane's foot.
 #[test]
@@ -3347,6 +3347,47 @@ fn snapshot_model_viewer() {
     let viewer = std::cell::RefCell::new(crate::gui::model_view::Viewer::with_model("model-cube.glb", model));
     render_page_png("model_viewer", 900, 640, |ctx, theme, _state| {
         egui::CentralPanel::default().show(ctx, |ui| viewer.borrow_mut().show(ui, theme, 820.0));
+    });
+}
+
+/// The chat's 3D window (View in 3D on a model's card, gui/model_view `draw_window`) on a short
+/// window at Font Size 175%, a long file name making the line under the view wrap: Close the 3D
+/// view sits inside the window, the view given the height left (BUG-251; the operator saw the
+/// button's lower half cut off by the window's bottom edge).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_model_window() {
+    let bytes = std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/model-cube.glb")).expect("the cube fixture");
+    let model = crate::gui::model_view::load::load("model-cube.glb", &bytes).expect("reads");
+    let viewer = std::cell::RefCell::new(Some(crate::gui::model_view::Viewer::with_model("Samsung_A16_5g phone case, version 2.stl", model)));
+    render_page_png_at("chat_model_window", 1280, 720, 175.0, |ctx, theme, _state| {
+        crate::gui::model_view::draw_window(ctx, theme, &mut viewer.borrow_mut());
+    });
+}
+
+/// An item's edit form in place (2026-10-19) with ONE file left (BUG-250): its main file's row,
+/// "name, main file, size", has no Remove, and the line under it says why (an item needs one file:
+/// remove the item, or add the new file first). The two-file form is `files_edit`, its main file
+/// with Remove.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_files_edit_one_file() {
+    use crate::gui::pages::files::{self as media, edit::EditForm};
+    let mut item = media_snapshot_item(("me", "You"));
+    item.files.truncate(1);
+    item.file_count = 1;
+    render_page_png("files_edit_one_file", 1280, 1120, |ctx, theme, state| {
+        if state.files.server.is_empty() {
+            *state = media_item_state(&item, false);
+            if let Some(page) = state.files.item.as_mut() {
+                page.edit = Some(EditForm::of(&item));
+            }
+        }
+        let key = format!("{}/uploads/9_cover.png", media::tests::SERVER);
+        if state.image_cache.get_texture(&key).is_none() {
+            state.image_cache.insert_for_test(ctx, &key, &files_snapshot_png()).expect("the cover decodes");
+        }
+        media::draw(ctx, theme, state);
     });
 }
 

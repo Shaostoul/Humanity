@@ -82,7 +82,9 @@ pub(crate) enum Show {
 /// viewer's title or something Copy URL could copy.
 pub(crate) fn cache_key(state: &GuiState, item: &Item) -> String {
     if item.members_only() {
-        let h = blake3::hash(format!("{}\n{}", state.files.server, item.id).as_bytes());
+        // Its own file's stored name too: once its main file comes off (BUG-250) the next one is
+        // its picture, at the same address, and is fetched afresh rather than shown from before.
+        let h = blake3::hash(format!("{}\n{}\n{}", state.files.server, item.id, item.stored).as_bytes());
         format!("{PRIVATE_KEY_PREFIX}media-{}", &h.to_hex()[..32])
     } else {
         api::file_url(&super::base_of(state), item)

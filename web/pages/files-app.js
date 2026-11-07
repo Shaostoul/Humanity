@@ -1181,10 +1181,13 @@
     function blobFor(item) {
       const route = fileRoute(item, env.origin);
       if (!route.members || item.kind !== 'picture') return null;
+      // Its own file's stored name too: once its main file comes off (BUG-250) the next one is its
+      // picture, at the same address, and is fetched afresh rather than shown from before.
+      const file = itemFileName(item);
       let e = blobs.get(item.id);
-      if (e && e.path === route.members) return e;
+      if (e && e.path === route.members && e.file === file) return e;
       if (e) dropBlob(item.id);
-      e = { path: route.members, state: 'waiting', url: '', why: '', ctl: null };
+      e = { path: route.members, file, state: 'waiting', url: '', why: '', ctl: null };
       blobs.set(item.id, e);
       blobQueue.push({ id: item.id, e });
       pumpBlobs();
@@ -1261,7 +1264,7 @@
     const hooks = { busy: null };
     const itemView = MI.createItemView({
       // A members-only file's token: the page's own, else the one the chat lent the item window (fileToken).
-      env, h, st, els, W: FILES_WORDS, myKey, mediaOn, token: fileToken, tokenRefused, isAdmin, membersOnlyServer, blobs, blobFor, sweepBlobs, pictureSource,
+      env, h, st, els, W: FILES_WORDS, myKey, mediaOn, token: fileToken, tokenRefused, isAdmin, membersOnlyServer, blobs, blobFor, dropBlob, sweepBlobs, pictureSource,
       lib: { fileRoute, itemName, downloadName, itemFileName, labelsOf, kindWords, sizeWords, num, answerOf, jsonPost, tokenUnknown },
       go, canPush: !!hist, back: () => hist.back(),
       // The item window closes with its item (its Close, Escape, a click beside it).

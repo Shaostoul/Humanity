@@ -383,20 +383,11 @@ pub(crate) fn sync_video_sound(video: &mut Option<ChatVideo>, audio: &mut humani
     }
 }
 
-/// The window a 3D model posted in chat opens in (View in 3D on its card), with Close.
+/// The window a 3D model posted in chat opens in (View in 3D on its card), with Close: the model
+/// viewer's own window, which keeps Close inside it at every size (gui/model_view `draw_window`,
+/// BUG-251).
 pub(crate) fn draw_model_window(ctx: &egui::Context, theme: &Theme, model_view: &mut Option<crate::gui::model_view::Viewer>) {
-    let Some(viewer) = model_view.as_mut() else { return };
-    let mut open = true;
-    let mut close = false;
-    let title = viewer.name.clone();
-    widgets::dialog(ctx, theme, "chat_model_view", &title, &mut open, |ui| {
-        let width = ui.available_width().clamp(320.0, 720.0);
-        viewer.show(ui, theme, width);
-        close = widgets::Button::secondary(crate::gui::model_view::CLOSE).show(ui, theme);
-    });
-    if !open || close {
-        *model_view = None;
-    }
+    crate::gui::model_view::draw_window(ctx, theme, model_view);
 }
 
 #[cfg(test)]

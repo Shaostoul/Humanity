@@ -46,6 +46,30 @@ pub fn dialog_scrolling(
     dialog_inner(ctx, theme, id, title, open, Align2::CENTER_CENTER, Vec2::ZERO, true, content)
 }
 
+/// The most room a centred dialog's body has on this screen (width, height): the screen above the
+/// unfinished-software warning (`bottom_strip::room_above`, where dialogs are kept) less the
+/// window's frame and title bar, so a body laid out to fit it keeps the whole window on the screen
+/// and nothing at its end is cut off (the 3D model's window, BUG-251). egui holds a window's body to
+/// the screen less its title bar but not its frame, and cuts off whatever runs past the screen's
+/// edge. Worked out the way egui 0.31 lays a window out (`containers/window.rs`): this dialog's
+/// frame (a 1-point stroke and `card_padding` inside it, all round) around a title bar one heading
+/// line tall (at least a control's height) with the inner margin above and below it and the stroke
+/// under it; one line of item spacing more keeps it clear of rounding.
+pub fn body_room(ctx: &egui::Context, theme: &Theme) -> Vec2 {
+    let room = crate::gui::bottom_strip::room_above(ctx);
+    let style = ctx.style();
+    let margin = theme.card_padding.round();
+    let stroke = 1.0;
+    // A window's title is in the heading style unless it says otherwise (egui's Window::new).
+    let heading = egui::TextStyle::Heading.resolve(&style);
+    let title = ctx.fonts(|f| f.row_height(&heading)).max(style.spacing.interact_size.y);
+    // Above the body: the frame's stroke and margin, the title bar's line with a margin above and
+    // below it, and the stroke under the title bar. Below it: the margin and the stroke.
+    let above = stroke + margin + margin + title + margin + stroke;
+    let below = margin + stroke;
+    Vec2::new((room.width() - 2.0 * (stroke + margin)).max(0.0), (room.height() - above - below - style.spacing.item_spacing.y).max(0.0))
+}
+
 /// Render a themed dialog anchored to a specific position on the screen.
 pub fn dialog_anchored(
     ctx: &egui::Context,
@@ -201,6 +225,51 @@ mod tests {
         let tall = window_rect(1000.0, 2000.0);
         assert!(tall.height() <= 1000.0 && tall.min.y >= 0.0, "a 2000 px body stays on a 1000 px screen: {tall:?}");
         assert!(tall.height() >= 800.0, "using most of it before scrolling: window {:.0} px", tall.height());
+    }
+
+    /// A BODY AS TALL AS `body_room` KEEPS THE WHOLE WINDOW ON THE SCREEN (BUG-251: the 3D window's
+    /// Close button ran past the screen's edge and was cut off). On screens from 320 to 1440 points
+    /// tall, a dialog whose body takes exactly the room `body_room` gives, its last row a button,
+    /// stays inside the screen, the button inside it and nothing of it cut off.
+    ///
+    /// Seen red 2026-11-06 with `body_room` the screen less the title bar alone (egui's own
+    /// allowance for a window's body): "the window stays on the screen (512x320): [[99.0 -3.5] -
+    /// [413.0 323.5]]".
+    #[test]
+    fn a_body_as_tall_as_body_room_keeps_the_whole_window_on_the_screen() {
+        for (w, h) in [(512.0, 320.0), (800.0, 600.0), (1280.0, 720.0), (2560.0, 1440.0)] {
+            let ctx = egui::Context::default();
+            crate::gui::install_fonts(&ctx);
+            let theme = crate::gui::theme::load_theme();
+            theme.apply_to_egui(&ctx);
+            let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(w, h));
+            let mut open = true;
+            let mut out = None;
+            let mut button = egui::Rect::NOTHING;
+            for _ in 0..3 {
+                let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+                out = Some(ctx.run(input, |ctx| {
+                    let room = body_room(ctx, &theme);
+                    dialog(ctx, &theme, "room_test", "Test", &mut open, |ui| {
+                        let send = 30.0;
+                        ui.allocate_space(egui::vec2(300.0, room.y - send - ui.spacing().item_spacing.y));
+                        button = ui.add_sized(egui::vec2(120.0, send), egui::Button::new("Send")).rect;
+                    });
+                }));
+            }
+            let window = ctx.memory(|m| m.area_rect(egui::Id::new("room_test"))).expect("the window was drawn");
+            assert!(screen.expand(0.5).contains_rect(window), "the window stays on the screen ({w}x{h}): {window:?}");
+            assert!(window.expand(0.5).contains_rect(button), "its last row inside it ({w}x{h}): {button:?} in {window:?}");
+            fn has_send(s: &egui::Shape) -> bool {
+                match s {
+                    egui::Shape::Text(t) => t.galley.text() == "Send",
+                    egui::Shape::Vec(v) => v.iter().any(has_send),
+                    _ => false,
+                }
+            }
+            let seen = out.expect("ran").shapes.iter().find(|c| has_send(&c.shape)).map(|c| c.clip_rect).expect("the button's words are drawn");
+            assert!(seen.expand(0.5).contains_rect(button), "nothing of it cut off ({w}x{h}): {button:?} seen {seen:?}");
+        }
     }
 
     /// One headless frame of two dialogs, "older" (large) and "newer" (small, drawn after it, the

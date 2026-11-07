@@ -42,6 +42,16 @@ file comes from the same address the page already has for it (`ItemFile.url`: th
 public `/uploads/<name>`, or for a members-only item the members' file route with this session's
 upload token, exactly as pictures are fetched). Viewing does not count as a download.
 
+**Fitted, Close first (BUG-251, 2026-11-06).** On the desktop the viewer is fitted into the room it
+has (`Viewer::show_fit`): the line under the view and Close the 3D view are laid out first, and the
+view takes the height they leave, so Close always sits inside its panel. The chat's 3D window
+(`model_view::draw_window`) holds its body to the room a dialog has on the screen above the warning
+(`widgets::dialog::body_room`); the Files page's middle pane fits it to the pane. Held by
+`the_chat_3d_window_keeps_its_close_button_inside_it_at_every_size` and
+`the_files_3d_view_keeps_its_close_button_inside_its_pane_at_every_size` (screens of 1024x640 to
+2560x1440, Font Size 100% to 200%). The website puts Close at the top of the view, so it has no twin
+of the defect.
+
 ## Words (both apps, exactly)
 
 - Button: `View in 3D`. Tooltip: `Look at it here and turn it with the mouse. It is fetched from the server first ({size}).`

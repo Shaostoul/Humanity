@@ -16,7 +16,7 @@ use crate::relay::files::{publish_core, Folders, PublishBody, VisibilityBody};
 use crate::relay::files_edit::{files_add_in, files_remove_in, FileAddBody, FileRemoveBody};
 use crate::relay::relay::RelayState;
 use crate::relay::resumable as rr;
-use crate::relay::storage::files::{OwnedFolders, MEDIA_SHELF};
+use crate::relay::storage::files::{OwnedFolders, MEDIA_SHELF, ROLE_FILE};
 use crate::relay::storage::Storage;
 use axum::extract::{DefaultBodyLimit, Path as AxPath, Query, State};
 use axum::http::HeaderMap;
@@ -274,4 +274,99 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
     assert!(!r.dirs.members.join(&added.filename).exists(), "and deleted");
     assert_eq!(state.files.item.as_ref().map(|p| p.status.as_str()), Some(FILE_REMOVED));
     assert_eq!(page_item(&state).files.len(), 1, "the page lists the item's own file alone");
+}
+
+/// The rect of the "Remove" that belongs to the file row whose words start `row`: drawn from its
+/// top down to the top of what comes next, the words starting `next` (a narrow pane wraps a row's
+/// buttons onto a second line), if there is one.
+fn remove_on_row(out: &egui::FullOutput, row: &str, next: &str) -> Option<egui::Rect> {
+    let at = find_text(out, row).unwrap_or_else(|| panic!("the row {row:?} is drawn"));
+    let until = find_text(out, next).unwrap_or_else(|| panic!("{next:?} is drawn under it"));
+    every_exact(out, "Remove").into_iter().find(|r| r.center().y > at.top() - 1.0 && r.center().y < until.top())
+}
+
+/// THE MAIN FILE COMES OFF FROM THE EDIT FORM, ON THE REAL RELAY (BUG-250; the operator,
+/// 2026-11-04, editing his Samsung_A16_5g item: "I'm editing an upload but, I can't remove this
+/// GLB. I think it's cause it is the first item that the app uploaded. We need to be able to remove
+/// all files and add new ones"). Ann's model with a second file, in her edit form: the main file's
+/// row has Remove; the question names the file that becomes the main one; confirmed, the relay
+/// makes the second file the item's own and deletes the first; the page and the form follow (the
+/// form names the item by its new file, so its Save goes through, W5); and the file left, the only
+/// one, has no Remove and says why.
+///
+/// Seen red 2026-11-06 twice. With the main file's row as it was (no Remove on file 0): "the main
+/// file's row has Remove". With that fixed and `take_item` updating only the form's files and
+/// cover (as it did): "the form names the item by its new file / left: Some(\"1_phone.glb\") /
+/// right: Some(\"2_phone.stl\")" (its Save would then be refused as out of date).
+#[test]
+fn the_main_file_comes_off_from_the_edit_form_on_the_real_relay() {
+    let r = relay("desk_r5_main");
+    let seed = [6u8; 32];
+    let key = crate::net::identity::derive_pq_identity(&seed).expect("an identity").dilithium_hex;
+    r.state.db.join_server(&key, "Ann").unwrap();
+    r.state.db.set_role(&key, "verified").unwrap();
+    r.state.upload_tokens.try_write().expect("test setup: nobody holds the tokens").insert("tok_ann".into(), key.clone());
+
+    // Ann's model, published, and a second file added to it.
+    std::fs::write(r.dirs.waiting.join("1_phone.glb"), b"glTF").unwrap();
+    r.state.db.record_upload(&key, "1_phone.glb", 100, MEDIA_SHELF, "Samsung_A16_5g.glb", 4).unwrap();
+    let settings = r.state.db.get_server_settings().unwrap();
+    let body = PublishBody { key: key.clone(), filename: "1_phone.glb".into(), title: "Samsung A16".into(), ..Default::default() };
+    let id = publish_core(&r.state.db, &settings, &[], r.dirs.folders(), &body).expect("published").0["item"]["id"].as_i64().unwrap();
+    std::fs::write(r.dirs.waiting.join("2_phone.stl"), b"solid phone").unwrap();
+    r.state.db.record_upload(&key, "2_phone.stl", 100, MEDIA_SHELF, "phone.stl", 11).unwrap();
+    let f = r.dirs.folders();
+    r.state.db.attach_media_file(&key, id, "2_phone.stl", ROLE_FILE, 0, |members| f.place("2_phone.stl", members)).expect("test setup: a second file");
+    let item = api::Item::from_json(&crate::relay::files::item_json(&r.state.db.media_item(id).unwrap().unwrap())).expect("the relay's item");
+    assert_eq!(item.files.len(), 2, "test setup: two files");
+
+    // Her app, signed in to this relay, the item's edit form open.
+    crate::config::keep_saves_off_disk();
+    let mut state = GuiState::default();
+    state.server_url = r.base.clone();
+    state.profile_public_key = key.clone();
+    sync_server(&mut state);
+    state.files.requested = true;
+    state.upload_token = Some((r.base.clone(), "tok_ann".into()));
+    state.private_key_bytes = Some(seed.to_vec());
+    state.files.list.items = vec![item.clone()];
+    let (ctx, theme) = ctx_and_theme();
+    let page_item = |s: &GuiState| s.files.item.as_ref().and_then(|p| p.item.clone()).expect("the page's item");
+    let problem = |s: &GuiState| s.files.item.as_ref().and_then(|p| p.edit.as_ref()).map(|f| f.problem.clone()).unwrap_or_default();
+    edit::open_edit(&mut state, &item);
+
+    // 1. The main file's row has Remove, and its question names the file that becomes the main one
+    // (the form scrolled to its files part, at its end).
+    super::item_tests::scroll_details_to_end(&ctx, &theme, &mut state);
+    let out = crate::gui::pages::files::tests::settled(&ctx, &theme, &mut state);
+    let press = remove_on_row(&out, "Samsung_A16_5g.glb, main file", "phone.stl, ").expect("the main file's row has Remove");
+    click_at(&ctx, &theme, &mut state, press.center());
+    let out = crate::gui::pages::files::tests::settled(&ctx, &theme, &mut state);
+    assert!(
+        find_text(&out, "Remove Samsung_A16_5g.glb from this item? phone.stl becomes its main file").is_some(),
+        "the question names the file that becomes the main one"
+    );
+    click_top(&ctx, &theme, &mut state, "Remove the file");
+    until(&ctx, &theme, &mut state, "the remove is answered", |s| !s.files.jobs.iter().any(|(j, _)| matches!(j, Job::FileRemove { .. })));
+
+    // 2. The relay holds the second file as the item's own; the first is gone.
+    let held = r.state.db.media_item(id).unwrap().unwrap();
+    let status = state.files.item.as_ref().map(|p| p.status.clone()).unwrap_or_default();
+    assert_eq!((held.upload_filename.as_str(), held.kind.as_str()), ("2_phone.stl", "model"), "the relay holds the second file as its own ({status})");
+    assert!(!r.dirs.uploads.join("1_phone.glb").exists() && !r.dirs.waiting.join("1_phone.glb").exists(), "the first is deleted");
+    assert_eq!(status, FILE_REMOVED);
+    assert_eq!(page_item(&state).stored, "2_phone.stl", "the page shows the new main file");
+    let form_names = state.files.item.as_ref().and_then(|p| p.edit.as_ref()).map(|f| f.was.stored.clone());
+    assert_eq!(form_names.as_deref(), Some("2_phone.stl"), "the form names the item by its new file");
+
+    // 3. The only file left has no Remove, and says why.
+    super::item_tests::scroll_details_to_end(&ctx, &theme, &mut state);
+    let out = crate::gui::pages::files::tests::settled(&ctx, &theme, &mut state);
+    assert!(remove_on_row(&out, "phone.stl, main file", "phone.stl is this item's only file, and an item needs one.").is_none(), "the only file has no Remove, and says why");
+
+    // 4. Save goes through, the item named by its new file.
+    state.files.item.as_mut().and_then(|p| p.edit.as_mut()).expect("the edit form").title = "Phone".into();
+    click_top(&ctx, &theme, &mut state, edit::SAVE);
+    until(&ctx, &theme, &mut state, "the edit is answered", |s| !saving(s, id));
+    assert_eq!(r.state.db.media_item(id).unwrap().unwrap().title, "Phone", "the relay took the edit, named by the new file ({})", problem(&state));
 }

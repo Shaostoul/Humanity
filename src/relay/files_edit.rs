@@ -14,9 +14,12 @@
 //!   Under the room lock, the file moves from the waiting folder into the item's folder (the
 //!   public one, or the members' one for a members-only item) before anything is committed. A new
 //!   cover replaces the old one, whose file goes. The uploader only. Answer: `{ok: true, item}`.
-//! - `POST /api/files/item-files/remove`: an added file or the cover taken off (never file 0). Signed
-//!   over `media_file_remove:<id>:<file number>`. The uploader or an admin. The file was uploaded
-//!   for Media, so its row and its file go. Answer: `{ok: true, item, file_removed}`.
+//! - `POST /api/files/item-files/remove`: a file or the cover taken off. Signed over
+//!   `media_file_remove:<id>:<file number>`. The uploader or an admin. A file uploaded for Media
+//!   loses its row and its file. File 0, the item's own, goes too while the item keeps a file
+//!   (BUG-250, 2026-11-06): the next file becomes the item's own, and an own file from chat or
+//!   Shared Files goes back there with its file kept. Answer: `{ok: true, item, file_removed,
+//!   file_kept}`.
 //!
 //! - `POST /api/files/item-files/rename` (2026-10-17): a file's shown name changed, the item's own
 //!   (file 0) included; it keeps its stored ending. Signed over
@@ -252,13 +255,23 @@ pub async fn files_remove_in(state: &RelayState, folders: Folders<'_>, b: &FileR
     files_remove_core(&state.db, folders, b)
 }
 
-/// The proven `b.key`, the item's uploader or an admin, takes file `b.file` off item `b.id`: never
-/// file 0 (the item itself: remove the item instead), and only when `b.file_name` is that file's
-/// stored name (W5). The file was uploaded for Media, so its row goes and its file is deleted.
+/// The proven `b.key`, the item's uploader or an admin, takes file `b.file` off item `b.id`, only
+/// when `b.file_name` is that file's stored name (W5). File 0, the item's own, goes too while the
+/// item keeps a file: its next file becomes its own (BUG-250, storage/files_items.rs
+/// `detach_media_file`). A file uploaded for Media is deleted; an item's own file that came from
+/// chat or Shared Files goes back there and keeps its file, at its public address (`file_kept`).
 pub fn files_remove_core(db: &Storage, folders: Folders, b: &FileRemoveBody) -> Answer {
-    let (item, name) = db.detach_media_file(&b.key, is_admin(db, &b.key), b.id, b.file, &b.file_name).map_err(refusal)?;
-    let file_removed = folders.delete(&name);
-    Ok(Json(json!({ "ok": true, "item": item_json(&item), "file_removed": file_removed })))
+    let gone = db.detach_media_file(&b.key, is_admin(db, &b.key), b.id, b.file, &b.file_name).map_err(refusal)?;
+    let file_removed = if gone.kept {
+        // Back at its public address, where its chat message or the Shared Files list finds it.
+        if let Err(e) = folders.place(&gone.name, false) {
+            tracing::error!("Files: an item's own file taken off could not go back to the public folder ({e})");
+        }
+        false
+    } else {
+        folders.delete(&gone.name)
+    };
+    Ok(Json(json!({ "ok": true, "item": item_json(&gone.item), "file_removed": file_removed, "file_kept": gone.kept })))
 }
 
 /// `POST /api/files/item-files/rename`'s body: the item, its own file name, the file's number, that

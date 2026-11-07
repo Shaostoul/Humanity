@@ -385,13 +385,17 @@ fn files_are_added_and_taken_off_by_the_rules() {
     assert_eq!(why(attach(&db, "ann", item.id, "40_over.bin", ROLE_FILE)), (Refusal::Bad, "An item can hold at most 20 files.".to_string()));
     assert_eq!(db.media_item(item.id).unwrap().unwrap().file_count, 20);
 
-    assert_eq!(why(db.detach_media_file("ann", false, item.id, 0, "1_main.png")).0, Refusal::Bad, "file 0 is the item");
+    assert_eq!(why(db.detach_media_file("ann", false, item.id, 0, "4_c.zip")), (Refusal::Conflict, OUT_OF_DATE.to_string()), "file 0 named by another file's name");
     assert_eq!(why(db.detach_media_file("bea", false, item.id, file_no, "4_c.zip")).0, Refusal::NotAllowed);
     assert_eq!(why(db.detach_media_file("ann", false, item.id, file_no, "10_f.bin")), (Refusal::Conflict, OUT_OF_DATE.to_string()));
     assert_eq!(why(db.detach_media_file("ann", false, item.id, 9999, "4_c.zip")).0, Refusal::NotFound);
-    let (after, name) = db.detach_media_file("op", true, item.id, file_no, "4_c.zip").unwrap();
-    assert_eq!((name.as_str(), after.file_count), ("4_c.zip", 19), "an admin takes a file off");
+    let gone = db.detach_media_file("op", true, item.id, file_no, "4_c.zip").unwrap();
+    assert_eq!((gone.name.as_str(), gone.kept, gone.item.file_count), ("4_c.zip", false, 19), "an admin takes a file off");
     assert_eq!(count(&db, "SELECT COUNT(*) FROM user_uploads WHERE filename = '4_c.zip'"), 0, "its rows go");
+    // BUG-250: the item's own file goes too, and the next one becomes its own.
+    let gone = db.detach_media_file("ann", false, item.id, 0, "1_main.png").unwrap();
+    assert_eq!((gone.name.as_str(), gone.kept, gone.item.upload_filename.as_str(), gone.item.kind.as_str()), ("1_main.png", false, "10_f.bin", "file"), "the next file is the item's own");
+    assert_eq!(count(&db, "SELECT COUNT(*) FROM user_uploads WHERE filename = '1_main.png'"), 0, "the old own file's row goes");
     assert!(db.add_media_view(item.id).unwrap() && !db.add_media_view(999).unwrap());
     assert_eq!(db.media_item(item.id).unwrap().unwrap().views, 1);
 }

@@ -339,3 +339,98 @@ fn a_model_over_the_limit_is_never_fetched() {
     assert!(!fetched.load(std::sync::atomic::Ordering::SeqCst), "nothing is fetched");
     assert!(texts(&out).iter().any(|t| t.starts_with("This model is 300") && t.ends_with("Download it to see it.")), "{:?}", texts(&out));
 }
+
+/// The button whose words are exactly `words`, as painted: its frame's rect (the smallest painted
+/// rect around its words) and the rect it is clipped to (what of it can be seen). None when no
+/// such words are drawn.
+pub(crate) fn painted_button(out: &egui::FullOutput, words: &str) -> Option<(egui::Rect, egui::Rect)> {
+    fn each(s: &egui::Shape, clip: egui::Rect, f: &mut impl FnMut(&egui::Shape, egui::Rect)) {
+        match s {
+            egui::Shape::Vec(v) => v.iter().for_each(|x| each(x, clip, f)),
+            other => f(other, clip),
+        }
+    }
+    let mut text = None;
+    for c in &out.shapes {
+        each(&c.shape, c.clip_rect, &mut |s, _| {
+            if let egui::Shape::Text(t) = s {
+                if t.galley.text() == words {
+                    text = Some(t.galley.rect.translate(t.pos.to_vec2()));
+                }
+            }
+        });
+    }
+    let text = text?;
+    let mut frame: Option<(egui::Rect, egui::Rect)> = None;
+    for c in &out.shapes {
+        each(&c.shape, c.clip_rect, &mut |s, clip| {
+            if let egui::Shape::Rect(r) = s {
+                let fits = r.rect.contains_rect(text) && r.rect.height() < text.height() * 3.0;
+                if fits && frame.is_none_or(|(f, _)| r.rect.area() < f.area()) {
+                    frame = Some((r.rect, clip));
+                }
+            }
+        });
+    }
+    frame
+}
+
+/// Screens a window can be (in pixels) and Font Sizes, as the tests of BUG-251 go through them: the
+/// screen in points at each, and the Font Size.
+pub(crate) fn screens_and_font_sizes() -> Vec<(egui::Vec2, f32)> {
+    let mut all = Vec::new();
+    for px in [egui::vec2(1024.0, 640.0), egui::vec2(1280.0, 720.0), egui::vec2(1920.0, 1080.0), egui::vec2(2560.0, 1440.0)] {
+        for percent in [100.0, 125.0, 150.0, 175.0, 200.0] {
+            all.push((px, percent));
+        }
+    }
+    all
+}
+
+/// Whether `inner` lies inside `outer` (to half a point: rects are snapped to pixels).
+pub(crate) fn inside(outer: egui::Rect, inner: egui::Rect) -> bool {
+    outer.expand(0.5).contains_rect(inner)
+}
+
+/// THE CHAT'S 3D WINDOW KEEPS ITS CLOSE BUTTON INSIDE IT AT EVERY WINDOW SIZE AND FONT SIZE (BUG-251;
+/// the operator, 2026-11-04, a .stl opened in 3D from a chat file card in v0.1548.0, the button's
+/// lower half cut off by the panel's bottom edge: "The close 3D view button at the bottom left of
+/// the file upload is pushed offscreen a bit."). The window as the chat draws it
+/// (`chat::draw_model_window`), with a model whose long name makes the help line wrap, on screens
+/// of 1024x640 to 2560x1440 at Font Size 100% to 200% (the screen in points is the pixels over the
+/// Font Size): the window stays on the screen, and Close the 3D view lies inside the window and
+/// inside what of it can be seen.
+///
+/// Seen red 2026-11-06 with the window as it was (the view sized from the width alone, the help
+/// line and the button after it): "Close the 3D view lies inside its window, on the screen" at
+/// 1024x640 at 175% and 200% and 1280x720 at 200%, e.g. "1024x640 at 175%: screen [[0.0 0.0] -
+/// [585.1 365.7]], window [[80.0 -6.5] - [505.2 372.2]], button [[87.0 337.0] - [237.0 365.2]],
+/// seen [[84.0 35.0] - [501.2 365.7]]" (the window past both edges of the screen).
+#[test]
+fn the_chat_3d_window_keeps_its_close_button_inside_it_at_every_size() {
+    let model = load::load("cube.glb", &fixture("model-cube.glb")).unwrap();
+    let mut bad = Vec::new();
+    for (px, percent) in screens_and_font_sizes() {
+        let ctx = egui::Context::default();
+        crate::gui::install_fonts(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        ctx.all_styles_mut(|s| s.animation_time = 0.0);
+        let mut view = Some(Viewer::with_model("Samsung_A16_5g phone case, version 2.stl", model.clone()));
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, px / (percent / 100.0));
+        let mut size = percent;
+        let mut out = None;
+        for _ in 0..4 {
+            let mut input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+            crate::gui::font_size::before_frame(&ctx, &mut input, &mut size);
+            out = Some(ctx.run(input, |ctx| crate::gui::pages::chat::draw_model_window(ctx, &theme, &mut view)));
+        }
+        let out = out.expect("four passes ran");
+        let window = ctx.memory(|m| m.area_rect(egui::Id::new("chat_model_view"))).expect("the window is drawn");
+        let (button, seen) = painted_button(&out, CLOSE).expect("Close the 3D view is drawn");
+        if !(inside(screen, window) && inside(window, button) && inside(seen, button)) {
+            bad.push(format!("{}x{} at {percent}%: screen {screen:?}, window {window:?}, button {button:?}, seen {seen:?}", px.x, px.y));
+        }
+    }
+    assert!(bad.is_empty(), "Close the 3D view lies inside its window, on the screen:\n{}", bad.join("\n"));
+}
