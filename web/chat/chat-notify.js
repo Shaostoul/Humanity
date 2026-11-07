@@ -281,6 +281,8 @@
     var s = R && id ? (R.file().sounds || []).find(function (x) { return x.id === id; }) : null;
     var chime = function () { if (typeof playNotificationChime === 'function') playNotificationChime(); };
     if (!s || typeof Audio !== 'function') { chime(); return; }
+    // At the person's level for it (Settings > Audio & Video > Sound levels, /shared/sound-levels.js).
+    if (window.HosSoundLevels) { window.HosSoundLevels.play(s.path, s.id, null, chime); return; }
     try {
       var a = new Audio('/assets/' + s.path);
       a.volume = 0.6;

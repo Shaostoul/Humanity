@@ -2732,6 +2732,20 @@ they play, voices levelled per person, a slider per kind, an opt-in mic level) a
   `data/sounds.toml`
 - Web: `web/shared/video-volume.js`, Settings > Audio & Video > Videos (`web/pages/settings.html`)
 
+### Sound levels: each shipped sound's own level (2026-11-06)
+Settings > Audio > "Sound levels": every sound the game ships (each `data/sounds.toml` entry whose
+file exists), grouped by kind, each with its name by key (`sound_names.<id>`), a level slider from
+-24 to +12 dB (0 = as the app plays it, on top of "Even out loudness"), Play (heard at that level
+through the game's own one-shot path) and Reset; a search box and Reset all. The levels are the
+person's, kept in `config.json` (`sound_levels`, by sound id); `data/sounds.toml` stays the shipped
+default. The website plays only notification sounds, so its mirror lists just those (kept in the
+browser, `hos_sound_levels`; a level past the `<audio>` element's volume goes through Web Audio).
+- Native: `crates/humanity-core/src/audio/sound_levels.rs` (the held levels), `audio/mod.rs`
+  (`one_shot` and `preview` apply them; `AudioManager::without_device` for tests on kira's mock
+  backend), `src/gui/pages/settings/sound_levels.rs` (the section and `play_preview`), `src/config.rs`
+- Web: `web/shared/sound-levels.js`, Settings > Audio & Video > Sound levels (`web/pages/settings.html`),
+  `web/chat/chat-notify.js` (`playSound` plays at the level)
+
 ### Free instrument library: the core set, downloadable packs, Settings > Audio > Instruments (2026-11-06)
 Real recorded instruments for the live score (`docs/design/music.md` rung 6, section 23), all public
 domain (CC0): FreePats' Upright Piano KW, VCSL, VSCO 2 Community Edition and Karoryfer's Black And

@@ -12,6 +12,11 @@
 # entry's `category`, else its bus's), and `volume` then says how far under that it sits (0.25 is
 # 12 dB under). With the setting off, `volume` scales the file as it was recorded. A changed sound
 # file needs `just loudness` (data/audio/measured_loudness.toml; a lib test catches a stale one).
+#
+# These are the shipped defaults. A person turns any one sound up or down in Settings > Audio >
+# "Sound levels" (-24 to +12 dB on top of all this, kept in their own config by the sound's id);
+# nothing writes this file. A shipped sound (its file exists) needs its name in plain words:
+# `sound_names.<id>` in data/i18n/en.json (a lib test fails without it).
 
 # =============================================================================
 #  AMBIENT (15), looping environmental soundscapes

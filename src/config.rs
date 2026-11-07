@@ -362,6 +362,13 @@ pub struct AppConfig {
     /// The volume the last video was left at, 0 to 1, kept across restarts.
     #[serde(default = "default_full_volume")]
     pub video_last_volume: f32,
+    /// The person's own level for each sound, in dB by the sound's id in data/sounds.toml
+    /// (Settings > Audio > Sound levels, 2026-11-06): -24 to +12, on top of "Even out loudness".
+    /// Only what the person changed is kept (a sound not listed plays at 0 dB); data/sounds.toml
+    /// is never written. Held at run time by humanity_core::audio::sound_levels, read from it at
+    /// save and given to it at load.
+    #[serde(default)]
+    pub sound_levels: std::collections::BTreeMap<String, f32>,
     #[serde(default)]
     pub fullscreen: bool,
     /// How the window is presented (v0.454). Supersedes the legacy `fullscreen` bool.
@@ -1591,6 +1598,7 @@ impl AppConfig {
             video_start: humanity_core::audio::start_volume::choice().0.as_str().to_string(),
             video_start_volume: humanity_core::audio::start_volume::choice().1,
             video_last_volume: humanity_core::audio::start_volume::last_volume(),
+            sound_levels: humanity_core::audio::sound_levels::all(),
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             nav_display_mode: state.nav_display_mode,
@@ -1804,6 +1812,8 @@ impl AppConfig {
         // The video start volume is held process-wide (every player asks it when a video starts).
         humanity_core::audio::start_volume::set_choice(humanity_core::audio::start_volume::StartAt::from_config_str(&self.video_start), self.video_start_volume);
         humanity_core::audio::start_volume::restore_last_volume(self.video_last_volume);
+        // The person's sound levels too: the mixer asks for a sound's level as it starts.
+        humanity_core::audio::sound_levels::restore(&self.sound_levels);
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.nav_display_mode = self.nav_display_mode;
@@ -2492,6 +2502,35 @@ mod play_mode_tests {
         assert!(!after.settings.even_loudness, "Even out loudness off stays off");
         let old: AppConfig = serde_json::from_str(r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#).unwrap();
         assert_eq!((old.video_start.as_str(), old.video_start_volume, old.video_last_volume, old.even_loudness), ("last", 1.0, 1.0, true), "an older config starts at the defaults");
+    }
+
+    /// A SOUND'S LEVEL SURVIVES A RESTART (Settings > Audio > Sound levels, 2026-11-06): the click
+    /// turned down 6 dB and the crash up 3.5, written by `from_gui_state` and given back by
+    /// `apply_to_gui_state` through the JSON a restart reads, come back as they were, and the click
+    /// then plays at exactly 10^(-6/20) of its default; a sound never set is not in the file and
+    /// plays at its default; a config that predates the setting starts with no levels. On this
+    /// thread's own levels (`use_on_this_thread`), so no other test sees them. RED first
+    /// (2026-11-06): with `sound_levels` written as an empty map instead of the held levels, "the
+    /// level is in the config file" failed (no sound's level in it at all).
+    #[test]
+    fn a_sound_level_survives_a_restart() {
+        use humanity_core::audio::sound_levels as sl;
+        sl::use_on_this_thread(Default::default());
+        sl::set_level("sfx.button_click", -6.0);
+        sl::set_level("sfx.crash", 3.5);
+        let saved = serde_json::to_string_pretty(&AppConfig::from_gui_state(&crate::gui::GuiState::default())).unwrap();
+        assert!(saved.contains("\"sfx.button_click\": -6.0"), "the level is in the config file: {}", saved.lines().filter(|l| l.contains("sfx.")).collect::<Vec<_>>().join(" "));
+        assert!(!saved.contains("sfx.door_open"), "a sound never set is not in the file");
+        // The restart: no levels held, then the config read.
+        sl::use_on_this_thread(Default::default());
+        let mut after = crate::gui::GuiState::default();
+        serde_json::from_str::<AppConfig>(&saved).expect("the config loads").apply_to_gui_state(&mut after);
+        assert_eq!(sl::level_db("sfx.button_click"), -6.0, "the click's level survives a restart");
+        assert_eq!(sl::level_db("sfx.crash"), 3.5, "and the crash's");
+        assert!((20.0 * sl::gain("sfx.button_click").log10() + 6.0).abs() < 1e-9, "and moves the click by exactly -6 dB");
+        assert_eq!(sl::gain("sfx.door_open"), 1.0, "a sound never set plays at its default");
+        let old: AppConfig = serde_json::from_str(r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#).unwrap();
+        assert!(old.sound_levels.is_empty(), "an older config starts with no levels");
     }
 
     /// The readable-web opt-in (2026-09-16) must default OFF for a config

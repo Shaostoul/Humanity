@@ -854,7 +854,10 @@
        chat's use of it and the server row's Mute bell. Both before chat-ui.js, whose
        notifyNewMessage and renderServerList ask them. -->
   <script src="/shared/notify-rules.js?v=3"></script>
-  <script src="/chat/chat-notify.js?v=6"></script>
+  <!-- sound-levels.js (2026-11-06): each notification sound at the person's level for it, set in
+       Settings > Audio & Video > Sound levels; chat-notify.js plays through it. -->
+  <script src="/shared/sound-levels.js?v=1"></script>
+  <script src="/chat/chat-notify.js?v=7"></script>
   <script src="/chat/chat-ui.js?v=28"></script>
   <script src="/chat/chat-voice-rooms.js?v=10"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>

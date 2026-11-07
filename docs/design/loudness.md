@@ -1,8 +1,9 @@
 # Loudness: every sound at the loudness of its kind, and the volume a video starts at
 
 Written 2026-11-06. Rung 1 is built (the meter, the kinds as data, the shipped sounds levelled,
-the Settings switch); the video start-volume choices are built in both apps. The later rungs are
-planned here in full, so the first one is a rung of the real thing.
+the Settings switch); the video start-volume choices are built in both apps; each shipped sound's
+own level in Settings is built (section 3). The later rungs are planned here in full, so the first
+one is a rung of the real thing.
 
 ## What was asked
 
@@ -143,7 +144,8 @@ come up and the loudest come down: the grass footstep (the planet's) about +4.7 
 about +8.9 dB (its file is among the quietest interface sounds, -28.9 LUFS), the success chime about
 -11 dB; the item pickup (-33.9 LUFS) is held by the 12 dB raise limit, 1.9 LU short of its kind.
 The authored volumes were tuned by ear against the raw files; with levelling on they mean "how far
-under the kind", and any that now sounds wrong is a one-number change in `sounds.toml`.
+under the kind", and any that now sounds wrong is a one-number change in `sounds.toml`, or, for the
+person's own ear, a slider in Settings > Audio > Sound levels (section 3).
 
 ### Mechanism, per kind of source
 
@@ -174,7 +176,8 @@ under the kind", and any that now sounds wrong is a one-number change in `sounds
    people hearing someone on the website or an older app.
 4. **Per-kind sliders: rung 4.** Settings > Audio gains a slider per kind the person meets (Speech,
    Video, Notifications beside the existing Music, Sound effects and Interface), read from the kinds
-   in the data file, so a new kind brings its slider.
+   in the data file, so a new kind brings its slider. (Each single sound already has its own level,
+   section 3; a kind's slider will sit between the bus sliders and those.)
 5. **Dual modes** (CLAUDE.md, every deep system): the full mode is levelling on; the simple one is
    the switch off, every file as recorded.
 
@@ -184,9 +187,11 @@ The measured table is data. What is kept in memory obeys the Dev page's "turn of
 switch: `AudioManager`'s decoded sounds (it never asked before: BUG-257), its measurements of unlisted
 files, and the table itself: with reuse off every sound is decoded and measured on the spot each
 time it plays and the table is not trusted, so a stale table is ruled in or out with one click
-(`levels::level_for`'s `trust_data`; `with_reuse_off_a_sound_is_measured_not_looked_up`). The live
-levellers of rungs 2 and 3 keep only the state of the sound playing (its meter and gain), which is
-not reuse; anything they keep across sources will obey the switch.
+(`levels::level_for`'s `trust_data`; `with_reuse_off_a_sound_is_measured_not_looked_up`). With reuse
+off the mixer also reads the sound catalogue and the targets again at every play (`read_data`), and
+Settings > Audio > Sound levels reads its list of shipped sounds every frame instead of every 5 s.
+The live levellers of rungs 2 and 3 keep only the state of the sound playing (its meter and gain),
+which is not reuse; anything they keep across sources will obey the switch.
 
 ### Budget
 
@@ -226,3 +231,67 @@ not reuse; anything they keep across sources will obey the switch.
   distribution": the AES's own copy refused automated reading (HTTP 403), so its numbers here are a
   secondary reading, https://productionadvice.co.uk/td1008/ (dated 2021-10-01): speech -18 LUFS,
   music -16. Read the AES text before quoting them as the AES's.
+
+## 3. Each sound's own level (built)
+
+The operator, 2026-11-06, told that levelling made the button click about 9 dB louder and that it
+is "a one-number change in the sound data":
+
+> "Can we edit them in the settings menu?"
+
+**Settings > Audio > Sound levels** lists every sound the game ships (each entry of
+`data/sounds.toml` whose file exists; a catalogue entry with no file plays nothing), grouped by its
+kind (the kinds above, by their names in the person's words), each with its name by key
+(`sound_names.<id>` in `data/i18n/en.json`), a level slider from -24 dB to +12 dB, the level in dB,
+Play and Reset; above them a search box and Reset all, and a line saying how the levels sit on top
+of "Even out loudness".
+
+- **What 0 dB is.** The sound as the app plays it on its own: with levelling on, at its kind's
+  target times its authored volume; with it off, its file as recorded times that volume. A level
+  moves it from there by exactly its dB (an amplitude of 10^(dB/20)), and Master and the bus slider
+  apply on top. -24 is the floor (close to silent beside everything else; the bus slider silences
+  outright), +12 the ceiling, the same limit levelling puts on its own raise; levels are kept on a
+  half-dB grid so the number shown is the number kept. Raising past a file's headroom can clip:
+  the hint says so, and the person's own choice is not second-guessed.
+- **Where it is kept.** The person's config (`AppConfig::sound_levels`, by sound id: a sound that
+  later points at another file keeps its level), only the sounds changed (Reset takes the entry
+  out). `data/sounds.toml` is never written: it stays the shipped default for everyone.
+  At run time the levels are held by `humanity_core::audio::sound_levels`, the way the video start
+  volume is: the config gives them at load and reads them at save, Settings edits them.
+- **Where it is applied.** `AudioManager::one_shot` (and `play_music`, `play_spatial`) multiplies
+  the sound's level in as the sound starts, after levelling; the catalogue tells the mixer which id
+  a file is (`SoundCatalog::ids_by_sound_key`, read with the targets). One lock and one lookup per
+  sound started, nothing on the audio thread. A file no catalogue entry names (a video, a mod's
+  sound) has no level.
+- **Play.** The row's Play asks the engine for the sound; the engine's audio stage
+  (`sound_levels::play_preview`) plays it through `AudioManager::preview`, which is the game's own
+  one-shot of it (its authored volume, its bus, its loudness level, the level as it is now) and
+  stops the previous preview first. So a slider just moved is heard at once, exactly as the game
+  will play it. The bus is the catalogue's: the interface volume for an interface sound, the music
+  volume for music, the sound-effects volume otherwise. (Seam noted 2026-11-06: the game's queue of
+  sounds raised by actions, `pending_sfx`, plays every sound on the sound-effects bus whatever its
+  catalogue bus, so a notification chime or the item pickup, both `bus = "ui"`, follow the
+  sound-effects volume in play and the interface volume in Play. Only the click goes through
+  `play_sound_bus(.., "ui")`.)
+- **The list** is read from the data and the disk when the section is drawn, again every 5 s while
+  it is open, and every frame with the Dev page's "turn off all reuse" switch off.
+- **The website** plays no game sounds: its only sounds are the notification sounds of
+  `data/notifications/notifications.json` (`sounds`: the chat message chime, the alert, and the
+  bright, soft and pop sounds a person can pick for a kind of notice), played by the chat
+  (`chat-notify.js` `playSound`) and Settings' Play buttons, always at 60% volume before this. So
+  its Settings > Audio & Video > Sound levels lists those five, named as the notification sound
+  picker names them, with the same slider, Play, Reset and Reset all, and says every other sound is
+  set in the desktop app (`web/shared/sound-levels.js`). Kept in the browser (`hos_sound_levels`),
+  separate from the desktop app's. 0 dB there is the website's 60%; a browser's `<audio>` volume
+  stops at 1.0 (+4.4 dB over 60%), so a level past it goes through Web Audio (the element at full
+  volume into a `GainNode`; the files are on the page's own server, so Web Audio may read them),
+  and plays at full volume where Web Audio is missing. The website does not level loudness (rung 2
+  plans it), so its 0 dB is the file as recorded at 60%.
+- Tests (each seen red first): `audio::sound_levels::tests` (a level moves a sound by exactly its
+  dB, Reset returns it to its default, a sound with no level plays at its default, the config's
+  levels come back clean), `audio::sound_level_tests` (through `one_shot` and `preview` on kira's
+  mock backend, `AudioManager::without_device`: with levelling on and off), `config::tests::
+  a_sound_level_survives_a_restart`, `gui::pages::settings::sound_levels::tests` (the list shows
+  only shipped files and every one has its name; a drawn press on the click's slider then its Play
+  previews at -24 dB through the engine's half; Reset and Reset all as drawn; the search), and
+  `scripts/tests/sound-levels-web.test.js`.

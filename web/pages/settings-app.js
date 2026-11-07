@@ -1250,6 +1250,8 @@ function renderSoundRows() {
     play.addEventListener('click', function () {
       var s = (notifFile.sounds || []).find(function (x) { return x.id === current; });
       if (!s || typeof Audio !== 'function') return;
+      // At its level (Audio & Video > Sound levels), as the chat plays it.
+      if (window.HosSoundLevels) { window.HosSoundLevels.play(s.path, s.id); return; }
       try { var a = new Audio('/assets/' + s.path); a.volume = 0.6; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) { /* this browser cannot play it */ }
     });
     row.appendChild(play);
@@ -1364,9 +1366,29 @@ window.addEventListener('hos-wip-mute', renderWipMuteRow);
 if (typeof fetch === 'function') {
   fetch('/data/notifications/notifications.json', { cache: 'no-cache' })
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (j) { notifFile = j; if (j && window.HosNotifyRules) window.HosNotifyRules.use(j); renderMutedList(); renderSoundRows(); })
+    .then(function (j) { notifFile = j; if (j && window.HosNotifyRules) window.HosNotifyRules.use(j); renderMutedList(); renderSoundRows(); renderSoundLevels(); })
     .catch(function () { renderMutedList(); });
 }
+
+// ── Audio & Video > Sound levels (2026-11-06; the desktop's Settings > Audio > Sound levels) ──
+// The website plays only the notification sounds, so those are the rows: notifications.json's
+// `sounds`, each with its level, Play and Reset (/shared/sound-levels.js draws them and keeps the
+// levels in this browser, where the chat's chat-notify.js reads them). Reset all under them.
+var redrawSoundLevels = null;
+function renderSoundLevels() {
+  var box = document.getElementById('sound-levels-list');
+  if (!box || !window.HosSoundLevels || !notifFile) return;
+  redrawSoundLevels = window.HosSoundLevels.render(box, notifFile.sounds || [], notifT);
+}
+(function () {
+  var all = document.getElementById('sound-levels-reset-all');
+  if (!all) return;
+  all.addEventListener('click', function () {
+    if (!window.HosSoundLevels) return;
+    window.HosSoundLevels.resetAll(localStorage);
+    if (redrawSoundLevels) redrawSoundLevels();
+  });
+})();
 renderAllowList();
 // The chat in another tab muted or unmuted something, or changed the always-allow list: show it.
 window.addEventListener('storage', function (e) {

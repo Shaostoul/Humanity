@@ -1167,6 +1167,27 @@ fn snapshot_chat_muted_server() {
     });
 }
 
+// Settings > Audio > Sound levels (2026-11-06, settings/sound_levels.rs): every shipped sound by
+// kind, the button click turned down 6 dB and the crash up 3.5, so a set level, its words and its
+// Reset show beside rows at 0 dB.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_sound_levels() {
+    use humanity_core::audio::sound_levels as sl;
+    sl::use_on_this_thread(Default::default());
+    sl::set_level("sfx.button_click", -6.0);
+    sl::set_level("sfx.crash", 3.5);
+    let repo = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
+    let section = std::sync::Mutex::new(crate::gui::pages::settings::sound_levels::SoundLevelsUi::reading(repo.join("data"), repo.join("assets")));
+    render_page_png("sound_levels", 960, 1500, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            let hint = state.settings.hint_display;
+            let mut s = section.lock().unwrap();
+            crate::gui::pages::settings::sound_levels::draw(ui, theme, &mut s, hint, theme.info());
+        });
+    });
+}
+
 // Settings > Privacy (BUG-235, 2026-11-03): the tier chooser, the two switches each with what it
 // hides, then what everyone on a server you use can always see; then Files in messages, Calls and
 // voice rooms, and Read websites. No "Profile Visible to Others" toggle: it hid nothing.

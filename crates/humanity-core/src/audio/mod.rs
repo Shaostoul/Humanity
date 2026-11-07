@@ -11,6 +11,8 @@ pub mod loudness;
 pub mod levels;
 /// What volume a new video starts at (Settings > Audio, 2026-11-06).
 pub mod start_volume;
+/// The person's own level for each shipped sound (Settings > Audio > Sound levels, 2026-11-06).
+pub mod sound_levels;
 
 #[cfg(feature = "native")]
 pub mod sounds;
@@ -19,9 +21,14 @@ pub mod sounds;
 use std::collections::HashMap;
 
 /// Manages all audio playback via kira.
+///
+/// `B` is kira's backend: the sound card (`kira::DefaultBackend`, the default, what the app always
+/// uses) or, for tests on a machine with no sound card, kira's mock backend
+/// ([`AudioManager::without_device`]), which takes every sound and plays none, so a test can check
+/// what a sound WOULD play at through the very functions the app calls.
 #[cfg(feature = "native")]
-pub struct AudioManager {
-    manager: kira::AudioManager,
+pub struct AudioManager<B: kira::backend::Backend = kira::DefaultBackend> {
+    manager: kira::AudioManager<B>,
     /// Decoded sound data by path, kept while reuse is on (the Dev page's switch: off, every play
     /// decodes its file again).
     sound_cache: HashMap<String, kira::sound::static_sound::StaticSoundData>,
@@ -31,9 +38,13 @@ pub struct AudioManager {
     /// "Even out loudness" (Settings > Audio, on by default): each sound played at its kind's
     /// loudness (`levels`).
     even_loudness: bool,
-    /// The targets and measurements, read from `data_dir` the first time a sound plays with the
-    /// setting on (None after that only when the targets could not be read: nothing is levelled).
+    /// The targets and measurements, read from `data_dir` the first time a sound plays (None after
+    /// that only when the targets could not be read: nothing is levelled).
     levels: Option<levels::LoudnessLevels>,
+    /// Each catalogued sound file's id (`sfx.button_click`) by [`levels::sound_key`], read with the
+    /// levels: the person's own level for a sound ([`sound_levels`]) is kept by its id.
+    ids: HashMap<String, String>,
+    /// Whether `levels` and `ids` were read (with reuse off they are read again at every play).
     levels_read: bool,
     /// Where the data folder is (the app's "data" beside it; tests point at the repo's).
     data_dir: std::path::PathBuf,
@@ -48,6 +59,9 @@ pub struct AudioManager {
     /// `sfx_volume`, so a user can quiet clicks without silencing footsteps
     /// and machines. Default 1.0.
     ui_volume: f64,
+    /// The sound Settings > Audio > Sound levels' Play started last, stopped when the next starts
+    /// (so a long sound previewed twice does not play twice over itself).
+    preview_handle: Option<kira::sound::static_sound::StaticSoundHandle>,
 }
 
 #[cfg(feature = "native")]
@@ -65,13 +79,33 @@ impl AudioManager {
             kira::AudioManagerSettings::default(),
         )
         .map_err(|e| format!("audio device init failed: {e}"))?;
+        Ok(Self::with_manager(manager))
+    }
+}
 
-        Ok(Self {
+#[cfg(feature = "native")]
+impl AudioManager<kira::backend::mock::MockBackend> {
+    /// An audio manager on kira's mock backend: no sound card is opened and nothing is heard, but
+    /// every sound is decoded, levelled and handed to the mixer exactly as the app's would be. For
+    /// tests (they run on machines with no sound card, and must never make a sound): what
+    /// `one_shot` and `preview` answer is what the app plays at. The app never builds one.
+    pub fn without_device() -> Self {
+        let manager = kira::AudioManager::<kira::backend::mock::MockBackend>::new(kira::AudioManagerSettings::default())
+            .expect("kira's mock backend opens no device and cannot fail");
+        Self::with_manager(manager)
+    }
+}
+
+#[cfg(feature = "native")]
+impl<B: kira::backend::Backend> AudioManager<B> {
+    fn with_manager(manager: kira::AudioManager<B>) -> Self {
+        Self {
             manager,
             sound_cache: HashMap::new(),
             measured_cache: HashMap::new(),
             even_loudness: true,
             levels: None,
+            ids: HashMap::new(),
             levels_read: false,
             data_dir: std::path::PathBuf::from("data"),
             music_handle: None,
@@ -79,7 +113,8 @@ impl AudioManager {
             music_volume: 0.7,
             sfx_volume: 1.0,
             ui_volume: 1.0,
-        })
+            preview_handle: None,
+        }
     }
 
     /// Play a one-shot sound effect.
@@ -116,18 +151,65 @@ impl AudioManager {
 
     /// The decoded sound at `path` and the amplitude a one-shot of it plays at on `bus` with its
     /// authored volume `vol`: master x bus x volume x its loudness level ([`Self::level_for`], 1.0
-    /// with "Even out loudness" off). One function, so what is played and what a test checks are
-    /// the same number.
+    /// with "Even out loudness" off) x the person's own level for it ([`Self::persons_level`],
+    /// Settings > Audio > Sound levels). One function, so what is played and what a test checks
+    /// are the same number. The "ui" bus is the interface volume, "music" the music volume, any
+    /// other the sound-effects volume.
     pub fn one_shot(&mut self, path: &str, vol: f64, bus: &str) -> Result<(kira::sound::static_sound::StaticSoundData, f64), String> {
-        let bus_gain = if bus == "ui" {
-            self.ui_volume
-        } else {
-            self.sfx_volume
+        let bus_gain = match bus {
+            "ui" => self.ui_volume,
+            "music" => self.music_volume,
+            _ => self.sfx_volume,
         };
         let data = self.load_sound(path)?;
+        self.read_data();
         let vol = vol.clamp(0.0, 2.0);
         let level = self.level_for(path, &data, vol);
-        Ok((data, self.master_volume * bus_gain * vol * level))
+        let persons = self.persons_level(path);
+        Ok((data, self.master_volume * bus_gain * vol * level * persons))
+    }
+
+    /// Play the catalogued sound at `path` once, the way Settings > Audio > Sound levels' Play
+    /// does: the one-shot it is in the game ([`Self::one_shot`]: its authored volume `vol`, its
+    /// `bus`, its loudness level and the person's level for it as it is NOW, so a slider just
+    /// moved is heard at once), after stopping the sound the last Play started. The amplitude it
+    /// plays at, for the tests.
+    pub fn preview(&mut self, path: &str, vol: f64, bus: &str) -> Result<f64, String> {
+        if let Some(mut last) = self.preview_handle.take() {
+            last.stop(kira::Tween::default());
+        }
+        let (data, amplitude) = self.one_shot(path, vol, bus)?;
+        let settings = kira::sound::static_sound::StaticSoundSettings::default().volume(decibels(amplitude));
+        let handle = self.manager.play(data.with_settings(settings)).map_err(|e| format!("Play error: {e}"))?;
+        self.preview_handle = Some(handle);
+        Ok(amplitude)
+    }
+
+    /// The person's own level for the sound at `path` as an amplitude (Settings > Audio > Sound
+    /// levels, [`sound_levels`]): the catalogue says which sound id the file is, and a file no
+    /// catalogue entry names (a mod's, a video's) has no level, 1.0.
+    fn persons_level(&self, path: &str) -> f64 {
+        self.ids.get(&levels::sound_key(path)).map_or(1.0, |id| sound_levels::gain(id))
+    }
+
+    /// Read the sound catalogue and the loudness data from `data_dir`: each sound file's kind and
+    /// id, the targets and the measurements. Once, the first time a sound plays; with the Dev
+    /// page's "turn off all reuse" switch off, at every play, so a data file changed on disk is
+    /// heard at once (CLAUDE.md, the reuse rule).
+    fn read_data(&mut self) {
+        if self.levels_read && crate::reuse::enabled() {
+            return;
+        }
+        self.levels_read = true;
+        let catalog = sounds::SoundCatalog::load(&self.data_dir);
+        self.ids = catalog.ids_by_sound_key();
+        match levels::LoudnessLevels::load(&self.data_dir, catalog.loudness_sources()) {
+            Ok(l) => self.levels = Some(l),
+            Err(e) => {
+                self.levels = None;
+                log::warn!("[Audio] Even out loudness is off for this run: {e}");
+            }
+        }
     }
 
     /// "Even out loudness" on or off (Settings > Audio; the engine sends it every frame). Applies to
@@ -151,18 +233,10 @@ impl AudioManager {
     /// The loudness level of the sound at `path` (decoded as `data`, played at authored `volume`):
     /// 1.0 with "Even out loudness" off; else the gain to its kind's loudness (`levels`), from the
     /// measured data, or, for a file the data does not list or with reuse off, from measuring `data`
-    /// now. The targets are read the first time this is asked with the setting on.
+    /// now. The caller has read the data ([`Self::read_data`]).
     fn level_for(&mut self, path: &str, data: &kira::sound::static_sound::StaticSoundData, volume: f64) -> f64 {
         if !self.even_loudness {
             return 1.0;
-        }
-        if !self.levels_read {
-            self.levels_read = true;
-            let catalog = sounds::SoundCatalog::load(&self.data_dir);
-            match levels::LoudnessLevels::load(&self.data_dir, catalog.loudness_sources()) {
-                Ok(l) => self.levels = Some(l),
-                Err(e) => log::warn!("[Audio] Even out loudness is off for this run: {e}"),
-            }
         }
         let reuse = crate::reuse::enabled();
         if !reuse {
@@ -186,8 +260,9 @@ impl AudioManager {
     pub fn play_music(&mut self, path: &str, volume: f64) -> Result<(), String> {
         self.stop_music();
         let data = self.load_sound(path)?;
+        self.read_data();
         let level = self.level_for(path, &data, volume);
-        let effective_vol = self.master_volume * self.music_volume * volume * level;
+        let effective_vol = self.master_volume * self.music_volume * volume * level * self.persons_level(path);
         let settings = kira::sound::static_sound::StaticSoundSettings::new()
             .volume(decibels(effective_vol))
             .loop_region(..);
@@ -265,7 +340,8 @@ impl AudioManager {
         }
         let falloff = (1.0 - distance / max_distance).max(0.0) as f64;
         let data = self.load_sound(path)?;
-        let vol = self.master_volume * self.sfx_volume * falloff * self.level_for(path, &data, 1.0);
+        self.read_data();
+        let vol = self.master_volume * self.sfx_volume * falloff * self.level_for(path, &data, 1.0) * self.persons_level(path);
 
         // Simple stereo panning from X offset
         let pan = (dx / max_distance).clamp(-1.0, 1.0) as f64;
@@ -507,6 +583,94 @@ mod kira_edge_tests {
         audio.set_even_loudness(false);
         audio.play_sound_vol(path, 0.25).expect("plays with it off");
         println!("grass footstep at volume 0.25, master 0.5: off {off:.4}, on {on:.4} (x{want:.3}, {:+.2} dB)", 20.0 * want.log10());
+    }
+}
+
+/// The person's level for a sound (Settings > Audio > Sound levels) reaching what the mixer plays,
+/// through the app's own `one_shot` and `preview` on kira's mock backend: no sound card, no sound,
+/// the same numbers the app hands kira. Each test on its own thread's levels.
+#[cfg(all(test, feature = "native"))]
+mod sound_level_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn repo() -> &'static std::path::Path {
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
+    }
+
+    fn manager() -> AudioManager<kira::backend::mock::MockBackend> {
+        let mut audio = AudioManager::without_device();
+        audio.set_data_dir(&repo().join("data"));
+        audio.set_master_volume(0.5);
+        audio.set_ui_volume(0.8);
+        audio
+    }
+
+    fn file(rel: &str) -> String {
+        repo().join("assets").join(rel).to_str().unwrap().to_string()
+    }
+
+    fn db(ratio: f64) -> f64 {
+        20.0 * ratio.log10()
+    }
+
+    /// A LEVEL CHANGES WHAT A SOUND PLAYS AT BY EXACTLY ITS dB, on top of "Even out loudness" and
+    /// with it off: the button click (the sound the operator asked about, `sfx.button_click`,
+    /// found from its file by the catalogue) at -6 dB plays at its amplitude without a level times
+    /// 10^(-6/20), at +12 dB times 10^(12/20); the crash, given no level, plays exactly as before
+    /// (a sound missing from the levels plays at its default); and Reset puts the click back to
+    /// exactly its levelled amplitude. RED first (2026-11-06): with `one_shot` leaving the person's
+    /// level out, "even out true: -6 dB moves the click by -6 dB (0.000 dB)".
+    #[test]
+    fn a_level_moves_what_a_sound_plays_at_by_exactly_its_db() {
+        sound_levels::use_on_this_thread(BTreeMap::new());
+        let mut audio = manager();
+        let (click, crash) = (file("audio/ui/button_click.ogg"), file("audio/sfx/crash.ogg"));
+        for even in [true, false] {
+            audio.set_even_loudness(even);
+            let (_, base) = audio.one_shot(&click, 0.2, "ui").expect("the click decodes");
+            let (_, crash_base) = audio.one_shot(&crash, 0.85, "sfx").expect("the crash decodes");
+            sound_levels::set_level("sfx.button_click", -6.0);
+            let (_, down) = audio.one_shot(&click, 0.2, "ui").unwrap();
+            assert!((db(down / base) + 6.0).abs() < 1e-9, "even out {even}: -6 dB moves the click by -6 dB ({:.3} dB)", db(down / base));
+            let (_, crash_now) = audio.one_shot(&crash, 0.85, "sfx").unwrap();
+            assert_eq!(crash_now, crash_base, "even out {even}: the crash, with no level, plays at its default");
+            sound_levels::set_level("sfx.button_click", 12.0);
+            let (_, up) = audio.one_shot(&click, 0.2, "ui").unwrap();
+            assert!((db(up / base) - 12.0).abs() < 1e-9, "even out {even}: +12 dB moves the click by +12 dB ({:.3} dB)", db(up / base));
+            sound_levels::reset("sfx.button_click");
+            let (_, back) = audio.one_shot(&click, 0.2, "ui").unwrap();
+            assert_eq!(back, base, "even out {even}: Reset puts the click back to exactly its levelled amplitude");
+        }
+        // With levelling on the click's file (one of the quietest interface sounds) is raised, and
+        // the person's level sits on top of that raise, not instead of it.
+        audio.set_even_loudness(false);
+        let (_, raw) = audio.one_shot(&click, 0.2, "ui").unwrap();
+        audio.set_even_loudness(true);
+        let (_, levelled) = audio.one_shot(&click, 0.2, "ui").unwrap();
+        assert!(db(levelled / raw) > 3.0, "the click is raised by levelling: {:+.2} dB", db(levelled / raw));
+    }
+
+    /// PLAY PREVIEWS AT THE SLIDER'S LEVEL: `preview` (what Settings' Play calls) plays a sound at
+    /// exactly what the game's own one-shot of it plays at, with the level just set, on its bus
+    /// (the interface volume for the click, the music volume for a music-bus sound). RED first
+    /// (2026-11-06): with `preview` playing the file at its authored volume alone, "the preview
+    /// plays at the slider's level" failed (left: 0.2, right: 0.0250...).
+    #[test]
+    fn play_previews_at_the_sliders_level() {
+        sound_levels::use_on_this_thread(BTreeMap::new());
+        let mut audio = manager();
+        let click = file("audio/ui/button_click.ogg");
+        sound_levels::set_level("sfx.button_click", -9.5);
+        let (_, game) = audio.one_shot(&click, 0.2, "ui").unwrap();
+        let heard = audio.preview(&click, 0.2, "ui").expect("the preview plays");
+        assert_eq!(heard, game, "the preview plays at the slider's level");
+        sound_levels::set_level("sfx.button_click", 0.0);
+        let at_zero = audio.preview(&click, 0.2, "ui").unwrap();
+        assert!((db(heard / at_zero) + 9.5).abs() < 1e-9, "moving the slider moves the next Play: {:.3} dB", db(heard / at_zero));
+        audio.set_music_volume(0.25);
+        let on_music = audio.preview(&click, 0.2, "music").unwrap();
+        assert!((on_music / at_zero - 0.25 / 0.8).abs() < 1e-12, "a music-bus sound previews at the music volume");
     }
 }
 

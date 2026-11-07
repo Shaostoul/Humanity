@@ -28,6 +28,9 @@ pub(crate) mod notifications;
 /// asking for help on a new device. `recovery_net` is the work it runs on threads.
 pub mod recovery;
 pub mod recovery_net;
+/// Settings > Audio > "Sound levels" (2026-11-06): the person's own level for each shipped sound,
+/// with Play and Reset; `play_preview` is the engine's half of Play.
+pub(crate) mod sound_levels;
 #[cfg(test)]
 mod identity_tests;
 
@@ -2747,6 +2750,11 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         }
         widgets::setting_hint(ui, theme, hint, t("settings.even_loudness_hint"));
     });
+    // Sound levels (2026-11-06; settings/sound_levels.rs): each shipped sound's own level, on top
+    // of Even out loudness, with Play and Reset.
+    if sound_levels::draw_kept(ui, theme, hint, accent) {
+        state.settings_dirty = true;
+    }
     // What volume a new video starts at (2026-11-06; humanity_core::audio::start_volume): every
     // video the app plays, in chat, on the Media page and on a screen in the world.
     if video_start_choices(ui, theme, hint, accent) {

@@ -128,7 +128,9 @@ impl SoundCatalog {
             }
         }
 
-        eprintln!("[sounds] Loaded {} sound entries from sounds.toml", entries.len());
+        // A debug line, not a print: Settings > Audio > Sound levels reads the catalogue again every
+        // few seconds while it is open (every frame with reuse off).
+        log::debug!("[sounds] Loaded {} sound entries from sounds.toml", entries.len());
         Self { entries }
     }
 
@@ -174,6 +176,29 @@ impl SoundCatalog {
                 out.push((v.clone(), kind.clone()));
             }
         }
+        out
+    }
+
+    /// Each sound file the catalog names (an entry's path and its variations) with the id of the
+    /// entry naming it, by `levels::sound_key`: how `AudioManager` finds the person's level
+    /// (Settings > Audio > Sound levels, kept by id) for a file it is asked to play.
+    pub fn ids_by_sound_key(&self) -> HashMap<String, String> {
+        let mut out = HashMap::new();
+        for (id, e) in &self.entries {
+            out.insert(super::levels::sound_key(&e.path), id.clone());
+            for v in &e.variations {
+                out.insert(super::levels::sound_key(v), id.clone());
+            }
+        }
+        out
+    }
+
+    /// The entries whose sound file is shipped: the file at `assets_dir`/its path exists. What
+    /// Settings > Audio > Sound levels lists (a catalogue entry with no file plays nothing, so it
+    /// has no level to set). By id.
+    pub fn shipped(&self, assets_dir: &std::path::Path) -> Vec<(&String, &SoundEntry)> {
+        let mut out: Vec<(&String, &SoundEntry)> = self.entries.iter().filter(|(_, e)| assets_dir.join(&e.path).is_file()).collect();
+        out.sort_by(|a, b| a.0.cmp(b.0));
         out
     }
 

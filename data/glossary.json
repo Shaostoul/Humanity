@@ -1525,6 +1525,12 @@
       "category": "platform",
       "definition": "How much data one second of video or audio uses, usually written in kilobits per second (kbps). Higher is sharper and costs more bandwidth for you and for everyone watching; 3000 to 6000 kbps is a common range for 1080p."
     },
+    "decibel": {
+      "term": "Decibel (dB)",
+      "category": "gaming",
+      "definition": "The unit for how much louder or quieter one sound is than another, written dB. About 10 dB up sounds twice as loud to the ear and about 10 dB down half as loud; 0 dB on a level means no change. Settings, Audio, Sound levels turns each of the app's sounds up or down in dB.",
+      "link": "https://en.wikipedia.org/wiki/Decibel"
+    },
     "rate_limit": {
       "term": "Rate Limit",
       "category": "platform",

@@ -1699,6 +1699,22 @@
         </div>
       </div>
 
+      <!-- Sound levels (2026-11-06): the desktop app's Settings > Audio > Sound levels, for the only
+           sounds this website plays, the notification sounds of data/notifications/notifications.json.
+           Kept in this browser; /shared/sound-levels.js draws the rows and plays each sound at its
+           level (the chat's chat-notify.js too). -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="sound_levels.title">Sound levels</div>
+        <p class="section-desc" data-i18n="sound_levels.web_note">This website plays only notification sounds, so only they are listed here. 0 dB is a sound as the website plays it; turn each one up or down from there. Every other sound is set in the desktop app, under Settings, Audio, Sound levels.</p>
+        <div id="sound-levels-list"></div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span data-i18n="sound_levels.reset_all_hint">Puts every sound back to 0 dB, the level the app plays it at on its own.</span>
+          </div>
+          <button type="button" class="btn btn-secondary" id="sound-levels-reset-all" data-i18n="sound_levels.reset_all" data-i18n-tip="sound_levels.reset_all_hint" data-tip-desc="Puts every sound back to 0 dB, the level the app plays it at on its own.">Reset all</button>
+        </div>
+      </div>
+
       <div class="settings-group">
         <div class="settings-group-title">Camera</div>
         <div class="setting-row">
@@ -2377,6 +2393,8 @@
 <!-- Files kept from messages: the encrypted copies the chat keeps of private files opened. -->
 <script src="/shared/kept-files.js?v=1"></script>
 <script src="/shared/notify-rules.js"></script>
+<!-- Audio & Video > Sound levels (2026-11-06): each notification sound's level, kept in this browser. -->
+<script src="/shared/sound-levels.js?v=1"></script>
 <script src="/pages/settings-app.js"></script>
 </body>
 </html>

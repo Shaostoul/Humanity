@@ -3545,5 +3545,60 @@
     "row_away": "Playing in the video box at the top right. Scroll back here, or press Go to message, to bring it back.",
     "pip": "Float it",
     "pip_hint": "Lets the video float over other windows too, using your browser's own picture-in-picture."
+  },
+  "sound_levels": {
+    "title": "Sound levels",
+    "note": "Turn any one sound up or down. 0 [[dB|decibel]] is the sound as the app plays it on its own: with Even out loudness on, as loud as the other sounds of its kind; with it off, as its file was recorded. Your volume sliders above still work on top of these levels.",
+    "search_placeholder": "Find a sound",
+    "search_hint": "Type part of a sound's name to show only the sounds that match.",
+    "reset_all": "Reset all",
+    "reset_all_hint": "Puts every sound back to 0 dB, the level the app plays it at on its own.",
+    "level_hint": "How loud this one sound plays, from 24 dB quieter to 12 dB louder. 0 dB is how the app plays it on its own; about 10 dB down sounds half as loud. Raising a sound a lot can make it crackle.",
+    "play": "Play",
+    "play_hint": "Plays this sound once at the level set, the way you hear it in the app.",
+    "reset": "Reset",
+    "reset_hint": "Puts this sound back to 0 dB, the level the app plays it at on its own.",
+    "db": "{{db}} dB",
+    "none_found": "No sound matches your search.",
+    "none_shipped": "No sound files were found in this copy of the app.",
+    "web_note": "This website plays only notification sounds, so only they are listed here. 0 dB is a sound as the website plays it; turn each one up or down from there. Every other sound is set in the desktop app, under Settings, Audio, Sound levels.",
+    "kinds": {
+      "interface": "Interface",
+      "notification": "Notifications",
+      "sfx": "Sound effects",
+      "ambient": "Ambience",
+      "music": "Music",
+      "speech": "Voices",
+      "video": "Videos"
+    }
+  },
+  "sound_names": {
+    "sfx": {
+      "footstep_grass": "Footstep on grass",
+      "footstep_stone": "Footstep on stone",
+      "footstep_metal": "Footstep on metal",
+      "footstep_wood": "Footstep on wood",
+      "footstep_sand": "Footstep on sand",
+      "footstep_snow": "Footstep on snow",
+      "footstep_dirt": "Footstep on dirt",
+      "button_click": "Button click",
+      "button_hover": "Pointer over a button",
+      "menu_open": "Menu opens",
+      "menu_close": "Menu closes",
+      "notification": "Notification alert",
+      "error": "Something went wrong",
+      "success": "Success chime",
+      "chat_message": "Chat message",
+      "inventory_pickup": "Item picked up",
+      "inventory_drop": "Item dropped",
+      "mining_hit": "Mining hit",
+      "hammer": "Hammer",
+      "place_block": "Block placed",
+      "remove_block": "Block removed",
+      "door_open": "Door opens",
+      "door_close": "Door closes",
+      "switch_toggle": "Switch flipped",
+      "crash": "Crash"
+    }
   }
 }

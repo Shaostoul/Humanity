@@ -15547,6 +15547,9 @@ mod native_app {
                                     audio.set_ui_volume(vols.3 as f64);
                                     state.audio_volumes_applied = vols;
                                 }
+                                // Settings > Audio > Sound levels' Play (2026-11-06): the sound at
+                                // the person's level for it now, after the volumes above.
+                                crate::gui::pages::settings::sound_levels::play_preview(&state.egui_ctx, audio, &state.sound_catalog);
                                 // ── Footsteps (v0.968, audio increment 2):
                                 // a stride meter over whichever channel is
                                 // actually walking - the planet walk band
