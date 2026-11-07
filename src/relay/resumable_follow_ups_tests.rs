@@ -276,7 +276,9 @@ fn heic_photo() -> Vec<u8> {
 #[tokio::test]
 async fn a_heic_photo_is_refused_unless_the_person_keeps_everything() {
     let r = rig("resume_b4");
-    r.person("ann", "tok_ann").await;
+    // A real identity: keeping a file's details takes the person's own signed choice (BUG-260).
+    let (seed, ann) = crate::relay::upload_rules::test_identity(91);
+    r.person(&ann, "tok_ann").await;
     let heic = heic_photo();
     let id = r.start("tok_ann", file("IMG_0001.mp4", heic.len() as u64, "video/mp4")).await.unwrap();
     let refused = r.send(&id, "tok_ann", 0, &heic).await;
@@ -284,23 +286,28 @@ async fn a_heic_photo_is_refused_unless_the_person_keeps_everything() {
     assert_eq!((refused.status(), refused.words()), (StatusCode::UNPROCESSABLE_ENTITY, crate::relay::upload_rules::HEIF_REFUSED.to_string()));
     assert!(r.session(&id).is_none(), "its session goes");
 
-    let keep = |name: &str, len: usize, ct: &str| StartBody { keep_metadata: Some(1), ..file(name, len as u64, ct) };
-    let id = r.start("tok_ann", keep("IMG_0001.mp4", heic.len(), "video/mp4")).await.unwrap();
+    let keep = |name: &str, bytes: &[u8], ct: &str| StartBody {
+        keep_metadata: Some(1),
+        blake3: Some(crate::relay::upload_rules::blake3_hex(bytes)),
+        keep: Some(crate::relay::upload_rules::test_keep(&seed, &ann, bytes)),
+        ..file(name, bytes.len() as u64, ct)
+    };
+    let id = r.start("tok_ann", keep("IMG_0001.mp4", &heic, "video/mp4")).await.unwrap();
     let done = r.send(&id, "tok_ann", 0, &heic).await.expect("kept by choice, the HEIC is stored");
     assert_eq!(std::fs::read(r.waiting.join(done["filename"].as_str().unwrap())).unwrap(), heic);
 
     let video = phone_video();
-    let id = r.start("tok_ann", keep("walk.mp4", video.len(), "video/mp4")).await.unwrap();
+    let id = r.start("tok_ann", keep("walk.mp4", &video, "video/mp4")).await.unwrap();
     let done = r.send(&id, "tok_ann", 0, &video).await.unwrap();
     let stored = std::fs::read(r.waiting.join(done["filename"].as_str().unwrap())).unwrap();
     assert!(contains(&stored, b"+47.6553-122.6870"), "kept by choice, the video keeps where it was filmed");
 
     let photo = jpeg_with_location();
-    let id = r.start("tok_ann", keep("garden.jpg", photo.len(), "image/jpeg")).await.unwrap();
+    let id = r.start("tok_ann", keep("garden.jpg", &photo, "image/jpeg")).await.unwrap();
     let done = r.send(&id, "tok_ann", 0, &photo).await.unwrap();
     assert_eq!(std::fs::read(r.waiting.join(done["filename"].as_str().unwrap())).unwrap(), photo, "and the photo its EXIF");
 
-    let fake = r.start("tok_ann", keep("fake.png", 100, "image/png")).await.unwrap();
+    let fake = r.start("tok_ann", keep("fake.png", &bytes(100), "image/png")).await.unwrap();
     let refused = r.send(&fake, "tok_ann", 0, &bytes(100)).await.expect_err("not a PNG, kept or not");
     assert_eq!(refused.words(), "File content does not match claimed image type.");
 }

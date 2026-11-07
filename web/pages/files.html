@@ -74,17 +74,17 @@
 <script src="/shared/warnings.js?v=3"></script>
 <script src="/shared/pq-relay-auth.js?v=4"></script>
 <!-- The page's own signed-in connection: the upload token and the server's settings. -->
-<script src="/shared/relay-session.js?v=2"></script>
+<script src="/shared/relay-session.js?v=3"></script>
 <!-- Report on a Media tile: the words a report signs and the reasons' help (context `media`). -->
 <script src="/shared/report.js?v=4"></script>
 <!-- Every file is cleaned on this device before it goes up (2026-10-11, docs/design/files-showcase.md,
      part 1): where it was taken and which camera took it are removed, unless the person turns off
      "Remove location and camera details". upload-clean.js after strip-metadata.js. -->
 <script src="/shared/strip-metadata.js?v=1"></script>
-<script src="/shared/upload-clean.js?v=1"></script>
+<script src="/shared/upload-clean.js?v=2"></script>
 <!-- Add to Files's resumable upload (pieces, Pause and Resume, carrying on after a drop); since
      round 5 it also attaches an upload to an item instead of publishing it. -->
-<script src="/pages/files-upload.js?v=4"></script>
+<script src="/pages/files-upload.js?v=5"></script>
 <!-- An item's own page and its Edit form (round 5, lane 2A): blake3.js hashes the edit's text,
      which its signature names; files-edit.js before files-item.js, both before files-app.js. -->
 <script src="/shared/blake3.js?v=2"></script>
@@ -118,7 +118,7 @@
 <script src="/shared/upload-window.js?v=4"></script>
 <!-- Add to Files (the form, its uploads, publishing and "Also post in chat"), in its own file since
      2026-10-17; files-app.js makes it, so it loads first. -->
-<script src="/pages/files-add.js?v=3"></script>
+<script src="/pages/files-add.js?v=4"></script>
 <!-- Sizes, a person's share and the server's file space in words, in its own file since 2026-10-20;
      files-app.js reads them at once, so it loads first. -->
 <script src="/pages/files-space.js?v=1"></script>
@@ -127,7 +127,7 @@
      server's data folder (admins only) is the data browser that was at /files (markdown.js draws its .md files). All
      before files-app.js, which shows them. -->
 <script src="/shared/markdown.js"></script>
-<script src="/pages/shared-files-upload.js?v=2"></script>
+<script src="/pages/shared-files-upload.js?v=3"></script>
 <!-- The words by key (data/i18n/en.json), here at once: the places' names, hints and groups
      (2026-11-03) are asked for while the page builds (web/shared/i18n.js says why both, in this
      order). -->

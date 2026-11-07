@@ -190,6 +190,85 @@ impl Storage {
         }
     }
 
+    /// Many messages left at once (the retention sweep, an admin's channel clear; BUG-256,
+    /// 2026-11-06): `departed` is each one's (author, words), read before the delete. Forget each
+    /// file they linked that is its author's own chat file (shelf 0, never an `.enc`) and that no
+    /// remaining message links, and answer the names, for the caller to delete them from disk.
+    /// Called after the messages' rows are gone. Batch-shaped for a sweep of thousands: the
+    /// candidates are gathered first, the remaining messages that link any upload are read in ONE
+    /// pass (not one search per file), and each candidate costs one keyed delete.
+    pub fn forget_chat_files_of_deleted_messages(&self, departed: &[(String, String)]) -> Result<Vec<String>, rusqlite::Error> {
+        // name -> the authors whose departed messages linked it.
+        let mut candidates: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+        for (author, words) in departed {
+            for name in upload_names_in(words) {
+                if !super::files::bare_name(&name) || name.to_ascii_lowercase().ends_with(".enc") {
+                    continue;
+                }
+                let authors = candidates.entry(name).or_default();
+                if !authors.contains(author) {
+                    authors.push(author.clone());
+                }
+            }
+        }
+        if candidates.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.with_conn(|conn| {
+            // One pass over the remaining messages that link any upload at all.
+            {
+                let mut stmt = conn.prepare("SELECT content FROM messages WHERE instr(content, '/uploads/') > 0")?;
+                let mut rows = stmt.query([])?;
+                while let Some(row) = rows.next()? {
+                    let words: String = row.get(0)?;
+                    // A link to `name`, or to anything whose name starts with it, keeps it: the
+                    // same rule as the one-message delete's `instr(content, '/uploads/<name>')`.
+                    for linked in upload_names_in(&words) {
+                        candidates.retain(|name, _| !linked.starts_with(name.as_str()));
+                    }
+                    if candidates.is_empty() {
+                        break;
+                    }
+                }
+            }
+            let mut gone = Vec::new();
+            for (name, authors) in &candidates {
+                for author in authors {
+                    let n = conn.execute(
+                        "DELETE FROM user_uploads WHERE filename = ?1 AND public_key = ?2 AND shared = 0",
+                        params![name, author],
+                    )?;
+                    if n > 0 && !gone.contains(name) {
+                        gone.push(name.clone());
+                    }
+                }
+            }
+            Ok(gone)
+        })
+    }
+
+    /// Many messages left at once: delete the chat files only they linked
+    /// ([`Self::forget_chat_files_of_deleted_messages`]), rows and files, each video's poster
+    /// picture with its file. How many files went. A failure is logged, never fatal: the messages
+    /// are gone either way.
+    pub fn delete_files_of_deleted_messages_in(&self, departed: &[(String, String)], folders: super::files::Folders) -> usize {
+        match self.forget_chat_files_of_deleted_messages(departed) {
+            Ok(gone) => {
+                for name in &gone {
+                    folders.delete(name);
+                }
+                if !gone.is_empty() {
+                    tracing::info!("Messages removed: deleted {} chat file(s) only they linked", gone.len());
+                }
+                gone.len()
+            }
+            Err(e) => {
+                tracing::error!("Messages removed, but their chat files could not be looked up: {e}");
+                0
+            }
+        }
+    }
+
     /// Get the number of uploads for a user (all kinds).
     pub fn get_upload_count(&self, public_key: &str) -> Result<i64, rusqlite::Error> {
         self.with_conn(|conn| {

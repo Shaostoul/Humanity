@@ -28,10 +28,18 @@
 //!   signed word on the group is a `group_join_v1` (2026-10-09): nobody is put in a
 //!   group without asking to be. A `remove` needs no such consent.
 //!
-//! ### `group_msg_v1` — a group message (Phase 2; spec'd here, NOT yet projected)
+//! ### `group_msg_v1` — a group message (Phase 2, projected into `p2p_group_messages`)
 //! - `object_type = "group_msg_v1"`, `references = [ group_id ]`
-//! - `payload_encoding = "xchacha20poly1305_v1"`, `payload` = ciphertext under the
-//!   current epoch group key. Author must be an active roster member to be accepted.
+//! - `payload_encoding` = the default `cbor_canonical_v1`; `payload` = canonical CBOR
+//!   `{epoch, nonce, ct}`, where `ct` is AES-256-GCM under that epoch's group key
+//!   (`src/net/group_e2ee.rs`, `web/shared/pq-object.js`; the table in
+//!   docs/reference/cryptography.md, "P2P group messages"). Until 2026-11-06 this line named
+//!   XChaCha20-Poly1305, which the code never used. Author must be an active roster member to be
+//!   accepted.
+//! - What this relay can READ of a group (2026-11-06, docs/BUGS.md BUG-261, open): its name
+//!   (`group_v1` payload, `p2p_groups.name`), its member list (the roster, and the fingerprints
+//!   an epoch key object names) and each message's author and time
+//!   (`p2p_group_messages.author_fp`, `created_at`). Only what is said is sealed.
 //!
 //! ### Connection ticket (the invite — NOT a relay URL, NOT stored here)
 //! A signed blob (QR / clipboard): `{ group_id, group_name, admit_pubkey,

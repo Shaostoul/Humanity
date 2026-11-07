@@ -1204,6 +1204,11 @@ function openSocket(opts) {
 
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
+  // My own copy of a message (and every other `dm_put` to my own mailbox but
+  // the notes that pair with nothing) leaves a random 20 s to 2 min later, so
+  // it never lands beside the recipient's copy on the server (BUG-259,
+  // shared/self-mail.js). Copies still waiting go out on this socket.
+  if (typeof hosSelfMail !== 'undefined') hosSelfMail.attach(ws, () => myKey);
 
   ws.onopen = () => {
     reconnectDelay = 1000;
@@ -1940,6 +1945,10 @@ async function handleMessage(msg) {
         localStorage.setItem(ERASED_FLAG, erasedKind);
       } catch (e) {}
       identityConfirmed = false;
+      // The erase emptied this identity's mailbox here, the marker holding its last number
+      // included: read it from the beginning after a sign-up again (BUG-259's review,
+      // chat-dm-store.js resetReadPosition), or the same day's new mail would sit below it.
+      if (window.hosDmStore && typeof hosDmStore.resetReadPosition === 'function') hosDmStore.resetReadPosition();
       endCallBeforeLeaving();
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       setStatus('disconnected', erasedKind === 'unfinished' ? 'Erase not finished'

@@ -13,8 +13,9 @@ fn look_of(name: &str) -> Result<Look, String> {
 }
 
 /// What may be sent: a checked file always; a file that could not be checked only as "Send anyway"
-/// to a private conversation, never to a public place, and never under the protected setup (a DM
-/// included); kept by choice (the switch off) it goes anywhere as it is; nothing before the look.
+/// (to a private conversation, and since 2026-11-06 to a public place too, BUG-260: there it goes as
+/// it is with the signed choice), never under the protected setup (a DM included); kept by choice
+/// (the switch off) it goes anywhere as it is; nothing before the look.
 /// Seen red 2026-10-11 with `verdict` ignoring the protected setup: "the protected setup sends no
 /// unchecked file, not even to a DM".
 #[test]
@@ -25,7 +26,7 @@ fn what_may_be_sent() {
     let v = |look, remove, private, protected| verdict(Some(look), remove, private, protected);
     assert_eq!(v(&fine, true, false, false), Verdict { can_send: true, anyway: false });
     assert_eq!(v(&broken, true, true, false), Verdict { can_send: true, anyway: true }, "a DM: Send anyway");
-    assert_eq!(v(&broken, true, false, false), Verdict { can_send: false, anyway: false }, "a public place: not sent");
+    assert_eq!(v(&broken, true, false, false), Verdict { can_send: true, anyway: true }, "a public place: Send anyway (BUG-260)");
     assert_eq!(v(&broken, true, true, true), Verdict { can_send: false, anyway: false }, "the protected setup sends no unchecked file, not even to a DM");
     assert_eq!(v(&broken, false, false, false), Verdict { can_send: true, anyway: false }, "kept by choice it goes as it is");
     assert_eq!(verdict(None, true, true, false), Verdict { can_send: false, anyway: false }, "nothing before the look");

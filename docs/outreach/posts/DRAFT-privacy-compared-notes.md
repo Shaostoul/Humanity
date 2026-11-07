@@ -39,6 +39,9 @@ words). No em dashes.
    "A gap we found while checking this page", and add to "What is still coming" a line beside the
    other fix: "**Fixed on <date>:** the order in which the server stores sealed envelopes no longer
    pairs a message with the sender's own copy." Check those words against the fix as it was built.
+   As built (BUG-259, 2026-11-06, A.2): the server keeps envelopes by recipient with only the day,
+   and both apps send the sender's own copy a random 20 s to 2 min after the recipient's; "<date>"
+   is the day the release carrying it went live on united-humanity.us, not the day it was written.
    If the group-metadata fix (C.2) has landed too, rewrite "Group chats show who is talking" to what
    is true then; if not, it stays.
 2. **Check the dates.** Every comparison says "as of 6 November 2026" and stays true as of that day.
@@ -114,6 +117,15 @@ own limits are in it too. [link to the long version]
    usually shows two neighbouring envelopes of the same size, one addressed to the recipient and one
    to its sender, which pairs them. The operator chose to wait for the fix before the page goes in
    (above), so the landing steps take the bullet out.
+   **Update 2026-11-06: fixed in the code (BUG-259).** The relay keeps mailbox rows by recipient
+   (WITHOUT ROWID, numbered per mailbox from the day: `src/relay/storage/dms.rs`), and both apps send
+   the sender's own copy a random 20 s to 2 min after the recipient's (`src/net/self_mail.rs`,
+   `web/shared/self-mail.js`). The page is left as written here until it lands: landing step 1 runs
+   once the release carrying the fix is live. Rows stored before it keep their old numbers until they
+   age out of the 30-day window. Still true, and in the page's other bullets or in
+   `privacy_by_architecture.md`: the server sees sender and recipient at the moment of sending, and
+   its write log and continuous backup keep write order, which on a very quiet server can still
+   suggest a pair.
 3. **Nothing here names a person or attacks anyone.** It credits the platforms that encrypt, and says
    plainly that keeping a readable copy is not a scandal. The Discord court-order story that opens
    `privacy_by_architecture.md` is left out on purpose: it is not in the dated finding, and this post
@@ -122,34 +134,46 @@ own limits are in it too. [link to the long version]
 ## B. What the source documents overclaim (so the post says the narrower thing)
 
 Checked against the code on 6 November 2026; each is for whoever next edits those documents.
+**All corrected later on 6 November 2026** (the privacy-fix wave): `privacy_by_architecture.md`
+says the narrower true thing for each, `SECURITY-CADENCE.md`'s threat model is current,
+`cryptography.md` has a "P2P group messages" row, and the code changed where it was the code that
+fell short (the mailbox order, BUG-259; a picture the server cannot clean, BUG-260). The group
+metadata is logged, not fixed (BUG-261). Each item below says what changed.
 
 - `docs/outreach/privacy_by_architecture.md`, "There is no conversation graph to reconstruct" (and
   the same in `docs/reference/cryptography.md`'s DM metadata row and `src/relay/storage/dms.rs`'s
-  header): the row-order pairing in A.2.
+  header): the row-order pairing in A.2. *Now: fixed in the code (BUG-259); all three places say
+  exactly what is true, the residuals included.*
 - Same document, "Groups run entirely on encrypted, signed data the server cannot read": what is said
   is sealed (`src/net/group_e2ee.rs`), but the relay's own tables hold each group's name in plain text
   (`p2p_groups.name`), its member list (`p2p_group_roster`), and each message's author and time
-  (`p2p_group_messages.author_fp`, `created_at`), in `src/relay/storage/mod.rs`.
+  (`p2p_group_messages.author_fp`, `created_at`), in `src/relay/storage/mod.rs`. *Now: the document
+  says so; logged as BUG-261 with its fix direction (PRIORITIES TIER 1 item 5).*
 - Same document, "every image uploaded to a HumanityOS server is stripped ... before the file ever
   touches our disk": the server's picture strip gives back the original bytes when it cannot read a
   picture's structure (`src/relay/upload_rules.rs` `finish_picture`), a person may choose to keep a
   file's details (`keep_metadata`), and a location written inside a video stream itself is not
   caught. The app cleans on the device first and refuses an unchecked file for a public place, so the
-  post says "on your own device before they leave, unless you turn that off".
+  post says "on your own device before they leave, unless you turn that off". *Now: the server
+  refuses a picture it cannot clean, and keeps one as it is only on the person's own signed "Send
+  anyway" (BUG-260); the document lists which formats are stripped, refused, or passed (GIF).*
 - Same document, the Tor onion door: it reaches the server's interface and chat, not the website
   (`docs/reference/cryptography.md`, Transport IP privacy), and united-humanity.us has none: checked
-  over SSH on 6 November 2026, no `tor` program installed and the service inactive.
+  over SSH on 6 November 2026, no `tor` program installed and the service inactive. *Now: the
+  document says both.*
 - Same document, "Certificates do not yet expire ... cannot be revoked by the server": out of date the
   other way. Friendship passes can be withdrawn since v0.1466.0 (`cert_revoke`), and by design still
-  have no end date.
+  have no end date. *Now: the document says so.*
 - Same document, "we cut that to two days": the live rotation is daily with two old files kept
   (`/etc/logrotate.d/nginx`: `daily`, `rotate 2`, read on 6 November 2026), so up to three days. The
-  post says "at most three days".
+  post says "at most three days". *Now: the document says so too.*
 - `docs/SECURITY-CADENCE.md`'s threat-model snapshot (2026-05-20) still says an operator can be made
   to hand over "who messaged whom, when"; that predates the sealed-sender mailbox of 2026-08-23.
+  *Now: brought current, with what a server can be made to hand over.*
 - `docs/reference/cryptography.md` has no row for group messages themselves (AES-256-GCM under a
   per-epoch group key sealed to each member with ML-KEM-768, `src/net/group_e2ee.rs`), and the
-  relay's `src/relay/storage/groups_p2p.rs` header still names XChaCha20-Poly1305 for them.
+  relay's `src/relay/storage/groups_p2p.rs` header still names XChaCha20-Poly1305 for them. *Now:
+  the row is in, and the header says AES-256-GCM.*
 
 ## C. "Not much else we can do to further protect users at this point?"
 
@@ -224,7 +248,7 @@ November 2026, each with its own date there).
 | 37 | HumanityOS: addresses not in the database; web server logs at most three days | `docs/admin/SELF-HOSTING.md` (Privacy); `/etc/logrotate.d/nginx` on united-humanity.us (`daily`, `rotate 2`, read 6 November 2026) | yes |
 | 38 | united-humanity.us has no Tor onion address | SSH to the server, 6 November 2026: no `tor` program, service inactive | yes |
 | 39 | At the moment of sending, the server knows the sender and the recipient key | `deposit_dm(state, my_key, to, ...)`: the put arrives on the sender's signed-in connection | yes |
-| 40 | The row-order gap | `src/relay/storage/dms.rs` (AUTOINCREMENT id), `web/chat/chat-ui.js` and `src/gui/pages/chat.rs` (the two puts back to back) | yes; the bullet comes out when the fix lands (landing step 1), so the page never ships "We are fixing it" |
+| 40 | The row-order gap, and that it is fixed in the code | Before: `src/relay/storage/dms.rs` (AUTOINCREMENT id), `web/chat/chat-ui.js` and `src/gui/pages/chat.rs` (the two puts back to back). After (BUG-259, 2026-11-06): dms.rs WITHOUT ROWID, per-mailbox numbers from the day; `src/net/self_mail.rs`, `web/shared/self-mail.js` | yes (fixed in the code 6 November 2026); the bullet comes out when the release carrying it is live (landing step 1), so the page never ships "We are fixing it" |
 | 41 | Every message carries your signature, so the recipient can prove you wrote it; reports hand over a readable copy by choice | `docs/reference/cryptography.md` (Reports row) | yes |
 | 42 | First key trusted, changes warned; comparing in person not built | `docs/design/key-cards.md` (Known limits) | yes |
 | 43 | A browser's push service sees when and how big, never the words | `docs/reference/cryptography.md` (Web Push) | yes |

@@ -45,7 +45,7 @@ impl Storage {
             Ok(n) => tracing::info!("DM mailbox: expired {n} envelope(s) past the {}-day TTL", s.dm_mailbox_ttl_days),
             Err(e) => tracing::error!("DM mailbox TTL sweep failed: {e}"),
         }
-        match self.expire_messages(s.message_retention_days) {
+        match self.expire_messages_in(s.message_retention_days, folders) {
             Ok(0) => {}
             Ok(n) => tracing::info!("Messages: expired {n} past the {}-day retention", s.message_retention_days),
             Err(e) => tracing::error!("Message retention sweep failed: {e}"),

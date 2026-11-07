@@ -5,6 +5,20 @@ use super::Storage;
 use humanity_protocol::chat_access::{PostLevel, ReadLevel};
 use rusqlite::params;
 
+/// The (author, words) of each message `select` reads, taken just before those messages are
+/// deleted, so the chat files only they linked can go with them (BUG-256). Each `select` reads only
+/// the messages that link an upload at all (`instr(content, '/uploads/') > 0`), so a clear of a
+/// whole server does not load every message's words under the writer lock. Both columns are
+/// nullable and a System message (an admin's /lockdown) has no author: read as Option, a missing
+/// one as empty, which owns no file. Reading NULL as text failed the whole sweep, for ever.
+fn departing<P: rusqlite::Params>(conn: &rusqlite::Connection, select: &str, p: P) -> Result<Vec<(String, String)>, rusqlite::Error> {
+    let mut stmt = conn.prepare(select)?;
+    let rows = stmt.query_map(p, |r| {
+        Ok((r.get::<_, Option<String>>(0)?.unwrap_or_default(), r.get::<_, Option<String>>(1)?.unwrap_or_default()))
+    })?;
+    rows.collect()
+}
+
 /// One banned user. Serialized over the WS protocol as part of
 /// `banned_list` so the server-settings admin panel can list bans
 /// and offer a per-row Unban.
@@ -741,30 +755,36 @@ impl Storage {
         })
     }
 
-    /// Delete ALL messages (admin wipe).
-    pub fn wipe_messages(&self) -> Result<usize, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let rows = conn.execute("DELETE FROM messages", [])?;
+    /// Delete ALL messages (admin wipe), and the chat files only they linked, with their poster
+    /// pictures (BUG-256, 2026-11-06: before, every file stayed at its public address after its
+    /// message was cleared, until its author's keep-N limit pushed it out).
+    pub fn wipe_messages_in(&self, folders: super::files::Folders) -> Result<usize, rusqlite::Error> {
+        let departed = self.with_conn(|conn| {
+            let departed = departing(conn, "SELECT from_key, content FROM messages WHERE instr(content, '/uploads/') > 0", [])?;
+            let n = conn.execute("DELETE FROM messages", [])?;
             // Fold the just-deleted (secure_delete-zeroed) pages out of the WAL and
             // truncate it, so a bulk wipe does not leave content in the -wal file
             // (audit 2026-06-12). Best-effort: a busy reader makes this a no-op; never
             // fail the wipe over a checkpoint hiccup.
             self.wal_truncate(conn);
-            Ok(rows)
-        })
+            Ok::<_, rusqlite::Error>((n, departed))
+        })?;
+        self.delete_files_of_deleted_messages_in(&departed.1, folders); // every channel's files
+        Ok(departed.0)
     }
 
-    /// Delete all messages in a specific channel.
-    pub fn wipe_channel_messages(&self, channel_id: &str) -> Result<usize, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let rows = conn.execute(
-                "DELETE FROM messages WHERE channel_id = ?1",
-                params![channel_id],
-            )?;
-            // See wipe_messages: truncate the WAL after a bulk delete (best-effort).
+    /// Delete all messages in a specific channel, and the chat files only they linked
+    /// ([`Self::wipe_messages_in`], BUG-256).
+    pub fn wipe_channel_messages_in(&self, channel_id: &str, folders: super::files::Folders) -> Result<usize, rusqlite::Error> {
+        let departed = self.with_conn(|conn| {
+            let departed = departing(conn, "SELECT from_key, content FROM messages WHERE channel_id = ?1 AND instr(content, '/uploads/') > 0", params![channel_id])?;
+            let n = conn.execute("DELETE FROM messages WHERE channel_id = ?1", params![channel_id])?;
+            // See wipe_messages_in: truncate the WAL after a bulk delete (best-effort).
             self.wal_truncate(conn);
-            Ok(rows)
-        })
+            Ok::<_, rusqlite::Error>((n, departed))
+        })?;
+        self.delete_files_of_deleted_messages_in(&departed.1, folders); // this channel's files
+        Ok(departed.0)
     }
 
     /// Garbage collect inactive names.
@@ -862,30 +882,31 @@ impl Storage {
     /// maximization, 2026-08-24). 0 = keep forever. Preserves pinned
     /// messages (a pin is an explicit "keep this"). secure_delete zeroes
     /// the freed pages; the caller/loop truncates the WAL. Returns rows
-    /// deleted.
-    pub fn expire_messages(&self, days: i64) -> Result<usize, rusqlite::Error> {
+    /// deleted. The chat files only they linked go too, with their poster
+    /// pictures, from `folders` (BUG-256, 2026-11-06), in one batch.
+    pub fn expire_messages_in(&self, days: i64, folders: super::files::Folders) -> Result<usize, rusqlite::Error> {
         if days <= 0 {
             return Ok(0);
         }
         let cutoff_ms = super::now_millis().saturating_sub((days as u64) * 86_400 * 1000) as i64;
-        self.with_conn(|conn| {
-            // Preserve pinned messages: a pin is an explicit "keep this".
-            // Pins are keyed (from_key, original_timestamp), not id.
-            let n = conn.execute(
-                "DELETE FROM messages
-                 WHERE timestamp < ?1
+        // Preserve pinned messages: a pin is an explicit "keep this".
+        // Pins are keyed (from_key, original_timestamp), not id.
+        const EXPIRED: &str = "timestamp < ?1
                    AND NOT EXISTS (
                      SELECT 1 FROM pinned_messages p
                      WHERE p.from_key = messages.from_key
                        AND p.original_timestamp = messages.timestamp
-                   )",
-                rusqlite::params![cutoff_ms],
-            )?;
+                   )";
+        let departed = self.with_conn(|conn| {
+            let departed = departing(conn, &format!("SELECT from_key, content FROM messages WHERE {EXPIRED} AND instr(content, '/uploads/') > 0"), rusqlite::params![cutoff_ms])?;
+            let n = conn.execute(&format!("DELETE FROM messages WHERE {EXPIRED}"), rusqlite::params![cutoff_ms])?;
             if n > 0 {
                 self.wal_truncate(conn);
             }
-            Ok(n)
-        })
+            Ok::<_, rusqlite::Error>((n, departed))
+        })?;
+        self.delete_files_of_deleted_messages_in(&departed.1, folders); // the expired messages' files
+        Ok(departed.0)
     }
 
     /// Get total message count.
@@ -1147,6 +1168,11 @@ mod channel_message_tests {
         Storage::open_temp("chanmsg")
     }
 
+    /// A folder of the test's own, deleted when it drops.
+    fn temp(tag: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(tag)
+    }
+
     /// Build a minimal valid Chat message for a channel.
     fn chat(from: &str, content: &str, timestamp: u64, channel: &str) -> RelayMessage {
         RelayMessage::Chat {
@@ -1173,6 +1199,31 @@ mod channel_message_tests {
     /// Store a chat message in a channel and read it back, ordered oldest→newest.
     /// `load_channel_messages` must also inject the DB row id as `message_id`
     /// (clients rely on it to correlate `message_deleted` events).
+    /// A System message (an admin's /lockdown, `broadcast_and_store`) is stored with no author
+    /// (`from_key` NULL). The sweep and both clears read each departing message's author and words
+    /// for its files (BUG-256); reading NULL as text made every one of them fail on that row, for
+    /// ever, since the row that stopped the sweep could never be swept. Both survive it now: the
+    /// sweep removes a backdated System row, and a clear of the main channel goes through one.
+    ///
+    /// Seen red 2026-11-06 against `departing` as it was (both columns read as String, and every
+    /// departing message read): "the sweep removes it" failed (it returned Err on the System row).
+    #[test]
+    fn expiry_and_wipes_survive_a_message_with_no_author() {
+        let db = fresh_db();
+        // The test's own folders, never the relay's real data/uploads (deleted when they drop).
+        let (up, mem, res, wait) = (temp("sysrow_up"), temp("sysrow_mem"), temp("sysrow_res"), temp("sysrow_wait"));
+        let folders = super::super::files::Folders { uploads: &up, members: &mem, resume: &res, waiting: &wait };
+        db.store_message(&RelayMessage::System { message: "Lockdown is on.".into() }).unwrap();
+        let old = super::super::now_millis() as i64 - 40 * 86_400_000;
+        db.with_conn(|c| c.execute("UPDATE messages SET timestamp = ?1 WHERE msg_type = 'system'", rusqlite::params![old])).unwrap();
+        assert_eq!(db.expire_messages_in(30, folders).expect("the sweep removes it"), 1, "the old System row is swept");
+        db.store_message(&RelayMessage::System { message: "Lockdown is off.".into() }).unwrap();
+        let cleared = db.wipe_channel_messages_in(humanity_protocol::chat_access::MAIN_CHANNEL, folders).expect("the clear goes through");
+        assert_eq!(cleared, 1);
+        db.store_message(&RelayMessage::System { message: "Again.".into() }).unwrap();
+        assert_eq!(db.wipe_messages_in(folders).expect("so does clearing everything"), 1);
+    }
+
     /// Message retention (2026-08-24): expire_messages drops public
     /// messages older than the window but PRESERVES pinned ones, and
     /// 0 = keep forever.
@@ -1187,10 +1238,12 @@ mod channel_message_tests {
         db.store_message_in_channel(&chat("carol", "recent", fresh_ts, "global"), "global").unwrap();
         db.pin_message("global", "bob", "bob", "ancient-but-pinned", old_ts + 1, "admin").unwrap();
         // 0 = keep forever: nothing expires.
-        assert_eq!(db.expire_messages(0).unwrap(), 0);
+        let (up, mem, res, wait) = (temp("window_up"), temp("window_mem"), temp("window_res"), temp("window_wait"));
+        let folders = super::super::files::Folders { uploads: &up, members: &mem, resume: &res, waiting: &wait };
+        assert_eq!(db.expire_messages_in(0, folders).unwrap(), 0);
         assert_eq!(db.message_count().unwrap(), 3);
         // 30-day window: the un-pinned ancient message goes; pinned + recent stay.
-        let removed = db.expire_messages(30).unwrap();
+        let removed = db.expire_messages_in(30, folders).unwrap();
         assert_eq!(removed, 1, "only the un-pinned 40-day-old message expires");
         assert_eq!(db.message_count().unwrap(), 2);
     }

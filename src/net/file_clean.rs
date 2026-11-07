@@ -86,10 +86,14 @@ fn clean_boxes(bytes: &mut [u8]) -> Cleaned {
 pub fn clean_bytes(mut bytes: Vec<u8>, name: &str) -> (Vec<u8>, Cleaned) {
     let kind = describe_metadata::sniff_kind(&bytes);
     if let Some(ct) = picture_type(kind) {
-        // The picture strip falls back to the original bytes when it cannot walk a picture; the
-        // describe walks it the same way and says so (`complete`).
+        // A picture counts as checked only when the describe walked it AND the strip did (the
+        // relay's own `try_strip_image_metadata`, which refuses what it cannot walk since
+        // 2026-11-06, BUG-260): so a file this app sends to a public place as cleaned is one the
+        // server takes. One the strip cannot walk goes on as it came, marked unchecked.
         let walked = describe_metadata::describe(&bytes, name).complete;
-        let out = pictures::strip_image_metadata(ct, &bytes);
+        let Some(out) = pictures::try_strip_image_metadata(ct, &bytes) else {
+            return (bytes, Cleaned { changed: false, unchecked: true });
+        };
         let changed = out != bytes;
         return (out, Cleaned { changed, unchecked: !walked });
     }

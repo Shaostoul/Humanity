@@ -387,6 +387,13 @@
     if (c.heif && x.where !== 'private') return { action: 'send', file: c.original, keepMetadata: false, unchecked: false, words: null, canKeep: false };
     const why = c.reason || WORDS.unreadable;
     if (protectedOn) return { action: 'refuse', file: null, keepMetadata: false, unchecked: false, words: why + ' ' + WORDS.protectedRefused, canKeep: false };
+    // The chat asks (2026-11-06, BUG-260; the operator: "can we have an option to send or
+    // refuse?"): a file for a public room that could not be cleaned is the person's to decide,
+    // "Don't send" first. On "Send anyway" it goes exactly as it is, with their signed choice to
+    // keep its details (keepChoice below); the server stores nothing of the kind without it.
+    if (x.where !== 'private' && x.canAsk) {
+      return { action: 'ask', file: c.original, keepMetadata: true, unchecked: false, canKeep: false, words: askWords(c.kind) };
+    }
     if (x.where !== 'private') {
       return {
         action: 'refuse', file: null, keepMetadata: false, unchecked: false, canKeep: true,
@@ -414,10 +421,69 @@
     return false;
   }
 
+  // ── Could not be cleaned: the question, and the signed choice to send anyway (BUG-260) ──
+
+  /** A word by its key (data/i18n/en.json), or the key itself where no words are loaded. */
+  const T = (k) => (root.i18n && typeof root.i18n.t === 'function' ? root.i18n.t(k) : k);
+
+  /** The question for a file of `kind` (strip-metadata.js words) that could not be cleaned. */
+  function askWords(kind) {
+    return T(kind === 'mp4' || kind === 'webm' ? 'upload_keep.question_video' : 'upload_keep.question_picture');
+  }
+
+  /** The domain the choice to keep a file's hidden details is signed under (the relay's KEEP_DOMAIN). */
+  const KEEP_DOMAIN = 'hum/upload-keep/v1';
+  /** An upload's answer that means "its hidden details could not be removed" (the relay's CANNOT_CLEAN). */
+  const CANNOT_CLEAN_STATUS = 422;
+  /** The form part that carries the choice, before the file's (the relay's KEEP_FIELD). */
+  const KEEP_FIELD = 'keep';
+  const HASH_SLICE = 8 * MIB;
+  // BLAKE3 under Node (the browser's HosBlake3 is read when a choice is made: blake3.js may load after this file).
+  const NODE_B3 = (typeof module === 'object' && module && module.exports && typeof require === 'function') ? require('./blake3.js') : null;
+
+  /** The text the choice signs: `hum/upload-keep/v1\n{key}\n{BLAKE3 hex}\n{ms}`, as the relay checks it. */
+  function keepText(me, blake3Hex, ts) {
+    return KEEP_DOMAIN + '\n' + me + '\n' + String(blake3Hex).toLowerCase() + '\n' + ts;
+  }
+
+  /** BLAKE3 of a Blob or bytes, lowercase hex, read a slice at a time (a video can be a GB). */
+  async function blake3HexOf(file, B3) {
+    if (!B3 || typeof B3.create !== 'function') return null;
+    const h = B3.create();
+    if (file instanceof Uint8Array) {
+      h.update(file);
+    } else {
+      const size = Number(file.size) || 0;
+      for (let at = 0; at < size; at += HASH_SLICE) {
+        h.update(new Uint8Array(await file.slice(at, Math.min(size, at + HASH_SLICE)).arrayBuffer()));
+      }
+    }
+    return B3.toHex(h.digest());
+  }
+
+  /**
+   * The person's signed choice to send `file` with its hidden details: {json, blake3, ts}, json
+   * being what goes in the upload's `keep` part (or the resumable start's `keep`), or null when the
+   * identity cannot sign here. `ids`: {me, sign: async (Uint8Array) => Uint8Array | null, blake3
+   * (HosBlake3; window's by default), now (ms; Date.now by default)}.
+   */
+  async function keepChoice(file, ids) {
+    if (!ids || !ids.me || typeof ids.sign !== 'function' || !file) return null;
+    const hex = await blake3HexOf(file, ids.blake3 || root.HosBlake3 || NODE_B3);
+    if (!hex) return null;
+    const ts = typeof ids.now === 'function' ? ids.now() : Date.now();
+    const sig = await ids.sign(new TextEncoder().encode(keepText(ids.me, hex, ts)));
+    if (!sig || !sig.length) return null;
+    let bin = '';
+    for (let i = 0; i < sig.length; i++) bin += String.fromCharCode(sig[i]);
+    const b64 = typeof btoa === 'function' ? btoa(bin) : Buffer.from(bin, 'binary').toString('base64');
+    return { json: JSON.stringify({ ts, sig: b64 }), blake3: hex, ts };
+  }
+
   const api = {
     REMOVE_DETAILS_KEY, PROTECTED_STORAGE_KEY, WHOLE_MAX, PICTURE_MAX, BOX_READ_MAX, WORDS,
     removeDetailsChosen, rememberRemoveDetails, protectedSetupOn, cleanFile, decide, stepNeeded,
-    standIn,
+    standIn, askWords, KEEP_DOMAIN, KEEP_FIELD, CANNOT_CLEAN_STATUS, keepText, blake3HexOf, keepChoice,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.HosUploadClean = api;

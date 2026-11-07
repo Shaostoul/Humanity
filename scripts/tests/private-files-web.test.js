@@ -2482,18 +2482,29 @@ test("files: in a DM the photo is cleaned before it is encrypted; the sealed upl
 
 // ── Part 2: a file that could not be checked ────────────────────────────
 
-test("files: a video cut before its movie is not sent to a room (Send off, the words), and goes with keep_metadata=1 once kept by choice", async () => {
+// Since 2026-11-06 (BUG-260; the operator: "can we have an option to send or refuse?") a room asks
+// about a file it could not clean, as a DM does: "Don't send" first, "Send anyway" second; it used
+// to keep Send off with the words "turn off the switch". Either way it goes kept by the person's
+// choice, the upload says keep_metadata=1 and carries their signed choice as its first part.
+test("files: a video cut before its movie is asked about in a room (\"Don't send\" first); Send anyway, or the switch off, sends it as picked with keep_metadata=1 and the signed choice", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);
   let { going } = await pickToStep(page, cutVideo());
   let p = stepParts(attachStep(page));
-  assert.equal(p.send.disabled, true, "Send is off");
-  assert.ok(p.said.textContent.includes(UC.WORDS.publicRefused) && p.said.textContent.includes(UC.WORDS.publicKeepHint), "and the words say why and how: " + p.said.textContent);
-  p.send.onclick();
-  await settle();
-  assert.equal(page.uploads.length, 0, "pressing it does nothing");
+  assert.equal(p.send.disabled, false, "Send anyway is offered");
+  assert.equal(p.send.textContent, UC.WORDS.sendAnyway);
+  assert.equal(p.said.textContent, UC.askWords("mp4"), "the question: " + p.said.textContent);
+  assert.equal(p.cancel.textContent, "upload_keep.dont_send", "and \"Don't send\"");
+  const buttons = everyUnder(attachStep(page)).filter((e) => e.dataset && (e.dataset.attachStep === "send" || e.dataset.attachStep === "cancel"));
+  assert.deepEqual(buttons.map((b) => b.dataset.attachStep), ["cancel", "send"], "\"Don't send\" first");
   await press(page, going, "cancel");
-  assert.equal(page.uploads.length, 0, "nothing uploaded");
+  assert.equal(page.uploads.length, 0, "Don't send: nothing uploaded");
+
+  ({ going } = await pickToStep(page, cutVideo()));
+  await press(page, going, "send");
+  assert.equal(page.uploads.length, 1);
+  assert.ok(sameBytes(page.uploads[0].bytes, CUT_VIDEO) && hasQuery(page.uploads[0], "keep_metadata=1"), "Send anyway: as picked, with keep_metadata=1");
+  assert.equal(page.uploads[0].parts[0], "keep", "its signed choice first");
 
   ({ going } = await pickToStep(page, cutVideo()));
   p = stepParts(attachStep(page));
@@ -2501,8 +2512,9 @@ test("files: a video cut before its movie is not sent to a room (Send off, the w
   p.remove.onchange();
   assert.equal(p.send.disabled, false, "kept by choice, it may go");
   await press(page, going, "send");
-  assert.equal(page.uploads.length, 1);
-  assert.ok(sameBytes(page.uploads[0].bytes, CUT_VIDEO) && hasQuery(page.uploads[0], "keep_metadata=1"), "as picked, with keep_metadata=1");
+  assert.equal(page.uploads.length, 2);
+  assert.ok(sameBytes(page.uploads[1].bytes, CUT_VIDEO) && hasQuery(page.uploads[1], "keep_metadata=1"), "as picked, with keep_metadata=1");
+  assert.equal(page.uploads[1].parts[0], "keep", "with the signed choice too");
 });
 
 test("files: in a DM it asks; Send anyway marks the marker unchecked, and the recipient's card says so", async () => {

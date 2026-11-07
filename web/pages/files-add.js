@@ -859,6 +859,9 @@
       f.up = createUploader({
         fetch: env.fetch, token, file: sending.file, owner: myKey, storage: env.storage,
         fp: sending.file === f.fpFile ? f.fp : '', keepMetadata: sending.keepMetadata,
+        // The signed choice to keep its details (BUG-260): this page's identity signs it, over the file.
+        signKeep: (file) => (cleaner && session && typeof cleaner.keepChoice === 'function' ? cleaner.keepChoice(file, { me: session.me ? session.me() : null, sign: session.sign }) : null),
+        keepWord: (k) => (root && root.i18n && typeof root.i18n.t === 'function' ? root.i18n.t(k) : k),
         sleep: env.sleep, now, digest: env.digest, AbortController: Abort,
         onChange: (s) => {
           if (s.phase === 'cancelled') {

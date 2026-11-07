@@ -1068,6 +1068,20 @@ const hosDmStore = {
     }
   },
 
+  /**
+   * Read this server's mailbox from its beginning again: the account was erased here
+   * (BUG-259's review, 2026-11-06; the desktop's DmStore::reset_read_position). The erase
+   * deletes every row of the mailbox, the marker holding its last number included, so a
+   * sign-up here again the same day numbers its first envelopes from the day's base, below
+   * where this browser had read to; kept, it would never fetch them. Fetching again from 0 is
+   * harmless: a message already kept is dropped by its signature (insert).
+   */
+  resetReadPosition() {
+    if (!this.ready) return Promise.resolve();
+    this.highWater = 0;
+    return this._persistMeta();
+  },
+
   peerOf(inner) { return inner.from === this.me ? inner.to : inner.from; },
 
   /** Insert a VERIFIED inner payload. Returns false on duplicate. */

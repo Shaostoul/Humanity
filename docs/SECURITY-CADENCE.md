@@ -163,7 +163,32 @@ Output: an updated `docs/threat-model.md` (or section in this file) capturing cu
 | 2026-05-03 | PQ-cutover migration | Independent review captured in CLAUDE.md Cryptography section. |
 | _next_ | Annual (2027-05) or earlier on architecture change | _scheduled_ |
 
-## Threat model snapshot: current (2026-05-20)
+## Threat model snapshot: current (2026-11-06; first written 2026-05-20)
+
+Brought current on 2026-11-06: the 2026-05-20 snapshot predated the sealed-sender DM mailbox
+(2026-08-23), the removal of the server-side follows graph and friendship passes held by the people
+themselves (2026-08-24, withdrawal since v0.1466.0), key cards (2026-10-22: every key anything is
+sealed to comes from that person's own signed card) and the mailbox kept by mailbox rather than by
+arrival (2026-11-06, BUG-259). Algorithm names: `docs/reference/cryptography.md`, never this page.
+
+### What a server can be made to hand over (the coercion and seizure view)
+
+What the relay's database holds, so what a court order, a breach or a backup with its key reaches:
+- each member's public key, display name, role and joining date, and what they chose to publish
+  (a profile, public posts, channel messages, which whoever runs the server can read);
+- sealed DM envelopes for at most the mailbox window (30 days by default): the recipient's key, a
+  padded size, the day it arrived and its place in that mailbox's own mail that day. No sender
+  column, no order across mailboxes (BUG-259), and the sender's own copy is sent 20 s to 2 min
+  after the recipient's, so storage does not pair who wrote to whom;
+- P2P groups: each group's name in plain text, its member list, and each message's author and
+  time, beside messages it cannot read (BUG-261, open);
+- no email, no phone number, no password, no friends or followers list; network addresses only in
+  the web server's logs, kept at most three days.
+
+What it cannot hide: at the moment of sending, the server sees which signed-in connection put an
+envelope and whom it is addressed to (it does not record it, but a changed server could); and the
+write-ahead log and the continuous backup keep the order pages were written in, which on a very
+quiet server can still suggest a pair.
 
 ### Adversary classes we defend against
 
@@ -176,8 +201,8 @@ Output: an updated `docs/threat-model.md` (or section in this file) capturing cu
    - **Residual risk**: TLS cert compromise via CA compromise. Defense: Let's Encrypt's monitoring + manual cert pinning for the chat client (deferred).
 
 3. **Compromised operator** (someone gains VPS access). Wants to read users' data, impersonate users, plant backdoors.
-   - **Mitigations**: DM E2EE means even root-on-VPS can't read DMs (Kyber sealed to user's seed-derived key). Identity = Dilithium with proof-of-possession at identify (Inc3b), operator can't log in AS a user without their seed.
-   - **Residual risk**: operator can rewrite the deployed binary to phish for seeds. Defense: signed release binaries (deferred, currently CI builds + raw exe; no signing). Federation gossip means other servers cache identities so a single-server compromise is less catastrophic.
+   - **Mitigations**: DM E2EE means even root-on-VPS can't read DMs (Kyber sealed to user's seed-derived key). Identity = Dilithium with proof-of-possession at identify (Inc3b), operator can't log in AS a user without their seed. Since 2026-08-23 the mailbox stores no sender and since 2026-11-06 no arrival order (above); since 2026-10-22 the key a DM is sealed to comes only from the recipient's own signed key card, so a server cannot swap in a key of its own.
+   - **Residual risk**: operator can rewrite the deployed binary to phish for seeds; the desktop app's release signature (hybrid, `docs/reference/cryptography.md`) covers the desktop updates, the website is served by whoever runs the server. A changed relay can log who sends to whom live, and learn a P2P group's name, members and who posts when (BUG-261). Federation gossip means other servers cache identities so a single-server compromise is less catastrophic.
 
 4. **Quantum adversary** (future). Wants to forge identities or decrypt archived DMs.
    - **Mitigations**: identity = Dilithium3 (ML-DSA-65, NIST FIPS 204); DM = Kyber768 (ML-KEM-768, NIST FIPS 203). Both are post-quantum.
@@ -195,7 +220,8 @@ Output: an updated `docs/threat-model.md` (or section in this file) capturing cu
 
 - **Nation-state intercept with budget**: TLS + PQC are the best we have, but a sufficiently-resourced adversary breaks endpoints (compromised OS, supply-chain) before they break the wire.
 - **Endpoint compromise**: stolen unlocked device = attacker has seed. This is documented in BUS-FACTOR + the INCIDENT-PLAYBOOK "Stolen recovery phrase" entry.
-- **Operator coercion**: legal demands from a jurisdiction. The DM E2EE design means operator can't comply with "show us their messages" for DMs; they CAN comply with "show us metadata" (who messaged whom, when). The architecture choice is to make E2E confidentiality non-circumventable even by the operator.
+- **Operator coercion**: legal demands from a jurisdiction. The DM E2EE design means an operator can't comply with "show us their messages" for DMs or group chats. Since the sealed-sender mailbox (2026-08-23) and the mailbox kept by mailbox (2026-11-06) the stored data does not say who messaged whom; it says which key received sealed mail on which day. An operator CAN be made to hand over what the database holds (the list above, P2P groups' names, members and authors included) and can be ordered to watch live, which sealed sender does not prevent: at the moment of sending the server sees the sender's connection and the recipient's key. The architecture choice is to make E2E confidentiality non-circumventable even by the operator, and to keep as little as possible to hand over.
 
 ## Update log
 - 2026-05-20, initial creation; quarterly cadences set, first independent review captured retroactively.
+- 2026-11-06, the threat-model snapshot brought current (sealed sender, passes held by the people, key cards, the mailbox kept by mailbox, what a server can be made to hand over), found stale while fact-checking a privacy post (docs/outreach/posts/DRAFT-privacy-compared-notes.md, section B).

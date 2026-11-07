@@ -22,19 +22,30 @@
 //!   metadata, and its stream structure makes rewriting riskier than the
 //!   near-zero privacy payoff.
 //!
-//! Fail-open on parse trouble: if a file doesn't walk cleanly, the
-//! ORIGINAL bytes are returned rather than a possibly-corrupted rewrite.
-//! (The upload path has already magic-byte-validated the format, so this
-//! only happens on unusual-but-valid encodings.)
+//! A file that does not walk cleanly is never rewritten (a guessed rewrite could corrupt it).
+//! [`try_strip_image_metadata`] says so (None), and the relay REFUSES such a picture rather than
+//! store it with whatever it carries (2026-11-06, docs/BUGS.md BUG-260: it used to store the
+//! original bytes, location and all); the person's app asks them whether to send it anyway, and
+//! only their signed yes lets it through (relay/upload_rules.rs). [`strip_image_metadata`] is the
+//! fail-open form, for a caller that judges "could it be checked" separately (the desktop's own
+//! clean before sending, net/file_clean.rs, which marks such a file unchecked).
 
 /// Strip metadata from an image, dispatching on the validated
-/// content-type. Non-image or unhandled types return the input unchanged.
+/// content-type. Non-image or unhandled types return the input unchanged,
+/// and so does a picture that does not walk cleanly (see [`try_strip_image_metadata`]).
 pub fn strip_image_metadata(content_type: &str, data: &[u8]) -> Vec<u8> {
+    try_strip_image_metadata(content_type, data).unwrap_or_else(|| data.to_vec())
+}
+
+/// Strip metadata from an image, or None when a JPEG, PNG or WebP does not walk cleanly, so its
+/// metadata could not be removed with certainty. A GIF comes back unchanged (it has no standard
+/// place for a location; see the module's coverage list), as does any other type.
+pub fn try_strip_image_metadata(content_type: &str, data: &[u8]) -> Option<Vec<u8>> {
     match content_type {
-        "image/jpeg" => strip_jpeg(data).unwrap_or_else(|| data.to_vec()),
-        "image/png" => strip_png(data).unwrap_or_else(|| data.to_vec()),
-        "image/webp" => strip_webp(data).unwrap_or_else(|| data.to_vec()),
-        _ => data.to_vec(),
+        "image/jpeg" => strip_jpeg(data),
+        "image/png" => strip_png(data),
+        "image/webp" => strip_webp(data),
+        _ => Some(data.to_vec()),
     }
 }
 
@@ -260,6 +271,22 @@ mod tests {
         let stripped = strip_image_metadata("image/png", &png);
         let decoded = image::load_from_memory(&stripped).expect("must decode");
         assert_eq!((decoded.width(), decoded.height()), (4, 4));
+    }
+
+    /// A JPEG that carries a location and does not walk cleanly (its EXIF segment says it is longer
+    /// than the file, as a truncated or damaged photo does): `try_strip_image_metadata` says it could
+    /// not clean it (None), so the relay refuses it instead of storing the location (BUG-260);
+    /// `strip_image_metadata` still hands it back unchanged for callers that judge it separately.
+    #[test]
+    fn a_picture_that_does_not_walk_cannot_be_cleaned() {
+        let exif_payload = b"Exif\0\0GPS-COORDINATES-47.61,-122.33";
+        let mut broken = vec![0xFF, 0xD8, 0xFF, 0xE1];
+        broken.extend_from_slice(&0x4000u16.to_be_bytes()); // longer than the file
+        broken.extend_from_slice(exif_payload);
+        assert_eq!(try_strip_image_metadata("image/jpeg", &broken), None);
+        assert_eq!(strip_image_metadata("image/jpeg", &broken), broken, "the fail-open form hands it back");
+        assert_eq!(try_strip_image_metadata("image/png", b"\x89PNG\r\n\x1a\nshort"), None);
+        assert_eq!(try_strip_image_metadata("image/gif", b"GIF89a..."), Some(b"GIF89a...".to_vec()), "a GIF comes back as it is");
     }
 
     /// Garbage input fails open (returned unchanged, never panics).

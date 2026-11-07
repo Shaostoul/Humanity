@@ -304,19 +304,37 @@ pub(crate) fn safe_stem(filename: &str) -> String {
     if safe.is_empty() { "file".to_string() } else { safe.to_string() }
 }
 
+/// THE REASON CODE OF "COULD NOT BE CLEANED" (2026-11-06, BUG-260): an upload route answers 422
+/// only when a file's hidden details could not be removed with certainty (a picture that does not
+/// walk, [`PICTURE_UNREADABLE`]; a video, [`VIDEO_UNREADABLE`]; a HEIC or AVIF photo,
+/// [`HEIF_REFUSED`]). Both apps read a 422 from an upload as that, and ask the person whether to
+/// send it anyway ("Don't send" first); "Send anyway" sends it again with their signed choice to
+/// keep its details ([`keep_checked`]). Nothing else an upload route refuses is a 422 (the
+/// resumable upload's hash mismatch is a 409), held by `upload_rules_tests.rs`.
+pub(crate) const CANNOT_CLEAN: StatusCode = StatusCode::UNPROCESSABLE_ENTITY;
+
+/// What is said for a picture (JPEG, PNG or WebP) whose structure could not be read all the way
+/// through, so its hidden details could not be removed with certainty (BUG-260). It is not stored.
+pub(crate) const PICTURE_UNREADABLE: &str = "This picture could not be read all the way through, so its hidden details (they can include where and when it was taken) could not be removed, and it was not stored. Your app can ask you whether to send it anyway.";
+
 /// A picture's last step before it is stored, given its bytes and its type (`picture`): the
 /// first bytes must be that type's own (a file named `.png` that is not a PNG is refused), then
 /// its embedded metadata is stripped. A phone photo carries GPS coordinates and a camera serial;
 /// nobody consents to publishing their home address with a garden picture. The strip is
-/// lossless (whole-segment removal, no re-encode) and fails open to the original bytes on any
-/// parse trouble (relay/core/strip_metadata.rs).
+/// lossless (whole-segment removal, no re-encode). A picture whose structure does not walk
+/// cleanly is REFUSED ([`CANNOT_CLEAN`], [`PICTURE_UNREADABLE`]): until 2026-11-06 it was stored
+/// as it came, location and all (BUG-260). A GIF is stored as it is (no standard place for a
+/// location; humanity_protocol strip_metadata.rs).
 ///
 /// BLOCKING: it reads and copies the whole picture (up to `PICTURE_MAX_BYTES`), so a route calls
 /// it inside `spawn_blocking`, never on the async executor.
 pub(crate) fn finish_picture(picture: &str, data: Vec<u8>) -> Result<Vec<u8>, Refused> {
     picture_is_what_it_says(picture, &data)?;
     let original = data.len();
-    let stripped = humanity_protocol::strip_metadata::strip_image_metadata(picture, &data);
+    let Some(stripped) = humanity_protocol::strip_metadata::try_strip_image_metadata(picture, &data) else {
+        tracing::info!("Upload metadata strip: refused a {picture} it could not read through");
+        return Err((CANNOT_CLEAN, PICTURE_UNREADABLE.to_string()));
+    };
     if stripped.len() != original {
         tracing::info!(
             "Upload metadata strip: {} shed {} bytes of embedded metadata",
@@ -364,9 +382,118 @@ pub(crate) fn upload_answer(stored_name: &str, size: u64, file_type: &str) -> se
 /// and are kept as they were: for the photos still refused, they say what to do.
 pub(crate) const HEIF_REFUSED: &str = "HEIC and AVIF photos cannot be cleaned of where they were taken yet. Save it as a JPEG and send that.";
 
+// ── The person's signed choice to keep a file's hidden details (2026-11-06, BUG-260) ──
+//
+// `keep_metadata=1` stores a file as it came, its hidden details included: the person turned off
+// "Remove location and camera details" (B4), or said "Send anyway" when their app asked about a file
+// that could not be cleaned. The operator, 2026-11-06: the server never stores such a file "on its
+// own without that flag", and the flag is "part of the SIGNED upload request (so nothing else can
+// set it)". So the flag is honoured only with the person's own signature over THIS file: a
+// `KeepChoice` (`{"v":1,"ts":<ms>,"sig":"<base64>"}`), the single request's `keep` form part
+// before the file, the resumable upload's `keep` field at its start (beside the file's `blake3`).
+// The signature is Dilithium3 by the uploader's own identity key over
+// `hum/upload-keep/v1\n{key}\n{BLAKE3 of the file's bytes, lowercase hex}\n{ts}`, made within the
+// last [`KEEP_FRESH_MS`]; an upload's session token alone (which travels in the address) is not
+// enough. Without it, or with one that does not check out, the upload is refused with
+// [`KEEP_UNCHECKED`] and nothing is stored. docs/reference/cryptography.md, "Keeping a file's
+// hidden details".
+
+/// The domain the keep choice is signed under.
+pub(crate) const KEEP_DOMAIN: &str = "hum/upload-keep/v1";
+/// How old a keep choice may be when its upload starts (a slow connection still makes it).
+pub(crate) const KEEP_FRESH_MS: u64 = 15 * 60 * 1000;
+/// How far ahead of the server's clock a keep choice may be dated (a device clock a little fast).
+pub(crate) const KEEP_AHEAD_MS: u64 = 5 * 60 * 1000;
+/// The form part that carries the keep choice, before the file's.
+pub(crate) const KEEP_FIELD: &str = "keep";
+
+/// What is said when `keep_metadata=1` comes without the person's signed choice, or with one that
+/// does not check out for this file.
+pub(crate) const KEEP_UNCHECKED: &str = "The choice to send this file with its hidden details could not be checked (it must be signed by your own key, for this file, within the last 15 minutes), so the file was not stored. Send it again from your app.";
+
+/// The person's signed choice to keep a file's hidden details.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct KeepChoice {
+    pub ts: u64,
+    pub sig: String,
+}
+
+/// The text a keep choice signs.
+pub(crate) fn keep_text(key: &str, blake3_hex: &str, ts: u64) -> String {
+    format!("{KEEP_DOMAIN}\n{key}\n{}\n{ts}", blake3_hex.to_ascii_lowercase())
+}
+
+/// Read a keep choice from its form part's text. None when it is not one.
+pub(crate) fn keep_choice_from(text: &str) -> Option<KeepChoice> {
+    serde_json::from_str(text.trim()).ok()
+}
+
+/// The keep choice made in time: refused when it is older than [`KEEP_FRESH_MS`] or dated more
+/// than [`KEEP_AHEAD_MS`] ahead at `now_ms`, or missing.
+pub(crate) fn keep_in_time(choice: Option<&KeepChoice>, now_ms: u64) -> Result<(), Refused> {
+    match choice {
+        Some(c) if c.ts <= now_ms.saturating_add(KEEP_AHEAD_MS) && now_ms.saturating_sub(c.ts) <= KEEP_FRESH_MS => Ok(()),
+        _ => Err((StatusCode::FORBIDDEN, KEEP_UNCHECKED.to_string())),
+    }
+}
+
+/// The keep choice signed by `key`'s own identity over the file whose BLAKE3 is `blake3_hex`.
+pub(crate) fn keep_checked(key: &str, blake3_hex: &str, choice: Option<&KeepChoice>) -> Result<(), Refused> {
+    let refused = || (StatusCode::FORBIDDEN, KEEP_UNCHECKED.to_string());
+    let c = choice.ok_or_else(refused)?;
+    if super::handlers::broadcast::verify_dilithium_b64(key, keep_text(key, blake3_hex, c.ts).as_bytes(), &c.sig) {
+        Ok(())
+    } else {
+        Err(refused())
+    }
+}
+
+/// BLAKE3 of `bytes`, lowercase hex: what a keep choice names its file by. The relay hashes what
+/// arrives from its part file ([`blake3_hex_of_file`]); this form is the desktop app's signer's
+/// (gui/pages/chat/attach_send.rs `KeepSigner`) and the tests', so the server-only build does not
+/// call it.
+#[cfg_attr(not(feature = "native"), allow(dead_code))]
+pub(crate) fn blake3_hex(bytes: &[u8]) -> String {
+    blake3::hash(bytes).to_hex().to_string()
+}
+
+/// Test-only: a real identity for seed byte `n` (its seed and its Dilithium3 public key in hex), as
+/// an app has one, so an upload test can sign a keep choice.
+#[cfg(test)]
+pub(crate) fn test_identity(n: u8) -> (Vec<u8>, String) {
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    let seed = vec![n; 32];
+    (seed.clone(), hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key()))
+}
+
+/// Test-only: the keep choice the identity with `seed` (public key `key`) signs for `bytes` at `ts`,
+/// as both apps sign it.
+#[cfg(test)]
+pub(crate) fn test_keep_at(seed: &[u8], key: &str, bytes: &[u8], ts: u64) -> KeepChoice {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
+    KeepChoice { ts, sig: B64.encode(kp.sign(keep_text(key, &blake3_hex(bytes), ts).as_bytes())) }
+}
+
+/// Test-only: [`test_keep_at`] signed now.
+#[cfg(test)]
+pub(crate) fn test_keep(seed: &[u8], key: &str, bytes: &[u8]) -> KeepChoice {
+    test_keep_at(seed, key, bytes, crate::relay::storage::now_millis())
+}
+
+/// BLAKE3 of the file at `path`, lowercase hex, read a piece at a time (a video can be a GB).
+pub(crate) fn blake3_hex_of_file(path: &std::path::Path) -> std::io::Result<String> {
+    let mut hasher = blake3::Hasher::new();
+    let mut f = std::fs::File::open(path)?;
+    std::io::copy(&mut f, &mut hasher)?;
+    Ok(hasher.finalize().to_hex().to_string())
+}
+
 /// A picture's last step, honouring the person's choice to keep its hidden information
-/// (`keep_metadata`, B4): the check that it is what it says always runs; the strip only when they
-/// did not choose to keep it. BLOCKING, like [`finish_picture`].
+/// (`keep_metadata`, B4; checked as signed by the route before this, [`keep_checked`]): the check
+/// that it is what it says always runs; the strip only when they did not choose to keep it.
+/// BLOCKING, like [`finish_picture`].
 pub(crate) fn finish_picture_as(picture: &str, data: Vec<u8>, keep_metadata: bool) -> Result<Vec<u8>, Refused> {
     if keep_metadata {
         picture_is_what_it_says(picture, &data)?;
@@ -418,7 +545,7 @@ pub(crate) fn finish_file_as(path: &std::path::Path, keep_metadata: bool) -> Res
             if !still.complete() || !report.stopped_early.is_empty() {
                 let why = [report.stopped_early.as_slice(), still.stopped_early.as_slice()].concat();
                 tracing::info!("Upload HEIF strip: refused a photo it could not read through ({})", why.join("; "));
-                return Err((StatusCode::UNPROCESSABLE_ENTITY, HEIF_REFUSED.to_string()));
+                return Err((CANNOT_CLEAN, HEIF_REFUSED.to_string()));
             }
             if report.changed() || still.changed() {
                 let items: Vec<String> = still.items_zeroed.iter().map(|(id, kind, n)| format!("item {id} ({kind}, {n} bytes)")).collect();
@@ -429,11 +556,11 @@ pub(crate) fn finish_file_as(path: &std::path::Path, keep_metadata: bool) -> Res
         // Not a HEIF photo: a video whose movie box never arrived. It would not play, and where
         // it was filmed cannot be ruled out, since the movie box is where that is kept.
         tracing::info!("Upload video strip: refused a video with no movie box ({})", report.stopped_early.join("; "));
-        return Err((StatusCode::UNPROCESSABLE_ENTITY, VIDEO_UNREADABLE.to_string()));
+        return Err((CANNOT_CLEAN, VIDEO_UNREADABLE.to_string()));
     }
     if !report.stopped_early.is_empty() {
         tracing::info!("Upload video strip: refused a file whose boxes stop early ({})", report.stopped_early.join("; "));
-        return Err((StatusCode::UNPROCESSABLE_ENTITY, VIDEO_UNREADABLE.to_string()));
+        return Err((CANNOT_CLEAN, VIDEO_UNREADABLE.to_string()));
     }
     if report.changed() {
         tracing::info!("Upload video strip: cleared {} ({} bytes)", report.paths().join(", "), report.bytes_zeroed);
@@ -713,6 +840,12 @@ pub(crate) fn count_upload(db: &Storage, key: &str, now_ms: i64, bytes: u64, sta
 #[cfg(test)]
 #[path = "upload_rules_tests.rs"]
 mod tests;
+
+// BUG-260 (2026-11-06): a file that cannot be cleaned is refused, and kept as sent only on the
+// person's signed choice for that file.
+#[cfg(test)]
+#[path = "upload_keep_tests.rs"]
+mod keep_tests;
 
 // Round 3 (2026-10-11): a single request's allowances checked and counted when it is stored (R3-1).
 #[cfg(test)]

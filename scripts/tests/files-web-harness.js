@@ -263,6 +263,9 @@ function fakeSession(over) {
     start() {},
     retry() {},
     send(frame) { sent.push(frame); return s.state.status === "bound"; },
+    // As relay-session.js: this page's key, and its signature (stood in by the signed bytes themselves).
+    me() { return s.state.key; },
+    sign(bytes) { return Promise.resolve(new Uint8Array(bytes)); },
     emit(ev) { for (const fn of listeners) fn(ev, s.state); },
   };
   return s;

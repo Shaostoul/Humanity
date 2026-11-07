@@ -4381,7 +4381,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
                                                 let wipe_ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { channel.clone() };
-                                                match state_clone.db.wipe_channel_messages(&wipe_ch) {
+                                                match state_clone.db.wipe_channel_messages_in(&wipe_ch, crate::relay::storage::files::Folders::live()) {
                                                     Ok(count) => {
                                                         // Clear in-memory history for this channel.
                                                         {
@@ -4415,7 +4415,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can wipe messages.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
-                                                match state_clone.db.wipe_messages() {
+                                                match state_clone.db.wipe_messages_in(crate::relay::storage::files::Folders::live()) {
                                                     Ok(count) => {
                                                         state_clone.history.write().await.clear();
                                                         let sys = RelayMessage::System {

@@ -928,6 +928,19 @@ Every uploaded JPEG/PNG/WebP is stripped of EXIF/XMP/IPTC/text metadata before
 the bytes touch disk, losslessly (whole-segment removal, no re-encode), so a
 phone photo never publishes GPS coordinates or a camera serial.
 - Server: `crates/humanity-protocol/src/strip_metadata.rs`, hooked in `api.rs::upload_file`
+- **Could not be cleaned: refused, or sent on the person's signed choice (2026-11-06, BUG-260).**
+  A picture whose structure does not walk is refused with 422, the upload routes' one "could not
+  be cleaned" code (`upload_rules.rs` `CANNOT_CLEAN`, `PICTURE_UNREADABLE`; videos and HEIC/AVIF
+  photos already were), never stored with what it carries (it used to be stored as it came). Both
+  apps ask "Send it anyway, or don't send?", "Don't send" first (the chat's attach step for a file
+  their own clean could not check, and a question on the server's 422; words `upload_keep.*`).
+  `keep_metadata=1` is honoured only with the uploader's own Dilithium3 signature over the file's
+  BLAKE3 (`KeepChoice`, the single request's `keep` part, the resumable start's `keep` field), so
+  an upload token alone never keeps a file's details. GIF is stored as it is (no standard
+  location field). Web: `web/shared/upload-clean.js` (`decide` with `canAsk`, `keepChoice`),
+  `web/chat/chat-messages.js` (`uploadPrepared`, `askSendAnyway`), the Files pages' uploads;
+  desktop: `src/gui/pages/chat/attach_step.rs` (`verdict`, `draw_server_ask`),
+  `attach_send.rs` (`KeepSigner`), Shared Files and Media uploads.
 
 ### Encrypted Backups (server, 2026-08-23)
 Both backup layers sealed at rest (in-process 6h AES-256-GCM `.db.enc`; VPS

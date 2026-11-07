@@ -91,6 +91,52 @@ pub(crate) struct AttachJob {
     pub allow_unchecked: bool,
 }
 
+/// What signs the person's choice to send a file with its hidden details (2026-11-06, BUG-260):
+/// their seed and identity key, taken from the app state on the frame so an upload's worker can
+/// sign without touching `GuiState`. The relay keeps a file's details only on this signature over
+/// that very file (relay/upload_rules.rs `KeepChoice`): an upload token alone is not enough.
+#[derive(Clone, PartialEq, Eq)]
+pub struct KeepSigner {
+    seed: Vec<u8>,
+    me: String,
+}
+
+impl std::fmt::Debug for KeepSigner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeepSigner").field("me", &self.me).finish_non_exhaustive() // never the seed
+    }
+}
+
+impl KeepSigner {
+    /// The signer for the identity signed in now; None while it is locked.
+    pub(crate) fn of(state: &GuiState) -> Option<Self> {
+        let seed = state.private_key_bytes.clone()?;
+        (!state.profile_public_key.is_empty()).then(|| KeepSigner { seed, me: state.profile_public_key.clone() })
+    }
+
+    /// The `keep` choice (its JSON) for the file whose BLAKE3 is `blake3_hex`, signed now: Dilithium3
+    /// by this identity over `hum/upload-keep/v1\n{key}\n{blake3}\n{ms}` (the relay's `keep_text`).
+    pub(crate) fn choice_for_hash(&self, blake3_hex: &str) -> String {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+        let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+        let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&self.seed));
+        let sig = kp.sign(crate::relay::upload_rules::keep_text(&self.me, blake3_hex, ts).as_bytes());
+        serde_json::json!({ "ts": ts, "sig": B64.encode(sig) }).to_string()
+    }
+
+    /// [`Self::choice_for_hash`] for `bytes`.
+    pub(crate) fn choice(&self, bytes: &[u8]) -> String {
+        self.choice_for_hash(&crate::relay::upload_rules::blake3_hex(bytes))
+    }
+}
+
+/// What is said when a file to be sent with its hidden details cannot be, because the identity is
+/// locked and the choice cannot be signed.
+pub(crate) fn cannot_sign_words() -> String {
+    humanity_core::i18n::t("upload_keep.cannot_sign").to_string()
+}
+
 /// The largest private file any server can allow, in bytes: the top of the range the relay keeps
 /// a role's `max_private_file_mb` in, read through the relay's own `with_limits_in_range` (the
 /// module naming the number is the relay's own). It is also what the receiving side will open
@@ -325,12 +371,18 @@ where
     // sender's device, before it is encrypted or uploaded, so a DM's or a group's file (which the
     // server only ever sees sealed) leaves without where it was taken too.
     let mut unchecked = false;
+    // A public file that could not be cleaned goes only on the person's "Send anyway" (2026-11-06,
+    // BUG-260), exactly as it is, with their signed choice to keep its details (`keep_metadata`).
+    let mut keep_anyway = false;
     if job.clean {
         let (cleaned, c) = crate::net::file_clean::clean_bytes(bytes, &job.filename);
         bytes = cleaned;
         if c.unchecked {
             if !job.to.encrypts_file() {
-                return Err(NOT_CHECKED_PUBLIC.to_string());
+                if !job.allow_unchecked {
+                    return Err(NOT_CHECKED_PUBLIC.to_string());
+                }
+                keep_anyway = true;
             }
             if !job.allow_unchecked {
                 return Err(NOT_CHECKED.to_string());
@@ -339,7 +391,7 @@ where
         }
     }
     if !job.to.encrypts_file() {
-        let plain = Upload { filename: job.filename, mime: job.mime, bytes, share: job.share, encrypted: false, keep_metadata: !job.clean, poster };
+        let plain = Upload { filename: job.filename, mime: job.mime, bytes, share: job.share, encrypted: false, keep_metadata: !job.clean || keep_anyway, poster };
         return upload(&job.server, &job.token, plain);
     }
     let size = bytes.len() as u64;
@@ -386,14 +438,35 @@ pub(crate) const NOT_CHECKED_PUBLIC: &str =
 /// drained by `drain` on a later frame.
 pub(super) fn start(state: &mut GuiState, job: AttachJob) {
     let (tx, rx) = std::sync::mpsc::channel();
+    let signer = KeepSigner::of(state);
+    // A public file sent as cleaned is kept here until its answer: if the server could not remove
+    // its hidden details after all (its 422, BUG-260), the person is asked, and "Send anyway" sends
+    // this job again exactly as it is (`take_result`, attach_step.rs `draw_server_ask`).
+    state.files_flow.sent_public = (!job.to.encrypts_file() && job.clean && !job.allow_unchecked).then(|| job.clone());
     std::thread::spawn(move || {
         let _ = tx.send(run(job, |server, key, up| {
             let flags = UploadFlags { share: up.share, encrypted: up.encrypted, keep_metadata: up.keep_metadata };
-            upload_with_poster(server, key, &up.filename, &up.mime, up.bytes, flags, up.poster)
+            // Kept with its details by choice: the person's signed choice for this very file goes
+            // with it, or the server stores nothing (BUG-260).
+            let keep = if up.keep_metadata {
+                Some(signer.as_ref().ok_or_else(cannot_sign_words)?.choice(&up.bytes))
+            } else {
+                None
+            };
+            upload_with_poster_keep(server, key, &up.filename, &up.mime, up.bytes, flags, up.poster, keep.as_deref())
+                .map_err(|(status, words)| if status == Some(CANNOT_CLEAN_STATUS) { format!("{CANNOT_CLEAN_TAG}{words}") } else { words })
         }));
     });
     state.clipboard_upload = Some((state.chat_active_channel.clone(), rx));
 }
+
+/// An upload's answer that means "its hidden details could not be removed" (the relay's
+/// `CANNOT_CLEAN`, BUG-260).
+pub(crate) const CANNOT_CLEAN_STATUS: u16 = 422;
+
+/// Marks a failed chat upload's words as the server's "could not be cleaned" on their way from the
+/// worker to `drain`, which asks the person instead of showing them (never shown itself).
+pub(crate) const CANNOT_CLEAN_TAG: &str = "\u{1}cannot-clean\u{1}";
 
 /// The Attach picker chose `path`: its attach step opens (chat/attach_step.rs), which shows what is
 /// hidden in it and sends it on Send (the worker reads it).
@@ -537,6 +610,7 @@ pub(super) fn drain(ctx: &egui::Context, state: &mut GuiState) {
     match rx.try_recv() {
         Ok(Ok(content)) => {
             state.clipboard_upload = None;
+            state.files_flow.sent_public = None;
             let is_marker = crate::net::dm_pq::parse_file_marker(&content).is_some();
             if is_marker && made_for != state.chat_active_channel {
                 state.pending_notices.push(LEFT_BEFORE_UPLOAD.to_string());
@@ -547,6 +621,15 @@ pub(super) fn drain(ctx: &egui::Context, state: &mut GuiState) {
         }
         Ok(Err(e)) => {
             state.clipboard_upload = None;
+            let sent = state.files_flow.sent_public.take();
+            // The server could not remove its hidden details (BUG-260): the person is asked ("Don't
+            // send" first), in the conversation it was for, instead of being told it failed.
+            if let (Some(job), true) = (sent, e.starts_with(CANNOT_CLEAN_TAG)) {
+                log::info!("Attachment upload: the server could not clean it; asking the person");
+                state.files_flow.server_ask = Some((made_for, job));
+                return;
+            }
+            let e = e.trim_start_matches(CANNOT_CLEAN_TAG).to_string();
             log::warn!("Attachment upload failed: {e}");
             // Said to the person too (the server's own words when it refused), not only logged.
             state.pending_notices.push(format!("The file was not sent: {e}"));
@@ -605,35 +688,45 @@ pub(crate) fn upload_query(token: &str, flags: UploadFlags) -> String {
     q
 }
 
-/// The one multipart upload every kind of file goes through, with `flags` in its query. The body
-/// is streamed around the file's own buffer (attach_body.rs `Multipart`), its length set so it is
-/// sent as it is: the file is never copied into a second buffer with its framing.
+/// [`upload_with_poster_keep`] with no poster picture and no keep choice: the tests' form.
+#[cfg(test)]
 pub(crate) fn upload_flagged(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags) -> Result<String, String> {
-    upload_with_poster(server_url, token, filename, mime, bytes, flags, None)
+    upload_with_poster_keep(server_url, token, filename, mime, bytes, flags, None, None).map_err(|(_, words)| words)
 }
 
-/// [`upload_flagged`] with a video's poster picture as the form's `poster` part, before the file's
-/// (2026-11-06, relay/poster.rs).
-pub(crate) fn upload_with_poster(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags, poster: Option<Vec<u8>>) -> Result<String, String> {
+/// The one multipart upload every kind of file goes through, with `flags` in its query, a video's
+/// poster picture as the form's `poster` part before the file's (2026-11-06, relay/poster.rs), and
+/// the person's signed choice to keep the file's hidden details (`keep`, its JSON,
+/// `KeepSigner::choice`) as the `keep` part before everything (BUG-260), which the relay requires
+/// whenever `flags.keep_metadata` is set. The body is streamed around the file's own buffer
+/// (attach_body.rs `Multipart`), its length set so it is sent as it is: the file is never copied
+/// into a second buffer with its framing. Err carries the server's status when it refused (422:
+/// the file's hidden details could not be removed) and the words.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn upload_with_poster_keep(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags, poster: Option<Vec<u8>>, keep: Option<&str>) -> Result<String, (Option<u16>, String)> {
     let base = server_url.trim_end_matches('/');
     let upload_url = format!("{base}/api/upload?{}", upload_query(token, flags));
-    let body = match poster {
+    let mut body = match poster {
         Some(p) => attach_body::Multipart::with_poster(filename, mime, bytes, &p),
         None => attach_body::Multipart::new(filename, mime, bytes),
     };
+    if let Some(k) = keep {
+        body = body.with_text_part_first(crate::relay::upload_rules::KEEP_FIELD, k);
+    }
     let resp = ureq::post(&upload_url)
         .set("Content-Type", &format!("multipart/form-data; boundary={}", body.boundary))
         .set("Content-Length", &body.len().to_string())
         .send(body.reader())
-        .map_err(upload_error_words)?;
-    let body_str = resp.into_string()
-        .map_err(|e| format!("read response: {e}"))?;
-    let val: serde_json::Value = serde_json::from_str(&body_str)
-        .map_err(|e| format!("parse JSON: {e}; body={body_str}"))?;
+        .map_err(|e| {
+            let status = if let ureq::Error::Status(code, _) = &e { Some(*code) } else { None };
+            (status, upload_error_words(e))
+        })?;
+    let body_str = resp.into_string().map_err(|e| (None, format!("read response: {e}")))?;
+    let val: serde_json::Value = serde_json::from_str(&body_str).map_err(|e| (None, format!("parse JSON: {e}; body={body_str}")))?;
     val.get("url")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
-        .ok_or_else(|| format!("response missing 'url' field: {body_str}"))
+        .ok_or_else(|| (None, format!("response missing 'url' field: {body_str}")))
 }
 
 /// What a failed upload says to the person: the server's own words when it refused (its body:
@@ -662,3 +755,7 @@ mod tests;
 #[cfg(test)]
 #[path = "attach_send_clean_tests.rs"]
 mod clean_tests;
+// A file that could not be cleaned: asked about, and sent only with the signed choice (BUG-260).
+#[cfg(test)]
+#[path = "attach_keep_tests.rs"]
+mod keep_tests;

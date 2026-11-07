@@ -86,6 +86,16 @@ impl Multipart {
         body
     }
 
+    /// This body with a plain text part named `name` holding `text` FIRST, before every other part:
+    /// the person's signed choice to keep a file's hidden details (`keep`, BUG-260), which the relay
+    /// reads before the file arrives.
+    pub(crate) fn with_text_part_first(mut self, name: &str, text: &str) -> Self {
+        let mut before = format!("--{}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{text}\r\n", self.boundary).into_bytes();
+        before.append(&mut self.before);
+        self.before = before;
+        self
+    }
+
     /// The whole body's length, for `Content-Length` (so it is sent as it is, not chunked).
     pub(crate) fn len(&self) -> u64 {
         (self.before.len() + self.file.get_ref().len() + self.after.len()) as u64

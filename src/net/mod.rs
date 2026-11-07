@@ -16,6 +16,10 @@ pub mod client;
 pub mod sync;
 #[cfg(feature = "native")]
 pub mod ws_client;
+/// Mail to my own mailbox waits a random while before it goes, so my copy of a message never lands
+/// beside the recipient's on the relay (2026-11-06, BUG-259); held by `ws_client::WsClient::send`.
+#[cfg(feature = "native")]
+pub mod self_mail;
 #[cfg(feature = "native")]
 pub mod identity;
 /// A channel's history read from a server, signed as the member reading it (2026-11-02,

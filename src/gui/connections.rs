@@ -414,7 +414,26 @@ impl GuiState {
     /// so a sign-up there again starts fresh, and its plot, which the relay released with the
     /// account, is not built on again). `saves_dir` is the saves folder (a test gives a throwaway).
     pub fn account_erased_on_server(&mut self, url: &str, outcome: EraseOutcome, saves_dir: &std::path::Path) {
-        humanity_systems::persistence::live_save::set_aside_erased(saves_dir, &crate::gui::pages::chat::norm_server_url(url), &self.profile_public_key);
+        let server = crate::gui::pages::chat::norm_server_url(url);
+        humanity_systems::persistence::live_save::set_aside_erased(saves_dir, &server, &self.profile_public_key);
+        // The erase emptied this identity's mailbox there, the marker holding its last number
+        // included, so a sign-up again the same day numbers mail from the day's base, below where
+        // this device had read to (BUG-259's review): read it from the beginning next time. The
+        // store open in memory when it is this server's, else its file.
+        let me = self.profile_public_key.clone();
+        match self.dm_store.as_mut().filter(|s| s.is_for(&me, &server)) {
+            Some(store) => {
+                store.reset_read_position();
+                store.save();
+            }
+            None => {
+                if let Some(seed) = self.private_key_bytes.clone().filter(|_| !me.is_empty()) {
+                    let mut store = crate::net::dm_store::DmStore::load(&seed, &me, &server);
+                    store.reset_read_position();
+                    store.save();
+                }
+            }
+        }
         let entry = erased_entry(&self.profile_public_key, url);
         self.account_erased_on.insert(entry, outcome);
     }
@@ -1050,6 +1069,44 @@ mod erased_account_tests {
         assert!(state.account_erased_here("https://a.example"));
         assert!(!state.account_erased_here("https://b.example"), "the active server is untouched");
         assert!(!state.ws_manually_disconnected);
+    }
+
+    /// AN ERASE RESETS THE MAILBOX READ POSITION THERE (BUG-259's review, 2026-11-06). The erase
+    /// deletes every row of the person's mailbox on that server, the marker holding its last number
+    /// included, so a sign-up there again the same day numbers its first envelopes from the day's
+    /// base, below where this device had read to: kept, the device would never fetch them. So the
+    /// receipt resets the read position of that server's store, the one open in memory and one on
+    /// disk alike; another server's is kept. (Fetching again from 0 is harmless: a message already
+    /// kept is dropped by its signature.)
+    ///
+    /// Seen red 2026-11-06 with the reset taken out of `account_erased_on_server`: "the device
+    /// reads that mailbox from its beginning (the store in memory)" (left: 21772632070).
+    #[test]
+    fn account_erased_resets_the_mailbox_read_position() {
+        use crate::net::dm_store::DmStore;
+        let saves = humanity_core::test_temp::dir("erase_resets_read_position");
+        let seed = vec![77u8; 32];
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        let (a, b, c) = (format!("https://erase-a-{nanos}.example"), format!("https://erase-b-{nanos}.example"), format!("https://erase-c-{nanos}.example"));
+        let norm = |u: &str| crate::gui::pages::chat::norm_server_url(u);
+        let placed = |u: &str, at: i64| {
+            let mut s = DmStore::load(&seed, KEY, &norm(u));
+            s.set_high_water(at);
+            s.save();
+            s
+        };
+        let mut state = on(&a);
+        state.private_key_bytes = Some(seed.clone());
+        state.dm_store = Some(placed(&a, 21_772_632_070));
+        placed(&b, 21_772_632_071);
+        placed(&c, 21_772_632_072);
+
+        state.account_erased_on_server(&a, EraseOutcome::Erased, &saves);
+        assert_eq!(state.dm_store.as_ref().map(|s| s.high_water()), Some(0), "the device reads that mailbox from its beginning (the store in memory)");
+        assert_eq!(DmStore::load(&seed, KEY, &norm(&a)).high_water(), 0, "and its file");
+        state.account_erased_on_server(&b, EraseOutcome::Erased, &saves);
+        assert_eq!(DmStore::load(&seed, KEY, &norm(&b)).high_water(), 0, "a parked server's store, from its file");
+        assert_eq!(DmStore::load(&seed, KEY, &norm(&c)).high_water(), 21_772_632_072, "another server's place is kept");
     }
 
     /// AN ERASED ACCOUNT SETS ITS SERVER SAVE ASIDE (ship homes increment 6, plan 3.6). The relay

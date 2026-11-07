@@ -3365,6 +3365,17 @@
     "help": "{{name}}: drag to turn it, scroll to zoom, right-drag or Shift-drag to move it, double-click to start over. {{triangles}} triangles.",
     "close_hint": "Stop showing the model here. The file stays where it is."
   },
+  "upload_keep": {
+    "title": "Send it with its hidden details?",
+    "question_picture": "We couldn't remove the hidden details from this picture (they can include where and when it was taken). Send it anyway, or don't send?",
+    "question_video": "We couldn't remove the hidden details from this video (they can include where and when it was filmed). Send it anyway, or don't send?",
+    "dont_send": "Don't send",
+    "dont_send_hint": "Nothing is sent. The file stays only on your device.",
+    "send_anyway": "Send anyway",
+    "send_anyway_hint": "Sends the file exactly as it is, hidden details and all. Your app signs this choice with your own key, so nothing else can make it for you.",
+    "not_sent": "The file was not sent.",
+    "cannot_sign": "The file was not sent: your key is not unlocked on this device, so your choice to send it with its hidden details could not be signed."
+  },
   "screens": {
     "settings_title": "Screen settings: {{name}}",
     "how_to_edit": "In build mode, drag an edge of the screen to resize it, a corner to scale it (hold Shift to change its shape), or the middle to move it along its wall.",

@@ -76,6 +76,16 @@ ssh humanity-vps "journalctl -u humanity-relay --no-pager -n 30 | grep -E 'ERROR
    **Do not** restore a backup, move `relay.db` or run `pq-wipe.sh`: the file is healthy and the
    newest there is, and a backup would lose everything written since it was taken. The restarts
    every 5 s change nothing in it.
+   **One upgrade is FORWARD-ONLY: the DM mailbox rebuild** (BUG-259, the release that keeps
+   `dm_mailbox` by mailbox, 2026-11-06). The "run the previous release again" above holds only
+   while that upgrade has NOT yet succeeded. Once a release carrying it has started even once, the
+   table has no row counter any more, and the release before inserts mail with no `id`: every
+   `dm_put` is then refused (DMs, passes, follows, notes all stop) while the relay looks healthy.
+   So after that, **roll forward, never back**: fix the problem in a new release. On
+   united-humanity.us do NOT revert the commit and push, and do not `just sync` from a commit
+   before it; on public.guide do NOT reinstall the previous release. (A failed upgrade is still
+   undone whole, so a release that never started successfully can still be replaced by the one
+   before.)
 2. **`could not be checked`: SQLite could not read the file.** Not damage; nothing was moved.
    ```
    ERROR humanity_engine::relay: The relay did not start: /opt/Humanity/data/relay.db could not be checked (unable to open database file).

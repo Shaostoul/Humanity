@@ -277,7 +277,9 @@ async fn a_heic_upload_is_stored_without_where_it_was_taken() {
     use crate::relay::resumable::{piece_core, start_core, StartBody};
     use crate::relay::storage::files::Folders;
     let state = relay("rules_heic_upload");
-    uploader(&state, "ann", "tok", |_| {}).await;
+    // A real identity: keeping a file's details takes the person's own signed choice (BUG-260).
+    let (seed, ann) = test_identity(92);
+    uploader(&state, &ann, "tok", |_| {}).await;
     let (uploads, members, resume, waiting) = (
         humanity_core::test_temp::dir("rules_heic_uploads"),
         humanity_core::test_temp::dir("rules_heic_members"),
@@ -291,8 +293,9 @@ async fn a_heic_upload_is_stored_without_where_it_was_taken() {
             size: bytes.len() as u64,
             content_type: Some(ct.into()),
             media: Some(1),
-            blake3: None,
+            blake3: keep.then(|| blake3_hex(bytes)),
             keep_metadata: keep.then_some(1),
+            keep: keep.then(|| test_keep(&seed, &ann, bytes)),
         };
         let (state, bytes) = (state.clone(), axum::body::Bytes::copy_from_slice(bytes));
         async move {

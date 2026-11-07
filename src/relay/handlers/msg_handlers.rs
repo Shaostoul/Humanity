@@ -4000,6 +4000,52 @@ mod dm_mailbox_tests {
         assert!(st.db.mailbox_fetch(&alice, 0, 10).unwrap().is_empty());
     }
 
+    /// END TO END WITH ROWS KEPT BY MAILBOX (2026-11-06, BUG-259): two DMs from two senders,
+    /// interleaved the way the apps used to send them (Alice's copy to Bob, Alice's own copy,
+    /// Carol's copy to Dave, Carol's own copy). Each is delivered live with the number it has in
+    /// its own mailbox, each mailbox's fetch hands it back under that number, a device that read
+    /// to that number finds nothing new, and each sender's own copy is in their own mailbox for
+    /// their other devices (their sent history). The numbers are the mailboxes' own, from the day:
+    /// all four are the day's first, so they say nothing about which came first.
+    ///
+    /// The end-to-end guard for the property seen red at the storage level 2026-11-06
+    /// (storage/dms.rs `the_stored_rows_do_not_pair_a_message_with_its_self_copy`, against the
+    /// AUTOINCREMENT table).
+    #[test]
+    fn interleaved_dms_deliver_and_keep_sent_history_with_per_mailbox_numbers() {
+        let st = fresh_state();
+        let (alice, bob, alice_pass) = friends(&st);
+        let (_carol_seed, carol) = identity(53);
+        let (dave_seed, dave) = identity(54);
+        st.db.register_name("Carol", &carol).unwrap();
+        st.db.register_name("Dave", &dave).unwrap();
+        st.db.set_role(&carol, "verified").unwrap();
+        st.db.set_role(&dave, "verified").unwrap();
+        let (carol_pass, _) = crate::relay::handlers::friend_passes::test_pass(&st, &dave_seed, &dave, &carol);
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_dm_put(&st, &alice, bob.clone(), envelope(), Some(alice_pass), reach::DmAsk::Ordinary, None, None));
+        block(handle_dm_put(&st, &alice, alice.clone(), envelope(), None, reach::DmAsk::Ordinary, None, None));
+        block(handle_dm_put(&st, &carol, dave.clone(), envelope(), Some(carol_pass), reach::DmAsk::Ordinary, None, None));
+        block(handle_dm_put(&st, &carol, carol.clone(), envelope(), None, reach::DmAsk::Ordinary, None, None));
+        let mut live: Vec<(String, i64)> = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            if let RelayMessage::DmNew { target, id, .. } = msg {
+                live.push((target.unwrap_or_default(), id));
+            }
+        }
+        let first_of_day = crate::relay::storage::dms::unix_day_now() << crate::relay::storage::dms::DAY_SHIFT;
+        assert_eq!(live.len(), 4, "each copy delivered live: {live:?}");
+        for (to, id) in &live {
+            assert_eq!(*id, first_of_day, "every number is its mailbox's first of the day ({to})");
+            let rows = st.db.mailbox_fetch(to, 0, 10).unwrap();
+            assert_eq!(rows.iter().map(|r| r.id).collect::<Vec<_>>(), vec![*id], "its mailbox hands it back under that number");
+            assert!(st.db.mailbox_fetch(to, *id, 10).unwrap().is_empty(), "a device that read to it finds nothing new");
+        }
+        for sender in [&alice, &carol] {
+            assert_eq!(st.db.mailbox_fetch(sender, 0, 10).unwrap().len(), 1, "the sender's own copy waits for their other devices");
+        }
+    }
+
     /// No plaintext path exists: anything that isn't a v2 envelope is
     /// refused outright (structurally stronger than the old HIGH-1 gate).
     #[test]

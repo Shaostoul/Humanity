@@ -144,6 +144,8 @@ pub(crate) use commons::{
 mod composer_tests; // the composer grows upward and stays on screen (2026-10-10)
 #[cfg(test)]
 mod channel_row_tests; // a room row is the same under every server (BUG-242)
+#[cfg(test)]
+mod self_mail_tests; // my copy of a DM leaves apart from the recipient's (BUG-259)
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 

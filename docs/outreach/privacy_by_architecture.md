@@ -12,6 +12,11 @@ nothing. It is also an honest account of the parts we cannot close, because
 a privacy claim that hides its own limits is just marketing, and we would
 rather you trust the architecture than trust us.
 
+*Checked against the code on 6 November 2026. Where an earlier version of this
+page claimed more than the code did (groups, photos, the order of stored
+messages, the onion door, friendship passes, how long logs are kept), it now
+says the narrower thing that is true.*
+
 ## The moment that started it
 
 A court order landed that forced Discord and Microsoft to hand over personal
@@ -64,9 +69,29 @@ the recipient can verify it, and the server stores each message addressed only
 to its recipient with no record of who it came from. Messages expire off the
 server after a short delivery window; your real history lives encrypted on
 your own devices. What a subpoena of our database now returns is a pile of
-scrambled blobs addressed to anonymous keys, with day level timestamps and no
-senders. There is no conversation graph to reconstruct, because we stopped
-writing it down.
+scrambled blobs, each addressed to an anonymous key, padded to one of a few
+fixed sizes, with the day it arrived and no sender. The rows are kept by
+recipient rather than in the order they arrived, and your app sends its own copy
+of what you wrote (the one your other devices read) a random 20 seconds to 2
+minutes after the recipient's, so nothing in the database pairs a message with
+the person who sent it.
+
+That last part was not true until 6 November 2026, and we found it while
+checking this page against the code. Rows used to be numbered in the order they
+arrived, and your app sent your own copy right after the recipient's, so two
+neighbouring rows of the same size could pair you with the person you wrote to.
+We fixed both halves; rows stored before the fix keep their old numbers until
+they age out of the 30-day window, and backups taken before it keep them for as
+long as those backups are kept.
+
+What the database still cannot hide, said plainly: at the moment you send, the
+server you are connected to knows it is you and whom the sealed envelope is
+for, because it arrives on your signed-in connection. It does not write that
+down, but a server changed to record it could. And the server's write log and
+its continuous backup keep the order things were written in for as long as they
+are kept, so on a server so quiet that nothing else happens in the minutes
+between your message and your own copy, someone holding them could still guess
+the pair.
 
 ### Who is friends with whom
 
@@ -101,8 +126,16 @@ Both are now gone. In the desktop app, contacting a seller opens a normal end
 to end encrypted direct message. The web marketplace has not been moved over
 yet, and its old message box does nothing at all, which is a bug we are
 fixing; until then, contact a seller from the app or by direct message in
-chat. Groups run entirely on encrypted, signed data the server cannot read.
-Both plaintext tables were dropped from the database outright.
+chat. Both plaintext tables were dropped from the database outright.
+
+Groups are now built differently, and here we have to be careful with the
+words. What is said in a group is end-to-end encrypted: the server stores and
+passes on messages it cannot read. But a group is a set of signed records, and
+the server that carries one keeps those records where it can read them: the
+group's name in plain text, the list of who is in it, and each message's author
+and the time it was posted. So a copy of that server's database shows who talks
+with whom in groups, even though it cannot show what they say. Hiding those too
+is planned work, not done.
 
 ### Where your photos were taken
 
@@ -113,11 +146,23 @@ time, often the camera's serial number. Upload a nice picture of your garden
 to share, and you may have just published your home address to anyone who
 downloads it.
 
-Now, every image uploaded to a HumanityOS server is stripped of that hidden
-metadata before the file ever touches our disk. The stripping is lossless, so
-your image quality is untouched; it just quietly removes the coordinates and
-the serial number. You do not have to remember to do anything. It is simply
-gone.
+Now your app removes that hidden metadata on your own device before a photo
+or video leaves it (a switch, "Remove location and camera details", on unless
+you turn it off), and the server removes it again from every picture, video and
+phone photo uploaded to it, before the file is stored. JPEG, PNG and WebP
+pictures lose their EXIF, XMP and comment blocks; HEIC and AVIF photos have
+their EXIF and XMP blanked; MP4-family videos have their location boxes blanked.
+The removal is lossless, so the picture itself is untouched.
+
+When a file cannot be read all the way through, the metadata cannot be removed
+with certainty, and until 6 November 2026 the server then stored the picture as
+it came, location and all. Now it stores nothing: your app asks you, "Send it
+anyway, or don't send?", with "Don't send" first, and only your "Send anyway",
+signed with your own key for that one file, lets the server keep it as it is.
+Two limits we know of: a GIF is stored as it is (it has no standard place for a
+location, though an editing program can write one in), and a location recorded
+inside a video's own picture stream, as some action cameras and drones do, is
+not caught.
 
 ### Photos and files inside a private message
 
@@ -155,8 +200,9 @@ sitting in a folder that gets synced to other machines, and they are usually an
 afterthought. Ours are now encrypted at rest, with the key deliberately kept
 somewhere the backups themselves never travel. A backup that gets copied off
 the machine is unreadable scrambled data without that key. Separately, the web
-server used to keep two weeks of visitor IP logs; we cut that to two days, just
-enough for the automatic abuse blocking to function, and deleted the backlog.
+server used to keep two weeks of visitor IP logs; we cut that to at most three
+days (it starts a new log each day and keeps the two before it), just enough
+for the automatic abuse blocking to function, and deleted the backlog.
 
 ### How much you said, and for how long
 
@@ -219,8 +265,10 @@ you inside the app; it is something you layer underneath it. So server
 operators can now run what is called a Tor onion service, which lets you reach
 the server through an anonymizing network where neither end learns the other's
 location. Over that door, there is genuinely nothing to see. But it is opt in,
-it is a bit slower, and it depends on the operator setting it up. We can open
-the door; we cannot walk through it for you.
+it is a bit slower, and it depends on the operator setting it up. Two more
+limits, as of 6 November 2026: the door reaches the server's chat and the
+connection the apps use, not yet its website; and united-humanity.us itself does
+not run one yet. We can open the door; we cannot walk through it for you.
 
 **Timing and traffic patterns.** Even when a watcher cannot see who you are or
 what you said, someone monitoring the raw connection in real time might notice
@@ -242,13 +290,13 @@ independent servers or other people's devices, we cannot reach across the
 whole network and guarantee it is deleted everywhere. Deletion is real on the
 servers we control and honest about its limits beyond them.
 
-**Certificates do not yet expire.** In this first version, the friendship
-certificates that grant messaging access do not have an expiration date and
-cannot be revoked by the server. Unfriending someone is handled on your side:
-your client stops treating them as a friend, and their messages fall back to
-the limited stranger allowance. It works, but a future version should add
-proper expiration and rotation, and we would rather tell you that now than let
-you assume otherwise.
+**Friendship passes do not expire.** The friendship passes that let a friend
+message you have no end date. Since version 0.1466.0 you can withdraw one you
+gave: your app tells the server, which then refuses that pass, and keeps only a
+scrambled tag of your key, the pass's number and the day, not whom you gave it
+to. A pass
+still lasts until you withdraw it, and an end date that renews on its own would
+be better; we would rather tell you that now than let you assume otherwise.
 
 **Your own device.** None of this protects you from a compromised device. If
 someone has malware on your computer or physical access to your unlocked

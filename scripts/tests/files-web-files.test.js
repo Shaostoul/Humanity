@@ -111,6 +111,10 @@ test("2. with the switch off the photo goes as picked, the start says keep_metad
   await upload(doc);
   assert.ok(same(sent(relay), PHOTO), "exactly as picked");
   assert.equal(startBody(relay).keep_metadata, 1, "keep_metadata: 1");
+  // With the person's signed choice over the file's BLAKE3 (BUG-260), which the relay requires.
+  const keep = startBody(relay).keep;
+  assert.ok(keep && keep.sig && startBody(relay).blake3, "with the signed choice and the hash");
+  assert.ok(Buffer.from(keep.sig, "base64").toString().startsWith("hum/upload-keep/v1\n"), "signed under the relay's domain");
   assert.equal(storage.m.get(UC.REMOVE_DETAILS_KEY), "0", "remembered on this device");
   await pickFile(doc, fileOf(PHOTO, "IMG_0002.jpg", "image/jpeg"));
   assert.equal(byId(doc, "files-form-remove-details").checked, false, "the next form starts as last chosen");
@@ -138,6 +142,7 @@ test("3. a video cut before its movie is never added unchecked; kept by choice i
     assert.equal(byId(doc, "files-form-go").disabled, false);
     await upload(doc);
     assert.equal(startBody(relay).keep_metadata, 1, `${name}: keep_metadata: 1`);
+    assert.ok(startBody(relay).keep && startBody(relay).blake3, `${name}: with the signed choice (BUG-260)`);
     assert.ok(same(sent(relay), new Uint8Array(await file.arrayBuffer())), `${name}: as picked`);
   }
   // A HEIC photo goes up as picked, without keep_metadata, so the relay cleans it (2026-10-11).

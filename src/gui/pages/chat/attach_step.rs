@@ -85,19 +85,23 @@ impl Looking {
 pub(crate) struct Verdict {
     /// The file may be sent now.
     pub can_send: bool,
-    /// Sending it means "Send anyway": it could not be checked, the switch is on, and it goes to a
-    /// private conversation (its marker then says `unchecked`).
+    /// Sending it means "Send anyway": it could not be checked and the switch is on. To a private
+    /// conversation its marker then says `unchecked`; to a public place it goes exactly as it is,
+    /// with the person's signed choice to keep its details (BUG-260).
     pub anyway: bool,
 }
 
 /// The verdict for a look, the switch, and where it goes (public: a server's room, Shared Files or
 /// Media; private: a DM, a group, the scratchpad). Under the protected setup a file that could not
 /// be checked is not sent anywhere, a DM included (the setup's promise is that location is always
-/// removed; the web's rule too).
+/// removed; the web's rule too). Anywhere else such a file is the person's to decide, public places
+/// included since 2026-11-06 (BUG-260; the operator: "can we have an option to send or refuse?"):
+/// "Don't send" first, "Send anyway" second.
 pub(crate) fn verdict(look: Option<&Result<Look, String>>, remove: bool, private: bool, protected: bool) -> Verdict {
+    let _ = private; // the same question in a private conversation and in a public place
     match look {
         Some(Ok(l)) if l.unchecked && remove => {
-            let anyway = private && !protected;
+            let anyway = !protected;
             Verdict { can_send: anyway, anyway }
         }
         Some(Ok(_)) => Verdict { can_send: true, anyway: false },
@@ -162,7 +166,8 @@ pub(crate) fn draw_look(ui: &mut egui::Ui, theme: &Theme, looking: &mut Looking,
         } else if private {
             (policy::SEND_ANYWAY, theme.warning())
         } else {
-            (policy::NOT_SENT_PUBLIC, theme.danger())
+            // A public place: the question (BUG-260), "Don't send" first below.
+            (keep_question(&look.description), theme.warning())
         };
         ui.label(RichText::new(words).size(theme.font_size_small).color(color));
     }
@@ -270,6 +275,12 @@ pub struct FilesFlow {
     /// chosen in: each goes through the same step a single file takes, the next once the one
     /// before is sent or cancelled (`attach_send::next_queued`).
     pub(crate) queue: Option<(String, std::collections::VecDeque<std::path::PathBuf>)>,
+    /// The public file whose upload is on its way as cleaned, kept until its answer (BUG-260): if the
+    /// server could not remove its hidden details, it is what "Send anyway" sends again.
+    pub(crate) sent_public: Option<AttachJob>,
+    /// The server could not remove a file's hidden details (its 422): the conversation it was for and
+    /// the file, while the person is asked whether to send it anyway (`draw_server_ask`).
+    pub(crate) server_ask: Option<(String, AttachJob)>,
 }
 
 /// Is this a private conversation (a DM or a group) whose attach button the person turned off
@@ -369,6 +380,66 @@ fn send_step(state: &mut GuiState, step: Step, anyway: bool) {
     attach_send::start(state, job);
 }
 
+/// The question for a file whose hidden details could not be removed (2026-11-06, BUG-260): a
+/// video's words or a picture's, by key.
+pub(crate) fn keep_question(d: &humanity_protocol::describe_metadata::Description) -> &'static str {
+    keep_question_for(matches!(d.kind, "mp4" | "webm"))
+}
+
+fn keep_question_for(video: bool) -> &'static str {
+    humanity_core::i18n::t(if video { "upload_keep.question_video" } else { "upload_keep.question_picture" })
+}
+
+/// The server could not remove a file's hidden details after all (its 422, BUG-260; the operator,
+/// 2026-11-06: "can we have an option to send or refuse?"): the person is asked, "Don't send" first,
+/// "Send anyway" second. "Send anyway" sends the file again exactly as it was picked, with their
+/// signed choice to keep its details (attach_send.rs `KeepSigner`); "Don't send", closing the
+/// question, or leaving the conversation sends nothing.
+fn draw_server_ask(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    use humanity_core::i18n::t;
+    let Some((channel, job)) = state.files_flow.server_ask.take() else { return };
+    if channel != state.chat_active_channel {
+        return; // the person left the conversation it was for: nothing is sent
+    }
+    let question = keep_question_for(super::video_poster::is_video_name(&job.filename));
+    let (mut open, mut yes, mut no) = (true, false, false);
+    widgets::dialog(ctx, theme, "chat_keep_ask", t("upload_keep.title"), &mut open, |ui| {
+        ui.set_max_width(460.0);
+        ui.label(RichText::new(&job.filename).size(theme.font_size_body).color(theme.text_primary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new(question).size(theme.font_size_body).color(theme.text_secondary()));
+        ui.add_space(theme.spacing_sm);
+        ui.horizontal(|ui| {
+            no = widgets::Button::primary(t("upload_keep.dont_send")).hint("upload_keep.dont_send_hint").show(ui, theme);
+            yes = widgets::Button::secondary(t("upload_keep.send_anyway")).hint("upload_keep.send_anyway_hint").show(ui, theme);
+        });
+    });
+    if yes || no || !open {
+        answer_server_ask(state, job, yes);
+    } else {
+        state.files_flow.server_ask = Some((channel, job));
+    }
+}
+
+/// The person's answer to "Send it anyway, or don't send?" for `job` (BUG-260): "Send anyway"
+/// starts it again exactly as it was picked, so it goes with their signed choice to keep its
+/// details; anything else sends nothing and says so.
+pub(crate) fn answer_server_ask(state: &mut GuiState, job: AttachJob, send_anyway: bool) {
+    if send_anyway {
+        attach_send::start(state, sent_anyway(job));
+    } else {
+        state.pending_notices.push(humanity_core::i18n::t("upload_keep.not_sent").to_string());
+    }
+}
+
+/// `job` as "Send anyway" sends it: exactly as it was picked (no clean, so the upload says
+/// `keep_metadata=1` and carries the person's signed choice for it), in the same conversation.
+pub(crate) fn sent_anyway(mut job: AttachJob) -> AttachJob {
+    job.clean = false;
+    job.allow_unchecked = true;
+    job
+}
+
 /// The chat's part, every frame: a DM's `accepts_files` asked for when it is opened, this person's
 /// own choice kept in step with their server (files_settings.rs), and the attach step, while one is
 /// open: shown when it has something to say, else the file goes at once. Send starts the upload
@@ -377,6 +448,7 @@ pub(super) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(peer) = state.chat_active_channel.strip_prefix("dm:").map(str::to_string) {
         ask_accepts(state, &peer);
     }
+    draw_server_ask(ctx, theme, state);
     let Some(mut step) = state.files_flow.step.take() else { return };
     if step.channel != state.chat_active_channel {
         return; // the person left the conversation it was for: nothing is sent
@@ -448,11 +520,20 @@ pub(super) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
-            let words = if verdict_now.anyway { "Send anyway" } else { "Send" };
-            ui.add_enabled_ui(verdict_now.can_send, |ui| {
-                send = widgets::Button::primary(words).show(ui, theme);
-            });
-            cancel = widgets::Button::secondary("Cancel").show(ui, theme);
+            if verdict_now.anyway {
+                // A file that could not be cleaned (BUG-260): "Don't send" first, "Send anyway"
+                // second, each saying what it does.
+                use humanity_core::i18n::t;
+                cancel = widgets::Button::primary(t("upload_keep.dont_send")).hint("upload_keep.dont_send_hint").show(ui, theme);
+                ui.add_enabled_ui(verdict_now.can_send, |ui| {
+                    send = widgets::Button::secondary(t("upload_keep.send_anyway")).hint("upload_keep.send_anyway_hint").show(ui, theme);
+                });
+            } else {
+                ui.add_enabled_ui(verdict_now.can_send, |ui| {
+                    send = widgets::Button::primary("Send").show(ui, theme);
+                });
+                cancel = widgets::Button::secondary(humanity_core::i18n::t("common.cancel")).show(ui, theme);
+            }
         });
     });
     if send && verdict_now.can_send {

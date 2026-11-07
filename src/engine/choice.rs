@@ -68,7 +68,9 @@ fn send_note(gs: &mut GuiState, note: &ChoiceNote, at: u64) -> usize {
         store.first_sight_note(&id);
         store.save();
     }
-    crate::engine::block::to_my_mailboxes(gs, &put.to_string())
+    // It goes beside the pass to the person it is about, so it waits like my copy of a message
+    // (BUG-259).
+    crate::engine::block::to_my_mailboxes_after_a_while(gs, &put.to_string())
 }
 
 /// N1 and N3, first thing in every pass sweep (so on every connection, once its mailbox was read):

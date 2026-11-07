@@ -36,7 +36,9 @@ listing_images (id, listing_id, url, position, created_at)
 listing_reviews (id, listing_id, reviewer_key, rating, comment, created_at)
 notification_prefs (public_key, dm_enabled, mentions_enabled, tasks_enabled, dnd_start, dnd_end)
 server_members (public_key, name, role, joined_at, last_seen, hide_presence)
-dm_mailbox     (id, to_key, content, received_day)  -- sealed-sender DMs; NO sender column by design
+dm_mailbox     (id, to_key, content, received_day)  -- sealed-sender DMs; NO sender column by design; WITHOUT ROWID, PRIMARY KEY (to_key, id),
+               -- id per mailbox = (received_day << 20) + its place in that mailbox's day, so rows are kept by mailbox, not by arrival
+               -- (BUG-259, 2026-11-06, storage/dms.rs); a cleared mailbox keeps one empty marker row (content '') holding its last number
 key_cards      (public_key, kyber_public, signed_at, signature)  -- each person's key card (2026-10-22, storage/key_cards.rs): their own signed Kyber key, one row, WITHOUT ROWID; exported and erased; replaced registered_names.kyber_public (cleared at start)
 erased_accounts (fingerprint, erased_day, ttl_days)  -- BUG-135: keyed BLAKE3 of the key (secret in data/erased-accounts.key), the day and the window promised; WITHOUT ROWID; culled by storage/expiry.rs
 reach_settings (public_key, kind, audience)  -- "who can reach me" (step B, storage/reach.rs + handlers/reach.rs): one audience per kind (message, call, trade); no row = the safe default; WITHOUT ROWID; exported and erased

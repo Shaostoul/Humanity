@@ -115,6 +115,12 @@ just sync    # fetches, git reset --hard, builds ON the VPS, lays out the web ro
 - Uploads: `/opt/Humanity/data/uploads/`
 
 - After pushing a Rust release, glance at `just ci`: a red deploy means the VPS is silently running stale code.
+- **The DM mailbox upgrade is forward-only (BUG-259, 2026-11-06).** Once a release carrying it has
+  started successfully on a server, the release before it refuses every `dm_put` (it inserts mail
+  with no `id`). From then on roll forward, never back: on united-humanity.us no "revert and push"
+  and no `just sync` from an older commit; on public.guide no reinstalling the previous release.
+  The incident playbook says the same (`docs/INCIDENT-PLAYBOOK.md`, "The relay will not start
+  after an update").
 - Deploy `git pull` fails if server has local changes -> `just sync` fixes it
 - **The forge mirror PULLS from GitHub every 8 hours; nothing pushes to it (since 2026-09-29).** `just ship` pushes only to `origin`; the local `forge` remote is `https://git.united-humanity.us/shaostoul/Humanity.git`, fetch-only and credential-free (the old SSH push setup no longer applies: a pull mirror refuses pushes). Health: `just brief`'s MIRROR row. It once vanished for eight weeks unseen: `docs/admin/forgejo-setup.md`.
 

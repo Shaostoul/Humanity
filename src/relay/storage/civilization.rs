@@ -192,7 +192,7 @@ impl Storage {
         // attributed to anyone.
         let total_dms: u32 = db
             .query_row(
-                "SELECT COUNT(*) FROM dm_mailbox",
+                "SELECT COUNT(*) FROM dm_mailbox WHERE content <> ''",
                 [],
                 |r| r.get(0),
             )

@@ -44,8 +44,9 @@ enum LinkState {
 /// A WebSocket client that talks to the relay server's chat protocol.
 ///
 /// Communication with the game thread is entirely through channels:
-/// - `send()` enqueues an outbound JSON string
-/// - `poll_messages()` drains inbound JSON strings
+/// - `send()` enqueues an outbound JSON string (a `dm_put` to my own mailbox waits a random while
+///   first, `net/self_mail.rs`; `send_now()` never waits)
+/// - `poll_messages()` drains inbound JSON strings, and sends what has waited long enough
 pub struct WsClient {
     /// Send raw JSON strings to the network thread for transmission.
     sender: Option<mpsc::Sender<String>>,
@@ -57,6 +58,13 @@ pub struct WsClient {
     server_url: String,
     /// The user's display name (sent in the identify message).
     user_name: String,
+    /// The identity this connection signs in as: a `dm_put` addressed to it is mail to myself.
+    me: String,
+    /// Whether mail to myself waits before it goes (BUG-259): every real connection; a recording
+    /// test client only when it asks (`recording_holding`).
+    holds_self_mail: bool,
+    /// Mail to myself waiting to go (`send` takes `&self`, hence the lock).
+    self_mail: std::sync::Mutex<crate::net::self_mail::SelfMail>,
 }
 
 impl WsClient {
@@ -97,12 +105,19 @@ impl WsClient {
             run_connection(url_owned, name_owned, pubkey_owned, card_owned, sign_up_again, rx_from_game, tx_to_game);
         });
 
+        // Mail to myself an earlier client of this server left waiting (a reconnect) goes out on
+        // this one when it is due.
+        let mut held = crate::net::self_mail::SelfMail::default();
+        held.adopt(crate::net::self_mail::take_left(url, pubkey_hex));
         Self {
             sender: Some(tx_to_net),
             receiver: rx_from_net,
             state: LinkState::Connecting,
             server_url: url.to_string(),
             user_name: name.to_string(),
+            me: pubkey_hex.to_string(),
+            holds_self_mail: true,
+            self_mail: std::sync::Mutex::new(held),
         }
     }
 
@@ -120,6 +135,11 @@ impl WsClient {
             state: LinkState::Connected,
             server_url: "wss://recording.invalid/ws".to_string(),
             user_name: String::new(),
+            me: String::new(),
+            // Frames go out as they are sent, so a feature's test sees its own copies at once;
+            // `recording_holding` is the client that waits as a real one does.
+            holds_self_mail: false,
+            self_mail: std::sync::Mutex::new(Default::default()),
         };
         (client, sent)
     }
@@ -132,10 +152,84 @@ impl WsClient {
         (client, sent)
     }
 
-    /// Send a raw JSON message string to the server.
+    /// Test-only: `recording` signed in as `me`, holding mail to `me` as every real connection
+    /// does (BUG-259). `release_due_at` moves its clock.
+    #[cfg(test)]
+    pub fn recording_holding(me: &str) -> (Self, mpsc::Receiver<String>) {
+        let (mut client, sent) = Self::recording();
+        client.me = me.to_string();
+        client.holds_self_mail = true;
+        (client, sent)
+    }
+
+    /// Whether this client holds mail to myself before it goes (every real connection does).
+    pub fn holds_self_mail(&self) -> bool {
+        self.holds_self_mail
+    }
+
+    /// Send a raw JSON message string to the server. A `dm_put` to my own mailbox waits a random
+    /// 20 s to 2 min first, after any already waiting (net/self_mail.rs, BUG-259): my copy of a
+    /// message never goes beside the recipient's. A note that pairs with nothing and keeps its own
+    /// "not sent yet" mark uses [`Self::send_now`].
     pub fn send(&self, msg: &str) {
+        if self.holds_self_mail && crate::net::self_mail::is_self_put(msg, &self.me) {
+            if let Ok(mut q) = self.self_mail.lock() {
+                q.hold(msg.to_string(), std::time::Instant::now(), crate::net::self_mail::random_delay());
+                return;
+            }
+        }
+        self.send_now(msg);
+    }
+
+    /// Send a raw JSON message string to the server at once, mail to myself included.
+    pub fn send_now(&self, msg: &str) {
         if let Some(ref tx) = self.sender {
             let _ = tx.send(msg.to_string());
+        }
+    }
+
+    /// Send the mail to myself due at `now`, while connected. Called from `poll_messages` each
+    /// frame with the time now.
+    fn release_due(&self, now: std::time::Instant) {
+        if !self.is_connected() {
+            return; // kept until the socket is up
+        }
+        let due = match self.self_mail.lock() {
+            Ok(mut q) => q.due(now),
+            Err(_) => return,
+        };
+        for f in due {
+            self.send_now(&f);
+        }
+    }
+
+    /// Test-only: release what is due at `now` (a test's clock).
+    #[cfg(test)]
+    pub fn release_due_at(&self, now: std::time::Instant) {
+        self.release_due(now);
+    }
+
+    /// Mail to myself still waiting.
+    pub fn self_mail_waiting(&self) -> usize {
+        self.self_mail.lock().map(|q| q.len()).unwrap_or(0)
+    }
+
+    /// Send everything still waiting at once (the connection is closing while still up), or, with
+    /// the socket already down, leave it for the next client of this server and identity.
+    fn hand_off_self_mail(&mut self) {
+        let left = match self.self_mail.lock() {
+            Ok(mut q) => q.take_all(),
+            Err(_) => return,
+        };
+        if left.is_empty() {
+            return;
+        }
+        if self.sender.is_some() && self.state == LinkState::Connected {
+            for (_, f) in left {
+                self.send_now(&f);
+            }
+        } else {
+            crate::net::self_mail::leave_for_next(&self.server_url, &self.me, left);
         }
     }
 
@@ -165,6 +259,9 @@ impl WsClient {
                 }
             }
         }
+        // Mail to myself that has waited long enough (BUG-259). Every live client is polled every
+        // frame (the active one in frame_ws_poll.rs, parked ones in bg_connections.rs).
+        self.release_due(std::time::Instant::now());
         msgs
     }
 
@@ -182,8 +279,9 @@ impl WsClient {
         self.state == LinkState::Dropped
     }
 
-    /// Disconnect from the server.
+    /// Disconnect from the server. Mail to myself still waiting goes first, while the socket is up.
     pub fn disconnect(&mut self) {
+        self.hand_off_self_mail();
         self.sender = None;
         self.state = LinkState::Dropped;
     }
@@ -196,6 +294,15 @@ impl WsClient {
     /// The user name used for identification.
     pub fn user_name(&self) -> &str {
         &self.user_name
+    }
+}
+
+/// A client let go (the app closing, a server left, a reconnect replacing it): mail to myself still
+/// waiting goes now if its socket is up, or waits for the next client of the same server and
+/// identity (BUG-259). Only a crash loses it, and then only for my other devices.
+impl Drop for WsClient {
+    fn drop(&mut self) {
+        self.hand_off_self_mail();
     }
 }
 

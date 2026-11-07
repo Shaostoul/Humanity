@@ -384,7 +384,12 @@ pub(crate) async fn upload_file_in(
     if let Some(refusal) = limit.declared_too_large(&headers) {
         return Err(refusal);
     }
-    let keep_metadata = query.keep_metadata == Some(1);
+    // The person's choice to keep the file's hidden details (B4) counts only with their own
+    // signature over this file (2026-11-06, BUG-260; upload_rules.rs `KeepChoice`): its form part
+    // comes before the file's, is held to its time when it arrives, and is checked against the
+    // file's BLAKE3 once the file is in. Never needed for an encrypted file (nothing is stripped).
+    let keep_wanted = query.keep_metadata == Some(1) && query.encrypted != Some(1);
+    let mut keep_choice: Option<super::upload_rules::KeepChoice> = None;
     // A video's poster picture (2026-11-06, relay/poster.rs): its own form part, before the file's,
     // read into memory (it is small, and refused the moment it is not) and checked once the file's
     // kind is known.
@@ -398,6 +403,20 @@ pub(crate) async fn upload_file_in(
                 return Err((StatusCode::BAD_REQUEST, super::poster::TWO_POSTERS.to_string()));
             }
             poster = Some(super::poster::read_part(&mut field).await?);
+            continue;
+        }
+        if field.name() == Some(super::upload_rules::KEEP_FIELD) {
+            let unchecked = || (StatusCode::FORBIDDEN, super::upload_rules::KEEP_UNCHECKED.to_string());
+            let mut text = Vec::new();
+            while let Some(chunk) = field.chunk().await.map_err(|_| unchecked())? {
+                text.extend_from_slice(&chunk);
+                if text.len() > 16 * 1024 || keep_choice.is_some() {
+                    return Err(unchecked());
+                }
+            }
+            let choice = super::upload_rules::keep_choice_from(&String::from_utf8_lossy(&text)).ok_or_else(unchecked)?;
+            super::upload_rules::keep_in_time(Some(&choice), crate::relay::storage::now_millis())?;
+            keep_choice = Some(choice);
             continue;
         }
         let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
@@ -433,6 +452,24 @@ pub(crate) async fn upload_file_in(
         let part = stream_to_part(&mut field, max_size.min(usize::MAX as u64) as usize, part_dir)
             .await
             .map_err(|e| limit.reword(e))?;
+
+        // The choice to keep its hidden details, checked against the file that arrived (BUG-260):
+        // only the uploader's own signature over this file's BLAKE3 keeps them; anything less is
+        // refused and nothing is stored.
+        let keep_metadata = if keep_wanted {
+            let path = part.path.clone();
+            let hash = tokio::task::spawn_blocking(move || super::upload_rules::blake3_hex_of_file(&path))
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))?
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?;
+            if let Err(refused) = super::upload_rules::keep_checked(&public_key, &hash, keep_choice.as_ref()) {
+                let _ = tokio::fs::remove_file(&part.path).await;
+                return Err(refused);
+            }
+            true
+        } else {
+            false
+        };
 
         // A picture is read back for the magic check and the metadata strip (upload_rules.rs
         // `finish_picture`); anything else is moved into place as it arrived. A picture is known

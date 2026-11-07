@@ -370,7 +370,7 @@ mod tests {
         let rows: i64 = conn.query_row("SELECT COUNT(*) FROM dm_mailbox", [], |r| r.get(0)).expect("it reads");
         assert_eq!(rows, 0);
         assert!(
-            conn.execute("INSERT INTO dm_mailbox (to_key, content, received_day) VALUES ('y', 'x', 1)", []).is_err(),
+            conn.execute("INSERT INTO dm_mailbox (id, to_key, content, received_day) VALUES (1, 'y', 'x', 1)", []).is_err(),
             "and refuses to write"
         );
         // Close everything before the guard (`path`, dropped last) deletes the files.
@@ -381,20 +381,23 @@ mod tests {
     /// This is the safety net behind the conservative routing rule — if anyone
     /// ever sends write SQL to `with_read_conn`, it fails loudly here instead of
     /// silently hitting a read replica.
+    ///
+    /// The write is a valid one (it names every column the mailbox requires since BUG-259 made
+    /// `id` its own column), so the only reason it can fail is that the connection is read-only:
+    /// the error must be SQLite's READONLY, and the same statement then succeeds on the writer.
+    /// Seen red 2026-11-06 with the first write sent through `with_conn` instead: "writing through
+    /// a read-only pooled connection must fail" (it succeeded). Until then the test inserted with
+    /// no `id`, so it failed on NOT NULL on any connection and proved nothing.
     #[test]
     fn read_pool_rejects_writes() {
         let db = Storage::open_temp("pool_reject_writes");
+        const WRITE: &str = "INSERT INTO dm_mailbox (id, to_key, content, received_day) VALUES (1, 'y', 'should not persist', 1)";
 
-        let result: Result<usize, rusqlite::Error> = db.with_read_conn(|conn| {
-            conn.execute(
-                "INSERT INTO dm_mailbox (to_key, content, received_day)
-                 VALUES ('y','should not persist', 1)",
-                [],
-            )
-        });
+        let result: Result<usize, rusqlite::Error> = db.with_read_conn(|conn| conn.execute(WRITE, []));
+        assert!(result.is_err(), "writing through a read-only pooled connection must fail");
         assert!(
-            result.is_err(),
-            "writing through a read-only pooled connection must fail"
+            matches!(&result, Err(rusqlite::Error::SqliteFailure(e, _)) if e.code == rusqlite::ErrorCode::ReadOnly),
+            "and it fails because the connection is read-only: {result:?}"
         );
 
         // And nothing was written — the writer-side view confirms the table is
@@ -403,5 +406,7 @@ mod tests {
             .with_conn(|c| c.query_row("SELECT COUNT(*) FROM dm_mailbox", [], |r| r.get(0)))
             .expect("count on writer");
         assert_eq!(count, 0, "rejected write must not have persisted any row");
+        // The same statement is a good one: the writer takes it.
+        assert_eq!(db.with_conn(|c| c.execute(WRITE, [])).expect("the writer takes the same write"), 1);
     }
 }

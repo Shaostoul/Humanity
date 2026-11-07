@@ -402,16 +402,31 @@ fn send_note(gs: &mut GuiState, note: &BlockNote, at: u64) -> usize {
 }
 
 /// Send one `dm_put` to our own mailbox on every server we are connected to (the one we are on and
-/// the parked ones). Returns how many it went to.
+/// the parked ones), AT ONCE. Returns how many it went to. For a note that pairs with nothing and
+/// keeps its own "not sent yet" mark until it has gone: a block note (nothing goes to the person
+/// blocked), a task note, the quiet hours' allow list. Holding one back (BUG-259) would only open
+/// a window in which a crash loses it.
 pub(crate) fn to_my_mailboxes(gs: &GuiState, text: &str) -> usize {
+    to_my_mailboxes_as(gs, text, true)
+}
+
+/// [`to_my_mailboxes`] for a note that goes beside a message to someone else (a choice note, sent
+/// with the pass to the person it is about): it waits a random while first, like my own copy of a
+/// message (net/self_mail.rs, BUG-259), so it never lands beside that message on the relay.
+pub(crate) fn to_my_mailboxes_after_a_while(gs: &GuiState, text: &str) -> usize {
+    to_my_mailboxes_as(gs, text, false)
+}
+
+fn to_my_mailboxes_as(gs: &GuiState, text: &str, now: bool) -> usize {
+    let send = |c: &crate::net::ws_client::WsClient| if now { c.send_now(text) } else { c.send(text) };
     let mut sent = 0;
     if let Some(client) = gs.ws_client.as_ref().filter(|c| c.is_connected()) {
-        client.send(text);
+        send(client);
         sent += 1;
     }
     for conn in gs.connections.iter().filter(|c| c.identified) {
         if let Some(ws) = conn.ws.as_ref().filter(|w| w.is_connected()) {
-            ws.send(text);
+            send(ws);
             sent += 1;
         }
     }

@@ -95,7 +95,11 @@ pub fn check_poster(bytes: Vec<u8>) -> Result<Vec<u8>, Refused> {
         ));
     }
     image::load_from_memory_with_format(&bytes, image::ImageFormat::Jpeg).map_err(|_| (StatusCode::UNSUPPORTED_MEDIA_TYPE, UNREADABLE.to_string()))?;
+    // A poster picture the strip cannot walk is refused as unreadable, never with the upload's
+    // "could not be cleaned" code (422, BUG-260), which asks the person about the FILE: the poster
+    // is the app's own picture, always cleaned, and sending again with a keep choice would not help.
     super::upload_rules::finish_picture("image/jpeg", bytes)
+        .map_err(|e| if e.0 == super::upload_rules::CANNOT_CLEAN { (StatusCode::UNSUPPORTED_MEDIA_TYPE, UNREADABLE.to_string()) } else { e })
 }
 
 #[cfg(test)]

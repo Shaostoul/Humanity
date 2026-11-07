@@ -344,7 +344,10 @@
     while (mine.length) {
       var built = await pqBuildSelfNote(mine[0].text, mine[0].at);
       if (!built || !sock()) break; // tried again on the next connection
-      sock().send(JSON.stringify(built.put));
+      // At once: the allow-list note pairs with nothing and stays kept as unsent until it has
+      // gone (shared/self-mail.js, BUG-259).
+      if (typeof hosSelfMailSendNow === 'function') hosSelfMailSendNow(sock(), JSON.stringify(built.put));
+      else sock().send(JSON.stringify(built.put));
       mine.shift();
       saveJson(ALLOW_UNSENT_KEY, others.concat(mine));
     }

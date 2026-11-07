@@ -99,7 +99,10 @@ impl Storage {
             grab("vault", "SELECT public_key, length(blob) AS blob_bytes, updated_at FROM vault_blobs WHERE public_key = ?1", &[&key]);
             // Sealed mail queued for them (counts only; contents are sealed
             // envelopes their own client decrypts via dm_fetch).
-            grab("dm_mailbox_queued", "SELECT COUNT(*) AS envelopes FROM dm_mailbox WHERE to_key = ?1", &[&key]);
+            grab("dm_mailbox_queued", "SELECT COUNT(*) AS envelopes FROM dm_mailbox WHERE to_key = ?1 AND content <> ''", &[&key]);
+            // A cleared mailbox keeps one empty marker holding its last number, dated the day it was
+            // cleared, until it ages out (storage/dms.rs mailbox_purge, BUG-259).
+            grab("dm_mailbox_cleared", "SELECT received_day AS cleared_day, id AS last_number FROM dm_mailbox WHERE to_key = ?1 AND content = ''", &[&key]);
             // The plot their home stands on (ship homes 1b; the third review: it was neither
             // exported nor erased).
             grab("ship_plots", "SELECT world_id, plot_id, assigned_at FROM game_plots WHERE owner_did = ?1", &[&plot_owner]);
@@ -565,6 +568,34 @@ mod tests {
         let bea = db.export_account("bea_key", "Bea");
         assert_eq!(bea["uploads"].as_array().unwrap().len(), 1, "Bea keeps her upload");
         assert_eq!(bea["tasks_created"].as_array().unwrap().len(), 1, "Bea keeps her task");
+    }
+
+    /// A cleared mailbox keeps one empty marker holding its last number (BUG-259,
+    /// storage/dms.rs `mailbox_purge`). It is data the server holds about the person, so their
+    /// export lists it (`dm_mailbox_cleared`, with no envelope counted as queued), and their
+    /// erase takes it with the rest: no row is left under the key.
+    ///
+    /// Seen red 2026-11-06 with the `dm_mailbox_cleared` line taken out of `export_account`: "the
+    /// export lists the marker" (left: None).
+    #[test]
+    fn a_cleared_mailbox_marker_is_exported_and_erased() {
+        let db = test_storage();
+        db.register_name("Alice", "alice_key").unwrap();
+        db.join_server("alice_key", "Alice").unwrap();
+        db.mailbox_put("alice_key", "sealed-env").unwrap();
+        db.mailbox_put("alice_key", "another").unwrap();
+        assert_eq!(db.mailbox_purge("alice_key").unwrap(), 2);
+
+        let export = db.export_account("alice_key", "Alice");
+        assert_eq!(export["dm_mailbox_cleared"].as_array().map(|a| a.len()), Some(1), "the export lists the marker");
+        assert_eq!(export["dm_mailbox_cleared"][0]["cleared_day"], crate::relay::storage::dms::unix_day_now());
+        assert_eq!(export["dm_mailbox_queued"][0]["envelopes"], 0, "and counts no envelope as queued");
+
+        db.delete_account("alice_key", "Alice");
+        let left: i64 = db
+            .with_read_conn(|c| c.query_row("SELECT COUNT(*) FROM dm_mailbox WHERE to_key = 'alice_key'", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(left, 0, "the erase leaves no row under the key, the marker included");
     }
 
     /// A populated account exports its data and erases to nothing, while

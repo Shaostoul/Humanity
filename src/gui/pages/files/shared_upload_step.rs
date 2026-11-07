@@ -55,18 +55,24 @@ pub(crate) fn prepare(path: &std::path::Path, filename: &str, remove: bool) -> R
     Ok((bytes, crate::gui::pages::chat::attach_send::UploadFlags { share: true, encrypted: false, keep_metadata: !remove }))
 }
 
-/// Read, clean and upload the file to Shared Files: the worker's whole job.
-pub(crate) fn upload(server: &str, token: &str, path: &std::path::Path, filename: &str, remove: bool) -> Result<String, String> {
+/// Read, clean and upload the file to Shared Files: the worker's whole job. Kept with its details by
+/// choice, it carries the person's signed choice for this very file (`signer`, BUG-260), or nothing
+/// is sent.
+pub(crate) fn upload(server: &str, token: &str, path: &std::path::Path, filename: &str, remove: bool, signer: Option<&crate::gui::pages::chat::attach_send::KeepSigner>) -> Result<String, String> {
+    use crate::gui::pages::chat::attach_send;
     let (bytes, flags) = prepare(path, filename, remove)?;
     let mime = crate::gui::pages::chat::mime_for_filename(filename).to_string();
-    crate::gui::pages::chat::attach_send::upload_flagged(server, token, filename, &mime, bytes, flags).map(|url| format!("uploaded {url}"))
+    let keep = if flags.keep_metadata { Some(signer.ok_or_else(attach_send::cannot_sign_words)?.choice(&bytes)) } else { None };
+    attach_send::upload_with_poster_keep(server, token, filename, &mime, bytes, flags, None, keep.as_deref())
+        .map(|url| format!("uploaded {url}"))
+        .map_err(|(_, words)| words)
 }
 
-fn spawn_upload(server: String, token: String, step: &UploadStep) -> Receiver<Result<String, String>> {
+fn spawn_upload(server: String, token: String, step: &UploadStep, signer: Option<crate::gui::pages::chat::attach_send::KeepSigner>) -> Receiver<Result<String, String>> {
     let (tx, rx) = std::sync::mpsc::channel();
     let (path, filename, remove) = (step.path.clone(), step.filename.clone(), step.remove);
     std::thread::spawn(move || {
-        let _ = tx.send(upload(&server, &token, &path, &filename, remove));
+        let _ = tx.send(upload(&server, &token, &path, &filename, remove, signer.as_ref()));
     });
     rx
 }
@@ -83,7 +89,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, step:
     if let Some(look) = &step.looking.look {
         if !attach_step::needs_asking(look, None) {
             attach_step::remember_switch(state, step.remove);
-            return Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step));
+            return Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
         }
     }
     let mut outcome = Outcome::Waiting;
@@ -96,7 +102,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, step:
                 go = widgets::Button::primary("Upload").show(ui, theme);
             });
             if go {
-                outcome = Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step));
+                outcome = Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
             }
             if widgets::Button::secondary("Cancel").show(ui, theme) {
                 outcome = Outcome::Cancelled;

@@ -40,6 +40,8 @@
   const DROP = NODE ? require('../shared/drop-overlay.js') : root.HosDropOverlay;
 
   const MIB = 1024 * 1024;
+  /** A word by its key (data/i18n/en.json), or the key where no words are loaded. */
+  const keepWord = (k) => (root && root.i18n && typeof root.i18n.t === 'function' ? root.i18n.t(k) : k);
   // The largest file until the server has said the person's own limit (the chat's and the
   // desktop's fallback, ATTACH_MAX_BYTES).
   const FALLBACK_LIMIT = 6 * MIB;
@@ -302,6 +304,15 @@
       if (!t) { st.queue.length = 0; say(WORDS.notSignedInYet); return; }
       say(uploadingWords(name));
       const form = new FD();
+      // Kept with its details by choice: the person's signed choice for this very file goes first,
+      // or the server stores nothing (BUG-260, /shared/upload-clean.js keepChoice).
+      if (keepMetadata) {
+        const made = cleaner && session && typeof cleaner.keepChoice === 'function'
+          ? await cleaner.keepChoice(blob, { me: session.me ? session.me() : null, sign: session.sign })
+          : null;
+        if (!made) { say(failedWords(keepWord('upload_keep.cannot_sign'))); return; }
+        form.append('keep', made.json);
+      }
       form.append('file', blob, name);
       const url = '/api/upload?token=' + encodeURIComponent(t) + '&share=1' + (keepMetadata ? '&keep_metadata=1' : '');
       let res = null;

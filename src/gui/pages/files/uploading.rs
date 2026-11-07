@@ -163,6 +163,7 @@ fn push_upload(state: &mut GuiState, record: Unfinished, clean: bool, token: Str
         file_changed: false,
         clean,
         keep_metadata: !clean,
+        keep_signer: if clean { None } else { crate::gui::pages::chat::attach_send::KeepSigner::of(state) },
     };
     let run = Run::start(t.clone(), plan, Arc::new(Control::new(Some(token))));
     state.files.uploads.push(Entry { local: super::next_id(), run, record, after: After::Uploading, cancelling: false, transport: t });
@@ -574,7 +575,7 @@ pub(crate) fn resume_with(state: &mut GuiState, id: &str, t: Arc<dyn Transport>)
     let content_type = crate::gui::pages::chat::mime_for_filename(&u.name).to_string();
     // Carried on: the server already has the start (and with it any keep_metadata), and the record
     // points at the cleaned copy when there is one, so nothing is cleaned again.
-    let plan = Plan { path: u.path.clone(), name: u.name.clone(), size: u.size, content_type, resume: Some(u.id.clone()), file_changed: !u.file_unchanged(), clean: false, keep_metadata: false };
+    let plan = Plan { path: u.path.clone(), name: u.name.clone(), size: u.size, content_type, resume: Some(u.id.clone()), file_changed: !u.file_unchanged(), clean: false, keep_metadata: false, keep_signer: None };
     let run = Run::start(t.clone(), plan, Arc::new(Control::new(Some(token))));
     state.files.uploads.push(Entry { local: super::next_id(), run, record: u, after: After::Uploading, cancelling: false, transport: t });
     super::refresh_mine(state);

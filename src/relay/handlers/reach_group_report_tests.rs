@@ -303,9 +303,9 @@ fn a_group_report_to_a_friend_works_as_any_dm_does() {
     assert_eq!(report(&st, &stranger.key, &creator.key, None), (false, refusal(&creator)), "to someone at the default who created no group with them");
 }
 
-/// Every row of every table, as text, by table name: the database as a test can compare it. The
-/// mailbox's own row counter (its `sqlite_sequence` row, AUTOINCREMENT) is left out, as it moves
-/// with every mail and says nothing about who sent it.
+/// Every row of every table, as text, by table name: the database as a test can compare it. A
+/// `sqlite_sequence` row for the mailbox is left out: the mailbox has had no AUTOINCREMENT counter
+/// since 2026-11-06 (BUG-259, kept by mailbox), and one would only move with every mail.
 fn every_table(st: &RelayState) -> BTreeMap<String, Vec<Vec<String>>> {
     let conn = st.db.conn.lock().unwrap();
     let names: Vec<String> = conn

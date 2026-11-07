@@ -228,6 +228,12 @@ pub struct StartBody {
     /// skips the picture and video strip (a picture is still checked to be what it says).
     #[serde(default)]
     pub keep_metadata: Option<u8>,
+    /// With `keep_metadata: 1`, the person's own signed choice to keep this file's hidden details
+    /// (2026-11-06, BUG-260; upload_rules.rs `KeepChoice`), over the `blake3` above, which it then
+    /// requires: the finish checks the file against that hash, so the choice holds for this file
+    /// only. Without it, or with one that does not check out, the start is refused.
+    #[serde(default)]
+    pub keep: Option<super::upload_rules::KeepChoice>,
 }
 
 /// `text` trimmed and held to `max` characters.
@@ -287,6 +293,15 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
 
     let size = b.size;
     let keep_metadata = b.keep_metadata == Some(1);
+    if keep_metadata {
+        // Kept only on the person's signed choice for THIS file (BUG-260): over the hash the finish
+        // holds the file to, made in time.
+        if blake3.is_empty() {
+            return Err(words(StatusCode::FORBIDDEN, super::upload_rules::KEEP_UNCHECKED));
+        }
+        super::upload_rules::keep_in_time(b.keep.as_ref(), crate::relay::storage::now_millis())?;
+        super::upload_rules::keep_checked(&key, &blake3, b.keep.as_ref())?;
+    }
     let state = state.clone();
     let owned = OwnedFolders::of(folders);
     let id = tokio::task::spawn_blocking(move || -> Result<String, Refused> {
@@ -727,8 +742,10 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
     if !s.blake3.is_empty() && !s.hash_checked {
         let got = hash_file(&part).map_err(|e| words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?;
         if got != s.blake3 {
+            // 409, not 422: an upload's 422 means only "could not be cleaned" (upload_rules.rs
+            // CANNOT_CLEAN), which the apps answer by asking the person.
             return Err(drop_session(words(
-                StatusCode::UNPROCESSABLE_ENTITY,
+                StatusCode::CONFLICT,
                 "The file that arrived does not match the file you sent (its BLAKE3 hash differs), so nothing was kept. Send it again from the start.",
             )));
         }
@@ -750,7 +767,7 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
             // a failure to read or write the file may pass, so the session is kept for another
             // try (R3, 2026-10-11).
             finish_file_as(&part, s.keep_metadata)
-                .map_err(|e| if e.0 == StatusCode::UNPROCESSABLE_ENTITY { drop_session(e.into()) } else { e.into() })?;
+                .map_err(|e| if e.0 == super::upload_rules::CANNOT_CLEAN { drop_session(e.into()) } else { e.into() })?;
             UploadBody::Part(part.clone())
         }
     };

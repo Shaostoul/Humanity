@@ -465,6 +465,9 @@ pub struct Plan {
     /// The person kept the file's hidden details by choice: the start says `keep_metadata: 1`, and
     /// the relay then skips its own strip.
     pub keep_metadata: bool,
+    /// What signs that choice for this very file (BUG-260): the start then carries it, over the
+    /// file's BLAKE3, and the relay keeps the details only with it. None: no choice can be signed.
+    pub keep_signer: Option<crate::gui::pages::chat::attach_send::KeepSigner>,
 }
 
 /// The start's body (the relay's `StartBody`).
@@ -472,6 +475,12 @@ pub fn start_body(plan: &Plan, blake3: &str) -> Value {
     let mut body = json!({ "filename": plan.name, "size": plan.size, "content_type": plan.content_type, "media": 1, "blake3": blake3 });
     if plan.keep_metadata {
         body["keep_metadata"] = json!(1);
+        // The person's signed choice for this very file (BUG-260), over the hash the finish holds
+        // the file to. Without a signer the start goes without it and the relay refuses it, saying
+        // why.
+        if let Some(signer) = &plan.keep_signer {
+            body["keep"] = serde_json::from_str(&signer.choice_for_hash(blake3)).unwrap_or(Value::Null);
+        }
     }
     body
 }
@@ -832,8 +841,16 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
             Answer::Other(r) if r.status == 409 => {
                 let v = r.json();
                 let there = v.get("offset").and_then(Value::as_u64);
-                if v.get("busy").and_then(Value::as_bool) == Some(true) || there.is_none() || there == Some(at) {
-                    // Another piece is being written, or the server named no other place: wait
+                let busy = v.get("busy").and_then(Value::as_bool) == Some(true);
+                if !busy && there.is_none() {
+                    // Neither "busy" nor a place to carry on from: the relay refused the file
+                    // itself and dropped its session (the finished file did not match the hash
+                    // it was started with; a 422 until 2026-11-06, when 422 came to mean only
+                    // "could not be cleaned", BUG-260). Its words say what happened and what to do.
+                    return w.send(Event::Failed { words: r.words(), gone: true });
+                }
+                if busy || there == Some(at) {
+                    // Another piece is being written, or the server named this same place: wait
                     // and ask, never at once (a 409 at the same place again would loop).
                     w.backoff.wait(ctl);
                     offset = None;

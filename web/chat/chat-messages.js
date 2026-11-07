@@ -714,8 +714,11 @@ function showAttachStep(o) {
     const cancel = mk('button', 'vr-btn attach-step-cancel', W.cancel);
     cancel.type = 'button';
     cancel.dataset.attachStep = 'cancel';
-    buttons.appendChild(send);
-    buttons.appendChild(cancel);
+    // A file that could not be cleaned is asked about with "Don't send" first (BUG-260); draw() keeps
+    // the order as the switch changes.
+    const askingAtFirst = window.HosUploadClean.decide(o.clean, o.ctx).action === 'ask';
+    buttons.appendChild(askingAtFirst ? cancel : send);
+    buttons.appendChild(askingAtFirst ? send : cancel);
     card.appendChild(buttons);
     overlay.appendChild(card);
 
@@ -725,6 +728,17 @@ function showAttachStep(o) {
       offLine.textContent = !o.ctx.protectedOn && !remove() ? W.switchOffLine : '';
       said.textContent = d.words || '';
       send.textContent = d.action === 'ask' ? W.sendAnyway : W.send;
+      // A file that could not be cleaned (BUG-260, the operator 2026-11-06): "Don't send" comes
+      // first and holds the focus; "Send anyway" second. Each says what it does.
+      if (d.action === 'ask') {
+        cancel.textContent = keepT('upload_keep.dont_send');
+        cancel.setAttribute('data-tip-desc', keepT('upload_keep.dont_send_hint'));
+        send.setAttribute('data-tip-desc', keepT('upload_keep.send_anyway_hint'));
+        if (typeof buttons.insertBefore === 'function' && buttons.firstChild !== cancel) buttons.insertBefore(cancel, send);
+      } else {
+        cancel.textContent = W.cancel;
+        if (typeof buttons.insertBefore === 'function' && buttons.firstChild !== send) buttons.insertBefore(send, cancel);
+      }
       send.disabled = d.action === 'refuse' || !!(o.direct && o.direct.refuse);
     };
     const done = (yes) => {
@@ -737,6 +751,7 @@ function showAttachStep(o) {
     overlay.onclick = (e) => { if (e && e.target === overlay) done(false); };
     draw();
     document.body.appendChild(overlay);
+    if (C.decide(o.clean, Object.assign({}, o.ctx, { remove: remove() })).action === 'ask' && typeof cancel.focus === 'function') cancel.focus();
   });
 }
 
@@ -755,7 +770,8 @@ async function prepareAttachment(file, where, opts) {
     return null;
   }
   const storage = attachStorage();
-  const ctx = { where: where ? 'private' : 'public', remove: C.removeDetailsChosen(storage), protectedOn: attachProtectedOn() };
+  // canAsk: a public room's file that could not be cleaned is the person's to decide (BUG-260).
+  const ctx = { where: where ? 'private' : 'public', remove: C.removeDetailsChosen(storage), protectedOn: attachProtectedOn(), canAsk: true };
   const clean = await C.cleanFile(file);
   const direct = opts && opts.direct ? opts.direct : null;
   // (Device to device, the direct lines say what the recipient's choice means for it.)
@@ -786,21 +802,104 @@ async function videoPosterFor(file, name) {
   }
 }
 
+/** A word by its key (data/i18n/en.json), or the key where no words are loaded. */
+function keepT(k) {
+  return window.i18n && typeof i18n.t === 'function' ? i18n.t(k) : k;
+}
+
+/**
+ * The person's signed choice to send `file` with its hidden details (BUG-260;
+ * /shared/upload-clean.js keepChoice): the JSON of the upload's `keep` part, or null (said in
+ * the conversation) when this identity cannot sign here.
+ */
+async function chatKeepChoice(file) {
+  const C = window.HosUploadClean;
+  const sign = (bytes) => (typeof pqSignMessage === 'function' && typeof myDilithiumSecret !== 'undefined' && myDilithiumSecret ? pqSignMessage(myDilithiumSecret, bytes) : null);
+  const made = C && typeof C.keepChoice === 'function' ? await C.keepChoice(file, { me: myKey, sign }) : null;
+  if (!made) addSystemMessage(keepT('upload_keep.cannot_sign'));
+  return made ? made.json : null;
+}
+
+/**
+ * The server could not remove a file's hidden details (its 422, BUG-260): ask the person, "Don't
+ * send" first and holding the focus, "Send anyway" second. Resolves true only on "Send anyway".
+ */
+function askSendAnyway(name, kind) {
+  const C = window.HosUploadClean;
+  return new Promise((resolve) => {
+    const mk = (tag, cls, text) => {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (text != null) el.textContent = text;
+      return el;
+    };
+    const overlay = mk('div', 'profile-modal-overlay open');
+    overlay.id = 'keep-ask-overlay';
+    overlay.style.zIndex = 'var(--z-shade)';
+    const card = mk('div', 'profile-modal attach-step');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', keepT('upload_keep.title'));
+    card.appendChild(mk('h3', 'attach-step-heading', keepT('upload_keep.title')));
+    card.appendChild(mk('p', 'attach-step-title', name));
+    card.appendChild(mk('p', 'attach-step-said', C && C.askWords ? C.askWords(kind) : keepT('upload_keep.question_picture')));
+    const buttons = mk('div', 'attach-step-buttons');
+    const no = mk('button', 'vr-btn attach-step-cancel', keepT('upload_keep.dont_send'));
+    no.type = 'button';
+    no.dataset.keepAsk = 'dont-send';
+    no.setAttribute('data-tip-desc', keepT('upload_keep.dont_send_hint'));
+    const yes = mk('button', 'vr-btn attach-step-send', keepT('upload_keep.send_anyway'));
+    yes.type = 'button';
+    yes.dataset.keepAsk = 'send-anyway';
+    yes.setAttribute('data-tip-desc', keepT('upload_keep.send_anyway_hint'));
+    buttons.appendChild(no);
+    buttons.appendChild(yes);
+    card.appendChild(buttons);
+    overlay.appendChild(card);
+    const done = (answer) => {
+      if (typeof overlay.remove === 'function') overlay.remove();
+      resolve(!!answer);
+    };
+    no.onclick = () => done(false);
+    yes.onclick = () => done(true);
+    overlay.onclick = (e) => { if (e && e.target === overlay) done(false); };
+    document.body.appendChild(overlay);
+    if (typeof no.focus === 'function') no.focus();
+  });
+}
+
+/** What the strip calls a file by its name, for the question's words (a video or a picture). */
+function keepKindOf(name) {
+  return /\.(mp4|m4v|mov|3gp|webm)$/i.test(String(name || '')) ? 'mp4' : 'jpeg';
+}
+
 async function uploadImage(file) {
   // Client-side size guard: abort before uploading anything over my limit here (attachmentLimit).
   if (attachmentTooLarge(file)) return null;
   // The file's name goes to the server with it: never my recovery phrase
   // (step F, chat-warnings.js).
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(file && file.name, 'The file was not sent.')) return null;
-  // Cleaned on this device first (part 1); a file that could not be checked never goes to a room.
+  // Cleaned on this device first (part 1); a file that could not be checked goes to a room only
+  // on the person's "Send anyway", as it is, with their signed choice (BUG-260).
   const ready = await prepareAttachment(file, '');
   if (!ready) return null;
+  return uploadPrepared(file, ready);
+}
+
+/** Upload `ready` (prepareAttachment's answer for `file`) to the room; its URL, or null. */
+async function uploadPrepared(file, ready) {
   const indicator = document.getElementById('upload-indicator');
   indicator.textContent = `Uploading ${file.name}…`;
   indicator.style.display = 'block';
 
   try {
     const formData = new FormData();
+    // The person chose to send it with its hidden details (the switch off, or "Send anyway"): their
+    // signed choice for this very file goes first, or the server stores nothing (BUG-260).
+    if (ready.keepMetadata) {
+      const keep = await chatKeepChoice(ready.file);
+      if (!keep) return null;
+      formData.append('keep', keep);
+    }
     // A video's poster picture (2026-11-06, docs/design/media-player.md, "Rung 2: the poster
     // picture"): one small JPEG made here from the file, sent as its own part BEFORE the file, so
     // every card shows it before Play. This is the public room's upload only: a private
@@ -821,6 +920,16 @@ async function uploadImage(file) {
     const uploadBase = uploadBaseUrl();
     if (!uploadBase) return null;
     const resp = await uploadPost(uploadBase + shareParam + keepParam, formData, (f) => { indicator.textContent = uploadingWords(file.name, f); });
+    // The server could not remove its hidden details (BUG-260): the person decides. "Send anyway"
+    // sends the file exactly as it was picked, with their signed choice; "Don't send" sends nothing.
+    if (resp.status === 422 && !ready.keepMetadata) {
+      indicator.style.display = 'none';
+      if (!await askSendAnyway(file.name, keepKindOf(file.name))) {
+        addSystemMessage(keepT('upload_keep.not_sent'));
+        return null;
+      }
+      return uploadPrepared(file, { file, keepMetadata: true, unchecked: false });
+    }
     if (!resp.ok) {
       const text = await resp.text();
       // Make error messages more user-friendly

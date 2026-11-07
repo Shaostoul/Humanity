@@ -2186,6 +2186,13 @@ blocker:
    recipient's own sealed data where possible, in the certificate pattern),
    certificate revocation (a serial or an expiry in the preimage, with the KAT
    tests updated on both clients), and a Block button on both clients.
+5. **P2P groups' metadata is readable by the server that carries them (BUG-261, found
+   2026-11-06).** What a group says is sealed; its name (plain text), its member list and each
+   message's author and time are not (`src/relay/storage/groups_p2p.rs`). Fix direction: the
+   certificate pattern and the groups design's own signed membership held by the members
+   (`docs/design/p2p-groups.md`): the name sealed under the epoch key, membership proved by a
+   group-signed pass checked statelessly, the author inside the sealed part, times coarsened,
+   messages padded. Needs the group object format changed on both apps and the relay together.
 
 ---
 

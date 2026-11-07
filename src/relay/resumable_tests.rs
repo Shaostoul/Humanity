@@ -36,7 +36,7 @@ fn rig(tag: &str) -> Rig {
 
 /// What a start asks for: a Media file of `size` bytes named `name`, of type `ct`.
 fn file(name: &str, size: u64, ct: &str) -> StartBody {
-    StartBody { filename: name.into(), size, content_type: Some(ct.into()), media: Some(1), blake3: None, keep_metadata: None }
+    StartBody { filename: name.into(), size, content_type: Some(ct.into()), media: Some(1), blake3: None, keep_metadata: None, keep: None }
 }
 
 impl Rig {
@@ -391,7 +391,8 @@ async fn a_blake3_mismatch_is_refused_and_cleaned_up() {
     let id = r.start("tok_ann", wrong).await.unwrap();
     r.send(&id, "tok_ann", 0, &data[..1000]).await.unwrap();
     let refused = r.send(&id, "tok_ann", 1000, &data[1000..]).await.expect_err("a file that does not match its hash is refused");
-    assert_eq!(refused.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    // 409 since 2026-11-06: an upload's 422 means only "could not be cleaned" (BUG-260).
+    assert_eq!(refused.status(), StatusCode::CONFLICT);
     assert!(refused.words().contains("does not match"), "{}", refused.words());
     assert!(r.session(&id).is_none(), "the session is gone");
     assert!(Rig::files_in(&r.resume).is_empty(), "the pieces' file is gone");

@@ -25,6 +25,8 @@ pub(crate) enum Trick {
     NoRoom,
     /// Finish, then lose the answer.
     LoseFinish,
+    /// Find the finished file does not match the hash it was started with (its session goes).
+    WrongHash,
 }
 
 /// The simulated server's state (the page's tests read it too: page_tests.rs).
@@ -198,8 +200,11 @@ impl Transport for Fake {
             s.finish_trick = None;
             return refuse(507, "This server's file space is full. The file you sent is kept here for a day, so once there is room it can be finished without sending it again.");
         }
-        if blake3::hash(&s.data).to_hex().to_string() != s.blake3 {
-            return refuse(422, "The file that arrived does not match the file you sent (its BLAKE3 hash differs), so nothing was kept. Send it again from the start.");
+        // A 409 with neither `busy` nor `offset`, as the relay answers it since 2026-11-06 (a 422
+        // before: 422 now means only "could not be cleaned", BUG-260); its session goes.
+        if s.finish_trick == Some(Trick::WrongHash) || blake3::hash(&s.data).to_hex().to_string() != s.blake3 {
+            s.id = None;
+            return refuse(409, "The file that arrived does not match the file you sent (its BLAKE3 hash differs), so nothing was kept. Send it again from the start.");
         }
         let answer = json!({ "url": "/uploads/1700_clip.webm", "filename": "1700_clip.webm", "size": s.size, "type": "video" });
         s.done = Some(answer.clone());
@@ -246,7 +251,7 @@ pub(crate) fn file(len: usize) -> (humanity_core::test_temp::TempPath, Plan, Vec
     let path = humanity_core::test_temp::file(&format!("media_resumable_{n}"), "webm");
     let bytes: Vec<u8> = (0..len).map(|i| (i * 7 % 251) as u8).collect();
     std::fs::write(&path, &bytes).unwrap();
-    let plan = Plan { path: path.to_path_buf(), name: "clip.webm".into(), size: len as u64, content_type: "video/webm".into(), resume: None, file_changed: false, clean: false, keep_metadata: false };
+    let plan = Plan { path: path.to_path_buf(), name: "clip.webm".into(), size: len as u64, content_type: "video/webm".into(), resume: None, file_changed: false, clean: false, keep_metadata: false, keep_signer: None };
     (path, plan, bytes)
 }
 
@@ -381,6 +386,27 @@ fn an_allowance_is_waited_out_in_its_own_words() {
     assert_eq!(waiting.as_deref(), Some("Your role may upload 100 MB a day on this server."), "its own words: {events:?}");
     assert!(done_answer(&events).is_some(), "the allowance is waited out: {events:?}");
     assert_eq!(fake.s().data, bytes);
+}
+
+/// A FILE THAT DOES NOT MATCH ITS HASH IS SAID IN THE SERVER'S OWN WORDS. The relay answers 409
+/// with neither `busy` nor `offset` (a 422 until 2026-11-06) and drops the session: the upload
+/// fails with its words, which say to send it again from the start, at once, not after waiting
+/// and finding the session gone.
+///
+/// Seen red 2026-11-06 against the client as it was (a 409 with no offset waited and asked again):
+/// "the server's words" failed (the upload failed with "This upload is no longer on the server" only
+/// after asking where it was).
+#[test]
+fn a_file_that_does_not_match_its_hash_says_the_servers_words() {
+    let fake = Fake::new(8192);
+    fake.s().finish_trick = Some(Trick::WrongHash);
+    let (_f, plan, _bytes) = file(20_000);
+    let events = run_with(fake.clone(), plan, TOKEN, |_, _| {});
+    let failed = events.iter().find_map(|e| if let Event::Failed { words, gone } = e { Some((words.clone(), *gone)) } else { None });
+    let (words, gone) = failed.unwrap_or_else(|| panic!("the upload failed: {events:?}"));
+    assert!(words.contains("does not match the file you sent") && words.contains("Send it again from the start"), "the server's words: {words}");
+    assert!(gone, "and the upload is gone");
+    assert!(done_answer(&events).is_none());
 }
 
 /// NO ROOM AT THE FINISH KEEPS THE UPLOAD, AND RETRY FINISHES IT WITHOUT SENDING IT AGAIN: a 507

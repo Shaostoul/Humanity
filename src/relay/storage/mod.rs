@@ -863,17 +863,21 @@ impl Storage {
         // Deliberately NO sender column and only day-granularity arrival:
         // the sender's identity is Dilithium-signed INSIDE the sealed
         // envelope (net::dm_pq v2), so this table cannot yield a social
-        // graph to a subpoena or a breach. See storage/dms.rs.
+        // graph to a subpoena or a breach. Kept by mailbox, not by arrival
+        // (2026-11-06, BUG-259): WITHOUT ROWID, keyed (to_key, id), `id`
+        // numbered per mailbox from the day, so neither the file's order
+        // nor the numbers pair a message with its sender's own copy. The
+        // live database's arrival-order table is rebuilt into this shape in
+        // the migration block below. See storage/dms.rs.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS dm_mailbox (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER NOT NULL,
                 to_key TEXT NOT NULL,
                 content TEXT NOT NULL,
-                received_day INTEGER NOT NULL
-            );
+                received_day INTEGER NOT NULL,
+                PRIMARY KEY (to_key, id)
+            ) WITHOUT ROWID;
 
-            CREATE INDEX IF NOT EXISTS idx_dm_mailbox_to
-                ON dm_mailbox(to_key, id);
             CREATE INDEX IF NOT EXISTS idx_dm_mailbox_day
                 ON dm_mailbox(received_day);"
         )?;
@@ -1101,6 +1105,36 @@ impl Storage {
             conn.execute_batch("DROP TABLE direct_messages;")?;
             scrub_wal = true;
             info!("Migration: dropped legacy direct_messages table (sealed-sender DM cutover — the server-side DM graph is gone)");
+        }
+
+        // Migration (the mailbox kept by mailbox, 2026-11-06, BUG-259): the live database's
+        // `dm_mailbox` was `id INTEGER PRIMARY KEY AUTOINCREMENT`, rows numbered and stored in
+        // arrival order, which paired a message with its sender's own copy (storage/dms.rs). A
+        // table with a rowid is that shape (the new one is WITHOUT ROWID); it is rebuilt keyed by
+        // (to_key, id). Every envelope is kept WITH ITS NUMBER: each device pages its mailbox by
+        // "after the last number I saw", so renumbering would make every device fetch the whole
+        // window again, and dropping would lose mail not yet fetched. Those rows keep their
+        // arrival-order numbers until they age out of the window (30 days by default); new mail is
+        // numbered from the day (`day << DAY_SHIFT`, far above them), so a mailbox's numbers keep
+        // rising. No other compatibility code: nothing reads the old shape. The old table's pages
+        // are zeroed (secure_delete) and folded out of the log after the commit (`scrub_wal`).
+        if conn.prepare("SELECT rowid FROM dm_mailbox LIMIT 0").is_ok() {
+            conn.execute_batch(
+                "CREATE TABLE dm_mailbox_by_mailbox (
+                    id INTEGER NOT NULL,
+                    to_key TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    received_day INTEGER NOT NULL,
+                    PRIMARY KEY (to_key, id)
+                ) WITHOUT ROWID;
+                INSERT INTO dm_mailbox_by_mailbox (id, to_key, content, received_day)
+                    SELECT id, to_key, content, received_day FROM dm_mailbox;
+                DROP TABLE dm_mailbox;
+                ALTER TABLE dm_mailbox_by_mailbox RENAME TO dm_mailbox;
+                CREATE INDEX IF NOT EXISTS idx_dm_mailbox_day ON dm_mailbox(received_day);",
+            )?;
+            scrub_wal = true;
+            info!("Migration: rebuilt dm_mailbox keyed by mailbox (no arrival-order rowid)");
         }
 
         // Migration (privacy hardening, 2026-08-23): DROP the plaintext
@@ -3137,7 +3171,8 @@ mod expiry;
 pub mod federation_log;
 mod board;
 mod channels;
-mod dms;
+/// The sealed DM mailbox; crate-visible for its day and numbering (BUG-259's handler test).
+pub(crate) mod dms;
 mod key_rotation;
 mod marketplace;
 mod messages;
@@ -3290,7 +3325,7 @@ mod resilient_open_tests {
             )
         }).unwrap();
         // Sanity: the marker is on disk before the wipe (so the test can fail).
-        let _ = s.wipe_messages().unwrap();
+        let _ = s.wipe_messages_in(files::Folders::live()).unwrap();
         drop(s); // final checkpoint + close
 
         let scan = |p: &std::path::Path| -> bool {

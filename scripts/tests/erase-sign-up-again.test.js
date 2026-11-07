@@ -196,6 +196,35 @@ test("an earlier erase told by the server brings the note back, and Enter then s
   assert.strictEqual(identify.sign_up_again, true);
 });
 
+// AN ERASE RESETS THE MAILBOX READ POSITION (BUG-259's review, 2026-11-06; the desktop's
+// account_erased_resets_the_mailbox_read_position). The erase empties this identity's mailbox
+// here, the marker holding its last number included, so a sign-up again the same day numbers its
+// first envelopes from the day's base, below where this browser had read to. The receipt resets
+// the store's read position and saves it; resetReadPosition itself sets it to 0 and saves.
+//
+// Seen red 2026-11-06 with the resetReadPosition line taken out of app.js's account_erased case:
+// "the receipt resets the mailbox read position" (it was never called).
+test("account_erased resets the mailbox read position", async () => {
+  const ctx = loadChat(fakeStorage());
+  await connectAndIdentify(ctx, "enter");
+  const calls = [];
+  ctx.hosDmStore = { resetReadPosition: () => { calls.push("reset"); return Promise.resolve(); } };
+  await vm.runInContext("handleMessage", ctx)({ type: "account_erased", to: "ab12cd34", partial: false });
+  assert.deepStrictEqual(calls, ["reset"], "the receipt resets the mailbox read position");
+
+  // The store's own reset: the read position to 0, then saved.
+  const store = { console: { warn() {}, log() {} }, crypto: anything(), TextEncoder, TextDecoder, setTimeout, clearTimeout };
+  store.window = store;
+  vm.createContext(store);
+  vm.runInContext(fs.readFileSync(path.join(WEB, "chat", "chat-dm-store.js"), "utf8"), store, { filename: "chat/chat-dm-store.js" });
+  const s = vm.runInContext("hosDmStore", store);
+  let saved = 0;
+  Object.assign(s, { _db: {}, _key: {}, scope: "ab12cd34@localhost", highWater: 21772632070, _persistMeta: async () => { saved++; } });
+  await s.resetReadPosition();
+  assert.strictEqual(s.highWater, 0, "read from the beginning");
+  assert.strictEqual(saved, 1, "and saved");
+});
+
 // The sentence before the erase: the real number of days, the same words as native
 // (src/relay/storage/erased_accounts.rs `erase_memory_sentence`, whose test pins this text).
 // It names the backups (review finding 2: "after that nothing of it is left" was not true of

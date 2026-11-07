@@ -334,6 +334,57 @@ async fn deleting_a_message_deletes_the_video_it_posted_and_its_poster_picture()
     assert_eq!(both_in(&d.uploads, &next), (true, true));
 }
 
+/// THE RETENTION SWEEP AND AN ADMIN'S CHANNEL CLEAR TAKE THE FILES THEIR MESSAGES POSTED (BUG-256,
+/// 2026-11-06). Ann's 40-day-old message posted two videos; the retention is lowered to 30 days and
+/// the expiry pass runs: the message goes, and with it the video only it linked, its poster picture
+/// and its row. Her other video, which a recent message still links, stays, and so does Bob's.
+/// Then an admin clears #global: the files the cleared messages linked go too. And clearing every
+/// channel takes the rest.
+///
+/// Seen red 2026-11-06 with the file step taken out of `expire_messages_in`: "the sweep took the
+/// video only the expired message linked, and its picture / left: (true, true) / right: (false,
+/// false)"; with it taken out of `wipe_channel_messages_in`: "the clear took Bob's video and its
+/// picture / left: (true, true)".
+#[tokio::test]
+async fn the_retention_sweep_and_a_channel_clear_take_the_files_their_messages_posted() {
+    let state = relay("poster_sweep_clear");
+    let d = dirs("poster_sweep_clear");
+    uploader(&state, ANN, "tok_ann", 50).await;
+    uploader(&state, BOB, "tok_bob", 50).await;
+    let up = |token: &'static str, name: &'static str| {
+        let (state, d) = (&state, &d);
+        async move { stored(&send(state, d, token, with_poster(name, jpeg(320, 180)), UploadQuery::default()).await.expect("stored")) }
+    };
+    let old = up("tok_ann", "old.mp4").await;
+    let kept = up("tok_ann", "kept.mp4").await;
+    let bobs = up("tok_bob", "bobs.mp4").await;
+    let now = crate::relay::storage::now_millis();
+    post(&state, ANN, &format!("from last month: /uploads/{old} and /uploads/{kept}"), now - 40 * 86_400_000);
+    post(&state, ANN, &format!("still here: /uploads/{kept}"), now - 60_000);
+    post(&state, BOB, &format!("mine: /uploads/{bobs}"), now - 30_000);
+
+    let mut s = state.db.get_server_settings().unwrap();
+    s.message_retention_days = 30;
+    state.db.set_server_settings(&s, "admin").unwrap();
+    state.db.run_expiry_sweeps_in(d.folders());
+    assert_eq!(state.db.message_count().unwrap(), 2, "the 40-day-old message expired");
+    assert_eq!(both_in(&d.uploads, &old), (false, false), "the sweep took the video only the expired message linked, and its picture");
+    assert_eq!(state.db.get_upload_count(ANN).unwrap(), 1, "and its row");
+    assert_eq!(both_in(&d.uploads, &kept), (true, true), "a video a remaining message links stays");
+    assert_eq!(both_in(&d.uploads, &bobs), (true, true), "and so does someone else's");
+
+    assert_eq!(state.db.wipe_channel_messages_in("global", d.folders()).unwrap(), 2, "the admin clears #global");
+    assert_eq!(both_in(&d.uploads, &bobs), (false, false), "the clear took Bob's video and its picture");
+    assert_eq!(both_in(&d.uploads, &kept), (false, false), "and Ann's, now no message links it");
+    assert_eq!((state.db.get_upload_count(ANN).unwrap(), state.db.get_upload_count(BOB).unwrap()), (0, 0), "their rows went too");
+
+    // Clearing every channel takes what the cleared messages linked in every room.
+    let last = up("tok_bob", "last.mp4").await;
+    post(&state, BOB, &format!("again /uploads/{last}"), now);
+    assert_eq!(state.db.wipe_messages_in(d.folders()).unwrap(), 1);
+    assert_eq!(both_in(&d.uploads, &last), (false, false), "clearing every channel took it too");
+}
+
 /// AN ERASED ACCOUNT, AN UNPUBLISHED MEDIA UPLOAD'S EXPIRY AND A LONE PICTURE: each video goes with
 /// its poster picture. Erasing Ann's account deletes her video and its picture. Bob's Media upload
 /// (`media=1`, waiting to be published) that waits past a day is deleted by the expiry pass, its

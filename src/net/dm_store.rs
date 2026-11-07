@@ -352,6 +352,22 @@ impl DmStore {
         &mut self.body.file_offers
     }
 
+    /// Start reading this server's mailbox from its beginning again: the account was erased there
+    /// (BUG-259's review, 2026-11-06). The erase deletes every row of the mailbox, the marker that
+    /// holds its last number included, so a sign-up there again the same day numbers its first
+    /// envelopes from the day's base, below where this device had read to; a device that kept its
+    /// place would never fetch them. A fetch from 0 is harmless: a message already kept is dropped
+    /// by its signature (`insert`).
+    pub fn reset_read_position(&mut self) {
+        self.body.high_water = 0;
+    }
+
+    /// Whether this is the store of `identity_hex` on `server_url` (the same file `load` opens).
+    pub fn is_for(&self, identity_hex: &str, server_url: &str) -> bool {
+        let tag = blake3::hash(format!("{identity_hex}\n{server_url}").as_bytes());
+        self.path.file_name().and_then(|n| n.to_str()) == Some(format!("{}.dmstore", &tag.to_hex()[..24]).as_str())
+    }
+
     /// Raise the fetch high-water mark (never lowers it).
     pub fn set_high_water(&mut self, id: i64) {
         if id > self.body.high_water {
