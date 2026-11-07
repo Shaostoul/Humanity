@@ -17,9 +17,11 @@
 //!   choice on this device (`FilesInMessages::remove_details`). The protected setup always removes
 //!   and shows no switch, only a line saying so;
 //! - for a file that could not be checked (answer 5): in a DM or a group, "Send it anyway?", and
-//!   Send anyway marks its marker `unchecked`; in a public room, why it is not sent, and Send is
-//!   off unless the switch is off (then it goes exactly as it is, with `keep_metadata=1`). Under
-//!   the protected setup such a file is not sent anywhere, a DM included;
+//!   Send anyway marks its marker `unchecked`; in a public room (and on the Files page, BUG-264)
+//!   "Send it anyway, or don't send?" (BUG-260), [`keep_answers`]: "Don't send" first and focused,
+//!   and "Send anyway" sends it exactly as it is, with `keep_metadata=1` and the person's signed
+//!   choice (the switch turned off sends it the same way). Under the protected setup such a file
+//!   is not sent anywhere, a DM included;
 //! - in a DM, when the other person's published setting holds files from this sender (answer 6,
 //!   their profile's `accepts_files`, asked for with a `profile_request` by their name when the
 //!   DM is opened, as the website asks; until BUG-241 it was `GET /api/members/{key}`, which finds
@@ -386,8 +388,24 @@ pub(crate) fn keep_question(d: &humanity_protocol::describe_metadata::Descriptio
     keep_question_for(matches!(d.kind, "mp4" | "webm"))
 }
 
-fn keep_question_for(video: bool) -> &'static str {
+pub(crate) fn keep_question_for(video: bool) -> &'static str {
     humanity_core::i18n::t(if video { "upload_keep.question_video" } else { "upload_keep.question_picture" })
+}
+
+/// THE TWO ANSWERS to "Send it anyway, or don't send?" (BUG-260), drawn the one way everywhere: the
+/// chat's "Send a file" and its question after the server's 422, and the Files page's Add to Files
+/// and Shared Files (2026-11-07, BUG-264). "Don't send" first, the primary button, holding the focus
+/// while nothing else has it (so Enter answers it, as the website's question focuses it); "Send
+/// anyway" second, on only when `can_send`. Each says what it does (its hint, by key). Drawn into
+/// the caller's row. Returns (Don't send, Send anyway) as pressed this frame.
+pub(crate) fn keep_answers(ui: &mut egui::Ui, theme: &Theme, can_send: bool) -> (bool, bool) {
+    use humanity_core::i18n::t;
+    let no = widgets::Button::primary(t("upload_keep.dont_send")).hint("upload_keep.dont_send_hint").take_focus().show(ui, theme);
+    let mut yes = false;
+    ui.add_enabled_ui(can_send, |ui| {
+        yes = widgets::Button::secondary(t("upload_keep.send_anyway")).hint("upload_keep.send_anyway_hint").show(ui, theme);
+    });
+    (no, yes && can_send)
 }
 
 /// The server could not remove a file's hidden details after all (its 422, BUG-260; the operator,
@@ -410,8 +428,7 @@ fn draw_server_ask(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         ui.label(RichText::new(question).size(theme.font_size_body).color(theme.text_secondary()));
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
-            no = widgets::Button::primary(t("upload_keep.dont_send")).hint("upload_keep.dont_send_hint").show(ui, theme);
-            yes = widgets::Button::secondary(t("upload_keep.send_anyway")).hint("upload_keep.send_anyway_hint").show(ui, theme);
+            (no, yes) = keep_answers(ui, theme, true);
         });
     });
     if yes || no || !open {
@@ -521,13 +538,9 @@ pub(super) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
             if verdict_now.anyway {
-                // A file that could not be cleaned (BUG-260): "Don't send" first, "Send anyway"
-                // second, each saying what it does.
-                use humanity_core::i18n::t;
-                cancel = widgets::Button::primary(t("upload_keep.dont_send")).hint("upload_keep.dont_send_hint").show(ui, theme);
-                ui.add_enabled_ui(verdict_now.can_send, |ui| {
-                    send = widgets::Button::secondary(t("upload_keep.send_anyway")).hint("upload_keep.send_anyway_hint").show(ui, theme);
-                });
+                // A file that could not be cleaned (BUG-260): "Don't send" first and focused, "Send
+                // anyway" second, each saying what it does.
+                (cancel, send) = keep_answers(ui, theme, verdict_now.can_send);
             } else {
                 ui.add_enabled_ui(verdict_now.can_send, |ui| {
                     send = widgets::Button::primary("Send").show(ui, theme);

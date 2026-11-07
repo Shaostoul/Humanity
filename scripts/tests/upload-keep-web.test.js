@@ -9,9 +9,10 @@
 // What it proves:
 //  1. The signed text is the relay's, read from src/relay/upload_rules.rs (domain and shape), and
 //     keepChoice signs exactly it, over the file's BLAKE3.
-//  2. In the chat, a file for a public room that could not be cleaned is ASKED about (with the
-//     question's words by key, "Send anyway" keeping its details), never refused outright; the
-//     Files pages (no canAsk) and the protected setup still refuse it.
+//  2. A file for a public place that could not be cleaned is ASKED about (with the question's
+//     words by key, "Send anyway" keeping its details), never refused outright: in the chat since
+//     BUG-260, on the Files pages since 2026-11-07 (BUG-264); the protected setup still refuses it.
+//     The two answers every page draws are one shared piece (upload-clean.js keepAnswers).
 //  3. When the server answers 422 (it could not remove the details), the chat's question appears
 //     with "Don't send" first and holding the focus; "Send anyway" uploads the file again with
 //     keep_metadata=1 and the signed choice as the first part; "Don't send" uploads nothing more.
@@ -122,14 +123,21 @@ test('the signed text is the relay\'s, and keepChoice signs exactly it over the 
   assert.strictEqual(await C.keepChoice(new Blob([bytes]), { me: 'me_key', sign: async () => null, blake3: B3 }), null, 'no signature, no choice');
 });
 
-test('the chat asks about a public file it could not clean; the Files pages and the protected setup refuse it', () => {
+// Since 2026-11-07 (BUG-264) the Files pages ask as the chat does (they refused until then); seen red
+// against the upload-clean.js from before: "every public place asks" failed (actual 'refuse').
+test('every public place asks about a file it could not clean (the chat and the Files pages); the protected setup refuses it', () => {
   const C = require(path.join(WEB, 'shared', 'upload-clean.js'));
   const clean = { unchecked: true, heif: false, kind: 'jpeg', original: 'ORIGINAL', cleaned: 'CLEANED', reason: 'could not be read' };
-  const asked = C.decide(clean, { where: 'public', remove: true, canAsk: true });
-  assert.deepStrictEqual([asked.action, asked.file, asked.keepMetadata, asked.words], ['ask', 'ORIGINAL', true, 'upload_keep.question_picture'], 'asked, and on yes it goes as it is, its details kept by signed choice');
-  assert.strictEqual(C.decide({ ...clean, kind: 'mp4' }, { where: 'public', remove: true, canAsk: true }).words, 'upload_keep.question_video');
-  assert.strictEqual(C.decide(clean, { where: 'public', remove: true }).action, 'refuse', 'a Files page (no canAsk) still refuses: its switch is the choice there');
-  assert.strictEqual(C.decide(clean, { where: 'public', remove: true, canAsk: true, protectedOn: true }).action, 'refuse', 'the protected setup never sends one');
+  const asked = C.decide(clean, { where: 'public', remove: true });
+  assert.deepStrictEqual([asked.action, asked.file, asked.keepMetadata, asked.words], ['ask', 'ORIGINAL', true, 'upload_keep.question_picture'], 'every public place asks; on yes it goes as it is, its details kept by signed choice');
+  assert.strictEqual(C.decide({ ...clean, kind: 'mp4' }, { where: 'public', remove: true }).words, 'upload_keep.question_video');
+  assert.strictEqual(C.decide({ ...clean, kind: 'gif' }, { where: 'public', remove: true }).words, 'upload_keep.question_picture', 'a GIF is a picture (BUG-263)');
+  assert.strictEqual(C.decide(clean, { where: 'public', remove: true, protectedOn: true }).action, 'refuse', 'the protected setup never sends one');
+  // The two answers every page draws: "Don't send" then "Send anyway", each with its hint, by key.
+  const doc = fakeDocument();
+  const a = C.keepAnswers(doc, { no: 'n', yes: 'y' });
+  assert.deepStrictEqual([a.no.textContent, a.no.attrs['data-tip-desc'], a.no.dataset.keepAsk, a.yes.textContent, a.yes.attrs['data-tip-desc'], a.yes.dataset.keepAsk],
+    ['upload_keep.dont_send', 'upload_keep.dont_send_hint', 'dont-send', 'upload_keep.send_anyway', 'upload_keep.send_anyway_hint', 'send-anyway']);
   for (const k of ['question_picture', 'question_video', 'dont_send', 'dont_send_hint', 'send_anyway', 'send_anyway_hint', 'not_sent', 'cannot_sign', 'title']) {
     const en = JSON.parse(fs.readFileSync(path.join(REPO, 'data', 'i18n', 'en.json'), 'utf8'));
     assert.ok(en.upload_keep && typeof en.upload_keep[k] === 'string' && en.upload_keep[k].length > 0, `upload_keep.${k} has words`);

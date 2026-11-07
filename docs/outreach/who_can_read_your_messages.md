@@ -148,8 +148,8 @@ A privacy page that hides its own limits is just marketing, so here are ours.
   wrote to. The desktop app does the same from its next update; until then, the server's log of
   recent changes, and any backup made from it, still holds the desktop app's two copies one after
   the other. Even after, on a server so quiet that nothing else is written in those minutes, that
-  log could hint at a pair. Other servers get the fix when they update, and envelopes stored before
-  it keep their old order until they are deleted, after 30 days by default.
+  log could hint at a pair. Other servers get the fix when they update. Envelopes stored in the old
+  order are deleted when a server updates, fetched or not, instead of waiting out the 30 days.
 
 ## Check it yourself
 

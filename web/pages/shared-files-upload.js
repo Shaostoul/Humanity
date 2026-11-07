@@ -17,9 +17,10 @@
 //   removed unless the person turns off "Remove location and camera details".
 //   When there is something to say (hidden details found, or a file that could
 //   not be checked) the step shows it, with the switch, Upload and Cancel; a
-//   file with nothing hidden in it uploads at once. Shared Files is public, so a
-//   file that could not be checked is never uploaded while details are to be
-//   removed (the cleaning's own words say so).
+//   file with nothing hidden in it uploads at once. A file that could not be
+//   checked is the person's to decide (2026-11-07, BUG-264, as the chat asks):
+//   "Send it anyway, or don't send?", "Don't send" first and holding the
+//   focus; "Send anyway" uploads it exactly as picked with their signed choice.
 // - The upload is POST /api/upload?token=<this session's token>&share=1 (and
 //   keep_metadata=1 when the person kept the details by choice), the chat's
 //   and the desktop's own route; the server's words when it refuses.
@@ -248,14 +249,18 @@
       } else {
         decided = cleaner.decide(clean, ctx);
       }
-      if (decided.action !== 'send') { say(decided.words || ''); return; }
+      // 'ask' here means the step's own answer was "Send anyway": exactly as picked, signed (BUG-264).
+      if (decided.action !== 'send' && decided.action !== 'ask') { say(decided.words || ''); return; }
       await send(file.name, decided.file, decided.keepMetadata);
     }
 
     /**
      * The step, when the file has something to say: what is hidden in it, the switch (a line under
-     * the protected setup), why it cannot go as it is, Upload and Cancel. Resolves with the switch's
-     * last state on Upload, null on Cancel.
+     * the protected setup), why it cannot go as it is, Upload and Cancel. A file that could not be
+     * checked is the person's to decide (2026-11-07, BUG-264; the chat's question): its words, then
+     * "Don't send" first and holding the focus, "Send anyway" second (/shared/upload-clean.js
+     * keepAnswers). Resolves with the switch's last state on Upload or Send anyway, null on Cancel
+     * or Don't send.
      */
     function askStep(file, clean, ctx) {
       return new Promise((resolve) => {
@@ -278,12 +283,26 @@
         const refused = mk('p', { id: 'sf-upload-refused', className: 'sf-step-refused' });
         const go = mk('button', { type: 'button', id: 'sf-upload-go', className: 'sf-upload-btn', text: WORDS.go });
         const cancel = mk('button', { type: 'button', id: 'sf-upload-cancel', className: 'sf-step-cancel', text: WORDS.cancel });
-        kids.push(off, refused, mk('div', { className: 'sf-step-buttons' }, [go, cancel]));
+        // The question's two answers (the chat's own, by key, each with its hint).
+        const answers = typeof cleaner.keepAnswers === 'function' ? cleaner.keepAnswers(doc, { no: 'sf-step-cancel', yes: 'sf-upload-btn' }) : null;
+        if (answers) {
+          answers.no.id = 'sf-upload-dont-send';
+          answers.yes.id = 'sf-upload-send-anyway';
+        }
+        const row = mk('div', { className: 'sf-step-buttons' }, [go, cancel]);
+        kids.push(off, refused, row);
+        let asking = false;
         const draw = () => {
           const d = cleaner.decide(clean, Object.assign({}, ctx, { remove }));
           off.textContent = !ctx.protectedOn && !remove && clean.summary ? W.switchOffLine || '' : '';
-          refused.textContent = d.action === 'refuse' ? d.words || '' : '';
+          refused.textContent = d.action === 'refuse' || d.action === 'ask' ? d.words || '' : '';
           go.disabled = d.action === 'refuse';
+          const ask = d.action === 'ask' && !!answers;
+          if (ask !== asking) {
+            asking = ask;
+            row.replaceChildren(...(ask ? [answers.no, answers.yes] : [go, cancel]));
+            if (ask && typeof answers.no.focus === 'function') answers.no.focus();
+          }
         };
         const done = (answer) => {
           st.step = null;
@@ -293,6 +312,10 @@
         if (box) box.addEventListener('change', () => { remove = !!box.checked; draw(); });
         go.addEventListener('click', () => { if (!go.disabled) done(remove); });
         cancel.addEventListener('click', () => { say(''); done(null); });
+        if (answers) {
+          answers.yes.addEventListener('click', () => done(remove));
+          answers.no.addEventListener('click', () => { say(keepWord('upload_keep.not_sent')); done(null); });
+        }
         st.step = { file: file.name };
         els.step.replaceChildren(mk('div', { id: 'sf-upload-step-card', className: 'sf-step' }, kids));
         draw();

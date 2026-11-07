@@ -827,7 +827,8 @@ above; parts marked (apps) are the next app increment.
    **As built (the web's strip, 2026-10-11), not yet wired into any page.** `web/shared/strip-metadata.js`
    puts `HosStrip` on `window` (and is a CommonJS module under Node). `stripFile(bytes, nameOrType)`
    is a port of `strip_metadata.rs` and `strip_video_metadata.rs` with their rules: JPEG, PNG and
-   WebP lose whole segments or chunks, GIF passes through untouched as on the relay, and MP4, MOV
+   WebP lose whole segments or chunks, GIF its comments and program blocks (since 2026-11-07,
+   BUG-263; it passed through untouched until then, as on the relay), and MP4, MOV
    and 3GP boxes are zeroed and renamed `free` in a copy of the same length (the caller's bytes
    are never written). A picture that cannot be walked comes back unchanged and a video that stops
    early says where; both are marked `unfinished`, which is answer 5's "Send anyway?" case. HEIC

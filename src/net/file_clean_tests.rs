@@ -26,6 +26,45 @@ fn a_phone_photo_and_a_phone_video_leave_saying_nothing() {
     }
 }
 
+/// A GIF LEAVES WITHOUT ITS COMMENT AND ITS XMP, IN EVERY UPLOAD PATH (2026-11-07, BUG-263): the
+/// desktop's own clean runs the relay's GIF strip, so the looping animation (the shared fixture,
+/// also the website's) comes out exactly as the strip gives it, its loop and frames untouched,
+/// saying nothing; a cleaned copy of a big one (Add to Files) says nothing either; a GIF cut off
+/// part way could not be checked, and the look agrees; a whole GIF with nothing in it goes as it is.
+///
+/// Seen red 2026-11-07 with GIF passed through as before (`picture_type` without "gif" and
+/// `clean_bytes` sending it on as it came): "gif-comment-xmp.gif: Cleaned { changed: false,
+/// unchecked: false }".
+#[test]
+fn a_gif_leaves_without_its_comment_and_xmp() {
+    let before = fixture("gif-comment-xmp.gif");
+    let d = describe(&before, "anim.gif");
+    assert!(d.has_location && d.details.iter().any(|x| x.key == "comment"), "test setup: it says where, and has a comment");
+    let (after, c) = clean_bytes(before.clone(), "anim.gif");
+    assert!(c.changed && !c.unchecked, "gif-comment-xmp.gif: {c:?}");
+    assert_eq!(Some(after.clone()), humanity_protocol::strip_metadata::try_strip_image_metadata("image/gif", &before), "the relay's own strip, to the byte");
+    assert!(describe(&after, "anim.gif").details.is_empty(), "it leaves saying nothing");
+    assert!(after.windows(11).any(|w| w == b"NETSCAPE2.0"), "the loop stays");
+    let dir = std::env::temp_dir().join(format!("hum_test_gif_copy_{}", std::process::id()));
+    let src = dir.join("anim.gif");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(&src, &before).unwrap();
+    let (copy, cc) = clean_copy(&src, "anim.gif", &dir).unwrap();
+    let copy = copy.expect("a cleaned copy");
+    assert!(cc.changed && !cc.unchecked);
+    assert_eq!(std::fs::read(&copy).unwrap(), after, "the copy is the same cleaned GIF");
+    assert_eq!(std::fs::read(&src).unwrap(), before, "the person's own file is untouched");
+    let _ = std::fs::remove_dir_all(&dir);
+    for file in ["gif-cut.gif", "gif-junk.gif"] {
+        let b = fixture(file);
+        let (out, c) = clean_bytes(b.clone(), "g.gif");
+        assert!(c.unchecked && out == b, "{file} could not be checked and goes on as it came: {c:?}");
+        assert!(look_bytes(&b, "g.gif").unchecked, "{file}: the look says so too");
+    }
+    let plain = fixture("gif.gif");
+    assert_eq!(clean_bytes(plain.clone(), "g.gif"), (plain, Cleaned::default()), "a GIF with nothing in it goes as it is");
+}
+
 /// A HEIC photo (an iPhone's, built byte by byte by the HEIF strip's own test builder) is cleaned on
 /// the desktop with the relay's HEIF strip: its Exif item zeroed in place. Seen red 2026-10-11 with
 /// the HEIF strip handed nothing to strip: the assertion "{c:?}" failed (not changed, unchecked).
@@ -43,7 +82,7 @@ fn a_heic_photo_is_cleaned_in_place() {
 
 /// Files that could not be checked (answer 5), by the relay's own verdict: a picture that cannot
 /// be walked comes back as it was; a video whose boxes stop early or that has no movie box; a ".jpg"
-/// that is not a JPEG. Anything else (a text file, a GIF) is fine as it is.
+/// that is not a JPEG. Anything else (a text file, a whole GIF) is fine as it is.
 /// Seen red 2026-10-11 with the no-movie case answered from the video strip alone (`unchecked:
 /// !v.stopped_early.is_empty()`): "{file} could not be checked" failed (the movie with no movie box).
 #[test]

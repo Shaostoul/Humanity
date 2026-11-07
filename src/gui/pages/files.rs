@@ -358,6 +358,9 @@ pub struct FilesState {
     /// What the picked file of the open Add to Files form says (the form's number and its look,
     /// worked out on a worker; the files section of docs/design/files-showcase.md, 2026-10-11).
     pub(crate) look: Option<(u64, crate::gui::pages::chat::attach_step::Looking)>,
+    /// An upload stopped because its file could not be checked (uploading.rs `draw_keep_ask`,
+    /// BUG-264): what it was, while the person is asked "Send it anyway, or don't send?".
+    pub(crate) keep_ask: Option<resumable::Unfinished>,
     /// When the cleaned copies of uploads were last swept (uploading.rs `sweep_cleaned`).
     pub last_sweep: Option<std::time::Instant>,
     /// "Report a copyright problem": its form, the public log's window, and the admins' open
@@ -1190,6 +1193,10 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "files/uploads_tests.rs"]
 mod uploads_tests;
+
+#[cfg(test)]
+#[path = "files/keep_ask_tests.rs"]
+mod keep_ask_tests;
 
 #[cfg(test)]
 #[path = "files/relay_round3_tests.rs"]

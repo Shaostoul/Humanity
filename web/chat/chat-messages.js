@@ -770,8 +770,8 @@ async function prepareAttachment(file, where, opts) {
     return null;
   }
   const storage = attachStorage();
-  // canAsk: a public room's file that could not be cleaned is the person's to decide (BUG-260).
-  const ctx = { where: where ? 'private' : 'public', remove: C.removeDetailsChosen(storage), protectedOn: attachProtectedOn(), canAsk: true };
+  // A public room's file that could not be cleaned is the person's to decide (BUG-260, decide()).
+  const ctx = { where: where ? 'private' : 'public', remove: C.removeDetailsChosen(storage), protectedOn: attachProtectedOn() };
   const clean = await C.cleanFile(file);
   const direct = opts && opts.direct ? opts.direct : null;
   // (Device to device, the direct lines say what the recipient's choice means for it.)
@@ -822,49 +822,11 @@ async function chatKeepChoice(file) {
 
 /**
  * The server could not remove a file's hidden details (its 422, BUG-260): ask the person, "Don't
- * send" first and holding the focus, "Send anyway" second. Resolves true only on "Send anyway".
+ * send" first and holding the focus, "Send anyway" second (/shared/upload-clean.js askSendAnyway,
+ * the Files pages' question too since 2026-11-07). Resolves true only on "Send anyway".
  */
 function askSendAnyway(name, kind) {
-  const C = window.HosUploadClean;
-  return new Promise((resolve) => {
-    const mk = (tag, cls, text) => {
-      const el = document.createElement(tag);
-      if (cls) el.className = cls;
-      if (text != null) el.textContent = text;
-      return el;
-    };
-    const overlay = mk('div', 'profile-modal-overlay open');
-    overlay.id = 'keep-ask-overlay';
-    overlay.style.zIndex = 'var(--z-shade)';
-    const card = mk('div', 'profile-modal attach-step');
-    card.setAttribute('role', 'dialog');
-    card.setAttribute('aria-label', keepT('upload_keep.title'));
-    card.appendChild(mk('h3', 'attach-step-heading', keepT('upload_keep.title')));
-    card.appendChild(mk('p', 'attach-step-title', name));
-    card.appendChild(mk('p', 'attach-step-said', C && C.askWords ? C.askWords(kind) : keepT('upload_keep.question_picture')));
-    const buttons = mk('div', 'attach-step-buttons');
-    const no = mk('button', 'vr-btn attach-step-cancel', keepT('upload_keep.dont_send'));
-    no.type = 'button';
-    no.dataset.keepAsk = 'dont-send';
-    no.setAttribute('data-tip-desc', keepT('upload_keep.dont_send_hint'));
-    const yes = mk('button', 'vr-btn attach-step-send', keepT('upload_keep.send_anyway'));
-    yes.type = 'button';
-    yes.dataset.keepAsk = 'send-anyway';
-    yes.setAttribute('data-tip-desc', keepT('upload_keep.send_anyway_hint'));
-    buttons.appendChild(no);
-    buttons.appendChild(yes);
-    card.appendChild(buttons);
-    overlay.appendChild(card);
-    const done = (answer) => {
-      if (typeof overlay.remove === 'function') overlay.remove();
-      resolve(!!answer);
-    };
-    no.onclick = () => done(false);
-    yes.onclick = () => done(true);
-    overlay.onclick = (e) => { if (e && e.target === overlay) done(false); };
-    document.body.appendChild(overlay);
-    if (typeof no.focus === 'function') no.focus();
-  });
+  return window.HosUploadClean.askSendAnyway(document, name, kind);
 }
 
 /** What the strip calls a file by its name, for the question's words (a video or a picture). */

@@ -2,7 +2,7 @@
 // device (web/shared/strip-metadata.js, 2026-10-11; docs/design/files-showcase.md, the
 // operator's answers of 2026-10-11, answer 4), with the same rules and the same results as the
 // relay's own strips, which are the specification:
-//   crates/humanity-protocol/src/strip_metadata.rs        JPEG, PNG, WebP (GIF passed through)
+//   crates/humanity-protocol/src/strip_metadata.rs        JPEG, PNG, WebP, GIF
 //   crates/humanity-protocol/src/strip_video_metadata.rs  MP4, MOV, 3GP
 //
 // Run: node --test scripts/tests/strip-metadata.test.js
@@ -675,13 +675,91 @@ test("a broken picture is given back unchanged, and the report says so (fail ope
   assert.ok(r.unfinished && r.claimed === "jpeg" && r.kind === "other" && r.untouchedReason.includes("JPEG"));
 });
 
-// Seen red: with GIF sent through the JPEG walker, the GIF came back "unfinished" with the
-// unreadable-picture sentence.
-test("GIF is passed through untouched, as the relay does", () => {
-  const gif = cat("GIF89a", [4, 0, 4, 0, 0, 0, 0], [0x21, 0xfe, 5], "hello", [0, 0x3b]);
-  const r = S.stripFile(gif, "anim.gif");
-  assert.strictEqual(r.bytes, gif);
-  assert.ok(r.kind === "gif" && !r.changed && !r.unfinished && r.untouchedReason === S.SAY.gif);
+// ── GIF (2026-11-07, docs/BUGS.md BUG-263): the Rust's builders in strip_metadata.rs ──
+
+/** A GIF extension block: introducer, label, then `data` as sub-blocks of at most 255 bytes. */
+function gifExtension(label, data) {
+  const d = bytes(data);
+  const parts = [[0x21, label]];
+  for (let at = 0; at < d.length; at += 255) { const part = d.subarray(at, at + 255); parts.push([part.length], part); }
+  parts.push([0]);
+  return cat(...parts);
+}
+/** An application block named `name` (11 bytes) carrying `data` as sub-blocks. */
+function gifApplication(name, data) { return cat([0x21, 0xff, 11], name, gifExtension(0, data).subarray(2)); }
+/** XMP as Adobe puts it in a GIF: the raw packet after the name, then the 258-byte magic trailer. */
+function gifXmp(packet) {
+  const trailer = [0x01];
+  for (let v = 255; v >= 0; v--) trailer.push(v);
+  trailer.push(0);
+  return cat([0x21, 0xff, 11], "XMP DataXMP", packet, trailer);
+}
+/** NETSCAPE2.0: loop for ever. */
+const gifLoop = () => gifApplication("NETSCAPE2.0", [1, 0, 0]);
+/**
+ * One frame: its graphic control block (delay in hundredths of a second, no transparency), then a
+ * 1x1 image whose real LZW data paints colour `index` (code size 2: clear, the index, end).
+ */
+function gifFrame(delay, index) {
+  const lzw = index ? [0x4c, 0x01] : [0x44, 0x01];
+  return cat([0x21, 0xf9, 4, 0x04, delay & 0xff, delay >> 8, 0, 0], [0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0], [2, 2], lzw, [0]);
+}
+/** A whole GIF: a 1x1 screen with a two-colour table, `blocks`, then the trailer. */
+function gifFile(...blocks) {
+  return cat("GIF89a", [1, 0, 1, 0, 0x80, 0, 0], [0, 0, 0, 255, 255, 255], ...blocks, [0x3b]);
+}
+
+// Seen red 2026-11-07 against the strip-metadata.js from before (GIF passed through): the first
+// check failed with {"kind":"gif","changed":false,"unfinished":false} (nothing was removed).
+test("a looping animated GIF loses its comment and XMP; the loop and every frame stay byte for byte", () => {
+  const clean = gifFile(gifLoop(), gifFrame(12, 0), gifFrame(30, 1), gifFrame(12, 0));
+  const tagged = gifFile(
+    gifExtension(0xfe, "Taken at 12 Garden Lane, Springfield"),
+    gifXmp('<x:xmpmeta><rdf:Description exif:GPSLatitude="47,36.6N" exif:GPSLongitude="122,19.8W"/></x:xmpmeta>'),
+    gifLoop(), gifFrame(12, 0), gifApplication("MGKIPTC0000", "\x1c\x02\x5a\x00\x06Lisbon"), gifFrame(30, 1),
+    gifExtension(0x7a, "a kind no standard defines"), gifFrame(12, 0));
+  const withTail = cat(tagged, "hidden after the end");
+  const r = S.stripFile(withTail, "anim.gif");
+  assert.ok(r.kind === "gif" && r.changed && !r.unfinished, JSON.stringify({ kind: r.kind, changed: r.changed, unfinished: r.unfinished }));
+  assert.ok(!contains(r.bytes, "Garden Lane"), "the comment is gone");
+  assert.ok(!contains(r.bytes, "GPSLatitude"), "the XMP is gone");
+  assert.ok(!contains(r.bytes, "Lisbon") && !contains(r.bytes, "no standard") && !contains(r.bytes, "after the end"), "the other blocks and the tail are gone");
+  assert.ok(same(r.bytes, clean), "the loop, each frame's timing and every frame stay byte for byte");
+  assert.deepStrictEqual(r.removed.map((x) => x.path), ["comment", "XMP", "application", "extension", "bytes after the trailer"]);
+  assert.ok(!S.stripFile(r.bytes, "anim.gif").changed, "a second strip changes nothing");
+  // What the attach step says about it: the place in the XMP and the comment.
+  const d = S.describe(withTail, "anim.gif");
+  assert.ok(d.complete && d.hasLocation && d.details.some((x) => x.key === "comment"), JSON.stringify(d.details));
+  assert.deepStrictEqual(S.describe(r.bytes, "anim.gif").details, [], "nothing is left to say once cleaned");
+  // The rule's two keeps: the colour profile and a plain-text block (text drawn on the picture).
+  const kept = gifFile(gifApplication("ICCRGBG1012", "an ICC colour profile"), cat([0x21, 0x01, 12, 0, 0, 0, 0, 6, 0, 4, 0, 3, 4, 1, 0], [2], "Hi", [0]),
+    gifLoop(), gifFrame(12, 0));
+  const k = S.stripFile(kept, "g.gif");
+  assert.ok(!k.changed && k.bytes === kept, "the colour profile and a plain-text block stay");
+});
+
+// Seen red 2026-11-07 against the strip-metadata.js from before: "cut off inside a frame" was not
+// unfinished (a GIF was never walked).
+test("a GIF that does not walk is left as it came and reported as not checked", () => {
+  const whole = gifFile(gifLoop(), gifExtension(0xfe, "note"), gifFrame(12, 0));
+  for (const [label, b] of [
+    ["cut off inside a frame", whole.subarray(0, whole.length - 3)],
+    ["not a block", cat(whole.subarray(0, 19), [0x99], whole.subarray(19))],
+    ["a comment running past the end", cat(whole.subarray(0, 19), [0x21, 0xfe, 200], "xy")],
+    ["a screen descriptor cut short", bytes("GIF89a\x01\x00\x01\x00")],
+  ]) {
+    const r = S.stripFile(b, "g.gif");
+    assert.ok(r.unfinished && !r.changed && r.bytes === b && r.untouchedReason === S.SAY.pictureUnreadable, label);
+    assert.ok(!S.describe(b, "g.gif").complete, label + ": describe says it was not read through");
+  }
+  // Ended after a whole block with no trailer: read through, so cleaned as it is (nothing added).
+  const noTrailer = whole.subarray(0, whole.length - 1);
+  const r = S.stripFile(noTrailer, "g.gif");
+  const without = gifFile(gifLoop(), gifFrame(12, 0));
+  assert.ok(!r.unfinished && r.changed && same(r.bytes, without.subarray(0, without.length - 1)), "no trailer, read through: cleaned");
+  // A file named as a GIF whose bytes are not one could not be checked, as for the other pictures.
+  const named = S.stripFile(bytes("plain text"), "anim.gif");
+  assert.ok(named.unfinished && named.claimed === "gif" && named.kind === "other");
 });
 
 // Seen red: with stripFile dispatching on the claimed type instead of the bytes, a JPEG named
@@ -902,6 +980,33 @@ function randomWebp(g) {
   return damage(g, cat("RIFF", u32le(riff), "WEBP", body));
 }
 
+/**
+ * A GIF of random blocks: frames, graphic control and plain-text blocks, comments, XMP, kept and
+ * other application blocks, unknown extensions, sometimes a local colour table, a missing trailer
+ * or bytes after it; then sometimes damaged (`damage`). `whole`: never damaged.
+ */
+function randomGif(g, whole) {
+  const parts = [];
+  const gct = g.below(3);
+  for (let k = g.below(7); k > 0; k--) {
+    const kind = g.below(10);
+    if (kind <= 2) parts.push(gifFrame(g.below(300), g.below(2)));
+    else if (kind === 3) parts.push(gifExtension(0xfe, g.bytes(g.below(300))));
+    else if (kind === 4) parts.push(gifXmp(cat("<x exif:GPSLatitude=\"", String(g.below(90)), ",1N\"/>", g.bytes(g.below(30)).map((b) => 0x41 + (b % 26)))));
+    else if (kind === 5) parts.push(gifApplication(g.pick(["NETSCAPE2.0", "ANIMEXTS1.0", "ICCRGBG1012", "MGKIPTC0000", "MGK8BIM0000", "XMP DataXMP", "ABCDEFGH123"]), g.bytes(g.below(40))));
+    else if (kind === 6) parts.push(gifExtension(g.pick([0x01, 0xf9, 0x7a, 0x00, g.next() & 0xff]), g.bytes(g.below(20))));
+    else if (kind === 7) parts.push(cat([0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0x81], g.bytes(12), [2, 2, 0x44, 0x01, 0])); // a local table of 4
+    else if (kind === 8) parts.push(cat([0x21, 0xff, g.below(14)], g.bytes(g.below(20)), [0])); // an application block of odd size
+    else parts.push(gifLoop());
+  }
+  const screen = gct === 0 ? [1, 0, 1, 0, 0, 0, 0] : [1, 0, 1, 0, 0x80 | (gct - 1), 0, 0];
+  const table = gct === 0 ? [] : g.bytes(3 << gct);
+  let b = cat(g.below(2) ? "GIF89a" : "GIF87a", screen, table, ...parts);
+  if (g.below(6) !== 0) b = cat(b, [0x3b]);
+  if (g.below(6) === 0) b = cat(b, g.bytes(1 + g.below(9)));
+  return whole ? b : damage(g, b);
+}
+
 /** A well-formed picture with a random mix of metadata in it (every length right, nothing damaged). */
 function wellFormedPicture(g) {
   const some = (list) => list.filter(() => g.below(2) === 0).map((make) => make());
@@ -924,7 +1029,7 @@ function randomPicture(g) {
   if (which === 0) return randomJpeg(g);
   if (which === 1) return randomPng(g);
   if (which === 2) return randomWebp(g);
-  if (which === 3) return cat("GIF89a", g.bytes(g.below(40)));
+  if (which === 3) return g.below(4) === 0 ? cat("GIF89a", g.bytes(g.below(40))) : randomGif(g, g.below(2) === 0);
   if (which === 4) return g.bytes(g.below(60));
   if (which === 5) return wellFormedPicture(g);
   return g.below(2) ? randomJpeg(g) : randomWebp(g);
@@ -967,7 +1072,7 @@ test("random pictures never throw, never grow, and only lose what the report nam
     assert.ok(r.bytes.length <= before.length, `input ${i}: a picture never grows`);
     if (!r.changed) assert.strictEqual(r.bytes, before, `input ${i}: unchanged means the very array`);
     if (r.unfinished) assert.ok(!r.changed, `input ${i}: a broken picture fails open`);
-    if (r.changed && (r.kind === "jpeg" || r.kind === "png")) {
+    if (r.changed && (r.kind === "jpeg" || r.kind === "png" || r.kind === "gif")) {
       assert.ok(same(r.bytes, withoutRanges(before, r.removed)), `input ${i}: exactly the reported ranges are gone`);
     }
     if (r.changed && r.kind === "webp") {
@@ -1082,6 +1187,11 @@ function fixedCorpus() {
   out.push(cat("RIFF", u32le(99), "WEBP", webpChunk("VP8L", [1, 2, 3], false)));
   out.push(cat("RIFF", u32le(40), "WEBP", webpChunk("EXIF", "GPS"), "VP8L", u32le(500), filler(8, 28)));
   out.push(cat("GIF89a", "x"), bytes([0xff, 0xd8, 0, 1, 2]), bytes("not a png"), bytes("RIFFxxxx"));
+  // GIF (BUG-263): the tests' own files, whole and cut at every length.
+  const gifTagged = cat(gifFile(gifExtension(0xfe, "Taken at 12 Garden Lane"), gifXmp('<x exif:GPSLatitude="47,36.6N"/>'), gifLoop(),
+    gifFrame(12, 0), gifApplication("MGKIPTC0000", "Lisbon"), gifFrame(30, 1), gifExtension(0x7a, "odd")), "tail");
+  out.push(gifTagged, gifFile(gifLoop(), gifFrame(12, 0)), gifFile(gifApplication("ICCRGBG1012", "icc"), cat([0x21, 0x01, 12], zeros(12), [2], "Hi", [0])));
+  for (let cut = 0; cut <= gifTagged.length; cut += 5) out.push(gifTagged.subarray(0, cut));
   return out;
 }
 
@@ -1117,7 +1227,7 @@ test("agrees byte for byte with the relay's Rust strips", (t) => {
   let at = 0;
   const take = () => { const n = (out[at] | (out[at + 1] << 8) | (out[at + 2] << 16) | (out[at + 3] << 24)) >>> 0; const b = out.subarray(at + 4, at + 4 + n); at += 4 + n; return b; };
   const KIND = { mp4: ["mp4", "heif"], matroska: ["webm"], other: ["jpeg", "png", "webp", "gif", "other"] };
-  let pictures = 0, picturesChanged = 0, videos = 0, changedByBoth = 0, stopped = 0;
+  let pictures = 0, picturesChanged = 0, gifsChanged = 0, videos = 0, changedByBoth = 0, stopped = 0;
   for (let i = 0; i < corpus.length; i++) {
     const pic = take(), vid = take();
     const rep = JSON.parse(new TextDecoder().decode(take()));
@@ -1128,6 +1238,7 @@ test("agrees byte for byte with the relay's Rust strips", (t) => {
       assert.ok(same(r.bytes, pic), `${label}: the bytes differ from the Rust's`);
       assert.strictEqual(r.changed, !same(pic, corpus[i]), `${label}: changed`);
       if (r.changed) picturesChanged++;
+      if (r.changed && r.kind === "gif") gifsChanged++;
     } else {
       videos++;
       assert.ok(KIND[rep.kind].includes(r.kind), `${label}: the Rust says ${rep.kind}`);
@@ -1142,6 +1253,6 @@ test("agrees byte for byte with the relay's Rust strips", (t) => {
       }
     }
   }
-  t.diagnostic(`${corpus.length} inputs: ${pictures} pictures (${picturesChanged} changed), ${videos} others (${changedByBoth} videos changed, ${stopped} stopped early), all identical to the Rust`);
-  assert.ok(picturesChanged > 1000 && changedByBoth > 1000 && stopped > 200, `a real spread of inputs: ${picturesChanged} ${changedByBoth} ${stopped}`);
+  t.diagnostic(`${corpus.length} inputs: ${pictures} pictures (${picturesChanged} changed, ${gifsChanged} of them GIFs), ${videos} others (${changedByBoth} videos changed, ${stopped} stopped early), all identical to the Rust`);
+  assert.ok(picturesChanged > 1000 && gifsChanged > 100 && changedByBoth > 1000 && stopped > 200, `a real spread of inputs: ${picturesChanged} ${gifsChanged} ${changedByBoth} ${stopped}`);
 });

@@ -56,9 +56,10 @@
 //! connection); the write-ahead log and the continuous backup keep the order pages were written
 //! in for as long as they keep them, so on a server so quiet that nothing else is written in the
 //! minutes between a message and its sender's copy, someone holding them could still guess the
-//! pair; rows stored before 2026-11-06 keep their arrival-order numbers until they age out of the
-//! window (30 days by default); and backups taken before then keep the old order for as long as
-//! they are kept.
+//! pair; and backups taken before the fix keep the old order for as long as they are kept. The rows
+//! stored in arrival order were deleted by the upgrade after it (2026-11-07, BUG-262: the operator,
+//! "Just drop them now."), fetched or not ([`OLD_NUMBER_CEILING`]). Ending the pairing for good is
+//! planned in docs/design/unpairable-dms.md.
 
 use super::Storage;
 use rusqlite::params;
@@ -69,6 +70,18 @@ const SECS_PER_DAY: u64 = 86_400;
 /// A mailbox row's number is its day shifted up this far, plus its place among that mailbox's own
 /// mail (see `mailbox_put`).
 pub const DAY_SHIFT: u32 = 20;
+
+/// EVERY NUMBER BELOW THIS IS AN OLD ARRIVAL-ORDER ONE, AND NO OTHER IS (2026-11-07, BUG-262). The
+/// mailbox numbered rows 1, 2, 3... in arrival order from 2026-08-23 until the per-mailbox numbers
+/// went live on 2026-11-07; the rebuild kept those numbers, and the upgrade now deletes every row
+/// below this (storage/mod.rs). Why the line cannot cut a new row: [`next_number`] never gives less
+/// than the day it runs shifted up by [`DAY_SHIFT`] (a mailbox's highest plus one, or more), and any
+/// day after 1981-03-20 (unix day 4096) shifted up by 20 is at least 2^32, so only a server whose
+/// clock read 1981 could make one below it. Why it catches every old one: an old number counted the
+/// envelopes ever stored, one each, and passing 2^32 (4.29 billion) would have taken a single server
+/// over 600 envelopes a second for the 75 days the old table was live.
+pub const OLD_NUMBER_CEILING: i64 = 1 << 32;
+const _: () = assert!(4096i64 << DAY_SHIFT == OLD_NUMBER_CEILING, "the ceiling is unix day 4096's first number");
 
 /// Current unix day (UTC).
 pub fn unix_day_now() -> i64 {
@@ -380,14 +393,16 @@ mod tests {
         .unwrap();
     }
 
-    /// The live database's mailbox (2026-08-23 to 2026-11-06) numbered rows in arrival order
-    /// (`id INTEGER PRIMARY KEY AUTOINCREMENT`). Opening it rebuilds the table keyed by mailbox
-    /// (WITHOUT ROWID), keeping every envelope with the number its devices already know, so no
-    /// device misses mail or fetches it twice; the next envelope gets a higher number than any of
-    /// them. Those rows keep their arrival-order numbers until they age out of the window.
+    /// A database whose mailbox still numbers rows in arrival order (`id INTEGER PRIMARY KEY
+    /// AUTOINCREMENT`, the shape until 2026-11-06). Opening it rebuilds the table keyed by mailbox
+    /// (WITHOUT ROWID). Its rows all carry arrival-order numbers, so none is kept (2026-11-07,
+    /// BUG-262; the operator: "Just drop them now."); new mail is numbered from the day, and a
+    /// device that read to an old number gets it.
     ///
-    /// Seen red 2026-11-06 before the rebuild existed: "the rebuilt table has no rowid" failed
-    /// (the old table was left as it was).
+    /// Seen red 2026-11-06 before the rebuild existed: "the rebuilt table has no rowid" failed (the
+    /// old table was left as it was). Since 2026-11-07 it no longer keeps the old rows: red against
+    /// the upgrade from before (the rebuild copying them, nothing dropping them), "no old-numbered
+    /// row is kept" (left: 3, right: 0).
     #[test]
     fn opens_the_arrival_order_mailbox_and_rebuilds_it_by_mailbox() {
         let path = humanity_core::test_temp::db("dms_arrival_order");
@@ -412,18 +427,85 @@ mod tests {
         let db = Storage::open(&path).expect("open rebuilds the mailbox");
         let no_rowid = db.with_read_conn(|conn| Ok(conn.prepare("SELECT rowid FROM dm_mailbox").is_err())).unwrap();
         assert!(no_rowid, "the rebuilt table has no rowid");
-        let bob: Vec<(i64, String)> = db.mailbox_fetch("bob", 0, 10).unwrap().into_iter().map(|r| (r.id, r.content)).collect();
-        assert_eq!(bob, vec![(1, "to bob".to_string()), (3, "to bob again".to_string())], "every envelope kept, with its number");
-        // A device of Bob's that saw number 1 gets the rest and the new mail, nothing twice.
+        assert_eq!(stored_rows(&db).len(), 0, "no old-numbered row is kept");
+        // A device of Bob's that read to number 1 gets the new mail.
         let next = db.mailbox_put("bob", "new").unwrap();
-        assert!(next > 3, "the next number is above the old ones");
+        assert!(next >= OLD_NUMBER_CEILING, "new mail is numbered from the day");
         let after: Vec<String> = db.mailbox_fetch("bob", 1, 10).unwrap().into_iter().map(|r| r.content).collect();
-        assert_eq!(after, vec!["to bob again".to_string(), "new".to_string()]);
-        assert_eq!(db.mailbox_fetch("alice", 0, 10).unwrap().len(), 1);
+        assert_eq!(after, vec!["new".to_string()]);
         drop(db);
-        // And a second open finds nothing to rebuild.
+        // And a second open finds nothing to rebuild or drop.
         let again = Storage::open(&path).expect("reopens");
-        assert_eq!(again.mailbox_fetch("bob", 0, 10).unwrap().len(), 3);
+        assert_eq!(again.mailbox_fetch("bob", 0, 10).unwrap().len(), 1);
+    }
+
+    /// THE OLD NUMBERS ARE DROPPED (2026-11-07, docs/BUGS.md BUG-262; the operator: "Just drop them
+    /// now. Let's not bother with backwards compatibility until v1.0."). A table already kept by
+    /// mailbox (the live one since 2026-11-07) still held envelopes with the arrival-order numbers
+    /// 1, 2, 3... they came in with. Opening it deletes those, and nothing else: an envelope
+    /// numbered from its day stays, a cleared mailbox's marker numbered from its day stays (its
+    /// floor still holds), and the marker of a mailbox cleared while it held only old numbers goes
+    /// (an old number too, and the floor it held is below every day's number anyway). A device
+    /// that read to an old number gets every new envelope; a second open changes nothing.
+    ///
+    /// Seen red 2026-11-07 before the migration existed (and again against the upgrade from before):
+    /// "only the old-numbered rows are gone" failed, all six rows left (the two old envelopes and the
+    /// old marker still there).
+    #[test]
+    fn opening_drops_every_old_numbered_row_and_nothing_else() {
+        let path = humanity_core::test_temp::db("dms_old_numbers");
+        let day = unix_day_now();
+        let new_id = day << DAY_SHIFT;
+        // The line between the two schemes (OLD_NUMBER_CEILING's proof): today's first number, and
+        // any number `next_number` gives from now on, is above it; every old number is far below.
+        assert!(new_id >= OLD_NUMBER_CEILING, "today's numbers are above the line");
+        assert_eq!(fresh_db().mailbox_put("x", "e").unwrap(), new_id, "a mailbox's first number is the day's base");
+        {
+            // The shape the live table has had since the 2026-11-07 rebuild, with what it holds.
+            let db = Storage::open(&path).expect("a fresh database");
+            db.with_conn(|conn| -> Result<(), rusqlite::Error> {
+                for (id, to, content) in [
+                    (7, "bob", "old to bob"),            // arrival-order numbers, kept by the rebuild
+                    (8, "alice", "old alice self"),
+                    (5, "carol", ""),                    // carol cleared while she held only old mail
+                    (new_id, "bob", "new to bob"),       // numbered from its day
+                    (new_id + 1, "bob", "new to bob 2"),
+                    (new_id + 3, "dave", ""),            // dave cleared after new mail: his floor
+                ] {
+                    conn.execute(
+                        "INSERT INTO dm_mailbox (id, to_key, content, received_day) VALUES (?1, ?2, ?3, ?4)",
+                        params![id, to, content, day],
+                    )?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        }
+        let db = Storage::open(&path).expect("open drops the old numbers");
+        let left: Vec<(String, i64, String)> = db
+            .with_read_conn(|conn| {
+                let mut stmt = conn.prepare("SELECT to_key, id, content FROM dm_mailbox ORDER BY to_key, id")?;
+                let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<Vec<_>, _>>()?;
+                Ok(rows)
+            })
+            .unwrap();
+        let want = vec![
+            ("bob".to_string(), new_id, "new to bob".to_string()),
+            ("bob".to_string(), new_id + 1, "new to bob 2".to_string()),
+            ("dave".to_string(), new_id + 3, String::new()),
+        ];
+        assert_eq!(left, want, "only the old-numbered rows are gone");
+        // A device of Bob's that had read to old number 7 gets the new mail, and Dave's floor holds.
+        let bobs: Vec<String> = db.mailbox_fetch("bob", 7, 10).unwrap().into_iter().map(|r| r.content).collect();
+        assert_eq!(bobs, vec!["new to bob".to_string(), "new to bob 2".to_string()]);
+        assert!(db.mailbox_put("dave", "after").unwrap() > new_id + 3, "the floor a cleared mailbox holds is kept");
+        assert!(db.mailbox_put("carol", "fresh").unwrap() > 8, "a mailbox whose old marker went still numbers above every old number");
+        drop(db);
+        // Running twice is harmless: nothing more goes.
+        let again = Storage::open(&path).expect("reopens");
+        assert_eq!(again.mailbox_fetch("bob", 0, 10).unwrap().len(), 2);
+        assert_eq!(again.mailbox_fetch("dave", 0, 10).unwrap().len(), 1);
+        assert_eq!(again.mailbox_fetch("carol", 0, 10).unwrap().len(), 1);
     }
 
     /// Migration: a database that still has the legacy `direct_messages`

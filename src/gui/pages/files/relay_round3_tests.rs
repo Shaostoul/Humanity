@@ -164,7 +164,7 @@ fn the_whole_upload_against_the_real_relay_with_its_allowance() {
                 ctl.cancel(); // a second day's wait: stop, and let the assertions say why
             }
         }
-        let last = matches!(e, resumable::Event::Done { .. } | resumable::Event::Failed { .. } | resumable::Event::Cancelled { .. });
+        let last = matches!(e, resumable::Event::Done { .. } | resumable::Event::Failed { .. } | resumable::Event::Cancelled { .. } | resumable::Event::Unchecked);
         events.push(e);
         if last {
             break;
@@ -256,7 +256,7 @@ fn upload_whole(r: &Relay, tag: &str, n: usize) -> (String, String) {
                 handle.join().unwrap();
                 return (id, resumable::stored_name_of(&answer));
             }
-            e @ (resumable::Event::Failed { .. } | resumable::Event::Cancelled { .. }) => panic!("the upload ended: {e:?}"),
+            e @ (resumable::Event::Failed { .. } | resumable::Event::Cancelled { .. } | resumable::Event::Unchecked) => panic!("the upload ended: {e:?}"),
             _ => {}
         }
     }

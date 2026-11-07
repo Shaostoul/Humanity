@@ -2,10 +2,12 @@
 //! docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", parts 1
 //! and 2). The same look and switch as the chat's attach step (chat/attach_step.rs `draw_look`):
 //! what is hidden in the file, "Remove location and camera details" (remembered; always on under
-//! the protected setup), and a file that could not be checked is not sent (Shared Files is public)
-//! unless the person keeps everything by choice, which sends `keep_metadata=1`. A file with nothing
-//! hidden in it uploads at once. The file is read, cleaned and uploaded on a worker thread, never on
-//! the frame.
+//! the protected setup). A file that could not be checked is the person's to decide (2026-11-07,
+//! BUG-264; the chat's question, BUG-260): its words, then "Don't send" first and focused and "Send
+//! anyway" second (attach_step.rs `keep_answers`); "Send anyway" uploads it exactly as picked with
+//! `keep_metadata=1` and the person's signed choice, as the switch turned off does. A file with
+//! nothing hidden in it uploads at once. The file is read, cleaned and uploaded on a worker thread,
+//! never on the frame.
 
 use egui::RichText;
 
@@ -30,6 +32,8 @@ pub enum Outcome {
     /// Upload it: the upload is on its way, its answer in the receiver.
     Uploading(Receiver<Result<String, String>>),
     Cancelled,
+    /// "Don't send", for a file that could not be checked: nothing was sent, and the page says so.
+    NotSent,
 }
 
 /// The step for the file at `path`: its look starts on a worker.
@@ -68,9 +72,11 @@ pub(crate) fn upload(server: &str, token: &str, path: &std::path::Path, filename
         .map_err(|(_, words)| words)
 }
 
-fn spawn_upload(server: String, token: String, step: &UploadStep, signer: Option<crate::gui::pages::chat::attach_send::KeepSigner>) -> Receiver<Result<String, String>> {
+/// The upload on a worker: cleaned when `remove`, else exactly as picked (the switch off, or "Send
+/// anyway"), with the signed choice.
+fn spawn_upload(server: String, token: String, step: &UploadStep, remove: bool, signer: Option<crate::gui::pages::chat::attach_send::KeepSigner>) -> Receiver<Result<String, String>> {
     let (tx, rx) = std::sync::mpsc::channel();
-    let (path, filename, remove) = (step.path.clone(), step.filename.clone(), step.remove);
+    let (path, filename) = (step.path.clone(), step.filename.clone());
     std::thread::spawn(move || {
         let _ = tx.send(upload(&server, &token, &path, &filename, remove, signer.as_ref()));
     });
@@ -89,7 +95,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, step:
     if let Some(look) = &step.looking.look {
         if !attach_step::needs_asking(look, None) {
             attach_step::remember_switch(state, step.remove);
-            return Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
+            return Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, step.remove, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
         }
     }
     let mut outcome = Outcome::Waiting;
@@ -97,12 +103,23 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, step:
         ui.label(RichText::new(&step.filename).color(theme.text_primary()).strong());
         let v = attach_step::draw_look(ui, theme, &mut step.looking, &mut step.remove, protected, false);
         ui.horizontal(|ui| {
+            if v.anyway {
+                // A file that could not be checked: the chat's two answers (BUG-264). "Send anyway"
+                // sends it exactly as picked, signed; the switch stays as the person set it.
+                let (no, yes) = attach_step::keep_answers(ui, theme, v.can_send);
+                if yes {
+                    outcome = Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, false, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
+                } else if no {
+                    outcome = Outcome::NotSent;
+                }
+                return;
+            }
             let mut go = false;
             ui.add_enabled_ui(v.can_send, |ui| {
                 go = widgets::Button::primary("Upload").show(ui, theme);
             });
             if go {
-                outcome = Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
+                outcome = Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, step.remove, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
             }
             if widgets::Button::secondary("Cancel").show(ui, theme) {
                 outcome = Outcome::Cancelled;

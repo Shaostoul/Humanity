@@ -313,7 +313,7 @@ pub(crate) fn safe_stem(filename: &str) -> String {
 /// resumable upload's hash mismatch is a 409), held by `upload_rules_tests.rs`.
 pub(crate) const CANNOT_CLEAN: StatusCode = StatusCode::UNPROCESSABLE_ENTITY;
 
-/// What is said for a picture (JPEG, PNG or WebP) whose structure could not be read all the way
+/// What is said for a picture (JPEG, PNG, WebP or GIF) whose structure could not be read all the way
 /// through, so its hidden details could not be removed with certainty (BUG-260). It is not stored.
 pub(crate) const PICTURE_UNREADABLE: &str = "This picture could not be read all the way through, so its hidden details (they can include where and when it was taken) could not be removed, and it was not stored. Your app can ask you whether to send it anyway.";
 
@@ -323,8 +323,9 @@ pub(crate) const PICTURE_UNREADABLE: &str = "This picture could not be read all 
 /// nobody consents to publishing their home address with a garden picture. The strip is
 /// lossless (whole-segment removal, no re-encode). A picture whose structure does not walk
 /// cleanly is REFUSED ([`CANNOT_CLEAN`], [`PICTURE_UNREADABLE`]): until 2026-11-06 it was stored
-/// as it came, location and all (BUG-260). A GIF is stored as it is (no standard place for a
-/// location; humanity_protocol strip_metadata.rs).
+/// as it came, location and all (BUG-260). A GIF loses its comments and program blocks, XMP among
+/// them, since 2026-11-07 (BUG-263; humanity_protocol strip_metadata.rs), and is refused the same
+/// way when it does not walk.
 ///
 /// BLOCKING: it reads and copies the whole picture (up to `PICTURE_MAX_BYTES`), so a route calls
 /// it inside `spawn_blocking`, never on the async executor.

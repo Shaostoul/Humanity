@@ -122,28 +122,56 @@ test("2. with the switch off the photo goes as picked, the start says keep_metad
 
 // ── 3. Could not be checked ──────────────────────────────────────────────
 
-test("3. a video cut before its movie is never added unchecked; kept by choice it goes as picked; a HEIC goes to the server, which cleans it", async () => {
+// THE CHAT'S QUESTION, NOT A REFUSAL (2026-11-07, BUG-264; the operator: "Let's do that."). A video
+// cut before its movie could not be checked: the form asks the chat's question by key, "Don't send"
+// first, holding the focus, then "Send anyway", each with its hint, in place of Upload and Cancel.
+// "Don't send" closes the form with nothing started; "Send anyway" uploads it exactly as picked
+// with keep_metadata and the signed choice. The switch turned off still sends it the same way.
+// Seen red 2026-11-07 against the files-add.js and upload-clean.js from before: "a cut video: the
+// chat's question" failed (the old refusal, "...turn off \"Remove location and camera details\".").
+test("3. a video that could not be checked is asked about: Don't send first, Send anyway sends it as picked, signed; a HEIC goes to the server", async () => {
   const cut = B.movie("mdatFirst", B.ftypMp4(), B.everything()).subarray(0, 300);
-  for (const [name, file, first] of [
-    ["a cut video", fileOf(cut, "clip.mp4", "video/mp4"), null],
-  ]) {
-    const { doc, relay } = await page();
+  const focused = { el: null };
+  const realFocus = H.FakeElement.prototype.focus;
+  H.FakeElement.prototype.focus = function () { focused.el = this; };
+  try {
+    const name = "a cut video";
+    const file = fileOf(cut, "clip.mp4", "video/mp4");
+    let { doc, relay } = await page();
     await pickFile(doc, file);
-    const words = text(byId(doc, "files-form-unchecked"));
-    assert.ok(words.includes(UC.WORDS.publicKeepHint), `${name}: the words say why and how: ${words}`);
-    if (first) assert.ok(words.startsWith(first), `${name}: the relay's own words`);
-    assert.equal(byId(doc, "files-form-go").disabled, true, `${name}: Upload off`);
-    byId(doc, "files-form-go").disabled = false; // a determined click
-    await upload(doc);
-    assert.equal(relay.log.length, 0, `${name}: nothing started`);
-    turnSwitch(doc, true);
+    assert.equal(text(byId(doc, "files-form-unchecked")), "upload_keep.question_video", `${name}: the chat's question`);
+    const no = byId(doc, "files-form-dont-send");
+    const yes = byId(doc, "files-form-send-anyway");
+    assert.ok(no && yes && !byId(doc, "files-form-go"), `${name}: the two answers in place of Upload`);
+    assert.equal(no.parentNode.children.indexOf(no), 0, `${name}: Don't send first`);
+    assert.equal(focused.el, no, `${name}: Don't send holds the focus`);
+    assert.deepEqual([text(no), no.getAttribute("data-tip-desc"), text(yes), yes.getAttribute("data-tip-desc")],
+      ["upload_keep.dont_send", "upload_keep.dont_send_hint", "upload_keep.send_anyway", "upload_keep.send_anyway_hint"], `${name}: the words and hints by key`);
+    no.click();
+    for (let i = 0; i < 5; i++) await settle();
+    assert.equal(relay.log.length, 0, `${name}: Don't send starts nothing`);
+    assert.equal(byId(doc, "files-form-send-anyway"), null, `${name}: and closes the form`);
+    assert.ok(text(doc.body).includes("upload_keep.not_sent"), `${name}: and the page says so`);
+
+    ({ doc, relay } = await page());
+    await pickFile(doc, file);
+    byId(doc, "files-form-send-anyway").click();
+    for (let i = 0; i < 20; i++) await settle();
+    assert.equal(startBody(relay).keep_metadata, 1, `${name}: Send anyway says keep_metadata: 1`);
+    assert.ok(startBody(relay).keep && startBody(relay).blake3, `${name}: with the signed choice (BUG-260)`);
+    assert.ok(same(sent(relay), new Uint8Array(await file.arrayBuffer())), `${name}: exactly as picked`);
+
+    ({ doc, relay } = await page());
+    await pickFile(doc, file);
     turnSwitch(doc, false);
-    assert.equal(text(byId(doc, "files-form-unchecked")), "", `${name}: kept by choice, nothing in the way`);
+    assert.equal(text(byId(doc, "files-form-unchecked")), "", `${name}: kept by choice, nothing to ask`);
     assert.equal(byId(doc, "files-form-go").disabled, false);
     await upload(doc);
-    assert.equal(startBody(relay).keep_metadata, 1, `${name}: keep_metadata: 1`);
-    assert.ok(startBody(relay).keep && startBody(relay).blake3, `${name}: with the signed choice (BUG-260)`);
+    assert.equal(startBody(relay).keep_metadata, 1, `${name}: the switch off says keep_metadata: 1 too`);
+    assert.ok(startBody(relay).keep && startBody(relay).blake3, `${name}: signed the same way`);
     assert.ok(same(sent(relay), new Uint8Array(await file.arrayBuffer())), `${name}: as picked`);
+  } finally {
+    H.FakeElement.prototype.focus = realFocus;
   }
   // A HEIC photo goes up as picked, without keep_metadata, so the relay cleans it (2026-10-11).
   const heic = fileOf(B.heic(), "IMG_0003.HEIC", "image/heic");

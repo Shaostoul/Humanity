@@ -104,9 +104,10 @@ united-humanity.us on 7 November 2026, and so did the website's. Until the
 desktop app's update, the server's
 write log and its continuous backup still hold a desktop user's two copies one
 right after the other, even though the database itself no longer pairs them.
-Other servers get the fix when they update. Rows stored before the fix keep
-their old numbers until they age out of the 30-day window, and backups taken
-before it keep them for as long as those backups are kept.
+Other servers get the fix when they update. Rows stored with the old numbers
+are deleted when a server updates, fetched or not, rather than waiting out the
+30-day window; backups taken before the fix keep them for as long as those
+backups are kept.
 
 What the database still cannot hide, said plainly: at the moment you send, the
 server you are connected to knows it is you and whom the sealed envelope is
@@ -173,8 +174,10 @@ Now your app removes that hidden metadata on your own device before a photo
 or video leaves it (a switch, "Remove location and camera details", on unless
 you turn it off), and the server removes it again from the pictures, videos and
 phone photos uploaded to it, before the file is stored. JPEG, PNG and WebP
-pictures lose their EXIF, XMP and comment blocks; HEIC and AVIF photos have
-their EXIF and XMP blanked; MP4-family videos have their location boxes blanked.
+pictures lose their EXIF, XMP and comment blocks; GIF pictures lose their
+comments and the blocks programs write into them, XMP among them, while their
+animation stays exactly as it was; HEIC and AVIF photos have their EXIF and XMP
+blanked; MP4-family videos have their location boxes blanked.
 The removal is lossless, so the picture itself is untouched.
 
 When a file cannot be read all the way through, the metadata cannot be removed
@@ -183,11 +186,9 @@ stored the picture as it came, location and all. Now it stores nothing unless
 you say so: the app asks you, "Send it anyway, or don't send?", with "Don't
 send" first, and only your "Send anyway", signed with your own key for that one
 file, lets the server keep it as it is. The website asks now; the desktop app
-asks from its next update.
-Two limits we know of: a GIF is stored as it is (it has no standard place for a
-location, though an editing program can write one in), and a location recorded
-inside a video's own picture stream, as some action cameras and drones do, is
-not caught.
+asks from its next update, on the Files page as in the chat.
+One limit we know of: a location recorded inside a video's own picture stream,
+as some action cameras and drones do, is not caught.
 
 ### Photos and files inside a private message
 
@@ -302,7 +303,9 @@ defeating that kind of timing analysis requires what is called a mix network,
 which deliberately shuffles and delays messages. We have not built that, and it
 is a genuinely hard, unsolved-in-general problem. The onion service helps for
 users who opt into it; universal protection against a patient wire watcher is
-honestly beyond where we are today.
+honestly beyond where we are today. Hiding when you send among dummy messages,
+and keeping your own copies of what you send off the server altogether, are
+planned, not built.
 
 **Public is public.** Anything you post in a public channel is public, exactly
 like a public post anywhere else. The architecture protects what you did not

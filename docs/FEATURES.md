@@ -948,7 +948,7 @@ off the admin role first. Works regardless of server feature toggles.
   `src/relay/storage/expiry.rs`, `src/relay/handlers/sign_ups.rs`
 
 ### Upload Metadata Stripping (server, 2026-08-23)
-Every uploaded JPEG/PNG/WebP is stripped of EXIF/XMP/IPTC/text metadata before
+Every uploaded JPEG/PNG/WebP/GIF is stripped of EXIF/XMP/IPTC/text metadata before
 the bytes touch disk, losslessly (whole-segment removal, no re-encode), so a
 phone photo never publishes GPS coordinates or a camera serial.
 - Server: `crates/humanity-protocol/src/strip_metadata.rs`, hooked in `api.rs::upload_file`
@@ -960,11 +960,28 @@ phone photo never publishes GPS coordinates or a camera serial.
   their own clean could not check, and a question on the server's 422; words `upload_keep.*`).
   `keep_metadata=1` is honoured only with the uploader's own Dilithium3 signature over the file's
   BLAKE3 (`KeepChoice`, the single request's `keep` part, the resumable start's `keep` field), so
-  an upload token alone never keeps a file's details. GIF is stored as it is (no standard
-  location field). Web: `web/shared/upload-clean.js` (`decide` with `canAsk`, `keepChoice`),
-  `web/chat/chat-messages.js` (`uploadPrepared`, `askSendAnyway`), the Files pages' uploads;
-  desktop: `src/gui/pages/chat/attach_step.rs` (`verdict`, `draw_server_ask`),
-  `attach_send.rs` (`KeepSigner`), Shared Files and Media uploads.
+  an upload token alone never keeps a file's details. Web: `web/shared/upload-clean.js`
+  (`decide`, `keepChoice`, `keepAnswers`, `askSendAnyway`), `web/chat/chat-messages.js`
+  (`uploadPrepared`); desktop: `src/gui/pages/chat/attach_step.rs` (`verdict`, `keep_answers`,
+  `draw_server_ask`), `attach_send.rs` (`KeepSigner`).
+- **GIF cleaned too (2026-11-07, BUG-263).** Comment blocks, every application block but looping
+  (NETSCAPE2.0, ANIMEXTS1.0) and the colour profile (ICCRGBG1 012), extension blocks the standard
+  does not define (XMP lives in an application block) and bytes after the trailer go; the frames,
+  their timing and the plain-text blocks stay byte for byte. A GIF that does not walk is refused
+  like any picture (the person may sign Send anyway). The rule every format follows is written at
+  the top of `strip_metadata.rs`: what the picture is made of stays, words and data about it that
+  no viewer is shown go. The same walk in the relay's strip (`walk_gif`), the desktop's own clean
+  (`src/net/file_clean.rs`), the website's (`web/shared/strip-metadata.js` `walkGif`, held to the
+  Rust byte for byte by `scripts/tests/strip-metadata.test.js`) and both describes (the attach
+  step names a GIF's comment and the place in its XMP).
+- **The Files page asks too (2026-11-07, BUG-264).** Add to Files, Shared Files and an item's Edit,
+  in both apps, ask "Send it anyway, or don't send?" for a file the clean could not check, with the
+  chat's own pieces: the words by key, "Don't send" first and holding the focus (desktop
+  `widgets::Button::take_focus`), "Send anyway" sending it exactly as picked with the signed
+  choice. Until then they refused it and pointed at the switch. Desktop: `files/add.rs`
+  (`Form::anyway`), `files/shared_upload_step.rs`, `files/uploading.rs` (`draw_keep_ask`, after a
+  resumable upload from an item's Edit stops with `Event::Unchecked`); web:
+  `web/pages/files-add.js` (`startAttach` for an item's Edit), `web/pages/shared-files-upload.js`.
 
 ### Encrypted Backups (server, 2026-08-23)
 Both backup layers sealed at rest (in-process 6h AES-256-GCM `.db.enc`; VPS
@@ -1892,6 +1909,10 @@ web<->native (`src/net/dm_pq.rs` <-> `web/chat/crypto.js`). The v1 dual-seal
 `direct_messages` graph table are all deleted. Canonical detail: the crypto
 table in `CLAUDE.md` + `docs/reference/retention_and_deletion_semantics.md`.
 - Native: `src/net/dm_pq.rs` (seal/open), `src/gui/pages/chat.rs` (send/receive UI)
+- **Kept by mailbox, not by arrival (2026-11-06, BUG-259)**, and the rows numbered in arrival
+  order dropped by the upgrade (2026-11-07, BUG-262: `dms::OLD_NUMBER_CEILING`, the migration in
+  `src/relay/storage/mod.rs`). Ending the pairing for good (your own copies off the mailbox, cover
+  traffic) is planned, not built: `docs/design/unpairable-dms.md`.
 
 ### HUD
 Health bar, hotbar, crosshair, compass, day/night indicator, FPS counter. **Survival rows and the active quest

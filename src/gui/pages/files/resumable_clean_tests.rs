@@ -34,7 +34,8 @@ fn a_phone_video_is_cleaned_in_a_copy_and_the_copy_goes_up() {
 }
 
 /// Kept by choice the file goes exactly as picked, its start saying `keep_metadata: 1`; one that
-/// could not be checked is not sent at all (Media is public). Seen red 2026-10-11 with
+/// could not be checked is not sent: the worker stops with `Unchecked` before anything reaches the
+/// server, and the page asks (BUG-264, uploads_keep_tests.rs). Seen red 2026-10-11 with
 /// `start_body` leaving the flag out: "the start says keep_metadata" failed.
 #[test]
 fn kept_by_choice_or_not_sent() {
@@ -49,6 +50,6 @@ fn kept_by_choice_or_not_sent() {
     let (_own, plan, _) = plan_for("mp4-broken-box.mp4", "clip.mp4", true);
     let fake = Fake::new(8192);
     let events = run_on(fake.clone(), plan, Arc::new(Control::new(Some(TOKEN.into()))), |_, _| {});
-    assert_eq!(events.last(), Some(&Event::Failed { words: NOT_CHECKED_FILES.into(), gone: true }));
+    assert_eq!(events.last(), Some(&Event::Unchecked), "it stops so the page can ask");
     assert!(fake.s().id.is_none(), "nothing was started on the server");
 }

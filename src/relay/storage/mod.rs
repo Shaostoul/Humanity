@@ -866,9 +866,9 @@ impl Storage {
         // graph to a subpoena or a breach. Kept by mailbox, not by arrival
         // (2026-11-06, BUG-259): WITHOUT ROWID, keyed (to_key, id), `id`
         // numbered per mailbox from the day, so neither the file's order
-        // nor the numbers pair a message with its sender's own copy. The
-        // live database's arrival-order table is rebuilt into this shape in
-        // the migration block below. See storage/dms.rs.
+        // nor the numbers pair a message with its sender's own copy. An
+        // arrival-order table is replaced by this shape in the migration
+        // block below, and old-numbered rows dropped. See storage/dms.rs.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS dm_mailbox (
                 id INTEGER NOT NULL,
@@ -1107,34 +1107,41 @@ impl Storage {
             info!("Migration: dropped legacy direct_messages table (sealed-sender DM cutover — the server-side DM graph is gone)");
         }
 
-        // Migration (the mailbox kept by mailbox, 2026-11-06, BUG-259): the live database's
-        // `dm_mailbox` was `id INTEGER PRIMARY KEY AUTOINCREMENT`, rows numbered and stored in
-        // arrival order, which paired a message with its sender's own copy (storage/dms.rs). A
-        // table with a rowid is that shape (the new one is WITHOUT ROWID); it is rebuilt keyed by
-        // (to_key, id). Every envelope is kept WITH ITS NUMBER: each device pages its mailbox by
-        // "after the last number I saw", so renumbering would make every device fetch the whole
-        // window again, and dropping would lose mail not yet fetched. Those rows keep their
-        // arrival-order numbers until they age out of the window (30 days by default); new mail is
-        // numbered from the day (`day << DAY_SHIFT`, far above them), so a mailbox's numbers keep
-        // rising. No other compatibility code: nothing reads the old shape. The old table's pages
-        // are zeroed (secure_delete) and folded out of the log after the commit (`scrub_wal`).
+        // Migration (the mailbox kept by mailbox, 2026-11-06, BUG-259): a `dm_mailbox` that is
+        // `id INTEGER PRIMARY KEY AUTOINCREMENT` numbers and stores rows in arrival order, which
+        // paired a message with its sender's own copy (storage/dms.rs). A table with a rowid is that
+        // shape (the new one is WITHOUT ROWID); it is replaced by the shape keyed (to_key, id). Its
+        // rows all carry arrival-order numbers, so none is carried over (2026-11-07, BUG-262: the
+        // operator, "Just drop them now. Let's not bother with backwards compatibility until
+        // v1.0."): mail not yet fetched there is lost, and every device's next fetch finds the new
+        // numbers above its place. The old table's pages are zeroed (secure_delete) and folded out
+        // of the log after the commit (`scrub_wal`).
         if conn.prepare("SELECT rowid FROM dm_mailbox LIMIT 0").is_ok() {
             conn.execute_batch(
-                "CREATE TABLE dm_mailbox_by_mailbox (
+                "DROP TABLE dm_mailbox;
+                CREATE TABLE dm_mailbox (
                     id INTEGER NOT NULL,
                     to_key TEXT NOT NULL,
                     content TEXT NOT NULL,
                     received_day INTEGER NOT NULL,
                     PRIMARY KEY (to_key, id)
                 ) WITHOUT ROWID;
-                INSERT INTO dm_mailbox_by_mailbox (id, to_key, content, received_day)
-                    SELECT id, to_key, content, received_day FROM dm_mailbox;
-                DROP TABLE dm_mailbox;
-                ALTER TABLE dm_mailbox_by_mailbox RENAME TO dm_mailbox;
                 CREATE INDEX IF NOT EXISTS idx_dm_mailbox_day ON dm_mailbox(received_day);",
             )?;
             scrub_wal = true;
-            info!("Migration: rebuilt dm_mailbox keyed by mailbox (no arrival-order rowid)");
+            info!("Migration: replaced the arrival-order dm_mailbox with the one kept by mailbox (its rows dropped)");
+        }
+
+        // Migration (the old numbers dropped, 2026-11-07, BUG-262): the live table was rebuilt on
+        // 2026-11-07 keeping its rows WITH their arrival-order numbers, to age out over the window.
+        // The operator, the same day: "Just drop them now." Every row numbered below
+        // `OLD_NUMBER_CEILING` goes, envelopes and the marker of a mailbox cleared while it held
+        // only old numbers alike, and nothing else: a new number is never below it (the proof is at
+        // the constant, storage/dms.rs). Runs on every start and finds nothing after the first.
+        let old = conn.execute("DELETE FROM dm_mailbox WHERE id < ?1", [dms::OLD_NUMBER_CEILING])?;
+        if old > 0 {
+            scrub_wal = true;
+            info!("Migration: dropped {old} DM mailbox rows still numbered in arrival order");
         }
 
         // Migration (privacy hardening, 2026-08-23): DROP the plaintext

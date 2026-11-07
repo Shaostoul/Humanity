@@ -197,6 +197,33 @@ function movie(ftyp, moovParts, top, mdatFirst) {
   return mdatFirst ? cat(ftyp, mdat(), moov, ...(top || [])) : cat(ftyp, moov, mdat(), ...(top || []));
 }
 
+// ── GIF (2026-11-07, BUG-263; the builders of scripts/tests/strip-metadata.test.js) ─────────────
+
+/** A GIF extension block: introducer, label, then `data` as sub-blocks of at most 255 bytes. */
+function gifExtension(label, data) {
+  const d = bytes(data);
+  const parts = [[0x21, label]];
+  for (let at = 0; at < d.length; at += 255) { const part = d.subarray(at, at + 255); parts.push([part.length], part); }
+  parts.push([0]);
+  return cat(...parts);
+}
+/** An application block named `name` (11 bytes) carrying `data` as sub-blocks. */
+function gifApplication(name, data) { return cat([0x21, 0xff, 11], name, gifExtension(0, data).subarray(2)); }
+/** XMP as Adobe puts it in a GIF: the raw packet after the name, then the 258-byte magic trailer. */
+function gifXmp(packet) {
+  const trailer = [0x01];
+  for (let v = 255; v >= 0; v--) trailer.push(v);
+  trailer.push(0);
+  return cat([0x21, 0xff, 11], 'XMP DataXMP', utf8(packet), trailer);
+}
+const gifLoop = () => gifApplication('NETSCAPE2.0', [1, 0, 0]);
+/** One frame: its graphic control block, then a 1x1 image whose real LZW data paints colour `index`. */
+function gifFrame(delay, index) {
+  return cat([0x21, 0xf9, 4, 0x04, delay & 0xff, delay >> 8, 0, 0], [0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0], [2, 2], index ? [0x4c, 0x01] : [0x44, 0x01], [0]);
+}
+/** A whole GIF: a 1x1 screen with a two-colour table, `blocks`, then the trailer. */
+function gif(...blocks) { return cat('GIF89a', [1, 0, 1, 0, 0x80, 0, 0], [0, 0, 0, 255, 255, 255], ...blocks, [0x3b]); }
+
 // ── the fixed set ───────────────────────────────────────────────────────────────────────────────
 
 /** [file name, the name or type passed to describe, bytes]. */
@@ -239,8 +266,14 @@ function fixed() {
   add('webp-xmp.webp', 'w.webp', webp(webpChunk('VP8L', [0x2f, 0, 0, 0]), webpChunk('XMP ', utf8(XMP_FULL))));
   add('webp-trailing.webp', 'w.webp', cat(webp(webpChunk('VP8L', [0x2f, 0, 0, 0])), [1, 2, 3]));
   add('webp-broken.webp', 'w.webp', cat('RIFF', u32le(40), 'WEBP', webpChunk('EXIF', 'GPS'), 'VP8L', u32le(500), filler(8, 6)));
-  // GIF and others
-  add('gif.gif', 'g.gif', cat('GIF89a', filler(20, 7)));
+  // GIF (a real looping animation since BUG-263, 2026-11-07) and others
+  add('gif.gif', 'g.gif', gif(gifLoop(), gifFrame(12, 0), gifFrame(30, 1)));
+  add('gif-comment-xmp.gif', 'anim.gif', gif(gifExtension(0xfe, 'Taken at 12 Garden Lane'),
+    gifXmp('<rdf:Description exif:GPSLatitude="47,36.6N" exif:GPSLongitude="122,19.8W" tiff:Make="Canon"/>'), gifLoop(), gifFrame(12, 0), gifFrame(30, 1)));
+  add('gif-blank-comment.gif', 'g.gif', gif(gifExtension(0xfe, '   '), gifFrame(12, 0)));
+  add('gif-application.gif', 'g.gif', gif(gifApplication('MGKIPTC0000', cat([0x1c, 0x02, 0x5a, 0, 6], 'Lisbon')), gifFrame(12, 0)));
+  add('gif-cut.gif', 'g.gif', gif(gifExtension(0xfe, 'note'), gifLoop(), gifFrame(12, 0)).subarray(0, 40));
+  add('gif-junk.gif', 'g.gif', cat('GIF89a', filler(20, 7)));
   add('webm.webm', 'clip.webm', cat([0x1a, 0x45, 0xdf, 0xa3], filler(30, 8)));
   add('other.txt', 'notes.txt', utf8('just some words'));
   add('named-jpeg-not-one.jpg', 'IMG_0002.JPG', utf8('not a picture at all'));
@@ -379,7 +412,21 @@ function randomExif(g) {
 }
 
 function randomPicture(g) {
-  switch (g.int(3)) {
+  switch (g.int(4)) {
+    case 3: {
+      // A GIF: frames and the blocks that carry words or a place (BUG-263).
+      const blocks = [];
+      for (let i = 0, n = 1 + g.int(5); i < n; i++) {
+        switch (g.int(6)) {
+          case 0: blocks.push(gifExtension(0xfe, randomText(g, 4))); break;
+          case 1: blocks.push(gifXmp(randomXmp(g))); break;
+          case 2: blocks.push(gifApplication(g.pick(['NETSCAPE2.0', 'ICCRGBG1012', 'MGKIPTC0000', 'ABCDEFGH123']), filler(g.int(30), 3))); break;
+          case 3: blocks.push(gifExtension(g.pick([0x01, 0x7a]), randomText(g, 2))); break;
+          default: blocks.push(gifFrame(g.int(300), g.int(2)));
+        }
+      }
+      return gif(...blocks);
+    }
     case 0: {
       const segs = [];
       const n = 1 + g.int(4);

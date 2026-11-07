@@ -190,6 +190,12 @@ pub enum Event {
     /// The file was cleaned into a copy, which is what goes up: where it is, its size and its
     /// modification time (the page keeps them in the upload's record, 2026-10-11).
     Cleaned { path: PathBuf, size: u64, modified_ms: u64 },
+    /// Stopped before anything was sent: this app's clean could not check the file for hidden
+    /// location (an upload from an item's Edit, which has no look of its own; or a look that read
+    /// it differently). The page asks the person "Send it anyway, or don't send?" (2026-11-07,
+    /// BUG-264; the chat's question, BUG-260), and "Send anyway" uploads it exactly as picked,
+    /// with their signed choice.
+    Unchecked,
 }
 
 // ── Pause, Resume, Retry, Cancel and the token ──────────────────────────────────────────────
@@ -485,22 +491,27 @@ pub fn start_body(plan: &Plan, blake3: &str) -> Value {
     body
 }
 
-/// Why a Media upload was not sent: its file could not be checked for hidden location, and Media is
-/// a public shelf (the relay would refuse it too).
-pub const NOT_CHECKED_FILES: &str = "This file could not be read all the way through, so where it was taken may still be in it. It was not sent: the Files page is public. To send it exactly as it is, turn off \"Remove location and camera details\".";
+/// Why the cleaning step of `work` stopped the upload.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CleanStop {
+    /// The file could not be checked for hidden location: the page asks (Event::Unchecked).
+    Unchecked,
+    /// The file could not be read: the words to stop with.
+    Unreadable(String),
+}
 
 /// The cleaning step of `work`: a cleaned copy to upload instead of `plan.path` (its path, size and
-/// modification time), None to upload the file itself, or Err with the words to stop with.
-pub fn clean_first(plan: &Plan, dir: &Path) -> Result<Option<(PathBuf, u64, u64)>, String> {
+/// modification time), None to upload the file itself, or why it stopped.
+pub fn clean_first(plan: &Plan, dir: &Path) -> Result<Option<(PathBuf, u64, u64)>, CleanStop> {
     match crate::net::file_clean::clean_copy(&plan.path, &plan.name, dir) {
         Ok((Some(copy), _)) => {
-            let size = std::fs::metadata(&copy).map(|m| m.len()).map_err(|e| format!("The cleaned copy could not be read ({e})."))?;
+            let size = std::fs::metadata(&copy).map(|m| m.len()).map_err(|e| CleanStop::Unreadable(format!("The cleaned copy could not be read ({e}).")))?;
             let modified = modified_ms(&copy);
             Ok(Some((copy, size, modified)))
         }
-        Ok((None, c)) if c.unchecked => Err(NOT_CHECKED_FILES.to_string()),
+        Ok((None, c)) if c.unchecked => Err(CleanStop::Unchecked),
         Ok((None, _)) => Ok(None),
-        Err(e) => Err(format!("The file could not be read ({e}).")),
+        Err(e) => Err(CleanStop::Unreadable(format!("The file could not be read ({e})."))),
     }
 }
 
@@ -689,7 +700,8 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
                 &cleaned_plan
             }
             Ok(None) => plan,
-            Err(words) => return w.send(Event::Failed { words, gone: true }),
+            Err(CleanStop::Unchecked) => return w.send(Event::Unchecked),
+            Err(CleanStop::Unreadable(words)) => return w.send(Event::Failed { words, gone: true }),
         }
     } else {
         plan

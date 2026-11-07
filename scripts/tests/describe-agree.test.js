@@ -72,9 +72,14 @@ test('the web gives every fixture the answer recorded for it', () => {
 
 function harnessSource() {
   const src = JSON.stringify(path.join(REPO, 'crates', 'humanity-protocol', 'src', 'describe_metadata.rs').replace(/\\/g, '/'));
+  // The GIF's describe reads the GIF strip's own walk (`crate::strip_metadata::walk_gif`, 2026-11-07).
+  const strip = JSON.stringify(path.join(REPO, 'crates', 'humanity-protocol', 'src', 'strip_metadata.rs').replace(/\\/g, '/'));
   return `
 #[path = ${src}]
 mod describe_metadata;
+#[path = ${strip}]
+#[allow(dead_code)]
+mod strip_metadata;
 
 fn take<'a>(input: &'a [u8], i: &mut usize) -> &'a [u8] {
     let n = u32::from_le_bytes([input[*i], input[*i + 1], input[*i + 2], input[*i + 3]]) as usize;

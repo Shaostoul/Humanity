@@ -262,6 +262,52 @@ test("3. with an item's Edit open: Drop to add to Dusk, and the drop adds the fi
   assert.equal(page.state.form, null, "Add to Files was not opened");
 });
 
+// AN ITEM'S EDIT ASKS TOO (2026-11-07, BUG-264): a picture that could not be checked, added to an
+// item, opens the chat's question in its own window (upload-clean.js askSendAnyway), "Don't send"
+// first and holding the focus. "Don't send" adds nothing; "Send anyway" starts the same resumable
+// upload with keep_metadata and the signed choice. Seen red 2026-11-07 against the files-add.js and
+// upload-clean.js from before: "the question opens" failed (the file was refused with words, no
+// window).
+test("3b. an item's Edit asks about a file it could not check: Don't send adds nothing, Send anyway uploads it as picked, signed", async () => {
+  const mine = fxItem({ uploader_key: ME, uploader_name: "Me" });
+  const broken = () => new File([B.brokenJpeg()], "garden.jpg", { type: "image/jpeg" });
+  const focused = { el: null };
+  const realFocus = H.FakeElement.prototype.focus;
+  H.FakeElement.prototype.focus = function () { focused.el = this; };
+  try {
+    for (const answer of ["dont-send", "send-anyway"]) {
+      const relay = resumableRelay();
+      const win = fakeWindow();
+      const { doc, page, net } = await openPage({ window: win, clean: UC, routes: listRoutes(answerOf([mine]), relay.routes.concat([
+        [at("/api/files/item-files/add", "POST"), () => respond(200, { ok: true, item: mine })],
+      ])) });
+      page.openViewer(page.state.items[0]);
+      byId(doc, "files-item-edit-open").click();
+      await dropOn(win, [broken()]);
+      await until(() => byId(doc, "keep-ask-overlay"));
+      const overlay = byId(doc, "keep-ask-overlay");
+      assert.ok(overlay, `${answer}: the question opens`);
+      const buttons = overlay.querySelectorAll("button");
+      assert.deepEqual(buttons.map((b) => b.dataset.keepAsk), ["dont-send", "send-anyway"], `${answer}: Don't send first`);
+      assert.equal(focused.el, buttons[0], `${answer}: holding the focus`);
+      buttons.find((b) => b.dataset.keepAsk === answer).onclick();
+      for (let i = 0; i < 30; i++) await settle();
+      const start = relay.log.find((l) => l.kind === "start");
+      if (answer === "dont-send") {
+        assert.equal(start, undefined, "Don't send: nothing starts");
+        assert.ok(!net.calls.some((c) => c.url === "/api/files/item-files/add"), "and nothing is added");
+      } else {
+        assert.ok(start, "Send anyway: the upload starts");
+        assert.equal(start.c.body.keep_metadata, 1, "keep_metadata: 1");
+        assert.ok(start.c.body.keep && start.c.body.blake3, "with the signed choice");
+        assert.equal(start.c.body.size, B.brokenJpeg().length, "the file exactly as picked");
+      }
+    }
+  } finally {
+    H.FakeElement.prototype.focus = realFocus;
+  }
+});
+
 // ── 4. The Media page where a drop would do nothing ─────────────────────
 
 // Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with dropDecision taking the files
@@ -424,6 +470,49 @@ test("7. Shared Files cleans a file before it goes: a phone photo shows the step
   for (let i = 0; i < 4; i++) await settle();
   assert.equal(c.net.calls.length, 0, "Cancel: nothing goes");
   assert.equal(byId(c.doc, "sf-upload-step-card"), null);
+});
+
+// THE CHAT'S QUESTION ON SHARED FILES (2026-11-07, BUG-264): a picture that could not be checked
+// shows the question by key, "Don't send" first and holding the focus, "Send anyway" second, each
+// with its hint, in place of Upload and Cancel. "Don't send" sends nothing and says so; "Send
+// anyway" uploads it exactly as picked with keep_metadata=1 and the signed choice as the first part.
+// Seen red 2026-11-07 against the shared-files-upload.js and upload-clean.js from before: "the
+// chat's question" failed (the old refusal, ending "turn off \"Remove location and camera details\".").
+test("7b. Shared Files asks about a file it could not check: Don't send first and focused, Send anyway sends it as picked, signed", async () => {
+  const broken = () => new File([B.brokenJpeg()], "garden.jpg", { type: "image/jpeg" });
+  const focused = { el: null };
+  const realFocus = H.FakeElement.prototype.focus;
+  H.FakeElement.prototype.focus = function () { focused.el = this; };
+  try {
+    const s = sharedFiles();
+    await dropOn(s.win, [broken()]);
+    await until(() => byId(s.doc, "sf-upload-step-card"));
+    assert.equal(text(byId(s.doc, "sf-upload-refused")), "upload_keep.question_picture", "the chat's question");
+    const no = byId(s.doc, "sf-upload-dont-send");
+    const yes = byId(s.doc, "sf-upload-send-anyway");
+    assert.ok(no && yes && !byId(s.doc, "sf-upload-go"), "the two answers in place of Upload");
+    assert.equal(no.parentNode.children.indexOf(no), 0, "Don't send first");
+    assert.equal(focused.el, no, "holding the focus");
+    assert.ok(no.getAttribute("data-tip-desc") && yes.getAttribute("data-tip-desc"), "each with its hint");
+    no.click();
+    for (let i = 0; i < 4; i++) await settle();
+    assert.equal(s.net.calls.length, 0, "Don't send: nothing goes");
+    assert.equal(text(byId(s.doc, "sf-upload-status")), "upload_keep.not_sent", "and it says so");
+
+    const y = sharedFiles();
+    await dropOn(y.win, [broken()]);
+    await until(() => byId(y.doc, "sf-upload-send-anyway"));
+    byId(y.doc, "sf-upload-send-anyway").click();
+    await until(() => y.reloaded() > 0);
+    const sent = await uploadsOf(y.net);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].url, "/api/upload?token=tok-1&share=1&keep_metadata=1", "keep_metadata=1");
+    assert.ok(Buffer.from(sent[0].bytes).equals(Buffer.from(B.brokenJpeg())), "exactly as picked");
+    const parts = y.net.calls.find((c) => path0(c.url) === "/api/upload").init.body;
+    assert.ok(parts.get("keep") && JSON.parse(parts.get("keep")).sig, "with the signed choice");
+  } finally {
+    H.FakeElement.prototype.focus = realFocus;
+  }
 });
 
 // ── 8. The pages load it ─────────────────────────────────────────────────

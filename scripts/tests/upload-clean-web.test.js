@@ -110,6 +110,29 @@ test("a phone photo and a phone video are cleaned to the strip's own bytes, keep
   assert.ok(!B.contains(await bytesOf(v.cleaned), B.PLACE), "where it was filmed is gone");
 });
 
+// A GIF is cleaned too since 2026-11-07 (BUG-263): its comment and XMP removed, the strip's own bytes
+// (the shared fixture the desktop's file_clean test cleans as well); one cut off part way could
+// not be checked. Seen red 2026-11-07 against the upload-clean.js from before (a GIF left as it
+// is): "the GIF's comment and XMP are removed" failed (changed false).
+test("a GIF is cleaned to the strip's own bytes, and one cut off part way could not be checked", async () => {
+  const fx = (n) => new Uint8Array(fs.readFileSync(path.join(ROOT, "tests", "fixtures", "describe", n)));
+  const gif = fx("gif-comment-xmp.gif");
+  const gf = fileOf(gif, "anim.gif", "image/gif");
+  const c = await C.cleanFile(gf);
+  assert.equal(c.changed, true, "the GIF's comment and XMP are removed");
+  const want = S.stripFile(gif, gf);
+  assert.ok(same(await bytesOf(c.cleaned), want.bytes), "the cleaned GIF is the strip's bytes");
+  assert.ok(!B.contains(await bytesOf(c.cleaned), "Garden Lane") && !B.contains(await bytesOf(c.cleaned), "GPSLatitude"));
+  assert.ok(B.contains(await bytesOf(c.cleaned), "NETSCAPE2.0"), "the loop stays");
+  assert.equal(c.summary, "This photo says where it was taken and which camera took it.");
+  assert.deepEqual([c.cleaned.name, c.cleaned.type, c.unchecked], ["anim.gif", "image/gif", false]);
+  const cut = await C.cleanFile(fileOf(fx("gif-cut.gif"), "g.gif", "image/gif"));
+  assert.ok(cut.unchecked && !cut.changed && cut.reason, "a GIF cut off part way could not be checked");
+  assert.equal(C.decide(cut, { where: "public", remove: true, canAsk: true }).action, "ask", "and is asked about, as any picture");
+  const plain = await C.cleanFile(fileOf(fx("gif.gif"), "g.gif", "image/gif"));
+  assert.deepEqual([plain.changed, plain.unchecked, plain.summary], [false, false, null], "a GIF with nothing in it goes as it is");
+});
+
 // ── 4. A big video, by its box headers ───────────────────────────────────
 
 const LAYOUTS = [
@@ -163,7 +186,11 @@ test("every cut of a video comes out the same by its headers as whole, and is sa
 
 // ── 5. A file that could not be checked ──────────────────────────────────
 
-test("a file that could not be checked: said so, never to a public shelf, never under the protected setup, asked in private", async () => {
+// Since 2026-11-07 (BUG-264) a public place asks too, as the chat did since BUG-260: "Send it anyway,
+// or don't send?", and "Send anyway" sends it as picked with keep_metadata (signed). Seen red that
+// day against the upload-clean.js from before: "a picture the strip cannot walk: a public place
+// asks" failed (actual 'refuse').
+test("a file that could not be checked: said so, asked about in public and in private, never under the protected setup", async () => {
   const cases = [
     ["a picture the strip cannot walk", fileOf(B.brokenJpeg(), "photo.jpg", "image/jpeg"), false],
     ["a video cut before its movie", fileOf(B.movie("mdatFirst", B.ftypMp4(), B.everything()).subarray(0, 300), "clip.mp4", "video/mp4"), false],
@@ -185,9 +212,9 @@ test("a file that could not be checked: said so, never to a public shelf, never 
       assert.deepEqual([pub.action, pub.keepMetadata, pub.file], ["send", false, f], `${name}: a HEIC goes to the server, which cleans it`);
       assert.equal(C.stepNeeded(c, { where: "public", remove: true }), false, "with no step in the way");
     } else {
-      assert.equal(pub.action, "refuse", `${name}: never to a public shelf`);
-      assert.equal(pub.canKeep, true, "unless its details are kept by choice");
-      assert.ok(pub.words.includes(C.WORDS.publicKeepHint), "and the words say how");
+      assert.equal(pub.action, "ask", `${name}: a public place asks`);
+      assert.deepEqual([pub.keepMetadata, pub.file, pub.unchecked], [true, f, false], `${name}: "Send anyway" sends it as picked, its details kept by a signed choice`);
+      assert.equal(pub.words, C.askWords(c.kind), `${name}: the chat's question`);
     }
     const kept = C.decide(c, { where: "public", remove: false });
     assert.deepEqual([kept.action, kept.keepMetadata, kept.file], ["send", true, f], `${name}: kept by choice, it goes as picked with keep_metadata`);
@@ -205,7 +232,7 @@ test("a file that could not be checked: said so, never to a public shelf, never 
         continue;
       }
       assert.equal(prot.action, "refuse", `${name}: the protected setup sends only files it could check (${where})`);
-      assert.equal(prot.canKeep, false, "with no way round it");
+      assert.ok(prot.words.includes(C.WORDS.protectedRefused), "with no way round it");
       assert.ok(C.stepNeeded(c, { where, remove: false, protectedOn: true }), "and the step says so");
     }
   }

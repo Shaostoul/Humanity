@@ -56,7 +56,7 @@ pub(crate) struct Server {
     pub(crate) allowance_forever: Option<(i64, Option<f64>)>,
     pub(crate) log: Vec<String>,
     pub(crate) cancelled: bool,
-    start_body: Value,
+    pub(crate) start_body: Value,
     /// Answers a cancel gives first, in order (409 busy while the finish is written, round 4),
     /// and one it gives every time, forever.
     pub(crate) cancel_answers: VecDeque<Reply>,
@@ -266,7 +266,7 @@ pub(crate) fn run_on(fake: Arc<Fake>, plan: Plan, ctl: Arc<Control>, mut before:
     loop {
         let e = rx.recv_timeout(Duration::from_secs(20)).unwrap_or_else(|_| panic!("the upload stalled; events so far: {events:?}"));
         before(&ctl, &e);
-        let last = matches!(e, Event::Done { .. } | Event::Failed { .. } | Event::Cancelled { .. });
+        let last = matches!(e, Event::Done { .. } | Event::Failed { .. } | Event::Cancelled { .. } | Event::Unchecked);
         events.push(e);
         if last {
             break;

@@ -22,10 +22,13 @@
 //   - what happens to a file that could not be checked (the strip stopped
 //     early, a picture it could not walk, a file whose bytes are not what its
 //     name says, or a HEIC or AVIF photo, which this port cannot clean yet):
-//     on a public shelf it is not sent, with words; in a DM or a group the
-//     person is asked "Send it anyway?", and on yes the file's marker says
-//     `"unchecked": true` so the recipient sees one line; with the protected
-//     setup on it is not sent at all;
+//     for a public place (a room, Add to Files, Shared Files, an item's Edit)
+//     the person is asked "Send it anyway, or don't send?", "Don't send" first
+//     (keepAnswers, askSendAnyway), and "Send anyway" sends it exactly as
+//     picked with their signed choice (keepChoice; BUG-260, BUG-264); in a DM
+//     or a group they are asked "Send it anyway?", and on yes the file's
+//     marker says `"unchecked": true` so the recipient sees one line; with the
+//     protected setup on it is not sent at all;
 //   - the words.
 //
 // When the person keeps the details (the switch off), nothing is cleaned and
@@ -74,9 +77,6 @@
     // Answer 5's question, in a DM or a group.
     askPrivate: 'This file could not be read all the way through, so where it was taken may still be in it. Send it anyway?',
     askPrivateHeif: 'This app cannot clean HEIC and AVIF photos of where they were taken yet, so where it was taken may still be in it. Send it anyway?',
-    // A public shelf (a room, Media) never takes one.
-    publicRefused: 'A file shared in public must be checked first, so it was not sent.',
-    publicKeepHint: 'To share it with everything in it, turn off "Remove location and camera details".',
     protectedRefused: 'With the protected setup on, only files this app could check are sent, so it was not sent.',
     // The line under a file whose marker says `"unchecked": true`, for whoever opens it.
     recipientLine: "The sender's app could not check this file for hidden location.",
@@ -290,7 +290,8 @@
         if (r.kind === 'heif') out.kind = 'heif';
       };
 
-      if (kind === 'jpeg' || kind === 'png' || kind === 'webp') {
+      // A picture, a GIF among them since 2026-11-07 (BUG-263: its comments and XMP removed).
+      if (kind === 'jpeg' || kind === 'png' || kind === 'webp' || kind === 'gif') {
         if (size > PICTURE_MAX) {
           out.unchecked = true;
           out.reason = WORDS.tooLarge;
@@ -344,8 +345,8 @@
         return out;
       }
 
-      // Anything else is left as it is, as the relay leaves it (GIF, WebM, a document); a file
-      // NAMED as a picture or a video whose bytes are not one could not be checked.
+      // Anything else is left as it is, as the relay leaves it (WebM, a document); a file NAMED as a
+      // picture or a video whose bytes are not one could not be checked.
       const r = S.stripFile(head, file);
       take(r, null);
       return out;
@@ -362,46 +363,42 @@
 
   /**
    * What a cleaned file's send looks like, for where it is going:
-   *   ctx.where      'public' (a room, the Media page) or 'private' (a DM, a group, the scratch pad)
+   *   ctx.where      'public' (a room, the Files pages: Add to Files, Shared Files, an item's Edit)
+   *                  or 'private' (a DM, a group, the scratch pad)
    *   ctx.remove     the switch (ignored with the protected setup on)
    *   ctx.protectedOn the protected setup is on
    * Returns:
-   *   action        'send' (go), 'ask' (a private file that could not be checked: send only on
-   *                 the person's yes) or 'refuse' (never sent)
-   *   file          what to send
-   *   keepMetadata  the upload says keep_metadata=1 (the person chose to keep the details)
-   *   unchecked     the marker says "unchecked": true (only on an asked yes)
+   *   action        'send' (go), 'ask' (a file that could not be checked: send only on the
+   *                 person's "Send anyway") or 'refuse' (never sent: the protected setup)
+   *   file          what to send (for 'ask', what "Send anyway" sends)
+   *   keepMetadata  the upload says keep_metadata=1, with the person's signed choice (keepChoice)
+   *   unchecked     the marker says "unchecked": true (a private file, on its asked yes)
    *   words         the question or the refusal, or null
-   *   canKeep       turning the switch off would let it go (a public refusal)
    */
   function decide(c, ctx) {
     const x = ctx || {};
     const protectedOn = !!x.protectedOn;
     const remove = protectedOn || x.remove !== false;
-    if (!remove) return { action: 'send', file: c.original, keepMetadata: true, unchecked: false, words: null, canKeep: false };
-    if (!c.unchecked) return { action: 'send', file: c.cleaned, keepMetadata: false, unchecked: false, words: null, canKeep: false };
+    if (!remove) return { action: 'send', file: c.original, keepMetadata: true, unchecked: false, words: null };
+    if (!c.unchecked) return { action: 'send', file: c.cleaned, keepMetadata: false, unchecked: false, words: null };
     // A HEIC or AVIF photo going to a PUBLIC shelf goes to the server as it is: the relay cleans
     // HEIF stills itself since 2026-10-11 (strip_heif_metadata.rs), and refuses one it cannot read
     // through, with its own words. Only a private file, which the server never opens, has to be
     // asked about here.
-    if (c.heif && x.where !== 'private') return { action: 'send', file: c.original, keepMetadata: false, unchecked: false, words: null, canKeep: false };
+    if (c.heif && x.where !== 'private') return { action: 'send', file: c.original, keepMetadata: false, unchecked: false, words: null };
     const why = c.reason || WORDS.unreadable;
-    if (protectedOn) return { action: 'refuse', file: null, keepMetadata: false, unchecked: false, words: why + ' ' + WORDS.protectedRefused, canKeep: false };
-    // The chat asks (2026-11-06, BUG-260; the operator: "can we have an option to send or
-    // refuse?"): a file for a public room that could not be cleaned is the person's to decide,
-    // "Don't send" first. On "Send anyway" it goes exactly as it is, with their signed choice to
-    // keep its details (keepChoice below); the server stores nothing of the kind without it.
-    if (x.where !== 'private' && x.canAsk) {
-      return { action: 'ask', file: c.original, keepMetadata: true, unchecked: false, canKeep: false, words: askWords(c.kind) };
-    }
+    if (protectedOn) return { action: 'refuse', file: null, keepMetadata: false, unchecked: false, words: why + ' ' + WORDS.protectedRefused };
+    // A file for a public place that could not be cleaned is the person's to decide (2026-11-06,
+    // BUG-260; the operator: "can we have an option to send or refuse?"), "Don't send" first: in
+    // the chat since then, and on the Files pages since 2026-11-07 (BUG-264; "Let's do that."),
+    // which until then refused it and pointed at the switch. On "Send anyway" it goes exactly as
+    // it is, with their signed choice to keep its details (keepChoice below); the server stores
+    // nothing of the kind without it.
     if (x.where !== 'private') {
-      return {
-        action: 'refuse', file: null, keepMetadata: false, unchecked: false, canKeep: true,
-        words: (c.heif ? (SAY.heif || why) : why + ' ' + WORDS.publicRefused) + ' ' + WORDS.publicKeepHint,
-      };
+      return { action: 'ask', file: c.original, keepMetadata: true, unchecked: false, words: askWords(c.kind) };
     }
     return {
-      action: 'ask', file: c.cleaned, keepMetadata: false, unchecked: true, canKeep: false,
+      action: 'ask', file: c.cleaned, keepMetadata: false, unchecked: true,
       words: c.heif ? WORDS.askPrivateHeif : WORDS.askPrivate,
     };
   }
@@ -429,6 +426,71 @@
   /** The question for a file of `kind` (strip-metadata.js words) that could not be cleaned. */
   function askWords(kind) {
     return T(kind === 'mp4' || kind === 'webm' ? 'upload_keep.question_video' : 'upload_keep.question_picture');
+  }
+
+  /**
+   * The two answers to "Send it anyway, or don't send?", made in `doc` (BUG-260): `no` ("Don't
+   * send", which goes first and takes the focus) and `yes` ("Send anyway"), each with its words and
+   * its hint by key (`data-tip-desc`, the website's hint), and `data-keep-ask` saying which. The
+   * chat's question and the Files pages' (Add to Files, Shared Files, an item's Edit) draw these
+   * same two (2026-11-07, BUG-264). `cls`: {no, yes}, each page's own button classes.
+   */
+  function keepAnswers(doc, cls) {
+    const c = cls || {};
+    const make = (words, hint, which, className) => {
+      const b = doc.createElement('button');
+      b.type = 'button';
+      b.className = className || '';
+      b.textContent = T(words);
+      b.setAttribute('data-tip-desc', T(hint));
+      b.dataset.keepAsk = which;
+      return b;
+    };
+    return {
+      no: make('upload_keep.dont_send', 'upload_keep.dont_send_hint', 'dont-send', c.no),
+      yes: make('upload_keep.send_anyway', 'upload_keep.send_anyway_hint', 'send-anyway', c.yes),
+    };
+  }
+
+  /**
+   * The question in a window of its own, over the page in `doc` (the chat's, when the server answers
+   * 422; an item's Edit form, for a file added to it): the file's name, the question for its `kind`,
+   * "Don't send" first and holding the focus, "Send anyway" second. Resolves true only on "Send
+   * anyway"; "Don't send" or a click beside the window resolves false.
+   */
+  function askSendAnyway(doc, name, kind) {
+    return new Promise((resolve) => {
+      const mk = (tag, cls, text) => {
+        const el = doc.createElement(tag);
+        if (cls) el.className = cls;
+        if (text != null) el.textContent = text;
+        return el;
+      };
+      const overlay = mk('div', 'profile-modal-overlay open');
+      overlay.id = 'keep-ask-overlay';
+      overlay.style.zIndex = 'var(--z-shade)';
+      const card = mk('div', 'profile-modal attach-step');
+      card.setAttribute('role', 'dialog');
+      card.setAttribute('aria-label', T('upload_keep.title'));
+      card.appendChild(mk('h3', 'attach-step-heading', T('upload_keep.title')));
+      card.appendChild(mk('p', 'attach-step-title', name));
+      card.appendChild(mk('p', 'attach-step-said', askWords(kind)));
+      const buttons = mk('div', 'attach-step-buttons');
+      const a = keepAnswers(doc, { no: 'vr-btn attach-step-cancel', yes: 'vr-btn attach-step-send' });
+      buttons.appendChild(a.no);
+      buttons.appendChild(a.yes);
+      card.appendChild(buttons);
+      overlay.appendChild(card);
+      const done = (answer) => {
+        if (typeof overlay.remove === 'function') overlay.remove();
+        resolve(!!answer);
+      };
+      a.no.onclick = () => done(false);
+      a.yes.onclick = () => done(true);
+      overlay.onclick = (e) => { if (e && e.target === overlay) done(false); };
+      doc.body.appendChild(overlay);
+      if (typeof a.no.focus === 'function') a.no.focus();
+    });
   }
 
   /** The domain the choice to keep a file's hidden details is signed under (the relay's KEEP_DOMAIN). */
@@ -483,7 +545,7 @@
   const api = {
     REMOVE_DETAILS_KEY, PROTECTED_STORAGE_KEY, WHOLE_MAX, PICTURE_MAX, BOX_READ_MAX, WORDS,
     removeDetailsChosen, rememberRemoveDetails, protectedSetupOn, cleanFile, decide, stepNeeded,
-    standIn, askWords, KEEP_DOMAIN, KEEP_FIELD, CANNOT_CLEAN_STATUS, keepText, blake3HexOf, keepChoice,
+    standIn, askWords, keepAnswers, askSendAnyway, KEEP_DOMAIN, KEEP_FIELD, CANNOT_CLEAN_STATUS, keepText, blake3HexOf, keepChoice,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.HosUploadClean = api;

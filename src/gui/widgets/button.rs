@@ -93,6 +93,8 @@ pub struct Button<'a> {
     tooltip_above: Option<f32>,
     /// Override the min-height. Rare — prefer `size`.
     min_height: Option<f32>,
+    /// Take the keyboard focus while nothing else holds it (`.take_focus()`), so Enter answers it.
+    take_focus: bool,
 }
 
 impl<'a> Button<'a> {
@@ -112,6 +114,7 @@ impl<'a> Button<'a> {
             hint: None,
             tooltip_above: None,
             min_height: None,
+            take_focus: false,
         }
     }
 
@@ -229,6 +232,15 @@ impl<'a> Button<'a> {
         self
     }
 
+    /// Take the keyboard focus whenever nothing else holds it, so Enter (or Space) presses it: for
+    /// the safe answer to a question, such as "Don't send" (2026-11-07, BUG-264, as the website's
+    /// question focuses it). Once the person moves the focus with Tab or a click on another
+    /// control, it stays where they put it.
+    pub fn take_focus(mut self) -> Self {
+        self.take_focus = true;
+        self
+    }
+
     /// Render the button. Returns true if clicked.
     pub fn show(self, ui: &mut Ui, theme: &Theme) -> bool {
         let font_size = match self.size {
@@ -313,6 +325,9 @@ impl<'a> Button<'a> {
         } else {
             ui.add(btn)
         };
+        if self.take_focus && !self.disabled && response.enabled() && ui.memory(|m| m.focused().is_none()) {
+            response.request_focus();
+        }
 
         // The words on hover: the name (an icon-only button's `.tooltip`) and the
         // plain-language hint, the hint only while hints are on.

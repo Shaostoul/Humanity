@@ -147,7 +147,8 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
         post_to: if form.post_on { form.post_to.clone() } else { String::new() },
         origin: Some(super::from_here::Local { path: path.clone(), size: *len, modified_ms: resumable::modified_ms(path) }),
     };
-    push_upload(state, record, form.remove, token, t);
+    // "Send anyway" (BUG-264): exactly as picked, with the signed choice, whatever the switch says.
+    push_upload(state, record, form.remove && !form.anyway, token, t);
     Ok(())
 }
 
@@ -199,6 +200,56 @@ pub(crate) fn start_attach_with(state: &mut GuiState, path: &std::path::Path, na
     };
     let clean = crate::gui::pages::chat::attach_step::remove_at_start(state);
     push_upload(state, record, clean, token, t);
+    Ok(())
+}
+
+/// A file whose hidden details could not be removed (2026-11-07, BUG-264; the operator, of the Files
+/// page: "Let's do that."): "Send it anyway, or don't send?", the chat's question and its two
+/// answers (chat/attach_step.rs `keep_answers`, "Don't send" first and focused). It comes up when an
+/// upload stops with `Event::Unchecked` (this app's clean could not check the file, before anything
+/// was sent): a file added from an item's Edit, which has no look of its own. "Send anyway" uploads
+/// it exactly as picked, with the person's signed choice to keep its details, to the same place
+/// (published, or added to its item); "Don't send", or closing the question, sends nothing and says
+/// so.
+pub(crate) fn draw_keep_ask(ctx: &egui::Context, theme: &crate::gui::theme::Theme, state: &mut GuiState) {
+    use humanity_core::i18n::t;
+    let Some(record) = state.files.keep_ask.take() else { return };
+    let question = crate::gui::pages::chat::attach_step::keep_question_for(crate::gui::pages::chat::video_poster::is_video_name(&record.name));
+    let (mut open, mut no, mut yes) = (true, false, false);
+    crate::gui::widgets::dialog(ctx, theme, "files_keep_ask", t("upload_keep.title"), &mut open, |ui| {
+        ui.set_max_width(460.0);
+        ui.label(egui::RichText::new(&record.name).size(theme.font_size_body).color(theme.text_primary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.label(egui::RichText::new(question).size(theme.font_size_body).color(theme.text_secondary()));
+        ui.add_space(theme.spacing_sm);
+        ui.horizontal(|ui| {
+            (no, yes) = crate::gui::pages::chat::attach_step::keep_answers(ui, theme, true);
+        });
+    });
+    if yes {
+        if let Err(words) = send_anyway(state, record) {
+            state.files.status = words;
+        }
+    } else if no || !open {
+        state.files.status = t("upload_keep.not_sent").to_string();
+    } else {
+        state.files.keep_ask = Some(record);
+    }
+}
+
+/// "Send anyway" for `record`: its upload again, exactly as picked (no clean, so the start says
+/// `keep_metadata` with the person's signed choice). Err with the words when it cannot start.
+pub(crate) fn send_anyway(state: &mut GuiState, record: Unfinished) -> Result<(), String> {
+    let t = transport(state);
+    send_anyway_with(state, record, t)
+}
+
+/// [`send_anyway`] through `t` (the tests' simulated server).
+pub(crate) fn send_anyway_with(state: &mut GuiState, record: Unfinished, t: Arc<dyn Transport>) -> Result<(), String> {
+    let Some(token) = super::token_here(state) else {
+        return Err(crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string());
+    };
+    push_upload(state, record, false, token, t);
     Ok(())
 }
 
@@ -262,6 +313,15 @@ pub(crate) fn on_event(state: &mut GuiState, local: u64, e: Event) {
                 forget_record(state, &gone_entry.record.id);
             }
             state.files.status = format!("{}: {words}", gone_entry.record.name);
+            super::refresh_mine(state);
+        }
+        // This app's clean could not check it, before anything was sent: the row goes and the
+        // person is asked (BUG-264, `draw_keep_ask`).
+        Event::Unchecked => {
+            let Some(gone_entry) = drop_entry(state, local) else { return };
+            forget_record(state, &gone_entry.record.id);
+            // Nothing was cleaned or started, so its record still names the person's own file.
+            state.files.keep_ask = Some(gone_entry.record);
             super::refresh_mine(state);
         }
         Event::Cancelled { told } => {

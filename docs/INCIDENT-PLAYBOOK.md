@@ -85,7 +85,9 @@ ssh humanity-vps "journalctl -u humanity-relay --no-pager -n 30 | grep -E 'ERROR
    united-humanity.us do NOT revert the commit and push, and do not `just sync` from a commit
    before it; on public.guide do NOT reinstall the previous release. (A failed upgrade is still
    undone whole, so a release that never started successfully can still be replaced by the one
-   before.)
+   before.) The upgrade after it (BUG-262, 2026-11-07) deletes the mailbox rows still numbered in
+   arrival order, on purpose and on every start, so a backup restored to recover them gives
+   nothing back: those envelopes are gone.
 2. **`could not be checked`: SQLite could not read the file.** Not damage; nothing was moved.
    ```
    ERROR humanity_engine::relay: The relay did not start: /opt/Humanity/data/relay.db could not be checked (unable to open database file).

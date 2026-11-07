@@ -940,6 +940,97 @@
    "place": null
   }
  },
+ "gif-comment-xmp.gif": {
+  "nameOrType": "anim.gif",
+  "answer": {
+   "kind": "gif",
+   "claimed": "gif",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Canon)"
+    },
+    {
+     "key": "comment",
+     "words": "A title, caption or comment"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 47.61,
+    "longitude": -122.33
+   },
+   "place": null
+  }
+ },
+ "gif-blank-comment.gif": {
+  "nameOrType": "g.gif",
+  "answer": {
+   "kind": "gif",
+   "claimed": "gif",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "gif-application.gif": {
+  "nameOrType": "g.gif",
+  "answer": {
+   "kind": "gif",
+   "claimed": "gif",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "gif-cut.gif": {
+  "nameOrType": "g.gif",
+  "answer": {
+   "kind": "gif",
+   "claimed": "gif",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "gif-junk.gif": {
+  "nameOrType": "g.gif",
+  "answer": {
+   "kind": "gif",
+   "claimed": "gif",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
  "webm.webm": {
   "nameOrType": "clip.webm",
   "answer": {

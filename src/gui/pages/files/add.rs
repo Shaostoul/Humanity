@@ -87,6 +87,10 @@ pub(crate) struct Form {
     /// docs/design/files-showcase.md, 2026-10-11): cleaned on this device before it goes, or kept
     /// by choice (`keep_metadata`). Starts as last chosen; always on under the protected setup.
     pub remove: bool,
+    /// "Send anyway" for a picked file that could not be checked (2026-11-07, BUG-264; the chat's
+    /// question, BUG-260): it goes exactly as picked, with `keep_metadata` and the person's signed
+    /// choice, whatever the switch says (the switch is left as they set it).
+    pub anyway: bool,
     /// The licence (Media round 5): empty until one is picked, which shows and sends the server's
     /// default ("All rights reserved"); and the "Offer this for the game" tick, offered only with a
     /// licence that allows it.
@@ -114,6 +118,7 @@ impl Form {
             problem: String::new(),
             sending: false,
             remove: true,
+            anyway: false,
             licence: String::new(),
             project_use: false,
             more: Vec::new(),
@@ -267,6 +272,7 @@ pub(crate) fn draw_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
     }
     draw_form(ctx, theme, state);
     draw_suggest(ctx, theme, state);
+    super::uploading::draw_keep_ask(ctx, theme, state);
 }
 
 /// The line above the further files Add to Files holds, each then on its own row with its type
@@ -293,6 +299,9 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     let post_choices = post_choices(state);
     let post_server = super::server_here(state);
     let mut may_go = !form.is_picked();
+    // A picked file that could not be checked: the chat's two answers in place of Upload (BUG-264).
+    let mut asking = false;
+    let mut dont_send = false;
     let mut open = true;
     let mut submit = false;
     let mut cancel = false;
@@ -317,7 +326,9 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
                 }
             }
             if let (true, Some((_, looking))) = (form.is_picked() && !form.sending, look.as_mut()) {
-                may_go = crate::gui::pages::chat::attach_step::draw_look(ui, theme, looking, &mut form.remove, protected, false).can_send;
+                let v = crate::gui::pages::chat::attach_step::draw_look(ui, theme, looking, &mut form.remove, protected, false);
+                may_go = v.can_send;
+                asking = v.anyway;
             }
             // The person's share, above the form, as the server counts it.
             let share_text = match (&mine, mine_failed) {
@@ -402,6 +413,17 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         ui.horizontal(|ui| {
             let waiting = mine.is_none() && !mine_failed && form.is_picked();
             let ready = problem.is_none() && !waiting && !form.sending && may_go;
+            if asking {
+                // "Don't send" first and focused, closing the form; "Send anyway" uploads the file
+                // exactly as picked, signed (attach_step.rs `keep_answers`, the chat's own).
+                let (no, yes) = crate::gui::pages::chat::attach_step::keep_answers(ui, theme, ready);
+                if yes {
+                    form.anyway = true;
+                    submit = true;
+                }
+                dont_send = no;
+                return;
+            }
             let pressed = ui.add_enabled_ui(ready, |ui| widgets::Button::primary(submit_words(&form)).show(ui, theme));
             submit = pressed.inner;
             // The Upload button wears the nav bar's active border (operator, 2026-10-17: "Upload
@@ -423,6 +445,10 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         return; // an upload started: it is in the list on the page now, and the form is done
     }
     state.files.look = look;
+    if dont_send {
+        state.files.status = humanity_core::i18n::t("upload_keep.not_sent").to_string();
+        return;
+    }
     if cancel {
         // A Cancel while its publish is on its way undoes the publish when it lands.
         if form.sending {

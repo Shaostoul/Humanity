@@ -56,6 +56,8 @@ fn picture_type(kind: &str) -> Option<&'static str> {
         "jpeg" => Some("image/jpeg"),
         "png" => Some("image/png"),
         "webp" => Some("image/webp"),
+        // Since 2026-11-07 (BUG-263): its comments and XMP removed, the relay's strip to the byte.
+        "gif" => Some("image/gif"),
         _ => None,
     }
 }
@@ -63,7 +65,7 @@ fn picture_type(kind: &str) -> Option<&'static str> {
 /// The web's rule for a file whose bytes are none of the kinds cleaned: it could not be checked when
 /// its name says it is one of them (a ".jpg" that is not a JPEG), and is fine otherwise (a PDF).
 fn named_as_cleanable(name: &str) -> bool {
-    matches!(describe_metadata::claimed_kind(name), Some("jpeg" | "png" | "webp" | "mp4" | "heif"))
+    matches!(describe_metadata::claimed_kind(name), Some("jpeg" | "png" | "webp" | "gif" | "mp4" | "heif"))
 }
 
 /// The video strip, then for a file with no movie the HEIF strip, on bytes in memory; the verdict is
@@ -98,7 +100,7 @@ pub fn clean_bytes(mut bytes: Vec<u8>, name: &str) -> (Vec<u8>, Cleaned) {
         return (out, Cleaned { changed, unchecked: !walked });
     }
     match kind {
-        "gif" | "webm" => (bytes, Cleaned::default()),
+        "webm" => (bytes, Cleaned::default()),
         "mp4" => {
             let c = clean_boxes(&mut bytes);
             (bytes, c)
@@ -130,8 +132,8 @@ fn read_bounded(path: &Path, max: u64) -> std::io::Result<Option<Vec<u8>>> {
 pub fn look_file(path: &Path, name: &str) -> std::io::Result<Look> {
     let description = describe_metadata::describe_file(path, name)?;
     let unchecked = match description.kind {
-        "jpeg" | "png" | "webp" => !description.complete,
-        "gif" | "webm" => false,
+        "jpeg" | "png" | "webp" | "gif" => !description.complete,
+        "webm" => false,
         // A movie read all the way through: the strip walks the same boxes the same way.
         "mp4" if description.complete => false,
         // A movie whose boxes stop early, or a file in the family with no movie and no HEIF brand.

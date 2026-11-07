@@ -1638,7 +1638,26 @@ pub fn describe(bytes: &[u8], name_or_type: &str) -> Description {
                 inspect_box(&mut f, b, p.body_start as usize, p.end as usize, p.leaf, &mut budget);
             }
         }
-        "gif" => complete = true, // nothing standard to look for, and nothing is removed
+        "gif" => {
+            // The GIF strip's own walk (strip_metadata.rs `walk_gif`, 2026-11-07), and what it drops.
+            if let Some(w) = crate::strip_metadata::walk_gif(b) {
+                complete = true;
+                for r in &w.removed {
+                    let e = r.offset + r.size;
+                    match r.label {
+                        // A comment's words: its sub-blocks after the first length byte, before the end.
+                        "comment" => {
+                            if has_text(b, r.offset + 3, e.saturating_sub(1)) {
+                                f.note("comment");
+                            }
+                        }
+                        // XMP's raw packet sits after the block's 11-byte name (introducer, label, 11).
+                        "XMP" => inspect(&mut f, b, r.offset + 14, e, |f| scan_xmp(b, r.offset + 14, e, f)),
+                        _ => inspect(&mut f, b, r.offset, e, |_| {}),
+                    }
+                }
+            }
+        }
         _ => {}
     }
     finish(kind, name_or_type, medium, complete, f)

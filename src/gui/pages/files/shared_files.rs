@@ -313,6 +313,7 @@ fn draw_list_of(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, mine: bo
                 state.files.shared.shared_status = "Uploading...".to_string();
             }
             Outcome::Cancelled => {}
+            Outcome::NotSent => state.files.shared.shared_status = t("upload_keep.not_sent").to_string(),
         }
     }
 
