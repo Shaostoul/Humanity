@@ -118,7 +118,9 @@ pub(crate) struct Dock {
     pub(crate) origin: Origin,
     /// Minimize was pressed: the slim tab, until the tab is pressed.
     pub(crate) minimized: bool,
-    /// The frame its row was last drawn on screen (it is back in its message that frame).
+    /// The frame its row was last drawn on screen (it is back in its message that frame); u64::MAX:
+    /// never. Not 0: a dock made before the first frame ended (a snapshot's setup) would read frame
+    /// 0 as its row back on screen and close unseen (2026-11-07).
     pub(crate) row_seen: u64,
     /// Where it stands on a page that is not the Chat page, decided as it arrived there.
     pub(crate) spot: Option<super::video_dock::Spot>,
@@ -421,7 +423,7 @@ impl ChatVideos {
     #[cfg(test)]
     pub(crate) fn dock_for_test(&mut self, url: &str, origin: Origin) {
         if let Some(live) = self.live.get(url) {
-            self.dock = Some(Dock { url: url.to_string(), name: live.name.clone(), ffmpeg: live.ffmpeg.clone(), origin, minimized: false, row_seen: 0, spot: None, opened_on: None });
+            self.dock = Some(Dock { url: url.to_string(), name: live.name.clone(), ffmpeg: live.ffmpeg.clone(), origin, minimized: false, row_seen: u64::MAX, spot: None, opened_on: None });
         }
     }
 
@@ -747,7 +749,7 @@ impl ChatVideos {
             return;
         }
         let Some(origin) = live.origin.clone() else { return };
-        self.dock = Some(Dock { url, name: live.name.clone(), ffmpeg: live.ffmpeg.clone(), origin, minimized: false, row_seen: 0, spot: None, opened_on: None });
+        self.dock = Some(Dock { url, name: live.name.clone(), ffmpeg: live.ffmpeg.clone(), origin, minimized: false, row_seen: u64::MAX, spot: None, opened_on: None });
     }
 
     /// Drop the player of the video at `url` (its decoder, sound and temporary copy go with it),

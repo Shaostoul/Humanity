@@ -382,3 +382,251 @@ fn one_chat_video_at_a_time_across_the_app_and_the_wall_screens() {
     chat.frame(Vec::new());
     assert!(!chat.state.chat_video.is_playing(&a), "the app's video pauses once the wall's Full window plays");
 }
+
+// ── Is the dock in the picture? (2026-11-07) ──
+// The three dock snapshots passed on 2026-11-07 and none showed the dock: the snapshot set its dock
+// up on the very first frame, frame 0, with `row_seen` 0, so the dock read its row as back on screen
+// and closed before it was ever drawn ("a check whose evidence is the setup"). The real app docks
+// only at the end of a frame after its row was drawn (frame 1 or later), so it never met that; the
+// test below proves the app's own draw order paints the dock, and `dock_painted` now gates the
+// snapshots too, so a picture without the dock fails instead of being written.
+
+/// What the dock should show: open, or folded to its tab.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Shown {
+    Open,
+    Tab,
+}
+
+/// Where the test frames note the bottom strip's top (the strip's own note answers only during the
+/// pass that drew it).
+const STRIP_TOP_KEY: &str = "chat_video_dock_test_strip_top";
+
+/// The app's frame after its first lines, in lib.rs's order: the top menu on a page (not the title
+/// screen or the world), the bottom strip (its top noted for [`strip_top`]), the page through the one
+/// dispatch table the in-world screens share, the chat images, then the dock, the Full window and
+/// the chat videos' end of frame.
+pub(crate) fn app_frame_parts(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
+    if !matches!(state.active_page, GuiPage::None | GuiPage::MainMenu) {
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+    }
+    crate::gui::bottom_strip::draw_for_version(ctx, theme, state, "0.1550.0");
+    let top = crate::gui::bottom_strip::room_above(ctx).bottom();
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new(STRIP_TOP_KEY), top));
+    match state.active_page {
+        GuiPage::None => {}
+        page => {
+            crate::gui::dispatch::draw_tool_page(ctx, page, theme, state);
+        }
+    }
+    state.image_cache.poll(ctx);
+    draw_video_dock(ctx, theme, state);
+    crate::gui::pages::chat::draw_video_window(ctx, theme, &mut state.chat_video);
+}
+
+/// The bottom strip's top as the last test frame drew it.
+pub(crate) fn strip_top(ctx: &egui::Context) -> f32 {
+    ctx.data(|d| d.get_temp::<f32>(egui::Id::new(STRIP_TOP_KEY))).unwrap_or(f32::INFINITY)
+}
+
+/// Every shape of a frame in the order egui paints them (nested lists opened), with its clip.
+fn painted_in_order(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Shape)> {
+    fn walk(shape: &egui::Shape, clip: egui::Rect, all: &mut Vec<(egui::Rect, egui::Shape)>) {
+        match shape {
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, clip, all)),
+            s => all.push((clip, s.clone())),
+        }
+    }
+    let mut all = Vec::new();
+    for c in &out.shapes {
+        walk(&c.shape, c.clip_rect, &mut all);
+    }
+    all
+}
+
+/// Whether the dock was painted in the frame `out` (just run on `ctx`), as `shown`, over the page:
+/// its Area (or the tab's) shown that frame and nearer than the page's layer in egui's own order;
+/// its words drawn inside it and inside their clip (Go to message for the open dock and no tab, the
+/// tab's words and no Go to message for the tab); the open dock's picture drawn inside it; and
+/// nothing opaque painted after its frame over most of it. The dock's rectangle, or why not.
+pub(crate) fn dock_painted(ctx: &egui::Context, out: &egui::FullOutput, theme: &Theme, shown: Shown) -> Result<egui::Rect, String> {
+    let id = egui::Id::new(if shown == Shown::Open { AREA_ID } else { TAB_ID });
+    let layer = egui::LayerId::new(Layer::Footer.order(), id);
+    let rect = ctx.memory(|m| m.area_rect(id)).ok_or("its Area was never laid out")?;
+    if !ctx.memory(|m| m.areas().visible_last_frame(&layer)) {
+        return Err(format!("its Area ({shown:?}) was not shown in the frame"));
+    }
+    let order: Vec<egui::LayerId> = ctx.memory(|m| m.layer_ids().collect());
+    let (mine, page) = (order.iter().position(|l| *l == layer), order.iter().position(|l| *l == egui::LayerId::background()));
+    match (mine, page) {
+        (Some(m), Some(p)) if m > p => {}
+        _ => return Err(format!("its layer is not over the page's in egui's order (dock at {mine:?}, page at {page:?})")),
+    }
+    let shapes = painted_in_order(out);
+    let text_in = |w: &str| {
+        shapes.iter().any(|(clip, s)| match s {
+            egui::Shape::Text(t) => {
+                let r = egui::Rect::from_min_size(t.pos, t.galley.size());
+                t.galley.job.text == w && rect.expand(1.0).contains_rect(r) && clip.intersects(r)
+            }
+            _ => false,
+        })
+    };
+    let go_to = t("chat_video_dock.go_to");
+    let tab_words = [t("chat_video_dock.tab_playing"), t("chat_video_dock.tab_paused")];
+    match shown {
+        Shown::Open => {
+            if !text_in(go_to) {
+                return Err(format!("no \"{go_to}\" painted inside the dock {rect:?}"));
+            }
+            if tab_words.iter().any(|w| text_in(w)) {
+                return Err("the tab's words are painted with the open dock".into());
+            }
+            // A picture: a textured mesh, or (egui's `Image`) a rectangle filled with a texture.
+            let picture = shapes.iter().any(|(clip, s)| {
+                let r = match s {
+                    egui::Shape::Mesh(m) if m.texture_id != egui::TextureId::default() => m.calc_bounds(),
+                    egui::Shape::Rect(r) if r.fill_texture_id() != egui::TextureId::default() => r.rect,
+                    _ => return false,
+                };
+                rect.expand(1.0).contains_rect(r) && clip.intersects(r) && r.width() > 40.0
+            });
+            if !picture {
+                return Err(format!("no picture painted inside the dock {rect:?}"));
+            }
+        }
+        Shown::Tab => {
+            if !tab_words.iter().any(|w| text_in(w)) {
+                return Err(format!("no tab words painted inside the tab {rect:?}"));
+            }
+            if shapes.iter().any(|(_, s)| matches!(s, egui::Shape::Text(t) if t.galley.job.text == go_to)) {
+                return Err("the open dock's Go to message is painted with the tab".into());
+            }
+        }
+    }
+    // Its frame (the filled box covering its whole Area, in the card colour), then nothing opaque
+    // over most of it.
+    let fills_it = |r: &egui::epaint::RectShape| r.fill.a() > 0 && rect.expand(2.0).contains_rect(r.rect) && r.rect.contains_rect(rect.shrink(2.0));
+    let frame_at = shapes.iter().position(|(_, s)| matches!(s, egui::Shape::Rect(r) if fills_it(r)));
+    let Some(frame_at) = frame_at else {
+        let near: Vec<String> = shapes.iter().filter_map(|(_, s)| match s {
+            egui::Shape::Rect(r) if r.rect.intersects(rect) && r.rect.area() > rect.area() * 0.3 => Some(format!("{:?} {:?}", r.rect, r.fill)),
+            _ => None,
+        }).take(6).collect();
+        return Err(format!("its frame filling {rect:?} was not painted (the big boxes there: {near:?})"));
+    };
+    // In the card colour (its opacity aside: egui fades an Area in over its animation time, so a few
+    // frames in the frame's alpha can still be a little under full, #030303FC on 2026-11-07).
+    if let egui::Shape::Rect(r) = &shapes[frame_at].1 {
+        let card = theme.bg_card();
+        if (r.fill.r(), r.fill.g(), r.fill.b()) != (card.r(), card.g(), card.b()) && r.fill.to_opaque() != card.to_opaque() {
+            return Err(format!("its frame is {:?}, not the card colour {:?}", r.fill, card));
+        }
+    }
+    for (clip, s) in &shapes[frame_at + 1..] {
+        if let egui::Shape::Rect(r) = s {
+            let over = r.rect.intersect(rect).intersect(*clip);
+            // Nearly opaque counts: an Area fading in (egui's animation time) paints a little under full.
+            if r.fill.a() >= 204 && !rect.expand(1.0).contains_rect(r.rect) && over.is_positive() && over.area() > rect.area() * 0.5 {
+                return Err(format!("something opaque was painted over it after its frame: {:?} filled {:?}", r.rect, r.fill));
+            }
+        }
+    }
+    Ok(rect)
+}
+
+/// THE APP'S OWN FRAME PAINTS THE DOCK OVER THE PAGE, ON THE CHAT PAGE AND ON ANOTHER PAGE (the
+/// orchestrator's question after the dockless snapshots, 2026-11-07: is the real app affected?). A
+/// video docked the app's way (its row pushed off the screen), then frames drawn in lib.rs's order
+/// (`app_frame_parts`: the top menu, the bottom strip, the page through the dispatch table, the dock):
+/// on the Chat page the open dock is painted over the page (its layer nearer than the page's, its
+/// words and picture inside it, nothing opaque over it) at the top right of the message list; folded,
+/// the tab is painted instead; on the Library page the open dock is painted standing on the bottom
+/// strip at the right edge. Then the checker itself is seen to fail: an opaque box painted over the
+/// dock in a nearer layer is reported.
+///
+/// Seen red 2026-11-07 with `draw_video_dock` returning before drawing on any page but the Chat page:
+/// "on the Library page: its Area (Open) was not shown in the frame".
+#[test]
+fn the_apps_own_frame_paints_the_dock_over_the_page() {
+    let (mut chat, a) = docked("chat_video_dock_painted", 1600.0, 1000.0);
+    let run = |chat: &mut Chat, extra: &dyn Fn(&egui::Context, &Theme)| -> egui::FullOutput {
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, chat.screen)), ..Default::default() };
+        let (theme, state) = (&mut chat.theme, &mut chat.state);
+        chat.ctx.run(input, |ctx| {
+            app_frame_parts(ctx, theme, state);
+            extra(ctx, theme);
+        })
+    };
+    let frames = |chat: &mut Chat, n: usize| -> egui::FullOutput {
+        let mut out = run(chat, &|_, _| {});
+        for _ in 1..n {
+            chat.state.chat_video.rewind_for_test(&Chat::url(A));
+            out = run(chat, &|_, _| {});
+        }
+        out
+    };
+    let theme = chat.theme.clone();
+
+    // The Chat page, drawn as the app draws it (the menu, the strip, the dispatch table).
+    let out = frames(&mut chat, 3);
+    let rect = dock_painted(&chat.ctx, &out, &theme, Shown::Open).unwrap_or_else(|why| panic!("on the Chat page: {why}"));
+    let list = chat.state.chat_video.last_list_rect().expect("the Chat page noted its list");
+    assert!(list.contains_rect(rect) && rect.top() - list.top() < 20.0 && list.right() - rect.right() < 20.0, "at the list's top right: {rect:?} in {list:?}");
+
+    // Folded: the tab.
+    chat.state.chat_video.dock.as_mut().unwrap().minimized = true;
+    let out = frames(&mut chat, 3);
+    dock_painted(&chat.ctx, &out, &theme, Shown::Tab).unwrap_or_else(|why| panic!("folded, on the Chat page: {why}"));
+    chat.state.chat_video.dock.as_mut().unwrap().minimized = false;
+
+    // Another page: the Library, the dock standing on the bottom strip at the right edge.
+    chat.state.active_page = GuiPage::Library;
+    let out = frames(&mut chat, 4);
+    let rect = dock_painted(&chat.ctx, &out, &theme, Shown::Open).unwrap_or_else(|why| panic!("on the Library page: {why}"));
+    let top = strip_top(&chat.ctx);
+    assert!(rect.bottom() <= top + 0.5 && chat.screen.x - rect.right() < 24.0, "standing on the strip (its top at {top}) at the right edge: {rect:?}");
+    assert!(chat.state.chat_video.is_playing(&a), "and playing there");
+
+    // The checker can fail: an opaque box painted over the dock, nearer than it, is reported. (Two
+    // frames at least: an Area's first is egui's sizing pass, drawn unseen; six, so its fade-in is done.)
+    let cover_it = |ctx: &egui::Context, theme: &Theme| {
+        crate::gui::layers::area(ctx, egui::Id::new("test_cover_over_the_dock"), Layer::PageFloat).fixed_pos(rect.min).show(ctx, |ui| {
+            ui.painter().rect_filled(rect.expand(4.0), 0.0, theme.bg_primary());
+        });
+    };
+    for _ in 0..5 {
+        run(&mut chat, &cover_it);
+    }
+    let cover = run(&mut chat, &cover_it);
+    let said = dock_painted(&chat.ctx, &cover, &theme, Shown::Open);
+    assert!(said.as_ref().is_err_and(|w| w.contains("opaque")), "a box painted over the dock is reported: {said:?}");
+}
+
+/// A DOCK SET UP ON THE VERY FIRST FRAME STAYS (the other-page snapshot's setup, 2026-11-07):
+/// `row_seen` starts at "never", not at frame 0, so a dock made before any frame has ended is not
+/// read as its row back on screen. On another page (no rows drawn, so nothing can bring it back
+/// either), with the video playing and docked before the first frame, the dock is still there and
+/// drawn three frames later (one waiting for egui's record of the page, one sizing pass unseen).
+///
+/// Seen red 2026-11-07 with `row_seen` starting at 0: "a dock made on frame 0 stays" (it closed at
+/// that frame's end, unseen, and never came back: on that page no row is drawn to dock it again).
+#[test]
+fn a_dock_made_on_the_first_frame_stays() {
+    let mut chat = Chat::new("chat_video_dock_first_frame", &[&format!("watch {A}")], 1600.0, 1000.0);
+    chat.state.chat_video.fetch_for_test = Some(fetch_copies(fixture(), chat.dir.to_path_buf()));
+    chat.state.active_page = GuiPage::Library;
+    let a = Chat::url(A);
+    let ffmpeg = chat.state.settings.ffmpeg_path.clone();
+    chat.state.chat_video.press_play(&a, "sliding_bar.mp4", &ffmpeg);
+    assert!(chat.state.chat_video.wait_for_picture_or_words(&a, &chat.ctx.clone()), "the fixture shows a picture");
+    let origin = origin_here(&chat.state);
+    chat.state.chat_video.dock_for_test(&a, origin);
+    let mut out = chat.frame_page(Vec::new());
+    for _ in 0..3 {
+        chat.state.chat_video.rewind_for_test(&a);
+        out = chat.frame_page(Vec::new());
+    }
+    assert!(chat.state.chat_video.dock.is_some(), "a dock made on frame 0 stays");
+    assert!(texts_of(&out).iter().any(|x| x == t_go_to()), "a dock made on frame 0 is drawn: {:?}", texts_of(&out));
+}

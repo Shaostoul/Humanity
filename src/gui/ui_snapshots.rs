@@ -391,6 +391,21 @@ pub(crate) fn render_page_png_at(
     percent: f32,
     frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState),
 ) {
+    render_page_png_checked(name, w, h, percent, frame, |_, _| Ok(()));
+}
+
+/// [`render_page_png_at`], with `check` asked of the captured frame BEFORE the picture is written:
+/// an `Err` fails the test with its words and writes no PNG. For a snapshot whose subject can go
+/// missing while the page still draws (the chat videos' dock, 2026-11-07: three snapshots passed
+/// and none showed the dock), so the picture can never stand in for a subject that was not drawn.
+pub(crate) fn render_page_png_checked(
+    name: &str,
+    w: u32,
+    h: u32,
+    percent: f32,
+    frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState),
+    check: impl Fn(&egui::Context, &egui::FullOutput) -> Result<(), String>,
+) {
     pollster::block_on(async move {
         // ── wgpu device (offscreen) ──
         // Not while the operator's GPU game runs: the page is then not written (crates/humanity-core/src/test_gpu.rs).
@@ -501,6 +516,9 @@ pub(crate) fn render_page_png_at(
             (ppp - zoom).abs() < 1e-4,
             "{name}: drawn at {ppp} pixels per point, not the {percent}% asked for"
         );
+        if let Err(why) = check(&ctx, &full_output) {
+            panic!("{name}: the frame to be captured fails its check, so no picture is written: {why}");
+        }
         let clipped = ctx.tessellate(full_output.shapes, ppp);
         let screen = egui_wgpu::ScreenDescriptor {
             size_in_pixels: [w, h],
@@ -1662,10 +1680,23 @@ fn snapshot_chat_video_playing() {
 /// in the dock. `page` is where the person is: the Chat page (the dock at the message list's top
 /// right, under the channel header) or another app page (the Library, with the top menu and the
 /// bottom strip, the dock standing on the strip at the right edge, clear of the page's controls).
-/// `minimized`: folded to its tab. Nothing is asked of any server.
+/// `minimized`: folded to its tab. Nothing is asked of any server. Drawn in the app's own order
+/// (chat/video_dock_tests.rs `app_frame_parts`), and the captured frame must pass `dock_painted`
+/// (the dock, or its tab, shown, nearer than the page, its words and picture painted, nothing over
+/// it; on another page, standing on the strip) or no picture is written.
+///
+/// 2026-11-07: all three passed on main and none showed the dock (the orchestrator's check of the
+/// pictures). Two causes, both in this setup, neither in the app: the dock was made on the first
+/// frame, frame 0, with its `row_seen` starting at 0, so it read its row as back on screen and
+/// closed unseen (the Library one never came back: no row there docks it again); and on the Chat
+/// page the scroll area's first frame is laid out from the top, the video's row on screen, so the
+/// dock gave it back, docked it again a frame later, and the capture fell on its Area's unseen
+/// sizing pass. Seen red with the gate on that setup: "chat_video_dock: ... no \"Go to message\"
+/// painted inside the dock [[1914.0 264.5] - [2334.0 586.8]]", "chat_video_dock_minimized: ...
+/// its Area was never laid out", "chat_video_dock_other_page: ... its Area was never laid out".
 fn chat_video_dock_snapshot(name: &str, page: crate::gui::GuiPage, minimized: bool) {
     let folder = humanity_core::test_temp::dir(&format!("snapshot_{name}"));
-    render_page_png(name, 2560, 1440, |ctx, theme, state| {
+    let frame = |ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState| {
         const SERVER: &str = "http://127.0.0.1:9";
         let slide = format!("{SERVER}/uploads/1760000000000_sliding_bar.mp4");
         if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
@@ -1692,6 +1723,12 @@ fn chat_video_dock_snapshot(name: &str, page: crate::gui::GuiPage, minimized: bo
                 });
             }
             state.chat_active_channel = "global".into();
+        } else if !state.chat_video.has_player(&slide) {
+            // The second frame: the video playing and in the dock, its row off the screen. Not on
+            // the first: an egui scroll area lays its first frame out from the top (it settles at
+            // its bottom at that frame's end), so the video's row was on screen then and the dock
+            // gave the video back to it at once, docking it again a frame later, too late for the
+            // capture (the first of the two causes of the dockless snapshots of 2026-11-07).
             state.chat_video.press_play(&slide, "sliding_bar.mp4", "");
             assert!(state.chat_video.wait_for_picture_or_words(&slide, ctx), "the fixture shows a picture");
             let origin = crate::gui::pages::chat::video_dock::origin_here(state);
@@ -1704,16 +1741,27 @@ fn chat_video_dock_snapshot(name: &str, page: crate::gui::GuiPage, minimized: bo
         // setup and the capture can take longer than that on a page as long as the Library's).
         state.chat_video.rewind_for_test(&slide);
         state.active_page = page;
-        if page == crate::gui::GuiPage::Chat {
-            crate::gui::pages::chat::draw(ctx, theme, state);
-        } else {
-            crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
-            crate::gui::bottom_strip::draw_for_version(ctx, theme, state, "0.1550.0");
-            crate::gui::dispatch::draw_tool_page(ctx, page, theme, state);
+        // The app's own frame, in lib.rs's order (the top menu, the bottom strip, the page through
+        // the one dispatch table, the dock, the Full window and the end of the frame).
+        crate::gui::pages::chat::video_dock::tests::app_frame_parts(ctx, theme, state);
+    };
+    // The frame captured must show the dock, open or as its tab, painted over the page (the check
+    // reads egui's own layer list and painted shapes, chat/video_dock_tests.rs `dock_painted`).
+    let shown = if minimized { crate::gui::pages::chat::video_dock::tests::Shown::Tab } else { crate::gui::pages::chat::video_dock::tests::Shown::Open };
+    let check = move |ctx: &egui::Context, out: &egui::FullOutput| -> Result<(), String> {
+        let theme = load_theme();
+        let rect = crate::gui::pages::chat::video_dock::tests::dock_painted(ctx, out, &theme, shown)?;
+        let screen = ctx.screen_rect();
+        if page != crate::gui::GuiPage::Chat {
+            // On another page it stands on the bottom strip, at the right edge.
+            let strip_top = crate::gui::pages::chat::video_dock::tests::strip_top(ctx);
+            if rect.bottom() > strip_top + 0.5 || screen.right() - rect.right() > 24.0 {
+                return Err(format!("the dock {rect:?} does not stand on the strip (its top at {strip_top}) at the right edge of {screen:?}"));
+            }
         }
-        crate::gui::pages::chat::draw_video_dock(ctx, theme, state);
-        crate::gui::pages::chat::draw_video_window(ctx, theme, &mut state.chat_video);
-    });
+        Ok(())
+    };
+    render_page_png_checked(name, 2560, 1440, crate::gui::font_size::DEFAULT_PERCENT, frame, check);
 }
 
 #[test]
