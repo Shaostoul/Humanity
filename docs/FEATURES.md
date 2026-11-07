@@ -254,6 +254,12 @@ the P2P data mesh is unchanged. The voice-room JOIN registers with the relay
 ### Voice/Video Calls
 1-on-1 WebRTC calls with camera support.
 - Web: `web/chat/chat-voice-calls.js`, `web/chat/chat-voice-webrtc.js`
+- **Checked against a real browser (2026-11-07):** `just verify-browser-webrtc` runs the website's own
+  call and file scripts in a headless Chromium against the desktop app's own `WebrtcManager` and
+  `FileLink`, through the relay's own forwarder on 127.0.0.1: a call each way (sound measured at both
+  ends) and a file each way (the far end's bytes checked). Run before a release that touched WebRTC
+  or anything under it. Test: `src/gui/crossing_tests/webrtc_browser.rs`; browser: `scripts/browser-webrtc.js`,
+  `scripts/browser-webrtc/`; how-to: `docs/ai/builds.md`, "The check against a real browser".
 
 ### Screen Sharing / Streaming
 Share your screen or stream to a channel. Server-wide master switch

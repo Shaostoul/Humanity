@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Browser WebRTC check</title>
+<link rel="icon" href="data:,">
+<script src="/harness/errors.js"></script>
+</head>
+<body>
+<!--
+  The page the browser half of `just verify-browser-webrtc` runs (scripts/browser-webrtc.js drives a
+  headless Chromium to it; src/gui/crossing_tests/webrtc_browser.rs serves it and is the other end). It loads
+  the WEBSITE'S OWN call and file-transfer scripts from web/, unchanged, in web/chat/index.html's
+  order, with stand-ins (stand-ins.js) for the parts of the chat page they lean on that this check is
+  not about: the sign-in, the sealed DM layer, the rows on screen. harness.js takes orders from the
+  test over the same socket the chat page uses for the relay.
+
+  The elements below are the ones chat-voice-calls.js writes to; web/chat/index.html has the same ids.
+-->
+<div id="ringing-status"></div>
+<div id="incoming-call-overlay"><span id="incoming-caller-name"></span></div>
+<div id="call-bar"><span id="call-peer-name"></span><span id="call-timer"></span><button id="mute-btn" type="button"></button></div>
+<script src="/shared/files-in-messages.js"></script>
+<script src="/shared/blake3.js"></script>
+<script src="/shared/file-transfer.js"></script>
+<script src="/shared/call-connection.js"></script>
+<script src="/chat/pq.js"></script>
+<!-- Where web/chat/index.html loads crypto.js and app.js. -->
+<script src="/harness/stand-ins.js"></script>
+<script src="/chat/chat-voice-rooms.js"></script>
+<script src="/chat/chat-voice-calls.js"></script>
+<script src="/chat/chat-file-transfer.js"></script>
+<script src="/harness/harness.js"></script>
+</body>
+</html>

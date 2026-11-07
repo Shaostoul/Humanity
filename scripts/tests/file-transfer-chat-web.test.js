@@ -95,6 +95,13 @@
 //     once it has all arrived, its first 16 bytes kept with the transfer's record. And its type's
 //     badge, always, just before its name on both sides' rows: by its name, then red once its
 //     first bytes show it is disguised.
+// 24. (2026-11-07, BUG-274) A connection the other side closed without a word, the way the desktop
+//     app closes its side when the last channel on it ends (its WebRTC sends no close), reads
+//     'disconnected' here, not failed: the next file Ben accepts from that person dials afresh
+//     instead of opening its channel on the dead connection, and arrives (24); one accepted in the
+//     moment before his browser reads it dead dials afresh once it has read 'disconnected' for
+//     FT_DISCONNECTED_MS, and arrives, while a connection back to connected within that wait is
+//     kept (24b).
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -1783,6 +1790,99 @@ test("23. a file sent to me says what kind of file it is: its badge on both rows
   assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
 });
 
+// ── 24. A connection the other side closed without a word (BUG-274, 2026-11-07) ──────
+
+/** How many times Ben has dialled (dc_offer). */
+const dialsSoFar = (s) => s.relay.signals.filter((x) => x.who === "Ben" && x.msg.signal_type === "dc_offer").length;
+
+/**
+ * Close `pc` the way the desktop app closes its side of a file connection when the last channel on
+ * it ends: nothing reaches the other side (its WebRTC sends no close), whose browser then reads the
+ * connection 'disconnected' and keeps its own channels exactly as they were. (The stand-in's own
+ * close() is a browser's, whose closing the other side hears.)
+ */
+function closeLikeTheDesktopApp(pc) {
+  pc.connectionState = "closed";
+  for (const ch of pc.channels.concat(pc.received)) { ch.readyState = "closed"; ch.queue.length = 0; }
+  const other = pc.peer;
+  if (other && other.connectionState === "connected") {
+    other.connectionState = "disconnected";
+    setImmediate(() => { if (other.onconnectionstatechange) other.onconnectionstatechange(); });
+  }
+}
+
+test("24. a connection the other side closed without a word: the next file Ben accepts dials afresh instead of opening a channel on it (BUG-274)", async () => {
+  const s = await pair();
+  // The first file arrives; its done, from Ben, never reaches Ann (her side ends the desktop app's
+  // way below, without her page's own close, which Ben's browser would hear).
+  s.relay.net.loseText = (who, text) => who === "Ben" && text.includes('"t":"done"');
+  const one = zipBytes(7 * MB + 5, 41);
+  const t1 = await offerFrom(s.ann, one, "one.zip");
+  await acceptAndWait(s, t1);
+  const annPc = [...s.relay.net.pcs.values()].find((p) => p.page.who === "Ann" && p.connectionState === "connected");
+  assert.ok(annPc, "test setup: Ann's connection is up");
+  closeLikeTheDesktopApp(annPc);
+  await settle();
+  const benPc = [...s.relay.net.pcs.values()].find((p) => p.page.who === "Ben" && p.peer === annPc);
+  assert.equal(benPc.connectionState, "disconnected", "test setup: Ben's browser reads it disconnected, not failed");
+  s.relay.net.loseText = null;
+  assert.equal(dialsSoFar(s), 1, "one dial so far");
+
+  // Ann offers a second file; Ben accepts it.
+  const two = zipBytes(7 * MB + 77, 42);
+  const t2 = await offerFrom(s.ann, two, "two.zip");
+  await waitFor(() => transferOf(s.ben, t2.id) && transferOf(s.ben, t2.id).state === "asked", "Ben is asked about the second");
+  await press(s.ben, t2.id, "accept");
+  await waitFor(() => dialsSoFar(s) === 2, "Ben dials afresh for the second file");
+  await waitFor(() => transferOf(s.ben, t2.id).state === "saved", "the second file arrives");
+  await settle();
+  const saved = await savedFiles(s.ben);
+  assert.ok(saved.some((b) => sameBytes(b, two)), "the second file, whole");
+  assert.equal(benPc.connectionState, "closed", "the dead connection was closed, not ridden");
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+});
+
+test("24b. a file accepted in the moment before Ben's browser reads that connection dead: once it has read 'disconnected' for the wait, he dials afresh and it arrives (BUG-274)", async () => {
+  const s = await pair();
+  const benTimers = keepTimers(s.ben);
+  s.relay.net.loseText = (who, text) => who === "Ben" && text.includes('"t":"done"');
+  const t1 = await offerFrom(s.ann, zipBytes(7 * MB + 5, 43), "one.zip");
+  await acceptAndWait(s, t1);
+  const annPc = [...s.relay.net.pcs.values()].find((p) => p.page.who === "Ann" && p.connectionState === "connected");
+  const benPc = annPc.peer;
+  // First, a connection back to connected within the wait goes on: nothing is torn down.
+  benPc.connectionState = "disconnected";
+  benPc.onconnectionstatechange();
+  benPc.connectionState = "connected";
+  assert.equal(benTimers.fire(5000), 1, "the wait");
+  await settle();
+  assert.equal(benPc.connectionState, "connected", "a connection back within the wait is kept");
+  assert.equal(dialsSoFar(s), 1, "and nothing dialled");
+  // Ann's side goes without a word, and Ben's browser has not noticed yet: it still reads connected.
+  closeLikeTheDesktopApp(annPc);
+  benPc.connectionState = "connected";
+  await settle();
+  s.relay.net.loseText = null;
+  const two = zipBytes(7 * MB + 99, 44);
+  const t2 = await offerFrom(s.ann, two, "two.zip");
+  await waitFor(() => transferOf(s.ben, t2.id) && transferOf(s.ben, t2.id).state === "asked", "Ben is asked about the second");
+  await press(s.ben, t2.id, "accept");
+  await settle();
+  assert.equal(dialsSoFar(s), 1, "test setup: the second rides the connection Ben's browser still reads connected");
+  assert.notEqual(transferOf(s.ben, t2.id).state, "saved");
+  // Now Ben's browser reads it 'disconnected', and still does after the wait.
+  benPc.connectionState = "disconnected";
+  benPc.onconnectionstatechange();
+  assert.equal(benTimers.fire(5000), 1, "the wait (FT_DISCONNECTED_MS)");
+  await waitFor(() => dialsSoFar(s) === 2, "Ben dials afresh");
+  await waitFor(() => transferOf(s.ben, t2.id).state === "saved", "the second file arrives");
+  await settle();
+  assert.ok((await savedFiles(s.ben)).some((b) => sameBytes(b, two)), "the second file, whole");
+  assert.equal(benPc.connectionState, "closed", "the dead connection was closed");
+
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed unless named.
@@ -1872,3 +1972,9 @@ test("23. a file sent to me says what kind of file it is: its badge on both rows
 //      commit): test 21 "Ben's transfer ends" (not within the wait: the piece counted as kept).
 //  C37 (2026-10-12) chat-file-transfer.js, a channel for an ended offer of mine closed with no word:
 //      test 22 "Ben's X ends" (it waited on its channel).
+//  C38 (2026-11-07, BUG-274) chat-file-transfer.js as it was (ftDial joining any link not closed
+//      here, whatever the browser read it as): test 24 "never happened: Ben dials afresh for the
+//      second file" (its channel opened on the dead connection and nothing went).
+//  C39 (2026-11-07, BUG-274) chat-file-transfer.js with that fixed but its connections' state
+//      changes handled as before (only failed or closed is gone; 'disconnected' waited on for
+//      ever): test 24b "the wait" (no wait started, 0 of 1), test 24 passing.

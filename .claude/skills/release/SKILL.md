@@ -49,6 +49,15 @@ cargo check --features relay --no-default-features  # the deploy feature set; al
   when the batch touched the renderer, shaders, pipelines, bind groups or startup; run it anyway
   for any Rust release.
 - The rigs the batch touched (the `game-checks` skill lists them).
+- `just verify-browser-webrtc` (the desktop app's calls and files against a real headless
+  Chromium, about a minute, no game boot) when WebRTC or anything under it changed since the last
+  tag: `git diff --stat "$LAST"..HEAD -- src/net/webrtc.rs src/net/file_link.rs src/net/voice.rs
+  src/net/file_transfer.rs src/relay/call_forwarder.rs web/chat/chat-voice-calls.js
+  web/chat/chat-voice-rooms.js web/chat/chat-file-transfer.js web/shared/file-transfer.js
+  web/shared/call-connection.js` names any, and `git diff -U2 "$LAST"..HEAD -- Cargo.lock | grep -E
+  '^[ +-]name = "(str0m[a-z-]*|dimpl|sctp-proto|is|p256|p384|crypto-bigint)"'` any dependency under it
+  whose version moved (str0m 0.25's DTLS is dimpl on RustCrypto). Everything stays on 127.0.0.1 and
+  the browser never shows a window.
 - One HumanityOS instance at a time: `tasklist | grep -i humanityos`; close the operator's game
   gracefully if it is open (`taskkill //PID <pid>`, force only after ~15 s).
 

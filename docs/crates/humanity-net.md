@@ -92,6 +92,10 @@ And 188 more items, 306 references (`node scripts/crate-cards.js --interface hum
   [p2p-sync-own-devices.test.js](../../scripts/tests/p2p-sync-own-devices.test.js),
   [p2p-direct-offers.test.js](../../scripts/tests/p2p-direct-offers.test.js),
   [file-transfer-web.test.js](../../scripts/tests/file-transfer-web.test.js).
+- **Against a real browser:** `just verify-browser-webrtc` (2026-11-07): the website's own call and
+  file scripts in a headless Chromium against `webrtc` and `file_link`, through the relay's own
+  forwarder on 127.0.0.1, about 30 s, no game boot. Run it before a release that changed WebRTC or
+  anything under it (str0m, dimpl); [builds.md](../ai/builds.md), "The check against a real browser".
 - **In the running game:** `just verify-copresence` (two players see each other move, against a
   throwaway relay) and `just verify-live-screen` (a wall screen watching a stream this rig publishes
   to its own local relay). One game at a time: [game-boots.md](../ai/game-boots.md).

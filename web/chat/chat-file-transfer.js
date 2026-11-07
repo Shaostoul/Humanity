@@ -98,6 +98,7 @@ const FT_STALL_MS = 30000;           // nothing for this long while a window is 
 const FT_CONNECT_WAIT_MS = 45000;    // a dial not open by then is given up (and tried again later)
 const FT_DIAL_RETRY_MS = 60000;      // while waiting for the sender, try again this often
 const FT_STOPPED_WAIT_MS = 15000;    // a sending channel closed by the other side: how long to tell a stop from a drop
+const FT_DISCONNECTED_MS = 5000;     // a connection the browser reads 'disconnected' this long is gone (BUG-274)
 const FT_PUT_WAIT_MS = 30000;        // how long a note's put waits for the server's answer
 const FT_PIECES_LINGER_MS = 120000;  // pieces stay this long after a save, while the browser copies them
 const FT_KEEP_ENDED_MS = 30 * 24 * 3600 * 1000; // a finished transfer's row is kept this long
@@ -871,6 +872,12 @@ async function ftDial(t) {
   if (!F.filePassTimeOk(t.offer.pass, ftNowSecs())) { await ftEnd(t, 'expired'); return; }
   const key = ftLower(t.peer);
   const have = ftLinks.get(key);
+  // A connection that was up and that this browser no longer reads as connected is gone, for a new
+  // transfer at least (BUG-274, 2026-11-07): the desktop app closes its side when the last channel
+  // on it ends, and nothing of that reaches the browser (its WebRTC sends no close), which then reads
+  // the connection 'disconnected' for minutes while a channel opened on it goes nowhere. So the next
+  // file between the two dials afresh instead of riding it.
+  if (have && !have.closed && have.open && !ftLinkUp(have)) ftLinkGone(have);
   if (have && !have.closed) { ftJoin(have, t); return; }
   if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) return;
   const link = ftNewLink(t.peer, 'dial');
@@ -898,7 +905,7 @@ async function ftDial(t) {
     for (const id of link.toOpen.splice(0)) ftOpenChannel(link, id);
     if (!link.chans.size) { ftCloseLink(link); return; }
     pc.onicecandidate = (ev) => { if (ev && ev.candidate) ftSignal(t.peer, 'dc_ice', JSON.stringify(ev.candidate)); };
-    pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') ftLinkGone(link); };
+    pc.onconnectionstatechange = () => ftLinkStateChanged(link, pc);
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     if (link.closed) return;
@@ -1016,7 +1023,7 @@ async function ftAnswerDial(msg, named, link) {
     link.pc = pc;
     pc.ondatachannel = (ev) => ftChannelArrived(link, ev && ev.channel);
     pc.onicecandidate = (ev) => { if (ev && ev.candidate) ftSignal(msg.from, 'dc_ice', JSON.stringify(ev.candidate)); };
-    pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') ftLinkGone(link); };
+    pc.onconnectionstatechange = () => ftLinkStateChanged(link, pc);
     await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(msg.data)));
     link.remoteSet = true;
     await ftApplyIce(link);
@@ -1288,6 +1295,31 @@ function ftChanGone(link, chan) {
 /** Is this connection still up: not closed here, and the browser says it is connected? */
 function ftLinkUp(link) {
   return !!link && !link.closed && !!link.pc && link.pc.connectionState === 'connected';
+}
+
+/**
+ * The browser's word on a connection changed. Failed or closed: it is gone. 'disconnected' on one
+ * that was open (BUG-274, 2026-11-07): the desktop app closes its side of a connection when the
+ * last channel on it ends, and nothing of that reaches the browser (the app's WebRTC sends no
+ * close), which then reads it 'disconnected', not failed, for minutes, while a transfer that joined
+ * it in the moment before (the next file between the two) waits on a channel that goes nowhere. So
+ * a connection still 'disconnected' after FT_DISCONNECTED_MS is gone: every transfer on it waits
+ * again, and my receiving ones dial afresh at once (a sender still there answers; one that is not
+ * is dialled again later, as after any drop). One back to 'connected' within the wait goes on.
+ */
+function ftLinkStateChanged(link, pc) {
+  if (link.closed || link.pc !== pc) return;
+  const state = pc.connectionState;
+  if (state === 'failed' || state === 'closed') { ftLinkGone(link); return; }
+  if (state !== 'disconnected' || !link.open) return;
+  setTimeout(() => {
+    if (link.closed || link.pc !== pc || pc.connectionState !== 'disconnected') return;
+    const mine = Array.from(link.chans.values()).map((c) => c.t)
+      .concat(link.toOpen.map((id) => ftTransfers.get(id)))
+      .filter((t) => t && t.role === 'receive');
+    ftLinkGone(link);
+    for (const t of mine) ftDial(t);
+  }, FT_DISCONNECTED_MS);
 }
 
 /**

@@ -28,4 +28,8 @@ mod reports;
 mod ship_lighting;
 mod ship_moves;
 mod surface_move;
+// The calls' and the device-to-device files' WebRTC against a REAL browser (2026-11-07,
+// `just verify-browser-webrtc`, #[ignore]d): the network side's WebrtcManager and FileLink, the
+// relay's own forwarder and credentials, and the engine's reader of a file's credentials.
+mod webrtc_browser;
 mod wounds;

@@ -102,6 +102,53 @@ the checkout's path) into `target\lint-cache\`, runs four at a time, and runs EV
 one no longer hides the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm after
 (2026-10-23). The list in the Justfile is still the authority.
 
+## The check against a real browser (`just verify-browser-webrtc`, 2026-11-07)
+
+Every other WebRTC test is the app against the app (str0m against str0m). This one is the desktop
+app against a real browser's WebRTC (Chromium: BoringSSL's DTLS, its SRTP, its SCTP), which is what
+a person on the website calling, or sending a file to, a person on the desktop app meets. It was
+built when the str0m 0.20 -> 0.25 move (commit 78072c92c) put a different DTLS stack (dimpl 0.9 on
+RustCrypto) under the calls and the device-to-device files.
+
+- **What runs.** `src/gui/crossing_tests/webrtc_browser.rs`, an `#[ignore]`d lib test, is the judge and the
+  desktop side: the app's own `WebrtcManager` and `FileLink`, driven the way the engine drives them,
+  the app's Opus encoder and decoder. `scripts/browser-webrtc.js` starts a headless Chromium (Chrome,
+  else Edge, `HOS_BROWSER` for another) on a throwaway profile, on a pipe, and points it at
+  `scripts/browser-webrtc/harness.html`, which loads the WEBSITE'S own call and file scripts from
+  `web/`, unchanged and in `web/chat/index.html`'s order, over stand-ins for the sign-in, the sealed
+  DMs and the rows on screen (`stand-ins.js` says why each is fair). Between them, the relay's own
+  forwarder (`call_forwarder::serve`) on 127.0.0.1 with credentials from the relay's own `CallKeys`;
+  the test plays the relay's chat socket (routing, the file-pass check, `file` on a dial).
+- **What it judges.** Two calls (the browser dials, then the desktop dials): the browser's own
+  `getStats` says the DTLS transport is connected on a relay-to-relay path with inbound audio
+  packets arriving and their energy rising, and the desktop decodes sound from the browser that is
+  not silence. Two files, one each way and back to back (the order found BUG-274): the far end's
+  file has exactly the bytes sent; the browser's is the file it saved (its download), after its own
+  piece and whole-file checks. Whichever side offers, the browser is the DTLS client and the app the
+  server (str0m answers `passive`, Chromium `active`), as with every browser the product meets.
+- **What it does not cover** (the test file's header lists it): the real relay process (its chat
+  socket, sign-in and reach rules; the forwarder's protocol and serving loop ARE the real ones),
+  the sealed DMs, voice rooms, the Direct call modes, Firefox and Safari, a real network. Everything
+  is on 127.0.0.1, which needs Chromium's `--allow-loopback-in-peer-connection`: without it Chromium
+  asks the forwarder only from the computer's network addresses, which Windows does not let reach
+  127.0.0.1, and no relayed address comes. The browser still opens its usual WebRTC sockets on the
+  network addresses (as on any web page that makes a call); no firewall prompt came of it in the
+  runs of 2026-11-07, and the driver prints the UDP sockets the browser held at the end of each run.
+- **The machine rules it keeps.** Every listener on 127.0.0.1 (the page's server and socket, the
+  forwarder, both apps' sockets); the DevTools protocol on a pipe, not a port; headless and started
+  hidden, never a window or focus; the browser's fake microphone and camera, sound out muted; a fresh
+  profile in the temp folder (`hum_browser_webrtc_*`), deleted after; every process of the browser
+  gone at the end (closed, then its PID's tree, then anything still holding the profile, by PID).
+- **Red on purpose.** `HOS_BROWSER_WEBRTC_BREAK=fingerprint` (the browser's SDP reaches the desktop
+  with its DTLS fingerprint changed), `forwarder` (the browser's credentials are for another call
+  or transfer, so the forwarder passes nothing), `hash` (each offer's whole-file BLAKE3 is another
+  file's), `silence` (the desktop sends silence and the page mutes its microphone). Each must fail;
+  the red runs are recorded at the end of the test file.
+- **When.** Before a release whose batch changed str0m or anything under it, or the call or file
+  WebRTC code (the release skill's checklist names the files). Not in `just verify`: CI has no
+  browser. A FLAKY line from it (lib-tests reruns a failure once) is a lead about the interop, not
+  noise: look at the first run's output.
+
 ## The warnings ratchet (2026-11-01)
 
 Our crates have **zero** rustc warnings, natively and in the relay build, and a change that adds one
