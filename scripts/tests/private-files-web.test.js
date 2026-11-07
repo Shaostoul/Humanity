@@ -649,6 +649,10 @@ async function loadChat(me, opts = {}) {
     RTCSessionDescription: function (d) { return d; },
     RTCIceCandidate: function (c) { return c; },
     Audio: function () { return anything(); },
+    // opts.IntersectionObserver: a stand-in the page may watch its players with (2026-11-06, the
+    // inline videos: one scrolled out of view is paused). Without it the page has none, as an old
+    // browser.
+    ...(opts.IntersectionObserver ? { IntersectionObserver: opts.IntersectionObserver } : {}),
     // The window's listeners are kept (none runs by itself), so a test can drag files over the page
     // (2026-10-17, /shared/drop-overlay.js: dragenter, dragover, dragleave and drop on the window).
     addEventListener: (type, fn) => { (winListeners[type] = winListeners[type] || []).push(fn); },
@@ -1049,7 +1053,9 @@ test("public file cards: a video, a sound and any other file each get a card wit
   // server's time in front, and Download under that name.
   assert.equal(video.className, "file-card file-card-media");
   assert.equal(video.dataset.fileName, "WH40K_Marriah_Carey.mp4", "the name without the server's time prefix");
-  assert.ok(video.html.includes(`<video controls preload="metadata" src="${UP_VIDEO}"></video>`), "the player, its details read on this server");
+  // Since 2026-11-06 a video is never read before Play, on this server either (the inline player:
+  // the test below).
+  assert.ok(video.html.includes(`<video controls playsinline preload="none" src="${UP_VIDEO}"></video>`), "the player, inline, nothing read before Play");
   assert.ok(video.html.includes('<div class="file-name">WH40K_Marriah_Carey.mp4</div>'), "the name on the card");
   assert.ok(video.html.includes(`<a href="${UP_VIDEO}" download="WH40K_Marriah_Carey.mp4"`) && video.html.endsWith(">Download</a></div>"), "Download, under that name");
   assert.ok(video.html.includes('<div class="file-note" hidden></div>'), "and a note line, hidden until the player cannot play");
@@ -1057,7 +1063,7 @@ test("public file cards: a video, a sound and any other file each get a card wit
   // Since 2026-10-17 a card's type is its badge (the next tests), which took the emoji icon's place.
   assert.ok(zip.html.includes('class="file-badge') && !zip.html.includes("📦") && zip.html.includes('download="maps.zip"') && !zip.html.includes("<video"), "an archive: a document card");
   assert.ok(model.html.includes('download="staff.glb"') && model.className === "file-card", "a 3D model: a document card");
-  assert.ok(elsewhere.html.includes(`<video controls preload="none" src="${ELSEWHERE_VIDEO}">`), "a video on another website: nothing read before a click");
+  assert.ok(elsewhere.html.includes(`<video controls playsinline preload="none" src="${ELSEWHERE_VIDEO}">`), "a video on another website: nothing read before a click");
 
   // Sizes, from a HEAD on this server only; nothing downloaded, nothing asked elsewhere.
   const size = (card) => card.querySelector(".file-size").textContent;
@@ -1152,6 +1158,67 @@ test("public file cards: a video or a sound this browser cannot play says so, an
   img.closest = () => video;
   fire("error", img);
   assert.equal(img.hidden, false, "a picture's error is left alone");
+});
+
+// ── 4c. Videos inline, one at a time (2026-11-06) ────────────────────────
+// The operator (2026-11-04): "Can we make the videos show in chat and playable in chat?" A video
+// plays inline in its card with the browser's own player, nothing of it read before Play
+// (preload="none", also on this server), and starting one pauses the one that played before; a
+// playing one scrolled out of view is paused. The desktop app's twin: chat/inline_video.rs.
+// Seen red 2026-11-06 against the web/ of the commit before (HOS_WEB_DIR), on its first assertion:
+// "a video: nothing read before Play" (it read `preload="metadata"` on this server); with the
+// markup alone fixed in that copy: "heard in the capture phase: play, on #messages" (nothing heard
+// a player start); with fileMediaOnePlaying's pause of the one before taken out: "starting the
+// second pauses the first" (0 pauses); with its observe taken out: "the playing one is watched".
+test("public file cards: a video plays inline, is not read before Play, and only one plays at a time", async () => {
+  const watched = [];
+  let offScreen = null;
+  class FakeObserver {
+    constructor(cb) { offScreen = cb; }
+    observe(el) { if (!watched.includes(el)) watched.push(el); }
+    unobserve(el) { const i = watched.indexOf(el); if (i >= 0) watched.splice(i, 1); }
+  }
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { IntersectionObserver: FakeObserver });
+  const UP_VIDEO_2 = "/uploads/1760000000006_second_clip.webm";
+  page.files.set(UP_VIDEO, new Uint8Array(4096));
+  page.files.set(UP_VIDEO_2, new Uint8Array(4096));
+  const row = postInRoom(page, fx.ben, `${UP_VIDEO} and ${UP_VIDEO_2} and ${UP_SOUND}`, T0 + 930);
+  await settle();
+  const [one, two, sound] = cardsIn(row);
+  for (const [card, url] of [[one, UP_VIDEO], [two, UP_VIDEO_2]]) {
+    assert.ok(card.html.includes(`<video controls playsinline preload="none" src="${url}"></video>`), "a video: nothing read before Play, " + url);
+  }
+  assert.ok(!row.innerHTML.includes("poster="), "no poster: the server keeps no still of a video");
+  assert.equal(page.fetched.filter((f) => f.startsWith("GET /uploads/")).length, 0, "nothing of a video fetched as the row is drawn");
+  for (const id of ["messages", "thread-panel-messages"]) {
+    for (const type of ["play", "pause", "ended"]) {
+      assert.ok((page.el(id).captures[type] || []).includes(true), `heard in the capture phase: ${type}, on #${id}`);
+    }
+  }
+  const fire = (type, target) => { for (const fn of page.el("messages").listeners[type] || []) fn({ type, target }); };
+  for (const card of [one, two, sound]) {
+    const p = card.player;
+    p.pauses = 0;
+    p.pause = () => { p.pauses += 1; fire("pause", p); };
+  }
+  fire("play", one.player);
+  assert.equal(one.player.pauses, 0, "the first plays");
+  assert.ok(watched.includes(one.player), "the playing one is watched, to pause it off screen");
+  fire("play", two.player);
+  assert.equal(one.player.pauses, 1, "starting the second pauses the first");
+  assert.equal(two.player.pauses, 0, "and the second plays");
+  assert.ok(!watched.includes(one.player) && watched.includes(two.player), "the paused one is no longer watched; the playing one is");
+  fire("play", sound.player);
+  assert.equal(two.player.pauses, 1, "a sound started pauses the video too: one thing at a time");
+  fire("play", two.player);
+  assert.equal(sound.player.pauses, 1);
+  // Scrolled out of view: the observer says so, and the player pauses.
+  offScreen([{ target: two.player, isIntersecting: true }]);
+  assert.equal(two.player.pauses, 1, "on screen: it plays on");
+  offScreen([{ target: two.player, isIntersecting: false }]);
+  assert.equal(two.player.pauses, 2, "a playing video scrolled out of view is paused");
+  assert.ok(!watched.includes(two.player), "and is no longer watched");
 });
 
 // Seen red 2026-10-12 with uploadPost's progress handler taken out: the upload line never had a number.

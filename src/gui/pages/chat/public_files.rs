@@ -15,12 +15,13 @@
 //! this: a non-friend's files are left out of the message with one line in their place
 //! (chat/protected.rs), so no card is drawn for them.
 //!
-//! A video on the message's own server has Play here (2026-10-18), in a window of its own: the
-//! app's own player for AV1 in WebM or MP4, the computer's own decoders for an ordinary MP4 on
-//! Windows, and otherwise a conversion with the person's own ffmpeg, the road an in-world screen's
-//! video takes (`begin_ingest`, BUG-228); a file nothing here plays is named in plain words with
-//! what will play it. A `.glb` or `.stl` from the message's own server gets View in 3D, the Media
-//! page's viewer in a window of its own.
+//! A video on the message's own server plays inside its card (2026-11-06, chat/inline_video.rs;
+//! from 2026-10-18 it was Play here, in a window of its own, now kept as Full window): the app's
+//! own player for AV1 in WebM or MP4, the computer's own decoders for an ordinary MP4 on Windows,
+//! and otherwise a conversion with the person's own ffmpeg, the road an in-world screen's video
+//! takes (`begin_ingest`, BUG-228); a file nothing here plays is named in plain words in the card,
+//! beside its Download. Nothing is fetched before its Play. A `.glb` or `.stl` from the message's
+//! own server gets View in 3D, the Media page's viewer in a window of its own.
 //!
 //! Takes `use super::*` like the page's other children. The website's twin is the file card in
 //! web/chat/app.js `formatBody`.
@@ -43,26 +44,8 @@ pub(crate) const NOT_SAVED: &str = "This file could not be downloaded.";
 /// fetched before Download is pressed).
 pub(crate) const VIDEO_ELSEWHERE: &str = "Download it to watch it in your computer's own player.";
 
-/// A video posted in chat, playing in its own window (Play here on its card, 2026-10-18).
-pub(crate) struct ChatVideo {
-    pub name: String,
-    pub view: crate::gui::widgets::video_view::VideoView,
-}
-
-impl ChatVideo {
-    /// Play here on `card`: fetch it to a temporary copy (the Media page's folder, swept at start)
-    /// on a worker, then play it the way an in-world screen would (`begin_ingest`: converted with
-    /// the ffmpeg at `ffmpeg_setting` when nothing here plays it as it is; BUG-228).
-    pub(crate) fn start(card: &Card, ffmpeg_setting: &str) -> ChatVideo {
-        let mut view = crate::gui::widgets::video_view::VideoView::default();
-        let (url, copy) = (card.url.clone(), crate::gui::pages::files::open::play_name(&card.url, 0));
-        view.start(ffmpeg_setting, &card.name, move || {
-            let agent = crate::gui::pages::files::open::transfer_agent(std::time::Duration::from_secs(60));
-            crate::gui::pages::files::open::fetch_to(&agent, &url, None, &crate::gui::pages::files::open::temp_dir(), &copy, MAX_PUBLIC_FILE)
-        });
-        ChatVideo { name: card.name.clone(), view }
-    }
-}
+/// The chat's videos, each played inside its card (chat/inline_video.rs).
+pub(crate) use super::inline_video::ChatVideos;
 
 /// What a message links to that is drawn under it as cards: files posted into a public channel
 /// (`files_in`) and items on the Media page of the server on screen (files/chat_card.rs).
@@ -170,7 +153,7 @@ impl Card {
         matches!(self.ext().as_str(), "mp4" | "webm" | "mov" | "m4v" | "mkv")
     }
 
-    /// Whether Play here is offered: a video on the message's own server. Every platform: our own
+    /// Whether it plays inside its card: a video on the message's own server. Every platform: our own
     /// player reads WebM, Matroska and MP4 (AV1 inside), Windows's decoders an ordinary MP4, and
     /// anything else is converted with the person's ffmpeg or named in plain words (BUG-228; MP4
     /// had waited on Windows's decoders). A video on another website is never fetched before a
@@ -231,29 +214,29 @@ pub(crate) struct Pressed {
     pub download: bool,
     pub show: bool,
     pub view_3d: bool,
-    pub play: bool,
 }
 
 /// Draw a card for each of `files` (as `files_in` found them) under a message that came through
 /// `msg_server` (empty for an older row: then `own_server`, the one this app is connected to).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn draw_all(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, video: &mut Option<ChatVideo>, ffmpeg_setting: &str, files: &[String], msg_server: &str, own_server: &str, row_bg: Color32) {
+pub(super) fn draw_all(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, videos: &mut ChatVideos, ffmpeg_setting: &str, files: &[String], msg_server: &str, own_server: &str, row_bg: Color32) {
     let server = if msg_server.is_empty() { own_server } else { msg_server };
     for raw in files {
-        draw(ui, theme, cache, model_view, video, ffmpeg_setting, &Card::of(raw, server), row_bg);
+        draw(ui, theme, cache, model_view, videos, ffmpeg_setting, &Card::of(raw, server), row_bg);
     }
 }
 
-/// Draw `card` under its message and do what its buttons asked. The size is asked for a file on
-/// the message's own server only; a Download runs on the image cache's worker. `ffmpeg_setting` is
-/// Settings > Media's ffmpeg, for a Play here that has to convert.
+/// Draw `card` under its message and do what its buttons asked; a video that plays here gets its
+/// player in the card (chat/inline_video.rs). The size is asked for a file on the message's own
+/// server only; a Download runs on the image cache's worker. `ffmpeg_setting` is Settings > Media's
+/// ffmpeg, for a Play that has to convert.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, video: &mut Option<ChatVideo>, ffmpeg_setting: &str, card: &Card, row_bg: Color32) {
+pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, videos: &mut ChatVideos, ffmpeg_setting: &str, card: &Card, row_bg: Color32) {
     if card.other_site.is_none() {
         cache.request_size(&card.url);
     }
     let key = card.key();
-    let pressed = draw_card(ui, theme, cache, card, row_bg);
+    let pressed = draw_card(ui, theme, cache, card, row_bg, Some((videos, ffmpeg_setting)));
     if pressed.download {
         let (url, name) = (card.url.clone(), card.name.clone());
         let dir = crate::gui::widgets::image_cache::default_downloads_dir();
@@ -268,15 +251,12 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, mod
         let (url, size) = (card.url.clone(), cache.size_of(&card.url).map_or(0, |s| s as i64));
         *model_view = Some(crate::gui::model_view::Viewer::open(&card.name, size, move || crate::gui::model_view::fetch(&url, None)));
     }
-    if pressed.play {
-        // One video at a time: a new Play here replaces the one playing (its copy goes with it).
-        *video = Some(ChatVideo::start(card, ffmpeg_setting));
-    }
 }
 
-/// The card itself: name, size and Download on one line; under it the word of caution, the line
-/// for another website, the video's line, and what Download did.
-pub(crate) fn draw_card(ui: &mut egui::Ui, theme: &Theme, cache: &ImageCache, card: &Card, row_bg: Color32) -> Pressed {
+/// The card itself: name, size and Download on one line; under it a video's player (when `videos`
+/// is given and the video plays here: the chat's videos and Settings > Media's ffmpeg), the word of
+/// caution, the line for another website, the video's line, and what Download did.
+pub(crate) fn draw_card(ui: &mut egui::Ui, theme: &Theme, cache: &ImageCache, card: &Card, row_bg: Color32, videos: Option<(&mut ChatVideos, &str)>) -> Pressed {
     let key = card.key();
     let saved = cache.downloaded_path(&key).map(|p| p.to_path_buf());
     let mut pressed = Pressed::default();
@@ -311,9 +291,6 @@ pub(crate) fn draw_card(ui: &mut egui::Ui, theme: &Theme, cache: &ImageCache, ca
                         } else if widgets::Button::secondary("Download").size(small).tooltip("Save it in your downloads folder.").show(ui, theme) {
                             pressed.download = true;
                         }
-                        if card.plays_here() && widgets::Button::secondary(crate::gui::widgets::video_view::PLAY_HERE).size(small).tooltip(crate::gui::widgets::video_view::PLAY_HERE_TIP).show(ui, theme) {
-                            pressed.play = true;
-                        }
                         if card.viewable_in_3d() {
                             let tip = crate::gui::model_view::view_tip(&cache.size_of(&card.url).map_or_else(|| "its size not known yet".to_string(), super::attach_view::size_words));
                             if widgets::Button::secondary(crate::gui::model_view::VIEW_IN_3D).size(small).tooltip(&tip).show(ui, theme) {
@@ -321,6 +298,9 @@ pub(crate) fn draw_card(ui: &mut egui::Ui, theme: &Theme, cache: &ImageCache, ca
                             }
                         }
                     });
+                    if let (Some((videos, ffmpeg)), true) = (videos, card.plays_here()) {
+                        super::inline_video::draw_in_card(ui, theme, videos, &card.url, &card.name, ffmpeg);
+                    }
                     if let Some(caution) = card.caution(saved.as_deref()) {
                         widgets::file_caution::show(ui, theme, &caution);
                     }
@@ -356,31 +336,6 @@ pub(crate) fn post_in(state: &mut GuiState, channel: &str, text: &str) -> bool {
     state.chat_active_channel = was;
     state.chat_reply_to = reply;
     sent
-}
-
-/// The window a video posted in chat plays in (Play here on its card), with Close. Its sound comes
-/// from the engine's audio step (`sync_video_sound`).
-pub(crate) fn draw_video_window(ctx: &egui::Context, theme: &Theme, video: &mut Option<ChatVideo>) {
-    let Some(playing) = video.as_mut() else { return };
-    playing.view.poll(ctx);
-    let mut open = true;
-    let mut close = false;
-    let title = playing.name.clone();
-    widgets::dialog(ctx, theme, "chat_video_view", &title, &mut open, |ui| {
-        playing.view.draw(ui, theme, 720.0);
-        close = widgets::Button::secondary(crate::gui::widgets::video_view::CLOSE).show(ui, theme);
-    });
-    if !open || close {
-        *video = None;
-    }
-}
-
-/// The chat's video window gets its sound from the app's mixer (the engine calls this each frame
-/// it has a mixer).
-pub(crate) fn sync_video_sound(video: &mut Option<ChatVideo>, audio: &mut humanity_core::audio::AudioManager) {
-    if let Some(playing) = video.as_mut() {
-        playing.view.sync_sound(audio);
-    }
 }
 
 /// The window a 3D model posted in chat opens in (View in 3D on its card), with Close: the model

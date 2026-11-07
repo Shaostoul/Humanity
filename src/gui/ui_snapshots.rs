@@ -1504,6 +1504,90 @@ fn snapshot_chat_public_files() {
     });
 }
 
+/// The chat with videos posted in it (2026-11-06, chat/inline_video.rs), at the operator's
+/// 2560x1440: in `still`, three rows, one never played (the black box, its Play mark and "Press Play
+/// to fetch and watch it here."), one played and then scrolled away (its still and its place), and
+/// one nothing here plays (BUG-228's words in the row); in `playing`, one row playing. The videos
+/// are the AV1 fixture (or, for the third, bytes that are no film) handed over in place of the
+/// network; nothing is asked of any server.
+fn chat_video_snapshot(name: &str, playing: bool) {
+    // The copies' folder lives until the picture is written (dropping the guard deletes it).
+    let folder = humanity_core::test_temp::dir(&format!("snapshot_{name}"));
+    render_page_png(name, 2560, 1440, |ctx, theme, state| {
+        const SERVER: &str = "http://127.0.0.1:9";
+        if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
+            let dir = folder.to_path_buf();
+            let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+            let _ = std::fs::write(&fake, b"not ffmpeg");
+            let not_film = dir.join("not-a-film.bin");
+            let _ = std::fs::write(&not_film, b"these bytes are no film");
+            let fixture = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/sliding-bar-av1-opus.mp4");
+            let n = std::sync::atomic::AtomicUsize::new(0);
+            let copies = dir.clone();
+            state.chat_video.fetch_for_test = Some(std::sync::Arc::new(move |url: &str| {
+                let copy = copies.join(format!("copy-{}.video", n.fetch_add(1, std::sync::atomic::Ordering::SeqCst)));
+                let from = if url.contains("not_a_film") { &not_film } else { &fixture };
+                std::fs::copy(from, &copy).map(|_| copy).map_err(|e| e.to_string())
+            }));
+            state.settings.ffmpeg_path = fake.display().to_string();
+            state.chat_messages.retain(|m| m.channel != "global");
+            state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann0".into(), role: "verified".into(), status: String::new() });
+            let posts: &[&str] = if playing {
+                &["The bar slides across, have a look /uploads/1760000000000_sliding_bar.mp4"]
+            } else {
+                &[
+                    "From the meetup /uploads/1760000000001_meetup.mp4",
+                    "The bar slides across, have a look /uploads/1760000000000_sliding_bar.mp4",
+                    "This one came from an old phone /uploads/1760000000002_not_a_film.mp4",
+                ]
+            };
+            for (i, text) in posts.iter().enumerate() {
+                let url = format!("{SERVER}{}", text.rsplit(' ').next().unwrap());
+                state.image_cache.set_size_for_test(&url, Some(1_121_676));
+                state.chat_messages.push(ChatMessage {
+                    sender_name: "Ann".into(),
+                    sender_key: "ann0".into(),
+                    content: (*text).into(),
+                    timestamp: format!("09:2{i}"),
+                    timestamp_ms: 1_791_481_200_000 + i as u64 * 60_000,
+                    channel: "global".into(),
+                    server: SERVER.into(),
+                    ..Default::default()
+                });
+            }
+            state.chat_active_channel = "global".into();
+            let slide = format!("{SERVER}/uploads/1760000000000_sliding_bar.mp4");
+            let ffmpeg = state.settings.ffmpeg_path.clone();
+            state.chat_video.press_play(&slide, "sliding_bar.mp4", &ffmpeg);
+            assert!(state.chat_video.wait_for_picture_or_words(&slide, ctx), "the fixture shows a picture");
+            if !playing {
+                // Shown for a moment, paused, then scrolled away: its still and its place stay.
+                std::thread::sleep(std::time::Duration::from_millis(600));
+                state.chat_video.wait_for_picture_or_words(&slide, ctx);
+                state.chat_video.press_play(&slide, "sliding_bar.mp4", &ffmpeg);
+                state.chat_video.forget(&slide, ctx);
+                let refused = format!("{SERVER}/uploads/1760000000002_not_a_film.mp4");
+                state.chat_video.press_play(&refused, "not_a_film.mp4", &ffmpeg);
+                assert!(state.chat_video.wait_for_picture_or_words(&refused, ctx), "the refusal's words come");
+            }
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+        crate::gui::pages::chat::draw_video_window(ctx, theme, &mut state.chat_video);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_video_still() {
+    chat_video_snapshot("chat_video_still", false);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_video_playing() {
+    chat_video_snapshot("chat_video_playing", true);
+}
+
 // Media items posted in chat (2026-10-17, files/chat_card.rs): one card as the line it starts as,
 // one opened out to its by-line, description and every file with its type. The items are put in
 // place as if the server had answered; nothing is asked of any server.

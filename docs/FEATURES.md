@@ -780,6 +780,22 @@ on the fetch's worker: played as it is, or converted once with the person's ffmp
 the temporary one, deleted with it, "Converting it to play here: 40%"), or refused in plain words
 naming the file by its posted name and what will play it. Offered for MP4 on every computer; the
 patent line is gone.
+**Videos play inside their chat message (2026-11-06).** The operator: "Can we make the videos show in
+chat and playable in chat?" A video on the message's own server is a player in its card: the picture
+(a black box with a drawn Play mark until first played, its last picture after), a seek bar, Play or
+Pause, the time, Mute, the volume and Full window (the old window, kept as the bigger view of the
+same player). Nothing is fetched or decoded until Play; one video plays at a time; a row off the
+screen drops its player (decoder, sound, temporary copy) and keeps a small still and its place
+(at most 24, none with reuse turned off); a file nothing here plays says so in the row in BUG-228's
+words beside Download. `src/gui/pages/chat/inline_video.rs` (`ChatVideos`, `draw_in_card`,
+`draw_video_window`, `end_frame`), drawn from `chat/public_files.rs` `draw_card`; the controls'
+bar `widgets/video_view.rs` `track_bar`; a wall screen showing the chat keeps a set of its own
+(`gui/screen_surface.rs` `ScreenTextures`). Website: `<video controls playsinline preload="none">`
+inline in the card (no poster: the server keeps no still), one playing at a time and a playing one
+scrolled out of view paused (`web/chat/app.js` `fileMediaOnePlaying`). Design:
+`docs/design/media-player.md`, "Videos inside chat messages". Tests:
+`gui::pages::chat::inline_video::tests`, `private-files-web.test.js` ("plays inline"). Snapshots:
+`tests/snapshots/chat_video_still.png`, `chat_video_playing.png`.
 **Media card follow-ups (v0.1513.0).** The desktop card names a content label before the Media page has
 loaded ("Labelled: Flashing lights."); the desktop takes only a link to a picture as a picture (a bare
 "render.png" in a non-friend's message no longer withholds its card) and removes it word by word;

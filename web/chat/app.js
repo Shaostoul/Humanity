@@ -3116,12 +3116,17 @@ function fileCardHtml(url, ext) {
     + '</div>';
   const download = `<a href="${url}" download="${name}" target="_blank" rel="noopener" class="file-download">Download</a>`;
   if (sound || video) {
-    // Only a file on this server is read before the player is pressed (its length and first
-    // frame, as the Media page's player does): never another website before a click.
+    // A sound on this server is read before its player is pressed (its length), never another
+    // website before a click. A VIDEO is never read before Play (2026-11-06, the inline player:
+    // "Can we make the videos show in chat and playable in chat?"): preload="none" on every one, so
+    // a chat full of videos fetches nothing as it loads (`metadata` read part of every video row).
+    // It plays inline (playsinline: a phone does not take it full screen), one at a time
+    // (fileMediaOnePlaying). No poster: the server keeps no still of a video (docs/design/
+    // media-player.md, "Videos inside chat messages"). The desktop app's twin: chat/inline_video.rs.
     const preload = fileOnThisServer(address) ? 'metadata' : 'none';
     const player = sound
       ? `<audio controls preload="${preload}" src="${url}"></audio>`
-      : `<video controls preload="${preload}" src="${url}"></video>`;
+      : `<video controls playsinline preload="none" src="${url}"></video>`;
     return head + player + info + download + '</div>';
   }
   return head + info + download + '</div>';
@@ -3261,11 +3266,52 @@ function fileMediaTrouble(e) {
   media.hidden = true;
 }
 
+// ── One player at a time, and none playing off screen (2026-11-06) ──
+// The chat's videos play inline in their cards. Starting one pauses the one that played before, so
+// a chat full of videos never plays two at once (a sound counts too: one thing at a time), and a
+// playing one scrolled out of view is paused (an IntersectionObserver, where the browser has one).
+// The desktop app's twin: src/gui/pages/chat/inline_video.rs (one current video; a row off the
+// screen drops its player). Heard in the CAPTURE phase on the containers, as `error` is above:
+// `play` and `pause` do not bubble.
+let fileMediaPlaying = null;
+let fileMediaSeen = null;
+
+/** The IntersectionObserver's answer: a watched player out of view is paused. */
+function fileMediaOffScreen(entries) {
+  for (const entry of entries || []) {
+    if (entry && !entry.isIntersecting && entry.target && typeof entry.target.pause === 'function') entry.target.pause();
+  }
+}
+
+/** A file card's player started: the one that played before is paused, and this one is watched. */
+function fileMediaOnePlaying(e) {
+  const media = e && e.target;
+  const tag = media && media.tagName ? String(media.tagName).toLowerCase() : '';
+  if (tag !== 'video' && tag !== 'audio') return;
+  const card = typeof media.closest === 'function' ? media.closest('.file-card-media') : null;
+  if (!card) return;
+  if (fileMediaPlaying && fileMediaPlaying !== media && typeof fileMediaPlaying.pause === 'function') fileMediaPlaying.pause();
+  fileMediaPlaying = media;
+  if (!fileMediaSeen && typeof IntersectionObserver === 'function') fileMediaSeen = new IntersectionObserver(fileMediaOffScreen, { threshold: 0 });
+  if (fileMediaSeen) fileMediaSeen.observe(media);
+}
+
+/** A file card's player paused or ended: no longer watched (a paused one off screen costs nothing). */
+function fileMediaStopped(e) {
+  const media = e && e.target;
+  if (!media) return;
+  if (fileMediaSeen) { try { fileMediaSeen.unobserve(media); } catch (err) { /* never watched */ } }
+  if (fileMediaPlaying === media && e.type === 'ended') fileMediaPlaying = null;
+}
+
 /** Hear the file cards' players under `container` (the messages, the thread panel). */
 function listenForFileTrouble(container) {
   if (!container || typeof container.addEventListener !== 'function') return;
   container.addEventListener('error', fileMediaTrouble, true);
   container.addEventListener('loadedmetadata', fileMediaTrouble, true);
+  container.addEventListener('play', fileMediaOnePlaying, true);
+  container.addEventListener('pause', fileMediaStopped, true);
+  container.addEventListener('ended', fileMediaStopped, true);
 }
 listenForFileTrouble(document.getElementById('messages'));
 listenForFileTrouble(document.getElementById('thread-panel-messages'));

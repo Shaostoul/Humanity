@@ -412,6 +412,87 @@ content demands it; dav1d's assembly is typically 2 to 4x faster than the
 plain build. It is not turned on now because it is not needed for 1080p and
 the no-toolchain build is worth keeping simple.
 
+### A video playing in a chat row (2026-11-06)
+
+Method: `chat::inline_video::tests::bench_one_playing_video_frame_cost`, run in release
+(`cargo test --release --features native --lib chat::inline_video::tests::bench -- --ignored
+--nocapture`, `HUMANITY_CHAT_VIDEO_BENCH_FILE` pointing at a 10 s 1920x1080 30 fps AV1 MP4 made
+with SVT-AV1, preset 10, CRF 35, kept in the session scratchpad). It times the frame loop's own
+work, the chat page with twenty video rows laid out at 2560x1440 plus egui's tessellation, over
+240 frames paced at 120 Hz, with nothing playing and then with one row playing. Same machine as
+above; other agents' builds were running, so the baselines spread between runs.
+
+| | mean per frame | p95 |
+|---|---|---|
+| Twenty video rows, nothing playing (four runs) | 2.4 to 5.3 ms | 3.6 to 17.9 ms |
+| One row playing 1080p, picture made unmultiplied (the code before) | 9.07 ms | 23.4 ms |
+| One row playing 1080p, picture made premultiplied (three runs) | 3.8 to 4.0 ms | 8.0 to 8.8 ms |
+
+The step that mattered is turning each decoded picture into an egui image: measured alone at
+1920x1080, `ColorImage::from_rgba_unmultiplied` took 8.9 to 10.8 ms a picture and
+`from_rgba_premultiplied` 2.6 to 2.9 ms. Every decoder here writes opaque pictures (alpha 255), for
+which the two are the same bytes, so `VideoView::poll` now uses the premultiplied form, for the
+Media page's player as well. So one playing 1080p video costs the frame loop about 2.7 ms on each
+frame a new picture arrives (30 a second), about 1 ms averaged over 120 Hz frames, plus what this
+headless run cannot see: the 8.3 MB upload of each picture to the GPU, and the decoder's own threads
+(the table above). A row that is not playing costs what any row does: no fetch, no decoder, no
+repaint (its bars are `track_bar`, which asks for none).
+
+## Videos inside chat messages (2026-11-06)
+
+The operator, 2026-11-04, with a screenshot of a `.mp4` card in #global: "Can we make the videos
+show in chat and playable in chat?" Before this a posted video was a file card whose Play here
+opened the video in a window of its own. Now the player sits inside the message, in both apps.
+
+**The desktop app** (`src/gui/pages/chat/inline_video.rs`, drawn in the card by
+`chat/public_files.rs`; the controls are `widgets/video_view.rs`, the Media page's player):
+
+- The card of a video on the message's own server holds a picture box (16:9 until the video says
+  its shape, at most 560 points wide), a seek bar, Play or Pause, the time, Mute, the volume and
+  Full window. Full window is the old window, kept as the bigger view of the same player (nothing
+  is fetched again); closing it puts the video back in its message.
+- **Nothing costs anything until Play.** A row fetches nothing and decodes nothing when it is
+  drawn. The first Play fetches the whole file (the player opens a file; streaming is not built,
+  "Streaming from the relay" below) on the one road every video takes: `VideoView::start` hands
+  the copy to `transcode::begin_ingest_as`, which plays it, converts it with the person's ffmpeg,
+  or names it in the plain words BUG-228 built. Those words are drawn in the row, under the
+  player, with the card's Download beside the name.
+- **The still frame is drawn after the first press, not before** (the brief asked which). A still
+  before Play would need, for every video row on screen, a range read of the MP4's index box
+  (phones and many tools write it at the END of the file, so a second read), then the first
+  keyframe, then a picture decoded: a fetch and a decode for every video nobody pressed, which is
+  exactly the cost this design refuses. So the box is black with a Play mark and "Press Play to
+  fetch and watch it here." until the first Play; after that, the picture last shown stays as the
+  row's still (made small, at most 480 pixels wide, when the player goes) with the place it
+  reached, and Play carries on from there. The better still, a poster made once when the video is
+  posted and served beside it, needs the uploader's app to make one and the relay to keep it:
+  the next rung, and an operator question.
+- **One video plays at a time.** The last video Play was pressed on is the only one allowed to
+  play; every other is paused at the end of the frame (`ChatVideos::end_frame`), which also
+  catches a video whose fetch finishes after another was started.
+- **A row off the screen keeps nothing running.** A player whose row was not drawn inside the
+  messages' view this frame or the last one (and is not in Full window) is dropped: its decoder,
+  its decode thread, its sound and its temporary copy go, and only its still and its place stay.
+  The chat is not a virtual list (every row is laid out every frame), so "on screen" is the row's
+  picture box intersecting the scroll view's clip (`ui.is_rect_visible`). Switching page or
+  channel drops them all the same way.
+- **Nothing is kept across runs.** The temporary copies go with their players (and the next start
+  sweeps any a crash left); the stills, the places and the words are memory only. The stills obey
+  the Dev page's "turn off all reuse" switch: with reuse off none is kept, and a row goes back to
+  its Play mark. At most 24 stills are kept; the oldest goes first.
+- Below Verified, a poster's files are plain words (chat access rung 1); no player is drawn for
+  them, as no card was before.
+
+**The website** (`web/chat/app.js` `fileCardHtml`): the browser's own `<video controls>` inline in
+the card, `preload="none"` on every video (it was `metadata` for this server's files, a read of
+every video row as the chat loaded), so nothing is fetched until Play. No poster: the server keeps
+none (the rung above). A capture-phase `play` listener pauses the card that played before, so one
+plays at a time, and a playing card scrolled out of view is paused (an IntersectionObserver). A
+file the browser cannot play says so in its card, as since 2026-10-17.
+
+**What one playing video costs** is measured in "Measurements" below ("A video playing in a chat
+row").
+
 ## Not done yet (deliberately, this rung)
 
 - **Display integration: DONE** for in-world screens (`video:<path>` in

@@ -87,7 +87,11 @@ mod attach_view;
 /// Files posted into a public channel: a card with Download, and View in 3D for a model (2026-10-17).
 /// See `chat/public_files.rs`.
 pub(crate) mod public_files;
-pub(crate) use public_files::{draw_model_window, draw_video_window, post_in, sync_video_sound};
+pub(crate) use public_files::{draw_model_window, post_in};
+/// A posted video plays inside its card, one at a time, nothing fetched before Play (2026-11-06).
+/// See `chat/inline_video.rs`.
+pub(crate) mod inline_video;
+pub(crate) use inline_video::{draw_video_window, sync_video_sound};
 /// Device-to-device big files (answer 10): a row per transfer at the top of a DM. See `chat/transfer_rows.rs`.
 mod transfer_rows;
 #[cfg(test)]
@@ -1170,7 +1174,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             || state.show_join_group_modal
                             || state.image_viewer_url.is_some()
                             || state.chat_model_view.is_some()
-                            || state.chat_video.is_some();
+                            || state.chat_video.window_open();
                         // Þ-only hover detection — does NOT use the wider
                         // est_popup_rect because that overlaps the message
                         // text on the same line (operator feedback

@@ -3310,6 +3310,27 @@ window.HOS_I18N_EN = {
     "shade_keys_hint": "Press Escape or Back to close this box, or use its own buttons.",
     "shade_decide_hint": "This box needs an answer first: use its own buttons."
   },
+  "chat_video": {
+    "play": "Play",
+    "play_hint": "Plays the video here in its message. The video is fetched from the server when you press this, never before.",
+    "pause": "Pause",
+    "pause_hint": "Pauses the video. It stays here, ready to carry on.",
+    "picture_hint": "Press the picture to play or pause the video. Only one video in the chat plays at a time.",
+    "press_play": "Press Play to fetch and watch it here.",
+    "fetching": "Fetching the video...",
+    "starting": "Starting...",
+    "time": "{{at}} of {{length}}",
+    "seek_hint": "How far into the video you are. Press or drag along the bar to jump to another moment.",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "mute_hint": "Silences the videos in the chat, or brings their sound back.",
+    "volume_hint": "How loud the videos in the chat play, on top of the app's own volume.",
+    "full_window": "Full window",
+    "full_window_hint": "Shows the video bigger, in a window of its own over the chat.",
+    "in_window": "Playing in its own window.",
+    "close_window": "Close the window",
+    "close_window_hint": "Closes the big window. The video goes back to its message."
+  },
   "model_view": {
     "help": "{{name}}: drag to turn it, scroll to zoom, right-drag or Shift-drag to move it, double-click to start over. {{triangles}} triangles.",
     "close_hint": "Stop showing the model here. The file stays where it is."

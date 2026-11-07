@@ -26,8 +26,9 @@
 //!
 //! THE CONTEXT-BOUND TEXTURE RULE. An `egui::TextureHandle` belongs to the
 //! `Context` that created it; using it under another context draws garbage
-//! or nothing. `GuiState` holds three such handles (`image_cache`,
-//! `watch_texture`, `link_device_qr`), all created by whichever context ran
+//! or nothing. `GuiState` holds four such sets (`image_cache`,
+//! `watch_texture`, `link_device_qr`, and `chat_video`, the chat's inline
+//! videos and their stills since 2026-11-06), all created by whichever context ran
 //! the page that made them. A surface therefore keeps its OWN
 //! [`ScreenTextures`] and swaps them into `GuiState` for the duration of its
 //! page draw, restoring the main UI's on every exit path. The swap is a guard
@@ -55,11 +56,14 @@ pub struct ScreenTextures {
     pub image_cache: ImageCache,
     pub watch_texture: Option<egui::TextureHandle>,
     pub link_device_qr: Option<(String, egui::TextureHandle)>,
+    /// The chat's inline videos as this screen shows them: their players' pictures and stills are
+    /// this screen's textures (2026-11-06, pages/chat/inline_video.rs).
+    pub(crate) chat_video: crate::gui::pages::chat::inline_video::ChatVideos,
 }
 
 impl Default for ScreenTextures {
     fn default() -> Self {
-        Self { image_cache: ImageCache::new(), watch_texture: None, link_device_qr: None }
+        Self { image_cache: ImageCache::new(), watch_texture: None, link_device_qr: None, chat_video: Default::default() }
     }
 }
 
@@ -70,6 +74,7 @@ impl ScreenTextures {
         std::mem::swap(&mut self.image_cache, &mut state.image_cache);
         std::mem::swap(&mut self.watch_texture, &mut state.watch_texture);
         std::mem::swap(&mut self.link_device_qr, &mut state.link_device_qr);
+        std::mem::swap(&mut self.chat_video, &mut state.chat_video);
     }
 }
 
@@ -702,6 +707,9 @@ impl ScreenCore {
                 // after every page draw; a screen showing chat needs the same,
                 // against ITS cache (the swapped-in one) and ITS context.
                 state.image_cache.poll(ctx);
+                // And the end of the frame for ITS chat videos (the main loop's is in
+                // `chat::draw_video_window`): one plays at a time, a row off this screen drops its player.
+                state.chat_video.end_frame(ctx);
             }
             ScreenSource::Unknown(_) => notice(ctx, &format!("No source named \"{source_id}\"")),
             // A provider normally draws these before this path is reached

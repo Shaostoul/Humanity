@@ -15,6 +15,13 @@
 //! video never got the conversion a screen gave the same file. The decision runs on the fetch's
 //! worker (it may ask Windows and ffmpeg); a conversion is written beside the temporary copy and
 //! deleted with it, so nothing is kept across runs.
+//!
+//! **Inside a chat message (2026-11-06).** A video posted in chat plays in its row
+//! (`pages/chat/inline_video.rs`), through this view: its picture, its place ([`VideoView::seek_to`]),
+//! a starting place for a video played again after its row left the screen
+//! ([`VideoView::start_at`]), its own volume on top of the app's ([`VideoView::volume`]), and the
+//! last picture it showed, made small for the row's still ([`VideoView::still_image`]). The seek
+//! and volume bars are [`track_bar`].
 
 use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
@@ -34,8 +41,6 @@ pub const MUTE: &str = "Mute";
 pub const UNMUTE: &str = "Unmute";
 pub const FETCHING: &str = "Fetching the video...";
 pub const STARTING: &str = "Starting...";
-/// The button that closes a window a video plays in.
-pub const CLOSE: &str = "Close the video";
 
 /// What the view says under a video whose sound the computer cannot play here.
 pub fn sound_lost_words(codec: &str) -> String {
@@ -52,7 +57,6 @@ pub fn cannot_play_words(why: &str) -> String {
 type Fetched = Result<(PathBuf, Ingest), String>;
 
 /// A video being fetched, playing, or that could not play.
-#[derive(Default)]
 pub struct VideoView {
     fetch_rx: Option<Receiver<Fetched>>,
     pub(crate) player: Option<crate::media::VideoPlayer>,
@@ -71,6 +75,34 @@ pub struct VideoView {
     sound_attached: bool,
     pub muted: bool,
     pub(crate) volume_sent: Option<f64>,
+    /// Its own volume, 0 to 1, on top of the app's master volume (a chat row's volume bar).
+    pub volume: f32,
+    /// Where it starts when its player opens, in seconds (a chat video played again after its row
+    /// left the screen carries on from its place). 0: the start.
+    pub start_at: f64,
+    /// The last picture shown, kept (moved, not copied) for [`VideoView::still_image`].
+    last_frame: Option<crate::media::VideoFrame>,
+}
+
+impl Default for VideoView {
+    fn default() -> Self {
+        VideoView {
+            fetch_rx: None,
+            player: None,
+            texture: None,
+            problem: String::new(),
+            temp: None,
+            job: None,
+            converted: None,
+            name: String::new(),
+            sound_attached: false,
+            muted: false,
+            volume_sent: None,
+            volume: 1.0,
+            start_at: 0.0,
+            last_frame: None,
+        }
+    }
 }
 
 impl VideoView {
@@ -113,15 +145,65 @@ impl VideoView {
         self.job.as_ref().map(|j| j.percent())
     }
 
-    /// Open the player on `path` and start it, or say why not.
+    /// Open the player on `path` and start it (at [`VideoView::start_at`]), or say why not.
     fn open(&mut self, path: &std::path::Path) {
         match crate::media::VideoPlayer::open(path) {
             Ok(mut player) => {
+                // A place at the very end would start it ended: then it starts from the top.
+                if self.start_at > 0.0 && (player.duration_s() <= 0.0 || self.start_at < player.duration_s() - 0.5) {
+                    player.seek_to(self.start_at);
+                }
                 player.play();
                 self.player = Some(player);
             }
             Err(e) => self.problem = cannot_play_words(&e.to_string()),
         }
+    }
+
+    /// The picture on show, once the first one has come.
+    pub fn texture(&self) -> Option<&egui::TextureHandle> {
+        self.texture.as_ref()
+    }
+
+    /// Whether it is playing now.
+    pub fn is_playing(&self) -> bool {
+        self.player.as_ref().is_some_and(|p| p.is_playing())
+    }
+
+    /// Play it (from the top again once it has ended). Nothing before its player is there.
+    pub fn play(&mut self) {
+        if let Some(player) = self.player.as_mut() {
+            if player.at_end() {
+                player.seek_to_start();
+            }
+            player.play();
+        }
+    }
+
+    /// Pause it.
+    pub fn pause(&mut self) {
+        if let Some(player) = self.player.as_mut() {
+            player.pause();
+        }
+    }
+
+    /// Move it to `seconds` (clamped into the video), playing or paused as it was.
+    pub fn seek_to(&mut self, seconds: f64) {
+        if let Some(player) = self.player.as_mut() {
+            player.seek_to(seconds);
+        }
+    }
+
+    /// Where it is and how long it is, in seconds (0 and 0 before its player is there).
+    pub fn place(&self) -> (f64, f64) {
+        self.player.as_ref().map_or((0.0, 0.0), |p| (p.position_s(), p.duration_s()))
+    }
+
+    /// The last picture it showed, at most `max_width` pixels wide (each pixel of the small one the
+    /// average of the block of the big one it covers), for a row's still once its player goes.
+    pub fn still_image(&self, max_width: usize) -> Option<egui::ColorImage> {
+        let f = self.last_frame.as_ref()?;
+        Some(small_picture(&f.rgba, f.width as usize, f.height as usize, max_width))
     }
 
     /// Take what the fetch finished and the next frame. Every frame the view is drawn.
@@ -166,11 +248,17 @@ impl VideoView {
         }
         if let Some(player) = self.player.as_mut() {
             if let Some(frame) = player.poll() {
-                let image = egui::ColorImage::from_rgba_unmultiplied([frame.width as usize, frame.height as usize], &frame.rgba);
+                // Every decoder here writes opaque pictures (alpha 255: media/video.rs and
+                // media/system.rs), for which premultiplied and unmultiplied are the same bytes;
+                // the premultiplied form is a plain copy, where the unmultiplied one branches on
+                // every pixel's alpha (2026-11-06: measured in chat::inline_video::tests::bench).
+                let image = egui::ColorImage::from_rgba_premultiplied([frame.width as usize, frame.height as usize], &frame.rgba);
                 match self.texture.as_mut() {
                     Some(tex) => tex.set(image, egui::TextureOptions::LINEAR),
                     None => self.texture = Some(ctx.load_texture("video_view_frame", image, egui::TextureOptions::LINEAR)),
                 }
+                // Kept for a row's still (moved, not copied: the frame was going to be dropped here).
+                self.last_frame = Some(frame);
             }
             if let Some(e) = player.take_error() {
                 self.problem = tf("video.stopped", &[("error", &e)]);
@@ -254,7 +342,7 @@ impl VideoView {
         if player.info().audio_track.is_none() {
             return;
         }
-        let volume = if self.muted { 0.0 } else { audio.master_volume() };
+        let volume = if self.muted { 0.0 } else { audio.master_volume() * self.volume.clamp(0.0, 1.0) as f64 };
         if !self.sound_attached {
             self.sound_attached = true;
             let opts = crate::media::AudioAttach { looping: false, volume, panning: 0.5 };
@@ -295,4 +383,110 @@ impl Drop for VideoView {
 pub fn clock(seconds: f64) -> String {
     let s = seconds.max(0.0) as u64;
     format!("{}:{:02}", s / 60, s % 60)
+}
+
+/// `rgba` (`width` x `height`, tightly packed) made at most `max_width` wide, its shape kept: each
+/// pixel of the small picture is the average of the block of the big one it covers (a box filter,
+/// so a 1080p frame's fine detail does not shimmer into noise the way picking one pixel would).
+/// A picture already that narrow is copied as it is.
+pub fn small_picture(rgba: &[u8], width: usize, height: usize, max_width: usize) -> egui::ColorImage {
+    let (width, height) = (width.max(1), height.max(1));
+    if rgba.len() < width * height * 4 {
+        return egui::ColorImage::new([1, 1], egui::Color32::TRANSPARENT);
+    }
+    let max_width = max_width.max(1);
+    if width <= max_width {
+        return egui::ColorImage::from_rgba_unmultiplied([width, height], &rgba[..width * height * 4]);
+    }
+    let w = max_width;
+    let h = ((height * w) as f64 / width as f64).round().max(1.0) as usize;
+    let mut out = Vec::with_capacity(w * h * 4);
+    for y in 0..h {
+        let (y0, y1) = (y * height / h, ((y + 1) * height / h).max(y * height / h + 1).min(height));
+        for x in 0..w {
+            let (x0, x1) = (x * width / w, ((x + 1) * width / w).max(x * width / w + 1).min(width));
+            let mut sum = [0u32; 4];
+            for sy in y0..y1 {
+                let row = &rgba[(sy * width + x0) * 4..(sy * width + x1) * 4];
+                for px in row.chunks_exact(4) {
+                    for c in 0..4 {
+                        sum[c] += px[c] as u32;
+                    }
+                }
+            }
+            let n = ((y1 - y0) * (x1 - x0)) as u32;
+            out.extend(sum.iter().map(|s| (s / n) as u8));
+        }
+    }
+    egui::ColorImage::from_rgba_unmultiplied([w, h], &out)
+}
+
+/// When a [`track_bar`] says where it was put.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrackReport {
+    /// On every frame of a drag (a volume: moving it costs nothing).
+    Live,
+    /// Once, at a click or where a drag let go (a video's place: each seek restarts its decoder,
+    /// so it seeks once, not on every point of a drag).
+    OnRelease,
+}
+
+/// A bar that shows how far along something is and lets a person put it elsewhere: a video's place,
+/// a volume. The part done is in the accent colour, the rest in the slider track's, with a knob at
+/// the place. Plain on purpose: no gradient and no animated ring, because `widgets::custom_slider`
+/// asks for a repaint every frame for its ring, which a paused video in a chat row must not cost.
+/// The arrow keys move it by a twentieth once Tab has reached it. `hint_key` is its plain words.
+/// Returns where it was put, 0 to 1 (see [`TrackReport`]); nothing while `enabled` is false. The
+/// website's twin is the browser's own `<video controls>` bar.
+#[allow(clippy::too_many_arguments)]
+pub fn track_bar(ui: &mut egui::Ui, theme: &Theme, id_salt: impl std::hash::Hash, value: f32, width: f32, enabled: bool, report: TrackReport, hint_key: &'static str) -> Option<f32> {
+    use crate::gui::widgets::hint::Hint;
+    let knob = theme.slider_thumb_radius;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width.max(knob * 4.0), knob * 2.0 + 4.0), egui::Sense::hover());
+    let id = ui.make_persistent_id(id_salt);
+    let resp = ui.interact(rect, id, egui::Sense::click_and_drag()).hint(hint_key);
+    resp.widget_info(|| egui::WidgetInfo::slider(enabled, value as f64, humanity_core::i18n::t(hint_key)));
+    let left = rect.left() + knob;
+    let travel = (rect.width() - 2.0 * knob).max(1.0);
+    let at_pointer = resp.interact_pointer_pos().map(|p| ((p.x - left) / travel).clamp(0.0, 1.0));
+    // Where a drag has got to, kept for its release (the pointer may be gone by then).
+    if resp.dragged() {
+        if let Some(f) = at_pointer {
+            ui.data_mut(|d| d.insert_temp(id, f));
+        }
+    }
+    let mut put = None;
+    if enabled {
+        put = match report {
+            TrackReport::Live if resp.dragged() || resp.clicked() => at_pointer,
+            TrackReport::OnRelease if resp.drag_stopped() => at_pointer.or_else(|| ui.data(|d| d.get_temp::<f32>(id))),
+            TrackReport::OnRelease if resp.clicked() => at_pointer,
+            _ => None,
+        };
+        if resp.has_focus() {
+            ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, egui::EventFilter { horizontal_arrows: true, ..Default::default() }));
+            let (back, on) = ui.input(|i| (i.key_pressed(egui::Key::ArrowLeft), i.key_pressed(egui::Key::ArrowRight)));
+            if back || on {
+                put = Some((value + if on { 0.05 } else { -0.05 }).clamp(0.0, 1.0));
+            }
+        }
+    }
+    if ui.is_rect_visible(rect) {
+        // While a drag is held, the knob follows the pointer (the place moves once, at the release).
+        let shown = if enabled && resp.dragged() { at_pointer.unwrap_or(value) } else { put.unwrap_or(value) }.clamp(0.0, 1.0);
+        let x = left + shown * travel;
+        let line = theme.slider_track_height;
+        let y = rect.center().y;
+        let corner = egui::CornerRadius::same((line / 2.0).round().clamp(0.0, 255.0) as u8);
+        let dim = |c: egui::Color32| if enabled { c } else { c.gamma_multiply(0.45) };
+        let painter = ui.painter();
+        painter.rect_filled(egui::Rect::from_min_max(egui::pos2(left, y - line / 2.0), egui::pos2(left + travel, y + line / 2.0)), corner, dim(theme.slider_track()));
+        if x > left {
+            painter.rect_filled(egui::Rect::from_min_max(egui::pos2(left, y - line / 2.0), egui::pos2(x, y + line / 2.0)), corner, dim(theme.accent()));
+        }
+        let knob_fill = if enabled && (resp.hovered() || resp.dragged()) { theme.text_primary() } else { theme.text_secondary() };
+        painter.circle_filled(egui::pos2(x, y), knob, dim(knob_fill));
+    }
+    crate::gui::widgets::focus_ring(ui, theme, &resp);
+    put
 }

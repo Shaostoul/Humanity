@@ -30,7 +30,7 @@ fn card_frame(ctx: &egui::Context, cache: &ImageCache, card: &Card) -> Vec<Strin
     let theme = crate::gui::theme::load_theme();
     let out = ctx.run(egui::RawInput::default(), |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            draw_card(ui, &theme, cache, card, theme.bg_primary());
+            draw_card(ui, &theme, cache, card, theme.bg_primary(), None);
         });
     });
     texts_of(&out)
@@ -116,13 +116,13 @@ fn a_file_on_another_website_is_not_contacted_before_a_click() {
     let theme = crate::gui::theme::load_theme();
     let mut cache = ImageCache::new();
     let mut viewer = None;
-    let mut video = None;
+    let mut videos = ChatVideos::default();
     let theirs = Card::of("https://files.example.com/notes.pdf", SERVER);
     let own = Card::of("/uploads/1_notes.pdf", SERVER);
     let out = ctx.run(egui::RawInput::default(), |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            draw(ui, &theme, &mut cache, &mut viewer, &mut video, "", &theirs, theme.bg_primary());
-            draw(ui, &theme, &mut cache, &mut viewer, &mut video, "", &own, theme.bg_primary());
+            draw(ui, &theme, &mut cache, &mut viewer, &mut videos, "", &theirs, theme.bg_primary());
+            draw(ui, &theme, &mut cache, &mut viewer, &mut videos, "", &own, theme.bg_primary());
         });
     });
     let texts = texts_of(&out).join("
@@ -193,93 +193,109 @@ fn the_chat_page_shows_a_posted_video_as_a_card_not_a_bare_path() {
     }
     assert!(texts.contains("WH40K_Marriah_Carey.mp4"), "the video's name is shown: {texts}");
     assert!(texts.contains("1.1 MB") && texts.contains("Download"), "{texts}");
-    assert!(texts.contains(crate::gui::widgets::video_view::PLAY_HERE) && !texts.contains("patents"), "Play here, not the patent line: {texts}");
+    // Since 2026-11-06 the video plays inside its card (chat/inline_video.rs): its player, not Play here.
+    let play = humanity_core::i18n::t("chat_video.play");
+    assert!(texts.contains(play) && texts.contains(humanity_core::i18n::t("chat_video.full_window")) && !texts.contains("patents"), "its player in the card, not the patent line: {texts}");
+    assert!(!texts.contains(crate::gui::widgets::video_view::PLAY_HERE), "no Play here button: {texts}");
     assert!(texts.contains("Found this one"), "the message's own words stay: {texts}");
     assert!(!texts.contains("/uploads/"), "the bare address is not drawn: {texts}");
 }
 
-//// The chat's video window drawn until `until` holds for its words (or 30 s pass), over a view that
-/// was handed `fixture` (copied to a temporary `clip.video`, in place of the network) with the
-/// ffmpeg setting `ffmpeg`. Returns the window's last words, the copy's path and the window; the
-/// copy's folder is `dir`'s, kept by the caller so a check that the copy went cannot pass because
-/// the whole folder went first.
-fn play_in_window(fixture: &std::path::Path, dir: &std::path::Path, ffmpeg: &str, until: impl Fn(&[String]) -> bool) -> (Vec<String>, std::path::PathBuf, Option<ChatVideo>) {
+/// A video's card drawn on its own until `until` holds for its words (or 30 s pass), its Play pressed
+/// once first, with the fetch handing over a copy of `fixture` (`clip.video` in `dir`, in place of the
+/// network) and the ffmpeg setting `ffmpeg`. Each frame ends the way the engine ends one
+/// (`end_frame`). Returns the card's last words, the copy's path and the chat's videos; the copy's
+/// folder is `dir`'s, kept by the caller so a check that the copy went cannot pass because the whole
+/// folder went first. (It was the window Play here opened until the player moved into the card,
+/// 2026-11-06.)
+fn play_in_card(fixture: &std::path::Path, dir: &std::path::Path, ffmpeg: &str, until: impl Fn(&[String]) -> bool) -> (Vec<String>, std::path::PathBuf, ChatVideos) {
     let copy = dir.join("clip.video");
-    std::fs::copy(fixture, &copy).unwrap();
-    let mut view = crate::gui::widgets::video_view::VideoView::default();
-    let handed = copy.clone();
-    view.start(ffmpeg, "clip.mp4", move || Ok(handed));
-    let mut video = Some(ChatVideo { name: "clip.mp4".into(), view });
+    let mut videos = ChatVideos::default();
+    let (from, to) = (fixture.to_path_buf(), copy.clone());
+    videos.fetch_for_test = Some(std::sync::Arc::new(move |_url: &str| std::fs::copy(&from, &to).map(|_| to.clone()).map_err(|e| e.to_string())));
+    let card = Card::of("/uploads/1_clip.mp4", SERVER);
+    let mut cache = ImageCache::new();
+    cache.set_size_for_test(&card.url, Some(8_000));
+    let mut viewer = None;
     let ctx = egui::Context::default();
     let theme = crate::gui::theme::load_theme();
     let input = || egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0))), ..Default::default() };
     let started = std::time::Instant::now();
     let mut texts = Vec::new();
+    let mut pressed = false;
     while started.elapsed() < std::time::Duration::from_secs(30) {
-        let out = ctx.run(input(), |ctx| draw_video_window(ctx, &theme, &mut video));
+        let out = ctx.run(input(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw(ui, &theme, &mut cache, &mut viewer, &mut videos, ffmpeg, &card, theme.bg_primary()));
+            if !pressed {
+                videos.press_play(&card.url, &card.name, ffmpeg);
+                pressed = true;
+            }
+            videos.end_frame(ctx);
+        });
         texts = texts_of(&out);
         if until(&texts) {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    (texts, copy, video)
+    (texts, copy, videos)
 }
 
 fn media_fixture(name: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media").join(name)
 }
 
-/// PLAY HERE PLAYS A VIDEO POSTED IN CHAT IN ITS OWN WINDOW (2026-10-18; it had said to watch it in
-/// another player): the window fetches the video (here a copy of the H.264 fixture handed over in
-/// place of the network), plays it with Pause and Start again, and Close takes it away with its
-/// temporary copy. Seen red 2026-10-18 with the window not polling its view: "the video plays in its
-/// window" (it stayed at "Fetching the video..."; that run also showed its Close reading "Close the
-/// 3D view", the model window's words, now its own).
+/// A VIDEO POSTED IN CHAT PLAYS IN ITS CARD (2026-10-18 in a window of its own, Play here; inside the
+/// card since 2026-11-06): the card fetches the video (here a copy of the H.264 fixture handed over in
+/// place of the network) and plays it with Pause, and the chat's videos going takes the temporary
+/// copy with them. Seen red 2026-10-18 with the window not polling its view: "the video plays in its
+/// window" (it stayed at "Fetching the video..."); and 2026-11-06, in the card, with `on_screen` not
+/// polling: "the video plays in its card" (it stayed at "Fetching the video...").
 #[cfg(windows)]
 #[test]
-fn play_here_plays_a_video_posted_in_chat_in_its_own_window() {
+fn a_video_posted_in_chat_plays_in_its_card() {
     if !crate::media::system::available() {
         println!("skipped: this copy of Windows has no Media Foundation");
         return;
     }
     let playing = |t: &[String]| t.iter().any(|t| t == "Pause");
     let dir = humanity_core::test_temp::dir("chat_play_here");
-    let (texts, copy, video) = play_in_window(&media_fixture("moving-box-h264-aac.mp4"), &dir, "", playing);
-    assert!(texts.iter().any(|t| t == "Pause") && texts.iter().any(|t| t == "Start again"), "the video plays in its window: {texts:?}");
-    assert!(texts.iter().any(|t| t == "clip.mp4"), "the window is named for it: {texts:?}");
-    assert!(texts.iter().any(|t| t == crate::gui::widgets::video_view::CLOSE), "its own Close: {texts:?}");
-    drop(video);
-    assert!(!copy.exists(), "Close takes the temporary copy with it");
+    let (texts, copy, videos) = play_in_card(&media_fixture("moving-box-h264-aac.mp4"), &dir, "", playing);
+    assert!(texts.iter().any(|t| t == "Pause"), "the video plays in its card: {texts:?}");
+    assert!(texts.iter().any(|t| t == "clip.mp4") && texts.iter().any(|t| t == "Download"), "in its card, beside its name and Download: {texts:?}");
+    assert!(copy.exists());
+    drop(videos);
+    assert!(!copy.exists(), "the temporary copy goes with its player");
 }
 
-/// THE OPERATOR'S FILE PLAYS (BUG-228): Play here on an MP4 holding AV1 video plays it in its window
-/// through our own decoder, on any computer, with no ffmpeg (the setting points at nothing usable)
-/// and no AV1 extension in Windows (this PC has none). Seen red 2026-11-03 with the code before the
-/// fix planted back (the view opening the player directly, the old probe and its words): the window
-/// said "This video cannot play in the app: not a WebM/Matroska file we can read: unexpected element
-/// found. Expected: Ebml Found: Unknown. Download it to watch it in another player.", the
-/// operator's screenshot word for word.
+/// THE OPERATOR'S FILE PLAYS (BUG-228): an MP4 holding AV1 video plays in its card through our own
+/// decoder, on any computer, with no ffmpeg (the setting points at nothing usable) and no AV1
+/// extension in Windows (this PC has none). Seen red 2026-11-03 with the code before the fix planted
+/// back (the view opening the player directly, the old probe and its words): the window said "This
+/// video cannot play in the app: not a WebM/Matroska file we can read: unexpected element found.
+/// Expected: Ebml Found: Unknown. Download it to watch it in another player.", the operator's
+/// screenshot word for word. (In the card since 2026-11-06, on the same road.)
 #[test]
-fn play_here_plays_an_av1_mp4_through_our_own_decoder() {
+fn play_plays_an_av1_mp4_through_our_own_decoder() {
     let dir = humanity_core::test_temp::dir("chat_av1_fake_ffmpeg");
     let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
     std::fs::write(&fake, b"not ffmpeg").unwrap(); // a conversion cannot rescue the test
     let playing = |t: &[String]| t.iter().any(|t| t == "Pause") || t.iter().any(|t| t.contains("cannot") || t.contains("could not"));
-    let (texts, copy, video) = play_in_window(&media_fixture("sliding-bar-av1-opus.mp4"), &dir, &fake.display().to_string(), playing);
-    assert!(texts.iter().any(|t| t == "Pause"), "the AV1 MP4 plays in its window: {texts:?}");
-    let player = video.as_ref().and_then(|v| v.view.player.as_ref()).expect("a player");
+    let (texts, copy, videos) = play_in_card(&media_fixture("sliding-bar-av1-opus.mp4"), &dir, &fake.display().to_string(), playing);
+    assert!(texts.iter().any(|t| t == "Pause"), "the AV1 MP4 plays in its card: {texts:?}");
+    let url = Card::of("/uploads/1_clip.mp4", SERVER).url;
+    let player = videos.player(&url).expect("a player");
     assert!(player.info().mp4 && !player.info().system, "through our own decoder: {:?}", player.info());
-    drop(video);
-    assert!(!copy.exists(), "Close takes the temporary copy with it");
+    drop(videos);
+    assert!(!copy.exists(), "the temporary copy goes with its player");
 }
 
-/// A VIDEO NOTHING HERE PLAYS IS NAMED IN PLAIN WORDS IN THE WINDOW (BUG-228): what the file is and
-/// what will play it, never a reader's own message. The file is not a video at all, and the ffmpeg
-/// setting points at a file that is not ffmpeg, so nothing can rescue it. Seen red 2026-11-03 with
-/// the code before the fix planted back: "This video cannot play in the app: not a WebM/Matroska
-/// file we can read: unexpected element found. Expected: Ebml Found: Unknown. Download it to watch
-/// it in another player."
+/// A VIDEO NOTHING HERE PLAYS IS NAMED IN PLAIN WORDS IN ITS CARD (BUG-228): what the file is and what
+/// will play it, never a reader's own message. The file is not a video at all, and the ffmpeg
+/// setting points at a file that is not ffmpeg, so nothing can rescue it. Seen red 2026-11-03 with the
+/// code before the fix planted back: "This video cannot play in the app: not a WebM/Matroska file we
+/// can read: unexpected element found. Expected: Ebml Found: Unknown. Download it to watch it in
+/// another player." (In the card since 2026-11-06.)
 #[test]
 fn a_video_nothing_here_plays_is_named_in_plain_words() {
     let dir = humanity_core::test_temp::dir("chat_plain_words");
@@ -288,8 +304,8 @@ fn a_video_nothing_here_plays_is_named_in_plain_words() {
     let not_video = dir.join("not-a-video.bin");
     std::fs::write(&not_video, b"these bytes are no film").unwrap();
     let refused = |t: &[String]| t.iter().any(|t| t.contains("VLC"));
-    let (texts, _copy, _video) = play_in_window(&not_video, &dir, &fake.display().to_string(), refused);
-    let words = texts.iter().find(|t| t.contains("VLC")).unwrap_or_else(|| panic!("the window says what will play it: {texts:?}"));
+    let (texts, _copy, _videos) = play_in_card(&not_video, &dir, &fake.display().to_string(), refused);
+    let words = texts.iter().find(|t| t.contains("VLC")).unwrap_or_else(|| panic!("the card says what will play it: {texts:?}"));
     assert!(words.starts_with("clip.mp4 is a kind of file this app does not read itself."), "what the file is, by the name it was posted with: {words}");
     assert!(words.contains(crate::media::transcode::FFMPEG_HINT), "the fix in the app: {words}");
     assert!(!words.contains("Ebml") && !words.contains("Expected") && !words.contains("WebM/Matroska"), "no reader's words: {words}");

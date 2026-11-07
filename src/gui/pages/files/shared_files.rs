@@ -7,7 +7,7 @@
 //! In the three panes: on the left, under the places, the list (Upload a file, Refresh, what was
 //! last done, and a row per file: its type's badge, its name, its size and who shared it); in the
 //! middle the file chosen, as the chat shows a public file (chat/public_files.rs: Download, View in
-//! 3D for a model, Play here for a video the app plays); on the right what it is, with Remove (your
+//! 3D for a model, its player for a video the app plays); on the right what it is, with Remove (your
 //! own, or any for an admin; the server checks either way) and Put on the Files page (your own:
 //! the Shared on <server> list's form opens for it, public only).
 //!
@@ -382,7 +382,7 @@ fn chosen(state: &GuiState, mine: bool) -> Option<SharedFileRow> {
 }
 
 /// The middle pane: the file chosen, as the chat shows a public file (its card: name, size,
-/// Download, View in 3D for a model, Play here for a video the app plays).
+/// Download, View in 3D for a model, its player for a video the app plays, chat/inline_video.rs).
 pub(crate) fn draw_file(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     draw_file_of(ui, theme, state, false);
 }
