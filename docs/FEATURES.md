@@ -785,7 +785,8 @@ chat and playable in chat?" A video on the message's own server is a player in i
 (a black box with a drawn Play mark until first played, its last picture after), a seek bar, Play or
 Pause, the time, Mute, the volume and Full window (the old window, kept as the bigger view of the
 same player). Nothing is fetched or decoded until Play; one video plays at a time; a row off the
-screen drops its player (decoder, sound, temporary copy) and keeps a small still and its place
+screen drops its player (decoder, sound, temporary copy; the video PLAYING goes into the dock
+instead, rung 3, below) and keeps a small still and its place
 (at most 24, none with reuse turned off); a file nothing here plays says so in the row in BUG-228's
 words beside Download. `src/gui/pages/chat/inline_video.rs` (`ChatVideos`, `draw_in_card`,
 `draw_video_window`, `end_frame`), drawn from `chat/public_files.rs` `draw_card`; the controls'
@@ -793,8 +794,8 @@ bar `widgets/video_view.rs` `track_bar`; a wall screen showing the chat keeps a 
 (`gui/screen_surface.rs` `ScreenTextures`, `ChatVideos::on_a_wall_screen`: no Full window there,
 and its sound heard from the screen, `engine::screens::place_page_sound`, BUG-258); Full window's
 body held to `widgets::dialog::body_room`, Close laid out first (BUG-258). Website: `<video controls playsinline preload="none">`
-inline in the card, one playing at a time and a playing one scrolled out of view paused
-(`web/chat/app.js` `fileMediaOnePlaying`). Design: `docs/design/media-player.md`, "Videos inside
+inline in the card, one playing at a time and a playing one scrolled out of view moved into the
+dock (rung 3, below; `web/chat/app.js` `fileMediaOnePlaying`). Design: `docs/design/media-player.md`, "Videos inside
 chat messages". Tests: `gui::pages::chat::inline_video::tests`, `private-files-web.test.js` ("plays
 inline"). Snapshots: `tests/snapshots/chat_video_still.png`, `chat_video_playing.png`, `chat_video_window_short.png`.
 **A posted video's poster picture (2026-11-06, rung 2).** The app that posts a video in a public room
@@ -821,6 +822,29 @@ card carries `data-file-poster` and sets `poster=` once the card is near the scr
 `inline_video::tests` ("poster"), `attach_send` tests, `video-poster-web.test.js`,
 `private-files-web.test.js` ("poster:"); addresses shared in
 `scripts/tests/fixtures/video-poster-addresses.json`. Snapshot: `tests/snapshots/chat_video_poster.png`.
+**The chat videos' dock (2026-11-06, rung 3).** The operator: "When we scroll them off page can we add
+like an anchored picture-in-picture mode that's stuck to the side of the chat it's at?" A PLAYING
+video whose row leaves the view (a scroll, a channel or server switched, the chat page left) moves
+into a small box, the same player, nothing fetched again: on the Chat page at the message list's top
+right under the channel header (never over the header or the message box), on every other app page
+at the right edge standing on the bottom strip, clear of the page's controls (egui's record of the
+frame before) or as the slim tab; never in the first-person world (the video pauses, the dock
+returns with the next page) and never on a wall screen. It says where the video came from ("From
+#global on <server>"), with Minimize (a slim tab, "Video playing"; it plays on, its picture not made
+an image), Close (paused, the row keeps its still), the picture, Play or Pause, the time, Mute and Go
+to message (the Chat page at its channel, the row scrolled into view). Scrolling the row back returns
+it inline; starting another video closes the dock; one chat video at a time across the app screen and
+every wall screen (a thread-local claim, `ChatVideos::yield_if_elsewhere`, and
+`engine::screens::chat_videos_one_at_a_time` every frame). Width 40% of the room, 240 to 420 points;
+a picture under 72 points starts it as the tab. Desktop: `src/gui/pages/chat/video_dock.rs`
+(`draw_video_dock`, `free_spot`, `page_controls`), `inline_video.rs` (`Dock`, `dock_moves`,
+`close_dock`), `widgets/video_view.rs` `poll_with`; layer 30 (`gui/layers.rs`). Website:
+`web/shared/video-dock.js` (the `<video>` element itself moved into the box, a line in its card;
+Float it where the browser has its own picture-in-picture), wired in `web/chat/app.js`
+(`fileDockTake`, `fileVideoDock`), styled in `web/chat/messages.css`. Design: media-player.md,
+"Rung 3: the anchored dock". Tests: `gui::pages::chat::video_dock::tests`,
+`video-dock-web.test.js`, `private-files-web.test.js` ("plays inline"). Snapshots:
+`tests/snapshots/chat_video_dock.png`, `chat_video_dock_minimized.png`, `chat_video_dock_other_page.png`.
 **Media card follow-ups (v0.1513.0).** The desktop card names a content label before the Media page has
 loaded ("Labelled: Flashing lights."); the desktop takes only a link to a picture as a picture (a bare
 "render.png" in a non-friend's message no longer withholds its card) and removes it word by word;

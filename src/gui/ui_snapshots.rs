@@ -1636,6 +1636,83 @@ fn snapshot_chat_video_playing() {
     chat_video_snapshot("chat_video_playing", true);
 }
 
+/// The chat videos' dock (rung 3, 2026-11-06, chat/video_dock.rs) at the operator's 2560x1440: the
+/// AV1 fixture played in #global, then ninety newer lines pushing its row off the screen, so it plays
+/// in the dock. `page` is where the person is: the Chat page (the dock at the message list's top
+/// right, under the channel header) or another app page (the Library, with the top menu and the
+/// bottom strip, the dock standing on the strip at the right edge, clear of the page's controls).
+/// `minimized`: folded to its tab. Nothing is asked of any server.
+fn chat_video_dock_snapshot(name: &str, page: crate::gui::GuiPage, minimized: bool) {
+    let folder = humanity_core::test_temp::dir(&format!("snapshot_{name}"));
+    render_page_png(name, 2560, 1440, |ctx, theme, state| {
+        const SERVER: &str = "http://127.0.0.1:9";
+        let slide = format!("{SERVER}/uploads/1760000000000_sliding_bar.mp4");
+        if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
+            let fixture = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/sliding-bar-av1-opus.mp4");
+            let copy = folder.join("copy.video");
+            state.chat_video.fetch_for_test = Some(std::sync::Arc::new(move |_: &str| std::fs::copy(&fixture, &copy).map(|_| copy.clone()).map_err(|e| e.to_string())));
+            state.chat_messages.retain(|m| m.channel != "global");
+            state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann0".into(), role: "verified".into(), status: String::new() });
+            let mut posts = vec!["The bar slides across, have a look /uploads/1760000000000_sliding_bar.mp4".to_string()];
+            posts.extend((0..90).map(|i| format!("A newer line, number {i}, as the conversation carries on below the video.")));
+            for (i, text) in posts.iter().enumerate() {
+                if i == 0 {
+                    state.image_cache.set_size_for_test(&slide, Some(1_121_676));
+                }
+                state.chat_messages.push(ChatMessage {
+                    sender_name: "Ann".into(),
+                    sender_key: "ann0".into(),
+                    content: text.clone(),
+                    timestamp: format!("09:{:02}", (20 + i) % 60),
+                    timestamp_ms: 1_791_481_200_000 + i as u64 * 60_000,
+                    channel: "global".into(),
+                    server: SERVER.into(),
+                    ..Default::default()
+                });
+            }
+            state.chat_active_channel = "global".into();
+            state.chat_video.press_play(&slide, "sliding_bar.mp4", "");
+            assert!(state.chat_video.wait_for_picture_or_words(&slide, ctx), "the fixture shows a picture");
+            let origin = crate::gui::pages::chat::video_dock::origin_here(state);
+            state.chat_video.dock_for_test(&slide, origin);
+            if let Some(d) = state.chat_video.dock.as_mut() {
+                d.minimized = minimized;
+            }
+        }
+        // The fixture is two seconds long: kept playing for the picture (the frames between the
+        // setup and the capture can take longer than that on a page as long as the Library's).
+        state.chat_video.rewind_for_test(&slide);
+        state.active_page = page;
+        if page == crate::gui::GuiPage::Chat {
+            crate::gui::pages::chat::draw(ctx, theme, state);
+        } else {
+            crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+            crate::gui::bottom_strip::draw_for_version(ctx, theme, state, "0.1550.0");
+            crate::gui::dispatch::draw_tool_page(ctx, page, theme, state);
+        }
+        crate::gui::pages::chat::draw_video_dock(ctx, theme, state);
+        crate::gui::pages::chat::draw_video_window(ctx, theme, &mut state.chat_video);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_video_dock() {
+    chat_video_dock_snapshot("chat_video_dock", crate::gui::GuiPage::Chat, false);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_video_dock_minimized() {
+    chat_video_dock_snapshot("chat_video_dock_minimized", crate::gui::GuiPage::Chat, true);
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_video_dock_other_page() {
+    chat_video_dock_snapshot("chat_video_dock_other_page", crate::gui::GuiPage::Library, false);
+}
+
 /// A chat video's Full window on a short screen (1280x720 at Font Size 175%, about 731 x 411
 /// points), the AV1 fixture playing under a long name: Close the window sits inside the window, the
 /// controls above it, the picture given the height they leave (BUG-258; it was 0.72 of the screen's

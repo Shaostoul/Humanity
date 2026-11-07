@@ -1143,6 +1143,17 @@ pub(crate) fn place_page_sound(core: &mut crate::gui::screen_surface::ScreenCore
     core.sync_page_sound(audio, crate::gui::widgets::video_view::SoundPlace::World { falloff, pan });
 }
 
+/// One chat video at a time across the app screen and every wall screen (the operator, 2026-11-06:
+/// "Agreed."): every page screen's chat videos give way to a Play pressed since in another set (the
+/// app's, or another screen's), framed or not (`ChatVideos::yield_if_elsewhere`). The main loop calls
+/// it every frame before the screens are framed, which covers a page covering the world, when no
+/// screen draws (so none would otherwise notice the app's video start). A few comparisons a screen.
+pub(crate) fn chat_videos_one_at_a_time(screens: &mut Screens) {
+    for s in screens.surfaces.iter_mut() {
+        s.core.yield_chat_video();
+    }
+}
+
 #[cfg(test)]
 #[path = "screens_sound_tests.rs"]
 mod sound_tests;

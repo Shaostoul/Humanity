@@ -349,7 +349,7 @@ so that there too, lower is nearer.
 | **19** | The secondary row's More | |
 | **20** | **The secondary menu** | Its hover preview never leaves its row. |
 | **21** | **The unfinished-software warning** | At the bottom; nearer than the footer, so the footer never covers it (it slides behind it when folded, as the website's already does). |
-| **30** | **The footer chat** | Folded or unfolded, above the warning on screen. |
+| **30** | **The footer chat** | Folded or unfolded, above the warning on screen. The chat videos' dock shares it (2026-11-06, media-player.md "Rung 3"): a box at the right edge standing on the strip, following the person round the pages. |
 | **40** | The page's drop-downs, context menus and its windows that are not full-screen popups | They stay inside the page's area: the menus and the footer are nearer, so a drop-down near the bottom opens upward instead of under the footer. |
 | **41+** | **The page** | Its columns and content. |
 

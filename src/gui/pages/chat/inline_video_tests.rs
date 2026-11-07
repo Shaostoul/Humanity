@@ -14,7 +14,7 @@ use crate::gui::{ChatMessage, GuiState};
 const SERVER: &str = "http://127.0.0.1:9";
 
 /// Every piece of text one headless frame drew, with where it was drawn.
-fn texts_at(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
+pub(crate) fn texts_at(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
     fn walk(shape: &egui::Shape, texts: &mut Vec<(String, egui::Rect)>) {
         match shape {
             egui::Shape::Text(t) => texts.push((t.galley.job.text.clone(), egui::Rect::from_min_size(t.pos, t.galley.size()))),
@@ -29,12 +29,12 @@ fn texts_at(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
     texts
 }
 
-fn texts_of(out: &egui::FullOutput) -> Vec<String> {
+pub(crate) fn texts_of(out: &egui::FullOutput) -> Vec<String> {
     texts_at(out).into_iter().map(|(t, _)| t).collect()
 }
 
 /// Every picture (a texture other than the font's) one frame painted, with where.
-fn pictures_of(out: &egui::FullOutput) -> Vec<(egui::TextureId, egui::Rect)> {
+pub(crate) fn pictures_of(out: &egui::FullOutput) -> Vec<(egui::TextureId, egui::Rect)> {
     fn walk(shape: &egui::Shape, clip: egui::Rect, found: &mut Vec<(egui::TextureId, egui::Rect)>) {
         match shape {
             egui::Shape::Mesh(m) if m.texture_id != egui::TextureId::default() => found.push((m.texture_id, m.calc_bounds().intersect(clip))),
@@ -67,10 +67,10 @@ pub(crate) fn fetch_copies(fixture: std::path::PathBuf, dir: std::path::PathBuf)
 /// The real chat page in #global, its posts by a verified member (below Verified a line's files are
 /// plain words since 2026-11-02), on a `w` x `h` screen.
 pub(crate) struct Chat {
-    ctx: egui::Context,
-    theme: Theme,
+    pub(crate) ctx: egui::Context,
+    pub(crate) theme: Theme,
     pub(crate) state: GuiState,
-    screen: egui::Vec2,
+    pub(crate) screen: egui::Vec2,
     /// The test's folder (the copies, the stand-in ffmpeg), deleted with the guard.
     pub(crate) dir: humanity_core::test_temp::TempPath,
 }
@@ -83,6 +83,7 @@ impl Chat {
         std::fs::write(&fake, b"not ffmpeg").unwrap(); // a conversion cannot rescue a test
         let mut state = GuiState::default();
         state.chat_active_channel = "global".into();
+        state.active_page = crate::gui::GuiPage::Chat; // the dock (rung 3) reads which page is open
         state.settings.ffmpeg_path = fake.display().to_string();
         state.chat_users.push(crate::gui::ChatUser { name: "Ann".into(), public_key: "ann0".into(), role: "verified".into(), status: String::new() });
         // A video's poster picture (rung 2) is asked of no server: none is there, as for a video
@@ -95,7 +96,7 @@ impl Chat {
         chat
     }
 
-    fn post(&mut self, words: &str) {
+    pub(crate) fn post(&mut self, words: &str) {
         let i = self.state.chat_messages.len() as u64;
         for raw in public_files::files_in(words) {
             self.state.image_cache.set_size_for_test(&public_files::Card::of(&raw, SERVER).url, Some(1_121_676));
@@ -117,19 +118,38 @@ impl Chat {
         public_files::Card::of(raw, SERVER).url
     }
 
-    /// One frame of the app as the engine draws it: the page, then the chat's video window and the
-    /// end of the frame for the chat's videos (`draw_video_window`, called every frame).
-    fn frame(&mut self, events: Vec<egui::Event>) -> egui::FullOutput {
+    /// One frame of the app as the engine draws it: the page, then the chat videos' dock (rung 3), the
+    /// chat's video window and the end of the frame for the chat's videos (`draw_video_window`,
+    /// called every frame).
+    pub(crate) fn frame(&mut self, events: Vec<egui::Event>) -> egui::FullOutput {
         let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, self.screen)), events, ..Default::default() };
         let (theme, state) = (&self.theme, &mut self.state);
         self.ctx.run(input, |ctx| {
             crate::gui::pages::chat::draw(ctx, theme, state);
+            crate::gui::pages::chat::draw_video_dock(ctx, theme, state);
+            draw_video_window(ctx, theme, &mut state.chat_video);
+        })
+    }
+
+    /// One frame on a page that is not the Chat page, as the engine draws it: a stand-in page (one
+    /// button at its bottom right corner), then the dock (which follows the person there, rung 3),
+    /// the video window and the end of the frame.
+    pub(crate) fn frame_page(&mut self, events: Vec<egui::Event>) -> egui::FullOutput {
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, self.screen)), events, ..Default::default() };
+        let (theme, state) = (&self.theme, &mut self.state);
+        self.ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Max), |ui| {
+                    let _ = ui.button("A page's own button");
+                });
+            });
+            crate::gui::pages::chat::draw_video_dock(ctx, theme, state);
             draw_video_window(ctx, theme, &mut state.chat_video);
         })
     }
 
     /// Press at `pos`: one frame to put the pointer there, one to press and let go.
-    fn click(&mut self, pos: egui::Pos2) -> egui::FullOutput {
+    pub(crate) fn click(&mut self, pos: egui::Pos2) -> egui::FullOutput {
         self.frame(vec![egui::Event::PointerMoved(pos)]);
         let m = egui::Modifiers::default();
         self.frame(vec![
@@ -139,13 +159,13 @@ impl Chat {
     }
 
     /// Press the picture of the video at `url` (where it was last drawn).
-    fn press_picture(&mut self, url: &str) -> egui::FullOutput {
+    pub(crate) fn press_picture(&mut self, url: &str) -> egui::FullOutput {
         let at = self.state.chat_video.pictures.get(url).unwrap_or_else(|| panic!("the picture of {url} was drawn")).center();
         self.click(at)
     }
 
     /// Frames (10 ms apart) until `done` holds, at most 30 s; the last frame's output and whether it held.
-    fn frames_until(&mut self, done: impl Fn(&GuiState, &[String]) -> bool) -> (egui::FullOutput, bool) {
+    pub(crate) fn frames_until(&mut self, done: impl Fn(&GuiState, &[String]) -> bool) -> (egui::FullOutput, bool) {
         let started = std::time::Instant::now();
         loop {
             let out = self.frame(Vec::new());
@@ -159,7 +179,7 @@ impl Chat {
 }
 
 pub(crate) const A: &str = "/uploads/1760000000000_sliding_bar.mp4";
-const B: &str = "/uploads/1760000000001_second_clip.mp4";
+pub(crate) const B: &str = "/uploads/1760000000001_second_clip.mp4";
 
 /// A CHAT FULL OF VIDEOS COSTS NOTHING UNTIL ONE IS PLAYED, AND EACH ROW DRAWS ITS PLAYER (the
 /// operator, 2026-11-04: "Can we make the videos show in chat and playable in chat?"): twelve video
@@ -227,15 +247,17 @@ fn play_starts_it_and_a_second_play_pauses_the_first() {
     assert_eq!(chat.state.chat_video.fetches, 2);
 }
 
-/// A ROW SCROLLED OUT OF VIEW PAUSES AND FREES ITS DECODER, AND THEN DRAWS ITS STILL WITHOUT ONE. A
-/// playing video's row is pushed off the screen by eighty newer messages (the chat stays at its
-/// bottom): within a few frames its player is gone (no decoder, no decode thread) and its temporary
-/// copy deleted, and a still of its picture is kept. Drawn again (its card on its own), the row shows
-/// that still and its controls, with its place, and still no player and no new fetch. Seen red
+/// A PAUSED ROW SCROLLED OUT OF VIEW FREES ITS DECODER, AND THEN DRAWS ITS STILL WITHOUT ONE. A
+/// video played and then paused has its row pushed off the screen by eighty newer messages (the chat
+/// stays at its bottom): within a few frames its player is gone (no decoder, no decode thread) and
+/// its temporary copy deleted, a still of its picture is kept, and nothing goes into the dock (only
+/// a PLAYING video does, rung 3: video_dock_tests.rs). Drawn again (its card on its own), the row
+/// shows that still and its controls, with its place, and still no player and no new fetch. Seen red
 /// 2026-11-06 with `end_frame` dropping nothing: "its player goes once its row is off the screen" (it
-/// played on, off screen); with `forget` keeping no still: "a still of its picture is kept".
+/// played on, off screen); with `forget` keeping no still: "a still of its picture is kept". Since
+/// rung 3, seen red with `dock_moves` docking a paused video too: "a paused video is not docked".
 #[test]
-fn a_row_scrolled_out_of_view_pauses_and_frees_its_decoder_then_draws_its_still() {
+fn a_paused_row_scrolled_out_of_view_frees_its_decoder_then_draws_its_still() {
     let mut chat = Chat::new("chat_video_scrolled_away", &[&format!("watch {A}")], 1280.0, 900.0);
     chat.state.chat_video.fetch_for_test = Some(fetch_copies(media_fixture("sliding-bar-av1-opus.mp4"), chat.dir.to_path_buf()));
     let a = Chat::url(A);
@@ -243,21 +265,24 @@ fn a_row_scrolled_out_of_view_pauses_and_frees_its_decoder_then_draws_its_still(
         chat.frame(Vec::new());
     }
     chat.press_picture(&a);
-    let (_, held) = chat.frames_until(|s, _| s.chat_video.is_playing(&Chat::url(A)));
-    assert!(held, "it plays");
-    // Let a few frames of it be shown, so its still is a frame it showed.
-    for _ in 0..5 {
-        chat.frame(Vec::new());
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    }
+    // Its first picture shown, so its still is a picture it showed. (Waited for, not a few frames
+    // counted: on 2026-11-06, with nine tests decoding at once, five frames 20 ms apart came and
+    // went before the first picture, and "a still of its picture is kept" failed in the batch and
+    // passed alone.)
+    let (_, held) = chat.frames_until(|s, _| s.chat_video.is_playing(&Chat::url(A)) && s.chat_video.shows_picture(&Chat::url(A)));
+    assert!(held, "it plays, its first picture shown");
     let copy = chat.state.chat_video.temp_copy(&a).expect("it plays from a temporary copy");
     assert!(copy.exists());
+    // Paused (its picture pressed again), then scrolled away.
+    chat.press_picture(&a);
+    assert!(!chat.state.chat_video.is_playing(&a), "paused");
     for i in 0..80 {
         chat.post(&format!("a newer line, number {i}, that pushes the video up and out of view"));
     }
     for _ in 0..4 {
         chat.frame(Vec::new());
     }
+    assert!(chat.state.chat_video.dock.is_none(), "a paused video is not docked");
     assert!(!chat.state.chat_video.has_player(&a), "its player goes once its row is off the screen");
     assert_eq!(chat.state.chat_video.live_count(), 0, "nothing decodes for rows not on screen");
     assert!(!copy.exists(), "its temporary copy goes with its player");

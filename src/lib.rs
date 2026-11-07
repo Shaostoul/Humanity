@@ -14391,6 +14391,9 @@ mod native_app {
                     // (nearest four in range); the IPC completes with the
                     // freshly drawn frame. Skipped while a menu page covers
                     // the world: the scene is not drawn then either.
+                    // First, one chat video at a time across the app and every wall screen, framed or not
+                    // (a page covering the world frames none): each gives way to a newer Play elsewhere.
+                    crate::engine::screens::chat_videos_one_at_a_time(&mut state.screens);
                     if !page_active {
                         crate::engine::screens::update(state);
                         crate::engine::ipc::advance_screen_request(state);
@@ -15075,6 +15078,10 @@ mod native_app {
                                 );
                                 // A 3D model posted in chat, in its own window (View in 3D on its card).
                                 crate::gui::pages::chat::draw_model_window(ctx, &state.theme, &mut state.gui_state.chat_model_view);
+                                // The dock a playing chat video moves into when its row leaves the
+                                // view, on every page but the world (chat/video_dock.rs), then the
+                                // Full window and the chat videos' end of frame.
+                                crate::gui::pages::chat::draw_video_dock(ctx, &state.theme, &mut state.gui_state);
                                 crate::gui::pages::chat::draw_video_window(ctx, &state.theme, &mut state.gui_state.chat_video);
                                 // A chat video's "Volume settings" link (Settings > Audio).
                                 crate::gui::pages::chat::follow_volume_settings_link(&mut state.gui_state);

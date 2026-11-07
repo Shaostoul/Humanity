@@ -22,7 +22,7 @@
 //! | 19 | The secondary row's More |
 //! | 20 | The secondary menu |
 //! | 21 | The unfinished-software warning |
-//! | 30 | The footer chat |
+//! | 30 | The footer chat, and the chat videos' dock (an Area standing on the strip) |
 //! | 40 | The page's drop-downs and its windows that are not full-screen popups (in the world: the HUD and its panels) |
 //! | 41+ | The page |
 //!
@@ -94,7 +94,9 @@ pub enum Layer {
     Secondary,
     /// 21: the unfinished-software warning (a panel).
     Warning,
-    /// 30: the footer chat (a panel, app-bottom-strip.md rung 2).
+    /// 30: the footer chat (a panel, app-bottom-strip.md rung 2), and the chat videos' dock that follows
+    /// the person round the app's pages (an Area, pages/chat/video_dock.rs; Background like the
+    /// footer's panel, so the page's own windows, Middle, are drawn over it).
     Footer,
     /// 40: the page's drop-downs, context menus and windows that are not full-screen popups; in the
     /// world, the HUD, the chat panel, the creature editor and the talk card.

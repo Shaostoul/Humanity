@@ -3282,6 +3282,10 @@ function filePosterWatch(card) {
 function fillFileCard(card) {
   if (!card || !card.dataset || card.dataset.fileFilled === '1') return;
   card.dataset.fileFilled = '1';
+  // A card drawn again for the video in the dock (its channel opened again): its line takes the
+  // new player's place, and the docked video goes back there once it is in view.
+  const line = fileDock ? fileDock.adopt(card) : null;
+  if (line && fileMediaSeen && fileDock.line() === line) fileMediaSeen.observe(line);
   filePosterWatch(card);
   // Its type, drawn again once the list of kinds is in (by its name: nothing is read before a click).
   fileBadgeFill(card.querySelector('.file-badge-slot'), card.dataset.fileName || '', null);
@@ -3319,18 +3323,75 @@ function fileMediaTrouble(e) {
 
 // ── One player at a time, and none playing off screen (2026-11-06) ──
 // The chat's videos play inline in their cards. Starting one pauses the one that played before, so
-// a chat full of videos never plays two at once (a sound counts too: one thing at a time), and a
-// playing one scrolled out of view is paused (an IntersectionObserver, where the browser has one).
-// The desktop app's twin: src/gui/pages/chat/inline_video.rs (one current video; a row off the
-// screen drops its player). Heard in the CAPTURE phase on the containers, as `error` is above:
-// `play` and `pause` do not bubble.
+// a chat full of videos never plays two at once (a sound counts too: one thing at a time). A playing
+// VIDEO scrolled out of view moves into the dock at the top right of the list, the same element
+// playing on (rung 3, /shared/video-dock.js); a sound, or a video where the dock is not loaded, is
+// paused (an IntersectionObserver, where the browser has one). The desktop app's twin:
+// src/gui/pages/chat/inline_video.rs and video_dock.rs. Heard in the CAPTURE phase on the
+// containers, as `error` is above: `play` and `pause` do not bubble.
 let fileMediaPlaying = null;
 let fileMediaSeen = null;
+let fileDock = null;
 
-/** The IntersectionObserver's answer: a watched player out of view is paused. */
+/** The chat's video dock (/shared/video-dock.js), made the first time a video goes into it. */
+function fileVideoDock() {
+  if (fileDock || typeof window === 'undefined' || !window.HosVideoDock) return fileDock;
+  const messages = document.getElementById('messages');
+  fileDock = window.HosVideoDock.create({
+    document,
+    host: document.getElementById('chat-area') || document.body,
+    messages,
+    i18n: window.i18n,
+    narrow: () => !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches),
+    // Go to message: its channel, when another is open.
+    onGoTo: (origin) => { if (origin && origin.channel && origin.channel !== activeChannel) switchChannel(origin.channel); },
+    findCard: (url) => (messages ? Array.from(messages.querySelectorAll(FILE_CARD_SELECTOR)).find((c) => c.dataset && c.dataset.fileUrl === url) : null) || null,
+    // Back in its card (scrolled back, or Go to message): its line no longer watched, the video
+    // watched again while it plays, so a scroll away docks it again.
+    onBack: (video, line) => {
+      if (!fileMediaSeen) return;
+      try { fileMediaSeen.unobserve(line); } catch (e) { /* not watched */ }
+      if (video && !video.paused) fileMediaSeen.observe(video);
+    },
+  });
+  if (typeof window.addEventListener === 'function') window.addEventListener('resize', () => fileDock.place());
+  return fileDock;
+}
+
+/**
+ * A playing video in a card of the channel's messages, scrolled out of view: into the dock, the
+ * same element (/shared/video-dock.js), its card's line watched for coming back. False when it is
+ * not one (a sound, a paused one, the thread panel's, a DM's, no dock), which is paused as before.
+ */
+function fileDockTake(media) {
+  const tag = media && media.tagName ? String(media.tagName).toLowerCase() : '';
+  if (tag !== 'video' || media.paused || media.ended) return false;
+  const card = typeof media.closest === 'function' ? media.closest('.file-card-media') : null;
+  const messages = document.getElementById('messages');
+  if (!card || !messages || messages.dataset.ctx === 'dm' || typeof messages.contains !== 'function' || !messages.contains(card)) return false;
+  const dock = fileVideoDock();
+  if (!dock) return false;
+  const ch = channelList.find((c) => c.id === activeChannel);
+  const channel = '#' + (ch ? ch.name : activeChannel);
+  const line = dock.take(media, card, { channel: activeChannel }, window.i18n ? i18n.t('chat_video_dock.from_here', { channel }) : channel);
+  if (!line) return false;
+  if (fileMediaSeen) { try { fileMediaSeen.unobserve(media); } catch (e) { /* not watched */ } fileMediaSeen.observe(line); }
+  return true;
+}
+
+/** The IntersectionObserver's answer: a playing video out of view goes into the dock (any other
+ *  player is paused), and a docked video's line back in view gives it back (watched again: onBack). */
 function fileMediaOffScreen(entries) {
   for (const entry of entries || []) {
-    if (entry && !entry.isIntersecting && entry.target && typeof entry.target.pause === 'function') entry.target.pause();
+    const el = entry && entry.target;
+    if (!el) continue;
+    if (el.classList && el.classList.contains('file-video-away')) {
+      if (entry.isIntersecting && fileDock && fileDock.line() === el) fileDock.giveBack();
+      continue;
+    }
+    if (entry.isIntersecting || typeof el.pause !== 'function') continue;
+    if (fileDockTake(el)) continue;
+    el.pause();
   }
 }
 
@@ -3341,7 +3402,15 @@ function fileMediaOnePlaying(e) {
   if (tag !== 'video' && tag !== 'audio') return;
   const card = typeof media.closest === 'function' ? media.closest('.file-card-media') : null;
   if (!card) return;
-  if (fileMediaPlaying && fileMediaPlaying !== media && typeof fileMediaPlaying.pause === 'function') fileMediaPlaying.pause();
+  // The one before pauses; when it is the docked one, the dock closes too and it goes back into
+  // its card, paused (rung 3: the new one plays inline).
+  if (fileMediaPlaying && fileMediaPlaying !== media) {
+    if (fileDock && fileDock.held() === fileMediaPlaying) {
+      const line = fileDock.line();
+      if (line && fileMediaSeen) { try { fileMediaSeen.unobserve(line); } catch (e) { /* not watched */ } }
+      fileDock.close();
+    } else if (typeof fileMediaPlaying.pause === 'function') fileMediaPlaying.pause();
+  }
   fileMediaPlaying = media;
   if (!fileMediaSeen && typeof IntersectionObserver === 'function') fileMediaSeen = new IntersectionObserver(fileMediaOffScreen, { threshold: 0 });
   if (fileMediaSeen) fileMediaSeen.observe(media);

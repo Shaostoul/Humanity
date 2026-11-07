@@ -98,6 +98,9 @@ pub struct VideoView {
     pub start_at: f64,
     /// The last picture shown, kept (moved, not copied) for [`VideoView::still_image`].
     last_frame: Option<crate::media::VideoFrame>,
+    /// Pictures came while the picture was not drawn ([`VideoView::poll_with`]): the texture is
+    /// behind `last_frame` until it is drawn again.
+    picture_behind: bool,
     /// Set once the fetch's worker has handed its result over (tests: a view dropped after that).
     #[cfg(test)]
     pub(crate) handed: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -120,6 +123,7 @@ impl Default for VideoView {
             volume: 1.0,
             start_at: 0.0,
             last_frame: None,
+            picture_behind: false,
             #[cfg(test)]
             handed: Default::default(),
         }
@@ -242,6 +246,16 @@ impl VideoView {
 
     /// Take what the fetch finished and the next frame. Every frame the view is drawn.
     pub fn poll(&mut self, ctx: &egui::Context) {
+        self.poll_with(ctx, true);
+    }
+
+    /// [`VideoView::poll`], with `picture` false while its picture is not drawn (a chat video's dock
+    /// minimized to its tab, 2026-11-06): each due frame is still taken from the player (its queue
+    /// holds four; one not taken stops the decoder, and the picture would fall behind the sound) and
+    /// kept for the still, but not made an image or uploaded (2.6 to 2.9 ms a 1080p picture), and
+    /// the app is asked for a frame about 30 times a second rather than every frame. The first poll
+    /// with the picture drawn again makes the last picture an image once.
+    pub fn poll_with(&mut self, ctx: &egui::Context, picture: bool) {
         if let Some(rx) = self.fetch_rx.as_ref() {
             match rx.try_recv() {
                 Ok(result) => {
@@ -281,24 +295,41 @@ impl VideoView {
             ctx.request_repaint_after(Duration::from_millis(200));
         }
         if let Some(player) = self.player.as_mut() {
+            let mut show = None;
             if let Some(frame) = player.poll() {
-                // Every decoder here writes opaque pictures (alpha 255: media/video.rs and
-                // media/system.rs), for which premultiplied and unmultiplied are the same bytes;
-                // the premultiplied form is a plain copy, where the unmultiplied one branches on
-                // every pixel's alpha (2026-11-06: measured in chat::inline_video::tests::bench).
-                let image = egui::ColorImage::from_rgba_premultiplied([frame.width as usize, frame.height as usize], &frame.rgba);
-                match self.texture.as_mut() {
-                    Some(tex) => tex.set(image, egui::TextureOptions::LINEAR),
-                    None => self.texture = Some(ctx.load_texture("video_view_frame", image, egui::TextureOptions::LINEAR)),
-                }
                 // Kept for a row's still (moved, not copied: the frame was going to be dropped here).
                 self.last_frame = Some(frame);
+                show = Some(picture);
+            } else if picture && self.picture_behind {
+                show = Some(true);
+            }
+            match (show, self.last_frame.as_ref()) {
+                (Some(true), Some(frame)) => {
+                    // Every decoder here writes opaque pictures (alpha 255: media/video.rs and
+                    // media/system.rs), for which premultiplied and unmultiplied are the same bytes;
+                    // the premultiplied form is a plain copy, where the unmultiplied one branches on
+                    // every pixel's alpha (2026-11-06: measured in chat::inline_video::tests::bench).
+                    let image = egui::ColorImage::from_rgba_premultiplied([frame.width as usize, frame.height as usize], &frame.rgba);
+                    match self.texture.as_mut() {
+                        Some(tex) => tex.set(image, egui::TextureOptions::LINEAR),
+                        None => self.texture = Some(ctx.load_texture("video_view_frame", image, egui::TextureOptions::LINEAR)),
+                    }
+                    self.picture_behind = false;
+                }
+                // Not drawn: the picture on show falls behind until it is drawn again.
+                (Some(false), _) => self.picture_behind = true,
+                _ => {}
             }
             if let Some(e) = player.take_error() {
                 self.problem = tf("video.stopped", &[("error", &e)]);
             }
             if player.is_playing() {
-                ctx.request_repaint();
+                if picture {
+                    ctx.request_repaint();
+                } else {
+                    // Often enough to keep the four-picture queue moving at 30 pictures a second.
+                    ctx.request_repaint_after(Duration::from_millis(30));
+                }
             }
         }
     }

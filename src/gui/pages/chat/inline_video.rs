@@ -14,11 +14,18 @@
 //! - **One video plays at a time.** The last video Play was pressed on ([`ChatVideos::current`]) is
 //!   the only one allowed to play; [`ChatVideos::end_frame`] pauses any other, which also catches a
 //!   video whose fetch finished after another was started.
-//! - **A row off the screen keeps nothing running.** A player whose picture was not drawn inside the
-//!   messages' view this frame or the last (and is not in Full window) is dropped at the end of the
-//!   frame: its decoder, decode thread, sound and temporary copy go. What stays is a small still of
-//!   the picture it showed and its place, so the row still shows it and Play carries on from there
-//!   (fetching again). Switching page or channel drops them the same way.
+//! - **A row off the screen keeps nothing running, but the video playing goes into the dock.** A
+//!   player whose picture was not drawn inside the messages' view this frame or the last (and is not
+//!   in Full window or the dock) is dropped at the end of the frame: its decoder, decode thread,
+//!   sound and temporary copy go. What stays is a small still of the picture it showed and its
+//!   place, so the row still shows it and Play carries on from there (fetching again). The video
+//!   PLAYING (or on its way to play) whose row leaves the view, by a scroll, a channel or server
+//!   switched or the chat page left, moves into the dock instead, the same player
+//!   ([`ChatVideos::end_frame`], rung 3, 2026-11-06; drawn by chat/video_dock.rs).
+//! - **One chat video at a time across the app screen and every wall screen** (the operator,
+//!   2026-11-06, "Agreed."): the set whose Play was pressed last holds the claim (`CLAIM`, a
+//!   thread-local: every set is drawn on the app's one GUI thread), and every other set gives way
+//!   ([`ChatVideos::yield_if_elsewhere`]): its video pauses and its dock closes.
 //! - **Nothing is kept across runs.** The copies go with their players (the Media page's sweep at
 //!   the next start takes any a crash left); the stills, places and words are memory only. A still
 //!   is reuse of a picture, so it obeys the Dev page's "turn off all reuse" switch: with reuse off
@@ -77,6 +84,47 @@ pub(crate) const MAX_STILLS: usize = 24;
 const VOLUME_WIDTH: f32 = 72.0;
 /// How many poster pictures are kept while reuse is on; the one seen longest ago goes first.
 pub(crate) const MAX_POSTERS: usize = 48;
+/// How long Go to message waits for its row to be drawn (a switched channel loads its history
+/// first) before it gives up and leaves the dock as it is.
+pub(crate) const GO_TO_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
+
+thread_local! {
+    /// The set ([`ChatVideos::set_id`]) whose Play was pressed last, on this thread: the one chat
+    /// video allowed to play across the app screen and every wall screen (2026-11-06). A
+    /// thread-local, not a process-wide value: every set is drawn on the app's one GUI thread, and
+    /// each test runs on a thread of its own, so no test sees another's claim.
+    static CLAIM: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The next set's id (0 is nobody's).
+static NEXT_SET: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// Where a chat row was drawn: the place on the Chat page it belongs to (the server and channel the
+/// page showed, as the history keeps a chat step, `history::At::Chat`) and the words naming it for
+/// the dock ("From #global on united-humanity.us").
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Origin {
+    pub(crate) server: String,
+    pub(crate) channel: String,
+    pub(crate) label: String,
+}
+
+/// The dock (rung 3, 2026-11-06; chat/video_dock.rs draws it): the video in it, where it came from,
+/// and how it shows.
+pub(crate) struct Dock {
+    pub(crate) url: String,
+    pub(crate) name: String,
+    pub(crate) ffmpeg: String,
+    pub(crate) origin: Origin,
+    /// Minimize was pressed: the slim tab, until the tab is pressed.
+    pub(crate) minimized: bool,
+    /// The frame its row was last drawn on screen (it is back in its message that frame).
+    pub(crate) row_seen: u64,
+    /// Where it stands on a page that is not the Chat page, decided as it arrived there.
+    pub(crate) spot: Option<super::video_dock::Spot>,
+    /// The person opened the tab on a page where the dock had no free spot: it shows anyway there.
+    pub(crate) opened_on: Option<crate::gui::GuiPage>,
+}
 
 /// Where a video's poster picture is: being fetched, here, or not to be had (a video from before
 /// poster pictures, a server that refused it, an address that is not one).
@@ -111,6 +159,10 @@ struct Live {
     seen: u64,
     /// The frame it was last polled, so a video drawn twice in one frame is polled once.
     polled: u64,
+    /// The frame its row was last drawn on screen in a message (not its window, not the dock).
+    inline_seen: u64,
+    /// Where that row was (the Chat page's place), once one was drawn there: what the dock says.
+    origin: Option<Origin>,
 }
 
 /// What a video's row shows once its player has gone: the picture it showed and where it was.
@@ -136,6 +188,10 @@ pub(crate) struct ChatVideos {
     current: Option<String>,
     /// The video in Full window.
     window: Option<String>,
+    /// A wall screen's set ([`ChatVideos::on_a_wall_screen`]): its videos never go into the dock,
+    /// which is the person's, an app layer (rung 3); a wall screen's video plays in its row or in
+    /// the Full window drawn on that wall.
+    on_wall: bool,
     /// How many frames have ended ([`ChatVideos::end_frame`]): the clock "on screen this frame or
     /// the last" is told by. Its own count, not egui's pass number, because a wall screen showing
     /// the chat draws it under a context of its own (gui/screen_surface.rs, with a set of its own).
@@ -154,6 +210,15 @@ pub(crate) struct ChatVideos {
     posters: HashMap<String, Poster>,
     poster_tx: std::sync::mpsc::Sender<PosterResult>,
     poster_rx: std::sync::mpsc::Receiver<PosterResult>,
+    /// The dock (rung 3): the video playing whose row left the view, drawn by chat/video_dock.rs.
+    pub(crate) dock: Option<Dock>,
+    /// Where the rows drawn this frame belong and the message list's rectangle, as the Chat page
+    /// noted them ([`ChatVideos::note_chat_view`]; the frame they were noted on).
+    view: Option<(u64, Origin, egui::Rect)>,
+    /// Go to message asked: the video whose row is scrolled into view when it is drawn, and when.
+    pub(crate) go_to: Option<(String, std::time::Instant)>,
+    /// This set's id, for the one-at-a-time claim across sets (`CLAIM`).
+    set_id: u64,
     #[cfg(test)]
     pub(crate) fetch_for_test: Option<FetchForTest>,
     /// Fetches a poster picture in place of the network (tests and snapshots).
@@ -183,6 +248,7 @@ impl Default for ChatVideos {
             problems: HashMap::new(),
             current: None,
             window: None,
+            on_wall: false,
             frame: 0,
             volume: 1.0,
             muted: false,
@@ -190,6 +256,10 @@ impl Default for ChatVideos {
             posters: HashMap::new(),
             poster_tx,
             poster_rx,
+            dock: None,
+            view: None,
+            go_to: None,
+            set_id: NEXT_SET.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             #[cfg(test)]
             fetch_for_test: None,
             #[cfg(test)]
@@ -210,9 +280,10 @@ impl ChatVideos {
     /// The set of a wall screen showing the chat (gui/screen_surface.rs `ScreenTextures`): its
     /// videos play in their rows, their sound comes from the screen (BUG-258), and Full window
     /// opens on that screen, drawn by the screen's own run (`screen_surface::draw_screen_full_views`,
-    /// 2026-11-06), so the person at the wall closes it there.
+    /// 2026-11-06), so the person at the wall closes it there. It never docks (the dock is the
+    /// person's, on the app's pages, never inside a wall screen: rung 3).
     pub(crate) fn on_a_wall_screen() -> Self {
-        ChatVideos::default()
+        ChatVideos { on_wall: true, ..Default::default() }
     }
 
     /// Whether a video is in Full window (the chat's popups stay shut under it).
@@ -322,6 +393,38 @@ impl ChatVideos {
         self.live.get(url).and_then(|l| l.view.temp.clone())
     }
 
+    /// The message list's rectangle as the Chat page last noted it (tests read it after the frame,
+    /// when [`ChatVideos::list_rect`], which answers for the frame being drawn, no longer does).
+    #[cfg(test)]
+    pub(crate) fn last_list_rect(&self) -> Option<egui::Rect> {
+        self.view.as_ref().map(|(_, _, r)| *r)
+    }
+
+    /// Where the video at `url` is and whether it plays (tests: a failure says it).
+    #[cfg(test)]
+    pub(crate) fn where_is(&self, url: &str) -> Option<(f64, bool)> {
+        self.player(url).map(|p| (p.position_s(), p.is_playing()))
+    }
+
+    /// Move the video at `url` back to its start, playing (tests: the fixtures are two seconds long,
+    /// and a check that it plays on must not race its end; one that ended plays again).
+    #[cfg(test)]
+    pub(crate) fn rewind_for_test(&mut self, url: &str) {
+        if let Some(live) = self.live.get_mut(url) {
+            live.view.seek_to(0.0);
+            live.view.play();
+        }
+    }
+
+    /// Put the video at `url` (which has a player) in the dock as if its row had just left the view,
+    /// from `origin` (a snapshot, which cannot scroll).
+    #[cfg(test)]
+    pub(crate) fn dock_for_test(&mut self, url: &str, origin: Origin) {
+        if let Some(live) = self.live.get(url) {
+            self.dock = Some(Dock { url: url.to_string(), name: live.name.clone(), ffmpeg: live.ffmpeg.clone(), origin, minimized: false, row_seen: 0, spot: None, opened_on: None });
+        }
+    }
+
     /// Play or Pause on the video at `url`, named `name`: play it (fetching it first if it has no
     /// player, and carrying on from its still's place), or pause it if it plays. It becomes the one
     /// allowed to play. A video that could not play tries again.
@@ -330,17 +433,129 @@ impl ChatVideos {
         if refused {
             self.live.remove(url);
         }
+        // Another video started: the docked one pauses and the dock closes (rung 3, the operator's
+        // choice of 2026-11-06); its player goes at the end of the frame, its row keeping its still.
+        // (Only one video plays, so a press on any other video is a start, never a pause.)
+        if let Some(docked) = self.dock.as_ref().filter(|d| d.url != url).map(|d| d.url.clone()) {
+            if let Some(live) = self.live.get_mut(&docked) {
+                live.view.pause();
+            }
+            self.dock = None;
+        }
         match self.live.get_mut(url) {
             Some(live) if live.view.is_playing() => live.view.pause(),
             Some(live) => {
                 live.view.play();
                 self.current = Some(url.to_string());
+                self.claim();
             }
             None => {
                 self.start(url, name, ffmpeg);
                 self.current = Some(url.to_string());
+                self.claim();
             }
         }
+    }
+
+    /// This set's video is the one chat video allowed to play, on the app screen and every wall
+    /// screen (the operator, 2026-11-06: "Agreed.").
+    fn claim(&self) {
+        CLAIM.with(|c| c.set(self.set_id));
+    }
+
+    /// Another set's Play was pressed since this set's: this set gives way. Its video pauses (one
+    /// still fetching pauses when it starts: it is no longer current) and its dock closes. Called at
+    /// each set's end of frame, at each sound step ([`ChatVideos::sync_sound`]: a wall screen's runs
+    /// every frame in the world, framed or not), and for every wall screen every frame while a page
+    /// covers the world (`engine::screens::chat_videos_one_at_a_time`), when none of them draws.
+    pub(crate) fn yield_if_elsewhere(&mut self) {
+        if self.current.is_none() || CLAIM.with(|c| c.get()) == self.set_id {
+            return;
+        }
+        self.current = None;
+        for live in self.live.values_mut() {
+            if live.view.is_playing() {
+                live.view.pause();
+            }
+        }
+        // Paused that way, the docked one's dock closes; its player goes when it is next not drawn.
+        self.dock = None;
+    }
+
+    /// The Chat page's note, each frame it draws its message list: where the rows it draws belong
+    /// (`origin`) and the list's rectangle (`list`, between the channel header and the message box),
+    /// where the dock sits on the Chat page.
+    pub(crate) fn note_chat_view(&mut self, origin: Origin, list: egui::Rect) {
+        self.view = Some((self.frame, origin, list));
+    }
+
+    /// The message list's rectangle, when the Chat page drew it this frame.
+    pub(crate) fn list_rect(&self) -> Option<egui::Rect> {
+        self.view.as_ref().filter(|(f, _, _)| *f == self.frame).map(|(_, _, r)| *r)
+    }
+
+    /// The docked video's row was drawn on screen this frame: it is back in its message (the dock
+    /// closes at the end of the frame and is not drawn now).
+    pub(crate) fn dock_row_back(&self) -> bool {
+        self.dock.as_ref().is_some_and(|d| d.row_seen == self.frame)
+    }
+
+    /// The docked video is drawn in the dock this frame: poll it (once a frame) and keep it, its
+    /// picture made an image only when it is drawn (`picture`; minimized it is not: the frame loop
+    /// takes each due picture and keeps it for the still, and the decoder goes on, so the picture
+    /// keeps up with the sound).
+    pub(crate) fn on_dock(&mut self, url: &str, ctx: &egui::Context, picture: bool) {
+        let frame = self.frame;
+        if let Some(live) = self.live.get_mut(url) {
+            live.seen = frame;
+            if live.polled != frame {
+                live.polled = frame;
+                live.view.poll_with(ctx, picture);
+            }
+        }
+    }
+
+    /// The person is in the first-person world: the dock is an app layer, so it hides, and its video
+    /// pauses and is not kept (its player goes at the end of the frame like a paused row's, its still
+    /// and place staying); the dock comes back with them on the next page.
+    pub(crate) fn hide_dock_in_world(&mut self) {
+        if let Some(live) = self.dock.as_ref().and_then(|d| self.live.get_mut(&d.url)) {
+            if live.view.is_playing() {
+                live.view.pause();
+            }
+        }
+    }
+
+    /// Close in the dock: the video stops (paused), the dock closes, and its player goes now, its row
+    /// keeping its place and its still.
+    pub(crate) fn close_dock(&mut self, ctx: &egui::Context) {
+        let Some(dock) = self.dock.take() else { return };
+        if let Some(live) = self.live.get_mut(&dock.url) {
+            live.view.pause();
+        }
+        if self.current.as_deref() == Some(dock.url.as_str()) {
+            self.current = None;
+        }
+        self.forget(&dock.url, ctx);
+    }
+
+    /// Whether the video at `url` is playing, has a player, a still, or is fetching (the dock asks
+    /// what to draw).
+    pub(crate) fn state_of(&self, url: &str) -> (bool, Option<(f64, f64)>) {
+        let live = self.live.get(url);
+        let playing = live.is_some_and(|l| l.view.is_playing());
+        let place = match live.filter(|l| l.view.has_player()) {
+            Some(l) => Some(l.view.place()),
+            None => self.stills.get(url).map(|s| (s.place_s, s.length_s)),
+        };
+        (playing, place)
+    }
+
+    /// The picture's shape (width over height): the player's picture, the still's or the poster
+    /// picture's, else 16:9.
+    pub(crate) fn aspect_of(&self, url: &str) -> f32 {
+        let size = self.live.get(url).and_then(|l| l.view.texture()).map(|t| t.size()).or_else(|| self.stills.get(url).map(|s| s.texture.size())).or_else(|| poster_of(self, url).map(|t| t.size()));
+        size.map_or(FIRST_ASPECT, |[w, h]| (w.max(1) as f32 / h.max(1) as f32).clamp(0.25, 4.0))
     }
 
     /// Fetch the video at `url` on a worker and play it once it is here (`VideoView::start`). It
@@ -362,7 +577,7 @@ impl ChatVideos {
         if let Some(fetch) = self.fetch_for_test.clone() {
             let address = url.to_string();
             view.start(ffmpeg, name, move || fetch(&address));
-            self.live.insert(url.to_string(), Live { name: name.to_string(), view, ffmpeg: ffmpeg.to_string(), seen: frame, polled: u64::MAX });
+            self.live.insert(url.to_string(), Live { name: name.to_string(), view, ffmpeg: ffmpeg.to_string(), seen: frame, polled: u64::MAX, inline_seen: 0, origin: None });
             return;
         }
         let (address, copy) = (url.to_string(), crate::gui::pages::files::open::play_name(url, 0));
@@ -370,7 +585,7 @@ impl ChatVideos {
             use crate::gui::pages::files::open::{fetch_to, temp_dir, transfer_agent};
             fetch_to(&transfer_agent(std::time::Duration::from_secs(60)), &address, None, &temp_dir(), &copy, super::public_files::MAX_PUBLIC_FILE)
         });
-        self.live.insert(url.to_string(), Live { name: name.to_string(), view, ffmpeg: ffmpeg.to_string(), seen: frame, polled: u64::MAX });
+        self.live.insert(url.to_string(), Live { name: name.to_string(), view, ffmpeg: ffmpeg.to_string(), seen: frame, polled: u64::MAX, inline_seen: 0, origin: None });
     }
 
     /// The row of the video at `url` is on screen with nothing of the video to show (no player, no
@@ -446,11 +661,25 @@ impl ChatVideos {
         }
     }
 
-    /// The video at `url` was drawn on screen this frame: poll it (once a frame) and keep it.
-    fn on_screen(&mut self, url: &str, ctx: &egui::Context) {
+    /// The video at `url` was drawn on screen this frame: poll it (once a frame) and keep it. `row`:
+    /// drawn in its message (not its window), which also notes where that row belongs (the Chat
+    /// page's place this frame, for the dock) and brings a docked video back to its message.
+    fn on_screen(&mut self, url: &str, ctx: &egui::Context, row: bool) {
         let frame = self.frame;
+        let origin = self.view.as_ref().filter(|(f, _, _)| *f == frame).map(|(_, o, _)| o.clone());
+        if row {
+            if let Some(dock) = self.dock.as_mut().filter(|d| d.url == url) {
+                dock.row_seen = frame;
+            }
+        }
         if let Some(live) = self.live.get_mut(url) {
             live.seen = frame;
+            if row {
+                live.inline_seen = frame;
+                if origin.is_some() {
+                    live.origin = origin;
+                }
+            }
             if live.polled != frame {
                 live.polled = frame;
                 live.view.poll(ctx);
@@ -458,11 +687,14 @@ impl ChatVideos {
         }
     }
 
-    /// The end of each frame (the engine calls it through [`draw_video_window`], after the pages; a
-    /// wall screen showing the chat, after its page): every video but the current one is paused, and
-    /// every player whose picture was not on screen this frame or the last, and is not in Full
-    /// window, is dropped, leaving its still and words.
+    /// The end of each frame (the engine calls it through [`draw_video_window`], after the pages and
+    /// the dock; a wall screen showing the chat, after its page): this set gives way if another
+    /// set's video started ([`ChatVideos::yield_if_elsewhere`]), every video but the current one is
+    /// paused, the dock takes the video playing whose row left the view or gives back the one whose
+    /// row came back ([`ChatVideos::dock_moves`]), and every player whose picture was not on screen
+    /// this frame or the last, and is not in Full window, is dropped, leaving its still and words.
     pub(crate) fn end_frame(&mut self, ctx: &egui::Context) {
+        self.yield_if_elsewhere();
         let current = self.current.clone();
         for (url, live) in self.live.iter_mut() {
             if Some(url) != current.as_ref() && live.view.is_playing() {
@@ -470,6 +702,12 @@ impl ChatVideos {
             }
         }
         let frame = self.frame;
+        if !self.on_wall {
+            self.dock_moves(frame);
+        }
+        if self.go_to.as_ref().is_some_and(|(_, asked)| asked.elapsed() > GO_TO_WAIT) {
+            self.go_to = None;
+        }
         let gone: Vec<String> = self.live.iter().filter(|(url, l)| l.seen + 1 < frame && self.window.as_deref() != Some(url.as_str())).map(|(url, _)| url.clone()).collect();
         for url in gone {
             self.forget(&url, ctx);
@@ -485,6 +723,31 @@ impl ChatVideos {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
         self.frame += 1;
+    }
+
+    /// The dock's moves at the end of a frame (rung 3; never for a wall screen's set). A docked video
+    /// whose row was drawn on screen this frame is back in its message: the dock closes. Otherwise,
+    /// with the dock empty, the current video, playing or on its way to play (fetching, converting),
+    /// whose row was on screen until now and not this frame (and is not in Full window), moves into
+    /// the dock: the same player, nothing fetched again. A row drawn somewhere that is not the Chat
+    /// page's message list (a Shared File's card on the Files page) has no place to go back to, so
+    /// its video is not docked and goes as before.
+    fn dock_moves(&mut self, frame: u64) {
+        if self.dock.as_ref().is_some_and(|d| d.row_seen == frame) {
+            self.dock = None;
+        }
+        if self.dock.is_some() {
+            return;
+        }
+        let Some(url) = self.current.clone() else { return };
+        let Some(live) = self.live.get(&url) else { return };
+        let wants_to_play = live.view.is_playing() || live.view.fetching() || live.view.converting().is_some();
+        let left_now = live.inline_seen < frame && live.seen + 1 >= frame;
+        if !wants_to_play || !left_now || self.window.as_deref() == Some(url.as_str()) {
+            return;
+        }
+        let Some(origin) = live.origin.clone() else { return };
+        self.dock = Some(Dock { url, name: live.name.clone(), ffmpeg: live.ffmpeg.clone(), origin, minimized: false, row_seen: 0, spot: None, opened_on: None });
     }
 
     /// Drop the player of the video at `url` (its decoder, sound and temporary copy go with it),
@@ -520,6 +783,9 @@ impl ChatVideos {
     /// screen (BUG-258: a wall screen's videos were never handed to the mixer, so they played
     /// silent and their Mute and volume did nothing).
     pub(crate) fn sync_sound(&mut self, audio: &mut humanity_core::audio::AudioManager, place: SoundPlace) {
+        // A wall screen's sound step runs every frame in the world, framed or not: it gives way here
+        // too when the app screen's video (or another screen's) started (2026-11-06).
+        self.yield_if_elsewhere();
         for live in self.live.values_mut() {
             live.view.volume = self.volume;
             live.view.muted = self.muted;
@@ -567,10 +833,7 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
     let elsewhere = !in_window && videos.window.as_deref() == Some(url);
     // The shape: the picture's own once one has come (the player's, the still's, or the poster
     // picture's), else 16:9.
-    let aspect = {
-        let size = videos.live.get(url).and_then(|l| l.view.texture()).map(|t| t.size()).or_else(|| videos.stills.get(url).map(|s| s.texture.size())).or_else(|| poster_of(videos, url).map(|t| t.size()));
-        size.map_or(FIRST_ASPECT, |[w, h]| (w.max(1) as f32 / h.max(1) as f32).clamp(0.25, 4.0))
-    };
+    let aspect = videos.aspect_of(url);
     let mut width = if in_window { max.x } else { ui.available_width().min(max.x).max(160.0) };
     let mut height = width / aspect;
     if in_window {
@@ -586,8 +849,14 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
     let press = ui.interact(picture, ui.make_persistent_id("picture"), egui::Sense::click()).hint("chat_video.picture_hint");
     #[cfg(test)]
     videos.pictures.insert(url.to_string(), picture);
+    // Go to message (the dock): the row asked for, drawn in the Chat page's list, is scrolled to
+    // the middle of the view, where its video comes back from the dock.
+    if !in_window && videos.list_rect().is_some() && videos.go_to.as_ref().is_some_and(|(u, _)| u == url) {
+        ui.scroll_to_rect(picture, Some(egui::Align::Center));
+        videos.go_to = None;
+    }
     if (in_window || ui.is_rect_visible(picture)) && !elsewhere {
-        videos.on_screen(url, &ctx);
+        videos.on_screen(url, &ctx, !in_window);
         // Nothing of the video to show yet (never played here): its poster picture, asked for once.
         if !videos.live.contains_key(url) && !videos.stills.contains_key(url) {
             videos.want_poster(url);
@@ -718,7 +987,7 @@ fn measured_height(ui: &mut egui::Ui, width: f32, add: &mut dyn FnMut(&mut egui:
 /// The picture box: black, the picture (the player's, else the still) fitted in it, and over it the
 /// Play mark while it is not playing, or what is happening (fetching, converting, starting, or that
 /// it plays in its own window).
-fn paint_picture(ui: &egui::Ui, theme: &Theme, videos: &ChatVideos, url: &str, rect: egui::Rect, elsewhere: bool) {
+pub(super) fn paint_picture(ui: &egui::Ui, theme: &Theme, videos: &ChatVideos, url: &str, rect: egui::Rect, elsewhere: bool) {
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, egui::CornerRadius::same(4), theme.bg_primary());
     let live = videos.live.get(url);

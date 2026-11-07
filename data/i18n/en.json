@@ -3521,5 +3521,22 @@
       "gong": "Gong",
       "grand_piano_steinway": "Grand piano (Steinway)"
     }
+  },
+  "chat_video_dock": {
+    "label": "The video playing from the chat",
+    "from": "From {{channel}} on {{server}}",
+    "from_here": "From {{channel}}",
+    "minimize": "Minimize",
+    "minimize_hint": "Folds the video into a small tab at the edge. It keeps playing, sound and all, unless you pause it.",
+    "close_hint": "Stops the video and closes this box. The video stays in its message, at the place you left it.",
+    "go_to": "Go to message",
+    "go_to_hint": "Opens the chat at the message this video came from. The video goes back into its message there.",
+    "play_hint": "Plays the video here, in this box.",
+    "tab_playing": "Video playing",
+    "tab_paused": "Video paused",
+    "tab_hint": "Opens the video that was folded into this tab.",
+    "row_away": "Playing in the video box at the top right. Scroll back here, or press Go to message, to bring it back.",
+    "pip": "Float it",
+    "pip_hint": "Lets the video float over other windows too, using your browser's own picture-in-picture."
   }
 }

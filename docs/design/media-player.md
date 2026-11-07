@@ -482,7 +482,8 @@ opened the video in a window of its own. Now the player sits inside the message,
   its decode thread, its sound and its temporary copy go, and only its still and its place stay.
   The chat is not a virtual list (every row is laid out every frame), so "on screen" is the row's
   picture box intersecting the scroll view's clip (`ui.is_rect_visible`). Switching page or
-  channel drops them all the same way.
+  channel drops them all the same way. Since rung 3 (below) the video PLAYING whose row leaves
+  goes into the dock instead, the same player.
 - **Nothing is kept across runs.** The temporary copies go with their players (and the next start
   sweeps any a crash left); the stills, the places and the words are memory only. The stills obey
   the Dev page's "turn off all reuse" switch: with reuse off none is kept, and a row goes back to
@@ -513,7 +514,8 @@ the card, `preload="none"` on every video (it was `metadata` for this server's f
 every video row as the chat loaded), so nothing is fetched until Play. Its poster picture is set
 once the card is on screen (rung 2, below). A capture-phase `play` listener pauses the card that
 played before, so one plays at a time, and a playing card scrolled out of view is paused (an
-IntersectionObserver). A file the browser cannot play says so in its card, as since 2026-10-17.
+IntersectionObserver); since rung 3 a playing video goes into the dock instead (a sound is still
+paused). A file the browser cannot play says so in its card, as since 2026-10-17.
 
 ### Rung 2: the poster picture (2026-11-06)
 
@@ -576,6 +578,123 @@ reads the video itself before Play.
 - **Not built:** a poster picture for a file in a private conversation (it would have to be sealed
   with the file's own key and opened by the receiving app), and one for a Media item's own page
   (an item has its cover).
+
+### Rung 3: the anchored dock (2026-11-06)
+
+The operator, 2026-11-06: "Oh, for playing videos in chat. When we scroll them off page can we add
+like an anchored picture-in-picture mode that's stuck to the side of the chat it's at? It could be
+like a collapsible tap that has minimize (keeps playing unless paused) and close (closes anchored
+section.)" On the orchestrator's three proposals for the edges (another video started, a channel
+or server switched, the chat page left), his answer the same day: "Great ideas. Let's have it
+follow around app. Like how we have the chat footer on nonchat pages." And on one video across the
+app and the wall screens together: "Agreed."
+
+**What changes.** Before this rung a PLAYING video whose row left the view was paused and its
+player dropped (its still and place kept). Now it moves into the dock: the same player, nothing
+fetched again, nothing restarted. A paused or never-played video whose row leaves keeps the old
+behaviour (its player goes, its still and place stay). "Its row leaves" covers every way: scrolled
+away, a channel or server switched (the rows go), or the chat page left.
+
+**Where it sits.**
+
+- **On the Chat page**, inside the message list, at its top right corner, just under the channel
+  header (and any notice under the header), a small margin in from both edges. Right, because a
+  row's name and words start at the left, so the right edge covers the least of them; top, because
+  the message box and the newest lines are at the bottom, where the person reads and types, and a
+  row that leaves as the person reads on leaves at the top. It is laid out inside the message
+  list's own rectangle, so it can never cover the header or the message box.
+- **On every other app page** it follows the person, in the app-wide layer of the bottom strip
+  (gui/layers.rs layer 30, the chat footer's, app-bottom-strip.md), at the right edge standing on
+  the strip (the warning, and the chat footer once built). It is placed when it arrives on a page
+  and when the window changes size: from the bottom of the right edge upward, the lowest spot where
+  it covers none of the page's own controls, read from egui's record of what the page drew the
+  frame before (anything that takes a press or the keyboard, smaller than a quarter of the page;
+  a bigger one, a map or a long list, is a surface a picture-in-picture may stand over). With no
+  such spot it shows as the slim tab. Opened from the tab anyway, it stands at the bottom right
+  over what is there, the person's choice, until they leave that page. It is not moved as the page
+  scrolls under it.
+- **Its layer.** An egui Area in layer 30, Background like the footer's panel: over the page,
+  under the page's own windows and drop-downs, every popup and its shade, and tooltips. (By the
+  operator's numbers 30 is nearer than 40, which holds for panels that never overlap; a page's
+  window is Middle in egui and is drawn over the strip's layer, the warning's and the footer's
+  included. A window the person opened is what they are working in.)
+- **Not in the first-person world.** The dock is an app layer: entering the world (GuiPage::None)
+  pauses the video and hides the dock. Its player goes, as a paused video's does (a person may stay
+  in the world for hours), its still and place staying, and the dock comes back with them on the
+  next page; Play carries on from the place, fetching it again. Not resumed by itself.
+- **Never inside a wall screen.** A wall screen showing the chat (`ChatVideos::on_a_wall_screen`)
+  plays its videos in their rows, or in the Full window drawn on that wall (the same day's change:
+  "the whole display would be dedicated to the whole page"); its set never docks. The dock is the
+  person's, not a screen's.
+
+**How big.** The width is 40% of the room (the message list on the Chat page, the page between the
+menu and the strip elsewhere), between 240 and 420 points and never wider than the room; the
+picture keeps the video's shape (16:9 until it says its own); the parts round the picture are
+measured, and the whole is held inside the room. When the picture would be under 72 points tall
+there (a small window, Font Size 200% on 1280x720), the dock starts as the slim tab. Every size is
+in points, so Font Size 100% to 200% scales it like the rest of the app. Theme tokens only.
+
+**What it shows.** A line saying where the video came from ("From #global on united-humanity.us")
+with Minimize and Close; the picture (pressed, it plays or pauses, as in a row); then Play or
+Pause, the time, Mute, and Go to message. No seek bar or volume bar: the row has them, and Go to
+message is one press away. Every control has its words and hint by key (`chat_video_dock.*`).
+
+- **Minimize** folds it to a slim tab on the same edge ("Video playing" or "Video paused"). The
+  video plays on, sound included, unless paused. Pressing the tab opens it again.
+- **Close** stops the video (paused) and closes the dock; its player goes and the row keeps its
+  place and its still.
+- **Go to message** opens the Chat page at the video's channel, switching to its server first when
+  it is a saved one and not the one open (the history's own way back to a channel, `At::Chat`),
+  and scrolls its row into view, where the video returns inline. It waits up to 15 s for the row
+  to be drawn (a switched channel loads its history first); a row older than the history loaded is
+  not reached, and the dock stays.
+- **Scrolling the row back into view** returns the video inline, the same player.
+
+**One video at a time, everywhere.** Starting another video plays the new one in its row, pauses
+the docked one and closes the dock (the docked one's player goes; its row keeps its still).
+Since the operator's "Agreed." this holds across the app screen and every wall screen together, a
+wall screen's own Full window included (it is that screen's set's player): the last set whose
+Play was pressed holds the claim (a thread-local, since every set is drawn on
+the app's one GUI thread), and any other set gives way: at its end of frame, at its wall screen's
+sound step (every frame in the world, framed or not), and for every wall screen every frame while
+a page covers the world (when none of them draws).
+
+**Switching channels or servers** keeps the dock playing, labelled with where the video came from.
+
+**What it costs.** A docked, playing video costs what a row's does (about 1 ms averaged at 120 Hz on
+the frame loop, "A video playing in a chat row" below, plus its decoder threads and the picture
+upload). Minimized, its picture is not drawn, so the frame loop takes each due picture and keeps
+it for the still without making it an image or uploading it (the 2.6 to 2.9 ms per 1080p picture
+measured below, skipped); when it opens again the last picture is made an image once. The decoder
+cannot skip pictures: every AV1 picture (and H.264's or H.265's through Windows) is decoded from the
+ones before it, and the player's queue holds four, so a player not polled stops its decoder and the
+picture would fall behind the sound. A minimized video therefore keeps its decoder threads and
+their colour conversion (1080p at 30 fps is about 43% of what the threaded decoder manages on the
+dev machine, 69 fps in "Measurements") and its sound.
+
+**The website** (`web/shared/video-dock.js`, wired in `web/chat/app.js`): the same dock in the
+page's own HTML and CSS, at the top right of the message list under the channel header, in the
+chat page's column; the browser's own controls on the video give Play or Pause, the time and Mute,
+with Minimize, Close and Go to message beside them. The IntersectionObserver that paused a playing
+video scrolled out of view now moves the `<video>` element itself into the dock and leaves a line
+in its card saying where it is. Moving it does not restart it: HTML's removing steps for a media
+element wait for a stable state and do nothing if the element is back in a document by then, and
+inserting one whose network state is not empty runs no load, so an element moved in one task plays
+on. Checked on 2026-11-06 in Chromium 152 (the desktop app's browser pane), with a page playing the
+AV1 WebM fixture and doing the dock's moves: before the move the clock read 0.362 s and the video
+played; right after it, 0.362 s and playing; 300 ms later 0.624 s, with no `loadstart`, `emptied`,
+`pause` or `seeking` event since; hidden with `display: none` on the box (Minimize), 0.624 s to
+0.794 s, still playing, no event; put back in its card in its line's place, 0.794 s to 1.069 s, no
+event; then on to its end at 2.008 s. Firefox and Safari were not checked; they follow the same
+HTML steps. A card for that video drawn again (the channel opened again) takes the element back
+when it comes into view. On a phone-sized window (640 px wide or less), or a message list too small
+for a picture (narrower than 240 px, or under 72 px of picture), the dock starts as the tab; the
+picture gets the height the line above it and the buttons leave, at most 315 px.
+Where the browser offers its own floating picture-in-picture (`document.pictureInPictureEnabled`:
+Chromium and Safari; Firefox has its own button on the video and no such call), the dock carries one
+more button for it, one line of script. The website's pages are separate documents, so the dock
+lives on the chat page only (it follows channel switches there); following the person to another
+page would need the site to stop reloading on every page, which is not built.
 
 **What one playing video costs** is measured in "Measurements" below ("A video playing in a chat
 row").

@@ -92,6 +92,10 @@ pub(crate) use public_files::{draw_model_window, post_in};
 /// See `chat/inline_video.rs`.
 pub(crate) mod inline_video;
 pub(crate) use inline_video::{draw_video_window, sync_video_sound};
+/// The dock a playing video moves into when its row leaves the view, following the person round the
+/// app's pages (rung 3, 2026-11-06). See `chat/video_dock.rs`.
+pub(crate) mod video_dock;
+pub(crate) use video_dock::draw_video_dock;
 /// A posted video's poster picture: made when it is posted, drawn before Play (2026-11-06). See
 /// `chat/video_poster.rs`.
 pub(crate) mod video_poster;
@@ -600,11 +604,20 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         available.min,
         Vec2::new(available.width(), available.height() - input_height),
     );
+    // Where the rows drawn now belong and the list's rectangle, for the chat videos' dock
+    // (chat/video_dock.rs: it sits at this list's top right, never over the header or the box).
+    let here = video_dock::origin_here(state);
+    state.chat_video.note_chat_view(here, messages_rect);
 
+    // A Go to message waiting for its row (the chat videos' dock): the list neither sticks to its
+    // bottom nor animates while it waits, or egui's stick to the bottom would undo the jump to the
+    // row (it puts the offset back at the end every frame the list was at its end).
+    let going_to_row = state.chat_video.go_to.is_some();
     ui.allocate_new_ui(egui::UiBuilder::new().max_rect(messages_rect), |ui| {
         ScrollArea::vertical()
             .id_salt("chat_messages_scroll")
-            .stick_to_bottom(true)
+            .stick_to_bottom(!going_to_row)
+            .animated(!going_to_row)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 ui.add_space(8.0);

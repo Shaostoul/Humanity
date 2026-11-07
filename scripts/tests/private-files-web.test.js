@@ -719,6 +719,7 @@ async function loadChat(me, opts = {}) {
   run("chat/chat-files-card.js"); // a Media item posted in chat, as a card (2026-10-17)
   run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("shared/video-poster.js"); // a posted video's poster picture (2026-11-06), before app.js
+  run("shared/video-dock.js"); // the dock a playing video scrolled away moves into (2026-11-06, rung 3), before app.js
   run("chat/app.js");
   vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-messages.js");
@@ -1178,6 +1179,9 @@ test("public file cards: a video or a sound this browser cannot play says so, an
 // markup alone fixed in that copy: "heard in the capture phase: play, on #messages" (nothing heard
 // a player start); with fileMediaOnePlaying's pause of the one before taken out: "starting the
 // second pauses the first" (0 pauses); with its observe taken out: "the playing one is watched".
+// Rung 3 (the dock, 2026-11-06), seen red against a copy of web/ with fileMediaOffScreen pausing a
+// playing video as before (its fileDockTake line out): "a playing video scrolled out of view goes
+// into the dock"; with fileMediaOnePlaying leaving the dock open: "and closes the dock".
 test("public file cards: a video plays inline, is not read before Play, and only one plays at a time", async () => {
   const watched = [];
   let offScreen = null;
@@ -1221,12 +1225,23 @@ test("public file cards: a video plays inline, is not read before Play, and only
   assert.equal(two.player.pauses, 1, "a sound started pauses the video too: one thing at a time");
   fire("play", two.player);
   assert.equal(sound.player.pauses, 1);
-  // Scrolled out of view: the observer says so, and the player pauses.
+  // Scrolled out of view, playing: the observer says so, and the video goes into the dock, playing
+  // on (rung 3, 2026-11-06, /shared/video-dock.js; the module's own test is video-dock-web.test.js).
+  // Before rung 3 it was paused here.
+  for (const p of [two.player, sound.player]) { p.paused = false; p.ended = false; }
   offScreen([{ target: two.player, isIntersecting: true }]);
   assert.equal(two.player.pauses, 1, "on screen: it plays on");
   offScreen([{ target: two.player, isIntersecting: false }]);
-  assert.equal(two.player.pauses, 2, "a playing video scrolled out of view is paused");
-  assert.ok(!watched.includes(two.player), "and is no longer watched");
+  const dock = page.fn("fileDock");
+  assert.ok(dock && dock.held() === two.player, "a playing video scrolled out of view goes into the dock");
+  assert.equal(two.player.pauses, 1, "and is not paused");
+  assert.ok(!watched.includes(two.player) && watched.includes(dock.line()), "its card's line is watched for it to come back, not the video");
+  offScreen([{ target: sound.player, isIntersecting: false }]);
+  assert.equal(sound.player.pauses, 2, "a sound scrolled out of view is paused, as before");
+  // Another started: the docked one pauses and the dock closes (the new one plays in its row).
+  fire("play", one.player);
+  assert.equal(two.player.pauses, 2, "starting another pauses the docked one");
+  assert.equal(dock.held(), null, "and closes the dock");
 });
 
 // ── 4d. A video's poster picture (rung 2, 2026-11-06) ──────────────────────

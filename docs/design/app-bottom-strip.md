@@ -222,6 +222,19 @@ this device only, and the title screen shows the bar whatever the mute (his answ
 - **A hand-edited config.json** can hold a longer mute than the app offers; it still ends with the
   next version, and Settings still shows it with Show it again.
 
+### 3.6 The chat videos' dock shares the strip's layer (2026-11-06)
+
+A playing chat video whose row leaves the view moves into a small box (docs/design/media-player.md,
+"Rung 3: the anchored dock"; `src/gui/pages/chat/video_dock.rs`). The operator, on where it goes
+when the person leaves the chat: "Let's have it follow around app. Like how we have the chat footer
+on nonchat pages." So it is drawn in this layer (gui/layers.rs 30, the footer's) on every app page,
+never in the first-person world and never on an in-world screen, at the right edge standing on the
+strip (`room_above`): on the warning today, on the chat footer once that is built (the footer's
+height then comes off the room the same way). On a page it is placed clear of the page's own
+controls, or shown as a slim tab where it would cover them; on the Chat page it sits at the side of
+the message list instead. When the footer is built, the two stack: the footer across the bottom, the
+dock above it at the right.
+
 ## 4. The chat footer (rungs 2 and 3, NOT BUILT)
 
 ### 4.1 What it is
