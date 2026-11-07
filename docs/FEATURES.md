@@ -988,6 +988,16 @@ phone photo never publishes GPS coordinates or a camera serial.
   (`Form::anyway`), `files/shared_upload_step.rs`, `files/uploading.rs` (`draw_keep_ask`, after a
   resumable upload from an item's Edit stops with `Event::Unchecked`); web:
   `web/pages/files-add.js` (`startAttach` for an item's Edit), `web/pages/shared-files-upload.js`.
+- **And when the server could not clean it (2026-11-07, BUG-275).** A file the app sent cleaned, or
+  for the server to clean (the website's HEIC and AVIF photos), that the server still refuses at the
+  finish with 422 (`CANNOT_CLEAN`; it stores nothing) gets the chat's question in its own window on
+  Add to Files, an item's Edit and Shared Files, in both apps; "Send anyway" uploads the file exactly
+  as picked (never the cleaned copy) with the signed choice, to the same place. Desktop:
+  `files/resumable.rs` `Event::CannotClean`, `files/uploading.rs` (the question about the record's
+  `origin`), `files/shared_files.rs` (`shared_sent`, `shared_ask`), and the one window every such
+  question draws (`chat/attach_step.rs` `keep_ask_window`); web: `files-upload.js` (`cannotClean`),
+  `files-add.js` (`askAfterServer`, `asPicked`), `shared-files-upload.js` (`send`'s `picked`). Under
+  the protected setup the server's words stay, in the chat too since BUG-276.
 
 ### Encrypted Backups (server, 2026-08-23)
 Both backup layers sealed at rest (in-process 6h AES-256-GCM `.db.enc`; VPS

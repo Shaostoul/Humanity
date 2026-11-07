@@ -27,6 +27,10 @@ pub(crate) enum Trick {
     LoseFinish,
     /// Find the finished file does not match the hash it was started with (its session goes).
     WrongHash,
+    /// Find the file cannot be cleaned at the finish (the relay's 422, `CANNOT_CLEAN`, BUG-260):
+    /// its session goes, nothing stored. Only for an upload not kept by choice (`keep_metadata`),
+    /// which the relay never cleans.
+    CannotClean,
 }
 
 /// The simulated server's state (the page's tests read it too: page_tests.rs).
@@ -206,6 +210,11 @@ impl Transport for Fake {
             s.id = None;
             return refuse(409, "The file that arrived does not match the file you sent (its BLAKE3 hash differs), so nothing was kept. Send it again from the start.");
         }
+        if s.finish_trick == Some(Trick::CannotClean) && s.start_body["keep_metadata"] != 1 {
+            s.finish_trick = None;
+            s.id = None;
+            return refuse(422, crate::relay::upload_rules::PICTURE_UNREADABLE);
+        }
         let answer = json!({ "url": "/uploads/1700_clip.webm", "filename": "1700_clip.webm", "size": s.size, "type": "video" });
         s.done = Some(answer.clone());
         if s.finish_trick == Some(Trick::LoseFinish) {
@@ -266,7 +275,7 @@ pub(crate) fn run_on(fake: Arc<Fake>, plan: Plan, ctl: Arc<Control>, mut before:
     loop {
         let e = rx.recv_timeout(Duration::from_secs(20)).unwrap_or_else(|_| panic!("the upload stalled; events so far: {events:?}"));
         before(&ctl, &e);
-        let last = matches!(e, Event::Done { .. } | Event::Failed { .. } | Event::Cancelled { .. } | Event::Unchecked);
+        let last = matches!(e, Event::Done { .. } | Event::Failed { .. } | Event::Cancelled { .. } | Event::Unchecked | Event::CannotClean { .. });
         events.push(e);
         if last {
             break;

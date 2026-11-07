@@ -414,16 +414,30 @@ pub(crate) fn keep_answers(ui: &mut egui::Ui, theme: &Theme, can_send: bool) -> 
 /// signed choice to keep its details (attach_send.rs `KeepSigner`); "Don't send", closing the
 /// question, or leaving the conversation sends nothing.
 fn draw_server_ask(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    use humanity_core::i18n::t;
     let Some((channel, job)) = state.files_flow.server_ask.take() else { return };
     if channel != state.chat_active_channel {
         return; // the person left the conversation it was for: nothing is sent
     }
-    let question = keep_question_for(super::video_poster::is_video_name(&job.filename));
+    match keep_ask_window(ctx, theme, "chat_keep_ask", &job.filename) {
+        Some(send_anyway) => answer_server_ask(state, job, send_anyway),
+        None => state.files_flow.server_ask = Some((channel, job)),
+    }
+}
+
+/// "Send it anyway, or don't send?" in a window of its own, drawn the one way for every question
+/// asked after the person pressed send: the chat's after the server's 422 (`draw_server_ask`), and
+/// the Files page's for an upload that stopped (files/uploading.rs `draw_keep_ask`: this app's
+/// clean could not check it, or the server could not clean it at the finish) and for Shared Files
+/// after the server's 422 (files/shared_files.rs; 2026-11-07, BUG-275). The file's name, the
+/// question for a video or a picture, then the two answers (`keep_answers`). Some(true) on "Send
+/// anyway", Some(false) on "Don't send" or the window closed, None while it waits.
+pub(crate) fn keep_ask_window(ctx: &egui::Context, theme: &Theme, id: &str, name: &str) -> Option<bool> {
+    use humanity_core::i18n::t;
+    let question = keep_question_for(super::video_poster::is_video_name(name));
     let (mut open, mut yes, mut no) = (true, false, false);
-    widgets::dialog(ctx, theme, "chat_keep_ask", t("upload_keep.title"), &mut open, |ui| {
+    widgets::dialog(ctx, theme, id, t("upload_keep.title"), &mut open, |ui| {
         ui.set_max_width(460.0);
-        ui.label(RichText::new(&job.filename).size(theme.font_size_body).color(theme.text_primary()).strong());
+        ui.label(RichText::new(name).size(theme.font_size_body).color(theme.text_primary()).strong());
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(question).size(theme.font_size_body).color(theme.text_secondary()));
         ui.add_space(theme.spacing_sm);
@@ -431,10 +445,12 @@ fn draw_server_ask(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             (no, yes) = keep_answers(ui, theme, true);
         });
     });
-    if yes || no || !open {
-        answer_server_ask(state, job, yes);
+    if yes {
+        Some(true)
+    } else if no || !open {
+        Some(false)
     } else {
-        state.files_flow.server_ask = Some((channel, job));
+        None
     }
 }
 

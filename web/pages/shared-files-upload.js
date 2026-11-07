@@ -21,6 +21,9 @@
 //   checked is the person's to decide (2026-11-07, BUG-264, as the chat asks):
 //   "Send it anyway, or don't send?", "Don't send" first and holding the
 //   focus; "Send anyway" uploads it exactly as picked with their signed choice.
+//   The same question when the SERVER answers that it could not remove a
+//   file's hidden details after all (its 422; 2026-11-07, BUG-275), in its
+//   own window, except under the protected setup (the server's words then).
 // - The upload is POST /api/upload?token=<this session's token>&share=1 (and
 //   keep_metadata=1 when the person kept the details by choice), the chat's
 //   and the desktop's own route; the server's words when it refuses.
@@ -251,7 +254,9 @@
       }
       // 'ask' here means the step's own answer was "Send anyway": exactly as picked, signed (BUG-264).
       if (decided.action !== 'send' && decided.action !== 'ask') { say(decided.words || ''); return; }
-      await send(file.name, decided.file, decided.keepMetadata);
+      // The file as picked and what it is go too, for the server's own refusal (BUG-275): sent
+      // cleaned, or for the server to clean, it may still answer that it could not.
+      await send(file.name, decided.file, decided.keepMetadata, decided.keepMetadata || protectedOn ? null : { file, kind: clean.kind });
     }
 
     /**
@@ -322,7 +327,18 @@
       });
     }
 
-    async function send(name, blob, keepMetadata) {
+    /**
+     * Upload `blob` as `name` (keep_metadata=1 and the signed choice when `keepMetadata`). `picked`
+     * ({file, kind}: the file as picked and what the strip calls it), for a file sent cleaned or for
+     * the server to clean: when the server answers that it could not remove its hidden details
+     * after all (its 422, the relay's CANNOT_CLEAN, BUG-260; a HEIC or AVIF photo it could not read
+     * through is the usual one), the person is asked, as the chat asks there (2026-11-07, BUG-275):
+     * the chat's question in its own window (upload-clean.js askSendAnyway), "Don't send" first and
+     * holding the focus; "Send anyway" uploads it again exactly as picked, signed; "Don't send"
+     * sends nothing more and says so. Null under the protected setup (whose promise is that a file
+     * goes only with its details removed) and for a file kept by choice: the server's words then.
+     */
+    async function send(name, blob, keepMetadata, picked) {
       const t = token();
       if (!t) { st.queue.length = 0; say(WORDS.notSignedInYet); return; }
       say(uploadingWords(name));
@@ -343,6 +359,12 @@
         res = await env.fetch(url, { method: 'POST', body: form });
       } catch (e) {
         say(failedWords(WORDS.unreachable));
+        return;
+      }
+      if (picked && !keepMetadata && cleaner && typeof cleaner.askSendAnyway === 'function' && res && res.status === (cleaner.CANNOT_CLEAN_STATUS || 422)) {
+        say('');
+        if (!await cleaner.askSendAnyway(doc, name, picked.kind)) { say(keepWord('upload_keep.not_sent')); return; }
+        await send(name, picked.file, true, null);
         return;
       }
       if (!res || !res.ok) {

@@ -884,7 +884,9 @@ async function uploadPrepared(file, ready) {
     const resp = await uploadPost(uploadBase + shareParam + keepParam, formData, (f) => { indicator.textContent = uploadingWords(file.name, f); });
     // The server could not remove its hidden details (BUG-260): the person decides. "Send anyway"
     // sends the file exactly as it was picked, with their signed choice; "Don't send" sends nothing.
-    if (resp.status === 422 && !ready.keepMetadata) {
+    // Never under the protected setup, whose promise is that a file goes only with its location
+    // removed (2026-11-07, BUG-276): the server's words then, as for any other refusal.
+    if (resp.status === 422 && !ready.keepMetadata && !attachProtectedOn()) {
       indicator.style.display = 'none';
       if (!await askSendAnyway(file.name, keepKindOf(file.name))) {
         addSystemMessage(keepT('upload_keep.not_sent'));

@@ -36,6 +36,9 @@
 //     the button is not offered, and the page and the overlay give the same reason.
 //  7. Shared Files cleans a file before it goes: a phone photo shows the step (what is hidden, the
 //     switch); Upload sends the cleaned photo, Cancel sends nothing.
+//  3c and 7c. When the SERVER could not clean the file after all (its 422, BUG-275), an item's Edit
+//     and Shared Files ask the chat's question in its own window; Send anyway sends it again exactly
+//     as picked, signed; Don't send sends nothing more; the protected setup keeps the server's words.
 //  8. Every page that takes files loads the overlay's script and stylesheet before its own script,
 //     and the stylesheet uses the theme's variables only, the dialogs' dimming among them.
 //
@@ -349,6 +352,64 @@ test("4. the Files page says why a drop would do nothing, in its own words, and 
   assert.equal(admin.p.page.state.form, null);
 });
 
+// THE SERVER'S 422 IN AN ITEM'S EDIT (2026-11-07, BUG-275): a HEIC photo added to an item goes up as
+// picked for the server to clean, and a server that cannot read it through refuses it at the finish
+// with 422 (the relay's CANNOT_CLEAN), dropping the upload. The chat's question opens in its own
+// window, "Don't send" first and holding the focus: "Don't send" adds nothing and starts nothing
+// more; "Send anyway" starts the upload again, the photo exactly as picked with keep_metadata and
+// the signed choice, and adds it to the same item.
+// Seen red 2026-11-07 against the files-upload.js and files-add.js from before (HOS_WEB_DIR at a copy
+// of web/ from HEAD): "dont-send: the question opens" failed (actual null; the upload's row said the
+// server's words).
+test("3c. an item's Edit: the server's 422 at the finish asks; Don't send adds nothing, Send anyway uploads it again as picked, signed", async () => {
+  const mine = fxItem({ uploader_key: ME, uploader_name: "Me" });
+  const words = fs.readFileSync(path.join(ROOT, "src", "relay", "upload_rules.rs"), "utf8").match(/pub\(crate\) const HEIF_REFUSED: &str = "([^"]+)";/)[1];
+  const heicBytes = B.heic();
+  const focused = { el: null };
+  const realFocus = H.FakeElement.prototype.focus;
+  H.FakeElement.prototype.focus = function () { focused.el = this; realFocus.call(this); };
+  try {
+    for (const answer of ["dont-send", "send-anyway"]) {
+      let refused = 0;
+      const relay = resumableRelay({ finish: (sess) => { if (refused++) return null; sess.deleted = true; return respond(422, words); } });
+      const win = fakeWindow();
+      const { doc, page, net } = await openPage({ window: win, clean: UC, routes: listRoutes(answerOf([mine]), relay.routes.concat([
+        [at("/api/files/item-files/add", "POST"), () => respond(200, { ok: true, item: mine })],
+      ])) });
+      page.openViewer(page.state.items[0]);
+      byId(doc, "files-item-edit-open").click();
+      await dropOn(win, [new File([heicBytes], "IMG_0003.HEIC", { type: "image/heic" })]);
+      await until(() => byId(doc, "keep-ask-overlay"), 120);
+      const overlay = byId(doc, "keep-ask-overlay");
+      assert.ok(overlay, `${answer}: the question opens`);
+      assert.ok(relay.log.some((l) => l.kind === "start" && !("keep_metadata" in l.c.body)), `${answer}: test setup: it went for the server to clean`);
+      const buttons = overlay.querySelectorAll("button");
+      assert.deepEqual(buttons.map((b) => b.dataset.keepAsk), ["dont-send", "send-anyway"], `${answer}: Don't send first`);
+      assert.equal(focused.el, buttons[0], `${answer}: holding the focus`);
+      buttons.find((b) => b.dataset.keepAsk === answer).onclick();
+      for (let i = 0; i < 40; i++) await settle();
+      const starts = relay.log.filter((l) => l.kind === "start");
+      const added = net.calls.filter((c) => c.url === "/api/files/item-files/add");
+      assert.equal(byId(doc, "keep-ask-overlay"), null, `${answer}: the question goes`);
+      if (answer === "dont-send") {
+        assert.equal(starts.length, 1, "Don't send: nothing starts again");
+        assert.equal(added.length, 0, "and nothing is added");
+        assert.equal(page.state.uploads.length, 0, "and its row goes");
+      } else {
+        assert.equal(starts.length, 2, "Send anyway: the upload starts again");
+        assert.equal(starts[1].c.body.keep_metadata, 1, "keep_metadata: 1");
+        assert.ok(starts[1].c.body.keep && starts[1].c.body.blake3, "with the signed choice");
+        const up = Buffer.concat(relay.pieces.filter((p) => p.id === "b".repeat(32)).map((p) => Buffer.from(p.c.init.body)));
+        assert.ok(up.equals(Buffer.from(heicBytes)), "the photo exactly as picked");
+        assert.equal(added.length, 1, "added to the same item");
+        assert.equal(added[0].body.id, mine.id, "the item it was for");
+      }
+    }
+  } finally {
+    H.FakeElement.prototype.focus = realFocus;
+  }
+});
+
 // ── 5 to 7. Shared Files ─────────────────────────────────────────────────
 
 /** The Shared Files upload in a stand-in page, signed in as `over` says (session null: no identity). */
@@ -359,7 +420,10 @@ function sharedFiles(opts) {
   root.id = "sf-upload";
   doc.body.appendChild(root);
   const win = fakeWindow();
-  const net = fakeFetch([[at("/api/upload", "POST"), (c) => respond(200, { url: "/uploads/1760_" + c.init.body.get("file").name })]]);
+  const stored = (c) => respond(200, { url: "/uploads/1760_" + c.init.body.get("file").name });
+  // o.answers: the upload's answers in turn (each a function of the request), then stored as usual.
+  const answers = (o.answers || []).slice();
+  const net = fakeFetch([[at("/api/upload", "POST"), (c) => (answers.length ? answers.shift()(c) : stored(c))]]);
   let reloaded = 0;
   const session = o.session === undefined ? fakeSession(o.over) : o.session;
   const up = SFU.createSharedFilesUpload({
@@ -513,6 +577,89 @@ test("7b. Shared Files asks about a file it could not check: Don't send first an
   } finally {
     H.FakeElement.prototype.focus = realFocus;
   }
+});
+
+// THE SERVER'S 422 ON SHARED FILES (2026-11-07, BUG-275; BUG-264's "Not in this fix"): a HEIC photo
+// goes to the server as picked for it to clean, and a server that cannot read it through refuses it
+// with 422 (the relay's CANNOT_CLEAN), storing nothing. Shared Files asks the chat's question in its
+// own window (upload-clean.js askSendAnyway), "Don't send" first and holding the focus: "Don't send"
+// sends nothing more and says so; "Send anyway" uploads it again exactly as picked, keep_metadata=1
+// and the signed choice as the first part. A phone photo cleaned on this device and refused the same
+// way goes again AS PICKED. Under the protected setup, and for any other refusal, the server's words.
+// Seen red 2026-11-07 against the shared-files-upload.js from before (HOS_WEB_DIR at a copy of web/
+// from HEAD): "a HEIC refused: the question opens" failed (actual null; the status line said "Not
+// uploaded: HEIC and AVIF photos cannot be cleaned of where they were taken yet...").
+test("7c. Shared Files: the server's 422 asks; Don't send sends nothing more, Send anyway sends it again as picked, signed", async () => {
+  const words = fs.readFileSync(path.join(ROOT, "src", "relay", "upload_rules.rs"), "utf8").match(/pub\(crate\) const HEIF_REFUSED: &str = "([^"]+)";/)[1];
+  const refuse = (status, w) => () => respond(status, w);
+  const heicBytes = B.heic();
+  const heic = () => new File([heicBytes], "IMG_0003.HEIC", { type: "image/heic" });
+  const question = (doc) => {
+    const overlay = byId(doc, "keep-ask-overlay");
+    return overlay ? overlay.querySelectorAll("button") : null;
+  };
+  const focused = { el: null };
+  const realFocus = H.FakeElement.prototype.focus;
+  H.FakeElement.prototype.focus = function () { focused.el = this; realFocus.call(this); };
+  try {
+    const s = sharedFiles({ answers: [refuse(422, words)] });
+    await dropOn(s.win, [heic()]);
+    await until(() => question(s.doc));
+    const buttons = question(s.doc);
+    assert.ok(buttons, "a HEIC refused: the question opens");
+    assert.ok(text(byId(s.doc, "keep-ask-overlay")).includes("upload_keep.question_picture"), "the chat's question, by key");
+    assert.deepEqual(buttons.map((b) => b.dataset.keepAsk), ["dont-send", "send-anyway"], "Don't send first");
+    assert.equal(focused.el, buttons[0], "holding the focus");
+    buttons[0].onclick();
+    for (let i = 0; i < 6; i++) await settle();
+    assert.equal(question(s.doc), null, "Don't send: the question goes");
+    assert.equal((await uploadsOf(s.net)).length, 1, "nothing more is sent");
+    assert.equal(s.reloaded(), 0, "nothing was stored");
+    assert.equal(text(byId(s.doc, "sf-upload-status")), "upload_keep.not_sent", "and it says so");
+
+    const y = sharedFiles({ answers: [refuse(422, words)] });
+    await dropOn(y.win, [heic()]);
+    await until(() => question(y.doc));
+    question(y.doc)[1].onclick();
+    await until(() => y.reloaded() > 0);
+    const sent = await uploadsOf(y.net);
+    assert.equal(sent.length, 2, "Send anyway: sent again");
+    assert.equal(sent[0].url, "/api/upload?token=tok-1&share=1", "test setup: the first went for the server to clean");
+    assert.equal(sent[1].url, "/api/upload?token=tok-1&share=1&keep_metadata=1", "keep_metadata=1");
+    assert.ok(Buffer.from(sent[1].bytes).equals(Buffer.from(heicBytes)), "exactly as picked");
+    const parts = y.net.calls.filter((c) => path0(c.url) === "/api/upload")[1].init.body;
+    assert.ok(parts.get("keep") && JSON.parse(parts.get("keep")).sig, "with the signed choice");
+    assert.equal(question(y.doc), null, "the question is gone");
+  } finally {
+    H.FakeElement.prototype.focus = realFocus;
+  }
+
+  // A phone photo cleaned here and refused all the same: Send anyway sends it AS PICKED.
+  const photoBytes = B.phoneJpeg();
+  const c = sharedFiles({ answers: [refuse(422, "This picture could not be read all the way through...")] });
+  await dropOn(c.win, [new File([photoBytes], "IMG_0001.jpg", { type: "image/jpeg" })]);
+  await until(() => byId(c.doc, "sf-upload-go"));
+  byId(c.doc, "sf-upload-go").click();
+  await until(() => question(c.doc));
+  question(c.doc)[1].onclick();
+  await until(() => c.reloaded() > 0);
+  const both = await uploadsOf(c.net);
+  assert.ok(!Buffer.from(both[0].bytes).equals(Buffer.from(photoBytes)), "test setup: the cleaned photo went first");
+  assert.ok(Buffer.from(both[1].bytes).equals(Buffer.from(photoBytes)), "a cleaned photo: Send anyway sends it exactly as picked");
+
+  // The protected setup, and any other refusal: the server's words, no question.
+  const storage = fakeStorage();
+  storage.setItem(UC.PROTECTED_STORAGE_KEY, JSON.stringify({ v: 1, on: true }));
+  const pr = sharedFiles({ storage, answers: [refuse(422, words)] });
+  await dropOn(pr.win, [heic()]);
+  await until(() => text(byId(pr.doc, "sf-upload-status")).startsWith("Not uploaded"));
+  assert.equal(question(pr.doc), null, "the protected setup: no question");
+  assert.equal(text(byId(pr.doc, "sf-upload-status")), "Not uploaded: " + words, "the protected setup: the server's words");
+  const o = sharedFiles({ answers: [refuse(400, "This server no longer takes files of this kind.")] });
+  await dropOn(o.win, [heic()]);
+  await until(() => text(byId(o.doc, "sf-upload-status")).startsWith("Not uploaded"));
+  assert.equal(question(o.doc), null, "another refusal: no question");
+  assert.equal(text(byId(o.doc, "sf-upload-status")), "Not uploaded: This server no longer takes files of this kind.", "another refusal: its words");
 });
 
 // ── 8. The pages load it ─────────────────────────────────────────────────

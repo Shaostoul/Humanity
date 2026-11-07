@@ -214,3 +214,189 @@ fn an_upload_that_could_not_be_checked_is_asked_about() {
     assert_eq!(start["keep_metadata"], 1, "keep_metadata");
     assert!(start["keep"]["sig"].is_string(), "with the signed choice: {start}");
 }
+
+/// THE SERVER'S 422 AT THE FINISH IS ASKED ABOUT (2026-11-07, BUG-275; BUG-264's "Not in this
+/// fix"). An upload this app cleaned (a phone photo, so its cleaned copy is what goes up) that the
+/// server still could not clean at the finish (its 422, the relay's `CANNOT_CLEAN`; it drops the
+/// upload, nothing stored): the row goes and the page asks the chat's question about the file AS
+/// PICKED, not the cleaned copy, for Add to Files and an item's Edit alike. Enter answers "Don't
+/// send": nothing starts again and the page says so. "Send anyway" uploads the person's own file
+/// exactly as picked, with `keep_metadata` and the signed choice, to the same place. Under the
+/// protected setup the server's words stay and nothing is asked.
+///
+/// Seen red 2026-11-07 against the worker and page from before (a 422 at the finish ended as
+/// `Event::Failed`): "Add to Files: the page asks (it said \"garden.jpg: This picture could not be
+/// read all the way through, ...\")".
+#[test]
+fn the_servers_422_at_the_finish_is_asked_about() {
+    use super::api_items::{AttachTo, FileRole};
+    use super::resumable::tests::Trick;
+    use std::sync::Arc;
+    let (ctx, theme) = ctx_and_theme();
+    let to = AttachTo { id: 7, filename: "7_dusk.glb".into(), role: FileRole::File };
+    let (path, bytes) = fixture_copy("jpeg-phone.jpg", "keep_ask_server", "jpg");
+    let form = add::Form { remove: true, ..add::Form::new(add::Source::Picked { path: path.to_path_buf(), name: "garden.jpg".into(), len: bytes.len() as u64 }) };
+    let start = |state: &mut GuiState, route: &str, fake: Arc<Fake>| {
+        if route == "Add to Files" {
+            uploading::start_with(state, &form, fake).expect("it starts");
+        } else {
+            uploading::start_attach_with(state, &path, "garden.jpg", bytes.len() as u64, to.clone(), fake).expect("it starts");
+        }
+    };
+    let refusing = || {
+        let fake = Fake::new(8192);
+        fake.s().finish_trick = Some(Trick::CannotClean);
+        fake
+    };
+    let ended = |s: &GuiState| s.files.keep_ask.is_some() || s.files.uploads.is_empty();
+    for route in ["Add to Files", "an item's Edit"] {
+        let mut state = page_state(demo_answer(), true);
+        state.private_key_bytes = Some(vec![7u8; 32]);
+        state.upload_token = Some((tests::SERVER.to_string(), TOKEN.to_string()));
+        let fake = refusing();
+        start(&mut state, route, fake.clone());
+        super::uploads_tests::until(&ctx, &mut state, "the upload ends", ended);
+        assert!(state.files.keep_ask.is_some(), "{route}: the page asks (it said {:?})", state.files.status);
+        assert!(state.files.uploads.is_empty(), "{route}: the row goes");
+        assert_ne!(fake.s().data, bytes, "{route}: test setup: the cleaned copy went up first");
+        assert!(fake.s().id.is_none() && fake.s().done.is_none(), "{route}: the server stored nothing");
+        let record = state.files.keep_ask.clone().unwrap();
+        assert_eq!((record.path.clone(), record.size), (path.to_path_buf(), bytes.len() as u64), "{route}: the file as picked, not the cleaned copy");
+        let out = settled(&ctx, &theme, &mut state);
+        assert!(find_text_in_shapes(&out.shapes, t("upload_keep.question_picture")).is_some(), "{route}: the chat's question");
+        assert_the_two_answers(&ctx, &out, route);
+        frame(&ctx, &theme, &mut state, vec![enter()]);
+        settled(&ctx, &theme, &mut state);
+        assert!(state.files.keep_ask.is_none(), "{route}: Enter answers \"Don't send\"");
+        assert_eq!(state.files.status, t("upload_keep.not_sent"), "{route}: and the page says so");
+        assert!(state.files.uploads.is_empty() && fake.count("start") == 1, "{route}: nothing starts again");
+
+        // "Send anyway" in the window starts the person's own file again...
+        start(&mut state, route, refusing());
+        super::uploads_tests::until(&ctx, &mut state, "the upload ends again", ended);
+        assert!(state.files.keep_ask.is_some(), "{route}: asked again");
+        click(&ctx, &theme, &mut state, t("upload_keep.send_anyway"));
+        assert!(state.files.keep_ask.is_none(), "{route}: Send anyway answers it");
+        assert_eq!(state.files.uploads.len(), 1, "{route}: its upload started");
+        assert_eq!(state.files.uploads[0].record.path, path.to_path_buf(), "{route}: the file as picked");
+        assert_eq!(state.files.uploads[0].record.attach.is_some(), route != "Add to Files", "{route}: to the same place");
+        for e in &state.files.uploads {
+            e.run.ctl.cancel(); // that one went to a closed port on this machine
+        }
+        state.files.uploads.clear();
+
+        // ...and what it sends, through the simulated server: the bytes as picked, the flag, the choice.
+        start(&mut state, route, refusing());
+        super::uploads_tests::until(&ctx, &mut state, "the upload ends a third time", ended);
+        let record = state.files.keep_ask.take().expect("asked a third time");
+        let again = Fake::new(8192);
+        uploading::send_anyway_with(&mut state, record, again.clone()).expect("Send anyway starts it");
+        super::uploads_tests::until(&ctx, &mut state, "the upload is up", |s| s.files.uploads.iter().all(|e| !matches!(e.after, uploading::After::Uploading)));
+        assert_eq!(again.s().data, bytes, "{route}: exactly as picked");
+        let body = again.s().start_body.clone();
+        assert_eq!(body["keep_metadata"], 1, "{route}: keep_metadata");
+        assert!(body["keep"]["sig"].is_string(), "{route}: with the signed choice: {body}");
+    }
+
+    // The protected setup sends no file with its details: the server's words, nothing asked.
+    let mut state = page_state(demo_answer(), true);
+    state.private_key_bytes = Some(vec![7u8; 32]);
+    state.upload_token = Some((tests::SERVER.to_string(), TOKEN.to_string()));
+    state.protected.setup.on = true;
+    let fake = refusing();
+    start(&mut state, "Add to Files", fake.clone());
+    super::uploads_tests::until(&ctx, &mut state, "the protected upload ends", ended);
+    assert!(state.files.keep_ask.is_none(), "the protected setup: nothing asked");
+    assert!(state.files.status.contains(crate::relay::upload_rules::PICTURE_UNREADABLE), "the protected setup: the server's words: {:?}", state.files.status);
+    assert_eq!(fake.count("start"), 1, "the protected setup: nothing more is sent");
+}
+
+/// SHARED FILES ASKS AT THE SERVER'S 422 (2026-11-07, BUG-275). A phone photo picked for Shared
+/// Files is cleaned and uploaded on Upload; the server answers 422 (it could not clean it after
+/// all, and stored nothing): the Shared Files place asks the chat's question in its own window
+/// about the file as picked. Enter answers "Don't send" (nothing more is sent, and it says so);
+/// "Send anyway" uploads it again exactly as picked, `keep_metadata=1` with the signed choice.
+/// Under the protected setup the server's words stay. (A server on this machine's loopback address
+/// answers 422, then stores the second, then lists.)
+///
+/// Seen red 2026-11-07 against the Shared Files code from before (the 422 was shown as the server's
+/// words): "dont-send: the question opens (the place said \"This picture could not be read all the
+/// way through, ...\")".
+#[test]
+fn shared_files_asks_at_the_servers_422() {
+    use std::time::Duration;
+    let (ctx, theme) = ctx_and_theme();
+    let words = crate::relay::upload_rules::PICTURE_UNREADABLE;
+    let run = |state: &mut GuiState, events: Vec<egui::Event>| {
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 1000.0))), events, ..Default::default() };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| super::shared_files::draw_list(ui, &theme, state));
+        })
+    };
+    let until = |state: &mut GuiState, what: &str, done: &dyn Fn(&GuiState, &egui::FullOutput) -> bool| -> egui::FullOutput {
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        loop {
+            let out = run(state, Vec::new());
+            if done(state, &out) {
+                return run(state, Vec::new());
+            }
+            assert!(std::time::Instant::now() < deadline, "{what} (the place said {:?})", state.files.shared.shared_status);
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    };
+    let press = |state: &mut GuiState, out: &egui::FullOutput, text: &str| {
+        let pos = at(out, text).center();
+        let m = egui::Modifiers::default();
+        run(state, vec![egui::Event::PointerMoved(pos)]);
+        run(state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        run(state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+    };
+    let exact = |out: &egui::FullOutput, text: &str| find_text_in_shapes(&out.shapes, text).is_some_and(|f| f.text == text);
+    for answer in ["dont-send", "send-anyway", "protected"] {
+        let zero = Duration::ZERO;
+        let (base, seen) = super::uploads_tests::http_server(vec![(zero, 422, words), (zero, 200, r#"{"url":"/uploads/1_garden.jpg"}"#), (zero, 200, r#"{"files":[]}"#)]);
+        let mut state = page_state(demo_answer(), true);
+        state.private_key_bytes = Some(vec![7u8; 32]);
+        state.server_url = base.clone();
+        let here = crate::gui::pages::chat::norm_server_url(&base);
+        state.upload_token = Some((here.clone(), TOKEN.to_string()));
+        state.files.shared.shared_server = here;
+        state.files.shared.shared_loaded = true;
+        state.protected.setup.on = answer == "protected";
+        let (path, bytes) = fixture_copy("jpeg-phone.jpg", "keep_ask_shared_422", "jpg");
+        state.files.shared.shared_step = Some(super::shared_upload_step::start(&state, path.to_path_buf(), "garden.jpg".into()));
+        // The step shows what the photo holds; Upload sends it cleaned.
+        let out = until(&mut state, "the step offers Upload", &|_, out| exact(out, "Upload"));
+        press(&mut state, &out, "Upload");
+        let answered = |s: &GuiState, out: &egui::FullOutput| find_text_in_shapes(&out.shapes, t("upload_keep.dont_send")).is_some() || s.files.shared.shared_status.contains("could not be read");
+        let out = until(&mut state, "the server answers", &answered);
+        let first = seen.lock().unwrap()[0].clone();
+        let line: String = first.chars().take(120).collect();
+        assert!(first.contains("share=1") && !first.contains("keep_metadata"), "{answer}: test setup: the first went cleaned: {line}");
+        assert!(!first.contains("Exif"), "{answer}: test setup: without its hidden details");
+        if answer == "protected" {
+            assert!(find_text_in_shapes(&out.shapes, t("upload_keep.dont_send")).is_none(), "the protected setup: nothing asked");
+            assert_eq!(state.files.shared.shared_status, words, "the protected setup: the server's words");
+            assert_eq!(seen.lock().unwrap().len(), 1, "the protected setup: nothing more is sent");
+            continue;
+        }
+        assert!(find_text_in_shapes(&out.shapes, t("upload_keep.question_picture")).is_some(), "{answer}: the question opens (the place said {:?})", state.files.shared.shared_status);
+        assert_the_two_answers(&ctx, &out, "Shared Files");
+        if answer == "dont-send" {
+            run(&mut state, vec![enter()]);
+            let out = run(&mut state, Vec::new());
+            assert!(find_text_in_shapes(&out.shapes, t("upload_keep.dont_send")).is_none(), "Enter answers \"Don't send\"");
+            assert_eq!(state.files.shared.shared_status, t("upload_keep.not_sent"), "and the place says so");
+            std::thread::sleep(Duration::from_millis(50));
+            assert_eq!(seen.lock().unwrap().len(), 1, "nothing more is sent");
+            continue;
+        }
+        press(&mut state, &out, t("upload_keep.send_anyway"));
+        until(&mut state, "it is sent again and stored", &|s, _| s.files.shared.shared_status.starts_with("Done") || s.files.shared.shared_status.contains("file(s) on the server"));
+        let second = seen.lock().unwrap()[1].clone();
+        let line: String = second.chars().take(120).collect();
+        assert!(second.starts_with("POST /api/upload?") && second.contains("share=1") && second.contains("keep_metadata=1"), "Send anyway: keep_metadata=1: {line}");
+        assert!(second.contains("name=\"keep\"") && second.contains("\"sig\""), "Send anyway: with the signed choice");
+        assert!(second.contains("Exif") && bytes.windows(4).any(|w| w == b"Exif"), "Send anyway: the photo as picked, its hidden details in it");
+    }
+}

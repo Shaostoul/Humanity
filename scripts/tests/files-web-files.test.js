@@ -21,11 +21,15 @@
 //     that could not be checked cannot be added at all.
 //  5. A video over 64 MB is read by its box headers (nothing near its size is read before the
 //     upload starts), and what goes up is byte for byte what the strip makes of the whole file.
+//  6. When the server refuses the file at the finish because it could not clean it (422, BUG-275),
+//     the chat's question: Don't send stores nothing; Send anyway uploads it again exactly as picked,
+//     signed. The protected setup, and any other refusal, keep the server's words.
 //
 // HOS_WEB_DIR points the test at another copy of web/. Red first: see the end of this file.
 
 const test = require("node:test");
 const assert = require("node:assert");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const H = require("./files-web-harness.js");
@@ -40,7 +44,7 @@ const same = (a, b) => Buffer.from(a).equals(Buffer.from(b));
 
 /** The page with the real cleaning, a stand-in relay that keeps every piece, and publishing that answers. */
 async function page(opts) {
-  const relay = H.resumableRelay();
+  const relay = H.resumableRelay(opts && opts.hooks);
   const storage = (opts && opts.storage) || fakeStorage();
   const p = await openPage({
     clean: UC, storage,
@@ -238,6 +242,114 @@ test("5. a 70 MB phone video is read by its box headers, and what goes up is the
   assert.equal(up.length, video.length, "the same length");
   assert.ok(same(up, want.bytes), "byte for byte the whole-file strip's");
   assert.ok(!B.contains(up, B.PLACE), "where it was filmed is gone");
+});
+
+// ── 6. The server's 422 at the finish ────────────────────────────────────
+
+// The relay's own words for a HEIC or AVIF photo it could not read through (upload_rules.rs).
+const RULES = fs.readFileSync(path.join(H.ROOT, "src", "relay", "upload_rules.rs"), "utf8");
+const HEIF_REFUSED = RULES.match(/pub\(crate\) const HEIF_REFUSED: &str = "([^"]+)";/)[1];
+
+/** The stand-in relay's hooks for a server that refuses the first finish as the relay does when it
+ *  cannot clean the file (422, upload_rules.rs CANNOT_CLEAN), dropping that upload: nothing stored. */
+function refusingFirstFinish(status, words) {
+  let refused = 0;
+  return { finish: (sess) => { if (refused++) return null; sess.deleted = true; return respond(status, words); } };
+}
+const startsOf = (relay) => relay.log.filter((l) => l.kind === "start").map((l) => l.c.body);
+/** What went up in one upload (its session's pieces, in order, joined). */
+const piecesOf = (relay, id) => new Uint8Array(Buffer.concat(relay.pieces.filter((p) => p.id === id).sort((a, b) => a.offset - b.offset).map((p) => Buffer.from(p.c.init.body))));
+const publishes = (net) => net.calls.filter((c) => H.path0(c.url) === "/api/files" && (c.init.method || "GET") === "POST");
+/** The question's window (upload-clean.js askSendAnyway) and its two buttons, in their order. */
+function question(doc) {
+  const overlay = byId(doc, "keep-ask-overlay");
+  return overlay ? { overlay, buttons: overlay.querySelectorAll("button") } : null;
+}
+
+// THE SERVER COULD NOT CLEAN IT AT THE FINISH (2026-11-07, BUG-275; BUG-264's "Not in this fix"): a
+// HEIC photo goes up as picked for the server to clean (test 3), and a server that cannot read it
+// through refuses it at the finish with 422 (the relay's CANNOT_CLEAN, here HEIF_REFUSED) and drops
+// the upload, nothing stored. Add to Files asks the chat's question in its own window (upload-clean.js
+// askSendAnyway, as the chat does at its 422): "Don't send" first and holding the focus. "Don't send"
+// ends it: the row goes, nothing starts again, nothing is published, the page says so. "Send anyway"
+// starts the upload again, the photo exactly as picked with keep_metadata and the signed choice, and
+// publishes it. A phone photo cleaned on this device that the server refuses the same way goes again
+// AS PICKED, not as cleaned. Under the protected setup the server's words stay (the setup sends no file
+// whose details could not be removed), and so does any other refusal's.
+// Seen red 2026-11-07 against the files-upload.js and files-add.js from before (HOS_WEB_DIR at a copy of
+// web/ from HEAD): "a HEIC refused at the finish: the question opens" failed (actual null: the row
+// said the server's words "HEIC and AVIF photos cannot be cleaned of where they were taken yet...").
+test("6. the server's 422 at the finish asks: Don't send stores nothing, Send anyway uploads it again as picked, signed; protected and other refusals keep the words", async () => {
+  const heic = fileOf(B.heic(), "IMG_0003.HEIC", "image/heic");
+  const heicBytes = new Uint8Array(await heic.arrayBuffer());
+  const focused = { el: null };
+  const realFocus = H.FakeElement.prototype.focus;
+  H.FakeElement.prototype.focus = function () { focused.el = this; realFocus.call(this); };
+  try {
+    // Don't send.
+    let p = await page({ hooks: refusingFirstFinish(422, HEIF_REFUSED) });
+    await pickFile(p.doc, heic);
+    await upload(p.doc);
+    let q = question(p.doc);
+    assert.ok(q, "a HEIC refused at the finish: the question opens");
+    assert.ok(text(q.overlay).includes("upload_keep.question_picture"), "the chat's question, by key");
+    assert.deepEqual(q.buttons.map((b) => b.dataset.keepAsk), ["dont-send", "send-anyway"], "Don't send first");
+    assert.equal(focused.el, q.buttons[0], "holding the focus");
+    assert.ok(q.buttons.every((b) => b.getAttribute("data-tip-desc")), "each with its hint");
+    q.buttons[0].onclick();
+    for (let i = 0; i < 20; i++) await settle();
+    assert.equal(question(p.doc), null, "Don't send: the question goes");
+    assert.equal(startsOf(p.relay).length, 1, "nothing starts again");
+    assert.equal(publishes(p.net).length, 0, "nothing is published");
+    assert.equal(p.page.state.uploads.length, 0, "the row goes");
+    assert.ok(p.relay.sessions.get("a".repeat(32)).deleted && !p.relay.sessions.get("a".repeat(32)).done, "the server stored nothing");
+    assert.ok(text(p.doc.body).includes("upload_keep.not_sent"), "and the page says so");
+
+    // Send anyway.
+    p = await page({ hooks: refusingFirstFinish(422, HEIF_REFUSED) });
+    await pickFile(p.doc, heic);
+    await upload(p.doc);
+    question(p.doc).buttons[1].onclick();
+    for (let i = 0; i < 30; i++) await settle();
+    const starts = startsOf(p.relay);
+    assert.equal(starts.length, 2, "Send anyway: the upload starts again");
+    assert.ok(!("keep_metadata" in starts[0]), "test setup: the first went for the server to clean");
+    assert.equal(starts[1].keep_metadata, 1, "keep_metadata: 1");
+    assert.ok(starts[1].keep && starts[1].keep.sig && starts[1].blake3, "with the signed choice (BUG-260)");
+    assert.ok(Buffer.from(starts[1].keep.sig, "base64").toString().startsWith("hum/upload-keep/v1\n" + H.ME + "\n" + starts[1].blake3 + "\n"), "signed by me, for this very file");
+    assert.ok(same(piecesOf(p.relay, "b".repeat(32)), heicBytes), "the photo exactly as picked");
+    assert.equal(publishes(p.net).length, 1, "and it is published");
+    assert.equal(question(p.doc), null, "the question is gone");
+  } finally {
+    H.FakeElement.prototype.focus = realFocus;
+  }
+
+  // A photo cleaned on this device, refused at the finish all the same: Send anyway sends it AS PICKED.
+  let p = await page({ hooks: refusingFirstFinish(422, "This picture could not be read all the way through...") });
+  await pickFile(p.doc, fileOf(PHOTO, "IMG_0001.jpg", "image/jpeg"));
+  await upload(p.doc);
+  assert.ok(same(piecesOf(p.relay, "a".repeat(32)), S.stripFile(PHOTO, "IMG_0001.jpg").bytes), "test setup: the cleaned photo went first");
+  question(p.doc).buttons[1].onclick();
+  for (let i = 0; i < 30; i++) await settle();
+  assert.equal(startsOf(p.relay)[1].keep_metadata, 1, "a cleaned photo: Send anyway keeps its details");
+  assert.ok(same(piecesOf(p.relay, "b".repeat(32)), PHOTO), "a cleaned photo: Send anyway sends it exactly as picked");
+
+  // Under the protected setup: the server's words, no question.
+  const storage = fakeStorage();
+  storage.setItem(UC.PROTECTED_STORAGE_KEY, JSON.stringify({ v: 1, on: true }));
+  p = await page({ storage, hooks: refusingFirstFinish(422, HEIF_REFUSED) });
+  await pickFile(p.doc, heic);
+  await upload(p.doc);
+  assert.equal(question(p.doc), null, "the protected setup: no question");
+  assert.ok(text(p.doc.body).includes(HEIF_REFUSED), "the protected setup: the server's words");
+  assert.equal(startsOf(p.relay).length, 1, "the protected setup: nothing more is sent");
+
+  // Any other refusal at the finish: its own words, no question.
+  p = await page({ hooks: refusingFirstFinish(400, "This server no longer takes files of this kind.") });
+  await pickFile(p.doc, heic);
+  await upload(p.doc);
+  assert.equal(question(p.doc), null, "another refusal: no question");
+  assert.ok(text(p.doc.body).includes("This server no longer takes files of this kind."), "another refusal: its words");
 });
 
 // ── Red first ────────────────────────────────────────────────────────────

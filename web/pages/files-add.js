@@ -153,6 +153,9 @@
      * protected setup).
      */
     function sendingOf(f) {
+      // "Send anyway" after the server could not clean it at the finish (BUG-275): exactly as picked,
+      // its details kept by the person's signed choice.
+      if (f && f.asPicked) return { file: f.file, keepMetadata: true, refused: null, ask: null };
       if (!f || !f.clean || !cleaner) return { file: f ? f.file : null, keepMetadata: false, refused: null, ask: null };
       const d = cleaner.decide(f.clean, { where: 'public', remove: f.remove !== false, protectedOn: !!f.protectedOn });
       if (d.action === 'send') return { file: d.file, keepMetadata: d.keepMetadata, refused: null, ask: null };
@@ -690,6 +693,9 @@
         box.appendChild(h('div', { className: 'files-meter', dataset: { uploadBar: f.n }, attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Upload of ' + f.name } }, [fill]));
         const warn = s.phase === 'allowance' || s.phase === 'no_room' || s.phase === 'failed' || s.phase === 'server_error';
         box.appendChild(h('p', { dataset: { uploadWords: f.n }, className: warn ? 'files-warn' : 'files-hint', text: uploadWords(u) }));
+        // The server could not clean it, and its question is open (askAfterServer): the window
+        // answers for it, so the row offers nothing meanwhile.
+        if (f.asking) return;
         const buttons = [];
         const p = s.phase;
         if (p === 'starting' || p === 'sending' || p === 'finishing' || p === 'reconnecting' || p === 'server_wait' || p === 'waiting_connection' || p === 'allowance') {
@@ -895,6 +901,12 @@
         els.uploads.appendChild(f.panel);
       }
       renderForm();
+      runUpload(f);
+    }
+
+    /** The upload of what `f` sends (sendingOf), in its row of the uploads list. */
+    function runUpload(f) {
+      const sending = sendingOf(f);
       f.up = createUploader({
         fetch: env.fetch, token, file: sending.file, owner: myKey, storage: env.storage,
         fp: sending.file === f.fpFile ? f.fp : '', keepMetadata: sending.keepMetadata,
@@ -912,6 +924,10 @@
             loadMine();
             return;
           }
+          if (s.phase === 'failed' && s.cannotClean && canAskAfterServer(f)) {
+            askAfterServer(f);
+            return;
+          }
           if (st.uploads.includes(f)) renderFormActions(f);
           if (f.attach) itemView.uploadsChanged();
         },
@@ -924,6 +940,42 @@
       });
       renderFormActions(f);
       f.up.start();
+    }
+
+    /**
+     * May the person be asked about a file the server could not clean at the finish? Not under the
+     * protected setup, whose promise is that a file is sent only with its details removed (it keeps
+     * the server's words), and not without the question's window (a page without the cleaning).
+     */
+    function canAskAfterServer(f) {
+      return !!(cleaner && typeof cleaner.askSendAnyway === 'function' && !f.protectedOn && !f.asPicked && st.uploads.includes(f));
+    }
+
+    /**
+     * THE SERVER COULD NOT CLEAN IT AT THE FINISH (2026-11-07, BUG-275; BUG-264's follow-up): it
+     * answered 422 (the relay's CANNOT_CLEAN, BUG-260; a HEIC or AVIF photo it could not read through
+     * is the usual one, since this page sends those for the server to clean) and stored nothing. As
+     * the chat does at its 422: the chat's question in its own window (upload-clean.js
+     * askSendAnyway), "Don't send" first and holding the focus. "Don't send" ends it, the row gone,
+     * nothing stored; "Send anyway" uploads the file again in the same row, exactly as picked, with
+     * keep_metadata and the person's signed choice, and it is published (or added to its item) as
+     * before.
+     */
+    async function askAfterServer(f) {
+      f.asking = true;
+      renderFormActions(f);
+      const yes = await cleaner.askSendAnyway(doc, f.file.name, f.clean ? f.clean.kind : '');
+      f.asking = false;
+      if (!st.uploads.includes(f)) return;
+      if (!yes) {
+        dropUpload(f);
+        say(T('upload_keep.not_sent'));
+        loadMine();
+        if (f.attach) itemView.uploadsChanged();
+        return;
+      }
+      f.asPicked = true;
+      runUpload(f);
     }
 
     async function publish(f) {

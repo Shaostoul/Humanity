@@ -150,3 +150,24 @@ fn the_servers_422_asks_and_send_anyway_resends() {
     assert!(gs.files_flow.server_ask.is_none());
     assert_eq!(gs.pending_notices, vec!["The file was not sent: File too large".to_string()]);
 }
+
+/// THE PROTECTED SETUP IS NOT ASKED (2026-11-07, BUG-276): its promise is that a file goes only
+/// with its location removed (the attach step under it sends a file that could not be checked
+/// nowhere), but the question after the server's 422 was asked under it too, and "Send anyway"
+/// would have stored the file with its details. Now, as the Files page does (BUG-275): the
+/// server's words, nothing asked, nothing waiting to be sent.
+///
+/// Seen red 2026-11-07 against `drain` from before: "nothing asked under the protected setup".
+#[test]
+fn the_servers_422_under_the_protected_setup_says_its_words() {
+    let mut gs = GuiState::default();
+    gs.chat_active_channel = "global".into();
+    gs.protected.setup.on = true;
+    gs.files_flow.sent_public = Some(public_job(vec![1, 2, 3]));
+    let (tx, rx) = std::sync::mpsc::channel();
+    tx.send(Err(format!("{CANNOT_CLEAN_TAG}{}", crate::relay::upload_rules::PICTURE_UNREADABLE))).unwrap();
+    gs.clipboard_upload = Some(("global".into(), rx));
+    drain(&egui::Context::default(), &mut gs);
+    assert!(gs.files_flow.server_ask.is_none(), "nothing asked under the protected setup");
+    assert_eq!(gs.pending_notices, vec![format!("The file was not sent: {}", crate::relay::upload_rules::PICTURE_UNREADABLE)], "the server's words, never the tag");
+}

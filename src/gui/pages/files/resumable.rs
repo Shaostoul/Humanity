@@ -53,6 +53,7 @@ use serde_json::{json, Value};
 
 use super::upload_cancel::{self, Told};
 use super::upload_waits::{self as waits, Backoff, Streak};
+use crate::gui::pages::chat::attach_send::CANNOT_CLEAN_STATUS;
 use crate::gui::widgets::image_cache::hide_token;
 
 pub(crate) use super::upload_run::{stored_name_of, Phase, Run};
@@ -196,6 +197,12 @@ pub enum Event {
     /// BUG-264; the chat's question, BUG-260), and "Send anyway" uploads it exactly as picked,
     /// with their signed choice.
     Unchecked,
+    /// The server could not remove the file's hidden details at the finish (its 422, the relay's
+    /// `CANNOT_CLEAN`, BUG-260; it drops the upload, so nothing of it is stored): the server's
+    /// words. The page asks the person "Send it anyway, or don't send?" about the file as picked
+    /// (2026-11-07, BUG-275, as the chat asks at its own 422), or says these words under the
+    /// protected setup. An upload kept by choice is never cleaned, so it never ends this way.
+    CannotClean { words: String },
 }
 
 // ── Pause, Resume, Retry, Cancel and the token ──────────────────────────────────────────────
@@ -687,7 +694,8 @@ impl Waits<'_> {
 }
 
 /// Upload `plan` through `t`, reporting on `tx`. Blocking: run it on a worker thread. Ends with
-/// `Done`, `Failed` or `Cancelled`.
+/// `Done`, `Failed`, `Cancelled`, `Unchecked` (this app's clean could not check the file) or
+/// `CannotClean` (the server could not, at the finish).
 pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
     let mut w = Waits { ctl, tx, backoff: Backoff::new(ctl.pace), streak: Streak::default() };
     // 0: cleaned on this device first (a new upload only: one carried on already reads its copy).
@@ -894,7 +902,11 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
                 }
             }
             Answer::Other(r) if r.status == 404 => return w.send(Event::Failed { words: UPLOAD_GONE.to_string(), gone: true }),
-            Answer::Other(r) if r.status == 410 || r.status == 422 => return w.send(Event::Failed { words: r.words(), gone: true }),
+            // The server could not clean it (BUG-260) and dropped the upload: the page asks the
+            // person (BUG-275). A 422 for an upload kept by choice, which the server never cleans,
+            // is only words.
+            Answer::Other(r) if r.status == CANNOT_CLEAN_STATUS && !plan.keep_metadata => return w.send(Event::CannotClean { words: r.words() }),
+            Answer::Other(r) if r.status == 410 || r.status == CANNOT_CLEAN_STATUS => return w.send(Event::Failed { words: r.words(), gone: true }),
             Answer::TokenRefused => refused = Some(token),
             Answer::ServerError(r) => {
                 offset = None;

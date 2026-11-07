@@ -7,7 +7,8 @@
 //! anyway" second (attach_step.rs `keep_answers`); "Send anyway" uploads it exactly as picked with
 //! `keep_metadata=1` and the person's signed choice, as the switch turned off does. A file with
 //! nothing hidden in it uploads at once. The file is read, cleaned and uploaded on a worker thread,
-//! never on the frame.
+//! never on the frame. When the server still could not clean a file sent cleaned (its 422), the
+//! place asks the same question in its own window (shared_files.rs; 2026-11-07, BUG-275).
 
 use egui::RichText;
 
@@ -61,7 +62,9 @@ pub(crate) fn prepare(path: &std::path::Path, filename: &str, remove: bool) -> R
 
 /// Read, clean and upload the file to Shared Files: the worker's whole job. Kept with its details by
 /// choice, it carries the person's signed choice for this very file (`signer`, BUG-260), or nothing
-/// is sent.
+/// is sent. A file sent cleaned that the server still could not clean (its 422, the relay's
+/// `CANNOT_CLEAN`) comes back with its words marked `CANNOT_CLEAN_TAG`, as the chat's do, so the
+/// place asks the person instead of showing them (shared_files.rs; 2026-11-07, BUG-275).
 pub(crate) fn upload(server: &str, token: &str, path: &std::path::Path, filename: &str, remove: bool, signer: Option<&crate::gui::pages::chat::attach_send::KeepSigner>) -> Result<String, String> {
     use crate::gui::pages::chat::attach_send;
     let (bytes, flags) = prepare(path, filename, remove)?;
@@ -69,18 +72,33 @@ pub(crate) fn upload(server: &str, token: &str, path: &std::path::Path, filename
     let keep = if flags.keep_metadata { Some(signer.ok_or_else(attach_send::cannot_sign_words)?.choice(&bytes)) } else { None };
     attach_send::upload_with_poster_keep(server, token, filename, &mime, bytes, flags, None, keep.as_deref())
         .map(|url| format!("uploaded {url}"))
-        .map_err(|(_, words)| words)
+        .map_err(|(status, words)| {
+            if status == Some(attach_send::CANNOT_CLEAN_STATUS) && !flags.keep_metadata {
+                format!("{}{words}", attach_send::CANNOT_CLEAN_TAG)
+            } else {
+                words
+            }
+        })
 }
 
-/// The upload on a worker: cleaned when `remove`, else exactly as picked (the switch off, or "Send
-/// anyway"), with the signed choice.
-fn spawn_upload(server: String, token: String, step: &UploadStep, remove: bool, signer: Option<crate::gui::pages::chat::attach_send::KeepSigner>) -> Receiver<Result<String, String>> {
+/// The upload of the file at `path` on a worker: cleaned when `remove`, else exactly as picked (the
+/// switch off, or "Send anyway"), with the signed choice. One sent cleaned is noted as the place's
+/// `shared_sent`, so a 422 from the server for it can be asked about (BUG-275).
+fn spawn_upload(state: &mut GuiState, server: &str, token: &str, path: PathBuf, filename: String, remove: bool) -> Receiver<Result<String, String>> {
+    let signer = crate::gui::pages::chat::attach_send::KeepSigner::of(state);
+    state.files.shared.shared_sent = remove.then(|| (path.clone(), filename.clone()));
     let (tx, rx) = std::sync::mpsc::channel();
-    let (path, filename) = (step.path.clone(), step.filename.clone());
+    let (server, token) = (server.to_string(), token.to_string());
     std::thread::spawn(move || {
         let _ = tx.send(upload(&server, &token, &path, &filename, remove, signer.as_ref()));
     });
     rx
+}
+
+/// "Send anyway" after the server could not clean the file (BUG-275): the file at `path` uploaded
+/// again exactly as picked, `keep_metadata=1` with the person's signed choice.
+pub(crate) fn send_anyway(state: &mut GuiState, server: &str, token: &str, path: PathBuf, filename: String) -> Receiver<Result<String, String>> {
+    spawn_upload(state, server, token, path, filename, false)
 }
 
 /// Draw the step under the Shared Files list (only when it has something to say), and start the
@@ -95,7 +113,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, step:
     if let Some(look) = &step.looking.look {
         if !attach_step::needs_asking(look, None) {
             attach_step::remember_switch(state, step.remove);
-            return Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, step.remove, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
+            return Outcome::Uploading(spawn_upload(state, server, token, step.path.clone(), step.filename.clone(), step.remove));
         }
     }
     let mut outcome = Outcome::Waiting;
@@ -108,7 +126,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, step:
                 // sends it exactly as picked, signed; the switch stays as the person set it.
                 let (no, yes) = attach_step::keep_answers(ui, theme, v.can_send);
                 if yes {
-                    outcome = Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, false, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
+                    outcome = Outcome::Uploading(spawn_upload(state, server, token, step.path.clone(), step.filename.clone(), false));
                 } else if no {
                     outcome = Outcome::NotSent;
                 }
@@ -119,7 +137,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, step:
                 go = widgets::Button::primary("Upload").show(ui, theme);
             });
             if go {
-                outcome = Outcome::Uploading(spawn_upload(server.to_string(), token.to_string(), step, step.remove, crate::gui::pages::chat::attach_send::KeepSigner::of(state)));
+                outcome = Outcome::Uploading(spawn_upload(state, server, token, step.path.clone(), step.filename.clone(), step.remove));
             }
             if widgets::Button::secondary("Cancel").show(ui, theme) {
                 outcome = Outcome::Cancelled;

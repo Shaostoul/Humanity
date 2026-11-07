@@ -71,6 +71,12 @@ pub struct SharedFiles {
     pub shared_picker: Option<widgets::file_browser::FilePickerState>,
     /// A picked file being looked at before it uploads (shared_upload_step.rs, 2026-10-11).
     pub shared_step: Option<super::shared_upload_step::UploadStep>,
+    /// The upload on its way, as picked (its path and name), when it was sent cleaned: should the
+    /// server answer that it could not clean it after all (its 422, BUG-260), the person is asked
+    /// about this file (2026-11-07, BUG-275).
+    pub shared_sent: Option<(std::path::PathBuf, String)>,
+    /// That file while the person is asked "Send it anyway, or don't send?" (BUG-275).
+    pub shared_ask: Option<(std::path::PathBuf, String)>,
     /// Files chosen together still to go up (2026-10-16), one at a time through the same step:
     /// the next once the one before is uploaded or cancelled.
     pub shared_queue: std::collections::VecDeque<std::path::PathBuf>,
@@ -92,6 +98,8 @@ pub(crate) fn forget_other_server(fs: &mut SharedFiles, here: &str) {
     fs.shared_loaded = false;
     fs.shared_list_rx = None;
     fs.shared_action_rx = None;
+    fs.shared_sent = None;
+    fs.shared_ask = None;
     fs.selected = None;
 }
 
@@ -180,6 +188,7 @@ fn start_refresh(server: String) -> std::sync::mpsc::Receiver<ListResult> {
 fn poll(state: &mut GuiState) {
     let server = state.server_url.clone();
     let here = crate::gui::pages::chat::norm_server_url(&server);
+    let protected = crate::engine::protected::is_on(state);
     let fs = &mut state.files.shared;
     forget_other_server(fs, &here);
     let mut trigger_refresh = !fs.shared_loaded && fs.shared_list_rx.is_none() && !server.is_empty();
@@ -200,12 +209,23 @@ fn poll(state: &mut GuiState) {
     if let Some(rx) = fs.shared_action_rx.as_ref() {
         if let Ok(res) = rx.try_recv() {
             fs.shared_action_rx = None;
+            let sent = fs.shared_sent.take();
             match res {
                 Ok(done) => {
                     fs.shared_status = format!("Done: {done}");
                     trigger_refresh = true; // reflect the change
                 }
-                Err(e) => fs.shared_status = e,
+                // The server could not remove its hidden details after all (its 422, BUG-260) and
+                // stored nothing: the person is asked about the file as picked (2026-11-07,
+                // BUG-275), as the chat asks at its 422. Never under the protected setup, whose
+                // promise is that a file goes only with its details removed: the server's words.
+                Err(e) => match (e.strip_prefix(crate::gui::pages::chat::attach_send::CANNOT_CLEAN_TAG), sent) {
+                    (Some(_), Some(file)) if !protected => {
+                        fs.shared_status.clear();
+                        fs.shared_ask = Some(file);
+                    }
+                    (words, _) => fs.shared_status = words.unwrap_or(e.as_str()).to_string(),
+                },
             }
         }
     }
@@ -317,6 +337,22 @@ fn draw_list_of(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, mine: bo
         }
     }
 
+    // The server could not clean the file after all (its 422): the chat's question in its own
+    // window (chat/attach_step.rs `keep_ask_window`; 2026-11-07, BUG-275). "Send anyway" uploads it
+    // again exactly as picked, signed; "Don't send" sends nothing more and says so.
+    if let Some((path, filename)) = state.files.shared.shared_ask.take() {
+        match crate::gui::pages::chat::attach_step::keep_ask_window(ui.ctx(), theme, "files_shared_keep_ask", &filename) {
+            None => state.files.shared.shared_ask = Some((path, filename)),
+            Some(true) => {
+                let token = upload_token.clone().unwrap_or_default();
+                let rx = super::shared_upload_step::send_anyway(state, &server, &token, path, filename);
+                state.files.shared.shared_action_rx = Some(rx);
+                state.files.shared.shared_status = "Uploading...".to_string();
+            }
+            Some(false) => state.files.shared.shared_status = t("upload_keep.not_sent").to_string(),
+        }
+    }
+
     // The file list: a row per file (only yours, for Your shared files), the one chosen
     // highlighted.
     let rows = rows_of(state, mine);
@@ -364,9 +400,9 @@ fn draw_list_of(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, mine: bo
             FilePickerResult::Picked(paths) => shared_picked(state, paths, upload_token.is_some(), upload_limit),
         }
     }
-    // The next of several chosen together, once the one before is up or cancelled.
+    // The next of several chosen together, once the one before is up, cancelled or answered.
     let fs = &mut state.files.shared;
-    if fs.shared_step.is_none() && fs.shared_action_rx.is_none() {
+    if fs.shared_step.is_none() && fs.shared_action_rx.is_none() && fs.shared_ask.is_none() {
         if let Some(next) = fs.shared_queue.pop_front() {
             start_shared_upload(state, next, upload_token.is_some(), upload_limit);
         }

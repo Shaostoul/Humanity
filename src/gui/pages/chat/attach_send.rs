@@ -623,8 +623,11 @@ pub(super) fn drain(ctx: &egui::Context, state: &mut GuiState) {
             state.clipboard_upload = None;
             let sent = state.files_flow.sent_public.take();
             // The server could not remove its hidden details (BUG-260): the person is asked ("Don't
-            // send" first), in the conversation it was for, instead of being told it failed.
-            if let (Some(job), true) = (sent, e.starts_with(CANNOT_CLEAN_TAG)) {
+            // send" first), in the conversation it was for, instead of being told it failed. Never
+            // under the protected setup, whose promise is that a file goes only with its location
+            // removed (2026-11-07, BUG-276): the server's words then, as for any other refusal.
+            let protected = crate::engine::protected::is_on(state);
+            if let (Some(job), true, false) = (sent, e.starts_with(CANNOT_CLEAN_TAG), protected) {
                 log::info!("Attachment upload: the server could not clean it; asking the person");
                 state.files_flow.server_ask = Some((made_for, job));
                 return;

@@ -205,36 +205,38 @@ pub(crate) fn start_attach_with(state: &mut GuiState, path: &std::path::Path, na
 
 /// A file whose hidden details could not be removed (2026-11-07, BUG-264; the operator, of the Files
 /// page: "Let's do that."): "Send it anyway, or don't send?", the chat's question and its two
-/// answers (chat/attach_step.rs `keep_answers`, "Don't send" first and focused). It comes up when an
-/// upload stops with `Event::Unchecked` (this app's clean could not check the file, before anything
-/// was sent): a file added from an item's Edit, which has no look of its own. "Send anyway" uploads
-/// it exactly as picked, with the person's signed choice to keep its details, to the same place
-/// (published, or added to its item); "Don't send", or closing the question, sends nothing and says
-/// so.
+/// answers (chat/attach_step.rs `keep_answers`, "Don't send" first and focused, in its window
+/// `keep_ask_window`). It comes up when an upload stops with `Event::Unchecked` (this app's clean
+/// could not check the file, before anything was sent: a file added from an item's Edit, which has
+/// no look of its own), and since 2026-11-07 (BUG-275) with `Event::CannotClean` (the server could
+/// not clean it at the finish and stored nothing: Add to Files and an item's Edit alike). "Send
+/// anyway" uploads the file exactly as picked, with the person's signed choice to keep its details,
+/// to the same place (published, or added to its item); "Don't send", or closing the question,
+/// sends nothing and says so.
 pub(crate) fn draw_keep_ask(ctx: &egui::Context, theme: &crate::gui::theme::Theme, state: &mut GuiState) {
-    use humanity_core::i18n::t;
     let Some(record) = state.files.keep_ask.take() else { return };
-    let question = crate::gui::pages::chat::attach_step::keep_question_for(crate::gui::pages::chat::video_poster::is_video_name(&record.name));
-    let (mut open, mut no, mut yes) = (true, false, false);
-    crate::gui::widgets::dialog(ctx, theme, "files_keep_ask", t("upload_keep.title"), &mut open, |ui| {
-        ui.set_max_width(460.0);
-        ui.label(egui::RichText::new(&record.name).size(theme.font_size_body).color(theme.text_primary()).strong());
-        ui.add_space(theme.spacing_xs);
-        ui.label(egui::RichText::new(question).size(theme.font_size_body).color(theme.text_secondary()));
-        ui.add_space(theme.spacing_sm);
-        ui.horizontal(|ui| {
-            (no, yes) = crate::gui::pages::chat::attach_step::keep_answers(ui, theme, true);
-        });
-    });
-    if yes {
-        if let Err(words) = send_anyway(state, record) {
-            state.files.status = words;
+    match crate::gui::pages::chat::attach_step::keep_ask_window(ctx, theme, "files_keep_ask", &record.name) {
+        Some(true) => {
+            if let Err(words) = send_anyway(state, record) {
+                state.files.status = words;
+            }
         }
-    } else if no || !open {
-        state.files.status = t("upload_keep.not_sent").to_string();
-    } else {
-        state.files.keep_ask = Some(record);
+        Some(false) => state.files.status = humanity_core::i18n::t("upload_keep.not_sent").to_string(),
+        None => state.files.keep_ask = Some(record),
     }
+}
+
+/// `record` as "Send anyway" sends it after the server could not clean it (BUG-275): the file as it
+/// was picked (its `origin`: path, size and date), never the cleaned copy its `path` follows once
+/// cleaned, and with no server id (that upload is gone). None for an upload of something not picked
+/// on this computer, which has no such file to send.
+fn as_picked(mut record: Unfinished) -> Option<Unfinished> {
+    let origin = record.origin.clone()?;
+    record.path = origin.path;
+    record.size = origin.size;
+    record.modified_ms = origin.modified_ms;
+    record.id = String::new();
+    Some(record)
 }
 
 /// "Send anyway" for `record`: its upload again, exactly as picked (no clean, so the start says
@@ -322,6 +324,20 @@ pub(crate) fn on_event(state: &mut GuiState, local: u64, e: Event) {
             forget_record(state, &gone_entry.record.id);
             // Nothing was cleaned or started, so its record still names the person's own file.
             state.files.keep_ask = Some(gone_entry.record);
+            super::refresh_mine(state);
+        }
+        // The server could not remove its hidden details at the finish (its 422, BUG-260) and
+        // dropped the upload, nothing stored: the row goes and the person is asked about the file
+        // as picked (BUG-275), as the chat asks at its 422. Never under the protected setup, whose
+        // promise is that a file goes only with its details removed: the server's words then.
+        Event::CannotClean { words } => {
+            let Some(gone_entry) = drop_entry(state, local) else { return };
+            forget_record(state, &gone_entry.record.id);
+            let name = gone_entry.record.name.clone();
+            match as_picked(gone_entry.record) {
+                Some(record) if !crate::engine::protected::is_on(state) => state.files.keep_ask = Some(record),
+                _ => state.files.status = format!("{name}: {words}"),
+            }
             super::refresh_mine(state);
         }
         Event::Cancelled { told } => {

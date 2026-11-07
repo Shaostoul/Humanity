@@ -16,6 +16,8 @@
 //  3. When the server answers 422 (it could not remove the details), the chat's question appears
 //     with "Don't send" first and holding the focus; "Send anyway" uploads the file again with
 //     keep_metadata=1 and the signed choice as the first part; "Don't send" uploads nothing more.
+//  4. Under the protected setup the server's 422 is NOT asked about (BUG-276): the server's words,
+//     nothing more sent.
 //
 // HOS_WEB_DIR points at another copy of web/. Seen red 2026-11-06 against a copy holding the
 // chat-messages.js and upload-clean.js from before this: test 1 failed at "upload-clean.js signs a
@@ -69,7 +71,7 @@ function all(root) {
 }
 
 /** A page with the shared files and the chat's messages file loaded, its network stood in. */
-function chatPage(answers) {
+function chatPage(answers, opts) {
   const document = fakeDocument();
   const said = [];
   const posts = [];
@@ -87,6 +89,8 @@ function chatPage(answers) {
     // The signature stood in by the signed bytes themselves, so the test can read what was signed.
     pqSignMessage: async (_secret, bytes) => new Uint8Array(bytes),
   };
+  // The protected setup's answer (chat-protected.js protectedIsOn, which attachProtectedOn asks first).
+  if (opts && opts.protectedOn) ctx.protectedIsOn = () => true;
   ctx.window = ctx;
   vm.createContext(ctx);
   for (const rel of ['shared/blake3.js', 'shared/strip-metadata.js', 'shared/upload-clean.js', 'chat/chat-messages.js']) {
@@ -184,4 +188,25 @@ test('the server\'s 422: the question appears, "Send anyway" sends it again sign
   assert.strictEqual(await sending, null, 'nothing is stored');
   assert.strictEqual(page.posts.length, 1, 'and nothing more is sent');
   assert.ok(page.said.includes('upload_keep.not_sent'), 'the conversation says it was not sent');
+});
+
+// THE PROTECTED SETUP IS NOT ASKED (2026-11-07, BUG-276): its promise is that a file goes only with
+// its location removed (docs/design/files-showcase.md: under it a file that could not be checked is
+// sent nowhere), and the chat's own attach step keeps it, but the question after the server's 422
+// did not: a HEIC photo, which goes to a room as picked for the server to clean, met "Send anyway"
+// under the protected setup when the server could not read it through, and "Send anyway" stored it
+// with its location. Now, as the Files pages do (BUG-275): the server's words, and nothing more sent.
+// Seen red 2026-11-07 against the chat-messages.js from before (HOS_WEB_DIR at a copy of web/ from
+// HEAD): "no question under the protected setup" failed (the question's window opened).
+test('under the protected setup the server\'s 422 is not asked about: its words, nothing more sent', async () => {
+  const photo = new File([new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70])], 'IMG_0003.HEIC', { type: 'image/heic' });
+  const words = 'HEIC and AVIF photos cannot be cleaned of where they were taken yet. Save it as a JPEG and send that.';
+  const page = chatPage([{ status: 422, text: words }, { status: 200, json: { url: '/uploads/1_x.heic' } }], { protectedOn: true });
+  const sending = page.ctx.uploadPrepared(photo, { file: photo, keepMetadata: false, unchecked: false });
+  // Never answered by a click here: under the protected setup nothing waits for one.
+  const done = await Promise.race([sending, new Promise((r) => setTimeout(() => r('still waiting'), 200))]);
+  assert.strictEqual(page.document.body.children.length, 0, 'no question under the protected setup');
+  assert.strictEqual(done, null, 'nothing is stored');
+  assert.strictEqual(page.posts.length, 1, 'and nothing more is sent');
+  assert.ok(page.said.some((s) => s.includes(words)), 'the server\'s words are said: ' + JSON.stringify(page.said));
 });
