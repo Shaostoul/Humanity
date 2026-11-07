@@ -217,7 +217,7 @@ pub fn zone_type(id: &str) -> Option<&'static ZoneType> {
 /// footprint using these dimensions. `residential` deliberately has NO entry here: it uses its own
 /// home-cloning path instead (see `generate_zone_filler`'s residential branch). Infinite-of-X: add a
 /// district's filler by adding one entry to `zone_filler.ron`, no code. `mesh_kind` picks the shape
-/// (`filler_parts`: rack, stall, cradle, array; anything else is a solid box silhouette).
+/// (`filler_parts`: rack, stall, parking_spot, array; anything else is a solid box silhouette).
 #[derive(Debug, Clone, Deserialize)]
 pub struct ZoneFiller {
     /// -> zone_types.ron id.
@@ -230,7 +230,7 @@ pub struct ZoneFiller {
     pub spacing: f32,
     /// Metres kept clear from the zone's own walls on every side (a walkway margin).
     pub inset: f32,
-    /// Shape tag ("rack" / "stall" / "cradle" / "array"), built by `filler_parts`. A rack's decks
+    /// Shape tag ("rack" / "stall" / "parking_spot" / "array"), built by `filler_parts`. A rack's decks
     /// hold the home's stored goods as crates (`engine::stock_piles`, 2026-09-26); an unknown
     /// tag is a solid box.
     pub mesh_kind: String,
@@ -304,15 +304,17 @@ const RACK_CLEAR_M: f32 = 0.5;
 /// - "rack": open pallet shelving, six uprights and a deck at each level;
 /// - "stall": a market stall, a front counter, a back shelf, four corner posts
 ///   and a roof;
-/// - "cradle": a ship cradle, two floor rails down its length with paired chocks
-///   standing on them at a fifth, a half and four fifths of the way along, where
-///   a hull rests;
+/// - "parking_spot": where one craft (or a mech, in a mech bay) is parked, two
+///   floor rails down its length with paired chocks standing on them at a fifth,
+///   a half and four fifths of the way along, where a hull rests. (Called a
+///   "cradle" until 2026-11-07, when the operator read that word as a way of
+///   reviving people: mothership-master-plan.md 1.2);
 /// - "array": a machine on a plinth, a riser pipe at a back corner and a duct
 ///   along the back under the ceiling;
 /// - anything else: one solid box, the silhouette every filler started as.
 pub fn filler_parts(kind: &str, cx: f32, cz: f32, fw: f32, fd: f32, h: f32) -> Vec<[f32; 6]> {
     // `f32::clamp` panics when its floor is over its ceiling, which a narrow footprint
-    // makes happen (a 0.5 m cradle: a 0.3 m floor, a 0.125 m ceiling). `.max(lo).min(hi)`
+    // makes happen (a 0.5 m parking spot: a 0.3 m floor, a 0.125 m ceiling). `.max(lo).min(hi)`
     // is the same clamp when lo <= hi and lets the ceiling win when not, keeping the part
     // inside its cell instead of crashing the bake (2026-10-02).
     let fit = |x: f32, lo: f32, hi: f32| x.max(lo).min(hi);
@@ -341,7 +343,7 @@ pub fn filler_parts(kind: &str, cx: f32, cz: f32, fw: f32, fd: f32, h: f32) -> V
             }
             v.push([cx, cz, fw, fd, h - roof, roof]); // roof
         }
-        "cradle" => {
+        "parking_spot" => {
             let rail_w = fit(fw * 0.08, 0.3, fw * 0.25);
             let rail_h = (h * 0.1).max(0.2).min(h * 0.5);
             let rails = [cx + fw * 0.25 - rail_w * 0.5, cx + fw * 0.75 - rail_w * 0.5];
@@ -350,7 +352,7 @@ pub fn filler_parts(kind: &str, cx: f32, cz: f32, fw: f32, fd: f32, h: f32) -> V
             }
             let chock_h = (h * 0.35).min(h - rail_h);
             // A chock is as long as the rail is wide, but never more than 0.3 of the
-            // cradle, so the end ones stay inside a short cell (2026-10-02).
+            // parking spot, so the end ones stay inside a short cell (2026-10-02).
             let chock_d = rail_w.min(fd * 0.3);
             for f in [0.2, 0.5, 0.8] {
                 let pz = cz + fd * f - chock_d * 0.5;
@@ -970,11 +972,13 @@ mod tests {
     /// EACH FILLER KIND HAS ITS OWN SHAPE (2026-09-29). Every kind the data names
     /// builds more than one box, and every box stays inside its cell and under its
     /// height, at the data's own sizes. Red check, run: a stall roof set 0.1 m
-    /// higher pokes out of its height and fails.
+    /// higher pokes out of its height and fails. The "cradle" -> "parking_spot"
+    /// rename (2026-11-07): with the test asking for parking_spot and the data still
+    /// saying cradle, it failed with "cradle has no shape".
     #[test]
     fn every_filler_kind_builds_inside_its_cell() {
         for f in super::zone_fillers() {
-            assert!(matches!(f.mesh_kind.as_str(), "rack" | "stall" | "cradle" | "array"), "{} has no shape", f.mesh_kind);
+            assert!(matches!(f.mesh_kind.as_str(), "rack" | "stall" | "parking_spot" | "array"), "{} has no shape", f.mesh_kind);
             let (fw, fd) = f.footprint;
             let h = f.built_height(6.0);
             let (cx, cz) = (12.5, -40.0);
@@ -993,14 +997,14 @@ mod tests {
     /// A NARROW FILLER CELL BUILDS, IT DOES NOT CRASH (2026-10-02). Every kind,
     /// at 0.5 m and 0.3 m in either direction, still gives non-empty boxes inside
     /// its cell and under its height. `f32::clamp` panics when its floor is over
-    /// its ceiling, and the cradle's rail (floor 0.3 m, ceiling a quarter of the
-    /// width) and the stall's counter (floor 0.4 m, ceiling the depth) did exactly
-    /// that. Red check, run: with the cradle's `clamp` put back the test panicked
-    /// ("min > max") at the first 0.5 m cradle.
+    /// its ceiling, and the parking spot's rail (floor 0.3 m, ceiling a quarter of
+    /// the width) and the stall's counter (floor 0.4 m, ceiling the depth) did
+    /// exactly that. Red check, run: with the rail's `clamp` put back the test
+    /// panicked ("min > max") at the first 0.5 m parking spot (then called a cradle).
     #[test]
     fn a_narrow_filler_cell_builds_without_panicking() {
         let (cx, cz, h) = (3.0, -2.0, 2.5);
-        for kind in ["rack", "stall", "cradle", "array"] {
+        for kind in ["rack", "stall", "parking_spot", "array"] {
             for (fw, fd) in [(0.5, 0.5), (0.5, 4.0), (4.0, 0.5), (0.3, 0.3), (0.3, 4.0), (4.0, 0.3)] {
                 let parts = super::filler_parts(kind, cx, cz, fw, fd, h);
                 assert!(!parts.is_empty(), "{kind} {fw}x{fd}: nothing built");

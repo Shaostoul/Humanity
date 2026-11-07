@@ -33,12 +33,12 @@ placed sub-structure. Reuse, don't reinvent.
   - **Cargo tunnels**: automated freight runs between industrial/storage/hangar zones -- a conveyor/maglev
     graph carrying ITEMS, not people. New; routes like a rail graph but moves inventory.
 - **Sub-structures** inside a zone: shop stalls (civic mall), factory cells (industrial), storage racks,
-  hangar cradles, mech bays -- placed pieces from the structure palette (extend `structure_types`).
+  hangar parking spots, mech bays -- placed pieces from the structure palette (extend `structure_types`).
 
 ## The zones the operator named
-- **Hangar bays**: large open volumes with big doors to space; ship cradles + a launch/recovery lane.
+- **Hangar bays**: large open volumes with big doors to space; parking spots for craft + a launch/recovery lane (called "cradles" until 2026-11-07, a word the operator read as a way of reviving people).
   Needs huge clear span + an airlock-to-vacuum boundary (ties to atmosphere/air sim).
-- **Mech bays**: maintenance cells for mechs/vehicles -- a cradle + tool/power/fluid hookups (ports!).
+- **Mech bays**: maintenance cells for mechs/vehicles -- a parking spot + tool/power/fluid hookups (ports!).
 - **Cargo tunnels**: the freight arteries between hangars, factories, and storage; the cargo-transit graph.
 - **Storage areas**: dense racking; an inventory volume (ties to the nested-container inventory redesign).
 - **Industrial factory areas**: massive zones of machine arrays (we have machine `arrays` -- a factory IS
@@ -111,7 +111,7 @@ existing M1 editor-architecture and M3 design open questions.
   owner + market listing), a plaza, transit-hub access. The social heart; first real macro zone.
 - **M4 -- INDUSTRIAL + CARGO**: factory zones (big machine arrays fed by the grid) + cargo-tunnel freight
   graph moving inventory between factory/storage/hangar. Ties production -> storage -> market.
-- **M5 -- HANGAR/MECH bays**: vacuum-boundary hangars with ship cradles + mech maintenance cells (port
+- **M5 -- HANGAR/MECH bays**: vacuum-boundary hangars with parking spots for craft + mech maintenance cells (port
   hookups). Ties to atmosphere (airlock to space) + vehicles.
 
 ## Open questions

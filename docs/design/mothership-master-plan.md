@@ -6,7 +6,15 @@ read it. Every operator decision is quoted with its date and source; everything 
 [world-audit-2026-11-06.md](world-audit-2026-11-06.md). **His answers to section 7, given the same
 night, are in section 1.1**, and the plan below is changed to match them: the space program that
 measures the ship (3.12), the crew-health rules (3.13), what the drive's thrust feels like aboard
-(3.14), the apartment block (3.6) and drone mining ([drone-mining.md](drone-mining.md)).
+(3.14), the apartment block (3.6) and drone mining ([drone-mining.md](drone-mining.md)). **His
+second answers, 2026-11-07, are in section 1.2**: a sector is a community of 500 people (3.15),
+the ship aims for 1 billion and 10 billion (3.16, a fleet), the cruise is a jump with no thrust
+(3.14, a game fiction), and what was called a craft "cradle" is now a parking spot.
+
+**Words since 2026-11-07.** A **sector** is a community of 500 residents (his unit). A **drum** is a
+spinning cylinder that holds sectors. **Drum 1** is the 250 m x 2 km drum he sized on 2026-09-15,
+which this plan called "Sector 1" until 2026-11-07. **Sector 1** is now the first 500-person sector,
+at the fore end of Drum 1, where rung 1 builds.
 
 The operator, 2026-11-06: "I guess this is further incentivizing our need to get the whole
 mothership laid out! Right now our game world is very haphazard with homestead and community
@@ -16,16 +24,27 @@ the entire homestead and start fresh to make sure we get all the weird artifacts
 ## 0. In short
 
 - **The ship.** The UHS Mothership is a straight, non-rotating SPINE with spinning DRUMS strung
-  along it, a BOW where craft dock and a STERN where the drive burns. Sector 1, the first drum,
-  is the one the operator sized himself: 250 m radius, 2 km long, 1 g at the floor at 1.89 rpm
-  (2026-09-15), a plain cylinder (decided 2026-11-06). Everything walkable in this plan is inside
-  Sector 1, at real scale. The rest of the ship is data, drawn from outside and counted, not
-  walked (section 3).
+  along it, a BOW where craft dock and a STERN for the drive. Drum 1, the first drum, is the one
+  the operator sized himself: 250 m radius, 2 km long, 1 g at the floor at 1.89 rpm (2026-09-15),
+  a plain cylinder (decided 2026-11-06). Everything walkable in this plan is inside Drum 1, at real
+  scale. The rest of the ship is data, drawn from outside and counted, not walked (section 3).
+- **Sectors of 500** (decided 2026-11-07, 3.15). Every drum is built from sectors of 500 people:
+  three neighbourhoods of about 167 around their mess halls, homes of about 5, clusters of 15 and
+  blocks of 50 inside them (the research: 500 is the circle of acquaintances, 150 the group that
+  works together; [2026-11-07-community-size.md](../reference/findings/2026-11-07-community-size.md)).
+  A sector needs 0.206 km2 of drum floor: on Drum 1 a half ring 785 m around by 263 m along, every
+  home 3.1 minutes from its mess hall and 6.2 from the sector's civic hall. Drum 1 holds about 15.
 - **How big.** Measured bottom up by a SPACE PROGRAM (3.12): every kind of space with its area per
   person or per unit, from NASA's 1975 settlement study where it applies, totalled for a
   population by `node scripts/space-program.js`. At the default mix (8% of residents homesteaders)
-  100 people use 2% of Sector 1's drum floor, 1,000 use 11%, and 10,000 need 106%: Sector 1 holds
-  9,437. Homesteads take 62% of the drum at 10,000 for 8% of the people.
+  and with the ship's farms growing the comfortable garden for everyone they feed, 100 people use
+  2% of Drum 1's floor, 1,000 use 13%, and 10,000 need 128%: Drum 1 holds 7,781. Homesteads take
+  51% of the drum for 8% of the people.
+- **A billion and ten billion** (his aim, 2026-11-07; 3.16) are a FLEET, not one ship: 2 million
+  and 20 million sectors, in about 204 and 2,033 ships of 332 km, each 246 drums of 1 km radius
+  and 4.9 million people. One spine for them all would be 67,500 km long and could not carry its
+  own manoeuvring loads. About 2,650 t a person, a millionth of the asteroid belt for a billion.
+  The game never builds more than the sector you stand in; everything else streams as data.
 - **Where people live.** Homes stand on the drum floor at 1 g, grouped in neighbourhoods of a
   few hundred people around a node (a commons with a mess hall, a recreation room, washrooms, a
   garden and a market row), every home within 5 minutes' walk of it. One homestead per plot, never
@@ -47,16 +66,18 @@ the entire homestead and start fresh to make sure we get all the weird artifacts
   (they are good and tested), the machines, the starts, and the operator's character (section 6).
   Districts out and wild nodes out are decided (2026-11-06): aboard, ore comes from distant
   asteroids by drone ([drone-mining.md](drone-mining.md)).
-- **Rung 1.** Neighbourhood 1 on Sector 1's floor, still flat: a continuous ground under
+- **Rung 1.** Neighbourhood 1 of Sector 1 on Drum 1's floor, still flat: a continuous ground under
   everything (no more void), 12 homestead plots and a 16-cabin block side by side (decided
   2026-11-06) around a rebuilt commons whose garden sits in its own room, every placement in
   data, and the new gates (nothing stands in the void, no machine crosses a wall, every light
   inside its body, every frame named), each seen red against today's data first (section 6.4).
   Rung 2 rolls that floor into the drum.
-- **The drive.** Cruise thrust does not make the ship a 5% gravity place: on the drum floor the
-  spin gives 1 g, and while the drive burns at 0.05 g "down" leans 2.86 degrees toward the stern
-  (3.14). Whether the ship burns all the time or coasts between burns is still his to decide
-  (question 10).
+- **The drive.** The cruise between the stars is a JUMP, with no thrust while travelling (his
+  answer, 2026-11-07; a game fiction, said so in the game). Thrust is for manoeuvring only, along
+  the ship's axis, routinely at most 0.02 g ("down" leans 1.15 degrees, flatter than the cross
+  slope a walkway may have) and never above 0.05 g (2.86 degrees, the steepest floor that is not
+  yet a ramp). So the floors stay fixed: no gimbals, no tilting decks (3.14). Between manoeuvres
+  the spine is weightless and the drum a plain 1 g.
 
 ## 1. What is decided (the operator's words, dated)
 
@@ -68,7 +89,7 @@ the entire homestead and start fresh to make sure we get all the weird artifacts
 | 2026-09-15 | Two habitat kinds: a SPINE ("skyscraper like blocks that contain everything necessary to survive, like industry, residential, research, in a rough cube shape (or configurable)") and a DRUM ("the inside of a spinning drum where the gardens are visible from the inside... allows for gravity while not accelerating"). | [habitat-generation.md](habitat-generation.md):3-13 |
 | 2026-09-15 | **First drum: 250 m radius, 2 km long.** "The smallest comfortable makes perfect sense." | habitat-generation.md:20-23 |
 | 2026-09-15 | "The whole point of doing the drum/ring shape is to have the spin and gravity. If the spin were to stop then I'd like gravity to go away." | habitat-generation.md:27-29 |
-| 2026-09-15 | The spine has thrust gravity: "the most common state of the fleet is going to be in the perpetually forward motion going between stars so it makes sense the spine has gravity." | habitat-generation.md:62-67; [gravity-and-movement.md](gravity-and-movement.md):3-11 |
+| 2026-09-15 | The spine has thrust gravity: "the most common state of the fleet is going to be in the perpetually forward motion going between stars so it makes sense the spine has gravity." (Its premise is changed by the 2026-11-07 jump: a ship that jumps does not thrust, so its spine is weightless; 3.3, 3.14.) | habitat-generation.md:62-67; [gravity-and-movement.md](gravity-and-movement.md):3-11 |
 | 2026-09-15 | "the spine of the ship has to be at the center of the hyperboloid and the rotating outer mass has to be on the outside of the hyperboloid shape." | gravity-and-movement.md:419-420 (commit 2068406a4) |
 | 2026-09-15 | A crowd: "If we can efficiently simulate 500 (or whatever is a doable amount on our weak hardware) simple AI humans in one mothership sector ... Eventually we want a mothership that houses billions of simple AI crew." | [crowd-simulation.md](crowd-simulation.md):3-8 |
 | 2026-09-15 | Normal play edits only its own zone ("normal play will have edit area confined to their default zone"); co-op "has to support at least a dozen." | [game-modes.md](game-modes.md):67-68, :273-278 |
@@ -84,10 +105,11 @@ the entire homestead and start fresh to make sure we get all the weird artifacts
 | 2026-10-04 | Server worlds start fresh: "only their appearance is kept." Normal mode and his MMO server run in real time ("let's have everything be real time, not the 72x"). About ten more plots so more than two people can have homes. | ship-homes-and-logistics.md:1257, :1265, :1266 |
 | 2026-10-20 | The homestead's upper floor: "Sounds like a plan, let's proceed". | [ship-homes-increment-7-plan.md](ship-homes-increment-7-plan.md):5 |
 | 2026-11-02 | The arrival: "arriving as a new crew member to the main colony ship ... Flying in from space on a transport spacecraft with other people and cargo ... Start the player off with a bedroom of their own. Then upon leaving the ship they check in with admin guy like a receptionist and choose their play style (simple home, advanced, or whatever). If they never check in and something happens to them they go to general services like a barracks and medbay. With a proper home players could respawn at their home or choose where they want to respawn." | [game-setting-and-intro.md](game-setting-and-intro.md):66 |
-| 2026-11-03 | "Agreed" to: small craft jump, the motherships never do and cruise under thrust; weapons for things that are not people, sport by consent in the Arena. | game-setting-and-intro.md:1099-1116 |
+| 2026-11-03 | "Agreed" to: small craft jump, the motherships never do and cruise under thrust (the motherships' part changed by his 2026-11-07 answer, section 1.2); weapons for things that are not people, sport by consent in the Arena. | game-setting-and-intro.md:1099-1116 |
 | 2026-11-06 | The ship's hum: "I was also thinking we could incorporate a subtle brown noise that acts like the hum of the engines and the resonance of everything?" The orchestrator's journal records the decision as a hum "tuned to the music's key and louder near the engines". | [music.md](music.md):37-38; data/coordination/orchestrator_state.json, 2026-11-06 evening |
 | 2026-11-06 | "do a wipe of the entire homestead and start fresh" (quoted above), after reading a plan. | this task's brief |
 | 2026-11-06 | His answers to this plan's questions (section 7) | section 1.1 below |
+| 2026-11-07 | His second answers: sectors of 500, 1 and 10 billion, a cruise without thrust, one level of farms, private craft, drones, the garden wipe | section 1.2 below |
 
 ### 1.1 Decided 2026-11-06 (night): his answers to section 7
 
@@ -99,7 +121,7 @@ recommendation stands.
 | Question | His words, 2026-11-06 | What the plan does now |
 |---|---|---|
 | 1. How big is the ship? | "How do we end up measuring the total size of the ship? Do we need to plot the size for each home, hangar, engineering bay, industrial zone, reactor room, bridge, storage areas, transportation like railways and elevetors, etc?" | Answered with a space program (3.12): yes, every KIND of space gets its area per person or per unit, and the ship's size follows from the population. The population to write down is still his (question 1 stays open). |
-| 2. Cylinder or hyperboloid? | "I believe this is the best route." | **Decided: Sector 1 is a plain cylinder**, 250 m x 2 km. The hyperboloid stays a candidate for the ship's outer form or a later sector. |
+| 2. Cylinder or hyperboloid? | "I believe this is the best route." | **Decided: Drum 1 (then called Sector 1) is a plain cylinder**, 250 m x 2 km. The hyperboloid stays a candidate for the ship's outer form or a later sector. |
 | 3. Where the drum's light comes from | On the sunline: "I look forward to seeing it." | **The sunline is the drum's light**: the spine's light strip on the ship's day cycle (3.2, 3.13). Piped sunlight or lamps follows where the fleet is, still open as game-setting-and-intro.md question 2. |
 | 4. One deck or many for homes? | "We'll start with one. We might change depending on how the game develops. One floor is easier. However we still want to allow multiple stories so that we can get multiple floors working, just not multiple homesteads stacked vertically. I wouldn't mind apartments and other tight packed arrangements being multiple stories. That way we could have like an atrium with trees and a common gathering area." | **Decided: one deck, the drum floor.** One homestead per plot, never stacked; a home may have storeys of its own (the homestead's upper floor); apartments and other tight-packed homes may be multi-storey buildings around an atrium with trees and a common gathering area. The apartment block template is data (3.6). |
 | The garden | "Our goal is a minimalist survival garden that provides all the nutrients it possibly can." | **The garden's goal** (3.10). The garden is designed separately by the homestead engineer (`docs/design/survival-garden.md`, in progress). He did not speak to wiping his own planting, so question 6 stays open. |
@@ -113,6 +135,26 @@ recommendation stands.
 Questions 5 (what of today's home to keep) and 6 (his garden and save) had no answer; their
 recommendations stand.
 
+### 1.2 Decided 2026-11-07: his second answers
+
+Quoted exactly as the orchestrator relayed them (the journal, data/coordination/orchestrator_state.json,
+records them in its 2026-11-07 entry). Where he asked a question, the plan answers it and the
+question stays open until he reads the answer.
+
+| Question | His words, 2026-11-07 | What the plan does now |
+|---|---|---|
+| 1. How many live aboard? | "Let's aim for 1 billion and 10 billion." | **Decided: the aims are 1 billion and 10 billion.** The honest answer is a fleet (3.16): about 204 ships for a billion and 2,033 for ten billion, each 332 km long with 246 drums of 1 km radius and 4.9 million people. One spine cannot hold them. |
+| 1. The sector | "Let's start with a sector for 500 people. I've heard that communities of 500 people is about the upper limit for one massive group to work together. Can you research that number?" | **Decided: a sector is 500 people.** Researched ([2026-11-07-community-size.md](../reference/findings/2026-11-07-community-size.md)): 500 is the circle of acquaintances and the size past which communities need a formal structure; the group that works together is about 150. So 500 is the sector's cap, with three neighbourhoods of about 167 inside it (3.15). The drum he sized is now called Drum 1; Sector 1 is its first sector. |
+| 10. Cruise thrust | "We can introduce some sort of mechanic that requires no thrusting. Like a teleportation tech requires no thrusting." | **Decided: the cruise is a jump with no thrust** (3.14), named in the game as made up. Thrust is for manoeuvring only. This changes the 2026-11-03 rule that the motherships never jump (game-setting-and-intro.md 10.1); question 10b asks him to confirm it. |
+| The lean | "I'm wondering how we'd design a drum design that has subsections that are able to adjust to either one or two axis. Gyroscopes start add a lot of excess structure." | Answered in 3.14: five options compared; recommended: fixed floors and a thrust cap (0.02 g routine, 0.05 g at most), because the lean is then no steeper than floors people walk every day, with no structure added. One axis is all any option would ever need. |
+| 14. Farms | "Let's start with one but, allow for two or more." | **Decided: one level of farms**, with the data allowing two or more (`[farms] levels` in data/ship/space_program.toml; `--farm-levels 2` lets Drum 1 hold 9,031 instead of 7,781). |
+| 15. Private craft | "cradle being the revive mechanic?" | **No: a "cradle" was a parking place for one private craft.** The word misled, so it is now **parking spot** everywhere a person reads it (this plan, the space program's `craft_parking`, the ship file's hangar filler) and in the code (`mesh_kind: "parking_spot"`). Reviving people is respawn-and-revival.md's, whose words (pod, respawner) do not overlap. The question of how many craft (one for every 20 people) stays open with its recommendation. |
+| 16. Drones | "Maybe not jump between stars but, at least jump to discovered nearby asteroids/comets/whatever." | **Decided: drones jump only to discovered nearby bodies**, never between stars (drone-mining.md, sections 2 and 4). Where the drone is kept was not answered; the plan keeps its recommendation, the bow's drone bay (section 8 there). |
+| 6. The garden | "Wipe it." | **Decided: his garden is wiped** with the rest. The rest of question 6 (his character, car and save) and question 5 stay open with their recommendations. |
+
+The garden's own answers (the comfortable garden as the start, the mushroom room, the crop data
+fixes, phosphorus) are in [survival-garden.md](survival-garden.md), section 13.
+
 Standing rules that shape the plan (CLAUDE.md): infinite-of-x (anything that exists more than
 once is data); no backwards compatibility before v1.0, except the version-tagged blueprint schemas
 that must keep loading old player saves; realistic-first (build the 2030 technique as a rung of
@@ -123,7 +165,7 @@ are a hard budget; never trim dev or teaching tools.
 
 | Conflict | The sources | This plan (Proposal unless quoted above) |
 |---|---|---|
-| How big is the ship? | A 250 m x 2 km first drum (decided); "a population of over a billion" (decided wording); docs/game/humanity_one.md's 500 km x 100 km ship for 10 billion (vision, never decided); today's 1.2 km flat slab (built) | Measured by the space program (3.12): Sector 1 holds about 9,400 at the default mix, and a billion need about 105,600 drums of its size. Sector 1 is the decided drum and the only walkable sector; later sectors are larger rings that the ship's data counts and the exterior shows. The number is question 1. |
+| How big is the ship? | A 250 m x 2 km first drum (decided); "a population of over a billion" (decided wording); "Let's aim for 1 billion and 10 billion." (decided 2026-11-07); docs/game/humanity_one.md's 500 km x 100 km ship for 10 billion (vision, never decided); today's 1.2 km flat slab (built) | Measured by the space program (3.12): Drum 1 holds about 7,800 at the default mix, about 15 sectors of 500. A billion and ten billion are a fleet of about 204 and 2,033 ships of 1 km drums (3.16); humanity_one.md's single hull fails the spine and spin-stability limits. Drum 1 is the decided drum and the only walkable one. |
 | Cylinder or hyperboloid? | The operator's hyperboloid line (2026-09-15); the 150 m waist and its gravity table are an agent's elaboration (gravity-and-movement.md:430-448) | **Decided 2026-11-06: a plain cylinder** ("I believe this is the best route."). At those numbers a hyperboloid's floor slopes 9.1 degrees along the axis at the flared ends; it stays a candidate for the ship's outer form. |
 | At Earth or between the stars? | The ship orbits over Silverdale today (data/stations/home.ron); the lore says between the stars (game-setting-and-intro.md question 2; leaving-the-ship.md question 1) | Inside a drum the light comes from the spine's sunline either way: piped sunlight near a star, lamps between stars. Question 3. |
 | Where do you wake? | Today: your front door (the home's `spawn`); the 2026-11-02 brief: home, or a place you choose, or General Services; GSI: a pod beside the bedroom | Respawn places are data rows (section 3.7); a home's pod waits for respawn-and-revival.md's answers. |
@@ -137,36 +179,35 @@ are a hard budget; never trim dev or teaching tools.
 ```
  SIDE VIEW (not to scale between parts; along the axis, the bow faces the direction of travel)
 
-  gateway          BOW                SECTOR 1              SECTOR 2 ... SECTOR N          STERN
+  gateway          BOW                 DRUM 1                DRUM 2 ... DRUM N           STERN
   (a point     +----------+   +=========================+   +======== ... ========+   +-----------+
-   in space)   | Hangar   |   |   DRUM 250 m radius,    |   | larger rings,       |   | main drive|
-  transports   | Bay 1,   |===|   2,000 m, 1.89 rpm     |===| counted, drawn      |===| reactors, |
-   arrive -->  | Arrivals,|   |   <- SPINE (non-rot.) ->|   | from outside        |   | radiators |
-               | freight  |   +=========================+   +======== ... ========+   +-----------+
-               +----------+   ^ fore end cap  aft end cap ^                            the hum is
-                 0.05-0.1 g   (spoke lifts)  (risers,                                  loudest here
-                 (thrust)                     freight lifts)
+   in space)   | Hangar   |   | 250 m radius, 2,000 m,  |   | 1 km drums (3.16),  |   | drive,    |
+  transports   | Bay 1,   |===| 1.89 rpm; ~15 SECTORS   |===| 40 sectors each,    |===| reactors, |
+   arrive -->  | Arrivals,|   | of 500 (Sector 1 first) |   | counted, drawn      |   | radiators |
+               | freight  |   |  <- SPINE (non-rot.) -> |   | from outside        |   |           |
+               +----------+   +=========================+   +======== ... ========+   +-----------+
+                 weightless   ^ fore end cap  aft end cap ^                            the hum is
+                 between      (spoke lifts)  (risers,                                  loudest here
+                 manoeuvres                   freight lifts)
 ```
 
 | Part | Size | Gravity | Holds | Status |
 |---|---|---|---|---|
-| Bow | Proposal: 120 m across, 300 m long, non-rotating | thrust only while burning, weightless while coasting (3.14, question 10) | Hangar Bay 1 and further bays, the Arrivals hall and the desk, mech bays, the drone bay and ore intake, freight intake | Proposal |
-| Sector 1 drum | **250 m radius, 2,000 m long, a plain cylinder** (decided 2026-09-15 and 2026-11-06) | 1.00 g at the floor (0.988 g at 3 m up, 0.976 g at 6 m) | homes, neighbourhood commons, the Concourse, General Services, the greenbelt, the ship's farms | Proposal for its contents |
-| Sector 1 spine segment | Proposal: 60 m across, 2,000 m long, decks across the axis every 5 m (10 m for industry) | thrust only | sector engineering (reactors, air, water, waste), industry, storage, the freight rail | Proposal |
+| Bow | Proposal: 120 m across, 300 m long, non-rotating | weightless, except a light push during manoeuvres (3.14) | Hangar Bay 1 and further bays, the Arrivals hall and the desk, mech bays, the drone bay and ore intake, freight intake | Proposal |
+| Drum 1 | **250 m radius, 2,000 m long, a plain cylinder** (decided 2026-09-15 and 2026-11-06) | 1.00 g at the floor (0.988 g at 3 m up, 0.976 g at 6 m) | about 15 sectors of 500 (3.15), the Concourse, General Services | Proposal for its contents; its length against spin stability is question 1b |
+| Drum 1's spine segment | Proposal: 60 m across, 2,000 m long, decks across the axis every 5 m (10 m for industry) | weightless, a light push during manoeuvres | drum engineering (reactors, air, water, waste), industry, storage, the freight rail | Proposal |
 | End caps | discs of 250 m radius at each end of the drum | 0 at the axis to 1 g at the rim | spoke lifts (4 a cap), bearings, utility risers | Proposal |
-| Further sectors | data rows; the lore's size (question 1) | | the rest of the population, as an aggregate | Proposal |
-| Stern | Proposal: data; the main drive, the main radiators, propellant | thrust | the ship's loudest machinery | Proposal |
+| Further drums | data rows: 1 km drums of 40 sectors each, in ships of 246 drums (3.16) | | the rest of the population, as an aggregate | Proposal |
+| Stern | Proposal: data; the main radiators, the reactors that charge the jump | weightless | the ship's loudest machinery | Proposal |
 
-**The arithmetic of size** is now the space program's (3.12). Sector 1 holds about 9,400 people
-at the default mix of homes, 14,900 with no homesteads and 1,200 if everyone is a homesteader. A
-billion people at the default mix need about 332,000 km2 of drum floor: about 105,600 drums of
-Sector 1's size, about 210,000 km of ship, or about twice the inner surface of humanity_one.md's
-500 km x 100 km hull (computed). So "over a billion" and "a 2 km first drum" are both kept only if
-the ship grows in sectors of very different size: the first small and walkable, the later ones
-rings of kilometres to tens of kilometres in radius. The aggregate tier of crowd-simulation.md
-counts them at no per-frame cost. Question 1 asks him which numbers to write down.
+**The arithmetic of size** is now the space program's (3.12) and its scale study (3.16). Drum 1
+holds about 7,800 people at the default mix of homes, 14,900 with no homesteads and 1,200 if
+everyone is a homesteader. A billion people need 2 million sectors; at Drum 1's radius that is a
+million drums. So the ship grows in drums of a larger radius (1 km, 40 sectors each) and the
+population in ships: about 204 ships of 246 drums for a billion, 2,033 for ten billion (3.16).
+The aggregate tier of crowd-simulation.md counts them at no per-frame cost.
 
-### 3.2 Sector 1: the drum
+### 3.2 Drum 1
 
 ```
  END VIEW (looking aft), to scale: 1 character = about 25 m
@@ -189,9 +230,14 @@ counts them at no per-frame cost. Question 1 asks him which numbers to write dow
 - **Spoke lifts** run down the end caps, rim to axis 250 m: 100 s at 2.5 m/s, with about 0.1 g of
   sideways Coriolis push at that speed (ship-homes-and-logistics.md section 2.6). Full realism
   rides it; simplified mode fades through it.
-- **Under thrust the floor leans**: 2.86 degrees at 0.05 g, 5.7 degrees at 0.1 g
-  (gravity-and-movement.md:58-70), only while the drive burns; what that feels like, and whether
-  the ship burns all the time, is 3.14. Question 10.
+- **During a manoeuvre the floor leans**: 1.15 degrees at the routine 0.02 g, 2.86 degrees at the
+  0.05 g cap, only while the thrusters push; the cruise is a jump with no thrust (decided
+  2026-11-07). What that feels like, and why no floor needs to move, is 3.14.
+- **Spin stability**: Drum 1 is 8 radii long, and a cylinder flying free spins stably only up to
+  1.3 radii (325 m here; Kalpana One, a 250 m radius settlement, was cut to 325 m for this reason;
+  [2026-11-07-drum-limits.md](../reference/findings/2026-11-07-drum-limits.md)). Held on its
+  bearings around the spine, with the ship actively damped, it can still work; or its 2 km can be
+  built as a row of short drums, each one ring of two sectors (3.15). Question 1b.
 - **The sunline** (accepted 2026-11-06: "I look forward to seeing it.") lights the whole floor
   from the axis on one shared day: daylight bright enough at the eye by day, dim evenings, dark
   nights (the light rules of 3.13).
@@ -204,57 +250,65 @@ counts them at no per-frame cost. Question 1 asks him which numbers to write dow
 
 ### 3.3 The spine, the bow and the stern
 
-The spine does not rotate, so its only gravity is the drive's thrust, pointing aft, while the
-drive burns; while the ship coasts the spine is weightless (3.14). Its decks are discs across the
-axis ("down" is aft under thrust), stacked like a skyscraper lying along the axis. At 0.05 to 0.1 g
-a person weighs a tenth of their weight or less, and nothing while coasting: right for what
-habitat-generation.md:56-60 says a spine is for (moving mass, big structures, docking), and wrong
-for daily life, so nobody lives there (ship-homes-and-logistics.md section 2.8, Proposal).
+The spine does not rotate, so its only gravity is a manoeuvre's push, and the cruise is a jump
+with no thrust (decided 2026-11-07): the spine is weightless nearly all the time (3.14). Its decks
+are discs across the axis, stacked like a skyscraper lying along the axis, with handholds and
+magnetic boots. Weightlessness is right for what habitat-generation.md:56-60 says a spine is for
+(moving mass, big structures, docking), and wrong for daily life, so nobody lives there
+(ship-homes-and-logistics.md section 2.8, Proposal). This changes the premise of the 2026-09-15
+decision that the spine has gravity ("the most common state of the fleet is going to be in the
+perpetually forward motion"): steady motion and the jump give no weight (3.14).
 
-**Sector 1's spine segment** (Proposal), fore to aft:
+**Drum 1's spine segment** (Proposal), fore to aft:
 
 | Segment (axial m) | What | Why there |
 |---|---|---|
 | 0 to 150 | Fore hub: the spoke lifts' tops, the passenger rail station | the lifts meet the axis at the end cap |
 | 150 to 900 | Storage and the cargo tunnels (freight rail along the axis) | goods physically moved (decided); low gravity eases handling |
 | 900 to 1,500 | Industry: fabrication, the factory district, machine shops | the noise rule: as far as possible from the fore landing's homes, isolated from the drum by the bearing |
-| 1,500 to 1,850 | **Sector engineering**: a reactor pair of the game's class (two KLT-40S class, 60 MW net, closed-loop-test.md:64-66), switchgear, the air plant, water recovery, waste processing | near the aft end cap's utility risers; one pair feeds about 5,560 people at 10.8 kW each (computed) |
+| 1,500 to 1,850 | **Drum engineering**: a reactor pair of the game's class (two KLT-40S class, 60 MW net, closed-loop-test.md:64-66), switchgear, the air plant, water recovery, waste processing | near the aft end cap's utility risers; one pair feeds about 5,560 people at 10.8 kW each (computed) |
 | 1,850 to 2,000 | Aft hub: freight lifts down to the Aft Landing, utility risers | |
 
 **The bow** (Proposal): Hangar Bay 1 (today's district is 50 x 12 x 40 m; it becomes a walkable
-zone with big doors, ship cradles and a launch lane, as [mothership-superstructure.md](mothership-superstructure.md)
+zone with big doors, parking spots for craft and a launch lane, as [mothership-superstructure.md](mothership-superstructure.md)
 M5 describes), more bays as arrivals grow (game-setting-and-intro.md:811), mech bays beside them,
-the Arrivals hall with the receptionist's desk, freight intake and customs. The transports dock
-here because docking "does not fight a rotating frame" (habitat-generation.md:56-60).
+the Arrivals hall with the receptionist's desk, freight intake and customs, and the drone bay
+(drone-mining.md section 8). The transports dock here because docking "does not fight a rotating
+frame" (habitat-generation.md:56-60). The manoeuvring thrusters that pull the ship sit here too
+(3.16: a long spine is pulled, never pushed).
 
-**The stern** (Proposal): the main drive, the main radiators, the propellant. Radiators matter at
-this scale: 67 m2 of fin per person (closed-loop-test.md:84), about 0.34 km2 for 5,000 people,
-mounted on the non-rotating spine outside the drums.
+**The stern** (Proposal): the main radiators, the reactors that charge the jump, and attitude
+thrusters. Radiators matter at this scale: 67 m2 of fin per person (closed-loop-test.md:84), about
+0.34 km2 for 5,000 people, mounted on the non-rotating spine outside the drums.
 
-### 3.4 The drum floor, zoned
+### 3.4 Drum 1's floor, cut into sectors
+
+Since 2026-11-07 the drum floor is cut into **sectors of 500** (3.15), each a self-contained
+community with its own homes, mess halls, civic hall, workshops and farms. On Drum 1 a sector is a
+half ring, 785 m around by 263 m along, so two sectors fill one ring of the drum. The drum's own
+places (the Fore Landing, the greenbelt the sectors share, the Aft Landing) sit between the rings.
 
 ```
- SECTOR 1 DRUM FLOOR, UNROLLED (to scale: 1 character = about 33 m across, 50 m along)
+ DRUM 1'S FLOOR, UNROLLED (to scale: 1 character = about 33 m around, 50 m along)
  around (s) ->  0 ......................... 785 ......................... 1571 (= 0 again)
  along (a)
    0 +-----L1--------------------------L2-------------------------L3--------------L4-+
      | FORE LANDING: spoke-lift feet L1-L4, Arrivals foot (L1), General Services,    |
  120 | the Concourse (market, food hall, fleet board, memorial), rail station        |
-     +-------------------+-------------------+-------------------+-------------------+
-     | N1 (rung 1)       | N2                | N3                | N4                |
-     |  FORE RESIDENTIAL: dense near the landing (cabins, apartments, townhouses,    |
- 420 +-------------------+-------------------+-------------------+-------------------+
-     | N5                | N6                | N7                | N8                |
-     |  houses); each cell 393 m around x 300 m along, one node at its middle        |
- 720 +-------------------------------------------------------------------------------+
-     | GREENBELT: park, the lake (water store and thermal mass), orchards, the       |
-     | arena field, school and Library hall, a clinic, the mid-drum rail station     |
-1000 +-------------------+-------------------+-------------------+-------------------+
-     | H1                | H2                | H3                | H4                |
-     |  HOMESTEAD RING: homesteads facing the greenbelt and the farms                |
-1300 +-------------------------------------------------------------------------------+
-     | THE SHIP'S FARMS: fields, greenhouses, aquaculture, barns, seed bank          |
-     | (lamp-lit between stars: 4.8 kWh per m2 a day for staple crops)               |
+     +---------------------------------------+---------------------------------------+
+     | SECTOR 1 (rung 1 builds its N1)       | SECTOR 2                              |
+ 383 | three neighbourhoods, a civic hall,   | the same template                     |
+     +---------------------------------------+---------------------------------------+
+     | SECTOR 3                              | SECTOR 4                              |
+ 646 +---------------------------------------+---------------------------------------+
+     | SECTOR 5                              | SECTOR 6                              |
+ 909 +-------------------------------------------------------------------------------+
+     | GREENBELT shared by the drum's districts: park, the lake (water store and     |
+1000 | thermal mass), orchards, the arena field, the mid-drum rail station           |
+     +---------------------------------------+---------------------------------------+
+     | SECTORS 7 to 12, three more rings of two (1,000 to 1,789)                     |
+1789 +-------------------------------------------------------------------------------+
+     | spare: a 13th ring, or the drum's district places (hospital, large market)   |
 1880 +-------------------------------------------------------------------------------+
      | AFT LANDING: freight lifts, depot, food processing, recycling and compost,    |
 2000 | the utility risers (the drum floor's noisiest band)                           |
@@ -264,18 +318,24 @@ mounted on the non-rotating spine outside the drums.
 | Band (a, m) | Area | Use | Rules it serves |
 |---|---|---|---|
 | 0 to 120 | 0.19 km2 | Fore Landing: Arrivals foot, General Services, Medical Bay, the Concourse | game-setting-and-intro.md:730-732 (General Services beside the Medical Bay and near Arrivals); mothership-superstructure.md M3 (the civic heart) |
-| 120 to 720 | 0.94 km2 | Fore residential, 8 neighbourhoods N1 to N8 | density follows transit (ship-homes-and-logistics.md section 2.8) |
-| 720 to 1,000 | 0.44 km2 | Greenbelt and civic | at least 10% parks (Perry, section 2.5); docs/game/ship_zoning_transit.md layer 2 |
-| 1,000 to 1,300 | 0.47 km2 | Homestead ring, 4 neighbourhoods H1 to H4 | homesteads next to agriculture (section 2.8) |
-| 1,300 to 1,880 | 0.91 km2 | The ship's farms | feeds the cabins and apartments (decided 2026-10-03); at 65 m2 of growing floor a person, about 14,000 people's food (computed from closed-loop-test.md:80) |
+| 120 to 909 | 1.24 km2 | Rings 1 to 3: sectors 1 to 6 (3,000 people) | each sector self-contained (3.15) |
+| 909 to 1,000 | 0.14 km2 | Greenbelt and the drum's district places | at least 10% parks (Perry, section 2.5); every district of 1,500 shares larger places (the community-size finding) |
+| 1,000 to 1,789 | 1.24 km2 | Rings 4 to 6: sectors 7 to 12 (3,000 people) | |
+| 1,789 to 1,880 | 0.14 km2 | a spare ring's width, or the drum's district places | |
 | 1,880 to 2,000 | 0.19 km2 | Aft Landing | freight and noise kept from homes (section 2.8) |
 
-All Proposal. The bands are rows of a data file (section 4), not code.
+Laid out like this Drum 1 holds **12 sectors, 6,000 people**, with room for the places the drum
+shares; the space program's area bound is about 15 (7,781 people) if the shared places pack
+tighter. All Proposal. The bands are rows of a data file (section 4), not code. If Drum 1 is built
+as a row of short drums (question 1b), each ring above is one drum of 263 m plus its end walls,
+and the landings move into the end caps.
 
 ### 3.5 Neighbourhoods
 
-A neighbourhood is a cell about 393 m around (a quarter of the circumference, one spoke lift per
-quarter) by 300 m along, around one NODE (Proposal):
+A neighbourhood is about 167 people (a third of a sector; the research's layer of about 150 that
+works together, split rather than grown past about 200) around one NODE. On Drum 1 its cell is
+about 262 m around by 263 m along, a third of its sector's half ring (3.15); rung 1's N1 keeps the
+393 m by 300 m cell below until rung 3 re-cuts it (Proposal):
 
 - **The node, the neighbourhood commons:** a mess hall with its serving counter and food store, a
   recreation room, washrooms, a garden court (the commons garden in its own glass-roofed room), a
@@ -284,21 +344,21 @@ quarter) by 300 m along, around one NODE (Proposal):
 - **Walking:** the farthest door is 345 m from the node along the streets in rung 1's N1 (4.1
   minutes at 1.4 m/s), inside the 5-minute rule that is already a test
   (`every_home_reaches_a_mess_hall_within_five_minutes`).
-- **Size:** a few hundred people, the 150 to 500 band of the Dunbar proposal
-  (mothership-superstructure.md, 2026-07-01).
+- **Size:** about 167 people, three to a sector of 500 (decided 2026-11-07, sized by
+  [2026-11-07-community-size.md](../reference/findings/2026-11-07-community-size.md); it replaces
+  the unsourced "150 to 500" of mothership-superstructure.md, 2026-07-01).
 - **Streets** are paved strips of the ground; homes face them; freight lanes run behind homes and
   never share passenger paths (planning rule, section 2.9 of ship-homes-and-logistics.md).
 
-**Capacity of Sector 1** is the space program's (3.12), which replaces this section's first
-estimate: about 9,400 people at the default mix (8% homesteaders), about 14,900 with no
-homesteads (then the bow's craft cradles are the limit), about 1,200 if everyone homesteads. The
-bands above are one way to lay that out; the program says how much of each band's area the
-population needs.
+**Capacity of Drum 1** is the space program's (3.12): about 7,800 people at the default mix (8%
+homesteaders), about 14,900 with no homesteads (then the bow's parking spots for private craft are
+the limit), about 1,200 if everyone homesteads. The bands above are one way to lay that out; the
+program says how much of each band's area the population needs.
 
-The mix is a per-sector setting in data (`data/ship/space_program.toml`, the `share` of each home
+The mix is a per-drum setting in data (`data/ship/space_program.toml`, the `share` of each home
 kind; ship-homes-and-logistics.md section 2.7). Food land and power set the dense ceiling: the
-farms take 65.29 m2 a person fed, and 10.8 kW a person (closed-loop-test.md) means one 60 MW
-reactor pair for each 5,560 people, plus a spare pair.
+farms take 122.2 m2 a person fed (the comfortable garden, 3.10), and 10.8 kW a person
+(closed-loop-test.md) means one 60 MW reactor pair for each 5,560 people, plus a spare pair.
 
 ### 3.6 How a player's home sits in it
 
@@ -363,7 +423,7 @@ generator turns into a design file. Proposal throughout:
 
  gateway --transport (12+ seats, cargo)--> HANGAR BAY 1 (bow) --walk--> ARRIVALS HALL
                                              cargo unloaded,             the receptionist's desk:
-                                             other craft in cradles      welcome, your bedroom, where
+                                             other craft parked          welcome, your bedroom, where
                                                                          you live (Cabin / Homestead
                                                                          / ...), death mode, where you
                                                                          wake, privacy, "Go home"
@@ -423,7 +483,7 @@ generator turns into a design file. Proposal throughout:
 | Place | Where | Notes |
 |---|---|---|
 | Hangar Bay 1 and further bays | bow | transports, private craft (decided: "hangar where all the private spaceships are stored"), mission groups gather at a waiting transport (decided 2026-10-03) |
-| Mech bays | bow, beside the hangars | cradles with port hookups (mothership-superstructure.md) |
+| Mech bays | bow, beside the hangars | work stands with port hookups (mothership-superstructure.md) |
 | Vehicle bays | inside homes (the homestead's 35 x 22 m bay exists) and at the landings | ground vehicles drive the drum floor's streets |
 | Industry, storage, cargo tunnels | spine | the freight rail runs the spine's length, freight lifts at both hubs |
 | Freight depots | Fore and Aft Landings | parcel lockers at every node (ship-homes-and-logistics.md section 5) |
@@ -438,8 +498,8 @@ generator turns into a design file. Proposal throughout:
 | The Concourse (the market, a food hall, the fleet projects board, the memorial) | Fore Landing |
 | Market rows | each node |
 | Mess halls | each node (the 5-minute rule) and the Concourse's food hall |
-| Gardens | each node's garden court; each homestead's own; the greenbelt's orchards. **The garden's goal** (the operator, 2026-11-06): "Our goal is a minimalist survival garden that provides all the nutrients it possibly can." Designed separately by the homestead engineer (`docs/design/survival-garden.md`, in progress); the space program's farm rows take its figures when it lands |
-| The ship's farms | the farm band (3.4); 65.29 m2 of growing floor for each person they feed (3.12) |
+| Gardens | each node's garden court; each homestead's own; the greenbelt's orchards. **The garden's goal** (the operator, 2026-11-06): "Our goal is a minimalist survival garden that provides all the nutrients it possibly can." Designed in [survival-garden.md](survival-garden.md); every new homesteader starts with its comfortable garden (decided 2026-11-07: "The comfortable one."), which fits the homestead's greenhouse (the space program checks it) |
+| The ship's farms | each sector's farm band (3.15); 122.2 m2 of growing floor for each person they feed, the comfortable garden's own figure (3.12), on one level (decided 2026-11-07) |
 | The Arena and the Armory | greenbelt (the field) and the bow (target ranges): sport by consent (decided 2026-11-03) |
 
 ### 3.11 Transit
@@ -451,7 +511,7 @@ generator turns into a design file. Proposal throughout:
 | Spoke lifts | 4 down each end cap | 100 s rim to axis at 2.5 m/s; every lift step-free, with a stair beside it (3.13) |
 | Spine passenger rail | along the spine, bow to stern | between sectors |
 | Spine freight rail | along the spine | goods only (planning rule) |
-| Small craft | bow hangars | between motherships (they jump; the motherships never do, decided 2026-11-03) |
+| Small craft | bow hangars | between motherships and out to nearby bodies (they jump, decided 2026-11-03; since 2026-11-07 the motherships cross between stars by a jump too, 3.14) |
 
 The resilience rule of docs/game/ship_zoning_transit.md:77-110 stands: every critical place has a
 fast route and a slow one, and no single lift or line failure isolates a district (the stairs in
@@ -469,62 +529,69 @@ size a building (a "space program": the list of every kind of room with its area
 its area per person, its storeys and its height). A row gives an area per person, or an area per
 unit and how many people one unit serves; the population multiplies; circulation and structure
 are added where a figure is a bare room; the rows add up by zone (the drum floor, the spine's
-decks, the bow's decks); and the room Sector 1 offers is the check. The layout then places the
-instances (neighbourhood templates, rung 3), and the planning tests check the layout against the
-same rows. Change a number and the ship changes.
+decks, the bow's decks); and the room Drum 1 offers is the check. The layout then places the
+instances (sector and neighbourhood templates, rung 3), and the planning tests check the layout
+against the same rows. Change a number and the ship changes.
 
 - **The program**: [data/ship/space_program.toml](../../data/ship/space_program.toml), each row
   naming its source. **The sources**, quoted and dated:
-  [2026-11-06-space-program-sources.md](../reference/findings/2026-11-06-space-program-sources.md).
+  [2026-11-06-space-program-sources.md](../reference/findings/2026-11-06-space-program-sources.md),
+  [2026-11-07-community-size.md](../reference/findings/2026-11-07-community-size.md) (the sector),
+  [2026-11-07-drum-limits.md](../reference/findings/2026-11-07-drum-limits.md) (the scale study).
 - **The tool**: `node scripts/space-program.js 1000` (the totals for 1,000 people and whether
-  Sector 1 holds them), `--mix homestead=0.05,cabin=0.25,apartment=0.70`, `--rows` (every row),
-  `--block` (the apartment block), `--sources`. Its tests are in `just rig-tests`.
+  Drum 1 holds them), `--mix homestead=0.05,cabin=0.25,apartment=0.70`, `--farm-levels 2`,
+  `--rows` (every row), `--sector` (the 500-person sector, 3.15), `--scale` (1 and 10 billion,
+  3.16), `--block` (the apartment block), `--sources`. Its tests are in `just rig-tests`.
 
 | Group | The rows (m2 a person unless noted) | Zone | Source |
 |---|---|---|---|
 | Homes | a homestead plot of 4,895 m2 plus 31.5% for its street and gap, for 2.5 people; a cabin of 7.5 m2 plus 2 m2 of shared rooms, with circulation and structure, on 2 storeys; an apartment from the block template (23.1 m2 of floor a resident) | drum | the home kinds (ship-homes-and-logistics.md 1.2), the block template |
 | Community | shops 2.3 (2 storeys), offices 1 (3), schools 1 (3), hospital 0.3 (at least 300 m2), assembly halls 1.5, recreation 1, public open space 10 (at least 0.5 ha a neighbourhood), workshops 4 (2), streets and paths 12, the rest 2.9 (3) | drum | NASA SP-413, Table 3-2 |
-| Neighbourhoods and landings | a commons for each 300 people (1,870 m2, today's Commons), General Services for each 2,500, 3 rail stations and 8 spoke lifts a sector | drum, end caps | the ship file, Proposal |
-| The ship's farms, for everyone whose home does not feed them | growing floor 65.29 on one level under the sunline; animals 5, processing 4, drying 8, on 3 levels | drum | NASA's 2022 baseline (the 2026-10-03 finding), SP-413 |
-| Life support and power | water and waste 4, electrical 0.1, communications 0.05, the air plant 0.3 (at least 500 m2), a reactor pair (4,000 m2) for each 5,560 people plus a spare pair, a control room a sector | spine | SP-413, closed-loop-test.md, Proposal |
+| Neighbourhoods and landings | a commons for each 167 people (1,870 m2, today's Commons; three to a sector), General Services for each 2,500, 3 rail stations and 8 spoke lifts a drum | drum, end caps | the ship file, the community-size finding, Proposal |
+| The ship's farms, for everyone whose home does not feed them | growing floor 122.2 (the comfortable garden with its paths) on one level under the sunline, `[farms] levels` allowing two or more; animals 5, processing 4, drying 8, on 3 levels | drum | survival-garden.md (comfort tier), SP-413 |
+| Life support and power | water and waste 4, electrical 0.1, communications 0.05, the air plant 0.3 (at least 500 m2), a reactor pair (4,000 m2) for each 5,560 people plus a spare pair, a control room a drum | spine | SP-413, closed-loop-test.md, Proposal |
 | Storage, industry, freight | storage 5, heavy industry 6, freight rail and tunnels 1 | spine | SP-413, Proposal |
-| The bow | the bridge 800 m2 and the Arrivals hall 1,500 m2 once; a hangar bay (2,000 m2) for each 1,000 people, a craft cradle (150 m2) for each 20, a mech bay (600 m2) for each 2,000, a drone bay (300 m2) for each 500 | bow | Proposal |
+| The bow | the bridge 800 m2 and the Arrivals hall 1,500 m2 once; a hangar bay (2,000 m2) for each 1,000 people, a parking spot for a private craft (150 m2) for each 20, a mech bay (600 m2) for each 2,000, a drone bay (300 m2) for each 500 | bow | Proposal |
 | Outside the hull | radiator fin 67 | exterior | closed-loop-test.md |
 | Allowances | circulation x 1.4 and structure + 10% on rooms given bare | | GSA 2012 (1.4 to 1.6), Proposal |
 
-**The room Sector 1 offers** (computed): the drum floor, 2 pi x 250 m x 2,000 m = 3.14 km2; the
+**The room Drum 1 offers** (computed): the drum floor, 2 pi x 250 m x 2,000 m = 3.14 km2; the
 spine segment's 340 decks of 2,827 m2 at 80% usable = 0.769 km2; the bow's 20 decks of 11,310 m2
 at 70% usable = 0.158 km2.
 
 **Results at the default mix** (8% of residents homesteaders, 22% in cabins, 70% in apartment
-blocks; Proposal), from `node scripts/space-program.js`:
+blocks; Proposal), from `node scripts/space-program.js` (2026-11-07, with the ship's farms growing
+the comfortable garden; until then they used NASA's 65.29 m2 and Drum 1 held 9,437):
 
-| People | Drum floor | Spine decks | Bow decks | Floor a person | Sector 1 |
+| People | Drum floor | Spine decks | Bow decks | Floor a person | Drum 1 |
 |---|---|---|---|---|---|
-| 100 | 0.047 km2 (2%) | 0.011 km2 (1%) | 0.006 km2 (4%) | 646 m2 | holds them |
-| 1,000 | 0.341 km2 (11%) | 0.025 km2 (3%) | 0.013 km2 (8%) | 380 m2 | holds them |
-| 10,000 | 3.32 km2 (106%) | 0.179 km2 (23%) | 0.107 km2 (67%) | 361 m2 | **does not**: two sectors |
+| 100 | 0.053 km2 (2%) | 0.011 km2 (1%) | 0.006 km2 (4%) | 698 m2 | holds them |
+| 500 (one sector) | 0.206 km2 (7%) | 0.017 km2 (2%) | 0.009 km2 (6%) | 466 m2 | holds them |
+| 1,000 | 0.407 km2 (13%) | 0.025 km2 (3%) | 0.013 km2 (8%) | 446 m2 | holds them |
+| 10,000 | 4.03 km2 (128%) | 0.179 km2 (23%) | 0.107 km2 (67%) | 431 m2 | **does not**: two drums |
 
-The most Sector 1 holds: **9,437** at the default mix; 14,900 with no homesteads (then the bow is
-full, of craft cradles); 1,197 if everyone homesteads. At 10,000 people it holds them with at most
-7.2% homesteaders (290 homesteads).
+The most Drum 1 holds: **7,781** at the default mix (about 15 sectors); 9,031 with the farms on two
+levels; 14,900 with no homesteads (then the bow is full, of parking spots for private craft); 1,187
+if everyone homesteads. At 10,000 people it holds them with at most 4% homesteaders.
 
 What the numbers say (computed from the program):
 
 - **Homesteads are the ship's hungriest use of floor**: about 2,600 m2 of drum per homesteader (the
-  plot, its street and its own food) against about 80 to 95 m2 for a cabin or apartment resident's
-  home plus their share of the farms (both before the streets, parks and civic places everyone
-  shares, about 36 m2 a person). At 10,000 people the 8% who homestead take 62% of the drum.
-- **The farms come next**: 0.60 km2 for the 9,200 people they feed at 10,000. Stacking them two
-  high under lamps would free 0.30 km2 (the lever when the floor runs short, at a cost in power).
+  plot, its street and its own food) against about 130 to 150 m2 for a cabin or apartment
+  resident's home plus their share of the farms (both before the streets, parks and civic places
+  everyone shares, about 36 m2 a person). At 7,781 people the 8% who homestead take 51% of the drum.
+- **The farms come next**: 1.18 km2 for the 9,200 people they feed at 10,000. A second level under
+  lamps frees 0.56 km2 (the lever when the floor runs short, at a cost in power; the operator's
+  "allow for two or more").
 - **Small populations pay for minimums**: a hospital, a hangar bay and a bridge for 100 people
-  make 646 m2 a person; at scale it settles near 360.
+  make 698 m2 a person; at scale it settles near 430.
 - **The spine has room to spare** (23% at 10,000): industry and storage can grow.
-- **The bow is the limit of a dense sector**, because of one private craft cradle for every 20
-  people (question 15).
+- **The bow is the limit of a dense drum**, because of one private craft's parking spot for every
+  20 people (question 15).
 - **Against NASA's settlement**: SP-413 planned 67 m2 of projected area a person at about 15,000
-  people a km2; Sector 1 at the default mix gives about 330 m2 of drum a person, about 3,000 people
-  a km2, because homesteads and one-level sunlit farms are generous choices.
+  people a km2; Drum 1 at the default mix gives about 400 m2 of drum a person, about 2,500 people a
+  km2, because homesteads, one-level sunlit farms and a garden that meets every nutrient are
+  generous choices.
 
 ### 3.13 Crew health: the rules a layout is checked against
 
@@ -558,7 +625,7 @@ below). Each rule is a check over the layout's data; the last column says which 
 | Warmth | homes kept warm enough (the WHO's 18 °C for cold seasons as the floor) | F14 | ship-life-support.md's model |
 
 Not yet a rule: **how fast the drum may spin**. NASA's 1975 study set "≤1 rpm" (its Table 3-3);
-Sector 1 spins at 1.89 rpm (its size decided on 2026-09-15; habitat-generation.md notes the spin is under "the ~2 rpm Coriolis comfort limit").
+Drum 1 spins at 1.89 rpm (its size decided on 2026-09-15; habitat-generation.md notes the spin is under "the ~2 rpm Coriolis comfort limit"); the bulk drums of 3.16 spin at 0.95 rpm, inside NASA's figure.
 The later research on adapting to rotation has not been read; it is the next finding for crew
 health, and the size stays decided meanwhile.
 
@@ -582,55 +649,239 @@ machine row carries a vibration mount, and the bearing between drum and spine is
 at the player's own volume, and a low-frequency sound the simulated crew lives with. Only the
 second counts against these rules, at the low-frequency values.
 
-### 3.14 Cruise thrust: what you feel aboard, and whether the ship ever stops burning
+### 3.14 The cruise is a jump; thrust only to manoeuvre; how the floors take the lean
 
-His question, 2026-11-06: "So this means while on the ship we'd be in 5% earth gravity?" **No.**
-The orchestrator's answer is checked here.
+His question, 2026-11-06: "So this means while on the ship we'd be in 5% earth gravity?" **No**
+(answered then: the spin gives 1 g on the drum floor, and thrust only leans it). His answer,
+2026-11-07: "We can introduce some sort of mechanic that requires no thrusting. Like a teleportation
+tech requires no thrusting." **Decided: the motherships cross between the stars by a jump, with no
+thrust while travelling.**
 
-- **On the drum floor the spin gives 1 g** (1.89 rpm at 250 m, decided 2026-09-15). While the drive
-  burns at 0.05 g, its push adds along the ship's axis, at right angles to the spin's pull. The two
-  add like the sides of a right triangle: the total is the square root of (1 squared + 0.05
-  squared) = **1.00125 g**, one part in 800 heavier (a 70 kg person weighs 87 grams more), and
-  "down" leans toward the stern by arctan(0.05) = **2.86 degrees** (computed; the orchestrator's
-  "about 2.9 degrees" holds). Every floor on the drum then slopes 5% (1 in 20) toward the stern: a
-  dropped ball rolls aft, and a 10 m pool laid along the axis is 0.5 m deeper at its stern end.
-- **In the spine** (not spinning) you feel **0.05 g toward the stern** while the drive burns: a
-  70 kg person weighs 3.5 kg.
-- **With the drive off** (coasting) the spine is weightless and the drum floor is a plain 1 g,
-  straight down.
+**Why a jump, in real physics.** Steady motion gives no weight at all (Newton's first law); only a
+change of speed does. Burning all the time at 0.05 g reaches 5.2% of light speed in a year and 47%
+in ten, and any drive that throws propellant must then start about 5.6 times as heavy as it ends
+for one year and about 30 million times for ten (with an assumed exhaust speed of 3% of light, the
+rocket equation; computed in this plan's 2026-11-06 pass). Burn, coast, burn takes about 88 years
+to Alpha Centauri. So a fleet that moves between stars within a lifetime needs a fiction either
+way, and the jump is the one the game already has for small craft.
 
-**Burn all the time, or coast?** Moving forward at a steady speed gives no weight at all (Newton's
-first law); only a change of speed does. So "perpetual forward motion", the premise of the
-2026-09-15 decision that the spine has gravity, gives the spine weight only while the drive is
-actually burning.
+**The jump, as the game plays it (a game fiction, said so in the game's words, like the link in
+game-setting-and-intro.md 2.5):**
 
-- **Burning all the time at 0.05 g**: after one year (365.25 days) the ship moves at **5.2% of
-  light speed** (0.05 x 9.80665 m/s2 x 31,557,600 s = 15,474 km/s; relativity changes that by less
-  than 0.1% at this speed), and after ten years at 47% (computed). It has to turn and slow down at
-  the halfway point: to Alpha Centauri (4.37 light-years) that is 18.2 years aboard, 18.9 on Earth,
-  peaking at 44% of light speed (computed, with relativity). And any drive that throws propellant
-  needs exponentially more of it the longer it burns: with an assumed exhaust speed of 3% of light
-  (a very good fusion drive), the ship must start 5.6 times as heavy as it ends for one year at
-  0.05 g, and about 30 million times for ten (the rocket equation, computed). Continuous thrust for
-  decades needs a drive that carries no propellant: a second fiction, beside the jump.
-- **Burn, coast, burn**: accelerate for a year (0.97 years reaches exactly 5% of light speed,
-  covering 0.024 light-years), coast, and burn a year to stop. To Alpha Centauri that is about 88
-  years (computed). While coasting the spine is weightless, the drum is a plain 1 g, and the lean
-  appears only during burns: departures, arrivals, course changes and evasions.
-- **The jump is not a third option for the motherships**: they never jump (decided 2026-11-03);
-  small craft do, with a reach of one light-year to start (game-setting-and-intro.md 3.2 to 3.4).
-  The fleet's jump range belongs to the craft, so a mothership's choice is only between these two.
+- The jump drive is charged from the reactors over hours (the charge time, the reach and the energy
+  are data rows, Proposal: `data/fleet/drive.ron`, beside the fleet's upgrade lines of
+  game-setting-and-intro.md 3.4, where "Cruise speed" becomes the motherships' jump reach).
+- During the jump nothing pushes: the drum floor is a plain 1 g straight down and the spine is
+  weightless. The ship arrives "moving with whatever it jumped to" (game-setting-and-intro.md 3.1),
+  so no burn is needed to stop.
+- **Real thrust is for manoeuvring only**: docking, station-keeping beside a body, turning, small
+  course changes. Thrusters at the bow pull the ship along its axis (3.16: a long spine is pulled,
+  never pushed), and small attitude thrusters turn it.
+- **This changes two earlier decisions**, which the plan records rather than hides: the 2026-11-03
+  "small craft jump, the motherships never do" (game-setting-and-intro.md 10.1; question 10b asks
+  him to confirm the change), and the premise of the 2026-09-15 decision that the spine has
+  gravity, since a jumping ship's spine is weightless (3.3).
 
-**Recommendation** (question 10, still his): make the drive's state data, a schedule of burns and
-coasts with a thrust for each, and let the drum's lean and the spine's weight follow it. Make
-**coasting the normal state between the stars** and burns the events, because it is what a real
-ship of this design would do (his 2026-11-06 standard), needs no fiction beyond the jump, and suits
-what the spine holds (habitat-generation.md: weightlessness is "the point" for moving mass,
-docking and big structures). Keep 0.05 g as the routine burn (a 2.86 degree lean) and harder burns
-as the rare events gravity-and-movement.md designs. Simplified mode keeps the drum's floors level
-during burns and gives everyone in the spine magnetic boots that are always on. This changes the
-premise of his 2026-09-15 spine-gravity decision, so it is his call; the other choice is to keep
-the spine under thrust all the time and say plainly in the game that the drive is a fiction.
+**What you feel during a manoeuvre.** The push adds along the axis, at right angles to the spin's
+pull, so "down" leans toward the stern by arctan(a/g) and the total is a hair above 1 g:
+
+| Manoeuvre | Lean | The floor, compared with floors people walk | A 10 m pool laid along the axis | In the spine (a 70 kg person) |
+|---|---|---|---|---|
+| Routine, 0.02 g | 1.15 degrees (1 in 50) | flatter than the 1 in 48 cross slope the ADA allows on any walkway | 0.2 m deeper at its stern end | weighs 1.4 kg |
+| The cap, 0.05 g | 2.86 degrees (1 in 20) | exactly the steepest walking surface the ADA does not call a ramp; a ramp may be 1 in 12 | 0.5 m deeper | weighs 3.5 kg |
+
+(The ADA's 2010 Standards, sections 403.3 and 405.2, quoted in
+[2026-11-07-drum-limits.md](../reference/findings/2026-11-07-drum-limits.md), F8.) An emergency that
+would need more than 0.05 g is a jump instead, so no burn ever exceeds the cap.
+
+**His drum question**: "I'm wondering how we'd design a drum design that has subsections that are
+able to adjust to either one or two axis. Gyroscopes start add a lot of excess structure."
+
+First, **one axis is always enough.** The lean is along the ship's axis whenever the push is along
+the axis. A sideways push on a spinning drum would turn with the spin, so in the drum's own frame
+the floor would rock back and forth once a turn (every 31.7 s at 1.89 rpm): no slow mechanism can
+follow that, and it would feel like a boat in a swell. So the ship never pushes sideways while the
+drums spin; it turns first (slowly, by attitude thrusters), then pushes along its axis. Every
+option below then needs at most a tilt toward the stern and back.
+
+| Option | Structure it adds | Mass | How it fails | What a player feels |
+|---|---|---|---|---|
+| **A. Fixed floors and a thrust cap** (do nothing to the floors; cap the push at 0.02 g routine, 0.05 g at most, axial only, ramped over about half a minute) | none | none | nothing structural; a burn above the cap is refused by the drive's controller | during a manoeuvre a gentle slope toward the stern: a ball or a wheeled cart rolls aft, water in pools and tanks tilts, a chime and an on-screen "manoeuvring" mark; at 0.02 g flatter than the cross slope any walkway may have |
+| **B. Pendulum decks** (deck segments hung on trunnion pins along a circumferential axis, swinging passively like a ship's gimballed stove, with dampers) | pins, bearings and dampers under every segment; a gap at every segment joint; flexible links for every pipe, cable and duct crossing a joint; buildings built as hung boxes | the hangers carry the whole deck (homes, soil, water) in bending to the pins: a second floor structure under the first | a pendulum on 3 m arms swings with a 3.5 s period (2 pi root(l/g), computed) at the start and end of each burn unless damped; a failed damper keeps it swinging (sickness); a seized pin makes it a fixed floor again; a joint that steps is a trip hazard | the floor stays level, but the joints shift: a 20 m segment tilted 2.86 degrees moves its ends 0.5 m, so every door and street crossing a joint steps during a burn, and the neighbourhood sways briefly |
+| **C. Floors on jacks** (floor plates on actuators that tilt a few degrees) | actuators, sensors, control and power under every plate | moderate | a stuck jack leaves a floor tilted after the burn; a control fault tilts the wrong way; power loss mid-burn | the floor moves under you; only small plates can tilt (a 55 m homestead tilted 2.86 degrees rises 2.75 m at one end, breaking every threshold), so in practice it is the bed, the bath, the pool's floor |
+| **D. Tilt the whole drum's frame** (gimbal the drum against the thrust) | the gimbal rings around a 500 m drum: the "excess structure" he named | enormous | tilting the spin axis puts part of the push across it, and that part turns with the spin: the lean would wobble once a turn instead of holding still, which is worse | a slow rocking every 31.7 s |
+| **E. Items, not floors** (the sailor's answer: gimbal only what must stay level; baffle what sloshes) | baffles in pools, fish tanks and water stores; lips on shelves; a gimballed stove top where a pot boils | small | none that matters | pools and tanks barely move; nothing falls off a shelf |
+
+**Recommended: A with E**, because the lean is then never steeper than floors people walk every
+day without noticing (the ADA's cross slope at the routine push, its walking-surface limit at the
+cap), it adds no structure and no failure, and it keeps the physics honest and visible (balls roll,
+water tilts) at a level that teaches rather than annoys. B and C solve a problem the cap removes,
+at the cost of joints that step and machinery that can jam; D makes it worse. **Simplified mode**
+keeps every floor visually level during a manoeuvre and gives everyone in the spine magnetic
+boots that are always on. The drive's state (jumping, charging, manoeuvring at a push) is data,
+and the lean and the spine's weight follow it.
+
+### 3.15 The sector: a community of 500
+
+His words, 2026-11-07: "Let's start with a sector for 500 people. I've heard that communities of
+500 people is about the upper limit for one massive group to work together. Can you research that
+number?"
+
+**What the research says** ([2026-11-07-community-size.md](../reference/findings/2026-11-07-community-size.md)):
+500 is real, but it is the outer ring, not the working group. In Dunbar's layers about 500 is the
+circle of acquaintances, people known well enough to talk with (F5); the group held together by
+personal relationships is about 150, and communities that govern themselves without written law
+split between about 150 and 200 (Hutterite colonies at a mean of 166, Alpine commons at 140 to 176
+for six centuries; F12, F13, F15). 500 is also where the record shows communities starting to need
+a formal structure: officials, roles, shared rules (kibbutzim settle near 468, campsites cluster
+near 500; F12, F16). Every one of these is an average with a wide spread, and the brain-size
+regression behind 150 is disputed (intervals of 4 to 520 in the 2021 critique, F8; Dunbar's reply,
+F9). **So his 500 is right as the largest community in which everyone can still know everyone by
+sight, and the sector keeps it as its cap; the group that works together is built in at about
+150.**
+
+**Sector 1's role (decided here, Proposal):** Sector 1 is now **one 500-person sector**, the first,
+at the fore end of Drum 1, and the drum he sized is **Drum 1**, holding about 15 by area (12 as
+laid out in 3.4). Why: his word "sector" now names the 500-person community, and one concept keeps
+one word (CLAUDE.md, account words; the same rule for names); his 250 m x 2 km drum is kept whole
+under its own name; rung 1 still builds in Sector 1, so nothing already planned moves; and at a
+billion people the sector is the unit everything repeats (2 million of them), which only works if
+the word means one thing.
+
+**The layers, built into the space** (the finding's judgement table, at a ratio of about three):
+
+| Layer | People | Built as, aboard | Shared places |
+|---|---|---|---|
+| Home | about 5 (1 to 6) | one home: a homestead (2.5 at the default), an apartment, a cabin | its own rooms |
+| Cluster | about 15 | a cabin hall of 16 cabins; six homesteads on one lane; one corner of an atrium storey | a small common room or court |
+| Block | about 50 | one storey of the atrium block (16 homes, 36 people); a homestead street (16 homesteads, 40) | a garden court, laundry, play space |
+| Neighbourhood | about 167, split rather than grown past about 200 | the node (3.5) and the homes within 5 minutes of it | the mess hall, the commons garden, a room where every adult fits for an assembly |
+| **Sector** | **500** | three neighbourhoods and a civic heart | the civic hall (the assembly rows give each sector 750 m2), the school, the clinic, the workshops, the market row, the sector's council |
+| District | about 1,500 | three sectors | General Services, a rail station, the greenbelt's arena and lake |
+
+**What one sector holds** (`node scripts/space-program.js --sector`, the default mix): 16
+homesteads (40 people), 110 cabins (110 people, seven halls of 16), 4 atrium blocks (350 people,
+432 places), 3 commons, the civic rows, and the farms for the 460 people the homes do not feed
+(56,212 m2 of growing floor on one level, the comfortable garden; plus animals, processing and
+drying). **Drum floor 0.206 km2** for a sector on its own (413 m2 a resident, minimums such as a
+hospital and a hangar bay included); 0.202 km2 once a full drum shares them. Spine decks 0.017
+km2, bow decks 0.009 km2. It draws 5.4 MW at the closed-loop test's 10.8 kW a person.
+
+**Its drum size and its walks.** On a drum of Drum 1's radius (250 m, 1.89 rpm):
+
+| Cut | Around x along | Farthest home to its mess hall | Farthest home to the civic hall | Walking rules (5 and 15 minutes) |
+|---|---|---|---|---|
+| A whole ring | 1,571 x 131 m | 328 m, 3.9 min | 851 m, 10.1 min | met |
+| **A half ring** | **785 x 263 m** | **262 m, 3.1 min** | **524 m, 6.2 min** | **met** |
+| A quarter ring | 393 x 526 m | 284 m, 3.4 min | 459 m, 5.5 min | met |
+
+(Streets, around plus along, at 1.4 m/s; the three neighbourhoods side by side along the longer
+side, each mess hall at its middle, the civic hall at the sector's middle.) **Recommended: the half
+ring.** It has the shortest walk to the mess halls, and two half-ring sectors fill a ring 263 m
+long, 1.05 radii: inside the 1.3-radius spin-stability limit (3.16), so one ring of two sectors
+could be a drum of its own, stable even flying free. The quarter ring walks a minute less to the
+civic hall but is 526 m long, past the limit for a drum of its own.
+
+```
+ ONE SECTOR, a half ring of Drum 1, unrolled (to scale: 1 character = about 20 m around, 22 m along)
+ s (around) ->  0                   262                  524                  785
+ a (along)   0 +--------------------+--------------------+--------------------+
+               | N1  about 167      | N2  about 167      | N3  about 167      |
+               |  homes, its green  |  homes, its green  |  homes, its green  |
+               |      [node]        |  [node] [CIVIC]    |      [node]        |
+               |                    |  school, clinic,   |                    |
+               |                    |  market, hall      |                    |
+           188 +--------------------+--------------------+--------------------+
+               | workshops in 45 dB rooms | THE FARM BAND: the comfortable garden for |
+           263 | the 460 the homes do not feed, on one level; animals, drying     |
+               +-----------------------------------------------------------------+
+```
+
+- **Homesteads are half the sector's floor** (16 plots, 0.103 km2). A neighbourhood is equal to the
+  others in people, not in area: one that holds all 16 homesteads and the cabins is about 430 m
+  around (its farthest home 4.1 minutes from its mess hall, 8.8 from the civic hall, computed),
+  and the other two, of atrium blocks, are compact. The layout generator (rung 3) places them.
+- **The quiet-bedroom rule (3.13)**: the workshops, the loudest place on the floor (a 90 dB(A)
+  machine, Proposal), stand in rooms whose walls take off 45 dB, which keeps a bedroom's facade
+  under 40 dB at night from 0.7 m; in the open they would need 126 m (computed, `--sector`). So
+  they sit in their rooms on the sector's aft edge beside the farms, a street from the nearest
+  home, and the atrium blocks keep their bedrooms on the atrium side (3.6).
+- **Rung 1** (6.4) builds N1 of Sector 1 flat, with its 12 homestead plots (most of the sector's 16
+  at the default mix), the 16-cabin hall and its commons, in the 393 m x 300 m cell it already
+  has; rung 3 re-cuts the whole sector from its template.
+- **Data**: `[sector]` and its layers in data/ship/space_program.toml (built); a sector template,
+  `data/ship/sectors/half_ring.toml`, for rung 3's generator (Proposal).
+
+### 3.16 One billion and ten billion: a fleet
+
+His words, 2026-11-07: "Let's aim for 1 billion and 10 billion."
+
+**Sectors**: 2,000,000 for a billion and 20,000,000 for ten billion. Everything below is real
+physics, computed by `node scripts/space-program.js --scale` from data/ship/space_program.toml,
+the limits sourced in [2026-11-07-drum-limits.md](../reference/findings/2026-11-07-drum-limits.md);
+the jump that moves the ships is the one game fiction, and it plays no part in the sizes.
+
+| Limit | What decides it | The number |
+|---|---|---|
+| How wide a 1 g drum can be | hoop stress: the rim carries its own weight as density x g x radius (F1), plus air and contents; working strength = strength / 2 | steel at most 4.5 km even empty; aramid composite 62.8 km; carbon composite 83.3 km. A carbon rim is 2.2 cm thick at 250 m (34 kg/m2), 8.8 cm at 1 km (138 kg/m2) |
+| How long a drum can be | spin stability: a free cylinder spins stably only up to 1.3 radii long (F2) | 325 m at 250 m radius (Drum 1 is 2,000 m: question 1b); 1,300 m at 1 km |
+| How long a ship can be | the spine carries every drum ahead of or behind the thrusters during a 0.05 g manoeuvre; held to a tenth of the ship's mass, a carbon composite spine may be 333 km | ships of 332 km |
+| How a spine is pushed | Euler buckling: pushed from the stern, a spine sized for that load buckles past about 1.4 km between braces (computed) | the manoeuvring thrusters pull from the bow, or each drum carries its own |
+| Mass | the shield (4.5 t/m2, closed-loop-test.md) dominates, held in a non-rotating shell around the drums so it carries no spin and loads no drum (F1's "unattached" design) | about 2,650 t a person in 1 km drums |
+| Where it comes from | the main asteroid belt holds about 2.4 x 10^21 kg (F7) | a billion people's fleet is a millionth of it; ten billion's a hundred-thousandth |
+
+**Which drums.** Drum 1 keeps its decided 250 m radius. For the billions the study compares two
+drum sizes, each as long as the stability limit allows:
+
+| Drum | Spin | Length | Floor | Sectors | People | Mass of one drum |
+|---|---|---|---|---|---|---|
+| Drum 1's radius, 250 m | 1.89 rpm | 325 m | 0.511 km2 | 2 | 1,000 | 3.2 x 10^6 t |
+| **The bulk drum, 1 km** | **0.95 rpm** | **1,300 m** | **8.17 km2** | **40** | **20,000** | **4.8 x 10^7 t** |
+
+The 1 km drum is recommended for the bulk of the population: it spins under NASA's 1975 "1 rpm"
+(3.13), holds four times the people per kilometre of spine, and its carbon rim is still thin. Its
+40 sectors sit as patches around and along the floor (13 districts of three).
+
+**One ship cannot hold them.** In 1 km drums a billion people make a spine 67,500 km long (0.23
+light-seconds end to end); carrying its own manoeuvring loads it would weigh about 20 times what it
+carries, by an estimate that leaves out its own weight, which only makes it worse. Ten billion:
+675,000 km, past the Moon's distance, and 200 times. humanity_one.md's single 500 km hull fails the
+same two tests (it is past the spine's length and many radii long).
+
+**The honest answer is a fleet:**
+
+| | One ship | A billion | Ten billion |
+|---|---|---|---|
+| Ships | 1 | **about 204** | **about 2,033** |
+| Drums (1 km) | 246 | 50,000 | 500,000 |
+| Sectors | 9,840 | 2,000,000 | 20,000,000 |
+| People | 4.92 million | 1 billion | 10 billion |
+| Length | 332 km | 204 ships of 332 km | 2,033 ships of 332 km |
+| Mass | 1.3 x 10^10 t | 2.65 x 10^12 t | 2.65 x 10^13 t |
+| As one rock (2,000 kg/m3) | about 2.3 km across | 13.6 km across | 29.4 km across |
+
+(In drums of Drum 1's radius it would take about 1,127 and 11,262 ships of 888,000 people each.)
+**Every new sector is about 1.3 million tonnes, one rock about 110 m across**, most of it shield:
+crushed rock and slag, the bulk the fleet's mining (drone-mining.md, at industrial scale, not the
+personal drone) brings in. Growing the fleet is a fleet project, a row in the fleet ledger.
+
+**The ship's drums turn in pairs** (Proposal): two drums spinning opposite ways cancel each other's
+spin, so the ship turns without fighting the gyroscopic push of 246 spinning drums; the spine
+carries each pair's equal and opposite push between them. People cross between drums through the
+end caps and the spine rail, as they already cross between Drum 1 and any later drum.
+
+**What the game builds and what streams** (CLAUDE.md, infinite-of-x and the compute budget). The
+game never instantiates the fleet. A sector is a template plus a seed, so 20 million sectors are
+generated on demand from (ship, drum, sector) and stored only when someone touches one (a claimed
+plot, an edit). The tiers of section 5 grow two more:
+
+| Tier | What | Cost (Proposal) |
+|---|---|---|
+| L0 to L2 | your room, your neighbourhood, your sector and drum's floor (section 5) | as section 5 |
+| L3 | your ship's spine, end caps and other drums: one silhouette per drum class, instanced 246 times | 0.5 ms |
+| L4 | the fleet: other ships as distant impostors, drawn only when in view | 0.1 ms |
+| Population | every sector beyond yours is a counter in crowd-simulation.md's aggregate tier, updated a slice per frame, obeying the Dev page's "turn off all reuse" switch | under 0.1 ms CPU |
+| Network | a server sends only your sector's state and the fleet's ship positions and jump states, at a low rate; a server holds only the sectors players have touched | |
 
 ## 4. From one player to an MMO server (infinite-of-x)
 
@@ -638,28 +889,31 @@ Everything above is rows, not code (Proposal for the shapes):
 
 | Data | What a row is | Example |
 |---|---|---|
-| `data/ship/sectors.ron` | a sector: its kind (drum or ring), radius, length, spin, its band rows, its spine segments, its neighbourhood instances | `(id: "s1", radius_m: 250.0, length_m: 2000.0, ...)` |
-| `data/ship/bands/*.ron` | a band of a drum floor: from, to, use | `(from_m: 120.0, to_m: 720.0, use: "residential")` |
+| `data/ship/drums.ron` | a drum: its class (radius, length, spin), its band rows, its spine segments, its sector instances | `(id: "d1", radius_m: 250.0, length_m: 2000.0, ...)` |
+| `data/ship/bands/*.ron` | a band of a drum floor: from, to, use | `(from_m: 120.0, to_m: 383.0, use: "sectors")` |
+| `data/ship/sectors/*.toml` | a sector TEMPLATE (3.15): its cut (half ring), its three neighbourhoods, its civic heart, its farm band, its workshops | `half_ring` |
 | `data/ship/neighbourhoods/*.ron` | a TEMPLATE: the node's design, street pattern, plot slots by kind, size | `n-mixed-a` (12 homesteads, 16 cabins, a commons) |
-| ship file (data/blueprints/ship_structure.ron) | the authored or generated instances: neighbourhoods placed by (sector, s, a), the ground layer, zones, plots with stable ids | plot `s1-n1-h03` |
+| `data/fleet/ships.ron`, `data/fleet/drive.ron` | a ship of the fleet (its drums by class and seed, its position, its jump state); the jump drive's reach, charge time and the manoeuvring cap (3.14) | 204 ships for a billion (3.16) |
+| ship file (data/blueprints/ship_structure.ron) | the authored or generated instances: neighbourhoods placed by (drum, sector, s, a), the ground layer, zones, plots with stable ids | plot `d1-s1-n1-h03` |
 | `data/blueprints/zone_types.ron` | each zone type's colour, its default hum source and `thermal_output` | |
 | `data/audio/hum_sources.ron` (music.md) | a hum source: kind, position in ship metres, strength, colour | the sector's reactor pair |
 | `data/homes/starts.ron`, `data/homes/shipped/*.ron` | home kinds and their designs | existing |
-| `data/ship/space_program.toml` (built 2026-11-06) | a kind of space: its zone, area per person or per unit, storeys, source; the home mix; the sector it is checked against | `streets`: 12 m2 a person, SP-413 |
+| `data/ship/space_program.toml` (built 2026-11-06, the sector and the scale study 2026-11-07) | a kind of space: its zone, area per person or per unit, storeys, source; the home mix; the sector of 500 and its layers; the drum it is checked against; the materials and drum classes of the scale study | `streets`: 12 m2 a person, SP-413 |
 | `data/ship/blocks/*.toml` (built 2026-11-06) | a building TEMPLATE: storeys, unit kinds and counts, atrium, cores, common rooms, the rules a design from it keeps | `apartment_atrium` |
 | `data/asteroids/*.ron`, `data/mining/drones.ron` ([drone-mining.md](drone-mining.md) section 9) | a rock with its frame, distance and ores; a drone class with its propellant and hold | the drone mining rungs |
 
 - **Offline, one player**: N1 is built in full; your home stands on the default plot; every other
-  plot is drawn as its kind's shipped design (built since increment 2). The rest of Sector 1 is
-  drawn from the same templates at lower detail (section 5).
+  plot is drawn as its kind's shipped design (built since increment 2). The rest of Sector 1 and of
+  Drum 1 is drawn from the same templates at lower detail (section 5).
 - **A server**: the relay hands out plots in a claim order (N1's first, then N2's, then the next
   sector's), by stable id (`game_plots`, built in increment 1b). A full kind gets a waiting list
   (open question 4 of ship-homes-and-logistics.md). Players meet anywhere; the relay delivers what
   is within 250 m and drops it past 300 m (data/ship/shared_world.ron), about one neighbourhood.
-- **An MMO**: a neighbourhood is the unit of interest and of sharding; a full sector opens the
-  next; the population beyond the players is crowd-simulation.md's three tiers (an aggregate per
-  zone, a roster for the loaded sector, an embodied few near you), so the cost scales with what
-  you can see, not with who lives aboard.
+- **An MMO**: a neighbourhood is the unit of interest, a sector of 500 the unit of sharding (3.15);
+  a full sector opens the next, like a Hutterite colony splitting; the population beyond the
+  players is crowd-simulation.md's three tiers (an aggregate per sector, a roster for the loaded
+  sector, an embodied few near you), so the cost scales with what you can see, not with who lives
+  aboard. At a billion and ten billion the fleet streams as 3.16 says.
 - **Generated or authored**: rung 3 adds a generator that turns a template plus a placement into
   plots with stable ids; any neighbourhood may instead be authored by hand in the editor (the
   construction tools serve both, decided 2026-09-19). The planning rules (5 minutes to a mess
@@ -679,11 +933,13 @@ so these are targets to measure against, not readings.
 | L0 | the room you are in and the rooms of your home in view | full meshes, machines, lights, room GI | 3.0 ms |
 | L1 | your neighbourhood: the node, neighbour plots within about 300 m | neighbours as baked shell groups of their kind's design (built), instanced since every neighbour of a kind is the same design; lights only on an open plot | 1.5 ms |
 | L2 | the rest of the drum floor, the far side 500 m overhead included | one merged roof-and-canopy mesh per neighbourhood, rebuilt when a plot in it changes: in-memory, version-tagged, and obeying the Dev page's "turn off all reuse" switch (CLAUDE.md's no-caches rule) | 1.0 ms |
-| L3 | the spine, the end caps, other sectors, the exterior | silhouettes from data | 0.5 ms |
-| | sky, post, UI | | 2.3 ms |
+| L3 | the spine, the end caps, other drums, the exterior | silhouettes from data, one per drum class, instanced (3.16) | 0.5 ms |
+| L4 | the other ships of the fleet | distant impostors, only when in view (3.16) | 0.1 ms |
+| | sky, post, UI | | 2.2 ms |
 
-- **Memory** (Proposal, to measure): L2 at about 15,000 triangles a neighbourhood, 16 in the drum,
-  about 240,000 triangles; one homestead design's shell is shared by every instance of it. The
+- **Memory** (Proposal, to measure): L2 at about 5,000 triangles a neighbourhood of 167 (a third
+  of the old 300-person cell's 15,000), about 45 in Drum 1 (15 sectors of three), about 225,000
+  triangles; one homestead design's shell is shared by every instance of it. The
   draw-call cap (raised to 1024 in v0.528) argues for instancing neighbours, not more calls.
 - **Simulation**: your own home's machines run in full; neighbours' homes are theirs and are not
   simulated in your game; the ship's machines run on the ship's supply in aggregate; crowds per
@@ -758,10 +1014,10 @@ His save `%APPDATA%\HumanityOS\saves\offline_home.json` (audit section 8):
   plot), the player's position (front door).
 - **His car**, parked in the void at (91.07, 0, 148.29): reset to his home's vehicle bay (one
   rule for every save: a vehicle outside every box is moved home).
-- **His garden**: 1,976 crops, 1,575 of them dead (80%). Recommendation: wipe it with the rest.
-  The home's machine ids do not change, so a kept garden WOULD carry over, but it is the
-  perpetual showcase's planting, mostly dead, and the showcase replants itself whenever a Dev or
-  Creative world has no crops (data/world/showcase.ron). Question 6.
+- **His garden**: 1,976 crops, 1,575 of them dead (80%). **Wiped with the rest** (decided
+  2026-11-07: "Wipe it."). The showcase replants itself whenever a Dev or Creative world has no
+  crops (data/world/showcase.ron), and a new homestead starts with the comfortable garden
+  ([survival-garden.md](survival-garden.md), decided the same day).
 - **His installed data folder** (`%APPDATA%\HumanityOS\data`, stamped v0.1525.0): the refresh
   replaces every file nobody edited with the new version and KEEPS one he saved from the editor
   (crates/humanity-core/src/storage/refresh.rs). Before the wipe ships, check Settings > Data for
@@ -770,11 +1026,13 @@ His save `%APPDATA%\HumanityOS\saves\offline_home.json` (audit section 8):
 ### 6.4 Rung 1: Neighbourhood 1, flat
 
 The smallest correct slice the game can stand on. It is a rung of the real thing: the layout,
-the coordinates and the relations are Sector 1's; only the curvature waits for rung 2.
+the coordinates and the relations are Drum 1's, and N1 is Sector 1's first neighbourhood (3.15);
+only the curvature waits for rung 2.
 
-**The frame.** Sector 1's drum floor, unrolled: x is the distance around the drum (s), z the
-distance along it from the fore end cap (a), y up from the floor. N1 is the cell s 0 to 393, a 120
-to 420 (3.4). In rung 2 one transform rolls every point: angle s / 250 m, radius 250 m minus y.
+**The frame.** Drum 1's floor, unrolled: x is the distance around the drum (s), z the distance
+along it from the fore end cap (a), y up from the floor. N1 is the cell s 0 to 393, a 120 to 420,
+at the fore end of Sector 1 (3.4); rung 3 re-cuts it into the sector's half-ring template. In rung
+2 one transform rolls every point: angle s / 250 m, radius 250 m minus y.
 
 **What it holds** (Proposal; the implementer authors the exact rows):
 
@@ -853,8 +1111,8 @@ Each rung is shippable alone, has its tests (red first) and its runtime check.
 
 | Rung | What | Tests | Runtime check |
 |---|---|---|---|
-| 2. The drum | Roll Sector 1's floor: the transform (f64 on the CPU, CLAUDE.md's planet-scale rule), up is radial, homes rolled with it (walls radial, floors following the curve), the spin as a frame (the planet surface walk already takes `up` as an argument, habitat-generation.md:131-158), the far side drawn (L2), the sunline lights the floor on one shared day (3.13: 250 lux melanopic EDI at the eye by day, 10 in the evening, 1 in bedrooms at night) | the transform round-trips within 1 mm at 250 m; a walk around the whole circumference returns to its start; footing on a rolled floor at every storey; the light rules over every home's rooms | a new `verify-drum` rig (walk 100 m spinward and back, up vector and footing judged); vantages `drum-floor-noon`, `drum-far-side` |
-| 3. Neighbourhoods as data | templates, the generator, stable plot ids, plots that turn, N1 to N8 and H1 to H4, apartment blocks drawn from `data/ship/blocks/` | the planning rules over the generated layout (green space within 300 m, 3 trees in view, 30% canopy, the walking limits: 3.13); the layout's areas within the space program's (3.12); ids stable under regeneration; no overlap | `verify-copresence` with a dozen players (the co-op floor) |
+| 2. The drum | Roll Drum 1's floor: the transform (f64 on the CPU, CLAUDE.md's planet-scale rule), up is radial, homes rolled with it (walls radial, floors following the curve), the spin as a frame (the planet surface walk already takes `up` as an argument, habitat-generation.md:131-158), the far side drawn (L2), the sunline lights the floor on one shared day (3.13: 250 lux melanopic EDI at the eye by day, 10 in the evening, 1 in bedrooms at night) | the transform round-trips within 1 mm at 250 m; a walk around the whole circumference returns to its start; footing on a rolled floor at every storey; the light rules over every home's rooms | a new `verify-drum` rig (walk 100 m spinward and back, up vector and footing judged); vantages `drum-floor-noon`, `drum-far-side` |
+| 3. Sectors and neighbourhoods as data | the sector template (3.15: a half ring of three neighbourhoods, its civic heart, farm band and workshops), neighbourhood templates, the generator, stable plot ids, plots that turn, Sector 1 whole and the next sectors of Drum 1, apartment blocks drawn from `data/ship/blocks/` | the planning rules over the generated layout (green space within 300 m, 3 trees in view, 30% canopy, the walking limits: 3.13); the layout's areas within the space program's (3.12); ids stable under regeneration; no overlap | `verify-copresence` with a dozen players (the co-op floor) |
 | 4. Arrival | the bow, Hangar Bay 1 as a walkable zone, the Arrivals hall and desk, the arrival lift down the fore end cap, General Services at the Fore Landing, the transport (game-setting-and-intro.md rungs 2 and 3) | the arrival path is floor end to end; every desk step reachable; respawn rows resolve | a new `verify-arrival` rig |
 | 5. Engineering and the ship's supply | the spine's engineering segment, ship machines and lights on the ship's meter and ledger, hum sources at the engineering segment and the stern (`data/audio/hum_sources.ron`), the noise rule reading the same rows (each with its sound power and its room's wall loss), air zones | no ship machine on a household meter; every bedroom inside the night noise rules of 3.13; no home in an industrial air zone | `verify-runtime`; the hum level read at three vantages |
 | 6. Farms and freight | the farm band as real machines filling the mess halls' stores (replacing the stand-in "36 meals a game day"), parcel lockers, freight lanes, the Aft Landing depot, the spine freight rail | a meal's food traces to a farm row; freight never shares passenger paths | `verify-starts` (a cabin eats from the farms) |
@@ -883,24 +1141,29 @@ bow's drone bay and ore intake arrive with rung 4 (arrival builds the bow).
 | The relay's world (rooms from the ship file), crew chores (data/npc/chores.ron), posts (crew.ron), the stores (data/food/ship_stores.ron) | spots chosen to dodge the room block | re-authored for N1's commons, rung 1 |
 | Rust tests that read the shipped ship or home files | 52 files, 145 call sites; constants such as `P1_DOOR`, `P2_DOOR`, `COMMONS` (src/engine/home_plot.rs:1881-1884), the relay's `room_for_position` points (ship_world.rs:540-541), the stair tops (survival_env.rs:565-568) | rung 1 updates each; the home-local ones stay |
 | crates/humanity-ship/src/hull.rs tests | count neighbours and lids of the twelve plots | rung 1 (the hull off by default; its tests keep testing the code on a fixture) |
-| The ship's hum (music.md): `data/audio/hum_sources.ron`, positions in ship metres, the first drive source at "the ship's stern" | not yet built; if it lands before the wipe, its stern is today's slab's end past p12 | rung 1 keeps one drive source at Sector 1's aft end (axial 2,000 m, the spine) so the hum already rises toward the Aft Landing; rung 5 adds the engineering segment's sources |
+| The ship's hum (music.md): `data/audio/hum_sources.ron`, positions in ship metres, the first drive source at "the ship's stern" | not yet built; if it lands before the wipe, its stern is today's slab's end past p12 | rung 1 keeps one engine source at Drum 1's aft end (axial 2,000 m, the spine) so the hum already rises toward the Aft Landing; rung 5 adds the engineering segment's sources |
 | The Maps page's ship symbol and its rigs (scripts/lib/map-ship-check.js and the others) | the ship as one symbol in orbit | nothing in rung 1; rung 8 (the exterior) |
 | Quests: Initial Survey, Distant Expeditions, the explore quest, getting_started | ore from the wild outcrop and vein; fixed places; "find your home" | rung 1 re-points the ore to the mining loop and the places to anchors (question 8) |
 
 ## 7. Questions for the operator
 
 Each with a recommendation. The wipe itself waits for his read of this plan. His answers of
-2026-11-06 are in section 1.1; a question marked DECIDED is settled, one marked OPEN keeps its
-recommendation until he answers.
+2026-11-06 are in section 1.1 and of 2026-11-07 in section 1.2; a question marked DECIDED is
+settled, one marked OPEN keeps its recommendation until he answers.
 
-1. **How big is the whole mothership, and how many live aboard?** ANSWERED in method, OPEN in
-   number. The size is now measured by the space program (3.12): Sector 1 holds about 9,400 at the
-   default mix; a billion need about 105,600 drums of its size. *Recommendation:* the ship is a
-   spine of sectors whose count and sizes are data; Sector 1 is the small walkable one near the
-   bow; later sectors are rings of kilometres, so "over a billion" stays true and costs nothing per
-   frame (the aggregate tier). Tell us the number to write down; the program then says how many
-   sectors of what size it takes.
-2. **Cylinder or hyperboloid for Sector 1?** DECIDED 2026-11-06: a plain cylinder.
+1. **How big is the whole mothership, and how many live aboard?** DECIDED 2026-11-07: aim for 1
+   billion and 10 billion, in sectors of 500 ("Let's start with a sector for 500 people."). The
+   research on 500 is in 3.15. OPEN, the consequence: the honest answer is a **fleet**, about 204
+   ships for a billion and 2,033 for ten billion, each 332 km long with 246 drums of 1 km radius
+   (3.16). *Recommendation:* accept the fleet (one spine cannot carry them), with the bulk of the
+   population in 1 km drums spinning at 0.95 rpm and Drum 1 kept at your 250 m as the first.
+1b. **Drum 1's length against spin stability** (new). A cylinder flying free spins stably only up
+   to 1.3 radii long; Drum 1 is 8 (3.2, 3.16). *Recommendation:* keep its radius and its 2 km,
+   built as a row of short drums of one ring each (263 m, two sectors), each stable on its own,
+   turning in pairs, with active damping on the spine as well; the other choice is one 2 km drum
+   held by active control alone, which the sources name but which fails dangerously if the control
+   fails (a slow tumble end over end).
+2. **Cylinder or hyperboloid for Drum 1?** DECIDED 2026-11-06: a plain cylinder.
 3. **Where does a home's light come from inside the drum?** DECIDED in part 2026-11-06: the
    sunline ("I look forward to seeing it."). OPEN: piped sunlight at a star, lamps between the
    stars, which follows "is the fleet at Earth or between the stars" (game-setting-and-intro.md
@@ -913,11 +1176,9 @@ recommendation until he answers.
    2026-09-19 redesign and the upper floor) as every homestead's template; drop the train
    platform, its ramp and the teleporter pair from it (transit belongs to the ship); a respawn pod
    beside the bedroom when respawn-and-revival.md settles how waking works.
-6. **Your garden and save.** OPEN (your words on the garden set its goal, not its wipe).
+6. **Your garden and save.** The garden: DECIDED 2026-11-07, "Wipe it." The rest OPEN.
    *Recommendation:* keep your character (name, look, outfit, skills, credits, inventory,
-   quests); move your car home; wipe the garden (1,575 of 1,976 crops are dead, and the showcase
-   replants itself in Dev and Creative). Your home's machine ids do not change, so keeping the
-   garden is possible if you want it.
+   quests); move your car home.
 7. **The old walls in the Commons.** DECIDED 2026-11-06: the showroom ring to its own exhibit room,
    the room block retired.
 8. **Berry bushes, salt flats and ore veins aboard?** DECIDED 2026-11-06: none aboard; ore from
@@ -925,33 +1186,34 @@ recommendation until he answers.
    ship's farms and orchards; the Survey quests change to match.
 9. **The districts.** DECIDED 2026-11-06: all fourteen out now, each back as a real walkable place
    in its rung; realism the standard.
-10. **Cruise thrust, and does the ship ever stop burning?** OPEN. You asked whether 0.05 g means 5%
-    gravity aboard; it does not (3.14). *Recommendation:* the drive's state as data, a schedule of
-    burns and coasts; **coasting the normal state between the stars** (a weightless spine, a
-    plain 1 g drum), burns as events at a routine 0.05 g (a 2.86 degree lean), because a real ship
-    of this design would coast and no fiction beyond the jump is needed. The alternative is your
-    2026-09-15 picture, the spine always under thrust, with the drive labelled a fiction.
+10. **Cruise thrust.** DECIDED 2026-11-07: a mechanic with no thrusting, the jump ("Like a
+    teleportation tech requires no thrusting."), named as made up; thrust only to manoeuvre, at
+    most 0.05 g, routinely 0.02 g; floors fixed (3.14).
+10b. **Do the motherships now jump?** (new) Your 2026-11-07 answer replaces the 2026-11-03 "small
+    craft jump, the motherships never do" (game-setting-and-intro.md 10.1). *Recommendation:* yes,
+    the whole fleet jumps between stars, small craft and drones jump short distances from it, and
+    game-setting-and-intro.md's question 1 is re-read with that.
 11. **How far must homes be from the loud places?** DECIDED in direction 2026-11-06 ("We want to
     maximize crewmember health."). The rule is computed, not a fixed distance: every bedroom under
     40 dB outside and 30 dB inside at night from all sources together (3.13).
 12. **Neighbourhood 1's mix.** DECIDED 2026-11-06: homesteads and the cabin block side by side.
-13. **The mix of homes for Sector 1** (new). At 8% homesteaders Sector 1 holds about 9,400; at no
-    homesteads about 14,900; at all homesteads about 1,200 (3.12). *Recommendation:* keep the
-    default near the master plan's bands (about 85 homesteads, 8% of a full sector's residents) and
-    let each server set its own mix in data, so a server that wants more homesteads opens a second
-    sector sooner.
-14. **One level of farms under the sunline, or two under lamps?** (new) *Recommendation:* one level
-    while the floor allows (it suits the sunline and the garden's goal); two levels under lamps
-    only where a sector runs short, which frees about 0.30 km2 at 10,000 people for more power.
-15. **The bow's room for private craft** (new). One cradle for every 20 people fills the proposed
-    bow (120 m across, 300 m long) at about 14,900 people. *Recommendation:* keep one cradle for
-    every 20 people for Sector 1, and give later sectors hangar decks of their own in their spine
-    hubs rather than one ever-growing bow.
-16. **Drone mining** (new; its own questions are in [drone-mining.md](drone-mining.md) section 12).
-    The two that shape the plan: do drones jump between the stars (recommended yes: no rocket can
-    stop beside a rock the fleet passes at 5% of light speed), and is the drone kept in the bow's
-    drone bay with the home's drone hangar becoming its console (recommended yes: a drone cannot
-    launch from inside the sealed, spinning drum).
+13. **The mix of homes.** OPEN. At 8% homesteaders Drum 1 holds about 7,800; at no homesteads
+    about 14,900; at all homesteads about 1,200 (3.12). A sector of 500 at 8% has 16 homesteads.
+    *Recommendation:* keep 8% as the default and let each server set its own mix in data, so a
+    server that wants more homesteads opens its next sector sooner.
+14. **One level of farms under the sunline, or two under lamps?** DECIDED 2026-11-07: "Let's start
+    with one but, allow for two or more." (`[farms] levels`, 3.12.)
+15. **The bow's room for private craft.** The word: DECIDED 2026-11-07 (a "cradle" was a parking
+    spot for one craft, not a way of reviving people; it now says parking spot). The number: OPEN.
+    One parking spot for every 20 people fills the proposed bow (120 m across, 300 m long) at
+    about 14,900 people. *Recommendation:* keep one for every 20 people for Drum 1, and give later
+    drums hangar decks of their own in their spine hubs rather than one ever-growing bow.
+16. **Drone mining.** DECIDED 2026-11-07: drones jump only to discovered nearby asteroids, comets
+    and the like, never between stars ("Maybe not jump between stars but, at least jump to
+    discovered nearby asteroids/comets/whatever."). OPEN: where the drone is kept.
+    *Recommendation* as before: in the bow's drone bay, the home's drone hangar becoming the console
+    you fly it from ([drone-mining.md](drone-mining.md) sections 2, 4 and 8; its open questions in
+    section 12).
 
 ## 8. Sources
 
@@ -981,3 +1243,12 @@ noise, green space, housing and air guidelines, NASA's spacecraft noise limits, 
 [data/ship/space_program.toml](../../data/ship/space_program.toml) and
 [data/ship/blocks/apartment_atrium.toml](../../data/ship/blocks/apartment_atrium.toml), read by
 `scripts/space-program.js`.
+
+Added with his second answers (2026-11-07): the findings
+[2026-11-07-community-size.md](../reference/findings/2026-11-07-community-size.md) (Dunbar's layers,
+Hutterite and Alpine community sizes, the 500 threshold, the 2021 critique and the reply) and
+[2026-11-07-drum-limits.md](../reference/findings/2026-11-07-drum-limits.md) (hoop stress, the
+1.3-radius spin-stability rule, steel, aramid and carbon composite strengths, the main belt's mass,
+the ADA's floor slopes); [survival-garden.md](survival-garden.md) (the comfortable garden the
+farms now grow); game-setting-and-intro.md 10.1 (the 2026-11-03 jump rule this plan's 3.14
+changes).

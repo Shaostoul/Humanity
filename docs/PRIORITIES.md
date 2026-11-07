@@ -1897,7 +1897,7 @@ between the simulation and the person. Its tier ladder is the build order.
   the 15 degree tip is a taste call for the operator;
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron` (DONE v0.1434.0:
-  `structure::filler_parts` builds market stalls, ship cradles and machine
+  `structure::filler_parts` builds market stalls, parking spots for craft and machine
   arrays beside the racks, and the filler box now faces out; it was wound
   inside out, which nothing showed while every filler stood taller than an
   eye).

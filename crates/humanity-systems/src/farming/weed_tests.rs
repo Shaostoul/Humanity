@@ -184,7 +184,7 @@ fn hoeing_removes_weeds_and_wears_the_hoe() {
 fn an_emptied_bed_can_be_hoed_and_is_shown() {
     let mut data = store(1.0, 1.0);
     let mut inst: std::collections::HashMap<String, Vec<(String, u32)>> = std::collections::HashMap::new();
-    inst.insert("potato_grow_bed".into(), vec![("potato_0".into(), 2)]);
+    inst.insert("grow_bed".into(), vec![("potato_0".into(), 2)]);
     data.insert("grow_instances", inst);
     // The panel view reads the data the game registers at startup.
     data.insert(weeds::DATA_KEY, WeedData::parse(weeds::WEEDS_RON).unwrap());

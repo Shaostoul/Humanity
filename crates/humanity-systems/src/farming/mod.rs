@@ -901,7 +901,7 @@ fn spawn_in_remembered_soil(world: &mut hecs::World, crop: CropInstance) -> hecs
 }
 
 /// The one-line notice for grow areas whose crops have just run short. An
-/// area tag is a machine or tower id ("potato_grow_bed", "ntower_3"); the
+/// area tag is a machine or tower id ("grow_bed", "ntower_3"); the
 /// empty tag is the hand-planted crops outside any grow area.
 fn short_notice(newly_short: &[(String, soil::Nutrient)]) -> String {
     let place = |area: &str| {

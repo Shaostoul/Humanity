@@ -298,7 +298,7 @@ mod tests {
     }
 
     /// The food loop's potato bed, from cited data (2026-09-26). A 2 x 1 m
-    /// `potato_grow_bed` (its home.ron footprint) holds floor(2.0 / 0.234) = 8
+    /// `grow_bed` (its home.ron footprint) holds floor(2.0 / 0.234) = 8
     /// plants at UMN's 11 x 33 in spacing, each giving 0.88 to 0.92 kg (NASS
     /// North Dakota's 335 to 350 cwt/acre), so a bed harvests about 7.2 kg every
     /// 90 growth days: 80 g a day, 61.5 kcal a day at 77 kcal/100 g. Held to 55
@@ -321,7 +321,7 @@ mod tests {
         let (plants, items) = load_registries();
         let home = crate::grow_machines::load_home(&data_dir().join("machines").join("home.ron"))
             .expect("data/machines/home.ron loads");
-        let bed = home.catalog.get("potato_grow_bed").expect("potato_grow_bed is in the catalog");
+        let bed = home.catalog.get("grow_bed").expect("grow_bed is in the catalog");
         let area = bed.size.0 * bed.size.2;
         assert!((area - 2.0).abs() < 1e-6, "a potato bed is 2 m2: {area}");
         let one_bed = food_supply_kcal_per_day(&[("potato".to_string(), Some(area), 1.0)], &nutrition, &plants, &items);

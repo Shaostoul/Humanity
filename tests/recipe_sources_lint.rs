@@ -793,7 +793,7 @@ fn showcase_bed_crops_name_real_machines_and_plants() {
         .find("instances:")
         .map(|e| start + e)
         .unwrap_or(home.len());
-    // Catalog keys sit at exactly eight spaces: `        "potato_grow_bed": (`.
+    // Catalog keys sit at exactly eight spaces: `        "grow_bed": (`.
     let machine_types: BTreeSet<String> = home[start..end]
         .lines()
         .filter(|l| l.starts_with("        \"") && !l.starts_with("         "))

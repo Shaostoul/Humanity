@@ -71,7 +71,7 @@
 //
 // POTATO CHECK (test self_sufficiency::tests::potato_bed_calories_come_from_the_cited_yield): a
 // 2 m2 potato bed holds 8 plants at UMN's spacing and harvests about 7.2 kg every 90 days (NASS
-// North Dakota yields), 61.5 kcal a day cropped back to back. home.ron's potato_grow_bed claims
+// North Dakota yields), 61.5 kcal a day cropped back to back. home.ron's grow_bed claims
 // "+120 kcal/d": about twice what the cited yield gives. The old calibration here reached 0.96x
 // of that claim by modelling a bed as "~1.0 harvested tuber-unit/day"; the claim, not the yield,
 // is what is off.

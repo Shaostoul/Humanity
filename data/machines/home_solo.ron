@@ -1031,9 +1031,9 @@
                 (utility: Electricity, dir: In, label: "pump (35 W, on 5 min in 50: 3.5 W averaged)", watts: 3.5),
             ],
         ),
-        "potato_grow_bed": (
+        "grow_bed": (
             shape: "box", size: (2.0, 0.4, 1.0), color: (0.55, 0.42, 0.25),
-            label: "Potato bed",
+            label: "Grow bed",
             category: "Food",
             stats: [(kind: "power", value: "sun-lit, 0 W", status: "ok")],
         ),
@@ -1809,7 +1809,7 @@
     // the whole home's total and whether it closes.
     arrays: [
         (
-            machine: "potato_grow_bed",
+            machine: "grow_bed",
             room: "room-greenhouse",
             origin: (13.0, 0.0, 54.0),
             rows: 2,

@@ -7,8 +7,8 @@
 // build time by `home_structure::generate_zone_filler`.
 //
 // Infinite-of-X: add a district's filler by adding one entry here, no code. A future session swaps
-// `mesh_kind` box fillers for real per-type sub-structures (shop stalls, factory machine arrays, ship
-// cradles, ...) without touching the Zone/HomeStructure struct shape again -- this registry is the
+// `mesh_kind` box fillers for real per-type sub-structures (shop stalls, factory machine arrays,
+// parking spots for craft, ...) without touching the Zone/HomeStructure struct shape again -- this registry is the
 // seam. `residential` is NOT listed here: a residential zone draws NOTHING, because its homes are the
 // ship's plots (ship homes increment 2, 2026-10-04): every plot but the player's own is drawn as its
 // kind's shipped home design by crates/humanity-ship/src/neighbours.rs, and the v0.638 tiling of clones of the
@@ -22,9 +22,10 @@
 //   height        metres tall (Y) of one filler instance.
 //   spacing       metres of gap between adjacent instance footprints (aisle width).
 //   inset         metres kept clear from the zone's outer wall on all sides (a walkway margin).
-//   mesh_kind     tag for the geometry the renderer builds ("box" today -- a solid silhouette block;
-//                 future kinds -- "rack", "cradle", "stall", "array" -- read the same fields once the
-//                 renderer grows dedicated shapes, no struct change needed).
+//   mesh_kind     tag for the geometry `structure::filler_parts` builds: "rack", "stall",
+//                 "parking_spot" (floor rails with chocks where one craft or mech is parked; called
+//                 "cradle" until 2026-11-07, a word the operator read as a way of reviving people),
+//                 "array"; anything else is a solid silhouette block.
 //   color_from_zone_type   if true, tint the filler with the zone TYPE's own `color` (zone_types.ron)
 //                          so the district reads as visually distinct; false lets `tint` override it.
 [
@@ -52,7 +53,7 @@
         height: 4.0,
         spacing: 4.0,
         inset: 4.0,
-        mesh_kind: "cradle",
+        mesh_kind: "parking_spot",
         color_from_zone_type: true,
     ),
     (
@@ -61,7 +62,7 @@
         height: 4.5,
         spacing: 2.0,
         inset: 1.5,
-        mesh_kind: "cradle",
+        mesh_kind: "parking_spot",
         color_from_zone_type: true,
     ),
     (

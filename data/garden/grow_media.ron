@@ -118,7 +118,7 @@
             id: "aquaponic",
             match_exact: Some("aquaponic_tank"),
             label: "Aquaponic tank - fish + plants",
-            note: "Fish waste fertilizes the plants; the plants clean the water. Closes B12 + omega-3, the gaps no plant fills.",
+            note: "Fish waste fertilizes the plants; the plants clean the water. Its fish give about half of one person's B12 at this yield, and omega-3: the gaps no plant fills.",
             takes: NoSeeds,
             controls: [
                 Crop(label: "Fish", hint: "e.g. tilapia"),

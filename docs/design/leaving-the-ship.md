@@ -91,7 +91,7 @@ so: docs/user/skills/floating_and_boats.md:536-539, navigating_without_instrumen
 
 - **No way down outside Dev.** The Dev page is gated to the Dev play mode (src/gui/pages/dev.rs:74-91; src/config.rs:186-188).
 - **No hangar you can reach.** `hangar-1` is a district (data/blueprints/ship_structure.ron:1043-1048),
-  drawn with empty ship cradles (data/blueprints/zone_filler.ron:50-57), with no floor and no
+  drawn with empty parking spots for craft (data/blueprints/zone_filler.ron), with no floor and no
   corridor. The relay's rooms are zones, so it is no room either (ship-homes increment 3, "as
   built": the districts are not rooms).
 - **No vehicle that flies.** kits.ron has no spacecraft row; data/items.csv has no engine,
@@ -575,7 +575,7 @@ What changes:
   straight corridor from the Commons' east wall (x 99) to the hangar's west wall (x 200) at z 30, the
   stretch where the two overlap (z 20 to 40). It is clear of every plot in the shipped file and in the
   more-plots lane's working copy as of 2026-10-05 (plots p1 to p12 all stand at x 0 to 55).
-- The boarding circle moves into the hangar (a data edit); the capsule stands in one of the cradles
+- The boarding circle moves into the hangar (a data edit); the capsule stands in one of the parking spots
   the hangar already draws; the departure board becomes an in-world screen (the screens of
   v0.1313.0).
 - **Wait for the more-plots lane to merge first:** it rewrites the same ship file.

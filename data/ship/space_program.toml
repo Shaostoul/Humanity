@@ -9,14 +9,23 @@
 # one unit serves), multiply by the population, add circulation and structure, and the total is
 # the size. This file is that list. Change a number and the ship changes with it:
 #
-#     node scripts/space-program.js 1000          (totals for 1,000 people, and whether Sector 1 holds them)
+#     node scripts/space-program.js 1000          (totals for 1,000 people, and whether Drum 1 holds them)
 #     node scripts/space-program.js 10000 --mix homestead=0.05,cabin=0.25,apartment=0.70
+#     node scripts/space-program.js --sector      (the 500-person sector: its drum, walks, noise)
+#     node scripts/space-program.js --scale       (1 and 10 billion: drums, ships, the fleet)
 #     node scripts/space-program.js --sources     (where every number comes from)
 #
-# The design that uses it: docs/design/mothership-master-plan.md, section 3.12. The sources, quoted
-# and dated: docs/reference/findings/2026-11-06-space-program-sources.md. Every row says which
-# source it rests on (`source`, a key of the [[source]] table at the end), and "proposal" marks a
-# number this project chose with no outside source behind it.
+# The design that uses it: docs/design/mothership-master-plan.md, sections 3.12, 3.15 and 3.16. The
+# sources, quoted and dated: docs/reference/findings/2026-11-06-space-program-sources.md (the areas),
+# 2026-11-07-community-size.md (the 500-person sector and its layers) and
+# 2026-11-07-drum-limits.md (hoop stress, spin stability, the lean). Every row says which source it
+# rests on (`source`, a key of the [[source]] table at the end), and "proposal" marks a number this
+# project chose with no outside source behind it.
+#
+# WORDS (2026-11-07): a SECTOR is a community of 500 residents, the operator's unit ("Let's start
+# with a sector for 500 people."). A DRUM is a spinning cylinder that holds sectors; Drum 1 is the
+# 250 m x 2 km drum the operator sized on 2026-09-15 (until 2026-11-07 this file called it
+# "Sector 1"). Sector 1 is now the first 500-person sector, at the fore end of Drum 1.
 #
 # The game does not read this file yet: scripts/space-program.js is its reader. When neighbourhoods
 # become data (the master plan's rung 3), the generator and the planning-rule tests read it too.
@@ -26,11 +35,14 @@
 #             FLOOR it covers, its gross area divided by its `levels`), "spine" (the non-rotating
 #             spine's decks; deck area), "bow" (the docking end's decks), "stern" (the drive),
 #             "end_cap" (the drum's end walls: lifts and risers), "exterior" (outside the hull:
-#             radiator fins). Only drum, spine and bow are checked against the room Sector 1 has.
+#             radiator fins). Only drum, spine and bow are checked against the room Drum 1 has.
 #   per       "person" (m2_per_person times the people it serves), "unit" (unit_m2 times
 #             ceil(people / people_per_unit), at least min_units, plus spare_units),
-#             "neighbourhood" (unit_m2 per neighbourhood), "sector" (units_per_sector), "ship"
+#             "neighbourhood" (unit_m2 per neighbourhood), "sector" (unit_m2 per 500-person
+#             sector), "drum" (units_per_drum, once for the drum the population lives in), "ship"
 #             (once for the whole ship).
+#   farm      true for the ship's farm rows: their storeys come from [farms] levels (the operator,
+#             2026-11-07: one level to start, two or more allowed), not from the row.
 #   who       the people a per-person or per-unit row serves: "all" (default) or "fed_by_ship"
 #             (everyone whose home does not grow its own food: the ship's farms feed them).
 #   net       true when the area is the room alone; the indoor circulation multiplier and the
@@ -45,12 +57,14 @@
 schema = 1
 
 [defaults]
-# Used when the command line gives no population.
-population = 1000
-# A neighbourhood: a few hundred people around one node (master plan section 3.5, the Dunbar band
-# of mothership-superstructure.md). The per-neighbourhood rows and the WHO green-space minimum
-# count neighbourhoods as ceil(population / neighbourhood_people).
-neighbourhood_people = 300
+# Used when the command line gives no population: one sector.
+population = 500
+# A neighbourhood: about 150 people around one node, never grown past about 200; three to a
+# 500-person sector (the community-size finding: Hutterite colonies split at a mean of 166, Alpine
+# commons held a mean of 176 and a median of 140; its judgement table, "three per sector, each one
+# split rather than grown past about 200"). The per-neighbourhood rows and the WHO green-space
+# minimum count neighbourhoods as ceil(population / neighbourhood_people).
+neighbourhood_people = 167
 # GSA, "Circulation: Defining and Planning" (2012): "Circulation Multipliers will typically range
 # between 1.4 to 1.6." The low end, because the ship's buildings are mostly enclosed rooms.
 indoor_circulation = 1.4
@@ -59,15 +73,49 @@ indoor_circulation = 1.4
 structure_allowance = 0.10
 
 # ---------------------------------------------------------------------------------------------
-# THE SECTOR THE PROGRAM IS CHECKED AGAINST
+# THE SECTOR: the community every drum is built from
 #
-# Sector 1 as the master plan lays it out: the drum the operator sized (250 m radius, 2 km long,
-# decided 2026-09-15) and the spine segment that runs through it (60 m across, decks every 5 m,
-# every 10 m for industry; master plan section 3.3, Proposal). The bow is checked alongside it:
-# it is not part of a sector, but Sector 1's people dock and store their craft there.
+# The operator, 2026-11-07: "Let's start with a sector for 500 people. I've heard that communities
+# of 500 people is about the upper limit for one massive group to work together. Can you research
+# that number?" The research (docs/reference/findings/2026-11-07-community-size.md): about 500 is
+# the layer of acquaintances, everyone known well enough to talk with, and the size past which
+# communities in the record need a formal structure; the group held together by personal ties is
+# about 150. So the sector keeps his 500 as its cap and builds the smaller layers into its space.
 
 [sector]
-id = "s1"
+residents = 500
+# The layers inside a sector, smallest first, at a ratio of about three (the finding's judgement
+# table): a home of about 5, a cluster of 3 homes sharing a court, a block of 3 clusters on one
+# street or storey, a neighbourhood of 3 blocks around its node, the sector of 3 neighbourhoods
+# sharing civic places, and a district of 3 sectors sharing the larger ones. Reported by
+# `--sector`; the layout generator (master plan rung 3) builds them.
+layers = [
+    # [name, people]
+    ["home", 5],
+    ["cluster", 15],
+    ["block", 50],
+    ["neighbourhood", 167],
+    ["sector", 500],
+    ["district", 1500],
+]
+# Walking speed for the walk-time checks: the master plan's design speed (section 3.11).
+walk_m_per_s = 1.4
+# The planning rules the layout is held to (master plan 3.13 and ship-homes-and-logistics.md 2.9):
+# a mess hall (the neighbourhood's node) within 5 minutes of every home, every daily need within 15.
+node_walk_max_s = 300
+daily_walk_max_s = 900
+
+# ---------------------------------------------------------------------------------------------
+# THE DRUM THE PROGRAM IS CHECKED AGAINST
+#
+# Drum 1 as the master plan lays it out: the drum the operator sized (250 m radius, 2 km long,
+# decided 2026-09-15) and the spine segment that runs through it (60 m across, decks every 5 m,
+# every 10 m for industry; master plan section 3.3, Proposal). The bow is checked alongside it:
+# it is not part of a drum, but Drum 1's people dock and store their craft there.
+
+[drum]
+id = "d1"
+name = "Drum 1"
 drum_radius_m = 250.0
 drum_length_m = 2000.0
 # Share of the drum floor the program may use. 1.0: streets, parks and farms are rows of the
@@ -83,12 +131,18 @@ spine_segments = [
     [0.0, 150.0, 5.0],      # fore hub: the spoke lifts' tops, the passenger rail station
     [150.0, 900.0, 5.0],    # storage and the cargo tunnels
     [900.0, 1500.0, 10.0],  # industry
-    [1500.0, 1850.0, 5.0],  # sector engineering: reactors, air, water, waste
+    [1500.0, 1850.0, 5.0],  # drum engineering: reactors, air, water, waste
     [1850.0, 2000.0, 5.0],  # aft hub: freight lifts, utility risers
 ]
 # The shell over the drum: radiation shielding by mass per square metre of hull (closed-loop-test.md,
 # 4.5 t/m2). Reported, not checked: it is hull, not floor.
 shield_t_per_m2 = 4.5
+
+# The ship's farms. The operator, 2026-11-07, on one level of farms or two: "Let's start with one
+# but, allow for two or more." Every row marked `farm = true` stacks into this many levels on the
+# drum floor; `--farm-levels 2` runs the program with two.
+[farms]
+levels = 1
 
 [bow]
 radius_m = 60.0
@@ -100,7 +154,7 @@ usable = 0.7
 # ---------------------------------------------------------------------------------------------
 # HOMES: who lives in what. `share` is the share of RESIDENTS (they sum to 1). The default mix is
 # a Proposal: the master plan's bands hold about 85 homesteads (N1's 12 and the homestead ring's
-# H1 to H4), so a few per cent of a full sector's people are homesteaders; most live in cabins and
+# H1 to H4), so a few per cent of a full drum's people are homesteaders; most live in cabins and
 # apartment blocks by the landing, and the ship's farms feed them (decided 2026-10-03).
 
 [[home]]
@@ -116,6 +170,13 @@ plot_gross = 1.315
 # The homestead grows its own food on its acre (decided 2026-10-03), so its residents need no
 # ship farm.
 feeds_itself = true
+# Its garden: the comfortable garden, which the operator chose as every new homesteader's start on
+# 2026-11-07 ("The comfortable one."): the floor one resident's garden takes with its paths, from
+# docs/design/survival-garden.md's generated block (comfort tier, lit canopy x the path factor).
+# The program checks that the household's gardens fit the homestead design's greenhouse.
+garden_m2_per_person = 122.2
+# The shipped homestead's greenhouse, x 10..55 by z 51..73 (survival-garden.md section 7).
+greenhouse_m2 = 990.0
 source = "ship-homes"
 
 [[home]]
@@ -242,6 +303,11 @@ m2_per_person = 4.0
 levels = 2
 height_m = 6.0
 net = false
+# The loudest thing on the drum floor (Proposal: a 90 dB(A) machine, the master plan's example in
+# 3.13), standing in a room whose walls take off 45 dB (3.13's enclosure rule). `--sector` works
+# out the distance it needs to keep every bedroom facade under the night limit in [noise].
+sound_power_dba = 90.0
+wall_loss_db = 45.0
 source = "sp413"
 
 [[space]]
@@ -298,8 +364,8 @@ source = "proposal"
 id = "rail_stations"
 name = "Axial rail stations (Fore Landing, mid-drum, Aft Landing)"
 zone = "drum"
-per = "sector"
-units_per_sector = 3
+per = "drum"
+units_per_drum = 3
 unit_m2 = 1000.0
 levels = 1
 height_m = 6.0
@@ -310,8 +376,8 @@ source = "proposal"
 id = "spoke_lifts"
 name = "Spoke lifts down the end caps (four a cap) and their stairs"
 zone = "end_cap"
-per = "sector"
-units_per_sector = 8
+per = "drum"
+units_per_drum = 8
 unit_m2 = 40.0
 levels = 1
 height_m = 250.0
@@ -326,15 +392,18 @@ name = "Ship's farms: growing floor (crops under the sunline, crew access includ
 zone = "drum"
 per = "person"
 who = "fed_by_ship"
-# NASA's Baseline Values and Assumptions Document (2022): 65.29 m2 a crew member for its most
-# closed diet (food-land finding of 2026-10-03; closed-loop-test.md's 65 m2 growing floor). One
-# level: the sunline lights the open fields. Stacking under lamps is the lever when the floor runs
-# short (SP-413 stacked its plant areas three high).
-m2_per_person = 65.29
+# The comfortable garden, per person fed, with its paths: 94 m2 of lit canopy x 1.3
+# (docs/design/survival-garden.md's generated block, comfort tier). Until 2026-11-07 this row was
+# NASA's 2022 baseline of 65.29 m2 a crew member (food-land finding), a calorie-and-air figure;
+# the garden holds every nutrient plants can give to the DRI, and the operator chose it as the
+# start garden on 2026-11-07, so the ship's farms grow the same diet. scripts/tests/
+# space-program.test.js holds this number to the garden program's own result.
+m2_per_person = 122.2
 levels = 1
+farm = true
 height_m = 15.0
 net = false
-source = "food-land"
+source = "survival-garden"
 
 [[space]]
 id = "farm_animals"
@@ -431,18 +500,18 @@ net = false
 source = "closed-loop"
 
 [[space]]
-id = "sector_control"
-name = "Sector engineering control room"
+id = "drum_control"
+name = "Drum engineering control room"
 zone = "spine"
-per = "sector"
-units_per_sector = 1
+per = "drum"
+units_per_drum = 1
 unit_m2 = 300.0
 net = true
 source = "proposal"
 
 [[space]]
 id = "storage"
-name = "Storage: wholesale stores, the sector's warehouses, cold stores"
+name = "Storage: wholesale stores, the drum's warehouses, cold stores"
 zone = "spine"
 per = "person"
 m2_per_person = 5.0
@@ -503,11 +572,13 @@ net = false
 source = "proposal"
 
 [[space]]
-id = "craft_cradles"
-name = "Cradles for private craft (\"the hangar where all the private spaceships are stored\")"
+id = "craft_parking"
+name = "Parking spots for private craft (\"the hangar where all the private spaceships are stored\")"
 zone = "bow"
 per = "unit"
-# A 12 x 12 m cradle, one for every 20 people. Proposal.
+# A 12 x 12 m parking spot (floor rails with chocks), one for every 20 people. Proposal. Until
+# 2026-11-07 this row said "cradle", which the operator read as a way of reviving people; it is a
+# parking place for one craft, so it says so.
 unit_m2 = 150.0
 people_per_unit = 20.0
 min_units = 1
@@ -527,7 +598,7 @@ source = "proposal"
 
 [[space]]
 id = "drone_bay"
-name = "Mining drone bay: launch cradles, propellant, the ore intake (docs/design/drone-mining.md)"
+name = "Mining drone bay: the drones' parking spots, their propellant plant, the ore intake (docs/design/drone-mining.md)"
 zone = "bow"
 per = "unit"
 unit_m2 = 300.0
@@ -555,6 +626,99 @@ per = "ship"
 unit_m2 = 0.0
 net = false
 source = "proposal"
+
+# ---------------------------------------------------------------------------------------------
+# NOISE: the night limit the sector's loud rooms are checked against (master plan 3.13, from the
+# noise-and-sleep finding: at most 40 dB Lnight at every home's facade). The estimate is 3.13's
+# free-field one over a hard floor: Lp = Lw - 20 log10(r) - 8 - (the walls' loss).
+
+[noise]
+night_facade_db = 40.0
+hard_floor_db = 8.0
+
+# ---------------------------------------------------------------------------------------------
+# SCALE: one billion and ten billion (the operator, 2026-11-07: "Let's aim for 1 billion and 10
+# billion."). `--scale` works out how many sectors, what drums hold them, whether one ship can, and
+# the fleet if not. The limits it tests are real physics, sourced in
+# docs/reference/findings/2026-11-07-drum-limits.md; the jump that moves the ships is a game
+# fiction and plays no part here.
+
+[scale]
+populations = [1_000_000_000, 10_000_000_000]
+# Every structure is designed to carry this many times its working load. Proposal.
+safety_factor = 2.0
+# The drum's air: sea-level pressure. Assumption: a lower pressure lightens every drum.
+air_kpa = 101.325
+# What the rim carries per m2 of floor besides air: floors, buildings, beds, water, people.
+# Proposal: no sourced figure.
+contents_t_per_m2 = 1.0
+# The radiation shield (closed-loop-test.md, 4.5 t/m2) as a NON-rotating shell around the drums,
+# the "unattached stationary shielding" design Jensen 2024 reports from NASA's 1979 study, so the
+# shield carries no spin load and the drums carry no shield. Proposal.
+shield_t_per_m2 = 4.5
+# A free-flying cylinder spins stably about its long axis only up to about 1.3 radii long
+# (Globus et al. 2007, reproduced by Jensen 2024's thin-shell analysis).
+stability_l_over_r = 1.3
+# Between drums along the spine: the end walls, the bearings, the lifts' tops. Proposal.
+drum_gap_m = 50.0
+# Thrust is for manoeuvring only (the cruise is the jump, a game fiction): routinely at most
+# 0.02 g (a lean of 1.15 degrees, flatter than the 1:48 cross slope the ADA allows any walkway),
+# and never more than 0.05 g (2.86 degrees, the ADA's 1:20 limit for a walking surface that is not
+# a ramp). The spine is sized for the larger.
+manoeuvre_routine_g = 0.02
+manoeuvre_max_g = 0.05
+# The spine may weigh at most this share of what it carries. Proposal.
+spine_mass_share = 0.10
+spine_material = "carbon_composite"
+hull_material = "carbon_composite"
+# For "how big a rock is that": a rubble-pile asteroid's bulk density. Assumption.
+rock_density_kg_m3 = 2000.0
+# The main asteroid belt's mass: (4.008 +/- 0.029) x 10^-4 Earth masses (Pitjeva and Pitjev 2018)
+# x 5.972 x 10^24 kg.
+main_belt_kg = 2.394e21
+
+# The drum sizes the scale study compares. Drum 1's radius is the operator's (2026-09-15); the
+# larger spins at 0.95 rpm, inside NASA SP-413's "1 rpm" (master plan 3.13), and holds four times
+# the people per kilometre of spine.
+[[drum_class]]
+id = "r250"
+name = "Drum 1's radius (250 m, 1.89 rpm)"
+radius_m = 250.0
+spine_radius_m = 30.0
+
+[[drum_class]]
+id = "r1000"
+name = "The bulk drum (1 km, 0.95 rpm)"
+radius_m = 1000.0
+spine_radius_m = 60.0
+
+# Structural materials: working strength in tension and density.
+[[material]]
+id = "steel"
+name = "High-strength steel (SSAB Strenx P700)"
+strength_mpa = 700.0
+density_kg_m3 = 7850.0
+source = "drum-limits"
+
+[[material]]
+id = "aramid_composite"
+name = "Aramid composite (Kevlar 49 fibre, 60% by volume in resin)"
+# The fibre's 2,760 MPa x 0.6 (the fibres carry the load; the resin's share is ignored), and
+# 1,440 x 0.6 + an assumed resin of 1,200 x 0.4 kg/m3. Computed.
+strength_mpa = 1656.0
+density_kg_m3 = 1344.0
+source = "drum-limits"
+
+[[material]]
+id = "carbon_composite"
+name = "Carbon fibre composite (Toray T700S in epoxy, 60% fibre)"
+# Toray's own composite figure, 2,550 MPa at 60% fibre volume; density 1,800 x 0.6 + an assumed
+# resin of 1,200 x 0.4 kg/m3. Computed.
+strength_mpa = 2550.0
+density_kg_m3 = 1560.0
+# Toray's composite tensile modulus, for the spine's buckling check.
+modulus_gpa = 135.0
+source = "drum-limits"
 
 # ---------------------------------------------------------------------------------------------
 # SOURCES: the keys the rows name. The quotations and their dates are in the finding.
@@ -588,6 +752,21 @@ where = "docs/design/ship-homes-and-logistics.md section 1.2 (its own sources, r
 id = "ship-file"
 what = "Sizes of places already built in the game"
 where = "data/blueprints/ship_structure.ron"
+
+[[source]]
+id = "survival-garden"
+what = "The comfortable garden's floor per person: lit canopy x the path factor, from the garden's linear program"
+where = "docs/design/survival-garden.md, generated block, comfort tier (scripts/survival-garden.js)"
+
+[[source]]
+id = "community-size"
+what = "Dunbar's layered group sizes, Hutterite and Alpine community sizes, the 500 threshold, the 2021 critique"
+where = "docs/reference/findings/2026-11-07-community-size.md"
+
+[[source]]
+id = "drum-limits"
+what = "Hoop stress and spin stability of drums, material strengths, the ADA's walking-surface slopes"
+where = "docs/reference/findings/2026-11-07-drum-limits.md"
 
 [[source]]
 id = "proposal"

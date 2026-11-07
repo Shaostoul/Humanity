@@ -12,14 +12,26 @@ The operator, 2026-11-06, agreeing that no ore nodes belong aboard the ship:
 > "We can allow players to pilot drones and add a drone mining game for mining but, I don't know
 > how we should do it. Maybe a cargo capacity and fuel limit."
 
+The operator, 2026-11-07, on whether drones jump between the stars (question 1):
+
+> "Maybe not jump between stars but, at least jump to discovered nearby asteroids/comets/whatever."
+
+**Decided 2026-11-07: drones make short jumps to discovered bodies near the fleet (asteroids,
+comets and the like), never between stars.** The same day he made the motherships' own cruise a
+jump with no thrust ([mothership-master-plan.md](mothership-master-plan.md) 1.2 and 3.14), so the
+fleet crosses between stars and the drones work the bodies near wherever it arrives. Both jumps
+are game fictions and the game says so; the rocket work at the rock stays real. Where the drone
+is kept (question 3) was not answered; its recommendation, the bow's drone bay, stands.
+
 ## 0. In short
 
 - **Asteroids are the only ore source aboard.** The wild ore outcrops and veins on the ship are
   removed (master plan rung 1); the Survey quests read their ore from the drone loop.
 - **Automated trips stay the default**: the Mining panel's commission, the hold's manifest, Keep
   mining, Repair and the offline catch-up all stay. What changes: a trip takes the time its
-  distance and the drone's engine really take, and a trip is planned against two limits, the
-  **propellant** (the delta-v budget, the rocket equation) and the **hold** (kilograms).
+  distance and the drone's engine really take, and a trip is planned against three limits, the
+  **propellant** (the delta-v budget, the rocket equation, for the work at the rock), the **hold**
+  (kilograms) and, for a rock out of rocket reach, the **jump charge** (section 4).
 - **Piloted mode is optional**: the person takes the controls at the rock and flies the approach
   and the mining themselves, in a small 3D scene around one asteroid, with the same two limits
   and with hazards that make the choices real: which rock, how much to carry, when to turn back.
@@ -28,12 +40,12 @@ The operator, 2026-11-06, agreeing that no ore nodes belong aboard the ship:
   Moon's distance) it grows to 2.6 s, where one study measured exploration taking 150% longer; past
   that, piloting from the ship turns into giving orders the drone carries out. Realistic mode keeps
   the delay; Simplified mode drops it (section 3).
-- **Between the stars, every rock is far and fast**: the nearest is about 1 AU away on average and
-  moves past the fleet at its cruise speed, which no rocket can match. Drones reach those rocks the
-  way small craft reach anything out there: by the jump, decided for small craft on 2026-11-03
-  (section 2).
+- **Short jumps, never between stars** (decided 2026-11-07): a drone jumps only to a body the
+  fleet has discovered nearby, within its jump reach (a few AU to start, in data); the fleet does
+  the long jumps between stars. Between the stars the nearest interstellar object is about 1 AU
+  away on average, inside that reach once found (section 2).
 - **Upgrades come through the fleet's progression** (the crew votes and builds, game-setting-and-intro.md
-  section 3.4): tank, hold, engine, cutter, anchors, sensors, autonomy, shielding, a jump module.
+  section 3.4): tank, hold, engine, cutter, anchors, sensors, autonomy, shielding, jump reach.
 - **Seven rungs**, the first one data only (section 10).
 
 ## 1. What exists (verified against the code, 2026-11-06)
@@ -66,21 +78,39 @@ spaceship of this design might be like." For mining that means distances and spe
 |---|---|---|
 | Rocks the fleet carries along | parked beside the ship and moving with it, like today's three (30 to 90 km) | by rocket, minutes to hours; no signal delay |
 | In a star system (today's data: the ship orbits over Earth, data/stations/home.ron) | in belts and swarms, each rock on its own orbit, usually far from the next | by rocket, hours to weeks, delta-v of hundreds of m/s to km/s; delay grows with distance |
-| Between the stars (the setting's lore; open as game-setting-and-intro.md question 2) | interstellar objects at about 0.1 to 0.2 per cubic AU (game-setting-and-intro.md 3.2, citing Do, Tucker and Tonry 2018) | **only by the jump** (below) |
+| Between the stars (the setting's lore; open as game-setting-and-intro.md question 2) | interstellar objects at about 0.1 to 0.2 per cubic AU (game-setting-and-intro.md 3.2, citing Do, Tucker and Tonry 2018) | **by a short jump** to a discovered one near the fleet (below) |
 
 **Between the stars, computed.** At 0.1 to 0.2 objects per cubic AU, the nearest one is on average
 1.2 to 0.95 AU away (the mean nearest-neighbour distance of randomly placed points is about
 0.554 times the density to the power of minus one third). An AU of light takes 499 s, so the round
-trip is 16.6 minutes. And the rock is not waiting: the fleet passes it at its cruise speed, about
-15,000 km/s at 5% of light speed. A rocket would need that much delta-v to stop beside it. So a
-drone that mines between the stars is a **small craft that jumps**: small craft jump (decided
-2026-11-03, game-setting-and-intro.md 10.1), and "a jump ends moving with whatever it jumped to"
-(game-setting-and-intro.md 3.1), which is exactly the speed match a rocket cannot give. The jump
-makes a far rock reachable; the rocket budget below covers the last kilometres and the work there.
+trip is 16.6 minutes. Since 2026-11-07 the fleet itself jumps between stars and does not cruise
+(mothership-master-plan.md 3.14), so a rock near the fleet is not rushing past at a cruise speed;
+but at about 1 AU it is still far beyond a rocket's reach in any sensible time (60 km at 50 m/s
+already takes 21.7 minutes, section 4). So a drone reaches it **by a short jump**, which the
+operator allowed on 2026-11-07 ("at least jump to discovered nearby asteroids/comets/whatever"),
+and "a jump ends moving with whatever it jumped to" (game-setting-and-intro.md 3.1). The jump makes
+a far rock reachable; the rocket budget below covers the last kilometres and the work there.
 
-**Recommendation:** model all three. The asteroid rows name their frame (carried with the fleet;
-on an orbit in a system; in an interstellar field) the way the master plan asks every spawn row
-to name its frame, and the trip planner picks rocket or jump by the frame.
+**The jump's rules (a game fiction; Proposal for every number):**
+
+- **Only to a discovered body.** A rock must be surveyed first, by the fleet's sensors (the
+  `drone_sensor` upgrade line and rung 2's survey levels) or by a person's craft that visited it.
+  A drone never jumps blind and never jumps between stars.
+- **Within the jump reach**: 3 AU around the fleet to start (the nearest interstellar object is
+  about 1 AU away on average, and a 3 AU sphere of 113 cubic AU holds about 11 to 23 at 0.1 to 0.2
+  a cubic AU, computed), raised by the fleet's
+  `drone_jump` upgrade line. In a star system the same reach covers a belt's near part.
+- **The charge, not propellant, pays for the jump**: the bow's drone bay charges each jump from the
+  ship's power, and the charge grows with the mass jumped and the distance (Proposal: so many MWh a
+  tonne an AU, in data), so a full hold costs more to jump home than an empty drone costs to jump
+  out. That keeps his "cargo capacity" a real choice on far rocks too.
+- **A jump ends near the target, not on it**: the drone arrives a few kilometres off and flies
+  the rest on its own propellant, so the rocket limits of section 4 still decide the approach, the
+  anchoring, the work and the departure.
+
+**Recommendation:** model all three frames. The asteroid rows name their frame (carried with the
+fleet; on an orbit in a system; in an interstellar field) the way the master plan asks every spawn
+row to name its frame, and the trip planner picks rocket or jump by the distance and the frame.
 
 ## 3. Remote piloting and the speed of light
 
@@ -112,7 +142,7 @@ exploration strategies." (Abstract, read 2026-11-06.)
 - **Orders only** past 2.6 s: the person marks targets and cuts on the rock's model and the drone
   carries them out; the picture arrives as it really would.
 - **To fly a far rock directly**, be near it: a person who rides along in their own small craft
-  (jumping with the drone between the stars) pilots from there with no delay. The delay is measured
+  (jumping out to the rock with the drone) pilots from there with no delay. The delay is measured
   from the person, not from the ship.
 - **Simplified mode drops the delay** at every distance.
 
@@ -139,7 +169,10 @@ its own orbit):
 
 (Computed.) A near rock is limited by the hold; a far one by the tank; one rock too far is a
 one-way trip. That is the operator's "cargo capacity and fuel limit", and it gives the three
-choices the game is built on:
+choices the game is built on. For a rock reached by a jump (section 2), the delta-v above is only
+the last few kilometres and the work at the rock, so the tank rarely limits it; the **jump charge**
+does instead, growing with the hold's mass (a full hold costs more to jump home), so the same
+choice of how much to carry returns:
 
 - **Which rock**: near and poor, or far and rich; spinning or calm; a solid body or a loose rubble
   pile; surveyed or a guess.
@@ -162,12 +195,14 @@ free, the way its dock already charges for free.
 
 The loop that exists, made real:
 
-1. **Commission** at the Mining panel or from the Maps page: pick a rock, set the manifest; the
-   panel now shows the trip's delta-v, the propellant it takes, the largest safe load, the time out
-   and back, and the round-trip light delay.
+1. **Commission** at the Mining panel or from the Maps page: pick a discovered rock, set the
+   manifest; the panel now shows the trip's delta-v, the propellant it takes, the largest safe
+   load, the jump charge out and home when the rock is past rocket reach, the time out and back,
+   and the round-trip light delay.
 2. **Refusal with the reason** (Realistic): a trip that cannot come back with its reserve is not
-   launched, and the panel says which limit stops it ("too far for a full tank: 640 of 610 m/s").
-   Simplified trims the manifest to what fits and says so.
+   launched, and the panel says which limit stops it ("too far for a full tank: 640 of 610 m/s",
+   "past the jump reach: 3.4 of 3.0 AU", "not yet surveyed"). Simplified trims the manifest to what
+   fits and says so.
 3. **The flight** runs on the phase machine that exists, its phase times now computed from distance
    and thrust (the 5 s constants go to data as the Simplified floor).
 4. **Delivery** at the ship's ore intake (section 8), then home or to the fleet's stores.
@@ -215,9 +250,9 @@ crosses the network is the trip's result (ore taken, the rock's change), never t
 A drone cannot launch from a home on the drum floor: the drum is a sealed, spinning cylinder. So
 (Proposal):
 
-- **The drone's cradle is in the bow's drone bay** (a space program row,
-  `data/ship/space_program.toml` `drone_bay`, one bay for every 500 people), with the propellant
-  plant and the **ore intake**.
+- **The drone's parking spot is in the bow's drone bay** (a space program row,
+  `data/ship/space_program.toml` `drone_bay`, one bay for every 500 people, one for every sector),
+  with the propellant plant, the jump charger and the **ore intake**.
 - **The home's drone hangar becomes the drone console**: the person commands and flies their drone
   from home (data/machines/home.ron's `drone_hangar` is re-labelled, its id kept).
 - **Ore travels home as freight** (the logistics rule, decided 2026-10-03: goods are "transported
@@ -228,8 +263,8 @@ A drone cannot launch from a home on the drum floor: the drum is a sealed, spinn
 
 | Data | What a row is | Change |
 |---|---|---|
-| `data/mining/drones.ron` (replacing data/mining/drone.ron) | a drone class: dry mass, propellant capacity, specific impulse, thrust, hold kg and volume, cutter rate, battery and charger, service parts, jump-capable | new shape; the FlyCart row retired, no compatibility code (none before v1.0) |
-| `data/asteroids/*.ron` | a rock: id, name, class, mass and size, spin period, frame (`Fleet`, `Orbit { elements }`, `Field`), position and velocity in that frame, ores (finite), hazards, survey level | adds fields; belt.ron's three become `Fleet` rows |
+| `data/mining/drones.ron` (replacing data/mining/drone.ron) | a drone class: dry mass, propellant capacity, specific impulse, thrust, hold kg and volume, cutter rate, battery and charger, service parts, jump reach (AU) and jump charge (MWh a tonne an AU) | new shape; the FlyCart row retired, no compatibility code (none before v1.0) |
+| `data/asteroids/*.ron` | a rock: id, name, class, mass and size, spin period, frame (`Fleet`, `Orbit { elements }`, `Field`), position and velocity in that frame, ores (finite), hazards, survey level (undiscovered rocks cannot be jump targets) | adds fields; belt.ron's three become `Fleet` rows |
 | `data/asteroids/fields.ron` | an interstellar or belt field: density per cubic AU, class mix, size distribution, seed | new: rocks generated near the fleet as it moves |
 | `data/mining/hazards.ron` | a hazard kind: what triggers it, its effect, its severity in each mode | new |
 | `data/fleet/upgrades.ron` (proposed in game-setting-and-intro.md 3.4) | upgrade rows on drone lines: `drone_tank`, `drone_hold`, `drone_engine`, `drone_cutter`, `drone_anchor`, `drone_sensor`, `drone_autonomy`, `drone_shield`, `drone_jump` | rows only |
@@ -248,7 +283,7 @@ drone classes with no code (CLAUDE.md, infinite-of-x).
 | 3. Piloted mode | the one-rock scene: the voxel asteroid connected, six-axis flight, anchors, the cutter removing voxels into the hold by mass, the gauges; hand-over to and from the autopilot | a cut voxel's ore lands in the hold by its mass; flying home with too heavy a hold runs the tank dry (Realistic) | a `verify-drone` rig (launch, take control, cut ten voxels, fly home) |
 | 4. Hazards and the light delay | spin, rubble, dust, outgassing, the rock's shadow, the delayed controls with the predicted ghost (Realistic) | a command arrives after the computed light delay; a fast tumbler refuses anchoring | the rig at a far rock |
 | 5. Fleet upgrades and the server | drone lines in `data/fleet/upgrades.ron`; several players' drones on one rock; the rock's stock server-held | two drones cannot take the same voxel; an upgrade changes the planner's numbers | `verify-copresence` with two drones |
-| 6. The jump | jump-capable drones and riding along in a person's own craft (with the jump's design, game-setting-and-intro.md) | a jumped drone ends matched to its rock | rig |
+| 6. The short jump | jumps to discovered rocks within the drone's reach (decided 2026-11-07: never between stars), the bow's jump charger, the charge growing with the hold's mass, riding along in a person's own craft | a jumped drone ends near its rock and matched to it; a jump to an undiscovered rock or past the reach is refused with its reason; a full hold costs more charge home than the empty drone did out | rig |
 
 ## 11. Budgets
 
@@ -267,10 +302,13 @@ drone classes with no code (CLAUDE.md, infinite-of-x).
 
 Each with a recommendation; until he answers, the recommendation stands.
 
-1. **Do drones jump between the stars?** Recommend yes: small craft jump (decided 2026-11-03), and
-   between the stars no rocket reaches a rock moving past at the fleet's speed. A jump-capable drone
-   is a later upgrade (rung 6); until then drones mine the rocks the fleet carries and, in a
-   system, the rocks in reach of their tank.
+1. **Do drones jump between the stars?** DECIDED 2026-11-07: "Maybe not jump between stars but, at
+   least jump to discovered nearby asteroids/comets/whatever." Drones jump only to discovered
+   bodies within their reach (section 2); the fleet does the long jumps. Until rung 6 drones mine
+   the rocks the fleet carries and, in a system, the rocks in reach of their tank.
+1b. **The jump reach and charge** (new). *Recommendation:* 3 AU to start, raised by the fleet's
+   upgrades, with a charge that grows with mass and distance so a heavy hold costs more to bring
+   home; Simplified makes the charge free, as its dock already charges for free.
 2. **Should the light delay be part of Realistic mode?** Recommend yes, by the true distance from
    the person (section 3), with Simplified dropping it; and riding along in your own craft as the
    way to fly a far rock directly.

@@ -3350,7 +3350,7 @@ changes. Every water tank carries a level gauge (v0.1346.0).
 
 Every other district kind has its own shape too (v0.1434.0,
 `structure::filler_parts`): market stalls (counter, back shelf, posts, roof)
-in the mall, medical and arena zones; ship cradles (floor rails with chocks) in
+in the mall, medical and arena zones; parking spots for craft (floor rails with chocks; called cradles until 2026-11-07) in
 hangars and mech bays; machine arrays (plinth, machine, riser pipe, ceiling duct)
 in industrial, power and agriculture zones. A new kind is one match arm.
 

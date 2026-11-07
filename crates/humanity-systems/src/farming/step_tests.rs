@@ -161,6 +161,18 @@ fn the_garden_with_its_air_ends_within_the_air_couplings_bound() {
 /// rate) [354 s at 3,600 s, 54 s at 600 s], and the air itself, stepped in its own slices on the
 /// step's average breath, is first order too [the home's CO2 rel 3.7e-2 at 3,600 s, 3.1e-3 at
 /// 600 s]. Those bounds grow with the step.
+///
+/// RE-MEASURED 2026-11-07, because the garden changed: the sweet potato gained its sourced spacing
+/// (0.4645 m2 a plant, NCSU CEFS; survival-garden.md section 10, approved by the operator), so the
+/// golden garden holds 31 sweet potato plants instead of 4 and breathes about 27 L a day more into
+/// the same sealed air. With the air, one crop's death now moves by most of a 600 s step: camelina
+/// in bed_b [growing_seconds 372 s and health_seconds 557 s at 600 s; 354 s and 592 s at 3,600 s,
+/// star thistle], a crossing into stress that the step-late humidity cap shifts by a step's worth
+/// near the cap, and soil.uptake 1.9e-4 at 600 s. Seen red at the old bounds ("10x:
+/// crop.growing_seconds differs by 3.719e2 ... over 9e1"); with the spacing blanked again the old
+/// bounds pass, so the garden, not the farm code, moved. The bounds below are restated to the new
+/// measured spread. The real fix is farm-clock.md rung 3 (the air solved between events), which
+/// should bring them back to a tenth of the step.
 pub(super) fn tolerance(key: &str, air: bool, step_s: f64) -> (f64, f64) {
     let exact = match key {
         "crop.water" | "soil.uptake" => (1e-6, 0.0),
@@ -182,9 +194,9 @@ pub(super) fn tolerance(key: &str, air: bool, step_s: f64) -> (f64, f64) {
     }
     // The air's coupling, first order in the step: per second of it.
     match key {
-        "crop.growing_seconds" | "crop.planted_at" => (0.15 * step_s, 0.0),
-        "crop.health_seconds" => (0.25 * step_s, 0.0),
-        "soil.uptake" => (2e-7 * step_s, 0.0),
+        "crop.growing_seconds" | "crop.planted_at" => (0.7 * step_s, 0.0),
+        "crop.health_seconds" => (step_s, 0.0),
+        "soil.uptake" => (3.5e-7 * step_s, 0.0),
         "soil.store.n" | "soil.store.p2o5" | "soil.store.k2o" => (0.0, 5e-3_f64.max(2e-7 * step_s)),
         "memory.pests.level" => (1e-4, 0.0),
         k if k.starts_with("memory.home_air.") || k.starts_with("memory.rooms.") => (0.0, 2e-5 * step_s),

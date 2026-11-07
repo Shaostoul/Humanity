@@ -632,7 +632,7 @@ change), but a character never goes back in, and its record shows how long it wa
 | 2 | The window seat | You sit at a window, or in the front passenger seat. The camera is yours: look around, never leave the seat. Others sit with you; cargo is strapped down behind a net. Out the window: 5.2. | The ship's meshes, the plots and homes, shader warm-up, and in a shared world the join, all behind the view. | 60 to 120 s the first time; it fits the trip and the loading |
 | 3 | The approach | The mothership grows from a point of light into a city. The drums turn. The drive glows far aft. The transport matches the ship's push, lines up with Hangar Bay 1 and passes in. | If loading is not done, the transport holds outside the doors: "waiting for a docking slot", which is true, since it is waiting for your world. | about 30 s |
 | 4 | Docking | Clamps, the hiss of air, the door opens. | The server's welcome stands each passenger at the transport's door, in seat order. | about 10 s |
-| 5 | Stepping off | The hangar, as the cargo comes out: loaders and crew moving crates away, other craft in their cradles, people. **Full control from here: the first free minute starts as you step off.** A sign and a crew member point to Arrivals. | Cargo is drawn on your machine; the crew are the relay's ambient crew. | yours |
+| 5 | Stepping off | The hangar, as the cargo comes out: loaders and crew moving crates away, other craft in their parking spots, people. **Full control from here: the first free minute starts as you step off.** A sign and a crew member point to Arrivals. | Cargo is drawn on your machine; the crew are the relay's ambient crew. | yours |
 | 6 | The Arrivals desk | Walk up, press E: the receptionist (5.4). | The plot is claimed here, not at join. | 1 to 3 minutes, as long as you like |
 | 7 | The way home | The receptionist gives the opening quest; its first step is "Go home". The HUD marks the way. The walk shows the ship's inside: the Concourse, the drum's curve, First Street. | The Travel objective with `OwnFrontDoor` exists already (docs/FEATURES.md, "The opening"). | a few minutes |
 | 8 | Your door | Your home. The start's opening carries on (First Steps for a Homestead, Settling In for a Cabin) and ends, as now, at your front door looking out. | unchanged | |
@@ -671,7 +671,7 @@ change), but a character never goes back in, and its record shows how long it wa
 ### 5.3 Stepping off
 
 - **The hangar.** Hangar Bay 1 exists as a district (data/blueprints/ship_structure.ron: origin
-  (200, 0, 0), 50 by 12 by 40 m, drawn with ship cradles by `structure::filler_parts`). New: a
+  (200, 0, 0), 50 by 12 by 40 m, drawn with parking spots for craft by `structure::filler_parts`). New: a
   walkable bay with an Arrivals hall beside it, and a way from there to the Concourse and First
   Street. Cargo Freight is a district already (origin (-190, 0, 60)): where the crates go.
 - **The cargo.** First, client-local animation: crates onto loaders, carried away (cosmetic, no
@@ -1118,6 +1118,14 @@ answers.
 The respawn and revival mechanics get their own design document, as he asks, collecting the
 options (the heavy carried gear, Hardcore's costs, the highest skill's lost level, and magic) for
 him to play with.
+
+**2026-11-07, the motherships' part of question 1 changed.** Asked whether the motherships burn all
+the time or coast, he answered: "We can introduce some sort of mechanic that requires no thrusting.
+Like a teleportation tech requires no thrusting." So the mothership plan now writes the cruise
+between stars as a jump with no thrust, named as made up, and thrust only for manoeuvring
+([mothership-master-plan.md](mothership-master-plan.md) 3.14; its question 10b asks him to confirm
+that the motherships now jump). On drones he said: "Maybe not jump between stars but, at least jump
+to discovered nearby asteroids/comets/whatever." ([drone-mining.md](drone-mining.md)).
 
 - **Designed 2026-11-03: [respawn-and-revival.md](respawn-and-revival.md)** (the field lifeline,
   Hardcore's costs side by side, magic's options, everything respawning costs and gives; twelve

@@ -359,7 +359,7 @@ fn the_next_crop_in_a_unit_starts_on_what_the_last_one_left() {
     world.spawn((Inventory::new(16), Controllable));
     let sow = |data: &DataStore| {
         *data.get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request").unwrap().lock().unwrap() =
-            Some(("potato_grow_bed".to_string(), "potato".to_string(), 1));
+            Some(("grow_bed".to_string(), "potato".to_string(), 1));
     };
     sow(&data);
     sys.tick(&mut world, 1.0, &data);

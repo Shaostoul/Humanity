@@ -4244,7 +4244,7 @@ fn snapshot_inventory_garden() {
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_garden_modal_soil() {
     render_page_png("garden_modal_soil", 900, 980, |ctx, theme, state| {
-        crate::gui::pages::inventory::test_open_garden_edit("potato_grow_bed");
+        crate::gui::pages::inventory::test_open_garden_edit("grow_bed");
         crate::gui::pages::inventory::draw(ctx, theme, state);
     });
 }

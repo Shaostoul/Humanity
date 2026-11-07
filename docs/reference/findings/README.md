@@ -437,3 +437,19 @@ what we will say about it.
   November 2026), no real names were asked for, and nothing public shows either company handed
   anything over (Discord said on 24 August it had not yet been served). Corrects the opening story
   of `docs/outreach/how_your_privacy_is_built.md`.
+- [`2026-11-07-community-size.md`](2026-11-07-community-size.md),
+  whether about 500 people is "the upper limit for one massive group to work together", as the
+  operator had heard. In Dunbar's layers 500 is the circle of acquaintances, not the group that
+  works together (about 150, where Hutterite colonies split at a mean of 166 and Alpine commons
+  held 140 to 176 for six centuries); 500 is also where communities in the record start to need a
+  formal structure (kibbutzim near 468, campsites near 500, mega-bands near 567). The 2021
+  critique (intervals of 4 to 520) and Dunbar's reply, both quoted. Recommends 500 as a sector's
+  cap with homes of 5, clusters of 15, blocks of 50 and three neighbourhoods of about 150 inside
+  it. The basis for the master plan's 500-person sector.
+- [`2026-11-07-drum-limits.md`](2026-11-07-drum-limits.md),
+  how big, how long and how steep a 1 g spinning drum can be. Hoop stress is density x g x radius
+  (Jensen 2024): steel drums top out near 4.5 km radius, aramid and carbon composites at tens of
+  kilometres; a free cylinder spins stably only up to 1.3 radii long (Globus et al. 2007, via
+  Jensen), so Kalpana One's 250 m radius was cut to 325 m and Drum 1's 2 km is 8 radii; the main
+  belt is about 4 x 10^-4 Earth masses (Pitjeva and Pitjev 2018); the ADA lets a walkway slope 1 in
+  20 before it is a ramp. The basis for the master plan's scale study and the lean.

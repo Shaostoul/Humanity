@@ -375,8 +375,8 @@ mod tests {
     /// typed one would only be a second, disagreeing number in the data.
     ///
     /// Seen red by putting `(kind: "food", value: "+120 kcal/d", status:
-    /// "ok")` back on home_solo.ron's potato_grow_bed: "home_solo.ron:
-    /// potato_grow_bed carries a typed food figure (+120 kcal/d)".
+    /// "ok")` back on home_solo.ron's grow_bed: "home_solo.ron:
+    /// grow_bed carries a typed food figure (+120 kcal/d)".
     #[test]
     fn no_grow_machine_carries_a_typed_food_figure_the_model_computes() {
         let model = GrowFoodModel::load(&data_dir()).expect("the food model loads");
@@ -438,9 +438,9 @@ mod tests {
         assert!((55.0..=70.0).contains(&model_kcal), "the model's potato bed: {model_kcal}");
         for file in ["home.ron", "home_solo.ron"] {
             let h = home(file);
-            let grown = h.grown.get("potato_grow_bed").unwrap_or_else(|| panic!("{file}: the potato bed has a figure"));
+            let grown = h.grown.get("grow_bed").unwrap_or_else(|| panic!("{file}: the potato bed has a figure"));
             assert!((grown.kcal_per_day - model_kcal).abs() < 1e-3, "{file}: card {} vs model {model_kcal}", grown.kcal_per_day);
-            let food: Vec<_> = h.stats_for("potato_grow_bed").into_iter().filter(|s| s.kind == "food").collect();
+            let food: Vec<_> = h.stats_for("grow_bed").into_iter().filter(|s| s.kind == "food").collect();
             assert_eq!(food.len(), 1, "{file}: one food line on the card");
             assert_eq!(food[0].value, food_value(model_kcal, "potato"), "{file}");
         }
@@ -462,7 +462,7 @@ mod tests {
         let bill = [
             ("aeroponic_tower_nutrition", 9.0),
             ("aeroponic_tower_apothecary", 1.0),
-            ("potato_grow_bed", 8.0),
+            ("grow_bed", 8.0),
             ("oilseed_bed", 3.0),
             ("staple_grain_tray", 2.0),
             ("mushroom_rack", 2.0),

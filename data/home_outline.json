@@ -133,7 +133,7 @@
       ],
       "requirements": [
         { "item": "Greenhouse canopy", "qty": "200 m2 (2,150 sq ft)", "tier": "baseline", "game_id": "greenhouse", "why": "88 m2 feeds the greenhouse share of the diet, and 200 m2 buys margin against crop failure plus the year-round canopy the air loop needs; a 1,156 m2 room holding just 46.6 m2 of canopy is not a garden" },
-        { "item": "Potato grow beds", "qty": "8x", "tier": "baseline", "game_id": "potato_grow_bed", "why": "30 to 45 kcal/day each in sunlight at 2 cycles a year; the game's own figure crops a bed back to back all year with no winter, so it reads higher, as an upper bound" },
+        { "item": "Grow beds", "qty": "8x", "tier": "baseline", "game_id": "grow_bed", "why": "30 to 45 kcal/day each in sunlight at 2 cycles a year; the game's own figure crops a bed back to back all year with no winter, so it reads higher, as an upper bound" },
         { "item": "Variety towers (aeroponic)", "qty": "9x", "tier": "baseline", "game_id": "aeroponic_tower_nutrition", "why": "25 to 40 kcal/day each sun lit, plus all the vegetables, vitamins, and plant protein across 32 real crops" },
         { "item": "Oilseed beds", "qty": "3x", "tier": "baseline", "game_id": "oilseed_bed", "why": "fats from sunflower and flax; 584 kcal/100 g makes seed the densest thing the garden grows" },
         { "item": "Mushroom racks", "qty": "2x", "tier": "baseline", "game_id": "mushroom_rack", "why": "100 kcal/day from dark vertical space; the only food that costs no light budget at all" },

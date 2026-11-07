@@ -499,12 +499,12 @@ fn outdoor_pests_stay_outdoors_and_slugs_like_the_damp() {
     world.spawn((Irrigator,));
     for slot in 0..4 {
         world.spawn((crop(&data, "kale", "ntower_1", slot),));
-        world.spawn((crop(&data, "potato", "potato_grow_bed", slot),));
+        world.spawn((crop(&data, "potato", "grow_bed", slot),));
         world.spawn((crop(&data, "kale", "veg_field_1", slot),));
     }
     run(&mut sys, &mut world, &data, 240, 1.0);
     assert_eq!(level(&world, "ntower_1", "cabbage_caterpillar"), 0.0, "no caterpillars indoors");
-    assert_eq!(level(&world, "potato_grow_bed", "colorado_potato_beetle"), 0.0, "no beetles indoors");
+    assert_eq!(level(&world, "grow_bed", "colorado_potato_beetle"), 0.0, "no beetles indoors");
     assert!(level(&world, "veg_field_1", "cabbage_caterpillar") > 0.0, "caterpillars in the field");
 
     // Slugs on lettuce outdoors, dry against foggy.

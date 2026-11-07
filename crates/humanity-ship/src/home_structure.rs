@@ -1569,7 +1569,7 @@ fn box_filler_into(
         };
         for (cx, cz) in cells {
             // Each kind's own shape (2026-09-29, `structure::filler_parts`): open racks
-            // (their goods come from engine::stock_piles), market stalls, ship cradles,
+            // (their goods come from engine::stock_piles), market stalls, parking spots for craft,
             // machine arrays.
             let parts = crate::structure::filler_parts(&filler.mesh_kind, cx, cz, fw, fd, h);
             for (i, &[x, z, w, d, y, ph]) in parts.iter().enumerate() {
@@ -2569,7 +2569,10 @@ mod tests {
     /// not. The old rule skipped any part whose bottom met ANY part's top, and a
     /// stall's posts end at the roof and an array's riser at the duct, so both
     /// were see-through from below. Red check, run: putting the old height-only
-    /// rule back in `needs_underside` failed the roof assertion.
+    /// rule back in `needs_underside` failed the roof assertion. The hangar's
+    /// shape was renamed "cradle" -> "parking_spot" on 2026-11-07 (a cradle read as
+    /// a way of reviving people); with this assertion renamed first and the data
+    /// not yet, it failed (left "cradle", right "parking_spot").
     #[test]
     fn raised_filler_parts_get_an_underside_unless_covered() {
         use crate::structure::{filler_parts, zone_filler};
@@ -2598,7 +2601,7 @@ mod tests {
         };
         assert_eq!(zone_filler("civic_mall").unwrap().mesh_kind, "stall");
         assert_eq!(zone_filler("industrial").unwrap().mesh_kind, "array");
-        assert_eq!(zone_filler("hangar").unwrap().mesh_kind, "cradle");
+        assert_eq!(zone_filler("hangar").unwrap().mesh_kind, "parking_spot");
         assert_eq!(undersides("civic_mall", highest), 4, "a stall's roof has an underside");
         assert_eq!(undersides("industrial", highest), 4, "an array's duct has an underside");
         assert_eq!(undersides("industrial", lowest_raised), 0, "a machine on its plinth has none");

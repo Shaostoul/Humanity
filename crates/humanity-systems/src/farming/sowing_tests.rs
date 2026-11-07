@@ -38,13 +38,13 @@ fn home() -> DataStore {
         vec![
             tower("ntower_0", 0.0),
             tower("ntower_1", 20.0),
-            machine("potato_grow_bed_1", 10.0, 0.0, 2.0),
+            machine("grow_bed_1", 10.0, 0.0, 2.0),
             machine("mushroom_rack_1", 10.0, 4.0, 0.72),
             machine("aquaponic_tank_1", 8.0, 0.0, 2.56),
         ],
     );
     let mut inst: HashMap<String, Vec<(String, u32)>> = HashMap::new();
-    inst.insert("potato_grow_bed".into(), vec![("potato_grow_bed_1".into(), 2)]);
+    inst.insert("grow_bed".into(), vec![("grow_bed_1".into(), 2)]);
     inst.insert("mushroom_rack".into(), vec![("mushroom_rack_1".into(), 5)]);
     inst.insert("aquaponic_tank".into(), vec![("aquaponic_tank_1".into(), 1)]);
     data.insert("grow_instances", inst);
@@ -109,13 +109,13 @@ fn a_backpack_seed_goes_into_the_nearest_free_place_in_reach() {
     plant(&mut sys, &mut world, &data, "seed_lettuce_0");
     assert_eq!(
         spots(&world),
-        vec![("potato_grow_bed_1".to_string(), 0), ("potato_grow_bed_1".to_string(), 1)],
+        vec![("grow_bed_1".to_string(), 0), ("grow_bed_1".to_string(), 1)],
         "both lettuces went into the bed beside the player, one plot each"
     );
     assert_eq!(world.get::<&Inventory>(p).unwrap().count_item("seed_lettuce_0"), 1, "each took a seed");
     let said = notices(&data);
-    assert!(said[0].starts_with("Planted lettuce in the potato grow bed beside you, plot 1 of 2."), "{said:?}");
-    assert!(said[1].starts_with("Planted lettuce in the potato grow bed beside you, plot 2 of 2."), "{said:?}");
+    assert!(said[0].starts_with("Planted lettuce in the grow bed beside you, plot 1 of 2."), "{said:?}");
+    assert!(said[1].starts_with("Planted lettuce in the grow bed beside you, plot 2 of 2."), "{said:?}");
     // Drawable: a published machine (or the design its first tower owns) and a place inside it.
     let plots = data.get::<Vec<GrowPlot>>("grow_plots").unwrap();
     for (tag, slot) in spots(&world) {
@@ -164,7 +164,7 @@ fn nothing_in_reach_plants_nothing_and_names_the_nearest() {
     assert_eq!(
         notices(&data),
         vec!["Nothing planted: you sow a seed where you stand, and no bed, tray, field or tower with room is within 5 m of you. \
-              The nearest with room is the potato grow bed, on another deck."
+              The nearest with room is the grow bed, on another deck."
             .to_string()]
     );
 }
@@ -193,7 +193,7 @@ fn each_seed_goes_only_where_its_kind_grows() {
     assert_eq!(
         got,
         vec![
-            ("lettuce".to_string(), "potato_grow_bed_1".to_string(), 0),
+            ("lettuce".to_string(), "grow_bed_1".to_string(), 0),
             ("oyster_mushroom".to_string(), "mushroom_rack_1".to_string(), 0)
         ]
     );
@@ -213,7 +213,7 @@ fn the_shipped_media_say_what_each_machine_takes() {
     let takes = |ty: &str| media.iter().find(|m| m.matches(ty)).map(|m| m.takes);
     assert_eq!(takes("mushroom_rack"), Some(Takes::Fungi));
     assert_eq!(takes("aquaponic_tank"), Some(Takes::NoSeeds));
-    for ty in ["potato_grow_bed", "staple_grain_tray", "oilseed_bed", "grain_field", "tuber_field", "aeroponic_tower_nutrition"] {
+    for ty in ["grow_bed", "staple_grain_tray", "oilseed_bed", "grain_field", "tuber_field", "aeroponic_tower_nutrition"] {
         assert_eq!(takes(ty), Some(Takes::Plants), "{ty} takes green plants");
     }
 }
@@ -260,7 +260,7 @@ fn a_cup_taken_under_its_design_id_is_not_sown_twice() {
 #[test]
 fn a_dead_crop_gives_up_its_place_and_a_full_home_says_so() {
     let mut data = home();
-    let bed: Vec<GrowPlot> = data.get::<Vec<GrowPlot>>("grow_plots").unwrap().iter().filter(|g| g.id == "potato_grow_bed_1").cloned().collect();
+    let bed: Vec<GrowPlot> = data.get::<Vec<GrowPlot>>("grow_plots").unwrap().iter().filter(|g| g.id == "grow_bed_1").cloned().collect();
     data.insert("grow_plots", bed);
     stand(&mut data, 10.0, -1.5);
     let mut sys = FarmingSystem::new();
@@ -329,7 +329,7 @@ fn the_outlook_says_the_wait_in_real_time_and_the_water_in_words() {
         planted_at: 100.0 * day - age_days * day,
         water_level: water,
         health,
-        tower_id: Some("potato_grow_bed_1".into()),
+        tower_id: Some("grow_bed_1".into()),
         tower_slot: Some(0),
         health_seconds: 0.0,
         growing_seconds: 0.0,
@@ -360,9 +360,9 @@ fn the_outlook_says_the_wait_in_real_time_and_the_water_in_words() {
     assert_eq!(outlook::outlook(&dead, Some(lettuce), now, 1.0, None, true), CropOutlook::default());
     // The tick and the card read one water rule.
     let supply = WaterSupply { water_available: true, irrigation_on: true, targets: HashMap::new() };
-    assert_eq!(supply.holds(Some("potato_grow_bed_1")), Some(DEFAULT_AUTO_IRRIGATION));
+    assert_eq!(supply.holds(Some("grow_bed_1")), Some(DEFAULT_AUTO_IRRIGATION));
     assert_eq!(supply.holds(None), None, "a crop in no machine is watered by hand");
-    assert_eq!(WaterSupply { irrigation_on: false, ..supply }.holds(Some("potato_grow_bed_1")), None);
+    assert_eq!(WaterSupply { irrigation_on: false, ..supply }.holds(Some("grow_bed_1")), None);
 }
 
 /// PLANTING SAYS HOW LONG IT TAKES, HONESTLY. At the normal 1x clock a lettuce
@@ -383,7 +383,7 @@ fn planting_says_when_it_ripens_in_real_time() {
     plant(&mut sys, &mut world, &data, "seed_lettuce_0");
     assert_eq!(
         notices(&data),
-        vec!["Planted lettuce in the potato grow bed beside you, plot 1 of 2. It ripens in about 45 days of real time. \
+        vec!["Planted lettuce in the grow bed beside you, plot 1 of 2. It ripens in about 45 days of real time. \
               The home's irrigation keeps it watered. Look after it in Inventory > Garden."
             .to_string()]
     );
@@ -393,7 +393,7 @@ fn planting_says_when_it_ripens_in_real_time() {
 /// machine with room, and a home with no place for a kind of seed says so.
 ///
 /// Seen red with the last machine with room taken instead of the first:
-/// ("potato_grow_bed_1", 0), not ("nutrition", 0).
+/// ("grow_bed_1", 0), not ("nutrition", 0).
 #[test]
 fn choose_without_a_position_and_with_no_place() {
     let data = home();

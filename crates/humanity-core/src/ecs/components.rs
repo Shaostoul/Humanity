@@ -431,7 +431,7 @@ pub struct CropInstance {
     /// Current health (affected by disease, pests, weather).
     pub health: f32,
     /// The grow machine this crop stands in: a tower's design id ("nutrition")
-    /// or a machine's instance id ("ntower_3", "potato_grow_bed_1"). Lets the
+    /// or a machine's instance id ("ntower_3", "grow_bed_1"). Lets the
     /// inventory group crops by machine (v0.389), and the renderer, the water,
     /// the light and the soil find it. Every way the game plants sets it, a
     /// seed from the backpack too since 2026-10-12 (farming::sowing); None is

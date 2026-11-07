@@ -80,7 +80,7 @@ pub struct Place {
     /// The other tag crops in it may carry, whose places count as taken too:
     /// the tower's own instance id when `tag` is its design id.
     pub also: Option<String>,
-    /// What it is, in words: "aeroponic tower", "potato grow bed".
+    /// What it is, in words: "aeroponic tower", "grow bed".
     pub name: String,
     /// What one place in it is called: "cup", "plot", "shelf".
     pub unit: &'static str,

@@ -410,6 +410,12 @@
         //     11 x 33 in is 0.234 m2. Yield: NASS North Dakota 2024 summary: potato "Yield, at 335 cwt per acre,
         //     is down 15 cwt from a year earlier" (350 in 2023): 3.75 to 3.92 kg/m2 of fresh tubers.
         (plant: "potato", basis: FreshVeg, per_plant_kg: (0.8786, 0.918)),
+        // sweet_potato (2026-11-07, docs/design/survival-garden.md section 10, approved by the operator: "Yes"):
+        //     NCSU CEFS "Vegetable Planting Guide" (K. Baldwin 2011, https://cefs.ncsu.edu/wp-content/uploads/
+        //     sfu-vegetable-planting-guide.pdf, read 2026-11-06 with pdftotext -raw), row Sweet potatoes: 19,000 lb
+        //     per acre from 8,712 plants per acre at 12 x 60 in, so 0.4645 m2 a plant and 0.989 kg a plant
+        //     (2.13 kg/m2 of fresh roots). growth_days stays plants.csv's 120.
+        (plant: "sweet_potato", basis: FreshVeg, per_plant_kg: (0.989, 0.989)),
         // flax: Fiber flax (the harvest item is a fiber bundle). Goudenhooft, Bourmaud and Baley 2019, "Flax
         //     (Linum usitatissimum L.) Fibers for Composite Reinforcement", Frontiers in Plant Science 10: 411:
         //     "a sowing rate of about 1800 seeds/m2 is encouraged and commonly used, leading to about 1650-1750

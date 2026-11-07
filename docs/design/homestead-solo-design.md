@@ -189,7 +189,7 @@ from `plants.csv`:
 
 | Machine id | Catalog kcal/unit/day | Qty for 1 person | kcal/day | Role |
 |---|---|---|---|---|
-| `potato_grow_bed` | +120 kcal | **8 beds** | 960 | Bulk indoor calories (aeroponic potato, NASA/CIP-real) |
+| `grow_bed` | +120 kcal | **8 beds** | 960 | Bulk indoor calories (aeroponic potato, NASA/CIP-real) |
 | `aeroponic_tower_nutrition` ("Variety tower") | +92 kcal | **9 towers** | 828 | ALL vegetables/vitamins/plant protein (32 crops, see below) |
 | `oilseed_bed` | +25 kcal (fats) | **3 beds** | 75 | Indoor fats (sunflower/flax from plants.csv) |
 | `mushroom_rack` | +50 kcal | **2 racks** | 100 | Uses dark vertical space, no light — see gap ⚠️ |
@@ -229,7 +229,7 @@ calendula, aloe_vera`) for teas, seasoning, and folk remedies.
 `grain_tray`, `mushroom`, `aquaponic`, `field`. No new media needed.
 
 **FOOD BOM (1 person):** 9× `aeroponic_tower_nutrition`, 1×
-`aeroponic_tower_apothecary`, 8× `potato_grow_bed`, 3× `oilseed_bed`, 2×
+`aeroponic_tower_apothecary`, 8× `grow_bed`, 3× `oilseed_bed`, 2×
 `staple_grain_tray`, 2× `mushroom_rack`, 1× `aquaponic_tank`, 1×
 `grain_field`, 1× `legume_field`, 1× `grain_silo`, 1× `irrigation_system`.
 

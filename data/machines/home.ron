@@ -2332,11 +2332,11 @@
             container_type: None,
             model: None,
         ),
-        "potato_grow_bed": (
+        "grow_bed": (
             shape: "box",
             size: (2.0, 0.4, 1.0),
             color: (0.55, 0.42, 0.25),
-            label: "Potato bed",
+            label: "Grow bed",
             category: "Food",
             stats: [
                 (
@@ -3760,7 +3760,7 @@
         ),
         (
             id: "courtbed_1",
-            machine: "potato_grow_bed",
+            machine: "grow_bed",
             room: "room-court",
             offset: (42.5, 0.0, 24.5),
             rotation: 0.0,
@@ -3768,7 +3768,7 @@
         ),
         (
             id: "courtbed_2",
-            machine: "potato_grow_bed",
+            machine: "grow_bed",
             room: "room-court",
             offset: (45.5, 0.0, 24.5),
             rotation: 0.0,
@@ -3776,7 +3776,7 @@
         ),
         (
             id: "courtbed_3",
-            machine: "potato_grow_bed",
+            machine: "grow_bed",
             room: "room-court",
             offset: (42.5, 0.0, 27.5),
             rotation: 0.0,
@@ -3784,7 +3784,7 @@
         ),
         (
             id: "courtbed_4",
-            machine: "potato_grow_bed",
+            machine: "grow_bed",
             room: "room-court",
             offset: (45.5, 0.0, 27.5),
             rotation: 0.0,
@@ -4576,7 +4576,7 @@
     ],
     arrays: [
         (
-            machine: "potato_grow_bed",
+            machine: "grow_bed",
             room: "room-greenhouse",
             origin: (13.0, 0.0, 54.0),
             rows: 3,

@@ -501,7 +501,7 @@ fn planting_counts_every_way_the_player_sows_and_nothing_else() {
     assert_eq!(planted(&world, "q_any"), 3, "the tower planted the lettuce and the tomato, not the kale it had no seed for");
     // A bed of potatoes, two plots.
     *data.get::<Mutex<Option<(String, String, u32)>>>("plant_bed_request").unwrap().lock().unwrap() =
-        Some(("potato_grow_bed".into(), "potato".into(), 2));
+        Some(("grow_bed".into(), "potato".into(), 2));
     run(&mut world);
     assert_eq!(planted(&world, "q_any"), 5, "the bed planted its two plots");
     // The showcase fills a tower: not the player planting.

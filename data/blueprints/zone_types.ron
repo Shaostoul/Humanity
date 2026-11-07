@@ -30,14 +30,14 @@
         id: "hangar",
         label: "Hangar bay",
         color: (0.60, 0.65, 0.72),
-        purpose: "Ship cradles + a launch/recovery lane; big doors to vacuum (airlock boundary).",
+        purpose: "Parking spots for craft + a launch/recovery lane; big doors to vacuum (airlock boundary).",
         default_size: (50.0, 12.0, 40.0),
     ),
     (
         id: "mech_bay",
         label: "Mech bay",
         color: (0.70, 0.45, 0.55),
-        purpose: "Maintenance cells for mechs/vehicles: cradles + tool/power/fluid hookups.",
+        purpose: "Maintenance cells for mechs/vehicles: parking spots + tool/power/fluid hookups.",
         default_size: (16.0, 8.0, 16.0),
     ),
     (

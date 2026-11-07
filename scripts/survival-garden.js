@@ -245,6 +245,37 @@ function productivity(D, id, tierYields) {
   };
 }
 
+/**
+ * The mushroom room's growing medium (2026-11-07). A crop's dry residue a square metre a day:
+ * its edible dry matter x (1 - harvest index) / harvest index, with NASA's measured harvest index
+ * (BVAD 2022, each crop's cea.harvest_index_pct) and USDA's water content; 0 for a crop without a
+ * measured index (so the residue is an underestimate). A mushroom's dry substrate need a square
+ * metre of shelf a day: its harvest over its biological efficiency (fresh mushrooms per dry
+ * substrate).
+ */
+function residueDryG(D, id, prod) {
+  const g = D.garden.crops[id] || {};
+  const fc = D.food.crops[id];
+  const hi = g.cea && g.cea.harvest_index_pct ? g.cea.harvest_index_pct / 100 : null;
+  if (!hi || !fc || prod.floorWeight < 1) return 0;
+  const dry = 1 - (fc.per_100g.water_g || 0) / 100;
+  const edibleDry = prod.grossG * fc.edible_share * dry;
+  return (edibleDry * (1 - hi)) / hi;
+}
+
+function substrateNeedG(D, id, prod) {
+  const be = (D.garden.crops[id] || {}).biological_efficiency;
+  return be ? prod.grossG / be : 0;
+}
+
+/** Grams of button mushroom a day the vitamin D shelf grows for `residents`, and its substrate. */
+function vitaminDShelf(D, residents) {
+  const uv = D.garden.treatments.uv_flash;
+  const freshG = ((15 * residents) / uv.vitamin_d_ug_per_100g) * 100;
+  const be = (D.garden.crops[uv.crop] || {}).biological_efficiency || 1;
+  return { crop: uv.crop, freshG, substrateG: freshG / be };
+}
+
 /** The targets, as rows over nutrient keys: { key, label, unit, min, max, kind }. */
 function targets(D, tierName, residents) {
   const tier = D.garden.tiers[tierName];
@@ -290,6 +321,8 @@ function coefTable(D, prods, T) {
     C[id].carb_g = coef(D, id, prods[id], "carb_g");
     C[id].eaten_g = prods[id].eatenG;
     C[id].floor_weight = prods[id].floorWeight || 1;
+    C[id].residue_g = residueDryG(D, id, prods[id]);
+    C[id].substrate_g = substrateNeedG(D, id, prods[id]);
   }
   return C;
 }
@@ -311,6 +344,14 @@ function solve(D, tierName, ids, residents, C, T, opts = {}) {
   const perCrop = opts.noMassCap ? null : tier.max_eaten_g_per_crop;
   if (perCrop) ids.forEach((id, i) => rows.push({ a: ids.map((jd, j) => (j === i ? C[jd].eaten_g / (perCrop * residents) : 0)), op: "<=", b: 1 }));
   if (opts.maxShelf) rows.push({ a: ids.map((id) => (C[id].floor_weight < 1 ? 1 / opts.maxShelf : 0)), op: "<=", b: 1 });
+  // THE GROWING MEDIUM (2026-11-07): the mushrooms eat no more substrate than the garden's own
+  // residue can become, after the vitamin D shelf has taken its share:
+  //   sum(mushroom need x) - usable x sum(residue x) <= -(the vitamin D shelf's need).
+  if (opts.substrate) {
+    const u = opts.substrate.usable;
+    const scale = 100;
+    rows.push({ a: ids.map((id) => (C[id].substrate_g - u * C[id].residue_g) / scale), op: "<=", b: -opts.substrate.reservedG / scale });
+  }
   const kcal = A("energy_kcal");
   const fat = A("fat_g");
   if (tier.fat_pct_energy) {
@@ -353,7 +394,10 @@ function analyse(D, tierName, residents, opts = {}) {
   let tier = D.garden.tiers[baseName];
   if (variant) tier = { ...tier, label: variant.label, search_max_crops: 0, choose: 'all' };
   if (opts.onlyIds) tier = { ...tier, search_max_crops: 0, choose: 'all' };
-  const candidates = [...D.garden.candidates, ...((variant && variant.extra_candidates) || [])];
+  // The mushroom room (adopted in the bare tier 2026-11-07): its species join the candidates, its
+  // racks cap the shelf, and the growing medium caps what they eat (solve's substrate row).
+  const room = tier.mushroom_room || (variant && variant.extra_candidates ? { candidates: variant.extra_candidates, max_shelf_m2: variant.max_shelf_m2 } : null);
+  const candidates = [...D.garden.candidates, ...((room && room.candidates) || [])];
   const T = targets(D, baseName, residents);
   const prods = {};
   for (const id of candidates) {
@@ -375,10 +419,21 @@ function analyse(D, tierName, residents, opts = {}) {
   if (opts.onlyIds) for (const id of Object.keys(prods)) if (!opts.onlyIds.includes(id)) delete prods[id];
   const ids = Object.keys(prods);
   const C = coefTable(D, prods, T);
-  const so = { maxShelf: variant && variant.max_shelf_m2 ? variant.max_shelf_m2 * residents : null };
-  const full = solve(D, baseName, ids, residents, C, T, so);
+  const so = {
+    maxShelf: room && room.max_shelf_m2 ? room.max_shelf_m2 * residents : null,
+    substrate: room && D.garden.substrate ? { usable: D.garden.substrate.residue_usable_share, reservedG: vitaminDShelf(D, residents).substrateG } : null,
+  };
+  let full = solve(D, baseName, ids, residents, C, T, so);
+  // A garden whose residue cannot even carry the vitamin D shelf grows no mushrooms for food, and
+  // the shelf falls back to the supplement (the operator's "both", 2026-11-07); the program says so.
+  if (!full.ok && so.substrate && so.substrate.reservedG > 0) {
+    so.substrate = { ...so.substrate, reservedG: 0, vitaminDFallback: true };
+    full = solve(D, baseName, ids, residents, C, T, so);
+  }
   const uncapped = solve(D, baseName, ids, residents, C, T, { ...so, noMassCap: true });
-  const energyOnly = solve(D, baseName, ids, residents, C, T.map((t) => (t.key === 'energy_kcal' || t.key === 'protein_g' ? t : { ...t, held: false })), so);
+  // A calorie plan ignores every other need, the vitamin D shelf's substrate among them.
+  const soEnergy = { ...so, substrate: so.substrate ? { ...so.substrate, reservedG: 0 } : null };
+  const energyOnly = solve(D, baseName, ids, residents, C, T.map((t) => (t.key === 'energy_kcal' || t.key === 'protein_g' ? t : { ...t, held: false })), soEnergy);
   if (!full.ok) return { tierName, T, prods, C, infeasible: true };
 
   // THE FEWEST CROPS. Three steps, each cheap:
@@ -446,15 +501,25 @@ function analyse(D, tierName, residents, opts = {}) {
   // eaten and on shelf), and among equals the one that saves the most floor. It stops when no plot
   // can go without breaking a minimum. Minimums are never traded away; a cap may stay a little over.
   const plotM2 = D.garden.layout.plot_m2;
+  // A mushroom's unit is one rack shelf (0.72 m2), not a 1 m2 plot: the rack is built in shelves.
+  const unitOf = (id) => (C[id].floor_weight < 1 ? D.garden.layout.mushroom_rack_shelf_m2 : plotM2);
   const plots = {};
   const vminOf = (id) => Math.ceil(((tier.variety_min_m2 || {})[id] || 0) * residents / plotM2 - 1e-9);
-  for (const [id, m2] of Object.entries(chosen.area)) plots[id] = Math.max(1, vminOf(id), Math.ceil(m2 / plotM2 - 1e-6));
-  const toArea = () => Object.fromEntries(Object.entries(plots).map(([id, n]) => [id, n * plotM2]));
+  for (const [id, m2] of Object.entries(chosen.area)) plots[id] = Math.max(1, vminOf(id), Math.ceil(m2 / unitOf(id) - 1e-6));
+  const toArea = () => Object.fromEntries(Object.entries(plots).map(([id, n]) => [id, n * unitOf(id)]));
+  // The growing medium as a hard limit in the rounding, like a UL: what the mushrooms need over
+  // what the residue gives, as a fraction over.
+  const substrateOver = (area) => {
+    if (!so.substrate) return 0;
+    const need = Object.entries(area).reduce((s, [id, m2]) => s + C[id].substrate_g * m2, 0) + so.substrate.reservedG;
+    const give = so.substrate.usable * Object.entries(area).reduce((s, [id, m2]) => s + C[id].residue_g * m2, 0);
+    return need > give ? (give > 0 ? need / give - 1 : need) : 0;
+  };
   const minsHold = (area) => { const sp = supply(C, area, T); return T.every((t) => !t.held || sp[t.key] >= t.min * (1 - 1e-9)); };
   // [hard excess (ULs, the energy ceiling), soft excess (estimated caps)], each as a sum of fractions over.
   const excess = (area) => {
     const sp = supply(C, area, T);
-    let hard = 0, soft = 0;
+    let hard = substrateOver(area), soft = 0;
     for (const t of T) if (t.held && t.max && sp[t.key] > t.max) hard += sp[t.key] / t.max - 1;
     const eaten = Object.entries(area).map(([id, m2]) => C[id].eaten_g * m2);
     const capG = tier.max_eaten_g_per_day ? tier.max_eaten_g_per_day * residents : null;
@@ -494,7 +559,38 @@ function analyse(D, tierName, residents, opts = {}) {
     const r = solve(D, baseName, Object.keys(chosen.area).length && tier.choose === 'knee' ? chosen.set || Object.keys(chosen.area) : ids, residents, C, T2, so);
     if (r.ok && chosen.total - r.total >= 0.05) costs.push({ label: t.label, saved: chosen.total - r.total });
   }
-  return { tierName, tier, T, prods, full, uncapped, energyOnly, byK, costs, firstFeasibleK, chosen, plots, plotArea, C, lpSupply: supply(C, chosen.area, T), plotSupply: supply(C, plotArea, T), residents };
+  return { tierName, tier, T, prods, full, uncapped, energyOnly, byK, costs, firstFeasibleK, chosen, plots, plotArea, C, lpSupply: supply(C, chosen.area, T), plotSupply: supply(C, plotArea, T), residents, substrate: substrateBalance(D, C, plotArea, residents), mushroomRoom: !!room, vitaminDFallback: !!(so.substrate && so.substrate.vitaminDFallback) };
+}
+
+/**
+ * The growing medium of a garden as planted: the residue its crops give, what its mushrooms and
+ * the vitamin D shelf take, and what preparing it costs (2026-11-07, data/garden/survival_garden.json
+ * `substrate`). Grams and litres a day; the spent substrate's phosphorus a year.
+ */
+function substrateBalance(D, C, area, residents) {
+  const S = D.garden.substrate;
+  if (!S) return null;
+  const residue = Object.entries(area).map(([id, m2]) => [id, C[id].residue_g * m2]).filter(([, g]) => g > 0).sort((x, y) => y[1] - x[1]);
+  const residueG = residue.reduce((s, [, g]) => s + g, 0);
+  const usableG = residueG * S.residue_usable_share;
+  const mushrooms = Object.entries(area).filter(([id]) => C[id].floor_weight < 1).map(([id, m2]) => [id, C[id].substrate_g * m2]);
+  const vit = vitaminDShelf(D, residents);
+  const needG = mushrooms.reduce((s, [, g]) => s + g, 0) + vit.substrateG;
+  const mushroomFreshG = Object.entries(area).filter(([id]) => C[id].floor_weight < 1).reduce((s, [id, m2]) => s + C[id].substrate_g * m2 * (D.garden.crops[id].biological_efficiency || 0), 0) + vit.freshG;
+  const spentDryG = Math.max(0, needG - mushroomFreshG * (1 - S.mushroom_water_share));
+  return {
+    residue,
+    residueG,
+    usableG,
+    mushrooms,
+    vitaminD: vit,
+    needG,
+    coverage: needG > 0 ? usableG / needG : Infinity,
+    pasteuriseKwh: (needG / 1000) * S.pasteurise_kj_per_kg_dry / 3600,
+    waterL: (needG / 1000) * S.moisture / (1 - S.moisture),
+    spentDryG,
+    spentPgYr: S.spent.p_pct.map((p) => (spentDryG * 365 * p) / 100),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -519,7 +615,8 @@ function report(D, a) {
   const { T, prods, plots, plotArea, plotSupply, tier } = a;
   const res = a.residents;
   const per = res > 1 ? ` for ${res} residents` : "";
-  L.push(`### Tier: ${tier.label}${per}`);
+  const start = D.garden.start_tier === a.tierName ? " (THE START GARDEN: every new homesteader begins with it, the operator's choice of 2026-11-07)" : "";
+  L.push(`### Tier: ${tier.label}${per}${start}`);
   L.push("");
   if (a.infeasible) { L.push("No garden of the candidate crops meets every target under this tier's rules."); return L.join("\n"); }
   // Lit canopy (green crops) and mushroom shelf (stacked, in the dark) are counted apart.
@@ -529,7 +626,8 @@ function report(D, a) {
   const nPlots = Object.entries(plots).filter(([id]) => !isShelf(id)).reduce((s, [, v]) => s + v, 0);
   const sunline = D.garden.sunline;
   const kwhPerM2 = (sunline.dli_mol_m2_d * 1e6) / sunline.led_umol_per_j / 3.6e6;
-  L.push(`- Smallest area, any crops (the linear program over all ${Object.keys(prods).length} candidates): **${dual(a.full.total)}** of ${shelf > 0 ? "floor (canopy plus a fifth of the mushroom shelf)" : "canopy"}, ${Object.keys(a.full.area).length} crops.`);
+  const fullShelf = Object.keys(a.full.area).filter((id) => isShelf(id));
+  L.push(`- Smallest area, any crops (the linear program over all ${Object.keys(prods).length} candidates): **${dual(a.full.total)}** of ${fullShelf.length ? "floor (canopy plus a fifth of the mushroom shelf)" : "canopy"}, ${Object.keys(a.full.area).length} crops${fullShelf.length ? ` (${fullShelf.map((id) => cropName(D, id).toLowerCase() + " " + f1(a.full.area[id]) + " m2 of shelf").join(", ")}, as much as the garden's residue can grow)` : ""}.`);
   if (a.byK.length) {
     const rows = a.byK.map((b) => `${b.k}: ${b.best ? dual(b.best.total) + " (" + b.best.set.map((id) => cropName(D, id)).join(", ") + ")" : "none"}`);
     L.push(`- Smallest area with exactly k crops${Object.keys(tier.variety_min_m2 || {}).length ? " beyond the variety plots" : ""}, k = ${rows.join("; ")}.`);
@@ -563,9 +661,10 @@ function report(D, a) {
     const w = p.waterL * m2;
     totG += harvest; totEat += eaten; totW += w;
     const every = p.cycle / n;
-    L.push(`| ${cropName(D, id)} | ${n} | ${p.plantsPerPlot || "-"} | ${f0(p.cycle)}${p.window ? ` (${f0(p.firstHarvest)} + ${f0(p.window)} picking)` : ""} | ${f1(every)} days | ${f0(harvest)} g (${f2((harvest / 1000) * KG_LB)} lb) | ${f0(eaten)} g | ${f0(kc)} | ${f1(pr)} g | ${f1(w)} L (${f2(w * L_GAL)} gal) | ${p.source === "cea" ? "BVAD 2022 (hydroponic)" : p.source === "proposed" ? "NCSU CEFS (proposed row)" : "plants.csv / yields.ron"} |`);
+    L.push(`| ${cropName(D, id)} | ${isShelf(id) ? `${n} shelves (${f2(m2)} m2)` : n} | ${p.plantsPerPlot || "-"} | ${f0(p.cycle)}${p.window ? ` (${f0(p.firstHarvest)} + ${f0(p.window)} picking)` : ""} | ${f1(every)} days | ${f0(harvest)} g (${f2((harvest / 1000) * KG_LB)} lb) | ${f0(eaten)} g | ${f0(kc)} | ${f1(pr)} g | ${f1(w)} L (${f2(w * L_GAL)} gal) | ${p.source === "cea" ? "BVAD 2022 (hydroponic)" : p.source === "proposed" ? "NCSU CEFS (proposed row)" : "plants.csv / yields.ron"} |`);
   }
-  L.push(`| **Total** | ${Object.values(plots).reduce((s, v) => s + v, 0)} | | | | ${f0(totG)} g (${f2((totG / 1000) * KG_LB)} lb) | ${f0(totEat)} g | ${f0(plotSupply.energy_kcal)} | ${f1(plotSupply.protein_g)} g | ${f1(totW)} L (${f2(totW * L_GAL)} gal) | |`);
+  const nShelves = Object.entries(plots).filter(([id]) => isShelf(id)).reduce((s, [, v]) => s + v, 0);
+  L.push(`| **Total** | ${nPlots}${nShelves ? ` + ${nShelves} shelves` : ""} | | | | ${f0(totG)} g (${f2((totG / 1000) * KG_LB)} lb) | ${f0(totEat)} g | ${f0(plotSupply.energy_kcal)} | ${f1(plotSupply.protein_g)} g | ${f1(totW)} L (${f2(totW * L_GAL)} gal) | |`);
   L.push("");
   // The nutrient table.
   L.push("| Nutrient | Daily target | Supplied | Percent | Gap or margin | Notes |");
@@ -629,6 +728,15 @@ function loops(D, a) {
     const gDay = (perShelf * ((y.lo + y.hi) / 2) * 1000) / cycle * (1 - (D.food.crops[uv.crop].refuse_pct || 0) / 100);
     const need = (15 * a.residents / uv.vitamin_d_ug_per_100g) * 100;
     L.push(`- Vitamin D from UV-flashed ${cropName(D, uv.crop).toLowerCase()}s: ${f0(need)} g a day at ${uv.vitamin_d_ug_per_100g} ug/100 g; one ${f2(shelf)} m2 shelf of the mushroom rack holds ${perShelf} square feet of bed and gives ${f0(gDay)} g a day (${f0(cycle)} days a crop), so **${Math.ceil(need / gDay)} shelf** (${f0((100 * need) / gDay)} percent of one).`);
+  }
+  // The growing medium (2026-11-07).
+  const s = a.substrate;
+  if (s) {
+    const S = D.garden.substrate;
+    const top = s.residue.slice(0, 3).map(([id, g]) => `${cropName(D, id).toLowerCase()} ${f0(g)} g`).join(", ");
+    const eats = [...s.mushrooms.map(([id, g]) => `${cropName(D, id).toLowerCase()} ${f0(g)} g`), `the vitamin D shelf ${f0(s.vitaminD.substrateG)} g`].join(", ");
+    L.push(`- The mushroom room's growing medium: the crops leave ${f0(s.residueG)} g of dry residue a day (${top}; only crops with a measured harvest index count), ${f0(s.usableG)} g usable at ${f0(100 * S.residue_usable_share)} percent; the mushrooms need ${f0(s.needG)} g of dry substrate a day (${eats}), so the residue covers **${s.coverage === Infinity ? "all of it" : f0(100 * s.coverage) + " percent"}**${a.vitaminDFallback ? " (too little for the vitamin D shelf: it falls back to the supplement, and no mushrooms are grown for food)" : a.mushroomRoom ? " (the linear program holds it at 100 percent or more)" : s.coverage < 1 ? " (too little: the vitamin D shelf falls back to the supplement)" : ""}.`);
+    L.push(`- Preparing it: wetting to ${f0(100 * S.moisture)} percent moisture takes ${f2(s.waterL)} L of water a day (it returns to the air and the compost); pasteurising it with hot air takes ${f2(s.pasteuriseKwh)} kWh a day at ${f0(S.pasteurise_kj_per_kg_dry)} kJ a dry kg. The spent substrate, ${f0(s.spentDryG)} g dry a day, goes to the compost and back to the beds, carrying ${f0(s.spentPgYr[0])} to ${f0(s.spentPgYr[1])} g of phosphorus a year.`);
   }
   return L.join("\n");
 }
@@ -696,4 +804,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { simplex, load, analyse, productivity, targets };
+module.exports = { simplex, load, analyse, productivity, targets, residueDryG, substrateNeedG, vitaminDShelf, substrateBalance };
