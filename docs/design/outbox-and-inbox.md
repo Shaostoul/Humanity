@@ -762,7 +762,8 @@ redirect points to?" Yes to both, with one honest limit. Belongs with the safety
     private, link-local, unique-local or otherwise non-public address, both IPv4 and IPv6 (and IPv4
     written inside IPv6), and it resolves each hop's name, checks the address, then connects to that
     checked address (so a name cannot change between the check and the connection), the same refusal
-    the Web Push sender's fix (in flight on 2026-11-06) applies to push addresses; at most 10 hops, 5 seconds each, headers only plus the
+    the Web Push sender applies to push addresses (BUG-255: build it on the relay's one guard for this,
+    `src/relay/outbound.rs` `OutboundGuard`, adding a variant of `get` that reports each hop); at most 10 hops, 5 seconds each, headers only plus the
     first 64 KB of an HTML page (to read a `<meta http-equiv="refresh">`, which is a hop too); only
     http and https; a per-person allowance so the server is nobody's open proxy. "Check from this
     device" is the other choice, saying the link's owner will see the person's address. The website

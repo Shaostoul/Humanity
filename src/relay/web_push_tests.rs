@@ -16,8 +16,14 @@
 //   "an ES256 signature is 64 octets r || s, this one is 71" (DER lengths vary, 70-72).
 // - `a_push_reaches_the_push_service_end_to_end`, with the Content-Encoding header left out:
 //   "Content-Encoding: None" (left: None, right: Some("aes128gcm")).
+//
+// THE TEST SEAM (2026-11-06, BUG-255): pushes now go only to https on a public name, so the two
+// end-to-end tests reach their stand-in service (plain http on 127.0.0.1) through
+// `OutboundGuard::allowing_test_service(port)`, which exists only in test builds. Seen red without it,
+// the guard in place: "the push service heard nothing" and "the 410 subscription was not removed".
 
 use super::*;
+use crate::relay::outbound::OutboundGuard;
 use crate::relay::relay::RelayState;
 use crate::relay::storage::Storage;
 use p256::ecdsa::signature::Verifier;
@@ -308,6 +314,9 @@ fn a_push_reaches_the_push_service_end_to_end() {
         let (port, seen) = push_service().await;
         let mut state = RelayState::new(Storage::open_temp("web_push_e2e"));
         state.vapid_key = Some(VapidKey::generate().unwrap());
+        // The stand-in service is plain http on loopback, which the relay refuses (BUG-255); the
+        // test-only seam lets exactly its address through (outbound.rs, THE TEST SEAM).
+        state.outbound = OutboundGuard::default().allowing_test_service(port);
         let state = Arc::new(state);
 
         // A browser's subscription: its own key pair and auth secret, an endpoint at the service.
@@ -349,6 +358,7 @@ fn an_expired_subscription_is_forgotten() {
         let (port, seen) = push_service().await;
         let mut state = RelayState::new(Storage::open_temp("web_push_gone"));
         state.vapid_key = Some(VapidKey::generate().unwrap());
+        state.outbound = OutboundGuard::default().allowing_test_service(port);
         let state = Arc::new(state);
         let ua = b64e(random_secret().unwrap().public_key().to_sec1_point(false).as_bytes());
         let auth = b64e(&[9u8; 16]);

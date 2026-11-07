@@ -851,6 +851,25 @@ function updateDndTimes(enabled) {
   container.style.pointerEvents = enabled ? 'auto' : 'none';
 }
 
+/** Forget this browser's push subscription, in the browser and on the server (BUG-255). The
+ *  server removes it only for a request signed by the identity it belongs to, over
+ *  `push_unsubscribe\n{endpoint}` then `\n{timestamp}` (getPqSignedAuth; the words are pinned in
+ *  scripts/tests/fixtures/push-signing-v1.json, scripts/tests/push-subscribe-web.test.js). With no
+ *  identity readable on this page nothing is sent: the server forgets the subscription by itself
+ *  the first time its push service answers that it is gone. */
+async function unsubscribeFromPush(sub) {
+  var endpoint = sub.endpoint;
+  await sub.unsubscribe();
+  var auth = typeof window.getPqSignedAuth === 'function'
+    ? await window.getPqSignedAuth('push_unsubscribe\n' + endpoint) : null;
+  if (!auth) return;
+  await fetch('/api/push/unsubscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: auth.key, endpoint: endpoint, timestamp: auth.timestamp, sig: auth.sig })
+  }).catch(function() {});
+}
+
 /** Master push toggle, subscribe or unsubscribe */
 async function togglePushNotifications(enabled) {
   var statusEl = document.getElementById('push-status-msg');
@@ -917,15 +936,7 @@ async function togglePushNotifications(enabled) {
       if ('serviceWorker' in navigator) {
         var reg = await navigator.serviceWorker.ready;
         var sub = await reg.pushManager.getSubscription();
-        if (sub) {
-          await sub.unsubscribe();
-          // Notify server
-          fetch('/api/push/unsubscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ endpoint: sub.endpoint })
-          }).catch(function() {});
-        }
+        if (sub) await unsubscribeFromPush(sub);
       }
     } catch (e) {
       console.warn('Push unsubscribe error:', e);

@@ -13,28 +13,30 @@ pub fn is_room(state: &RelayState, channel: &str) -> bool {
     !channel.is_empty() && state.db.channel_exists(channel).unwrap_or(false)
 }
 
-/// Check if an IP address is private/internal (SSRF prevention).
-pub fn is_private_ip(ip: &std::net::IpAddr) -> bool {
-    match ip {
-        std::net::IpAddr::V4(v4) => {
-            v4.is_loopback() || v4.is_private() || v4.is_link_local()
-                || v4.octets()[0] == 0 // 0.0.0.0/8
-        }
-        std::net::IpAddr::V6(v6) => {
-            v6.is_loopback() || v6.is_unspecified()
-        }
-    }
-}
+/// How many redirects a link preview follows, each to an address checked as the first was.
+const PREVIEW_REDIRECTS: usize = 3;
+/// The most of a page a link preview reads; a longer page gets no preview.
+const PREVIEW_MAX_BYTES: usize = 256 * 1024;
 
 /// Fetch and cache a link preview for a URL. Returns None on failure.
+///
+/// The link is someone else's, so the page is fetched only on the public internet, through the
+/// shared outbound guard (`relay::outbound`, BUG-255): http or https to a public name (never a
+/// bare IP address or localhost), its addresses checked by the guarded client's own resolver as it
+/// connects, at most three redirects, each checked the same way, and at most 256 KB read. It
+/// replaces a check that looked the name up once and then let its client look it up again, follow
+/// three redirects unchecked, count only IPv6 loopback as private, and fetch anyway when the name
+/// did not resolve. Not called yet: chat-access rung 3 switches it on.
 pub async fn fetch_link_preview(state: &Arc<RelayState>, url: &str) -> Option<LinkPreview> {
-    // SSRF prevention: only HTTP(S).
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return None;
-    }
+    use crate::relay::outbound::Schemes;
 
     // Don't fetch upload URLs from our own server.
     if url.contains("/uploads/") {
+        return None;
+    }
+    // Only an address the server may fetch (the guard checks it again, and every redirect, as it goes).
+    if let Err(why) = state.outbound.shape(url, Schemes::HttpOrHttps) {
+        tracing::debug!("Link preview refused: {}", why.reason());
         return None;
     }
 
@@ -49,36 +51,14 @@ pub async fn fetch_link_preview(state: &Arc<RelayState>, url: &str) -> Option<Li
         });
     }
 
-    // DNS resolution + SSRF check.
-    if let Ok(parsed) = url::Url::parse(url) {
-        if let Some(host) = parsed.host_str() {
-            // Try to resolve the hostname to check for private IPs.
-            if let Ok(addrs) = tokio::net::lookup_host(format!("{}:{}", host, parsed.port_or_known_default().unwrap_or(80))).await {
-                for addr in addrs {
-                    if is_private_ip(&addr.ip()) {
-                        tracing::debug!("SSRF blocked: {} resolves to private IP {}", url, addr.ip());
-                        return None;
-                    }
-                }
-            }
-        }
-    }
-
-    // Fetch with timeout and redirect limit.
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .redirect(reqwest::redirect::Policy::limited(3))
-        .build()
-        .ok()?;
-
-    let resp = match client.get(url)
-        .header("User-Agent", "HumanityRelay/1.0 LinkPreview")
-        .send()
-        .await
-    {
+    let tune = |r: reqwest::RequestBuilder| {
+        r.header("User-Agent", "HumanityRelay/1.0 LinkPreview").timeout(std::time::Duration::from_secs(5))
+    };
+    let resp = match state.outbound.get(url, Schemes::HttpOrHttps, PREVIEW_REDIRECTS, tune).await {
         Ok(r) => r,
         Err(e) => {
-            tracing::debug!("Link preview fetch failed for {}: {}", url, e);
+            // Never the link itself in the log: it may be from a private room.
+            tracing::debug!("Link preview not fetched: {e:?}");
             return None;
         }
     };
@@ -91,11 +71,8 @@ pub async fn fetch_link_preview(state: &Arc<RelayState>, url: &str) -> Option<Li
         return None;
     }
 
-    // Limit body size to 256KB.
-    let body = match resp.text().await {
-        Ok(b) if b.len() <= 256 * 1024 => b,
-        _ => return None,
-    };
+    // At most PREVIEW_MAX_BYTES, read a piece at a time, so a huge page is never held whole.
+    let body = read_at_most(resp, PREVIEW_MAX_BYTES).await?;
 
     // Parse OG tags with simple regex (avoiding heavy HTML parser dependency).
     let og_title = extract_meta(&body, "og:title")
@@ -119,7 +96,7 @@ pub async fn fetch_link_preview(state: &Arc<RelayState>, url: &str) -> Option<Li
         Some(LinkPreview {
             url: url.to_string(),
             title: og_title,
-            description: og_desc.map(|d| if d.len() > 300 { format!("{}…", &d[..297]) } else { d }),
+            description: og_desc.map(|d| at_most_chars(d, 300)),
             image: og_image,
             site_name: og_site,
         })
@@ -127,6 +104,29 @@ pub async fn fetch_link_preview(state: &Arc<RelayState>, url: &str) -> Option<Li
         None
     }
 }
+
+/// The body as text, or None when it is longer than `max` bytes or could not be read.
+async fn read_at_most(mut resp: reqwest::Response, max: usize) -> Option<String> {
+    let mut bytes = Vec::new();
+    while let Some(piece) = resp.chunk().await.ok()? {
+        if bytes.len() + piece.len() > max {
+            return None;
+        }
+        bytes.extend_from_slice(&piece);
+    }
+    Some(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// `text` cut to at most `max` characters, an ellipsis marking a cut (on a character boundary:
+/// slicing the bytes at 297, as this did, panics when a multi-byte character sits there).
+fn at_most_chars(text: String, max: usize) -> String {
+    if text.chars().count() <= max {
+        return text;
+    }
+    let cut: String = text.chars().take(max - 3).collect();
+    format!("{cut}\u{2026}")
+}
+
 
 /// Extract OG meta content: <meta property="X" content="Y">
 pub fn extract_meta(html: &str, property: &str) -> Option<String> {
@@ -170,3 +170,7 @@ pub fn html_decode(s: &str) -> String {
 pub fn shortKey_rust(hex: &str) -> String {
     if hex.len() >= 8 { hex[..8].to_string() } else { hex.to_string() }
 }
+
+#[cfg(test)]
+#[path = "link_preview_tests.rs"]
+mod link_preview_tests;

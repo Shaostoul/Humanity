@@ -31,7 +31,8 @@ impl Storage {
         })
     }
 
-    /// Remove a push subscription by endpoint.
+    /// Remove a push subscription by endpoint, whoever holds it: for the push service's own word
+    /// that it has expired (a 404 or 410 to a push, `push_send.rs`).
     pub fn remove_push_subscription(&self, endpoint: &str) -> Result<(), rusqlite::Error> {
         self.with_conn(|conn| {
             conn.execute(
@@ -39,6 +40,17 @@ impl Storage {
                 params![endpoint],
             )?;
             Ok(())
+        })
+    }
+
+    /// Remove `public_key`'s own subscription at `endpoint` (the signed unsubscribe,
+    /// `push_routes.rs`): someone else's is left alone. Returns how many rows went (0 or 1).
+    pub fn remove_own_push_subscription(&self, public_key: &str, endpoint: &str) -> Result<usize, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "DELETE FROM push_subscriptions WHERE endpoint = ?1 AND public_key = ?2",
+                params![endpoint, public_key],
+            )
         })
     }
 

@@ -167,6 +167,9 @@ pub struct RelayState {
     pub webhook: Option<WebhookConfig>,
     /// HTTP client for webhook calls.
     pub http_client: reqwest::Client,
+    /// Where requests to addresses others handed the server may go (Web Push, link previews), and
+    /// the guarded clients they are sent with (outbound.rs, BUG-255). Never `http_client` for those.
+    pub outbound: crate::relay::outbound::OutboundGuard,
     /// Per-key rate limiting state (Fibonacci backoff).
     pub rate_limits: RwLock<HashMap<String, RateLimitState>>,
     /// Private-message send buckets, separate from channel chat's limiter above (handlers/dm_rate.rs).
@@ -486,6 +489,7 @@ impl RelayState {
             start_time: std::time::Instant::now(),
             webhook,
             http_client: reqwest::Client::new(),
+            outbound: Default::default(),
             rate_limits: RwLock::new(HashMap::new()),
             dm_rate: Default::default(),
             dm_knocks: RwLock::new(HashMap::new()),

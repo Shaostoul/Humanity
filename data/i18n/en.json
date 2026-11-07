@@ -2804,7 +2804,17 @@
     "unallow_person": "Stop always allowing",
     "unallow_person_hint": "Their calls and messages wait for the end of your quiet hours again.",
     "allowed_person": "Always allowed during quiet hours",
-    "event_where_home": "your home"
+    "event_where_home": "your home",
+    "push_refused_too_long": "Notifications could not be turned on: your browser's notification address is longer than this server accepts.",
+    "push_refused_not_web_address": "Notifications could not be turned on: your browser gave a notification address this server cannot use.",
+    "push_refused_not_https": "Notifications could not be turned on: your browser's notification service does not use a secure (https) connection, and this server sends notifications only over secure connections.",
+    "push_refused_userinfo": "Notifications could not be turned on: your browser's notification address has a name or password written into it, which this server does not accept.",
+    "push_refused_address": "Notifications could not be turned on: your browser's notification service is a bare number address, and this server sends notifications only to services reached by name.",
+    "push_refused_private": "Notifications could not be turned on: your browser's notification service is on a private or local network. This server sends notifications only to services on the public internet, so that nobody can use it to reach machines that are not meant to be reached from outside.",
+    "push_refused_unknown_name": "Notifications could not be turned on: this server could not find your browser's notification service. Try again later.",
+    "push_refused_keys": "Notifications could not be turned on: your browser's notification keys were not in the expected form. Reloading the page may fix it.",
+    "push_refused_clock": "Notifications could not be turned on: this device's clock looks wrong. Set it to the right time, then reload the page.",
+    "push_refused_other": "Notifications could not be turned on: this server refused the request. Reload the page to try again."
   },
   "front_door": {
     "page_title": "HumanityOS: free guides and tools for food, water and power",

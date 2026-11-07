@@ -82,8 +82,14 @@ pub mod call_forwarder;
 pub mod call_credentials;
 pub mod stun_wire;
 /// Web Push, our own: RFC 8291 payload encryption and the RFC 8292 VAPID token on p256
-/// (2026-11-06; `relay.rs`'s `push_send` sends what it builds).
+/// (2026-11-06; `relay.rs`'s `push_send` sends what it builds, through `outbound`'s client).
 pub mod web_push;
+/// Requests to addresses someone else handed the server (Web Push endpoints, link previews, the
+/// planned link check): only to public names, checked by the guarded client's own resolver as it
+/// connects, redirects followed hop by hop (2026-11-06, BUG-255: server-side request forgery).
+pub mod outbound;
+/// POST /api/push/subscribe and /api/push/unsubscribe, signed over the endpoint (BUG-255).
+pub mod push_routes;
 /// Server→Services privilege bridge (v0.262.16). Tightly-allowlisted
 /// daemon start/stop for operator feature control. SECURITY-SENSITIVE —
 /// see the module docs; the allowlist is the trust boundary.
@@ -1385,8 +1391,8 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
             .put(api::vault_sync_put)
             .delete(api::vault_sync_delete)
         )
-        .route("/api/push/subscribe", post(api::push_subscribe))
-        .route("/api/push/unsubscribe", post(api::push_unsubscribe))
+        .route("/api/push/subscribe", post(push_routes::push_subscribe))
+        .route("/api/push/unsubscribe", post(push_routes::push_unsubscribe))
         .route("/api/vapid-public-key", get(api::get_vapid_public_key))
         // The server's data folder, for its admins only (BUG-205, BUG-206): every one a signed POST.
         .route("/api/data-files", post(api::list_files))

@@ -81,6 +81,13 @@ And 44 more items, 47 references (`node scripts/crate-cards.js --interface human
   orientation.
 - **Moving a server carries its keys:** `data/backup.key` and `data/erased-accounts.key` go with
   `relay.db`. Source: [storage.md](../ai/storage.md), "Moving a server".
+- **The server never sends a request to an address someone else handed it through the shared
+  `http_client`.** Web Push endpoints, link previews and anything new (the planned link check) go
+  through `outbound::OutboundGuard`: public names only, checked by the guarded client's own
+  resolver as it connects, redirects followed by `OutboundGuard::get` with each hop checked, no
+  proxy (an IP-literal host skips any resolver, so it is refused before reqwest sees it). Its test
+  seam is `#[cfg(test)]` only. Source: [outbound.rs](../../src/relay/outbound.rs), BUG-255 in
+  [BUGS.md](../BUGS.md).
 
 ## How to test it
 

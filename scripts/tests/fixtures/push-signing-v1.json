@@ -1,0 +1,9 @@
+{
+  "about": "The words the website signs for POST /api/push/subscribe and /api/push/unsubscribe (2026-11-06, BUG-255), Dilithium3 over each preimage. The relay's builders (src/relay/push_routes.rs subscribe_purpose, unsubscribe_purpose, then \\n{timestamp}) are held to it by push_routes_tests.rs, the website's requests (web/chat/chat-ui.js subscribeToPush, web/pages/settings-app.js unsubscribeFromPush) by scripts/tests/push-subscribe-web.test.js. The keys are RFC 8291 appendix A's user agent's.",
+  "endpoint": "https://fcm.googleapis.com/fcm/send/dQw4w9WgXcQ:APA91bHPRgkF3JUikC4ENAHEeMrd41Zxv3hVZjC9KtT8OvPVGJ",
+  "p256dh": "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
+  "auth": "BTBZMqHH6r4Tts7J_aSIgg",
+  "timestamp": 1800000000000,
+  "subscribe_preimage": "push_subscribe\nhttps://fcm.googleapis.com/fcm/send/dQw4w9WgXcQ:APA91bHPRgkF3JUikC4ENAHEeMrd41Zxv3hVZjC9KtT8OvPVGJ\nBCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4\nBTBZMqHH6r4Tts7J_aSIgg\n1800000000000",
+  "unsubscribe_preimage": "push_unsubscribe\nhttps://fcm.googleapis.com/fcm/send/dQw4w9WgXcQ:APA91bHPRgkF3JUikC4ENAHEeMrd41Zxv3hVZjC9KtT8OvPVGJ\n1800000000000"
+}

@@ -1949,69 +1949,8 @@ pub async fn get_vapid_public_key(
     Ok(Json(serde_json::json!({ "key": encoded })))
 }
 
-#[derive(Debug, Deserialize)]
-pub struct PushSubscribeRequest {
-    /// Ed25519 public key (hex) of the subscribing user.
-    pub public_key: String,
-    /// Push service endpoint URL from PushSubscription.
-    pub endpoint: String,
-    /// P-256 DH public key from PushSubscription.keys.p256dh (base64url).
-    pub p256dh: String,
-    /// Auth secret from PushSubscription.keys.auth (base64url).
-    pub auth: String,
-    /// Unix milliseconds (anti-replay).
-    pub timestamp: u64,
-    /// sign("push_subscribe\n" + timestamp, private_key).
-    pub sig: String,
-}
-
-/// POST /api/push/subscribe — Register a push subscription for a user.
-pub async fn push_subscribe(
-    state: State<Arc<RelayState>>,
-    Json(body): Json<PushSubscribeRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
-    let vk = body.public_key.clone();
-    let vsig = body.sig.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "push_subscribe", vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
-
-    state.db.save_push_subscription(&body.public_key, &body.endpoint, &body.p256dh, &body.auth)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
-
-    tracing::info!("Push subscription registered for key {}", &body.public_key[..8.min(body.public_key.len())]);
-    Ok(Json(serde_json::json!({ "status": "subscribed" })))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PushUnsubscribeRequest {
-    /// Push service endpoint URL to remove.
-    pub endpoint: String,
-}
-
-/// POST /api/push/unsubscribe — Remove a push subscription.
-pub async fn push_unsubscribe(
-    state: State<Arc<RelayState>>,
-    Json(body): Json<PushUnsubscribeRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    state.db.remove_push_subscription(&body.endpoint)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
-    Ok(Json(serde_json::json!({ "status": "unsubscribed" })))
-}
+// The subscribe and unsubscribe routes are `push_routes.rs` (2026-11-06, BUG-255: signed over the
+// endpoint, and the endpoint checked against `outbound`).
 
 // ── Asset Manifest API ───────────────────────────────────────────────────────
 // Scans the static file directories and returns every asset on disk so the
