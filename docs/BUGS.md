@@ -7571,37 +7571,13 @@ he noticed the "2+ hour task".
 - **Fixed**: under the protected setup the server's 422 is said in the server's words, as any other refusal is, and nothing waits to be sent. Web `web/chat/chat-messages.js` `uploadPrepared` (`attachProtectedOn()`, cache tag v=29); desktop `chat/attach_send.rs` `drain` (`engine::protected::is_on`).
 - **Held by**, each seen red first: `scripts/tests/upload-keep-web.test.js` 4 (red against HEAD's chat-messages.js: "no question under the protected setup", actual 1 window) and `gui::pages::chat::attach_send::keep_tests::the_servers_422_under_the_protected_setup_says_its_words` (red against `drain` from before: "nothing asked under the protected setup").
 
-## BUG-277: a missing page on the website showed nginx's own page, naming its version (FIXED in the repo 2026-11-07, needs the operator on the live server; found 2026-11-07)
+## BUG-277: a missing page on the website showed nginx's own page, naming its version (FIXED 2026-11-07, live on united-humanity.us the same day; found 2026-11-07)
 
 **Found by** the website checklist, checked live with curl on 2026-11-07: `https://united-humanity.us/<anything missing>` answered "404 Not Found" over "nginx/1.22.1", with no way on, and the `Server:` header named the version too, which tells anyone scanning for a known flaw exactly which to try. `scripts/nginx/humanity.conf` had no `error_page` and no `server_tokens`.
 - **Fixed in the repo** (2026-11-07): `web/pages/404.html`, our own page in plain words with a way on (the front door, the Library, How-to, Chat, report the link); `humanity.conf` sends a missing address there (`error_page 404 /404.html;`, the page `internal`) and has `server_tokens off;` in every server block. The relay's own 404s (`/api/`, `/uploads/`) pass through as before. `scripts/provision-vps.sh` also declares the `resumable_limit` zone the config uses, which a freshly provisioned server lacked.
 - **Held by** `scripts/tests/not-found-web.test.js` (red against the old config: no error_page, all four server blocks without server_tokens; and with the page missing).
 - **Why a push does not fix the live site**: the deploy (`.github/workflows/deploy.yml`) copies the page into the web root (`scripts/sync-web-root.sh`) but never touches nginx, and `provision-vps.sh` installs `humanity.conf` only when a server is first set up. On united-humanity.us `/etc/nginx/sites-enabled/humanity` is a plain, hand-edited file (not the usual link), drifted from the repo, so it must not be overwritten with the repo's copy.
-- **The operator's commands** (once this is merged and deployed, so `/var/www/humanity/404.html` exists; checked read-only on 2026-11-07: the live file has 4 `server {` lines and 1 `    index index.html;` line, and `/etc/nginx/nginx.conf` line 21 is `	# server_tokens off;`):
-
-  ```
-  ssh humanity-vps
-  ls -l /var/www/humanity/404.html                         # the deploy put the page there
-  F=/etc/nginx/sites-enabled/humanity
-  cp "$F" /root/humanity.nginx.2026-11-07.bak
-  cp /etc/nginx/nginx.conf /root/nginx.conf.2026-11-07.bak
-  # 1. every site on the box, the Forgejo one included: turn on the line Debian ships commented out
-  sed -i 's/^\t# server_tokens off;/\tserver_tokens off;/' /etc/nginx/nginx.conf
-  # 2. this site's four server blocks, as in the repo
-  sed -i 's/^server {$/server {\n    server_tokens off;/' "$F"
-  # 3. our 404 page, in the main block only (the one line `    index index.html;` is there)
-  sed -i 's|^    index index.html;$|    index index.html;\n    error_page 404 /404.html;\n    location = /404.html { internal; }|' "$F"
-  nginx -t && systemctl reload nginx
-  # if nginx -t failed: cp /root/humanity.nginx.2026-11-07.bak "$F"; cp /root/nginx.conf.2026-11-07.bak /etc/nginx/nginx.conf
-  ```
-
-  Then check from anywhere:
-
-  ```
-  curl -sI https://united-humanity.us/no-such-page | grep -i -E '^HTTP|^server'   # HTTP/2 404, and "server: nginx" with no number
-  curl -s  https://united-humanity.us/no-such-page | grep -o 'This page is not here'
-  curl -s  https://united-humanity.us/api/no-such-route                            # still the relay's own answer
-  ```
+- **Applied live** (2026-11-07, after the deploy put `/var/www/humanity/404.html` in place): both files backed up to `/root/humanity.nginx.2026-11-07.bak` and `/root/nginx.conf.2026-11-07.bak`; Debian's commented `server_tokens off;` turned on in `/etc/nginx/nginx.conf` (http level, so every site on the box, the Forgejo one included; the per-block lines in the repo copy are then redundant on this server and were not added); `error_page 404 /404.html;` and `location = /404.html { internal; }` added after the one `    index index.html;` line, inside the united-humanity.us 443 block; `nginx -t` passed and nginx reloaded. Checked from outside: a missing page answers 404 with "This page is not here" and `Server: nginx` with no number; `/`, `/chat/`, `/privacy` and git.united-humanity.us answer as before, and `/api/<missing>` is still the relay's own answer. Undo: copy the two `.bak` files back and reload.
 
 ## BUG-278: the public list of who is online names people who turned off "Show others when I am online" (OPEN, found 2026-11-07)
 
