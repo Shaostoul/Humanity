@@ -1298,7 +1298,10 @@ async function sendPendingBlockNotes() {
     // them as of (10n).
     const built = typeof pqBuildSelfNote === 'function' ? await pqBuildSelfNote(text, note.at) : null;
     if (!built || !ws || ws.readyState !== WebSocket.OPEN) return; // tried again on the next connection
-    ws.send(JSON.stringify(built.put));
+    // At once: a block note pairs with nothing (nothing goes to the person blocked), and it stays
+    // marked unsent until it has gone (shared/self-mail.js, BUG-259).
+    if (typeof hosSelfMailSendNow === 'function') hosSelfMailSendNow(ws, JSON.stringify(built.put));
+    else ws.send(JSON.stringify(built.put));
     store.blockNoteSent(note.action, note.key);
   }
 }

@@ -31,6 +31,10 @@
 // - No room left by the finish (507: the server keeps the file for a day, and
 //   Retry sends the empty piece that tries the finish again, so nothing is
 //   sent twice), and an answer lost on the way (the server's `done` on GET).
+// - A file the server could not clean at the finish (422, the relay's
+//   CANNOT_CLEAN: it stored nothing and dropped the upload): it fails with the
+//   server's words and `cannotClean`, and the page asks the person whether to
+//   send it anyway (2026-11-07, BUG-275; files-add.js).
 // - A file that can no longer be read (moved, changed, its drive unplugged):
 //   each piece is read before it is sent, so a read that fails ends the
 //   upload with words saying so, instead of looking like a dropped connection
@@ -88,6 +92,10 @@
   const CANCEL_TRIES = 10;
   // How much of each end of a file its fingerprint covers.
   const FINGERPRINT_BYTES = MIB;
+  // An upload's answer that means "its hidden details could not be removed" (the relay's
+  // CANNOT_CLEAN, BUG-260): the server drops the upload and stores nothing, and the page asks the
+  // person whether to send it anyway (BUG-275, as the chat does at its own 422).
+  const CANNOT_CLEAN_STATUS = 422;
 
   function hex(buf) {
     return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
@@ -273,11 +281,14 @@
    * 'allowance', 'no_room', 'server_error', 'failed', 'cancelling',
    * 'cancelled', 'done'), id, offset, size, error, resetsAt (this device's
    * time when an allowance wait ends), retryIn (seconds), resumed, unreadable,
-   * and once cancelled `cancelAnswer` (`cancelSession`'s answer, '' when the
-   * server never had a session) with `error` its words.
+   * cannotClean (failed because the server could not remove the file's hidden
+   * details: its 422 at the finish, for an upload not kept by choice; the
+   * server stored nothing, and the page asks the person, BUG-275), and once
+   * cancelled `cancelAnswer` (`cancelSession`'s answer, '' when the server
+   * never had a session) with `error` its words.
    */
   function createUploader(o) {
-    const s = { phase: 'idle', id: '', offset: 0, size: o.file.size, chunkMax: 0, error: '', resetsAt: 0, retryIn: 0, resumed: false, unreadable: false, answer: null, cancelAnswer: '' };
+    const s = { phase: 'idle', id: '', offset: 0, size: o.file.size, chunkMax: 0, error: '', resetsAt: 0, retryIn: 0, resumed: false, unreadable: false, cannotClean: false, answer: null, cancelAnswer: '' };
     const Abort = o.AbortController || root.AbortController || null;
     let running = false;
     let pauseWanted = false;
@@ -455,6 +466,13 @@
           }
         }
         if (s.id) return await loop();
+        // Kept with its details by choice: the person's signed choice for this very file, over its
+        // BLAKE3, which the server then holds the finished file to (BUG-260). Made once per start.
+        let keep = null;
+        if (o.keepMetadata) {
+          try { keep = typeof o.signKeep === 'function' ? await o.signKeep(o.file) : null; } catch (e) { keep = null; }
+          if (!keep) return fail(typeof o.keepWord === 'function' ? o.keepWord('upload_keep.cannot_sign') : 'upload_keep.cannot_sign');
+        }
         for (;;) {
           if (stopping()) return stopped();
           await waitForToken();
@@ -466,7 +484,7 @@
               method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
               // keep_metadata: 1 only when the person chose to keep the file's hidden details (the
               // switch on the form, B4): the server then skips its own strip too.
-              body: JSON.stringify(Object.assign({ filename: o.file.name, size: o.file.size, content_type: o.file.type || 'application/octet-stream', media: 1 }, o.keepMetadata ? { keep_metadata: 1 } : {})),
+              body: JSON.stringify(Object.assign({ filename: o.file.name, size: o.file.size, content_type: o.file.type || 'application/octet-stream', media: 1 }, keep ? { keep_metadata: 1, blake3: keep.blake3, keep: JSON.parse(keep.json) } : {})),
             });
           } catch (e) {
             if (!await dropWait()) return stopped();
@@ -592,7 +610,10 @@
           await nap(1000);
           continue;
         }
-        return fail(b.words);
+        // The server could not remove the file's hidden details at the finish (BUG-260) and dropped
+        // the upload: the state says so, and the page asks the person (BUG-275). One kept by choice
+        // is never cleaned, so a 422 for it is only words.
+        return fail(b.words, res.status === CANNOT_CLEAN_STATUS && !o.keepMetadata ? { cannotClean: true } : null);
       }
     }
 
@@ -655,7 +676,7 @@
 
   const api = {
     RESUME_KEY, RESUME_MAX_AGE_MS, DEFAULT_CHUNK, RETRY_FIRST_MS, RETRY_MAX_MS, SAME_ERROR_TRIES, ALLOWANCE_MIN_MS,
-    CANCEL_TRIES, FINGERPRINT_BYTES, fingerprint, rememberUpload, touchUpload, findUpload, forgetUpload, isAllowance,
+    CANCEL_TRIES, FINGERPRINT_BYTES, CANNOT_CLEAN_STATUS, fingerprint, rememberUpload, touchUpload, findUpload, forgetUpload, isAllowance,
     readAnswer, cancelSession, createUploader, attachPurpose, attachUpload,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;

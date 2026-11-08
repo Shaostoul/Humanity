@@ -744,6 +744,13 @@ function updateRangeLabels() {
   const volEl = document.getElementById('pref-speaker-vol');
   const volLabel = document.getElementById('speaker-vol-label');
   if (volEl && volLabel) volLabel.textContent = volEl.value + '%';
+  // Videos (2026-11-06): the set volume shows its percent, and only with "A set volume" chosen.
+  const startEl = document.getElementById('pref-video-start');
+  const pctEl = document.getElementById('pref-video-start-pct');
+  const pctLabel = document.getElementById('video-start-pct-label');
+  const pctRow = document.getElementById('video-start-pct-row');
+  if (pctEl && pctLabel) pctLabel.textContent = pctEl.value + '%';
+  if (startEl && pctRow) pctRow.style.display = startEl.value === 'set' ? '' : 'none';
 }
 
 // Patch savePref to also update range labels
@@ -753,7 +760,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1549.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1550.1 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -851,6 +858,25 @@ function updateDndTimes(enabled) {
   container.style.pointerEvents = enabled ? 'auto' : 'none';
 }
 
+/** Forget this browser's push subscription, in the browser and on the server (BUG-255). The
+ *  server removes it only for a request signed by the identity it belongs to, over
+ *  `push_unsubscribe\n{endpoint}` then `\n{timestamp}` (getPqSignedAuth; the words are pinned in
+ *  scripts/tests/fixtures/push-signing-v1.json, scripts/tests/push-subscribe-web.test.js). With no
+ *  identity readable on this page nothing is sent: the server forgets the subscription by itself
+ *  the first time its push service answers that it is gone. */
+async function unsubscribeFromPush(sub) {
+  var endpoint = sub.endpoint;
+  await sub.unsubscribe();
+  var auth = typeof window.getPqSignedAuth === 'function'
+    ? await window.getPqSignedAuth('push_unsubscribe\n' + endpoint) : null;
+  if (!auth) return;
+  await fetch('/api/push/unsubscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: auth.key, endpoint: endpoint, timestamp: auth.timestamp, sig: auth.sig })
+  }).catch(function() {});
+}
+
 /** Master push toggle, subscribe or unsubscribe */
 async function togglePushNotifications(enabled) {
   var statusEl = document.getElementById('push-status-msg');
@@ -917,15 +943,7 @@ async function togglePushNotifications(enabled) {
       if ('serviceWorker' in navigator) {
         var reg = await navigator.serviceWorker.ready;
         var sub = await reg.pushManager.getSubscription();
-        if (sub) {
-          await sub.unsubscribe();
-          // Notify server
-          fetch('/api/push/unsubscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ endpoint: sub.endpoint })
-          }).catch(function() {});
-        }
+        if (sub) await unsubscribeFromPush(sub);
       }
     } catch (e) {
       console.warn('Push unsubscribe error:', e);
@@ -1232,6 +1250,8 @@ function renderSoundRows() {
     play.addEventListener('click', function () {
       var s = (notifFile.sounds || []).find(function (x) { return x.id === current; });
       if (!s || typeof Audio !== 'function') return;
+      // At its level (Audio & Video > Sound levels), as the chat plays it.
+      if (window.HosSoundLevels) { window.HosSoundLevels.play(s.path, s.id); return; }
       try { var a = new Audio('/assets/' + s.path); a.volume = 0.6; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) { /* this browser cannot play it */ }
     });
     row.appendChild(play);
@@ -1346,9 +1366,29 @@ window.addEventListener('hos-wip-mute', renderWipMuteRow);
 if (typeof fetch === 'function') {
   fetch('/data/notifications/notifications.json', { cache: 'no-cache' })
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (j) { notifFile = j; if (j && window.HosNotifyRules) window.HosNotifyRules.use(j); renderMutedList(); renderSoundRows(); })
+    .then(function (j) { notifFile = j; if (j && window.HosNotifyRules) window.HosNotifyRules.use(j); renderMutedList(); renderSoundRows(); renderSoundLevels(); })
     .catch(function () { renderMutedList(); });
 }
+
+// ── Audio & Video > Sound levels (2026-11-06; the desktop's Settings > Audio > Sound levels) ──
+// The website plays only the notification sounds, so those are the rows: notifications.json's
+// `sounds`, each with its level, Play and Reset (/shared/sound-levels.js draws them and keeps the
+// levels in this browser, where the chat's chat-notify.js reads them). Reset all under them.
+var redrawSoundLevels = null;
+function renderSoundLevels() {
+  var box = document.getElementById('sound-levels-list');
+  if (!box || !window.HosSoundLevels || !notifFile) return;
+  redrawSoundLevels = window.HosSoundLevels.render(box, notifFile.sounds || [], notifT);
+}
+(function () {
+  var all = document.getElementById('sound-levels-reset-all');
+  if (!all) return;
+  all.addEventListener('click', function () {
+    if (!window.HosSoundLevels) return;
+    window.HosSoundLevels.resetAll(localStorage);
+    if (redrawSoundLevels) redrawSoundLevels();
+  });
+})();
 renderAllowList();
 // The chat in another tab muted or unmuted something, or changed the always-allow list: show it.
 window.addEventListener('storage', function (e) {

@@ -1204,6 +1204,11 @@ function openSocket(opts) {
 
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
+  // My own copy of a message (and every other `dm_put` to my own mailbox but
+  // the notes that pair with nothing) leaves a random 20 s to 2 min later, so
+  // it never lands beside the recipient's copy on the server (BUG-259,
+  // shared/self-mail.js). Copies still waiting go out on this socket.
+  if (typeof hosSelfMail !== 'undefined') hosSelfMail.attach(ws, () => myKey);
 
   ws.onopen = () => {
     reconnectDelay = 1000;
@@ -1940,6 +1945,10 @@ async function handleMessage(msg) {
         localStorage.setItem(ERASED_FLAG, erasedKind);
       } catch (e) {}
       identityConfirmed = false;
+      // The erase emptied this identity's mailbox here, the marker holding its last number
+      // included: read it from the beginning after a sign-up again (BUG-259's review,
+      // chat-dm-store.js resetReadPosition), or the same day's new mail would sit below it.
+      if (window.hosDmStore && typeof hosDmStore.resetReadPosition === 'function') hosDmStore.resetReadPosition();
       endCallBeforeLeaving();
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       setStatus('disconnected', erasedKind === 'unfinished' ? 'Erase not finished'
@@ -3105,7 +3114,12 @@ function fileCardHtml(url, ext) {
   const sound = FILE_CARD_SOUND.includes(kind);
   const video = FILE_CARD_VIDEO.includes(kind);
   const what = sound ? 'sound' : video ? 'video' : 'document';
-  const head = `<div class="file-card${sound || video ? ' file-card-media' : ''}" data-file-url="${url}" data-file-name="${name}" data-file-kind="${what}">`;
+  // A video on this server has its poster picture beside it (rung 2, /shared/video-poster.js
+  // posterUrlOf): named on the card, and put on its player once the card is on screen
+  // (filePosterWatch). Never a video on another website (nothing is fetched there before a click).
+  const posterAt = video && fileOnThisServer(address) && typeof window !== 'undefined' && window.HosVideoPoster ? window.HosVideoPoster.posterUrlOf(address) : null;
+  const poster = posterAt ? ` data-file-poster="${esc(posterAt)}"` : '';
+  const head = `<div class="file-card${sound || video ? ' file-card-media' : ''}" data-file-url="${url}" data-file-name="${name}" data-file-kind="${what}"${poster}>`;
   // Its type, just before its name, always (fileBadgeSlotHtml): the drawing, word and colour that
   // took the place of the card's old emoji icon.
   const info = '<div class="file-info">'
@@ -3116,12 +3130,19 @@ function fileCardHtml(url, ext) {
     + '</div>';
   const download = `<a href="${url}" download="${name}" target="_blank" rel="noopener" class="file-download">Download</a>`;
   if (sound || video) {
-    // Only a file on this server is read before the player is pressed (its length and first
-    // frame, as the Media page's player does): never another website before a click.
+    // A sound on this server is read before its player is pressed (its length), never another
+    // website before a click. A VIDEO is never read before Play (2026-11-06, the inline player:
+    // "Can we make the videos show in chat and playable in chat?"): preload="none" on every one, so
+    // a chat full of videos fetches nothing as it loads (`metadata` read part of every video row).
+    // It plays inline (playsinline: a phone does not take it full screen), one at a time
+    // (fileMediaOnePlaying). Its poster picture, made when it was posted, is set once the card is
+    // on screen (filePosterWatch; docs/design/media-player.md, "Rung 2: the poster picture"); a
+    // video from before keeps the player's own black box. The desktop app's twin:
+    // chat/inline_video.rs.
     const preload = fileOnThisServer(address) ? 'metadata' : 'none';
     const player = sound
       ? `<audio controls preload="${preload}" src="${url}"></audio>`
-      : `<video controls preload="${preload}" src="${url}"></video>`;
+      : `<video controls playsinline preload="none" src="${url}"></video>`;
     return head + player + info + download + '</div>';
   }
   return head + info + download + '</div>';
@@ -3224,9 +3245,48 @@ function fillFileCards(root) {
   for (const card of Array.from(root.querySelectorAll(FILE_CARD_SELECTOR))) fillFileCard(card);
 }
 
+// ── A video's poster picture, once its card is on screen (rung 2, 2026-11-06) ──
+// docs/design/media-player.md, "Rung 2: the poster picture". A video card on this server names its
+// poster picture (`data-file-poster`, fileCardHtml); its <video> gets `poster="..."` only when the
+// card comes within a screen's height of the view, so a chat full of videos fetches only the
+// pictures of the cards near the screen, like a small picture each, and never the videos
+// (preload="none" stays). A browser without an IntersectionObserver sets it at once. A video
+// posted before poster pictures answers 404 there, and its player shows its own black box.
+let filePosterSeen = null;
+
+/** Put a card's poster picture on its player (once). */
+function filePosterShow(card) {
+  const at = card && card.dataset ? card.dataset.filePoster : '';
+  const player = at && typeof card.querySelector === 'function' ? card.querySelector('video') : null;
+  if (!player || player.getAttribute('poster')) return;
+  player.setAttribute('poster', at);
+}
+
+/** The IntersectionObserver's answer: a card near the screen gets its poster picture, and is let go. */
+function filePosterNear(entries) {
+  for (const entry of entries || []) {
+    if (!entry || !entry.isIntersecting || !entry.target) continue;
+    filePosterShow(entry.target);
+    if (filePosterSeen) { try { filePosterSeen.unobserve(entry.target); } catch (e) { /* not watched */ } }
+  }
+}
+
+/** Watch a video card that names a poster picture until it is near the screen. */
+function filePosterWatch(card) {
+  if (!card || !card.dataset || !card.dataset.filePoster) return;
+  if (typeof IntersectionObserver !== 'function') { filePosterShow(card); return; }
+  if (!filePosterSeen) filePosterSeen = new IntersectionObserver(filePosterNear, { rootMargin: '100% 0px' });
+  filePosterSeen.observe(card);
+}
+
 function fillFileCard(card) {
   if (!card || !card.dataset || card.dataset.fileFilled === '1') return;
   card.dataset.fileFilled = '1';
+  // A card drawn again for the video in the dock (its channel opened again): its line takes the
+  // new player's place, and the docked video goes back there once it is in view.
+  const line = fileDock ? fileDock.adopt(card) : null;
+  if (line && fileMediaSeen && fileDock.line() === line) fileMediaSeen.observe(line);
+  filePosterWatch(card);
   // Its type, drawn again once the list of kinds is in (by its name: nothing is read before a click).
   fileBadgeFill(card.querySelector('.file-badge-slot'), card.dataset.fileName || '', null);
   fileCautionFill(card.querySelector('.file-caution'), card.dataset.fileName || '', null);
@@ -3261,11 +3321,117 @@ function fileMediaTrouble(e) {
   media.hidden = true;
 }
 
+// ── One player at a time, and none playing off screen (2026-11-06) ──
+// The chat's videos play inline in their cards. Starting one pauses the one that played before, so
+// a chat full of videos never plays two at once (a sound counts too: one thing at a time). A playing
+// VIDEO scrolled out of view moves into the dock at the top right of the list, the same element
+// playing on (rung 3, /shared/video-dock.js); a sound, or a video where the dock is not loaded, is
+// paused (an IntersectionObserver, where the browser has one). The desktop app's twin:
+// src/gui/pages/chat/inline_video.rs and video_dock.rs. Heard in the CAPTURE phase on the
+// containers, as `error` is above: `play` and `pause` do not bubble.
+let fileMediaPlaying = null;
+let fileMediaSeen = null;
+let fileDock = null;
+
+/** The chat's video dock (/shared/video-dock.js), made the first time a video goes into it. */
+function fileVideoDock() {
+  if (fileDock || typeof window === 'undefined' || !window.HosVideoDock) return fileDock;
+  const messages = document.getElementById('messages');
+  fileDock = window.HosVideoDock.create({
+    document,
+    host: document.getElementById('chat-area') || document.body,
+    messages,
+    i18n: window.i18n,
+    narrow: () => !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches),
+    // Go to message: its channel, when another is open.
+    onGoTo: (origin) => { if (origin && origin.channel && origin.channel !== activeChannel) switchChannel(origin.channel); },
+    findCard: (url) => (messages ? Array.from(messages.querySelectorAll(FILE_CARD_SELECTOR)).find((c) => c.dataset && c.dataset.fileUrl === url) : null) || null,
+    // Back in its card (scrolled back, or Go to message): its line no longer watched, the video
+    // watched again while it plays, so a scroll away docks it again.
+    onBack: (video, line) => {
+      if (!fileMediaSeen) return;
+      try { fileMediaSeen.unobserve(line); } catch (e) { /* not watched */ }
+      if (video && !video.paused) fileMediaSeen.observe(video);
+    },
+  });
+  if (typeof window.addEventListener === 'function') window.addEventListener('resize', () => fileDock.place());
+  return fileDock;
+}
+
+/**
+ * A playing video in a card of the channel's messages, scrolled out of view: into the dock, the
+ * same element (/shared/video-dock.js), its card's line watched for coming back. False when it is
+ * not one (a sound, a paused one, the thread panel's, a DM's, no dock), which is paused as before.
+ */
+function fileDockTake(media) {
+  const tag = media && media.tagName ? String(media.tagName).toLowerCase() : '';
+  if (tag !== 'video' || media.paused || media.ended) return false;
+  const card = typeof media.closest === 'function' ? media.closest('.file-card-media') : null;
+  const messages = document.getElementById('messages');
+  if (!card || !messages || messages.dataset.ctx === 'dm' || typeof messages.contains !== 'function' || !messages.contains(card)) return false;
+  const dock = fileVideoDock();
+  if (!dock) return false;
+  const ch = channelList.find((c) => c.id === activeChannel);
+  const channel = '#' + (ch ? ch.name : activeChannel);
+  const line = dock.take(media, card, { channel: activeChannel }, window.i18n ? i18n.t('chat_video_dock.from_here', { channel }) : channel);
+  if (!line) return false;
+  if (fileMediaSeen) { try { fileMediaSeen.unobserve(media); } catch (e) { /* not watched */ } fileMediaSeen.observe(line); }
+  return true;
+}
+
+/** The IntersectionObserver's answer: a playing video out of view goes into the dock (any other
+ *  player is paused), and a docked video's line back in view gives it back (watched again: onBack). */
+function fileMediaOffScreen(entries) {
+  for (const entry of entries || []) {
+    const el = entry && entry.target;
+    if (!el) continue;
+    if (el.classList && el.classList.contains('file-video-away')) {
+      if (entry.isIntersecting && fileDock && fileDock.line() === el) fileDock.giveBack();
+      continue;
+    }
+    if (entry.isIntersecting || typeof el.pause !== 'function') continue;
+    if (fileDockTake(el)) continue;
+    el.pause();
+  }
+}
+
+/** A file card's player started: the one that played before is paused, and this one is watched. */
+function fileMediaOnePlaying(e) {
+  const media = e && e.target;
+  const tag = media && media.tagName ? String(media.tagName).toLowerCase() : '';
+  if (tag !== 'video' && tag !== 'audio') return;
+  const card = typeof media.closest === 'function' ? media.closest('.file-card-media') : null;
+  if (!card) return;
+  // The one before pauses; when it is the docked one, the dock closes too and it goes back into
+  // its card, paused (rung 3: the new one plays inline).
+  if (fileMediaPlaying && fileMediaPlaying !== media) {
+    if (fileDock && fileDock.held() === fileMediaPlaying) {
+      const line = fileDock.line();
+      if (line && fileMediaSeen) { try { fileMediaSeen.unobserve(line); } catch (e) { /* not watched */ } }
+      fileDock.close();
+    } else if (typeof fileMediaPlaying.pause === 'function') fileMediaPlaying.pause();
+  }
+  fileMediaPlaying = media;
+  if (!fileMediaSeen && typeof IntersectionObserver === 'function') fileMediaSeen = new IntersectionObserver(fileMediaOffScreen, { threshold: 0 });
+  if (fileMediaSeen) fileMediaSeen.observe(media);
+}
+
+/** A file card's player paused or ended: no longer watched (a paused one off screen costs nothing). */
+function fileMediaStopped(e) {
+  const media = e && e.target;
+  if (!media) return;
+  if (fileMediaSeen) { try { fileMediaSeen.unobserve(media); } catch (err) { /* never watched */ } }
+  if (fileMediaPlaying === media && e.type === 'ended') fileMediaPlaying = null;
+}
+
 /** Hear the file cards' players under `container` (the messages, the thread panel). */
 function listenForFileTrouble(container) {
   if (!container || typeof container.addEventListener !== 'function') return;
   container.addEventListener('error', fileMediaTrouble, true);
   container.addEventListener('loadedmetadata', fileMediaTrouble, true);
+  container.addEventListener('play', fileMediaOnePlaying, true);
+  container.addEventListener('pause', fileMediaStopped, true);
+  container.addEventListener('ended', fileMediaStopped, true);
 }
 listenForFileTrouble(document.getElementById('messages'));
 listenForFileTrouble(document.getElementById('thread-panel-messages'));

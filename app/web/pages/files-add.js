@@ -23,6 +23,8 @@
   // back by it, as the chat says them for anything it holds back.
   const WARN = typeof module === 'object' && module && module.exports ? require('../shared/warnings.js') : root;
   const PHRASE_HELD = (WARN && WARN.PHRASE_GUARD_SENTENCE) || 'it holds your recovery phrase.';
+  /** A word by its key (data/i18n/en.json), or the key where no words are loaded. */
+  const T = (k) => (root && root.i18n && typeof root.i18n.t === 'function' ? root.i18n.t(k) : k);
 
   // ── "Also post in chat" (the operator, 2026-10-17; the desktop's files/add.rs draw_post_row,
   // post_choices, post_text and post_published, in its words) ──
@@ -144,14 +146,23 @@
 
     /**
      * What goes up for an Add to Files form, as its switch stands (part 1): {file, keepMetadata,
-     * refused}. The Files page is public, so a file that could not be checked is never added unless
-     * the person keeps its details by choice; `refused` holds the words saying so.
+     * refused, ask}. A file that could not be checked is the person's to decide (2026-11-07,
+     * BUG-264; the chat's rule, /shared/upload-clean.js decide): `ask` holds the question until
+     * they answer, and after "Send anyway" (`f.anyway`) it goes exactly as picked, with their
+     * signed choice to keep its details. `refused` holds the words when it cannot go at all (the
+     * protected setup).
      */
     function sendingOf(f) {
-      if (!f || !f.clean || !cleaner) return { file: f ? f.file : null, keepMetadata: false, refused: null };
+      // "Send anyway" after the server could not clean it at the finish (BUG-275): exactly as picked,
+      // its details kept by the person's signed choice.
+      if (f && f.asPicked) return { file: f.file, keepMetadata: true, refused: null, ask: null };
+      if (!f || !f.clean || !cleaner) return { file: f ? f.file : null, keepMetadata: false, refused: null, ask: null };
       const d = cleaner.decide(f.clean, { where: 'public', remove: f.remove !== false, protectedOn: !!f.protectedOn });
-      if (d.action === 'send') return { file: d.file, keepMetadata: d.keepMetadata, refused: null };
-      return { file: null, keepMetadata: false, refused: d.words };
+      if (d.action === 'send') return { file: d.file, keepMetadata: d.keepMetadata, refused: null, ask: null };
+      if (d.action === 'ask') {
+        return f.anyway ? { file: d.file, keepMetadata: true, refused: null, ask: null } : { file: null, keepMetadata: false, refused: null, ask: d.words };
+      }
+      return { file: null, keepMetadata: false, refused: d.words, ask: null };
     }
 
     /** Does the form show what the file holds and the switch: a picture or a video, or a file that could not be checked. */
@@ -193,7 +204,8 @@
     function drawDetailsWords(f) {
       if (!f.offEl || !cleaner) return;
       f.offEl.textContent = !f.protectedOn && f.remove === false ? cleaner.WORDS.switchOffLine : '';
-      f.refusedEl.textContent = sendingOf(f).refused || '';
+      const sending = sendingOf(f);
+      f.refusedEl.textContent = sending.refused || sending.ask || '';
     }
 
     /**
@@ -681,6 +693,9 @@
         box.appendChild(h('div', { className: 'files-meter', dataset: { uploadBar: f.n }, attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Upload of ' + f.name } }, [fill]));
         const warn = s.phase === 'allowance' || s.phase === 'no_room' || s.phase === 'failed' || s.phase === 'server_error';
         box.appendChild(h('p', { dataset: { uploadWords: f.n }, className: warn ? 'files-warn' : 'files-hint', text: uploadWords(u) }));
+        // The server could not clean it, and its question is open (askAfterServer): the window
+        // answers for it, so the row offers nothing meanwhile.
+        if (f.asking) return;
         const buttons = [];
         const p = s.phase;
         if (p === 'starting' || p === 'sending' || p === 'finishing' || p === 'reconnecting' || p === 'server_wait' || p === 'waiting_connection' || p === 'allowance') {
@@ -701,6 +716,36 @@
         return;
       }
       const put = f.mode === 'put';
+      // Keep what was typed (for a second try, and for the publish once the file is up).
+      const takeInputs = () => {
+        if (f.inputs) {
+          f.title = f.inputs.title.value;
+          f.category = f.inputs.category.value;
+          f.description = f.inputs.description.value;
+        }
+        if (f.ticks) f.labels = f.ticks.filter((t) => t.checked).map((t) => t.value);
+        f.visibility = put ? 'public' : membersOnlyServer() ? 'members' : f.visibilityEls && f.visibilityEls.mem.checked ? 'members' : 'public';
+      };
+      // A file that could not be checked (2026-11-07, BUG-264): the chat's question and its two
+      // answers in place of Upload and Cancel, "Don't send" first and holding the focus (it closes
+      // the form, nothing sent); "Send anyway" uploads the file exactly as picked, signed.
+      if (!listed && f.mode === 'add' && !f.uploadedName && !f.busy && !f.checking && sendingOf(f).ask && typeof cleaner.keepAnswers === 'function') {
+        const a = cleaner.keepAnswers(doc, { no: 'files-btn', yes: 'files-btn files-btn-primary' });
+        a.no.id = 'files-form-dont-send';
+        a.yes.id = 'files-form-send-anyway';
+        a.no.addEventListener('click', () => {
+          cancelForm();
+          say(T('upload_keep.not_sent'));
+        });
+        a.yes.addEventListener('click', () => {
+          takeInputs();
+          f.anyway = true;
+          submitForm(f);
+        });
+        box.appendChild(h('div', { className: 'files-form-buttons' }, [a.no, a.yes]));
+        if (typeof a.no.focus === 'function') a.no.focus();
+        return;
+      }
       const goOff = f.busy || !!f.checking || !!(f.mode === 'add' && !f.uploadedName && sendingOf(f).refused);
       // The Upload button wears the nav bar's current-page border, its RGB cycle (the operator,
       // 2026-10-17: "Upload button with the RGB border effect"; /shared/files.css .files-btn-rgb), when
@@ -712,14 +757,7 @@
         text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : f.attach ? 'Add it to the item' : put || f.uploadedName ? 'Put on the Files page' : 'Upload and add to Files',
       });
       go.addEventListener('click', () => {
-        // Keep what was typed for a second try.
-        if (f.inputs) {
-          f.title = f.inputs.title.value;
-          f.category = f.inputs.category.value;
-          f.description = f.inputs.description.value;
-        }
-        if (f.ticks) f.labels = f.ticks.filter((t) => t.checked).map((t) => t.value);
-        f.visibility = put ? 'public' : membersOnlyServer() ? 'members' : f.visibilityEls && f.visibilityEls.mem.checked ? 'members' : 'public';
+        takeInputs();
         submitForm(f);
       });
       // A form in the list whose publish failed: Close leaves its upload waiting (listed below with
@@ -756,7 +794,14 @@
         f.remove = cleaner.removeDetailsChosen(env.storage);
         f.clean = await cleaner.cleanFile(file);
       }
-      const sending = sendingOf(f);
+      let sending = sendingOf(f);
+      // A file that could not be checked: the chat's question in its own window (BUG-264), "Don't
+      // send" first; "Send anyway" adds it exactly as picked, with the signed choice.
+      if (sending.ask && typeof cleaner.askSendAnyway === 'function') {
+        if (!await cleaner.askSendAnyway(doc, file.name, f.clean.kind)) return T('upload_keep.not_sent');
+        f.anyway = true;
+        sending = sendingOf(f);
+      }
       if (!sending.file) return sending.refused || '';
       f.fpFile = sending.file;
       try { f.fp = fingerprint ? await fingerprint(f.fpFile, env.digest) : ''; } catch (e) { f.fp = ''; }
@@ -856,9 +901,18 @@
         els.uploads.appendChild(f.panel);
       }
       renderForm();
+      runUpload(f);
+    }
+
+    /** The upload of what `f` sends (sendingOf), in its row of the uploads list. */
+    function runUpload(f) {
+      const sending = sendingOf(f);
       f.up = createUploader({
         fetch: env.fetch, token, file: sending.file, owner: myKey, storage: env.storage,
         fp: sending.file === f.fpFile ? f.fp : '', keepMetadata: sending.keepMetadata,
+        // The signed choice to keep its details (BUG-260): this page's identity signs it, over the file.
+        signKeep: (file) => (cleaner && session && typeof cleaner.keepChoice === 'function' ? cleaner.keepChoice(file, { me: session.me ? session.me() : null, sign: session.sign }) : null),
+        keepWord: T,
         sleep: env.sleep, now, digest: env.digest, AbortController: Abort,
         onChange: (s) => {
           if (s.phase === 'cancelled') {
@@ -868,6 +922,10 @@
             if (st.uploads.includes(f)) dropUpload(f);
             sayCancelled(s.cancelAnswer, s.error);
             loadMine();
+            return;
+          }
+          if (s.phase === 'failed' && s.cannotClean && canAskAfterServer(f)) {
+            askAfterServer(f);
             return;
           }
           if (st.uploads.includes(f)) renderFormActions(f);
@@ -882,6 +940,42 @@
       });
       renderFormActions(f);
       f.up.start();
+    }
+
+    /**
+     * May the person be asked about a file the server could not clean at the finish? Not under the
+     * protected setup, whose promise is that a file is sent only with its details removed (it keeps
+     * the server's words), and not without the question's window (a page without the cleaning).
+     */
+    function canAskAfterServer(f) {
+      return !!(cleaner && typeof cleaner.askSendAnyway === 'function' && !f.protectedOn && !f.asPicked && st.uploads.includes(f));
+    }
+
+    /**
+     * THE SERVER COULD NOT CLEAN IT AT THE FINISH (2026-11-07, BUG-275; BUG-264's follow-up): it
+     * answered 422 (the relay's CANNOT_CLEAN, BUG-260; a HEIC or AVIF photo it could not read through
+     * is the usual one, since this page sends those for the server to clean) and stored nothing. As
+     * the chat does at its 422: the chat's question in its own window (upload-clean.js
+     * askSendAnyway), "Don't send" first and holding the focus. "Don't send" ends it, the row gone,
+     * nothing stored; "Send anyway" uploads the file again in the same row, exactly as picked, with
+     * keep_metadata and the person's signed choice, and it is published (or added to its item) as
+     * before.
+     */
+    async function askAfterServer(f) {
+      f.asking = true;
+      renderFormActions(f);
+      const yes = await cleaner.askSendAnyway(doc, f.file.name, f.clean ? f.clean.kind : '');
+      f.asking = false;
+      if (!st.uploads.includes(f)) return;
+      if (!yes) {
+        dropUpload(f);
+        say(T('upload_keep.not_sent'));
+        loadMine();
+        if (f.attach) itemView.uploadsChanged();
+        return;
+      }
+      f.asPicked = true;
+      runUpload(f);
     }
 
     async function publish(f) {

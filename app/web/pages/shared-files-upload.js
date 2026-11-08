@@ -17,9 +17,13 @@
 //   removed unless the person turns off "Remove location and camera details".
 //   When there is something to say (hidden details found, or a file that could
 //   not be checked) the step shows it, with the switch, Upload and Cancel; a
-//   file with nothing hidden in it uploads at once. Shared Files is public, so a
-//   file that could not be checked is never uploaded while details are to be
-//   removed (the cleaning's own words say so).
+//   file with nothing hidden in it uploads at once. A file that could not be
+//   checked is the person's to decide (2026-11-07, BUG-264, as the chat asks):
+//   "Send it anyway, or don't send?", "Don't send" first and holding the
+//   focus; "Send anyway" uploads it exactly as picked with their signed choice.
+//   The same question when the SERVER answers that it could not remove a
+//   file's hidden details after all (its 422; 2026-11-07, BUG-275), in its
+//   own window, except under the protected setup (the server's words then).
 // - The upload is POST /api/upload?token=<this session's token>&share=1 (and
 //   keep_metadata=1 when the person kept the details by choice), the chat's
 //   and the desktop's own route; the server's words when it refuses.
@@ -40,6 +44,8 @@
   const DROP = NODE ? require('../shared/drop-overlay.js') : root.HosDropOverlay;
 
   const MIB = 1024 * 1024;
+  /** A word by its key (data/i18n/en.json), or the key where no words are loaded. */
+  const keepWord = (k) => (root && root.i18n && typeof root.i18n.t === 'function' ? root.i18n.t(k) : k);
   // The largest file until the server has said the person's own limit (the chat's and the
   // desktop's fallback, ATTACH_MAX_BYTES).
   const FALLBACK_LIMIT = 6 * MIB;
@@ -246,14 +252,20 @@
       } else {
         decided = cleaner.decide(clean, ctx);
       }
-      if (decided.action !== 'send') { say(decided.words || ''); return; }
-      await send(file.name, decided.file, decided.keepMetadata);
+      // 'ask' here means the step's own answer was "Send anyway": exactly as picked, signed (BUG-264).
+      if (decided.action !== 'send' && decided.action !== 'ask') { say(decided.words || ''); return; }
+      // The file as picked and what it is go too, for the server's own refusal (BUG-275): sent
+      // cleaned, or for the server to clean, it may still answer that it could not.
+      await send(file.name, decided.file, decided.keepMetadata, decided.keepMetadata || protectedOn ? null : { file, kind: clean.kind });
     }
 
     /**
      * The step, when the file has something to say: what is hidden in it, the switch (a line under
-     * the protected setup), why it cannot go as it is, Upload and Cancel. Resolves with the switch's
-     * last state on Upload, null on Cancel.
+     * the protected setup), why it cannot go as it is, Upload and Cancel. A file that could not be
+     * checked is the person's to decide (2026-11-07, BUG-264; the chat's question): its words, then
+     * "Don't send" first and holding the focus, "Send anyway" second (/shared/upload-clean.js
+     * keepAnswers). Resolves with the switch's last state on Upload or Send anyway, null on Cancel
+     * or Don't send.
      */
     function askStep(file, clean, ctx) {
       return new Promise((resolve) => {
@@ -276,12 +288,26 @@
         const refused = mk('p', { id: 'sf-upload-refused', className: 'sf-step-refused' });
         const go = mk('button', { type: 'button', id: 'sf-upload-go', className: 'sf-upload-btn', text: WORDS.go });
         const cancel = mk('button', { type: 'button', id: 'sf-upload-cancel', className: 'sf-step-cancel', text: WORDS.cancel });
-        kids.push(off, refused, mk('div', { className: 'sf-step-buttons' }, [go, cancel]));
+        // The question's two answers (the chat's own, by key, each with its hint).
+        const answers = typeof cleaner.keepAnswers === 'function' ? cleaner.keepAnswers(doc, { no: 'sf-step-cancel', yes: 'sf-upload-btn' }) : null;
+        if (answers) {
+          answers.no.id = 'sf-upload-dont-send';
+          answers.yes.id = 'sf-upload-send-anyway';
+        }
+        const row = mk('div', { className: 'sf-step-buttons' }, [go, cancel]);
+        kids.push(off, refused, row);
+        let asking = false;
         const draw = () => {
           const d = cleaner.decide(clean, Object.assign({}, ctx, { remove }));
           off.textContent = !ctx.protectedOn && !remove && clean.summary ? W.switchOffLine || '' : '';
-          refused.textContent = d.action === 'refuse' ? d.words || '' : '';
+          refused.textContent = d.action === 'refuse' || d.action === 'ask' ? d.words || '' : '';
           go.disabled = d.action === 'refuse';
+          const ask = d.action === 'ask' && !!answers;
+          if (ask !== asking) {
+            asking = ask;
+            row.replaceChildren(...(ask ? [answers.no, answers.yes] : [go, cancel]));
+            if (ask && typeof answers.no.focus === 'function') answers.no.focus();
+          }
         };
         const done = (answer) => {
           st.step = null;
@@ -291,17 +317,41 @@
         if (box) box.addEventListener('change', () => { remove = !!box.checked; draw(); });
         go.addEventListener('click', () => { if (!go.disabled) done(remove); });
         cancel.addEventListener('click', () => { say(''); done(null); });
+        if (answers) {
+          answers.yes.addEventListener('click', () => done(remove));
+          answers.no.addEventListener('click', () => { say(keepWord('upload_keep.not_sent')); done(null); });
+        }
         st.step = { file: file.name };
         els.step.replaceChildren(mk('div', { id: 'sf-upload-step-card', className: 'sf-step' }, kids));
         draw();
       });
     }
 
-    async function send(name, blob, keepMetadata) {
+    /**
+     * Upload `blob` as `name` (keep_metadata=1 and the signed choice when `keepMetadata`). `picked`
+     * ({file, kind}: the file as picked and what the strip calls it), for a file sent cleaned or for
+     * the server to clean: when the server answers that it could not remove its hidden details
+     * after all (its 422, the relay's CANNOT_CLEAN, BUG-260; a HEIC or AVIF photo it could not read
+     * through is the usual one), the person is asked, as the chat asks there (2026-11-07, BUG-275):
+     * the chat's question in its own window (upload-clean.js askSendAnyway), "Don't send" first and
+     * holding the focus; "Send anyway" uploads it again exactly as picked, signed; "Don't send"
+     * sends nothing more and says so. Null under the protected setup (whose promise is that a file
+     * goes only with its details removed) and for a file kept by choice: the server's words then.
+     */
+    async function send(name, blob, keepMetadata, picked) {
       const t = token();
       if (!t) { st.queue.length = 0; say(WORDS.notSignedInYet); return; }
       say(uploadingWords(name));
       const form = new FD();
+      // Kept with its details by choice: the person's signed choice for this very file goes first,
+      // or the server stores nothing (BUG-260, /shared/upload-clean.js keepChoice).
+      if (keepMetadata) {
+        const made = cleaner && session && typeof cleaner.keepChoice === 'function'
+          ? await cleaner.keepChoice(blob, { me: session.me ? session.me() : null, sign: session.sign })
+          : null;
+        if (!made) { say(failedWords(keepWord('upload_keep.cannot_sign'))); return; }
+        form.append('keep', made.json);
+      }
       form.append('file', blob, name);
       const url = '/api/upload?token=' + encodeURIComponent(t) + '&share=1' + (keepMetadata ? '&keep_metadata=1' : '');
       let res = null;
@@ -309,6 +359,12 @@
         res = await env.fetch(url, { method: 'POST', body: form });
       } catch (e) {
         say(failedWords(WORDS.unreachable));
+        return;
+      }
+      if (picked && !keepMetadata && cleaner && typeof cleaner.askSendAnyway === 'function' && res && res.status === (cleaner.CANNOT_CLEAN_STATUS || 422)) {
+        say('');
+        if (!await cleaner.askSendAnyway(doc, name, picked.kind)) { say(keepWord('upload_keep.not_sent')); return; }
+        await send(name, picked.file, true, null);
         return;
       }
       if (!res || !res.ok) {

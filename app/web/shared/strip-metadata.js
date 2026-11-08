@@ -9,7 +9,7 @@
 //
 // THE SPECIFICATION IS THE RELAY'S RUST, and this is a port of it with the
 // same rules and the same results, byte for byte:
-//   crates/humanity-protocol/src/strip_metadata.rs        JPEG, PNG and WebP pictures
+//   crates/humanity-protocol/src/strip_metadata.rs        JPEG, PNG, WebP and GIF pictures
 //   crates/humanity-protocol/src/strip_video_metadata.rs  MP4, MOV and 3GP videos
 // scripts/tests/strip-metadata.test.js builds the same test files as the Rust
 // tests, and where rustc is installed it strips thousands of inputs with the
@@ -23,8 +23,15 @@
 //         and tIME (when it was last changed). Bytes after IEND go too.
 //   WebP  the EXIF and XMP chunks removed, their flags cleared in the VP8X
 //         header and the RIFF size rewritten.
-//   GIF   passed through untouched, as the relay does: GIF has no standard
-//         place for location or camera details.
+//   GIF   whole blocks removed (since 2026-11-07, docs/BUGS.md BUG-263):
+//         comments, every application block but looping (NETSCAPE2.0,
+//         ANIMEXTS1.0) and the colour profile (ICCRGBG1 012), extension
+//         blocks of kinds the standard does not define (XMP lives in an
+//         application block), and bytes after the trailer. Every frame,
+//         its timing and the plain-text blocks are kept, byte for byte.
+//   The rule for all four (the Rust's module comment says it in full):
+//         what the picture is made of stays; words and data about the
+//         picture that no viewer is shown go.
 //   MP4, MOV, 3GP  nothing is removed, because the movie's index records the
 //         byte position of every chunk of frames: each metadata box is
 //         NEUTRALISED where it stands instead (its contents overwritten with
@@ -232,7 +239,6 @@
     videoUnreadable: 'This video could not be read all the way through, so where it was filmed may still be in it.',
     noMovie: 'No movie index was found in this file (it may have been cut off), so where it was filmed could not be checked.',
     heif: 'HEIC and AVIF photos cannot be cleaned of where they were taken yet. Save it as a JPEG and send that.',
-    gif: 'GIF pictures have no standard place for location or camera details, so it is sent as it is (the server does the same).',
     webm: 'WebM videos are not cleaned yet (the server does not clean them either), so it is sent as it is.',
     other: 'This is not a picture or video this app can clean, so it is sent as it is.',
     notWhatItSays: (claimed) => `This file is named as ${claimed === 'heif' ? 'a HEIC' : claimed === 'mp4' ? 'a video' : 'a ' + claimed.toUpperCase()} file but its first bytes are not one, so it could not be checked: where it was taken may still be in it.`,
@@ -378,7 +384,81 @@
     return out;
   }
 
-  const PICTURE_WALK = { jpeg: walkJpeg, png: walkPng, webp: walkWebp };
+  // The GIF application blocks kept, by their 11-byte name: looping, and the colour profile
+  // (strip_metadata.rs GIF_KEPT_APPLICATIONS).
+  const GIF_KEPT_APPLICATIONS = ['NETSCAPE2.0', 'ANIMEXTS1.0', 'ICCRGBG1012'];
+
+  /** The end of a run of GIF data sub-blocks starting at `i`, or -1 when the data ends first. */
+  function gifSubBlocksEnd(d, i) {
+    for (;;) {
+      if (i >= d.length) return -1;
+      const len = d[i];
+      i += 1;
+      if (len === 0) return i;
+      i += len;
+      if (i > d.length) return -1;
+    }
+  }
+
+  /** strip_gif / walk_gif: the block walk. */
+  function walkGif(d) {
+    const n = d.length;
+    const w = { ok: false, keep: [], removed: [] };
+    if (n < 13 || !(startsWithAscii(d, 0, 'GIF87a') || startsWithAscii(d, 0, 'GIF89a'))) return w;
+    // The header, the logical screen descriptor and the global colour table, if it has one.
+    const packed = d[10];
+    let i = 13;
+    if (packed & 0x80) i += 3 << ((packed & 0x07) + 1);
+    if (i > n) return w;
+    w.keep.push([0, i]);
+    for (;;) {
+      if (i === n) { w.ok = true; return w; } // ended after a whole block, with no trailer
+      const b = d[i];
+      if (b === 0x3B) {
+        w.keep.push([i, i + 1]);
+        if (i + 1 < n) w.removed.push({ path: 'bytes after the trailer', offset: i + 1, size: n - i - 1 });
+        w.ok = true;
+        return w;
+      }
+      if (b === 0x2C) {
+        // An image: its descriptor, its own colour table, the LZW code size, its data.
+        if (i + 10 > n) return w;
+        const local = d[i + 9];
+        let j = i + 10;
+        if (local & 0x80) j += 3 << ((local & 0x07) + 1);
+        j += 1; // the LZW minimum code size
+        if (j > n) return w;
+        const end = gifSubBlocksEnd(d, j);
+        if (end < 0) return w;
+        w.keep.push([i, end]);
+        i = end;
+        continue;
+      }
+      if (b === 0x21) {
+        if (i + 1 >= n) return w;
+        const label = d[i + 1];
+        const end = gifSubBlocksEnd(d, i + 2);
+        if (end < 0) return w;
+        let gone = null; // 0xF9 graphic control (timing, transparency) and 0x01 plain text (drawn) stay
+        if (label === 0xFE) gone = 'comment';
+        else if (label === 0xFF) {
+          let name = null;
+          if (d[i + 2] === 11 && i + 14 <= end) {
+            name = '';
+            for (let k = i + 3; k < i + 14; k++) name += String.fromCharCode(d[k]);
+          }
+          if (name === null || !GIF_KEPT_APPLICATIONS.includes(name)) gone = name === 'XMP DataXMP' ? 'XMP' : 'application';
+        } else if (label !== 0xF9 && label !== 0x01) gone = 'extension';
+        if (gone) w.removed.push({ path: gone, offset: i, size: end - i });
+        else w.keep.push([i, end]);
+        i = end;
+        continue;
+      }
+      return w; // not a block
+    }
+  }
+
+  const PICTURE_WALK = { jpeg: walkJpeg, png: walkPng, webp: walkWebp, gif: walkGif };
 
   // ════════════════════════════════════════════════════════════════════════
   // Videos: strip_video_metadata.rs, line for line
@@ -576,9 +656,8 @@
       return r;
     }
 
-    if (kind === 'gif') r.untouchedReason = SAY.gif;
-    else if (kind === 'webm') r.untouchedReason = SAY.webm;
-    else if (r.claimed && r.claimed !== 'gif' && r.claimed !== 'webm') {
+    if (kind === 'webm') r.untouchedReason = SAY.webm;
+    else if (r.claimed && r.claimed !== 'webm') {
       // Named as something this module cleans, but the bytes are not that.
       r.unfinished = true;
       r.untouchedReason = SAY.notWhatItSays(r.claimed);
@@ -1101,7 +1180,19 @@
         else inspect(f, b, p.bodyStart, p.end, () => udtaBox(b, p.bodyStart, p.end, f, budget));
       }
     } else if (kind === 'gif') {
-      complete = true; // nothing standard to look for, and nothing is removed
+      // The GIF strip's own walk, and what it drops (describe_metadata.rs, 2026-11-07).
+      const w = walkGif(b);
+      complete = w.ok;
+      if (w.ok) {
+        for (const r of w.removed) {
+          const e = r.offset + r.size;
+          // A comment's words: its sub-blocks after the first length byte, before the end.
+          if (r.path === 'comment') { if (hasText(b, r.offset + 3, Math.max(0, e - 1))) note(f, 'comment'); }
+          // XMP's raw packet sits after the block's 11-byte name.
+          else if (r.path === 'XMP') inspect(f, b, r.offset + 14, e, () => scanXmp(b, r.offset + 14, e, f));
+          else inspect(f, b, r.offset, e, () => {});
+        }
+      }
     }
 
     const details = ORDER.filter((k) => f.keys.has(k)).map((key) => ({ key, words: wordsFor(key, medium, f) }));

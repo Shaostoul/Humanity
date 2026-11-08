@@ -3,7 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Settings, HumanityOS</title>
+  <title data-i18n="page_titles.settings">Settings, HumanityOS</title>
+  <!-- page-meta: written by scripts/gen-page-meta.js from data/site/page_meta.json and data/i18n/en.json; edit those, not these lines -->
+  <meta name="description" data-i18n-content="page_meta.settings" content="Change how HumanityOS looks, sounds and works, and keep your identity safe in your vault.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HumanityOS">
+  <meta property="og:title" data-i18n-content="page_titles.settings" content="Settings, HumanityOS">
+  <meta property="og:description" data-i18n-content="page_meta.settings" content="Change how HumanityOS looks, sounds and works, and keep your identity safe in your vault.">
+  <meta property="og:url" content="https://united-humanity.us/settings">
+  <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" data-i18n-content="page_meta.image_alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- /page-meta -->
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
 
@@ -1674,6 +1687,47 @@
         </div>
       </div>
 
+      <!-- What volume a video starts at (2026-11-06): the desktop app's Settings > Audio > Videos.
+           Kept in this browser; /shared/video-volume.js gives each video on the chat and Media
+           pages its start volume. -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="settings.videos">Videos</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong id="lbl-video-start" data-i18n="settings.video_start">New videos start at</strong>
+            <span data-i18n="settings.video_start_hint">The volume a video starts at when you play it, in chat, on the Media page and on a screen in the world. Each video's own volume bar still turns it up or down.</span>
+          </div>
+          <select class="setting-select" id="pref-video-start" aria-labelledby="lbl-video-start" onchange="savePref()" data-i18n-tip="settings.video_start_hint" data-tip-desc="The volume a video starts at when you play it, in chat, on the Media page and on a screen in the world. Each video's own volume bar still turns it up or down.">
+            <option value="last" data-i18n="settings.video_start_last">My last volume</option>
+            <option value="set" data-i18n="settings.video_start_set">A set volume</option>
+          </select>
+        </div>
+        <div class="setting-row" id="video-start-pct-row">
+          <div class="setting-label">
+            <strong id="lbl-video-start-pct" data-i18n="settings.video_start_volume">Set volume %</strong>
+            <span data-i18n="settings.video_start_volume_hint">The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting.</span>
+          </div>
+          <input type="range" class="setting-range" id="pref-video-start-pct" aria-labelledby="lbl-video-start-pct" min="0" max="100" value="100" oninput="savePref()" data-i18n-tip="settings.video_start_volume_hint" data-tip-desc="The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting.">
+          <span id="video-start-pct-label" style="font-size:0.8rem;color:var(--text-muted);min-width:36px;text-align:right;">100%</span>
+        </div>
+      </div>
+
+      <!-- Sound levels (2026-11-06): the desktop app's Settings > Audio > Sound levels, for the only
+           sounds this website plays, the notification sounds of data/notifications/notifications.json.
+           Kept in this browser; /shared/sound-levels.js draws the rows and plays each sound at its
+           level (the chat's chat-notify.js too). -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="sound_levels.title">Sound levels</div>
+        <p class="section-desc" data-i18n="sound_levels.web_note">This website plays only notification sounds, so only they are listed here. 0 dB is a sound as the website plays it; turn each one up or down from there. Every other sound is set in the desktop app, under Settings, Audio, Sound levels.</p>
+        <div id="sound-levels-list"></div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span data-i18n="sound_levels.reset_all_hint">Puts every sound back to 0 dB, the level the app plays it at on its own.</span>
+          </div>
+          <button type="button" class="btn btn-secondary" id="sound-levels-reset-all" data-i18n="sound_levels.reset_all" data-i18n-tip="sound_levels.reset_all_hint" data-tip-desc="Puts every sound back to 0 dB, the level the app plays it at on its own.">Reset all</button>
+        </div>
+      </div>
+
       <div class="settings-group">
         <div class="settings-group-title">Camera</div>
         <div class="setting-row">
@@ -2339,7 +2393,7 @@
      chat sends (profile-changes.js), and this page's own signed-in connection, which tells this
      server the presence choice at once (relay-session.js). settings-privacy.js draws the section. -->
 <script src="/shared/profile-changes.js?v=2"></script>
-<script src="/shared/relay-session.js?v=2"></script>
+<script src="/shared/relay-session.js?v=3"></script>
 <!-- The words by key, here at once: settings-privacy.js draws the level cards with i18n.t as it
      mounts, and the copies shell.js adds run only after this page's own scripts (the cards showed
      their keys on the live site, 2026-11-03; web/shared/i18n.js says why both, in this order). -->
@@ -2352,6 +2406,8 @@
 <!-- Files kept from messages: the encrypted copies the chat keeps of private files opened. -->
 <script src="/shared/kept-files.js?v=1"></script>
 <script src="/shared/notify-rules.js"></script>
+<!-- Audio & Video > Sound levels (2026-11-06): each notification sound's level, kept in this browser. -->
+<script src="/shared/sound-levels.js?v=1"></script>
 <script src="/pages/settings-app.js"></script>
 </body>
 </html>

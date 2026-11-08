@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="not_found.page_title">Page not found, HumanityOS</title>
+  <!-- page-meta: written by scripts/gen-page-meta.js from data/site/page_meta.json and data/i18n/en.json; edit those, not these lines -->
+  <meta name="description" data-i18n-content="not_found.meta_description" content="The page you asked for is not here: the address may have a typing mistake, or the page moved. Links to the front door, the Library and the guides.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HumanityOS">
+  <meta property="og:title" data-i18n-content="not_found.page_title" content="Page not found, HumanityOS">
+  <meta property="og:description" data-i18n-content="not_found.meta_description" content="The page you asked for is not here: the address may have a typing mistake, or the page moved. Links to the front door, the Library and the guides.">
+  <meta property="og:url" content="https://united-humanity.us/404">
+  <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" data-i18n-content="page_meta.image_alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- /page-meta -->
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* The page nginx shows for any address that is not here (error_page 404 in
+       scripts/nginx/humanity.conf; docs/design/privacy-notice.md section 5), in place of nginx's own
+       page, which named the server's version. It is served AT whatever address was asked for
+       (/a/b/c included), so every address in it is root-absolute: a relative link or stylesheet
+       would point somewhere else. Plain words for someone new, and a way on. Theme tokens only. */
+    body { background: var(--bg); color: var(--text); line-height: 1.55; margin: 0; }
+    .nf { max-width: 40rem; margin: 0 auto; padding: var(--space-2xl) 16px var(--space-3xl); }
+    .nf h1 { font-size: clamp(1.8rem, 6vw, 2.6rem); line-height: 1.15; margin: 0 0 var(--space-md); color: var(--text-strong); }
+    .nf .lede { font-size: var(--text-lg); margin: 0 0 var(--space-md); }
+    .nf .why { color: var(--text-secondary); margin: 0 0 var(--space-xl); }
+    .nf h2 { font-size: var(--text-base); margin: 0 0 var(--space-md); }
+    .nf ul { list-style: none; padding: 0; margin: 0 0 var(--space-xl); display: grid; gap: var(--space-sm); }
+    .nf ul a {
+      display: block; padding: var(--space-md) var(--space-lg); border: 1px solid var(--border);
+      border-radius: var(--radius); background: var(--bg-card); color: var(--accent);
+      text-decoration: none; font-weight: 600;
+    }
+    .nf ul a:hover, .nf ul a:focus-visible { background: var(--bg-card-hover); border-color: var(--border-focus); }
+    .nf .report { color: var(--text-secondary); font-size: var(--text-sm); margin: 0; }
+    .nf .report a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
+<script src="/shared/shell.js"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<main class="nf" id="page-app">
+  <h1 data-i18n="not_found.heading">This page is not here</h1>
+  <p class="lede" data-i18n="not_found.lede">Nothing on this site lives at the address you typed or followed.</p>
+  <p class="why" data-i18n="not_found.why">The address may have a typing mistake in it, or the page may have moved or been retired. Nothing is broken on your side.</p>
+  <h2 data-i18n="not_found.ways_on">Where would you like to go?</h2>
+  <ul>
+    <li><a href="/" data-i18n="not_found.front_door" data-i18n-tip="not_found.front_door_hint" data-tip-desc="Opens the main page of HumanityOS, where everything on the site starts.">The front door</a></li>
+    <li><a href="/library" data-i18n="not_found.library" data-i18n-tip="not_found.library_hint" data-tip-desc="Opens the Library: free guides for food, water, power and more, with a search box to find one.">The Library</a></li>
+    <li><a href="/how-to" data-i18n="not_found.how_to" data-i18n-tip="not_found.how_to_hint" data-tip-desc="Opens the How-to page: short guides that walk you through one job at a time.">Step-by-step guides</a></li>
+    <li><a href="/chat" data-i18n="not_found.chat" data-i18n-tip="not_found.chat_hint" data-tip-desc="Opens the chat, where you can ask people for help.">Chat</a></li>
+  </ul>
+  <p class="report"><span data-i18n="not_found.report">If a link on this site brought you here, please tell us so we can fix it:</span> <a href="/bugs" data-i18n="not_found.report_link" data-i18n-tip="not_found.report_link_hint" data-tip-desc="Opens the Bug Reports page, where you can say which link led here.">report a broken link</a></p>
+</main>
+</body>
+</html>

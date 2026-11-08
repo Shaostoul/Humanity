@@ -256,11 +256,19 @@ function notifyNewMessage(author, content, isDm, where) {
 // browser for notification permission on connect, again on the first click anywhere, and again
 // when a message arrived in a background tab. Now, once, a line above the message box offers
 // them; the browser asks only after "Turn on" is pressed. Settings > Notifications holds the
-// same switch. Already allowed: subscribe to push, as before.
+// same switch. Already allowed (and not turned off there): subscribe to push.
+//
+// EVERY LOAD, NOT ONCE EVER (2026-11-06, BUG-255 follow-up). This used to subscribe once, then
+// remember it with a `hos_push_subscribed` mark for good. But the server forgets a subscription
+// whenever the push service answers 404 or 410, and refuses an endpoint its guard rejects, and a
+// browser holding the mark never subscribed again. So once per page load the chat sends the
+// browser's current subscription again, signed (subscribeToPush): the server keeps it as it was,
+// or takes it back if it had forgotten it. A reconnect within the same load does not send it again.
+var pushSentThisLoad = false;
 function requestNotifications() {
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
-    if (!localStorage.getItem('hos_push_subscribed')) subscribeToPush();
+    if (!pushSentThisLoad && localStorage.getItem('hos_notify_enabled') !== 'false') subscribeToPush();
     return;
   }
   if (Notification.permission === 'default' && !localStorage.getItem('humanity_notif_asked')
@@ -307,10 +315,29 @@ function showNotificationOffer() {
   inputArea.parentNode.insertBefore(banner, inputArea);
 }
 
-// Subscribe to WebPush via the relay's VAPID key.
+// What a person reads when the server will not keep their push subscription, by the reason it
+// answers (src/relay/outbound.rs Refusal::reason and push_routes.rs; BUG-255): the
+// notification service has to be on the public internet, over https.
+var PUSH_REFUSED_WORDS = {
+  too_long: 'notifications.push_refused_too_long',
+  not_web_address: 'notifications.push_refused_not_web_address',
+  not_https: 'notifications.push_refused_not_https',
+  userinfo: 'notifications.push_refused_userinfo',
+  address: 'notifications.push_refused_address',
+  private: 'notifications.push_refused_private',
+  unknown_name: 'notifications.push_refused_unknown_name',
+  keys: 'notifications.push_refused_keys',
+  clock: 'notifications.push_refused_clock'
+};
+
+// Subscribe to WebPush via the relay's VAPID key. The request is signed over everything the
+// server keeps (BUG-255): `push_subscribe\n{endpoint}\n{p256dh}\n{auth}` then `\n{timestamp}`
+// (pqSignChatMessage), so a captured request cannot be replayed with another endpoint. The words
+// are pinned in scripts/tests/fixtures/push-signing-v1.json (scripts/tests/push-subscribe-web.test.js).
 function subscribeToPush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   if (!myIdentity || !myIdentity.canSign) return;
+  pushSentThisLoad = true;
 
   fetch('/api/vapid-public-key')
     .then(function(r) { return r.json(); })
@@ -321,24 +348,34 @@ function subscribeToPush() {
       var arr = new Uint8Array(raw.length);
       for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
 
+      // The browser's subscription for this server's key: the one it already holds, or a new one.
+      // One made under an older key of this server (its key file was replaced) makes subscribe
+      // fail, so that one is dropped and a new one made.
       return navigator.serviceWorker.ready.then(function(reg) {
-        return reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: arr
+        var options = { userVisibleOnly: true, applicationServerKey: arr };
+        return reg.pushManager.subscribe(options).catch(function() {
+          return reg.pushManager.getSubscription().then(function(old) {
+            return (old ? old.unsubscribe() : Promise.resolve()).then(function() {
+              return reg.pushManager.subscribe(options);
+            });
+          });
         });
       });
     })
     .then(function(sub) {
       if (!sub) return;
       var keys = sub.toJSON().keys;
-      // Sign the request so the server knows which user this subscription belongs to.
+      // Signed so the server knows whose subscription this is, and that this endpoint and these
+      // keys are the ones that person gave (full-PQ: Dilithium3).
       var ts = Date.now();
-      return pqSignChatMessage('push_subscribe', ts).then(function(sig) { // full-PQ: Dilithium3 over push_subscribe\nts
+      var purpose = 'push_subscribe\n' + sub.endpoint + '\n' + keys.p256dh + '\n' + keys.auth;
+      return pqSignChatMessage(purpose, ts).then(function(sig) {
+        if (!sig) return null;
         return fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            public_key: myIdentity.publicKeyHex,
+            key: myIdentity.publicKeyHex,
             endpoint: sub.endpoint,
             p256dh: keys.p256dh,
             auth: keys.auth,
@@ -349,10 +386,19 @@ function subscribeToPush() {
       });
     })
     .then(function(resp) {
-      if (resp && resp.ok) {
-        localStorage.setItem('hos_push_subscribed', '1');
+      if (!resp) return;
+      if (resp.ok) {
         console.log('Push subscription registered');
+        return;
       }
+      // Refused: say why in plain words, by key. The next load sends it again.
+      return resp.json().catch(function() { return {}; }).then(function(answer) {
+        var reason = answer && typeof answer.reason === 'string' ? answer.reason : '';
+        var key = Object.prototype.hasOwnProperty.call(PUSH_REFUSED_WORDS, reason)
+          ? PUSH_REFUSED_WORDS[reason] : 'notifications.push_refused_other';
+        if (window.i18n) addSystemMessage(window.i18n.t(key));
+        console.warn('Push subscribe refused:', reason);
+      });
     })
     .catch(function(e) {
       console.warn('Push subscribe failed:', e);

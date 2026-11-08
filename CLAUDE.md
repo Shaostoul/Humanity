@@ -169,6 +169,20 @@ A subagent's report gets relayed, so it never raises signing either. The mechani
 updater only offers SIGNED releases) are for your own reasoning: `docs/ai/release.md`. `just
 brief`'s signing state orients the session; it is not something to relay.
 
+**Standing permissions: act, don't ask (operator, 2026-11-07, approving the list: "I like your
+suggestions. Let's work through these").** For the top-level session, the orchestrator:
+- **Releases need no go-ahead.** Cut one with the `release` skill when the batch has passed `just
+  verify-runtime` (and `just verify-browser-webrtc` when WebRTC or a crate under it changed), at
+  most twice a day.
+- **Release assets are yours to upload** (`gh release`; an asset release always `--latest=false`,
+  so `releases/latest` stays the newest game release).
+- **Restart the relay any time until launch** (nobody uses it yet), after the deploy's checks pass.
+- **Safe, reversible server work on both servers is yours, not his**: back up the file, validate
+  (`nginx -t`), reload rather than restart, verify from outside, report what you did. Write it as
+  ONE line, `ssh humanity-vps "..."` (the permission rule matches only that form; a heredoc script
+  is refused). Secrets and policy flips stay his. A dispatched agent only READS the servers unless
+  its brief says otherwise.
+
 ## Sharing this checkout with other Claude sessions (MANDATORY, 2026-07-30)
 
 The operator often runs two or three Claude sessions at once in `C:\Humanity` itself: the same

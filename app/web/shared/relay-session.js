@@ -241,6 +241,13 @@
       requestSettings: () => send({ type: 'server_settings_request' }),
       /** The person's own role as the relay's role list describes it, or null until it has come. */
       roleDef: () => (Array.isArray(state.roles) ? state.roles.find((r) => r.id === state.role) || null : null),
+      /** This page's identity key (hex), or null before it is read. */
+      me: () => (identity ? identity.dilithiumPublicHex : null),
+      /**
+       * Sign `bytes` with this page's identity: the person's choice to send a file with its hidden
+       * details (BUG-260, /shared/upload-clean.js keepChoice). Null with no identity here.
+       */
+      sign: (bytes) => (identity ? Promise.resolve(o.signBytes(identity.dilithiumSecret, bytes)) : Promise.resolve(null)),
       subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     };
   }

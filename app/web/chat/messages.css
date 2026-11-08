@@ -620,11 +620,30 @@
 /* A sound or a video (2026-10-17, app.js fileCardHtml): its player on top, then its name, size and
    Download, and the line said when this browser cannot play it. */
 .file-card.file-card-media { flex-direction: column; align-items: stretch; max-width: 420px; }
-.file-card.file-card-media video { max-width: 100%; max-height: 300px; margin: 0; }
+/* A video plays inline (2026-11-06): as wide as the desktop app's (560 points, chat/inline_video.rs),
+   its box 16:9 until the video says its own shape (nothing is read before Play: preload="none"). */
+.file-card.file-card-media:has(> video) { max-width: 560px; }
+.file-card.file-card-media video { width: 100%; max-width: 100%; max-height: 315px; aspect-ratio: auto 16 / 9; background: var(--bg); margin: 0; }
 .file-card.file-card-media audio { width: 100%; margin: 0; }
 .file-card.file-card-media .file-download { align-self: flex-start; }
 .file-card .file-note { font-size: var(--text-xs); color: var(--text-muted); white-space: normal; }
 .file-card [hidden] { display: none; }
+/* The chat's video dock (2026-11-06, rung 3, /shared/video-dock.js; the desktop app's twin is
+   chat/video_dock.rs): a playing video scrolled away moves here, the same element, at the top right
+   of the message list under the channel header (placed by script from the list's box). Part of the
+   chat page, raised over its rows. Its card keeps a line as big as the player saying where it is. */
+.file-card.file-card-media:has(> .file-video-away) { max-width: 560px; }
+.file-video-away { display: flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; max-width: 100%; padding: var(--space-md); background: var(--bg); color: var(--text-muted); font-size: var(--text-sm); border-radius: var(--radius); }
+.chat-video-dock { position: fixed; z-index: calc(var(--z-page) + 3); box-sizing: border-box; display: flex; flex-direction: column; gap: var(--space-xs); padding: var(--space-sm); overflow: hidden; background: var(--bg-hover); border: 1px solid var(--border); border-radius: var(--radius); }
+.chat-video-dock[hidden], .chat-video-dock-tab[hidden] { display: none; }
+.chat-video-dock .cvd-head { display: flex; align-items: center; gap: var(--space-xs); min-width: 0; }
+.chat-video-dock .cvd-from { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: var(--text-xs); }
+.chat-video-dock .cvd-picture { min-height: 0; }
+.chat-video-dock .cvd-picture video { display: block; width: 100%; max-height: 315px; aspect-ratio: auto 16 / 9; background: var(--bg); }
+.chat-video-dock .cvd-foot { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.chat-video-dock button, .chat-video-dock-tab { font: inherit; font-size: var(--text-sm); color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 2px var(--space-sm); cursor: pointer; }
+.chat-video-dock button:hover, .chat-video-dock-tab:hover { border-color: var(--accent); }
+.chat-video-dock-tab { position: fixed; z-index: calc(var(--z-page) + 3); }
 /* What kind of file it is (2026-10-17, /shared/file-risk.js): on a public file's card, a private
    file's card and a device-to-device file's row. The warning colour; the danger colour for a file
    named like one kind over the bytes of another. Written with textContent. */

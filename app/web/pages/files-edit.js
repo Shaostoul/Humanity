@@ -23,8 +23,12 @@
 // - the hosting paragraph ("Your uploads stay yours."), as the server words it;
 // - the files, each with its type's badge before its name (2026-10-17,
 //   `fileBadge`, which files-item.js and files-app.js draw with too): Remove
-//   on each added file and the cover (the uploader and
-//   admins), and, for the uploader, "Add a file" and "Cover picture". A picked
+//   on every file and the cover (the uploader and admins), the item's main
+//   file included while it has another (BUG-250, 2026-11-06; the operator: "We
+//   need to be able to remove all files and add new ones"): the relay makes the
+//   next file the main one, and the question names it first; the only file has
+//   no Remove and says why (`onlyFileWords`). For the uploader, "Add a file"
+//   and "Cover picture". A picked
 //   file is the same resumable upload as Add to Files's, listed under Uploads
 //   in progress, and added to this item when it is up instead of published
 //   (files-app.js `startAttach`, files-upload.js `attachUpload`). Files
@@ -80,6 +84,30 @@
   // browser the page's HosFileRisk, looked up when a badge is drawn.
   const FR_MODULE = typeof module === 'object' && module && module.exports ? require('../shared/file-risk.js') : null;
   const fileRisk = () => FR_MODULE || root.HosFileRisk || null;
+
+  // Words by key from data/i18n/en.json (files.edit.*): the page's i18n (/shared/i18n.js) when it
+  // has it, else English (window.HOS_I18N_EN, or under Node en.json itself), as files-places.js.
+  const NODE = typeof module === 'object' && module && module.exports;
+  function english() {
+    if (root.HOS_I18N_EN) return root.HOS_I18N_EN;
+    if (!NODE) return null;
+    try {
+      return require('../../data/i18n/en.json');
+    } catch (e) {
+      return null;
+    }
+  }
+  /** A key's words, its {{name}}s filled. */
+  function words(key, vars) {
+    if (root.i18n && typeof root.i18n.t === 'function') {
+      const v = root.i18n.t(key, vars);
+      if (v && v !== key) return v;
+    }
+    let cur = english();
+    for (const part of String(key).split('.')) cur = cur && typeof cur === 'object' ? cur[part] : undefined;
+    if (typeof cur !== 'string') return key;
+    return cur.replace(/\{\{(\w+)\}\}/g, (m, name) => (vars && vars[name] !== undefined ? String(vars[name]) : m));
+  }
 
   const WORDS = Object.freeze({
     save: 'Save',
@@ -216,11 +244,34 @@
   }
   /** What a file's Remove asks first. */
   function removeFileWords(name) {
-    return 'Remove ' + name + ' from this item? It is deleted from the server.';
+    return words('files.edit.remove_question', { name });
   }
-  /** The line about the item's own first file, which is never removed here. */
-  function firstFileWords(name) {
-    return name + ': the item itself. To take it away, remove the item.';
+  /**
+   * What the main file's Remove asks first (BUG-250): `next` becomes the main file; the file goes
+   * back where it was shared when `kept` (an item made from a chat or Shared files upload), else it
+   * is deleted. The desktop's item_view.rs remove_question.
+   */
+  function removeMainWords(name, next, kept) {
+    return words(kept ? 'files.edit.remove_main_question_kept' : 'files.edit.remove_main_question', { name, next });
+  }
+  /**
+   * Added to that question on an item the server keeps (A7): a next file added after the keep ends
+   * it (the relay's detach_media_file), which the page cannot see, so it is said as an if.
+   */
+  function keptNoteWords(next) {
+    return words('files.edit.remove_main_kept_note', { next });
+  }
+  /** The main file's Remove, on hover. */
+  function removeMainTip() {
+    return words('files.edit.remove_main_hint');
+  }
+  /** The item's main file's row: "name, main file, size". */
+  function mainFileWords(name, size) {
+    return words('files.edit.main_file_line', { name, size });
+  }
+  /** Under the item's only file, which has no Remove: why it stays. */
+  function onlyFileWords(name) {
+    return words('files.edit.only_file', { name });
   }
 
   // ── Renaming a file (2026-10-17) ──
@@ -441,7 +492,7 @@
       // Who can see it: Add to Files's rules and words.
       const who = [];
       let picker = null;
-      if (item.keeps_file) {
+      if ((view.current(item.id) || item).keeps_file) {
         who.push(h('p', { className: 'files-hint', text: W.alreadyPublic }));
       } else if (c.membersOnlyServer()) {
         who.push(h('p', { className: 'files-hint', text: W.serverMembersOnly }));
@@ -545,16 +596,19 @@
     }
 
     /**
-     * The files part (titled "Files" by its section): the item's own first file (never removed
-     * here), each added file and the cover with Remove, the uploads on their way to it, and the
-     * uploader's Add a file and Cover picture. Each file's type first (its badge), so its row says
-     * only "name, size" ("name, cover picture, size" for the cover), as the desktop's does. Every
-     * row has Rename; a picture that is not the cover has Use as cover, for the uploader.
+     * The files part (titled "Files" by its section): the item's main file first, each added file
+     * and the cover, every one with Remove while the item has another file (the only one says why
+     * it stays, BUG-250), the uploads on their way to it, and the uploader's Add a file and Cover
+     * picture. Each file's type first (its badge), so its row says only "name, size" ("name, main
+     * file, size" for the main one, "name, cover picture, size" for the cover), as the desktop's
+     * does. Every row has Rename; a picture that is not the cover has Use as cover, for the uploader.
      */
     function drawFiles() {
       if (!els.files) return;
       const now = view.current(item.id) || item;
       const files = view.filesOf(now);
+      // The cover is not one of its files: an item with one file keeps it.
+      const only = files.length <= 1;
       const doc = c.env.document;
       const kids = [];
       // The rename box drawn again (an upload moving on draws this part again) keeps its focus and
@@ -582,11 +636,14 @@
           continue;
         }
         if (first) {
-          kids.push(h('div', { className: 'files-item-file-row files-edit-first-file' }, [
+          kids.push(h('div', { className: 'files-item-file-row files-edit-first-file', dataset: { editFile: x.file } }, [
             fileBadge(h, doc, name),
-            h('span', { className: 'files-hint', text: firstFileWords(name) }),
+            h('span', { className: 'files-item-file-name', text: mainFileWords(name, c.lib.sizeWords(x.size_bytes)) }),
             renameButton(x),
+            only ? null : h('button', { type: 'button', className: 'files-btn files-btn-small files-btn-danger', dataset: { removeFile: x.file }, text: WORDS.remove, title: removeMainTip(), on: { click: () => removeFile(now, x) } }),
           ]));
+          // Why the only file has no Remove, said where it is (the relay refuses it in its words too).
+          if (only) kids.push(h('p', { className: 'files-hint', dataset: { onlyFile: '' }, text: onlyFileWords(name) }));
           continue;
         }
         kids.push(h('div', { className: 'files-item-file-row', dataset: { editFile: x.file } }, [
@@ -724,12 +781,27 @@
       drawFiles();
     }
 
-    /** Take file `x` off the item (POST /api/files/item-files/remove, by its number and its own stored name), once confirmed. */
+    /**
+     * Take file `x` off the item (POST /api/files/item-files/remove, by its number and its own stored
+     * name), once confirmed. The main file too (BUG-250): the question names the file that becomes
+     * the main one, and the relay's answer is the item named by it from then on (W5), which every
+     * later action here sends.
+     */
     async function removeFile(now, x) {
-      if (!(await c.env.confirm(removeFileWords(view.shownName(now, x))))) return;
+      const next = x.file === 0 ? view.filesOf(now).find((o) => o.file !== 0) : null;
+      const main = next ? removeMainWords(view.shownName(now, x), view.shownName(now, next), !!now.keeps_file) : '';
+      const question = next
+        ? (now.kept ? main + ' ' + keptNoteWords(view.shownName(now, next)) : main)
+        : removeFileWords(view.shownName(now, x));
+      if (!(await c.env.confirm(question))) return;
       try {
-        const a = await view.send('/api/files/item-files/remove', 'media_file_remove:' + now.id + ':' + x.file, now, { file: x.file, file_name: x.filename });
-        if (a && a.item) view.takeItem(a.item);
+        const a = await view.send('/api/files/item-files/remove', 'media_file_remove:' + now.id + ':' + x.file, now, { file: x.file, file_name: storedOf(now, x) });
+        if (a && a.item) {
+          view.takeItem(a.item);
+          // Its main file came from a chat or Shared files and went back there: who can see it may
+          // change now, so the form is drawn again (what was typed is kept in `f`).
+          if (!!a.item.keeps_file !== !!now.keeps_file) draw();
+        }
         view.say('Removed from the item.');
       } catch (e) {
         view.say(e && e.message ? e.message : String(e));
@@ -739,7 +811,9 @@
     /** Send the edit (and the visibility when it changed); the form closes once both are in. */
     async function save() {
       if (f.saving) return;
-      const filename = c.lib.itemFileName(item);
+      // The item as the page holds it now: once its main file came off, the next one names it (W5).
+      const now = view.current(item.id) || item;
+      const filename = c.lib.itemFileName(now);
       if (!filename) { f.problem = W.noFileName; drawProblem(); return; }
       // Someone who is not the uploader (an admin) sends the licence and the tick as they were.
       const L = c.st.licences || {};
@@ -765,8 +839,9 @@
         if (a && a.item) view.takeItem(a.item);
         // Who can see it goes by its own signed route, only when it changed and may change.
         const to = f.members ? 'members' : 'public';
-        if (!item.keeps_file && !c.membersOnlyServer() && to !== (item.visibility === 'members' ? 'members' : 'public')) {
-          const v = await view.send('/api/files/visibility', 'media_visibility:' + item.id + ':' + to, item, { visibility: to });
+        const was = (a && a.item) || now;
+        if (!was.keeps_file && !c.membersOnlyServer() && to !== (was.visibility === 'members' ? 'members' : 'public')) {
+          const v = await view.send('/api/files/visibility', 'media_visibility:' + item.id + ':' + to, was, { visibility: to });
           if (v && v.item) view.takeItem(v.item);
         }
       } catch (e) {
@@ -790,7 +865,7 @@
   }
 
   const api = {
-    WORDS, COVER_ACCEPT, editingWords, ownerOnlyWords, addFilesOwnerOnlyWords, removeFileWords, firstFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm,
+    WORDS, COVER_ACCEPT, editingWords, ownerOnlyWords, addFilesOwnerOnlyWords, removeFileWords, removeMainWords, keptNoteWords, removeMainTip, mainFileWords, onlyFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm,
     fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes, tintSection,
     storedEnding, stemOf, nameWithEnding, renamePurpose, coverPurpose,
   };

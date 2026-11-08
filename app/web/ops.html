@@ -3,7 +3,20 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width, initial-scale=1.0>
-  <title>Ops, HumanityOS</title>
+  <title data-i18n="page_titles.ops">Ops, HumanityOS</title>
+  <!-- page-meta: written by scripts/gen-page-meta.js from data/site/page_meta.json and data/i18n/en.json; edit those, not these lines -->
+  <meta name="description" data-i18n-content="page_meta.ops" content="A behind-the-scenes look at how the app is running in your browser right now: its connection, its storage and what it has saved.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HumanityOS">
+  <meta property="og:title" data-i18n-content="page_titles.ops" content="Ops, HumanityOS">
+  <meta property="og:description" data-i18n-content="page_meta.ops" content="A behind-the-scenes look at how the app is running in your browser right now: its connection, its storage and what it has saved.">
+  <meta property="og:url" content="https://united-humanity.us/ops">
+  <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" data-i18n-content="page_meta.image_alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- /page-meta -->
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* Colours this page uses that have no theme token. The dark values are
@@ -321,7 +334,7 @@
 (function() {
   // Populate system info
   const el = id => document.getElementById(id);
-  if (el('debug-version')) el('debug-version').textContent = 'v0.1549.0';
+  if (el('debug-version')) el('debug-version').textContent = 'v0.1550.1';
   if (el('debug-server'))  el('debug-server').textContent  = window.location.origin;
   if (el('debug-ua'))      el('debug-ua').textContent      = navigator.userAgent.slice(0, 120);
   if (el('debug-screen'))  el('debug-screen').textContent  = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio||1) + 'x DPR';

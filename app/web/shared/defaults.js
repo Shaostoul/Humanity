@@ -83,6 +83,10 @@
     'speaker-vol': '100',
     'camera-device': '',
     'video-quality': '720',
+    // What volume a video starts at (2026-11-06; web/shared/video-volume.js): 'last' or 'set', and
+    // the set volume in percent, as the desktop app's Settings > Audio > Videos.
+    'video-start': 'last',
+    'video-start-pct': '100',
     // Security
     'auto-lock': '30',
     // (The Do Not Disturb section's presence, status, quiet hours and exceptions, and the

@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat, HumanityOS</title>
-  <meta name="description" content="HumanityOS cooperative chat with cryptographic identity. No sign-up, no tracking. Just people talking freely.">
+  <title data-i18n="page_titles.chat">Chat, HumanityOS</title>
+  <!-- page-meta: written by scripts/gen-page-meta.js from data/site/page_meta.json and data/i18n/en.json; edit those, not these lines -->
+  <meta name="description" data-i18n-content="page_meta.chat" content="Talk with people on HumanityOS in open rooms, in direct messages sealed end to end, and on calls, with no sign-up.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Chat, HumanityOS">
-  <meta property="og:description" content="HumanityOS cooperative chat with cryptographic identity. No sign-up, no tracking, no surveillance.">
+  <meta property="og:site_name" content="HumanityOS">
+  <meta property="og:title" data-i18n-content="page_titles.chat" content="Chat, HumanityOS">
+  <meta property="og:description" data-i18n-content="page_meta.chat" content="Talk with people on HumanityOS in open rooms, in direct messages sealed end to end, and on calls, with no sign-up.">
   <meta property="og:url" content="https://united-humanity.us/chat">
-  <meta property="og:image" content="https://united-humanity.us/favicon.png">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Chat, HumanityOS">
-  <meta name="twitter:description" content="HumanityOS cooperative chat with Ed25519 identity. No sign-up. No tracking.">
-  <meta name="twitter:image" content="https://united-humanity.us/favicon.png">
+  <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" data-i18n-content="page_meta.image_alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- /page-meta -->
   <meta name="theme-color" content="#ed8c24">
   <link rel="manifest" href="/shared/manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
@@ -108,6 +111,8 @@
   <script src="/shared/server-strip.js?v=1"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js?v=5"></script>
+  <!-- What volume a video posted in chat starts at (Settings > Audio & Video > Videos, 2026-11-06). -->
+  <script src="/shared/video-volume.js?v=1"></script>
 
   <!-- Login Screen -->
   <div id="login-screen">
@@ -752,8 +757,8 @@
        strip-metadata.js); files-in-messages.js holds the Files in messages settings and their
        rules; kept-files.js keeps an encrypted copy of each private file opened. All before
        chat-dm-store.js, chat-messages.js, chat-dms.js and chat-privacy.js, which use them. -->
-  <script src="/shared/strip-metadata.js?v=1"></script>
-  <script src="/shared/upload-clean.js?v=1"></script>
+  <script src="/shared/strip-metadata.js?v=2"></script>
+  <script src="/shared/upload-clean.js?v=3"></script>
   <script src="/shared/files-in-messages.js?v=2"></script>
   <!-- person-controls.js: what a person chose for one other person on their profile card
        (2026-11-03, docs/design/per-person-controls.md): notifications from them and files from
@@ -802,6 +807,10 @@
        before chat-messages.js, which puts them on the page. -->
   <script src="/shared/drop-overlay.js?v=2"></script>
   <script src="/shared/upload-window.js?v=4"></script>
+  <!-- self-mail.js: my own copy of a private message (and the other mail to my own mailbox that
+       pairs with a message to someone) leaves a random 20 s to 2 min after it, so the server never
+       stores the two side by side (BUG-259). Before app.js, which attaches it to every socket. -->
+  <script src="/shared/self-mail.js?v=1"></script>
   <script src="/chat/crypto.js?v=16"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
@@ -811,7 +820,7 @@
        2026-08-23). The relay no longer stores readable DM history; this
        IndexedDB store, keyed from the seed, is the archive. Load before
        app.js so the dm_new/dm_batch handlers can use it. -->
-  <script src="/chat/chat-dm-store.js?v=14"></script>
+  <script src="/chat/chat-dm-store.js?v=15"></script>
   <!-- chat-key-cards.js: asks the server for people's key cards, checks each, pins them, and
        shows a key that changed (2026-10-22). The only source of the keys anything is sealed to.
        After chat-dm-store.js (the pins live there), before app.js (which hands it the frames). -->
@@ -832,8 +841,13 @@
   <script src="/shared/chat-access.js?v=2"></script>
   <!-- Links to channels (2026-11-03): which channel /chat#<channel> names, and a channel's address. -->
   <script src="/shared/chat-links.js?v=1"></script>
-  <script src="/chat/app.js?v=39"></script>
-  <script src="/chat/chat-messages.js?v=25"></script>
+  <!-- A posted video's poster picture (2026-11-06): made when a video is posted (chat-messages.js),
+       and where a card finds it (app.js). Before app.js. -->
+  <script src="/shared/video-poster.js?v=1"></script>
+  <!-- The dock a playing video moves into when its card is scrolled away (2026-11-06, rung 3). -->
+  <script src="/shared/video-dock.js?v=1"></script>
+  <script src="/chat/app.js?v=43"></script>
+  <script src="/chat/chat-messages.js?v=29"></script>
   <script src="/chat/chat-dms.js?v=25"></script>
   <script src="/chat/chat-social.js?v=22"></script>
   <script src="/chat/chat-groups-p2p.js?v=21"></script>
@@ -843,8 +857,11 @@
        chat's use of it and the server row's Mute bell. Both before chat-ui.js, whose
        notifyNewMessage and renderServerList ask them. -->
   <script src="/shared/notify-rules.js?v=3"></script>
-  <script src="/chat/chat-notify.js?v=5"></script>
-  <script src="/chat/chat-ui.js?v=27"></script>
+  <!-- sound-levels.js (2026-11-06): each notification sound at the person's level for it, set in
+       Settings > Audio & Video > Sound levels; chat-notify.js plays through it. -->
+  <script src="/shared/sound-levels.js?v=1"></script>
+  <script src="/chat/chat-notify.js?v=7"></script>
+  <script src="/chat/chat-ui.js?v=28"></script>
   <script src="/chat/chat-voice-rooms.js?v=10"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>
   <script src="/chat/chat-voice-webrtc.js?v=2"></script>
@@ -857,7 +874,7 @@
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) and /shared/privacy-tiers.js loaded first. -->
-  <script src="/chat/chat-privacy.js?v=20"></script>
+  <script src="/chat/chat-privacy.js?v=21"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
@@ -870,7 +887,7 @@
   <!-- Device-to-device big files (2026-10-11): a file over my private limit in a DM goes straight to
        the other person's device once they say yes; the offer, the question, the rows and the
        connection. Wraps the frame handler, so before chat-protected.js, which stays the last. -->
-  <script src="/chat/chat-file-transfer.js?v=6"></script>
+  <script src="/chat/chat-file-transfer.js?v=7"></script>
   <!-- The protected setup (step G, 2026-10-10): the Safety section, its steps, the PIN prompt, the
        always-visible line, public rooms hidden and pictures from non-friends not shown. After
        chat-privacy.js (the Safety page it draws into) and chat-warnings.js (the recovery phrase
