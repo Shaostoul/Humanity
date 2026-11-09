@@ -207,7 +207,7 @@ release assets; the star catalogue ships a small core and offers its big catalog
 download would leave every new player among boxes. Byte-stable rebuilds keep them from piling up in
 git history. Anything beyond the cap, and every later batch, becomes a release-asset pack of at most
 about 70 MiB (`assets-simready-1`), built and checked the instrument packs' way (SHA-256 in a
-catalogue, Settings download, uploading is the operator's step), with the box primitive as the
+catalogue, Settings download, uploading is the top-level session's step), with the box primitive as the
 fallback when a pack is not installed. By the estimate the Medical Bay set does not fit beside the
 home set, so it is converted and checked with the rest but kept out of git (in
 `E:\HumanityOS\simready-packs\`) and becomes the first pack when the Medical Bay is built; until then

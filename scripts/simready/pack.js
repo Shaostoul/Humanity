@@ -664,7 +664,7 @@ function packsRon({ homeModels, homeBytes, tarName, tarBytes, tarSha, packModels
     '// what ships in the app, and each pack to download from Settings > Graphics > Furniture models.',
     '// Written by `just simready` (scripts/simready/pack.js) in the same run as the archive, so the',
     '// size and SHA-256 below are the uploaded file\'s. Uploading the archive to the release is the',
-    "// operator's step (docs/ai/release.md). Do not edit by hand.",
+    "// top-level session's step (docs/ai/release.md). Do not edit by hand.",
     '(',
     `    release: "assets-simready-1",`,
     `    base_url: "https://github.com/Shaostoul/Humanity/releases/download/assets-simready-1/",`,
