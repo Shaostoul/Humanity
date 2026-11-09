@@ -6,9 +6,14 @@
   "current_focus": "Overnight loop 2026-11-09: merge SimReady phase 2 when it reports (verify-runtime), maps rung 1 agent in flight, then the one-runtime finding (AI optional: runtime a separate download), then a release if the batch passes verify-runtime.",
   "open_questions_for_human": [
     "Walk speed: realistic 1.4 m/s walk and ~4 m/s run; simplified keeps 5 / 9.5 m/s? Recommended yes.",
-    "Optional: send Quaternius one question about the QAL page vs the CC0 License.txt in the files (his message to send)."
+    "Optional: send Quaternius one question about the QAL page vs the CC0 License.txt in the files (his message to send).",
+    "Embeddable AI: the 11 questions in docs/design/embeddable-ai.md section 15 (separate engine program; CPU-only in play; assets-ai-1 hosting; motion model in its pack; tract on the website; local character memory; helper chats until close; free conversation on once installed; no bring-your-own model before v1.0; own trained voice; default voices not donated). Recommendations in the doc."
   ],
   "recent_decisions": [
+    {
+      "date": "2026-11-09",
+      "decision": "Embeddable AI merged a502eb880: docs/design/embeddable-ai.md (the plan, starting set only, alternatives in their own section) + findings/2026-11-09-model-runtime.md (one separately downloaded engine humanity-ai.exe: llama.cpp + audio.cpp pocket-only + tract for ONNX, stdin/stdout no network, CPU+Vulkan only; model files are hostile input). 11 operator questions in the plan section 15, each with a recommendation (all yes except bring-your-own-model: not before v1.0; character memory off until tested)."
+    },
     {
       "date": "2026-11-09",
       "decision": "Operator yeses before bed: MakeHuman young-adult set (\"at least a male and a female\"; fetched, 100 files 33.2 MB, E:/HumanityOS/makehuman-src/a8bc2d54, blob-hash verified); Quaternius UAL Standard to inspect (fetched via the built-in browser, E:/HumanityOS/quaternius-src/ual-standard-2026-11-09; its own License.txt is CC0 1.0; 43 clips, 65-joint UE-mannequin rig, no turn-in-place; addendum in findings/2026-11-08-character-assets.md); maps GEDTM30 + Overture + GitHub release hosting all \"Yes.\"; NPC starting set \"Yes\", plus a dedicated doc (agent writing docs/design/embeddable-ai.md + findings/2026-11-09-model-runtime.md). Character rung 2 can start from the MakeHuman sources and the UAL clips."
