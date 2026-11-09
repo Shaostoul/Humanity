@@ -689,6 +689,23 @@ male and a female." and "Yes, let's see what it has.") and his decision on walki
   slowly), the Realistic run the jog alone slowed, the Simplified walk mostly the jog and the sprint
   the sprint.
 
+### Answers after rung 1 (operator, 2026-11-09)
+
+Rung 1's agent left three questions; his answers, verbatim:
+
+1. **Keep both bodies with all 15 shape targets (8.6 MB in git), or height only?** "We don't need
+   to be so careful with space usage. This stuff sounds reasonable. I'm sure we'll end up having
+   larger ones as we get closer to v1.0". Kept whole (and a standing rule in CLAUDE.md since).
+2. **Real clothes and hair from MakeHuman's CC0 assets, after foot placement (rung 2)?** "Yeah,
+   might as well include these." The source is MakeHuman's system asset pack,
+   `makehuman_system_assets_cc0.zip` (280,737,770 bytes, Last-Modified 2024-04-14), listed on
+   makehumancommunity.org's asset pack page as CC0 (hair, eyebrows, eyelashes, eyes, teeth, skins,
+   proxies, and clothes: casual, elegant, sport and work suits, shoes, two fedoras). Its first mirror
+   (`files2.makehumancommunity.org`) disallows every robot in its robots.txt, so it is fetched from the
+   second (`files.makehumancommunity.org`, no robots.txt), once the download itself is approved.
+3. **Build and ancestry sliders on the character page?** "Yeah, let's go for it." The 15 targets
+   already ship; the sliders drive them through the look, like height.
+
 ## References
 
 - MotionBricks: README, model cards and ONNX guide, https://github.com/NVlabs/motionbricks; the

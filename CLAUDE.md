@@ -165,6 +165,12 @@ When a tool, model, library or asset source comes up, scan its open alternatives
 publisher, hardware, fit) before recommending it, and say which is best and why. Written scans go in
 `docs/reference/research/<date>-<topic>/`; anything adopted still gets its dated finding.
 
+**Space is not scarce for real assets (operator, 2026-11-09).** Verbatim: "We don't need to be so
+careful with space usage. This stuff sounds reasonable. I'm sure we'll end up having larger ones as
+we get closer to v1.0". Keep useful asset data whole (a body's every shape target, clips, packs)
+instead of trimming megabytes, and do not raise MB-scale size as an operator question; GB-scale data
+still says where it lives (release assets, not git), and every download is still asked first.
+
 **Release signing is the operator's to raise, never yours (operator, 2026-09-20).** Verbatim: "We
 have a rule that I'll sign when I feel appropriate and that for you to not mention the game needs
 signing to me." So **never tell the operator a release needs signing, never list unsigned releases
