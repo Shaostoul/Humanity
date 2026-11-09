@@ -19,6 +19,11 @@
   "recent_decisions": [
     {
       "date": "2026-11-08",
+      "decision": "v0.1551.0 released and delivered (privacy BUG-278..285; checks: lib 5773/0, rig-tests 1623/0, verify-runtime 3/3, fuji-forest 28.1 fps so the 18.6 earlier was load). Live: BUG-285 applied by itself on united-humanity.us (600/700, UMask 0077); public.guide chmod 600 by hand until its follower updates; api.github.com removed from the live nginx CSP (backup /root/humanity.nginx.bug281.bak). Operator answers: SimReady download approved (712 files, 2.45 GB to E:/HumanityOS/simready-src) and the home set ships in the app, \"easy to access\" (phase 2 running); splats excluded for now; health data is iterative, information never medical advice; new CLAUDE.md norm: compare alternatives for every new tool (20a66044a); body = MakeHuman with SOMA joint map; motion data plan accepted; volunteers page docs/outreach/volunteers-wanted.md. Running: animation rungs 0-1, SimReady phase 2, NPC brain+voice scan, food labels plan, whole-Earth maps plan (wk-earthmaps.txt), asset packs scan.",
+      "why": "Operator replies 2026-11-08 night."
+    },
+    {
+      "date": "2026-11-08",
       "decision": "Operator answers on the AI scan and the animation plan. SimReady assets: GO (\"Stuff we don't have to make saves us time\"), integrate once the legal finding lands. Audio8 TTS: acceptable as a start until something universal, with the new CLAUDE.md rule that hardware-gated features say plainly what they need (828818889). Animation: rungs 0-2 now (agent running, wk-anim1.txt, rungs 0-1 first, body-agnostic, downloads listed for his approval); NVIDIA weights only as an optional upgrade pack like the star catalogue; community CC0 mocap yes; own body in first person by default with a Settings switch and Reduce motion; default mode by budget; new crate humanity-animation. OPEN: which body (he asked for pros/cons; MakeHuman CC0 recommended), which motion data (recommended Quaternius for rung 1, 100STYLE + CMU + ACCAD for motion matching).",
       "why": "His replies of 2026-11-08 evening."
     },

@@ -11,6 +11,16 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1551.0 (8 November 2026)
+
+- Hidden means hidden: turning off "Show others when I am online" now keeps you out of every list and announcement.
+- Erasing your account takes everything that is yours, and both erase windows say exactly what stays.
+- Bug reports no longer show who sent them, except to admins and moderators.
+- The website no longer asks GitHub on every page.
+- Files in members-only rooms open only for that room's members.
+- Settings sync is sealed or nothing; group details are for members only.
+- The server's own files are readable only by its own account.
+
 ### v0.1550.1 (7 November 2026)
 
 - The ship has music: a live score at A = 432 Hz with deep drums, steel pan, strings and bells, rising with danger and settling back. Settings > Music.
