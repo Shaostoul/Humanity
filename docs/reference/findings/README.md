@@ -599,3 +599,44 @@ what we will say about it.
   over pipes with no network: llama.cpp, audio.cpp with only Pocket TTS, and tract (ONNX Runtime as
   the fallback); a learned motion model stays on the wgpu path with its shaders in its pack. The basis
   for `docs/design/embeddable-ai.md`.
+- [`2026-11-09-open-3d-sources-index.md`](2026-11-09-open-3d-sources-index.md),
+  one table of the day's verdicts on the open model, material and HDRI sources the 2026-11-08 asset
+  scan ranked, with their credit lines and conditions, the sources not researched, and six lessons
+  that apply to every source (read `robots.txt` first; licences often live outside the files;
+  credits chain; licences change; CC covers copyright only; NoAI is the one AI question).
+- [`2026-11-09-poly-haven-and-ambientcg.md`](2026-11-09-poly-haven-and-ambientcg.md),
+  whether Poly Haven's and ambientCG's models, textures and HDRIs may ship. Both CC0, no credit
+  required (both ask for it). Poly Haven's API terms (changed 18 July 2026) bind only live-API use
+  inside an app, never downloaded files; its website terms forbid scraping, so scripts use the API
+  with a user agent naming our software; its descriptions, renders and logo are not CC0. ambientCG
+  has no terms of service or API terms at all. CC0 clears no brand, sign or person shown in an asset.
+- [`2026-11-09-gazebo-fuel-models.md`](2026-11-09-gazebo-fuel-models.md),
+  how Gazebo Fuel models state their licence (a field in Fuel's API, never a file in the model; seven
+  licences possible, CC0 and CC BY 4.0 usable), what CC BY models owe (per-model credit from
+  `model.config`, whose Open Robotics `Oven` credits a Sketchfab original too), and that Fuel has no
+  terms of service beyond copyright, deletion and data policies. Google's branded scans and two
+  authorless CC0 models are left out.
+- [`2026-11-09-amazon-berkeley-objects.md`](2026-11-09-amazon-berkeley-objects.md),
+  Amazon Berkeley Objects' 3D models: CC BY 4.0 (the bucket's licence file is the legal code word for
+  word), changed from CC BY-NC in 2023 as Amazon's registry entry says (its 2022 paper still says
+  NC); credit "(c) Amazon.com" plus the dataset builders (six names in the README, ten on the index
+  page). Real products with brands: the licence grants no marks and does not clear other makers'
+  rights, so generic names only, textures checked; brands per model need the 83 MB listings metadata.
+- [`2026-11-09-kenney-assets.md`](2026-11-09-kenney-assets.md),
+  Kenney's game assets: CC0 by its support and Furniture Kit pages, attribution optional, logo
+  reserved; the licence file inside downloads and the terms of service unread, because kenney.nl's
+  `robots.txt` disallows AI agents (two pages were read before it was seen; recorded). The project
+  ships 15 Furniture Kit models and Kenney audio without Kenney's own licence file.
+- [`2026-11-09-sketchfab-cc-models.md`](2026-11-09-sketchfab-cc-models.md),
+  Sketchfab's CC0 and CC BY models under its terms of 27 October 2026 (KitBash SF Operations LLC):
+  the licence at download governs, downloads need a logged-in adult's account, Standard and Editorial
+  models cannot ship in an open data folder. NoAI is a contract term of the platform, not part of the
+  CC licence (Sketchfab says only the CC licence follows a model off the platform), but an AI-run
+  conversion is plausibly "inputs to Generative AI Programs": avoid NoAI tags and statements. Per-model
+  credit in Sketchfab's own pattern, and a seven-point checklist per pick.
+- [`2026-11-09-reference-3d-collections.md`](2026-11-09-reference-3d-collections.md),
+  NASA 3D Resources (US public domain by NASA's guidelines of 27 October 2026, credit NASA, insignia
+  reserved; the repository's `meta.json` names NOSA 1.3 but includes no agreement, and per-model
+  authorship is unrecorded), Khronos glTF Sample Assets (per model: 62 CC0, 45 CC BY 4.0, 9 not
+  usable, logos never licensed) and Smithsonian Open Access (CC0 per record; its terms page refused
+  automated reading).
