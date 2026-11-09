@@ -585,3 +585,17 @@ what we will say about it.
   domain; Wikidata CC0. Two compliance gaps still open in the code: the ODbL offer is not in the
   release archive, and the in-world credit hides in the construction editor and showroom. One source
   recommended per layer. The basis for `docs/design/whole-earth-maps.md`.
+- [`2026-11-09-model-runtime.md`](2026-11-09-model-runtime.md),
+  how the app runs AI models when the runtime itself must be a separate, optional download. Compares
+  llama.cpp and ggml (MIT; ggml joined Hugging Face on 20 February 2026), audio.cpp (Apache 2.0;
+  carries its own modified copy of ggml), ONNX Runtime (MIT; DirectML "in sustained engineering") with
+  the `ort` binding (a release candidate that downloads binaries from pyke's CDN by default), candle
+  (no Vulkan), burn (widest Rust GPU reach, limited ONNX), tract (pure Rust, CPU and WebAssembly) and
+  the engine's own wgpu path: licences quoted, publishers checked against the Entity List and the
+  1260H list (none listed), hardware, Windows archive sizes, hosting. Model files are hostile input
+  (thirteen llama.cpp advisories, four tract model-load advisories in 2026); a library in the app
+  would run beside the person's unlocked keys; GitHub caps each release file under 2 GiB, so Gemma 4
+  must be split. Recommends one AI engine program the project builds, downloaded separately, talking
+  over pipes with no network: llama.cpp, audio.cpp with only Pocket TTS, and tract (ONNX Runtime as
+  the fallback); a learned motion model stays on the wgpu path with its shaders in its pack. The basis
+  for `docs/design/embeddable-ai.md`.

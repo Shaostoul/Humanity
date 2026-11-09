@@ -367,7 +367,11 @@ The candidates, from the finding (F14) and the 2026-11-08 AI tools scan:
 **One inference runtime for the whole app.** Paradee's read-aloud, MotionBricks' animation and this
 reader all run ONNX models. The runtime is chosen once (ONNX Runtime through a Rust binding on the
 desktop, onnxruntime-web on the website, both MIT, is the natural fit) and licence-checked in its own
-finding before the first of the three is built.
+finding before the first of the three is built. **That finding is
+[`2026-11-09-model-runtime.md`](../reference/findings/2026-11-09-model-runtime.md)**: it recommends
+running the reader inside the separately downloaded AI engine of
+[`embeddable-ai.md`](embeddable-ai.md) through tract (pure Rust, the same code compiled for the
+website), with ONNX Runtime as the fallback, decided by a spike on PP-OCRv6 at rung 2.
 
 The models download on first use from the project's own release assets, never fetched from a third
 party at runtime. Their training data is unexamined (the finding); a check before shipping is part
