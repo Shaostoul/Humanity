@@ -522,6 +522,27 @@ CARTO tiles at run time today (attribution audit item 12; CARTO's terms not read
 reads the same base layer and packs (from our own host, not GitHub, if GitHub's download links do
 not allow cross-origin reads), so the web and the app draw the same map.
 
+### 9.7 The whole planet, for a server or anyone who wants it
+
+Asked by the operator on 2026-11-09 ("What happens if someone wants the whole Earth? Like for their
+dedicated MMO server?"). Three ways, all reaching the same files:
+
+- **Download all of Earth**, a button in Settings > Maps beside Download area: every region and local
+  pack (about 25 GB plus 200 to 250 GB, section 8.5), queued, resumable, checked against the
+  catalog's SHA-256 file by file, with the size and the free disk space shown before it starts. A
+  headless server gets the same action through the in-app ops registry (the GUI-first rule), so
+  its admin page offers it too.
+- **Build it yourself** with our builder from the OSM planet file and the other sources (section 7),
+  an overnight job on a desktop: the ODbL offer made real, and a server operator who wants fresher
+  data than our monthly packs gets it.
+- **Serve it onward:** a server holding every pack can be listed in its players' catalogs as a
+  mirror (9.2), so its players fetch from it instead of GitHub; the packs are the same files with
+  the same hashes, so a mirror can never hand out different data unnoticed.
+
+A server needs the heights and the footprints for collision and placement; it never draws, so a
+later "server set" could skip land cover and names. One format until a measurement says the saving
+matters.
+
 ## 10. Budgets
 
 | Budget | Limit | How it holds |
@@ -597,7 +618,18 @@ No backwards compatibility before v1.0, so the regions are rebuilt, not converte
    the United States, NOAA's fine coastal bathymetry, lake depths, the intertidal zone with tides,
    DeltaDTM for low coasts after the finding's open question 1.
 8. **Buildings in 3D:** roof shapes and levels from OSM's 3D tags, bridges and tunnels as real
-   geometry, the under-surface view.
+   geometry, the under-surface view. Not boxes (operator, 2026-11-09: "How do we create the 3D buildings that are
+   visually interesting instead of simple cubes?"): each footprint becomes a building by published
+   methods, built in our own code: roofs from the footprint's straight skeleton (hipped, gabled,
+   pyramidal, from `roof:shape` or the regional default), walls split into storeys and bays by a
+   facade grammar (the published shape-grammar method of Müller et al., 2006, not any tool), each bay
+   filled from a kit of modular pieces (windows, doors, porches, trim, chimneys, garages) instanced
+   across the city, a regional style file per area and era (Pacific Northwest wood siding and gabled
+   roofs, European brick and render) chosen by location and building type, seeded variation so
+   neighbours differ, interior mapping behind windows for lit rooms at night, and a hand-made model
+   in place of the procedural one for a landmark. Styles and kits are data (infinite-of-x). Open
+   renderers that already do this (OSM2World, Streets GL) are compared, licences quoted, in their own
+   finding before rung 8 starts (the compare-alternatives rule).
 
 ### Rung 1 in detail: the yardstick and the credit
 

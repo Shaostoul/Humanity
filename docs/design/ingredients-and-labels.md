@@ -738,10 +738,8 @@ Each rung is a slice of the real thing, not a throwaway.
 ### Answers (operator, 2026-11-09)
 
 1. Open Food Facts: "Ok." Rung 9, off by default, as recommended.
-2. Still open: he asked what counts as a serious health warning; the answer given was the
-   `severity` scale of 4.7 (a line that could change what a person eats or does about their
-   health, and that would hurt them if wrong: a cancer classification, a pregnancy warning, a
-   medicine interaction, an anaphylaxis allergen, a natural toxin).
+2. Serious warnings ship, in his words: "I feel like we should have the serious health warnings but, tie into the wip fotter warning thing we have going on. We're already instructing users that some information may be incorrect due to our apps non version 1.0 status." So serious lines show by default, under the unfinished-software bar (`wip.line` already says "Do not rely on it for health, safety, food or water"), each with its source, date and quotation one tap away and a plain marker while no health professional has read it. The refutation pass (section 6, steps 1 to 3) stays mandatory; the person's review (step 4) becomes the marker's removal, not the gate, and the "Health reviewer" volunteer role is still wanted. What counts as serious was answered as the `severity` scale of 4.7: a line that could change what a person eats or does about their health and would hurt them if wrong.
+   A worked example of saying only what the source says: IARC's Q&A on processed meat (Monographs volume 114, 2015, read 2026-11-09, <https://www.iarc.who.int/wp-content/uploads/2018/07/Monographs-QA_Vol114.pdf>) classes it as causing colorectal cancer and names chemicals that form in processing (N-nitroso compounds, polycyclic aromatic hydrocarbons) and cooking (heterocyclic aromatic amines), yet says "it is not yet fully understood how cancer risk is increased by red meat or processed meat". The line carries both halves, never one.
 3. Allergens: "Agreed." The union of every country, the person's own marked.
 4. Interactions, in his words: "We want to provide the interaction warnings, like with the serious
    health warnings, but we want to provide a consult with medical professional or whatever." So
@@ -749,7 +747,7 @@ Each rung is a slice of the real thing, not a throwaway.
    each with a plain "talk to your pharmacist or doctor" line beside it, and never a dose.
 5. Avoid list device-only: "Sounds good."
 6. In the Library: "Agreed."
-7. Pets: "Yes. I do have a doberman I'd like to protect." Dogs first when rung 12 starts.
+7. Pets: "Yes. I do have a doberman I'd like to protect." Dogs first when rung 12 starts. Sources found the same day for the dog section, all open access in BMC Veterinary Research's "Critically appraised topic on adverse food reactions of companion animals" series: part 2 (2016, <https://bmcvetres.biomedcentral.com/articles/10.1186/s12917-016-0633-8>) lists the most reported food allergens in dogs as beef (34%), dairy (17%), chicken (15%), wheat (13%) and lamb (5%); part 1 (2015) says elimination diets should last at least 8 weeks; part 4 (2017) finds blood tests for food allergy unreliable in dogs; part 5 (2018) found unlisted ingredients in a median 45% of tested pet foods. Each still goes through the refutation pass before it ships.
 
 And one rule for the whole feature: AI is optional, never required (5.2).
 
