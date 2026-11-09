@@ -87,6 +87,12 @@ pub fn file_name(key: TileKey) -> String {
 
 pub struct TerrainTiles {
     dir: PathBuf,
+    /// Whether the tile folder held at least one tile file (`*.bin`) when the set was made
+    /// (BUG-287, 2026-11-09): an empty or missing folder is NOT an installed tier. Read once at
+    /// start, like the rest of the game data: tiles are produced by a developer tool
+    /// (`examples/build_earth_tiles.rs`), and a folder filled while the game runs counts from the
+    /// next start.
+    has_tile_files: bool,
     resident: HashMap<TileKey, Tile>,
     pending: HashSet<TileKey>,
     /// Tile files confirmed missing on disk this session - never re-tried.
@@ -108,8 +114,14 @@ impl TerrainTiles {
     /// detail tier, nothing breaks).
     pub fn new(dir: PathBuf) -> Self {
         let (tx, rx) = channel();
+        let has_tile_files = std::fs::read_dir(&dir)
+            .map(|entries| {
+                entries.flatten().any(|e| e.path().extension().is_some_and(|x| x.eq_ignore_ascii_case("bin")))
+            })
+            .unwrap_or(false);
         Self {
             dir,
+            has_tile_files,
             resident: HashMap::new(),
             pending: HashSet::new(),
             absent: HashSet::new(),
@@ -220,8 +232,12 @@ impl TerrainTiles {
         self.resident.len()
     }
 
+    /// Is the detail tier installed? True when the folder held a tile file at start, or a tile
+    /// is already resident. Not merely when the folder exists (BUG-287): an empty
+    /// `data/planets/earth_tiles` gave the operator's game patch depth 20 over no tiles while
+    /// every release drew depth 13.
     pub fn tier_installed(&self) -> bool {
-        !self.resident.is_empty() || !self.pending.is_empty() || self.dir.is_dir()
+        self.has_tile_files || !self.resident.is_empty()
     }
 
     /// Bicubic elevation in meters at (lat, lon), or None when any stencil
@@ -367,6 +383,26 @@ mod tests {
             distinct > 190,
             "staircase quantization is back: only {distinct}/199 distinct steps"
         );
+    }
+
+    /// BUG-287 (2026-11-09): an EMPTY tile folder is not an installed tier. The main checkout
+    /// carried an empty `data/planets/earth_tiles` (made 2026-08-16), so `tier_installed` (then
+    /// `self.dir.is_dir()`) gave the operator's game the tile tier's patch depth 20 over no tiles
+    /// while every release drew depth 13: two grounds from one build. Installed now means a tile
+    /// file is there. Seen red 2026-11-09 on the old check: "an empty tile folder counted as an
+    /// installed tier".
+    #[test]
+    fn an_empty_tile_folder_is_not_an_installed_tier() {
+        let dir = std::env::temp_dir().join(format!("hos_tile_tier_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!TerrainTiles::new(dir.clone()).tier_installed(), "a missing tile folder counted as an installed tier");
+        std::fs::create_dir_all(&dir).expect("make the empty tile folder");
+        assert!(!TerrainTiles::new(dir.clone()).tier_installed(), "an empty tile folder counted as an installed tier");
+        std::fs::write(dir.join("notes.txt"), b"not a tile").expect("write a stray file");
+        assert!(!TerrainTiles::new(dir.clone()).tier_installed(), "a folder holding no tile file counted as an installed tier");
+        std::fs::write(dir.join("N45E135.bin"), b"any bytes: presence is the test").expect("write a tile file");
+        assert!(TerrainTiles::new(dir.clone()).tier_installed(), "a folder holding a tile file did not count as installed");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
