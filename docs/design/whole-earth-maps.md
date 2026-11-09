@@ -645,6 +645,20 @@ Small, measurable, no large downloads, and it makes every later rung provable.
 6. **How often packs update.** **Recommendation: monthly for changed packs**, a full rebuild only
    when the format changes; OSM edits reach players within a month.
 
+### Answers (operator, 2026-11-09)
+
+- 4, privacy: "Sounds good." Ask the first time; whole-region downloads by default on the Maps page.
+- 5, downloads: "Let's get Washington state! I'd love to see it in all of its glory." Fetched the
+  same day onto `E:\HumanityOS\maps-src\`: Geofabrik's Washington extract (365,725,774 bytes,
+  dated 2026-11-09 00:21 UTC, with its MD5 file) and the WorldCover home tile `N45W123`
+  (64,998,919 bytes). Measured for the whole state, not yet fetched: WorldCover's eight tiles
+  covering it, 470 MB together; GEDTM30's 30 m heights are one global 432,407,644,715-byte file
+  (`s3.opengeohub.org`, range requests accepted), so Washington's window is read by range
+  requests, an estimated 0.5 GB.
+- 6, cadence: "Makes sense." Monthly for changed packs.
+- 1, 2 and 3 he asked about (why GEDTM30, why Overture, how the release hosting works); answered in
+  the conversation, still to be confirmed.
+
 ## 15. Risks
 
 1. **GEDTM30 is young** (version 1, "for testing", a 0.9 arc-second grid quirk its makers are

@@ -369,9 +369,15 @@ reader all run ONNX models. The runtime is chosen once (ONNX Runtime through a R
 desktop, onnxruntime-web on the website, both MIT, is the natural fit) and licence-checked in its own
 finding before the first of the three is built.
 
-The models ship with the app, or download on first use from the project's own release assets, never
-fetched from a third party at runtime. Their training data is unexamined (the finding); a check
-before shipping is part of rung 2.
+The models download on first use from the project's own release assets, never fetched from a third
+party at runtime. Their training data is unexamined (the finding); a check before shipping is part
+of rung 2.
+
+**AI is optional, never required (operator, 2026-11-09):** "people that don't want local LLM AI
+don't have to install it. AI needs to be optional, not required." The reading model is therefore a
+download the person chooses, not part of the app, and the checker works fully without it: type or
+paste the ingredient list, or scan the barcode (decoding a barcode is plain arithmetic, no model).
+The camera reader is offered by name beside those, with what it needs and its size.
 
 ### 5.3 Parsing a label
 
@@ -728,6 +734,24 @@ Each rung is a slice of the real thing, not a throwaway.
 7. **Pets?** The prototype carried dog and cat toxicity, which suggests people want it.
    *Recommendation: a later rung (12), through the same refutation gate, because the dangerous
    foods for pets are well documented and often surprising.*
+
+### Answers (operator, 2026-11-09)
+
+1. Open Food Facts: "Ok." Rung 9, off by default, as recommended.
+2. Still open: he asked what counts as a serious health warning; the answer given was the
+   `severity` scale of 4.7 (a line that could change what a person eats or does about their
+   health, and that would hurt them if wrong: a cancer classification, a pregnancy warning, a
+   medicine interaction, an anaphylaxis allergen, a natural toxin).
+3. Allergens: "Agreed." The union of every country, the person's own marked.
+4. Interactions, in his words: "We want to provide the interaction warnings, like with the serious
+   health warnings, but we want to provide a consult with medical professional or whatever." So
+   interaction lines ship, through the same refutation pass and person's review as serious lines,
+   each with a plain "talk to your pharmacist or doctor" line beside it, and never a dose.
+5. Avoid list device-only: "Sounds good."
+6. In the Library: "Agreed."
+7. Pets: "Yes. I do have a doberman I'd like to protect." Dogs first when rung 12 starts.
+
+And one rule for the whole feature: AI is optional, never required (5.2).
 
 ## 15. Not done here
 
