@@ -226,3 +226,30 @@ names, textures checked, credited as above.
 **Again: I am not a lawyer, and this is not legal advice.** It records what the sources said on
 9 November 2026, so that a later reader can tell whether the sources changed or this reading was
 wrong.
+
+## Addendum, 2026-11-09 (later): the listings read
+
+Approved by the operator the same morning ("These all sound reasonable. LEt's proceed."), the listings
+archive was fetched from Amazon's bucket:
+https://amazon-berkeley-objects.s3.amazonaws.com/archives/abo-listings.tar, 87,480,320 bytes
+(server Last-Modified 2023-07-17), SHA-256
+`b7f7ceacb328fa5ab6e143b88e1f948443a877cfc95b67ff09c8ebabd50644e3`, kept at
+`E:\HumanityOS\abo-src\` with `LICENSE-CC-BY-4.0.txt` inside it and a scan's output
+(`abo-3d-scan.json`). The archive's own README repeats the credit lines quoted above ("Amazon.com"
+for the data, the six builders for the dataset).
+
+What it settles (the unknown above): of the listings, **7,960 items have a 3D model**, across 98
+product types, overwhelmingly furniture and decor: CHAIR 1,184, SOFA 859, RUG 817, WALL_ART 599,
+TABLE 584, HOME_FURNITURE_AND_DECOR 550, LAMP 345, STOOL_SEATING 340, OTTOMAN 288, PILLOW 275,
+HEADBOARD 206, LIGHT_FIXTURE 197, PLANTER 182, DESK 145, BED 140, CABINET 137, HOME_MIRROR 109,
+SHELF 106. **None of the homes' gap appliances is there:** a search of every 3D item's name finds no
+oven, washer, dryer, refrigerator or freezer, shower, water heater, dishwasher, microwave, sink,
+toilet or bathtub (a "stove" pattern matched only words like "Orange"). The nearest are
+ELECTRIC_FAN 29 (ceiling fans), AIR_CONDITIONER 13 and DEHUMIDIFIER 3. Most items carry Amazon's own
+brand names (Rivet, Stone & Beam), so the generic-names condition above applies to all of them.
+
+**What it means now:** ABO is a furniture and decor source (chairs, sofas, tables, beds, lamps, rugs,
+shelves, cabinets), not an appliance source; the stove, oven, shower, washer and water heater come
+from Poly Haven, Gazebo Fuel or a hand-picked Sketchfab model, as the index says. Choosing ABO
+furniture models means fetching each from the 3D model archive (each model a separate download,
+listed by name and size first).
