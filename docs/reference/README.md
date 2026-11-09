@@ -14,7 +14,7 @@ object model and the farming data contracts. The specs describe designed contrac
 
 - [`research/2026-11-08-ai-tools/`](research/2026-11-08-ai-tools/README.md), a dated scan of about 30 AI tools from one news video: what each could do here, its licence as stated, and candidate / watch / skip (a scan, not a decision: a candidate still needs its own finding).
 - [`research/2026-11-08-npc-brain-voice/`](research/2026-11-08-npc-brain-voice/README.md), open language models and voices for speaking NPCs and the in-app helper, with each publisher checked against the US Entity List and the 1260H list (a scan, not a decision).
-- [`research/2026-11-08-asset-packs/`](research/2026-11-08-asset-packs/README.md), open 3D model, texture and HDRI libraries ranked, with the items that fill the homes's gaps (stove, oven, shower, washer, water heater) and what no library has (life-support machines); a scan, not a decision.
+- [`research/2026-11-08-asset-packs/`](research/2026-11-08-asset-packs/README.md), open 3D model, texture and HDRI libraries ranked, with the items that fill the homes' gaps (stove, oven, shower, washer, water heater) and what no library has (life-support machines); a scan, not a decision.
 - [`findings/`](findings/README.md), dated research notes on legal, regulatory and licensing questions. One file per question, written the day the research was done and never quietly rewritten, so a later reader can tell whether the world changed or we were wrong. Read `findings/README.md` before adding one.
 
 ## Federation object model (protocol specs)
