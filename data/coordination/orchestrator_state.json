@@ -7,9 +7,14 @@
   "open_questions_for_human": [
     "Walk speed: realistic 1.4 m/s walk and ~4 m/s run; simplified keeps 5 / 9.5 m/s? Recommended yes.",
     "Optional: send Quaternius one question about the QAL page vs the CC0 License.txt in the files (his message to send).",
-    "Embeddable AI: the 11 questions in docs/design/embeddable-ai.md section 15 (separate engine program; CPU-only in play; assets-ai-1 hosting; motion model in its pack; tract on the website; local character memory; helper chats until close; free conversation on once installed; no bring-your-own model before v1.0; own trained voice; default voices not donated). Recommendations in the doc."
+    "Embeddable AI: the 11 questions in docs/design/embeddable-ai.md section 15 (separate engine program; CPU-only in play; assets-ai-1 hosting; motion model in its pack; tract on the website; local character memory; helper chats until close; free conversation on once installed; no bring-your-own model before v1.0; own trained voice; default voices not donated). Recommendations in the doc.",
+    "Asset sources (findings/2026-11-09-open-3d-sources-index.md): Poly Haven + ambientCG first choice; Open Robotics Fuel CC0/CC BY models; ABO 83 MB metadata download then generic-named picks; a person reads Kenney License.txt next download; Sketchfab CC0/CC BY one at a time by his account; NASA question email (his call). All recommended yes."
   ],
   "recent_decisions": [
+    {
+      "date": "2026-11-09",
+      "decision": "Asset source licence findings merged 0f74d9660 (findings/2026-11-09-*: poly-haven-and-ambientcg, gazebo-fuel-models, amazon-berkeley-objects, kenney-assets, sketchfab-cc-models, reference-3d-collections, open-3d-sources-index). Poly Haven + ambientCG CC0 first choice (Poly Haven electric_stove first); Fuel model by model; ABO CC BY 4.0 from Amazon bucket only, generic names; Kenney robots.txt bars ClaudeBot/Claude-User (rule added to wk-common.txt and memory: read robots.txt first); Sketchfab CC0/CC BY by the operator's own account, NoAI excluded. Operator questions per source in each finding (ABO wants an 83 MB metadata download approved)."
+    },
     {
       "date": "2026-11-09",
       "decision": "Embeddable AI merged a502eb880: docs/design/embeddable-ai.md (the plan, starting set only, alternatives in their own section) + findings/2026-11-09-model-runtime.md (one separately downloaded engine humanity-ai.exe: llama.cpp + audio.cpp pocket-only + tract for ONNX, stdin/stdout no network, CPU+Vulkan only; model files are hostile input). 11 operator questions in the plan section 15, each with a recommendation (all yes except bring-your-own-model: not before v1.0; character memory off until tested)."
