@@ -8,9 +8,14 @@
     "Walk speed: realistic 1.4 m/s walk and ~4 m/s run; simplified keeps 5 / 9.5 m/s? Recommended yes.",
     "Optional: send Quaternius one question about the QAL page vs the CC0 License.txt in the files (his message to send).",
     "Embeddable AI: the 11 questions in docs/design/embeddable-ai.md section 15 (separate engine program; CPU-only in play; assets-ai-1 hosting; motion model in its pack; tract on the website; local character memory; helper chats until close; free conversation on once installed; no bring-your-own model before v1.0; own trained voice; default voices not donated). Recommendations in the doc.",
-    "Asset sources (findings/2026-11-09-open-3d-sources-index.md): Poly Haven + ambientCG first choice; Open Robotics Fuel CC0/CC BY models; ABO 83 MB metadata download then generic-named picks; a person reads Kenney License.txt next download; Sketchfab CC0/CC BY one at a time by his account; NASA question email (his call). All recommended yes."
+    "Asset sources (findings/2026-11-09-open-3d-sources-index.md): Poly Haven + ambientCG first choice; Open Robotics Fuel CC0/CC BY models; ABO 83 MB metadata download then generic-named picks; a person reads Kenney License.txt next download; Sketchfab CC0/CC BY one at a time by his account; NASA question email (his call). All recommended yes.",
+    "Maps rung 2 merge: OK to commit the two Silverdale packs (83 MB, permanent in git history; repo is 1.24 GiB)? Recommended yes. Also: unlock depth 20 inside an installed pack tile (recommended yes, measure first); road beds + building pads as their own rung before rung 3 (recommended yes)."
   ],
   "recent_decisions": [
+    {
+      "date": "2026-11-09",
+      "decision": "Maps rung 2 reported (branch worktree-agent-a2518300d0a6a8d56, head 46ecce337): Silverdale coast vantages green at depth 13 and the tile tier; HOSMPAK1 packs, our own builder (feature map-build), nested lattice, shore band in the one formula, regions/water_carve retired; a tile-border ridge bug in the Sound found and fixed; road beds and building pads deferred. Reviewed (removed tests belong to the retired HOSMREG2 parser; gates passed on its tree). HELD, NOT MERGED: it commits 83 MB of packs (repo pack 1.24 GiB), permanent in history; the agent flagged it as the operator's call. Recommendation given: merge with packs in git, no rebuild until rung 4 serves packs from release assets."
+    },
     {
       "date": "2026-11-09",
       "decision": "v0.1552.0 mirror: the Build Desktop run 42632124185 hung in scp \"Upload binaries to VPS\" twice (degraded server-to-GitHub/Azure path). Cancelled it; the server pulled the 14 assets from the GitHub release with curl -C - and a stall limit, all SHA-256 matched GitHub digests, folder moved into place, regen-releases-manifest run (manifest backup /root/releases-manifest.json.2026-11-09.bak). Public manifest newest v0.1552.0, 14 assets. BUG-288 filed with the proposed fix (a provisioned server-side pull with digests + job timeout-minutes). The run shows cancelled in Actions: expected."
