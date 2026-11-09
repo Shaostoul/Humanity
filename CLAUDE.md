@@ -159,6 +159,12 @@ is never bundled, with the platforms' own players and advertising intact. Measur
 Twitch H.264 limit: `docs/design/embedded-browser.md`. Strategic direction: the top of
 `docs/PRIORITIES.md` TIER 0.
 
+**Every new tool gets compared before it is adopted (operator, 2026-11-08).** Verbatim: "This,
+research better alternatives, is something we want to consider every time we learn of new tools."
+When a tool, model, library or asset source comes up, scan its open alternatives (licence quoted,
+publisher, hardware, fit) before recommending it, and say which is best and why. Written scans go in
+`docs/reference/research/<date>-<topic>/`; anything adopted still gets its dated finding.
+
 **Release signing is the operator's to raise, never yours (operator, 2026-09-20).** Verbatim: "We
 have a rule that I'll sign when I feel appropriate and that for you to not mention the game needs
 signing to me." So **never tell the operator a release needs signing, never list unsigned releases
