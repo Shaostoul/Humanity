@@ -11,6 +11,16 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1552.0 (9 November 2026)
+
+- People have bodies: you in third person, other players and the crew stand, turn, walk and run, and their legs keep pace with how fast they move.
+- Third person walks your body through the ship with the camera over your shoulder.
+- 40 detailed models from NVIDIA's free SimReady library in the homestead and the Commons: a kitchen counter with its basin and tap, a workbench, a vise, a tool chest, hand tools, a fire extinguisher, a first aid kit and more.
+- A Medical Bay set to install from Settings > Graphics > Furniture models.
+- Settings > Graphics > Furniture detail, which shows the video memory each choice uses and says plainly when your graphics card is short.
+- Furniture that was drawn from its corner now stands where it belongs, and entering the world is faster.
+- The OpenStreetMap credit shows wherever map data is drawn, and heights are credited to their real sources.
+
 ### v0.1551.0 (8 November 2026)
 
 - Hidden means hidden: turning off "Show others when I am online" now keeps you out of every list and announcement.

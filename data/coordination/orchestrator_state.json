@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
-  "current_focus": "Overnight loop 2026-11-09: merge SimReady phase 2 when it reports (verify-runtime), maps rung 1 agent in flight, then the one-runtime finding (AI optional: runtime a separate download), then a release if the batch passes verify-runtime.",
+  "current_focus": "After v0.1552.0: no agents running. Waiting on the operator for the open questions (walk speed; embeddable AI 11; asset sources). Next candidates when he answers or as established work: character rung 2 from the downloaded MakeHuman + Quaternius UAL sources; maps rung 2 from the Washington sources on E:; SimReady close-view GPU perf pass.",
   "open_questions_for_human": [
     "Walk speed: realistic 1.4 m/s walk and ~4 m/s run; simplified keeps 5 / 9.5 m/s? Recommended yes.",
     "Optional: send Quaternius one question about the QAL page vs the CC0 License.txt in the files (his message to send).",
@@ -11,6 +11,14 @@
     "Asset sources (findings/2026-11-09-open-3d-sources-index.md): Poly Haven + ambientCG first choice; Open Robotics Fuel CC0/CC BY models; ABO 83 MB metadata download then generic-named picks; a person reads Kenney License.txt next download; Sketchfab CC0/CC BY one at a time by his account; NASA question email (his call). All recommended yes."
   ],
   "recent_decisions": [
+    {
+      "date": "2026-11-09",
+      "decision": "Overnight loop merges: SimReady phase 2 afd53853d (40 models, Medical Bay pack uploaded to assets-simready-1 with --latest=false and verified by re-download, Furniture detail, BUG-286 Kenney furniture centred, home body build 1,070 to 502 ms; close-view GPU +0.78 to +0.97 ms over budget: a perf pass recommended, not done); maps rung 1 68079854d (shore_probe gate red where predicted; Norderney passed wet/shallow so a `dry` rule was added; map_tiles.rs; OSM credit on its own layer; maps agent's BUG-286 renumbered BUG-287); BUG-287 fixed da35a4876 (tier installed only when a tile file exists); a stray CR in BUGS.md made git store it as binary CRLF, repaired 679b6e08d (lesson: insert new lines at line start, never before a \\n in a CRLF file)."
+    },
+    {
+      "date": "2026-11-09",
+      "decision": "Released v0.1552.0 (d199e9183, tag + GitHub release, delivered: check-delivery OK). Checks: lints (file_size_ratchet caught src/gui/mod.rs 4,802 > 4,800 after two merges; fixed by shortening two module comments, exe rebuilt), 1,639 rig tests, 5,820 lib tests, verify-runtime 3/3. No WebRTC change. Second release allowed today if needed."
+    },
     {
       "date": "2026-11-09",
       "decision": "Asset source licence findings merged 0f74d9660 (findings/2026-11-09-*: poly-haven-and-ambientcg, gazebo-fuel-models, amazon-berkeley-objects, kenney-assets, sketchfab-cc-models, reference-3d-collections, open-3d-sources-index). Poly Haven + ambientCG CC0 first choice (Poly Haven electric_stove first); Fuel model by model; ABO CC BY 4.0 from Amazon bucket only, generic names; Kenney robots.txt bars ClaudeBot/Claude-User (rule added to wk-common.txt and memory: read robots.txt first); Sketchfab CC0/CC BY by the operator's own account, NoAI excluded. Operator questions per source in each finding (ABO wants an 83 MB metadata download approved)."
