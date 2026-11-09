@@ -508,6 +508,50 @@ what we will say about it.
   Entity List (since 2019, for its part in surveillance of Uighurs), which governs exports to it, not
   using its open model. Recommends GGUF through llama.cpp only, served from the project's own release
   assets, an "AI" label, and settling who the publisher is before it becomes the default.
+- [`2026-11-08-ministral-3-3b.md`](2026-11-08-ministral-3-3b.md),
+  whether Ministral 3 3B Instruct 2512 (Mistral AI) may be served as a GGUF for speaking NPCs and the
+  helper. Yes: Apache 2.0 on the instruct, base and GGUF cards, the launch post and the paper; every
+  ancestor is Mistral's own (Mistral Small 3.1, Apache 2.0; instruction tuning distilled from Mistral
+  Medium 3); Mistral's Usage Policy excludes "our open-source AI models"; one italic sentence under
+  the licence restates the law. No LICENSE or NOTICE file; training data undisclosed. The vision
+  encoder is a separate `mmproj` file and need not ship (text model 2.15 GB); the repository's system
+  prompt makes the model say it powers "Le Chat", so the project writes its own.
+- [`2026-11-08-granite-4-0-1b.md`](2026-11-08-granite-4-0-1b.md),
+  whether IBM's Granite 4.0 1B may be served as the low-memory NPC brain. Yes: Apache 2.0 on every
+  card and as the unaltered `LICENSE` in IBM's GitHub repository; the base is IBM's own, trained from
+  scratch; IBM's disclosure (30 March 2026) lists 131 pre-training and 115 post-training datasets,
+  none marked as user data, but no licence per dataset. A sentence on IBM's Granite page (in its
+  watsonx indemnity section) forbids using Granite to infringe copyright, which is not in the licence;
+  IBM's Responsible Use Guide link redirected and could not be read. IBM's own Q4_K_M GGUF, 1.02 GB.
+- [`2026-11-08-gemma-4-e2b-e4b.md`](2026-11-08-gemma-4-e2b-e4b.md),
+  whether Gemma 4 E2B and E4B are plain Apache 2.0 now. Confirmed: the cards link Google's "Gemma 4
+  license" page, which is the unaltered Apache text (1 April 2026); the Gemma Terms of Use, revised
+  the same day, open "For Gemma 4 terms, see the Gemma 4 license" and list no Gemma 4 model; the 2024
+  Prohibited Use Policy attaches only through those Terms, so it does not reach Gemma 4 as written,
+  though it still sits beside the licence in the docs menu. Google's own Q4_0 GGUFs keep the image
+  and audio encoders in a separate `mmproj` file (E2B 3.35 GB, E4B 5.15 GB without it). Use "Gemma"
+  only to say where the model came from.
+- [`2026-11-08-pocket-tts.md`](2026-11-08-pocket-tts.md),
+  whether Kyutai's Pocket TTS may voice NPCs and the helper. Yes under CC BY 4.0 (weights) and MIT
+  (code), with attribution; the "Prohibited use" text is not part of the licence and must not be
+  passed to players as one. Found what the scan could not: the January 2026 weights were trained on
+  AMI, EARNINGS22, GigaSpeech, SPGISpeech, TED-LIUM, VoxPopuli, LibriHeavy and Emilia (88k hours),
+  four of which carry non-commercial or research-only terms for their users; the current default
+  English weights and the other languages have no published data list. Consent records quoted per
+  voice set: the CC0 volunteer donations (terms of 26 June 2025 that foresee synthetic speech and
+  allow withdrawal), Kyutai's own CC0 recordings, Alba MacKenna's CC BY 4.0 RPG characters,
+  Voice-Zero, VCTK; the default voices "cosette" and "jean" are non-commercial and two others have
+  no source. No licence requires a label, but Kyutai's text and the EU AI Act's deep-fake rule point
+  to one. Recommends the ungated weights, documented voices only, a "computer voice" label, and a
+  project-trained voice on documented data later.
+- [`2026-11-08-audio-cpp.md`](2026-11-08-audio-cpp.md),
+  whether audio.cpp (ShugoAI LLC) may be the runtime for Pocket TTS. Yes under Apache 2.0 with its
+  vendored dependencies (ggml MIT, SentencePiece Apache 2.0 with BSD and MIT parts, cJSON, httplib,
+  libyaml, LZ4's library, utf8proc), each notice shipped. eSpeak NG is compiled in only with
+  `AUDIOCPP_STATIC_ESPEAK=ON` (default off), but every build carries a loader for an installed
+  eSpeak, used by other models, never by Pocket TTS; a `custom` build of only `pocket_tts` leaves it
+  unreachable and leaves out a model folder carrying Liquid AI's LFM licence. A GGUF conversion keeps
+  the model's own licence (audio.cpp's table, Apache's "Object" form, CC BY 4.0 section 2(a)(4)).
 - [`2026-11-08-food-data-sources.md`](2026-11-08-food-data-sources.md),
   which ingredient, nutrition, allergen, additive and food-safety sources may ship, and what a label
   reader must never claim. USDA FoodData Central and FoodKeeper are CC0, FDA's pages public domain

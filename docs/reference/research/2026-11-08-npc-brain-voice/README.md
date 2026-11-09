@@ -11,6 +11,15 @@ regulations through the eCFR and Federal Register APIs. Nothing was downloaded, 
 Builds on `C:\Humanity\docs\reference\research\2026-11-08-ai-tools\README.md` and the findings
 `docs/reference/findings/2026-11-08-paradee-tts.md` and `docs/reference/findings/2026-11-08-spark-x2-6-small-model.md`.
 
+**Follow-up, same day:** the dated legal findings this scan asks for below are written:
+[Ministral 3 3B](../../findings/2026-11-08-ministral-3-3b.md),
+[Granite 4.0 1B](../../findings/2026-11-08-granite-4-0-1b.md),
+[Gemma 4 E2B and E4B](../../findings/2026-11-08-gemma-4-e2b-e4b.md),
+[Pocket TTS](../../findings/2026-11-08-pocket-tts.md) and
+[audio.cpp](../../findings/2026-11-08-audio-cpp.md). The Pocket TTS finding found what this scan
+could not: the data that trained the first released weights, in Kyutai's release post (its F3).
+This scan's text below is left as written.
+
 **Sources that refused or could not be read (not worked around):**
 - The BIS/ITA **Consolidated Screening List API** (`data.trade.gov`) answered HTTP 401: "Access denied
   due to missing subscription key". The Entity List itself was read instead, from its primary text in
