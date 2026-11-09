@@ -1,0 +1,693 @@
+#!/usr/bin/env python3
+# humanity-mirror-release: copy one release's files from GitHub onto this server's release mirror
+# (/var/www/humanity/releases/<tag>/, served at https://united-humanity.us/releases/), checking
+# every file against the SHA-256 GitHub publishes for it, then rebuild the mirror's manifest.
+#
+# WHY THE SERVER PULLS (BUG-288, 2026-11-09). The release workflow used to PUSH the files: its
+# mirror job downloaded every platform's build to a GitHub runner and sent them to the server with
+# appleboy/scp-action, about 4.4 GB per release over one long connection each. For v0.1552.0 that
+# step sat for 1 h 42 min, twice, despite its 15-minute command timeout, and the server's folder
+# was never created. A long download from the server to GitHub's CDN showed the same thing: its
+# first connection slowed to 168 KB/s while a fresh one got 5.3 MB/s. A single long transfer does
+# not survive that path; many short ones do. The orchestrator mirrored v0.1552.0 by hand by having
+# the server fetch each file with resume, a stall limit and retries, checking each against
+# GitHub's digest. This script is that procedure, made permanent and tested
+# (scripts/tests/mirror-release.test.js), and the workflow's mirror job now runs it over ssh.
+#
+# WHAT A RUN DOES, for one tag:
+#   1. Lists the release's files through the GitHub API (no token: the repository is public, and a
+#      run makes two requests of the 60 an hour GitHub allows one address without one; when they
+#      are used up it says so, with the time they come back, and exits 5).
+#   2. Takes the files the mirror has always held and skips the rest, naming each one it skips:
+#        HumanityOS-<os>-<arch>[.exe], .tar.gz, .zip   each platform's program and its two archives
+#        HumanityOS-data-<tag>.tar.gz                  the data archive
+#        data-manifest-<tag>.json                      the per-file data manifest
+#      (not the headless relay, HumanityOS-relay-linux-x64 and its .sha256, which self-hosters
+#      fetch from GitHub; not files added to the release later). A new platform is picked up by
+#      the pattern, with no edit here. The release counts as ready only when every file it takes
+#      is uploaded with a SHA-256 digest, both data files are there, and every platform has all
+#      three of its files; otherwise nothing is fetched (exit 4).
+#   3. Fetches each file into <releases>/.<tag>.partial/ (a hidden folder: nginx's folder listing,
+#      the disk guard's `v*` retention and regen-releases-manifest all skip names starting with a
+#      dot), resuming a part-fetched file with a Range request. A connection whose speed stays
+#      under --speed-limit for --speed-time seconds, or that goes silent that long, is dropped and
+#      the file resumed on a fresh connection; each file gets --tries connections in all.
+#   4. Checks every file's size and SHA-256 against the API's figures. A file that does not match
+#      is fetched again from the start (within the same tries).
+#   5. Only when all of them match: makes them readable by nginx (files 644, folder 755) and moves
+#      the folder into place with one rename, so the public folder is never seen half-filled.
+#   6. Runs regen-releases-manifest, which rebuilds /releases/manifest.json from the disk.
+#
+# Running it again is safe. A file already fetched and verified in the staging folder is not
+# fetched again; a published folder whose files all match is verified and left as it is (exit 0,
+# after rebuilding the manifest). It NEVER deletes or changes a published folder: one that does not
+# match the release is named file by file and left alone (exit 7). Two runs at once take turns
+# (a lock file, .mirror-release.lock, in the releases folder).
+#
+# USAGE (as root on the server; the workflow runs exactly this):
+#   humanity-mirror-release v0.1552.0
+#   humanity-mirror-release v0.1552.0 --dry-run      list, check, print the plan, and fetch and
+#                                                     verify only the small data manifest; publish
+#                                                     nothing, rebuild nothing, and leave nothing
+#                                                     behind (a staging folder it made is removed)
+#   options: --tries N (30) --speed-limit BYTES_PER_S (500000) --speed-time S (20)
+#            --max-minutes M (none; the workflow passes 50) --lock-wait S (600) --retry-wait S (2)
+#            --releases-dir DIR (/var/www/humanity/releases)
+# Settings (environment; the tests use them): HUMANITY_RELEASES_DIR, HUMANITY_MIRROR_API (the
+# repository's API address), HUMANITY_REGEN_CMD (the manifest command, split like a shell line).
+#
+# EXIT CODES, one per outcome, each with a last line starting "[mirror <tag>] RESULT":
+#   0  published now, or already published and verified; the manifest rebuilt (dry run: the plan
+#      made and the data manifest verified)
+#   1  a file could not be fetched and verified within its tries, or --max-minutes ran out; the
+#      staging folder is kept, so running it again resumes
+#   2  a usage error: a bad tag or option, or no releases folder
+#   3  GitHub has no release with this tag
+#   4  the release is not ready: a file the mirror takes is missing, not yet uploaded, or has no
+#      SHA-256 digest; nothing was fetched
+#   5  GitHub's API rate limit for this address is used up; the line says when it resets
+#   6  GitHub's API could not be reached, or answered with an error, after retries
+#   7  a published folder for this tag exists and does not match the release; left as it is
+#   8  another run held the lock for longer than --lock-wait
+#   9  the files were published but regen-releases-manifest failed
+#
+# Python 3 standard library only (the server runs Debian 12's 3.11; keep to what 3.9 has). Why
+# Python, not bash: the API answer is JSON (the server has no jq), the selection and verification
+# rules want tests, and a transfer loop of our own can apply the exact stall rule above.
+#
+# Installed to /usr/local/bin/humanity-mirror-release by scripts/install-server-files.sh (every
+# deploy, scripts/server-files.txt) and scripts/provision-vps.sh. Edit it here, never on a server.
+
+import argparse
+import collections
+import hashlib
+import http.client
+import json
+import os
+import re
+import shlex
+import shutil
+import socket
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+
+DEFAULT_API = "https://api.github.com/repos/Shaostoul/Humanity"
+DEFAULT_RELEASES_DIR = "/var/www/humanity/releases"
+DEFAULT_REGEN_CMD = "/usr/local/bin/regen-releases-manifest"
+USER_AGENT = "humanity-mirror-release (+https://github.com/Shaostoul/Humanity)"
+LOCK_NAME = ".mirror-release.lock"
+CHUNK = 1 << 20  # the most one read asks for; a read returns whatever has arrived
+PROGRESS_EVERY_S = 30  # a progress line this often keeps the ssh session talking
+
+EXIT_OK = 0
+EXIT_FETCH = 1
+EXIT_USAGE = 2
+EXIT_NO_RELEASE = 3
+EXIT_NOT_READY = 4
+EXIT_RATE_LIMIT = 5
+EXIT_API = 6
+EXIT_PUBLISHED_DIFFERS = 7
+EXIT_LOCKED = 8
+EXIT_REGEN = 9
+
+# A tag names a folder, so it may hold no slash and no "..": v0.1552.0, v0.1552.0-rc1.
+TAG_RE = re.compile(r"^v[0-9][0-9A-Za-z.+-]*$")
+# A platform's file: HumanityOS-<os>-<arch>, with .exe (Windows' program), .tar.gz or .zip, or
+# nothing (the other platforms' programs). <arch> holds no dash, which with the lookahead keeps out
+# HumanityOS-relay-linux-x64 (and its .sha256) and HumanityOS-data-<tag>.tar.gz.
+PLATFORM_RE = re.compile(r"^HumanityOS-(?!relay-|data-)([a-z0-9]+-[a-z0-9_]+)(\.exe|\.tar\.gz|\.zip)?$")
+DIGEST_RE = re.compile(r"^sha256:([0-9a-f]{64})$")
+
+
+class Failure(Exception):
+    """An outcome that ends the run with its exit code and one plain sentence."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+class Log:
+    def __init__(self, tag):
+        self.prefix = f"[mirror {tag}]"
+
+    def __call__(self, message):
+        # flush: over ssh stdout is a pipe, and a line that waits in a buffer neither tells the
+        # workflow's log anything nor keeps the session alive.
+        print(f"{self.prefix} {message}", flush=True)
+
+
+def human_size(n):
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1000 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1000.0
+    return f"{n:.1f} GB"
+
+
+def human_time(seconds):
+    seconds = int(seconds)
+    return f"{seconds // 60}m{seconds % 60:02d}s"
+
+
+# ── The GitHub API ───────────────────────────────────────────────────────────────────────────────
+
+
+def _rate_limit_failure(err):
+    """A 403/429 from the API: the hourly limit used up, or a short "slow down" (Retry-After)."""
+    headers = err.headers or {}
+    if headers.get("X-RateLimit-Remaining") == "0":
+        reset = headers.get("X-RateLimit-Reset", "")
+        when = "at an unknown time"
+        if reset.isdigit():
+            at = datetime.fromtimestamp(int(reset), tz=timezone.utc)
+            minutes = max(0, int((int(reset) - time.time() + 59) // 60))
+            when = f"at {at.strftime('%H:%M:%S')} UTC (in about {minutes} min)"
+        limit = headers.get("X-RateLimit-Limit", "60")
+        return Failure(
+            EXIT_RATE_LIMIT,
+            f"GitHub's API rate limit for this server's address is used up ({limit} requests an hour "
+            f"without a token); it resets {when}. Run this again after that.",
+        )
+    return None
+
+
+def api_get(url, args, log, not_found_is=None):
+    """GET one API address and return (parsed JSON, response headers), retrying what may pass."""
+    attempt = 0
+    while True:
+        attempt += 1
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        problem = None
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8")), resp.headers
+        except urllib.error.HTTPError as err:
+            if err.code == 404 and not_found_is is not None:
+                raise not_found_is
+            if err.code in (403, 429):
+                limited = _rate_limit_failure(err)
+                if limited:
+                    raise limited
+                retry_after = (err.headers or {}).get("Retry-After", "")
+                if retry_after.isdigit() and int(retry_after) > 60:
+                    raise Failure(
+                        EXIT_RATE_LIMIT,
+                        f"GitHub's API asked this server to wait {retry_after} s before asking "
+                        f"again. Run this again after that.",
+                    )
+                if retry_after.isdigit():
+                    log(f"GitHub's API asked for a {retry_after} s pause; waiting")
+                    time.sleep(int(retry_after))
+                    problem = f"HTTP {err.code} (asked to wait {retry_after} s)"
+                else:
+                    raise Failure(EXIT_API, f"GitHub's API refused {url}: HTTP {err.code}")
+            elif 500 <= err.code < 600:
+                problem = f"HTTP {err.code}"
+            else:
+                raise Failure(EXIT_API, f"GitHub's API answered {url} with HTTP {err.code}")
+        except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError,
+                http.client.HTTPException, ValueError) as err:
+            problem = f"{type(err).__name__}: {err}"
+        if attempt >= 5:
+            raise Failure(EXIT_API, f"GitHub's API did not answer {url} after {attempt} tries ({problem})")
+        wait = args.retry_wait * min(2 ** (attempt - 1), 8)
+        log(f"GitHub's API: {problem}; trying again in {wait:.0f} s ({attempt}/5)")
+        time.sleep(wait)
+
+
+def next_link(headers):
+    """The rel="next" address of a paginated API answer, or None."""
+    for part in (headers.get("Link") or "").split(","):
+        m = re.match(r'\s*<([^>]+)>\s*;\s*rel="next"', part)
+        if m:
+            return m.group(1)
+    return None
+
+
+def list_assets(tag, args, log):
+    """The release's assets, every page of them."""
+    release, _ = api_get(
+        f"{args.api}/releases/tags/{tag}",
+        args,
+        log,
+        not_found_is=Failure(EXIT_NO_RELEASE, f"GitHub has no release tagged {tag}"),
+    )
+    assets = []
+    url = f"{release['assets_url']}?per_page=100"
+    while url:
+        page, headers = api_get(url, args, log)
+        assets.extend(page)
+        url = next_link(headers)
+    return assets
+
+
+# ── Which files the mirror holds ────────────────────────────────────────────────────────────────
+
+
+def select_assets(assets, tag):
+    """Split the release's assets into (chosen, skipped names, problems).
+
+    chosen: the assets the mirror holds, each with its "sha256" added, smallest first (the data
+    manifest comes first, so a run proves the path works within seconds). problems: why the
+    release is not ready to mirror; empty when it is."""
+    chosen, skipped, problems = [], [], []
+    platforms = collections.defaultdict(set)
+    have_data = {"archive": False, "manifest": False}
+    data_archive = f"HumanityOS-data-{tag}.tar.gz"
+    data_manifest = f"data-manifest-{tag}.json"
+    for asset in assets:
+        name = asset.get("name", "")
+        if name == data_archive:
+            have_data["archive"] = True
+        elif name == data_manifest:
+            have_data["manifest"] = True
+        else:
+            m = PLATFORM_RE.match(name)
+            if not m:
+                skipped.append(name)
+                continue
+            kind = {".exe": "program", None: "program", ".tar.gz": "tar.gz", ".zip": "zip"}[m.group(2)]
+            platforms[m.group(1)].add(kind)
+        digest = DIGEST_RE.match(asset.get("digest") or "")
+        if asset.get("state") != "uploaded":
+            problems.append(f"{name} is not uploaded yet (state {asset.get('state')!r})")
+        elif not digest:
+            problems.append(f"{name} has no SHA-256 digest on GitHub, so it cannot be checked")
+        elif not isinstance(asset.get("size"), int) or not asset.get("browser_download_url"):
+            problems.append(f"{name} has no size or download address in GitHub's answer")
+        else:
+            chosen.append(dict(asset, sha256=digest.group(1)))
+    if not have_data["archive"]:
+        problems.append(f"{data_archive} is missing")
+    if not have_data["manifest"]:
+        problems.append(f"{data_manifest} is missing")
+    if not platforms:
+        problems.append("no platform's files are on the release")
+    for label, kinds in sorted(platforms.items()):
+        for kind in ("program", "tar.gz", "zip"):
+            if kind not in kinds:
+                problems.append(f"the {label} {kind} is missing (a platform needs its program, .tar.gz and .zip)")
+    chosen.sort(key=lambda a: (a["size"], a["name"]))
+    return chosen, skipped, problems
+
+
+# ── Checking files ──────────────────────────────────────────────────────────────────────────────
+
+
+def sha256_of(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            block = f.read(CHUNK)
+            if not block:
+                return h.hexdigest()
+            h.update(block)
+
+
+def check_file(path, asset):
+    """None when the file is the asset byte for byte, else what is wrong with it."""
+    if not os.path.isfile(path):
+        return "missing"
+    size = os.path.getsize(path)
+    if size != asset["size"]:
+        return f"{size} bytes, the release's is {asset['size']}"
+    got = sha256_of(path)
+    if got != asset["sha256"]:
+        return f"SHA-256 {got[:16]}..., the release's is {asset['sha256'][:16]}..."
+    return None
+
+
+# ── Fetching one file ───────────────────────────────────────────────────────────────────────────
+
+
+class Budget:
+    """The connections one file may still use, and the run's deadline."""
+
+    def __init__(self, tries, deadline):
+        self.left = tries
+        self.tries = tries
+        self.deadline = deadline
+
+    def out_of_time(self):
+        return self.deadline is not None and time.monotonic() >= self.deadline
+
+
+def one_connection(url, dest, have, size, args, log, name):
+    """Open one connection and write what it brings to dest, resuming at `have` bytes.
+
+    Returns ("done" | "short" | "slow" | "error", detail)."""
+    headers = {"User-Agent": USER_AGENT}
+    if have:
+        headers["Range"] = f"bytes={have}-"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        # The timeout bounds the connect and every single read: silence that long is a stall.
+        resp = urllib.request.urlopen(req, timeout=args.speed_time)
+    except urllib.error.HTTPError as err:
+        if err.code == 416:
+            # The server cannot serve from `have`: what is on disk is not a prefix of the file.
+            os.remove(dest)
+            return "error", "the server could not resume from what was on disk (HTTP 416); starting again"
+        return "error", f"HTTP {err.code}"
+    except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError,
+            http.client.HTTPException, OSError) as err:
+        return "error", f"{type(err).__name__}: {err}"
+    with resp:
+        if have and resp.status == 206:
+            m = re.match(r"bytes (\d+)-", resp.headers.get("Content-Range", ""))
+            if not m or int(m.group(1)) != have:
+                os.remove(dest)
+                return "error", f"the server resumed at the wrong place ({resp.headers.get('Content-Range')!r}); starting again"
+            mode = "ab"
+        elif resp.status == 200:
+            if have:
+                log(f"{name}: the server ignored the request to resume; starting it again")
+            have, mode = 0, "wb"
+        else:
+            return "error", f"HTTP {resp.status}"
+        read = getattr(resp, "read1", None) or resp.read
+        start = last_report = time.monotonic()
+        got = 0
+        # (time, bytes this connection) samples covering at least the last --speed-time seconds:
+        # the speed over that window decides whether the connection is crawling.
+        samples = collections.deque([(start, 0)])
+        with open(dest, mode) as f:
+            while True:
+                try:
+                    block = read(CHUNK)
+                except (socket.timeout, TimeoutError):
+                    return "slow", f"nothing arrived for {args.speed_time:g} s"
+                except (OSError, http.client.HTTPException) as err:
+                    return "error", f"{type(err).__name__}: {err}"
+                if not block:
+                    break
+                f.write(block)
+                got += len(block)
+                now = time.monotonic()
+                samples.append((now, got))
+                while len(samples) > 1 and samples[1][0] <= now - args.speed_time:
+                    samples.popleft()
+                if now - start >= args.speed_time:
+                    t0, b0 = samples[0]
+                    rate = (got - b0) / max(now - t0, 1e-6)
+                    if rate < args.speed_limit:
+                        return "slow", (
+                            f"{human_size(rate)}/s over the last {args.speed_time:g} s, under the "
+                            f"{human_size(args.speed_limit)}/s floor"
+                        )
+                if now - last_report >= PROGRESS_EVERY_S:
+                    rate = got / max(now - start, 1e-6)
+                    log(f"{name}: {human_size(have + got)} of {human_size(size)}, {human_size(rate)}/s")
+                    last_report = now
+                if args.deadline is not None and now >= args.deadline:
+                    return "error", "out of time (--max-minutes)"
+            f.flush()
+            os.fsync(f.fileno())
+    total = have + got
+    return ("done", "") if total >= size else ("short", f"the connection closed at {total} of {size} bytes")
+
+
+def fetch_verified(asset, dest, budget, args, log):
+    """Bring dest to exactly the asset, within the budget's connections; raise Failure if not."""
+    name, size = asset["name"], asset["size"]
+    url = asset["browser_download_url"]
+    last = "no connection made"
+    while True:
+        have = os.path.getsize(dest) if os.path.exists(dest) else 0
+        if have > size:
+            log(f"{name}: {have} bytes on disk is more than the release's {size}; starting again")
+            os.remove(dest)
+            have = 0
+        if have == size:
+            problem = check_file(dest, asset)
+            if problem is None:
+                return
+            last = f"it did not match the release: {problem}"
+            log(f"{name}: does not match the release ({problem}); fetching it again")
+            os.remove(dest)
+            continue
+        if budget.out_of_time():
+            raise Failure(EXIT_FETCH, f"ran out of time (--max-minutes {args.max_minutes:g}) fetching {name}; "
+                                      f"the staging folder is kept, so running this again resumes")
+        if budget.left <= 0:
+            raise Failure(EXIT_FETCH, f"could not fetch and verify {name} in {budget.tries} connections "
+                                      f"(last: {last}); the staging folder is kept, so running this again resumes")
+        budget.left -= 1
+        attempt = budget.tries - budget.left
+        if have:
+            log(f"{name}: resuming at {human_size(have)} of {human_size(size)} (connection {attempt}/{budget.tries})")
+        outcome, detail = one_connection(url, dest, have, size, args, log, name)
+        if detail:
+            last = detail
+        if outcome == "slow":
+            # A fresh connection is the cure (BUG-288): no pause.
+            log(f"{name}: dropped a crawling connection ({detail}); resuming on a fresh one")
+        elif outcome in ("error", "short"):
+            if budget.out_of_time():
+                log(f"{name}: {detail}")
+                continue  # the loop's top ends the run
+            wait = args.retry_wait * min(2 ** (attempt - 1), 8)
+            log(f"{name}: {detail}; trying again in {wait:.0f} s")
+            time.sleep(wait)
+
+
+# ── The lock, the manifest ──────────────────────────────────────────────────────────────────────
+
+
+def take_lock(releases, tag, args, log):
+    """Hold the releases folder's lock for this run (released when the process ends)."""
+    path = os.path.join(releases, LOCK_NAME)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    waited = 0.0
+    told = False
+    while True:
+        if _try_lock(fd):
+            os.ftruncate(fd, 0)
+            os.lseek(fd, 0, os.SEEK_SET)
+            os.write(fd, f"pid {os.getpid()} mirroring {tag} since {datetime.now(timezone.utc).isoformat(timespec='seconds')}\n".encode())
+            return fd
+        holder = _read_holder(path)
+        if waited >= args.lock_wait:
+            os.close(fd)
+            raise Failure(EXIT_LOCKED, f"another run holds the lock ({holder}); waited {args.lock_wait:g} s")
+        if not told:
+            log(f"waiting for another run to finish ({holder})")
+            told = True
+        time.sleep(min(2.0, args.lock_wait - waited))
+        waited += 2.0
+
+
+def _try_lock(fd):
+    try:
+        import fcntl
+    except ImportError:  # Windows, where the tests also run
+        import msvcrt
+        # Lock one byte far past the end, so the holder's line above stays readable.
+        os.lseek(fd, 1 << 30, os.SEEK_SET)
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
+def _read_holder(path):
+    try:
+        with open(path, "r") as f:
+            return f.readline().strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+def regen_manifest(log):
+    cmd = shlex.split(os.environ.get("HUMANITY_REGEN_CMD", DEFAULT_REGEN_CMD))
+    log(f"rebuilding the manifest: {' '.join(cmd)}")
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    except (OSError, subprocess.SubprocessError) as err:
+        raise Failure(EXIT_REGEN, f"the files are published but the manifest could not be rebuilt ({err})")
+    for line in (r.stdout + r.stderr).splitlines():
+        log(f"  {line}")
+    if r.returncode != 0:
+        raise Failure(EXIT_REGEN, f"the files are published but {cmd[0]} failed (exit {r.returncode})")
+
+
+def leftover_staging(releases, tag, log):
+    """Name other tags' staging folders, left by runs that did not finish (never deleted here)."""
+    for entry in sorted(os.listdir(releases)):
+        if entry.startswith(".v") and entry.endswith(".partial") and entry != f".{tag}.partial":
+            log(f"note: {entry} is left from a run that did not finish; run this script for its tag "
+                f"to finish it, or delete it")
+
+
+# ── The run ─────────────────────────────────────────────────────────────────────────────────────
+
+
+def parse_args(argv):
+    p = argparse.ArgumentParser(
+        prog="humanity-mirror-release",
+        description="Copy a release's files from GitHub onto this server's release mirror, verified.",
+    )
+    p.add_argument("tag", help="the release tag, e.g. v0.1552.0")
+    p.add_argument("--dry-run", action="store_true",
+                   help="list and check the release, fetch and verify only the data manifest, publish nothing")
+    p.add_argument("--releases-dir", default=os.environ.get("HUMANITY_RELEASES_DIR", DEFAULT_RELEASES_DIR))
+    p.add_argument("--tries", type=int, default=30, help="connections each file may use (30)")
+    p.add_argument("--speed-limit", type=float, default=500000,
+                   help="bytes a second a connection must keep up over --speed-time (500000)")
+    p.add_argument("--speed-time", type=float, default=20, help="seconds of crawling or silence before a reconnect (20)")
+    p.add_argument("--max-minutes", type=float, default=None, help="stop (exit 1, resumable) after this long")
+    p.add_argument("--lock-wait", type=float, default=600, help="seconds to wait for another run's lock (600)")
+    p.add_argument("--retry-wait", type=float, default=2, help="base pause after an error, doubled up to 8x (2)")
+    args = p.parse_args(argv)
+    args.api = os.environ.get("HUMANITY_MIRROR_API", DEFAULT_API).rstrip("/")
+    return args
+
+
+def run(args, log):
+    tag = args.tag
+    releases = args.releases_dir
+    if not TAG_RE.match(tag) or ".." in tag:
+        raise Failure(EXIT_USAGE, f"{tag!r} is not a release tag (expected something like v0.1552.0)")
+    if args.tries < 1 or args.speed_time <= 0 or args.speed_limit < 0:
+        raise Failure(EXIT_USAGE, "--tries must be at least 1 and --speed-time more than 0")
+    if not os.path.isdir(releases):
+        raise Failure(EXIT_USAGE, f"there is no releases folder at {releases}")
+    published = os.path.join(releases, tag)
+    staging = os.path.join(releases, f".{tag}.partial")
+    args.deadline = None if args.max_minutes is None else time.monotonic() + args.max_minutes * 60
+    started = time.monotonic()
+
+    log(f"listing the release's files ({args.api})")
+    assets = list_assets(tag, args, log)
+    chosen, skipped, problems = select_assets(assets, tag)
+    for name in skipped:
+        log(f"skipping {name} (not part of the mirror)")
+    if problems:
+        for problem in problems:
+            log(f"not ready: {problem}")
+        raise Failure(EXIT_NOT_READY, f"the release is not ready to mirror ({len(problems)} problem(s) above); nothing was fetched")
+    total = sum(a["size"] for a in chosen)
+    log(f"{len(chosen)} files to mirror, {human_size(total)} in all")
+
+    if args.dry_run:
+        for a in chosen:
+            log(f"  {a['name']}  {a['size']} bytes  sha256 {a['sha256']}")
+        if os.path.isdir(published):
+            log(f"{published} exists; a real run would verify it and change nothing")
+        lock = take_lock(releases, tag, args, log)
+        try:
+            # A dry run leaves nothing behind that was not there before: a staging folder it had
+            # to make is removed again (a real run's part-fetched folder is kept, and gains the
+            # verified manifest).
+            made_staging = not os.path.isdir(staging)
+            os.makedirs(staging, exist_ok=True)
+            manifest = next(a for a in chosen if a["name"] == f"data-manifest-{tag}.json")
+            dest = os.path.join(staging, manifest["name"])
+            try:
+                fetch_verified(manifest, dest, Budget(args.tries, args.deadline), args, log)
+                log(f"{manifest['name']}: verified ({manifest['size']} bytes, sha256 matches)")
+            finally:
+                if made_staging:
+                    shutil.rmtree(staging, ignore_errors=True)
+        finally:
+            os.close(lock)
+        return f"dry run: {len(chosen)} files ({human_size(total)}) would be mirrored; nothing published, manifest not rebuilt"
+
+    def verify_published(when):
+        """A published folder is only ever read here: every file it should hold is checked, each
+        problem named, and one that does not match is left exactly as it is."""
+        log(f"{published} exists{when}; verifying it")
+        bad = [(a["name"], check_file(os.path.join(published, a["name"]), a)) for a in chosen]
+        bad = [(name, problem) for name, problem in bad if problem]
+        if bad:
+            for name, problem in bad:
+                log(f"published {name}: {problem}")
+            raise Failure(
+                EXIT_PUBLISHED_DIFFERS,
+                f"{published} does not match the release ({len(bad)} file(s) above) and was left as it "
+                f"is; to mirror it afresh, move it out of {releases} by hand and run this again",
+            )
+        regen_manifest(log)
+        return f"already published and verified ({len(chosen)} files, {human_size(total)}); manifest rebuilt"
+
+    if os.path.isdir(published):
+        return verify_published("")
+
+    lock = take_lock(releases, tag, args, log)
+    try:
+        if os.path.isdir(published):
+            return verify_published(" (another run published it while this one waited)")
+        os.makedirs(staging, exist_ok=True)
+        fetched = 0
+        for a in chosen:
+            dest = os.path.join(staging, a["name"])
+            if os.path.exists(dest) and os.path.getsize(dest) == a["size"] and check_file(dest, a) is None:
+                log(f"{a['name']}: already fetched and verified")
+                continue
+            t0 = time.monotonic()
+            fetch_verified(a, dest, Budget(args.tries, args.deadline), args, log)
+            fetched += 1
+            took = max(time.monotonic() - t0, 1e-6)
+            log(f"{a['name']}: verified, {human_size(a['size'])} in {human_time(took)} ({human_size(a['size'] / took)}/s)")
+        # Everything matches. Only the release's files go public (the staging folder is this
+        # script's own, so a stray file in it is removed, never published), readable by nginx
+        # whatever umask this run had, then one rename.
+        for extra in sorted(set(os.listdir(staging)) - {a["name"] for a in chosen}):
+            path = os.path.join(staging, extra)
+            if os.path.isfile(path):
+                os.remove(path)
+                log(f"removed {extra} from the staging folder (not one of the release's files)")
+        for a in chosen:
+            os.chmod(os.path.join(staging, a["name"]), 0o644)
+        os.chmod(staging, 0o755)
+        os.rename(staging, published)
+        log(f"published {published}")
+    finally:
+        os.close(lock)
+    leftover_staging(releases, tag, log)
+    regen_manifest(log)
+    return (f"published {len(chosen)} files ({human_size(total)}; {fetched} fetched now) in "
+            f"{human_time(time.monotonic() - started)}; manifest rebuilt")
+
+
+def main(argv=None):
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    log = Log(args.tag)
+    try:
+        summary = run(args, log)
+    except Failure as f:
+        log(f"RESULT: failed (exit {f.code}): {f.message}")
+        return f.code
+    except KeyboardInterrupt:
+        log("RESULT: stopped (exit 1); the staging folder is kept, so running it again resumes")
+        return EXIT_FETCH
+    except OSError as err:
+        # The disk filling up is the likely one (ENOSPC), or a permission.
+        log(f"RESULT: failed (exit 1): a file operation failed ({err}); the staging folder is kept, "
+            f"so running it again resumes")
+        return EXIT_FETCH
+    log(f"RESULT: ok: {summary}")
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main())

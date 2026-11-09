@@ -88,4 +88,7 @@ node scripts/check-delivery.js     # must say the operator's exe is this release
 
 Then a `recent_decisions` entry in `data/coordination/orchestrator_state.json`, PRIORITIES if
 scope moved, and `docs/outreach/since-last-update.md`. Glance at `just ci` after the push: a red
-deploy means the VPS is running stale code. Never tell the operator a release needs signing.
+deploy means the VPS is running stale code. The tag's Build Desktop App run ends with the server's
+copy of the release (the mirror job, about 15 minutes after the builds); if it is red, run
+`ssh humanity-vps "humanity-mirror-release v<version>"` (it resumes; `docs/ai/release.md`, "The
+server's copy of each release"). Never tell the operator a release needs signing.

@@ -331,8 +331,12 @@ The path that gets the most decoupling per unit of effort:
    `git remote add`. ~30 min.
 3. **VPS release mirror** ✅ shipped v0.128.0, live at
    <https://united-humanity.us/releases/>. Backfilled v0.122.0-v0.127.0;
-   CI mirrors every future tagged release via `appleboy/scp-action`,
-   and the manifest at `/releases/manifest.json` is regenerated
+   CI mirrors every future tagged release: since 2026-11-09 (BUG-288)
+   the workflow has the VPS pull the files from the GitHub release
+   itself with `/usr/local/bin/humanity-mirror-release`, every file
+   checked against GitHub's SHA-256 (it pushed them with
+   `appleboy/scp-action` until that step hung for hours), and the
+   manifest at `/releases/manifest.json` is regenerated
    automatically by `/usr/local/bin/regen-releases-manifest` on the VPS.
    (A `latest` symlink is NOT published: /releases/latest/ returns 404 as of 2026-09-14. Read `manifest.json` for the newest tag instead.) The
    auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback

@@ -239,60 +239,47 @@ jobs:
             dist/HumanityOS-relay-linux-x64
             dist/HumanityOS-relay-linux-x64.sha256
 
-  # Mirror every platform's binaries to the VPS release archive in one batch
-  # and regenerate the manifest. Runs on Linux (required for the container
-  # action — appleboy/scp-action is Docker-based and won't execute on macOS
-  # or Windows runners). Pulls every platform's artifacts via
-  # actions/download-artifact, then uploads as a single payload.
+  # Copy the release onto the VPS's release mirror (united-humanity.us/releases/<tag>/) and
+  # rebuild its manifest. THE SERVER PULLS the files from this GitHub release (BUG-288,
+  # 2026-11-09): /usr/local/bin/humanity-mirror-release (scripts/vps/humanity-mirror-release,
+  # installed by every deploy from scripts/server-files.txt) lists the release's assets, fetches
+  # the 14 the mirror holds with resume and a stall limit, checks each against GitHub's SHA-256,
+  # moves the folder into place with one rename only when all match, and runs
+  # regen-releases-manifest. Until then this job downloaded every build to the runner and pushed
+  # about 4.4 GB to the server with appleboy/scp-action, which for v0.1552.0 hung for 1 h 42 min,
+  # twice, despite its 15-minute command timeout (the path between the server and GitHub degrades
+  # a long transfer; many short ones get through). It runs after `build` and `bundle-data`, so
+  # every file it takes is already on the release. The two timeouts below mean a hang can never
+  # again run for hours: the script stops itself at 50 minutes (exit 1, resumable), the ssh
+  # session at 55, the job at 60; a healthy run takes about 15. If it fails, rerun the job or run
+  # `ssh humanity-vps "humanity-mirror-release <tag>"` (docs/ai/release.md, "The server's copy of
+  # each release"); a rerun resumes and never re-fetches a verified file.
   mirror-to-vps:
     name: Mirror binaries to VPS + regen manifest
     needs: [build, bundle-data]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - name: Download all platform + data artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          pattern: humanity-*
-          merge-multiple: true
-        # `humanity-*` matches both per-platform bundles and `humanity-data`,
-        # so dist/ ends up with binaries + data archive + data manifest.
-
-      - name: List downloaded files
-        run: ls -la dist/ && echo '---' && du -h dist/* | head
-
-      # appleboy/scp-action sometimes returns a false-positive
-      # `drone-scp error: dial tcp ...: i/o timeout` AFTER the upload has
-      # actually completed (files arrive on the VPS just fine). We mark
-      # the step as continue-on-error so a known-noisy success isn't
-      # treated as a job failure, and the regen step below runs
-      # regardless via `if: always()`. The regen script is idempotent
-      # and only lists release directories whose files are actually
-      # present on disk — so a real upload failure produces an
-      # internally-consistent manifest that omits the bad release.
-      - name: Upload binaries to VPS
-        continue-on-error: true
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          timeout: 60s
-          command_timeout: 15m
-          source: "dist/*"
-          target: "/var/www/humanity/releases/${{ github.ref_name }}/"
-          strip_components: 1
-
-      - name: Regenerate manifest + latest symlink
-        if: always()
+      # The tag reaches the server through `envs`, never pasted into the script, and the script
+      # refuses anything that is not a tag.
+      - name: Pull the release onto the VPS and regenerate its manifest
         uses: appleboy/ssh-action@v1
+        env:
+          TAG: ${{ github.ref_name }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 60s
-          script: /usr/local/bin/regen-releases-manifest
+          command_timeout: 55m
+          envs: TAG
+          script: |
+            if [ ! -x /usr/local/bin/humanity-mirror-release ]; then
+              echo "humanity-mirror-release is not installed on this server. Every deploy installs it (scripts/server-files.txt); by hand: bash /opt/Humanity/scripts/install-server-files.sh /opt/Humanity main"
+              exit 1
+            fi
+            /usr/local/bin/humanity-mirror-release --max-minutes 50 "$TAG"
 
   # Bundle data files alongside the binary + generate per-file manifest
   bundle-data:
@@ -332,17 +319,8 @@ jobs:
           files: |
             HumanityOS-data-${{ github.ref_name }}.tar.gz
             data-manifest-${{ github.ref_name }}.json
-
-      # Upload as workflow artifact so mirror-to-vps can scp these to the
-      # sovereignty mirror alongside the platform binaries (one batched upload,
-      # one manifest regen).
-      - name: Upload data artifact for VPS mirror
-        uses: actions/upload-artifact@v4
-        with:
-          name: humanity-data
-          path: |
-            HumanityOS-data-${{ github.ref_name }}.tar.gz
-            data-manifest-${{ github.ref_name }}.json
+      # (No workflow artifact of these two any more: the mirror job used to carry them to the VPS
+      # with the platform builds, and the server now fetches them from the release itself, BUG-288.)
 
   # Notify chat
   # THE one post per release in #announcements (operator, 2026-10-09: "a single announcement

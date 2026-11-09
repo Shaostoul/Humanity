@@ -29,6 +29,7 @@
 
 file all    755 scripts/humanity-backup-db.sh                   /usr/local/bin/humanity-backup-db
 file all    755 scripts/vps/regen-releases-manifest             /usr/local/bin/regen-releases-manifest
+file all    755 scripts/vps/humanity-mirror-release             /usr/local/bin/humanity-mirror-release
 file all    644 scripts/systemd/humanity-backup-db.service      /etc/systemd/system/humanity-backup-db.service
 file all    644 scripts/systemd/humanity-backup-db.timer        /etc/systemd/system/humanity-backup-db.timer
 file all    644 scripts/systemd/humanity-disk-guard.service     /etc/systemd/system/humanity-disk-guard.service

@@ -122,6 +122,51 @@ just sync    # fetches, git reset --hard, builds ON the VPS, lays out the web ro
   The incident playbook says the same (`docs/INCIDENT-PLAYBOOK.md`, "The relay will not start
   after an update").
 - Deploy `git pull` fails if server has local changes -> `just sync` fixes it
+
+## The server's copy of each release (the mirror)
+
+united-humanity.us keeps its own copy of each release at <https://united-humanity.us/releases/>
+(`/var/www/humanity/releases/<tag>/`, with `manifest.json` listing them; the disk guard keeps the
+newest ten). The last job of a tag's Build Desktop App run, "Mirror binaries to VPS + regen
+manifest", makes it: since BUG-288 (2026-11-09) **the server pulls the files from the GitHub
+release itself**. The job runs one command over ssh:
+
+```bash
+/usr/local/bin/humanity-mirror-release --max-minutes 50 "$TAG"
+```
+
+`scripts/vps/humanity-mirror-release` (installed by every deploy from `scripts/server-files.txt`,
+and by `scripts/provision-vps.sh`) lists the release's assets through the GitHub API, takes the 14
+files the mirror holds (each platform's program, `.tar.gz` and `.zip`, the data archive, the data
+manifest; never the headless relay or its `.sha256`, and each file it skips is named), fetches them
+into the hidden `/var/www/humanity/releases/.<tag>.partial/` with resume, dropping a connection
+that crawls under 500 KB/s or goes silent for 20 s and resuming on a fresh one, checks every file's
+size and SHA-256 against GitHub's digest, and only when all match renames the folder into place and
+runs `regen-releases-manifest`. A healthy run takes about 15 minutes; the script stops itself at 50
+(resumable), the ssh session at 55, the job at 60. Until then the job pushed 4.4 GB to the server
+with `appleboy/scp-action`, which for v0.1552.0 hung for 1 h 42 min, twice.
+
+**When the job is red, or the download page lacks the newest release**, rerun the job, or run it
+by hand (the standing permission covers it: it only adds a release folder and rebuilds the manifest):
+
+```bash
+ssh humanity-vps "humanity-mirror-release v0.X.Y"            # resumes; never re-fetches a verified file
+ssh humanity-vps "humanity-mirror-release v0.X.Y --dry-run"  # list, check, verify only the ~300 KB data manifest; leaves nothing
+```
+
+Its last line, `[mirror v0.X.Y] RESULT: ...`, says what happened, and the exit code means one thing:
+0 published (or already published and verified; the manifest rebuilt), 1 a file would not come
+or verify within its 30 connections, or 50 minutes ran out (run it again: it resumes), 2 a bad tag
+or option, 3 no such release, 4 the release is not complete on GitHub yet (a file missing, not
+uploaded, or without a SHA-256), 5 GitHub's API rate limit for the server's address is used up
+(a run makes two of the 60 an hour; the line says when it resets), 6 GitHub's API unreachable,
+7 a published folder for the tag exists and does not match (left alone: move it out by hand, `mv
+/var/www/humanity/releases/v0.X.Y /root/v0.X.Y.old`, and run it again), 8 another run holds the
+lock, 9 published but the manifest command failed. When the whole path to GitHub is slow rather
+than stalling, lower the floor: `--speed-limit 100000`. It never deletes or changes a published
+folder. Its tests: `scripts/tests/mirror-release.test.js` (in `just rig-tests`);
+`HOS_MIRROR_LIVE=1 node --test scripts/tests/mirror-release.test.js` adds the dry run against the
+real v0.1552.0 release from this computer.
 - **The forge mirror PULLS from GitHub every 8 hours; nothing pushes to it (since 2026-09-29).** `just ship` pushes only to `origin`; the local `forge` remote is `https://git.united-humanity.us/shaostoul/Humanity.git`, fetch-only and credential-free (the old SSH push setup no longer applies: a pull mirror refuses pushes). Health: `just brief`'s MIRROR row. It once vanished for eight weeks unseen: `docs/admin/forgejo-setup.md`.
 
 ## Instrument packs (release assets; uploading is the operator's step)

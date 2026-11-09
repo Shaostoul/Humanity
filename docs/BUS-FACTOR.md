@@ -69,7 +69,7 @@ Secrets live in `/opt/Humanity/.env` on the VPS, mode 600, owned by the relay us
 1. `git push origin main` → GitHub Actions
 2. `build-desktop.yml`: builds Windows/Linux/macOS binaries (Rust + tar.gz + raw exe), uploads to release assets
 3. `deploy-to-vps.yml`: SSHes to humanity-vps, `git fetch + reset --hard origin/main`, `cargo build --release --features relay --no-default-features`, rsyncs `web/`, restarts `humanity-relay.service`, optionally posts to `#announcements` via Deploy Bot.
-4. `mirror-to-vps.yml` (consolidated Linux job): downloads built binaries, scps to `/var/www/humanity/releases/`, runs `regen-releases-manifest` to seed new torrents + update `manifest.json`.
+4. `build-desktop.yml`'s `mirror-to-vps` job: has the VPS pull the release's files from GitHub into `/var/www/humanity/releases/<tag>/` with `humanity-mirror-release` (each checked against GitHub's SHA-256; it was an scp push until BUG-288, 2026-11-09), which then runs `regen-releases-manifest` to seed new torrents + update `manifest.json`. Rerun by hand: `ssh humanity-vps "humanity-mirror-release <tag>"`.
 
 If CI is wedged: `just sync` from local force-pulls + rebuilds on VPS. See `Justfile`.
 

@@ -29,9 +29,22 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 
-RELEASES_DIR = "/var/www/humanity/releases"
+# HUMANITY_RELEASES_DIR is for scripts/tests/mirror-release.test.js, which runs this on a scratch
+# folder; a server leaves it unset.
+RELEASES_DIR = os.environ.get("HUMANITY_RELEASES_DIR", "/var/www/humanity/releases")
 BASE_URL = "https://united-humanity.us/releases"
 MANIFEST_PATH = os.path.join(RELEASES_DIR, "manifest.json")
+
+
+def is_release_dir(name):
+    # Only a published release is listed. humanity-mirror-release fetches into a hidden
+    # ".<tag>.partial" folder and renames it into place when every file is verified (BUG-288,
+    # 2026-11-09); a run that does not finish leaves that folder behind, and listing it would put
+    # a half-fetched "release" in the public manifest. A "<tag>.partial" made by hand (the
+    # 2026-11-09 work-round named it so) is skipped too.
+    return not name.startswith(".") and not name.endswith(".partial") and os.path.isdir(
+        os.path.join(RELEASES_DIR, name)
+    )
 
 
 def version_key(tag):
@@ -67,7 +80,7 @@ def seed_new_bundles():
         return
     for tag in os.listdir(RELEASES_DIR):
         tag_dir = os.path.join(RELEASES_DIR, tag)
-        if not os.path.isdir(tag_dir):
+        if not is_release_dir(tag):
             continue
         for name in os.listdir(tag_dir):
             if name.endswith(".tar.gz") and not os.path.exists(
@@ -80,10 +93,7 @@ def seed_new_bundles():
 
 def build_manifest():
     releases = []
-    tags = [
-        t for t in os.listdir(RELEASES_DIR)
-        if os.path.isdir(os.path.join(RELEASES_DIR, t))
-    ]
+    tags = [t for t in os.listdir(RELEASES_DIR) if is_release_dir(t)]
     for tag in sorted(tags, key=version_key, reverse=True):
         tag_dir = os.path.join(RELEASES_DIR, tag)
         assets = []

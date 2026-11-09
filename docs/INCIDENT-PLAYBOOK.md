@@ -217,6 +217,34 @@ The v0.279.0 + v0.280.0 anti-spam gates are firing. Check:
 - `journalctl -u humanity-relay -n 100 | grep -E "rate limit|cap hit"` to see what's triggering.
 - If a household / hackathon is legitimately onboarding fast, **temporarily** raise the per-IP caps in `src/relay/relay.rs` (`IDENTIFY_RATE_MAX`, `NEW_ID_MAX_PER_IP`) and redeploy. Document the elevated threshold; revert after.
 
+### The download page lags a release (the mirror job failed or timed out)
+**Symptom**: <https://united-humanity.us/releases/manifest.json> does not list the newest tag, or
+the tag's Build Desktop App run has a red "Mirror binaries to VPS + regen manifest" job. GitHub's
+own release is unaffected; only the server's copy is behind.
+
+**Diagnosis**: the job's log ends with the puller's verdict (BUG-288, 2026-11-09):
+```bash
+gh run list --workflow=build-desktop.yml --limit 3
+gh run view <run id> --log | grep -E "\[mirror v[0-9.]+\] (RESULT|not ready|published|skipping)"
+```
+The `RESULT` line's exit code says which case it is (the full list: `docs/ai/release.md`, "The
+server's copy of each release").
+
+**Fix**: run it again. It resumes from the hidden staging folder, skips every file it already
+verified, and never touches a published folder:
+```bash
+ssh humanity-vps "humanity-mirror-release v0.X.Y"
+```
+- Exit 1 (a file would not come within its tries, or the 50 minutes ran out): run it again; if
+  the whole path is slow rather than stalling, add `--speed-limit 100000`.
+- Exit 4 (not ready): a build or the data bundle did not finish uploading to the release; fix the
+  release first.
+- Exit 5 (rate limit): wait until the time it names.
+- Exit 7 (a published folder that does not match): look at the files it names, move the folder
+  out (`mv /var/www/humanity/releases/v0.X.Y /root/v0.X.Y.old`) and run it again.
+- A leftover `/var/www/humanity/releases/.v0.X.Y.partial/` is a run that did not finish; running
+  the command for that tag finishes it (or delete the folder: nothing reads it).
+
 ### CI broken (deploy didn't fire after a push)
 ```bash
 gh run list --limit 5 --workflow=deploy-to-vps.yml
@@ -304,6 +332,26 @@ None of it needed the network: every client of a dev relay is on `127.0.0.1`.
 
 **Lesson**: the 2026-05-21 lesson again, one directory over: the guard's trigger (disk percent) and its cleanup scope covered different things, so it deleted the cache the relay needed while the cause sat untouched. Every service that writes a cache to this disk needs that cache named in the guard, the guard must never delete a build cache under a running build, and an alert must fire once per incident, not once per run.
 
+### 2026-11-09: the release upload to the server hung for hours (BUG-288)
+**What happened**: for v0.1552.0 the Build Desktop App run's mirror job sat in `appleboy/scp-action`'s
+upload for 1 h 42 min, despite its 15-minute command timeout, and again on a re-run; the server's
+release folder was never created, so united-humanity.us/releases lagged the release. Disk and ssh
+were fine. A long download from the server to GitHub's CDN slowed to 168 KB/s on its first
+connection while a fresh connection got 5.3 MB/s: the path degrades a long transfer.
+
+**Worked round** the same day by hand: the server fetched the 14 files from the GitHub release with
+`curl -C -`, a stall limit and retries, each checked against GitHub's SHA-256, into a staging
+folder moved into place afterwards, then `regen-releases-manifest`.
+
+**Fixed** by making that procedure the job: the server pulls with
+`/usr/local/bin/humanity-mirror-release` (scripts/vps/), and the job, the ssh session and the
+script each have a time limit, so a hang ends within the hour. Recipe above ("The download page
+lags a release").
+
+**Lesson**: an action's own timeout is not a bound on the job; a job without `timeout-minutes`
+runs for GitHub's six hours. And one long transfer over a degraded path never finishes, while
+short resumable ones do: move the bytes in pieces that can be checked and resumed.
+
 ## Section 3: Anticipated failures (haven't happened yet but probably will)
 
 ### nginx maps to wrong upstream after a restart
@@ -333,6 +381,7 @@ A user logs in from web + native simultaneously, edits profile from both, clocks
 - 2026-05-20, initial creation; populated with the four real incidents from the last 30 days + the anticipated failure list seeded from the audit work.
 - 2026-10-03, added the dev-relay Windows Firewall prompts (BIND_ADDRESS, loopback-only dev launchers and tests).
 - 2026-11-03, added "The relay will not start after an update" (BUG-230: a failed upgrade is told apart from a damaged file).
+- 2026-11-09, added "The download page lags a release" and the hung release upload (BUG-288: the server pulls each release itself, verified and resumable).
 
 ## The TURN relay abuse and the 12-hour invisible outage (2026-08-07)
 

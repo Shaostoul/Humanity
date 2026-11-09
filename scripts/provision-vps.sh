@@ -292,6 +292,13 @@ systemctl start humanity-backup-db.service || true
 # Works HTTP-only; picks up torrents automatically if transmission returns.
 install -m 755 "$REPO/scripts/vps/regen-releases-manifest" \
   /usr/local/bin/regen-releases-manifest
+# The release mirror's puller (BUG-288, 2026-11-09): the same workflow's mirror job runs it over
+# ssh for each tag, and it fetches the release's files from GitHub itself, verified, then runs the
+# regenerator above. Its absence fails the mirror job, so it is installed unconditionally too
+# (every deploy also refreshes both from scripts/server-files.txt).
+install -m 755 "$REPO/scripts/vps/humanity-mirror-release" \
+  /usr/local/bin/humanity-mirror-release
+mkdir -p /var/www/humanity/releases
 
 # ── 11. Web root + nginx. Certs must exist before the TLS config loads, so:
 #        certbot standalone first (needs :80 free), then the real config. ─────

@@ -113,10 +113,13 @@ HTTPS for the version manifest).
 ## CI integration
 
 No workflow change was needed for v0.129.0, `mirror-to-vps` already
-calls `/usr/local/bin/regen-releases-manifest` after the scp upload,
-and that script now does both seeding and manifest generation. New
+calls `/usr/local/bin/regen-releases-manifest` after the files land
+(since 2026-11-09, BUG-288, `/usr/local/bin/humanity-mirror-release`
+pulls them from the GitHub release and runs it; it was an scp upload
+before), and that script now does both seeding and manifest generation. New
 releases automatically get torrents within seconds of the binaries
-landing on the VPS.
+landing on the VPS. It seeds and lists published release folders only,
+never the puller's hidden `.<tag>.partial` staging folder.
 
 ## Backfill
 
