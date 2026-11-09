@@ -12,6 +12,7 @@ object model and the farming data contracts. The specs describe designed contrac
 
 ## Dated research findings
 
+- [`research/2026-11-08-ai-tools/`](research/2026-11-08-ai-tools/README.md), a dated scan of about 30 AI tools from one news video: what each could do here, its licence as stated, and candidate / watch / skip (a scan, not a decision: a candidate still needs its own finding).
 - [`findings/`](findings/README.md), dated research notes on legal, regulatory and licensing questions. One file per question, written the day the research was done and never quietly rewritten, so a later reader can tell whether the world changed or we were wrong. Read `findings/README.md` before adding one.
 
 ## Federation object model (protocol specs)
