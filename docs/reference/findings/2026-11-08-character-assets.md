@@ -132,3 +132,54 @@ smaller rig in Unreal's naming, if the 163 bones prove too many.
   procedural test clips keep the game animated meanwhile).
 - MakeHuman's young-adult macro set (30 MB of text targets) is enough for rung 1's height and build;
   the other ages can follow when the look gains an age.
+
+## Addendum, 2026-11-09: the downloads, and what the Quaternius file itself says
+
+Both downloads were approved by the operator on 2026-11-09 ("Yes. We need at least a male and a
+female." for MakeHuman; "Yes, let's see what it has." for Quaternius) and made that day. The text
+above is left as written on 2026-11-08.
+
+**MakeHuman.** 100 files, 33,198,970 bytes, fetched from commit
+`a8bc2d54ff0ac92e78ff71431b1023eda42bf482` (2024-06-26), each checked against the git blob hash
+GitHub reports, into `E:\HumanityOS\makehuman-src\a8bc2d54\` with a `MANIFEST.json` and the fetch
+script beside it: `base.obj`, `default.mhskel`, `default_weights.mhw`, `modeling_modifiers.json`
+and the 96 young-adult macro targets (female and male, three ancestries, muscle, weight, height,
+proportions). MakeHuman makes a female or male body by blending these targets on its one base mesh.
+
+**Quaternius, Universal Animation Library [Standard].** Downloaded through the built-in browser
+from https://quaternius.itch.io/universal-animation-library (the free tier, "No thanks, just take
+me to the downloads"), 15,904,933 bytes, SHA-256
+`cc73fc4e495b82958207316596317a3f40b9fa38065bde1027937452da537724`, kept at
+`E:\HumanityOS\quaternius-src\ual-standard-2026-11-09\`. The zip's own `License.txt` reads, in
+full apart from the author's support links:
+
+> License:
+> CC0 1.0 Universal (CC0 1.0)
+> Public Domain Dedication
+> https://creativecommons.org/publicdomain/zero/1.0/
+
+Its `README.txt` carries the same licence block. So the file obtained today is dedicated CC0 by
+the licence text inside it, as the itch.io licence field and the pack page say. The conflict with
+https://quaternius.com/license.html (QAL v1.0, "Last updated: 8/28/2026", section 7: "the version
+in effect at the time you obtained the Assets governs your use of them") is not removed by this,
+but the instrument that travels with these exact bytes is CC0, and a CC0 dedication cannot be
+withdrawn from a copy already given under it.
+
+What is inside: `UAL1_Standard.glb` and `UAL1_Standard_RM.glb` (the second with root motion baked
+in), each one skinned mesh on a 65-joint rig in Unreal's mannequin names (`root`, `pelvis`,
+`spine_01` to `spine_03`, `neck_01`, `Head`, clavicles, arms, five fingers of four joints, `thigh`,
+`calf`, `foot`, `ball`), plus FBX copies for Unity. 43 clips: A_TPose, Crouch_Fwd_Loop,
+Crouch_Idle_Loop, Dance_Loop, Death01, Driving_Loop, Fixing_Kneeling, Hit_Chest, Hit_Head,
+Idle_Loop, Idle_Talking_Loop, Idle_Torch_Loop, Interact, Jog_Fwd_Loop, Jump_Land, Jump_Loop,
+Jump_Start, PickUp_Table, Pistol_Aim_Down, Pistol_Aim_Neutral, Pistol_Aim_Up, Pistol_Idle_Loop,
+Pistol_Reload, Pistol_Shoot, Punch_Cross, Punch_Jab, Push_Loop, Roll, Sitting_Enter, Sitting_Exit,
+Sitting_Idle_Loop, Sitting_Talking_Loop, Spell_Simple_Enter, Spell_Simple_Exit,
+Spell_Simple_Idle_Loop, Spell_Simple_Shoot, Sprint_Loop, Swim_Fwd_Loop, Swim_Idle_Loop,
+Sword_Attack, Sword_Idle, Walk_Formal_Loop, Walk_Loop. No turn-in-place and no strafing clips in
+the free tier (the "120+" counts the paid tiers).
+
+**What it means now:** the unknowns 1 and 2 above are answered for this download. Recommendation:
+use these clips as CC0, ship them with `License.txt` beside them and this addendum's date and hash
+in the credits, keep the procedural turn-in-place until a CC0 turn clip exists (CMU or 100STYLE at
+rung 3), and send Quaternius one polite question about the QAL page so the record is complete
+(the operator's message to send, if he wants it).

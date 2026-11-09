@@ -705,8 +705,10 @@ Small, measurable, no large downloads, and it makes every later rung provable.
   and 3,743 m), Dyes Inlet 0, the open Pacific the no-data value. Applying the scale makes Rainier
   441 m. Rung 2's reader must ignore that tag for this file, with a unit test on those two summits.
 - 6, cadence: "Makes sense." Monthly for changed packs.
-- 1, 2 and 3 he asked about (why GEDTM30, why Overture, how the release hosting works); answered in
-  the conversation, still to be confirmed.
+- 1, 2 and 3: after asking why (GEDTM30 is bare earth under any-use CC BY 4.0, where Copernicus is
+  the top of the forest; Overture fills the rural houses OSM lacks; packs are release files cut by
+  tile, fetched only where a player goes), "Yes." to all three. GEDTM30 for land heights, Overture
+  for buildings, packs as GitHub release assets.
 
 ## 15. Risks
 
