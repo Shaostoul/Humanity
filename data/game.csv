@@ -26,3 +26,7 @@ stamina_regen,2.0,Stamina regeneration per second while resting,system,0.1,10.0,
 trade_price_variance,0.15,Random price variance for NPC trades (fraction),economy,0.0,0.5,float
 gravity_m_s2,9.81,Interior artificial gravity aboard the homestead; planet surfaces use each planet's own gravity from data/planets,physics,0.0,50.0,float
 terminal_velocity,55.0,Maximum fall speed in m/s,physics,10.0,200.0,float
+walk_speed_realistic_mps,1.4,Walking speed in the Realistic walking pace (Settings > Gameplay): a person in no hurry (the operator's decision 2026-11-09),physics,0.5,3.0,float
+run_speed_realistic_mps,4.0,Running speed (Shift) in the Realistic walking pace (the operator's decision 2026-11-09: about 4 m/s),physics,1.0,9.5,float
+walk_speed_simplified_mps,5.0,Walking speed in the Simplified walking pace: the game's pace before 2026-11-09,physics,0.5,5.0,float
+run_speed_simplified_mps,9.5,Sprinting speed (Shift) in the Simplified walking pace: 5 m/s times 1.9; the relay's on-foot limit is checked against it,physics,1.0,9.5,float

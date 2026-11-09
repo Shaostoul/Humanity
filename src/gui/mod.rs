@@ -125,34 +125,11 @@ pub(crate) mod ui_snapshots;
 #[cfg(feature = "native")]
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Decide whether the UI-click sound should fire this frame (v0.1112).
-///
-/// The click sound must fire ONLY when egui reported a REAL widget activation -
-/// a button, link, or toggle was actually clicked. The old gate keyed on
-/// `egui_ctx.wants_pointer_input()`, which in egui 0.31 is true whenever the
-/// pointer is merely OVER any egui area, so clicking empty panel background
-/// played the click ("clicking on the screen makes a sound even if I don't
-/// click anything"). `PlatformOutput::events` carries an `OutputEvent::Clicked`
-/// (or `DoubleClicked`) only when a widget genuinely activated, so scanning it
-/// is the precise gate. `ui_sounds_enabled` is the user's master switch for
-/// interface sounds (Settings > Audio) - off means never play the click.
-///
-/// Kept as a small pure function so the decision is unit-testable without a
-/// running egui context (a headless click-test is not possible).
+/// Whether the UI-click sound fires this frame (v0.1112): `gui/click_sound.rs`.
 #[cfg(feature = "native")]
-pub fn ui_click_should_sound(
-    events: &[egui::output::OutputEvent],
-    ui_sounds_enabled: bool,
-) -> bool {
-    ui_sounds_enabled
-        && events.iter().any(|e| {
-            matches!(
-                e,
-                egui::output::OutputEvent::Clicked(_)
-                    | egui::output::OutputEvent::DoubleClicked(_)
-            )
-        })
-}
+mod click_sound;
+#[cfg(feature = "native")]
+pub use click_sound::ui_click_should_sound;
 
 /// An external entry loaded from `data/external/catalog.json` (software/catalog.rs since
 /// 2026-10-19, where its detection, Steam and winget fields are read with it).
@@ -2116,6 +2093,13 @@ pub struct GuiState {
     pub appearance: humanity_core::ecs::components::Appearance,
     /// Set when the appearance edits change; the main loop rebuilds the avatar mesh.
     pub appearance_dirty: bool,
+    /// The walking pace's speeds as data/game.csv gives them, metres a second: Realistic walk and
+    /// run, Simplified walk and sprint (published by engine::walk_pace for Settings' description).
+    pub walk_pace_speeds: [f32; 4],
+    /// The bodies a character can be drawn with (data/characters/characters.ron's choice ids,
+    /// "female" and "male"), published by engine::animation when the character data loads; the
+    /// character page's body chooser lists them. Empty until then.
+    pub body_choices: Vec<String>,
     /// The equipped cosmetic outfit being edited in the wardrobe (synced to the ECS player
     /// on confirm). slot id -> cosmetic id.
     pub outfit: humanity_core::ecs::components::Outfit,
@@ -3893,6 +3877,8 @@ impl Default for GuiState {
             showroom_confirm: false,
             appearance: humanity_core::ecs::components::Appearance::default(),
             appearance_dirty: false,
+            walk_pace_speeds: [1.4, 4.0, 5.0, 9.5],
+            body_choices: Vec::new(),
             outfit: humanity_core::ecs::components::Outfit::default(),
             outfit_dirty: false,
             showroom_mode: 0,
@@ -4582,6 +4568,10 @@ pub struct SettingsState {
     /// Realistic (an overload slows walking and stops jumps, and a load's
     /// mass weighs on every jump). Saved as AppConfig::carry_realistic.
     pub carry_realistic: bool,
+    /// Walking pace (2026-11-09, engine::walk_pace): false is Simplified (the default: a 5 m/s walk,
+    /// a 9.5 m/s sprint), true is Realistic (1.4 and 4 m/s); speeds from data/game.csv. Saved as
+    /// AppConfig::walk_realistic.
+    pub walk_realistic: bool,
     /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
     /// content's main colour per marker, the default), true is Full (the scheme's whole marker,
     /// main-additional-main). Saved as AppConfig::pipe_marking_full.
@@ -4758,6 +4748,7 @@ impl Default for SettingsState {
             illness_realistic: false,
             animal_care_realistic: false,
             carry_realistic: false,
+            walk_realistic: false,
             pipe_marking_full: false,
             death_realistic: false,
             drone_realistic: false,
@@ -4788,11 +4779,6 @@ impl Default for SettingsState {
         }
     }
 }
-
-/// The click sound's tests, in their own file to keep this one under its line budget.
-#[cfg(all(test, feature = "native"))]
-#[path = "click_sound_tests.rs"]
-mod ui_click_sound_tests;
 
 // Tests of the crates below that reach the GUI to do it, moved up from beside their code (the crate
 // split, 2026-10-31, docs/design/crate-split.md): src/gui/crossing_tests/mod.rs.

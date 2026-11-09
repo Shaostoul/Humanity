@@ -94,6 +94,36 @@ fn the_palette_is_identity_at_rest_and_moves_a_vertex_with_its_joint() {
     assert!((apply_rows(&r, v) - want).length() < 1e-4, "{} vs {want}", apply_rows(&r, v));
 }
 
+/// A RESHAPED SKELETON (2026-11-09, a body's shape targets moving its joints): the joint moved stands
+/// where it was moved, its children where they were (their rest translations worked out again), and
+/// skinning at rest is still the identity everywhere (its inverse binds made again), so the reshaped
+/// mesh stands as it was shaped.
+/// Seen red 2026-11-09 with `reshaped` keeping the old inverse binds: "joint body_leftLowerArm moves a
+/// vertex at rest by 0.100".
+#[test]
+fn a_reshaped_skeleton_moves_its_joints_and_still_skins_to_identity_at_rest() {
+    let h = humanoid();
+    let (joints, map) = body_rig();
+    let skel = Skeleton::from_skin(&joints, &map, &h).unwrap();
+    let elbow = skel.joint_by_role(&h, "leftLowerArm").unwrap();
+    let hand = skel.joint_by_role(&h, "leftHand").unwrap();
+    let mut moves = vec![Vec3::ZERO; skel.joint_count()];
+    moves[elbow] = Vec3::new(0.1, 0.0, 0.0);
+    let shaped = skel.reshaped(&moves);
+    assert!((shaped.rest_position(elbow) - (skel.rest_position(elbow) + Vec3::new(0.1, 0.0, 0.0))).length() < 1e-5);
+    assert!((shaped.rest_position(hand) - skel.rest_position(hand)).length() < 1e-5, "an unmoved child stays where it was");
+    let mut model = Vec::new();
+    let mut rows = Vec::new();
+    model_matrices(&shaped, &shaped.rest_pose(), &mut model);
+    palette_rows(&shaped, &model, &mut rows);
+    let p = Vec3::new(0.3, 1.2, -0.1);
+    for j in 0..shaped.joint_count() {
+        let r = [rows[j * 3], rows[j * 3 + 1], rows[j * 3 + 2]];
+        let moved = (apply_rows(&r, p) - p).length();
+        assert!(moved < 1e-4, "joint {} moves a vertex at rest by {moved:.3}", shaped.names[j]);
+    }
+}
+
 /// glTF's three interpolations: Linear halfway, Step holding, and CubicSpline with zero tangents
 /// easing (the Hermite curve's 0.5 at the middle, 0.15625 at a quarter).
 /// Seen red 2026-11-08 with CubicSpline read as Linear (0.25 at a quarter, not 0.15625).
@@ -234,7 +264,7 @@ fn the_blend_space_brackets_its_input_and_strides_match_the_bodys_speed() {
 fn marker_clips(skel: &Skeleton, h: &crate::HumanoidDef) -> ClipSet {
     let hips = skel.joint_by_role(h, "hips").unwrap();
     let mut set = ClipSet::default();
-    for (id, deg, speed) in [("idle", 0.0, 0.0), ("walk", 10.0, 1.4), ("run", 20.0, 3.5), ("turn_left", 30.0, 0.0), ("turn_right", -30.0, 0.0)] {
+    for (id, deg, speed) in [("idle", 0.0, 0.0), ("walk", 10.0, 1.0), ("jog", 20.0, 5.9), ("sprint", 25.0, 8.9), ("turn_left", 30.0, 0.0), ("turn_right", -30.0, 0.0)] {
         let mut rotations = vec![None; skel.joint_count()];
         rotations[hips] = Some(vec![Quat::from_rotation_y(f32::to_radians(deg)); 31]);
         set.insert(id, Clip { name: id.into(), duration: 1.0, fps: 30.0, frames: 31, looped: true, speed_mps: speed, rotations, translations: vec![None; skel.joint_count()] });
@@ -249,9 +279,11 @@ fn hips_yaw_deg(pose: &Pose, skel: &Skeleton, h: &crate::HumanoidDef) -> f32 {
 }
 
 /// The SHIPPED graph (`data/characters/locomotion.ron`) on marker clips: standing is idle, a turn on
-/// the spot is the turn space (left positive), moving between walk and run speeds blends the two,
-/// and stopping fades back to idle.
-/// Seen red 2026-11-08 with the move state's transition reading `AbsBelow` for `AbsAbove` in the data.
+/// the spot is the turn space (left positive), moving between the walk's and the jog's places blends
+/// the two, the realistic walk (1.4 m/s) is the walk alone, and stopping fades back to idle.
+/// Seen red 2026-11-08 with the move state's transition reading `AbsBelow` for `AbsAbove` in the data;
+/// and 2026-11-09 with the walk placed at 0.98 (its own speed): "the realistic walk is the walk
+/// alone: 11.389631", a seventh jog.
 #[test]
 fn the_shipped_graph_idles_turns_walks_runs_and_fades_back() {
     let h = humanoid();
@@ -275,11 +307,14 @@ fn the_shipped_graph_idles_turns_walks_runs_and_fades_back() {
     assert_eq!(graph.state_ids[anim.state()], "turn");
     let turning = hips_yaw_deg(&pose, &skel, &h);
     assert!(turning > 5.0 && turning <= 30.0, "turning left reads {turning}");
-    run(&mut anim, LocomotionInput { speed: 2.45, ..Default::default() }, 1.5, &mut pose);
+    run(&mut anim, LocomotionInput { speed: 2.8, ..Default::default() }, 1.5, &mut pose);
     assert_eq!(graph.state_ids[anim.state()], "move");
     assert!(!anim.is_fading());
     let moving = hips_yaw_deg(&pose, &skel, &h);
-    assert!(moving > 10.5 && moving < 19.5, "between walk and run reads {moving}");
+    assert!(moving > 10.5 && moving < 19.5, "between walk and jog reads {moving}");
+    run(&mut anim, LocomotionInput { speed: 1.4, ..Default::default() }, 1.5, &mut pose);
+    let walking = hips_yaw_deg(&pose, &skel, &h);
+    assert!((walking - 10.0).abs() < 0.3, "the realistic walk is the walk alone: {walking}");
     run(&mut anim, LocomotionInput::default(), 1.5, &mut pose);
     assert_eq!(graph.state_ids[anim.state()], "idle");
     assert!(hips_yaw_deg(&pose, &skel, &h).abs() < 0.5);

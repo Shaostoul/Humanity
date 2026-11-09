@@ -1,8 +1,8 @@
 // THE TEST FIGURE: a procedural jointed body on the humanoid skeleton, made by
-// scripts/gen-test-figure.js (character animation rung 1, 2026-11-08). It stands in until the real
-// body is downloaded with the operator's yes (MakeHuman's CC0 base mesh is the recommended default:
-// docs/design/character-animation.md section 2.3), and it stays as the body the tests and rigs
-// prove skinning, retargeting and the state machine with. Our own work: no credit needed.
+// scripts/gen-test-figure.js (character animation rung 1, 2026-11-08). Since the MakeHuman bodies
+// arrived (2026-11-09) it is characters.ron's `fallback`: drawn in place of a body that does not
+// load, so a broken body file shows a person, and the body the tests prove skinning and retargeting
+// with. A look may name it ("hos_test_figure") to draw it on purpose. Our own work: no credit needed.
 //
 // Its bones are named the way Blender's rigs name them (pelvis, thigh.L, forearm.L ...), not by the
 // standard's roles, so its role map (role_maps/hos_test_figure.ron) is exercised like any other rig's.

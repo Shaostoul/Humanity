@@ -165,7 +165,9 @@ impl SourceClip {
 
 /// A clip baked onto a body's skeleton: frames at a fixed rate, a rotation per joint per frame
 /// (or none: the joint keeps its rest rotation) and a translation track for the joints whose
-/// position moves (the hips' bob and sway).
+/// position moves (the hips' bob and sway), as an OFFSET from the joint's rest translation, so the
+/// clip plays on the same body reshaped by its morph targets (`Skeleton::reshaped`), whose hips
+/// stand elsewhere (2026-11-09).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Clip {
     pub name: String,
@@ -199,7 +201,7 @@ impl Clip {
                 out.joints[j].r = nlerp(r[f0], r[f1], u);
             }
             if let Some(t) = self.translations.get(j).and_then(|t| t.as_ref()) {
-                out.joints[j].t = t[f0].lerp(t[f1], u);
+                out.joints[j].t = skel.rest[j].t + t[f0].lerp(t[f1], u);
             }
         }
     }

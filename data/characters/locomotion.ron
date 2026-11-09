@@ -44,12 +44,23 @@
             ],
         ),
         (
-            // Walking and running: one stride phase, played at the body's own speed.
+            // Walking, jogging and sprinting (Quaternius's gaits, 2026-11-09): one stride phase,
+            // each clip played at the rate that matches the body's speed to its own (clips.ron's
+            // speed_mps, measured from the feet), so the feet keep still on the floor.
+            //
+            // Where each clip is placed, by the walk speeds the two movement modes use
+            // (data/game.csv): the realistic walk (1.4 m/s) is the walk alone, played 1.43 times
+            // (the library walks at 0.98); the realistic run (4.0) is the jog alone, played 0.68
+            // times (it jogs at 5.9: a long-striding jog, slowed; a blend of walk and jog there read
+            // as neither); the simplified walk (5.0) is mostly the jog with a fifth of the sprint, and
+            // the simplified sprint (9.5) the sprint, 1.07 times. Better gaits for these speeds come
+            // with motion matching's captured data (rung 3).
             id: "move",
             param: Speed,
             samples: [
-                (at: 1.4, clip: "walk"),
-                (at: 3.6, clip: "run"),
+                (at: 1.6, clip: "walk"),
+                (at: 4.0, clip: "jog"),
+                (at: 8.9, clip: "sprint"),
             ],
             sync: true,
             stride: Some((min_rate: 0.55, max_rate: 1.6)),

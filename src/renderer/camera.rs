@@ -710,6 +710,10 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 /// Behavior changes based on the camera's current mode.
 pub struct CameraController {
     pub speed: f32,
+    /// How much faster Shift runs than walking: `SPRINT_FACTOR` until the walking pace is applied
+    /// from data by `engine::walk_pace` (2026-11-09: a realistic 4 m/s run over a 1.4 m/s walk, or
+    /// the simplified 9.5 over 5).
+    pub sprint_factor: f32,
     /// Multiplier on movement speed from the player's active status effects
     /// (1.0 = normal). Set each frame by the main loop from the player's
     /// StatusEffects + the status-effect registry. Look/rotation is unaffected.
@@ -837,6 +841,7 @@ impl CameraController {
     pub fn new(speed: f32, sensitivity: f32) -> Self {
         Self {
             speed,
+            sprint_factor: SPRINT_FACTOR,
             speed_multiplier: 1.0,
             jump_scale: 1.0,
             carry_speed_factor: 1.0,
@@ -1420,7 +1425,7 @@ impl CameraController {
         // Shift = SPRINT (hold to move faster). `speed_multiplier` carries status-effect
         // modifiers (well_nourished speeds up, thirsty/flu slow down), and
         // `carry_speed_factor` the carried load's (BUG-136, walking only).
-        let sprint = if self.descend { SPRINT_FACTOR } else { 1.0 };
+        let sprint = if self.descend { self.sprint_factor } else { 1.0 };
         let move_speed = self.speed * sprint * self.speed_multiplier * self.carry_speed_factor;
         // The way the keys point, unit length; None when they point nowhere.
         let wish = if velocity.length_squared() > 0.0 { Some(velocity.normalize()) } else { None };

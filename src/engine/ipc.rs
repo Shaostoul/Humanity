@@ -954,9 +954,21 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     }
     // {"figures":"boxes"} / {"figures":"bodies"}: the same-boot A/B of the old box figures against
     // the skinned bodies (rung 0's baseline beside rung 1).
+    // {"figures":"test_figure"} (2026-11-09): everyone drawn with characters.ron's fallback body, the
+    // procedural test figure, for the same-boot comparison of the real bodies against it.
     if let Some(v) = grab("figures") {
         state.animation.bodies_on = v != "boxes";
-        log::info!("Showcase: figures -> {}", if state.animation.bodies_on { "skinned bodies" } else { "box figures" });
+        state.animation.fallback_only = v == "test_figure";
+        log::info!(
+            "Showcase: figures -> {}",
+            if !state.animation.bodies_on {
+                "box figures"
+            } else if state.animation.fallback_only {
+                "the test figure for everyone"
+            } else {
+                "skinned bodies"
+            }
+        );
     }
     // {"camera_mode":"third"} / {"camera_mode":"first"}: the camera the V key toggles; third person
     // walks the same body with the camera behind it (rung 1).
@@ -972,6 +984,44 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
                 log::info!("Showcase: camera_mode -> {m:?}");
             }
             None => log::warn!("Showcase: camera_mode wants \"first\" or \"third\", not {v:?}"),
+        }
+    }
+    // {"body":"female"} / {"body":"male"} (2026-11-09): the body the player's look chooses, as the
+    // character page's chooser sets it, so a rig shows each body in third person.
+    if let Some(v) = grab("body") {
+        if state.gui_state.appearance.body_type != v {
+            state.gui_state.appearance.body_type = v.clone();
+            state.gui_state.appearance_dirty = true;
+            log::info!("Showcase: body -> {v}");
+        }
+    }
+    // {"look_height":"1.2"} (2026-11-09): the look's height, as the character page's slider sets it
+    // (0.8 to 1.2 there; the shape targets carry it, the rest is a scale).
+    if let Some(v) = grab("look_height") {
+        match v.trim().parse::<f32>() {
+            Ok(h) if h.is_finite() && (0.5..=2.0).contains(&h) => {
+                if state.gui_state.appearance.height_scale != h {
+                    state.gui_state.appearance.height_scale = h;
+                    state.gui_state.appearance_dirty = true;
+                    log::info!("Showcase: look_height -> {h}");
+                }
+            }
+            _ => log::warn!("Showcase: look_height wants a number from 0.5 to 2, not {v:?}"),
+        }
+    }
+    // {"walk_pace":"realistic"} / {"walk_pace":"simplified"} (2026-11-09): Settings' walking pace
+    // (engine/walk_pace.rs), so a rig walks and runs at either mode's speeds.
+    if let Some(v) = grab("walk_pace") {
+        match v.as_str() {
+            "realistic" | "simplified" => {
+                let realistic = v == "realistic";
+                if state.gui_state.settings.walk_realistic != realistic {
+                    state.gui_state.settings.walk_realistic = realistic;
+                    state.gui_state.settings_dirty = true;
+                    log::info!("Showcase: walk_pace -> {v}");
+                }
+            }
+            _ => log::warn!("Showcase: walk_pace wants \"realistic\" or \"simplified\", not {v:?}"),
         }
     }
     // {"build_editor":"1"} / {"build_editor":"0"} (2026-10-04, ship homes 1b, round 5): open or

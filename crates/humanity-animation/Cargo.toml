@@ -14,6 +14,13 @@ publish = false
 # Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
 build = "../repo_root.rs"
 
+[features]
+# Nothing behind it: the crate is pure everywhere. It exists because `just test-lib --crate
+# humanity-animation` (scripts/lib-tests.js) builds the named members with `--features native`, which
+# cargo refuses for a package without the feature ("does not contain this feature: native"; found
+# 2026-11-09, when this card's own test line failed).
+native = []
+
 [dependencies]
 # The imported skin and clip data (humanity_core::skin_data) and nothing else of the core's: without its
 # `native` feature, so no egui, audio or keychain comes along.

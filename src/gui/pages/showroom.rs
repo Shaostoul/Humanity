@@ -1150,6 +1150,21 @@ fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             state.appearance_dirty = true;
         }
     });
+    // The body (2026-11-09): one of the bodies data/characters/characters.ron lists (a female and a
+    // male MakeHuman body), published by engine::animation; everyone you meet sees the one chosen.
+    if !state.body_choices.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(t("characters.body")).color(theme.text_secondary())).hint("characters.body_hint");
+            for id in state.body_choices.clone() {
+                let selected = state.appearance.body_type == id;
+                let label = humanity_core::i18n::t_dyn(&format!("characters.body_{id}"));
+                if ui.selectable_label(selected, label).hint_dyn(&format!("characters.body_{id}_hint")).clicked() && !selected {
+                    state.appearance.body_type = id;
+                    state.appearance_dirty = true;
+                }
+            }
+        });
+    }
     if widgets::with_hint(ui, "characters.height_hint", |ui| widgets::labeled_slider(ui, theme, t("characters.height"), &mut state.appearance.height_scale, 0.8..=1.2)) {
         state.appearance_dirty = true;
     }

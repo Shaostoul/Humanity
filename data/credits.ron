@@ -205,5 +205,39 @@
             // (engine/home_meshes.rs, the `credit` stat, words model_physics.credit_simready).
             shown_in: ["Credits", "Machine walk-up card (model credit line)"],
         ),
+        // The people's bodies (character animation rung 1, 2026-11-09). MakeHuman's assets are CC0
+        // (its LICENSE.md, section C: "These assets have been released under CC0 1.0 Universal.";
+        // default.mhskel carries "license": "CC0"), so nothing is owed; credited by the house rule.
+        // Converted by our own scripts/gen-makehuman-body.js (MakeHuman's code is AGPL and none of
+        // it is used). The commit, the fetch date and every input's git blob hash:
+        // assets/models/characters/makehuman/SOURCE.md. Finding:
+        // docs/reference/findings/2026-11-08-character-assets.md (its 2026-11-09 addendum).
+        (
+            id: "makehuman",
+            name: "MakeHuman",
+            used_for: "The female and male bodies every person is drawn with (the player, other players and the crew): the base mesh, the default skeleton and its weights, and the young-adult shape targets the look's height drives (commit a8bc2d54, fetched 2026-11-09), converted by HumanityOS.",
+            licence: "CC0 1.0",
+            notice: "Bodies made from MakeHuman's assets (CC0 1.0, makehumancommunity.org), converted by HumanityOS",
+            url: "https://github.com/makehumancommunity/makehuman",
+            attribution_required: false,
+            shown_in: ["Credits"],
+        ),
+        // The people's walk, jog, sprint, idle, crouch, jump and sit clips (2026-11-09). Quaternius's
+        // Universal Animation Library [Standard], CC0 by the License.txt inside the download (copied
+        // beside the clips in assets/models/characters/quaternius_ual/); downloaded 2026-11-09 from
+        // https://quaternius.itch.io/universal-animation-library, the zip's SHA-256
+        // cc73fc4e495b82958207316596317a3f40b9fa38065bde1027937452da537724. Quaternius's licence
+        // page showed QAL v1.0 when read on 2026-11-08; the file's own licence is CC0 (the finding's
+        // 2026-11-09 addendum). Nothing is owed; credited by the house rule.
+        (
+            id: "quaternius_ual",
+            name: "Quaternius Universal Animation Library",
+            used_for: "The animations people walk, jog, sprint, stand, crouch, jump and sit with, retargeted onto the MakeHuman bodies (downloaded 2026-11-09, zip SHA-256 cc73fc4e...7724), trimmed to the clips used by HumanityOS.",
+            licence: "CC0 1.0",
+            notice: "Animations by Quaternius (Universal Animation Library, CC0 1.0, quaternius.com)",
+            url: "https://quaternius.itch.io/universal-animation-library",
+            attribution_required: false,
+            shown_in: ["Credits"],
+        ),
     ],
 )

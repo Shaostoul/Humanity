@@ -46,13 +46,17 @@
         // The left leg.
         (role: "leftUpperLeg", parent: Some("hips"), tier: Far, required: true, aim: Some("leftLowerLeg"), align: true),
         (role: "leftLowerLeg", parent: Some("leftUpperLeg"), tier: Far, required: true, aim: Some("leftFoot"), align: true),
-        (role: "leftFoot", parent: Some("leftLowerLeg"), tier: Far, required: true, aim: Some("leftToes"), align: true),
+        // The feet are not aligned (2026-11-09): every rig stands its feet flat at rest, whichever
+        // way its foot bone points (ankle to ball, ankle to middle toe), so turning one rig's rest
+        // foot bone onto another's tilted a flat foot into the floor (MakeHuman's female body at
+        // Quaternius's idle sank 2.6 cm, 0.5 without). A foot takes its shin's alignment instead.
+        (role: "leftFoot", parent: Some("leftLowerLeg"), tier: Far, required: true, aim: Some("leftToes")),
         (role: "leftToes", parent: Some("leftFoot"), tier: Middle),
         (role: "leftUpperLegTwist", parent: Some("leftUpperLeg"), tier: Middle, standard: Hos, twist: Some((of: "leftLowerLeg", share: 0.5))),
         // The right leg.
         (role: "rightUpperLeg", parent: Some("hips"), tier: Far, required: true, aim: Some("rightLowerLeg"), align: true),
         (role: "rightLowerLeg", parent: Some("rightUpperLeg"), tier: Far, required: true, aim: Some("rightFoot"), align: true),
-        (role: "rightFoot", parent: Some("rightLowerLeg"), tier: Far, required: true, aim: Some("rightToes"), align: true),
+        (role: "rightFoot", parent: Some("rightLowerLeg"), tier: Far, required: true, aim: Some("rightToes")),
         (role: "rightToes", parent: Some("rightFoot"), tier: Middle),
         (role: "rightUpperLegTwist", parent: Some("rightUpperLeg"), tier: Middle, standard: Hos, twist: Some((of: "rightLowerLeg", share: 0.5))),
         // The left arm.

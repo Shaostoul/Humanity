@@ -42,6 +42,18 @@ pub struct SkinnedPrimitiveData {
     pub material: String,
     pub vertices: Vec<SkinnedVertex>,
     pub indices: Vec<u32>,
+    /// The primitive's morph targets (glTF `targets`), in the model's target order: each a
+    /// position and a normal delta per vertex (zeros where the file gave none). Empty for a model
+    /// without targets.
+    pub morphs: Vec<MorphDeltas>,
+}
+
+/// One morph target's deltas over one primitive's vertices (character animation rung 1,
+/// 2026-11-09: the MakeHuman body's shape targets, which the look's height drives).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct MorphDeltas {
+    pub positions: Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
 }
 
 /// Which property an animation channel moves.
@@ -89,12 +101,24 @@ pub struct SkinnedModelData {
     pub joints: Vec<SkinJointData>,
     pub primitives: Vec<SkinnedPrimitiveData>,
     pub clips: Vec<AnimClipData>,
+    /// Each morph target's name, in target order (empty without targets).
+    pub morph_names: Vec<String>,
+    /// How far each target moves each joint at full weight, in model space (per target, per joint
+    /// in the skin's order), so a reshaped body's skeleton follows its mesh. Empty when the file
+    /// says nothing (its targets then leave the skeleton where it is). A MakeHuman body made by
+    /// `scripts/gen-makehuman-body.js` carries them as accessors named `joint_deltas:<target>`.
+    pub joint_deltas: Vec<Vec<[f32; 3]>>,
 }
 
 impl SkinnedModelData {
     /// Vertices across every primitive.
     pub fn vertex_count(&self) -> usize {
         self.primitives.iter().map(|p| p.vertices.len()).sum()
+    }
+
+    /// A morph target's index by name.
+    pub fn morph_index(&self, name: &str) -> Option<usize> {
+        self.morph_names.iter().position(|n| n == name)
     }
 }
 

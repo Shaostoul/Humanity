@@ -1,7 +1,9 @@
 // MAKEHUMAN'S DEFAULT SKELETON (CC0), as roles: the rig of the body the operator chose on 2026-11-08
 // ("That sounds reasonable. Save us a lot of effort instead of doing it ourselves."). Read by
-// crates/humanity-animation/src/role_map.rs. Not used until the body is downloaded with the
-// operator's yes (docs/reference/findings/2026-11-08-character-assets.md has the file list).
+// crates/humanity-animation/src/role_map.rs, and by scripts/gen-makehuman-body.js, which keeps
+// exactly the bones named here (56 of the 163) when it converts the female and male bodies
+// (2026-11-09) and gives every other bone's weights to its nearest kept ancestor (the four smaller
+// toes to the middle toe). So adding a bone here and running the converter adds it to the bodies.
 //
 // Source of the bone names and parents: makehuman/data/rigs/default.mhskel in
 // https://github.com/makehumancommunity/makehuman (last commit 83e03219, 2020-10-31; the file's own
@@ -10,11 +12,13 @@
 // metacarpals, the four smaller toes, the breasts and the face) keep their rest pose under whatever
 // their parent does, and the face is rung 9's.
 //
-// JUDGEMENTS TO CHECK AGAINST THE MESH when it arrives (each is a pick between neighbouring bones):
-//   spine05 / spine03 / spine01 as spine / chest / upperChest (of spine05 to spine01, bottom to top),
-//   neck01 / neck03 as neck / upperNeck, upperarm01 and lowerarm01 as the arm (upperarm02 and
-//   lowerarm02 are in-chain twist segments, left at rest), upperleg01 and lowerleg01 likewise, and
-//   toe3-1 (the middle toe's base) as the toes, so the foot's aim runs down its middle.
+// THE PICKS BETWEEN NEIGHBOURING BONES, checked against the converted bodies on 2026-11-09 (the
+// Quaternius clips play on them whole: src/engine/animation_tests.rs): spine05 / spine03 / spine01
+// as spine / chest / upperChest (of spine05 to spine01, bottom to top), neck01 / neck03 as neck /
+// upperNeck, upperarm01 and lowerarm01 as the arm (the converter merges the in-chain twist segments
+// upperarm02 and lowerarm02 into them, as rung 1 left them at rest anyway), upperleg01 and
+// lowerleg01 likewise, and toe3-1 (the middle toe's base) as the toes, so the foot's aim runs down
+// its middle.
 (
     id: "makehuman_default",
     description: "MakeHuman 1.x default skeleton (default.mhskel, 163 bones, CC0).",

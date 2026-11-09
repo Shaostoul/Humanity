@@ -3818,7 +3818,19 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 /// Settings > Gameplay (v0.791): survival tuning + which home design loads.
 /// Born from an operator field report ("disable the wolves... extend the
 /// dehydration time. I keep getting killed and its annoying").
+/// The walking pace's description, with the speeds data/game.csv gives each mode (published by
+/// `engine::walk_pace` into `GuiState::walk_pace_speeds`).
+fn walking_pace_hint(speeds: [f32; 4]) -> String {
+    let n = |v: f32| format!("{v:.1}");
+    humanity_core::i18n::tf(
+        "settings.walking_pace_hint",
+        &[("rw", &n(speeds[0])), ("rr", &n(speeds[1])), ("sw", &n(speeds[2])), ("sr", &n(speeds[3]))],
+    )
+}
+
 pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::gui::widgets::Hint;
+    use humanity_core::i18n::t;
     let hint = state.settings.hint_display;
     // ── Play mode (task #50): Normal | Creative | Dev ──
     // The one ladder every cheat/scope gate hangs off; see
@@ -3945,6 +3957,23 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
         });
         widgets::setting_hint(ui, theme, hint, &humanity_systems::animal_care::mode_hint());
+        // Walking pace (2026-11-09, engine::walk_pace; the dual-mode house rule, the operator's
+        // decision): how fast you walk and run. The hint's speeds come from data/game.csv.
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new(t("settings.walking_pace")).color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            for (realistic, label, tip) in [
+                (false, "settings.walking_simplified", "settings.walking_simplified_hint"),
+                (true, "settings.walking_realistic", "settings.walking_realistic_hint"),
+            ] {
+                let selected = state.settings.walk_realistic == realistic;
+                if ui.radio(selected, RichText::new(t(label)).color(theme.text_primary())).hint(tip).clicked() && !selected {
+                    state.settings.walk_realistic = realistic;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, &walking_pace_hint(state.walk_pace_speeds));
         // Carrying weight (BUG-136, systems::encumbrance; the dual-mode house rule).
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Carrying weight").color(theme.text_secondary()));

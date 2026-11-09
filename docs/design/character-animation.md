@@ -1,8 +1,8 @@
 # Character animation: one body, from the player to a ship of crew
 
-**Status: rungs 0 and 1 BUILT on 2026-11-08 (section 13), with the procedural test figure and
-clips standing in until the real body and clips are downloaded with the operator's yes; rung 2 and
-on are DESIGN. Section 12's questions were all decided the same day.** Written after the operator came
+**Status: rungs 0 and 1 BUILT on 2026-11-08 (section 13), with the real bodies (MakeHuman, female
+and male), clips (Quaternius) and the walking pace on 2026-11-09 (section 14); rung 2 and on are
+DESIGN. Section 12's questions were all decided on 2026-11-08.** Written after the operator came
 across NVIDIA's MotionBricks (https://github.com/NVlabs/motionbricks, SIGGRAPH 2026) on 2026-11-08
 and asked where a technique of that class fits. The licensing question has its own dated finding:
 [`docs/reference/findings/2026-11-08-motionbricks.md`](../reference/findings/2026-11-08-motionbricks.md).
@@ -310,6 +310,37 @@ parameter block per near body); one parameter buffer with offsets is the cheap f
 first build gave the compute pass a submit of its own: 0.46 ms of CPU a frame for ONE body (low
 impact), now ridden in the scene pass's encoder (0.05 ms).
 
+**With the real bodies (2026-11-09)**, the same way: release build, rig defaults, 2560x1387, a
+background game held to 30 frames a second, one boot (the sweep's machine guard found no build or
+other game running; contaminated 0). Each case ran three times in that boot: the old boxes, the test
+figure for everyone (showcase `figures` `test_figure`, the `-figure` vantages) and the MakeHuman
+bodies, women and men by the crowd's hash. The test figure is 1,517 vertices and 24 joints; each
+MakeHuman body 15,479 vertices, 56 joints and 15 shape targets.
+
+| Case | cpu.animation, figure to MakeHuman | cpu.skinning | gpu.skinning | gpu.scene: boxes, figure, MakeHuman | all GPU stages, figure to MakeHuman |
+|---|---|---|---|---|---|
+| One body (the chair) | 0.064 to 0.056 ms | 0.041 to 0.035 | 0.004 to 0.006 | 8.45, 8.44, 8.77 ms | 14.42 to 14.44 |
+| 50 bodies 6 to 14 m (16 near, 34 middle) | 0.372 to 0.523 ms | 0.221 to 0.251 | 0.006 to 0.024 | 7.52, 7.33, 7.76 ms | 13.71 to 14.00 |
+| 50 bodies 18 to 26 m (all middle) | 0.155 to 0.241 ms | 0.027 to 0.034 | none | 6.95, 7.05, 7.15 ms | 13.20 to 13.30 |
+| The player alone in third person (idle, walk, run; female and male) | 0.056 to 0.073 ms (MakeHuman) | 0.035 to 0.046 | 0.006 to 0.007 | | |
+
+So: the pose work is about 10 microseconds a MakeHuman body against 7 for the test figure (56
+joints against 24, ten regions against six, and the morph block); compute skinning of 16 near
+MakeHuman bodies is 0.024 ms (8.1's estimate was 0.2 to 0.4 ms); the scene costs about 0.3 to 0.4 ms
+more for 16 near and 34 middle bodies ten times heavier, and 0.1 ms more for 50 middle ones. One body
+is within the run-to-run spread (the scene read 0.33 ms more, the GPU as a whole 0.02). Memory: each
+MakeHuman body holds 8.11 MB on the GPU (0.74 MB of vertices, 7.4 MB of shape targets, the indices),
+the test figure 0.10 MB; a near place's skinned output is 0.50 MB (16 near: 7.9 MB per body that fills
+them); a body's palette is 2.8 KB a frame (its model matrix, the six-row morph block and 56 joints).
+On disk, in git: 4.3 MB a body (8.6 MB for both), most of it the shape targets; the clips 0.7 MB.
+
+**Why 56 joints and not MakeHuman's 163**: the 56 are exactly the bones that move in rung 1 (the role
+map's); the other 107 would only ever sit at rest under their parents until face and twist rungs.
+From the rows above, pose work grows about 0.1 microsecond a joint, so the full rig would cost about
+20 microseconds a body (1 ms of CPU at 50 bodies, against 0.52) and 7.8 KB of palette a body a frame
+(3.9 MB a frame at section 8.4's 500 middle bodies, against 1.4 MB), for nothing that moves. A face
+rung or twist joints are a role-map line and a converter run away.
+
 ### 8.1 Per frame, the operator's RTX 4070 (estimates)
 
 | What | Count | CPU | GPU |
@@ -571,7 +602,8 @@ What rung 1 built, against sections 2 to 10, and what it chose where the plan le
   `anim-crowd-middle` and their `-boxes` twins; `anim-tp-move` and `anim-tp-gaits` show the player's
   body in third person and the gaits.
 - **Walk speed, decided** (operator, 2026-11-09: "These all sound reasonable. LEt's proceed."): the realistic mode walks at 1.4 m/s
-  and runs at about 4 m/s; the simplified mode keeps today's 5 m/s walk and 9.5 m/s sprint.
+  and runs at about 4 m/s; the simplified mode keeps today's 5 m/s walk and 9.5 m/s sprint. Built
+  the same day as Settings' walking pace (section 14), which answers the walk-speed limit below.
 - **Known limits the rigs showed**: the game walks at 5 m/s (`WALK_SPEED_MPS`, a jog) and sprints at
   9.5, so the player's own body plays the run clip (at 1.4 times its speed) when walking, and the
   sprint runs past the clip's 1.6 times limit, so the feet slide; real walking is about 1.4 m/s (a
@@ -584,6 +616,78 @@ What rung 1 built, against sections 2 to 10, and what it chose where the plan le
   needs the upper, lower and end joints by role, which `Skeleton::joint_by_role` gives), the
   third-person walk (first person's body draw is the same `Person` with the head regions hidden), and
   the network's 15 Hz position update, untouched so far.
+
+## 14. Built: the real bodies, the clips and the walking pace (2026-11-09)
+
+The rest of rung 1, after the operator's yes to both downloads (2026-11-09: "Yes. We need at least a
+male and a female." and "Yes, let's see what it has.") and his decision on walking speed.
+
+- **The bodies (2.3)**: `scripts/gen-makehuman-body.js`, our own converter (node, like
+  `gen-test-figure.js`: no compile, runs in `just rig-tests`, byte-identical on a rebuild), reads
+  MakeHuman's CC0 data from `E:\HumanityOS\makehuman-src\a8bc2d54\` (every input checked against its
+  git blob hash) and writes `makehuman_female` (1.59 m) and `makehuman_male` (1.73 m) into
+  `assets/models/characters/makehuman/` with `SOURCE.md`. None of MakeHuman's AGPL code is used: a
+  body is the base mesh plus a third of each ancestry target for its gender (MakeHuman's default
+  mix; its average-build universal targets are empty), a joint is the mean of its vertex group, and
+  the weights are merged by our own rule. Without the sources (CI) `--check` compares the files with
+  `SOURCE.md`'s hashes and says so; `--preview DIR` renders front, side, back and head views to PNG,
+  which is how the regions were tuned without a boot.
+- **56 joints, not 163** (the plan's "about 60 at full detail"): exactly the bones
+  `role_maps/makehuman_default.ron` names, so the role map is the keep list. Every dropped bone goes to
+  its nearest kept ancestor: the in-chain and twist segments (`spine04`, `upperarm02` and the like,
+  which rung 1 left at rest under their parent anyway, so nothing that moves changed), the
+  metacarpals, the breasts and the face (rung 9); the four smaller toes go to the kept middle toe so
+  all five bend together. Every rest rotation is the identity (the retargeter works in model space).
+  What it saves is measured in 8.0.
+- **Dressed as regions (2.4's first half)**: the dominant bone of each face picks skin, a long-sleeved
+  shirt, trousers, shoes or hands, with straight cuts for the waist, collar and hairline; the shirt is
+  smoothed (Taubin) so it reads as cloth over the body; the scalp is hair-coloured with a 6 mm shell
+  that thins to its edge, for the volume of short hair; the brows are generated tapered strips laid on
+  the skin; the eyes are generated spheres (sclera, iris in the look's eye colour, pupil) where
+  MakeHuman's eye helpers sit, on the eye bones. MakeHuman's helper geometry (tights, skirt, hair and
+  genital helpers, teeth, joint cubes) is not drawn. Garments as meshes, and real hair, need
+  MakeHuman's clothes and hair assets (CC0 too): another download, so the operator's call.
+- **Shape targets on the GPU (2.2)**: 15 per body as glTF morph targets (height, proportions, the
+  muscle-and-weight grid's edges and corners, the three ancestries as differences from the default
+  mix), each with its joints' movement as an accessor `joint_deltas:<target>`. Each person's active
+  targets ride in the pose palette's morph block (`pose::MORPH_SLOTS` matrices between the model
+  matrix and the joints); both skinning shaders add them before skinning, so one body on the GPU
+  draws every shape. The look's height drives the height targets (data: the body file's `shape`),
+  the rest as a uniform scale, so a tall person is long in the leg, not scaled up head and all; the
+  skeleton follows the shaped mesh (`Skeleton::reshaped`: joints moved by the targets, inverse binds
+  made again), kept per person while their shape stays the same (a value keyed by its own inputs,
+  made again every frame with the reuse switch off and on every library reload). MakeHuman's ground
+  helper never moves under these targets (the converter checks), so feet stay on the floor.
+- **The bodies are chosen by the look**: `characters.ron` lists `bodies` (female, male) and the
+  `fallback` (the test figure, drawn for a body that does not load); `Appearance::body_type` picks
+  one (the character page's new chooser, words by key), and travels to other players in the look
+  (`PlayerLook::body`, a plain id or nothing, clamped like the rest); a person whose look names none,
+  and every crew member, takes one of the wearer kind's bodies by a stable hash, so a crew is women
+  and men.
+- **The clips (2.3)**: `scripts/gen-quaternius-clips.js` trims the twelve clips used (idle, walk,
+  jog, sprint, crouch idle and walk, jump start, air and land, sit down, idle and up) out of the
+  library's in-place file, keys unchanged, with Quaternius's `License.txt` byte for byte, into
+  `assets/models/characters/quaternius_ual/`; `role_maps/quaternius_ual.ron` maps its 65-joint rig.
+  Each gait's speed is measured from its feet (the median backward speed of a planted foot): walk
+  0.979, jog 5.898, sprint 8.905, crouch walk 0.717 m/s; the root-motion file agrees on the walk and
+  is 9% slower on the runs. Retargeting scales a gait's speed by the body's legs, and the engine
+  divides a person's speed by their own stride scale before the graph reads it, so the feet keep
+  still at every size. Turning on the spot stays our procedural clip (the free tier has none).
+  Crouch, jump and sit are retargeted and wait for rung 2's inputs.
+- **Two retargeting fixes the real rigs found**: a finger now rides its hand's rest alignment (a
+  T-pose clip's finger turns on an A-pose hand bent every finger about 45 degrees against it), and
+  the feet are no longer aligned (every rig stands its feet flat at rest, whichever way its foot
+  bone points; aligning tilted MakeHuman's foot onto Quaternius's ankle-to-ball bone and sank the
+  idle 2.6 cm, 0.5 without).
+- **The walking pace (the operator, 2026-11-09)**: Settings > Gameplay > Walking pace, Simplified by
+  default (the house rule): Realistic walks at 1.4 m/s and runs at 4, Simplified keeps 5 and 9.5.
+  No mode setting for movement existed, so this is the smallest honest one: `settings.walk_realistic`
+  in AppConfig (an old settings file reads as Simplified), words and hints by key, the speeds four
+  rows of `data/game.csv` (hot reloaded), applied to the controller's walk speed and a new sprint
+  factor (`engine::walk_pace`). The locomotion graph places the walk at 1.6 m/s, the jog at 4 and the
+  sprint at 8.9, so the Realistic walk is the walk alone (played 1.4 times, the library walks
+  slowly), the Realistic run the jog alone slowed, the Simplified walk mostly the jog and the sprint
+  the sprint.
 
 ## References
 

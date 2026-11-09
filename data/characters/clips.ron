@@ -1,8 +1,9 @@
-// CLIPS: every animation a body can play (character animation rung 1, 2026-11-08;
-// docs/design/character-animation.md section 9; read by crates/humanity-animation/src/library.rs).
+// CLIPS: every animation a body can play (character animation rung 1, 2026-11-08, real clips
+// 2026-11-09; docs/design/character-animation.md section 9; read by
+// crates/humanity-animation/src/library.rs).
 //
 // Each clip is an animation inside a skinned glTF, made on a rig named by its role map
-// (data/characters/role_maps/). At load every clip is retargeted by role onto the body in
+// (data/characters/role_maps/). At load every clip is retargeted by role onto every body in
 // characters.ron, in memory, at clip_fps; nothing is written back. A new clip is a row.
 //
 //   id         what the locomotion graph (locomotion.ron) calls it
@@ -13,15 +14,30 @@
 //   speed_mps  metres a second its gait covers at its own speed (0 for clips that stand still): the
 //              blend space plays it faster or slower to match the body's real speed
 //   tags       what it is, for tools and later rungs
-//   credit     its id in data/credits.ron when its licence asks for a credit (CC BY); None for our
-//              own work and CC0
+//   credit     its id in data/credits.ron
 //
-// Until the operator says yes to downloading Quaternius's Universal Animation Library (CC0), these
-// are the procedural test clips made by scripts/gen-test-figure.js, our own work.
+// THE GAITS AND STANCES are Quaternius's Universal Animation Library [Standard] (CC0, downloaded
+// 2026-11-09), trimmed to these clips by scripts/gen-quaternius-clips.js. Their speeds are measured
+// from their feet by that script (assets/models/characters/quaternius_ual/SOURCE.md shows how, and the
+// root-motion file's own figures beside them). The crouch, jump and sit clips are retargeted and
+// ready for rung 2's stance and interaction inputs; no state plays them yet.
+//
+// TURNING ON THE SPOT stays procedural (the library's free tier has no turn clip): our own test clip
+// library's turn steps, made by scripts/gen-test-figure.js, until a CC0 turn clip arrives (CMU or
+// 100STYLE at rung 3).
 [
-    (id: "idle", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "idle", role_map: "hos_test_clips", looped: true, speed_mps: 0.0, tags: ["locomotion", "stand"], credit: None),
-    (id: "walk", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "walk", role_map: "hos_test_clips", looped: true, speed_mps: 1.4, tags: ["locomotion", "gait"], credit: None),
-    (id: "run", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "run", role_map: "hos_test_clips", looped: true, speed_mps: 3.6, tags: ["locomotion", "gait"], credit: None),
+    (id: "idle", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Idle_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.0, tags: ["locomotion", "stand"], credit: Some("quaternius_ual")),
+    (id: "walk", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Walk_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.979, tags: ["locomotion", "gait"], credit: Some("quaternius_ual")),
+    (id: "jog", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Jog_Fwd_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 5.898, tags: ["locomotion", "gait"], credit: Some("quaternius_ual")),
+    (id: "sprint", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Sprint_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 8.905, tags: ["locomotion", "gait"], credit: Some("quaternius_ual")),
+    (id: "crouch_idle", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Crouch_Idle_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.0, tags: ["locomotion", "crouch", "stand"], credit: Some("quaternius_ual")),
+    (id: "crouch_walk", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Crouch_Fwd_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.717, tags: ["locomotion", "crouch", "gait"], credit: Some("quaternius_ual")),
+    (id: "jump_start", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Jump_Start", role_map: "quaternius_ual", looped: false, speed_mps: 0.0, tags: ["jump"], credit: Some("quaternius_ual")),
+    (id: "jump_air", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Jump_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.0, tags: ["jump", "fall"], credit: Some("quaternius_ual")),
+    (id: "jump_land", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Jump_Land", role_map: "quaternius_ual", looped: false, speed_mps: 0.0, tags: ["jump", "land"], credit: Some("quaternius_ual")),
+    (id: "sit_down", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Sitting_Enter", role_map: "quaternius_ual", looped: false, speed_mps: 0.0, tags: ["interaction", "sit"], credit: Some("quaternius_ual")),
+    (id: "sit_idle", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Sitting_Idle_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.0, tags: ["interaction", "sit"], credit: Some("quaternius_ual")),
+    (id: "sit_up", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Sitting_Exit", role_map: "quaternius_ual", looped: false, speed_mps: 0.0, tags: ["interaction", "sit"], credit: Some("quaternius_ual")),
     (id: "turn_left", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "turn_left", role_map: "hos_test_clips", looped: true, speed_mps: 0.0, tags: ["locomotion", "turn"], credit: None),
     (id: "turn_right", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "turn_right", role_map: "hos_test_clips", looped: true, speed_mps: 0.0, tags: ["locomotion", "turn"], credit: None),
 ]

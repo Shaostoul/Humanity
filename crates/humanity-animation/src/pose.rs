@@ -13,6 +13,32 @@ use glam::{Mat4, Quat, Vec3, Vec4};
 /// Rows of the palette per joint (three `vec4`, 48 bytes).
 pub const PALETTE_ROWS_PER_JOINT: usize = 3;
 
+/// THE MORPH BLOCK (2026-11-09, the MakeHuman body's shape targets): between a body's model matrix
+/// and its joints, this many matrix-sized slots (three rows each) say which of its morph targets the
+/// shaders add to each vertex before skinning, and by how much. Row 0 is `(count, vertex count, 0,
+/// 0)`; each later row holds two `(target index, weight)` pairs. So a body's palette is its model
+/// matrix (3 rows), this block (3 x MORPH_SLOTS rows), then its joints (3 rows each): the joints start
+/// `1 + MORPH_SLOTS` matrices after the model matrix. Read the same way by
+/// `assets/shaders/skinning.wgsl` and `assets/shaders/skinning_vs.wgsl`; change all three together.
+pub const MORPH_SLOTS: usize = 2;
+/// The most targets one body draws with at once: two pairs a row after the header row.
+pub const MAX_ACTIVE_MORPHS: usize = (MORPH_SLOTS * 3 - 1) * 2;
+
+/// The morph block's rows for a body: its active targets (index, weight) and its vertex count.
+/// Targets past `MAX_ACTIVE_MORPHS` and zero weights are left out.
+pub fn morph_rows(active: &[(usize, f32)], vertex_count: u32) -> [[f32; 4]; MORPH_SLOTS * 3] {
+    let mut rows = [[0.0_f32; 4]; MORPH_SLOTS * 3];
+    let kept: Vec<(usize, f32)> = active.iter().copied().filter(|&(_, w)| w != 0.0 && w.is_finite()).take(MAX_ACTIVE_MORPHS).collect();
+    rows[0] = [kept.len() as f32, vertex_count as f32, 0.0, 0.0];
+    for (k, &(t, w)) in kept.iter().enumerate() {
+        let row = 1 + k / 2;
+        let at = (k % 2) * 2;
+        rows[row][at] = t as f32;
+        rows[row][at + 1] = w;
+    }
+    rows
+}
+
 /// A joint's local transform: translation, rotation, scale.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Trs {

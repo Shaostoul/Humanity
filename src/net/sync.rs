@@ -962,7 +962,7 @@ impl System for NetSyncSystem {
                             }
                             // Same for the look: a lazy-spawned figure has none. And the key.
                             if look.is_some() {
-                                r.look = look;
+                                r.look = look.clone();
                             }
                             if key.is_some() {
                                 r.key = key.clone();
@@ -1332,12 +1332,12 @@ pub(crate) mod tests {
             .collect();
         assert_eq!(placeholder, vec!["Player 42".to_string()], "lazy-spawn placeholder");
 
-        let look = humanity_core::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05 };
+        let look = humanity_core::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05, body: String::new() };
         sys.queue_messages(vec![NetMessage::PlayerJoined {
             player_id: 42,
             name: "Test Pilot A".to_string(),
             position: [1.0, 0.0, 2.0],
-            look: Some(look),
+            look: Some(look.clone()),
             key: Some("pilot-a-key".into()),
         }]);
         sys.tick(&mut world, 0.016, &data);
@@ -1350,8 +1350,8 @@ pub(crate) mod tests {
         assert_eq!(named[0].0, "Test Pilot A", "the real name replaced the placeholder");
         // And the look arrived with the join (2026-09-29).
         let looks: Vec<Option<humanity_core::player_look::PlayerLook>> =
-            world.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| r.look).collect();
-        assert_eq!(looks, vec![Some(look)], "the look replaced the placeholder's none");
+            world.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| r.look.clone()).collect();
+        assert_eq!(looks, vec![Some(look.clone())], "the look replaced the placeholder's none");
         // And the key, which Block needs to leave a figure undrawn (2026-10-10).
         let keys: Vec<Option<String>> = world.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| r.key.clone()).collect();
         assert_eq!(keys, vec![Some("pilot-a-key".to_string())], "the key replaced the placeholder's none");
@@ -1360,11 +1360,11 @@ pub(crate) mod tests {
             player_id: 43,
             name: "Test Pilot B".to_string(),
             position: [0.0, 0.0, 0.0],
-            look: Some(look),
+            look: Some(look.clone()),
             key: None,
         }]);
         sys.tick(&mut world, 0.016, &data);
-        let b = world.query_mut::<&RemotePlayer>().into_iter().find(|(_, r)| r.player_id == 43).map(|(_, r)| r.look);
+        let b = world.query_mut::<&RemotePlayer>().into_iter().find(|(_, r)| r.player_id == 43).map(|(_, r)| r.look.clone());
         assert_eq!(b, Some(Some(look)), "a fresh join spawns with its look");
     }
 

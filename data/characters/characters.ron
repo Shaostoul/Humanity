@@ -1,30 +1,40 @@
-// CHARACTERS: which body and graph every humanoid uses, and how they are drawn (character animation
-// rung 1, 2026-11-08; docs/design/character-animation.md; read by
+// CHARACTERS: which bodies and graph every humanoid uses, and how they are drawn (character animation
+// rung 1, 2026-11-08, real bodies 2026-11-09; docs/design/character-animation.md; read by
 // crates/humanity-animation/src/library.rs).
 //
-// The body is an asset choice, not a code choice (the operator, 2026-11-08, on which body to build
-// on: still open, so everything is built body-agnostic). Swapping the body is this file's `body` and
-// a file in bodies/ with its rig's role map in role_maps/; nothing in code names one. Until the real
-// body arrives (MakeHuman's CC0 base mesh is the recommended default, plan 2.3) the game draws the
-// procedural test figure, made by scripts/gen-test-figure.js.
+// The body is an asset choice, not a code choice (the operator, 2026-11-08). Since 2026-11-09 the
+// bodies are MakeHuman's (CC0; the operator: "We need at least a male and a female."), made by
+// scripts/gen-makehuman-body.js. A body is a file in bodies/ with its rig's role map in role_maps/;
+// nothing in code names one.
 (
-    body: "hos_test_figure",
+    // The bodies a look can choose, by the id the look names (its `body_type`).
+    bodies: {
+        "female": "makehuman_female",
+        "male": "makehuman_male",
+    },
+    // Drawn in place of a body that does not load (and the body the tests and rigs prove skinning
+    // and retargeting with): the procedural test figure of scripts/gen-test-figure.js.
+    fallback: "hos_test_figure",
     // The `id` inside data/characters/locomotion.ron.
     locomotion: "humanoid_locomotion",
-    // Frames a second every clip is baked at when it is retargeted onto the body (in memory, at
-    // load; never written to disk).
+    // Frames a second every clip is baked at when it is retargeted onto a body (in memory, at load;
+    // never written to disk).
     clip_fps: 30.0,
     // The drawing tiers (plan 8.4): the nearest bodies, up to near_cap and within near_m, are
     // skinned once a frame by a compute pass; the rest skin in the vertex shader out to middle_m
     // and, until rung 4's baked far tier, beyond it. 40 m is where the crew nameplate retires too.
     tiers: (near_m: 15.0, middle_m: 40.0, near_cap: 16),
-    // Each kind of wearer's skin and hair when they have no look of their own, and each cosmetic
-    // slot's colour when nothing is equipped in it. Players keep the teal top that has always said
-    // "a player" at a glance, crew the amber one; the slots are data/cosmetics/cosmetics.csv's.
+    // Each kind of wearer's defaults: the bodies a person of this kind is drawn with when their look
+    // names none (one each, by a stable hash of who they are, so a crew is women and men), their
+    // skin, hair and eyes when they have no look of their own, and each cosmetic slot's colour when
+    // nothing is equipped in it. Players keep the teal top that has always said "a player" at a
+    // glance, crew the amber one; the slots are data/cosmetics/cosmetics.csv's.
     wearers: {
         "player": (
+            bodies: ["female", "male"],
             skin: (0.80, 0.62, 0.50),
             hair: (0.22, 0.15, 0.10),
+            eyes: (0.30, 0.45, 0.55),
             clothes: {
                 "head": Hair,
                 "chest": Rgb(0.15, 0.62, 0.72),
@@ -34,8 +44,10 @@
             },
         ),
         "crew": (
+            bodies: ["female", "male"],
             skin: (0.66, 0.48, 0.36),
             hair: (0.10, 0.08, 0.07),
+            eyes: (0.25, 0.18, 0.12),
             clothes: {
                 "head": Hair,
                 "chest": Rgb(0.88, 0.58, 0.16),

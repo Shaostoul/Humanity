@@ -9199,8 +9199,8 @@ mod native_app {
                                 if crate::engine::block::hides_player(&state.gui_state, r) {
                                     continue;
                                 }
-                                let look_mats = r.look.map(|l| {
-                                    let key = crate::engine::net_route::look_material_key(&l);
+                                let look_mats = r.look.as_ref().map(|l| {
+                                    let key = crate::engine::net_route::look_material_key(l);
                                     *state.remote_look_materials.entry(key).or_insert_with(|| {
                                         let skin = state.renderer.add_material_full(
                                             [l.skin[0], l.skin[1], l.skin[2], 1.0], 0.0, 0.6, 1.0, 0.1);
@@ -16221,6 +16221,10 @@ mod native_app {
                                 // invert toggle used to be decorative).
                                 state.controller.mouse_sensitivity = state.gui_state.settings.mouse_sensitivity;
                                 state.controller.invert_y = state.gui_state.settings.invert_y;
+
+                                // The walking pace (2026-11-09): Realistic or Simplified speeds
+                                // from data/game.csv. This block also runs on the boot frame.
+                                crate::engine::walk_pace::apply(state);
 
                                 // VSync (v0.909: used to be decorative).
                                 state.renderer.set_vsync(state.gui_state.settings.vsync);

@@ -84,5 +84,7 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
             state.controller.set_interior_gravity(g as f32);
             log::info!("game.csv: interior gravity now {g} m/s^2");
         }
+        // The walking pace's speeds tune live too (2026-11-09).
+        crate::engine::walk_pace::apply(state);
     }
 }

@@ -239,6 +239,9 @@ pub mod survival_env;
 /// The player's carried load: the walking speed and jump it allows, and the
 /// Weight tile and HUD line it publishes (BUG-136, 2026-10-04).
 pub mod carry_load;
+/// How fast a person walks and runs, by Settings' walking pace (Realistic 1.4 and 4 m/s,
+/// Simplified 5 and 9.5; data/game.csv), 2026-11-09.
+pub mod walk_pace;
 /// The floor under a body aboard: its room's, raised to the stair tread, deck or elevator car it
 /// can step onto. Asked before the walk and between a long frame's substeps (BUG-207).
 pub mod footing;

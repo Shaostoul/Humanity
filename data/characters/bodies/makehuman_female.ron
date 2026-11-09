@@ -1,0 +1,39 @@
+// THE FEMALE BODY: MakeHuman's (CC0), made by scripts/gen-makehuman-body.js from its base mesh,
+// default skeleton and weights and its young-adult female targets (character animation rung 1,
+// 2026-11-09; docs/design/character-animation.md section 2.3). Where it comes from, and the hashes
+// of every input: assets/models/characters/makehuman/SOURCE.md. CC0 asks for no credit; the
+// project credits MakeHuman all the same (data/credits.ron `makehuman`).
+//
+// Its 56 joints are the ones role_maps/makehuman_default.ron names; every rest rotation is the
+// identity. Its 15 shape targets are glTF morph targets; the look drives the two below.
+(
+    id: "makehuman_female",
+    description: "MakeHuman's female body: base mesh with a third of each ancestry, average muscle and weight; dressed by its regions.",
+    model: "assets/models/characters/makehuman/makehuman_female.gltf",
+    role_map: "makehuman_default",
+    skeleton: "humanoid",
+    // Standing height at look height 1.0, as the converter measured it (the loader measures again).
+    height_m: 1.59,
+    credit: Some("makehuman"),
+    // Each glTF material, the tint it takes and how matte it reads. Slots are the cosmetic slots
+    // (data/cosmetics/cosmetics.csv): an equipped item's colour, or the wearer's default
+    // (characters.ron) when nothing is equipped. The clothes are regions of the body itself, tinted
+    // (plan 2.4's first half); garments as meshes are the next step.
+    regions: [
+        (material: "skin", tint: Skin, roughness: 0.55),
+        (material: "hair", tint: Slot("head"), roughness: 0.8),
+        (material: "brows", tint: Hair, roughness: 0.85),
+        (material: "shirt", tint: Slot("chest"), roughness: 0.82),
+        (material: "trousers", tint: Slot("legs"), roughness: 0.85),
+        (material: "shoes", tint: Slot("feet"), roughness: 0.6),
+        (material: "hands", tint: Slot("hands"), roughness: 0.55),
+        (material: "sclera", tint: Fixed(0.86, 0.84, 0.80), roughness: 0.25),
+        (material: "iris", tint: Eyes, roughness: 0.25),
+        (material: "pupil", tint: Fixed(0.02, 0.02, 0.02), roughness: 0.2),
+    ],
+    // The look's height (Settings' character page, 0.8 to 1.2) drives MakeHuman's height targets, so
+    // a taller person is longer in the leg and body rather than scaled up head and all.
+    shape: Some((
+        height: Some((below: "height_min", above: "height_max")),
+    )),
+)

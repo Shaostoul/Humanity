@@ -103,6 +103,16 @@ listed here for a kindness they did not ask credit for.
   simplified and baked by HumanityOS; each folder in `assets/models/simready/` lists
   its changes in `SOURCE.md`. Unlike the rest of the project these models are not
   public domain: see `LICENSES.md` and `assets/models/LICENSE-nvidia-simready.md`.
+- **MakeHuman** (https://github.com/makehumancommunity/makehuman) - the female and
+  male bodies every person is drawn with: its CC0 base mesh, default skeleton and
+  weights and young-adult shape targets (commit a8bc2d54, fetched 2026-11-09),
+  converted by HumanityOS (`scripts/gen-makehuman-body.js`; the sources and hashes in
+  `assets/models/characters/makehuman/SOURCE.md`).
+- **Quaternius** (https://quaternius.com) - the Universal Animation Library's CC0
+  clips people walk, jog, sprint, stand, crouch, jump and sit with (downloaded
+  2026-11-09, zip SHA-256 `cc73fc4e495b82958207316596317a3f40b9fa38065bde1027937452da537724`),
+  trimmed to the clips used, with Quaternius's `License.txt` beside them in
+  `assets/models/characters/quaternius_ual/`.
 - Additional CC0/CC-BY packs under evaluation are listed in
   docs/reference/asset-and-map-sources.md; anything that ships gets
   credited here.

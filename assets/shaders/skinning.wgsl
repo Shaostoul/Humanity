@@ -14,11 +14,17 @@
 // The source vertex is humanity_core::vertex::SkinnedVertex read as twelve u32 words: position (3
 // floats), normal (3), uv (2), four u16 joint indices in two words, four unorm16 weights in two words
 // (little-endian: the first u16 is the low half of its word).
+//
+// SHAPE TARGETS first (2026-11-09, the MakeHuman body's morph targets, which the look's height
+// drives): the body's morph block in the palette (`morph_base`, in matrices; pose.rs MORPH_SLOTS)
+// says how many targets are on and, two to a row after its first, each target's index and weight;
+// each adds its position and normal delta (two vec4 per vertex per target in `morphs`, at
+// (target * vertex count + vertex) * 2) to the vertex before it is skinned.
 
 struct SkinParams {
     vertex_count: u32,
     joint_base: u32,
-    pad0: u32,
+    morph_base: u32,
     pad1: u32,
 };
 
@@ -26,6 +32,7 @@ struct SkinParams {
 @group(0) @binding(1) var<storage, read> source: array<u32>;
 @group(0) @binding(2) var<storage, read_write> skinned: array<f32>;
 @group(0) @binding(3) var<uniform> params: SkinParams;
+@group(0) @binding(4) var<storage, read> morphs: array<vec4<f32>>;
 
 // One joint's skinning matrix applied to a point (w = 1) or a direction (w = 0).
 fn joint_apply(joint: u32, p: vec4<f32>) -> vec3<f32> {
@@ -40,8 +47,26 @@ fn cs_skin(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let w = i * 12u;
-    let pos = vec4<f32>(bitcast<f32>(source[w]), bitcast<f32>(source[w + 1u]), bitcast<f32>(source[w + 2u]), 1.0);
-    let nrm = vec4<f32>(bitcast<f32>(source[w + 3u]), bitcast<f32>(source[w + 4u]), bitcast<f32>(source[w + 5u]), 0.0);
+    var shaped_p = vec3<f32>(bitcast<f32>(source[w]), bitcast<f32>(source[w + 1u]), bitcast<f32>(source[w + 2u]));
+    var shaped_n = vec3<f32>(bitcast<f32>(source[w + 3u]), bitcast<f32>(source[w + 4u]), bitcast<f32>(source[w + 5u]));
+    let mb = params.morph_base * 3u;
+    let head = palette[mb];
+    let on = u32(head.x);
+    let vcount = u32(head.y);
+    for (var a = 0u; a < on; a = a + 1u) {
+        let row = palette[mb + 1u + a / 2u];
+        var target_index = row.x;
+        var weight = row.y;
+        if ((a & 1u) == 1u) {
+            target_index = row.z;
+            weight = row.w;
+        }
+        let k = (u32(target_index) * vcount + i) * 2u;
+        shaped_p = shaped_p + morphs[k].xyz * weight;
+        shaped_n = shaped_n + morphs[k + 1u].xyz * weight;
+    }
+    let pos = vec4<f32>(shaped_p, 1.0);
+    let nrm = vec4<f32>(shaped_n, 0.0);
     let j01 = source[w + 8u];
     let j23 = source[w + 9u];
     let w01 = unpack2x16unorm(source[w + 10u]);

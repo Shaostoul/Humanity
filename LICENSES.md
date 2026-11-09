@@ -191,6 +191,28 @@ Redistributing these models (in a fork, a release archive or a website) means
 keeping that credit, the licence link and the note that they were modified: under
 CC BY 4.0 a failure to credit ends the licence until it is put right (section 6).
 
+## The bodies and their clips (MakeHuman and Quaternius, CC0)
+
+`assets/models/characters/makehuman/` (the female and male bodies) is made by
+`scripts/gen-makehuman-body.js` from **MakeHuman**'s assets
+(<https://github.com/makehumancommunity/makehuman>, commit `a8bc2d54`, fetched
+2026-11-09), which are dedicated to the public domain under **CC0 1.0**: MakeHuman's
+`LICENSE.md`, section C, "These assets have been released under CC0 1.0 Universal."
+MakeHuman's source code is AGPL and none of it is used. `SOURCE.md` in that folder
+lists every input with its git blob hash.
+
+`assets/models/characters/quaternius_ual/` (the walk, jog, sprint, idle, crouch, jump
+and sit clips) is trimmed by `scripts/gen-quaternius-clips.js` out of **Quaternius**'s
+Universal Animation Library [Standard], downloaded 2026-11-09 (zip SHA-256
+`cc73fc4e495b82958207316596317a3f40b9fa38065bde1027937452da537724`), which the
+`License.txt` inside it dedicates under **CC0 1.0**; that file sits beside the clips
+unchanged. Quaternius's licence page showed a different licence (QAL v1.0) when it
+was read on 2026-11-08; the instrument that came with these bytes is CC0. The
+research, quoted and dated: `docs/reference/findings/2026-11-08-character-assets.md`
+and its 2026-11-09 addendum.
+
+Neither asks for anything in return; both are credited in Settings > Credits.
+
 ## The project's own code
 
 HumanityOS source is licensed as stated in the repository root. These

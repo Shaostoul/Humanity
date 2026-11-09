@@ -46,6 +46,11 @@ const STICKY_PIN_RESETS = Object.freeze({
   crowd: "0",
   figures: "bodies",
   camera_mode: "first",
+  // The player's look and walking pace (2026-11-09): the body a vantage shows in third person, the
+  // look's height, and Settings' walking pace; each released to the default a fresh character has.
+  body: "default",
+  look_height: "1",
+  walk_pace: "simplified",
 });
 
 // Diagnostic channels, also sticky, reset at the start of every vantage.

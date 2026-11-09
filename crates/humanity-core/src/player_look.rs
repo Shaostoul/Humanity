@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 pub const HEIGHT_MIN: f32 = 0.8;
 pub const HEIGHT_MAX: f32 = 1.25;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PlayerLook {
     /// Skin tone, linear RGB 0 to 1.
     pub skin: [f32; 3],
@@ -23,6 +23,25 @@ pub struct PlayerLook {
     pub hair: [f32; 3],
     /// Height multiplier, HEIGHT_MIN to HEIGHT_MAX.
     pub height: f32,
+    /// The body they chose (`Appearance::body_type`, an id of data/characters/characters.ron's
+    /// bodies: "female", "male"; 2026-11-09), so others see the body they picked. At most
+    /// `BODY_ID_MAX` characters of a-z, 0-9, `_` and `-`; anything else reads as "" (the viewer's
+    /// own default for a player).
+    pub body: String,
+}
+
+/// The longest body id a look carries.
+pub const BODY_ID_MAX: usize = 32;
+
+/// A body id as a look carries it: lower case letters, digits, `_` and `-`, at most `BODY_ID_MAX`;
+/// anything else is "" (a stranger's data never names a file path or a wall of text).
+pub fn clean_body_id(id: &str) -> String {
+    let ok = !id.is_empty() && id.len() <= BODY_ID_MAX && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-');
+    if ok {
+        id.to_string()
+    } else {
+        String::new()
+    }
 }
 
 fn colour(v: Option<&Value>) -> Option<[f32; 3]> {
@@ -52,11 +71,13 @@ impl PlayerLook {
         if !h.is_finite() {
             return None;
         }
-        Some(Self { skin, hair, height: h.clamp(HEIGHT_MIN, HEIGHT_MAX) })
+        // The body is optional: a look without one (or with a bad one) shows the viewer's default.
+        let body = v.get("body").and_then(|b| b.as_str()).map(clean_body_id).unwrap_or_default();
+        Some(Self { skin, hair, height: h.clamp(HEIGHT_MIN, HEIGHT_MAX), body })
     }
 
     pub fn to_json(&self) -> Value {
-        json!({ "skin": self.skin, "hair": self.hair, "height": self.height })
+        json!({ "skin": self.skin, "hair": self.hair, "height": self.height, "body": self.body })
     }
 
     /// The parts of a character's appearance a remote figure shows.
@@ -65,6 +86,7 @@ impl PlayerLook {
             skin: a.skin_tone.map(|c| c.clamp(0.0, 1.0)),
             hair: a.hair_color.map(|c| c.clamp(0.0, 1.0)),
             height: a.height_scale.clamp(HEIGHT_MIN, HEIGHT_MAX),
+            body: clean_body_id(&a.body_type),
         }
     }
 }
@@ -78,12 +100,30 @@ mod tests {
     /// refused. Red check, run: dropping the clamps fails the second assertion.
     #[test]
     fn a_look_is_read_safely() {
-        let good = PlayerLook { skin: [0.8, 0.6, 0.5], hair: [0.2, 0.1, 0.05], height: 1.1 };
+        let good = PlayerLook { skin: [0.8, 0.6, 0.5], hair: [0.2, 0.1, 0.05], height: 1.1, body: "female".into() };
         assert_eq!(PlayerLook::from_json(&good.to_json()), Some(good));
         let wild = json!({"skin": [2.0, -1.0, 0.5], "hair": [0.1, 0.1, 0.1], "height": 50.0});
         let l = PlayerLook::from_json(&wild).unwrap();
         assert_eq!((l.skin, l.height), ([1.0, 0.0, 0.5], HEIGHT_MAX));
         assert_eq!(PlayerLook::from_json(&json!({"skin": [1.0, 1.0], "hair": [0.0, 0.0, 0.0], "height": 1.0})), None);
         assert_eq!(PlayerLook::from_json(&json!({"hair": [0.0, 0.0, 0.0], "height": 1.0})), None);
+    }
+
+    /// THE BODY A LOOK CARRIES (2026-11-09) is a plain id or nothing: a good one round-trips, a
+    /// look without one still reads (the viewer's default body), and a stranger's path, upper case,
+    /// spaces or wall of text read as "". Red check, run 2026-11-09: `clean_body_id` returning its
+    /// input unchecked fails on "../../etc/passwd".
+    #[test]
+    fn a_looks_body_is_a_plain_id_or_nothing() {
+        let v = json!({"skin": [0.5, 0.4, 0.3], "hair": [0.1, 0.1, 0.1], "height": 1.0, "body": "male"});
+        assert_eq!(PlayerLook::from_json(&v).unwrap().body, "male");
+        let none = json!({"skin": [0.5, 0.4, 0.3], "hair": [0.1, 0.1, 0.1], "height": 1.0});
+        assert_eq!(PlayerLook::from_json(&none).unwrap().body, "");
+        for bad in ["../../etc/passwd", "Male", "a body", &"x".repeat(BODY_ID_MAX + 1), ""] {
+            assert_eq!(clean_body_id(bad), "", "{bad}");
+        }
+        assert_eq!(clean_body_id("makehuman_female-2"), "makehuman_female-2");
+        let a = crate::ecs::components::Appearance { body_type: "female".into(), ..Default::default() };
+        assert_eq!(PlayerLook::from_appearance(&a).body, "female");
     }
 }

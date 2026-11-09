@@ -3162,23 +3162,31 @@ offensive abilities cast at the faced creature (v0.760). Wild spawns are data.
   `data/equipment.csv` damage/armor columns, 128 generated loot items in
   `data/items.csv` (`scripts/gen-loot-items.js`)
 
-### Characters: skinned, animated bodies (character animation rungs 0 and 1, 2026-11-08)
+### Characters: skinned, animated bodies (character animation rungs 0 and 1, 2026-11-08; real bodies 2026-11-09)
 Every humanoid is one skinned, animated body (`docs/design/character-animation.md`): the player in
 third person (third person now WALKS the body, with the walls, floors, ladders and lifts of first
 person, the camera behind it), the other players (speed and turning read from their interpolated
-positions; nothing new is sent), the crew, the showroom figure (tinted live by the look and the
-outfit) and the dev crowd. A locomotion state machine with blend spaces plays idle, turning on the
-spot, walk and run (stride-matched to the real speed, backwards when walking backwards, a shared
-stride phase between walk and run). The nearest bodies (up to 16 within 15 m) are skinned once a
-frame by a compute pass into ordinary meshes, so the sun shadow and every pass draw them unchanged;
-the rest are skinned in the vertex shader. Regions (skin, hair, shirt, trousers, shoes, hands) take
-the person's look and cosmetics, or the wearer kind's defaults (players teal, crew amber). The body is
-DATA: the humanoid standard uses VRM 1.0's bone names as roles; any rig maps onto it by a role map
-(the test figure's, a Mixamo-style clip rig's, MakeHuman's default skeleton, SOMA's 30 joints), with
-the MakeHuman-to-SOMA joint map written out for a learned model later; clips are retargeted by role
-at load (rest poses aligned, root travel scaled by leg length), in memory only. Until the real body
-(MakeHuman, CC0) and clips are downloaded with the operator's yes, the game draws a procedural test
-figure and clip library, our own work. The old box figures stand in if the data cannot be read, and
+positions; their chosen body rides in their look), the crew, the showroom figure (tinted live by the
+look and the outfit) and the dev crowd. **The bodies are MakeHuman's (CC0), a female and a male**
+(1.59 and 1.73 m), made by our own converter `scripts/gen-makehuman-body.js` from MakeHuman's data
+(56 of its 163 bones, the rest merged; long-sleeved shirt, trousers, shoes, hands, hair with a thin
+shell, brows and eyes as tinted regions), each with 15 shape targets as glTF morph targets: the look's
+height drives the height targets on the GPU (a tall person is long in the leg, not scaled up head and
+all) and the skeleton follows the shaped mesh (`Skeleton::reshaped`). The character page chooses the
+body; crew are women and men. **The clips are Quaternius's Universal Animation Library (CC0)**:
+idle, walk, jog and sprint play now, crouch, jump and sit are retargeted for rung 2; turning on the
+spot stays our procedural clip. A locomotion state machine with blend spaces plays idle, turning on
+the spot, and walk, jog and sprint stride-matched to the real speed (each clip's speed measured from
+its feet, scaled to the body's legs), backwards when walking backwards. **The walking pace** is a
+Settings > Gameplay switch: Realistic walks at 1.4 m/s and runs at 4, Simplified keeps 5 and 9.5
+(data/game.csv). The nearest bodies (up to 16 within 15 m) are skinned once a frame by a compute pass
+into ordinary meshes, so the sun shadow and every pass draw them unchanged; the rest are skinned in
+the vertex shader. The body is DATA: the humanoid standard uses VRM 1.0's bone names as roles; any
+rig maps onto it by a role map (MakeHuman's default skeleton, Quaternius's rig, the test rigs, SOMA's
+30 joints), with the MakeHuman-to-SOMA joint map written out for a learned model later; clips are
+retargeted by role at load (rest poses aligned, a finger riding its hand's alignment, root travel
+scaled by leg length), in memory only. The procedural test figure stays as the test asset and the
+fallback for a body that does not load; the old box figures stand in if the data cannot be read, and
 for a same-boot A/B (showcase `figures`).
 - Crate: `crates/humanity-animation/` (card `docs/crates/humanity-animation.md`): skeleton, roles,
   role and joint maps, poses and the pose palette, clips and retargeting, the graph, the motion
@@ -3190,12 +3198,18 @@ for a same-boot A/B (showcase `figures`).
   `SkinnedVertex` in `crates/humanity-core/src/vertex.rs`, material type 25
   (`renderer::materials::MATERIAL_TYPE_CHARACTER`)
 - Data: `data/characters/` (`characters.ron`, `skeletons/humanoid.ron`, `bodies/`, `role_maps/`,
-  `joint_maps/`, `clips.ron`, `locomotion.ron`); the test figure
-  `assets/models/characters/hos_test_figure/` and clip library `assets/models/characters/hos_test_clips/`,
-  made by `scripts/gen-test-figure.js`
-- Dev: showcase verbs `crowd`, `figure_path`, `figures`, `camera_mode` (engine/ipc.rs); vantages
-  `anim-*` (rung 0's box baselines `*-boxes` beside them); costs `cpu.animation`, `cpu.skinning`,
-  `gpu.skinning`
+  `joint_maps/`, `clips.ron`, `locomotion.ron`); the bodies `assets/models/characters/makehuman/`
+  (made by `scripts/gen-makehuman-body.js`), the clips `assets/models/characters/quaternius_ual/`
+  (trimmed by `scripts/gen-quaternius-clips.js`, Quaternius's `License.txt` beside them), the test
+  figure `assets/models/characters/hos_test_figure/` and clip library
+  `assets/models/characters/hos_test_clips/` (made by `scripts/gen-test-figure.js`); the walking
+  pace's speeds in `data/game.csv`
+- Settings: Gameplay > Walking pace (`settings.walk_realistic`, `src/engine/walk_pace.rs`); the
+  character page's body chooser (`Appearance::body_type`, carried to other players in the look)
+- Dev: showcase verbs `crowd`, `figure_path`, `figures`, `camera_mode`, `body`, `look_height`,
+  `walk_pace` (engine/ipc.rs); vantages `anim-*` (rung 0's box baselines `*-boxes` beside them;
+  `anim-tp-{female,male}-{idle,walk,run}` for the bodies in third person); costs `cpu.animation`,
+  `cpu.skinning`, `gpu.skinning`
 
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`

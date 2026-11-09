@@ -83,7 +83,8 @@ pub fn retarget(
                     let want = dst.rest_position(k) + moved * travel_scale;
                     local_t = parent_model.inverse().transform_point3(want);
                     if let Some(tr) = &mut translations[k] {
-                        tr.push(local_t);
+                        // An offset from the rest (`Clip`), so a reshaped body plays it too.
+                        tr.push(local_t - dst.rest[k].t);
                     }
                 }
             }
@@ -93,31 +94,40 @@ pub fn retarget(
             dst_model[k] = parent_model * Mat4::from_scale_rotation_translation(dst.rest[k].s, local_r, local_t);
         }
     }
+    // The clip's gait covers ground in proportion to the legs that walk it: the same turns on legs
+    // 6% shorter stride 6% shorter, so the speed it covers on this body is the source's scaled like
+    // the hips' travel (2026-11-09: left unscaled, the library's walk played on MakeHuman's female
+    // body, whose hips stand 0.83 m to the library's 0.88, slid its planted foot 6%).
+    let speed_mps = speed_mps * travel_scale;
     Clip { name: src.name.clone(), duration: src.duration, fps, frames, looped, speed_mps, rotations, translations }
 }
 
-/// The rest alignment `C` of each body joint (identity unless its role is marked `align` and both
-/// rigs have it and its aim joint).
+/// The rest alignment `C` of each body joint: for a role marked `align` whose joint and aim joint
+/// both rigs have, the shortest turn of the body's rest bone onto the source's; for any other joint,
+/// its parent's, so a finger rides its hand's alignment (without it, a T-pose clip's finger turns
+/// laid on an A-pose hand's rest point every finger 45 degrees off the hand: 2026-11-09, the first
+/// clips with fingers); the identity at the root.
 pub fn rest_alignment(src: &Skeleton, dst: &Skeleton, humanoid: &HumanoidDef) -> Vec<Quat> {
-    (0..dst.joint_count())
-        .map(|k| {
-            let Some(r) = dst.roles[k] else { return Quat::IDENTITY };
-            let def = &humanoid.roles[r];
-            if !def.align {
-                return Quat::IDENTITY;
-            }
-            let Some(aim) = def.aim.as_deref().and_then(|a| humanoid.role_index(a)) else { return Quat::IDENTITY };
-            let (Some(js), Some(sa), Some(ka)) = (src.joint(r), src.joint(aim), dst.joint(aim)) else {
-                return Quat::IDENTITY;
-            };
-            let ds = (src.rest_position(sa) - src.rest_position(js)).normalize_or_zero();
-            let dd = (dst.rest_position(ka) - dst.rest_position(k)).normalize_or_zero();
-            if ds == Vec3::ZERO || dd == Vec3::ZERO {
-                return Quat::IDENTITY;
-            }
-            Quat::from_rotation_arc(dd, ds)
-        })
-        .collect()
+    let own = |k: usize| -> Option<Quat> {
+        let r = dst.roles[k]?;
+        let def = &humanoid.roles[r];
+        if !def.align {
+            return None;
+        }
+        let aim = def.aim.as_deref().and_then(|a| humanoid.role_index(a))?;
+        let (js, sa, ka) = (src.joint(r)?, src.joint(aim)?, dst.joint(aim)?);
+        let ds = (src.rest_position(sa) - src.rest_position(js)).normalize_or_zero();
+        let dd = (dst.rest_position(ka) - dst.rest_position(k)).normalize_or_zero();
+        if ds == Vec3::ZERO || dd == Vec3::ZERO {
+            return None;
+        }
+        Some(Quat::from_rotation_arc(dd, ds))
+    };
+    let mut c = vec![Quat::IDENTITY; dst.joint_count()];
+    for &k in &dst.order {
+        c[k] = own(k).unwrap_or_else(|| dst.parents[k].map_or(Quat::IDENTITY, |p| c[p]));
+    }
+    c
 }
 
 /// Give each twist joint its share of its driver's twist about the driver's bone (plan 2.1's twist

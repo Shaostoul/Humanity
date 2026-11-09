@@ -14,10 +14,16 @@
 //!   frame and the camera screens). Rung 1 gives middle bodies no sun shadow; rung 4's instanced
 //!   crowd skinning adds a skinned shadow PSO beside this one.
 //!
-//! THE POSE PALETTE is one storage buffer, rewritten every frame: per body, its model matrix and
-//! then each joint's skinning matrix, three `vec4` rows per matrix (48 bytes;
-//! `humanity_animation::pose`). A near body's compute dispatch is told where its joints start; a
-//! middle body's draw passes where its model matrix is as its first instance.
+//! THE POSE PALETTE is one storage buffer, rewritten every frame: per body, its model matrix, its
+//! morph block (`MORPH_SLOTS` matrices saying which of its shape targets are on and how much,
+//! 2026-11-09) and then each joint's skinning matrix, three `vec4` rows per matrix (48 bytes;
+//! `humanity_animation::pose`). A near body's compute dispatch is told where its morph block and
+//! joints start; a middle body's draw passes where its model matrix is as its first instance.
+//!
+//! SHAPE TARGETS (2026-11-09, the MakeHuman bodies): each body's morph targets live in a storage
+//! buffer of their own (`morph_deltas`), read by both shaders, which add the active ones to a vertex
+//! before skinning it. So one body on the GPU draws every person's shape, and a person's shape costs
+//! the palette six rows, not a mesh of their own.
 //!
 //! NOTHING HERE IS REUSED ACROSS FRAMES as worked-out data: the palette and every near body's
 //! skinned vertices are written afresh each frame. What persists is GPU allocation (a body's source
@@ -44,20 +50,26 @@ const SKINNED_ATTRS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
 ];
 
 /// One body uploaded once: its skinned vertices (read as a storage buffer by the compute pass and
-/// as a vertex buffer by the VS path) and an index buffer per region, offset into the one vertex
-/// list.
+/// as a vertex buffer by the VS path), an index buffer per region, offset into the one vertex
+/// list, and its morph targets' deltas (2026-11-09).
 pub struct SkinnedBody {
     vertices: wgpu::Buffer,
     vertex_count: u32,
     joint_count: u32,
     /// (index buffer, index count) per region, in the model's primitive order.
     regions: Vec<(wgpu::Buffer, u32)>,
+    /// Every morph target's deltas: for target k and vertex i, two `vec4` at (k * vertex_count + i)
+    /// * 2: the position delta then the normal delta (w unused). One zero `vec4` pair for a body
+    /// without targets (a storage binding may not be empty). Which targets a body draws with, and
+    /// how much, rides in the palette's morph block (`humanity_animation::pose::MORPH_SLOTS`).
+    morphs: wgpu::Buffer,
+    /// The VS path's group 1 for this body: the identity object uniform, the palette, its morphs.
+    vs_bind: wgpu::BindGroup,
 }
 
 /// A near place: one body's compute-skinned vertices for this frame, and its regions registered as
 /// ordinary meshes over them.
 struct NearSlot {
-    body: usize,
     params: wgpu::Buffer,
     bind: wgpu::BindGroup,
     out: wgpu::Buffer,
@@ -87,18 +99,26 @@ pub struct Skinning {
     palette: wgpu::Buffer,
     palette_rows: u64,
     staging: Vec<[f32; 4]>,
-    slots: Vec<NearSlot>,
-    /// (slot, joint base) of each near body skinned this frame.
-    jobs: Vec<(usize, u32)>,
+    /// Near places per body (a place keeps the body it was made for).
+    slots: Vec<Vec<NearSlot>>,
+    /// (body, slot, model matrix index) of each near body skinned this frame.
+    jobs: Vec<(usize, usize, u32)>,
     /// This frame's dispatches are queued and not yet recorded (`encode_skinning`).
     dispatch_pending: std::cell::Cell<bool>,
     middle: Vec<MiddleDraw>,
-    /// Group 1 of the VS PSO: the identity object uniform and the palette.
+    /// Group 1 of the VS PSO: the identity object uniform, the palette and a body's morphs.
     vs_layout: wgpu::BindGroupLayout,
     vs_object: wgpu::Buffer,
-    vs_bind: wgpu::BindGroup,
     vs_pso: Deferred<SkinnedPso>,
 }
+
+/// The palette's morph block, in matrix slots: `humanity_animation::pose::MORPH_SLOTS` (this module
+/// compiles in the relay build, which has no animation crate, so it is written here and held equal by
+/// `engine::animation`'s tests).
+pub const MORPH_SLOTS: u32 = 2;
+/// Matrices from a body's model matrix to its morph block, and to its first joint.
+const MORPH_BLOCK_AT: u32 = 1;
+const JOINTS_AT: u32 = 1 + MORPH_SLOTS;
 
 impl Renderer {
     /// Upload a body (its mesh as read from the glTF) and return its id. The first call builds the
@@ -129,8 +149,23 @@ impl Renderer {
             contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
         });
+        let deltas = morph_deltas(model);
+        let morphs = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Skinned Body Morph Targets"),
+            contents: bytemuck::cast_slice(&deltas),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
         let sk = self.skinning.as_mut().expect("made above");
-        sk.bodies.push(SkinnedBody { vertices: vb, vertex_count: vertices.len() as u32, joint_count: model.joints.len() as u32, regions });
+        let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &morphs);
+        sk.bodies.push(SkinnedBody {
+            vertices: vb,
+            vertex_count: vertices.len() as u32,
+            joint_count: model.joints.len() as u32,
+            regions,
+            morphs,
+            vs_bind,
+        });
+        sk.slots.push(Vec::new());
         sk.bodies.len() - 1
     }
 
@@ -145,6 +180,14 @@ impl Renderer {
         }
     }
 
+    /// GPU bytes a registered body holds (its vertices, indices and morph targets): the Dev page's
+    /// and the rigs' memory figure.
+    pub fn skin_body_bytes(&self, body: usize) -> u64 {
+        self.skinning.as_ref().and_then(|s| s.bodies.get(body)).map_or(0, |b| {
+            b.vertices.size() + b.morphs.size() + b.regions.iter().map(|(ib, _)| ib.size()).sum::<u64>()
+        })
+    }
+
     /// Start a frame's skinning: nothing queued, the palette empty.
     pub fn skin_begin_frame(&mut self) {
         if let Some(sk) = self.skinning.as_mut() {
@@ -155,19 +198,23 @@ impl Renderer {
         }
     }
 
-    /// Append one body's matrices to this frame's palette: its model matrix's rows, then its joints'
-    /// rows (three per joint). Returns the model matrix's index; its joints start one after.
-    pub fn skin_push_palette(&mut self, model_rows: [[f32; 4]; 3], joint_rows: &[[f32; 4]]) -> u32 {
+    /// Append one body's matrices to this frame's palette: its model matrix's rows, its morph block
+    /// (`MORPH_SLOTS` matrices: which shape targets and how much), then its joints' rows (three per
+    /// joint). Returns the model matrix's index; the morph block starts one after, the joints
+    /// `1 + MORPH_SLOTS` after.
+    pub fn skin_push_palette(&mut self, model_rows: [[f32; 4]; 3], morph_rows: &[[f32; 4]; MORPH_SLOTS as usize * 3], joint_rows: &[[f32; 4]]) -> u32 {
         let Some(sk) = self.skinning.as_mut() else { return 0 };
         let index = (sk.staging.len() / 3) as u32;
         sk.staging.extend_from_slice(&model_rows);
+        sk.staging.extend_from_slice(morph_rows);
         sk.staging.extend_from_slice(joint_rows);
         index
     }
 
-    /// Skin a body by compute this frame in near place `slot` (made on first use, for this body),
-    /// with its matrices at `model_index` in the palette. Returns its regions' mesh ids, to draw as
-    /// ordinary objects placed by the body's transform.
+    /// Skin a body by compute this frame in its near place `slot` (made on first use; places are
+    /// numbered per body by the engine each frame, so a place always skins the body it was made
+    /// for), with its matrices at `model_index` in the palette. Returns its regions' mesh ids, to draw
+    /// as ordinary objects placed by the body's transform.
     pub fn skin_near(&mut self, body: usize, slot: usize, model_index: u32) -> Vec<usize> {
         let fresh = match self.skinning.as_ref() {
             None => return Vec::new(),
@@ -175,25 +222,19 @@ impl Renderer {
                 if body >= sk.bodies.len() {
                     return Vec::new();
                 }
-                sk.slots.get(slot).map_or(true, |s| s.body != body)
+                slot >= sk.slots[body].len()
             }
         };
-        // Places are numbered 0, 1, 2 ... by the engine each frame; a place keeps its buffers while
-        // it skins the same body and is remade when the body changes (a reload).
         let mut slot = slot;
         if fresh {
             let made = self.make_near_slot(body);
             let sk = self.skinning.as_mut().expect("checked above");
-            if slot < sk.slots.len() {
-                sk.slots[slot] = made;
-            } else {
-                sk.slots.push(made);
-                slot = sk.slots.len() - 1;
-            }
+            sk.slots[body].push(made);
+            slot = sk.slots[body].len() - 1;
         }
         let sk = self.skinning.as_mut().expect("checked above");
-        sk.jobs.push((slot, model_index + 1));
-        sk.slots[slot].meshes.clone()
+        sk.jobs.push((body, slot, model_index));
+        sk.slots[body][slot].meshes.clone()
     }
 
     /// Draw a middle body's region this frame with the VS PSO, or, while that PSO is not ready,
@@ -245,19 +286,24 @@ impl Renderer {
             });
             sk.palette_rows = grown;
             // Every bind group naming the old palette is rebuilt over the new one.
-            sk.vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette);
-            for i in 0..sk.slots.len() {
-                let body = &sk.bodies[sk.slots[i].body];
-                let slot = &sk.slots[i];
-                let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &body.vertices, &slot.out, &slot.params);
-                sk.slots[i].bind = bind;
+            for b in 0..sk.bodies.len() {
+                let body = &sk.bodies[b];
+                let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &body.morphs);
+                let binds: Vec<wgpu::BindGroup> = sk.slots[b]
+                    .iter()
+                    .map(|slot| Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &body.vertices, &slot.out, &slot.params, &body.morphs))
+                    .collect();
+                sk.bodies[b].vs_bind = vs_bind;
+                for (slot, bind) in sk.slots[b].iter_mut().zip(binds) {
+                    slot.bind = bind;
+                }
             }
         }
         self.queue.write_buffer(&sk.palette, 0, bytemuck::cast_slice(&sk.staging));
-        for &(slot, joint_base) in &sk.jobs {
-            let s = &sk.slots[slot];
-            let count = sk.bodies[s.body].vertex_count;
-            self.queue.write_buffer(&s.params, 0, bytemuck::cast_slice(&[count, joint_base, 0, 0]));
+        for &(body, slot, model_index) in &sk.jobs {
+            let s = &sk.slots[body][slot];
+            let count = sk.bodies[body].vertex_count;
+            self.queue.write_buffer(&s.params, 0, bytemuck::cast_slice(&[count, model_index + JOINTS_AT, model_index + MORPH_BLOCK_AT, 0]));
         }
         // The dispatches themselves ride the scene pass's own encoder (`encode_skinning`), ahead of
         // its render pass: a submit of their own cost 0.46 ms of CPU a frame for one body (measured
@@ -279,9 +325,9 @@ impl Renderer {
             timestamp_writes: self.gpu_timers.as_ref().and_then(|t| t.compute_writes("gpu.skinning")),
         });
         pass.set_pipeline(&sk.compute);
-        for &(slot, _) in &sk.jobs {
-            let s = &sk.slots[slot];
-            let count = sk.bodies[s.body].vertex_count;
+        for &(body, slot, _) in &sk.jobs {
+            let s = &sk.slots[body][slot];
+            let count = sk.bodies[body].vertex_count;
             pass.set_bind_group(0, &s.bind, &[]);
             pass.dispatch_workgroups(count.div_ceil(WORKGROUP), 1, 1);
         }
@@ -299,7 +345,6 @@ impl Renderer {
             return;
         }
         pass.set_pipeline(&pso.pipeline);
-        pass.set_bind_group(1, &sk.vs_bind, &[]);
         let mut bound_material = usize::MAX;
         let mut bound_body = usize::MAX;
         for d in &sk.middle {
@@ -313,6 +358,7 @@ impl Renderer {
             }
             if bound_body != d.body {
                 bound_body = d.body;
+                pass.set_bind_group(1, &body.vs_bind, &[]);
                 pass.set_vertex_buffer(0, body.vertices.slice(..));
             }
             pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
@@ -340,7 +386,7 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &b.vertices, &out, &params);
+        let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &b.vertices, &out, &params, &b.morphs);
         // Buffer handles are shared clones (wgpu 24), so the region meshes and this place draw the
         // same GPU memory; collected before the registry is borrowed to add them.
         let regions: Vec<(wgpu::Buffer, u32)> = b.regions.iter().map(|(ib, n)| (ib.clone(), *n)).collect();
@@ -348,8 +394,35 @@ impl Renderer {
             .into_iter()
             .map(|(index_buffer, index_count)| self.add_mesh(Mesh { vertex_buffer: out.clone(), index_buffer, index_count }))
             .collect();
-        NearSlot { body, params, bind, out, meshes }
+        NearSlot { params, bind, out, meshes }
     }
+}
+
+/// A body's morph targets as the shaders read them: for target k and vertex i (the primitives'
+/// vertices one after another, as the vertex buffer holds them), the position delta and the normal
+/// delta as two `vec4` at (k * vertices + i) * 2. One zero pair for a body without targets.
+pub fn morph_deltas(model: &SkinnedModelData) -> Vec<[f32; 4]> {
+    let targets = model.primitives.first().map_or(0, |p| p.morphs.len());
+    let n = model.vertex_count();
+    if targets == 0 || n == 0 {
+        return vec![[0.0; 4]; 2];
+    }
+    let mut out = Vec::with_capacity(targets * n * 2);
+    for k in 0..targets {
+        for prim in &model.primitives {
+            match prim.morphs.get(k) {
+                Some(m) => {
+                    for i in 0..prim.vertices.len() {
+                        let (p, q) = (m.positions[i], m.normals[i]);
+                        out.push([p[0], p[1], p[2], 0.0]);
+                        out.push([q[0], q[1], q[2], 0.0]);
+                    }
+                }
+                None => out.extend(std::iter::repeat([0.0; 4]).take(prim.vertices.len() * 2)),
+            }
+        }
+    }
+    out
 }
 
 impl Skinning {
@@ -367,6 +440,8 @@ impl Skinning {
                     ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: wgpu::BufferSize::new(16) },
                     count: None,
                 },
+                // The body's morph targets.
+                storage_entry(4, wgpu::ShaderStages::COMPUTE, true),
             ],
         });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -407,6 +482,8 @@ impl Skinning {
                     count: None,
                 },
                 storage_entry(1, wgpu::ShaderStages::VERTEX, true),
+                // The body's morph targets.
+                storage_entry(2, wgpu::ShaderStages::VERTEX, true),
             ],
         });
         let identity = ObjectUniforms { model: Mat4::IDENTITY.to_cols_array_2d(), normal_matrix: Mat4::IDENTITY.to_cols_array_2d() };
@@ -415,7 +492,6 @@ impl Skinning {
             contents: bytemuck::bytes_of(&identity),
             usage: wgpu::BufferUsages::UNIFORM,
         });
-        let vs_bind = Self::vs_bind_group(device, &vs_layout, &vs_object, &palette);
         let vs_pso = Self::spawn_vs_pso(r, &vs_layout);
         Skinning {
             bodies: Vec::new(),
@@ -430,11 +506,11 @@ impl Skinning {
             middle: Vec::new(),
             vs_layout,
             vs_object,
-            vs_bind,
             vs_pso,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn compute_bind_group(
         device: &wgpu::Device,
         layout: &wgpu::BindGroupLayout,
@@ -442,6 +518,7 @@ impl Skinning {
         source: &wgpu::Buffer,
         out: &wgpu::Buffer,
         params: &wgpu::Buffer,
+        morphs: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Compute Skinning Bind Group"),
@@ -451,17 +528,19 @@ impl Skinning {
                 wgpu::BindGroupEntry { binding: 1, resource: source.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 2, resource: out.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 3, resource: params.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 4, resource: morphs.as_entire_binding() },
             ],
         })
     }
 
-    fn vs_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, object: &wgpu::Buffer, palette: &wgpu::Buffer) -> wgpu::BindGroup {
+    fn vs_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, object: &wgpu::Buffer, palette: &wgpu::Buffer, morphs: &wgpu::Buffer) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Skinned Object Bind Group"),
             layout,
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: object.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 1, resource: palette.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 2, resource: morphs.as_entire_binding() },
             ],
         })
     }

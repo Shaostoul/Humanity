@@ -15,14 +15,17 @@
 //!   influences a vertex; the weights renormalised to sum exactly 65535 in unorm16, whatever the
 //!   file wrote), and the name of its material, which the body's data file maps to a tint;
 //! - every animation, channel by channel (translation, rotation, scale; morph-target weights are a
-//!   later rung), with its interpolation.
+//!   later rung), with its interpolation;
+//! - each primitive's morph targets (position and normal deltas, sparse or dense), their names, and,
+//!   where the file carries them (the MakeHuman bodies, 2026-11-09), how far each target moves each
+//!   joint, so a reshaped body's skeleton follows its mesh.
 //!
 //! Plain CPU work, no device: tests and worker threads call it.
 
 use std::path::Path;
 
 use humanity_core::skin_data::{
-    AnimChannelData, AnimClipData, ChannelPath, Interpolation, SkinJointData, SkinnedModelData, SkinnedPrimitiveData, IDENTITY,
+    AnimChannelData, AnimClipData, ChannelPath, Interpolation, MorphDeltas, SkinJointData, SkinnedModelData, SkinnedPrimitiveData, IDENTITY,
 };
 use humanity_core::vertex::SkinnedVertex;
 
@@ -77,6 +80,7 @@ pub fn read_skinned_gltf(path: &Path) -> Result<SkinnedModelData, String> {
         .collect();
 
     let mut primitives = Vec::new();
+    let mut morph_names: Vec<String> = Vec::new();
     for node in doc.nodes() {
         if node.skin().map(|s| s.index()) != Some(skin.index()) {
             continue;
@@ -116,8 +120,40 @@ pub fn read_skinned_gltf(path: &Path) -> Result<SkinnedModelData, String> {
                 })
                 .collect();
             let material = prim.material().name().unwrap_or("default").to_string();
-            primitives.push(SkinnedPrimitiveData { material, vertices, indices });
+            // The morph targets: each a position and a normal delta per vertex (sparse accessors
+            // read as zeros where they list nothing).
+            let mut morphs = Vec::new();
+            for (k, (positions, normals, _tangents)) in reader.read_morph_targets().enumerate() {
+                let positions: Vec<[f32; 3]> = positions.map(|it| it.collect()).unwrap_or_else(|| vec![[0.0; 3]; n]);
+                let normals: Vec<[f32; 3]> = normals.map(|it| it.collect()).unwrap_or_else(|| vec![[0.0; 3]; n]);
+                if positions.len() != n || normals.len() != n {
+                    return Err(format!("{what}: morph target {k} of a primitive has {} positions and {} normals for {n} vertices", positions.len(), normals.len()));
+                }
+                morphs.push(MorphDeltas { positions, normals });
+            }
+            if !morph_names.is_empty() && morphs.len() != morph_names.len() {
+                return Err(format!("{what}: a primitive has {} morph targets, another {}", morphs.len(), morph_names.len()));
+            }
+            if morph_names.is_empty() {
+                morph_names = prim.morph_targets().enumerate().map(|(k, t)| target_name(&t, k)).collect();
+            }
+            primitives.push(SkinnedPrimitiveData { material, vertices, indices, morphs });
         }
+    }
+    // Each target's movement of the joints, when the file carries it (`joint_deltas:<target>`).
+    let mut joint_deltas = Vec::new();
+    for name in &morph_names {
+        let wanted = format!("joint_deltas:{name}");
+        let Some(acc) = doc.accessors().find(|a| a.name() == Some(wanted.as_str())) else { continue };
+        let it = gltf::accessor::Iter::<[f32; 3]>::new(acc, |b| Some(&buffers[b.index()].0)).ok_or_else(|| format!("{what}: {wanted} cannot be read"))?;
+        let d: Vec<[f32; 3]> = it.collect();
+        if d.len() != joints.len() {
+            return Err(format!("{what}: {wanted} moves {} joints of a skin with {}", d.len(), joints.len()));
+        }
+        joint_deltas.push(d);
+    }
+    if !joint_deltas.is_empty() && joint_deltas.len() != morph_names.len() {
+        return Err(format!("{what}: {} of {} morph targets say how they move the joints", joint_deltas.len(), morph_names.len()));
     }
 
     let mut clips = Vec::new();
@@ -147,7 +183,16 @@ pub fn read_skinned_gltf(path: &Path) -> Result<SkinnedModelData, String> {
         }
         clips.push(AnimClipData { name: anim.name().unwrap_or("animation").to_string(), channels });
     }
-    Ok(SkinnedModelData { joints, primitives, clips })
+    Ok(SkinnedModelData { joints, primitives, clips, morph_names, joint_deltas })
+}
+
+/// A morph target's name: its POSITION accessor's name, `morph:<target>:<material>` as the
+/// character converters write it (glTF itself keeps target names only in `extras`), else `target<k>`.
+fn target_name(t: &gltf::mesh::MorphTarget<'_>, k: usize) -> String {
+    t.positions()
+        .and_then(|a| a.name().map(str::to_string))
+        .and_then(|n| n.strip_prefix("morph:").map(|r| r.split(':').next().unwrap_or(r).to_string()))
+        .unwrap_or_else(|| format!("target{k}"))
 }
 
 /// Four weights as unorm16 summing to exactly 65535: negatives dropped, the rest scaled, and the

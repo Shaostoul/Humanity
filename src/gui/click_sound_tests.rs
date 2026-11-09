@@ -1,7 +1,8 @@
 //! The click sound (`ui_click_should_sound`, v0.1112): it sounds only on a real widget click,
 //! and only with interface sounds on. Moved out of gui/mod.rs as it stood (2026-10-12), so that
 //! file stays under its line budget (tests/file_size_ratchet.rs). The module keeps its old name
-//! (`ui_click_sound_tests`) through the declaration in gui/mod.rs, so filters by it still work.
+//! (`ui_click_sound_tests`) through the declaration in gui/click_sound.rs (where the function itself
+//! moved on 2026-11-09), so filters by it still work.
 
 use super::ui_click_should_sound;
 use egui::output::OutputEvent;

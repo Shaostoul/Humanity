@@ -1253,7 +1253,7 @@ mod tests {
         let floor = 3.0;
         let plain = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
         assert_eq!(plain.iter().map(|p| p.part).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head]);
-        let tall = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2 };
+        let tall = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2, body: String::new() };
         for (look, h) in [(None, 1.0), (Some(&tall), 1.2)] {
             let parts = remote_figure_parts(eye, glam::Quat::IDENTITY, look);
             let get = |part| *parts.iter().find(|p| p.part == part).unwrap();
@@ -1274,7 +1274,7 @@ mod tests {
         assert!(FIGURE_HEAD_MESH_R_M * hair.scale.x > FIGURE_HEAD_MESH_R_M * head.scale.x, "and is wider than it");
         assert!((remote_figure_top(eye, Some(&tall)) - hair_top).abs() < 1e-5, "the figure's top is the hair's");
         // Two players with the same colours share a cache key.
-        assert_eq!(look_material_key(&tall), look_material_key(&humanity_core::player_look::PlayerLook { height: 0.9, ..tall }));
+        assert_eq!(look_material_key(&tall), look_material_key(&humanity_core::player_look::PlayerLook { height: 0.9, ..tall.clone() }));
     }
 
     /// What a ray sees first among a figure's head and hair, drawn the way the
@@ -1379,7 +1379,7 @@ mod tests {
             let fwd = cam.forward_xz();
             let right = fwd.cross(Vec3::Y);
             for height in [1.0f32, 1.2] {
-                let look = humanity_core::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height };
+                let look = humanity_core::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height, body: String::new() };
                 let pieces = remote_figure_parts(Vec3::from(position), Quat::from_array(rotation), Some(&look));
                 let head = pieces.iter().find(|p| p.part == FigurePart::Head).unwrap().at;
                 let r = FIGURE_HEAD_MESH_R_M * height;
@@ -1615,7 +1615,7 @@ mod tests {
                 key: None,
             },
         ));
-        let tallest = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: humanity_core::player_look::HEIGHT_MAX };
+        let tallest = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: humanity_core::player_look::HEIGHT_MAX, body: String::new() };
         world.spawn((
             at(Vec3::new(-5.0, 1.7, 0.0)),
             RemotePlayer {
@@ -1628,7 +1628,7 @@ mod tests {
                 velocity: Vec3::ZERO,
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
-                look: Some(tallest),
+                look: Some(tallest.clone()),
                 key: None,
             },
         ));

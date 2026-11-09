@@ -114,6 +114,30 @@ impl Skeleton {
         self.names.len()
     }
 
+    /// This skeleton with each joint's rest position moved by `moves` (model space, one per joint;
+    /// a joint past the list's end stays put): what a body's morph targets do to its skeleton, so a
+    /// taller body's knees are where its taller legs bend (2026-11-09). Rest rotations and scales are
+    /// kept; each joint's rest translation is worked out again under its parent, and its inverse
+    /// bind is its new rest matrix inverted, so the reshaped mesh, skinned at rest, stands exactly
+    /// as it was shaped. Clips baked on the unshaped skeleton play on it unchanged: they carry
+    /// rotations, and the hips' travel as an offset from the rest (`clip`).
+    pub fn reshaped(&self, moves: &[Vec3]) -> Skeleton {
+        let mut out = self.clone();
+        let wanted: Vec<Vec3> = (0..self.joint_count()).map(|j| self.rest_position(j) + moves.get(j).copied().unwrap_or(Vec3::ZERO)).collect();
+        let mut model = vec![Mat4::IDENTITY; self.joint_count()];
+        for &j in &self.order {
+            let parent = match self.parents[j] {
+                Some(p) => model[p],
+                None => self.outer[j],
+            };
+            out.rest[j].t = parent.inverse().transform_point3(wanted[j]);
+            model[j] = parent * out.rest[j].matrix();
+        }
+        out.inverse_bind = model.iter().map(|m| m.inverse()).collect();
+        out.rest_model = model;
+        out
+    }
+
     /// The rest pose: every joint's own rest transform.
     pub fn rest_pose(&self) -> Pose {
         Pose { joints: self.rest.clone() }

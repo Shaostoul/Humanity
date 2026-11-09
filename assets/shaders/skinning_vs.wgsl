@@ -13,7 +13,15 @@
 // skinning matrices follow it. Group 1 is the skinned PSO's own layout: binding 0 the object uniform
 // (an identity, because the palette carries the placement), binding 1 the palette.
 
+// THE MORPH BLOCK (2026-11-09): between a body's model matrix and its joints, SKIN_MORPH_SLOTS matrix
+// slots say which of its shape targets are on and how much (pose.rs MORPH_SLOTS: row 0 is (count,
+// vertex count), then two (target, weight) pairs a row); binding 2 holds the body's targets, two vec4
+// (position delta, normal delta) per vertex per target at (target * vertex count + vertex) * 2. The
+// vertex is shaped by them before it is skinned, as the compute path does.
+const SKIN_MORPH_SLOTS: u32 = 2u;
+
 @group(1) @binding(1) var<storage, read> skin_palette: array<vec4<f32>>;
+@group(1) @binding(2) var<storage, read> skin_morphs: array<vec4<f32>>;
 
 struct SkinnedVertexInput {
     @location(0) position: vec3<f32>,
@@ -30,10 +38,28 @@ fn skin_apply(m: u32, p: vec4<f32>) -> vec3<f32> {
 }
 
 @vertex
-fn vs_skinned(v: SkinnedVertexInput, @builtin(instance_index) model_index: u32) -> VertexOutput {
-    let jb = model_index + 1u;
-    let pos = vec4<f32>(v.position, 1.0);
-    let nrm = vec4<f32>(v.normal, 0.0);
+fn vs_skinned(v: SkinnedVertexInput, @builtin(instance_index) model_index: u32, @builtin(vertex_index) vertex: u32) -> VertexOutput {
+    let jb = model_index + 1u + SKIN_MORPH_SLOTS;
+    var shaped_p = v.position;
+    var shaped_n = v.normal;
+    let mb = (model_index + 1u) * 3u;
+    let head = skin_palette[mb];
+    let on = u32(head.x);
+    let vcount = u32(head.y);
+    for (var a = 0u; a < on; a = a + 1u) {
+        let row = skin_palette[mb + 1u + a / 2u];
+        var target_index = row.x;
+        var weight = row.y;
+        if ((a & 1u) == 1u) {
+            target_index = row.z;
+            weight = row.w;
+        }
+        let k = (u32(target_index) * vcount + vertex) * 2u;
+        shaped_p = shaped_p + skin_morphs[k].xyz * weight;
+        shaped_n = shaped_n + skin_morphs[k + 1u].xyz * weight;
+    }
+    let pos = vec4<f32>(shaped_p, 1.0);
+    let nrm = vec4<f32>(shaped_n, 0.0);
     var p = skin_apply(jb + v.joints.x, pos) * v.weights.x;
     var n = skin_apply(jb + v.joints.x, nrm) * v.weights.x;
     if (v.weights.y > 0.0) {

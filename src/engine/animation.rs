@@ -68,8 +68,12 @@ pub(crate) struct Person {
     pub height: f32,
     /// The wearer kind whose defaults fill what the person does not say ("player", "crew").
     pub wearer: &'static str,
+    /// The body their look chooses (`Appearance::body_type`: "female", "male"); None or an unknown
+    /// id takes one of the wearer kind's bodies, stable per person.
+    pub body: Option<String>,
     pub skin: Option<[f32; 3]>,
     pub hair: Option<[f32; 3]>,
+    pub eyes: Option<[f32; 3]>,
     pub outfit: Option<humanity_core::cosmetics::OutfitColors>,
 }
 
@@ -100,7 +104,10 @@ pub(crate) struct Report {
     pub middle: usize,
     /// Middle bodies compute-skinned because the vertex-shader PSO was not ready.
     pub fallback: usize,
+    /// The bodies read, by id, comma-separated.
     pub body: String,
+    /// People drawn with a shape (morph targets) of their own this frame.
+    pub shaped: usize,
     pub error: Option<String>,
 }
 
@@ -108,11 +115,16 @@ struct Figure {
     animator: Animator,
     motion: MotionTracker,
     seen: u64,
+    /// The person's skeleton reshaped for their shape weights, with the body and weights it was
+    /// made for. Kept from frame to frame while both stay the same (a value keyed by its own
+    /// inputs, so it cannot be stale) and made again every frame with the reuse switch off.
+    shape: Option<(usize, Vec<(usize, f32)>, humanity_animation::Skeleton)>,
 }
 
 pub(crate) struct AnimationRuntime {
     lib: Option<CharacterLibrary>,
-    body: Option<usize>,
+    /// Each library body's GPU id, in the library's body order.
+    gpu_bodies: Vec<usize>,
     tried: bool,
     reread: bool,
     read_at: Option<std::time::Instant>,
@@ -125,6 +137,10 @@ pub(crate) struct AnimationRuntime {
     /// The A/B switch (showcase `figures`): false draws the old box figures, for a same-boot
     /// comparison with the bodies (rung 0's baseline).
     pub(crate) bodies_on: bool,
+    /// The bodies' A/B (showcase `figures` "test_figure", 2026-11-09): draw everyone with
+    /// characters.ron's fallback body (the test figure), for a same-boot comparison of the real
+    /// bodies' costs against the rung 1 figure's.
+    pub(crate) fallback_only: bool,
     pub(crate) crowd: Vec<CrowdFigure>,
     pub(crate) report: Report,
     /// The box figure's meshes and the crew's amber material, for the dev crowd in the boxes arm.
@@ -138,7 +154,7 @@ impl Default for AnimationRuntime {
     fn default() -> Self {
         AnimationRuntime {
             lib: None,
-            body: None,
+            gpu_bodies: Vec::new(),
             tried: false,
             reread: false,
             read_at: None,
@@ -147,6 +163,7 @@ impl Default for AnimationRuntime {
             frame: 0,
             clock: 0.0,
             bodies_on: true,
+            fallback_only: false,
             crowd: Vec::new(),
             report: Report::default(),
             box_meshes: None,
@@ -170,7 +187,7 @@ impl AnimationRuntime {
 
     /// Are the bodies what the frame draws (the data read, the switch on)?
     pub(crate) fn draws_bodies(&self) -> bool {
-        self.bodies_on && self.lib.is_some() && self.body.is_some()
+        self.bodies_on && self.lib.as_ref().is_some_and(|l| l.bodies.len() == self.gpu_bodies.len())
     }
 }
 
@@ -207,26 +224,41 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
     rt.read_at = Some(std::time::Instant::now());
     match read_library(&state.data_dir) {
         Ok(lib) => {
-            let same_model = rt.lib.as_ref().is_some_and(|old| old.model == lib.model) && rt.body.is_some();
-            if !same_model {
+            let same_models = rt.gpu_bodies.len() == lib.bodies.len()
+                && rt.lib.as_ref().is_some_and(|old| old.bodies.len() == lib.bodies.len() && old.bodies.iter().zip(&lib.bodies).all(|(a, b)| a.model == b.model));
+            if !same_models {
                 state.renderer.skin_clear_bodies();
-                rt.body = Some(state.renderer.skin_register_body(&lib.model));
-                log::info!(
-                    "Characters: body {} ({} joints, {} vertices, {} regions), {} clips, graph {}",
-                    lib.body.id,
-                    lib.skeleton.joint_count(),
-                    lib.model.vertex_count(),
-                    lib.model.primitives.len(),
-                    lib.clips.clips.len(),
-                    lib.graph.id
-                );
+                rt.gpu_bodies = lib.bodies.iter().map(|b| state.renderer.skin_register_body(&b.model)).collect();
+                for (b, &gpu) in lib.bodies.iter().zip(&rt.gpu_bodies) {
+                    log::info!(
+                        "Characters: body {} as {} ({} joints, {} vertices, {} regions, {} shape targets, {:.2} MB on the GPU), {} clips, graph {}",
+                        b.def.id,
+                        b.choice,
+                        b.skeleton.joint_count(),
+                        b.model.vertex_count(),
+                        b.model.primitives.len(),
+                        b.model.morph_names.len(),
+                        state.renderer.skin_body_bytes(gpu) as f64 / 1_048_576.0,
+                        b.clips.clips.len(),
+                        lib.graph.id
+                    );
+                }
+                for w in &lib.warnings {
+                    log::warn!("Characters: {w}");
+                }
             }
             // A new graph may have other states: every figure starts again.
             if rt.lib.as_ref().map_or(true, |old| old.graph != lib.graph) {
                 rt.figures.clear();
             }
-            rt.report.body = lib.body.id.clone();
+            // A reshaped skeleton belongs to the library it was made from: made again from this one.
+            for f in rt.figures.values_mut() {
+                f.shape = None;
+            }
+            rt.report.body = lib.bodies.iter().map(|b| b.def.id.as_str()).collect::<Vec<_>>().join(",");
             rt.report.error = None;
+            // The character page's body chooser lists the bodies a look can choose.
+            state.gui_state.body_choices = lib.characters.bodies.keys().cloned().collect();
             rt.lib = Some(lib);
         }
         Err(e) => {
@@ -235,7 +267,7 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             }
             rt.report.error = Some(e);
             rt.lib = None;
-            rt.body = None;
+            rt.gpu_bodies.clear();
         }
     }
 }
@@ -360,6 +392,8 @@ pub(crate) fn region_colour(lib: &CharacterLibrary, tint: &Tint, p: &Person) -> 
     match tint {
         Tint::Skin => skin,
         Tint::Hair => hair,
+        Tint::Eyes => p.eyes.or(wearer.map(|w| w.eyes)).unwrap_or([0.3, 0.45, 0.55]),
+        Tint::Fixed(r, g, b) => [*r, *g, *b],
         Tint::Slot(slot) => {
             let equipped = p.outfit.as_ref().and_then(|o| match slot.as_str() {
                 "head" => o.head,
@@ -383,37 +417,28 @@ pub(crate) fn region_colour(lib: &CharacterLibrary, tint: &Tint, p: &Person) -> 
 /// Everyone to draw this frame.
 fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
     let mut out = Vec::new();
-    let me_look = || {
+    let me = |key: FigureKey, feet: Vec3, facing: f32| {
         let app = &state.gui_state.appearance;
         let outfit = humanity_core::cosmetics::resolve_outfit_colors(&state.gui_state.outfit, &state.cosmetics);
-        (app.height_scale.clamp(0.5, 2.0), Some(app.skin_tone), Some(app.hair_color), Some(outfit))
+        Person {
+            key,
+            feet,
+            facing,
+            height: app.height_scale.clamp(0.5, 2.0),
+            wearer: "player",
+            body: Some(app.body_type.clone()),
+            skin: Some(app.skin_tone),
+            hair: Some(app.hair_color),
+            eyes: Some(app.eye_color),
+            outfit: Some(outfit),
+        }
     };
     if showroom {
-        let (height, skin, hair, outfit) = me_look();
-        out.push(Person {
-            key: FigureKey::Showroom,
-            feet: state.avatar_base + Vec3::new(0.0, SHOWROOM_PODIUM_M, 0.0),
-            facing: 0.0,
-            height,
-            wearer: "player",
-            skin,
-            hair,
-            outfit,
-        });
+        out.push(me(FigureKey::Showroom, state.avatar_base + Vec3::new(0.0, SHOWROOM_PODIUM_M, 0.0), 0.0));
         return out;
     }
     if state.camera.mode == crate::renderer::camera::CameraMode::ThirdPerson && !state.gui_state.construction_active {
-        let (height, skin, hair, outfit) = me_look();
-        out.push(Person {
-            key: FigureKey::Me,
-            feet: state.camera.position - Vec3::new(0.0, state.controller.eye_height(), 0.0),
-            facing: facing_for_camera_yaw(state.camera.yaw),
-            height,
-            wearer: "player",
-            skin,
-            hair,
-            outfit,
-        });
+        out.push(me(FigureKey::Me, state.camera.position - Vec3::new(0.0, state.controller.eye_height(), 0.0), facing_for_camera_yaw(state.camera.yaw)));
     }
     let world = &state.game_world.world;
     for (_e, (t, r)) in world.query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemotePlayer)>().iter() {
@@ -425,10 +450,12 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             key: FigureKey::Player(r.player_id),
             feet: t.position - Vec3::new(0.0, humanity_core::ecs::components::EYE_HEIGHT_M as f32, 0.0),
             facing: facing_for_camera_yaw(yaw),
-            height: r.look.map_or(1.0, |l| l.height),
+            height: r.look.as_ref().map_or(1.0, |l| l.height),
             wearer: "player",
-            skin: r.look.map(|l| l.skin),
-            hair: r.look.map(|l| l.hair),
+            body: r.look.as_ref().map(|l| l.body.clone()),
+            skin: r.look.as_ref().map(|l| l.skin),
+            hair: r.look.as_ref().map(|l| l.hair),
+            eyes: None,
             outfit: None,
         });
     }
@@ -439,15 +466,17 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             facing: facing_of_turn(t.rotation),
             height: 1.0,
             wearer: "crew",
+            body: None,
             skin: None,
             hair: None,
+            eyes: None,
             outfit: None,
         });
     }
     let clock = state.animation.clock;
     for (i, c) in state.animation.crowd.iter().enumerate() {
         let (feet, facing) = crowd_place(c, clock);
-        out.push(Person { key: FigureKey::Crowd(i as u32), feet, facing, height: 1.0, wearer: "crew", skin: None, hair: None, outfit: None });
+        out.push(Person { key: FigureKey::Crowd(i as u32), feet, facing, height: 1.0, wearer: "crew", body: None, skin: None, hair: None, eyes: None, outfit: None });
     }
     out
 }
@@ -478,6 +507,17 @@ fn draw_crowd_boxes(state: &mut EngineState, all_objects: &mut Vec<RenderObject>
             let mesh = if p.part == crate::engine::net_route::FigurePart::Body { body } else { head };
             all_objects.push(RenderObject { fade: 0.0, position: p.at, rotation: p.rotation, scale: p.scale, mesh, material: mat });
         }
+    }
+}
+
+/// How much longer a person's stride is than their body's unshaped one: their uniform scale times
+/// how much higher their reshaped hips stand (the legs' length, as the retargeter measures it).
+pub(crate) fn stride_scale(shaped: &humanity_animation::Skeleton, base: &humanity_animation::Skeleton, humanoid: &humanity_animation::HumanoidDef, scale: f32) -> f32 {
+    let s = scale * shaped.hips_height(humanoid) / base.hips_height(humanoid);
+    if s.is_finite() && s > 0.05 {
+        s
+    } else {
+        1.0
     }
 }
 
@@ -516,33 +556,61 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
     let rt = &mut state.animation;
     let renderer = &mut state.renderer;
     let lib = rt.lib.as_ref().expect("draws_bodies checked it");
-    let body = rt.body.expect("draws_bodies checked it");
     let distances: Vec<f32> = people.iter().map(|p| (p.feet + Vec3::Y - cam).length()).collect();
     let tier = tiers::assign(&distances, &lib.characters.tiers);
     renderer.skin_begin_frame();
     let vs_ready = renderer.skin_middle_ready();
-    let mut report = Report { people: people.len(), body: lib.body.id.clone(), ..Default::default() };
-    let mut slot = 0usize;
+    let mut report = Report { people: people.len(), body: rt.report.body.clone(), ..Default::default() };
+    // Near places are numbered per body, so a place keeps the body it was made for.
+    let mut slots = vec![0usize; lib.bodies.len()];
+    let mut fallback_used = 0usize;
+    let reuse = humanity_core::reuse::enabled();
     for (i, p) in people.iter().enumerate() {
-        let fig = rt.figures.entry(p.key).or_insert_with(|| {
-            let s = stagger(p.key);
-            Figure { animator: Animator::with_offset(&lib.graph, s, s * 4.0), motion: MotionTracker::default(), seen: 0 }
+        let hash = stagger(p.key);
+        let bi = if rt.fallback_only {
+            lib.body_index(&lib.characters.fallback).unwrap_or(0)
+        } else {
+            lib.body_for(p.body.as_deref(), p.wearer, hash)
+        };
+        let body = &lib.bodies[bi];
+        let gpu_body = rt.gpu_bodies[bi];
+        // The look's height through the body's height targets, the rest as a scale.
+        let (weights, scale) = body.shape_for(p.height);
+        let fig = rt.figures.entry(p.key).or_insert_with(|| Figure {
+            animator: Animator::with_offset(&lib.graph, hash, hash * 4.0),
+            motion: MotionTracker::default(),
+            seen: 0,
+            shape: None,
         });
         fig.seen = rt.frame;
-        let input = fig.motion.observe(p.feet, p.facing, dt, lib.graph.smoothing_s, lib.graph.teleport_mps);
-        fig.animator.update(&lib.graph, &lib.clips, &lib.skeleton, &lib.humanoid, &input, dt, &mut rt.pose);
-        pose::model_matrices(&lib.skeleton, &rt.pose, &mut rt.model);
+        let Figure { animator, motion, shape, .. } = fig;
+        let kept = reuse && shape.as_ref().is_some_and(|(b, w, _)| *b == bi && *w == weights);
+        if !kept {
+            *shape = body.reshaped(&weights).map(|s| (bi, weights.clone(), s));
+        }
+        let skel = shape.as_ref().map_or(&body.skeleton, |(_, _, s)| s);
+        if shape.is_some() {
+            report.shaped += 1;
+        }
+        let input = motion.observe(p.feet, p.facing, dt, lib.graph.smoothing_s, lib.graph.teleport_mps);
+        // The graph and its stride warping read speed in the body's own size: a body scaled or
+        // reshaped longer in the leg covers more ground a stride, so its clips (whose speeds are for
+        // the unshaped body) play slower for the same speed and the feet keep still.
+        let stride = stride_scale(skel, &body.skeleton, &lib.humanoid, scale);
+        let input = humanity_animation::LocomotionInput { speed: input.speed / stride, side: input.side / stride, ..input };
+        animator.update(&lib.graph, &body.clips, skel, &lib.humanoid, &input, dt, &mut rt.pose);
+        pose::model_matrices(skel, &rt.pose, &mut rt.model);
         rt.rows.clear();
-        pose::palette_rows(&lib.skeleton, &rt.model, &mut rt.rows);
-        let scale = lib.scale_for(p.height);
+        pose::palette_rows(skel, &rt.model, &mut rt.rows);
         let rotation = Quat::from_rotation_y(p.facing);
         let world = Mat4::from_scale_rotation_translation(Vec3::splat(scale), rotation, p.feet);
-        let index = renderer.skin_push_palette(pose::affine_rows(&world), &rt.rows);
-        let materials: Vec<usize> = lib
+        let morph = pose::morph_rows(&weights, body.model.vertex_count() as u32);
+        let index = renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rt.rows);
+        let materials: Vec<usize> = body
             .primitive_regions
             .iter()
             .map(|&r| {
-                let region = &lib.body.regions[r];
+                let region = &body.def.regions[r];
                 let c = region_colour(lib, &region.tint, p);
                 let q = |x: f32| (x.clamp(0.0, 1.0) * 63.0).round() as u8;
                 let key = [q(c[0]), q(c[1]), q(c[2]), q(region.roughness)];
@@ -551,22 +619,23 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
                 })
             })
             .collect();
-        let near = tier[i] == DrawTier::Near || (!vs_ready && slot < COMPUTE_FALLBACK_CAP);
+        let near = tier[i] == DrawTier::Near || (!vs_ready && fallback_used < COMPUTE_FALLBACK_CAP);
         if near {
             if tier[i] == DrawTier::Near {
                 report.near += 1;
             } else {
                 report.fallback += 1;
+                fallback_used += 1;
             }
-            let meshes = renderer.skin_near(body, slot, index);
-            slot += 1;
+            let meshes = renderer.skin_near(gpu_body, slots[bi], index);
+            slots[bi] += 1;
             for (mesh, material) in meshes.into_iter().zip(materials.iter().copied()) {
                 all_objects.push(RenderObject { fade: 0.0, position: p.feet, rotation, scale: Vec3::splat(scale), mesh, material });
             }
         } else if vs_ready {
             report.middle += 1;
             for (region, material) in materials.iter().copied().enumerate() {
-                renderer.skin_middle(body, region, material, index);
+                renderer.skin_middle(gpu_body, region, material, index);
             }
         }
     }

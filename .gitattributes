@@ -59,3 +59,9 @@ tests/fixtures/release/** -text
 # byte with a rebuild. A line-ending rewrite on a Windows checkout would fail both.
 assets/models/simready/** -text
 assets/models/LICENSE-nvidia-simready.md -text
+# The character bodies and clips our converters make (character animation rung 1, 2026-11-09):
+# scripts/gen-makehuman-body.js and scripts/gen-quaternius-clips.js write them, SOURCE.md records
+# their SHA-256, and each --check compares byte for byte. Quaternius's License.txt must stay its
+# exact bytes. A line-ending rewrite on a Windows checkout would break all three.
+assets/models/characters/makehuman/** -text
+assets/models/characters/quaternius_ual/** -text

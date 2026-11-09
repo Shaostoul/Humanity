@@ -1135,10 +1135,10 @@
     {
       "id": "anim-stairs",
       "desc": "The ground hall looking west up the house stair, one stand-in walking up it at 0.9 m/s. Rung 1: the skinned, animated body.",
-      "expect": "A jointed figure in an amber top partway up the stair, walking (legs mid-stride), its feet hovering over or sinking into the treads: rung 2 puts each foot on a tread.",
+      "expect": "A person (a woman or a man, MakeHuman's bodies) in an amber top partway up the stair, walking (legs mid-stride), its feet hovering over or sinking into the treads: rung 2 puts each foot on a tread.",
       "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
       "regressions": [
-        "every figure is a jointed body, never a box",
+        "every figure is a person's body, never a box or the jointed test figure",
         "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
         "panics=0"
       ],
@@ -1190,10 +1190,10 @@
     {
       "id": "anim-ladder",
       "desc": "The ground floor three metres south of the ladder into the lobby hatch, looking north, one stand-in rising up it at 0.6 m/s. Rung 1: the skinned, animated body.",
-      "expect": "A jointed figure rising up the ladder standing upright, its hands not on the rungs: rung 2 adds the climb.",
+      "expect": "A person rising up the ladder standing upright, its hands not on the rungs: rung 2 adds the climb.",
       "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
       "regressions": [
-        "every figure is a jointed body, never a box",
+        "every figure is a person's body, never a box or the jointed test figure",
         "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
         "panics=0"
       ],
@@ -1245,10 +1245,10 @@
     {
       "id": "anim-chair",
       "desc": "The Commons' mess hall from its middle, looking west-north-west, one stand-in walking from the hall's middle to the first table's chair and back at 1.2 m/s. Rung 1: the skinned, animated body.",
-      "expect": "A jointed figure walking toward the first table, standing (not sitting) when it reaches the chair: rung 2 adds sitting.",
+      "expect": "A person walking toward the first table, standing (not sitting) when it reaches the chair: rung 2 adds sitting.",
       "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
       "regressions": [
-        "every figure is a jointed body, never a box",
+        "every figure is a person's body, never a box or the jointed test figure",
         "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
         "panics=0"
       ],
@@ -1300,10 +1300,10 @@
     {
       "id": "anim-crowd-near",
       "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead of the camera at its east end, standing, walking, jogging and running in circles: the near tier (16 compute-skinned) and the middle tier. Rung 1: the skinned, animated body.",
-      "expect": "Fifty jointed figures in amber tops: some standing at idle, some walking, some running, each facing the way it goes, none stepping in unison with its neighbours.",
+      "expect": "Fifty people, women and men, in amber tops: some standing at idle, some walking, some running, each facing the way it goes, none stepping in unison with its neighbours.",
       "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
       "regressions": [
-        "every figure is a jointed body, never a box",
+        "every figure is a person's body, never a box or the jointed test figure",
         "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
         "panics=0"
       ],
@@ -1355,10 +1355,10 @@
     {
       "id": "anim-crowd-middle",
       "desc": "Fifty stand-ins at the mess hall's far end, 18 to 26 m from the camera: every body in the middle tier (vertex-shader skinning). Rung 1: the skinned, animated body.",
-      "expect": "Fifty jointed figures at the far end, moving as in anim-crowd-near, lit like the near world.",
+      "expect": "Fifty people at the far end, moving as in anim-crowd-near, lit like the near world.",
       "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
       "regressions": [
-        "every figure is a jointed body, never a box",
+        "every figure is a person's body, never a box or the jointed test figure",
         "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
         "panics=0"
       ],
@@ -1382,7 +1382,7 @@
     },
     {
       "id": "anim-tp-move",
-      "desc": "Third person at the homestead's front door, the player's own body walking west down the hall (W held: the game's 5 m/s walk, which the run clip plays at 1.4 times its speed).",
+      "desc": "Third person at the homestead's front door, the player's own body walking west down the hall (W held: the Simplified walking pace's 5 m/s walk, mostly Quaternius's jog with a fifth of the sprint; the Realistic pace walks at 1.4, anim-tp-female-walk and anim-tp-male-walk).",
       "expect": "From behind and over the shoulder, the player's body in a teal top mid-stride down the hall, arms swinging against the legs; the camera follows it.",
       "_why": "Character animation rung 1: the player is drawn in third person, and third person now walks the body (renderer/camera.rs: it used to fly a camera with no figure). Moves through the controller's own keys (the `hold` verb), as a player does.",
       "regressions": [
@@ -1415,7 +1415,7 @@
     },
     {
       "id": "anim-tp-gaits",
-      "desc": "Third person standing in the Commons' mess hall looking west down it, three stand-ins ahead: one walking (1.4 m/s) on the right, one running (3.6 m/s) on the left, one turning on the spot (1.6 rad/s) between them.",
+      "desc": "Third person standing in the Commons' mess hall looking west down it, three stand-ins ahead: one walking at the Realistic walk (1.4 m/s) on the right, one running at the Realistic run (4 m/s) on the left, one turning on the spot (1.6 rad/s) between them.",
       "expect": "The player's body from behind in a teal top at idle; ahead in the open hall, amber-topped figures: one walking, one running with a forward lean and high knees, one turning on the spot with short steps.",
       "_why": "Character animation rung 1: walking, running and turning in one frame, in third person. The turn and the two gaits are the state machine's turn and move blend spaces (data/characters/locomotion.ron).",
       "regressions": [
@@ -1444,10 +1444,300 @@
           "figure_path": "77,0,22.6;71,0,22.6;1.4"
         },
         {
-          "figure_path": "78,0,25.6;69,0,25.6;3.6"
+          "figure_path": "78,0,25.6;69,0,25.6;4.0"
         }
       ],
       "final_settle_s": 1
+    },
+    {
+      "id": "anim-tp-female-idle",
+      "desc": "Third person at the homestead's front door, looking west down the hall: the player's own body, the female MakeHuman body, standing still.",
+      "expect": "From behind and over the shoulder, a woman's body in a teal long-sleeved top, dark trousers and dark shoes, short brown hair, standing at idle (weight shifting, arms relaxed at her sides) in the hall.",
+      "_why": "Character animation rung 1, the real body (2026-11-09): MakeHuman's female body (scripts/gen-makehuman-body.js) with Quaternius's idle, retargeted by role. The look's body is set as the character page's chooser sets it (showcase `body`).",
+      "regressions": [
+        "the player's body is drawn in third person, in front of the camera",
+        "it is a person's body (a head with hair, arms, legs), never a box or the jointed test figure",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "body": "female"
+        }
+      ],
+      "final_settle_s": 2
+    },
+    {
+      "id": "anim-tp-female-walk",
+      "desc": "Third person at the homestead's front door, the female body walking west down the hall at the Realistic walking pace (1.4 m/s, W held).",
+      "expect": "From behind, the woman's body mid-stride down the hall at a walk: one foot planted, the other swinging through, arms swinging against the legs; the camera follows her.",
+      "_why": "Character animation rung 1 and the walking pace (2026-11-09): the operator's realistic walk, 1.4 m/s (data/game.csv), played by Quaternius's walk at the rate its feet need (data/characters/locomotion.ron).",
+      "regressions": [
+        "the player's body is drawn in third person, in front of the camera",
+        "it walks (not a run): one foot on the floor at every moment",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "body": "female",
+          "walk_pace": "realistic"
+        },
+        {
+          "hold": "forward",
+          "hold_s": "3"
+        }
+      ],
+      "final_settle_s": 1.2
+    },
+    {
+      "id": "anim-tp-female-run",
+      "desc": "Third person at the homestead's front door, the female body running west down the hall at the Realistic walking pace's run (4 m/s, W and Shift held).",
+      "expect": "From behind, the woman's body running down the hall: a long stride with both feet off the floor for part of it, arms bent and pumping, leaning a little forward.",
+      "_why": "Character animation rung 1 and the walking pace (2026-11-09): the operator's realistic run, about 4 m/s (data/game.csv), played by Quaternius's jog slowed to that speed.",
+      "regressions": [
+        "the player's body is drawn in third person, in front of the camera",
+        "it runs: the arms bent and pumping, a long stride",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "body": "female",
+          "walk_pace": "realistic"
+        },
+        {
+          "hold": "forward,sprint",
+          "hold_s": "3"
+        }
+      ],
+      "final_settle_s": 1.2
+    },
+    {
+      "id": "anim-tp-male-idle",
+      "desc": "Third person at the homestead's front door, looking west down the hall: the player's own body, the male MakeHuman body, standing still.",
+      "expect": "From behind and over the shoulder, a man's body (broader shoulders, taller than the female body) in a teal long-sleeved top, dark trousers and dark shoes, short brown hair, standing at idle in the hall.",
+      "_why": "Character animation rung 1, the real body (2026-11-09): MakeHuman's male body with Quaternius's idle, retargeted by role (showcase `body`).",
+      "regressions": [
+        "the player's body is drawn in third person, in front of the camera",
+        "it is a person's body (a head with hair, arms, legs), never a box or the jointed test figure",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "body": "male"
+        }
+      ],
+      "final_settle_s": 2
+    },
+    {
+      "id": "anim-tp-male-walk",
+      "desc": "Third person at the homestead's front door, the male body walking west down the hall at the Realistic walking pace (1.4 m/s, W held).",
+      "expect": "From behind, the man's body mid-stride down the hall at a walk: one foot planted, the other swinging through, arms swinging against the legs.",
+      "_why": "Character animation rung 1 and the walking pace (2026-11-09): the realistic walk on the male body.",
+      "regressions": [
+        "the player's body is drawn in third person, in front of the camera",
+        "it walks (not a run): one foot on the floor at every moment",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "body": "male",
+          "walk_pace": "realistic"
+        },
+        {
+          "hold": "forward",
+          "hold_s": "3"
+        }
+      ],
+      "final_settle_s": 1.2
+    },
+    {
+      "id": "anim-tp-male-run",
+      "desc": "Third person at the homestead's front door, the male body running west down the hall at the Realistic walking pace's run (4 m/s, W and Shift held).",
+      "expect": "From behind, the man's body running down the hall: a long stride, arms bent and pumping, leaning a little forward.",
+      "_why": "Character animation rung 1 and the walking pace (2026-11-09): the realistic run on the male body.",
+      "regressions": [
+        "the player's body is drawn in third person, in front of the camera",
+        "it runs: the arms bent and pumping, a long stride",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "body": "male",
+          "walk_pace": "realistic"
+        },
+        {
+          "hold": "forward,sprint",
+          "hold_s": "3"
+        }
+      ],
+      "final_settle_s": 1.2
+    },
+    {
+      "id": "anim-chair-figure",
+      "desc": "The Commons' mess hall from its middle, one stand-in walking to the first table's chair and back at 1.2 m/s, drawn with the procedural test figure: the rung 1 body, the third arm of the same-boot comparison beside anim-chair (MakeHuman) and anim-chair-boxes.",
+      "expect": "A jointed test figure (tapered limbs, a capped head) in an amber top walking toward the first table.",
+      "_why": "Character animation rung 1, the real bodies (2026-11-09): the costs of MakeHuman's body (15,434 vertices, 56 joints, shape targets) against the test figure's (1,517 vertices, 24 joints) in one boot (showcase figures test_figure draws everyone with characters.ron's fallback body).",
+      "regressions": [
+        "every figure is the jointed test figure, never a box",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "74,1.6,26.5,-0.897,-0.105",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figures": "test_figure",
+          "figure_path": "73,0,25.5;70.5,0,23.3;1.2"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-crowd-near-figure",
+      "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead (16 near, the rest middle), drawn with the procedural test figure: the third arm of the same-boot comparison beside anim-crowd-near (MakeHuman) and anim-crowd-near-boxes.",
+      "expect": "Fifty jointed test figures in amber tops, standing, walking and running in circles.",
+      "_why": "Character animation rung 1, the real bodies (2026-11-09): MakeHuman's body against the test figure, same scene, same boot (showcase figures test_figure).",
+      "regressions": [
+        "every figure is the jointed test figure, never a box",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figures": "test_figure",
+          "crowd": "50,3.5,-1,0,10"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-crowd-middle-figure",
+      "desc": "Fifty stand-ins at the mess hall's far end, 18 to 26 m away (all middle, vertex-shader skinning), drawn with the procedural test figure: the third arm of the same-boot comparison beside anim-crowd-middle (MakeHuman) and anim-crowd-middle-boxes.",
+      "expect": "Fifty jointed test figures at the far end of the hall.",
+      "_why": "Character animation rung 1, the real bodies (2026-11-09): MakeHuman's body against the test figure in the middle tier, same boot (showcase figures test_figure).",
+      "regressions": [
+        "every figure is the jointed test figure, never a box",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figures": "test_figure",
+          "crowd": "50,3.5,-1,0,22"
+        }
+      ],
+      "final_settle_s": 4
     },
     {
       "id": "mess-hall-counter",

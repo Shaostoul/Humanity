@@ -927,6 +927,12 @@ pub struct AppConfig {
     /// Held in GuiState as `settings.carry_realistic`.
     #[serde(default)]
     pub carry_realistic: bool,
+    /// Walking pace (2026-11-09, the operator's decision; engine::walk_pace): false is Simplified
+    /// (a 5 m/s walk and a 9.5 m/s sprint, the game's pace before then), true is Realistic (a
+    /// 1.4 m/s walk and a 4 m/s run); the speeds are data/game.csv's. Simplified by default, the house
+    /// rule for deep systems. Held in GuiState as `settings.walk_realistic`.
+    #[serde(default)]
+    pub walk_realistic: bool,
     /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
     /// content's main colour per marker), true is Full (the scheme's whole marker: main,
     /// additional, main for ISO 14726). Simplified by default, the house rule for deep systems.
@@ -1733,6 +1739,7 @@ impl AppConfig {
             illness_realistic: state.settings.illness_realistic,
             animal_care_realistic: state.settings.animal_care_realistic,
             carry_realistic: state.settings.carry_realistic,
+            walk_realistic: state.settings.walk_realistic,
             pipe_marking_full: state.settings.pipe_marking_full,
             death_realistic: state.settings.death_realistic,
             drone_realistic: state.settings.drone_realistic,
@@ -2089,6 +2096,7 @@ impl AppConfig {
         state.settings.illness_realistic = self.illness_realistic;
         state.settings.animal_care_realistic = self.animal_care_realistic;
         state.settings.carry_realistic = self.carry_realistic;
+        state.settings.walk_realistic = self.walk_realistic;
         state.settings.pipe_marking_full = self.pipe_marking_full;
         state.settings.death_realistic = self.death_realistic;
         state.settings.drone_realistic = self.drone_realistic;
@@ -2720,6 +2728,30 @@ mod play_mode_tests {
         back.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.carry_realistic, "Realistic carrying stays chosen after a restart");
         assert!(fresh.settings.body_heat_realistic, "Realistic body heat stays chosen after a restart");
+    }
+
+    /// The walking pace (2026-11-09) starts Simplified, a chosen Realistic survives a save and a
+    /// load through the GUI state, the JSON and back, and a settings file written before the switch
+    /// existed (no `walk_realistic` in it) loads as Simplified rather than failing.
+    /// Seen red 2026-11-09 with `from_gui_state` writing `walk_realistic: false`: "the walking pace
+    /// is written" (the JSON held `"walk_realistic":false`); and, with `#[serde(default)]` taken off
+    /// the field, the old-shape file refused: "missing field `walk_realistic`".
+    #[test]
+    fn the_walking_pace_survives_a_save_and_a_load_and_an_old_file_reads() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.walk_realistic, "the walking pace starts Simplified");
+        state.settings.walk_realistic = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"walk_realistic\":true"), "the walking pace is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.walk_realistic, "Realistic walking stays chosen after a restart");
+        // The old shape: the same file without the field.
+        let mut old: serde_json::Value = serde_json::from_str(&json).unwrap();
+        old.as_object_mut().unwrap().remove("walk_realistic");
+        let read: AppConfig = serde_json::from_value(old).expect("a settings file from before the switch reads");
+        assert!(!read.walk_realistic, "and walks at the Simplified pace");
     }
 
     /// The Illness mode (BUG-162, 2026-10-05) starts Forgiving and a chosen Realistic survives

@@ -3,12 +3,15 @@
 ## What it is for
 
 Character animation, as plain Rust (docs/design/character-animation.md; rungs 0 and 1 built
-2026-11-08). It holds the humanoid skeleton standard (VRM 1.0's bone names as roles, mapped from any
-rig by a role map in `data/characters/role_maps/`), poses and the pose palette the GPU skins with,
-clips sampled from imported keys and retargeted onto a body by role, the joint map that reads
+2026-11-08, the real bodies and clips 2026-11-09). It holds the humanoid skeleton standard (VRM 1.0's
+bone names as roles, mapped from any rig by a role map in `data/characters/role_maps/`), poses and
+the pose palette the GPU skins with (with its morph block: which shape targets a body draws with),
+clips sampled from imported keys and retargeted onto every body by role, the joint map that reads
 MakeHuman's skeleton across onto SOMA's 30 joints, blend spaces and the locomotion state machine,
-the motion tracker that reads speed and turn rate from positions, and the near and middle drawing
-tiers. It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
+the motion tracker that reads speed and turn rate from positions, the near and middle drawing
+tiers, and the bodies themselves (a female and a male MakeHuman body and the test figure as the
+fallback), each with the shape targets the look drives and a skeleton that follows them
+(`Skeleton::reshaped`). It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
 reads glTF into `humanity_core::skin_data` and draws the palettes), so every test runs headless, and
 because animation never reaches the server: the relay build never compiles it (the operator,
 2026-11-08: "a new crate, humanity-animation: yes").
@@ -65,9 +68,16 @@ All 9 items shown.
   Source: character-animation.md 3.3.
 - **Poses never cross the network.** Remote bodies are animated from their interpolated positions.
   Source: character-animation.md 8.5.
-- **The palette layout is shared with two shaders**: three `vec4` rows per matrix
-  (`pose::PALETTE_ROWS_PER_JOINT`), read by `assets/shaders/skinning.wgsl` and
-  `assets/shaders/skinning_vs.wgsl`; change all three together.
+- **The palette layout is shared with two shaders and the renderer**: three `vec4` rows per matrix
+  (`pose::PALETTE_ROWS_PER_JOINT`), and per body its model matrix, then the morph block
+  (`pose::MORPH_SLOTS` matrices: the active shape targets and their weights), then its joints; read
+  by `assets/shaders/skinning.wgsl`, `assets/shaders/skinning_vs.wgsl` and written as
+  `renderer::skinning::MORPH_SLOTS` (that module compiles in the relay build, which has no animation
+  crate; `engine::animation`'s tests hold the two equal). Change all of them together.
+- **A clip's hips travel is an offset from the rest, and its speed is the body's.** Retargeting
+  scales a gait's `speed_mps` by the body's leg length against the source's, and the engine divides
+  a person's speed by their own stride scale (shape and size) before the graph reads it, so the
+  feet keep still on every body. Source: 2026-11-09, the first real clips on two bodies.
 
 ## How to test it
 
@@ -88,6 +98,15 @@ All 9 items shown.
   `HUMANITY_FRAME_COSTS=1` for `cpu.animation`, `cpu.skinning` and `gpu.skinning`.
 - **The test figure itself:** `node scripts/gen-test-figure.js --check` (in `just rig-tests`) fails
   when the committed glTF files differ from what the generator makes.
+- **The real bodies and clips:** `node scripts/gen-makehuman-body.js --check` and
+  `node scripts/gen-quaternius-clips.js --check` (both in `just rig-tests`) rebuild them from the
+  sources on `E:\HumanityOS\` and compare byte for byte, or, where the sources are not on the machine,
+  compare the files with the hashes their `SOURCE.md` records. `--preview DIR` on the body converter
+  renders front, side, back and head views to PNG without a boot.
+- **The engine's MakeHuman tests** (`src/engine/animation_tests.rs`): both bodies skin to their
+  bind mesh at rest and stay whole in every gait and stance; a look's height reshapes the body and
+  its skeleton follows (the reshaped mesh skins onto itself at rest); the morph block and morph
+  buffer are laid out as the shaders read them.
 
 ## Open work
 
@@ -95,10 +114,12 @@ All 9 items shown.
   locking, crouch, interaction anchors with motion warping, two grip sockets (the `sockets` rows of
   `humanoid.ron` are ready), true first person, and the network's stance, pitch and interaction
   fields.
-- **The real body and clips**: MakeHuman's CC0 base mesh and skeleton and Quaternius's clips, once
-  the operator says yes to each download (docs/reference/findings/2026-11-08-character-assets.md
-  lists the files and the Quaternius licence question). The role maps `makehuman_default` and
-  `soma_30` are written; the body file and its shape targets come with the download.
+- **Clips for the stances the graph cannot reach yet**: crouch, jump and sit are retargeted
+  (`clips.ron`) but no state plays them until rung 2's stance and interaction inputs.
+- **Twist joints on the MakeHuman bodies**: MakeHuman's arm and leg twist segments are chained
+  (`lowerarm02` is the wrist's parent), not siblings of the driver as `apply_twists` expects, so the
+  converter merges them for now; a chained twist (or the converter keeping them as siblings) is the
+  skinning-quality step after rung 2.
 - **Middle bodies cast no sun shadow** (rung 1's vertex-shader path draws only in the scene pass);
   rung 4's instanced crowd skinning adds a skinned shadow PSO.
 - **Middle-tier pose evaluation at 15 Hz with sharing**, and the far tier's baked animation: rung 4.
