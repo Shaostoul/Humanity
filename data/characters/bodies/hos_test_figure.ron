@@ -1,0 +1,30 @@
+// THE TEST FIGURE: a procedural jointed body on the humanoid skeleton, made by
+// scripts/gen-test-figure.js (character animation rung 1, 2026-11-08). It stands in until the real
+// body is downloaded with the operator's yes (MakeHuman's CC0 base mesh is the recommended default:
+// docs/design/character-animation.md section 2.3), and it stays as the body the tests and rigs
+// prove skinning, retargeting and the state machine with. Our own work: no credit needed.
+//
+// Its bones are named the way Blender's rigs name them (pelvis, thigh.L, forearm.L ...), not by the
+// standard's roles, so its role map (role_maps/hos_test_figure.ron) is exercised like any other rig's.
+(
+    id: "hos_test_figure",
+    description: "A procedural jointed figure: tapered limbs, a torso, a head with a cap of hair, separate hands and shoes.",
+    model: "assets/models/characters/hos_test_figure/hos_test_figure.gltf",
+    role_map: "hos_test_figure",
+    skeleton: "humanoid",
+    // Standing height at look height 1.0 (the top of the hair), metres: the eye then sits near the
+    // camera's 1.7 m eye height, so a player's figure looks out of the eye the others see.
+    height_m: 1.81,
+    credit: None,
+    // Each glTF material, the tint it takes and how matte it reads. Slots are the cosmetic slots
+    // (data/cosmetics/cosmetics.csv): an equipped item's colour, or the wearer's default
+    // (characters.ron) when nothing is equipped.
+    regions: [
+        (material: "skin", tint: Skin, roughness: 0.62),
+        (material: "hair", tint: Slot("head"), roughness: 0.85),
+        (material: "shirt", tint: Slot("chest"), roughness: 0.78),
+        (material: "trousers", tint: Slot("legs"), roughness: 0.82),
+        (material: "shoes", tint: Slot("feet"), roughness: 0.55),
+        (material: "hands", tint: Slot("hands"), roughness: 0.62),
+    ],
+)

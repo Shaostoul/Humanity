@@ -1,0 +1,64 @@
+// THE LOCOMOTION STATE MACHINE (character animation rung 1, 2026-11-08;
+// docs/design/character-animation.md sections 7 and 8.6; read by crates/humanity-animation/src/graph.rs).
+//
+// The simplified mode's solver, and the first rung's only one: states that each blend a few clips
+// along one input, and transitions between them. Rung 3's motion matching replaces it in the full
+// realism mode and leaves it as the simplified mode for good. Every body plays it: the player in
+// third person, the other players (their speed read from their interpolated positions, nothing new
+// sent) and the crew.
+//
+// Inputs (crates/humanity-animation/src/motion.rs reads them from where the body went):
+//   Speed     metres a second along the way the body faces, negative walking backwards
+//   TurnRate  radians a second, positive turning left (counter-clockwise seen from above)
+//
+// A state is a 1D blend space: `samples` place clips (ids in data/characters/clips.ron) at points
+// along its input, and the body plays the two around its input, weighted. `sync` plays them on one
+// shared stride phase (a walk and a run blended put the same foot down together); `stride` plays
+// them faster or slower so the clip's own speed (its `speed_mps`) matches the body's, within
+// min_rate..max_rate, and backwards when the body walks backwards.
+//
+// Transitions are checked in order from the current state ("*" = any); the first whose conditions
+// all hold crossfades to its state over blend_s seconds.
+(
+    id: "humanoid_locomotion",
+    initial: "idle",
+    // How fast the inputs follow the body's real motion: long enough that another player's 15
+    // position updates a second read as one smooth speed, short enough that a stop reads at once.
+    smoothing_s: 0.18,
+    // Faster than this (m/s) is a teleport, not a stride: a sprint is about 9 m/s.
+    teleport_mps: 14.0,
+    states: [
+        (
+            id: "idle",
+            param: Speed,
+            samples: [(at: 0.0, clip: "idle")],
+        ),
+        (
+            // Turning on the spot: the turn steps, left at positive rates.
+            id: "turn",
+            param: TurnRate,
+            samples: [
+                (at: -2.5, clip: "turn_right"),
+                (at: 0.0, clip: "idle"),
+                (at: 2.5, clip: "turn_left"),
+            ],
+        ),
+        (
+            // Walking and running: one stride phase, played at the body's own speed.
+            id: "move",
+            param: Speed,
+            samples: [
+                (at: 1.4, clip: "walk"),
+                (at: 3.6, clip: "run"),
+            ],
+            sync: true,
+            stride: Some((min_rate: 0.55, max_rate: 1.6)),
+        ),
+    ],
+    transitions: [
+        (from: ["idle", "turn"], to: "move", when: [(param: Speed, test: AbsAbove, value: 0.3)], blend_s: 0.25),
+        (from: ["move"], to: "idle", when: [(param: Speed, test: AbsBelow, value: 0.15)], blend_s: 0.3),
+        (from: ["idle"], to: "turn", when: [(param: TurnRate, test: AbsAbove, value: 0.7)], blend_s: 0.2),
+        (from: ["turn"], to: "idle", when: [(param: TurnRate, test: AbsBelow, value: 0.35)], blend_s: 0.25),
+    ],
+)

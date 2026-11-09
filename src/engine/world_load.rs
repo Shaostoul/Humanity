@@ -25,6 +25,16 @@ pub(crate) fn place_avatar(
     app: &humanity_core::ecs::components::Appearance,
     colors: &humanity_core::cosmetics::OutfitColors,
 ) {
+    // Since character animation rung 1 (2026-11-08) the showroom figure is the skinned body, drawn
+    // every frame by engine/animation.rs with the look and outfit applied; only the podium is placed
+    // here. The boxes below stand in when the character data did not load.
+    crate::engine::animation::ensure_loaded(state);
+    if state.animation.draws_bodies() {
+        let pm = state.renderer.add_mesh(Mesh::cylinder_capped(&state.renderer.device, 0.5, 0.15, 24));
+        let pmat = state.renderer.add_material_typed([0.45, 0.47, 0.50, 1.0], 0.3, 0.5, 0.0);
+        state.placeholder_objects.push((pm, pmat, base));
+        return;
+    }
     let s = app.height_scale.clamp(0.5, 2.0);
     let skin = [app.skin_tone[0], app.skin_tone[1], app.skin_tone[2], 1.0];
     let rgba = |c: [f32; 3]| [c[0], c[1], c[2], 1.0];

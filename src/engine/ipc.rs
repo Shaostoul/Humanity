@@ -912,6 +912,60 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             None => log::warn!("Showcase: walk_to wants \"x,y,z,yaw,pitch,speed\" with a speed above 0, not {spec:?}"),
         }
     }
+    // THE CHARACTER VERBS (character animation rungs 0 and 1, 2026-11-08; engine/animation.rs).
+    // Permanent dev tooling: the rigs measure bodies with them, without a relay full of people.
+    // {"crowd":"N,radius,speed,turn,ahead"}: N stand-ins on rings of up to `radius` m around the
+    // point `ahead` m in front of the feet under the camera, walking circles at `speed` m/s
+    // (below 0: a mix of standing, walking, jogging and running; 0 with `turn` rad/s: turning on
+    // the spot). {"crowd":"0"} clears them (the rigs' release between vantages).
+    if let Some(spec) = grab("crowd") {
+        let ahead = spec.split(',').nth(4).and_then(|s| s.trim().parse::<f32>().ok()).unwrap_or(0.0);
+        let feet = state.camera.position - Vec3::new(0.0, state.controller.eye_height(), 0.0);
+        let origin = feet + state.camera.forward_xz() * ahead;
+        match crate::engine::animation::parse_crowd(&spec, origin) {
+            Some(mut c) => {
+                log::info!("Showcase: crowd -> {} stand-ins around {origin:?}", c.len());
+                let now = state.animation.clock();
+                c.iter_mut().for_each(|f| f.born = now);
+                state.animation.crowd = c;
+            }
+            None => log::warn!("Showcase: crowd wants \"N[,radius,speed,turn,ahead]\" (N up to 2000), not {spec:?}"),
+        }
+    }
+    // {"figure_path":"x,y,z;x,y,z;...;speed"}: one more stand-in walking that path back and forth
+    // (rung 0's vantages: a figure on the stairs, up the ladder, to a chair).
+    if let Some(spec) = grab("figure_path") {
+        match crate::engine::animation::parse_path(&spec) {
+            Some(mut f) => {
+                log::info!("Showcase: figure_path -> a stand-in walking {:?}", f.motion);
+                f.born = state.animation.clock();
+                state.animation.crowd.push(f);
+            }
+            None => log::warn!("Showcase: figure_path wants \"x,y,z;x,y,z;...;speed\" (two points or more, speed above 0), not {spec:?}"),
+        }
+    }
+    // {"figures":"boxes"} / {"figures":"bodies"}: the same-boot A/B of the old box figures against
+    // the skinned bodies (rung 0's baseline beside rung 1).
+    if let Some(v) = grab("figures") {
+        state.animation.bodies_on = v != "boxes";
+        log::info!("Showcase: figures -> {}", if state.animation.bodies_on { "skinned bodies" } else { "box figures" });
+    }
+    // {"camera_mode":"third"} / {"camera_mode":"first"}: the camera the V key toggles; third person
+    // walks the same body with the camera behind it (rung 1).
+    if let Some(v) = grab("camera_mode") {
+        let mode = match v.as_str() {
+            "third" => Some(crate::renderer::camera::CameraMode::ThirdPerson),
+            "first" => Some(crate::renderer::camera::CameraMode::FirstPerson),
+            _ => None,
+        };
+        match mode {
+            Some(m) => {
+                state.camera.switch_mode(m);
+                log::info!("Showcase: camera_mode -> {m:?}");
+            }
+            None => log::warn!("Showcase: camera_mode wants \"first\" or \"third\", not {v:?}"),
+        }
+    }
     // {"build_editor":"1"} / {"build_editor":"0"} (2026-10-04, ship homes 1b, round 5): open or
     // shut the construction editor the way the B key does (engine/editor.rs
     // `toggle_build_editor`, under the B key's own conditions: the world view, no showroom).

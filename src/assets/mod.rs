@@ -11,6 +11,11 @@ pub mod loader;
 /// Comment-preserving single-field RON value rewriter (Planet Tuner enabler,
 /// docs/design/artificial-planet.md). Pure std, ungated on purpose.
 pub mod ron_edit;
+/// glTF skins: every primitive drawn with a file's skin, its joints, weights and animations, as
+/// the plain data the animation crate builds characters from (character animation rung 1,
+/// 2026-11-08, docs/design/character-animation.md section 2.2).
+#[cfg(feature = "native")]
+pub mod skin;
 
 use std::collections::HashMap;
 use std::any::Any;

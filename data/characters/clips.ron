@@ -1,0 +1,27 @@
+// CLIPS: every animation a body can play (character animation rung 1, 2026-11-08;
+// docs/design/character-animation.md section 9; read by crates/humanity-animation/src/library.rs).
+//
+// Each clip is an animation inside a skinned glTF, made on a rig named by its role map
+// (data/characters/role_maps/). At load every clip is retargeted by role onto the body in
+// characters.ron, in memory, at clip_fps; nothing is written back. A new clip is a row.
+//
+//   id         what the locomotion graph (locomotion.ron) calls it
+//   file       the glTF, relative to the data folder or the repo root
+//   animation  the animation's name inside the file
+//   role_map   the rig it was made on
+//   looped     plays round and round
+//   speed_mps  metres a second its gait covers at its own speed (0 for clips that stand still): the
+//              blend space plays it faster or slower to match the body's real speed
+//   tags       what it is, for tools and later rungs
+//   credit     its id in data/credits.ron when its licence asks for a credit (CC BY); None for our
+//              own work and CC0
+//
+// Until the operator says yes to downloading Quaternius's Universal Animation Library (CC0), these
+// are the procedural test clips made by scripts/gen-test-figure.js, our own work.
+[
+    (id: "idle", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "idle", role_map: "hos_test_clips", looped: true, speed_mps: 0.0, tags: ["locomotion", "stand"], credit: None),
+    (id: "walk", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "walk", role_map: "hos_test_clips", looped: true, speed_mps: 1.4, tags: ["locomotion", "gait"], credit: None),
+    (id: "run", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "run", role_map: "hos_test_clips", looped: true, speed_mps: 3.6, tags: ["locomotion", "gait"], credit: None),
+    (id: "turn_left", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "turn_left", role_map: "hos_test_clips", looped: true, speed_mps: 0.0, tags: ["locomotion", "turn"], credit: None),
+    (id: "turn_right", file: "assets/models/characters/hos_test_clips/hos_test_clips.gltf", animation: "turn_right", role_map: "hos_test_clips", looped: true, speed_mps: 0.0, tags: ["locomotion", "turn"], credit: None),
+]

@@ -1,0 +1,80 @@
+// MAKEHUMAN'S DEFAULT SKELETON (CC0), as roles: the rig of the body the operator chose on 2026-11-08
+// ("That sounds reasonable. Save us a lot of effort instead of doing it ourselves."). Read by
+// crates/humanity-animation/src/role_map.rs. Not used until the body is downloaded with the
+// operator's yes (docs/reference/findings/2026-11-08-character-assets.md has the file list).
+//
+// Source of the bone names and parents: makehuman/data/rigs/default.mhskel in
+// https://github.com/makehumancommunity/makehuman (last commit 83e03219, 2020-10-31; the file's own
+// "license": "CC0"), read 2026-11-08: 163 bones under "root". This map names the ones a humanoid role
+// fits; the rest (the extra spine and neck segments, the in-chain arm and leg segments, the hand's
+// metacarpals, the four smaller toes, the breasts and the face) keep their rest pose under whatever
+// their parent does, and the face is rung 9's.
+//
+// JUDGEMENTS TO CHECK AGAINST THE MESH when it arrives (each is a pick between neighbouring bones):
+//   spine05 / spine03 / spine01 as spine / chest / upperChest (of spine05 to spine01, bottom to top),
+//   neck01 / neck03 as neck / upperNeck, upperarm01 and lowerarm01 as the arm (upperarm02 and
+//   lowerarm02 are in-chain twist segments, left at rest), upperleg01 and lowerleg01 likewise, and
+//   toe3-1 (the middle toe's base) as the toes, so the foot's aim runs down its middle.
+(
+    id: "makehuman_default",
+    description: "MakeHuman 1.x default skeleton (default.mhskel, 163 bones, CC0).",
+    facing_yaw_deg: 0.0,
+    bones: {
+        "root": "hips",
+        "spine05": "spine",
+        "spine03": "chest",
+        "spine01": "upperChest",
+        "neck01": "neck",
+        "neck03": "upperNeck",
+        "head": "head",
+        "jaw": "jaw",
+        "eye.L": "leftEye",
+        "eye.R": "rightEye",
+        "clavicle.L": "leftShoulder",
+        "upperarm01.L": "leftUpperArm",
+        "lowerarm01.L": "leftLowerArm",
+        "wrist.L": "leftHand",
+        "finger1-1.L": "leftThumbMetacarpal",
+        "finger1-2.L": "leftThumbProximal",
+        "finger1-3.L": "leftThumbDistal",
+        "finger2-1.L": "leftIndexProximal",
+        "finger2-2.L": "leftIndexIntermediate",
+        "finger2-3.L": "leftIndexDistal",
+        "finger3-1.L": "leftMiddleProximal",
+        "finger3-2.L": "leftMiddleIntermediate",
+        "finger3-3.L": "leftMiddleDistal",
+        "finger4-1.L": "leftRingProximal",
+        "finger4-2.L": "leftRingIntermediate",
+        "finger4-3.L": "leftRingDistal",
+        "finger5-1.L": "leftLittleProximal",
+        "finger5-2.L": "leftLittleIntermediate",
+        "finger5-3.L": "leftLittleDistal",
+        "upperleg01.L": "leftUpperLeg",
+        "lowerleg01.L": "leftLowerLeg",
+        "foot.L": "leftFoot",
+        "toe3-1.L": "leftToes",
+        "clavicle.R": "rightShoulder",
+        "upperarm01.R": "rightUpperArm",
+        "lowerarm01.R": "rightLowerArm",
+        "wrist.R": "rightHand",
+        "finger1-1.R": "rightThumbMetacarpal",
+        "finger1-2.R": "rightThumbProximal",
+        "finger1-3.R": "rightThumbDistal",
+        "finger2-1.R": "rightIndexProximal",
+        "finger2-2.R": "rightIndexIntermediate",
+        "finger2-3.R": "rightIndexDistal",
+        "finger3-1.R": "rightMiddleProximal",
+        "finger3-2.R": "rightMiddleIntermediate",
+        "finger3-3.R": "rightMiddleDistal",
+        "finger4-1.R": "rightRingProximal",
+        "finger4-2.R": "rightRingIntermediate",
+        "finger4-3.R": "rightRingDistal",
+        "finger5-1.R": "rightLittleProximal",
+        "finger5-2.R": "rightLittleIntermediate",
+        "finger5-3.R": "rightLittleDistal",
+        "upperleg01.R": "rightUpperLeg",
+        "lowerleg01.R": "rightLowerLeg",
+        "foot.R": "rightFoot",
+        "toe3-1.R": "rightToes",
+    },
+)

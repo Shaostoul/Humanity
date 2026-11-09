@@ -1106,6 +1106,350 @@
       "settle_s": 10
     },
     {
+      "id": "anim-stairs-boxes",
+      "desc": "The ground hall looking west up the house stair, one stand-in walking up it at 0.9 m/s. The rung 0 baseline: the old box figures.",
+      "expect": "An amber box figure partway up the stair, its base gliding up the slope between the treads.",
+      "_why": "Character animation rung 0 (docs/design/character-animation.md section 10): today's box figures measured first, so every later rung has a baseline. The boxes arm of a same-boot A/B (showcase `figures`), run beside its bodies twin; HUMANITY_FRAME_COSTS=1 writes the costs beside the capture.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.7,38.7,-1.5708,0.2",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figures": "boxes",
+          "figure_path": "42.6,0,38.65;41.0,0,38.65;36.5,3.0,38.65;35.5,3.0,38.65;0.9"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-stairs",
+      "desc": "The ground hall looking west up the house stair, one stand-in walking up it at 0.9 m/s. Rung 1: the skinned, animated body.",
+      "expect": "A jointed figure in an amber top partway up the stair, walking (legs mid-stride), its feet hovering over or sinking into the treads: rung 2 puts each foot on a tread.",
+      "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
+      "regressions": [
+        "every figure is a jointed body, never a box",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.7,38.7,-1.5708,0.2",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figure_path": "42.6,0,38.65;41.0,0,38.65;36.5,3.0,38.65;35.5,3.0,38.65;0.9"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-ladder-boxes",
+      "desc": "The ground floor three metres south of the ladder into the lobby hatch, looking north, one stand-in rising up it at 0.6 m/s. The rung 0 baseline: the old box figures.",
+      "expect": "An amber box figure rising beside the ladder.",
+      "_why": "Character animation rung 0 (docs/design/character-animation.md section 10): today's box figures measured first, so every later rung has a baseline. The boxes arm of a same-boot A/B (showcase `figures`), run beside its bodies twin; HUMANITY_FRAME_COSTS=1 writes the costs beside the capture.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "33,1.7,25,3.1416,0.25",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figures": "boxes",
+          "figure_path": "33,0,27.5;33,3,27.5;33,3,28.8;0.6"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-ladder",
+      "desc": "The ground floor three metres south of the ladder into the lobby hatch, looking north, one stand-in rising up it at 0.6 m/s. Rung 1: the skinned, animated body.",
+      "expect": "A jointed figure rising up the ladder standing upright, its hands not on the rungs: rung 2 adds the climb.",
+      "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
+      "regressions": [
+        "every figure is a jointed body, never a box",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "33,1.7,25,3.1416,0.25",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figure_path": "33,0,27.5;33,3,27.5;33,3,28.8;0.6"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-chair-boxes",
+      "desc": "The Commons' mess hall from its middle, looking west-north-west, one stand-in walking from the hall's middle to the first table's chair and back at 1.2 m/s. The rung 0 baseline: the old box figures.",
+      "expect": "An amber box figure between the camera and the first dining table.",
+      "_why": "Character animation rung 0 (docs/design/character-animation.md section 10): today's box figures measured first, so every later rung has a baseline. The boxes arm of a same-boot A/B (showcase `figures`), run beside its bodies twin; HUMANITY_FRAME_COSTS=1 writes the costs beside the capture.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "74,1.6,26.5,-0.897,-0.105",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figures": "boxes",
+          "figure_path": "73,0,25.5;70.5,0,23.3;1.2"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-chair",
+      "desc": "The Commons' mess hall from its middle, looking west-north-west, one stand-in walking from the hall's middle to the first table's chair and back at 1.2 m/s. Rung 1: the skinned, animated body.",
+      "expect": "A jointed figure walking toward the first table, standing (not sitting) when it reaches the chair: rung 2 adds sitting.",
+      "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
+      "regressions": [
+        "every figure is a jointed body, never a box",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "74,1.6,26.5,-0.897,-0.105",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figure_path": "73,0,25.5;70.5,0,23.3;1.2"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-crowd-near-boxes",
+      "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead of the camera at its east end, standing, walking, jogging and running in circles: the near tier (16 compute-skinned) and the middle tier. The rung 0 baseline: the old box figures.",
+      "expect": "Fifty amber box figures in a dense ring.",
+      "_why": "Character animation rung 0 (docs/design/character-animation.md section 10): today's box figures measured first, so every later rung has a baseline. The boxes arm of a same-boot A/B (showcase `figures`), run beside its bodies twin; HUMANITY_FRAME_COSTS=1 writes the costs beside the capture.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figures": "boxes",
+          "crowd": "50,3.5,-1,0,10"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-crowd-near",
+      "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead of the camera at its east end, standing, walking, jogging and running in circles: the near tier (16 compute-skinned) and the middle tier. Rung 1: the skinned, animated body.",
+      "expect": "Fifty jointed figures in amber tops: some standing at idle, some walking, some running, each facing the way it goes, none stepping in unison with its neighbours.",
+      "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
+      "regressions": [
+        "every figure is a jointed body, never a box",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "50,3.5,-1,0,10"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-crowd-middle-boxes",
+      "desc": "Fifty stand-ins at the mess hall's far end, 18 to 26 m from the camera: every body in the middle tier (vertex-shader skinning). The rung 0 baseline: the old box figures.",
+      "expect": "Fifty amber box figures at the far end of the hall.",
+      "_why": "Character animation rung 0 (docs/design/character-animation.md section 10): today's box figures measured first, so every later rung has a baseline. The boxes arm of a same-boot A/B (showcase `figures`), run beside its bodies twin; HUMANITY_FRAME_COSTS=1 writes the costs beside the capture.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figures": "boxes",
+          "crowd": "50,3.5,-1,0,22"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-crowd-middle",
+      "desc": "Fifty stand-ins at the mess hall's far end, 18 to 26 m from the camera: every body in the middle tier (vertex-shader skinning). Rung 1: the skinned, animated body.",
+      "expect": "Fifty jointed figures at the far end, moving as in anim-crowd-near, lit like the near world.",
+      "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
+      "regressions": [
+        "every figure is a jointed body, never a box",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "50,3.5,-1,0,22"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-tp-move",
+      "desc": "Third person at the homestead's front door, the player's own body walking west down the hall (W held: the game's 5 m/s walk, which the run clip plays at 1.4 times its speed).",
+      "expect": "From behind and over the shoulder, the player's body in a teal top mid-stride down the hall, arms swinging against the legs; the camera follows it.",
+      "_why": "Character animation rung 1: the player is drawn in third person, and third person now walks the body (renderer/camera.rs: it used to fly a camera with no figure). Moves through the controller's own keys (the `hold` verb), as a player does.",
+      "regressions": [
+        "the player's body is drawn in third person, in front of the camera",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0"
+        },
+        {
+          "hold": "forward",
+          "hold_s": "3"
+        }
+      ],
+      "final_settle_s": 0.6
+    },
+    {
+      "id": "anim-tp-gaits",
+      "desc": "Third person standing in the Commons' mess hall looking west down it, three stand-ins ahead: one walking (1.4 m/s) on the right, one running (3.6 m/s) on the left, one turning on the spot (1.6 rad/s) between them.",
+      "expect": "The player's body from behind in a teal top at idle; ahead in the open hall, amber-topped figures: one walking, one running with a forward lean and high knees, one turning on the spot with short steps.",
+      "_why": "Character animation rung 1: walking, running and turning in one frame, in third person. The turn and the two gaits are the state machine's turn and move blend spaces (data/characters/locomotion.ron).",
+      "regressions": [
+        "the walking, running and turning figures each show their own gait",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "81,1.6,24,-1.5708,-0.12",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "crowd": "1,0.2,0,1.6,6"
+        },
+        {
+          "figure_path": "77,0,22.6;71,0,22.6;1.4"
+        },
+        {
+          "figure_path": "78,0,25.6;69,0,25.6;3.6"
+        }
+      ],
+      "final_settle_s": 1
+    },
+    {
       "id": "mess-hall-counter",
       "desc": "The Commons' mess hall (ship homes increment 6, lane 1A) at eye height from its middle, looking west-north-west at the serving counter at 12:00 station time.",
       "expect": "At the far end of the hall, against its north wall, the serving counter: a plain grey box 2.4 m long and 0.9 m high (a stand-in: no counter model is on disk), with open floor in front of it where the store stands. Between the camera and the counter, along the hall's north (right-hand) wall, dining tables 2 m long with four chairs each, two on each side, in a row with walking room between them; the floor along the hall's middle and south side clear. The hall is lit through the Commons' glass roof and by its lights. Nothing stands in the middle of the floor where the crew walk.",

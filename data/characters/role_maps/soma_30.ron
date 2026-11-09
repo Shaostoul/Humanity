@@ -1,0 +1,49 @@
+// NVIDIA SOMA'S 30-JOINT LAYOUT, as roles: the skeleton MotionBricks' model reads and writes (plan
+// rung 7), mapped so that a SOMA-driven model could drive our body joint for joint (the operator,
+// 2026-11-08: the MakeHuman body, "its skeleton ALSO mapped to SOMA's 30-joint layout"). Read by
+// crates/humanity-animation/src/role_map.rs.
+//
+// Source of the names and parents: the class SOMASkeleton30 ("somaskel30") in
+// kimodo/skeleton/definitions.py, https://github.com/nv-tlabs/kimodo (last commit 4f6494c8,
+// 2026-04-10; SPDX Apache-2.0), whose order matches MotionBricks'
+// motionbricks/assets/onnx/soma/soma_n1.json (commit 54fc563a, 2026-10-23), read 2026-11-08. Root
+// Hips, Y up, metres. The two tip joints of each hand hang straight from the hand in the 30-joint
+// set (the full 77-joint skeleton's tips hang from the thumb's and the middle finger's last bones).
+// All 30 joints play a role, so nothing of a SOMA pose is lost.
+(
+    id: "soma_30",
+    description: "NVIDIA SOMA 30-joint skeleton (somaskel30), as MotionBricks uses it.",
+    facing_yaw_deg: 0.0,
+    bones: {
+        "Hips": "hips",
+        "Spine1": "spine",
+        "Spine2": "chest",
+        "Chest": "upperChest",
+        "Neck1": "neck",
+        "Neck2": "upperNeck",
+        "Head": "head",
+        "Jaw": "jaw",
+        "LeftEye": "leftEye",
+        "RightEye": "rightEye",
+        "LeftShoulder": "leftShoulder",
+        "LeftArm": "leftUpperArm",
+        "LeftForeArm": "leftLowerArm",
+        "LeftHand": "leftHand",
+        "LeftHandThumbEnd": "leftThumbTip",
+        "LeftHandMiddleEnd": "leftMiddleTip",
+        "RightShoulder": "rightShoulder",
+        "RightArm": "rightUpperArm",
+        "RightForeArm": "rightLowerArm",
+        "RightHand": "rightHand",
+        "RightHandThumbEnd": "rightThumbTip",
+        "RightHandMiddleEnd": "rightMiddleTip",
+        "LeftLeg": "leftUpperLeg",
+        "LeftShin": "leftLowerLeg",
+        "LeftFoot": "leftFoot",
+        "LeftToeBase": "leftToes",
+        "RightLeg": "rightUpperLeg",
+        "RightShin": "rightLowerLeg",
+        "RightFoot": "rightFoot",
+        "RightToeBase": "rightToes",
+    },
+)

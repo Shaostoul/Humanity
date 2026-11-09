@@ -576,6 +576,11 @@ mod tests {
     /// fails `every_recorded_id_is_a_row_or_a_listed_remainder`.
     const REMAINDER_IDS: &[(&str, &str)] = &[
         (
+            "cpu.skinning",
+            "the pose palette's upload (renderer/skinning.rs), run INSIDE cpu.animation (engine/\
+             animation.rs), which is the Characters row; a row of its own would count it twice",
+        ),
+        (
             "cpu.frame_total",
             "the whole frame (RedrawRequested entry to the last submit); the CPU pie's \
              rows are its parts, so a row would count everything twice",

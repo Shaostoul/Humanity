@@ -41,6 +41,11 @@ const STICKY_PIN_RESETS = Object.freeze({
   sun_glare: "1",
   sun_aperture_mm: "auto",
   godrays: "auto",
+  // The characters (2026-11-08, engine/animation.rs): the dev crowd ({"crowd":"0"} clears it and
+  // every `figure_path` stand-in), the box-figure A/B and the third-person camera.
+  crowd: "0",
+  figures: "bodies",
+  camera_mode: "first",
 });
 
 // Diagnostic channels, also sticky, reset at the start of every vantage.

@@ -69,6 +69,12 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
     if changes.iter().any(|c| c.ends_with(crate::gui::navigation::FILE)) {
         crate::gui::navigation::reload(&humanity_core::storage::data_dir());
     }
+    // The characters (character animation rung 1, 2026-11-08): saving anything under
+    // data/characters/ (a body, a role map, a clip row, the graph) reads the library again next
+    // frame, so a gait or a tint tunes live (engine/animation.rs).
+    if changes.iter().any(|c| c.replace('\\', "/").contains("characters/")) {
+        state.animation.request_reread();
+    }
     // game.csv hot-reload (v0.1119): the interior-gravity knob
     // (gravity_m_s2) tunes live, like the file's own header always
     // promised. The watcher already dropped the stale cache entry, so

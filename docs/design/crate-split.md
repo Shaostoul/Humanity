@@ -79,6 +79,13 @@ And the reasons not to split:
 | `humanity-gui` | `gui`, `config`, `games`, `software`, `media`, `web_reader`, `updater` (since rung 0 part B), `release_update` (since its backlog; its pure signature check went down to the protocol on 2026-11-02), and the chat-safety code now in `engine/` (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; since part B also the friend choices, the pass answers, household permits and low impact) | 177,268 | 255 | 42% | all of the above |
 | `humanity-engine` | `engine` (THE FRAME), `lib.rs`, `save_load`, the binary | 94,250 | 242 | 15% | everything |
 
+**Two crates beyond the ten**, each pure and desktop-only, so the server build never compiles them:
+`humanity-music` (the live music and the ship's hum, 2026-11-06, docs/design/music.md) and
+`humanity-animation` (character animation, 2026-11-08: the humanoid skeleton standard, retargeting,
+the locomotion state machine and the pose palette; the operator's yes to question 7 of
+docs/design/character-animation.md). Each may use only the core, and only the engine (and, for the
+music, the GUI) uses them; `scripts/crate-layers.json` lists both.
+
 The lines, commits and shares are the 2026-10-30 reading. After rung 0 (2026-10-31,
 `node scripts/crate-graph.js --crates`): core 14,577, protocol 12,645, ship 32,680, terrain 25,638,
 systems 80,491, relay 110,833, net 31,064, renderer 65,877, gui 183,772, engine 91,183.

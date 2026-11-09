@@ -3068,6 +3068,41 @@ offensive abilities cast at the faced creature (v0.760). Wild spawns are data.
   `data/equipment.csv` damage/armor columns, 128 generated loot items in
   `data/items.csv` (`scripts/gen-loot-items.js`)
 
+### Characters: skinned, animated bodies (character animation rungs 0 and 1, 2026-11-08)
+Every humanoid is one skinned, animated body (`docs/design/character-animation.md`): the player in
+third person (third person now WALKS the body, with the walls, floors, ladders and lifts of first
+person, the camera behind it), the other players (speed and turning read from their interpolated
+positions; nothing new is sent), the crew, the showroom figure (tinted live by the look and the
+outfit) and the dev crowd. A locomotion state machine with blend spaces plays idle, turning on the
+spot, walk and run (stride-matched to the real speed, backwards when walking backwards, a shared
+stride phase between walk and run). The nearest bodies (up to 16 within 15 m) are skinned once a
+frame by a compute pass into ordinary meshes, so the sun shadow and every pass draw them unchanged;
+the rest are skinned in the vertex shader. Regions (skin, hair, shirt, trousers, shoes, hands) take
+the person's look and cosmetics, or the wearer kind's defaults (players teal, crew amber). The body is
+DATA: the humanoid standard uses VRM 1.0's bone names as roles; any rig maps onto it by a role map
+(the test figure's, a Mixamo-style clip rig's, MakeHuman's default skeleton, SOMA's 30 joints), with
+the MakeHuman-to-SOMA joint map written out for a learned model later; clips are retargeted by role
+at load (rest poses aligned, root travel scaled by leg length), in memory only. Until the real body
+(MakeHuman, CC0) and clips are downloaded with the operator's yes, the game draws a procedural test
+figure and clip library, our own work. The old box figures stand in if the data cannot be read, and
+for a same-boot A/B (showcase `figures`).
+- Crate: `crates/humanity-animation/` (card `docs/crates/humanity-animation.md`): skeleton, roles,
+  role and joint maps, poses and the pose palette, clips and retargeting, the graph, the motion
+  tracker, the tiers
+- Native: `src/assets/skin.rs` (glTF skins: every primitive, JOINTS_0/WEIGHTS_0, the node tree,
+  inverse binds, animations), `src/renderer/skinning.rs` (compute and vertex-shader skinning, the
+  palette), `assets/shaders/skinning.wgsl`, `assets/shaders/skinning_vs.wgsl`,
+  `src/engine/animation.rs` (every person each frame), `crates/humanity-core/src/skin_data.rs`,
+  `SkinnedVertex` in `crates/humanity-core/src/vertex.rs`, material type 25
+  (`renderer::materials::MATERIAL_TYPE_CHARACTER`)
+- Data: `data/characters/` (`characters.ron`, `skeletons/humanoid.ron`, `bodies/`, `role_maps/`,
+  `joint_maps/`, `clips.ron`, `locomotion.ron`); the test figure
+  `assets/models/characters/hos_test_figure/` and clip library `assets/models/characters/hos_test_clips/`,
+  made by `scripts/gen-test-figure.js`
+- Dev: showcase verbs `crowd`, `figure_path`, `figures`, `camera_mode` (engine/ipc.rs); vantages
+  `anim-*` (rung 0's box baselines `*-boxes` beside them); costs `cpu.animation`, `cpu.skinning`,
+  `gpu.skinning`
+
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`
 column: `item:amount:regrow_seconds`). Starter herd (chickens/goats/sheep) placed by

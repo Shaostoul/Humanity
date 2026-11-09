@@ -1,0 +1,34 @@
+// The test clip library's rig (scripts/gen-test-figure.js): Mixamo-style bone names, a T-pose, every
+// bone's local axes rolled its own way, and an Armature node scaled 0.01 over centimetre joints, the
+// way a Mixamo export arrives. It differs from the test figure the way a Quaternius or Mixamo clip
+// library differs from a MakeHuman body, so retargeting by role is proven on the shipped files.
+// Character animation rung 1, 2026-11-08; read by crates/humanity-animation/src/role_map.rs.
+(
+    id: "hos_test_clips",
+    description: "HumanityOS test clip library: Mixamo-style names, T-pose, rolled bone frames, 0.01 armature.",
+    facing_yaw_deg: 0.0,
+    bones: {
+        "mixamorig:Hips": "hips",
+        "mixamorig:Spine": "spine",
+        "mixamorig:Spine1": "chest",
+        "mixamorig:Spine2": "upperChest",
+        "mixamorig:Neck": "neck",
+        "mixamorig:Head": "head",
+        "mixamorig:LeftShoulder": "leftShoulder",
+        "mixamorig:LeftArm": "leftUpperArm",
+        "mixamorig:LeftForeArm": "leftLowerArm",
+        "mixamorig:LeftHand": "leftHand",
+        "mixamorig:LeftUpLeg": "leftUpperLeg",
+        "mixamorig:LeftLeg": "leftLowerLeg",
+        "mixamorig:LeftFoot": "leftFoot",
+        "mixamorig:LeftToeBase": "leftToes",
+        "mixamorig:RightShoulder": "rightShoulder",
+        "mixamorig:RightArm": "rightUpperArm",
+        "mixamorig:RightForeArm": "rightLowerArm",
+        "mixamorig:RightHand": "rightHand",
+        "mixamorig:RightUpLeg": "rightUpperLeg",
+        "mixamorig:RightLeg": "rightLowerLeg",
+        "mixamorig:RightFoot": "rightFoot",
+        "mixamorig:RightToeBase": "rightToes",
+    },
+)

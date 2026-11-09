@@ -165,6 +165,13 @@ pub enum CameraMode {
 }
 
 impl CameraMode {
+    /// Does this mode walk the body (its position, its floor, its walls, its ladders)? First person
+    /// and, since character animation rung 1 (2026-11-08), third person, which is a camera behind
+    /// the same walking body the others see; the orbit camera only circles a point.
+    pub fn walks_body(self) -> bool {
+        matches!(self, CameraMode::FirstPerson | CameraMode::ThirdPerson)
+    }
+
     /// Cycle to the next mode: FP → TP → Orbit → FP.
     pub fn next(self) -> Self {
         match self {
@@ -446,7 +453,9 @@ impl Camera {
     fn effective_target(&self) -> Vec3 {
         match self.mode {
             CameraMode::FirstPerson => self.position + self.forward(),
-            CameraMode::ThirdPerson => self.tp_target + Vec3::Y * 1.0,
+            // Over the shoulder, looking the way the body's eyes look (character animation rung 1,
+            // 2026-11-08): the aim is first person's, from behind and beside the body.
+            CameraMode::ThirdPerson => self.effective_position() + self.forward(),
             CameraMode::Orbit => self.orbit_target,
         }
     }
@@ -646,10 +655,10 @@ impl Camera {
             };
         }
 
-        // Back to first person from third person or the orbit camera, the body is where it stood:
-        // `position` never moved while the other camera looked around (third person's WASD moves
-        // `tp_target`, which has no collision, no gravity and no figure drawn; the orbit camera
-        // moves only the point it circles), so it is left alone and the view eases back to it.
+        // Back to first person from third person or the orbit camera, the body is where it is:
+        // third person walks `position` itself, as first person does (character animation rung 1,
+        // 2026-11-08), and the orbit camera moves only the point it circles, so `position` is
+        // left alone and the view eases back to it.
         // It used to be set to the other camera's eye (`effective_position`), which in the
         // shared world was a jump of any length: the relay corrected a 60 m third-person walk
         // and passed any orbit eye within its allowance, through walls (ship homes increment 4
@@ -1109,7 +1118,12 @@ impl CameraController {
         self.scroll_delta = 0.0;
 
         match camera.mode {
-            CameraMode::FirstPerson => {
+            // Third person walks the same body as first person (character animation rung 1,
+            // 2026-11-08): the walk, the floor, gravity and falls are first person's, and the
+            // camera then stands behind the body (`tp_target` follows it; the wheel sets how far).
+            // Before, third person's WASD moved only the camera, with no collision and no figure,
+            // so the body stood still while the camera roamed (the M1 review's arrangement).
+            mode @ (CameraMode::FirstPerson | CameraMode::ThirdPerson) => {
                 // Falls (2026-10-20): moved since this walk last left it (driving, a teleport,
                 // the rig's hold) is a placement, not a fall. On a planet the frame lock moves
                 // the body and `surface_step` keeps watch instead.
@@ -1120,9 +1134,9 @@ impl CameraController {
                 }
                 self.update_first_person(camera, dt, dx, dy, floor_at);
                 self.body_y = Some(camera.position.y);
-            }
-            CameraMode::ThirdPerson => {
-                self.update_third_person(camera, dt, dx, dy, scroll);
+                if mode == CameraMode::ThirdPerson {
+                    self.follow_body(camera, scroll);
+                }
             }
             CameraMode::Orbit => {
                 self.update_orbit(camera, dt, dx, dy, scroll);
@@ -1587,48 +1601,14 @@ impl CameraController {
     }
 
     /// Third-person: WASD moves character, mouse orbits around character.
-    fn update_third_person(
-        &self,
-        camera: &mut Camera,
-        dt: f32,
-        mouse_dx: f64,
-        mouse_dy: f64,
-        scroll: f32,
-    ) {
-        // Mouse look (orbit around character)
-        if self.mouse_right || self.mouse_left {
-            let dy_sign = if self.invert_y { 1.0 } else { -1.0 };
-            camera.yaw += mouse_dx as f32 * self.mouse_sensitivity * 0.01;
-            camera.pitch += dy_sign * mouse_dy as f32 * self.mouse_sensitivity * 0.01;
-            let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
-            camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
-        }
-
-        // Scroll to adjust follow distance
+    /// Third person's camera after the body's walk: it follows the body's eye, and the wheel sets
+    /// how far behind it stands (character animation rung 1, 2026-11-08).
+    fn follow_body(&self, camera: &mut Camera, scroll: f32) {
         if scroll.abs() > 0.01 {
             camera.tp_distance -= scroll * 0.5;
-            camera.tp_distance = camera.tp_distance.clamp(
-                camera.tp_distance_min,
-                camera.tp_distance_max,
-            );
+            camera.tp_distance = camera.tp_distance.clamp(camera.tp_distance_min, camera.tp_distance_max);
         }
-
-        // WASD moves the character (tp_target)
-        let forward = camera.forward_xz();
-        let right = forward.cross(Vec3::Y).normalize();
-
-        let mut velocity = Vec3::ZERO;
-        if self.forward { velocity += forward; }
-        if self.backward { velocity -= forward; }
-        if self.right { velocity += right; }
-        if self.left { velocity -= right; }
-        if self.ascend { velocity += Vec3::Y; }
-        if self.descend { velocity -= Vec3::Y; }
-
-        if velocity.length_squared() > 0.0 {
-            velocity = velocity.normalize() * self.speed * dt;
-            camera.tp_target += velocity;
-        }
+        camera.tp_target = camera.position;
     }
 
     /// Orbit: left-drag rotates, middle-drag pans, scroll zooms.
@@ -1865,22 +1845,23 @@ mod camera_body_tests {
         ctl.update_camera(cam, dt);
     }
 
-    /// THIRD PERSON AND THE ORBIT CAMERA ARE CAMERAS AROUND A BODY STANDING STILL (ship homes
-    /// increment 4 review, M1). Neither moves the body: WASD in third person moves `tp_target`,
-    /// which has no collision, no gravity and no figure drawn, and the orbit camera's WASD and
-    /// wheel move only the point it circles. The body (`position`, what the shared world is told
-    /// and where the walls and floors act) stays where it stood, and stays there on the way back
-    /// to first person. Before the fix, coming back to first person stood the body at the
-    /// camera's own eye: in the shared world that was a jump of any length (the relay corrected
-    /// a 60 m third-person walk, losing all of it, and passed any orbit eye within 47.9 m, a
-    /// jump through walls).
+    /// NO CAMERA MODE JUMPS THE BODY (ship homes increment 4 review, M1; third person changed by
+    /// character animation rung 1, 2026-11-08). Third person now walks the BODY, as first person
+    /// does (the walk, the floor, the walls the main loop sweeps it against), and its camera
+    /// follows behind: so the body is where third person walked it, the camera's `tp_target` is
+    /// the body's eye, and going back to first person moves nothing. The orbit camera still only
+    /// circles a point and leaves the body where it stood. The fault M1 fixed stays fixed: coming
+    /// back to first person never stands the body at a camera's own eye (in the shared world a
+    /// jump of any length; the relay corrected a 60 m third-person walk and passed any orbit eye
+    /// within 47.9 m, a jump through walls).
     ///
-    /// Seen red 2026-10-04 on the code before the fix: "returning from third person moved the body
-    /// 57.0 m, to the camera's eye Vec3(54.0, 2.1974888, -16.499659)".
+    /// Seen red 2026-10-04 on the code before the M1 fix: "returning from third person moved the
+    /// body 57.0 m, to the camera's eye Vec3(54.0, 2.1974888, -16.499659)". Seen red 2026-11-08
+    /// on the third-person walk before rung 1 ("third person left the body 0.0 m from the door").
     #[test]
     fn returning_to_first_person_leaves_the_body_where_it_stood() {
         let door = Vec3::new(53.5, 1.7, 40.5);
-        // V, then 12 s of W in third person (60 m at 5 m/s), then V again.
+        // V, then 12 s of W in third person, then V again.
         let mut cam = Camera::new();
         cam.position = door;
         let mut ctl = CameraController::new(WALK_SPEED_MPS, 1.0);
@@ -1892,13 +1873,16 @@ mod camera_body_tests {
             frame(&mut ctl, &mut cam, 0.01);
         }
         ctl.apply_action(A::MoveForward, false);
-        assert!(cam.tp_target.distance(door) > 55.0, "the third-person camera walked {:.1} m", cam.tp_target.distance(door));
-        assert_eq!(cam.position, door, "third person moved the body itself");
+        let walked = cam.position.distance(door);
+        assert!(walked > 30.0, "third person left the body {walked:.1} m from the door");
+        assert_eq!(cam.tp_target, cam.position, "the third-person camera follows the body's eye");
+        assert!(cam.effective_position().distance(cam.position) > 1.0, "the camera stands behind the body");
+        let walked_to = cam.position;
         ctl.apply_action(A::ToggleView, true);
         frame(&mut ctl, &mut cam, 0.016);
         assert_eq!(cam.mode, CameraMode::FirstPerson);
-        let moved = cam.position.distance(door);
-        assert!(moved < 1e-3, "returning from third person moved the body {moved:.1} m, to the camera's eye {:?}", cam.position);
+        let moved = cam.position.distance(walked_to);
+        assert!(moved < 0.2, "returning from third person moved the body {moved:.2} m, to {:?}", cam.position);
 
         // M, the wheel out to the farthest the orbit goes and a second of W, then M again.
         let mut cam = Camera::new();

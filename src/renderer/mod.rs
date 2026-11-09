@@ -115,6 +115,9 @@ pub mod bounced_light_detail;
 /// and the whole-frame wrappers around them. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
 pub mod scene_draw;
+/// Skinned bodies (character animation rung 1, 2026-11-08): compute skinning for near bodies,
+/// vertex-shader skinning for middle ones, and the pose palette both read.
+pub mod skinning;
 /// The scene target every scene pass draws into, and the present pass that
 /// copies it to the display (HDR scene target increments 1 to 4,
 /// 2026-09-27; docs/design/hdr-scene-target.md), and its dev A/B switch.
@@ -967,6 +970,9 @@ pub struct Renderer {
     /// screens' egui pass in `gui::screen_surface` - can open a timestamp
     /// scope through the same query ring; see `Renderer::gpu_timers`.
     gpu_timers: Option<std::sync::Arc<crate::renderer::gpu_costs::GpuTimers>>,
+    /// Skinned bodies (renderer/skinning.rs): made when the first body is registered, so a frame
+    /// with no characters builds and binds nothing of it.
+    skinning: Option<Box<skinning::Skinning>>,
     /// Throttle for the VRAM/RAM inventory walk (at most once a second, and
     /// only while the Performance page is open).
     inventory_sampled: std::sync::Mutex<Option<std::time::Instant>>,
@@ -2170,6 +2176,7 @@ impl Renderer {
             aerial_fog_share: 0.0,
             frame_body_sphere: [0.0; 4],
             gpu_timers,
+            skinning: None,
             inventory_sampled: std::sync::Mutex::new(None),
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,

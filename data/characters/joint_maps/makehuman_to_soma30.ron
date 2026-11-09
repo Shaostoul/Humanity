@@ -1,0 +1,53 @@
+// MAKEHUMAN TO SOMA, JOINT FOR JOINT (the operator, 2026-11-08: the body is MakeHuman, its skeleton
+// also mapped to SOMA's 30-joint layout "so a learned model could drive it later"). Read by
+// crates/humanity-animation/src/joint_map.rs.
+//
+// Each of SOMA's 30 joints (role_maps/soma_30.ron) and the MakeHuman default skeleton's bone that
+// stands where it stands (role_maps/makehuman_default.ron). The two role maps already imply this
+// through the humanoid roles; it is written out here so a SOMA model's input and output can be read
+// straight across, and a test holds it to the role maps, so the two can never disagree.
+//
+//   Bone("name")   the MakeHuman bone whose joint is the SOMA joint
+//   TipOf("name")  no MakeHuman bone has a joint there: the SOMA joint is the far end (the tail) of
+//                  that bone, so it is its joint plus the bone's length along it (MakeHuman's
+//                  fingertips are bone tails; glTF carries joints only, so the length comes from the
+//                  bone's own rest data, default.mhskel's head and tail)
+//
+// The spine and neck picks are judgements (role_maps/makehuman_default.ron says which), to check
+// against the mesh when it is downloaded.
+(
+    from: "makehuman_default",
+    to: "soma_30",
+    joints: [
+        (soma: "Hips", makehuman: Bone("root")),
+        (soma: "Spine1", makehuman: Bone("spine05")),
+        (soma: "Spine2", makehuman: Bone("spine03")),
+        (soma: "Chest", makehuman: Bone("spine01")),
+        (soma: "Neck1", makehuman: Bone("neck01")),
+        (soma: "Neck2", makehuman: Bone("neck03")),
+        (soma: "Head", makehuman: Bone("head")),
+        (soma: "Jaw", makehuman: Bone("jaw")),
+        (soma: "LeftEye", makehuman: Bone("eye.L")),
+        (soma: "RightEye", makehuman: Bone("eye.R")),
+        (soma: "LeftShoulder", makehuman: Bone("clavicle.L")),
+        (soma: "LeftArm", makehuman: Bone("upperarm01.L")),
+        (soma: "LeftForeArm", makehuman: Bone("lowerarm01.L")),
+        (soma: "LeftHand", makehuman: Bone("wrist.L")),
+        (soma: "LeftHandThumbEnd", makehuman: TipOf("finger1-3.L")),
+        (soma: "LeftHandMiddleEnd", makehuman: TipOf("finger3-3.L")),
+        (soma: "RightShoulder", makehuman: Bone("clavicle.R")),
+        (soma: "RightArm", makehuman: Bone("upperarm01.R")),
+        (soma: "RightForeArm", makehuman: Bone("lowerarm01.R")),
+        (soma: "RightHand", makehuman: Bone("wrist.R")),
+        (soma: "RightHandThumbEnd", makehuman: TipOf("finger1-3.R")),
+        (soma: "RightHandMiddleEnd", makehuman: TipOf("finger3-3.R")),
+        (soma: "LeftLeg", makehuman: Bone("upperleg01.L")),
+        (soma: "LeftShin", makehuman: Bone("lowerleg01.L")),
+        (soma: "LeftFoot", makehuman: Bone("foot.L")),
+        (soma: "LeftToeBase", makehuman: Bone("toe3-1.L")),
+        (soma: "RightLeg", makehuman: Bone("upperleg01.R")),
+        (soma: "RightShin", makehuman: Bone("lowerleg01.R")),
+        (soma: "RightFoot", makehuman: Bone("foot.R")),
+        (soma: "RightToeBase", makehuman: Bone("toe3-1.R")),
+    ],
+)

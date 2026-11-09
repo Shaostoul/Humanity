@@ -297,6 +297,9 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Scene Overlay Encoder"),
             });
+        // This frame's near bodies, skinned ahead of the pass that draws them (character animation
+        // rung 1, renderer/skinning.rs): once a frame, in this encoder, so no submit of its own.
+        self.encode_skinning(&mut encoder);
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -331,6 +334,10 @@ impl Renderer {
             // The list may carry surfaces, vegetation and terrain (P3): one
             // pass per class present, each through its own class PSO.
             self.draw_opaque_objects(&mut render_pass, objects, &(0..0), "scene opaque pass");
+            // Middle-distance bodies, skinned in the vertex shader (character
+            // animation rung 1, renderer/skinning.rs); near bodies are already
+            // in the list as ordinary meshes over their compute-skinned vertices.
+            self.draw_skinned_middle(&mut render_pass);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

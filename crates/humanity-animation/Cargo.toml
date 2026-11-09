@@ -1,0 +1,24 @@
+# humanity-animation (docs/crates/humanity-animation.md): character animation as plain Rust
+# (docs/design/character-animation.md, rungs 0 and 1 built 2026-11-08). The humanoid skeleton
+# standard (VRM 1.0 bone names as roles, mapped from any rig by a data file), poses, clips sampled and
+# blended, retargeting by role, blend spaces and the locomotion state machine, and the pose palette the
+# GPU skins with. Pure: no GPU, no egui, no file format reader (the engine reads glTF and hands it
+# plain data from humanity_core::skin_data), so every test runs headless. The server build never
+# compiles it: animation never reaches the relay (the operator, 2026-11-08: "a new crate,
+# humanity-animation: yes").
+[package]
+name = "humanity-animation"
+version.workspace = true
+edition.workspace = true
+publish = false
+# Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
+build = "../repo_root.rs"
+
+[dependencies]
+# The imported skin and clip data (humanity_core::skin_data) and nothing else of the core's: without its
+# `native` feature, so no egui, audio or keychain comes along.
+humanity-core = { path = "../humanity-core", default-features = false }
+glam = { workspace = true }
+serde = { workspace = true }
+ron = { workspace = true }
+log = { workspace = true }

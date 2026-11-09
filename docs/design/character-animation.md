@@ -1,6 +1,8 @@
 # Character animation: one body, from the player to a ship of crew
 
-**Status: DESIGN, 2026-11-08. Nothing in this document is built.** Written after the operator came
+**Status: rungs 0 and 1 BUILT on 2026-11-08 (section 13), with the procedural test figure and
+clips standing in until the real body and clips are downloaded with the operator's yes; rung 2 and
+on are DESIGN. Section 12's questions were all decided the same day.** Written after the operator came
 across NVIDIA's MotionBricks (https://github.com/NVlabs/motionbricks, SIGGRAPH 2026) on 2026-11-08
 and asked where a technique of that class fits. The licensing question has its own dated finding:
 [`docs/reference/findings/2026-11-08-motionbricks.md`](../reference/findings/2026-11-08-motionbricks.md).
@@ -141,7 +143,9 @@ be an optional pack is the operator's call (question 1).
   skeleton, clothes), and it makes "no claim whatsoever" over exported files (the MotionBricks
   finding, section 11). A
   CC0 body with real shape controls fits a CC0 project, and its targets drive `Appearance`'s height
-  and build directly. Rung 1 recommends it (question 2).
+  and build directly. **Chosen 2026-11-08** (question 2), with its skeleton also mapped to SOMA's 30
+  joints; the files to download are listed in
+  [`2026-11-08-character-assets.md`](../reference/findings/2026-11-08-character-assets.md).
 - Starter clips: **Quaternius's Universal Animation Library**, CC0, "120+ Animations" on a humanoid
   rig, retargeted by role.
 
@@ -275,6 +279,36 @@ not re-read for this plan) and a modest non-NVIDIA GPU, the project's stated flo
 (256 GB/s; [`engine-architecture.md`](engine-architecture.md): "Target: GTX 1060 / RX 580 minimum").
 The interior already costs 18.84 ms of GPU at the homestead (crowd-simulation.md, measured
 2026-09-15), so animation must fit beside it.
+
+### 8.0 Measured in rung 1 (2026-11-09)
+
+`HUMANITY_FRAME_COSTS=1`, the release build, the vantages `anim-*` (section 13), on the operator's
+RTX 4070 at the rig's default graphics, 2560x1387, a background game held to 30 frames a second
+(the stairs and ladder pairs shared the machine with other builds, flagged by the sweep; the rows
+below are from clean captures unless marked). The body is the test figure (1,517 vertices, 24
+joints): MakeHuman's base mesh is about nine times the vertices, which scales the skinning rows, not
+the pose rows. Every `-boxes` twin ran in the same boot.
+
+| Case | cpu.animation (all of it) | of which cpu.skinning (upload) | gpu.skinning (compute) | gpu.scene, boxes to bodies |
+|---|---|---|---|---|
+| One body (the chair; stairs and ladder alike, shared machine) | 0.08 ms | 0.05 ms | 0.004 ms | within run-to-run spread |
+| 4 bodies in third person (the player and three stand-ins) | 0.10 ms | 0.07 ms | 0.004 ms | |
+| 50 bodies 6 to 14 m away (16 near, 34 middle) | 0.32 ms | 0.18 ms | 0.006 ms | 6.85 to 6.99 ms (+0.14) |
+| 50 bodies 18 to 26 m away (all middle) | 0.26 ms | 0.04 ms | none | 6.88 to 7.41 ms (+0.54) |
+
+Earlier the same day, in low impact beside the operator's game (minimum graphics, 960x540, 15 frames
+a second, his game sharing the card): 0.66 ms of cpu.animation at 50 near-and-middle bodies, gpu.scene
++0.13 ms, and the rest in proportion.
+
+Against 8.1's estimates: the pose work is about 3 to 5 microseconds a body (estimate 2 to 5); compute
+skinning of 16 near bodies 0.006 ms (estimate 0.2 to 0.4 ms, for a body nine times heavier: about
+0.05 ms scaled); fifty middle bodies skinned in the vertex shader about 0.5 ms of scene time (estimate
+0.5 to 1.5 ms for about 500, so per body it costs more than the estimate: each region is its own draw
+through the whole surface fragment entry, six draws a body; rung 4's instanced crowd draw is the
+lever). The upload at 50 bodies is seventeen small queue writes a frame (the palette and one
+parameter block per near body); one parameter buffer with offsets is the cheap fix if it grows. A
+first build gave the compute pass a submit of its own: 0.46 ms of CPU a frame for ONE body (low
+impact), now ridden in the scene pass's encoder (0.05 ms).
 
 ### 8.1 Per frame, the operator's RTX 4070 (estimates)
 
@@ -443,24 +477,111 @@ world (`just verify-runtime`), plus the rig vantage it adds.
 
 ## 12. Questions only the operator can answer
 
+**All seven DECIDED by the operator on 2026-11-08** ("Let's do this so players get a good player
+model and animations."; rungs 0 to 2 now; "Agreed" to the rest). The questions as asked, each with
+its decision:
+
 1. **May NVIDIA's MotionBricks weights ever ship or be fetched, as an optional pack, given they are
    legally usable but not under an OSI-approved licence and come with no training code or data?**
    Your rule: "We want to keep everything on open-source." *Recommendation: no for the core game;
    decide at rung 7 with measurements in hand, and only as an opt-in pack showing its licence.*
+   **Decided 2026-11-08:** never in the core game; later, possibly, an optional upgrade pack, like
+   the star catalogue download.
 2. **Which body to build on?** MakeHuman's CC0 assets, a body made by a contributor under CC0, or one
    made from scratch. *Recommendation: MakeHuman's, for its CC0 status and real shape controls.*
+   **Decided 2026-11-08:** MakeHuman (CC0), with its skeleton ALSO mapped to SOMA's 30-joint layout,
+   so a learned model could drive it later ("That sounds reasonable. Save us a lot of effort instead
+   of doing it ourselves."). Everything stays body-agnostic all the same (the body is an asset
+   choice, not a code choice): `data/characters/role_maps/makehuman_default.ron`,
+   `role_maps/soma_30.ron` and `joint_maps/makehuman_to_soma30.ron` (section 2.1). The bottom quality
+   tier is lower-detail versions of the SAME MakeHuman body (decimated LODs, then section 8.4's baked
+   far tier), not Quaternius's low-poly characters, so there is no visible change of style between
+   tiers (the operator asked; the coordinator's answer, 2026-11-08).
 3. **Accept motion capture from the community under CC0**, the way music contributions are accepted,
    to grow the database beyond CMU, ACCAD and 100STYLE? *Recommendation: yes, with the same review
-   of what each contributor used.*
+   of what each contributor used.* **Decided 2026-11-08:** yes, reviewed like music contributions.
+   The motion data plan was approved with it: Quaternius for rung 1; 100STYLE as the core of motion
+   matching, CMU for breadth and ACCAD for selected actions, all credited; community CC0 captures
+   later.
 4. **See your own body in first person by default?** *Recommendation: yes, with a Settings toggle
-   and "Reduce motion" beside it.*
+   and "Reduce motion" beside it.* **Decided 2026-11-08:** yes, with a Settings switch and a
+   "Reduce motion" option (rung 2).
 5. **Default animation mode?** *Recommendation: full realism where the measured budget allows,
-   simplified automatically below it; gameplay is the same either way.*
+   simplified automatically below it; gameplay is the same either way.* **Decided 2026-11-08:** as
+   recommended.
 6. **Order against the other arcs**: crowd-simulation.md puts animation last, the fire props want the
    body first. *Recommendation: rungs 0 to 2 now (they serve the player, co-presence and props),
-   rung 4 after the crowd's timetable and navigation.*
+   rung 4 after the crowd's timetable and navigation.* **Decided 2026-11-08:** rungs 0 to 2 now, the
+   crowd tiers later.
 7. **A new crate, `humanity-animation`**, outside the crate split's planned ten? *Recommendation:
    yes; the relay never needs animation, and a pure crate keeps it testable without a GPU.*
+   **Decided 2026-11-08:** yes. Built (docs/crates/humanity-animation.md).
+
+## 13. Built: rungs 0 and 1 (2026-11-08)
+
+What rung 1 built, against sections 2 to 10, and what it chose where the plan left room.
+
+- **The body is data, and body-agnostic** (question 2, decided): `data/characters/characters.ron`
+  names the body, the graph, the clip bake rate, the tiers and each wearer kind's default clothes;
+  a body is a file in `bodies/`, its rig a role map in `role_maps/`. Until the downloads, the body is
+  the procedural test figure (`scripts/gen-test-figure.js`: an A-pose jointed figure with
+  Blender-style bone names, forearm twist joints and six materials) and the clips are a procedural
+  clip library on a deliberately different rig (T-pose, Mixamo-style names, rolled bone frames, a
+  0.01 armature), so retargeting is proven on the shipped files: the library's walk retargeted onto
+  the figure lands on the same walk authored on the figure within a degree and a half.
+- **The skeleton standard (2.1)**: `skeletons/humanoid.ron` holds every VRM 1.0 humanoid role (its
+  required set exactly VRM's), eleven of ours (six twist joints; the second neck joint and four
+  fingertips of SOMA's 30), each role's parent, tier, aim and alignment, and the six sockets rung 2's
+  grips need. Role maps are written for the test rigs, MakeHuman's default skeleton
+  (`makehuman_default`) and SOMA's 30 joints (`soma_30`); `joint_maps/makehuman_to_soma30.ron`
+  writes MakeHuman to SOMA out joint for joint, held to the two role maps by a test.
+- **Retargeting (2.1)** is in model space with the rest poses aligned per limb (`align`: the shortest
+  turn from the body's rest bone onto the source's), the root's travel scaled by the ratio of hips
+  heights; joints the source does not map keep their rest. Twist joints take a share of their
+  driver's twist at run time (swing-twist split), so they work for any pose source.
+- **glTF skins (2.2)**: `src/assets/skin.rs` reads the first skin, every primitive drawn with it,
+  JOINTS_0 and WEIGHTS_0 (renormalised to sum exactly 65535), the node tree (a non-joint armature's
+  matrix kept as the root's `outer`), inverse binds and every animation (Linear, Step, CubicSpline).
+  Morph targets (body shape) come with the MakeHuman body.
+- **The GPU (2.2)**: a `SkinnedVertex` (48 bytes) read two ways from one buffer; one pose palette
+  per frame (three `vec4` rows a matrix, the body's model matrix first); near bodies compute-skinned
+  once a frame into ordinary meshes (so the shadow and every pass draw them unchanged), middle bodies
+  skinned in the vertex shader by a PSO of their own (the megashader plus `vs_skinned`, the surface
+  class's entry and permutation), built on a background thread so the boot is not longer; until it
+  is ready, middle bodies are compute-skinned too. Middle bodies cast no sun shadow yet (rung 4).
+  Bodies use material type 25: plain PBR, no panel grid.
+- **The tiers (8.4)** live in `characters.ron` (near 15 m and 16 bodies, middle 40 m), not in
+  `data/lod/categories.ron` as section 9 suggested: that file's rows drive Settings sliders by stage,
+  and the character tiers are not its stages. Past the middle distance a body is drawn as a middle
+  one until rung 4's far tier.
+- **The state machine (rung 1)**: `locomotion.ron`, states idle, turn (turn right, idle, turn left
+  over the turn rate) and move (walk and run over the speed, one stride phase, played at the body's
+  speed within 0.55 to 1.6 times, backwards for a backwards walk), crossfades by data. Inputs are read
+  from positions by one motion tracker for every body (teleports reset it).
+- **Who is drawn**: the player in third person, other players (from their interpolated positions,
+  nothing new sent), the crew, the showroom figure (the look and outfit live) and the dev crowd.
+  **Third person now walks the body**: it runs first person's walk, floor, walls, ladders and lifts
+  and stands the camera behind (it had flown a camera with no figure and no collision since the M1
+  review, so there was no body to draw). Interactions (E and F) stay first person's until rung 2.
+- **Cosmetics as tinted regions (2.4's first half)**: each body material takes the person's skin,
+  hair or a cosmetic slot's colour, else the wearer kind's default (players keep the teal top that
+  said "a player", crew the amber). Garments as meshes come with the real body.
+- **Rung 0's baseline** is the same scenes with the old box figures, a same-boot A/B (showcase
+  `figures`), in the vantages `anim-stairs`, `anim-ladder`, `anim-chair`, `anim-crowd-near`,
+  `anim-crowd-middle` and their `-boxes` twins; `anim-tp-move` and `anim-tp-gaits` show the player's
+  body in third person and the gaits.
+- **Known limits the rigs showed**: the game walks at 5 m/s (`WALK_SPEED_MPS`, a jog) and sprints at
+  9.5, so the player's own body plays the run clip (at 1.4 times its speed) when walking, and the
+  sprint runs past the clip's 1.6 times limit, so the feet slide; real walking is about 1.4 m/s (a
+  gameplay speed question for the operator). The third-person camera has no collision yet: in the
+  homestead's narrow hall, three metres behind the body, a door lintel can cut across the view
+  (camera-system.md's "pulls forward when blocked" is the fix). Feet sink up to 4.5 cm into the floor
+  over a cycle and float over stair treads: rung 2's foot IK.
+- **What rung 2 starts from**: the per-figure `Animator` and `MotionTracker` (add stance and the
+  interaction inputs), `humanoid.ron`'s sockets and aims, the role-indexed skeleton (two-bone IK
+  needs the upper, lower and end joints by role, which `Skeleton::joint_by_role` gives), the
+  third-person walk (first person's body draw is the same `Person` with the head regions hidden), and
+  the network's 15 Hz position update, untouched so far.
 
 ## References
 

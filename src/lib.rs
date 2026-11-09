@@ -1786,6 +1786,7 @@ mod native_app {
                 sound_catalog: humanity_core::audio::sounds::SoundCatalog::load(&data_dir),
                 audio_volumes_applied: [-1.0; 6],
                 music: Default::default(),
+                animation: Default::default(),
                 tree_atlas_attempted: false,
                 particle_system: {
                     let mut ps = crate::renderer::particles::ParticleSystem::new();
@@ -3632,7 +3633,8 @@ mod native_app {
                     // ZONE's elevators run, at world positions (v0.754). The footing sampler below
                     // reads the updated car height so the rider rides.
                     let lift_press = state.controller.take_lift_press();
-                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                    // First or third person: both walk the body (character animation rung 1).
+                    if state.camera.mode.walks_body()
                         && !state.gui_state.construction_active
                         // v0.881: home elevators only exist where the home is.
                         && state.aboard_station
@@ -3703,8 +3705,9 @@ mod native_app {
                     // Ladder CLIMB zone (v0.589): if the player stands at a ladder, tell the controller
                     // its span so an up/down input climbs it (instead of jumping/falling). First person,
                     // not build. Proximity (XZ within the ladder footprint + a reach margin) is the
-                    // trigger -- you do not have to be pixel-perfect on the rungs.
-                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                    // trigger -- you do not have to be pixel-perfect on the rungs. Third person too
+                    // since character animation rung 1: it walks the same body.
+                    if state.camera.mode.walks_body()
                         && !state.gui_state.construction_active
                     {
                         // v0.754: EVERY zone's ladders, at world positions; since ship homes
@@ -5258,7 +5261,9 @@ mod native_app {
                     // The doors shut this frame, the one list the walk sweeps against and E and F's
                     // reach reads (engine/built_uses.rs `refresh_shut_doors`, `reach_blockers`).
                     crate::engine::built_uses::refresh_shut_doors(state);
-                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                    // First or third person: both walk the body, so the walls hold it in both
+                    // (character animation rung 1).
+                    if state.camera.mode.walks_body()
                         && !state.gui_state.construction_active
                         // Dev fly mode is noclip (v0.791.x): walls must not pin
                         // the traveler inside the hull when they fly out.
@@ -9152,7 +9157,13 @@ mod native_app {
                     // stands on the floor 1.7 m below it and is built UP from the feet, body box
                     // to the shoulders, head on top (engine::net_route::remote_figure_parts,
                     // 2026-10-02). The name floats over it (net_route::nameplate_labels).
-                    if !showroom {
+                    // Since character animation rung 1 (2026-11-08) every person is a skinned,
+                    // animated body (engine/animation.rs: the player in third person, the other
+                    // players, the crew, the showroom figure, the dev crowd); the box figures
+                    // below stand in only when the character data did not load, or for the A/B
+                    // switch (showcase `figures`: `boxes`).
+                    let bodies_drawn = crate::engine::animation::draw_people(state, &mut all_objects, showroom, dt);
+                    if !showroom && !bodies_drawn {
                         if state.remote_avatar.is_none() {
                             // Sized by the constants remote_figure_parts places the parts by
                             // (2026-10-02): the box's base at its origin, the sphere centred on

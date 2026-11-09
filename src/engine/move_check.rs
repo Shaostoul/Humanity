@@ -142,7 +142,7 @@ pub(crate) fn teleporter_tick(state: &mut EngineState, dt: f32) {
     let link = state.gui_state.ship_structure.as_ref().and_then(|ship| ship.transit_link_at(p));
     let (cooldown, armed) = teleport_rearm(state.teleport_cooldown, link.is_some(), dt);
     state.teleport_cooldown = cooldown;
-    let walking_in_person = state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson && !state.gui_state.construction_active && !state.controller.fly_mode;
+    let walking_in_person = state.camera.mode.walks_body() && !state.gui_state.construction_active && !state.controller.fly_mode;
     let Some(link) = link.filter(|_| armed && walking_in_person) else { return };
     let at = teleport_landing(&link, state.controller.eye_height());
     state.camera.position = at;

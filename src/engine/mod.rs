@@ -92,6 +92,9 @@ pub mod fleet;
 pub mod mess_hall;
 /// The live music and the ship's hum, wired into the frame (2026-11-06, crates/humanity-music).
 pub mod music;
+/// Characters on screen: every humanoid as one skinned, animated body (character animation rung
+/// 1, 2026-11-08, crates/humanity-animation and renderer/skinning.rs).
+pub mod animation;
 /// The game's one-shot sounds on the volume slider each belongs to, and the volumes' push (BUG-265).
 pub mod sfx;
 pub mod home_spawn;

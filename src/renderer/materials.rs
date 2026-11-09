@@ -51,8 +51,19 @@ use wgpu::util::DeviceExt;
 /// 12 planet surface / terrain patch, 13 atmosphere shell, 14 scattering
 /// atmosphere, 15 cloud deck, 16 ocean shell, 17 and 18 gas giant bands,
 /// 19 textured mesh (photoscans, furniture), 20 near-tree foliage mesh,
-/// 21 baked cluster card, 22 baked bark, 23 grass strand, 24 screen (this).
+/// 21 baked cluster card, 22 baked bark, 23 grass strand, 24 screen (this),
+/// 25 character (below).
 pub const MATERIAL_TYPE_SCREEN: f32 = 24.0;
+
+/// Material type 25: a CHARACTER's skin, hair or clothes (character animation
+/// rung 1, 2026-11-08; docs/design/character-animation.md 2.4). The surface
+/// class's plain PBR of its base colour and roughness: no branch in
+/// `90-fragment-main.wgsl` claims the type, so it reaches the entry's "keeps
+/// the plain PBR look of its base_color" fall-through. Type 0 would lay the
+/// walls' world-space panel grid over a person, type 1 brushed-metal
+/// scratches. No wind (the vertex shader's wind is types 19 to 23), no cutout
+/// in the shadow pass: a body is an opaque caster.
+pub const MATERIAL_TYPE_CHARACTER: f32 = 25.0;
 
 impl Renderer {
     /// Register a material and return its handle (index).

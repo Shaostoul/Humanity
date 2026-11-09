@@ -79,7 +79,8 @@ called from exactly one place); `each_class_entry_reads_exactly_its_live_switche
 prologue and tail read none);
 `the_fragment_entries_are_the_class_entries_the_shadow_twin_and_the_exempt_passes`
 (no fs_main lingering, no colour entry without a class);
-`the_registry_covers_exactly_the_thirteen_megashader_psos`; and every
+`the_registry_covers_exactly_the_fourteen_megashader_psos` (the fourteenth, since 2026-11-08, is
+the skinned surface PSO of character animation, `renderer/skinning.rs`); and every
 builder must take both its constants and its fragment entry from the
 registry by label (`every_megashader_pso_builder_asks_the_registry`).
 `validate_wgsl` refuses a module missing any class entry or any switch. A

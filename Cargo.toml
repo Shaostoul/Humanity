@@ -2,7 +2,7 @@
 # humanity-engine (the app, the server mode and the binary), and the crates cut out of it so far, each in
 # crates/<name>/ with a one-page card in docs/crates/. The plan for all ten is scripts/crate-layers.json.
 [workspace]
-members = [".", "crates/humanity-core", "crates/humanity-protocol", "crates/humanity-ship", "crates/humanity-terrain", "crates/humanity-systems", "crates/humanity-music"]
+members = [".", "crates/humanity-core", "crates/humanity-protocol", "crates/humanity-ship", "crates/humanity-terrain", "crates/humanity-systems", "crates/humanity-music", "crates/humanity-animation"]
 # vendor/rav1d is a patched dependency ([patch.crates-io] below), not one of ours.
 exclude = ["vendor"]
 resolver = "2"
@@ -91,7 +91,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
+native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:humanity-animation", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
 relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:p256", "dep:hkdf", "dep:sha2_11", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -112,6 +112,10 @@ humanity-systems = { path = "crates/humanity-systems", default-features = false 
 # The game's live music and the ship's hum (docs/design/music.md, 2026-11-06): the pure composer and
 # synthesis crate plus its kira adapter. Desktop only (`native`): the server build never compiles audio.
 humanity-music = { path = "crates/humanity-music", optional = true }
+# Character animation (docs/design/character-animation.md, rung 1, 2026-11-08): the humanoid skeleton
+# standard, clips retargeted by role, the locomotion state machine and the pose palette, as pure Rust.
+# Desktop only (`native`): animation never reaches the server, so the relay build never compiles it.
+humanity-animation = { path = "crates/humanity-animation", optional = true }
 # Data parallelism (v0.1067). The particle update + vertex-collect loop is
 # embarrassingly parallel and was MEASURED at 17-20 ns per particle per frame
 # on one core, which put the practical ceiling near 50k particles at 120 fps.

@@ -18,8 +18,12 @@ pub mod input;
 // docs/design/crate-split.md); each file's header says why it lives there.
 /// The data files' parsers (CSV, TOML, RON, JSON), pure and ungated (was `assets::loader`).
 pub mod data_parse;
-/// The one mesh vertex: plain data every mesh builder writes (was `renderer::mesh::Vertex`).
+/// The one mesh vertex: plain data every mesh builder writes (was `renderer::mesh::Vertex`), and
+/// the skinned vertex characters bend with (character animation rung 1, 2026-11-08).
 pub mod vertex;
+/// Skinned models and animation clips as plain imported data: the glTF reader fills it, the
+/// animation crate builds skeletons and clips from it (docs/design/character-animation.md).
+pub mod skin_data;
 /// What a frame cost: the store every system records into (its GPU half is `renderer::gpu_costs`).
 pub mod frame_costs;
 /// The play journal (2026-10-24, docs/design/play-journal.md): what happened while the game ran, in

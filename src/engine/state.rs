@@ -131,6 +131,9 @@ pub(crate) struct EngineState {
     pub(crate) audio_volumes_applied: [f32; 6],
     /// The live music and the ship's hum (engine/music.rs, docs/design/music.md).
     pub(crate) music: crate::engine::music::MusicRuntime,
+    /// The characters: the body library, each figure's state machine, the dev crowd
+    /// (engine/animation.rs, docs/design/character-animation.md).
+    pub(crate) animation: crate::engine::animation::AnimationRuntime,
     /// One-shot guard for the tree-card atlas bake (v0.961): a FAILED bake
     /// must log once and stop, not re-parse 12 GLTFs every frame.
     pub(crate) tree_atlas_attempted: bool,

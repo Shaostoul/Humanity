@@ -50,6 +50,14 @@
       ]
     },
     {
+      "name": "humanity-animation",
+      "why": "Character animation (docs/design/character-animation.md, rung 1, 2026-11-08; the operator: \"a new crate, humanity-animation: yes\"): the humanoid skeleton standard (VRM 1.0 bone names as roles, mapped from any rig by a data file), poses and the pose palette, clips retargeted by role, blend spaces and the locomotion state machine. Pure (no GPU, no egui, no file format reader), so its tests run headless; animation never reaches the server, so the relay build never compiles it.",
+      "dir": "crates/humanity-animation",
+      "uses": [
+        "humanity-core"
+      ]
+    },
+    {
       "name": "humanity-relay",
       "why": "The server. The VPS build is this crate and what it uses, with no GPU code in it.",
       "paths": [
@@ -152,7 +160,8 @@
         "humanity-net",
         "humanity-renderer",
         "humanity-gui",
-        "humanity-music"
+        "humanity-music",
+        "humanity-animation"
       ]
     }
   ],

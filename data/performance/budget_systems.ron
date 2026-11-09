@@ -128,6 +128,19 @@
         note: "Ship and homestead geometry: opaque, glass, and overlay draws, and the room light probes they read.",
     ),
     (
+        // Character animation rung 1 (2026-11-08, renderer/skinning.rs): the compute pass that skins
+        // the near bodies once a frame. Their drawing and the middle bodies' vertex-shader skinning
+        // are inside gpu.scene (the row above), the way the megashader's classes share one pass.
+        id: "characters",
+        display: "Characters",
+        category: "gpu",
+        sources: ["gpu.skinning"],
+        locked: false,
+        base_frac: 0.03,
+        color: "accent",
+        note: "Skinning the nearest people's bodies each frame (their drawing is in the ship and homestead slice).",
+    ),
+    (
         id: "particles",
         display: "Particles",
         category: "gpu",
@@ -380,6 +393,20 @@
         base_frac: 0.10,
         color: "nav_sim",
         note: "Farming, weather, creatures, vitals - the whole ECS tick. Each system is measured on its own too (cpu.system.farming, cpu.system.weather, cpu.system.ai, ...); the breakdown appears when slices become drillable.",
+    ),
+    (
+        // Character animation rung 1 (2026-11-08): every visible body's state machine, pose and
+        // palette (cpu.animation, engine/animation.rs). The palette upload and compute dispatch
+        // (cpu.skinning, renderer/skinning.rs) run INSIDE that stage, so they are its part, not a
+        // second source: listed here they would be counted twice.
+        id: "cpu_characters",
+        display: "Characters",
+        category: "cpu",
+        sources: ["cpu.animation"],
+        locked: false,
+        base_frac: 0.03,
+        color: "accent",
+        note: "Animating every visible person: their state machines, poses and the skinning upload.",
     ),
     (
         id: "cpu_page_data",

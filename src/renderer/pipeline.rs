@@ -1521,6 +1521,80 @@ impl Pipeline {
         })
     }
 
+    /// The VERTEX-SHADER SKINNING PSO (character animation rung 1, 2026-11-08;
+    /// `renderer::skinning`): a Surface-class row of its own in PSO_REGISTRY, so it compiles the
+    /// surface class's fragment entry with the surface class's permutation (the row derives both
+    /// from the class, so it can never disagree with the surface PSO), the opaque state, and
+    /// `vs_skinned` (appended to the megashader by the caller) reading a skinned vertex buffer of
+    /// its own layout. Built on the skinning path's background thread, never at boot, so it adds
+    /// nothing to the shaders-and-pipelines boot span.
+    pub(super) fn build_skinned_surface_pso(
+        device: &wgpu::Device,
+        scene_format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+        pipeline_layout: &wgpu::PipelineLayout,
+        attributes: &[wgpu::VertexAttribute],
+        stride: u64,
+    ) -> wgpu::RenderPipeline {
+        let label = "PBR-lite Skinned Surface Render Pipeline";
+        let (blend, cull, depth_write) = OPAQUE_STATE;
+        let constants = pso_constants(label);
+        let entry = pso_fragment_entry(label).expect("the skinned surface PSO compiles a class entry");
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_skinned"),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: stride,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes,
+                }],
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some(entry),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: scene_format,
+                    blend: Some(blend),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: cull,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: depth_write,
+                depth_compare: wgpu::CompareFunction::Greater, // reverse-Z, as every scene PSO
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        })
+    }
+
     /// The two cloud PSOs (`CloudPsos`), compiled side by side on two scoped
     /// workers with the large compile stack (`spawn_compile`). Used by both
     /// the inline path (inside `build_all_pipelines`' scope, as one of its
@@ -1983,7 +2057,7 @@ fn timed(
 /// only what it touches, and the calling (main) thread compiles nothing. With
 /// DXC (the normal case: release zips bundle it and the archives sit beside
 /// it) nothing changes.
-const COMPILE_STACK_BYTES: usize = 64 * 1024 * 1024;
+pub(super) const COMPILE_STACK_BYTES: usize = 64 * 1024 * 1024;
 
 /// `HUMANITY_FXC_CLOUDS=1`: compile the two cloud PSOs even when this
 /// process compiles shaders with FXC (no DXC dlls beside the exe). Without it
@@ -2478,6 +2552,10 @@ pub const PSO_REGISTRY: &[PsoRow] = &[
     shadow_row("Sun Shadow Alpha Pipeline", Some(SHADOW_FRAGMENT_ENTRY)),
     class_row("Patch Batch Render Pipeline", ShaderClass::Terrain),
     shadow_row("Patch Batch Shadow Pipeline", Some(SHADOW_FRAGMENT_ENTRY)),
+    // Character animation rung 1 (2026-11-08, renderer/skinning.rs): middle-distance bodies,
+    // skinned in the vertex shader (`vs_skinned`), shaded exactly as a surface. Built on its own
+    // background thread by `build_skinned_surface_pso`, not by `build_all_pipelines`.
+    class_row("PBR-lite Skinned Surface Render Pipeline", ShaderClass::Surface),
 ];
 
 /// The registry row for one PSO label. Panics on a label that is not in
@@ -3066,8 +3144,8 @@ mod permutation_tests {
 
     /// The expected registry, PSO by PSO. A hand-written twin of
     /// PSO_REGISTRY so a row cannot be changed without this test naming the
-    /// change: nine class rows over six classes, two sun-shadow rows, two
-    /// terrain-batch rows.
+    /// change: ten class rows over six classes (the skinned surface row since
+    /// 2026-11-08), two sun-shadow rows, two terrain-batch rows.
     const EXPECTED_ROWS: &[(&str, Option<ShaderClass>, Option<&str>)] = &[
         ("PBR-lite Surface Render Pipeline", Some(ShaderClass::Surface), Some("fs_surface")),
         ("PBR-lite Surface Transparent Pipeline", Some(ShaderClass::Surface), Some("fs_surface")),
@@ -3082,10 +3160,11 @@ mod permutation_tests {
         ("Sun Shadow Alpha Pipeline", None, Some("fs_shadow")),
         ("Patch Batch Render Pipeline", Some(ShaderClass::Terrain), Some("fs_terrain")),
         ("Patch Batch Shadow Pipeline", None, Some("fs_shadow")),
+        ("PBR-lite Skinned Surface Render Pipeline", Some(ShaderClass::Surface), Some("fs_surface")),
     ];
 
     #[test]
-    fn the_registry_covers_exactly_the_thirteen_megashader_psos() {
+    fn the_registry_covers_exactly_the_fourteen_megashader_psos() {
         let labels: Vec<&str> = PSO_REGISTRY.iter().map(|r| r.label).collect();
         let expected: Vec<&str> = EXPECTED_ROWS.iter().map(|(l, _, _)| *l).collect();
         assert_eq!(labels, expected, "the registry's rows (or their order) changed");

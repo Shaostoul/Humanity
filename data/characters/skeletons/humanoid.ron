@@ -1,0 +1,120 @@
+// THE HUMANOID SKELETON STANDARD (character animation rung 1, 2026-11-08;
+// docs/design/character-animation.md section 2.1; read by crates/humanity-animation/src/humanoid.rs).
+//
+// The roles a humanoid body's joints can play. Role names are VRM 1.0's humanoid bone names
+// (https://github.com/vrm-c/vrm-specification, specification/VRMC_vrm-1.0/humanoid.md), used as a
+// vocabulary and not as a file format, so any rig whose bones a role map
+// (data/characters/role_maps/) names this way maps by role: a MakeHuman body, a Quaternius clip
+// library, a SOMA skeleton, our test figure. Eleven roles are ours (standard: Hos): the six twist
+// joints, which VRM does not list and linear blend skinning needs (plan 2.1), and the second neck
+// joint and four fingertips of NVIDIA's SOMA 30-joint layout, so a SOMA-driven model (MotionBricks'
+// class, plan rung 7) can drive our body joint for joint (the operator, 2026-11-08: the body is
+// MakeHuman, its skeleton also mapped to SOMA's 30 joints; role_maps/soma_30.ron and
+// joint_maps/makehuman_to_soma30.ron).
+//
+// Each row:
+//   role      the name
+//   parent    the role above it (a rig may skip roles between: a neck under the chest is fine)
+//   tier      the lowest drawing tier the joint belongs to: Far (every tier, the far bake too),
+//             Middle (near and middle), Near (near only); rung 4 draws fewer joints further away
+//   required  a body without it is refused (exactly VRM 1.0's required bones)
+//   aim       the role this bone points at, at rest
+//   align     when retargeting, turn this bone's rest direction onto the source rig's first, so a
+//             clip made on a T-pose rig plays on an A-pose body with the limbs where the clip put them
+//   twist     a twist joint's driver and share: it takes that share of the driver's twist about the
+//             driver's bone (the joint hangs from the same parent as its driver)
+//
+// Sockets: where a prop attaches (rung 2's two grips; the fire props' staff). Offsets are metres
+// from the joint in the standard's reference pose (a T-pose facing +Z, +Y up, +X the character's
+// left), turned with the joint at run time, so they are the same for every rig.
+(
+    id: "humanoid",
+    roles: [
+        // Torso and head.
+        (role: "hips", parent: None, tier: Far, required: true),
+        (role: "spine", parent: Some("hips"), tier: Far, required: true),
+        (role: "chest", parent: Some("spine"), tier: Far),
+        (role: "upperChest", parent: Some("chest"), tier: Middle),
+        (role: "neck", parent: Some("upperChest"), tier: Middle),
+        // A second neck joint, just under the head (SOMA's Neck2, MakeHuman's neck03): ours, as VRM
+        // has one neck. A rig without it hangs the head straight off the neck, which the check allows.
+        (role: "upperNeck", parent: Some("neck"), tier: Middle, standard: Hos),
+        (role: "head", parent: Some("upperNeck"), tier: Far, required: true),
+        (role: "leftEye", parent: Some("head"), tier: Near),
+        (role: "rightEye", parent: Some("head"), tier: Near),
+        (role: "jaw", parent: Some("head"), tier: Near),
+        // The left leg.
+        (role: "leftUpperLeg", parent: Some("hips"), tier: Far, required: true, aim: Some("leftLowerLeg"), align: true),
+        (role: "leftLowerLeg", parent: Some("leftUpperLeg"), tier: Far, required: true, aim: Some("leftFoot"), align: true),
+        (role: "leftFoot", parent: Some("leftLowerLeg"), tier: Far, required: true, aim: Some("leftToes"), align: true),
+        (role: "leftToes", parent: Some("leftFoot"), tier: Middle),
+        (role: "leftUpperLegTwist", parent: Some("leftUpperLeg"), tier: Middle, standard: Hos, twist: Some((of: "leftLowerLeg", share: 0.5))),
+        // The right leg.
+        (role: "rightUpperLeg", parent: Some("hips"), tier: Far, required: true, aim: Some("rightLowerLeg"), align: true),
+        (role: "rightLowerLeg", parent: Some("rightUpperLeg"), tier: Far, required: true, aim: Some("rightFoot"), align: true),
+        (role: "rightFoot", parent: Some("rightLowerLeg"), tier: Far, required: true, aim: Some("rightToes"), align: true),
+        (role: "rightToes", parent: Some("rightFoot"), tier: Middle),
+        (role: "rightUpperLegTwist", parent: Some("rightUpperLeg"), tier: Middle, standard: Hos, twist: Some((of: "rightLowerLeg", share: 0.5))),
+        // The left arm.
+        (role: "leftShoulder", parent: Some("upperChest"), tier: Middle, aim: Some("leftUpperArm"), align: true),
+        (role: "leftUpperArm", parent: Some("leftShoulder"), tier: Far, required: true, aim: Some("leftLowerArm"), align: true),
+        (role: "leftLowerArm", parent: Some("leftUpperArm"), tier: Far, required: true, aim: Some("leftHand"), align: true),
+        (role: "leftHand", parent: Some("leftLowerArm"), tier: Middle, required: true, aim: Some("leftMiddleProximal"), align: true),
+        (role: "leftUpperArmTwist", parent: Some("leftUpperArm"), tier: Middle, standard: Hos, twist: Some((of: "leftLowerArm", share: 0.5))),
+        (role: "leftLowerArmTwist", parent: Some("leftLowerArm"), tier: Middle, standard: Hos, twist: Some((of: "leftHand", share: 0.5))),
+        // The left hand's fingers.
+        (role: "leftThumbMetacarpal", parent: Some("leftHand"), tier: Near),
+        (role: "leftThumbProximal", parent: Some("leftThumbMetacarpal"), tier: Near),
+        (role: "leftThumbDistal", parent: Some("leftThumbProximal"), tier: Near),
+        // The fingertips SOMA's 30-joint layout carries (LeftHandThumbEnd, LeftHandMiddleEnd): ours,
+        // as VRM ends at the distal bones. A rig whose tips are bone tails, not joints (MakeHuman's),
+        // gets them from the distal bone: data/characters/joint_maps/makehuman_to_soma30.ron.
+        (role: "leftThumbTip", parent: Some("leftThumbDistal"), tier: Near, standard: Hos),
+        (role: "leftIndexProximal", parent: Some("leftHand"), tier: Near),
+        (role: "leftIndexIntermediate", parent: Some("leftIndexProximal"), tier: Near),
+        (role: "leftIndexDistal", parent: Some("leftIndexIntermediate"), tier: Near),
+        (role: "leftMiddleProximal", parent: Some("leftHand"), tier: Near),
+        (role: "leftMiddleIntermediate", parent: Some("leftMiddleProximal"), tier: Near),
+        (role: "leftMiddleDistal", parent: Some("leftMiddleIntermediate"), tier: Near),
+        (role: "leftMiddleTip", parent: Some("leftMiddleDistal"), tier: Near, standard: Hos),
+        (role: "leftRingProximal", parent: Some("leftHand"), tier: Near),
+        (role: "leftRingIntermediate", parent: Some("leftRingProximal"), tier: Near),
+        (role: "leftRingDistal", parent: Some("leftRingIntermediate"), tier: Near),
+        (role: "leftLittleProximal", parent: Some("leftHand"), tier: Near),
+        (role: "leftLittleIntermediate", parent: Some("leftLittleProximal"), tier: Near),
+        (role: "leftLittleDistal", parent: Some("leftLittleIntermediate"), tier: Near),
+        // The right arm.
+        (role: "rightShoulder", parent: Some("upperChest"), tier: Middle, aim: Some("rightUpperArm"), align: true),
+        (role: "rightUpperArm", parent: Some("rightShoulder"), tier: Far, required: true, aim: Some("rightLowerArm"), align: true),
+        (role: "rightLowerArm", parent: Some("rightUpperArm"), tier: Far, required: true, aim: Some("rightHand"), align: true),
+        (role: "rightHand", parent: Some("rightLowerArm"), tier: Middle, required: true, aim: Some("rightMiddleProximal"), align: true),
+        (role: "rightUpperArmTwist", parent: Some("rightUpperArm"), tier: Middle, standard: Hos, twist: Some((of: "rightLowerArm", share: 0.5))),
+        (role: "rightLowerArmTwist", parent: Some("rightLowerArm"), tier: Middle, standard: Hos, twist: Some((of: "rightHand", share: 0.5))),
+        // The right hand's fingers.
+        (role: "rightThumbMetacarpal", parent: Some("rightHand"), tier: Near),
+        (role: "rightThumbProximal", parent: Some("rightThumbMetacarpal"), tier: Near),
+        (role: "rightThumbDistal", parent: Some("rightThumbProximal"), tier: Near),
+        (role: "rightThumbTip", parent: Some("rightThumbDistal"), tier: Near, standard: Hos),
+        (role: "rightIndexProximal", parent: Some("rightHand"), tier: Near),
+        (role: "rightIndexIntermediate", parent: Some("rightIndexProximal"), tier: Near),
+        (role: "rightIndexDistal", parent: Some("rightIndexIntermediate"), tier: Near),
+        (role: "rightMiddleProximal", parent: Some("rightHand"), tier: Near),
+        (role: "rightMiddleIntermediate", parent: Some("rightMiddleProximal"), tier: Near),
+        (role: "rightMiddleDistal", parent: Some("rightMiddleIntermediate"), tier: Near),
+        (role: "rightMiddleTip", parent: Some("rightMiddleDistal"), tier: Near, standard: Hos),
+        (role: "rightRingProximal", parent: Some("rightHand"), tier: Near),
+        (role: "rightRingIntermediate", parent: Some("rightRingProximal"), tier: Near),
+        (role: "rightRingDistal", parent: Some("rightRingIntermediate"), tier: Near),
+        (role: "rightLittleProximal", parent: Some("rightHand"), tier: Near),
+        (role: "rightLittleIntermediate", parent: Some("rightLittleProximal"), tier: Near),
+        (role: "rightLittleDistal", parent: Some("rightLittleIntermediate"), tier: Near),
+    ],
+    sockets: [
+        (id: "grip_l", role: "leftHand", offset_m: (0.08, -0.02, 0.0)),
+        (id: "grip_r", role: "rightHand", offset_m: (-0.08, -0.02, 0.0)),
+        (id: "back", role: "upperChest", offset_m: (0.0, 0.0, -0.15)),
+        (id: "hip_l", role: "hips", offset_m: (0.18, 0.0, 0.0)),
+        (id: "hip_r", role: "hips", offset_m: (-0.18, 0.0, 0.0)),
+        (id: "head_top", role: "head", offset_m: (0.0, 0.18, 0.0)),
+    ],
+)
