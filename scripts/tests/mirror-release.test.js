@@ -96,6 +96,9 @@ class FakeGitHub {
     this.conns = {}; // name -> CDN connections so far
     this.requests = []; // { path, range }
     this.rateLimited = false;
+    this.cdnDelayMs = 0; // every CDN answer waits this long, so overlapping fetches can be seen
+    this.inflight = 0; // CDN answers being served right now
+    this.maxInflight = 0; // the most at once
   }
 
   addRelease(tag, { omit = [], overrides = {} } = {}) {
@@ -173,6 +176,10 @@ class FakeGitHub {
       const rel = this.releases.get(decodeURIComponent(m[1]));
       const file = rel && rel.files.get(decodeURIComponent(m[2]));
       if (!file) return json(404, { message: "Not Found" });
+      this.inflight += 1;
+      this.maxInflight = Math.max(this.maxInflight, this.inflight);
+      res.on("close", () => (this.inflight -= 1));
+      if (this.cdnDelayMs) return setTimeout(() => this.serve(req, res, file), this.cdnDelayMs);
       return this.serve(req, res, file);
     }
     json(404, { message: "Not Found" });
@@ -310,6 +317,32 @@ test("a release becomes exactly the mirror's 14 files, every byte checked, and t
   assert.deepStrictEqual(listed[0].assets.map((a) => a.name).sort(), w.release.mirrored);
   // Every download went through GitHub's redirect and was asked for once.
   assert.strictEqual(w.gh.cdnRequests().length, 14, "one connection per file on a healthy path");
+});
+
+// SEVERAL FILES AT ONCE (2026-11-09): v0.1553.0's 4.5 GB fetched one file at a time, each
+// connection at about 1 MB/s from the server to GitHub's CDN, ran out of the workflow's 50
+// minutes. With --parallel 4 the CDN sees four answers in flight together; with --parallel 1 only
+// ever one, and the release is the same 14 verified files either way.
+// Seen red 2026-11-09 with the pool's max_workers pinned to 1: "four files are fetched at once: 1".
+test("--parallel fetches several files at once, and --parallel 1 one at a time", async () => {
+  const many = await world();
+  many.gh.cdnDelayMs = 300;
+  const r = await runPuller(many, [...FAST, "--parallel", "4"]);
+  assert.strictEqual(r.code, 0, r.out);
+  assertPublished(many);
+  assert.strictEqual(many.gh.maxInflight, 4, `four files are fetched at once: ${many.gh.maxInflight}`);
+
+  const one = await world();
+  one.gh.cdnDelayMs = 50;
+  const r1 = await runPuller(one, [...FAST, "--parallel", "1"]);
+  assert.strictEqual(r1.code, 0, r1.out);
+  assertPublished(one);
+  assert.strictEqual(one.gh.maxInflight, 1, "one file at a time");
+
+  const bad = await world();
+  const r0 = await runPuller(bad, [...FAST, "--parallel", "0"]);
+  assert.strictEqual(r0.code, 2, r0.out);
+  assert.match(r0.out, /--parallel must be from 1 to 16/);
 });
 
 // Seen red with the socket timeout taken out (`timeout=args.speed_time` became `timeout=None` in

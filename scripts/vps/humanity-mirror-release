@@ -52,6 +52,7 @@
 #                                                     behind (a staging folder it made is removed)
 #   options: --tries N (30) --speed-limit BYTES_PER_S (500000) --speed-time S (20)
 #            --max-minutes M (none; the workflow passes 50) --lock-wait S (600) --retry-wait S (2)
+#            --parallel N (4: files fetched at once; one connection to GitHub's CDN is slow)
 #            --releases-dir DIR (/var/www/humanity/releases)
 # Settings (environment; the tests use them): HUMANITY_RELEASES_DIR, HUMANITY_MIRROR_API (the
 # repository's API address), HUMANITY_REGEN_CMD (the manifest command, split like a shell line).
@@ -80,6 +81,7 @@
 
 import argparse
 import collections
+import concurrent.futures
 import hashlib
 import http.client
 import json
@@ -90,6 +92,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -135,11 +138,14 @@ class Failure(Exception):
 class Log:
     def __init__(self, tag):
         self.prefix = f"[mirror {tag}]"
+        # Several files are fetched at once (--parallel): one line at a time, never two spliced.
+        self.lock = threading.Lock()
 
     def __call__(self, message):
         # flush: over ssh stdout is a pipe, and a line that waits in a buffer neither tells the
         # workflow's log anything nor keeps the session alive.
-        print(f"{self.prefix} {message}", flush=True)
+        with self.lock:
+            print(f"{self.prefix} {message}", flush=True)
 
 
 def human_size(n):
@@ -555,6 +561,9 @@ def parse_args(argv):
                    help="bytes a second a connection must keep up over --speed-time (500000)")
     p.add_argument("--speed-time", type=float, default=20, help="seconds of crawling or silence before a reconnect (20)")
     p.add_argument("--max-minutes", type=float, default=None, help="stop (exit 1, resumable) after this long")
+    p.add_argument("--parallel", type=int, default=4,
+                   help="files fetched at once (4): one connection from the server to GitHub's CDN "
+                        "ran at about 1 MB/s for v0.1553.0, so 4.5 GB one file at a time took over 50 minutes")
     p.add_argument("--lock-wait", type=float, default=600, help="seconds to wait for another run's lock (600)")
     p.add_argument("--retry-wait", type=float, default=2, help="base pause after an error, doubled up to 8x (2)")
     args = p.parse_args(argv)
@@ -569,6 +578,8 @@ def run(args, log):
         raise Failure(EXIT_USAGE, f"{tag!r} is not a release tag (expected something like v0.1552.0)")
     if args.tries < 1 or args.speed_time <= 0 or args.speed_limit < 0:
         raise Failure(EXIT_USAGE, "--tries must be at least 1 and --speed-time more than 0")
+    if not 1 <= args.parallel <= 16:
+        raise Failure(EXIT_USAGE, "--parallel must be from 1 to 16")
     if not os.path.isdir(releases):
         raise Failure(EXIT_USAGE, f"there is no releases folder at {releases}")
     published = os.path.join(releases, tag)
@@ -637,17 +648,38 @@ def run(args, log):
         if os.path.isdir(published):
             return verify_published(" (another run published it while this one waited)")
         os.makedirs(staging, exist_ok=True)
-        fetched = 0
+        todo = []
         for a in chosen:
             dest = os.path.join(staging, a["name"])
             if os.path.exists(dest) and os.path.getsize(dest) == a["size"] and check_file(dest, a) is None:
                 log(f"{a['name']}: already fetched and verified")
                 continue
+            todo.append(a)
+
+        def fetch_one(a):
             t0 = time.monotonic()
-            fetch_verified(a, dest, Budget(args.tries, args.deadline), args, log)
-            fetched += 1
+            fetch_verified(a, os.path.join(staging, a["name"]), Budget(args.tries, args.deadline), args, log)
             took = max(time.monotonic() - t0, 1e-6)
             log(f"{a['name']}: verified, {human_size(a['size'])} in {human_time(took)} ({human_size(a['size'] / took)}/s)")
+
+        # Several files at once (--parallel, 2026-11-09): the server's path to GitHub's CDN gives one
+        # connection about 1 to 3 MB/s, so v0.1553.0's 4.5 GB fetched one file at a time ran out of
+        # the workflow's 50 minutes. Largest first, so the long ones start early and the small ones
+        # fill in around them. Each file keeps its own connection budget; a file that fails does not
+        # stop the others (their bytes are kept for the rerun), and the first failure is the result.
+        todo.sort(key=lambda a: (-a["size"], a["name"]))
+        fetched = 0
+        failures = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.parallel) as pool:
+            futures = [pool.submit(fetch_one, a) for a in todo]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                    fetched += 1
+                except Failure as f:
+                    failures.append(f)
+        if failures:
+            raise failures[0]
         # Everything matches. Only the release's files go public (the staging folder is this
         # script's own, so a stray file in it is removed, never published), readable by nginx
         # whatever umask this run had, then one rename.

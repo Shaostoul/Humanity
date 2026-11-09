@@ -142,8 +142,11 @@ manifest; never the headless relay or its `.sha256`, and each file it skips is n
 into the hidden `/var/www/humanity/releases/.<tag>.partial/` with resume, dropping a connection
 that crawls under 500 KB/s or goes silent for 20 s and resuming on a fresh one, checks every file's
 size and SHA-256 against GitHub's digest, and only when all match renames the folder into place and
-runs `regen-releases-manifest`. A healthy run takes about 15 minutes; the script stops itself at 50
-(resumable), the ssh session at 55, the job at 60. Until then the job pushed 4.4 GB to the server
+runs `regen-releases-manifest`. It fetches four files at once (`--parallel 4`, 2026-11-09): the
+first workflow run, v0.1553.0, fetched one at a time and measured about 1 MB/s per connection from
+the server to GitHub's CDN (1.0 MB/s for a 540 MB archive, up to 2.8 MB/s at a connection's start),
+so 4.5 GB ran out of its 50 minutes at 3.4 GB and was finished by hand. The script stops itself at
+50 minutes (resumable), the ssh session at 55, the job at 60. Until then the job pushed 4.4 GB to the server
 with `appleboy/scp-action`, which for v0.1552.0 hung for 1 h 42 min, twice.
 
 **When the job is red, or the download page lacks the newest release**, rerun the job, or run it

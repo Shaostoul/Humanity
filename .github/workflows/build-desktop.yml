@@ -251,7 +251,9 @@ jobs:
   # a long transfer; many short ones get through). It runs after `build` and `bundle-data`, so
   # every file it takes is already on the release. The two timeouts below mean a hang can never
   # again run for hours: the script stops itself at 50 minutes (exit 1, resumable), the ssh
-  # session at 55, the job at 60; a healthy run takes about 15. If it fails, rerun the job or run
+  # session at 55, the job at 60. It fetches four files at once (the script's --parallel default):
+  # one at a time, v0.1553.0 measured about 1 MB/s per connection and ran out of the 50 minutes at
+  # 3.4 of 4.5 GB. If it fails, rerun the job or run
   # `ssh humanity-vps "humanity-mirror-release <tag>"` (docs/ai/release.md, "The server's copy of
   # each release"); a rerun resumes and never re-fetches a verified file.
   mirror-to-vps:
