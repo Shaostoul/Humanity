@@ -476,3 +476,35 @@ what we will say about it.
   100STYLE (CC BY 4.0) usable; LAFAN1, AMASS, SFU, Bandai Namco, AI4Animation and BONES-SEED (bars
   generative motion models) not; MakeHuman bodies and Quaternius clips CC0. The basis for
   `docs/design/character-animation.md`.
+- [`2026-11-08-nvidia-simready-assets.md`](2026-11-08-nvidia-simready-assets.md),
+  whether NVIDIA's SimReady Assets (2,677 real-scale 3D objects with physics data, on Hugging Face)
+  may be converted from USD to glTF, changed and shipped in the game. Yes under CC BY 4.0: every
+  asset's own packaging file says "CC-BY-4.0" and every one carries the licence text (all checked);
+  format conversion alone is a "technical modification", real changes are an adaptation and need a
+  "modified" note; no gate, NOTICE or NVIDIA terms beyond the licence; credit NVIDIA with the
+  licence and dataset links (no wording requested), on the Credits page and in each asset's folder.
+  The MDL shader files carry NVIDIA's BSD-style licence and need not ship; no one's marks are
+  licensed, and two assets are named after trademarked products (WD-40, Rubik's Cube), so leave them
+  out; textures were not looked at, so each chosen asset's colour map needs a look for printed
+  brands. The assets stay CC BY inside the CC0 project.
+- [`2026-11-08-paradee-tts.md`](2026-11-08-paradee-tts.md),
+  whether Paradee 1.2 (an 8.5 MB English text-to-speech model) may ship in the app and on the
+  website for Library read-aloud and a ship-computer voice. Yes under Apache 2.0 for the code and
+  weights, with the licence text beside the files; no NOTICE file exists. eSpeak NG (GPL-3.0) is not
+  in the model and can be left out cleanly, but it enters through Paradee's Python helper and through
+  kokoro-js's browser phonemizer, which carries a compiled eSpeak NG under an Apache label; without a
+  fallback, misaki 0.9.4 drops unknown words silently. Unclear: misaki's dictionaries (the silver ones
+  are eSpeak output) and the voices' origin (Kokoro trained partly on closed providers' synthetic
+  speech; `am_puck` and `bm_fable` share names with Google and OpenAI voices; no consent record), and
+  whether StyleTTS 2's "tell listeners it is synthesized" condition reaches it. Recommends read-aloud
+  now with a "computer voice" label, the ship-computer voice held for a voice with written consent.
+- [`2026-11-08-spark-x2-6-small-model.md`](2026-11-08-spark-x2-6-small-model.md),
+  whether Spark-X2.6-1.7B (a 1.77 GB small language model) may be bundled or fetched for local NPC
+  dialogue and an on-device helper. Yes: Apache 2.0 on every card, the `LICENSE` file present and
+  identical in the post-trained, base and GGUF repositories ("Copyright 2026 XHToken"), no NOTICE,
+  no outside base model, no dataset named, no acceptable-use policy and no claim over outputs, so
+  nothing binds players. Unclear: the publisher ("SparkLLM", unverified, Singapore on GitHub, its
+  site unreadable) is called an iFlytek subsidiary only by third parties, and iFlytek is on the US
+  Entity List (since 2019, for its part in surveillance of Uighurs), which governs exports to it, not
+  using its open model. Recommends GGUF through llama.cpp only, served from the project's own release
+  assets, an "AI" label, and settling who the publisher is before it becomes the default.
