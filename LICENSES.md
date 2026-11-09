@@ -120,6 +120,33 @@ dedicate.
   > Processing and Analysis Consortium (DPAC,
   > <https://www.cosmos.esa.int/web/gaia/dpac/consortium>).
 
+## NVIDIA SimReady Assets - the first 3D models that are not CC0
+
+`assets/models/simready/` (the home's furniture, fixtures, tools and safety gear,
+shipped in the app) and the Medical Bay model pack (downloaded from Settings >
+Graphics > Furniture models into `<data>/models/packs/simready-medical/`) are based
+on **NVIDIA SimReady Assets** (<https://huggingface.co/datasets/nvidia/simready-assets>),
+**by NVIDIA**, licensed under **CC BY 4.0**
+(<https://creativecommons.org/licenses/by/4.0/>). They stay CC BY 4.0 inside this
+project: they are NOT public domain, unlike the CC0 model packs credited in
+`assets/models/LICENSE-cc0-model-packs.md` and unlike what the project's
+contributors wrote.
+
+HumanityOS converted each one from OpenUSD to glTF and modified it (joined and
+simplified its mesh, baked its materials into one texture set, moved its origin,
+computed collider hulls, carried its physics values into `physics.ron`, and in seven
+cases painted out a maker's name, logo or a protected emblem). Each folder holds
+the asset's own `LICENSE.txt`, unchanged, and a `SOURCE.md` listing its changes;
+`assets/models/LICENSE-nvidia-simready.md` lists every folder and package. The
+licence grants no trademark rights and no endorsement: NVIDIA's name appears only to
+credit the source. NVIDIA's MDL shader files carry different terms and were never
+downloaded or shipped. The research, quoted and dated:
+`docs/reference/findings/2026-11-08-nvidia-simready-assets.md`.
+
+Redistributing these models (in a fork, a release archive or a website) means
+keeping that credit, the licence link and the note that they were modified: under
+CC BY 4.0 a failure to credit ends the licence until it is put right (section 6).
+
 ## The project's own code
 
 HumanityOS source is licensed as stated in the repository root. These

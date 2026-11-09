@@ -45,6 +45,9 @@ pub mod notice_panel;
 /// The Font Size setting as the whole app's zoom (BUG-225): set before every main pass.
 #[cfg(feature = "native")]
 pub mod font_size;
+/// Settings > Graphics > Furniture detail's levels, memory and hardware notice (2026-11-09).
+#[cfg(feature = "native")]
+pub mod furniture_detail;
 /// The top menu as data (docs/design/navigation.md, rung 1): data/gui/navigation.json, read at
 /// start and when it is saved; the top row is drawn from it (pages/escape_menu.rs).
 #[cfg(feature = "native")]
@@ -4507,6 +4510,8 @@ pub struct SettingsState {
     /// (the room light probes' spacing and cap, `renderer::room_probes_gpu`).
     /// Applies live through `engine::room_gi`.
     pub bounced_light_detail: String,
+    /// Furniture detail: a level id from data/gui/furniture_detail.json (`gui::furniture_detail`).
+    pub furniture_detail: String,
     pub master_volume: f32,
     pub music_volume: f32,
     pub sfx_volume: f32,
@@ -4728,6 +4733,7 @@ impl Default for SettingsState {
             cloud_quality: "high".to_string(),
             lights_tiled: false,
             bounced_light_detail: crate::renderer::bounced_light_detail::DEFAULT_DETAIL.to_string(),
+            furniture_detail: crate::gui::furniture_detail::DEFAULT_LEVEL.to_string(),
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

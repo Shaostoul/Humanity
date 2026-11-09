@@ -16,6 +16,9 @@ mod data_folder;
 mod instruments;
 #[cfg(test)]
 mod instruments_tests;
+/// Settings > Graphics > Furniture (2026-11-09, docs/design/simready-props.md): Furniture detail
+/// with its measured memory and the hardware notice, and the furniture model packs.
+mod furniture;
 /// Settings > Privacy > "Calls and voice rooms" (10p, 2026-10-22): Private, Direct, or Direct
 /// also asking a public service, and who can see the person's address in each.
 mod calls;
@@ -3785,6 +3788,9 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "Draws distant forests as coarse canopy cards out to the horizon. Known issue: reads as dark squares from high altitude, which is why it is off by default until the proper long-range tree system lands.");
+
+        // ── Furniture: detail level and model packs (settings/furniture.rs) ──
+        furniture::draw_furniture(ui, theme, state, hint, accent);
 
         // ── Machine labels and Home view ──
         widgets::subsection_header(ui, theme, accent, "Machine labels and Home view", "");

@@ -1,9 +1,11 @@
 # NVIDIA SimReady props in the homes
 
 **Asked for:** 2026-11-08, the operator, on the AI tools scan: "Let's go with it. Stuff we don't have
-to make saves us time." **Status:** PLAN (phase 1, 2026-11-08). Nothing downloaded or converted yet;
-phase 2 (download, convert, wire in, credit, verify) waits for the operator's yes on the download
-list in [`scripts/simready/starter-set.json`](../../scripts/simready/starter-set.json).
+to make saves us time." **Status:** BUILT (phase 2, 2026-11-09). The operator said yes to
+both questions of section 12 on 2026-11-08 ("Yes" to the download; "Sure, let's make sure it's all
+easy to access" to the home set in the app and the Medical Bay set as the first pack). The 712 pinned
+files were fetched and checked ([`scripts/simready/starter-set.json`](../../scripts/simready/starter-set.json)),
+and `just simready` converts them. Section 13 records what the build found and changed from the plan.
 
 **The conditions are binding** and come from the dated legal finding,
 [`../reference/findings/2026-11-08-nvidia-simready-assets.md`](../reference/findings/2026-11-08-nvidia-simready-assets.md):
@@ -175,7 +177,7 @@ Generated per asset into `assets/models/simready/<folder>/physics.ron`, beside t
 
 | UsdPhysics (neutral layer) | Stored as | Used now | Used when Rapier wakes |
 |---|---|---|---|
-| `MassAPI` `physics:mass` (else `physics:density`) | `mass_kg` (else `density_kg_m3`) | the walk-up card ("weighs 23 kg"); a report against `items.csv` `weight_kg` for the matching item (never an overwrite) | `ColliderBuilder::mass` / `density` |
+| `MassAPI` `physics:mass` (else `physics:density`) | `mass_kg` (else `density_kg_m3`) | nothing yet: NVIDIA's authored masses are unchecked, and some are far off (section 13), so no card shows them | `ColliderBuilder::mass` / `density` |
 | `physics:centerOfMass`, `diagonalInertia`, `principalAxes` | `center_of_mass_m`, `principal_inertia_kg_m2`, `principal_axes` | none | `MassProperties::with_principal_inertia_frame` |
 | `CollisionAPI` + `MeshCollisionAPI` `approximation`: `convexHull` | `collider: Hull`, the hull mesh in the GLB | the pick volume stays the row's `size` | `SharedShape::convex_hull` |
 | `convexDecomposition` | `collider: Hulls`, decomposed offline with parry3d's VHACD (PhysX does it at run time; USD stores only the word) | | `SharedShape::compound` |
@@ -184,8 +186,9 @@ Generated per asset into `assets/models/simready/<folder>/physics.ron`, beside t
 | `PhysicsMaterialAPI` `staticFriction`, `dynamicFriction`, `restitution` | `friction` (dynamic; Rapier keeps one coefficient), `static_friction`, `restitution` | none | collider friction and restitution |
 | `RigidBodyAPI`, joints (a door, a drawer) | `body`, `joints` | none | body type, revolute and prismatic joints |
 
-`MachineDef` gains optional `mass_kg` (and later `collider`) fields with serde defaults; the editor
-round-trips them.
+Read by `src/assets/model_physics.rs` (`ModelPhysics::beside`, the file next to any model, so a
+mod's model can bring its own). `MachineDef` gains no fields until a rung uses the values: a row
+that needs a different mass will override it then, with its source.
 
 ## 7. Where the converted files live, and the size threshold
 
@@ -268,13 +271,18 @@ largest dimension:
 ## 10. Saying plainly what a person's hardware can run
 
 Nothing here needs a particular GPU vendor or feature: rung 2 stays inside `wgpu::Limits::default()`.
-Video memory is the one limit. **Settings > Graphics > Furniture detail** offers Full, Simple and
-Boxes, each with its video memory beside it (the way bounced-light detail shows its memory). Where the
-adapter reports its memory (Windows, through DXGI's video memory budget query, which needs the DXGI
-feature of the `windows` crate already in the tree), a Full level that would take more than an eighth of the budget starts at Simple,
-and the setting says so in words: what Full needs, what this card has, and what is on instead. Where
-nothing is reported, the default stays and the figure is still shown. Full, Simple and Boxes are also
-the dual-mode rule's realistic and simplified modes.
+Video memory is the one limit. **Settings > Graphics > Furniture detail** (built 2026-11-09,
+`src/gui/furniture_detail.rs` with the engine's rebuild in `src/engine/furniture_detail.rs`, levels in `data/gui/furniture_detail.json`) offers Auto, Full,
+Simple and Boxes, each with the video memory its models' textures and meshes take in the home the
+player is in, MEASURED by the home's body build rather than estimated (a level change replaces each
+model's picture in place, so Simple and Boxes give the memory back at once, not at the next start). The card's own memory comes from the same
+reading the bounced-light setting uses (`renderer::bounced_light_detail::adapter_memory`, the
+driver's install record on Windows). Auto, the default, draws Full on a card with at least 3 GB of
+its own memory (or reporting none, as an integrated GPU sharing the computer's memory does) and
+Simple below it, and says which it chose; a level that takes more than an eighth of the card's
+memory is warned about in words: what it needs, what this card has, and that Simple or Boxes give
+it back. Full, Simple and Boxes are also the dual-mode rule's realistic and simplified modes, and
+Boxes is the plain-box fallback every machine model already had.
 
 ## 11. Phase 2 gates
 
@@ -288,10 +296,82 @@ the dual-mode rule's realistic and simplified modes.
 - Runtime: `just verify-runtime` for rung 2; vantage screenshots judged; the frame-cost A/B.
 - `node scripts/check-doc-links.js` at 0 broken.
 
-## 12. Questions for the operator
+## 12. Questions for the operator (answered 2026-11-08: yes to both)
 
 1. **The download:** 2.45 GB to `E:\HumanityOS\simready-src`, never into git; Blender is already on
    this PC, so nothing is installed. *Recommendation: yes.*
 2. **Converted models in the app:** about 80 MB for the home set under a 96 MiB cap, the first
    non-CC0 models, instead of a download pack. *Recommendation: yes; the Medical Bay set (about
    25 MB) waits outside git and becomes the first pack when the Medical Bay is built.*
+
+## 13. What the build found (phase 2, 2026-11-09)
+
+- **The download.** Pass 1 fetched 469 files (370.5 MiB) and copied 136 shared ones; the plan step
+  found every pinned texture referenced, so pass 2 fetched all 243 (1,968.1 MiB) and copied 114.
+  Every file matched its pinned size and hash. One reference fell outside the list: the humidifier's
+  grey steel points into `source_assets/`, which is never fetched, so the bake paints that surface
+  plain grey and its `SOURCE.md` says so (the plan step now names such references).
+- **The look changed four fits.** `furniture_workbench_modular_a01` is a 2 m double-door cabinet,
+  not a bench: it became the new "Workshop cabinet" row, and the stainless two-tier table
+  (`table_metal_stainless_a03`, also the Medical Bay's instrument table) became both benches. The
+  first aid kit belongs in every home, so it ships in the app. The basin is a drop-in sink that needs a
+  counter, so the kitchen sink row draws the basin seated in a new 3 m kitchen counter (the same model
+  draws the Commons serving counter), with the mixer tap behind it, each a row of its own. Most NVIDIA models face +X or +Z, and the engine draws a model's front along its
+  local -Z, so `starter-set.json` records a `turn_deg` per model.
+- **Base colour through emission.** Cycles' diffuse colour pass is the diffuse share of a surface,
+  black for a metal, so the first bake drew the stainless table and the chrome black; the base colour
+  is now baked through an emission pass of each material's own Base Color input, as metallic and
+  occlusion already were.
+- **The brand and emblem check** (verdicts in `starter-set.json`): 38 clear, 8 repainted, 1 dropped.
+  Repainted in the source textures: the kettle's KETTLE WATER label, the hammer's TASKOV Crushing,
+  Inc., the ladder's AVERKIN (R) oval and a CE mark, the extinguisher label's BENITEZ logo, its two
+  address blocks and two certification marks (a UL-style cRUus and a T-in-triangle), on both the
+  extinguisher and its stand, and the first aid kit's red-and-white cross, every red turned to the ISO
+  7010 first aid green. Dropped: the smoke alarm, whose lid carries an embossed logo in its geometry.
+- **A second look found three names moulded into the geometry** (2026-11-09), which a review of the
+  textures cannot see: the ladder's ASSURED INDUSTRIES in orange rubber letters on both treads, the
+  screwdriver's VORTEN and its ring mark on the handle (the first check had painted the grip inlays
+  in the texture, which changed nothing visible), and the utility knife's DRAVOX (passed as "no
+  lettering"). They showed in the homestead captures and on a sheet of every baked base colour, and
+  are now painted out of the bake itself (a `"stage": "baked"` repaint in `pack.js`: the letters'
+  pixels take the surface's own value in the base colour, normal and ORM maps, so no relief is left
+  for a later rung's normal mapping either). **The lesson for the next batch: review the baked base
+  colour of every model, not only its textures and NVIDIA's thumbnail.**
+- **The Kenney furniture was drawn from its corner.** Its models are authored with the origin at a
+  corner, and the machine fit only scaled them, so every piece stood up to 1.3 m from its own
+  placement, label, pick volume and collision, and the Boxes level's box stood beside the model (a mug
+  placed on the dining table sat in the air beside it). The fit now centres each model's footprint
+  (`GltfCpuMesh::centre_footprint`), so the dining chairs stand round their table and the Boxes and
+  Full levels draw the same furniture in the same place.
+- **The walk-up cards.** A kitchen of small props drew a card each whose only line was the model
+  credit, a wall of overlapping cards; a prop whose only line is its credit now shows its name until
+  the crosshair is on it, and its card with the credit then. The licence's credit is the Credits
+  entry, LICENSES.md and each folder's SOURCE.md (the finding); the card line is extra.
+- **The masses are NVIDIA's, and several are wrong.** Solid-volume estimates give a 2,035 kg medicine
+  cabinet, a 503 kg steel shelf, a 481 kg bench locker and a 0.18 kg drum. They are kept in
+  `physics.ron` as published (credited with the model) but shown nowhere: the walk-up card carries the
+  model credit line only, and a mass is checked against a real source before any rung uses it.
+
+### 13.1 Measured against section 9's budgets (2026-11-09)
+
+Same-session sweeps on the probe rig (2560x1387, RTX 4070, rig default graphics), this branch's rows
+against main's rows from before them, with nothing else running (round 4 of the scratch sweeps;
+earlier rounds with another agent compiling are marked contaminated by the sweep and not used here):
+
+| Budget (section 9) | Plan | Measured |
+|---|---|---|
+| Disk, in the app | 96 MiB cap | 53.3 MiB (40 models); the Medical Bay pack 14.0 MiB |
+| Video memory at Full | at most 320 MiB | 99.7 MiB: textures 72.0 MiB (`vram.textures` rose by exactly that) and meshes 27.7 MiB (each placed model owns its mesh; `vram.meshes` rose 26 MiB). Simple: 45.7 MiB. Boxes: none |
+| Triangles | at most 500,000 on screen | 451,000 for all 45 placed SimReady instances in the home |
+| GPU per frame | 0.5 ms | wide room views: overview -0.02, bathroom +0.11, workshop +0.20, kitchen +0.36 ms (gpu sum). Close views of dense clusters: +0.78 to +0.97 ms (the stove, the workshop cabinet and shelves, the counter), over budget |
+| CPU per frame | 0.3 ms | not resolvable on this rig: the same vantage's cpu.frame_total moves 5 to 8 ms between runs; 45 more draws |
+| World entry | at most 0.5 s added | the home's body build: 502 ms against 93 ms without the props, +0.41 s (it was 1,070 ms before the model read stopped decoding the normal and ORM pictures and each file was read once per build) |
+| Network | none | none: the rows sync as before |
+
+The close-view overage is the scene pass shading more surfaces where the boxes or empty wall stood;
+the triangles are cheap (the whole home's 451,000 cost the overview nothing measurable). The likely
+fixes, for a performance pass rather than this rung: drawing the home's bodies front to back or
+behind a depth pre-pass so hidden surfaces are not shaded, and the distance version (LOD2, already
+in every GLB) beyond a few metres. Interiors run near 30 fps on this rig with or without the props
+(gpu sum 15 to 21 ms in the rooms against 13 ms for the overview), so the rooms' own cost is the
+larger question.

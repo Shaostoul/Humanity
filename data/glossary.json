@@ -1427,6 +1427,12 @@
       "category": "platform",
       "definition": "A legal tool that places a work in the public domain worldwide by waiving every copyright claim the author holds. HumanityOS uses it, which is why the project can never be fenced off or sold back to you."
     },
+    "cc by": {
+      "term": "CC BY",
+      "category": "platform",
+      "definition": "A Creative Commons licence: anyone may use, change and share the work, even to sell, as long as they credit its maker, link the licence and say what they changed. Unlike CC0 it is not public domain: the credit is a condition, and dropping it ends the permission.",
+      "link": "https://creativecommons.org/licenses/by/4.0/"
+    },
     "public domain": {
       "term": "Public Domain",
       "category": "platform",

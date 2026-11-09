@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "_comment": "Settings > Graphics > Furniture detail (2026-11-09, docs/design/simready-props.md sections 9 and 10; src/gui/furniture_detail.rs). How the home's furniture, fixtures and machines are drawn: texture_divisor 1 draws each model's texture as it ships, 2 halves each side of it (a quarter of the video memory), 0 draws the plain box in place of the model; a level with no texture_divisor is Auto, which draws Full on a card reporting at least auto_full_min_card_bytes of its own memory (or reporting none, as an integrated GPU sharing the computer's memory does) and Simple below it. The Settings page shows each level's memory as measured in the home the player is in, and warns when the chosen level takes more than warn_share of the card's own memory. words and note are i18n keys. 'auto' is the default; src/config.rs falls back to it for an id not listed here. Changing this file takes effect at the next start.",
+  "auto_full_min_card_bytes": 3221225472,
+  "warn_share": 0.125,
+  "levels": [
+    { "id": "auto", "words": "furniture_detail.level.auto", "note": "furniture_detail.note.auto" },
+    { "id": "full", "words": "furniture_detail.level.full", "note": "furniture_detail.note.full", "texture_divisor": 1 },
+    { "id": "simple", "words": "furniture_detail.level.simple", "note": "furniture_detail.note.simple", "texture_divisor": 2 },
+    { "id": "boxes", "words": "furniture_detail.level.boxes", "note": "furniture_detail.note.boxes", "texture_divisor": 0 }
+  ]
+}

@@ -108,6 +108,10 @@ const SETTINGS_FILES: &[&str] = &[
     // Seen red 2026-11-03 with the previews' load leg removed from config.rs:
     // "dm_preview_lines: never read by apply_to_state".
     "src/gui/pages/privacy.rs",
+    // Settings > Graphics > Furniture (2026-11-09, docs/design/simready-props.md): Furniture detail
+    // (`furniture_detail`), drawn by settings/furniture.rs. Seen red 2026-11-09 with its load leg
+    // removed from config.rs: "furniture_detail: never read by apply_to_state".
+    "src/gui/pages/settings/furniture.rs",
     // The profile card's "Your settings for <name>" (2026-11-03, docs/design/per-person-controls.md):
     // what was chosen for each person (`person_controls`), changed on the card, kept in AppConfig.
     // Seen red 2026-11-03 with its load leg removed from config.rs: "person_controls: never read by

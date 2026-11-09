@@ -3825,5 +3825,85 @@
     "widgets": "Widget Playground, HumanityOS",
     "chat": "Chat, HumanityOS",
     "technical": "HumanityOS: the technical introduction"
+  },
+  "furniture_detail": {
+    "title": "Furniture detail",
+    "hint": "How the furniture, fixtures and machines in a home are drawn. Their models' shapes and pictures (textures) take video memory. Full draws each model as it ships; Simple draws its pictures at half size each way, a quarter of their memory; Boxes draws a plain box in place of each model and takes none; Auto picks Full or Simple from how much memory your graphics card has of its own. A change shows at once.",
+    "level": {
+      "auto": "Auto",
+      "full": "Full",
+      "simple": "Simple",
+      "boxes": "Boxes"
+    },
+    "note": {
+      "auto": "Full on a card with at least 3 GB of its own memory, Simple below that.",
+      "full": "Every model's pictures as they ship.",
+      "simple": "Each model's pictures at half size each way: a quarter of their memory.",
+      "boxes": "Plain boxes instead of models: no model memory at all."
+    },
+    "memory": "about {{memory}} for the models in this home",
+    "memory_none": "no model memory",
+    "memory_unmeasured": "Each level's memory is measured once you are in a home.",
+    "auto_now": "Auto draws {{level}} on this card.",
+    "card_unknown": "The graphics card has not reported its memory yet, so no level is checked against it.",
+    "card_integrated": "{{card}} shares your computer's main memory, so there is no fixed amount to check a level against.",
+    "card_unreported": "{{card}} has not reported how much memory it has, so no level is checked against it.",
+    "card_line": "{{card}}: {{memory}} of its own memory.",
+    "too_much": "This level needs about {{needs}} for the models in this home, more than an eighth of the {{memory}} on {{card}}. The rest of the world needs that memory too, and the game may stutter when the card runs short: Simple or Boxes give it back.",
+    "level_hint": "Draws the furniture, fixtures and machines in your home at this level. The line beside it says what it does and how much video memory it takes in the home you are in."
+  },
+  "model_packs": {
+    "title": "Furniture models",
+    "intro": "The 3D models of the furniture, fixtures and tools. The home's come with the app; the Medical Bay's can be downloaded. Whatever is not installed draws as a plain box, so nothing is ever missing, only simpler.",
+    "core_status": "Comes with the app, always installed",
+    "count": "{{count}} models",
+    "holds": "Holds: {{list}}",
+    "size": "Size: {{mb}} MB",
+    "licence_label": "Licence: {{words}}",
+    "licence": {
+      "cc_by": "[[CC BY]] 4.0, based on NVIDIA SimReady Assets, by NVIDIA: anyone may use, change and share them, as long as NVIDIA is credited. Unlike the rest of HumanityOS, they are not public domain."
+    },
+    "core": "Home furniture, fixtures and tools",
+    "pack": {
+      "simready_medical": "Medical Bay"
+    },
+    "model": {
+      "bed_hospital_standard_a01": "hospital bed",
+      "iv_pole_a01": "IV pole",
+      "stool_mobile_padded_vinyl_a01": "rolling stool",
+      "cabinet_for_drugs_a01": "medicine cabinet",
+      "screen_hospital_a01": "privacy screen",
+      "thermometer_fever_a01": "thermometer"
+    },
+    "installed": "Installed ({{mb}} MB on this computer)",
+    "not_installed": "Not installed: its objects draw as plain boxes",
+    "not_built": "Not available to download yet",
+    "update_available": "Installed, and a newer version is available",
+    "download": "Download",
+    "download_hint": "Download this pack from the project's releases on GitHub and install it. Before anything is installed, the download is checked against its published [[checksum|Hash]]; a damaged download is refused.",
+    "update": "Update",
+    "update_hint": "Download the newer version of this pack and install it in place of the one on this computer.",
+    "remove": "Remove",
+    "remove_hint": "Delete this pack from this computer. Its objects go back to plain boxes at once.",
+    "retry": "Try again",
+    "retry_hint": "Start the download of this pack again.",
+    "stage": {
+      "connecting": "Connecting...",
+      "downloading": "Downloading: {{done}} of {{total}} MB",
+      "checking": "Checking the download...",
+      "installing": "Installing..."
+    },
+    "failed": {
+      "network": "The download did not work: the server could not be reached or refused. ({{detail}})",
+      "damaged": "The download was damaged, so it was not installed. ({{detail}})",
+      "disk": "The pack could not be saved on this computer. ({{detail}})",
+      "not_a_pack": "The download was not this pack, so it was not installed. ({{detail}})",
+      "not_published": "This pack is not available to download yet."
+    },
+    "remove_failed": "The pack could not be removed: {{detail}}",
+    "load_error": "The list of model packs could not be read: {{detail}}"
+  },
+  "model_physics": {
+    "credit_simready": "Model: NVIDIA SimReady Assets, CC BY 4.0"
   }
 }

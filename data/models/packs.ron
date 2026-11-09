@@ -1,0 +1,22 @@
+// The 3D model packs (docs/design/simready-props.md, section 7; src/model_packs/catalog.rs):
+// what ships in the app, and each pack to download from Settings > Graphics > Furniture models.
+// Written by `just simready` (scripts/simready/pack.js) in the same run as the archive, so the
+// size and SHA-256 below are the uploaded file's. Uploading the archive to the release is the
+// operator's step (docs/ai/release.md). Do not edit by hand.
+(
+    release: "assets-simready-1",
+    base_url: "https://github.com/Shaostoul/Humanity/releases/download/assets-simready-1/",
+    core: (words: "model_packs.core", models: 40, bytes: 55905692, licence: "model_packs.licence.cc_by"),
+    packs: [
+        (
+            id: "simready-medical",
+            version: 1,
+            words: "model_packs.pack.simready_medical",
+            file: "humanity-models-simready-medical-v1.tar",
+            bytes: 14668800,
+            sha256: "2f52a553ed6f86b5eeb50e2d762e9e217910cc1e91e17205aab06af78865ac46",
+            licence: "model_packs.licence.cc_by",
+            models: ["bed_hospital_standard_a01", "iv_pole_a01", "stool_mobile_padded_vinyl_a01", "cabinet_for_drugs_a01", "screen_hospital_a01", "thermometer_fever_a01"],
+        ),
+    ],
+)

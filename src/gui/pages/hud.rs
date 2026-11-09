@@ -537,7 +537,7 @@ pub fn draw(
                         if is_target { theme.accent() } else { Color32::from_black_alpha(150) },
                     ),
                 );
-                if cam_dist <= card_dist {
+                if cam_dist <= card_dist && card_at_walk_up(label, is_target) {
                     draw_machine_card(painter, theme, sp, label);
                 } else if cam_dist <= name_dist {
                     text_shadowed(painter, sp + Vec2::new(8.0, 0.0), Align2::LEFT_CENTER, &label.name, 12.0, Color32::WHITE);
@@ -1901,6 +1901,17 @@ const CARD_ROW_H: f32 = 15.0;
 const CARD_PAD: f32 = 7.0;
 const CARD_W: f32 = 150.0;
 
+/// Does a machine within card distance show its whole card? Yes when it is the one being looked at,
+/// when it reports something, and when it has no lines at all (a card that is only its name, as such
+/// machines always had); NOT when its only line is its model's credit ("Model: NVIDIA SimReady
+/// Assets, CC BY 4.0", `engine::home_meshes::build_machine_bodies`). A kitchen of small things (a mug,
+/// a bowl, a knife, a kettle) drew a card each, a wall of overlapping cards over the counter (the
+/// home-kitchen-noon capture, 2026-11-09). Those show their name until looked at, and the card with
+/// the credit then: where the object is met.
+fn card_at_walk_up(label: &crate::gui::MachineLabel, is_target: bool) -> bool {
+    is_target || label.stats.is_empty() || label.stats.iter().any(|s| s.kind != "credit")
+}
+
 fn machine_card_size(label: &crate::gui::MachineLabel) -> Vec2 {
     let h = CARD_PAD * 2.0 + CARD_ROW_H * (1.0 + label.stats.len() as f32) + 2.0;
     Vec2::new(CARD_W, h)
@@ -2352,6 +2363,37 @@ mod room_card_tests {
 
 /// The build editor's storey view and the HUD's labels (ship homes increment 7 follow-ups,
 /// 2026-10-21): what the cut-away hides, no label floats over.
+#[cfg(test)]
+mod walk_up_card_tests {
+    use humanity_ship::machines::MachineStat;
+
+    fn label(stats: &[(&str, &str)]) -> crate::gui::MachineLabel {
+        crate::gui::MachineLabel {
+            pos: glam::Vec3::ZERO,
+            foot_y: 0.0,
+            name: "Mug".into(),
+            stats: stats.iter().map(|(k, v)| MachineStat { kind: k.to_string(), value: v.to_string(), status: "ok".into() }).collect(),
+            room: String::new(),
+            machine_id: "mug_1".into(),
+            on_use: None,
+        }
+    }
+
+    /// A PROP WHOSE ONLY LINE IS ITS MODEL CREDIT SHOWS ITS NAME UNTIL LOOKED AT: no card for a mug
+    /// at walk-up distance, its card (with the credit) once the crosshair is on it; a machine that
+    /// reports something, and one with no lines at all, keep their cards as before. Seen red
+    /// 2026-11-09 with the old rule (every machine in card distance draws its card): "a credit-only
+    /// prop shows only its name when not looked at".
+    #[test]
+    fn a_credit_only_prop_shows_its_card_only_when_looked_at() {
+        let credit = [("credit", "Model: NVIDIA SimReady Assets, CC BY 4.0")];
+        assert!(!super::card_at_walk_up(&label(&credit), false), "a credit-only prop shows only its name when not looked at");
+        assert!(super::card_at_walk_up(&label(&credit), true), "looked at, it shows its card and the credit");
+        assert!(super::card_at_walk_up(&label(&[("water", "-45 L/d"), credit[0]]), false), "a machine that reports something keeps its card");
+        assert!(super::card_at_walk_up(&label(&[]), false), "a machine with no lines keeps its name card");
+    }
+}
+
 #[cfg(test)]
 mod cut_away_label_tests {
     use crate::gui::screen_surface::find_text_in_shapes;

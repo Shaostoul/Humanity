@@ -47,3 +47,10 @@ tests/fixtures/describe/** -text
 # .sig.json as `just sign-release` uploaded them, read 2026-11-02): the signatures cover the
 # manifest's exact bytes, so a line-ending rewrite would make the real pair fail to verify.
 tests/fixtures/release/** -text
+
+# The NVIDIA SimReady models (assets/models/simready/, written by `just simready`,
+# docs/design/simready-props.md): each LICENSE.txt must stay NVIDIA's exact bytes (its SHA-256
+# is checked by tests/simready_lint.rs), and `just simready-check` compares every file byte for
+# byte with a rebuild. A line-ending rewrite on a Windows checkout would fail both.
+assets/models/simready/** -text
+assets/models/LICENSE-nvidia-simready.md -text

@@ -2868,6 +2868,40 @@ reuse" switch. The score plays them through its sampler voice (`src/instrument_p
   upload recipe in `docs/ai/release.md`, "Instrument packs"
 - Web: none yet (the website plays no music until music.md rung 9)
 
+### NVIDIA SimReady props: real-scale furniture, fixtures, tools and safety gear (2026-11-09)
+The project's first 3D models that are not CC0 (`docs/design/simready-props.md`; licence research
+`docs/reference/findings/2026-11-08-nvidia-simready-assets.md`): 40 of NVIDIA's CC BY 4.0 SimReady
+Assets ship in the app (`assets/models/simready/`), and the 6 Medical Bay ones are the first
+downloadable model pack. `just simready` converts each OpenUSD package with the installed Blender's
+own `pxr` (extract), simplifies it and bakes its many materials onto one texture set (base colour,
+normal, ORM; Cycles, fixed seed), then packs ONE GLB per model in node (mesh 0 the baked model, mesh
+1 a quarter-triangle distance version, then its collider hulls), with NVIDIA's `LICENSE.txt` byte for
+byte, a `SOURCE.md` of every change and a `physics.ron` of its UsdPhysics values; `check` rebuilds
+and compares every byte. Every model passed a brand and emblem check first (eight repainted: maker
+names, logos, two certification marks, and a red-and-white cross turned to the ISO 7010 green, plus
+three names moulded into the geometry painted out of the bake itself; one dropped). Catalogue rows: the toilet, bathroom sinks, both workshop benches, the tool storage, the
+mushroom humidifier, pantry and workshop shelving and the Commons serving counter, plus 35 new rows
+(kitchen and bathroom props, hand tools, a bench vise, lamp and multimeter, a step ladder, a
+workshop cabinet, a fire extinguisher and its stand, a first aid kit, storage, and the Medical Bay).
+The walk-up card of each carries a one-line credit (a prop with nothing else to report shows its
+name until looked at). Settings > Graphics > Furniture detail (Auto, Full, Simple, Boxes) shows each
+level's measured video memory (textures and meshes) and warns when the card is short. Every machine
+model now stands centred on its placement (`GltfCpuMesh::centre_footprint`: the Kenney furniture was
+drawn from its corner), and a model read decodes only the picture it draws.
+- Native: `src/assets/model_physics.rs`, `src/model_packs/` (catalog, ui), `src/gui/furniture_detail.rs` (+ the engine's rebuild, `src/engine/furniture_detail.rs`),
+  `src/engine/home_meshes.rs` (`build_machine_bodies`), `src/gui/pages/settings/furniture.rs`
+- Data: `data/machines/home.ron`, `ship.ron` (rows), `data/models/packs.ron` (generated),
+  `data/gui/furniture_detail.json`, `data/credits.ron` (`nvidia_simready`)
+- Assets: `assets/models/simready/<model>/` (GLB, LICENSE.txt, SOURCE.md, physics.ron), `manifest.json`,
+  `assets/models/LICENSE-nvidia-simready.md`
+- Tools: `scripts/simready/` (`fetch.js`, `build.js`, `extract_usd.py`, `bake_lods.py`, `bake-run.js`,
+  `pack.js`, `repaint.js`, `review-sheet.js`, `find-blender.js`, `starter-set.json`); `just simready`
+- Tests: `tests/simready_lint.rs`, `scripts/tests/simready-pack.test.js`, `model_physics` and
+  `model_packs` lib tests, `config::every_offered_furniture_detail_survives_a_restart`,
+  `gui::furniture_detail` tests, `hud::walk_up_card_tests`,
+  `crossing_tests::assets::every_modelled_machine_in_the_home_is_drawn_centred_on_its_placement`
+- Web: none (the website draws no 3D home); the Files page's 3D viewer opens the GLBs
+
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
 - Native: `crates/humanity-core/src/ecs/systems.rs`, `crates/humanity-core/src/ecs/components.rs`

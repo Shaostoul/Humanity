@@ -563,6 +563,10 @@ pub struct AppConfig {
     /// loads as "high", the design.
     #[serde(default = "default_bounced_light_detail")]
     pub bounced_light_detail: String,
+    /// Settings > Graphics > Furniture detail (2026-11-09): a level id from
+    /// data/gui/furniture_detail.json. An id the file does not list loads as "auto".
+    #[serde(default = "default_furniture_detail")]
+    pub furniture_detail: String,
     /// Learn-by-doing quest progress, "chain_id:step_id" -> done (v0.1066).
     /// GuiState has claimed since v0.415 that this was "persisted via
     /// AppConfig", but no such field existed: every tick a person made in the
@@ -1185,6 +1189,7 @@ fn default_fps_foreground() -> u32 { 120 }
 fn default_fps_background() -> u32 { 30 }
 fn default_cloud_quality() -> String { "high".to_string() }
 fn default_bounced_light_detail() -> String { crate::renderer::bounced_light_detail::DEFAULT_DETAIL.to_string() }
+fn default_furniture_detail() -> String { crate::gui::furniture_detail::DEFAULT_LEVEL.to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
 fn default_planet_lod_px() -> f32 { 10.0 }
 fn default_planet_max_subdiv() -> f32 { 6.0 }
@@ -1653,6 +1658,7 @@ impl AppConfig {
             water_detail_depth: state.settings.water_detail_depth,
             lights_tiled: state.settings.lights_tiled,
             bounced_light_detail: state.settings.bounced_light_detail.clone(),
+            furniture_detail: state.settings.furniture_detail.clone(),
             onboarding_quest_progress: state.onboarding_quest_progress.clone(),
             vsync: state.settings.vsync,
             fps_foreground: state.settings.fps_foreground,
@@ -1902,6 +1908,13 @@ impl AppConfig {
                 );
                 default_bounced_light_detail()
             };
+        // Checked against the levels file the Settings chooser draws, the same way.
+        state.settings.furniture_detail = if crate::gui::furniture_detail::is_level(&self.furniture_detail) {
+            self.furniture_detail.clone()
+        } else {
+            log::warn!("config: unknown furniture_detail {:?}, falling back to {}", self.furniture_detail, default_furniture_detail());
+            default_furniture_detail()
+        };
         state.onboarding_quest_progress = self.onboarding_quest_progress.clone();
         state.settings.vsync = self.vsync;
         // Clamp hand-edited values to the UI's range (a 1 FPS cap would
@@ -3123,6 +3136,31 @@ mod saved_servers_tests {
         cfg.apply_to_gui_state(&mut st);
         assert_eq!(st.settings.bounced_light_detail, "high", "an unknown level loads as High");
         assert_eq!(AppConfig::default().bounced_light_detail, "high", "a fresh install is on High");
+    }
+
+    /// Settings > Graphics > Furniture detail through a restart (2026-11-09): every level the file
+    /// offers comes back as itself; an id the file does not list, and a config that never held it,
+    /// load as Auto. Seen red 2026-11-09 with the save leg writing the default instead of the
+    /// setting: "furniture detail 'full' did not survive a restart".
+    #[test]
+    fn every_offered_furniture_detail_survives_a_restart() {
+        let levels = crate::gui::furniture_detail::levels();
+        assert!(levels.len() >= 4, "the shipped file offers Auto, Full, Simple and Boxes");
+        for level in levels {
+            let mut before = crate::gui::GuiState::default();
+            before.settings.furniture_detail = level.id.clone();
+            let json = serde_json::to_string(&AppConfig::from_gui_state(&before)).expect("config serializes");
+            let cfg: AppConfig = serde_json::from_str(&json).expect("config parses");
+            let mut after = crate::gui::GuiState::default();
+            cfg.apply_to_gui_state(&mut after);
+            assert_eq!(after.settings.furniture_detail, level.id, "furniture detail '{}' did not survive a restart", level.id);
+        }
+        for raw in [r#"{"furniture_detail":"retina"}"#, "{}"] {
+            let cfg: AppConfig = serde_json::from_str(raw).expect("config parses");
+            let mut st = crate::gui::GuiState::default();
+            cfg.apply_to_gui_state(&mut st);
+            assert_eq!(st.settings.furniture_detail, "auto", "{raw} loads as Auto");
+        }
     }
 
     /// Settings > Graphics > Light and sky > the Sun glare's camera opening through a restart

@@ -1,0 +1,1612 @@
+{
+ "comment": "NVIDIA SimReady models converted by `just simready` (docs/design/simready-props.md). CC BY 4.0, not CC0: see LICENSE-nvidia-simready.md one folder up. Every file is listed with its SHA-256; `node scripts/simready/build.js check` rebuilds and compares.",
+ "generator": "simready pack.js (HumanityOS)",
+ "versions": {
+  "blender": "5.2.3",
+  "usd": "0.26.3",
+  "node": "24.13.1",
+  "zlib": "1.3.1-e00f703"
+ },
+ "assets": [
+  {
+   "folder": "fixture_sink_basin_a01",
+   "dir": "fixture_sink_basin_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.fixture_sink_basin_a01.2026.10.09_032922576491",
+   "room": "kitchen",
+   "row": "home.ron:kitchen_sink",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 90,
+   "size_class": "medium",
+   "dims_m": [
+    0.7197,
+    0.2242,
+    0.4909
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 2500,
+   "source_triangles": 109702,
+   "hulls": 1,
+   "mass_kg": 62.0146,
+   "files": {
+    "fixture_sink_basin_a01.glb": {
+     "bytes": 1319748,
+     "sha256": "22e3318d5d52e325e89759c5ac6cc2c0c1369e927d4bd03d9711f87a1716aef8"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1165,
+     "sha256": "f3eca104370cf1c62849b91490f08de3b05e50f82f532524b2bef854de51a118"
+    },
+    "physics.ron": {
+     "bytes": 1057,
+     "sha256": "51c0a0a91a8ec72694a20af4943b3057f90174aaa2e33db562a514300cae19bb"
+    }
+   }
+  },
+  {
+   "folder": "fixture_faucet_singleLever_a01",
+   "dir": "fixture_faucet_singlelever_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.fixture_faucet_singleLever_a01.2026.10.09_032456178954",
+   "room": "kitchen",
+   "row": "home.ron:kitchen_sink",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.1712,
+    0.1356,
+    0.1472
+   ],
+   "lod1_triangles": 2999,
+   "lod2_triangles": 749,
+   "source_triangles": 26590,
+   "hulls": 3,
+   "mass_kg": 1.991,
+   "files": {
+    "fixture_faucet_singlelever_a01.glb": {
+     "bytes": 820776,
+     "sha256": "a719db9f6b4ba503818e59d1833ff02a5b55ea50c47c2338571cb50821031003"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1143,
+     "sha256": "effa3983ebd758c328a80bb5a199a13f186de1e77f70552b655ddebde3560223"
+    },
+    "physics.ron": {
+     "bytes": 1985,
+     "sha256": "69b8e99fc603c5a6579a61794584e78d97119ca0307ee2669146e41d31c4aeef"
+    }
+   }
+  },
+  {
+   "folder": "fixture_counter_a01",
+   "dir": "fixture_counter_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.fixture_counter_a01.2026.10.10_185802539552",
+   "room": "kitchen",
+   "row": "ship.ron:serving_counter",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 1024,
+   "turn": 90,
+   "size_class": "large",
+   "dims_m": [
+    3.0225,
+    0.9267,
+    0.6797
+   ],
+   "lod1_triangles": 25000,
+   "lod2_triangles": 6250,
+   "source_triangles": 659420,
+   "hulls": 9,
+   "mass_kg": 356.889,
+   "files": {
+    "fixture_counter_a01.glb": {
+     "bytes": 2899372,
+     "sha256": "6843538e94c10ee9314bb6aea6ce3dbdf0737f6cbc35368ad98ce64ed100e827"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1157,
+     "sha256": "56d535c210070c7ae00538e7a4cb8e4933a37c929737812244e4bc9a88bb99a7"
+    },
+    "physics.ron": {
+     "bytes": 4610,
+     "sha256": "302aa3087bdb401cd3709d4ab4d9260f1e2816b593abb79fddbf429a48457f71"
+    }
+   }
+  },
+  {
+   "folder": "appliance_toaster_a01",
+   "dir": "appliance_toaster_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.appliance_toaster_a01.2026.10.13_180535304265",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.3064,
+    0.1786,
+    0.1544
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 1372,
+   "source_triangles": 38590,
+   "hulls": 5,
+   "mass_kg": 1.4918,
+   "files": {
+    "appliance_toaster_a01.glb": {
+     "bytes": 1017028,
+     "sha256": "9e49431ce5734f79ba60489e045883f2d1778b305ed36bbc82fd3a8328219053"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1117,
+     "sha256": "0702c6fe7fd71f2fecdcf683f4686bb69587a3bb303d7d184cd634f7783a34d4"
+    },
+    "physics.ron": {
+     "bytes": 2834,
+     "sha256": "6a7586193d5d92fe31ccb647966bfadb840b9b78f3bb9b5c14d6368f4b828993"
+    }
+   }
+  },
+  {
+   "folder": "kitchenware_kettle_a01",
+   "dir": "kitchenware_kettle_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.kitchenware_kettle_a01.2026.10.09_061425481068",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "repaint",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.158,
+    0.2508,
+    0.2224
+   ],
+   "lod1_triangles": 2999,
+   "lod2_triangles": 748,
+   "source_triangles": 61494,
+   "hulls": 4,
+   "mass_kg": 5.4026,
+   "files": {
+    "kitchenware_kettle_a01.glb": {
+     "bytes": 774800,
+     "sha256": "1c040d6865be1a8ccd33b6fb55eb32e8063887566bf587790db8f50421423084"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1241,
+     "sha256": "1b1673af87f8f29f98d09a2a27ab59bf972f6793a42df941df159715a82795ef"
+    },
+    "physics.ron": {
+     "bytes": 2817,
+     "sha256": "c32bfc10bcc5e39f7626e3e0e1af4bb07f129a3492bf0494b3b18bc16d71e65b"
+    }
+   }
+  },
+  {
+   "folder": "kitchenware_pan_a01",
+   "dir": "kitchenware_pan_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.kitchenware_pan_a01.2026.10.09_062849173632",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "medium",
+   "dims_m": [
+    0.2593,
+    0.0445,
+    0.431
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 2499,
+   "source_triangles": 12202,
+   "hulls": 1,
+   "mass_kg": 2.9565,
+   "files": {
+    "kitchenware_pan_a01.glb": {
+     "bytes": 996908,
+     "sha256": "55ee8296807ba61835a449a2795e89e10b02328b11b112fb943e1fef4172208e"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1113,
+     "sha256": "2fb3ccc575842858d27effd4ac16acd68cb6efaa23254f1867ff2f77ad58df3c"
+    },
+    "physics.ron": {
+     "bytes": 1053,
+     "sha256": "66f66c8f82f9ef3cfc08ecbb1e9dc00b36287a35068e194e6f394280d6936f86"
+    }
+   }
+  },
+  {
+   "folder": "kitchenware_cuttingBoard_a01",
+   "dir": "kitchenware_cuttingboard_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.kitchenware_cuttingBoard_a01.2026.10.09_061211398532",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "medium",
+   "dims_m": [
+    0.0143,
+    0.4,
+    0.2145
+   ],
+   "lod1_triangles": 2360,
+   "lod2_triangles": 590,
+   "source_triangles": 2360,
+   "hulls": 1,
+   "mass_kg": 1.6533,
+   "files": {
+    "kitchenware_cuttingboard_a01.glb": {
+     "bytes": 1269844,
+     "sha256": "5bf75af310763587ae459f67db4f3afaf7133ee1cdc42db4b1178adc6e8de57f"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1137,
+     "sha256": "19274eee02a2f154c2e6e6f0f642e0943714df8bb40cd49670889a0a631f4bbe"
+    },
+    "physics.ron": {
+     "bytes": 1091,
+     "sha256": "d7bdd9e2ba19859ab7a32772d0e735e9cee8664d84a901fc736633f2938511f2"
+    }
+   }
+  },
+  {
+   "folder": "kitchenware_knife_a01",
+   "dir": "kitchenware_knife_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.kitchenware_knife_a01.2026.10.09_062114507330",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.0416,
+    0.0239,
+    0.3303
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 750,
+   "source_triangles": 9442,
+   "hulls": 1,
+   "mass_kg": 0.589,
+   "files": {
+    "kitchenware_knife_a01.glb": {
+     "bytes": 322488,
+     "sha256": "2dd77468dfb2cc6a936cdc2b21a2641c5fa9bb27df7134626a643aea1723b0b2"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1115,
+     "sha256": "5c0242ef6397514d81a4ef8e1be266a228e05d4a42cdbae213125a9ff9246b53"
+    },
+    "physics.ron": {
+     "bytes": 1066,
+     "sha256": "4fcd5bdb31c5bd5f0f8780a4fea4635850c9f5c169a345b719c821b0caba7009"
+    }
+   }
+  },
+  {
+   "folder": "kitchenware_jug_a01",
+   "dir": "kitchenware_jug_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.kitchenware_jug_a01.2026.10.09_061344637615",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.1004,
+    0.1259,
+    0.1644
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 750,
+   "source_triangles": 16968,
+   "hulls": 1,
+   "mass_kg": 2.0184,
+   "files": {
+    "kitchenware_jug_a01.glb": {
+     "bytes": 822640,
+     "sha256": "cef5549a254c1c877eaae167eacb19a825829657f18a50eab15eb8772591eb9b"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1110,
+     "sha256": "0d5e17204380905bda5009ef4fe217b6f6e544a75f167077608437ae04a21306"
+    },
+    "physics.ron": {
+     "bytes": 1054,
+     "sha256": "1f50f4e4229121bac8bb12721675aa55fae2131033b19d7b627e404cb0b928f8"
+    }
+   }
+  },
+  {
+   "folder": "kitchenware_ladle_a01",
+   "dir": "kitchenware_ladle_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.kitchenware_ladle_a01.2026.10.09_062240376523",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.0763,
+    0.0898,
+    0.3138
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 750,
+   "source_triangles": 12718,
+   "hulls": 1,
+   "mass_kg": 0.2593,
+   "files": {
+    "kitchenware_ladle_a01.glb": {
+     "bytes": 522132,
+     "sha256": "3ab4d2f6b77f4620a55acdfe41bc8876904bffee6559f06d1ef5b2d69d64b592"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1116,
+     "sha256": "3cd0151c1cc9134b34000a101e1f8ac447d1128467c96554c1229598be645d28"
+    },
+    "physics.ron": {
+     "bytes": 1065,
+     "sha256": "10100eacf1068b1515c3d6bed3f1837512b4e84c9f5790da57bde37002f0a41f"
+    }
+   }
+  },
+  {
+   "folder": "dishware_mug_a01",
+   "dir": "dishware_mug_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.dishware_mug_a01.2026.10.27_033418691740",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.1145,
+    0.08,
+    0.0903
+   ],
+   "lod1_triangles": 2998,
+   "lod2_triangles": 748,
+   "source_triangles": 11876,
+   "hulls": 1,
+   "mass_kg": 0.1,
+   "files": {
+    "dishware_mug_a01.glb": {
+     "bytes": 593228,
+     "sha256": "a10ed2900b139b612ce7983179fc33adba647ba23d4f6fbae17e249399603713"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1101,
+     "sha256": "ad16ebf2c9fd6651be7300c051a413900d1de41d46e357c805ad18f45ebfc1ea"
+    },
+    "physics.ron": {
+     "bytes": 1016,
+     "sha256": "3928cf1759713574975d249f0d2f75932daec868eb70ef028ea0f044bd4e7d5e"
+    }
+   }
+  },
+  {
+   "folder": "dishware_bowl_a01",
+   "dir": "dishware_bowl_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.dishware_bowl_a01.2026.10.27_030534809503",
+   "room": "kitchen",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.1629,
+    0.0548,
+    0.1629
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 750,
+   "source_triangles": 11008,
+   "hulls": 1,
+   "mass_kg": 1,
+   "files": {
+    "dishware_bowl_a01.glb": {
+     "bytes": 532056,
+     "sha256": "568dc364e884375a25ed30a42f89f02c8c22018047b3057f55d2e697fd0e0d46"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1104,
+     "sha256": "17c35291a0d3916858c738d5c13be681d6bd5981a17ee8b1f9453a21bd868ef8"
+    },
+    "physics.ron": {
+     "bytes": 1002,
+     "sha256": "ac8eb22103329531a312e7a471038aedd69f4ac4d10d7dda24ad899fdbff745b"
+    }
+   }
+  },
+  {
+   "folder": "toilet_a01",
+   "dir": "toilet_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.toilet_a01.2026.10.09_181400690176",
+   "room": "bathroom",
+   "row": "home.ron:toilet",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 90,
+   "size_class": "medium",
+   "dims_m": [
+    0.405,
+    1.0383,
+    0.7055
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 2500,
+   "source_triangles": 151618,
+   "hulls": 3,
+   "mass_kg": 18.8621,
+   "files": {
+    "toilet_a01.glb": {
+     "bytes": 1270408,
+     "sha256": "df32989c65e3d327412b3bda4640fafba0b19cb1e8c129073a96af11a444ec58"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1129,
+     "sha256": "ebc1990e216e9b755127f2f970b56ea674c4617aeb762ed0dfac851833f9f797"
+    },
+    "physics.ron": {
+     "bytes": 1896,
+     "sha256": "e9e83fd5e6f4454a13e29649c7dfa11907a11d1e1dc9b04b92aee1b993e74208"
+    }
+   }
+  },
+  {
+   "folder": "washBasin_a01",
+   "dir": "washbasin_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.washBasin_a01.2026.10.10_190711015736",
+   "room": "bathroom",
+   "row": "home.ron:bath_sink",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 90,
+   "size_class": "medium",
+   "dims_m": [
+    0.5761,
+    0.4609,
+    0.3496
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 2500,
+   "source_triangles": 22483,
+   "hulls": 1,
+   "mass_kg": 15.4621,
+   "files": {
+    "washbasin_a01.glb": {
+     "bytes": 1107272,
+     "sha256": "cd3f6ed3c7c321b559a0c6c9a803228a54826d31d20eca70197b32796721e544"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1137,
+     "sha256": "b6150ee34f7c45bc30361f0b9ffba8cfb5b74ed0d4dcbe14101885a020d08092"
+    },
+    "physics.ron": {
+     "bytes": 992,
+     "sha256": "303e79907e2a8001b4572cd2238c5658a31c59d38b733f086f1e8201f2601dbd"
+    }
+   }
+  },
+  {
+   "folder": "cleaning_barSoap_a01",
+   "dir": "cleaning_barsoap_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.cleaning_barSoap_a01.2026.10.08_232749322992",
+   "room": "bathroom",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.06,
+    0.0325,
+    0.0938
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 750,
+   "source_triangles": 6002,
+   "hulls": 1,
+   "mass_kg": 0.8048,
+   "files": {
+    "cleaning_barsoap_a01.glb": {
+     "bytes": 723484,
+     "sha256": "021d54afc453d3de2356f0bc8bd12cca6b6d312fd9628011cc677767aac40f84"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1112,
+     "sha256": "5ea6b73aa4eba3642244acee190b3c2e0a21bcbcf59d27964ca8d03f0aa44a39"
+    },
+    "physics.ron": {
+     "bytes": 1060,
+     "sha256": "ff7f0af3a51e4a6aff085d198ee3b4b8d690eab8c3fcc7c534b8d1a469a1f914"
+    }
+   }
+  },
+  {
+   "folder": "cleaning_towel_a01",
+   "dir": "cleaning_towel_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.cleaning_towel_a01.2026.10.09_204640974714",
+   "room": "bathroom",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.0765,
+    0.2389,
+    0.1402
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 750,
+   "source_triangles": 96568,
+   "hulls": 1,
+   "mass_kg": 0.2376,
+   "files": {
+    "cleaning_towel_a01.glb": {
+     "bytes": 1014440,
+     "sha256": "72940fe5f1cc6bd149d4a1b0ed2541c06185599a2b9bbc7072904284e2782b69"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1107,
+     "sha256": "871a869407f27aba7892221ecb5de4c81f7ad10ef473ea50b4066dbbf591c3b0"
+    },
+    "physics.ron": {
+     "bytes": 1009,
+     "sha256": "f060e66887cea048e850decc6c8f6c5ff7cb0436afb845d40f89adb327420b87"
+    }
+   }
+  },
+  {
+   "folder": "furniture_workbench_modular_a01",
+   "dir": "furniture_workbench_modular_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.furniture_workbench_modular_a01.2026.10.09_051145441926",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 1024,
+   "turn": 90,
+   "size_class": "large",
+   "dims_m": [
+    1.4455,
+    2.0497,
+    0.7139
+   ],
+   "lod1_triangles": 24999,
+   "lod2_triangles": 6249,
+   "source_triangles": 90358,
+   "hulls": 3,
+   "mass_kg": 40,
+   "files": {
+    "furniture_workbench_modular_a01.glb": {
+     "bytes": 2840996,
+     "sha256": "bfcb9d47c1515b69544c94aaa047fbcdd3e130e7153343abf5ab6ba1fee64049"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1192,
+     "sha256": "0092c7a31f2d82293ba52be826f5f3c758c57354ba618969f6b6137a74e8a29b"
+    },
+    "physics.ron": {
+     "bytes": 1963,
+     "sha256": "7dfa3c619963c29341ef03379b069bc47d1240779c5db1e849da30e19c293323"
+    }
+   }
+  },
+  {
+   "folder": "equipment_bench_vise_a01",
+   "dir": "equipment_bench_vise_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.equipment_bench_vise_a01.2026.10.09_021419523581",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.3241,
+    0.1807,
+    0.2327
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 750,
+   "source_triangles": 105520,
+   "hulls": 5,
+   "mass_kg": 15.5942,
+   "files": {
+    "equipment_bench_vise_a01.glb": {
+     "bytes": 1519468,
+     "sha256": "c73ba9b3db6f1191c52331243422ab7d2f3f8ae0b6ab89a86c1b5d5d8f56941d"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1126,
+     "sha256": "15381199b6a1bceb2fff24e5013006f342f4de8cd5237715f2451e17cea3afb9"
+    },
+    "physics.ron": {
+     "bytes": 2978,
+     "sha256": "0fe7d0605489e16b44c448384249d3da539e6acbc8ecbf2e6122a361152077b1"
+    }
+   }
+  },
+  {
+   "folder": "equipment_rolling_tool_chest_cabinet_combo_d01",
+   "dir": "equipment_rolling_tool_chest_cabinet_combo_d01",
+   "package_id": "simready.hf.nvidia.simready-assets.equipment_rolling_tool_chest_cabinet_combo_d01.2026.10.09_025216448816",
+   "room": "workshop",
+   "row": "home.ron:tool_rack",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 90,
+   "size_class": "medium",
+   "dims_m": [
+    0.76,
+    1.088,
+    0.3449
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 8966,
+   "source_triangles": 432440,
+   "hulls": 21,
+   "mass_kg": 50.8163,
+   "files": {
+    "equipment_rolling_tool_chest_cabinet_combo_d01.glb": {
+     "bytes": 1640076,
+     "sha256": "c36879bfb38c647fae1f001616c598da017f80947a825b737f2d41aeddc004b8"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1237,
+     "sha256": "358390139570d3079fcda36d5e7883c19f2a5b8902ef57d9e72797fa51c73598"
+    },
+    "physics.ron": {
+     "bytes": 10522,
+     "sha256": "730388c1e83c78f521170670232c05b73ab3ce66d2071cf75ad729904e6aa689"
+    }
+   }
+  },
+  {
+   "folder": "tool_hammer_a01",
+   "dir": "tool_hammer_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.tool_hammer_a01.2026.10.09_181413373332",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "repaint",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.3045,
+    0.0257,
+    0.1042
+   ],
+   "lod1_triangles": 2999,
+   "lod2_triangles": 748,
+   "source_triangles": 50664,
+   "hulls": 1,
+   "mass_kg": 0.5671,
+   "files": {
+    "tool_hammer_a01.glb": {
+     "bytes": 706356,
+     "sha256": "dfd5e81fc45783abda2eb3988895a8c431fda638700fdc97f2979bc6af06d4ea"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1230,
+     "sha256": "34b90f68c20853014474e1435aa7bc0306f73f851b3910783c565608c87e37d5"
+    },
+    "physics.ron": {
+     "bytes": 996,
+     "sha256": "df274c1dae92ccebc9e0ce787f2334c15edd684b8dbf500199176e3b72bfbc14"
+    }
+   }
+  },
+  {
+   "folder": "handTool_wrench_adjustable_a01",
+   "dir": "handtool_wrench_adjustable_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.handTool_wrench_adjustable_a01.2026.10.09_053653402939",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.2095,
+    0.014,
+    0.0564
+   ],
+   "lod1_triangles": 2999,
+   "lod2_triangles": 749,
+   "source_triangles": 60420,
+   "hulls": 3,
+   "mass_kg": 0.7113,
+   "files": {
+    "handtool_wrench_adjustable_a01.glb": {
+     "bytes": 857744,
+     "sha256": "90a228287cea5c67055b542883d56c7a195e3ae8e68f975a0ee9725c9815f8da"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1143,
+     "sha256": "27dbca55f804ff1e989438ab23abb405bce0e382187db8e568543337f2f13aff"
+    },
+    "physics.ron": {
+     "bytes": 1967,
+     "sha256": "5a73533d6d339090da5d139c30cad3e05b0223606da034eb9c7485a47886c6a6"
+    }
+   }
+  },
+  {
+   "folder": "handTool_screwdriver_phillips_ph2_a01",
+   "dir": "handtool_screwdriver_phillips_ph2_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.handTool_screwdriver_phillips_ph2_a01.2026.10.09_052630270290",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "repaint",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.1879,
+    0.0324,
+    0.0339
+   ],
+   "lod1_triangles": 2999,
+   "lod2_triangles": 749,
+   "source_triangles": 40266,
+   "hulls": 1,
+   "mass_kg": 0.08,
+   "files": {
+    "handtool_screwdriver_phillips_ph2_a01.glb": {
+     "bytes": 985052,
+     "sha256": "2de879f70e57a05f0113d3b23882661ce847b8525eb8fbd222d411a0a61324d1"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1477,
+     "sha256": "073beb899cbd394bb0fb650ee5487f7233c5004d8fa948f112a4aa9286f41a4a"
+    },
+    "physics.ron": {
+     "bytes": 1075,
+     "sha256": "e0a16bb8c0490944eee78aad12763348d4ecaade6f2d7bb155dea5503fd1d2f1"
+    }
+   }
+  },
+  {
+   "folder": "handTool_pliers_combination_a01",
+   "dir": "handtool_pliers_combination_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.handTool_pliers_combination_a01.2026.10.09_052020857739",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.1895,
+    0.0266,
+    0.069
+   ],
+   "lod1_triangles": 2998,
+   "lod2_triangles": 770,
+   "source_triangles": 71220,
+   "hulls": 2,
+   "mass_kg": 0.3246,
+   "files": {
+    "handtool_pliers_combination_a01.glb": {
+     "bytes": 995344,
+     "sha256": "e57cdcffe41b315e3482883231266b74e7a81d7c9b28de9ec4db5988c37023ac"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1146,
+     "sha256": "4e8e801d60d834949021279a98018c3f1b56f6aaa06580c678d9ce84180aed26"
+    },
+    "physics.ron": {
+     "bytes": 1531,
+     "sha256": "ceeab3577b35fccf8c3aca9deea070e1021ccae2623f7b9760432b3e4150a097"
+    }
+   }
+  },
+  {
+   "folder": "handTool_knife_retractableBlade_a01",
+   "dir": "handtool_knife_retractableblade_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.handTool_knife_retractableBlade_a01.2026.10.09_052011216494",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "repaint",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.1599,
+    0.0261,
+    0.0599
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 1471,
+   "source_triangles": 55652,
+   "hulls": 3,
+   "mass_kg": 0.8582,
+   "files": {
+    "handtool_knife_retractableblade_a01.glb": {
+     "bytes": 1248532,
+     "sha256": "b5709bad1b2d67c94ea8556e90152552c7feb915c1c9785dd2cfb3172eaf41f7"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1342,
+     "sha256": "0b0698b0bfa372505eca40924489397693c5efd3b94ee82cf67438b116963a68"
+    },
+    "physics.ron": {
+     "bytes": 1983,
+     "sha256": "fa698ba2de5d24fc7d8b85ba665bed04f599678ea972c649648c9040588ba545"
+    }
+   }
+  },
+  {
+   "folder": "ladder_step_folding_a01",
+   "dir": "ladder_step_folding_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.ladder_step_folding_a01.2026.10.10_190040264289",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "repaint",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "medium",
+   "dims_m": [
+    0.5106,
+    0.8215,
+    0.1264
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 2499,
+   "source_triangles": 129830,
+   "hulls": 8,
+   "mass_kg": 2.2955,
+   "files": {
+    "ladder_step_folding_a01.glb": {
+     "bytes": 1629968,
+     "sha256": "7bafb29f85f730e1eb8102e63f7bedd37d76f4173afdd22db28070ebe3a4b0e6"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1504,
+     "sha256": "69e7c0bc72af7772ff7ab7de3d285bb0e01a1c8634f58afb825b1390aa794b71"
+    },
+    "physics.ron": {
+     "bytes": 4493,
+     "sha256": "1d4e5912a507ce144b43dd364a7344b687f2cf7bb38e190d55530d1a0a86c43b"
+    }
+   }
+  },
+  {
+   "folder": "ppe_eyeProtection_safetyGlasses_a01",
+   "dir": "ppe_eyeprotection_safetyglasses_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.ppe_eyeProtection_safetyGlasses_a01.2026.10.09_151629877527",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.1669,
+    0.0595,
+    0.169
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 750,
+   "source_triangles": 12552,
+   "hulls": 4,
+   "mass_kg": 0.1721,
+   "files": {
+    "ppe_eyeprotection_safetyglasses_a01.glb": {
+     "bytes": 411432,
+     "sha256": "0d66b8ef3561d2750ed4aff56e86a7d16a483222d316d8802f00a07b1c3ccf60"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1158,
+     "sha256": "b9ca752cd36c343f923204c4206be61f37fc06c01d086ab13df63018d4c854f4"
+    },
+    "physics.ron": {
+     "bytes": 2491,
+     "sha256": "4f7c49d266095a4ee584ff22a6acb3e24b22f2b301bbb4c8c5ba0914d7b89051"
+    }
+   }
+  },
+  {
+   "folder": "testingTool_multimeter_digital_b01",
+   "dir": "testingtool_multimeter_digital_b01",
+   "package_id": "simready.hf.nvidia.simready-assets.testingTool_multimeter_digital_b01.2026.10.09_175840078175",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.187,
+    0.0407,
+    0.3361
+   ],
+   "lod1_triangles": 3000,
+   "lod2_triangles": 749,
+   "source_triangles": 163418,
+   "hulls": 11,
+   "mass_kg": 0.3831,
+   "files": {
+    "testingtool_multimeter_digital_b01.glb": {
+     "bytes": 1296720,
+     "sha256": "506a38fe13dac1d5ec9e36b176e81817bf3778f4e06520dd6ee3a01b4ab53822"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1156,
+     "sha256": "ab0154c68fe9eb3b7832df1719e2113d8f4c10830880e3e72997aaa0ee1866a9"
+    },
+    "physics.ron": {
+     "bytes": 5039,
+     "sha256": "de93dc9eb08705a8287a9a24c5fe16a112e6dffc0e6530fdcbebc6afaee4fc08"
+    }
+   }
+  },
+  {
+   "folder": "lighting_taskLight_adjustableArmBench_a01",
+   "dir": "lighting_tasklight_adjustablearmbench_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.lighting_taskLight_adjustableArmBench_a01.2026.10.09_064136227681",
+   "room": "workshop",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "medium",
+   "dims_m": [
+    0.5772,
+    0.5108,
+    0.5789
+   ],
+   "lod1_triangles": 9999,
+   "lod2_triangles": 2499,
+   "source_triangles": 62242,
+   "hulls": 2,
+   "mass_kg": 0.8052,
+   "files": {
+    "lighting_tasklight_adjustablearmbench_a01.glb": {
+     "bytes": 1117568,
+     "sha256": "a8748d553480cea8840f34736bbdeacffb30e94c4c0489906b30464d9481d5ce"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1178,
+     "sha256": "b371f145d220899c73acd56a1d35963a9a2e39fdd541638260e6c69e5090b3b6"
+    },
+    "physics.ron": {
+     "bytes": 1544,
+     "sha256": "a2b6af70f9e931ce4b56e896c2aa5c222e16c84428018d3ba2adc6e47939f8fb"
+    }
+   }
+  },
+  {
+   "folder": "humidifier_a01",
+   "dir": "humidifier_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.humidifier_a01.2026.10.10_005708791089",
+   "room": "life support",
+   "row": "home.ron:humidifier",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 180,
+   "size_class": "medium",
+   "dims_m": [
+    0.3149,
+    0.9599,
+    0.3194
+   ],
+   "lod1_triangles": 9999,
+   "lod2_triangles": 2499,
+   "source_triangles": 142479,
+   "hulls": 2,
+   "mass_kg": 7,
+   "files": {
+    "humidifier_a01.glb": {
+     "bytes": 1290800,
+     "sha256": "857230ae70a64c20a8e457b788e84acddc68dc67e303a0afccc09a7da3ca1520"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1328,
+     "sha256": "c5747cb262e76ecd4249142f738e708905fbe28500564d51db98739f72d7d40e"
+    },
+    "physics.ron": {
+     "bytes": 1424,
+     "sha256": "51d7cccc42a337212f09bddb642cadface476ec7cc364973d2597b9f0e2571f1"
+    }
+   }
+  },
+  {
+   "folder": "fireExtinguisher_abc_a03",
+   "dir": "fireextinguisher_abc_a03",
+   "package_id": "simready.hf.nvidia.simready-assets.fireExtinguisher_abc_a03.2026.10.09_031516888509",
+   "room": "safety",
+   "row": "new",
+   "brand_check": "repaint",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "medium",
+   "dims_m": [
+    0.1441,
+    0.545,
+    0.1922
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 2499,
+   "source_triangles": 108942,
+   "hulls": 2,
+   "mass_kg": 9.3758,
+   "files": {
+    "fireextinguisher_abc_a03.glb": {
+     "bytes": 2044216,
+     "sha256": "4d494c3233449158dfaa601db933d9e43c6938e28f92cf627e43b838c189fb02"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1391,
+     "sha256": "2c7c5d2d1803d096077366ec86a36704a24129223a602b3d54bbd6a57c5659b0"
+    },
+    "physics.ron": {
+     "bytes": 1401,
+     "sha256": "58f71f270acd6d97e4b2c0249b70af32d8f20307748c938e61190c35ab99e624"
+    }
+   }
+  },
+  {
+   "folder": "fireExtinguisher_stand_a01",
+   "dir": "fireextinguisher_stand_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.fireExtinguisher_stand_a01.2026.10.12_144822630211",
+   "room": "safety",
+   "row": "new",
+   "brand_check": "repaint",
+   "albedo_px": 1024,
+   "pbr_px": 1024,
+   "turn": 180,
+   "size_class": "large",
+   "dims_m": [
+    0.4483,
+    1.2059,
+    0.4543
+   ],
+   "lod1_triangles": 24999,
+   "lod2_triangles": 6249,
+   "source_triangles": 107960,
+   "hulls": 3,
+   "mass_kg": 11.6072,
+   "files": {
+    "fireextinguisher_stand_a01.glb": {
+     "bytes": 4062696,
+     "sha256": "142acaea3ffcd34766de925dd9933d6bd75809ad97137bbc9040e07475aac93f"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1312,
+     "sha256": "38fc5628e8662e7270f286d1372f2b4be9db854bb2a4820e46eda53bb10efe4f"
+    },
+    "physics.ron": {
+     "bytes": 2194,
+     "sha256": "c4edddb6830e28ea612725c046708d9f63062db766e3dfc9a0d4f5565e8ee78e"
+    }
+   }
+  },
+  {
+   "folder": "drum_plastic_blue_a01",
+   "dir": "drum_plastic_blue_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.drum_plastic_blue_a01.2026.10.09_203953425620",
+   "room": "storage",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.2827,
+    0.3864,
+    0.2839
+   ],
+   "lod1_triangles": 2999,
+   "lod2_triangles": 748,
+   "source_triangles": 27858,
+   "hulls": 1,
+   "mass_kg": 0.1753,
+   "files": {
+    "drum_plastic_blue_a01.glb": {
+     "bytes": 781028,
+     "sha256": "160ac4c1d599bae07eac2d39e5c3de7797e5b291370c89a5db3824906d75748f"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1116,
+     "sha256": "b8fd8066bc5043ad2cb34f33c61825899c92667ccaaf834633620fc66026c1c4"
+    },
+    "physics.ron": {
+     "bytes": 1020,
+     "sha256": "bab4507affa764edbb4bfb8af143363a8717e6f381b279c85d751f7c56044821"
+    }
+   }
+  },
+  {
+   "folder": "ibcTank_a02",
+   "dir": "ibctank_a02",
+   "package_id": "simready.hf.nvidia.simready-assets.ibcTank_a02.2026.10.09_054812337193",
+   "room": "life support",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 1024,
+   "turn": 0,
+   "size_class": "large",
+   "dims_m": [
+    1.0475,
+    1.2021,
+    1.2556
+   ],
+   "lod1_triangles": 24999,
+   "lod2_triangles": 6249,
+   "source_triangles": 135564,
+   "hulls": 1,
+   "mass_kg": 180.5478,
+   "files": {
+    "ibctank_a02.glb": {
+     "bytes": 2782984,
+     "sha256": "f4f66dff7bab2f8e217dfdeff967b9778a82073dfeb8c751106145a06b57efca"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1091,
+     "sha256": "6ff2929b2398349468b8f596136d948568b5b376578735651e1ee9c12d7fa52d"
+    },
+    "physics.ron": {
+     "bytes": 1011,
+     "sha256": "c3ae7417a51aa7123707772292b67624d96446e2a01a343f28d3024f37be2339"
+    }
+   }
+  },
+  {
+   "folder": "safety_firstAidKit_box_plastic_a01",
+   "dir": "safety_firstaidkit_box_plastic_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.safety_firstAidKit_box_plastic_a01.2026.10.09_155241226155",
+   "room": "safety",
+   "row": "new",
+   "brand_check": "repaint",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 90,
+   "size_class": "medium",
+   "dims_m": [
+    0.4143,
+    0.2564,
+    0.2348
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 2500,
+   "source_triangles": 15514,
+   "hulls": 2,
+   "mass_kg": 1.4682,
+   "files": {
+    "safety_firstaidkit_box_plastic_a01.glb": {
+     "bytes": 1536684,
+     "sha256": "f685bead4498296ff5d39eecb720b503ce3e8df373bdae2aa229b3b60682eaf2"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1531,
+     "sha256": "b2be006917f7591aedfe5eb83008b9bfd428895b57edd1a33481088b735656df"
+    },
+    "physics.ron": {
+     "bytes": 1531,
+     "sha256": "5fb7faa7fd3f2a9e180ba4df996873d46a9eea04c2429cf3e75bce625311372e"
+    }
+   }
+  },
+  {
+   "folder": "table_metal_stainless_a03",
+   "dir": "table_metal_stainless_a03",
+   "package_id": "simready.hf.nvidia.simready-assets.table_metal_stainless_a03.2026.10.09_174629469614",
+   "room": "workshop",
+   "row": "home.ron:workbench, home.ron:electronics_bench",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 1024,
+   "turn": 0,
+   "size_class": "large",
+   "dims_m": [
+    1.7999,
+    0.85,
+    0.6989
+   ],
+   "lod1_triangles": 13912,
+   "lod2_triangles": 3478,
+   "source_triangles": 13912,
+   "hulls": 1,
+   "mass_kg": 258.3934,
+   "files": {
+    "table_metal_stainless_a03.glb": {
+     "bytes": 2438320,
+     "sha256": "dfeec357d6892b088dd3d6b258776b7330b08f60494d987bf45d80df2fc62d1c"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1132,
+     "sha256": "adabc5bc4a76363e5bfbbf2d7ee52e8ac701baf96cc316ad73d445c54eecf6a0"
+    },
+    "physics.ron": {
+     "bytes": 1097,
+     "sha256": "89126a090e345f80df9ee94f1e35a95c7f3b7c530732169ae0f8d854a6a02377"
+    }
+   }
+  },
+  {
+   "folder": "shelve_steel_heavyDuty_a06",
+   "dir": "shelve_steel_heavyduty_a06",
+   "package_id": "simready.hf.nvidia.simready-assets.shelve_steel_heavyDuty_a06.2026.10.09_164208424610",
+   "room": "storage",
+   "row": "home.ron:shelf",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 1024,
+   "turn": 0,
+   "size_class": "large",
+   "dims_m": [
+    0.9196,
+    2.4385,
+    0.6148
+   ],
+   "lod1_triangles": 25000,
+   "lod2_triangles": 6250,
+   "source_triangles": 261756,
+   "hulls": 1,
+   "mass_kg": 502.5189,
+   "files": {
+    "shelve_steel_heavyduty_a06.glb": {
+     "bytes": 3151656,
+     "sha256": "f2e09e92f059768bb3988e32d984e3ced8e73ef906755c7c0279506bc38ee052"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1136,
+     "sha256": "f22c95e6e9b55d54db6ac26e3d353f5c1e71ced712bb3d96dfe933439fff91df"
+    },
+    "physics.ron": {
+     "bytes": 1105,
+     "sha256": "cefb7b39a66ae594983337fcff1268e677ec4f50360e5f0a57d3b45c237a490b"
+    }
+   }
+  },
+  {
+   "folder": "crate_gray_a08",
+   "dir": "crate_gray_a08",
+   "package_id": "simready.hf.nvidia.simready-assets.crate_gray_a08.2026.10.09_002919703137",
+   "room": "storage",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "medium",
+   "dims_m": [
+    0.6058,
+    0.1697,
+    0.4058
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 5432,
+   "source_triangles": 48140,
+   "hulls": 1,
+   "mass_kg": 2.2515,
+   "files": {
+    "crate_gray_a08.glb": {
+     "bytes": 1706240,
+     "sha256": "ab669d90809e47b1ab82dd226c5458a6ceaded5f45c9f834879cd1101e6a5cdb"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1098,
+     "sha256": "504eb00d8e6be41ee8293320adddc7da59871af038be9f014beef272bade69aa"
+    },
+    "physics.ron": {
+     "bytes": 1001,
+     "sha256": "00914ed92cb6749418db53cb686acc3f1e9deed6c2c9e30bd75d6ad2106b29db"
+    }
+   }
+  },
+  {
+   "folder": "crate_plywood_b01",
+   "dir": "crate_plywood_b01",
+   "package_id": "simready.hf.nvidia.simready-assets.crate_plywood_b01.2026.10.09_002951927985",
+   "room": "storage",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "medium",
+   "dims_m": [
+    1.0014,
+    1.0162,
+    1.0078
+   ],
+   "lod1_triangles": 10000,
+   "lod2_triangles": 2500,
+   "source_triangles": 25110,
+   "hulls": 1,
+   "mass_kg": 94.6291,
+   "files": {
+    "crate_plywood_b01.glb": {
+     "bytes": 825980,
+     "sha256": "1c64784ad273f531cf3f77d5f997ab3e1bba293091c55bf6afbea7413389bd92"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1107,
+     "sha256": "836313f3fced6e81e018543c62d00ece5bb73d20a254d2e09efe64828aadc29b"
+    },
+    "physics.ron": {
+     "bytes": 1023,
+     "sha256": "9f057aa5503d8b6d040aa834d3082f61618385cd167f9546c7e40c672ad7f4d9"
+    }
+   }
+  },
+  {
+   "folder": "pail_screwTop_white_glossy_a01",
+   "dir": "pail_screwtop_white_glossy_a01",
+   "package_id": "simready.hf.nvidia.simready-assets.pail_screwTop_white_glossy_a01.2026.10.09_231023013297",
+   "room": "storage",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 512,
+   "pbr_px": 512,
+   "turn": 0,
+   "size_class": "small",
+   "dims_m": [
+    0.2708,
+    0.2481,
+    0.2619
+   ],
+   "lod1_triangles": 2999,
+   "lod2_triangles": 749,
+   "source_triangles": 37022,
+   "hulls": 4,
+   "mass_kg": 1.5652,
+   "files": {
+    "pail_screwtop_white_glossy_a01.glb": {
+     "bytes": 680544,
+     "sha256": "308aaad2a5a2e0a25bf58e8123e1000e1fc6384577aeab1d16e4b5b69ccbf307"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1143,
+     "sha256": "6b2164e39beacbdc51a9cc45da74ae7a827bca0bb7d01f67dad08c1a1f2de680"
+    },
+    "physics.ron": {
+     "bytes": 2467,
+     "sha256": "7016da4b7a6b529a18b6d4d506296a862ee072920674dbc9bc1b3b315b9847b9"
+    }
+   }
+  },
+  {
+   "folder": "storage_locker_double_bench_b01",
+   "dir": "storage_locker_double_bench_b01",
+   "package_id": "simready.hf.nvidia.simready-assets.storage_locker_double_bench_b01.2026.10.09_171940941329",
+   "room": "storage",
+   "row": "new",
+   "brand_check": "clear",
+   "albedo_px": 1024,
+   "pbr_px": 1024,
+   "turn": 180,
+   "size_class": "large",
+   "dims_m": [
+    0.6441,
+    2.09,
+    0.8303
+   ],
+   "lod1_triangles": 24999,
+   "lod2_triangles": 6249,
+   "source_triangles": 34040,
+   "hulls": 9,
+   "mass_kg": 480.5605,
+   "files": {
+    "storage_locker_double_bench_b01.glb": {
+     "bytes": 2428820,
+     "sha256": "2e0d9eaf604af8f930482d479053761f42bb76e16fb62a766d6afd599e63d8e3"
+    },
+    "LICENSE.txt": {
+     "bytes": 18657,
+     "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+    },
+    "SOURCE.md": {
+     "bytes": 1193,
+     "sha256": "4cc2dd2363197fb2a6e5cec032fc1d0538f282dc860083023b284b20c88a9216"
+    },
+    "physics.ron": {
+     "bytes": 4980,
+     "sha256": "8d116a808f8bbbf21ad8734ec7ff2636cb83d16ab6543ce461cd38c5b6fb7fe7"
+    }
+   }
+  }
+ ]
+}

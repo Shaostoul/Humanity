@@ -3031,8 +3031,11 @@ mod tests {
     fn moving_the_plot_moves_everything_in_the_home() {
         let before = home_parts(&shipped_ship());
         // 282 since the homestead's upper floor (2026-10-20): 23 more for the dining room, the
-        // second bedroom, the boot room and the shower room.
-        assert_eq!(before.machines.len(), 282, "every home machine is placed");
+        // second bedroom, the boot room and the shower room. 306 since the NVIDIA SimReady props
+        // (2026-11-09, docs/design/simready-props.md): 24 more, the kitchen counter, its tap and
+        // its small things, a first aid kit, the workshop's tools, cabinet, ladder and extinguisher stand,
+        // a towel.
+        assert_eq!(before.machines.len(), 306, "every home machine is placed");
         let p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).expect("the homestead assembles at p2");
         let mut failures = not_moved_by(&before, &home_parts(&p2), 0.0, 99.0);
         failures.extend(not_moved_by(&before, &home_parts(&assembled_on_p1_moved_by(-100.0, 0.0)), -100.0, 0.0));

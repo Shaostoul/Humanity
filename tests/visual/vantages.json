@@ -1452,7 +1452,7 @@
     {
       "id": "mess-hall-counter",
       "desc": "The Commons' mess hall (ship homes increment 6, lane 1A) at eye height from its middle, looking west-north-west at the serving counter at 12:00 station time.",
-      "expect": "At the far end of the hall, against its north wall, the serving counter: a plain grey box 2.4 m long and 0.9 m high (a stand-in: no counter model is on disk), with open floor in front of it where the store stands. Between the camera and the counter, along the hall's north (right-hand) wall, dining tables 2 m long with four chairs each, two on each side, in a row with walking room between them; the floor along the hall's middle and south side clear. The hall is lit through the Commons' glass roof and by its lights. Nothing stands in the middle of the floor where the crew walk.",
+      "expect": "At the far end of the hall, against its north wall, the serving counter: white cabinets under a wooden top about 3 m long and 0.93 m high, with a sink cut into it (NVIDIA SimReady's fixture_counter_a01 since 2026-11-09, docs/design/simready-props.md; a plain grey box before), with open floor in front of it where the store stands. Between the camera and the counter, along the hall's north (right-hand) wall, dining tables 2 m long with four chairs each, two on each side, in a row with walking room between them; the floor along the hall's middle and south side clear. The hall is lit through the Commons' glass roof and by its lights. Nothing stands in the middle of the floor where the crew walk.",
       "_why": "Ship homes increment 6, lane 1A (plan section 3.3): the mess hall had a food store and the crew's meal seats but no furniture; now it has a serving counter, four tables with sixteen chairs and the crew's long table at its east end (data/machines/ship.ron). The counter is where a meal is taken (lane 1D), so this vantage is the counter's.",
       "regressions": [
         "the serving counter stands against the north wall at the hall's west end",
@@ -1462,6 +1462,69 @@
       "camera": {
         "station": "home",
         "pose": "74,1.6,26.5,-0.897,-0.105",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-kitchen-noon",
+      "desc": "The homestead's kitchen from beside the dining table at eye height, looking at the kitchen counter along the wall, at 12:00 station time.",
+      "expect": "The kitchen counter along the wall: white cabinets and drawers under a wooden top about 3 m long, a white basin set into the top and a mixer tap behind it. To the right, in the foreground, the corner of the dining table with a red mug, a red bowl and a blue flowered jug standing on it; beyond it a green first aid kit on the shelf. Every SimReady prop stands on the surface under it, at its real size; nothing floats beside its table.",
+      "_why": "NVIDIA SimReady props (2026-11-09, docs/design/simready-props.md section 9): the kitchen is where most of the small props stand, so this vantage holds their look and their frame cost (A/B against Furniture detail: Boxes).",
+      "regressions": [
+        "the kitchen props stand on their surfaces at real size",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "36.4,1.55,48.9,0.245,-0.276",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-workshop-noon",
+      "desc": "The homestead's workshop at eye height, looking north-west at the two workbenches and the electronics bench, at 12:00 station time.",
+      "expect": "Two stainless two-tier work tables side by side, a blue bench vise, safety glasses and a hammer on the left one, an arm lamp, a wrench, a screwdriver, pliers and a utility knife on the right one; the electronics bench along the west wall with a multimeter on it; a red fire extinguisher on its stand by the north wall. Every SimReady prop stands on the surface under it.",
+      "_why": "NVIDIA SimReady props (2026-11-09, docs/design/simready-props.md section 9): the workshop's benches were plain boxes; this vantage holds the benches, the hand tools and their frame cost.",
+      "regressions": [
+        "the workbenches are tables and the tools lie on them",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "27,1.7,36,-0.785,-0.3",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-bathroom-noon",
+      "desc": "The homestead's upstairs bathroom at eye height, looking west at the toilet and the wall-hung basin, at 12:00 station time.",
+      "expect": "Against the west wall a white toilet facing into the room and a white basin hung on the wall at counter height (its rim about 0.86 m) with its tap and waste pipe, beside the mirror; a towel on the shelf by the east wall.",
+      "_why": "NVIDIA SimReady props (2026-11-09, docs/design/simready-props.md section 9): the toilet and basin were plain boxes standing on the floor; this vantage holds which way they face and the basin's height.",
+      "regressions": [
+        "the toilet faces into the room and the basin hangs at counter height",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "48.5,4.6,33,-1.5708,-0.35",
         "time": 20.15
       },
       "showcase": {

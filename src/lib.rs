@@ -69,6 +69,10 @@ pub mod media;
 /// that come with the app, the packs to download, and the best instrument for each part of the score.
 #[cfg(feature = "native")]
 pub mod instrument_packs;
+/// Downloadable 3D model packs (2026-11-09, docs/design/simready-props.md): the Medical Bay's NVIDIA
+/// SimReady models, from Settings > Graphics > Furniture models, the instrument packs' way.
+#[cfg(feature = "native")]
+pub mod model_packs;
 // The readable web (2026-09-16): HTTPS fetch + html5ever parse, no JS. Native-only. docs/design/readable-web.md.
 #[cfg(feature = "native")]
 pub mod web_reader;
@@ -14951,6 +14955,7 @@ mod native_app {
                                 // lists is keyed `gpu.screen_*` (`render_view_onto`).
                                 let main_view = crate::renderer::gpu_costs::SceneView::Main;
                                 crate::engine::room_gi::before_scene(state); // room GI probe update (engine/room_gi.rs)
+                                crate::engine::furniture_detail::before_scene(state); // a changed Furniture detail or model pack rebuilds the bodies
                                 state.renderer.render_scene_onto(&state.camera, &all_objects, &view, main_view);
                                 // Pass 2.5: transparent surfaces (glass windows) blended over
                                 // the opaque scene so you can see through them. (v0.456)
@@ -16022,6 +16027,8 @@ mod native_app {
                             // Instruments' Download / Remove, the star catalog's way (a thread, a
                             // checked archive, progress the section draws).
                             crate::instrument_packs::ui::tick(&mut crate::instrument_packs::ui::shared(), &state.data_dir);
+                            // Model packs (2026-11-09, simready-props.md): Settings > Graphics > Furniture models.
+                            crate::model_packs::ui::tick(&mut crate::model_packs::ui::shared(), &state.data_dir);
 
                             // ── Ultra Milky Way glow download/remove (2026-07-11) ── same
                             // mechanics as the star catalog above: background thread, stream

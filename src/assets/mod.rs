@@ -11,6 +11,9 @@ pub mod loader;
 /// Comment-preserving single-field RON value rewriter (Planet Tuner enabler,
 /// docs/design/artificial-planet.md). Pure std, ungated on purpose.
 pub mod ron_edit;
+/// A model's physics, from the `physics.ron` beside it (the SimReady props, docs/design/simready-props.md).
+#[cfg(feature = "native")]
+pub mod model_physics;
 /// glTF skins: every primitive drawn with a file's skin, its joints, weights and animations, as
 /// the plain data the animation crate builds characters from (character animation rung 1,
 /// 2026-11-08, docs/design/character-animation.md section 2.2).
@@ -98,6 +101,40 @@ impl GltfCpuMesh {
         // Normals are unchanged: a uniform scale does not rotate them, and
         // they were already unit length.
         s
+    }
+
+    /// Move the model so its footprint (its x and z extent) is centred on its origin, its base left
+    /// where it is. A placed machine stands at its `offset`, its label, its pick volume, its
+    /// collision and the Boxes level's box are all centred there, and so must its model be; the
+    /// Kenney furniture is authored from a CORNER (the table's footprint runs from x -0.84 to 0 and
+    /// z 0 to 0.45), so after the fit to height every piece stood up to 1.3 m from its own label,
+    /// and the Furniture detail setting's Boxes level drew each box beside its model (found
+    /// 2026-11-09 placing a mug on the dining table: the mug sat where the table's data says, in
+    /// the air beside the drawn table). A model authored centred (the SimReady props) is unchanged.
+    pub fn centre_footprint(&mut self) {
+        let (mut lo, mut hi) = ([f32::INFINITY; 2], [f32::NEG_INFINITY; 2]);
+        for v in &self.vertices {
+            for (k, axis) in [0usize, 2].into_iter().enumerate() {
+                lo[k] = lo[k].min(v.position[axis]);
+                hi[k] = hi[k].max(v.position[axis]);
+            }
+        }
+        if !(lo[0].is_finite() && lo[1].is_finite() && hi[0].is_finite() && hi[1].is_finite()) {
+            return;
+        }
+        let (cx, cz) = ((lo[0] + hi[0]) * 0.5, (lo[1] + hi[1]) * 0.5);
+        for v in &mut self.vertices {
+            v.position[0] -= cx;
+            v.position[2] -= cz;
+        }
+    }
+
+    /// What a placed machine's model goes through before it is drawn: fitted to the declared height
+    /// ([`Self::scale_to_height`]) and its footprint centred on the placement
+    /// ([`Self::centre_footprint`]). Both machine paths, the world load's and the rebuild's, call it.
+    pub fn fit_for_machine(&mut self, target_height: f32) {
+        self.scale_to_height(target_height);
+        self.centre_footprint();
     }
 }
 
@@ -210,8 +247,7 @@ impl AssetManager {
         relative_path: &str,
     ) -> Result<crate::renderer::mesh::Mesh, String> {
         let path = self.resolve_model_path(relative_path);
-        let (document, buffers, _images) = gltf::import(&path)
-            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+        let (document, buffers) = import_without_images(&path)?;
         let cpu = Self::decode_first_primitive(&document, &buffers, relative_path)?;
         Ok(crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices))
     }
@@ -234,10 +270,9 @@ impl AssetManager {
         target_height: f32,
     ) -> Result<crate::renderer::mesh::Mesh, String> {
         let path = self.resolve_model_path(relative_path);
-        let (document, buffers, _images) = gltf::import(&path)
-            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+        let (document, buffers) = import_without_images(&path)?;
         let mut cpu = Self::decode_first_primitive(&document, &buffers, relative_path)?;
-        cpu.scale_to_height(target_height);
+        cpu.fit_for_machine(target_height);
         Ok(crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices))
     }
 
@@ -246,7 +281,7 @@ impl AssetManager {
     /// root, so assets/models/x.gltf works in a checkout). Same rule
     /// `parse_gltf_mesh` has always used.
     #[cfg(feature = "native")]
-    fn resolve_model_path(&self, relative_path: &str) -> PathBuf {
+    pub fn resolve_model_path(&self, relative_path: &str) -> PathBuf {
         let path = self.data_dir.join(relative_path);
         if !path.exists() {
             if let Some(parent) = self.data_dir.parent() {
@@ -311,8 +346,9 @@ impl AssetManager {
     ///
     /// Texture handling:
     /// - relative image URIs (e.g. "textures/grass_medium_02_diff_2k.jpg")
-    ///   are resolved from the .gltf's own folder and decoded by
-    ///   `gltf::import` (jpg/png via the `image` crate);
+    ///   are resolved from the .gltf's own folder and decoded by the
+    ///   `gltf` crate (jpg/png via the `image` crate); only the base colour
+    ///   image is decoded, never the file's other images (`import_without_images`);
     /// - anything larger than 1024x1024 is downscaled (Triangle filter,
     ///   aspect preserved) to keep per-plant VRAM sane;
     /// - the alpha channel is preserved as decoded; a source with NO alpha
@@ -329,10 +365,9 @@ impl AssetManager {
         relative_path: &str,
     ) -> Result<(GltfCpuMesh, Option<(Vec<u8>, u32, u32)>), String> {
         let path = self.resolve_model_path(relative_path);
-        let (document, buffers, images) = gltf::import(&path)
-            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+        let (document, buffers) = import_without_images(&path)?;
         let mesh = Self::decode_first_primitive(&document, &buffers, relative_path)?;
-        let texture = Self::decode_base_color_texture(&document, &images, relative_path);
+        let texture = Self::decode_base_color_texture(&document, &buffers, image_base(&path), relative_path);
         Ok((mesh, texture))
     }
 
@@ -364,7 +399,7 @@ impl AssetManager {
         target_height: f32,
     ) -> Result<(crate::renderer::mesh::Mesh, Option<(Vec<u8>, u32, u32)>), String> {
         let (mut cpu, texture) = self.parse_gltf_mesh_with_texture(relative_path)?;
-        cpu.scale_to_height(target_height);
+        cpu.fit_for_machine(target_height);
         let mesh = crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices);
         Ok((mesh, texture))
     }
@@ -378,13 +413,16 @@ impl AssetManager {
     #[cfg(feature = "native")]
     fn decode_base_color_texture(
         document: &gltf::Document,
-        images: &[gltf::image::Data],
+        buffers: &[gltf::buffer::Data],
+        base: &std::path::Path,
         relative_path: &str,
     ) -> Option<(Vec<u8>, u32, u32)> {
         let primitive = document.meshes().next()?.primitives().next()?;
         let info = primitive.material().pbr_metallic_roughness().base_color_texture()?;
-        let image_index = info.texture().source().index();
-        let data = images.get(image_index)?;
+        let data = gltf::image::Data::from_source(info.texture().source().source(), Some(base), buffers)
+            .map_err(|e| log::warn!("{relative_path}: base-color texture did not decode ({e}); skipping texture"))
+            .ok()?;
+        let data = &data;
         let rgba = image_data_to_rgba8(data).or_else(|| {
             log::warn!(
                 "{relative_path}: base-color texture has unsupported pixel format {:?}; skipping texture",
@@ -414,8 +452,7 @@ impl AssetManager {
         }
 
         let path = self.data_dir.join(relative_path);
-        let (document, buffers, _images) = gltf::import(&path)
-            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+        let (document, buffers) = import_without_images(&path)?;
 
         // Decode the first mesh's first primitive (shared geometry path).
         let cpu = Self::decode_first_primitive(&document, &buffers, relative_path)?;
@@ -716,6 +753,26 @@ impl AssetManager {
     pub fn get<T: 'static>(&self, key: &str) -> Option<&T> {
         self.cache.get(key).and_then(|v| v.downcast_ref::<T>())
     }
+}
+
+/// A glTF's document and buffers, WITHOUT decoding its images. `gltf::import` decodes every image a
+/// file holds, and the NVIDIA SimReady GLBs carry three 1,024-pixel PNGs (base colour, normal and
+/// ORM, the last two for a later rung) of which the engine draws one, so every instance of a model
+/// paid two PNG decodes it never used: the homestead's body build took 1,070 ms with its 45 SimReady
+/// instances against 135 ms without them (2026-11-09, docs/design/simready-props.md section 13).
+/// A caller that draws the base colour decodes that one image (`decode_base_color_texture`).
+#[cfg(feature = "native")]
+fn import_without_images(path: &std::path::Path) -> Result<(gltf::Document, Vec<gltf::buffer::Data>), String> {
+    let failed = |e: gltf::Error| format!("Failed to load GLTF {}: {e}", path.display());
+    let gltf::Gltf { document, blob } = gltf::Gltf::open(path).map_err(failed)?;
+    let buffers = gltf::import_buffers(&document, Some(image_base(path)), blob).map_err(failed)?;
+    Ok((document, buffers))
+}
+
+/// The folder a glTF's relative references resolve from (its own), as `gltf::import` takes it.
+#[cfg(feature = "native")]
+fn image_base(path: &std::path::Path) -> &std::path::Path {
+    path.parent().unwrap_or_else(|| std::path::Path::new("./"))
 }
 
 /// Convert a `gltf::import`-decoded image to tightly-packed RGBA8 bytes.

@@ -131,7 +131,8 @@ GitHub release assets under the non-`v*` tag `assets-instruments-1`, the star ca
 (`assets-stars-1`): uploading there triggers no workflow and serves from GitHub's CDN. The app checks
 every download against the SHA-256 in `data/music/packs.ron` and refuses a mismatch, so **the catalog
 committed to main and the assets uploaded must come from the same run**. Producing the packs is an
-agent's job; **uploading them is publishing, so it is the operator's step**. An agent never uploads.
+agent's job; **uploading them is the top-level session's step** (a standing permission since
+2026-11-07, CLAUDE.md); a dispatched agent never uploads.
 
 1. Build (needs the raw libraries on `E:\HumanityOS\instruments-src`, recorded in
    `docs/reference/instrument-sources.md`, and ffmpeg with libvorbis; about half an hour):
@@ -146,7 +147,7 @@ agent's job; **uploading them is publishing, so it is the operator's step**. An 
    byte-identical packs (`git diff data/music/packs.ron` shows no change). Each pack carries each
    library's licence text in every sample folder (a release asset has no licence file of its own).
 
-2. Upload (the operator; the first time creates the release, later times replace the assets):
+2. Upload (the top-level session; the first time creates the release, later times replace the assets):
 
    ```bash
    gh release create assets-instruments-1 --repo Shaostoul/Humanity --latest=false --title "Instrument packs" --notes "CC0 instrument packs for Settings > Audio > Instruments. Built by just instrument-packs; sources in docs/reference/instrument-sources.md." E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
@@ -167,6 +168,26 @@ agent's job; **uploading them is publishing, so it is the operator's step**. An 
 To try packs before uploading, serve the folder on this computer and point the app at it:
 `node scripts/serve-instrument-packs.js` (127.0.0.1:8000, the packs folder) and run the app with
 `HUMANITY_INSTRUMENT_PACKS_URL=http://127.0.0.1:8000/` (a dev aid, `instrument_packs::ui`).
+
+## Model packs (release assets; the top-level session uploads)
+
+Settings > Graphics > Furniture models downloads the model packs (the Medical Bay's NVIDIA SimReady
+models, `docs/design/simready-props.md` section 7) from GitHub release assets under the non-`v*` tag
+`assets-simready-1`, the instrument packs' way: `data/models/packs.ron` carries each pack's size and
+SHA-256, and the app refuses a download that does not match, so the catalog committed and the archive
+uploaded must come from the same `just simready` run. Building is an agent's job (the archive lands
+in `E:\HumanityOS\simready-packs\humanity-models-simready-medical-v<version>.tar`, with its
+`.sha256`); **uploading is the top-level session's step**, as for the instrument packs:
+
+```bash
+gh release create assets-simready-1 --repo Shaostoul/Humanity --latest=false --title "Model packs" --notes "NVIDIA SimReady model packs (CC BY 4.0, by NVIDIA; converted and modified by HumanityOS) for Settings > Graphics > Furniture models. Built by just simready; credits in LICENSES.md." E:/HumanityOS/simready-packs/*.tar E:/HumanityOS/simready-packs/*.sha256
+# later rebuilds:
+gh release upload assets-simready-1 --repo Shaostoul/Humanity --clobber E:/HumanityOS/simready-packs/*.tar E:/HumanityOS/simready-packs/*.sha256
+```
+
+`--latest=false` as above, for the same reason as the instrument packs. A pack whose contents change
+gets `PACK_VERSION` raised in `scripts/simready/pack.js` first. To try a pack before uploading, serve
+its folder on 127.0.0.1 and run the app with `HUMANITY_MODEL_PACKS_URL=http://127.0.0.1:8000/`.
 
 ## Recipes
 

@@ -964,6 +964,23 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
         .map(|home| home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect())
         .unwrap_or_default();
     let mut objs = Vec::with_capacity(placements.len());
+    // Settings > Graphics > Furniture detail (gui/furniture_detail.rs): 1 draws each model's
+    // texture as it ships, 2 halves each side, 0 draws the plain boxes. The model textures and
+    // meshes this build uploads, and the time it takes, are measured for the Settings page's memory
+    // figures, its hardware notice and the run.log line a budget check reads.
+    let started = std::time::Instant::now();
+    let divisor = crate::gui::furniture_detail::texture_divisor(
+        &state.gui_state.settings.furniture_detail,
+        crate::renderer::bounced_light_detail::adapter_memory(),
+    );
+    let mut texture_bytes: HashMap<String, u64> = HashMap::new();
+    let mut model_mesh_bytes: u64 = 0;
+    // One read of each model file per build, at each height it is fitted to: the workshop's eight
+    // tool chests, four shelves and three benches are three files, and each read decodes a
+    // 1,024-pixel picture (2026-11-09: 45 SimReady instances, 31 files). Local to this call and
+    // dropped with it, so nothing is kept between builds; every instance still gets its own GPU
+    // mesh (below).
+    let mut parsed: HashMap<(String, u32), Result<(crate::assets::GltfCpuMesh, Option<(Vec<u8>, u32, u32)>), String>> = HashMap::new();
     for (i, p) in placements.iter().enumerate() {
         // GLB model when the def declares one (v0.734): parsed fresh PER
         // INSTANCE (no shared cache), so the replace/reuse slot logic
@@ -978,33 +995,54 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
         let mesh = p
             .model
             .as_deref()
+            .filter(|_| divisor > 0)
             .and_then(|m| {
-                state
-                    .asset_manager
+                let read = parsed.entry((m.to_string(), p.size.1.to_bits())).or_insert_with(|| {
                     // Fitted to the def SIZE height (v0.1324): the pack is authored at
                     // about half real scale, so an unfitted model put a 0.46 m chair
-                    // next to a player whose eyes are at 1.7 m.
-                    .parse_gltf_mesh_textured_fit_height(&state.renderer.device, m, p.size.1)
-                    .map_err(|e| {
-                        log::warn!("machine {} model '{m}' failed: {e}; primitive fallback", p.id)
+                    // next to a player whose eyes are at 1.7 m. And centred on the placement
+                    // (`fit_for_machine`).
+                    state.asset_manager.parse_gltf_mesh_with_texture(m).map(|(mut cpu, tex)| {
+                        cpu.fit_for_machine(p.size.1);
+                        (cpu, tex)
                     })
-                    .ok()
-                    .map(|(mesh, tex)| {
-                        model_tex = tex;
+                });
+                match read {
+                    Ok((cpu, tex)) => {
+                        let mesh = crate::renderer::mesh::Mesh::from_vertices(&state.renderer.device, &cpu.vertices, &cpu.indices);
+                        model_tex = tex.clone();
                         model_path = Some(m.to_string());
-                        mesh
-                    })
+                        // Each instance owns its mesh (above), so each one counts.
+                        model_mesh_bytes += mesh.vertex_buffer.size() + mesh.index_buffer.size();
+                        Some(mesh)
+                    }
+                    Err(e) => {
+                        log::warn!("machine {} model '{m}' failed: {e}; primitive fallback", p.id);
+                        None
+                    }
+                }
             })
             .unwrap_or_else(|| {
                 let ty = type_by_id.get(&p.id).map_or("", String::as_str);
                 machine_body_mesh(&state.renderer.device, &state.gui_state.grow_media, ty, &p.shape, p.size)
             });
-        // Shared textured material per model path, created once. NEVER
-        // updated in place: instances of the same model share it.
+        // Shared textured material per model path, created once: instances of the same model
+        // share it, so the slot-reuse path never repaints it. The one time its picture changes
+        // is a change of Furniture detail level, and then it is REPLACED in place
+        // (`set_material_albedo_texture`): the old size's texture is freed with its bind group, so
+        // Simple really gives the memory back, and every sibling, rebuilt in this same pass
+        // (`furniture_detail::before_scene` forces the full rebuild), draws the new size.
         let textured_mat: Option<usize> = match (&model_path, model_tex) {
             (Some(mp), Some((rgba, w, h))) => {
-                Some(match state.machine_model_materials.get(mp) {
-                    Some(&ma) => ma,
+                let (rgba, w, h) = crate::gui::furniture_detail::shrink_rgba(rgba, w, h, divisor);
+                texture_bytes.insert(mp.clone(), w as u64 * h as u64 * 4);
+                Some(match state.machine_model_materials.get(mp).copied() {
+                    Some((ma, drawn_at)) if drawn_at == divisor => ma,
+                    Some((ma, _)) => {
+                        state.renderer.set_material_albedo_texture(ma, &rgba, w, h);
+                        state.machine_model_materials.insert(mp.clone(), (ma, divisor));
+                        ma
+                    }
                     None => {
                         let ma = state.renderer.add_textured_material(
                             [1.0, 1.0, 1.0, 1.0],
@@ -1016,13 +1054,36 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
                             w,
                             h,
                         );
-                        state.machine_model_materials.insert(mp.clone(), ma);
+                        state.machine_model_materials.insert(mp.clone(), (ma, divisor));
                         ma
                     }
                 })
             }
             _ => None,
         };
+        // A model with a `physics.ron` beside it from NVIDIA SimReady (assets/model_physics.rs) says
+        // on its walk-up card whose model it is: CC BY 4.0 asks for the credit "in any reasonable
+        // manner", and the card is where the object is met. Its mass is NOT shown: NVIDIA's authored
+        // masses include solid-volume estimates no one has checked (a 503 kg steel shelf, a 2,035 kg
+        // medicine cabinet), and the card must not teach a wrong number as a fact
+        // (docs/design/simready-props.md, section 6).
+        let mut stats = p.stats.clone();
+        if let Some(mp) = &model_path {
+            let file = state.asset_manager.resolve_model_path(mp);
+            match crate::assets::model_physics::ModelPhysics::beside(&file) {
+                Some(Ok(phys)) => {
+                    if phys.package_id.starts_with("simready.") {
+                        stats.push(humanity_ship::machines::MachineStat {
+                            kind: "credit".to_string(),
+                            value: humanity_core::i18n::t("model_physics.credit_simready").to_string(),
+                            status: "ok".to_string(),
+                        });
+                    }
+                }
+                Some(Err(e)) => log::warn!("machine {}: {e}", p.id),
+                None => {}
+            }
+        }
         let color = [p.color.0, p.color.1, p.color.2, 1.0];
         let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
         // The machine's own slot (`machine_body_slots`): its mesh replaced in place, and its own
@@ -1047,7 +1108,7 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
             pos: Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2),
             foot_y: p.pos.1,
             name: p.label.clone(),
-            stats: p.stats.clone(),
+            stats,
             room: p.room.clone(),
             machine_id: p.id.clone(),
             on_use,
@@ -1063,6 +1124,18 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
         ));
     }
     state.machine_objects = objs;
+    // Boxes draws no model, so no model's picture is in use: each one shrinks to a single pixel,
+    // freeing its memory, and is put back at its level's size the next time a model is drawn.
+    if divisor == 0 {
+        for (ma, drawn_at) in state.machine_model_materials.values_mut() {
+            if *drawn_at != 0 {
+                state.renderer.set_material_albedo_texture(*ma, &[255, 255, 255, 255], 1, 1);
+                *drawn_at = 0;
+            }
+        }
+    }
+    crate::gui::furniture_detail::note_model_memory(texture_bytes.values().sum(), model_mesh_bytes, divisor, started.elapsed());
+    crate::gui::furniture_detail::note_built(divisor);
     // Record grow anchors for the procedural plant pass (v0.862/0.863):
     // EVERY placed machine, with its catalog type, footprint and top
     // height, so the plant pass can dress towers (helix) and beds/fields

@@ -118,5 +118,23 @@
             attribution_required: true,
             shown_in: ["Credits"],
         ),
+        // The first 3D models that are not CC0 (2026-11-09). CC BY 4.0 makes the credit a condition:
+        // failing it ends the licence until cured (section 6). Each converted model's folder also
+        // carries NVIDIA's LICENSE.txt and a SOURCE.md listing its changes, and
+        // assets/models/LICENSE-nvidia-simready.md lists every folder. The research, quoted and
+        // dated: docs/reference/findings/2026-11-08-nvidia-simready-assets.md. NVIDIA requested no
+        // wording, so this follows the licence's own list: creator, licence, link, modified.
+        (
+            id: "nvidia_simready",
+            name: "NVIDIA SimReady Assets",
+            used_for: "3D models of the home's furniture, fixtures, tools and safety gear (assets/models/simready/), and of the Medical Bay (a downloadable pack), each converted from OpenUSD to glTF, simplified and baked by HumanityOS, with its physics data.",
+            licence: "CC BY 4.0",
+            notice: "3D models based on NVIDIA SimReady Assets, by NVIDIA, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); converted and modified by HumanityOS",
+            url: "https://huggingface.co/datasets/nvidia/simready-assets",
+            attribution_required: true,
+            // The walk-up card of an object drawn with one of these models carries a one-line credit
+            // (engine/home_meshes.rs, the `credit` stat, words model_physics.credit_simready).
+            shown_in: ["Credits", "Machine walk-up card (model credit line)"],
+        ),
     ],
 )

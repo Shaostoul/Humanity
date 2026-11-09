@@ -466,7 +466,7 @@
         // stretched to fit (docs/dev/adding-3d-models.md; the plan's question 5).
         "serving_counter": (
             shape: "box",
-            size: (2.40, 0.90, 0.60),
+            size: (3.022, 0.927, 0.680),
             color: (0.62, 0.64, 0.66),
             label: "Serving counter",
             category: "Furniture",
@@ -482,7 +482,7 @@
             storage: [],
             auto_recipe: None,
             container_type: None,
-            model: None,
+            model: Some("assets/models/simready/fixture_counter_a01/fixture_counter_a01.glb"),
         ),
     },
     instances: [

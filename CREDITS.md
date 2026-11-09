@@ -88,6 +88,13 @@ listed here for a kindness they did not ask credit for.
 - **Poly Haven** (https://polyhaven.com) - CC0 photoscanned plant models
   and textures. Thank you for keeping photoreal assets free for everyone.
 - **ambientCG** (https://ambientcg.com) - CC0 PBR material textures.
+- **NVIDIA SimReady Assets** (https://huggingface.co/datasets/nvidia/simready-assets) -
+  3D models of the home's furniture, fixtures, tools and safety gear, and of the
+  Medical Bay, by NVIDIA, licensed under CC BY 4.0
+  (https://creativecommons.org/licenses/by/4.0/). Converted from OpenUSD to glTF,
+  simplified and baked by HumanityOS; each folder in `assets/models/simready/` lists
+  its changes in `SOURCE.md`. Unlike the rest of the project these models are not
+  public domain: see `LICENSES.md` and `assets/models/LICENSE-nvidia-simready.md`.
 - Additional CC0/CC-BY packs under evaluation are listed in
   docs/reference/asset-and-map-sources.md; anything that ships gets
   credited here.

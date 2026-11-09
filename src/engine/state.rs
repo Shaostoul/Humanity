@@ -441,8 +441,10 @@ pub(crate) struct EngineState {
     /// Textured MACHINE model materials, cached per model path (v0.993):
     /// shared across every instance of the same model and never mutated by
     /// the machine rebuild's slot-reuse path (update_material_typed on a
-    /// shared textured material would repaint every sibling).
-    pub(crate) machine_model_materials: std::collections::HashMap<String, usize>,
+    /// shared textured material would repaint every sibling). Each with the Furniture detail
+    /// divisor its picture was last drawn at (gui/furniture_detail.rs: 1 Full, 2 Simple, 0
+    /// Boxes, which shrinks it to one pixel): a level change replaces the picture in place.
+    pub(crate) machine_model_materials: std::collections::HashMap<String, (usize, u32)>,
     /// Mesh/material cache for decoration models so world reloads reuse
     /// GPU resources instead of re-appending them.
     pub(crate) decoration_mesh_cache: std::collections::HashMap<String, (usize, usize)>,

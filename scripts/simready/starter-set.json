@@ -11,6 +11,8 @@
       "room": "kitchen",
       "row": "home.ron:kitchen_sink",
       "fills": "the kitchen sink, a plain box today",
+      "turn_deg": 90,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain stainless; shared tiling textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":17961,"kind":"meta","git_sha1":"ea11d82be1d51f84d417bbe1b6f32a21a94c0d1c"},
@@ -42,6 +44,7 @@
       "room": "kitchen",
       "row": "home.ron:kitchen_sink",
       "fills": "its tap, joined to the basin in one model; only if the basin has no tap of its own (decided at the look)",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"chrome, with plain red and blue hot and cold dots; no marks"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":24550,"kind":"meta","git_sha1":"13b295d5bc9c52138ce4415a5e82b9543ddaa463"},
@@ -76,6 +79,8 @@
       "room": "kitchen",
       "row": "ship.ron:serving_counter",
       "fills": "the Commons serving counter (a plain box today) and the counter run beside the kitchen sink",
+      "turn_deg": 90,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"wood top and white cabinets; shared tiling textures and a plain wood texture"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":29485,"kind":"meta","git_sha1":"e22fba6fad5eb154d2f42d50824c7d4e9e04524a"},
@@ -113,6 +118,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a countertop appliance; the kitchen has none",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"its own texture carries only the word CANCEL by the button; no maker mark"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":7228,"kind":"meta","git_sha1":"faba76bc221ec47509ad3487daafa5a9ffeb6126"},
@@ -138,6 +144,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a kettle for the stove top",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"repaint","notes":"the product-style label KETTLE WATER between two crossed-bones marks painted out with the plain body colour","repaints":[{"texture":"t_kettle_chrome_a01_alb.png","kind":"fill","rects":[[548,250,612,530]],"sample":[530,400]}]},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9312,"kind":"meta","git_sha1":"d13cb47d8ed643edaa625fd4d4d63fb23cef619b"},
@@ -163,6 +170,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a frying pan",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain green pan; no marks"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9116,"kind":"meta","git_sha1":"40847536dca6b83d60cfc5cab32e4929f1eefa11"},
@@ -188,6 +196,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a cutting board",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain wood; no marks"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9212,"kind":"meta","git_sha1":"37ab0218fd6285bd062a855bf69ffc1be39a7087"},
@@ -213,6 +222,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a kitchen knife",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"steel blade and wood handle; no marks"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":8998,"kind":"meta","git_sha1":"22b61c97dfae19f4afe9330c6481e2699438285a"},
@@ -238,6 +248,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a water jug",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"a painted flower pattern (NVIDIA's own artwork); no marks"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9206,"kind":"meta","git_sha1":"7df4dca97d43da09933dbf9eb3d9ba659c3e5918"},
@@ -263,6 +274,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a ladle",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain ash wood; no marks"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9031,"kind":"meta","git_sha1":"dd8c703ca290aa1be6eebf6e9ad8b54890b90074"},
@@ -288,6 +300,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a mug",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"a worn MADE IN CHINA stamp on the underside, no maker name; a country of origin is not a mark"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":6460,"kind":"meta","git_sha1":"125641d2a6175b2558c828730e8c883f343b6862"},
@@ -310,6 +323,7 @@
       "room": "kitchen",
       "row": "new",
       "fills": "a bowl",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"a MADE IN CHINA stamp on the underside, no maker name"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":6654,"kind":"meta","git_sha1":"b905ae7f35cc304ae06bcc4a6e9267c7921512cf"},
@@ -332,6 +346,8 @@
       "room": "bathroom",
       "row": "home.ron:toilet",
       "fills": "the toilet, a plain box today",
+      "turn_deg": 90,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain porcelain and plastic; shared tiling textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":25140,"kind":"meta","git_sha1":"d174e0d976aba59ae42b9bf02cbdfdfff98001bf"},
@@ -366,6 +382,8 @@
       "room": "bathroom",
       "row": "home.ron:bath_sink",
       "fills": "the bathroom sink, a plain box today",
+      "turn_deg": 90,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain ceramic and chrome; shared tiling textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":19219,"kind":"meta","git_sha1":"b1b56e6ae85bdba95fc530761ae9cbd82a2ce56b"},
@@ -397,6 +415,7 @@
       "room": "bathroom",
       "row": "new",
       "fills": "soap by the basin",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"a generic HANDMADE LAVENDER SOAP wrapper (100% natural, made in India, a placeholder barcode); no company or brand name, and its small print is unreadable at the texture's own 512 px"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":6101,"kind":"meta","git_sha1":"437035d0ab58cff67adda693eb3b4717ef19d346"},
@@ -422,6 +441,7 @@
       "room": "bathroom",
       "row": "new",
       "fills": "a towel",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain white towel; no marks"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":6770,"kind":"meta","git_sha1":"b3a8723e94335480ecfb4ab0dec1fb98545b8bed"},
@@ -445,8 +465,10 @@
       "folder": "furniture_workbench_modular_a01",
       "package_id": "simready.hf.nvidia.simready-assets.furniture_workbench_modular_a01.2026.10.09_051145441926",
       "room": "workshop",
-      "row": "home.ron:workbench, home.ron:electronics_bench",
-      "fills": "both benches, plain boxes today",
+      "row": "new",
+      "fills": "a tall double-door workshop cabinet for tools and parts (the name says workbench; the model is a 2 m cabinet)",
+      "turn_deg": 90,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain black metal; shared tiling textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":20192,"kind":"meta","git_sha1":"24837944b5f8a7668c30cf8933011fbfc2b0c1e8"},
@@ -478,6 +500,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "a bench vise on the workbench",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain blue cast iron; no marks"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9826,"kind":"meta","git_sha1":"41034f886b87da59d1873b0f01466d37910091bd"},
@@ -503,6 +526,8 @@
       "room": "workshop",
       "row": "home.ron:tool_rack",
       "fills": "the tool storage, drawn today with a coat-rack model",
+      "turn_deg": 90,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared tiling textures only; no badge"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":23628,"kind":"meta","git_sha1":"b52766f1f5d326326fd8b9d6dc93458e35441dee"},
@@ -537,6 +562,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "a hammer (items.csv hammer_0)",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"repaint","notes":"the handle label TASKOV Crushing, Inc. (a company name) painted out with the plain grey; GENUINE BEECH and 16 oz kept","repaints":[{"texture":"t_tool_hammer_a01_alb.png","kind":"fill","rects":[[1282,822,1398,880]],"sample":[1262,905]}]},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9623,"kind":"meta","git_sha1":"547baaffee85e74b913367d212a0dfdc8eba8635"},
@@ -562,6 +588,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "an adjustable wrench (items.csv wrench_adjustable_0)",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared tiling textures only; a few engraved characters in the steel are unreadable even in NVIDIA's own render"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":18277,"kind":"meta","git_sha1":"12f4d5fab77d1c68db03b8c2a16521d213c42b2e"},
@@ -592,6 +619,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "a Phillips screwdriver (items.csv screwdriver_phillips_0)",
+      "brand_check": {"date":"2026-11-09","by":"Claude (AI agent), from the homestead captures and a sheet of every baked base colour","verdict":"repaint","notes":"the name VORTEN and its ring mark, moulded into the handle on two sides, painted out of the bake with the handle's own orange (found 2026-11-09 in the baked base colour: the 2026-11-08 texture repaint of the two dark grip inlays had no visible effect, since the inlays and the letters are geometry)","repaints":[{"texture":"handTool_screwdriver_phillips_ph2_a01_alb.png","kind":"fill","rects":[[340,3030,1300,3280]],"sample":[800,3010]},{"texture":"handTool_screwdriver_phillips_ph2_a01_alb.png","kind":"fill","rects":[[2010,3125,2930,3360]],"sample":[2470,3100]},{"stage":"baked","rects":[[16,229,58,411]],"key":[42,42,42],"tol":70,"sample":[80,300]},{"stage":"baked","rects":[[166,224,208,405]],"key":[42,42,42],"tol":70,"sample":[150,300]}]},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":10095,"kind":"meta","git_sha1":"450f168461e9e36986efcb5ef92e20ec66df3e20"},
@@ -617,6 +645,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "pliers (items.csv pliers_0)",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"red, orange and grey; no lettering"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9799,"kind":"meta","git_sha1":"9901ce400895f67f898551439c964ff3af0e612a"},
@@ -642,6 +671,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "a utility knife (items.csv knife_utility_0)",
+      "brand_check": {"date":"2026-11-09","by":"Claude (AI agent), from the homestead captures and a sheet of every baked base colour","verdict":"repaint","notes":"the name DRAVOX, moulded into the red handle, painted out of the bake with the handle's red (the 2026-11-08 texture review found no lettering: the letters are geometry)","repaints":[{"stage":"baked","rects":[[80,418,103,492]],"key":[225,225,225],"tol":110,"sample":[92,455]}]},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":10290,"kind":"meta","git_sha1":"f5da32ca42064f5043d535db5412d84fe0d4469b"},
@@ -667,6 +697,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "a folding step ladder for the high shelves",
+      "brand_check": {"date":"2026-11-09","by":"Claude (AI agent), from the homestead captures and a sheet of every baked base colour","verdict":"repaint","notes":"the AVERKIN (R) maker oval on the decal sheet made transparent and a CE marking painted white (2026-11-08); the maker name ASSURED INDUSTRIES, moulded in orange rubber letters on both treads, painted out of the bake with each tread's own colour (2026-11-09: the letters are geometry, in no texture); the generic safety labels (CAUTION, DANGER, LADDER SAFETY) kept","repaints":[{"texture":"T_FoldingStepLadder_A01_Decal_Albedo.png","kind":"fill","rects":[[798,4,1022,1020]],"sample":[792,500]},{"texture":"T_FoldingStepLadder_A01_Decal_Albedo.png","kind":"fill","rects":[[588,716,612,735]],"sample":[250,600]},{"stage":"baked","rects":[[340,540,440,700]],"key":[233,107,37],"tol":60,"sample":[352,570]},{"stage":"baked","key":[233,107,37],"tol":60,"sample":[255,570]}]},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":22730,"kind":"meta","git_sha1":"a2cd742729f9408599e327144de66ffa437b9d59"},
@@ -701,6 +732,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "safety glasses by the vise",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain black plastic; a shared tiling texture only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":10111,"kind":"meta","git_sha1":"c112adfe54583165b9a94a3a1d9b17c3f33a73c5"},
@@ -726,6 +758,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "a multimeter on the electronics bench",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"generic markings only (mV, OFF, AutoHOLD, 10A, COM, 600V CAT IV, MINMAX, INRUSH); no maker name or logo"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":10352,"kind":"meta","git_sha1":"3becdcbf2a88b18e47365c6312071781d71034cd"},
@@ -751,6 +784,7 @@
       "room": "workshop",
       "row": "new",
       "fills": "the bench lamp (homestead.md: a spotlight aimed at the workbench)",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared tiling textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":23159,"kind":"meta","git_sha1":"e5b96840e8382408cbd65e0950e0d4e8a7523728"},
@@ -784,6 +818,8 @@
       "room": "life support",
       "row": "home.ron:humidifier",
       "fills": "the mushroom room humidifier, a plain cylinder today",
+      "turn_deg": 180,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared tiling textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":22756,"kind":"meta","git_sha1":"95c5a1ed3d7ae885f132ee362587f42d62b3d1ed"},
@@ -816,6 +852,7 @@
       "room": "safety",
       "row": "new",
       "fills": "a fire extinguisher for the kitchen, workshop and forge; the home has none",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"repaint","notes":"on the label sheet: the BENITEZ logo and both BENITEZ CORP. address blocks painted out, and two certification marks on the gauge face (a UL-style cRUus mark and a T-in-triangle mark); the generic instructions, ABC class letters and pictograms kept","repaints":[{"texture":"T_ABCFireExtinguisher_A01_Decal_Albedo.png","kind":"fill","rects":[[8,6,146,150]],"sample":[100,175]},{"texture":"T_ABCFireExtinguisher_A01_Decal_Albedo.png","kind":"fill","rects":[[198,103,216,120],[226,101,258,115]],"sample":[190,92]},{"texture":"T_ABCFireExtinguisher_A01_Decal_Albedo.png","kind":"fill","rects":[[716,524,808,582],[848,960,948,1018]],"sample":[950,545]}]},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":15202,"kind":"meta","git_sha1":"befea822f993c7574b89fba2a0f21d16335624b8"},
@@ -844,6 +881,8 @@
       "room": "safety",
       "row": "new",
       "fills": "its stand",
+      "turn_deg": 180,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"repaint","notes":"shares the extinguisher's label sheet: the same repaints; its own FIRE arrow sign is a generic safety sign and is kept","repaints":[{"texture":"T_ABCFireExtinguisher_A01_Decal_Albedo.png","kind":"fill","rects":[[8,6,146,150]],"sample":[100,175]},{"texture":"T_ABCFireExtinguisher_A01_Decal_Albedo.png","kind":"fill","rects":[[198,103,216,120],[226,101,258,115]],"sample":[190,92]},{"texture":"T_ABCFireExtinguisher_A01_Decal_Albedo.png","kind":"fill","rects":[[716,524,808,582],[848,960,948,1018]],"sample":[950,545]}]},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":22273,"kind":"meta","git_sha1":"21ed173832eb1629173363a1766434c09c9a9bed"},
@@ -877,6 +916,7 @@
       "room": "safety",
       "row": "new",
       "fills": "a smoke alarm for each room; the home has none",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"drop","notes":"an embossed logo mark on the lid (a stylised winged W) is modelled in the geometry, so a high-to-low bake would carry it into the normal map; not identifiable as any company's, but a logo, so left out rather than shipped"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":12689,"kind":"meta","git_sha1":"556a2de31700c4eafb68a907468f73dd1e21f2b6"},
@@ -911,6 +951,7 @@
       "room": "storage",
       "row": "new",
       "fills": "a 55-gallon drum for stored water or grain",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain blue and white plastic; shared textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":8009,"kind":"meta","git_sha1":"ba7933af81b20098b7501a55c62eefa15f9af863"},
@@ -939,6 +980,7 @@
       "room": "life support",
       "row": "new",
       "fills": "a 1,000 L rain tote for the water loop",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared plastic and metal textures only; no plate or labels"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":24777,"kind":"meta","git_sha1":"9c7c81ca1a9b5b7751bc00f522aa4365136046ad"},
@@ -975,6 +1017,7 @@
       "room": "medical",
       "row": "new",
       "fills": "the Medical Bay bed (General Services, Fore Landing)",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared tiling textures only; no lettering"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":19395,"kind":"meta","git_sha1":"47fbede8f816520aa90f243db5035344f163edba"},
@@ -1019,6 +1062,7 @@
       "room": "medical",
       "row": "new",
       "fills": "an IV pole for the Medical Bay",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared tiling textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":29068,"kind":"meta","git_sha1":"bd0f9f0cbb5e45c567537b98dc470543f8aa25fa"},
@@ -1056,6 +1100,7 @@
       "room": "medical",
       "row": "new",
       "fills": "a rolling stool for the Medical Bay",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":27263,"kind":"meta","git_sha1":"33d6c25c298041d4bdfbdd046a05fd34932d622f"},
@@ -1092,6 +1137,7 @@
       "room": "medical",
       "row": "new",
       "fills": "a medicine cabinet for the Medical Bay",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared tiling textures only; no cross or labels"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":12122,"kind":"meta","git_sha1":"c3af04aa5ed2d0ead266fc0eaa24d72fd682d3eb"},
@@ -1125,6 +1171,7 @@
       "room": "medical",
       "row": "new",
       "fills": "a privacy screen for the Medical Bay",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"shared tiling textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":33264,"kind":"meta","git_sha1":"8dd9b9c55b70aaa08120664703c87f284404b5cc"},
@@ -1164,6 +1211,7 @@
       "room": "medical",
       "row": "new",
       "fills": "a thermometer",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"a 98.6 F display and the words Ear/Head, Adult/Child, Memory/Mute; no maker name"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":18144,"kind":"meta","git_sha1":"4cb9d70b0032526a0abdbb2a2e349bb711316479"},
@@ -1191,9 +1239,11 @@
     {
       "folder": "safety_firstAidKit_box_plastic_a01",
       "package_id": "simready.hf.nvidia.simready-assets.safety_firstAidKit_box_plastic_a01.2026.10.09_155241226155",
-      "room": "medical",
+      "room": "safety",
       "row": "new",
-      "fills": "a first aid kit for every home; the home has none",
+      "fills": "a first aid kit for every home (kitchen and workshop); the home has none",
+      "turn_deg": 90,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"repaint","notes":"its label carried a white cross on a red disc in a red ring, a red-and-white cross emblem of the kind protected in law in many countries: every red turned to the green of the ISO 7010 first aid sign, giving a white cross on green; the words FIRST AID KIT, Dressings, Wound Cleaning, Burn Treating, Miscellaneous kept","repaints":[{"texture":"t_safety_firstAidKit_box_plastic_a01_alb.png","kind":"red_to_green"}]},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":24790,"kind":"meta","git_sha1":"736b1738785f99b0f5f03ab73ac400832c1af79e"},
@@ -1225,9 +1275,10 @@
     {
       "folder": "table_metal_stainless_a03",
       "package_id": "simready.hf.nvidia.simready-assets.table_metal_stainless_a03.2026.10.09_174629469614",
-      "room": "medical",
-      "row": "new",
-      "fills": "a stainless instrument table",
+      "room": "workshop",
+      "row": "home.ron:workbench, home.ron:electronics_bench",
+      "fills": "both workshop benches, plain boxes today (a two-tier stainless work table; the Medical Bay's instrument table uses the same model)",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain stainless and black plastic; shared textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":13829,"kind":"meta","git_sha1":"c7caca95c05461f9badbc1713fe7e22cbe3c79ee"},
@@ -1256,6 +1307,7 @@
       "room": "storage",
       "row": "home.ron:shelf",
       "fills": "pantry and workshop shelving, drawn today with a low bookcase model",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain painted steel; shared textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":11960,"kind":"meta","git_sha1":"a015acda731e4afa5d5964d4dd920ab72bf717da"},
@@ -1282,6 +1334,7 @@
       "room": "storage",
       "row": "new",
       "fills": "a stacking crate for the pantry and utility room",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain grey plastic"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":6634,"kind":"meta","git_sha1":"4bd150a0615657edd6d5ac0578adc7106236c3d0"},
@@ -1307,6 +1360,7 @@
       "room": "storage",
       "row": "new",
       "fills": "a plywood crate (items.csv crate_0)",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"generic shipping marks (FRAGILE, HANDLE WITH CARE, THANK YOU, DO NOT STACK OVER 5 HIGH, handling pictograms) and placeholder labels with barcodes, small QR codes and made-up reference numbers; no company name, and the codes are unreadable at the shipped size"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":12924,"kind":"meta","git_sha1":"aacb0160b7956e9ac641295b5e3ee47c51bd429f"},
@@ -1341,6 +1395,7 @@
       "room": "storage",
       "row": "new",
       "fills": "a lidded bucket for grain and beans",
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain white plastic with a red tamper strip"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":9723,"kind":"meta","git_sha1":"6e71db5b021d0fd85b8d5ade39231fca81fa29c6"},
@@ -1366,6 +1421,8 @@
       "room": "storage",
       "row": "new",
       "fills": "a bench locker for the boot room",
+      "turn_deg": 180,
+      "brand_check": {"date":"2026-11-08","by":"Claude (AI agent), from review sheets made by scripts/simready/review-sheet.js","verdict":"clear","notes":"plain painted metal and wood; shared textures only"},
       "files": [
         {"path":".metadata/LICENSE.txt","size":18657,"kind":"meta","git_sha1":"da6ab6cc8f333d7e89a99812866df8f24374d47c","same_as":"fixture_sink_basin_a01/.metadata/LICENSE.txt"},
         {"path":".metadata/com.nvidia.simready.packaging.bom.json","size":17473,"kind":"meta","git_sha1":"94270ce6b0c2688baa60a64183632a5e77a06704"},
