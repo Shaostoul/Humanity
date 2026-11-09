@@ -462,3 +462,17 @@ what we will say about it.
   Data Act no while no health data reaches the server (checked in the code); COPPA only if
   commercial and child-directed or on actual knowledge. No consent banner, age gate or request
   form is required as things stand. The basis for the /privacy page.
+- [`2026-11-08-motionbricks.md`](2026-11-08-motionbricks.md),
+  whether HumanityOS may use NVIDIA's MotionBricks (SIGGRAPH 2026): its code is Apache-2.0 (port it
+  with the notices; no NOTICE file; one MIT file); its weights are under the NVIDIA Open Model
+  Agreement (2 April 2026): free to ship, fetch, modify and run on any hardware, outputs unclaimed,
+  no use limits, but no patent licence, ended by a copyright or patent suit about the model or its
+  output, not OSI-approved, and released without training code or data, so whether it meets the
+  open-source-only rule is the operator's call; the 380 MB FP16 model was trained on Bones RP1 under
+  a negotiated licence nobody can read; the bundled sample clips are evaluation-only; TensorRT is not
+  required (ONNX Runtime's CPU path is documented). The method is free of copyright (17 U.S.C.
+  102(b)) but the field has active Electronic Arts patents (US12582906B2 on transformer
+  inbetweening, two on motion matching variants). Open motion data: CMU, ACCAD (CC BY 3.0) and
+  100STYLE (CC BY 4.0) usable; LAFAN1, AMASS, SFU, Bandai Namco, AI4Animation and BONES-SEED (bars
+  generative motion models) not; MakeHuman bodies and Quaternius clips CC0. The basis for
+  `docs/design/character-animation.md`.

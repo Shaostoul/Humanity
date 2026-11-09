@@ -301,7 +301,9 @@ so that every rung's cost is observable before the next rung depends on it.
    are, and flow fields are the correct technique precisely because their cost is
    per-cell, not per-agent.
 6. **Animation.** A skinned pipeline with a walk, an idle, and a work cycle, and
-   an impostor rung for distance. Last because it is the largest content-pipeline
+   an impostor rung for distance. The whole animation plan (the body, the solvers, the
+   near, middle and far tiers, what crosses the network) is
+   [character-animation.md](character-animation.md) (2026-11-08); this rung is its rung 4. Last because it is the largest content-pipeline
    investment and every rung above is visible without it. Note that skinning and
    instancing only coexist if poses ride a bone-matrix storage buffer; storage
    buffers are available (`wgpu::Limits::default()`) but per the v0.782 incident

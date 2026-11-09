@@ -221,7 +221,7 @@ Only one GPU rig may run at a time.
 - Any branch that lands in the megashader must follow the PSO-class and override-switch rules. A separate pipeline avoids them.
 - Verify: a hero close-up where the flame tears into curling tongues that pinch off several times a second, with no voxel stair-steps or domain box edge. Record a cost A/B via `HUMANITY_FRAME_COSTS=1`.
 
-Outside this ladder but blocking the full vision: **a character body with skeletal animation and two hand attachment points** (today there is one "hands" slot, data/inventory/equipment_slots.json). F2 to F10 deliberately work on a kinematic pivot so they do not wait on it.
+Outside this ladder but blocking the full vision: **a character body with skeletal animation and two hand attachment points** (today there is one "hands" slot, data/inventory/equipment_slots.json). F2 to F10 deliberately work on a kinematic pivot so they do not wait on it. The body's plan is [character-animation.md](character-animation.md) (2026-11-08): its rungs 1 and 2 deliver the skinned body and the two grip sockets.
 
 ### Asteroid-impact ladder (secondary)
 
