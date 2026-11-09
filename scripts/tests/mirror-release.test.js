@@ -319,7 +319,7 @@ test("a release becomes exactly the mirror's 14 files, every byte checked, and t
   assert.strictEqual(w.gh.cdnRequests().length, 14, "one connection per file on a healthy path");
 });
 
-// SEVERAL FILES AT ONCE (2026-11-09): v0.1553.0's 4.5 GB fetched one file at a time, each
+// SEVERAL FILES AT ONCE (2026-11-09): v0.1553.0's 5.3 GB fetched one file at a time, each
 // connection at about 1 MB/s from the server to GitHub's CDN, ran out of the workflow's 50
 // minutes. With --parallel 4 the CDN sees four answers in flight together; with --parallel 1 only
 // ever one, and the release is the same 14 verified files either way.

@@ -145,7 +145,7 @@ size and SHA-256 against GitHub's digest, and only when all match renames the fo
 runs `regen-releases-manifest`. It fetches four files at once (`--parallel 4`, 2026-11-09): the
 first workflow run, v0.1553.0, fetched one at a time and measured about 1 MB/s per connection from
 the server to GitHub's CDN (1.0 MB/s for a 540 MB archive, up to 2.8 MB/s at a connection's start),
-so 4.5 GB ran out of its 50 minutes at 3.4 GB and was finished by hand. The script stops itself at
+so its 5.3 GB ran out of the 50 minutes with 11 of the 14 files verified and was finished by hand. The script stops itself at
 50 minutes (resumable), the ssh session at 55, the job at 60. Until then the job pushed 4.4 GB to the server
 with `appleboy/scp-action`, which for v0.1552.0 hung for 1 h 42 min, twice.
 

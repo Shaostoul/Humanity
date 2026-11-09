@@ -563,7 +563,7 @@ def parse_args(argv):
     p.add_argument("--max-minutes", type=float, default=None, help="stop (exit 1, resumable) after this long")
     p.add_argument("--parallel", type=int, default=4,
                    help="files fetched at once (4): one connection from the server to GitHub's CDN "
-                        "ran at about 1 MB/s for v0.1553.0, so 4.5 GB one file at a time took over 50 minutes")
+                        "ran at about 1 MB/s for v0.1553.0, so 5.3 GB one file at a time took over 50 minutes")
     p.add_argument("--lock-wait", type=float, default=600, help="seconds to wait for another run's lock (600)")
     p.add_argument("--retry-wait", type=float, default=2, help="base pause after an error, doubled up to 8x (2)")
     args = p.parse_args(argv)
@@ -663,7 +663,7 @@ def run(args, log):
             log(f"{a['name']}: verified, {human_size(a['size'])} in {human_time(took)} ({human_size(a['size'] / took)}/s)")
 
         # Several files at once (--parallel, 2026-11-09): the server's path to GitHub's CDN gives one
-        # connection about 1 to 3 MB/s, so v0.1553.0's 4.5 GB fetched one file at a time ran out of
+        # connection about 1 to 3 MB/s, so v0.1553.0's 5.3 GB fetched one file at a time ran out of
         # the workflow's 50 minutes. Largest first, so the long ones start early and the small ones
         # fill in around them. Each file keeps its own connection budget; a file that fails does not
         # stop the others (their bytes are kept for the rerun), and the first failure is the result.
