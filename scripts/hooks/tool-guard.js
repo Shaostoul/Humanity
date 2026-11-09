@@ -18,7 +18,9 @@
 //      non-ASCII character. Writes into the temp or scratchpad folders are allowed.
 //   4. Backticks inside a double-quoted string in a Bash command, or in an unquoted heredoc:
 //      bash runs them as commands. Markdown in a `node -e "..."` string ran `just launch-bg`
-//      and emptied text in PRIORITIES.md twice on 2026-10-22.
+//      and emptied text in PRIORITIES.md twice on 2026-10-22. Only a single backslash (\`)
+//      escapes one: through Claude Code's shell tool `\\\`` RAN (2026-11-08), so a backtick after
+//      two or more backslashes is refused too.
 //
 // Exit 2 refuses the command and shows the reason to the agent; exit 0 lets it run. Any error
 // inside this script lets the command run (fail open): a broken guard must never stop work.
@@ -221,9 +223,12 @@ function checkBackticks(command) {
   }
 
   const problems = [];
-  if (bodies.some((l) => /(^|[^\\])`/.test(l))) {
+  // A backtick with no backslash before it runs; so does one with TWO OR MORE (2026-11-08: through
+  // Claude Code's shell tool, `\\\`` ran as a command although bash's own rules make it literal).
+  // Only a single backslash (\`) holds in every case.
+  if (bodies.some((l) => /(^|[^\\])`|\\{2,}`/.test(l))) {
     problems.push(
-      'An unquoted heredoc (<<EOF) runs its backticks as commands. Quote the tag (<<\'EOF\') so the text stays literal.',
+      'An unquoted heredoc (<<EOF) runs its backticks as commands, and a backtick after two or more backslashes runs too (only \\` holds). Quote the tag (<<\'EOF\') so the text stays literal.',
     );
   }
 
@@ -237,7 +242,20 @@ function checkBackticks(command) {
       continue;
     }
     if (ch === '\\') {
-      i++;
+      // A run of backslashes: pairs are literal, an odd last one escapes the next character.
+      let k = 0;
+      while (text[i + k] === '\\') k++;
+      if (inDouble && text[i + k] === '`' && k >= 2) {
+        // By bash's rules `\\\`` is a literal backtick, but through Claude Code's shell tool it RAN
+        // (2026-11-08: `echo "x \\\`nosuchcmd123\\\` y"` executed nosuchcmd123, and an agent's node -e
+        // edit ran three). Only a single backslash (\`) holds, so any longer run is refused.
+        problems.push(
+          'A backtick after two or more backslashes inside double quotes is run as a command by the shell tool (only a single \\` stays literal; this corrupted an agent\'s node -e edit on 2026-11-08). Put the script in a file and run it, use single quotes or a quoted heredoc (<<\'EOF\'), or the Write/Edit tool.',
+        );
+        break;
+      }
+      i += k - 1;
+      if (k % 2 === 1) i++;
       continue;
     }
     if (inDouble) {

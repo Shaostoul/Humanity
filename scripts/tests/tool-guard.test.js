@@ -25,6 +25,15 @@ const cases = [
   ['rustfmt', bash('rustfmt src/lib.rs'), true],
   ['backtick in node -e double quotes', bash('node -e "console.log(`x`)"'), true],
   ['backtick in unquoted heredoc', bash('cat <<EOF > f.md\nuse `just x`\nEOF'), true],
+  // 2026-11-08: `\\\`` (three backslashes) inside double quotes is a literal backtick by bash's own
+  // rules, yet through Claude Code's shell tool it RAN: `echo "x \\\`nosuchcmd123\\\` y"` printed
+  // "nosuchcmd123\: No such file or directory", and an agent's node -e edit of a findings document
+  // ran three of them. Only a single backslash (\`) holds, so two or more are refused.
+  ['three backslashes then a backtick in double quotes', bash('echo "x \\\\\\`nosuchcmd123\\\\\\` y"'), true],
+  ["the agent's node -e template literal with \\\\\\` inside", bash('node -e "const a=\\`see \\\\\\`assets/x.md\\\\\\` now\\`; console.log(a)"'), true],
+  ['two backslashes then a backtick in double quotes', bash('echo "a \\\\`b\\\\` c"'), true],
+  ['three backslashes then a backtick in an unquoted heredoc', bash('cat <<EOF > f.md\nuse \\\\\\`just x\\\\\\`\nEOF'), true],
+  ['one backslash then a backtick in an unquoted heredoc', bash('cat <<EOF > f.md\nuse \\`just x\\`\nEOF'), false],
   ['PowerShell Set-Content to repo', ps('(Get-Content a.rs) | Set-Content a.rs'), true],
   ['PowerShell Out-File to repo', ps('"x" | Out-File docs/x.md'), true],
   ['PowerShell > to repo', ps('"x" > docs/x.md'), true],
