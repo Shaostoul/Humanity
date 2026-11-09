@@ -19,6 +19,11 @@
   "recent_decisions": [
     {
       "date": "2026-11-08",
+      "decision": "Ingredients and labels merged e8992c624 (finding 2026-11-08-food-data-sources.md + docs/design/ingredients-and-labels.md; rung 1 = allergen classes US/EU/Canada + a typed-label checker + avoid list; retire data/items/foods/ prototype). 7 operator questions open (Open Food Facts at rung 9 off by default; a Health reviewer volunteer role before serious lines show; union of allergen lists; interactions only as regulators publish; avoid list device-only; Library Ingredients section; pets later). NPC brain/voice scan committed 20001de48; findings agent running. Whole-Earth maps agent told the Silverdale shoreline history and to pick ONE source per layer.",
+      "why": "2026-11-08 night."
+    },
+    {
+      "date": "2026-11-08",
       "decision": "v0.1551.0 released and delivered (privacy BUG-278..285; checks: lib 5773/0, rig-tests 1623/0, verify-runtime 3/3, fuji-forest 28.1 fps so the 18.6 earlier was load). Live: BUG-285 applied by itself on united-humanity.us (600/700, UMask 0077); public.guide chmod 600 by hand until its follower updates; api.github.com removed from the live nginx CSP (backup /root/humanity.nginx.bug281.bak). Operator answers: SimReady download approved (712 files, 2.45 GB to E:/HumanityOS/simready-src) and the home set ships in the app, \"easy to access\" (phase 2 running); splats excluded for now; health data is iterative, information never medical advice; new CLAUDE.md norm: compare alternatives for every new tool (20a66044a); body = MakeHuman with SOMA joint map; motion data plan accepted; volunteers page docs/outreach/volunteers-wanted.md. Running: animation rungs 0-1, SimReady phase 2, NPC brain+voice scan, food labels plan, whole-Earth maps plan (wk-earthmaps.txt), asset packs scan.",
       "why": "Operator replies 2026-11-08 night."
     },
@@ -1089,6 +1094,7 @@
     "Do NOT re-run the near-tree test suite hunting a ~50% flake. It was a sibling test writing a process-global mid-run, and it is gone by construction now that density is an argument."
   ],
   "things_pending_or_known_gaps": [
+    "2026-11-08: choose ONE on-device model runtime (ONNX Runtime, our own wgpu kernels, llama.cpp/audio.cpp) with its own dated finding BEFORE the first of Paradee read-aloud, label OCR (PaddleOCR/Tesseract), NPC brain/voice or a learned animation model is built (the food-labels agent flagged it).",
     "2026-11-07: website checklist (a tweet the operator shared) checked live: titles 45/45, favicon set, robots.txt, sitemap.xml, alt text (lint-held), a Start call to action, loading words all present. GAPS queued as the next agent after the Files 422 one: (1) no custom 404, nginx default page also shows nginx/1.22.1 (add error_page + server_tokens off in scripts/nginx/humanity.conf; live nginx is the operator step or a safe VPS op); (2) meta description on only 15 of 45 pages, og:image on 3; (3) no plain privacy policy saying what the server keeps (nginx logs IPs): dated legal finding first, then the page. Analytics: none on purpose; recommended keep none (offer cookie-free counts from nginx logs if he wants numbers).",
     "RELEASES UNSIGNED: v0.1110.2 and v0.1111.1. Operator-only (needs the passphrase). The desktop updater only offers SIGNED releases, so v0.421+ users are still on an older build.",
     "19 stale agent-* worktrees under .claude/worktrees/. Audited 2026-08-04: none could be cheaply proven redundant, so none was removed - clean-worktrees force-deletes branches and has destroyed review-approved work before. The three wf_f9e9bae9-* worktrees WERE proven fully superseded and were removed.",
