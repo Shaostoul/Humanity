@@ -5,13 +5,14 @@
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
   "current_focus": "Overnight loop 2026-11-09: merge SimReady phase 2 when it reports (verify-runtime), maps rung 1 agent in flight, then the one-runtime finding (AI optional: runtime a separate download), then a release if the batch passes verify-runtime.",
   "open_questions_for_human": [
-    "Character body: download MakeHuman young-adult set (base.obj, default.mhskel, default_weights.mhw, modeling_modifiers.json, 96 macro targets; ~33 MB, CC0, GitHub)? Recommended yes.",
-    "Quaternius Universal Animation Library Standard zip (15 MB, itch.io, needs the built-in browser) for licence inspection only? Recommended yes, ship only if its own licence file says CC0.",
     "Walk speed: realistic 1.4 m/s walk and ~4 m/s run; simplified keeps 5 / 9.5 m/s? Recommended yes.",
-    "Maps: confirm GEDTM30 heights, Overture buildings, GitHub release hosting (explained 2026-11-09). Recommended yes.",
-    "NPC picks (Ministral 3B, Granite 1B, Gemma 4 helper, Pocket TTS with conditions, audio.cpp pocket-only): he said \"Sounds worth seeing how it all works\"; confirm."
+    "Optional: send Quaternius one question about the QAL page vs the CC0 License.txt in the files (his message to send)."
   ],
   "recent_decisions": [
+    {
+      "date": "2026-11-09",
+      "decision": "Operator yeses before bed: MakeHuman young-adult set (\"at least a male and a female\"; fetched, 100 files 33.2 MB, E:/HumanityOS/makehuman-src/a8bc2d54, blob-hash verified); Quaternius UAL Standard to inspect (fetched via the built-in browser, E:/HumanityOS/quaternius-src/ual-standard-2026-11-09; its own License.txt is CC0 1.0; 43 clips, 65-joint UE-mannequin rig, no turn-in-place; addendum in findings/2026-11-08-character-assets.md); maps GEDTM30 + Overture + GitHub release hosting all \"Yes.\"; NPC starting set \"Yes\", plus a dedicated doc (agent writing docs/design/embeddable-ai.md + findings/2026-11-09-model-runtime.md). Character rung 2 can start from the MakeHuman sources and the UAL clips."
+    },
     {
       "date": "2026-11-09",
       "decision": "AI is optional, never required (operator verbatim: \"people that don't want local LLM AI don't have to install it. AI needs to be optional, not required.\"). In CLAUDE.md (Dual modes) and memory feedback_ai_optional.md: no model in the app, each a chosen download, every feature works without it, and the model RUNTIME is a separate download too (operator: \"Agreed.\"). The one-runtime finding must design for that. Posts: docs/outreach/posts/2026-11-09-ai-optional.md."
