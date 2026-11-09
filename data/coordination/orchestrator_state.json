@@ -13,6 +13,10 @@
   "recent_decisions": [
     {
       "date": "2026-11-09",
+      "decision": "v0.1552.0 mirror: the Build Desktop run 42632124185 hung in scp \"Upload binaries to VPS\" twice (degraded server-to-GitHub/Azure path). Cancelled it; the server pulled the 14 assets from the GitHub release with curl -C - and a stall limit, all SHA-256 matched GitHub digests, folder moved into place, regen-releases-manifest run (manifest backup /root/releases-manifest.json.2026-11-09.bak). Public manifest newest v0.1552.0, 14 assets. BUG-288 filed with the proposed fix (a provisioned server-side pull with digests + job timeout-minutes). The run shows cancelled in Actions: expected."
+    },
+    {
+      "date": "2026-11-09",
       "decision": "Overnight loop merges: SimReady phase 2 afd53853d (40 models, Medical Bay pack uploaded to assets-simready-1 with --latest=false and verified by re-download, Furniture detail, BUG-286 Kenney furniture centred, home body build 1,070 to 502 ms; close-view GPU +0.78 to +0.97 ms over budget: a perf pass recommended, not done); maps rung 1 68079854d (shore_probe gate red where predicted; Norderney passed wet/shallow so a `dry` rule was added; map_tiles.rs; OSM credit on its own layer; maps agent's BUG-286 renumbered BUG-287); BUG-287 fixed da35a4876 (tier installed only when a tile file exists); a stray CR in BUGS.md made git store it as binary CRLF, repaired 679b6e08d (lesson: insert new lines at line start, never before a \\n in a CRLF file)."
     },
     {
@@ -1132,7 +1136,8 @@
     "The understorey/bushes plan was killed by both reviewers (it mis-costed the draw path and its coverage apportionment did not survive checking). Needs redoing from the code.",
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape.",
     "2026-11-07: a Files-page upload the server answers 422 at the end (website HEIC case) still shows the server words instead of asking Send anyway; the chat asks there. Small follow-up, both apps.",
-    "2026-11-07 open operator questions: unpairable DMs (sent-log schedule hourly + on close; cover traffic on by default with a switch and per-server rate; B3 blind tokens not post-quantum); dock (pause on world entry, placement, layer under page windows, tab on crowded pages); sound levels (chimes bus follows SFX in game vs UI in preview, fix with the Notifications slider; Reset all no confirm); music (recordings replace 3 synth voices; next style electroswing needs CC0 brass; 78s need a legal finding; danger 0.13 ms a block; hum 17 LU under music); instruments upload is his step (assets-instruments-1)."
+    "2026-11-07 open operator questions: unpairable DMs (sent-log schedule hourly + on close; cover traffic on by default with a switch and per-server rate; B3 blind tokens not post-quantum); dock (pause on world entry, placement, layer under page windows, tab on crowded pages); sound levels (chimes bus follows SFX in game vs UI in preview, fix with the Notifications slider; Reset all no confirm); music (recordings replace 3 synth voices; next style electroswing needs CC0 brass; 78s need a legal finding; danger 0.13 ms a block; hum 17 LU under music); instruments upload is his step (assets-instruments-1).",
+    "BUG-288: replace the release mirror scp with a server-side pull script (provisioned) before the next release, or expect to mirror by hand again."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
   "last_updated": "2026-11-09",
