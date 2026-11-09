@@ -154,19 +154,58 @@
   }
 
   // ---- Load and display bugs ----
-  function loadBugs() {
-    var params = new URLSearchParams();
-    if (filterStatus.value) params.set('status', filterStatus.value);
-    if (filterSeverity.value) params.set('severity', filterSeverity.value);
-    if (filterCategory.value) params.set('category', filterCategory.value);
-    params.set('limit', '100');
+  //
+  // The list everyone gets is what was reported, never who sent it or from where (BUG-280,
+  // 2026-11-07). An admin or a moderator presses "Show who sent each report": the page signs
+  // 'bug_details' (getPqSignedAuth, as a vote does) and asks POST /api/bugs/details, a POST because
+  // a key and a signature in an address would pass nginx's 8 KB limit on a request line. From then
+  // on this page load keeps asking that way.
+  var showDetails = false;
 
-    fetch(API_BASE + '/api/bugs?' + params.toString())
-      .then(function (res) { return res.json(); })
+  function filters() {
+    var f = { limit: 100 };
+    if (filterStatus.value) f.status = filterStatus.value;
+    if (filterSeverity.value) f.severity = filterSeverity.value;
+    if (filterCategory.value) f.category = filterCategory.value;
+    return f;
+  }
+
+  function loadBugs() {
+    var f = filters();
+    var request;
+    if (showDetails && typeof window.getPqSignedAuth === 'function') {
+      request = window.getPqSignedAuth('bug_details').then(function (auth) {
+        if (!auth) throw new Error(i18n.t('bugs.details_no_identity'));
+        f.key = auth.key; f.timestamp = auth.timestamp; f.sig = auth.sig;
+        return fetch(API_BASE + '/api/bugs/details', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(f)
+        }).then(function (res) {
+          if (res.status === 403) { showDetails = false; throw new Error(i18n.t('bugs.details_staff_only')); }
+          if (!res.ok) return res.text().then(function (t) { throw new Error(t || ('HTTP ' + res.status)); });
+          return res.json();
+        });
+      });
+    } else {
+      var params = new URLSearchParams();
+      Object.keys(f).forEach(function (k) { params.set(k, String(f[k])); });
+      request = fetch(API_BASE + '/api/bugs?' + params.toString()).then(function (res) { return res.json(); });
+    }
+    var asked = showDetails;
+    request
       .then(function (data) {
         renderBugs(data.bugs || []);
       })
-      .catch(function () {
+      .catch(function (err) {
+        if (asked) {
+          // The details were refused (not an admin or a moderator, no identity here): say why,
+          // and show the list everyone gets.
+          showDetails = false;
+          showStatus(err.message, 'error');
+          loadBugs();
+          return;
+        }
         bugList.innerHTML = '<div class="empty-state">' + escapeHtml(i18n.t('bugs.list_failed')) + '</div>';
       });
   }
@@ -192,11 +231,15 @@
         '<div class="bug-card-meta">' +
           '<span>' + escapeHtml(wordsFor(CATEGORY_KEYS, b.category || 'other')) + '</span>' + // i18n-exempt: 'other', the server's category value
           '<span>' + ago + '</span>' +
+          // Only in the admins' and moderators' list (POST /api/bugs/details).
           (b.reporter_name ? '<span>' + escapeHtml(i18n.t('bugs.by', { name: b.reporter_name })) + '</span>' : '') +
           '<button class="vote-btn" data-i18n-aria-label="bugs.vote_label" data-i18n-tip="bugs.vote_hint" onclick="window.__voteBug(' + b.id + ', this)">' +
             '\u25B2 ' + b.votes +
           '</button>' +
         '</div>' +
+        (b.browser_info || b.page_url
+          ? '<div class="bug-card-from">' + escapeHtml(i18n.t('bugs.sent_by', { name: b.reporter_name || '?', browser: b.browser_info || '?', page: b.page_url || '?' })) + '</div>'
+          : '') +
       '</div>';
     }).join('');
     i18n.apply(bugList);
@@ -284,6 +327,8 @@
   filterStatus.addEventListener('change', loadBugs);
   filterSeverity.addEventListener('change', loadBugs);
   filterCategory.addEventListener('change', loadBugs);
+  var detailsBtn = document.getElementById('btn-details');
+  if (detailsBtn) detailsBtn.addEventListener('click', function () { showDetails = true; loadBugs(); });
 
   // ---- Init ----
   loadBugs();

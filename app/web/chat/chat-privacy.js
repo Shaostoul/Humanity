@@ -242,7 +242,9 @@ async function eraseMemoryDays() {
 
 async function deleteMyAccount() {
   const remembered = eraseMemorySentence(await eraseMemoryDays());
-  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, what you built in the shared world, and your home\'s plot on the ship)? This is permanent. Your profile is also taken off the servers this one is linked with. Data on your own devices stays.' + (remembered ? ' ' + remembered : ''), { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
+  // What stays, and why: one text with the desktop app's Settings (BUG-279, 2026-11-07).
+  const stays = window.i18n ? i18n.t('privacy.erase_what_stays') : '';
+  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, what you built in the shared world, and your home\'s plot on the ship)? This is permanent. Your profile is also taken off the servers this one is linked with. Data on your own devices stays.' + (remembered ? ' ' + remembered : '') + (stays ? '\n\n' + stays : ''), { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
   const typed = prompt(
     'This ERASES your account on this server: messages, uploads, profile, '
     + 'mailbox, membership, your progress in the shared world, what you built in the shared world, '

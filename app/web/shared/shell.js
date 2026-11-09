@@ -2157,7 +2157,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1550.1';
+    var CURRENT_VERSION = '0.1551.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -2199,16 +2199,20 @@
         return;
       }
 
-      fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
+      // This server's own list of the releases it holds (written by scripts/vps/regen-releases-manifest
+      // when a release lands), never GitHub's API: that sent every visitor's address to GitHub on
+      // every page (BUG-281, 2026-11-07). A server without the list simply shows no update mark.
+      fetch('/releases/manifest.json')
         .then(function(r) { return r.json(); })
         .then(function(d) {
-          if (d && d.tag_name) {
+          var tag = d && d.releases && d.releases[0] && d.releases[0].tag;
+          if (tag) {
             try {
-              localStorage.setItem(CACHE_KEY, d.tag_name);
+              localStorage.setItem(CACHE_KEY, tag);
               localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
             } catch (e) { /* storage blocked */ }
-            if (compareVersions(CURRENT_VERSION, d.tag_name) < 0) {
-              markUpdateReady(d.tag_name);
+            if (compareVersions(CURRENT_VERSION, tag) < 0) {
+              markUpdateReady(tag);
             }
           }
         })
@@ -2267,7 +2271,7 @@
       if (window.__HOS_UPDATE_READY) {
         markDesktopUpdate(window.__HOS_UPDATE_VERSION);
       } else {
-        checkUpdate(); // Web: check GitHub API
+        checkUpdate(); // Web: this server's release list (BUG-281)
       }
     }, 3000);
 
