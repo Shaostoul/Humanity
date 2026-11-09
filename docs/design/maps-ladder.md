@@ -97,6 +97,11 @@ in the 3D world.
   built_weight_at_deg takes degrees directly and the cost vanished
   (29.8 fps vs the 30 fps ungated baseline). A disc pre-reject per
   harvest keeps the gates free everywhere outside a region.
+  **Superseded for the whole Earth (2026-11-08):** [whole-earth-maps.md](whole-earth-maps.md)
+  replaces the region rectangles with map tiles keyed to the terrain's own quadtree, one height
+  source per domain and the shore blend in the one drawn-elevation formula; its licence basis is
+  [the dated finding](../reference/findings/2026-11-08-whole-earth-map-data.md). The list below is
+  the pre-plan backlog, folded into that plan's rungs.
   Next: region browser + release-asset downloads (third increment);
   multipolygon buildings (v2 fetcher pattern now exists for water);
   road smoothing + intersection blending; real bathymetry inside sea

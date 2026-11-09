@@ -566,3 +566,22 @@ what we will say about it.
   FDA lists gluten-free information apps as not medical devices. OCR: PP-OCRv6 and Tesseract are
   Apache 2.0; Surya's weights are revenue-capped. The prototype's Yellow 5 line is refuted. The basis
   for `docs/design/ingredients-and-labels.md`.
+- [`2026-11-08-whole-earth-map-data.md`](2026-11-08-whole-earth-map-data.md),
+  which open data can draw the whole Earth in a CC0 game and what each licence obliges. OpenStreetMap:
+  the rendered game is a Produced Work (a notice where drawn; for games the credits page or menu, with
+  a short line in view), our processed tiles are a Derivative Database (ODbL, the licence inside each
+  file, offered free), and tiles fetched on demand are still "Conveyed", so each pack carries its own
+  notices; nothing permissive replaces OSM for roads, water and names (Overture's transportation, base
+  and buildings themes are ODbL; Microsoft's roads are ODbL; GRIP4 says CC0 but is built partly from
+  OSM). Keeping heights, seabed and land cover as independent layers, joined only at run time, keeps
+  share-alike off them (the OSMF Horizontal Layers and Collective Database guidelines). Heights:
+  Copernicus GLO-30 is free with a notice and a liability sentence that bind later users, and is a
+  surface model (trees and roofs); NASADEM is CC0 but stops at 60 N; ETOPO 2022 is CC0 bare earth,
+  though built partly from Copernicus and FABDEM; FABDEM is non-commercial; GEDTM30 (CC BY 4.0, 2026)
+  is the only global 30 m bare-earth model found that any use may carry; GEBCO 2026 and USGS 3DEP are public
+  domain; the AWS Terrain Tiles behind today's `.dem.bin` files carry two "All rights reserved"
+  national sources. Microsoft's building footprints moved from ODbL to CDLA Permissive 2.0 on
+  11 March 2026; Google's are CC BY 4.0 or ODbL; ESA WorldCover is CC BY 4.0; Natural Earth is public
+  domain; Wikidata CC0. Two compliance gaps still open in the code: the ODbL offer is not in the
+  release archive, and the in-world credit hides in the construction editor and showroom. One source
+  recommended per layer. The basis for `docs/design/whole-earth-maps.md`.
