@@ -183,3 +183,43 @@ use these clips as CC0, ship them with `License.txt` beside them and this addend
 in the credits, keep the procedural turn-in-place until a CC0 turn clip exists (CMU or 100STYLE at
 rung 3), and send Quaternius one polite question about the QAL page so the record is complete
 (the operator's message to send, if he wants it).
+
+## Addendum, 2026-11-09 (later): MakeHuman's system asset pack, clothes and hair
+
+Asked for after rung 1 ("Yeah, might as well include these.") and the download approved the same
+afternoon ("Let's do it."). Where it is published: the asset pack page of the MakeHuman community
+site, read from its source repository
+(https://github.com/makehumancommunity/makehuman-static-website,
+`content/Assets/AssetPacks/makehuman_system_assets.md`, read 2026-11-09), which lists every asset
+in the pack with the licence column "CC0" and links two mirrors, `primaryFilesUrl` =
+`https://files2.makehumancommunity.org` and `secondaryFilesUrl` =
+`https://files.makehumancommunity.org` (the site's `config.toml`).
+
+- **The first mirror bars robots**: `https://files2.makehumancommunity.org/robots.txt` reads
+  "User-agent: *" and "Disallow: /" (2026-11-09). The second has no robots.txt (404), so the pack
+  was fetched from it.
+- **The file**:
+  `https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip`,
+  280,737,770 bytes (both mirrors report the same length and Last-Modified 2024-04-14 13:28:46 GMT),
+  SHA-256 `b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107`, kept at
+  `E:\HumanityOS\makehuman-src\system-assets-2026-11-09\` with the extracted copy in `x\`
+  (517 zip entries, 421 files, no path outside the folder).
+- **The licence travels with each file**: there is no licence file in the zip, but every clothes,
+  hair and material file opens with the same header, for example
+  `clothes/male_worksuit01/male_worksuit01.mhclo`: "This asset was explicitly released as CC0 in
+  september 2020." (140 of its clothes, hair and material files carry it), and the pack's own manifest
+  `packs/makehuman_system_assets.json` gives `"license": "CC0"` for all 94 assets. It agrees with
+  MakeHuman's LICENSE.md section C quoted above, which names clothes among the CC0 assets.
+- **Inside**: clothes 20 (female casual suits 01 and 02, elegant suit 01, sport suit 01; male
+  casual suits 01 to 06, elegant suit 01, work suit 01; shoes 01 to 06; fedora01 and
+  fedora_cocked; 138.6 MB), hair 10 (afro01, bob01, bob02, braid01, long01, ponytail01, short01 to
+  04; 38.3 MB), eyebrows 12, eyelashes 4, eyes (high and low poly with nine colours), proxy meshes
+  7, skins 23 (young, middle-aged and old; African, Asian and Caucasian; female and male; 88.9 MB),
+  teeth 6, tongue 1. Clothes are `.mhclo` fitting files (each vertex tied to three base-mesh
+  vertices with weights and an offset) with an `.obj`, an `.mhmat` material and textures, which is
+  how a garment follows the body's shape targets (character-animation.md 2.4).
+
+**What it means now:** real garments and hair for both bodies are available under CC0 with the
+statement inside each file. The converter of rung 1 can fit them the way it builds the body (our own
+code; MakeHuman's AGPL fitting code is not copied), after foot placement. The skins are photographic
+textures; using them is a separate choice from the painted regions, worth a look at the same time.
