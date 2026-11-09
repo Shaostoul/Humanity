@@ -372,6 +372,8 @@ fn the_stored_name_keeps_its_words_and_its_extension() {
     let long = safe_stem(&format!("{}.mp4", "word ".repeat(20)));
     assert!(long.len() <= 32 && !long.ends_with('_'), "at most 32 long, no trailing gap: {long}");
     let name = stored_name("WH40K Marriah Carey.mp4", "mp4");
-    let (ms, rest) = name.split_once('_').unwrap();
-    assert!(ms.chars().all(|c| c.is_ascii_digit()) && rest == "WH40K_Marriah_Carey.mp4", "{name}");
+    // The time, then 128 random bits (BUG-282), then the stem and its extension.
+    let mut parts = name.splitn(3, '_');
+    let (ms, random, rest) = (parts.next().unwrap(), parts.next().unwrap(), parts.next().unwrap());
+    assert!(ms.chars().all(|c| c.is_ascii_digit()) && random.len() == 32 && random.chars().all(|c| c.is_ascii_hexdigit()) && rest == "WH40K_Marriah_Carey.mp4", "{name}");
 }

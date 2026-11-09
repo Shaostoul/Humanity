@@ -474,9 +474,29 @@ pub fn verify_submission_json(submission_json: &str) -> Option<VerifiedSubmissio
     })
 }
 
-/// GET /api/v2/objects/{id}. Returns None on 404, the raw JSON otherwise.
+/// What a member signs to read a P2P group's rows (BUG-284, the relay's `GROUP_READ_PURPOSE`).
+pub const GROUP_READ_PURPOSE: &str = "p2p_group_read";
+
+/// A member's read of a group route (BUG-284, 2026-11-07): the relay answers a group's rows only
+/// to one of its members, so every read is a POST whose body carries this person's key, the time
+/// and a Dilithium3 signature over `p2p_group_read\n<time>` (in the body: a key and a signature in
+/// an address would pass nginx's 8 KB limit on a request line).
+fn group_read(url: &str, seed: &[u8]) -> Result<ureq::Response, ureq::Error> {
+    let key = derive_pq_identity(seed).map(|i| i.dilithium_hex).unwrap_or_default();
+    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let body = serde_json::json!({
+        "key": key,
+        "timestamp": ts,
+        "sig": crate::net::identity::pq_sign_chat(seed, GROUP_READ_PURPOSE, ts),
+    });
+    ureq::post(url).set("Content-Type", "application/json").send_string(&body.to_string())
+}
+
+/// POST /api/v2/objects/{id}, a member's signed read (a group's object answers only its members,
+/// BUG-284). Returns None on 404, the raw JSON otherwise.
 pub fn fetch_signed_object(
     server_url: &str,
+    seed: &[u8],
     object_id: &str,
 ) -> Result<Option<serde_json::Value>, String> {
     let url = format!(
@@ -484,7 +504,7 @@ pub fn fetch_signed_object(
         server_url.trim_end_matches('/'),
         urlencoded(object_id),
     );
-    match ureq::get(&url).call() {
+    match group_read(&url, seed) {
         Ok(resp) => {
             if resp.status() != 200 {
                 return Err(format!("GET {url}: HTTP {}", resp.status()));
@@ -499,10 +519,11 @@ pub fn fetch_signed_object(
     }
 }
 
-/// GET /api/v2/groups/{id}/epoch. Returns the latest epoch-key object's
+/// POST /api/v2/groups/{id}/epoch (a member's signed read). Returns the latest epoch-key object's
 /// payload bytes (b64-decoded), or None if no epoch has been issued yet.
 pub fn fetch_group_epoch_payload(
     server_url: &str,
+    seed: &[u8],
     group_id: &str,
 ) -> Result<Option<Vec<u8>>, String> {
     let url = format!(
@@ -510,7 +531,7 @@ pub fn fetch_group_epoch_payload(
         server_url.trim_end_matches('/'),
         urlencoded(group_id),
     );
-    let resp = match ureq::get(&url).call() {
+    let resp = match group_read(&url, seed) {
         Ok(r) => r,
         Err(ureq::Error::Status(404, _)) => return Ok(None),
         Err(e) => return Err(format!("GET {url}: {e}")),
@@ -540,7 +561,7 @@ pub struct GroupMessage {
     pub text: String,
 }
 
-/// GET /api/v2/groups/{id}/messages → fetch ciphertexts, decrypt with `epoch_key`.
+/// POST /api/v2/groups/{id}/messages (a member's signed read) → fetch ciphertexts, decrypt with `epoch_key`.
 /// Messages from a different epoch (whose ciphertext doesn't authenticate
 /// under this key) are silently skipped — for Phase 2 the chat shows only the
 /// current epoch's history.
@@ -558,15 +579,13 @@ struct RawGroupMsg {
 /// GET the group's raw (still-encrypted) message log — NO decryption. Kept apart
 /// from decryption so it can run concurrently with the roster + epoch-key
 /// fetches (see `load_group_blocking`).
-fn fetch_group_messages_raw(server_url: &str, group_id: &str) -> Result<Vec<RawGroupMsg>, String> {
+fn fetch_group_messages_raw(server_url: &str, seed: &[u8], group_id: &str) -> Result<Vec<RawGroupMsg>, String> {
     let url = format!(
         "{}/api/v2/groups/{}/messages",
         server_url.trim_end_matches('/'),
         urlencoded(group_id),
     );
-    let resp = ureq::get(&url)
-        .call()
-        .map_err(|e| format!("GET {url}: {e}"))?;
+    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
     if resp.status() != 200 {
         return Err(format!("GET {url}: HTTP {}", resp.status()));
     }
@@ -601,9 +620,9 @@ fn fetch_group_messages_raw(server_url: &str, group_id: &str) -> Result<Vec<RawG
 /// GET the group's message objects exactly as the server serves them (full signed objects, still
 /// encrypted): what a creator checks a report against (10j, `group_report::check_items`), each
 /// signature checked there over the object's own bytes.
-pub fn fetch_group_message_objects(server_url: &str, group_id: &str) -> Result<Vec<serde_json::Value>, String> {
+pub fn fetch_group_message_objects(server_url: &str, seed: &[u8], group_id: &str) -> Result<Vec<serde_json::Value>, String> {
     let url = format!("{}/api/v2/groups/{}/messages", server_url.trim_end_matches('/'), urlencoded(group_id));
-    let resp = ureq::get(&url).call().map_err(|e| format!("GET {url}: {e}"))?;
+    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
     let body = resp.into_string().map_err(|e| format!("read: {e}"))?;
     let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| format!("json: {e}"))?;
     Ok(v.get("messages").and_then(|x| x.as_array()).cloned().unwrap_or_default())
@@ -637,10 +656,11 @@ fn decrypt_group_messages_raw(
 /// multi-epoch path instead.
 pub fn fetch_and_decrypt_group_messages(
     server_url: &str,
+    seed: &[u8],
     group_id: &str,
     epoch_key: &[u8],
 ) -> Result<Vec<GroupMessage>, String> {
-    let raw = fetch_group_messages_raw(server_url, group_id)?;
+    let raw = fetch_group_messages_raw(server_url, seed, group_id)?;
     Ok(raw
         .into_iter()
         .filter_map(|m| {
@@ -690,8 +710,8 @@ pub fn load_group_blocking(server_url: &str, seed: &[u8], group_id: &str) -> Gro
     // epoch (a single latest key can't decrypt pre-re-key history).
     let (keys_res, members_res, raw_res, rekey_res) = std::thread::scope(|s| {
         let k = s.spawn(|| fetch_all_epoch_keys(server_url, seed, group_id));
-        let m = s.spawn(|| fetch_group_members(server_url, group_id));
-        let r = s.spawn(|| fetch_group_messages_raw(server_url, group_id));
+        let m = s.spawn(|| fetch_group_members(server_url, seed, group_id));
+        let r = s.spawn(|| fetch_group_messages_raw(server_url, seed, group_id));
         // Creator-only re-key (seals the epoch to members who joined since the
         // last rotation). For a non-creator it's a single GET that bails; for a
         // creator it may rotate + POST. Running it ALONGSIDE the reads means a
@@ -760,12 +780,13 @@ pub fn load_group_blocking(server_url: &str, seed: &[u8], group_id: &str) -> Gro
     GroupLoad { group_id: group_id.to_string(), epoch, epoch_key, messages, members }
 }
 
-/// GET /api/v2/groups/{id}/members → roster with each member's key card.
+/// POST /api/v2/groups/{id}/members (a member's signed read) → roster with each member's key card.
 /// Returns `Vec<(dilithium_hex, Option<kyber_pub_b64>)>`: the Kyber key ONLY from a key card that
 /// checks out as that very member's (signed by their own identity key, core/key_card.rs), None
 /// otherwise, so a group key is never sealed to a key the server put in (key cards, 2026-10-22).
 pub fn fetch_group_members(
     server_url: &str,
+    seed: &[u8],
     group_id: &str,
 ) -> Result<Vec<(String, Option<String>)>, String> {
     let url = format!(
@@ -773,7 +794,7 @@ pub fn fetch_group_members(
         server_url.trim_end_matches('/'),
         urlencoded(group_id),
     );
-    let resp = ureq::get(&url).call().map_err(|e| format!("GET {url}: {e}"))?;
+    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
     if resp.status() != 200 {
         return Err(format!("GET {url}: HTTP {}", resp.status()));
     }
@@ -821,7 +842,7 @@ pub fn rekey_if_creator_needs(
     let my_pub_b64 = B64.encode(&my_dil_bytes);
 
     // 1. Am I the creator?
-    let group_obj = match fetch_signed_object(server_url, group_id)? {
+    let group_obj = match fetch_signed_object(server_url, seed, group_id)? {
         Some(v) => v,
         None => return Ok(None),
     };
@@ -848,7 +869,7 @@ pub fn rekey_if_creator_needs(
     let mut current_epoch: u64 = 0;
     let mut covered = std::collections::HashSet::new();
     let mut current_epoch_payload_bytes: Option<Vec<u8>> = None;
-    if let Some(payload_bytes) = fetch_group_epoch_payload(server_url, group_id)? {
+    if let Some(payload_bytes) = fetch_group_epoch_payload(server_url, seed, group_id)? {
         // A key the server holds that does not read makes no new one: reading it as "no key yet"
         // would number the new key 1, the same number as a key members already hold (2026-10-10).
         let parsed = parse_group_epoch_key_payload(&payload_bytes)
@@ -867,7 +888,7 @@ pub fn rekey_if_creator_needs(
     //    ticket and is sealed to like anyone else; `asked` tells a list asked for after that from
     //    a slower one asked for before it.
     let asked = std::time::Instant::now();
-    let roster = fetch_group_members(server_url, group_id)?;
+    let roster = fetch_group_members(server_url, seed, group_id)?;
     let left_out = super::group_remove::left_out(group_id, &roster, asked);
     let (sealable, added) = roster_to_seal(roster, &covered, &left_out);
     if added == 0 {
@@ -946,7 +967,7 @@ pub fn fetch_my_epoch_key(
     let my_fp = author_fingerprint_hex(&dil_pub_bytes);
     let me = DmPqKeypair::from_bip39_seed(seed).map_err(|e| format!("dm keypair: {e}"))?;
 
-    let payload_bytes = match fetch_group_epoch_payload(server_url, group_id)? {
+    let payload_bytes = match fetch_group_epoch_payload(server_url, seed, group_id)? {
         Some(p) => p,
         None => return Ok(None),
     };
@@ -981,9 +1002,7 @@ pub fn fetch_all_epoch_keys(
         server_url.trim_end_matches('/'),
         urlencoded(group_id),
     );
-    let resp = ureq::get(&url)
-        .call()
-        .map_err(|e| format!("GET {url}: {e}"))?;
+    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
     if resp.status() != 200 {
         return Err(format!("GET {url}: HTTP {}", resp.status()));
     }
@@ -1038,17 +1057,11 @@ pub struct P2pGroupInfo {
 }
 
 /// Fetch the caller's P2P groups + each roster from the relay (read-only
-/// convenience view of the projection). Used to render P2P groups in the
-/// native left panel.
-pub fn fetch_p2p_groups(server_url: &str, dilithium_hex: &str) -> Result<Vec<P2pGroupInfo>, String> {
-    let url = format!(
-        "{}/api/v2/groups?pubkey={}",
-        server_url.trim_end_matches('/'),
-        urlencoded(dilithium_hex),
-    );
-    let resp = ureq::get(&url)
-        .call()
-        .map_err(|e| format!("GET {url}: {e}"))?;
+/// convenience view of the projection), a signed read of this person's own groups (BUG-284). Used
+/// to render P2P groups in the native left panel.
+pub fn fetch_p2p_groups(server_url: &str, seed: &[u8]) -> Result<Vec<P2pGroupInfo>, String> {
+    let url = format!("{}/api/v2/groups", server_url.trim_end_matches('/'));
+    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
     if resp.status() != 200 {
         return Err(format!("GET {url}: HTTP {}", resp.status()));
     }

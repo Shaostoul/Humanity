@@ -93,6 +93,12 @@ pub mod web_push;
 pub mod outbound;
 /// POST /api/push/subscribe and /api/push/unsubscribe, signed over the endpoint (BUG-255).
 pub mod push_routes;
+/// The database, its log, the keys and the private copies readable by the relay's account
+/// alone, set at every start (BUG-285, 2026-11-07).
+pub mod owner_only;
+/// A file posted in a members-only room, served to that room's readers alone; room tickets for
+/// the website (BUG-282, 2026-11-07).
+pub mod upload_rooms;
 /// Server→Services privilege bridge (v0.262.16). Tightly-allowlisted
 /// daemon start/stop for operator feature control. SECURITY-SENSITIVE —
 /// see the module docs; the allowlist is the trust boundary.
@@ -699,6 +705,10 @@ pub async fn run_relay() {
     if let Err(e) = db.backup_stream_install() {
         tracing::error!("continuous backup could not start: {e}");
     }
+
+    // The database (now open, so its log and shared memory exist), the keys beside it and the
+    // folders of private copies, readable by this account alone (BUG-285, owner_only.rs).
+    owner_only::tighten(std::path::Path::new(&db_path), Some(&backups_dir));
 
     let msg_count = db.message_count().unwrap_or(0);
     tracing::info!("Database has {msg_count} stored messages");
@@ -1380,6 +1390,7 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/guilds/{id}/invite", post(api::create_guild_invite))
         // Bug reports
         .route("/api/bugs", get(api::get_bugs).post(api::create_bug))
+        .route("/api/bugs/details", post(api::bug_details))
         .route("/api/bugs/{id}", patch(api::update_bug_status))
         .route("/api/bugs/{id}/vote", post(api::vote_bug))
         // Reputation
@@ -1438,12 +1449,13 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // === API v2: signed objects substrate (Phase 0 PR 2) ===
         .route("/api/v2/objects", get(api_v2_objects::list_objects).post(api_v2_objects::post_object))
         .route("/api/v2/objects/count", get(api_v2_objects::count_objects))
-        .route("/api/v2/objects/{object_id}", get(api_v2_objects::get_object_by_id))
-        .route("/api/v2/groups", get(api_v2_objects::my_p2p_groups))
-        .route("/api/v2/groups/{group_id}/members", get(api_v2_objects::group_member_keys))
-        .route("/api/v2/groups/{group_id}/messages", get(api_v2_objects::group_messages))
-        .route("/api/v2/groups/{group_id}/epoch", get(api_v2_objects::group_epoch_key))
-        .route("/api/v2/groups/{group_id}/epochs", get(api_v2_objects::group_epoch_keys))
+        .route("/api/v2/objects/{object_id}", get(api_v2_objects::get_object_by_id).post(api_v2_objects::read_object_signed))
+        // A P2P group's rows, for its members alone, each read signed (BUG-284).
+        .route("/api/v2/groups", post(api_v2_objects::my_p2p_groups))
+        .route("/api/v2/groups/{group_id}/members", post(api_v2_objects::group_member_keys))
+        .route("/api/v2/groups/{group_id}/messages", post(api_v2_objects::group_messages))
+        .route("/api/v2/groups/{group_id}/epoch", post(api_v2_objects::group_epoch_key))
+        .route("/api/v2/groups/{group_id}/epochs", post(api_v2_objects::group_epoch_keys))
         // === API v2: DID resolver (Phase 1 PR 1) ===
         .route("/api/v2/did/{did}", get(api_v2_did::resolve_did))
         // === API v2: Verifiable Credentials (Phase 1 PR 2) ===
@@ -1485,7 +1497,14 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
             .put(api::system_profile_put)
             .delete(api::system_profile_delete)
         )
-        .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
+        // A file posted in a members-only room only to its readers (BUG-282, upload_rooms.rs).
+        .nest(
+            "/uploads",
+            Router::new()
+                .fallback_service(tower_http::services::ServeDir::new("data/uploads"))
+                .layer(middleware::from_fn_with_state(state.clone(), upload_rooms::gate)),
+        )
+        .route("/api/uploads/room-ticket", post(upload_rooms::room_ticket))
         .fallback_service(
             tower_http::services::ServeDir::new("client")
                 .fallback(tower_http::services::ServeFile::new("client/index.html")),

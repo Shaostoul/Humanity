@@ -589,14 +589,19 @@ fn group_server(group: Value, epoch_payload_b64: Option<String>, members: Value)
                 }
             };
             let line = head.lines().next().unwrap_or("").to_string();
-            let (status, answer) = if line.starts_with(&format!("GET /api/v2/objects/{gid} ")) {
+            // A group's rows answer only a member's signed read, a POST with the key, the time and
+            // a signature in its body (BUG-284), as the relay answers them.
+            let signed = serde_json::from_str::<serde_json::Value>(&body)
+                .ok()
+                .is_some_and(|b| b["key"].as_str().is_some_and(|k| !k.is_empty()) && b["sig"].as_str().is_some_and(|k| !k.is_empty()) && b["timestamp"].is_u64());
+            let (status, answer) = if line.starts_with(&format!("POST /api/v2/objects/{gid} ")) && signed {
                 (200, group.to_string())
-            } else if line.starts_with(&format!("GET /api/v2/groups/{gid}/epoch ")) {
+            } else if line.starts_with(&format!("POST /api/v2/groups/{gid}/epoch ")) && signed {
                 match &epoch_payload_b64 {
                     Some(p) => (200, serde_json::json!({ "payload_b64": p }).to_string()),
                     None => (404, "{}".to_string()),
                 }
-            } else if line.starts_with(&format!("GET /api/v2/groups/{gid}/members ")) {
+            } else if line.starts_with(&format!("POST /api/v2/groups/{gid}/members ")) && signed {
                 (200, members.to_string())
             } else if line.starts_with("POST /api/v2/objects ") {
                 let _ = tx.send(body);

@@ -1,7 +1,9 @@
 //! Accounts erased here, remembered for a limited time (BUG-135, 2026-10-04).
 //!
 //! WHY THIS EXISTS. Erasing your account (Settings > Account, the relay's `account_delete`)
-//! removes everything this server keeps about you, and your devices that are online at that
+//! removes what this server keeps about you (storage/account.rs `delete_account`; what stays on
+//! purpose, a ban, a vote on a closed decision, a report for the admins with the name taken out,
+//! is said in both apps' erase dialogs, `privacy.erase_what_stays`), and your devices that are online at that
 //! moment are told (`account_erased`) and stop reconnecting. A device that was OFFLINE then
 //! (a second computer with the app closed, a web tab between reconnects) used to come back
 //! later with the same key and be signed up again by itself: the relay had no record of the

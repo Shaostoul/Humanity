@@ -398,7 +398,16 @@ async function loadChat(me, opts = {}) {
         if (relay.trackEpochs && body.object_type === "group_epoch_key_v1") relay.epoch = body;
         return ok({ ok: true });
       }
-      if (u.startsWith("/api/v2/groups?pubkey=")) {
+      // A group's rows answer only a member's signed read (BUG-284, 2026-11-07): a POST whose body
+      // carries the key, the time and a signature. An unsigned or GET read is refused here as the
+      // relay refuses it, so a page that forgot to sign fails these tests (seen red 2026-11-08 against the
+      // page's unsigned GETs, chat-groups-p2p.js before the fix: 17 of the 24 tests failed).
+      const groupRead = u === "/api/v2/groups" || u.startsWith("/api/v2/groups/") || u.startsWith("/api/v2/objects/");
+      if (groupRead) {
+        const b = method === "POST" ? JSON.parse((init && init.body) || "{}") : {};
+        if (method !== "POST" || b.key !== me.key || !b.sig || !b.timestamp) return Promise.resolve({ ok: false, status: 401, json: async () => ({ error: "unsigned" }) });
+      }
+      if (u === "/api/v2/groups") {
         if (relay.groupsDown) return Promise.resolve({ ok: false, status: 500, json: async () => ({ error: "storage error" }) });
         return ok({ groups: JSON.parse(JSON.stringify(relay.groups)) });
       }
@@ -889,7 +898,8 @@ test("the creator: checked against my copy, listed with a count on the group, ne
   assert.deepEqual(Object.keys(store.contactRequests), [], "and not turned into a contact request");
   assert.deepEqual(sock.sent, [], "nothing sent to the server");
   assert.deepEqual(posted, [], "nothing posted");
-  assert.ok(fetched.every((f) => f.startsWith("GET ")), "only reads: " + fetched.join(", "));
+  // Reads only: a GET, or a group's signed read, which is a POST since BUG-284 (nothing is sent but the signature).
+  assert.ok(fetched.every((f) => f.startsWith("GET ") || f === "POST /api/v2/groups" || f.startsWith("POST /api/v2/groups/") || f.startsWith("POST /api/v2/objects/")), "only reads: " + fetched.join(", "));
   assert.ok(shown(state.appended).includes(html(gr.groupReportArrivedLine("Ann", "Cy", "Hikers"))) || shown(state.appended).includes(gr.groupReportArrivedLine("Ann", "Cy", "Hikers")), "I am told");
 
   // Settings > Safety.
@@ -1189,7 +1199,7 @@ test("the creator's own re-key on opening the group makes no key when the curren
   page.relay.epochStatus = 500;
   const before = page.fetched.length;
   page.fn("openP2pGroup")(fx.G, "Hikers");
-  await waitFor(() => page.fetched.slice(before).includes(`GET /api/v2/groups/${fx.G}/epoch`), "the re-key check asks for the current key");
+  await waitFor(() => page.fetched.slice(before).includes(`POST /api/v2/groups/${fx.G}/epoch`), "the re-key check asks for the current key");
   await settle();
   assert.deepEqual(page.posted.map((p) => p.object_type), [], "no key numbered 1 over the group's real one");
   // Once the server answers, the re-key goes ahead: key 2, sealed to Dan too.
@@ -1219,7 +1229,7 @@ test("someone this device removed is never sealed to again while the server stil
   page.posted.length = 0;
   const before = page.fetched.length;
   page.fn("openP2pGroup")(fx.G, "Hikers");
-  await waitFor(() => page.fetched.slice(before).filter((f) => f === `GET /api/v2/groups/${fx.G}/members`).length >= 2, "the roster and the re-key check both read the members");
+  await waitFor(() => page.fetched.slice(before).filter((f) => f === `POST /api/v2/groups/${fx.G}/members`).length >= 2, "the roster and the re-key check both read the members");
   await settle();
   for (const k of page.posted.filter((p) => p.object_type === "group_epoch_key_v1")) {
     assert.ok(!(await recipients(k)).includes(fx.fp(fx.cy.key)), "no key this device makes is sealed to Cy");
@@ -1251,7 +1261,7 @@ test("someone removed and let back in with a new ticket is sealed to once the se
     page.posted.length = 0;
     const before = page.fetched.length;
     page.fn("openP2pGroup")(fx.G, "Hikers");
-    await waitFor(() => page.fetched.slice(before).filter((f) => f === `GET /api/v2/groups/${fx.G}/members`).length >= 2, "the roster and the re-key check both read the members");
+    await waitFor(() => page.fetched.slice(before).filter((f) => f === `POST /api/v2/groups/${fx.G}/members`).length >= 2, "the roster and the re-key check both read the members");
     await settle();
     page.fn("closeP2pGroup")();
     return Promise.all(keysPosted().map(recipients));

@@ -448,6 +448,9 @@ ProtectHome=true
 ReadWritePaths=/opt/Humanity/data /opt/Humanity/backups
 NoNewPrivileges=true
 PrivateTmp=true
+# Every file the relay makes (its database, log, backups and keys) readable by its own
+# account alone. The relay also tightens what is already there at every start.
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

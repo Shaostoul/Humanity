@@ -33,15 +33,16 @@ pub trait GroupServer {
     fn post(&mut self, submission_json: &str) -> Result<(), String>;
 }
 
-/// The app's server: the group endpoints of `server_url`.
-pub struct Http<'a>(pub &'a str);
+/// The app's server: the group endpoints of `server_url`, read as the member whose seed this is
+/// (a group's rows answer only its members' signed reads, BUG-284).
+pub struct Http<'a>(pub &'a str, pub &'a [u8]);
 
 impl GroupServer for Http<'_> {
     fn epoch_payload(&mut self, group_id: &str) -> Result<Option<Vec<u8>>, String> {
-        api_v2::fetch_group_epoch_payload(self.0, group_id)
+        api_v2::fetch_group_epoch_payload(self.0, self.1, group_id)
     }
     fn members(&mut self, group_id: &str) -> Result<Vec<(String, Option<String>)>, String> {
-        api_v2::fetch_group_members(self.0, group_id)
+        api_v2::fetch_group_members(self.0, self.1, group_id)
     }
     fn post(&mut self, submission_json: &str) -> Result<(), String> {
         api_v2::post_submission_json(self.0, submission_json)

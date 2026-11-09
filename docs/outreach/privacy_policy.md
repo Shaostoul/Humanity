@@ -1,6 +1,6 @@
 # Privacy: what this server keeps about you
 
-*Last changed 7 November 2026. This page covers the server at united-humanity.us and its website.*
+*Last changed 8 November 2026. This page covers the server at united-humanity.us and its website.*
 
 HumanityOS is free, open-source software. Anyone can run a server of their own, and each server's
 operator decides for that server; this page is about the one at **united-humanity.us**, run by the
@@ -8,8 +8,8 @@ project's maintainer, who goes by **Shaostoul**: one private person in Washingto
 company. There are no ads, nothing is sold, nobody is paid for your data, and there are no
 analytics or tracking scripts.
 
-What you read here was checked against the server's code and its settings on 7 November 2026, not
-written from memory. Where the server does something we would rather it did not, this page says so
+What you read here was checked against the server's code and its settings on 7 November 2026, and
+the fixes since against the code on 8 November, not written from memory. Where the server does something we would rather it did not, this page says so
 (see "What is not right yet").
 
 ## The short version
@@ -38,11 +38,11 @@ written from memory. Where the server does something we would rather it did not,
 | **Messages in rooms**, reactions | So the room can read them. Rooms open to anyone are public | Kept until you delete them or erase your account |
 | **Private messages** | To deliver them when the other person comes online | Sealed; deleted after 30 days |
 | **Files you upload** | To share them. Location and camera details are removed from pictures and videos, on your device and again on the server, unless you choose to keep them | Until you delete them or erase your account; files sent in private messages, 30 days |
-| **Your settings sync** (notes, to-dos, garden, settings, sealed with a key from your recovery phrase) | So your settings follow you | Until you erase your account (but see "What is not right yet") |
+| **Your settings sync** (notes, to-dos, garden, settings, sealed with a key from your recovery phrase) | So your settings follow you | Until you erase your account |
 | **Notifications** you turned on: your browser's push address | To send you a notification | Until you turn them off or your browser drops them |
 | **Reports** you make or that name you | So moderators can act on them | 90 days after a decision |
 | **Bans** | So a ban holds | Kept, even after an erase |
-| **Bug reports** you send | To fix the problem | Kept (see "What is not right yet") |
+| **Bug reports** you send: what you write, and with it your name and key, your browser's name and window size, and the page you were on | To fix the problem. Everyone can read what you write; who sent it and from where only the admins and moderators see | Kept; when you erase your account, kept for the admins without your name, key or browser |
 | **Your progress in the shared game world** | So the world remembers what you built | Until you erase your account |
 | **Backups** of the server's database (sealed) | To recover from a failure | Each copy for between about 7 hours and about 15 days; a copy an admin makes by hand, until it is deleted |
 
@@ -67,9 +67,9 @@ the server. Please do not post health details in public rooms.
   (on 7 November 2026, public.guide, run by the same maintainer) gets copies of the public parts:
   messages in shared rooms, public profiles, key cards, bans, and our sealed backups. When you erase
   your account, linked servers are asked to remove your messages and profile.
-- **Services your browser contacts for some pages:** every page asks GitHub
-  (api.github.com) for the newest version number; the chat loads emoji pictures from
-  cdn.jsdelivr.net; the wallet asks a Solana server and CoinGecko for balances and prices. Each of
+- **Services your browser contacts for some pages:** the chat loads emoji pictures from
+  cdn.jsdelivr.net; the wallet asks a Solana server and CoinGecko for balances and prices; the
+  download buttons fetch the app from GitHub, only when you press one. Each of
   them sees your IP address when your browser asks. If you turn on notifications, your browser's
   maker (Google, Mozilla or Apple) carries them sealed: it sees when one arrives, not what it says.
 - **Nobody else.** We do not sell, rent or trade anything about anyone, and we do not share it for
@@ -86,7 +86,10 @@ over what he cannot read: sealed private messages and files.
 - **Erase it:** "Erase account" removes your account and its data from this server, and asks
   linked servers to remove your messages and profile. It is permanent. The server remembers for 30
   days that an account was erased (a scrambled fingerprint, never your key), so a device of yours that was
-  offline at the time cannot sign you up again by itself. Bans stay. Backups age out as described above.
+  offline at the time cannot sign you up again by itself. Some things stay, and the erase dialog
+  names them: bans and reports about you; your votes on decisions that have already closed, and the
+  proposals you made; bug reports and reports you sent, without your name. A group you started is
+  closed. Backups age out as described above.
 - **Object, or ask a question:** message an admin in the chat (a private message is sealed end to
   end), or open an issue on [GitHub](https://github.com/Shaostoul/Humanity/issues) (issues there are
   public). We aim to answer within 30 days.
@@ -125,19 +128,13 @@ there.
 
 ## What is not right yet
 
-These are faults we found on 7 November 2026 while writing this page. Each one is being fixed, and
-this list will shrink:
+We found eight faults on 7 November 2026 while writing this page, and fixed seven of them by 8
+November (who is online, erasing an account, bug reports, the website asking GitHub, files in
+members-only rooms, the settings sync, and who could read a group's details). What is left:
 
-- The list of who is online (`/api/peers`) also shows people who turned off "Show others when I am online".
-- Erasing an account leaves some things behind on the server: copies of messages that were pinned,
-  comments on tasks, your settings sync and computer details, group and vote records, bug reports
-  and reputation.
-- Bug reports, including the browser name and window size sent with them, are public.
-- Every page of the website asks GitHub for the newest version, so GitHub sees each visitor's IP
-  address.
-- A file attached in a members-only room can be opened by anyone who has its link.
-- If your browser has no key to seal it with, the website's settings sync is sent unsealed.
-- The names, member lists and posting times of groups are public (their messages stay sealed).
+- The server that carries a group, and the servers it is linked with, can read the group's name, who
+  is in it and when each message was posted, though not what was said. Only the group's members
+  can ask the server for any of it.
 
 ## Changes to this page
 

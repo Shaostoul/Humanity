@@ -259,6 +259,10 @@ ProtectHome=true
 ReadWritePaths=$REPO/data
 NoNewPrivileges=true
 PrivateTmp=true
+# Every file the relay makes is readable by its own account alone (BUG-285): the database, its
+# log, its backups and keys. The deploy also installs this as a drop-in on every server
+# (scripts/systemd-dropins/humanity-relay-owner-only.conf).
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

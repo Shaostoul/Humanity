@@ -38,7 +38,10 @@ pub struct BugReport {
     pub version: String,
     pub status: String,
     pub votes: i64,
+    /// Who sent it and from where: empty in the list everyone gets, filled only in the admins' and
+    /// moderators' signed read (POST /api/bugs/details, BUG-280).
     pub reporter_name: String,
+    pub browser_info: String,
 }
 
 type ListResult = Result<Vec<BugReport>, String>;
@@ -59,6 +62,9 @@ pub struct BugReporterState {
     pub list_rx: Option<std::sync::mpsc::Receiver<ListResult>>,
     /// In-flight POST /api/bugs; on success we re-fetch the list.
     pub submit_rx: Option<std::sync::mpsc::Receiver<SubmitResult>>,
+    /// The person pressed "Show who sent each report": the list is the signed staff read until a
+    /// refusal turns it off (BUG-280).
+    pub show_details: bool,
 }
 
 impl Default for BugReporterState {
@@ -73,6 +79,7 @@ impl Default for BugReporterState {
             loaded: false,
             list_rx: None,
             submit_rx: None,
+            show_details: false,
         }
     }
 }
@@ -85,14 +92,27 @@ fn with_state<R>(f: impl FnOnce(&mut BugReporterState) -> R) -> R {
     STATE.with(|s| f(&mut s.borrow_mut()))
 }
 
-/// Blocking GET /api/bugs. Runs on a worker thread at the call site.
-fn fetch_bugs_blocking(server_url: &str) -> ListResult {
+/// Blocking read of the list. Runs on a worker thread at the call site. With `staff` (the
+/// person's key and a signature over `bug_details\n<time>`) it is the admins' and moderators'
+/// read, POST /api/bugs/details, which also says who sent each report and from where; otherwise
+/// GET /api/bugs, which never does (BUG-280). A POST because a key and a signature in an address
+/// would pass nginx's 8 KB limit on a request line.
+fn fetch_bugs_blocking(server_url: &str, staff: Option<serde_json::Value>) -> ListResult {
     let base = server_url.trim_end_matches('/');
-    let body = ureq::get(&format!("{base}/api/bugs?limit=50"))
-        .call()
-        .map_err(|e| tf("bugs.load_failed", &[("error", &e)]))?
-        .into_string()
-        .map_err(|e| format!("read: {e}"))?;
+    let resp = match staff {
+        Some(mut auth) => {
+            auth["limit"] = serde_json::json!(50);
+            ureq::post(&format!("{base}/api/bugs/details"))
+                .set("Content-Type", "application/json")
+                .send_string(&auth.to_string())
+        }
+        None => ureq::get(&format!("{base}/api/bugs?limit=50")).call(),
+    };
+    let body = match resp {
+        Ok(r) => r.into_string().map_err(|e| format!("read: {e}"))?,
+        Err(ureq::Error::Status(403, _)) => return Err(t("bugs.details_staff_only").to_string()),
+        Err(e) => return Err(tf("bugs.load_failed", &[("error", &e)])),
+    };
     let val: serde_json::Value =
         serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
     let arr = val
@@ -112,6 +132,7 @@ fn fetch_bugs_blocking(server_url: &str) -> ListResult {
             status: b.get("status").and_then(|v| v.as_str()).unwrap_or("open").to_string(),
             votes: b.get("votes").and_then(|v| v.as_i64()).unwrap_or(0),
             reporter_name: b.get("reporter_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            browser_info: b.get("browser_info").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         })
         .collect();
     Ok(rows)
@@ -184,12 +205,24 @@ fn submit_bug_blocking(
     }
 }
 
-/// Kick off a list fetch on a worker thread.
-fn spawn_list_fetch(bs: &mut BugReporterState, server_url: &str) {
+/// The signed staff read's credentials: this person's key and a signature over
+/// `bug_details\n<time>` (the relay's `BUG_DETAILS_PURPOSE`). None without a seed here.
+fn staff_auth(seed: Option<&[u8]>, key: &str) -> Option<serde_json::Value> {
+    let seed = seed?;
+    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    Some(serde_json::json!({
+        "key": key,
+        "timestamp": ts,
+        "sig": crate::net::identity::pq_sign_chat(seed, "bug_details", ts),
+    }))
+}
+
+/// Kick off a list fetch on a worker thread: the staff read when `staff` is Some.
+fn spawn_list_fetch(bs: &mut BugReporterState, server_url: &str, staff: Option<serde_json::Value>) {
     let (tx, rx) = std::sync::mpsc::channel();
     let server = server_url.to_string();
     std::thread::spawn(move || {
-        let _ = tx.send(fetch_bugs_blocking(&server));
+        let _ = tx.send(fetch_bugs_blocking(&server, staff));
     });
     bs.list_rx = Some(rx);
     bs.loaded = true;
@@ -240,6 +273,8 @@ fn severity_color(severity: &str, theme: &Theme) -> Color32 {
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let server = state.server_url.clone();
     let my_key = state.profile_public_key.clone();
+    // The seed signs the admins' and moderators' read of who sent each report (BUG-280).
+    let seed = state.private_key_bytes.clone();
     let my_name = if !state.profile_name.trim().is_empty() {
         state.profile_name.clone()
     } else {
@@ -258,6 +293,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 Ok(Err(e)) => {
                     bs.status_message = e;
                     bs.list_rx = None;
+                    // A refused staff read (not an admin or a moderator here): back to the list
+                    // everyone gets.
+                    if bs.show_details {
+                        bs.show_details = false;
+                        spawn_list_fetch(bs, &server, None);
+                    }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     ctx.request_repaint_after(std::time::Duration::from_millis(300));
@@ -278,7 +319,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     bs.severity_idx = 0;
                     bs.category_idx = 0;
                     bs.status_message = tf("bugs.saved", &[("id", &id)]);
-                    spawn_list_fetch(bs, &server);
+                    let staff = if bs.show_details { staff_auth(seed.as_deref(), &my_key) } else { None };
+                    spawn_list_fetch(bs, &server, staff);
                 }
                 Ok(Err(e)) => {
                     bs.status_message = e;
@@ -293,7 +335,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
         }
         if !bs.loaded && bs.list_rx.is_none() {
-            spawn_list_fetch(bs, &server);
+            spawn_list_fetch(bs, &server, None);
         }
     });
 
@@ -308,7 +350,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if with_hint(ui, "bugs.refresh_hint", |ui| widgets::secondary_button(ui, theme, t("common.refresh"))) {
-                        with_state(|bs| spawn_list_fetch(bs, &server));
+                        with_state(|bs| {
+                            let staff = if bs.show_details { staff_auth(seed.as_deref(), &my_key) } else { None };
+                            spawn_list_fetch(bs, &server, staff);
+                        });
+                    }
+                    // Who sent each report, for the admins and moderators (BUG-280).
+                    if with_hint(ui, "bugs.show_details_hint", |ui| widgets::secondary_button(ui, theme, t("bugs.show_details"))) {
+                        with_state(|bs| match staff_auth(seed.as_deref(), &my_key) {
+                            Some(auth) => {
+                                bs.show_details = true;
+                                spawn_list_fetch(bs, &server, Some(auth));
+                            }
+                            None => bs.status_message = t("bugs.details_no_identity").to_string(),
+                        });
                     }
                 });
             });
@@ -375,6 +430,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .hint("bugs.category_hint");
                         });
                         ui.add_space(theme.spacing_sm);
+
+                        // What goes with the report, and who sees it (BUG-280).
+                        ui.label(RichText::new(t("bugs.who_sees")).size(theme.font_size_small).color(theme.text_muted()));
+                        ui.add_space(theme.spacing_xs);
 
                         // Submit: goes to the server, not to a local list.
                         ui.horizontal(|ui| {
@@ -485,6 +544,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     RichText::new(&report.description)
                                         .size(theme.font_size_small)
                                         .color(theme.text_secondary()),
+                                );
+                            }
+                            if !report.browser_info.is_empty() {
+                                let name = if report.reporter_name.is_empty() { "?" } else { report.reporter_name.as_str() };
+                                ui.label(
+                                    RichText::new(tf("bugs.sent_by_native", &[("name", &name), ("browser", &report.browser_info)]))
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_muted()),
                                 );
                             }
                         });

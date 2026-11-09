@@ -70,7 +70,7 @@ What a server keeps (`key_card::keep_rule`, one row per person, `key_cards` tabl
   the asker alone with `{"type":"key_cards","cards":[...],"missing":[...]}`.
 - `GET /api/key-card/{key}` for pages and threads with no socket (the website's Recovery page, the
   desktop app's recovery work).
-- `GET /api/v2/groups/{id}/members` carries each member's card inline (`key_card`), since a group
+- `POST /api/v2/groups/{id}/members` (a member's signed read, BUG-284) carries each member's card inline (`key_card`), since a group
   is small.
 
 ## Checking and pinning (both apps)

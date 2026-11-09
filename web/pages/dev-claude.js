@@ -3,16 +3,19 @@
  *
  * A website cannot read the developer's computer, so this shows ONLY what it can reach, and
  * says so plainly instead of faking the rest:
- *   - GitHub's newest release and newest commit on main (api.github.com, allowed by the site's
- *     connect-src);
- *   - the TIER 0 headings of GitHub's copy of docs/PRIORITIES.md;
+ *   - the newest release this server holds (its own list, /releases/manifest.json) and the newest
+ *     commit on main as of the website's last update (/dev-info/main.json, written by every deploy,
+ *     scripts/sync-web-root.sh);
+ *   - the TIER 0 headings of docs/PRIORITIES.md as of the same update (/dev-info/priorities.md);
+ * all from this server, never GitHub's API, which would send the reader's address to GitHub
+ * (BUG-281, 2026-11-07);
  *   - the newest three journal decisions, from the copy of
  *     data/coordination/orchestrator_state.json this site serves (as of its last update).
  * Worktrees, uncommitted changes, the taskbar exe, the share guard, the disk guard and the boot
  * lock are named as desktop-only (dev_claude.web_pc_only).
  *
  * Read-only, and lazy: nothing is fetched until the Claude tab is opened, then only on Refresh
- * (three GitHub requests a load, well inside GitHub's 60 an hour for a visitor).
+ * (four small files from this server a load).
  *
  * The pure parts (journalTail, tier0Headings, ago) mirror the Rust readers in
  * src/gui/pages/dev_agents/read.rs and are tested in scripts/tests/dev-claude-web.test.js against
@@ -22,7 +25,9 @@
 (function (root) {
   'use strict';
 
-  var REPO = 'https://api.github.com/repos/Shaostoul/Humanity';
+  var RELEASES = '/releases/manifest.json'; // scripts/vps/regen-releases-manifest, when a release lands
+  var MAIN = '/dev-info/main.json'; // { at, subject }: scripts/sync-web-root.sh, at every deploy
+  var PRIORITIES = '/dev-info/priorities.md'; // docs/PRIORITIES.md as of the same deploy
   var JOURNAL = '/data/coordination/orchestrator_state.json';
 
   /** Every run of whitespace, line breaks included, as one space. */
@@ -95,14 +100,14 @@
   // ── Fetching and drawing ───────────────────────────────────────────────────────────────────
 
   function getJson(url) {
-    return fetch(url, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) {
+    return fetch(url).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     });
   }
 
-  function getText(url, accept) {
-    return fetch(url, { headers: { Accept: accept } }).then(function (r) {
+  function getText(url) {
+    return fetch(url).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.text();
     });
@@ -147,16 +152,16 @@
 
     // Version: the newest release and the newest commit on main.
     var v = card(T('version'), T('web_release_hint'));
-    if (d.release.ok) {
-      var rel = d.release.ok;
-      row(v, 'muted', T('latest_release'), T('published', { tag: rel.tag_name, ago: ago(Date.parse(rel.published_at), nowMs, T) }));
+    var rel = d.release.ok && d.release.ok.releases && d.release.ok.releases[0];
+    if (rel && rel.tag) {
+      row(v, 'muted', T('latest_release'), String(rel.tag));
     } else {
-      row(v, 'muted', T('latest_release'), T('web_unreachable', { why: d.release.err }));
+      row(v, 'muted', T('latest_release'), (d.release.err ? T('web_unreachable', { why: d.release.err }) : T('web_no_release')));
     }
     if (d.main.ok) {
-      var c = d.main.ok.commit || {};
-      var when = c.committer && c.committer.date ? ago(Date.parse(c.committer.date), nowMs, T) + ': ' : '';
-      row(v, 'muted', T('web_main'), when + oneLine(String(c.message || '').split('\n')[0]));
+      var c = d.main.ok;
+      var when = c.at ? ago(Date.parse(c.at), nowMs, T) + ': ' : '';
+      row(v, 'muted', T('web_main'), when + oneLine(String(c.subject || '')));
     } else {
       row(v, 'muted', T('web_main'), T('web_unreachable', { why: d.main.err }));
     }
@@ -177,7 +182,7 @@
     }
     box.appendChild(j);
 
-    // TIER 0, from GitHub's copy of the priorities.
+    // TIER 0, from this server's copy of the priorities (as of its last update).
     var t = card(T('tier0'), T('web_tier0_hint'));
     if (d.tier0.ok) {
       var ol = el('ol', 'claude-tier0');
@@ -206,13 +211,13 @@
     return words.then(function () {
       box.textContent = T('waiting');
       return Promise.all([
-        settle(getJson(REPO + '/releases/latest')),
-        settle(getJson(REPO + '/commits/main')),
+        settle(getJson(RELEASES)),
+        settle(getJson(MAIN)),
         settle(fetch(JOURNAL).then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         }).then(function (j) { return journalTail(j, 3); })),
-        settle(getText(REPO + '/contents/docs/PRIORITIES.md?ref=main', 'application/vnd.github.raw').then(function (md) {
+        settle(getText(PRIORITIES).then(function (md) {
           return tier0Headings(md, 6);
         })),
       ]);

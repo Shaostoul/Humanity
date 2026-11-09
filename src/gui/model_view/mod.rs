@@ -42,6 +42,9 @@ pub fn fetch(url: &str, header: Option<(&str, &str)>) -> Result<Vec<u8>, String>
     let mut req = agent.get(url);
     if let Some((name, value)) = header {
         req = req.set(name, value);
+    } else if let Some(token) = crate::net::upload_auth::token_for(url) {
+        // A members-only room's file answers its readers alone (BUG-282).
+        req = req.set(crate::net::upload_auth::HEADER, &token);
     }
     let resp = req.call().map_err(|e| fetch_failed(e))?;
     let max = load::MAX_MODEL_BYTES;

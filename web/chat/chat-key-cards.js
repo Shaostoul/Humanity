@@ -220,7 +220,7 @@ const hosKeyCards = {
   },
 
   /**
-   * A group roster member's Kyber key (`GET /api/v2/groups/{id}/members`
+   * A group roster member's Kyber key (`POST /api/v2/groups/{id}/members`, a member's signed read
    * serves each member's card): only from a card that checks out as that very
    * member's, null otherwise, so a group key is never sealed to a key the
    * server put in. (Not held against the pins: see docs/design/key-cards.md.)

@@ -258,23 +258,30 @@ pub(crate) fn file_type(content_type: &str, stored_ext: &str, encrypted: bool) -
     }
 }
 
-/// The name a file is stored under: `<ms>_<safe stem>.<ext>`, where `<ms>` is the time now in
+/// The name a file is stored under: `<ms>_<random>_<safe stem>.<ext>`, where `<ms>` is the time now in
 /// milliseconds and the safe stem is the name it came with, without its folder and its own
 /// extension (both parts of a `.tar.gz`), each run of spaces and dots turned into one `_`, only
 /// letters, digits, `-` and `_` kept, `_` and `-` trimmed from the ends, and at most 32 long
 /// (`file` when nothing is left).
 ///
-/// `WH40K Marriah Carey.mp4` is stored as `<ms>_WH40K_Marriah_Carey.mp4`. Until 2026-10-17 the
+/// `WH40K Marriah Carey.mp4` is stored as `<ms>_<random>_WH40K_Marriah_Carey.mp4`. Until 2026-10-17 the
 /// whole name went through the filter, extension included, so its spaces and the dot before
 /// `mp4` vanished and the extension was added again: `<ms>_WH40KMarriahCareymp4.mp4`. The stem
 /// never holds a space (both apps find links by splitting on spaces) nor a dot (a leading dot is a
 /// hidden file the server refuses, and `..` a folder escape).
+///
+/// Between the time and the stem, 128 random bits in hex (BUG-282, 2026-11-07): the name was the
+/// time and the original name alone, so an address could be guessed. The apps drop both parts
+/// from the name they show (web/chat/app.js `fileCardName`, gui/pages/chat/public_files.rs
+/// `shown_name`).
 pub(crate) fn stored_name(filename: &str, stored_ext: &str) -> String {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    format!("{}_{}.{}", ts, safe_stem(filename), stored_ext)
+    let mut random = [0u8; 16];
+    getrandom::getrandom(&mut random).expect("the operating system's random source");
+    format!("{}_{}_{}.{}", ts, hex::encode(random), safe_stem(filename), stored_ext)
 }
 
 /// [`stored_name`]'s safe stem of `filename`.

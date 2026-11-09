@@ -1291,13 +1291,18 @@ pub async fn delete_project(
     }
 }
 
-/// GET /api/peers — list connected peers.
+/// GET /api/peers — the people connected now who show that they are online. It needs no sign-in,
+/// so a presence-hidden member (every new member, and anyone who turned off "Show others when I am
+/// online") is left out, as from the lists the sockets get (BUG-278, 2026-11-07: this route listed
+/// everyone connected, hidden or not).
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,
 ) -> Json<Vec<PeerInfo>> {
+    let hidden = state.db.hidden_presence_keys();
     let peers = state.peers.read().await;
     let list: Vec<PeerInfo> = peers
         .values()
+        .filter(|p| !hidden.contains(&p.public_key_hex))
         .map(|p| {
             let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
             PeerInfo {
@@ -1571,6 +1576,11 @@ pub struct FederatedServerEntry {
 #[path = "api_market.rs"]
 mod api_market;
 pub use api_market::*;
+
+/// Who sent a bug report, and from where, only to the admins and moderators (BUG-280).
+#[cfg(test)]
+#[path = "bug_reports_tests.rs"]
+mod bug_reports_tests;
 
 // ── Asset Library API ──
 
@@ -3369,6 +3379,22 @@ pub struct BugsQuery {
     pub offset: Option<usize>,
 }
 
+/// What an admin's or a moderator's app signs to read who sent each bug report, their browser and
+/// page (BUG-280): `bug_details\n<timestamp>`, fresh for five minutes.
+pub const BUG_DETAILS_PURPOSE: &str = "bug_details";
+
+/// Body of `POST /api/bugs/details`: the list's filters, signed by an admin or a moderator. A
+/// POST because a Dilithium3 key and signature in an address would pass nginx's 8 KB limit on a
+/// request line (the chat's member reads are POSTs for the same reason, chat_access.rs).
+#[derive(Debug, Deserialize)]
+pub struct BugDetailsRequest {
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+    #[serde(flatten)]
+    pub filters: BugsQuery,
+}
+
 /// Request body for POST /api/bugs.
 #[derive(Debug, Deserialize)]
 pub struct CreateBugRequest {
@@ -3555,7 +3581,28 @@ pub struct VoteBugRequest {
     pub sig: String,
 }
 
-fn bug_to_json(b: &crate::relay::storage::BugReport) -> serde_json::Value {
+/// A report as the list gives it. To anyone (`staff` false) only what was reported: never who sent
+/// it (their key and name), their browser's name and window size, or the page they were on, which
+/// go to the admins and moderators alone (BUG-280, 2026-11-07: `GET /api/bugs` gave all of it to
+/// anyone, signed in or not).
+fn bug_to_json(b: &crate::relay::storage::BugReport, staff: bool) -> serde_json::Value {
+    if !staff {
+        return serde_json::json!({
+            "id": b.id,
+            "title": b.title,
+            "description": b.description,
+            "steps": b.steps,
+            "expected": b.expected,
+            "actual": b.actual,
+            "severity": b.severity,
+            "category": b.category,
+            "version": b.version,
+            "status": b.status,
+            "votes": b.votes,
+            "created_at": b.created_at,
+            "updated_at": b.updated_at,
+        });
+    }
     serde_json::json!({
         "id": b.id,
         "title": b.title,
@@ -3577,11 +3624,32 @@ fn bug_to_json(b: &crate::relay::storage::BugReport) -> serde_json::Value {
     })
 }
 
-/// GET /api/bugs -- list bug reports with optional filters.
+/// GET /api/bugs -- list bug reports with optional filters: what was reported, never who sent it
+/// or from where (BUG-280; those are `POST /api/bugs/details`).
 pub async fn get_bugs(
     State(state): State<Arc<RelayState>>,
     Query(params): Query<BugsQuery>,
 ) -> Json<serde_json::Value> {
+    Json(bugs_list(&state, &params, false))
+}
+
+/// POST /api/bugs/details -- the same list with who sent each report and from where, for an admin
+/// or a moderator who signs [`BUG_DETAILS_PURPOSE`] (BUG-280). 401 for a signature that does not
+/// verify, 403 for anyone else.
+pub async fn bug_details(
+    State(state): State<Arc<RelayState>>,
+    Json(req): Json<BugDetailsRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    verify_signed_actor(&req.key, req.timestamp, &req.sig, BUG_DETAILS_PURPOSE).await?;
+    let role = state.db.get_role(&req.key).unwrap_or_default();
+    if role != "admin" && role != "mod" && role != "moderator" {
+        return Err((StatusCode::FORBIDDEN, "Only the admins and moderators see who sent each report.".into()));
+    }
+    Ok(Json(bugs_list(&state, &req.filters, true)))
+}
+
+/// The bug list for `params`; `staff` adds who sent each report and from where.
+fn bugs_list(state: &RelayState, params: &BugsQuery, staff: bool) -> serde_json::Value {
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
 
@@ -3593,8 +3661,8 @@ pub async fn get_bugs(
         offset,
     ).unwrap_or_default();
 
-    let list: Vec<serde_json::Value> = bugs.iter().map(bug_to_json).collect();
-    Json(serde_json::json!({ "bugs": list, "count": list.len() }))
+    let list: Vec<serde_json::Value> = bugs.iter().map(|b| bug_to_json(b, staff)).collect();
+    serde_json::json!({ "bugs": list, "count": list.len(), "details": staff })
 }
 
 /// POST /api/bugs -- create a new bug report.

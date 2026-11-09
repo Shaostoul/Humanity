@@ -324,34 +324,13 @@ fn item_page(template: &str, item: &FilesItem, origin: &str, site_name: &str, ha
 /// The page's Content-Security-Policy: the relay's own (relay/mod.rs `csp_value`, whose
 /// `connect-src` follows the server's configured addresses) with `blob:` added to `img-src`, as
 /// the static pages' nginx policy has it, so members-only pictures shown through `blob:` addresses
-/// load on an item's page as they do on /media; and with [`SHELL_VERSION_CHECK`] added to
-/// `connect-src`, the one outside address the page's own scripts ask (web/shared/shell.js's check
-/// for a newer release). A browser enforces this policy AND the site's nginx one, so a source left
-/// out here is blocked even where nginx allows it (seen 2026-10-12: the check was refused on
-/// /files/2 and nowhere else).
+/// load on an item's page as they do on /media. Its `connect-src` names no outside address: the
+/// page's own scripts ask only this server (web/shared/shell.js's check for a newer release reads
+/// /releases/manifest.json since BUG-281, 2026-11-07; until then it asked api.github.com, which
+/// this policy had to allow).
 pub fn page_csp() -> &'static str {
     static CSP: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    CSP.get_or_init(|| with_connect_source(&with_blob_pictures(super::csp_value()), SHELL_VERSION_CHECK))
-}
-
-/// Where web/shared/shell.js asks for the newest release (its `fetch('https://api.github.com/...')`).
-pub const SHELL_VERSION_CHECK: &str = "https://api.github.com";
-
-/// `csp` with `source` among its `connect-src` sources (at the end; never twice).
-fn with_connect_source(csp: &str, source: &str) -> String {
-    let directives: Vec<String> = csp
-        .split(';')
-        .map(str::trim)
-        .filter(|d| !d.is_empty())
-        .map(|d| {
-            let mut words: Vec<&str> = d.split_whitespace().collect();
-            if words.first() == Some(&"connect-src") && !words.contains(&source) {
-                words.push(source);
-            }
-            words.join(" ")
-        })
-        .collect();
-    format!("{};", directives.join("; "))
+    CSP.get_or_init(|| with_blob_pictures(super::csp_value()))
 }
 
 /// `csp` with `blob:` among its `img-src` sources (after `data:` when that is there).

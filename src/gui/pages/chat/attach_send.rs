@@ -222,6 +222,8 @@ pub(crate) fn note_upload_limit(state: &mut GuiState, peer_list: &serde_json::Va
     // And this connection's upload token, kept with the server it is for.
     if let Some(token) = mine.and_then(|p| p.get("upload_token")).and_then(|v| v.as_str()).filter(|t| !t.is_empty()) {
         state.upload_token = Some((super::norm_server_url(&state.server_url), token.to_string()));
+        // And for the file reads that have no GuiState: a members-only room's files (BUG-282).
+        crate::net::upload_auth::set(&super::norm_server_url(&state.server_url), token);
     }
 }
 

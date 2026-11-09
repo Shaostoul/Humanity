@@ -241,7 +241,11 @@ pub async fn broadcast_peer_list(state: &Arc<RelayState>) {
         })
         .collect();
     drop(statuses);
-    let _ = state.broadcast_tx.send(RelayMessage::PeerList { peers, server_version: None });
+    // Every socket gets this one message, so the presence-hidden people in it are named here and
+    // the send loop takes them out of each copy but their own (BUG-278, live_conns.rs `for_socket`).
+    let hidden = state.db.hidden_presence_keys();
+    let hidden_keys = peers.iter().filter(|p| hidden.contains(&p.public_key)).map(|p| p.public_key.clone()).collect();
+    let _ = state.broadcast_tx.send(RelayMessage::PeerList { peers, server_version: None, hidden_keys });
 }
 
 /// Broadcast the full user list (online + offline) to all connected clients.

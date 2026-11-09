@@ -356,14 +356,12 @@ async fn the_page_keeps_blob_pictures_in_its_csp() {
     assert!(page_csp().contains("img-src 'self' data: blob: https:;"), "{}", page_csp());
     assert_ne!(page_csp(), crate::relay::csp_value(), "it is not the relay's usual policy");
     let connect = |csp: &str| csp.split(';').map(str::trim).find(|d| d.starts_with("connect-src")).map(str::to_string);
-    // The relay's connect-src, from the same configured addresses, plus the shell's check for a
-    // newer release (seen red 2026-10-12 on the live /files/2: the browser refused the fetch).
-    let want = connect(crate::relay::csp_value()).map(|c| format!("{c} {}", super::SHELL_VERSION_CHECK));
-    assert_eq!(connect(page_csp()), want, "the relay's connect-src and the shell's version check");
+    // The relay's connect-src, from the same configured addresses, and nothing more: the shell's
+    // check for a newer release asks this server's /releases/manifest.json (BUG-281, 2026-11-07;
+    // until then the page had to allow api.github.com, seen red 2026-10-12 on the live /files/2).
+    assert_eq!(connect(page_csp()), connect(crate::relay::csp_value()), "the relay's connect-src alone");
     let shell = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("web/shared/shell.js")).unwrap();
-    assert!(shell.contains(&format!("fetch('{}/", super::SHELL_VERSION_CHECK)), "the shell still asks that address");
-    assert_eq!(super::with_connect_source("connect-src 'self';", "https://a.example"), "connect-src 'self' https://a.example;");
-    assert_eq!(super::with_connect_source("connect-src 'self' https://a.example;", "https://a.example"), "connect-src 'self' https://a.example;", "never twice");
+    assert!(shell.contains("fetch('/releases/manifest.json')") && !shell.contains("api.github.com"), "the shell asks this server alone");
 
     for id in [item.id.to_string(), "999999".to_string()] {
         let mut res = page_core(&state, d.folders(), Some(&files_html()), &id, SITE);

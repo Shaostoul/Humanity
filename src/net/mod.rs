@@ -177,6 +177,8 @@ pub mod admin_erase;
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]
 pub mod api_v2;
+/// The upload token on reads of a members-only room's files (BUG-282).
+pub mod upload_auth;
 // Live Earth weather fetcher (NASA GIBS): needs ureq + the renderer, both
 // native-only. Ungated it would break the relay CI build (see CLAUDE.md
 // gotcha: the v0.381-v0.414 red-deploy incident).

@@ -779,6 +779,11 @@ pub enum RelayMessage {
         peers: Vec<PeerInfo>,
         #[serde(skip_serializing_if = "Option::is_none")]
         server_version: Option<String>,
+        /// The presence-hidden keys among `peers` in a list broadcast to every socket, never on the
+        /// wire: the send loop takes them out of each copy but their own (BUG-278,
+        /// handlers/live_conns.rs `for_socket`).
+        #[serde(skip)]
+        hidden_keys: Vec<String>,
     },
 
     /// Server error or info.
@@ -3195,6 +3200,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 let list_msg = serde_json::to_string(&RelayMessage::PeerList {
                     peers,
                     server_version: Some(env!("BUILD_VERSION").to_string()),
+                    hidden_keys: Vec::new(), // peer_list_for already left them out
                 }).unwrap();
                 let _ = ws_tx.send(Message::Text(list_msg.into())).await;
 
@@ -3308,7 +3314,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // lives client-side now.)
 
                 // (Legacy group_list push removed 2026-08-23: groups are the
-                // E2EE P2P system now — clients fetch GET /api/v2/groups.)
+                // E2EE P2P system now — clients read POST /api/v2/groups, signed.)
 
                 // Send persistent voice channel list with current participants.
                 {
@@ -3394,6 +3400,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             if should_skip {
                 continue;
             }
+            // A broadcast peer list without the presence-hidden people, but for this socket's own (BUG-278).
+            let msg = crate::relay::handlers::live_conns::for_socket(msg, &my_key_for_broadcast);
             // A channel's lines, reactions and pins only to a socket that may read it (chat_access.rs).
             if crate::relay::chat_access::line_channel(&msg).is_some_and(|ch| !crate::relay::chat_access::may_see(&state_for_broadcast.db, &my_key_for_broadcast, ch)) { continue; }
 
@@ -5195,6 +5203,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 if let RelayMessage::Chat { ref mut message_id, .. } = chat {
                                     *message_id = stored_id;
                                 }
+                                // The poster's files this line links to, bound to its room (BUG-282).
+                                crate::relay::upload_rooms::note_posted(&state_clone.db, &my_key_for_recv, &content, &ch);
                                 // Broadcast to all (clients filter by their active channel).
                                 let _ = state_clone.broadcast_tx.send(chat);
 

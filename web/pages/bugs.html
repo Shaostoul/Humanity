@@ -77,6 +77,11 @@
     .bug-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
     .bug-list-header h2 { font-size: 1rem; font-weight: 600; margin: 0; }
     .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .details-btn {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 0.3rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer;
+    }
+    .bug-card-from { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; overflow-wrap: anywhere; }
     .filters select {
       background: var(--bg); border: 1px solid var(--border); color: var(--text);
       padding: 0.3rem 0.5rem; border-radius: 4px; font-size: 0.78rem;
@@ -182,7 +187,7 @@
         </div>
       </div>
       <div class="auto-captured" id="auto-captured" data-i18n="bugs.auto_captured">
-        Auto-captured: browser, screen size, page URL, app version, your public key (if logged in)
+        Sent with your report: your browser's name and window size, this page's address, the app version, and your name and key if you are signed in. Everyone can read your report; who sent it and from where go only to this server's admins and moderators.
       </div>
       <div class="form-actions">
         <button type="submit" class="btn-submit" id="btn-submit" data-i18n="bugs.submit_web" data-i18n-tip="bugs.submit_web_hint" data-tip-desc="Sends this report to the server, where other members and the maintainers can read it. The details listed just above go with it.">Submit Bug Report</button>
@@ -195,6 +200,7 @@
   <div class="bug-list-header">
     <h2 data-i18n="bugs.known">Known Bugs</h2>
     <div class="filters">
+      <button type="button" class="details-btn" id="btn-details" data-i18n="bugs.show_details" data-i18n-tip="bugs.show_details_hint" data-tip-desc="For admins and moderators: signs with your key and shows who sent each report, from which browser and page.">Show who sent each report</button>
       <select data-i18n-aria-label="bugs.filter_status_label" aria-label="Show reports with this status" id="filter-status" data-i18n-tip="bugs.filter_status_hint" data-tip-desc="Shows only the reports with the status you choose.">
         <option value="" data-i18n="bugs.all_statuses">All Statuses</option>
         <option value="open" data-i18n="bugs.status_open">Open</option>

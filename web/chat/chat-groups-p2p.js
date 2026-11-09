@@ -37,6 +37,20 @@
       && typeof myDilithiumSecret !== 'undefined' && myDilithiumSecret
       && typeof window.pqSignMessage === 'function';
   }
+  // A group's rows are read by its members alone, each read signed (BUG-284, 2026-11-07; until
+  // then the server gave a group's name, members, messages and epoch keys to anyone with its id).
+  // POST with { key, timestamp, sig }, the signature over 'p2p_group_read\n<time>' (crypto.js
+  // pqSignChatMessage), in the body: a key and a signature in an address would pass nginx's 8 KB
+  // limit on a request line. Answers a fetch Response, as the GETs it replaces did.
+  async function groupRead(path) {
+    const timestamp = Date.now();
+    const sig = typeof pqSignChatMessage === 'function' ? await pqSignChatMessage('p2p_group_read', timestamp) : null;
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: myKey, timestamp, sig: sig || '' }),
+    });
+  }
   function authorPub() { return hexToBytes(myKey); }
   function signer() { return async (bytes) => window.pqSignMessage(myDilithiumSecret, bytes); }
   function notReady() {
@@ -74,7 +88,7 @@
   async function fetchEpochKey(groupId) {
     if (!pqReady() || typeof window.pqDmOpen !== 'function' || !myKyberSecret) return null;
     try {
-      const res = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
+      const res = await groupRead('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
       if (!res.ok) return null;
       const epochObj = await res.json();
       const { obj } = await mods();
@@ -92,7 +106,7 @@
   async function fetchAllEpochKeys(groupId) {
     if (!pqReady() || typeof window.pqDmOpen !== 'function' || !myKyberSecret) return null;
     try {
-      const res = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epochs');
+      const res = await groupRead('/api/v2/groups/' + encodeURIComponent(groupId) + '/epochs');
       if (!res.ok) return null;
       const data = await res.json();
       const { obj } = await mods();
@@ -115,7 +129,7 @@
    *  which is resolved locally afterward). Returns the raw `messages` array. */
   async function _fetchGroupMessagesRaw(groupId) {
     try {
-      const res = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/messages');
+      const res = await groupRead('/api/v2/groups/' + encodeURIComponent(groupId) + '/messages');
       if (!res.ok) return [];
       const data = await res.json();
       return data.messages || [];
@@ -278,7 +292,7 @@
     // (1) Am I the creator? Fetch group_v1 and compare author_public_key_b64.
     let groupObj;
     try {
-      const r = await fetch('/api/v2/objects/' + encodeURIComponent(groupId));
+      const r = await groupRead('/api/v2/objects/' + encodeURIComponent(groupId));
       if (!r.ok) return null;
       groupObj = await r.json();
     } catch (e) { return null; }
@@ -315,7 +329,7 @@
     let allMembers = [];
     try {
       const readNo = _rosterReadStart();
-      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
+      const r = await groupRead('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
       if (!r.ok) return null;
       const data = await r.json();
       allMembers = data.members || [];
@@ -520,7 +534,7 @@
     if (typeof groupId !== 'string' || !groupId) return null;
     if (_creatorOf.has(groupId)) return _creatorOf.get(groupId);
     try {
-      const r = await fetch('/api/v2/objects/' + encodeURIComponent(groupId));
+      const r = await groupRead('/api/v2/objects/' + encodeURIComponent(groupId));
       if (!r.ok) return null;
       const groupObj = await r.json();
       const { obj, blake3 } = await mods();
@@ -583,7 +597,7 @@
     let members = [];
     try {
       const readNo = _rosterReadStart();
-      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
+      const r = await groupRead('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
       if (!r.ok) return null;
       members = ((await r.json()).members) || [];
       _rosterSeen(groupId, members.map((m) => m && m.pubkey), readNo);
@@ -723,7 +737,7 @@
    */
   async function _currentEpochOf(groupId, obj) {
     try {
-      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
+      const r = await groupRead('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
       if (r.status === 404) return { epoch: 0, payloadBytes: null, parsed: null };
       if (!r.ok) return null;
       const epochObj = await r.json();
@@ -751,7 +765,7 @@
     window._p2pGroupsFetched = true;
     try {
       const readNo = _rosterReadStart();
-      const res = await fetch('/api/v2/groups?pubkey=' + encodeURIComponent(myKey));
+      const res = await groupRead('/api/v2/groups');
       const data = res && res.ok ? await res.json() : null;
       if (data && Array.isArray(data.groups)) {
         window._p2pGroups = data.groups;
@@ -865,7 +879,7 @@
   async function _loadRosterIndex(ag) {
     try {
       const readNo = _rosterReadStart();
-      const r = await fetch('/api/v2/groups/' + encodeURIComponent(ag.id) + '/members');
+      const r = await groupRead('/api/v2/groups/' + encodeURIComponent(ag.id) + '/members');
       if (!r.ok) return;
       const data = await r.json();
       _rosterSeen(ag.id, (data.members || []).map((m) => m && m.pubkey), readNo);
@@ -896,7 +910,7 @@
   async function _adoptNewerEpoch(ag) {
     if (!ag || !pqReady() || typeof window.pqDmOpen !== 'function' || !myKyberSecret) return false;
     try {
-      const r = await fetch('/api/v2/groups/' + encodeURIComponent(ag.id) + '/epoch');
+      const r = await groupRead('/api/v2/groups/' + encodeURIComponent(ag.id) + '/epoch');
       if (!r.ok) return false;
       const epochObj = await r.json();
       const { obj } = await mods();

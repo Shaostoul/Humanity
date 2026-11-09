@@ -1093,8 +1093,9 @@ test("turning it on sends exactly one reach_set with the preset's values, and no
   const kept = chat.saved();
   assert.ok(!wire.includes(kept.pin.salt) && !wire.includes(kept.pin.hash), "nothing of the PIN's verifier");
   assert.equal(chat.posted.length, 0, "nothing posted");
-  // A GET, or the chat's own signed read of a channel (POST /api/messages, pins, reactions: chat-access.md).
-  const ordinary = (f) => f.method === "GET" || /\/api\/(messages|pins|reactions)$/.test(f.url);
+  // A GET, or the chat's own signed read of a channel (POST /api/messages, pins, reactions: chat-access.md)
+  // or of its groups (POST /api/v2/groups, a member's signed read since BUG-284).
+  const ordinary = (f) => f.method === "GET" || /\/api\/(messages|pins|reactions)$/.test(f.url) || /^\/api\/v2\/groups(\/|$)/.test(f.url);
   assert.ok(chat.fetches.slice(fetchedBefore).every((f) => ordinary(f) && !/protect/i.test(f.url + (f.body || ""))), "and no request carries anything about it");
   assert.deepEqual(kept.approved, [ANN], "the friend kept in the review is let through");
   assert.equal(chat.store.warningsOn, true, "warnings are on");

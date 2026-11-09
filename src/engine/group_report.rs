@@ -70,10 +70,13 @@ pub(crate) fn start_finding(gs: &mut GuiState) {
         return;
     }
     let server = gs.server_url.clone();
+    // The group's object answers only its members' signed reads (BUG-284); without a seed here the
+    // lookup finds nothing, as when the record does not load.
+    let seed = gs.private_key_bytes.clone().unwrap_or_default();
     let (tx, rx) = channel();
     let id = gid.clone();
     std::thread::spawn(move || {
-        let creator = crate::net::api_v2::fetch_signed_object(&server, &id)
+        let creator = crate::net::api_v2::fetch_signed_object(&server, &seed, &id)
             .ok()
             .flatten()
             .and_then(|obj| gr::creator_from_group_object(&obj, &id));
@@ -279,13 +282,13 @@ fn start_checks(gs: &mut GuiState) {
 /// One report's check, on a worker thread: this server's group list (or the one known), then my
 /// own copy of the group the report names.
 fn check(http: &str, seed: &[u8], me: &str, p: &PendingReport, known: Option<Vec<crate::net::api_v2::P2pGroupInfo>>) -> CheckOutcome {
-    let Some(groups) = crate::net::api_v2::fetch_p2p_groups(http, me).ok().or(known) else { return CheckOutcome::Retry };
+    let Some(groups) = crate::net::api_v2::fetch_p2p_groups(http, seed).ok().or(known) else { return CheckOutcome::Retry };
     if let Err(why) = gr::accepts(me, &p.from, &p.to, &p.report, &groups) {
         return CheckOutcome::Dropped(why);
     }
     // A copy that cannot be read leaves every item "Not found in your copy": shown, never dropped.
     let gid = &p.report.group_id;
-    let objects = crate::net::api_v2::fetch_group_message_objects(http, gid).unwrap_or_default();
+    let objects = crate::net::api_v2::fetch_group_message_objects(http, seed, gid).unwrap_or_default();
     let keys = crate::net::api_v2::fetch_all_epoch_keys(http, seed, gid).unwrap_or_default();
     match gr::resolve(me, p, &groups, &objects, &keys) {
         Ok(kept) => CheckOutcome::Kept(kept),
@@ -353,7 +356,7 @@ pub(crate) fn remove(gs: &mut GuiState, id: &str) {
     let server = gs.server_url.clone();
     let (tx, rx) = channel();
     std::thread::spawn(move || {
-        let _ = tx.send(crate::net::group_remove::remove_member(&mut crate::net::group_remove::Http(&server), &seed, &rec.group_id, &rec.target));
+        let _ = tx.send(crate::net::group_remove::remove_member(&mut crate::net::group_remove::Http(&server, &seed), &seed, &rec.group_id, &rec.target));
     });
     gs.reports.group.removing.push((id.to_string(), rx));
 }

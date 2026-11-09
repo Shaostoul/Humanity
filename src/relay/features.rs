@@ -3888,6 +3888,10 @@ mod tests {
     /// route gated would still be hosting everybody's blobs, and no HTTP test
     /// would notice. This proves the switch closes BOTH doors — and that the
     /// write genuinely does not land in the database.
+    /// A settings-sync copy shaped as the website seals one (the server keeps nothing else,
+    /// BUG-283): a 12-byte nonce and a ciphertext past the 16-byte tag, in base64.
+    const SEALED_SYNC: &str = r#"{"v":1,"iv":"BwcHBwcHBwcHBwcH","encrypted":"CQkJCQkJCQkJCQkJCQkJCQkJCQk="}"#;
+
     #[tokio::test]
     async fn disabling_relay_backup_also_stops_the_websocket_save_path() {
         // ── Backup OFF: the save is refused and nothing is written.
@@ -3904,7 +3908,7 @@ mod tests {
             port,
             seed,
             "backupuser",
-            serde_json::json!({ "type": "sync_save", "data": "{\"secret\":\"mine\"}" }),
+            serde_json::json!({ "type": "sync_save", "data": SEALED_SYNC }),
             &["vault_backup", "sync_ack"],
         )
         .await
@@ -3926,7 +3930,7 @@ mod tests {
             on_port,
             seed,
             "backupuser",
-            serde_json::json!({ "type": "sync_save", "data": "{\"secret\":\"mine\"}" }),
+            serde_json::json!({ "type": "sync_save", "data": SEALED_SYNC }),
             &["vault_backup", "sync_ack"],
         )
         .await

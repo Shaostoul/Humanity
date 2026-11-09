@@ -18,6 +18,20 @@ use crate::relay::handlers::dm_answer::{answer_dm_put, answered_ref, DmPutRefusa
 
 // ── Sync handlers (raw JSON, not RelayMessage enum) ──
 
+/// Whether `data` is a settings-sync copy the website sealed (AES-256-GCM under a key from the
+/// person's recovery phrase, web/chat/app.js `encryptSyncData`): `{v: 1, iv, encrypted}` with a
+/// 12-byte nonce and at least the 16-byte tag, in base64. The server cannot open one and keeps
+/// nothing else (BUG-283, 2026-11-07: a website with no key sent the notes, to-dos, garden and
+/// settings unsealed, and they were stored as sent, readable by the server's operator).
+pub fn is_sealed_sync_blob(data: &str) -> bool {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(data) else { return false };
+    let b64 = |field: &str| v.get(field).and_then(|x| x.as_str()).and_then(|s| B64.decode(s).ok());
+    v.get("v").and_then(|x| x.as_u64()) == Some(1)
+        && b64("iv").is_some_and(|iv| iv.len() == 12)
+        && b64("encrypted").is_some_and(|ct| ct.len() >= 16)
+}
+
 pub async fn handle_sync_save(
     state: &Arc<RelayState>,
     my_key: &str,
@@ -30,7 +44,15 @@ pub async fn handle_sync_save(
                 message: "Sync data too large (max 512KB).".to_string(),
             };
             let _ = state.broadcast_tx.send(private);
-        } else if serde_json::from_str::<serde_json::Value>(data).is_ok() {
+        } else if !is_sealed_sync_blob(data) {
+            // Never kept unsealed (BUG-283). The website of today never sends one; this answers
+            // an older copy of it still open in a browser.
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Your notes and settings were not kept: this server keeps them only sealed with your key.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+        } else {
             if let Err(e) = state.db.save_user_data(my_key, data) {
                 tracing::error!("Failed to save user data: {e}");
             }
@@ -4314,6 +4336,11 @@ mod task_rules_tests;
 #[cfg(test)]
 #[path = "msg_handlers_pass_tests.rs"]
 mod pass_tests;
+
+/// A settings-sync copy is kept only sealed (BUG-283, 2026-11-07).
+#[cfg(test)]
+#[path = "msg_handlers_sync_tests.rs"]
+mod sync_tests;
 
 /// A notification-switch change touches only the switches it names (2026-10-30).
 #[cfg(test)]

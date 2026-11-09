@@ -633,20 +633,10 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         ui.add_space(theme.spacing_sm);
         // Saying what SURVIVES is the part that was missing, and it is the part a
         // person is entitled to know before they press the button. The old copy
-        // said "permanently" and listed `follows`, a table dropped 2026-08-24.
-        widgets::body_hint(
-            ui, theme,
-            "Some things are kept, and you should know which before you decide. \
-             Moderation records stay: a ban, a mute or a report does not disappear \
-             because you delete your account, and it still applies if you come back \
-             with the same key. Reputation history stays for the same reason, because \
-             a record that exists to hold someone to account cannot be erasable by \
-             that person. Records that belong to two people stay with the other \
-             person. Anything you published as a signed object has already been \
-             copied to other servers and cannot be recalled from here. Copies other \
-             people already downloaded are theirs. Everything in this paragraph is in \
-             your export, so you can read it before you choose.",
-        );
+        // said "permanently" and listed `follows`, a table dropped 2026-08-24; the
+        // next said reputation stayed, which the erase no longer keeps (BUG-279,
+        // 2026-11-07). One text with the website's (`privacy.erase_what_stays`).
+        widgets::body_hint(ui, theme, &humanity_core::i18n::t("privacy.erase_what_stays"));
         // What the server keeps AFTER the erase, with its real number of days (BUG-135, the
         // operator's option 2), said only when this server sent the number (`erase_memory_note`).
         if let Some(note) = erase_memory_note(state.erase_memory_days) {

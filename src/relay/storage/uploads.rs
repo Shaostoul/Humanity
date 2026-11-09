@@ -54,6 +54,36 @@ impl Storage {
     /// shelf: false/0 chat media (this FIFO), true/1 the Shared Files library,
     /// 2 a Media upload (`storage::files::MEDIA_SHELF`, 2026-10-11: out of this
     /// FIFO and out of the Shared Files list, held to the Media budget instead).
+    /// Bind `poster`'s stored file `filename` to the chat `room` it was just posted in
+    /// (BUG-282, relay/upload_rooms.rs): a file not yet bound takes the room, and a room that reads
+    /// at Anyone (`public`) takes it whatever it had. Only the poster's own file is bound, so
+    /// linking someone else's address binds nothing.
+    pub fn bind_upload_room(&self, poster: &str, filename: &str, room: &str, public: bool) -> Result<(), rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE user_uploads SET room = ?3 WHERE filename = ?2 AND public_key = ?1 AND (room = '' OR ?4)",
+                params![poster, filename, room, public],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// The chat room a stored file is bound to, if it is bound to one.
+    pub fn upload_room(&self, filename: &str) -> Option<String> {
+        self.with_read_conn(|conn| {
+            conn.query_row("SELECT room FROM user_uploads WHERE filename = ?1 AND room <> '' LIMIT 1", params![filename], |r| r.get::<_, String>(0))
+        })
+        .ok()
+    }
+
+    /// The key of the member whose fingerprint (`did_fp`, hex of BLAKE3(key)[..16]) is `fp`.
+    pub fn member_key_by_fingerprint(&self, fp: &str) -> Option<String> {
+        self.with_read_conn(|conn| {
+            conn.query_row("SELECT public_key FROM server_members WHERE did_fp = ?1 LIMIT 1", params![fp], |r| r.get::<_, String>(0))
+        })
+        .ok()
+    }
+
     pub fn record_upload(
         &self,
         public_key: &str,

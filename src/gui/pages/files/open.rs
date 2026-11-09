@@ -199,6 +199,9 @@ pub(crate) fn fetch_to(agent: &ureq::Agent, url: &str, header: Option<(&str, &st
     let mut req = agent.get(url);
     if let Some((h, value)) = header {
         req = req.set(h, value);
+    } else if let Some(token) = crate::net::upload_auth::token_for(url) {
+        // A members-only room's file answers its readers alone (BUG-282).
+        req = req.set(crate::net::upload_auth::HEADER, &token);
     }
     let resp = req.call().map_err(|e| {
         let words = match e {

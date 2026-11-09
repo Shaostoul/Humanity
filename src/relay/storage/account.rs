@@ -39,6 +39,9 @@ impl Storage {
         // The fingerprint this key's friendship pass withdrawals are kept under
         // (storage/friend_passes.rs, 2026-10-09).
         let withdrawal_fingerprint = self.friend_pass_withdrawal_fingerprint(key);
+        // The fingerprint their signed objects and P2P group rows are kept under (hex of
+        // BLAKE3(key)[..16], storage/signed_objects.rs `author_fingerprint`).
+        let author_fp = super::author_fingerprint(&hex::decode(key).unwrap_or_default());
 
         self.with_read_conn(|conn| {
             let mut grab = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| {
@@ -89,7 +92,7 @@ impl Storage {
             // every user "uploads": [] as though they had none. Real columns
             // per the schema: public_key, filename, uploaded_at, shared,
             // original_name, size_bytes.
-            grab("uploads", "SELECT id, filename, original_name, size_bytes, shared, uploaded_at FROM user_uploads WHERE public_key = ?1", &[&key]);
+            grab("uploads", "SELECT id, filename, original_name, size_bytes, shared, uploaded_at, room FROM user_uploads WHERE public_key = ?1", &[&key]);
             grab("notification_prefs", "SELECT * FROM notification_prefs WHERE public_key = ?1", &[&key]);
             // `project_tasks`, NOT `tasks`. Same phantom-table bug as uploads above.
             grab("tasks_created", "SELECT id, title, description, status, priority, created_by FROM project_tasks WHERE created_by = ?1", &[&key]);
@@ -165,6 +168,51 @@ impl Storage {
             // erased is exported" rule is met in the direction it checks: export is wider.
             grab("erased_here", "SELECT erased_day, ttl_days FROM erased_accounts WHERE fingerprint = ?1", &[&erased_fingerprint]);
 
+            // ── What the erase left behind until BUG-279 (2026-11-07), now erased, and exported ──
+            // The website's settings sync (sealed by their own app: the server cannot open it) and
+            // the computer details they saved (2026-11-07: neither was exported nor erased).
+            grab("settings_sync", "SELECT public_key, data, updated_at FROM user_data WHERE public_key = ?1", &[&key]);
+            grab("computer_details", "SELECT profile, updated_at FROM system_profiles WHERE public_key = ?1", &[&key]);
+            grab("pinned_copies_of_my_messages", "SELECT channel, content, original_timestamp, pinned_at FROM pinned_messages WHERE from_key = ?1", &[&key]);
+            grab("pins_i_made", "SELECT channel, original_timestamp, pinned_at FROM pinned_messages WHERE pinned_by = ?1", &[&key]);
+            grab("task_comments", "SELECT id, task_id, content, created_at FROM task_comments WHERE author_key = ?1 ORDER BY id ASC", &[&key]);
+            // Their signed objects (profiles, votes, credentials, group objects...), by type and
+            // time; the payloads are counted, not shown (a group message is sealed).
+            grab("signed_objects", "SELECT object_id, object_type, created_at, length(payload) AS payload_bytes FROM signed_objects WHERE author_fp = ?1 ORDER BY created_at ASC", &[&author_fp]);
+            grab("groups_started", "SELECT group_id, name, created_at, disbanded FROM p2p_groups WHERE creator_fp = ?1", &[&author_fp]);
+            grab("groups_started_members", "SELECT group_id, member_fp, active, updated_at FROM p2p_group_roster WHERE group_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1)", &[&author_fp]);
+            grab("groups_started_invites", "SELECT invite_id, group_id, expires_at, created_at FROM p2p_group_invites WHERE group_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1)", &[&author_fp]);
+            grab("groups_started_epochs", "SELECT group_id, epoch, object_id, created_at FROM p2p_group_epochs WHERE group_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1)", &[&author_fp]);
+            grab("groups_started_messages", "SELECT object_id, group_id, epoch, created_at FROM p2p_group_messages WHERE group_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1)", &[&author_fp]);
+            grab("group_memberships", "SELECT group_id, active, updated_at FROM p2p_group_roster WHERE member_fp = ?1", &[&author_fp]);
+            grab("group_messages_sent", "SELECT object_id, group_id, epoch, created_at FROM p2p_group_messages WHERE author_fp = ?1", &[&author_fp]);
+            grab("votes", "SELECT vote_object_id, proposal_object_id, choice, cast_at FROM votes WHERE voter_did = ?1", &[&plot_owner]);
+            grab("proposals_made", "SELECT proposal_object_id, proposal_type, opens_at, closes_at FROM proposals WHERE proposer_did = ?1", &[&plot_owner]);
+            grab("credentials", "SELECT vc_object_id, issuer_did, subject_did, schema_id, issued_at FROM vc_index WHERE subject_did = ?1 OR issuer_did = ?1", &[&plot_owner]);
+            grab("trust_score", "SELECT total, computed_at FROM trust_scores WHERE did = ?1", &[&plot_owner]);
+            grab("ai_status", "SELECT subject_class, last_updated FROM ai_status WHERE did = ?1", &[&plot_owner]);
+            grab("issuer_trust", "SELECT observer_server, trust, good_count, bad_count FROM issuer_trust WHERE issuer_did = ?1", &[&plot_owner]);
+            grab("reputation_events_i_caused", "SELECT id, event_type, points, created_at FROM reputation_events WHERE source_key = ?1 ORDER BY id ASC", &[&key]);
+            grab("trades", "SELECT id, status, initiator_items, recipient_items, created_at, completed_at FROM trades WHERE initiator_key = ?1 OR recipient_key = ?1", &[&key]);
+            grab("trade_orders", "SELECT id, item_type, item_id, quantity, remaining_qty, price_per_unit, currency, status, created_at FROM trade_orders WHERE seller_key = ?1", &[&key]);
+            grab("trade_history", "SELECT id, item_type, item_id, quantity, price_per_unit, total_price, timestamp FROM trade_history WHERE buyer_key = ?1 OR seller_key = ?1", &[&key]);
+            grab("guilds_owned", "SELECT id, name, description, created_at FROM guilds WHERE owner_key = ?1", &[&key]);
+            grab("guild_memberships", "SELECT guild_id, role, joined_at FROM guild_members WHERE public_key = ?1", &[&key]);
+            grab("guild_invites_made", "SELECT id, guild_id, code, expires_at FROM guild_invites WHERE created_by = ?1", &[&key]);
+            grab("streams", "SELECT id, title, category, started_at, ended_at FROM streams WHERE streamer_key = ?1", &[&key]);
+            grab("stream_chat", "SELECT id, stream_id, content, timestamp FROM stream_chat WHERE from_name = ?1 COLLATE NOCASE", &[&name]);
+            grab("assets", "SELECT id, filename, file_type, category, size_bytes, url, uploaded_at FROM assets WHERE owner_key = ?1", &[&key]);
+            grab("projects_owned", "SELECT id, name, created_at FROM projects WHERE owner_key = ?1", &[&key]);
+            grab("skills", "SELECT skill_id, reality_xp, fantasy_xp, level, updated_at FROM user_skills WHERE user_key = ?1", &[&key]);
+            grab("skill_verifications", "SELECT id, skill_id, note, created_at FROM skill_verifications WHERE to_key = ?1 OR from_key = ?1", &[&key]);
+            grab("link_codes", "SELECT name, created_at, expires_at FROM link_codes WHERE created_by = ?1", &[&key]);
+            grab("invite_codes", "SELECT created_at, expires_at FROM invite_codes WHERE created_by = ?1 OR used_by = ?1", &[&key]);
+            grab("rooms_created", "SELECT id, name FROM channels WHERE created_by = ?1", &[&key]);
+            grab("voice_rooms_created", "SELECT id, name FROM voice_channels WHERE created_by = ?1", &[&key]);
+            grab("seller_rating", "SELECT avg_rating, review_count FROM seller_ratings WHERE seller_key = ?1", &[&key]);
+            grab("legacy_peer", "SELECT display_name, last_seen FROM peers WHERE public_key = ?1", &[&key]);
+            grab("key_rotations", "SELECT rotated_at FROM key_rotations WHERE old_key = ?1 OR new_key = ?1", &[&key]);
+
             // ── Things erase deletes but export never offered ──
             // These six were in delete_account() with no matching grab here.
             // That asymmetry is the signature of two hand-maintained lists, and
@@ -178,7 +226,11 @@ impl Storage {
             grab("reactions", "SELECT id, target_from, target_timestamp, emoji, channel, created_at FROM reactions WHERE reactor_key = ?1", &[&key]);
             grab("listing_images", "SELECT i.id, i.listing_id, i.url, i.position, i.created_at FROM listing_images i JOIN marketplace_listings l ON l.id = i.listing_id WHERE l.seller_key = ?1", &[&key]);
 
-            // ── Moderation and reputation: visible to you, never deletable by you ──
+            // ── Moderation: visible to you, never deletable by you ──
+            // (Reputation and bug reports were listed here as never deleted; neither constrains
+            // anyone, since nothing reads a reputation but its public leaderboard, so the erase
+            // removes them, and leaves a bug report for the admins with the reporter taken out:
+            // BUG-279, 2026-11-07.)
             // A sanction whose existence is hidden from the person it constrains
             // is the opaque moderation the Accord objects to, so these ARE
             // exported. None of them is ever deleted: a record that exists to
@@ -268,6 +320,8 @@ impl Storage {
         receipt.push(("upload_files_removed".to_string(), files_removed));
         receipt.push(("upload_session_files_removed".to_string(), session_files_removed));
         let plot_owner = super::plot_owner_id(key);
+        let author_fp = super::author_fingerprint(&hex::decode(key).unwrap_or_default());
+        let now_ms = super::now_millis() as i64;
         self.with_conn(|conn| {
             // True when the statement ran (whatever it deleted), false when it failed.
             let mut del = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| -> bool {
@@ -364,6 +418,92 @@ impl Storage {
             del("upload_sessions", "DELETE FROM upload_sessions WHERE public_key = ?1", &[&key]);
             // Their upload allowance counts (B3, 2026-10-11).
             del("upload_counts", "DELETE FROM upload_counts WHERE public_key = ?1", &[&key]);
+
+            // ── What the erase left behind until BUG-279 (2026-11-07) ──
+            // The website's settings sync (never deleted before) and the computer details.
+            del("settings_sync", "DELETE FROM user_data WHERE public_key = ?1", &[&key]);
+            del("computer_details", "DELETE FROM system_profiles WHERE public_key = ?1", &[&key]);
+            // Pinned copies of their messages (a pin copies the text, and the retention sweep
+            // skips pins); comments on tasks.
+            del("pinned_copies", "DELETE FROM pinned_messages WHERE from_key = ?1", &[&key]);
+            del("task_comments", "DELETE FROM task_comments WHERE author_key = ?1", &[&key]);
+            // A P2P group they started is closed, with all its objects: only its starter can admit,
+            // remove or re-key (docs/design/p2p-groups.md, Phase 1), so without them it cannot go on.
+            // Its rows first (found through the group), then the group.
+            del("groups_started_objects", "DELETE FROM signed_objects WHERE object_type LIKE 'group_%' AND (object_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1) OR EXISTS (SELECT 1 FROM p2p_groups g WHERE g.creator_fp = ?1 AND signed_objects.references_json LIKE '%' || g.group_id || '%'))", &[&author_fp]);
+            del("groups_started_messages", "DELETE FROM p2p_group_messages WHERE group_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1)", &[&author_fp]);
+            del("groups_started_epochs", "DELETE FROM p2p_group_epochs WHERE group_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1)", &[&author_fp]);
+            del("groups_started_invites", "DELETE FROM p2p_group_invites WHERE group_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1)", &[&author_fp]);
+            del("groups_started_members", "DELETE FROM p2p_group_roster WHERE group_id IN (SELECT group_id FROM p2p_groups WHERE creator_fp = ?1)", &[&author_fp]);
+            del("groups_started", "DELETE FROM p2p_groups WHERE creator_fp = ?1", &[&author_fp]);
+            // In anyone else's group: they leave it, and what they said in it goes (sealed).
+            del("group_memberships", "DELETE FROM p2p_group_roster WHERE member_fp = ?1", &[&author_fp]);
+            del("group_messages_sent", "DELETE FROM p2p_group_messages WHERE author_fp = ?1", &[&author_fp]);
+            // Votes on decisions still open go, with their signed objects; a vote on a decision
+            // already closed stays, because the result rests on it, and so do the proposals they
+            // made (others voted on them). Said in both apps' erase dialogs.
+            del("open_votes_objects", "DELETE FROM signed_objects WHERE object_id IN (SELECT v.vote_object_id FROM votes v LEFT JOIN proposals p ON p.proposal_object_id = v.proposal_object_id WHERE v.voter_did = ?1 AND (p.closes_at IS NULL OR p.closes_at > ?2))", &[&plot_owner, &now_ms]);
+            del("open_votes", "DELETE FROM votes WHERE voter_did = ?1 AND proposal_object_id NOT IN (SELECT proposal_object_id FROM proposals WHERE closes_at <= ?2)", &[&plot_owner, &now_ms]);
+            // Every other signed object of theirs (profiles, credentials, group requests...). The
+            // copies linked servers already hold stay there (the dialogs say so).
+            del("signed_objects", "DELETE FROM signed_objects WHERE author_fp = ?1 AND object_type NOT IN ('proposal_v1', 'vote_v1')", &[&author_fp]);
+            del("credentials", "DELETE FROM vc_index WHERE subject_did = ?1 OR issuer_did = ?1", &[&plot_owner]);
+            del("trust_score", "DELETE FROM trust_scores WHERE did = ?1", &[&plot_owner]);
+            del("ai_status", "DELETE FROM ai_status WHERE did = ?1", &[&plot_owner]);
+            del("issuer_trust", "DELETE FROM issuer_trust WHERE issuer_did = ?1", &[&plot_owner]);
+            // Reputation: nothing reads it but its public leaderboard, so it is theirs to erase.
+            del("reputation", "DELETE FROM reputation WHERE public_key = ?1", &[&key]);
+            del("reputation_events", "DELETE FROM reputation_events WHERE public_key = ?1", &[&key]);
+            // Their votes on bug reports, each report's count with them.
+            let _ = conn.execute("UPDATE bug_reports SET votes = MAX(votes - 1, 0) WHERE id IN (SELECT bug_id FROM bug_votes WHERE voter_key = ?1)", params![key]);
+            del("bug_votes", "DELETE FROM bug_votes WHERE voter_key = ?1", &[&key]);
+            // Trades and market orders with their key; another person's record of a finished trade
+            // keeps the trade with their key taken out.
+            del("trades", "DELETE FROM trades WHERE initiator_key = ?1 OR recipient_key = ?1", &[&key]);
+            del("trade_orders", "DELETE FROM trade_orders WHERE seller_key = ?1", &[&key]);
+            // A guild they own is closed, with its members' places and invites; in anyone else's
+            // guild they leave it.
+            del("guilds_owned_members", "DELETE FROM guild_members WHERE guild_id IN (SELECT id FROM guilds WHERE owner_key = ?1)", &[&key]);
+            del("guilds_owned_invites", "DELETE FROM guild_invites WHERE guild_id IN (SELECT id FROM guilds WHERE owner_key = ?1)", &[&key]);
+            del("guilds_owned", "DELETE FROM guilds WHERE owner_key = ?1", &[&key]);
+            let _ = conn.execute("UPDATE guilds SET member_count = MAX(member_count - 1, 0) WHERE id IN (SELECT guild_id FROM guild_members WHERE public_key = ?1)", params![key]);
+            del("guild_memberships", "DELETE FROM guild_members WHERE public_key = ?1", &[&key]);
+            del("guild_invites_made", "DELETE FROM guild_invites WHERE created_by = ?1", &[&key]);
+            // Their streams with what was said in them, and what they said in anyone's.
+            del("streams_chat", "DELETE FROM stream_chat WHERE stream_id IN (SELECT id FROM streams WHERE streamer_key = ?1)", &[&key]);
+            del("streams", "DELETE FROM streams WHERE streamer_key = ?1", &[&key]);
+            del("stream_chat", "DELETE FROM stream_chat WHERE from_name = ?1 COLLATE NOCASE", &[&name]);
+            del("assets", "DELETE FROM assets WHERE owner_key = ?1", &[&key]);
+            del("skills", "DELETE FROM user_skills WHERE user_key = ?1", &[&key]);
+            del("skill_verifications", "DELETE FROM skill_verifications WHERE to_key = ?1 OR from_key = ?1", &[&key]);
+            del("link_codes", "DELETE FROM link_codes WHERE created_by = ?1", &[&key]);
+            del("invite_codes", "DELETE FROM invite_codes WHERE created_by = ?1", &[&key]);
+            del("seller_rating", "DELETE FROM seller_ratings WHERE seller_key = ?1", &[&key]);
+            del("legacy_peer", "DELETE FROM peers WHERE public_key = ?1", &[&key]);
+            del("key_rotations", "DELETE FROM key_rotations WHERE old_key = ?1 OR new_key = ?1", &[&key]);
+            // What stays for other people, with their key and name taken out: a pin they made of
+            // someone else's message, a bug report they sent (for the admins to fix), the events
+            // they caused in someone else's reputation, the other side of a finished trade, an
+            // invite of someone else's they used, a project and a room they made.
+            for (label, sql) in [
+                ("pins_i_made_unnamed", "UPDATE pinned_messages SET pinned_by = '' WHERE pinned_by = ?1"),
+                ("bug_reports_unnamed", "UPDATE bug_reports SET reporter_key = '', reporter_name = '', browser_info = '', page_url = '' WHERE reporter_key = ?1"),
+                ("reputation_events_i_caused_unnamed", "UPDATE reputation_events SET source_key = '' WHERE source_key = ?1"),
+                ("trade_history_bought_unnamed", "UPDATE trade_history SET buyer_key = '' WHERE buyer_key = ?1"),
+                ("trade_history_sold_unnamed", "UPDATE trade_history SET seller_key = '' WHERE seller_key = ?1"),
+                ("invite_codes_used_unnamed", "UPDATE invite_codes SET used_by = NULL WHERE used_by = ?1"),
+                ("projects_owned_unnamed", "UPDATE projects SET owner_key = '' WHERE owner_key = ?1"),
+                ("rooms_created_unnamed", "UPDATE channels SET created_by = '' WHERE created_by = ?1"),
+                ("voice_rooms_created_unnamed", "UPDATE voice_channels SET created_by = '' WHERE created_by = ?1"),
+            ] {
+                match conn.execute(sql, params![key]) {
+                    Ok(n) => receipt.push((label.to_string(), n)),
+                    Err(e) => {
+                        tracing::error!("account erase FAILED for {label}: {e}");
+                        receipt.push((format!("{label}_FAILED"), 1));
+                    }
+                }
+            }
             // The items they kept on the server stay kept, with their key taken out (A7): the
             // keeping is the server's decision, which outlives the person who made it.
             match conn.execute("UPDATE media_items SET kept_by = '' WHERE kept_by = ?1", params![key]) {
@@ -425,6 +565,7 @@ impl Storage {
     /// kept so a sign-up with the same key cannot revive them; storage/friend_passes.rs).
     pub fn erase_left_rows(&self, key: &str) -> bool {
         let plot_owner = super::plot_owner_id(key);
+        let author_fp = super::author_fingerprint(&hex::decode(key).unwrap_or_default());
         let q = "SELECT EXISTS(SELECT 1 FROM messages WHERE from_key = ?1)
             OR EXISTS(SELECT 1 FROM reactions WHERE reactor_key = ?1)
             OR EXISTS(SELECT 1 FROM user_uploads WHERE public_key = ?1)
@@ -454,8 +595,37 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM reports_v2 WHERE reporter_key = ?1)
             OR EXISTS(SELECT 1 FROM recovery_asks WHERE holder_did = ?2)
             OR EXISTS(SELECT 1 FROM recovery_pieces WHERE holder_did = ?2)
-            OR EXISTS(SELECT 1 FROM recovery_floors WHERE holder_did = ?2)";
-        self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
+            OR EXISTS(SELECT 1 FROM recovery_floors WHERE holder_did = ?2)
+            OR EXISTS(SELECT 1 FROM user_data WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM system_profiles WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM pinned_messages WHERE from_key = ?1)
+            OR EXISTS(SELECT 1 FROM task_comments WHERE author_key = ?1)
+            OR EXISTS(SELECT 1 FROM p2p_groups WHERE creator_fp = ?3)
+            OR EXISTS(SELECT 1 FROM p2p_group_roster WHERE member_fp = ?3)
+            OR EXISTS(SELECT 1 FROM p2p_group_messages WHERE author_fp = ?3)
+            OR EXISTS(SELECT 1 FROM vc_index WHERE subject_did = ?2 OR issuer_did = ?2)
+            OR EXISTS(SELECT 1 FROM trust_scores WHERE did = ?2)
+            OR EXISTS(SELECT 1 FROM ai_status WHERE did = ?2)
+            OR EXISTS(SELECT 1 FROM issuer_trust WHERE issuer_did = ?2)
+            OR EXISTS(SELECT 1 FROM reputation WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM reputation_events WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM bug_votes WHERE voter_key = ?1)
+            OR EXISTS(SELECT 1 FROM bug_reports WHERE reporter_key = ?1)
+            OR EXISTS(SELECT 1 FROM trades WHERE initiator_key = ?1 OR recipient_key = ?1)
+            OR EXISTS(SELECT 1 FROM trade_orders WHERE seller_key = ?1)
+            OR EXISTS(SELECT 1 FROM guilds WHERE owner_key = ?1)
+            OR EXISTS(SELECT 1 FROM guild_members WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM guild_invites WHERE created_by = ?1)
+            OR EXISTS(SELECT 1 FROM streams WHERE streamer_key = ?1)
+            OR EXISTS(SELECT 1 FROM assets WHERE owner_key = ?1)
+            OR EXISTS(SELECT 1 FROM user_skills WHERE user_key = ?1)
+            OR EXISTS(SELECT 1 FROM skill_verifications WHERE to_key = ?1 OR from_key = ?1)
+            OR EXISTS(SELECT 1 FROM link_codes WHERE created_by = ?1)
+            OR EXISTS(SELECT 1 FROM invite_codes WHERE created_by = ?1)
+            OR EXISTS(SELECT 1 FROM seller_ratings WHERE seller_key = ?1)
+            OR EXISTS(SELECT 1 FROM peers WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM key_rotations WHERE old_key = ?1 OR new_key = ?1)";
+        self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner, author_fp], |r| r.get::<_, bool>(0)))
             .unwrap_or_else(|e| {
                 // Unknown is said as "not finished": that note only asks the person to erase
                 // again, never promises a fresh start that may not be true.
@@ -464,6 +634,11 @@ impl Storage {
             })
     }
 }
+
+/// What the erase left behind until BUG-279 (2026-11-07), every table, and the export's two gaps.
+#[cfg(test)]
+#[path = "account_left_behind_tests.rs"]
+mod left_behind_tests;
 
 #[cfg(test)]
 mod tests {
@@ -943,7 +1118,8 @@ mod tests {
     fn the_left_rows_check_reads_every_table_the_erase_answers_for() {
         // Not read, with the reason: mail other people send keeps arriving after an erase; a
         // gossiped profile is written back by other servers where the key still has an account.
-        const NOT_READ: [&str; 2] = ["dm_mailbox", "signed_profiles"];
+        // So do signed objects: a linked server gossips its copies back (BUG-279).
+        const NOT_READ: [&str; 3] = ["dm_mailbox", "signed_profiles", "signed_objects"];
         let src = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src/relay/storage/account.rs")).unwrap();
         let src = src.replace("\r\n", "\n"); // a Windows checkout
         let erase = &src[src.find("pub fn delete_account").unwrap()..src.find("pub fn erase_left_rows").unwrap()];
@@ -993,7 +1169,7 @@ mod tests {
             if anchored || NOT_READ.contains(&table) {
                 continue;
             }
-            let n = if binds.contains("&plot_owner") { 2 } else { 1 };
+            let n = if binds.contains("&plot_owner") { 2 } else if binds.contains("&author_fp") { 3 } else { 1 };
             let want = format!("FROM {table} WHERE {col} = ?{n}");
             if !check.contains(&want) {
                 missing.push(want);

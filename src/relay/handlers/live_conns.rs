@@ -305,6 +305,26 @@ pub async fn settle_name(state: &RelayState, key: &str, offered: Option<String>)
         .or(offered)
 }
 
+/// A message from the broadcast bus as the socket of `me` is sent it. A peer list broadcast to
+/// everyone (`broadcast_peer_list`, after a role or status change) names its presence-hidden people
+/// in `hidden_keys`; they are taken out of every copy but their own, the way [`peer_list_for`]
+/// leaves them out of the list a socket gets at sign-in (BUG-278, 2026-11-07: the broadcast named
+/// them to everyone). Any other message passes unchanged.
+pub fn for_socket(msg: crate::relay::relay::RelayMessage, me: &str) -> crate::relay::relay::RelayMessage {
+    use crate::relay::relay::RelayMessage;
+    match msg {
+        RelayMessage::PeerList { mut peers, server_version, hidden_keys } if !hidden_keys.is_empty() => {
+            peers.retain(|p| p.public_key == me || !hidden_keys.contains(&p.public_key));
+            RelayMessage::PeerList { peers, server_version, hidden_keys: Vec::new() }
+        }
+        other => other,
+    }
+}
+
+#[cfg(test)]
+#[path = "presence_hidden_tests.rs"]
+mod presence_hidden_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -110,11 +110,17 @@ pub fn join_as_member(state: &RelayState, public_key: &str, final_name: &Option<
     match state.db.join_server_unless_erased(public_key, member_name) {
         Ok(true) => {
             tracing::info!("Auto-joined member: {public_key} as '{member_name}'");
-            let _ = state.broadcast_tx.send(RelayMessage::MemberJoined {
-                public_key: public_key.to_string(),
-                name: final_name.clone(),
-                role: "member".to_string(),
-            });
+            // A new member starts presence-hidden (`join_server_on`), and "X joined" sent to every
+            // socket is the news that X is online right now (BUG-278, 2026-11-07). So it goes out
+            // only for someone who shows their presence; the hidden newcomer still appears in the
+            // full user list, masked offline.
+            if !state.db.presence_hidden(public_key) {
+                let _ = state.broadcast_tx.send(RelayMessage::MemberJoined {
+                    public_key: public_key.to_string(),
+                    name: final_name.clone(),
+                    role: "member".to_string(),
+                });
+            }
             true
         }
         // Nothing written: erased here, or already a member (another socket joined first).

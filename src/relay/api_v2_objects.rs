@@ -2,9 +2,17 @@
 //!
 //! Routes:
 //! - `POST /api/v2/objects` — submit a signed object (validates signature + stores)
-//! - `GET  /api/v2/objects/{object_id}` — fetch one object by hex id
-//! - `GET  /api/v2/objects` — list objects with filters
-//! - `GET  /api/v2/objects/count` — count objects (optionally filtered by type)
+//! - `GET  /api/v2/objects/{object_id}` — fetch one object by hex id; a P2P group's own object
+//!   (`group_*`) only through the member's signed read below
+//! - `POST /api/v2/objects/{object_id}` — the same, signed by the reader ([`GROUP_READ_PURPOSE`]):
+//!   a group's object only for a member of that group
+//! - `GET  /api/v2/objects` — list objects with filters, never a P2P group's objects
+//! - `GET  /api/v2/objects/count` — count objects (optionally filtered by type; not a group's)
+//! - `POST /api/v2/groups`, `POST /api/v2/groups/{id}/members|messages|epoch|epochs` — a P2P
+//!   group's projection, for its members alone, each read signed (BUG-284, 2026-11-07: every one
+//!   of these, and the object list, served a group's name, its members and who posted when to
+//!   anyone; what is said stays sealed either way, and what the carrying server itself can read
+//!   is BUG-261)
 //!
 //! Object format on the wire: JSON. The fields mirror `humanity_protocol::object::Object`,
 //! but binary fields (author_public_key, payload, signature) are base64-encoded for JSON
@@ -45,6 +53,82 @@ use std::sync::Arc;
 use humanity_protocol::object::Object;
 use crate::relay::relay::RelayState;
 use crate::relay::storage::{MAX_SIGNED_OBJECT_PAYLOAD, SignedObjectRecord};
+
+// ── A P2P group's rows, for its members alone (BUG-284, 2026-11-07) ──
+
+/// What a member signs to read a P2P group's rows: `p2p_group_read\n<time>`, fresh for five
+/// minutes, in the JSON body of a POST (a Dilithium3 key and signature in an address would pass
+/// nginx's 8 KB limit on a request line).
+pub const GROUP_READ_PURPOSE: &str = "p2p_group_read";
+
+/// Whether `object_type` is one of a P2P group's own objects (`group_v1`, `group_member_v1`,
+/// `group_invite_v1`, `group_join_v1`, `group_disband_v1`, `group_epoch_key_v1`,
+/// `group_msg_v1`): never listed to anyone, read by the group's members alone.
+pub fn is_group_object(object_type: &str) -> bool {
+    object_type.starts_with("group_")
+}
+
+/// The body of every signed group read.
+#[derive(Debug, Deserialize)]
+pub struct GroupReadRequest {
+    /// The reader's Dilithium3 public key, hex.
+    pub key: String,
+    pub timestamp: u64,
+    /// Hex Dilithium3 signature over [`GROUP_READ_PURPOSE`] then the time.
+    pub sig: String,
+}
+
+/// An answer that refuses, in words.
+fn refused(code: StatusCode, words: &str) -> axum::response::Response {
+    (code, Json(serde_json::json!({ "error": words }))).into_response()
+}
+
+/// The reader's public key, when `req` is fresh and signed by it (the verify off the async
+/// executor, failing closed).
+async fn signed_reader(req: &GroupReadRequest) -> Result<Vec<u8>, axum::response::Response> {
+    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    if now_ms.abs_diff(req.timestamp) > 5 * 60 * 1000 {
+        return Err(refused(StatusCode::BAD_REQUEST, "The signed time is too old or in the future."));
+    }
+    let Ok(pubkey) = hex::decode(&req.key) else {
+        return Err(refused(StatusCode::BAD_REQUEST, "The key is not hex."));
+    };
+    let (key, sig, ts) = (req.key.clone(), req.sig.clone(), req.timestamp);
+    let ok = tokio::task::spawn_blocking(move || {
+        crate::relay::handlers::broadcast::verify_dilithium_signature(&key, GROUP_READ_PURPOSE, ts, &sig)
+    })
+    .await
+    .unwrap_or(false);
+    if !ok {
+        return Err(refused(StatusCode::UNAUTHORIZED, "The signature does not verify."));
+    }
+    Ok(pubkey)
+}
+
+/// Whether `pubkey` is an active member of `group_id` here (the group's starter is its first).
+fn is_member(state: &RelayState, group_id: &str, pubkey: &[u8]) -> bool {
+    let fp = crate::relay::storage::author_fingerprint(pubkey);
+    state.db.p2p_group_roster(group_id).unwrap_or_default().iter().any(|m| m.member_fp == fp)
+}
+
+/// The signed reader of `group_id`'s rows, or the answer that refuses them: 403 for anyone who is
+/// not a member, the same whether or not the group exists here (so nobody learns which do).
+async fn member_of(state: &RelayState, group_id: &str, req: &GroupReadRequest) -> Result<Vec<u8>, axum::response::Response> {
+    let pubkey = signed_reader(req).await?;
+    if !is_member(state, group_id, &pubkey) {
+        return Err(refused(StatusCode::FORBIDDEN, "Only the group's members read it."));
+    }
+    Ok(pubkey)
+}
+
+/// The group a group object belongs to: a `group_v1`'s own id (the group's id), any other group
+/// object's first reference (`references = [ group_id ]`, storage/groups_p2p.rs).
+fn group_of(rec: &SignedObjectRecord) -> Option<String> {
+    if rec.object_type == "group_v1" {
+        return Some(rec.object_id.clone());
+    }
+    serde_json::from_str::<Vec<String>>(&rec.references_json).ok()?.into_iter().next()
+}
 
 /// JSON shape submitted by clients to `POST /api/v2/objects`. Binary fields are base64.
 #[derive(Debug, Deserialize)]
@@ -378,6 +462,11 @@ pub async fn post_object(
         .into_response()
 }
 
+/// A P2P group's rows for its members alone (BUG-284).
+#[cfg(test)]
+#[path = "group_reads_tests.rs"]
+mod group_reads_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,6 +528,11 @@ pub async fn get_object_by_id(
     Path(object_id): Path<String>,
 ) -> impl IntoResponse {
     match state.db.get_signed_object(&object_id) {
+        // A group's object only to its members, through the signed POST (BUG-284).
+        Ok(Some(rec)) if is_group_object(&rec.object_type) => refused(
+            StatusCode::UNAUTHORIZED,
+            "A group's objects are read by its members: POST this address with your signature.",
+        ),
         Ok(Some(rec)) => (
             StatusCode::OK,
             Json(serde_json::to_value(SignedObjectResponse::from(rec)).unwrap_or_default()),
@@ -454,6 +548,30 @@ pub async fn get_object_by_id(
             Json(serde_json::json!({"error": format!("storage error: {e}")})),
         )
             .into_response(),
+    }
+}
+
+/// `POST /api/v2/objects/{object_id}` — one object, read signed ([`GROUP_READ_PURPOSE`]): a group's
+/// object only for a member of that group (403 otherwise, and for a group object whose group is
+/// not known here), any other object as `GET` gives it.
+pub async fn read_object_signed(
+    State(state): State<Arc<RelayState>>,
+    Path(object_id): Path<String>,
+    Json(req): Json<GroupReadRequest>,
+) -> impl IntoResponse {
+    let pubkey = match signed_reader(&req).await {
+        Ok(p) => p,
+        Err(r) => return r,
+    };
+    match state.db.get_signed_object(&object_id) {
+        Ok(Some(rec)) => {
+            if is_group_object(&rec.object_type) && !group_of(&rec).is_some_and(|g| is_member(&state, &g, &pubkey)) {
+                return refused(StatusCode::FORBIDDEN, "Only the group's members read it.");
+            }
+            (StatusCode::OK, Json(serde_json::to_value(SignedObjectResponse::from(rec)).unwrap_or_default())).into_response()
+        }
+        Ok(None) => refused(StatusCode::NOT_FOUND, "not found"),
+        Err(e) => refused(StatusCode::INTERNAL_SERVER_ERROR, &format!("storage error: {e}")),
     }
 }
 
@@ -480,8 +598,9 @@ pub async fn list_objects(
         q.limit,
     ) {
         Ok(rows) => {
+            // Never a P2P group's objects: they are read by its members, signed (BUG-284).
             let body: Vec<SignedObjectResponse> =
-                rows.into_iter().map(SignedObjectResponse::from).collect();
+                rows.into_iter().filter(|r| !is_group_object(&r.object_type)).map(SignedObjectResponse::from).collect();
             (StatusCode::OK, Json(serde_json::to_value(body).unwrap_or_default())).into_response()
         }
         Err(e) => (
@@ -503,6 +622,10 @@ pub async fn count_objects(
     State(state): State<Arc<RelayState>>,
     Query(q): Query<CountObjectsQuery>,
 ) -> impl IntoResponse {
+    // How many groups or group messages this server carries is the groups' own business (BUG-284).
+    if q.object_type.as_deref().is_some_and(is_group_object) {
+        return refused(StatusCode::FORBIDDEN, "A group's objects are not counted for anyone but its members.");
+    }
     match state.db.count_signed_objects(q.object_type.as_deref()) {
         Ok(n) => (StatusCode::OK, Json(serde_json::json!({"count": n}))).into_response(),
         Err(e) => (
@@ -511,13 +634,6 @@ pub async fn count_objects(
         )
             .into_response(),
     }
-}
-
-/// Query params for `GET /api/v2/groups`.
-#[derive(Debug, Deserialize)]
-pub struct MyGroupsQuery {
-    /// Hex-encoded Dilithium3 public key of the member.
-    pub pubkey: Option<String>,
 }
 
 /// A P2P group + its current roster, as seen by the relay's projection.
@@ -533,29 +649,19 @@ pub struct P2pGroupView {
     pub is_creator: bool,
 }
 
-/// `GET /api/v2/groups?pubkey=<hex>` — the P2P groups the given member is in,
-/// each with its current roster, read from the projection (docs/design/p2p-groups.md
-/// Phase 1). Read-only convenience view; the authority is the signed objects.
+/// `POST /api/v2/groups` — the P2P groups the signed reader is in, each with its current roster,
+/// read from the projection (docs/design/p2p-groups.md Phase 1). Read-only convenience view; the
+/// authority is the signed objects. Signed ([`GROUP_READ_PURPOSE`]) since BUG-284: until then
+/// `GET ?pubkey=` named anyone's groups, with their names and members, to whoever asked with the
+/// key, and keys are public.
 pub async fn my_p2p_groups(
     State(state): State<Arc<RelayState>>,
-    Query(q): Query<MyGroupsQuery>,
+    Json(req): Json<GroupReadRequest>,
 ) -> impl IntoResponse {
-    let pubkey_hex = match q.pubkey {
-        Some(p) if !p.is_empty() => p,
-        _ => {
-            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "pubkey (hex) required"})))
-                .into_response();
-        }
+    let pubkey = match signed_reader(&req).await {
+        Ok(p) => p,
+        Err(r) => return r,
     };
-    // ASCII-hex only (so byte-slicing below can't split a multi-byte char).
-    if pubkey_hex.len() % 2 != 0 || !pubkey_hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "pubkey not hex"})))
-            .into_response();
-    }
-    let pubkey: Vec<u8> = (0..pubkey_hex.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&pubkey_hex[i..i + 2], 16).unwrap())
-        .collect();
     let my_fp = crate::relay::storage::author_fingerprint(&pubkey);
     let groups = state.db.p2p_groups_for_member(&pubkey).unwrap_or_default();
     let out: Vec<P2pGroupView> = groups
@@ -589,7 +695,11 @@ pub async fn my_p2p_groups(
 pub async fn group_member_keys(
     State(state): State<Arc<RelayState>>,
     Path(group_id): Path<String>,
+    Json(req): Json<GroupReadRequest>,
 ) -> impl IntoResponse {
+    if let Err(r) = member_of(&state, &group_id, &req).await {
+        return r;
+    }
     let roster = state.db.p2p_group_roster(&group_id).unwrap_or_default();
     let members: Vec<serde_json::Value> = roster
         .into_iter()
@@ -609,7 +719,11 @@ pub async fn group_member_keys(
 pub async fn group_messages(
     State(state): State<Arc<RelayState>>,
     Path(group_id): Path<String>,
+    Json(req): Json<GroupReadRequest>,
 ) -> impl IntoResponse {
+    if let Err(r) = member_of(&state, &group_id, &req).await {
+        return r;
+    }
     let ids = state.db.p2p_group_message_ids(&group_id, 200).unwrap_or_default();
     let mut out: Vec<SignedObjectResponse> = Vec::with_capacity(ids.len());
     for id in ids {
@@ -625,7 +739,11 @@ pub async fn group_messages(
 pub async fn group_epoch_key(
     State(state): State<Arc<RelayState>>,
     Path(group_id): Path<String>,
+    Json(req): Json<GroupReadRequest>,
 ) -> impl IntoResponse {
+    if let Err(r) = member_of(&state, &group_id, &req).await {
+        return r;
+    }
     match state.db.p2p_group_latest_epoch_object(&group_id) {
         Ok(Some(oid)) => match state.db.get_signed_object(&oid) {
             Ok(Some(rec)) => (
@@ -655,7 +773,11 @@ pub async fn group_epoch_key(
 pub async fn group_epoch_keys(
     State(state): State<Arc<RelayState>>,
     Path(group_id): Path<String>,
+    Json(req): Json<GroupReadRequest>,
 ) -> impl IntoResponse {
+    if let Err(r) = member_of(&state, &group_id, &req).await {
+        return r;
+    }
     let ids = state.db.p2p_group_all_epoch_objects(&group_id).unwrap_or_default();
     let mut out: Vec<SignedObjectResponse> = Vec::with_capacity(ids.len());
     for id in ids {

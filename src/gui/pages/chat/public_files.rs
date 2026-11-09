@@ -94,6 +94,11 @@ pub(crate) fn shown_name(url: &str) -> String {
         Some((ms, rest)) if !ms.is_empty() && ms.bytes().all(|b| b.is_ascii_digit()) && !rest.is_empty() && !rest.starts_with('.') => rest.to_string(),
         _ => last,
     };
+    // And the 128 random bits after it (BUG-282, relay/upload_rules.rs `stored_name`).
+    let last = match last.split_once('_') {
+        Some((random, rest)) if random.len() == 32 && random.bytes().all(|b| b.is_ascii_hexdigit()) && !rest.is_empty() && !rest.starts_with('.') => rest.to_string(),
+        _ => last,
+    };
     percent_decoded(&last)
 }
 

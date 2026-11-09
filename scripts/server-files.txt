@@ -35,6 +35,7 @@ file all    644 scripts/systemd/humanity-disk-guard.service     /etc/systemd/sys
 file all    644 scripts/systemd/humanity-disk-guard.timer       /etc/systemd/system/humanity-disk-guard.timer
 file all    644 scripts/systemd/humanity-relay-watchdog.service /etc/systemd/system/humanity-relay-watchdog.service
 file all    644 scripts/systemd/humanity-relay-watchdog.timer   /etc/systemd/system/humanity-relay-watchdog.timer
+file all    644 scripts/systemd-dropins/humanity-relay-owner-only.conf /etc/systemd/system/humanity-relay.service.d/owner-only.conf
 file follow 755 scripts/relay-follow-releases.sh                /usr/local/lib/humanity/relay-follow-releases.sh
 file follow 644 scripts/systemd/humanity-relay-follow.service   /etc/systemd/system/humanity-relay-follow.service
 file follow 644 scripts/systemd/humanity-relay-follow.timer     /etc/systemd/system/humanity-relay-follow.timer

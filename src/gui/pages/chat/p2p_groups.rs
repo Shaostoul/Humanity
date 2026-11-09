@@ -47,14 +47,8 @@ pub(crate) fn refresh_p2p_groups(state: &mut GuiState) {
         Some(s) if !s.is_empty() => s.clone(),
         _ => return,
     };
-    let dilithium_hex = match crate::net::identity::derive_pq_identity(&seed) {
-        Ok(id) => id.dilithium_hex,
-        Err(e) => {
-            log::warn!("refresh_p2p_groups: derive identity failed: {e}");
-            return;
-        }
-    };
-    match crate::net::api_v2::fetch_p2p_groups(&server_url, &dilithium_hex) {
+    // A signed read of my own groups (BUG-284).
+    match crate::net::api_v2::fetch_p2p_groups(&server_url, &seed) {
         Ok(list) => {
             log::info!("refresh_p2p_groups: {} groups", list.len());
             state.p2p_groups = list;
@@ -296,13 +290,9 @@ pub(crate) fn spawn_groups_list_refresh(state: &mut GuiState) {
         Some(s) if !s.is_empty() => s,
         _ => return,
     };
-    let dilithium_hex = match crate::net::identity::derive_pq_identity(&seed) {
-        Ok(id) => id.dilithium_hex,
-        Err(_) => return,
-    };
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        if let Ok(list) = crate::net::api_v2::fetch_p2p_groups(&server_url, &dilithium_hex) {
+        if let Ok(list) = crate::net::api_v2::fetch_p2p_groups(&server_url, &seed) {
             let _ = tx.send(list);
         }
     });

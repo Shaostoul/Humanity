@@ -675,7 +675,11 @@ impl Storage {
                 size_bytes    INTEGER NOT NULL DEFAULT 0,
                 -- A video's poster picture (2026-11-06, docs/design/media-player.md, Rung 2:
                 -- the poster picture): its size, kept beside the video as <filename>.poster.jpg.
-                poster_bytes  INTEGER NOT NULL DEFAULT 0
+                poster_bytes  INTEGER NOT NULL DEFAULT 0,
+                -- The chat room the file was posted in (BUG-282, 2026-11-07; upload_rooms.rs): a
+                -- file bound to a room that does not read at Anyone is served to its readers alone.
+                -- '' for a file never posted in a room. ALTER-added below for older databases.
+                room          TEXT NOT NULL DEFAULT ''
             );
 
             CREATE INDEX IF NOT EXISTS idx_user_uploads_key
@@ -947,6 +951,8 @@ impl Storage {
             "ALTER TABLE user_uploads ADD COLUMN size_bytes    INTEGER NOT NULL DEFAULT 0",
             // A video's poster picture's size (2026-11-06), for DBs created before it.
             "ALTER TABLE user_uploads ADD COLUMN poster_bytes  INTEGER NOT NULL DEFAULT 0",
+            // The room a chat file was posted in (BUG-282, 2026-11-07), for DBs created before it.
+            "ALTER TABLE user_uploads ADD COLUMN room          TEXT NOT NULL DEFAULT ''",
         ] {
             let _ = conn.execute(alter, []);
         }
@@ -959,6 +965,12 @@ impl Storage {
         conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_user_uploads_shared
                  ON user_uploads(shared, id);"
+        )?;
+        // Every read of /uploads/ asks which room its file is bound to (BUG-282,
+        // relay/upload_rooms.rs `members_only_room`): by stored name, not a scan of the table.
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_user_uploads_filename
+                 ON user_uploads(filename);"
         )?;
 
         // Channel categories for Discord-like grouping.

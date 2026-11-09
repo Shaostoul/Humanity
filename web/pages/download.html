@@ -562,7 +562,7 @@ cargo build --release --features native</code></pre>
         btn.textContent = 'Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/tag/v0.1550.1';
         sub.textContent = 'Downloads from GitHub Releases · v0.1550.1';
-        // Fetch direct download URL from GitHub API so clicks download the file
+        // The installer's own address, from this server's release list, so clicks download the file
         fetchDirectDownload(os, arch, btn, sub);
       } else if (['android', 'ios'].includes(os)) {
         btn.textContent = 'Install as PWA';
@@ -575,13 +575,30 @@ cargo build --release --features native</code></pre>
       }
     }
 
-    /** Fetch direct download URL from GitHub releases API so the button downloads the installer. */
-    function fetchDirectDownload(os, arch, btn, sub) {
-      fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
+    /** The newest release this server holds, from its own list (written by
+     *  scripts/vps/regen-releases-manifest when a release lands): { tag, assets: [{ name, size }] },
+     *  or null. Never GitHub's API, which sent every visitor's address to GitHub (BUG-281,
+     *  2026-11-07); GitHub sees a visitor only when they press a download button. */
+    function newestRelease() {
+      return fetch('/releases/manifest.json')
         .then(function(r) { return r.json(); })
+        .then(function(m) {
+          var rel = m && m.releases && m.releases[0];
+          return rel && rel.tag ? { tag: rel.tag, assets: rel.assets || [] } : null;
+        });
+    }
+
+    /** A release file's own address on GitHub Releases, where the downloads are. */
+    function releaseFileUrl(tag, name) {
+      return 'https://github.com/Shaostoul/Humanity/releases/download/' + encodeURIComponent(tag) + '/' + encodeURIComponent(name);
+    }
+
+    /** Point the button at the installer for this platform, from this server's release list. */
+    function fetchDirectDownload(os, arch, btn, sub) {
+      newestRelease()
         .then(function(d) {
-          if (!d || !d.assets) return;
-          var ver = (d.tag_name || '').replace(/^v/, '');
+          if (!d) return;
+          var ver = d.tag.replace(/^v/, '');
           // Match the right asset for the detected platform.
           // Ordered preference per platform: every platform prefers the .zip,
           // because the zip is the FULL game (program + models + textures +
@@ -608,8 +625,8 @@ cargo build --release --features native</code></pre>
             }
           }
           if (asset) {
-            btn.href = asset.browser_download_url;
-            // browser_download_url is a direct download link, browser auto-downloads
+            btn.href = releaseFileUrl(d.tag, asset.name);
+            // A release file's own address is a direct download link: the browser downloads it.
             // Name the size when it is the full game, so a ~380 MB download
             // is not a surprise. (A bare exe fallback is not the full game.)
             var full = /\.(zip|tar\.gz)$/i.test(asset.name) && asset.size;
@@ -625,7 +642,7 @@ cargo build --release --features native</code></pre>
 
     detectPlatform();
 
-    // ── Native desktop app: check for updates via GitHub API ──
+    // ── Native desktop app: check for updates against this server's release list ──
     (function desktopUpdateCheck() {
       if (!window.__HOS_DESKTOP__) return;
 
@@ -638,19 +655,16 @@ cargo build --release --features native</code></pre>
       btn.style.opacity = '0.7';
       if (sub) sub.textContent = 'Currently running v' + appVer;
 
-      // Check GitHub for latest release
-      fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
-        .then(function(r) { return r.json(); })
+      // The newest release this server holds (its own list, never GitHub's API: BUG-281).
+      newestRelease()
         .then(function(d) {
-          if (!d || !d.tag_name) throw new Error('No release data');
-          var latestVer = d.tag_name.replace(/^v/, '');
+          if (!d) throw new Error('No release data');
+          var latestVer = d.tag.replace(/^v/, '');
 
           // Find the Windows installer asset
           var asset = null;
-          if (d.assets) {
-            for (var i = 0; i < d.assets.length; i++) {
-              if (/\.exe$/i.test(d.assets[i].name)) { asset = d.assets[i]; break; }
-            }
+          for (var i = 0; i < d.assets.length; i++) {
+            if (/\.exe$/i.test(d.assets[i].name)) { asset = d.assets[i]; break; }
           }
 
           // Compare versions
@@ -665,7 +679,7 @@ cargo build --release --features native</code></pre>
             btn.textContent = 'Download v' + latestVer;
             btn.style.opacity = '1';
             btn.style.pointerEvents = 'auto';
-            btn.href = asset.browser_download_url;
+            btn.href = releaseFileUrl(d.tag, asset.name);
             if (sub) sub.textContent = 'v' + latestVer + ' available · You have v' + appVer;
           } else {
             // Up to date
@@ -689,13 +703,12 @@ cargo build --release --features native</code></pre>
         });
     })();
 
-    // ── Fetch latest version from GitHub Releases (web only) ──
+    // ── The newest version, from this server's release list (web only; BUG-281) ──
     if (!window.__HOS_DESKTOP__) {
-      fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
-        .then(function(r) { return r.json(); })
+      newestRelease()
         .then(function(d) {
-          if (d && d.tag_name) {
-            var v = d.tag_name.replace(/^v/, '');
+          if (d) {
+            var v = d.tag.replace(/^v/, '');
             document.getElementById('version-badge').textContent = 'Desktop: v' + v + ' · Web: always latest';
           }
         })

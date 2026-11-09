@@ -115,4 +115,18 @@ src_git ls-files -z -- 'data/*.json' | rsync -a --from0 --files-from=- "$SRC/" "
 # the native Library reads from disk.
 rsync -a --delete "$SRC/data/library/" "$DST/data/library/"
 
+# What the Dev workbench's Claude tab shows of main and of TIER 0 (web/pages/dev-claude.js), from
+# this checkout, which a deploy has just set to main: so the tab never asks GitHub's API and never
+# sends a reader's address to GitHub (BUG-281, 2026-11-07). The commit's subject is one line; its
+# backslashes and quotes are escaped for JSON and any control character dropped. Outside data/, on
+# purpose: the website's data/ holds only the tracked JSON above.
+mkdir -p "$DST/dev-info"
+if subject=$(src_git log -1 --format=%s 2>/dev/null) && at=$(src_git log -1 --format=%cI 2>/dev/null); then
+  subject=$(printf '%s' "$subject" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
+  printf '{"at":"%s","subject":"%s"}\n' "$at" "$subject" > "$DST/dev-info/main.json"
+fi
+if [ -f "$SRC/docs/PRIORITIES.md" ]; then
+  cp "$SRC/docs/PRIORITIES.md" "$DST/dev-info/priorities.md"
+fi
+
 echo "web root synced: $SRC -> $DST"

@@ -210,7 +210,8 @@ pub fn encrypt_file(key: &[u8; 32], plain_path: &Path, enc_path: &Path) -> std::
     let mut out = Vec::with_capacity(12 + ct.len());
     out.extend_from_slice(nonce.as_slice());
     out.extend_from_slice(&ct);
-    std::fs::write(enc_path, out)
+    // Private from its first byte (BUG-285): a sealed copy is still the whole server's data.
+    crate::relay::owner_only::write(enc_path, &out)
 }
 
 /// Decrypt `enc_path` into `out_path`. Errors on wrong key or tampering
@@ -225,7 +226,8 @@ pub fn decrypt_file(key: &[u8; 32], enc_path: &Path, out_path: &Path) -> std::io
     let plain = cipher
         .decrypt(Nonce::from_slice(nonce), ct)
         .map_err(|e| std::io::Error::other(format!("backup open (wrong key / tampered): {e}")))?;
-    std::fs::write(out_path, plain)
+    // The plain database: private from its first byte (BUG-285).
+    crate::relay::owner_only::write(out_path, &plain)
 }
 
 /// Is this backup file sealed (as opposed to a legacy plain .db)?

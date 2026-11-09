@@ -255,8 +255,12 @@ impl ImageCache {
                     .timeout_connect(std::time::Duration::from_secs(15))
                     .timeout_read(std::time::Duration::from_secs(30))
                     .build();
-                let size = agent
-                    .head(&url_owned)
+                // A members-only room's file answers its readers alone (BUG-282).
+                let mut head = agent.head(&url_owned);
+                if let Some(token) = crate::net::upload_auth::token_for(&url_owned) {
+                    head = head.set(crate::net::upload_auth::HEADER, &token);
+                }
+                let size = head
                     .call()
                     .ok()
                     .and_then(|r| r.header("Content-Length").and_then(|v| v.trim().parse::<u64>().ok()));
@@ -443,6 +447,9 @@ pub(crate) fn download_bytes_with(url: &str, max_bytes: usize, header: Option<(&
     let mut req = ureq::get(url).timeout(std::time::Duration::from_secs(20));
     if let Some((name, value)) = header {
         req = req.set(name, value);
+    } else if let Some(token) = crate::net::upload_auth::token_for(url) {
+        // A members-only room's file answers its readers alone (BUG-282).
+        req = req.set(crate::net::upload_auth::HEADER, &token);
     }
     let resp = req.call().map_err(|e| hide_token(&format!("GET {shown}: {e}")))?;
     if resp.status() != 200 {
@@ -478,7 +485,11 @@ pub(crate) fn download_to(url: &str, max_bytes: u64, out: &mut dyn std::io::Writ
         .timeout_connect(std::time::Duration::from_secs(30))
         .timeout_read(std::time::Duration::from_secs(60))
         .build();
-    let resp = agent.get(url).call().map_err(|e| hide_token(&format!("GET {shown}: {e}")))?;
+    let mut req = agent.get(url);
+    if let Some(token) = crate::net::upload_auth::token_for(url) {
+        req = req.set(crate::net::upload_auth::HEADER, &token); // BUG-282
+    }
+    let resp = req.call().map_err(|e| hide_token(&format!("GET {shown}: {e}")))?;
     if let Some(declared) = resp.header("Content-Length").and_then(|v| v.trim().parse::<u64>().ok()) {
         if declared > max_bytes {
             return Err(format!("GET {shown}: the file is {declared} bytes, over the {} MB limit", max_bytes / (1024 * 1024)));

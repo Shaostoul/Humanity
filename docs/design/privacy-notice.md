@@ -26,7 +26,7 @@ Any change to what the server or the website keeps, sends, or for how long, chan
 "Last changed" date moves with it, and the devlog says what changed (that is how the policy tells
 people about changes, CalOPPA 22575(b)(3)).
 
-## 3. The inventory (read 2026-11-07, at commit 8f3fe914c and on united-humanity.us, read only)
+## 3. The inventory (read 2026-11-07, at commit 8f3fe914c and on united-humanity.us, read only; the rows BUG-278 to BUG-285 changed brought up to date 2026-11-08)
 
 ### Logs on the server
 
@@ -39,29 +39,31 @@ people about changes, CalOPPA 22575(b)(3)).
 
 ### The relay's database (`src/relay/storage/mod.rs`)
 
-No table holds an IP address. Settings that drive expiry: `dm_mailbox_ttl_days` 30
+No table holds an IP address. The database, its log, the keys and every backup the relay makes are
+readable by the relay's own account alone (0600, folders 0700), set at each start and by the unit's
+`UMask=0077` (`src/relay/owner_only.rs`, BUG-285). Settings that drive expiry: `dm_mailbox_ttl_days` 30
 (`src/relay/storage/server_settings.rs:207`), `message_retention_days` 0 = kept
 (`server_settings.rs:313`); the expiry pass runs at start, every 6 hours and after a settings
 change (`src/relay/expiry.rs:25-28`).
 
 | Data | About the person | Who can see it | Kept | Erase removes it |
 |---|---|---|---|---|
-| Membership, names, roles, status | Key, chosen name, role, joined, last seen, hide-presence | Members (hidden people shown offline, `src/relay/broadcast.rs:256-266`); the public directory only if listed (`members.rs:30-33`) | Until erased | Yes (`src/relay/storage/account.rs:313-326`) |
+| Membership, names, roles, status | Key, chosen name, role, joined, last seen, hide-presence | Members (hidden people shown offline, `src/relay/handlers/broadcast.rs` `broadcast_full_user_list`, and left out of `/api/peers`, the live lists and the join announcement, BUG-278); the public directory only if listed (`members.rs:30-33`) | Until erased | Yes (`src/relay/storage/account.rs:313-326`) |
 | Profile, signed profile | What the person fills in; friends-only fields kept back (`profile.rs:20-27`) | Anyone, and copied to linked servers | Until changed or erased | Yes, and withdrawn from linked servers |
 | Room messages, reactions | Key, name, text, time | Rooms open to anyone are public (`chat_access.rs:8-15`); others members only | Kept unless the server sets a limit | Yes, and linked servers are asked to remove them |
-| Pinned copies | A copy of the author's key, name and text | As the room | Until unpinned (`expiry.rs:6-7`) | **No** (BUG-279) |
+| Pinned copies | A copy of the author's key, name and text | As the room | Until unpinned (`expiry.rs:6-7`) | Yes; a pin they made of another's message stays without their key (BUG-279) |
 | Direct messages | Recipient key and a sealed blob; no sender (`handlers/dms.rs:12-27`) | Nobody; the server cannot open it | 30 days | Yes |
-| Uploads | Key, file name, size; Files page title, description, licence, totals | Chat attachments: anyone with the link (`src/relay/mod.rs:1488`); members-only Files: members; DM and group files sealed by the sender's app | Chat: until deleted or the role's keep count; private sealed files: 30 days; unpublished Files: 1 day (`expiry.rs:12-17`) | Yes (`account.rs:233-260`) |
-| Encrypted settings sync (`user_data`) | Notes, to-dos, garden, settings, sealed with a key from the recovery phrase (plain when no key, BUG-283) | The person | **Never deleted** | **No** (BUG-279) |
-| Computer specs (`system_profiles`) | OS, CPU, GPU, memory, only when the person presses Save | The person | Until the person deletes it | **No** (BUG-279) |
+| Uploads | Key, file name, size; Files page title, description, licence, totals | Chat attachments: as the room they were posted in, a members-only room's to its readers alone (upload token or room ticket, `src/relay/upload_rooms.rs`, BUG-282), and every stored name carries 128 random bits; members-only Files: members; DM and group files sealed by the sender's app | Chat: until deleted or the role's keep count; private sealed files: 30 days; unpublished Files: 1 day (`expiry.rs:12-17`) | Yes (`account.rs:233-260`) |
+| Encrypted settings sync (`user_data`) | Notes, to-dos, garden, settings, sealed with a key from the recovery phrase; never sent or kept unsealed (`web/chat/app.js` `encryptSyncData`, the relay's `is_sealed_sync_blob`, BUG-283) | The person | Until erased | Yes, and exported (BUG-279) |
+| Computer specs (`system_profiles`) | OS, CPU, GPU, memory, only when the person presses Save | The person | Until the person deletes it | Yes, and exported (BUG-279) |
 | Vault backup | Sealed by the person's app | Nobody else | Until erased | Yes |
 | Push subscriptions | The browser's push address and keys (`mod.rs:2364`) | The server | Until the push service says it is gone (`push_send.rs:83-86`) | Yes |
 | Key cards | The public key others seal messages to | Anyone, and linked servers | Until erased | Yes here; linked servers keep theirs |
 | Bans, mutes | Key, name, reason | Admins | Kept, on purpose (`account.rs:181-187`) | No, by design |
 | Reports, copyright requests | Who reported whom, why; a claimant's name and contact | Admins | 90 days after the decision (`reports.rs:28`, `takedowns.rs:29`) | The reporter is blanked |
-| Bug reports | Key, name, browser name and window size, page | **Anyone** (`GET /api/bugs`, `src/relay/api.rs:3558-3578`; BUG-280) | Kept | **No** (BUG-279) |
-| Boards (tasks, comments, listings, trades, guilds, streams, skills, reputation) | Keys, names; listings a place and payment methods | Mostly public | Kept | Only tasks, listings and reviews the person made |
-| Signed objects, P2P groups, votes | Author key; for groups the name, members, who posted when (text sealed) | **Anyone** (`GET /api/v2/objects`; BUG-284) and linked servers | Kept | **No** (BUG-279) |
+| Bug reports | Key, name, browser name and window size, page | The report: anyone (`GET /api/bugs`); who sent it and from where: admins and moderators alone (`POST /api/bugs/details`, signed; `src/relay/api.rs` `bug_to_json`, BUG-280) | Kept | Unnamed: key, name, browser and page taken out; their votes removed (BUG-279) |
+| Boards (tasks, comments, listings, trades, guilds, streams, skills, reputation) | Keys, names; listings a place and payment methods | Mostly public | Kept | Yes: their tasks, comments, listings, reviews, trades and orders, skills and verifications, streams and stream chat, reputation; a guild they own is closed; someone else's finished trade, project, room or reputation event stays without their key (BUG-279) |
+| Signed objects, P2P groups, votes | Author key; for groups the name, members, who posted when (text sealed) | Other objects: anyone (`GET /api/v2/objects`). A group's objects and its projection: its members alone, each read signed (`POST /api/v2/groups...`, `src/relay/api_v2_objects.rs` `is_group_object`, BUG-284). The server and linked servers can read a group's name, members and posting times (BUG-261) | Kept | Yes here: their objects, a group they started (closed, with its messages), their place and messages in others' groups, votes on open decisions; votes on closed decisions and their proposals stay; linked servers keep their copies (BUG-279) |
 | Game | Plots, built pieces, quests, progress | Other players | Until erased | Yes |
 | Erase records | A keyed fingerprint (never the key) and a day | The server | 30 days (`erased_accounts.rs:76-77`) | Written by erase |
 | Federation outbox | Copies of frames sent to linked servers | The server, linked servers | 10,000 rows or 7 days | The person's frames are scrubbed |
@@ -90,7 +92,7 @@ copy (the scripts copy only the database).
 
 | Who | Pages | When |
 |---|---|---|
-| api.github.com | Every page that loads `web/shared/shell.js` | On load, after 3 s, at most once per 30 minutes (`shell.js` update checker; BUG-281) |
+| github.com (Releases) | Download | Only when a download button is pressed: the button is the release file's own address there (`web/pages/download.html` `releaseFileUrl`). The newest version, its files and their sizes come from this server's `/releases/manifest.json`; no page asks api.github.com (BUG-281, `scripts/tests/no-github-web.test.js`) |
 | cdn.jsdelivr.net | Chat | On load: emoji pictures |
 | A Solana server, api.coingecko.com | Wallet | On load when the browser holds an identity |
 | quote-api.jup.ag; arweave, nftstorage | Wallet | Only on a swap; only when the pictures tab is opened |
@@ -124,14 +126,9 @@ through the person's own server; Google or Cloudflare are asked only when the pe
 The policy says these out loud, because it may say nothing the code does not back. Each is a bug
 to fix; when one is fixed, the policy's line goes.
 
-- BUG-278: `GET /api/peers` lists every connected person, including those who chose to hide.
-- BUG-279: erasing an account leaves pinned copies, task comments, the settings sync blob, computer
-  specs, group and vote records, bug reports and reputation behind.
-- BUG-280: bug reports, including the reporter's browser name and window size, are public.
-- BUG-281: every website page asks GitHub for the newest version.
-- BUG-282: a chat attachment posted in a members-only room can be fetched by anyone with its link.
-- BUG-283: the website's settings sync falls back to sending plain text when it has no key.
-- BUG-284: group names, member lists and who posted when are public through `/api/v2/objects`.
+- BUG-261: the server that carries a P2P group, and its linked servers, can read the group's name, its
+  members and who posted when (not what was said). Since BUG-284 (2026-11-08) only the group's
+  members can ask for any of it.
 
 ## 5. The 404 page
 

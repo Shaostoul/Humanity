@@ -638,9 +638,12 @@ async function deriveSyncKey() {
   }
 }
 
+// Sealed, or nothing (BUG-283, 2026-11-07): with no key, or when sealing fails, this returns null
+// and the caller sends nothing. Until then it returned the plain text in both cases, so notes,
+// to-dos, the garden and settings could reach the server's user_data readable by its operator.
 async function encryptSyncData(plaintext) {
   const key = await deriveSyncKey();
-  if (!key) return plaintext; // Fallback to plaintext if no key
+  if (!key) return null;
   try {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const encoded = new TextEncoder().encode(plaintext);
@@ -652,15 +655,18 @@ async function encryptSyncData(plaintext) {
       encrypted: btoa(String.fromCharCode(...new Uint8Array(ciphertext)))
     });
   } catch (e) {
-    console.warn('Sync encryption failed, sending plaintext:', e);
-    return plaintext;
+    console.warn('Sync sealing failed; nothing sent:', e);
+    return null;
   }
 }
 
+// Only a sealed blob is opened. Anything else from the server (an unsealed copy from before
+// BUG-283, or one that does not open) is never applied: null keeps this device's own copy, and the
+// next save replaces the server's with a sealed one.
 async function decryptSyncData(data) {
   try {
     const parsed = JSON.parse(data);
-    if (!parsed.v || !parsed.encrypted) return data; // Plaintext (backward compat)
+    if (!parsed || parsed.v !== 1 || !parsed.encrypted || !parsed.iv) return null;
     if (parsed.key && parsed.key !== myKey) {
       console.warn('Sync data encrypted by different device key:', parsed.key);
       return null; // Can't decrypt, different device
@@ -672,9 +678,8 @@ async function decryptSyncData(data) {
     const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
     return new TextDecoder().decode(plainBuf);
   } catch (e) {
-    // Could be old plaintext data that happens to be valid JSON but not our format
-    console.warn('Sync decryption failed, treating as plaintext:', e);
-    return data;
+    console.warn('Sync data did not open; keeping the copy on this device:', e);
+    return null;
   }
 }
 
@@ -686,6 +691,7 @@ const SYNC_KEYS = [
 ];
 let syncDebounceTimer = null;
 let syncInitialized = false;
+let syncNotSealedSaid = false; // the notice below, once a page load
 
 function getSyncBlob() {
   const blob = {};
@@ -725,6 +731,14 @@ function scheduleSyncSave() {
     const now = Date.now();
     localStorage.setItem('sync_updated_at', String(now));
     const encrypted = await encryptSyncData(data);
+    if (encrypted === null) {
+      // Never unsealed (BUG-283): say plainly why nothing was copied, once.
+      if (!syncNotSealedSaid && typeof addNotice === 'function') {
+        syncNotSealedSaid = true;
+        addNotice(window.i18n ? i18n.t('chat.sync_not_sealed') : '', 'yellow', 20);
+      }
+      return;
+    }
     ws.send(JSON.stringify({ type: 'sync_save', data: encrypted }));
   }, 5000);
 }
@@ -3085,7 +3099,8 @@ function fileUnescape(s) {
  */
 function fileCardName(address) {
   const last = String(address == null ? '' : address).split(/[?#]/)[0].split('/').pop() || '';
-  const bare = last.replace(/^\d+_(?!\.)(?=.)/, '');
+  // The server's time, then its 128 random bits (BUG-282), taken off the name shown.
+  const bare = last.replace(/^\d+_(?!\.)(?=.)/, '').replace(/^[0-9a-f]{32}_(?!\.)(?=.)/, '');
   let name = bare || last || 'file';
   try { name = decodeURIComponent(name); } catch (e) { /* not percent-encoded text: as it stands */ }
   return name;
@@ -3435,6 +3450,86 @@ function listenForFileTrouble(container) {
 }
 listenForFileTrouble(document.getElementById('messages'));
 listenForFileTrouble(document.getElementById('thread-panel-messages'));
+
+// ── A members-only room's files (BUG-282, 2026-11-07) ──
+// The relay serves a file posted in a room that does not read at Anyone only to that room's
+// readers (src/relay/upload_rooms.rs). A picture, a player or a Download link cannot send a header,
+// so the page asks for the room's ticket once (POST /api/uploads/room-ticket, with this session's
+// upload token in its header, never in an address) and adds it, ?t=, to the address of every
+// /uploads/ file the room's messages show, as each one is drawn or set later (a poster picture, a
+// picture clicked open), through one watcher on the message lists. A ticket says when it runs out
+// and is asked for again a minute before then; the desktop app sends the upload token instead.
+const roomFileTickets = new Map(); // room -> { ticket, until (ms), asking }
+
+/** The ticket for the open room's files, or null: none needed (the room reads at Anyone, a DM, a
+ *  group, the scratch pad), or not here yet (then it is asked for, and the lists redrawn with it). */
+function roomFileTicket() {
+  if (activeDmPartner || isScratchPad() || (typeof activeP2pGroup !== 'undefined' && activeP2pGroup)) return null;
+  const room = activeChannel;
+  const ch = channelList.find((c) => c.id === room);
+  const read = window.HosChatAccess ? HosChatAccess.readLevel(ch && ch.read_level) : 'members';
+  if (read === 'anyone') return null;
+  const held = roomFileTickets.get(room);
+  if (held && held.ticket && held.until - 60000 > Date.now()) return held.ticket;
+  if (!(held && held.asking) && myUploadToken) {
+    roomFileTickets.set(room, { ticket: held && held.ticket, until: held ? held.until : 0, asking: true });
+    fetch('/api/uploads/room-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Upload-Token': myUploadToken },
+      body: JSON.stringify({ channel: room }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d || !d.ticket) { roomFileTickets.delete(room); return; }
+        roomFileTickets.set(room, { ticket: d.ticket, until: Date.now() + (d.expires_in_s || 3600) * 1000, asking: false });
+        if (room === activeChannel) ticketRoomFileLists();
+      })
+      .catch(() => roomFileTickets.delete(room));
+  }
+  return held && held.ticket && held.until > Date.now() ? held.ticket : null;
+}
+
+/** `address` with the room's ticket, when it is one of this server's /uploads/ files without one. */
+function withRoomTicket(address, ticket) {
+  if (!ticket || typeof address !== 'string') return address;
+  let u;
+  try { u = new URL(address, location.href); } catch (e) { return address; }
+  if (u.origin !== location.origin || !u.pathname.startsWith('/uploads/') || u.searchParams.has('t')) return address;
+  u.searchParams.set('t', ticket);
+  return u.origin === location.origin && !/^https?:/i.test(address) ? u.pathname + u.search + u.hash : u.href;
+}
+
+/** The message lists a room's files are drawn in. */
+function ticketRoomFileLists() {
+  for (const id of ['messages', 'thread-panel-messages']) ticketRoomFiles(document.getElementById(id));
+}
+
+const ROOM_FILE_ATTRS = ['src', 'href', 'poster', 'data-img-url'];
+
+/** Give every /uploads/ address under `root` the open room's ticket. */
+function ticketRoomFiles(root) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  const found = root.querySelectorAll('[src*="/uploads/"],[href*="/uploads/"],[poster*="/uploads/"],[data-img-url*="/uploads/"]');
+  // A room with no files shown asks for no ticket.
+  if (!found.length) return;
+  const ticket = roomFileTicket();
+  if (!ticket) return;
+  for (const el of found) {
+    for (const a of ROOM_FILE_ATTRS) {
+      const v = el.getAttribute(a);
+      const w = v && withRoomTicket(v, ticket);
+      if (w && w !== v) el.setAttribute(a, w);
+    }
+  }
+}
+
+if (typeof MutationObserver === 'function') {
+  const watchRoomFiles = new MutationObserver(() => ticketRoomFileLists());
+  for (const id of ['messages', 'thread-panel-messages']) {
+    const el = document.getElementById(id);
+    if (el) watchRoomFiles.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ROOM_FILE_ATTRS });
+  }
+}
 
 function formatBody(text, fromKey) {
   // A poster below verified on this server: links, pictures and files stay plain words

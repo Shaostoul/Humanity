@@ -205,7 +205,8 @@
     "invite_link_label": "Server invite link",
     "invite_private": "This server has no public address, so its invite link opens only on this computer or on its home network.",
     "disconnect_server": "Disconnect from server",
-    "disconnect_server_hint": "Stop the connection to this server. Your identity stays on your device. You can reconnect any time."
+    "disconnect_server_hint": "Stop the connection to this server. Your identity stays on your device. You can reconnect any time.",
+    "sync_not_sealed": "Your notes and settings were not copied to the server. This browser could not seal them with your key, and they are never sent unsealed. They are still here on this device."
   },
   "settings": {
     "language": "Language",
@@ -2225,7 +2226,7 @@
     "cat_performance": "Performance",
     "cat_crash": "Crash",
     "cat_other": "Other",
-    "auto_captured": "Auto-captured: browser, screen size, page URL, app version, your public key (if logged in)",
+    "auto_captured": "Sent with your report: your browser's name and window size, this page's address, the app version, and your name and key if you are signed in. Everyone can read your report; who sent it and from where go only to this server's admins and moderators.",
     "submit_web": "Submit Bug Report",
     "submit_web_hint": "Sends this report to the server, where other members and the maintainers can read it. The details listed just above go with it.",
     "known": "Known Bugs",
@@ -2261,7 +2262,14 @@
     "category_option_hint": "Marks the report as being about this part of the app.",
     "filter_status_label": "Show reports with this status",
     "filter_severity_label": "Show reports this serious",
-    "filter_category_label": "Show reports about this part of the app"
+    "filter_category_label": "Show reports about this part of the app",
+    "who_sees": "Everyone can read your report. Your name and key, and where you sent it from, go only to this server's admins and moderators.",
+    "show_details": "Show who sent each report",
+    "show_details_hint": "For admins and moderators: signs with your key and shows who sent each report, from which browser and page.",
+    "details_staff_only": "Only this server's admins and moderators can see who sent each report.",
+    "details_no_identity": "Open Chat once on this device to sign in, then try again.",
+    "sent_by": "Sent by {{name}}, from {{browser}}, on {{page}}",
+    "sent_by_native": "Sent by {{name}}, from {{browser}}"
   },
   "glossary": {
     "learn_more": "Learn more",
@@ -2375,9 +2383,9 @@
     "git_missing": "git is not installed or not on PATH, so the worktrees cannot be listed.",
     "web_pc_only": "Worktrees, uncommitted changes, the agents' handoff notes, the taskbar exe, the share guard, the disk guard, the boot lock and the build slot live on the developer's computer, which a website cannot read. The desktop app shows them in Dev > Claude.",
     "web_journal_hint": "The newest three entries of the journal as of the website's last update (the copy of data/coordination/orchestrator_state.json this site serves).",
-    "web_tier0_hint": "The headings under TIER 0 in GitHub's copy of docs/PRIORITIES.md.",
-    "web_release_hint": "The newest release on GitHub, and the newest commit on main.",
-    "web_main": "Latest commit on main (GitHub)",
+    "web_tier0_hint": "The headings under TIER 0 in docs/PRIORITIES.md, as of the website's last update.",
+    "web_release_hint": "The newest release this server holds, and the newest commit on main as of the website's last update.",
+    "web_main": "Latest commit on main (as of the website's last update)",
     "web_unreachable": "could not reach it: {{why}}",
     "web_refresh": "Refresh",
     "notes": "Handoff notes",
@@ -2389,7 +2397,8 @@
     "slot_idle": "nothing compiling",
     "slot_summary": "{{compiling}} compiling, {{waiting}} waiting their turn for memory",
     "slot_compiling": "compiling {{crate}} ({{kind}}) in {{place}}, up to {{gb}} GB, started {{ago}}",
-    "slot_waiting": "waiting: {{crate}} ({{kind}}) in {{place}}, needs {{gb}} GB, since {{ago}}"
+    "slot_waiting": "waiting: {{crate}} ({{kind}}) in {{place}}, needs {{gb}} GB, since {{ago}}",
+    "web_no_release": "this server lists no release"
   },
   "profile": {
     "bio_over_limit": "Your bio is {{n}} characters and the limit is {{limit}}. Shorten the part shown in red, then save again.",
@@ -3275,7 +3284,8 @@
     "web_not_sent": "Saved in this browser, but this page could not tell the server: {{why}} The chat tells it the next time it connects.",
     "web_no_identity": "Saved in this browser. This page cannot sign in for you (your key is locked, or not in this browser yet), so the chat tells your server the next time it connects.",
     "web_directory_saved": "Saved in this browser. The chat sends your directory choice to the server: at once if it is open in another tab, otherwise the next time you open it.",
-    "kept_for_friends": "Kept for friends: only someone holding a [[friendship pass]] from you sees it, on the server where you gave the pass. Your app gives one to each person you follow who follows you back, and with each contact request you send. Unfollow and Block take it back."
+    "kept_for_friends": "Kept for friends: only someone holding a [[friendship pass]] from you sees it, on the server where you gave the pass. Your app gives one to each person you follow who follows you back, and with each contact request you send. Unfollow and Block take it back.",
+    "erase_what_stays": "Some things stay, and you should know which before you decide. Moderation records stay: a ban, a mute, or a report someone made about you does not go away, and still applies if you come back with the same key. Your votes on decisions that have already closed stay, because the result rests on them, and so do the proposals you made. Bug reports and reports you sent stay for the admins, with your name and key taken out. A group or guild you started is closed, with what was said in it. A pin you made, a room or a project you made, and the other side of a finished trade stay for the people they belong to, with your name taken off. Anything you published as a signed object was already copied to the servers this one is linked with, and cannot be called back from here. Copies other people already downloaded are theirs. Everything in this paragraph is in your export, so you can read it before you choose."
   },
   "video": {
     "file_mp4": "an MP4 file",
