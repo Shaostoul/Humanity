@@ -4,8 +4,16 @@
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
   "current_focus": "After v0.1552.0: no agents running. Waiting on the operator for the open questions (walk speed; embeddable AI 11; asset sources). Next candidates when he answers or as established work: character rung 2 from the downloaded MakeHuman + Quaternius UAL sources; maps rung 2 from the Washington sources on E:; SimReady close-view GPU perf pass.",
-  "open_questions_for_human": [],
+  "open_questions_for_human": [
+    "Body files: keep both MakeHuman bodies with all 15 shape targets (8.6 MB in git) for build and ancestry sliders, or height-only (saves about 6 MB)? Rec: keep.",
+    "Real clothes and hair: a further CC0 MakeHuman asset download to replace the painted-on regions, after animation rung 2? Rec: yes (name, source and size listed before fetching).",
+    "Build and ancestry sliders on the character page now that the data exists? Rec: yes."
+  ],
   "recent_decisions": [
+    {
+      "date": "2026-11-09",
+      "decision": "Merged character rung 1b (89fbc2dd5): MakeHuman female/male bodies (56 joints, 15 morph targets, our own converter), 12 Quaternius UAL clips retargeted, body chooser + PlayerLook::body over the network, Settings > Gameplay > Walking pace (Simplified 5/9.5 default, Realistic 1.4/4 m/s, data/game.csv). Released v0.1553.0 (second release of the day) with maps rung 2 and the BUG-288 mirror. Dispatched maps road beds + building pads + depth 20 inside installed packs (wk-maps3.txt). Agent questions relayed to the operator: keep the 8.6 MB body files with all 15 targets (rec yes), real clothes and hair from MakeHuman after rung 2 (rec yes, a download needing permission), build/ancestry sliders on the character page (rec yes)."
+    },
     {
       "date": "2026-11-09",
       "decision": "Operator approved all six morning recommendations. Merged: maps rung 2 9a36522e7 (Silverdale packs committed, 83 MB); BUG-288 fix c62f96da1 (server-side humanity-mirror-release, workflow ssh step with 60 min job limit), installed by the deploy and verified live against v0.1552.0. ABO listings read: 7,960 3D models, furniture and decor only, no appliances (addendum in the ABO finding). Answers recorded in embeddable-ai.md 15, whole-earth-maps.md, character-animation.md, open-3d-sources-index.md. Running: character rung 1b (real MakeHuman body, UAL clips, walk speeds by mode). Next (boots, after it): maps road beds + building pads + depth 20 inside packs."

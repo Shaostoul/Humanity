@@ -11,6 +11,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1553.0 (9 November 2026)
+
+- Real people: you, other players and the crew are now real human bodies, a woman and a man made from MakeHuman's free body data, instead of the plain test figure.
+- They idle, walk, jog and sprint with animation clips from Quaternius's free animation library, fitted to each body so the feet stay planted.
+- Choose your body on the character page; other players see the one you picked, and your height reshapes the body itself.
+- Settings > Gameplay > Walking pace: Simplified (the quick pace) or Realistic (a 1.4 m/s walk and a 4 m/s run, the pace of a real person).
+- Silverdale and Seattle come from the new map packs: the waterfront slopes gently into the water like the real shore, with no sheer cliffs and no dry harbour.
+- The website's download page now gets each release by the server fetching it from GitHub and checking every file, instead of an upload that could hang.
+
 ### v0.1552.0 (9 November 2026)
 
 - People have bodies: you in third person, other players and the crew stand, turn, walk and run, and their legs keep pace with how fast they move.
