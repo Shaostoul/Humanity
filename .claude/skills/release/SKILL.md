@@ -23,7 +23,7 @@ share this checkout: stage by name, never sweep.
 ## 1. Bump, and read the version back
 
 ```bash
-LAST=$(git describe --tags --abbrev=0)
+LAST=$(git describe --tags --abbrev=0 --match 'v*')   # game tags only: asset releases (assets-*) are tags too
 git diff --quiet "$LAST"..HEAD -- src Cargo.toml && KIND=patch || KIND=minor   # Rust changed: minor
 node scripts/bump-version.js $KIND
 V=$(node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*\"(.+?)\"/m)[1]")
