@@ -751,6 +751,26 @@ Each rung is a slice of the real thing, not a throwaway.
 
 And one rule for the whole feature: AI is optional, never required (5.2).
 
+**Processing level (NOVA), added from his question** "what about the difference between processed
+and ultra processed?" (2026-11-09). The NOVA system's four groups are defined in FAO's report
+*Ultra-processed foods, diet quality, and health using the NOVA classification system* (Monteiro et
+al., FAO, Rome, 2019, read 2026-11-09,
+<https://openknowledge.fao.org/server/api/core/bitstreams/5277b379-0acb-4d97-a6a3-602774104629/content>),
+and its test is made of ingredients: "The presence in the list of ingredients of one or more of
+these food substances identifies a product as ultra-processed" (high-fructose corn syrup,
+maltodextrin, hydrolysed proteins, soya protein isolate, mechanically separated meat,
+hydrogenated or interesterified oil and the like), and likewise any flavour, flavour enhancer,
+colour, emulsifier, artificial sweetener, thickener or similar additive class. So the checker can
+show a product's NOVA group from the label it already reads, with the marker ingredients that put
+it there highlighted, and no extra data. Two things it must say with it: NOVA's "processed" (group
+3: ham, bacon, smoked fish, canned vegetables, simple cheese, fresh bread) is not IARC's "processed
+meat" (which also covers hot dogs and sausages, NOVA group 4); and the health evidence on group 4 is
+mostly from observational studies (the BMJ umbrella review of 45 pooled analyses, Lane et al.,
+2024, doi:10.1136/bmj-2023-077310, rated 41 of the 45 low or very low quality on GRADE and 4 moderate), with one inpatient
+randomised trial (Hall et al., Cell Metabolism, 2019, doi:10.1016/j.cmet.2019.05.008: about 508
+kcal a day more eaten on the ultra-processed diet, 0.9 kg gained in two weeks). Each line goes
+through the refutation pass.
+
 ## 15. Not done here
 
 - No code, no data and no registry entries were written; this document and the finding are the whole

@@ -629,7 +629,16 @@ No backwards compatibility before v1.0, so the regions are rebuilt, not converte
    neighbours differ, interior mapping behind windows for lit rooms at night, and a hand-made model
    in place of the procedural one for a landmark. Styles and kits are data (infinite-of-x). Open
    renderers that already do this (OSM2World, Streets GL) are compared, licences quoted, in their own
-   finding before rung 8 starts (the compare-alternatives rule).
+   finding before rung 8 starts (the compare-alternatives rule). **One generator with the ship's
+   homes** (operator, same day: "this kind of plays into our procedural ship generation stuff ...
+   That way homes are studios but, actually have interiors with walls, doors, windows, and
+   furniture"): the footprint-to-building path is shared. A map building and a ship home both go
+   outline, then floor plan (rooms from a programme by home type: bedroom, bathroom, kitchen,
+   living), then `InteriorWall`s with doors and windows, then furniture placed by room purpose
+   (`room-purpose-architecture.md`) from the model kit (the SimReady props). A map building needs
+   its outside everywhere and its inside only where someone can enter or a lit window shows it; a
+   ship home needs its inside first. Today a cabin is a box with "no interior walls"
+   (`ship-homes-increment-6-plan.md`); this generator is what gives it rooms.
 
 ### Rung 1 in detail: the yardstick and the credit
 
@@ -687,7 +696,14 @@ Small, measurable, no large downloads, and it makes every later rung provable.
   (64,998,919 bytes). Measured for the whole state, not yet fetched: WorldCover's eight tiles
   covering it, 470 MB together; GEDTM30's 30 m heights are one global 432,407,644,715-byte file
   (`s3.opengeohub.org`, range requests accepted), so Washington's window is read by range
-  requests, an estimated 0.5 GB.
+  requests, an estimated 0.5 GB. On his "Yes" the same day, all of it was fetched: the eight
+  WorldCover tiles (470 MB, `maps-src/worldcover/`) and Washington's GEDTM30 window, 45.4 to
+  49.1 N and 124.9 to 116.8 W, as 112 of the file's own 2048-pixel tiles, kept byte for byte
+  (601 MB, `maps-src/gedtm30-v1.2-washington/`, with `index.json` and the fetch scripts beside it).
+  **A trap for the builder:** the file's GDAL metadata says SCALE 0.1, but the stored float32 values
+  are already metres: decoded, Mount Rainier reads 4,412.7 and Mount Adams 3,737.2 (summits 4,392 m
+  and 3,743 m), Dyes Inlet 0, the open Pacific the no-data value. Applying the scale makes Rainier
+  441 m. Rung 2's reader must ignore that tag for this file, with a unit test on those two summits.
 - 6, cadence: "Makes sense." Monthly for changed packs.
 - 1, 2 and 3 he asked about (why GEDTM30, why Overture, how the release hosting works); answered in
   the conversation, still to be confirmed.
