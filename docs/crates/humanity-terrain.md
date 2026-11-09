@@ -6,8 +6,8 @@ Planets as shapes and numbers. It holds the planet's surface and heights (`plane
 `planet_heightmap`, `procedural_heightmap`), the level-of-detail patches and their meshes as plain
 data (`planet_chunks`, `drawn_surface`, `terrain_tiles`), the oceans and water (`ocean_fft`,
 `ocean_waves`, `water_patches`), the plants' and trees' geometry (`plant_mesh`, `tree_registry`,
-`near_trees`, `far_trees`, `grass`), real map regions (`osm_region`), asteroids and the celestial
-projection. It draws nothing itself: the renderer uploads what it builds and the simulation reads
+`near_trees`, `far_trees`, `grass`), real map regions (`osm_region`), the whole-Earth map tiles'
+key (`map_tiles`), asteroids and the celestial projection. It draws nothing itself: the renderer uploads what it builds and the simulation reads
 its heights. It was edited twice in the 30 days before the split was planned, so as a crate under
 both it compiles once and stays built.
 
@@ -74,6 +74,13 @@ And 74 more items, 106 references (`node scripts/crate-cards.js --interface huma
 - **Map data from OpenStreetMap carries its attribution** (`credits::OSM_NOTICE`, "Map data (c)
   OpenStreetMap contributors (ODbL)"): it is a licence obligation, not a courtesy. Source:
   [credits.rs](../../crates/humanity-core/src/credits.rs) and `data/credits.ron`.
+- **Map data is keyed by the terrain's own patches.** A map tile's id is a `PatchId`; the tile a
+  patch reads is its ancestor at a data level (`map_tiles::ancestor_at`, a mask), and the levels are
+  data, passed in, never a constant. A height sample is a lattice vertex built by the tree's own
+  normalized-midpoint subdivision (`map_tiles::tile_lattice`), never a barycentric blend, so coarse
+  and fine samples are the same bits. A clip crossing is computed from the ORIGINAL feature edge,
+  so neighbouring tiles agree bit for bit. Source:
+  [whole-earth-maps.md](../design/whole-earth-maps.md), sections 3 and 4.2.
 - **What it builds reaches pixels, so prove it there:** a change to patches, water or plants is
   checked by booting and looking, never by a static check alone. Source:
   [renderer.md](../ai/renderer.md), "Verify by booting and entering the world".
@@ -90,6 +97,14 @@ And 74 more items, 106 references (`node scripts/crate-cards.js --interface huma
   the captures against their golden specs.
 - **Trees on the ground:** [tree-ground-check.test.js](../../scripts/tests/tree-ground-check.test.js)
   (in `just rig-tests`) holds the probe sweep's ground check, written after BUG-156.
+- **The map tile key:** `just test-lib --crate humanity-terrain map_tiles` (containment against
+  `drawn_leaf_containing`, the lattice against `patch_corners`, crossings bit for bit, clipped
+  areas to 1e-9, the codec within 6 mm; each test's comment names the mutation it was seen red
+  against).
+- **Coasts:** the four `coast-*` vantages carry a `shore_probe` (engine/shore_probe.rs, judged by
+  [shore-probe-check.js](../../scripts/lib/shore-probe-check.js), in `just rig-tests`):
+  `just probe-sweep --only coast-silverdale-waterfront,coast-silverdale-old-edge,coast-dover-cliffs,coast-norderney-beach`.
+  Their red results on today's build are in each vantage's `_red` note.
 - Rigs boot one game at a time, in the background: [game-boots.md](../ai/game-boots.md).
 
 ## Open work
@@ -99,6 +114,11 @@ And 74 more items, 106 references (`node scripts/crate-cards.js --interface huma
   would close it); the harvest does not re-run when a terrain tile arrives; inside a height-survey
   region with no tile tier installed, the ground draws with 54 m triangles while the region's
   buildings and roads stand on the finest ground.
+- **Whole-Earth maps, rung 2** ([whole-earth-maps.md](../design/whole-earth-maps.md), section 13):
+  the mesher onto the nested lattice (`build_patch_mesh` still blends barycentrically, so its
+  vertices are not nested: the lattice test's mutation measured 12,276 of 12,288 corners differ),
+  with the lattice test repeated against the mesher; `data/maps/levels.ron` and its loader (the
+  levels `map_tiles` takes); tile residency riding the patches; the shore band in the one formula.
 - **`planet_chunks.rs` still mixes the height math with building the patch meshes.** The plan had it
   split in two for the line between terrain and the renderer ([crate-split.md](../design/crate-split.md),
   "Split terrain from the renderer?"); rung 0 moved the shared types down instead, so the split is

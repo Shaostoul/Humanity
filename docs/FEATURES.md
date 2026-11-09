@@ -2201,6 +2201,29 @@ Island hole, Lake Union in Seattle Center).
 - Native: crates/humanity-terrain/src/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/maps/planet_view.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Whole-Earth Maps, Rung 1: the Coast Yardstick, the Tile Key, the Credit (2026-11-09)
+The first rung of docs/design/whole-earth-maps.md (one grid for the map and the ground). THE GATE:
+the showcase verb `{"shore_probe":"lat,lon;lat,lon","shore_step_m":"2.5"}` writes
+`debug/shore_probe.json`, the ground along a great-circle transect every 2.5 m: the walk oracle the
+player stands on, the patch drawn there, the raw land layer (the region's survey DEM, else the
+uncarved ground) and the game's own coastline reading with its source (a region's OSM polygons,
+about 9 m cells, or the 0.05-degree ocean mask). A vantage's `shore_probe` makes probe-sweep judge it
+(scripts/lib/shore-probe-check.js): wet, dry, no_false_wall, kept_cliff, shallow, no_seam, with ends
+checked against coastline data (a coast the game can only see on the coarse mask must be declared,
+with its source, or the vantage is MISCONFIGURED). Four vantages measure today's coasts:
+coast-silverdale-waterfront, coast-silverdale-old-edge, coast-dover-cliffs, coast-norderney-beach
+(their red results are in each vantage's `_red`). Rig-only switches `HUMANITY_SHORE_TAPER=0` and
+`HUMANITY_REGION_DEM=0` rebuild the region masks without the v0.1153 taper or the DEM overlay, for the
+red runs. THE TILE KEY: crates/humanity-terrain/src/map_tiles.rs (relay-safe): level for a depth,
+ancestor tile by mask, tile containing a point, the nested height lattice, the great-circle clipper
+with clip-edge flags, the 10^7-degree codec. THE CREDIT: the OpenStreetMap notice over the 3D view has
+its own layer (src/gui/map_credit.rs), so it shows in the construction editor, the showroom and with
+the HUD off, and only while a region is within draw range (`region_meshes::drawn_names`; it used to
+stay on anywhere on Earth once a region had been built); LICENSES.md no longer files the region `.dem.bin` files under OSM; data/credits.ron gains
+NOAA ETOPO 2022 and the AWS Terrain Tiles.
+- Native: src/engine/shore_probe.rs, src/engine/ipc.rs (verb), crates/humanity-terrain/src/water_carve.rs (`water_class_at`, `raw_dem_m_at`, the switches), crates/humanity-terrain/src/map_tiles.rs, src/gui/map_credit.rs, src/engine/region_meshes.rs (`drawn_names`)
+- Rig: scripts/lib/shore-probe-check.js, scripts/probe-sweep.js, tests/visual/vantages.json; tests: scripts/tests/shore-probe-check.test.js, map_tiles_tests.rs, credits.rs `shipped_heights_and_maps_name_their_sources`
+
 ### The Sharp Converged Sky (v0.1165, phase 8)
 The temporal cloud map is 2048^2 (edge-sharpness ceiling halved to
 ~0.11 deg/texel = 1.7 screen px; the v0.1161 ground-occlusion cull paid

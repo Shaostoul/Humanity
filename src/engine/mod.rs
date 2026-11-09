@@ -186,6 +186,9 @@ pub mod frame_near_trees;
 /// The rig's readout of the ground under the near trees and the eye, against
 /// the ground actually drawn there (BUG-156, 2026-10-05).
 pub mod tree_ground;
+/// The rig's readout of the ground along a transect across a coast, against the coastline data
+/// and the raw land layer (whole-Earth maps rung 1, 2026-11-09, the `shore_probe` gate).
+pub mod shore_probe;
 /// The rig's held movement keys: arriving somewhere on foot the way a player
 /// does, instead of by teleport (BUG-156, 2026-10-05).
 pub mod rig_walk;

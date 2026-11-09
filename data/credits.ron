@@ -30,8 +30,56 @@
             // needs a visible notice wherever it is displayed; the region
             // files under data/maps/regions/ are a Derivative Database and
             // must themselves be offered under ODbL. LICENSES.md covers the
-            // second, these surfaces cover the first.
-            shown_in: ["Maps planet view footer", "In-world region credit", "Credits"],
+            // second, these surfaces cover the first. The in-world credit has
+            // its own layer since whole-Earth maps rung 1 (2026-11-09,
+            // gui/map_credit.rs), so the HUD switching off in the construction
+            // editor and the showroom no longer takes it away.
+            shown_in: ["Maps planet view footer", "In-world map credit (in play, the construction editor and the showroom)", "Credits"],
+        ),
+        // NOAA ETOPO 2022, owed a row since the attribution audit of
+        // 2026-09-06 (item 14). Earth's shipped heights
+        // (data/planets/earth_heightmap.bin, the 0.05-degree grid built by
+        // examples/build_earth_grid.rs from the 15 arc-second tiles), the
+        // connected-ocean mask derived from them (earth_ocean_mask.bin), and
+        // the optional 15 arc-second tile tier (terrain_tiles.rs). Licence,
+        // NOAA's metadata read 2026-11-08 (docs/reference/findings/
+        // 2026-11-08-whole-earth-map-data.md, finding 14): "NOAA waives any
+        // potential copyright and related rights in these data worldwide
+        // through the Creative Commons Zero 1.0 Universal Public Domain
+        // Dedication (CC0-1.0)." Nothing is owed; it is credited by the house
+        // rule, in the citation NOAA's product page asks for (read 2026-11-09,
+        // https://www.ncei.noaa.gov/products/etopo-global-relief-model).
+        (
+            id: "noaa_etopo",
+            name: "NOAA ETOPO 2022",
+            used_for: "Earth's heights on land and under the sea: the shape of the whole planet's ground and seabed, and the map of which water is connected ocean.",
+            licence: "CC0 1.0 (NOAA's public domain dedication)",
+            notice: "NOAA National Centers for Environmental Information. 2022: ETOPO 2022 15 Arc-Second Global Relief Model. NOAA National Centers for Environmental Information. DOI: 10.25921/fd45-gt74",
+            url: "https://www.ncei.noaa.gov/products/etopo-global-relief-model",
+            attribution_required: false,
+            shown_in: ["Credits"],
+        ),
+        // The two OSM regions' height surveys, data/maps/regions/*.dem.bin,
+        // fetched once by scripts/fetch-region-dem.mjs from the AWS Open Data
+        // "Terrain Tiles" (Mapzen / Tilezen, terrarium encoding). LICENSES.md
+        // used to file them under OpenStreetMap, which they are not
+        // (attribution audit 2026-09-06, item 10). For the two Puget Sound
+        // regions the tiles are United States public-domain data (USGS
+        // 3DEP/NED, NASA SRTM and NOAA bathymetry, as the script's header
+        // records; not re-checked tile by tile). The tile
+        // set's own guidance, read 2026-11-08 (the finding above, item 20),
+        // says "Attribution is required for many terrain tile data providers";
+        // its list for other countries includes two "All rights reserved"
+        // sources, which is why this source is not used for the planet.
+        (
+            id: "aws_terrain_tiles",
+            name: "AWS Open Data Terrain Tiles (Mapzen / Tilezen)",
+            used_for: "Fine ground heights under the two real map regions, Silverdale and Seattle Center (about 13 m apart), so their shores slope the way the real ones do.",
+            licence: "The underlying sources' terms; for these two regions United States public-domain data (USGS 3DEP/NED, NASA SRTM, NOAA)",
+            notice: "Region heights: AWS Open Data Terrain Tiles (Mapzen / Tilezen), from USGS 3DEP, NASA SRTM and NOAA data",
+            url: "https://registry.opendata.aws/terrain-tiles/",
+            attribution_required: false,
+            shown_in: ["Credits"],
         ),
         (
             id: "nasa_gibs",

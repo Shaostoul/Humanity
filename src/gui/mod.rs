@@ -31,6 +31,10 @@ pub mod bottom_strip;
 /// overlay that says so (2026-10-17).
 #[cfg(feature = "native")]
 pub mod drop_files;
+/// The OpenStreetMap credit over the 3D view, drawn by its own layer so the HUD, the construction
+/// editor and the showroom can never hide it (whole-Earth maps rung 1, 2026-11-09).
+#[cfg(feature = "native")]
+pub mod map_credit;
 /// An egui page rendered into its own texture for a screen placed in the
 /// 3D world (in-world screens, rung 1).
 #[cfg(feature = "native")]

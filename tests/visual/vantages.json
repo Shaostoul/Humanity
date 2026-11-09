@@ -13953,6 +13953,95 @@
       "ground_probe": {"max_float_m": 0.3, "max_sink_m": 1.0, "min_trees": 10, "eye_height_m": 1.75, "eye_tol_m": 0.35}
     },
     {
+      "id": "coast-silverdale-waterfront",
+      "desc": "60 m over Dyes Inlet at noon, 300 m off the Silverdale waterfront, looking north across the waterline at the shore the operator reported twice: dry in v0.1148 ('the water isn't right ... the south middle side is missing from Dyes Inlet'), a sheer wall in v0.1153 ('the water edge looks like a sheer cliff instead of tapering into the water'). The whole-Earth maps yardstick (docs/design/whole-earth-maps.md 5.5): its shore_probe samples the ground the player stands on every 2.5 m from 140 m inland to 400 m out, against the region's OSM water polygons (the coast at 47.6436 on this meridian) and the region's survey DEM as the raw land layer.",
+      "expect": "Water in the inlet right up to the shore; the ground walks down into it at a gentle slope; no wall, no dry flat where water should be; trees and houses stand on the ground.",
+      "regressions": [
+        "wet: every sample more than 15 m offshore is at least 0.3 m below sea level (no dry harbour, v0.1148)",
+        "dry: every sample more than 15 m inland is at least 0.3 m above sea level (no drowned shore)",
+        "no_false_wall: within 60 m of the coast no 10 m stretch rises more than the survey DEM's own rise plus 2 m (no carve wall, v0.1153)",
+        "panics=0"
+      ],
+      "camera": {"body": "earth", "lat": 47.6405, "lon": -122.695, "altitude_km": 0.06, "look_offset_deg": 80, "time": 12.0},
+      "showcase": {"sea": "0.3", "weather": "clear", "cloud_cover": "0"},
+      "hold_altitude": true,
+      "settle_s": 14,
+      "perf_floor_fps": 5,
+      "shore_probe": {"land": [47.6450, -122.6950], "water": [47.6400, -122.6950], "rules": ["wet", "dry", "no_false_wall"]},
+      "_why": "Whole-Earth maps rung 1 (2026-11-09). The plan put the camera ON the shore at 47.6445 looking north, which looks inland, away from the water (the camera park only tilts toward north); it sits over the water instead, looking north at the waterfront. The transect is the plan's. Goes green in rung 2 (the shore band in the one formula).",
+      "_red": "Measured 2026-11-09 on this rung's build, rig defaults, two grounds (BUG-287: a release draws Earth to patch depth 13, about 54 m triangles; the operator's checkout, whose data holds an empty earth_tiles folder, to depth 20). AS SHIPPED it is GREEN at both depths, as the plan predicted: the coast at 153 m along (the region's OSM polygons), the ground falls from 5.7 m 140 m inland to -5.0 m 90 m out, the steepest 10 m going inland rises 0.70 m (depth 13) or 1.48 m (depth 20) where the DEM rises 0.02 or 0.37 m, and every sample past 15 m offshore is at -0.84 m (depth 13) or -1.16 m (depth 20) or deeper; the capture shows water to the shore and no wall. THE RED, by the plan's switch: HUMANITY_SHORE_TAPER=0 at depth 20 is RED on no_false_wall, the ground dropping from +3.6 m to -5.0 m within 10 m at the waterline (8.39 m in 10 m where the DEM rises 0.37 m), the v0.1153 sheer wall. At depth 13 the same switch stays GREEN (1.45 m in 10 m): one 54 m triangle spreads the carve's 9 m drop, so the release ground cannot draw that wall. With HUMANITY_SHORE_TAPER=0 and HUMANITY_REGION_DEM=0 (the v0.1149 state) depth 13 is RED twice: the coarse grid stands the town 39 to 41 m up right to the shore and the carve drops it to -5 m inside one triangle (no_false_wall: 7.14 m in 10 m where the DEM rises 0.02 m), and 4 samples 16 to 25 m offshore stay above -0.3 m (wet: 6.49 m at 16 m out). Sweeps in this rung's worktree .probe-rig/sweeps: 20261109-121545 (shipped, depth 13), -124159 (taper off, 13), -124349 (taper and DEM off, 13), -124533 (taper off, 20), -125420 (shipped, 20)."
+    },
+    {
+      "id": "coast-silverdale-old-edge",
+      "desc": "300 m over Dyes Inlet 250 m south of where the old Silverdale rectangle's southern edge (latitude 47.590) crosses open water, looking north along the water across that line. The region's water carve and survey DEM stop at the box edge, so the sea bed steps there (maps-ladder.md, 'the region-boundary water seam'). Its shore_probe lays a transect along the water at longitude -122.658, from 333 m inside the box to 222 m outside it.",
+      "expect": "One continuous sheet of water with an even bed; no step, no shelf, no change of colour at the line.",
+      "regressions": [
+        "no_seam: no step over 0.5 m between samples anywhere along the transect across the old box edge",
+        "panics=0"
+      ],
+      "camera": {"body": "earth", "lat": 47.5875, "lon": -122.658, "altitude_km": 0.3, "look_offset_deg": 60, "time": 12.0},
+      "showcase": {"sea": "0.3", "weather": "clear", "cloud_cover": "0"},
+      "hold_altitude": true,
+      "settle_s": 14,
+      "perf_floor_fps": 5,
+      "shore_probe": {
+        "along_water": [[47.5930, -122.6580], [47.5880, -122.6580]],
+        "rules": ["no_seam"],
+        "crosses_lat": 47.59,
+        "water_source": "North end: the Silverdale region's OSM sea polygon (water from 47.6015 south to the box edge on this meridian). South end, outside the region: OpenStreetMap natural=coastline ways 991897493 and 991897494, read through the Overpass API on 2026-11-09 (osm_base 2026-11-09T11:55:35Z): on longitude -122.658 the inlet's water runs south of the box edge to the shore at about 47.5867, 145 m past this end."
+      },
+      "_why": "Whole-Earth maps rung 1 (2026-11-09). The plan's transect at longitude -122.665 lay ON the inlet's west shore at the box edge (the region's sea starts at -122.66488 there), so it moved to -122.658, the middle of the 1.1 km of open water the edge crosses (sea from -122.6649 to -122.6512 at 47.5904). The camera moved south of the line because the park only looks north. Goes green in rung 2 (tiles cover the sphere; clip edges are not coastlines).",
+      "_red": "Measured 2026-11-09, RED on no_seam at both depths, as the plan predicted. The carve holds the bed at -5.00 m right up to the box edge at 47.5900; past it the region's carve and DEM stop and the coarse grid stands the ground up to +25.0 m and dry, where the real inlet runs on another 370 m (OSM). At depth 13 the 30 m rise is spread over one 54 m triangle (the worst step 1.24 m between two samples at 47.58977); at depth 20 it is a cliff, 16.04 m between two samples 2.5 m apart at 47.59002 (-3.30 m to +12.74 m). The capture shows it plainly: the inlet ends in a straight, saw-toothed wall of ground along the old box edge. South of the edge the game's own coastline is the ocean mask, which reads land. Sweeps 20261109-121545 (depth 13) and -125420 (depth 20)."
+    },
+    {
+      "id": "coast-dover-cliffs",
+      "desc": "The White Cliffs east of Dover from 150 m over the Channel, 900 m offshore, looking north at noon: a steep coast elsewhere on the planet, on the global sources only (no region). Its shore_probe runs from 330 m inland of the coast to 560 m offshore along longitude 1.36; the game has no coastline here finer than the 0.05-degree ocean mask, so the vantage declares the real one from OpenStreetMap.",
+      "expect": "A near-vertical pale face about 100 m tall rising from the water; the sea at its foot; no ramp, no beach plain in front of it.",
+      "regressions": [
+        "wet: every sample more than 15 m offshore of the real coast is at least 0.3 m below sea level",
+        "dry: every sample more than 15 m inland of the real coast is at least 0.3 m above sea level",
+        "kept_cliff: the ground reaches at least 60 m within 150 m inland of the real coast",
+        "panics=0"
+      ],
+      "camera": {"body": "earth", "lat": 51.1270, "lon": 1.3600, "altitude_km": 0.15, "look_offset_deg": 75, "time": 12.0},
+      "showcase": {"sea": "0.3", "weather": "clear", "cloud_cover": "0"},
+      "hold_altitude": true,
+      "settle_s": 20,
+      "perf_floor_fps": 5,
+      "shore_probe": {
+        "land": [51.1380, 1.3600],
+        "water": [51.1300, 1.3600],
+        "rules": ["wet", "dry", "kept_cliff"],
+        "coast": {"at": [51.13502, 1.3600], "source": "OpenStreetMap natural=coastline way 458939389, between its nodes at 51.1349941, 1.3599263 and 51.1350786, 1.3602070 (interpolated to longitude 1.36); read through the Overpass API on 2026-11-09 (osm_base 2026-11-09T11:53:32Z). The coast runs east-north-east here, so this north-south transect crosses it 21 degrees off square."}
+      },
+      "_why": "Whole-Earth maps rung 1 (2026-11-09). The plan's coordinates checked against OSM: the land end is 330 m inland, the water end 560 m out. Goes green in rung 4 (the downloader brings GEDTM30 land, ETOPO seabed and the OSM coastline here).",
+      "_red": "Measured 2026-11-09, RED on wet and kept_cliff at both depths (13 and 18), as the plan predicted; dry passes. With no region and no tile files the ground is the 5.5 km grid plus detail: a dry ramp from +27.9 m 330 m inland down to +15.5 to +15.7 m 560 m out, about 1.4 m per 100 m. wet: all 217 samples past 15 m offshore are dry land, the highest +22.5 m at 17 m out; kept_cliff: +25.0 m at most within 150 m inland, not 60. The capture: a flat grey plain to the horizon, no cliff and no sea in front of the camera. The game's own coastline (the ocean mask) reads both ends as sea while the ground there stands 15 to 28 m up. Sweeps 20261109-121545 (depth 13) and -124533 (depth 18)."
+    },
+    {
+      "id": "coast-norderney-beach",
+      "desc": "Norderney's North Sea beach from 150 m over the island, 630 m inland of the coast, looking north across the dunes, the beach and the sea at noon: a shallow coast elsewhere, on the global sources only. Its shore_probe runs from 1.3 km inland to 360 m offshore along longitude 7.18; the coast is declared from OpenStreetMap, the game having only the 0.05-degree ocean mask here.",
+      "expect": "A broad, nearly flat beach running into shallow water with no step at the waterline; water everywhere seaward.",
+      "regressions": [
+        "wet: every sample more than 15 m offshore of the real coast is at least 0.3 m below sea level",
+        "dry: every sample more than 15 m inland of the real coast is at least 0.3 m above sea level: the island is there (added in rung 1, when wet and shallow alone passed a drowned island)",
+        "shallow: within 300 m either side of the real coast the slope stays under 3 degrees and no step between samples exceeds 0.3 m",
+        "panics=0"
+      ],
+      "camera": {"body": "earth", "lat": 53.7155, "lon": 7.1800, "altitude_km": 0.15, "look_offset_deg": 75, "time": 12.0},
+      "showcase": {"sea": "0.3", "weather": "clear", "cloud_cover": "0"},
+      "hold_altitude": true,
+      "settle_s": 20,
+      "perf_floor_fps": 5,
+      "shore_probe": {
+        "land": [53.7100, 7.1800],
+        "water": [53.7250, 7.1800],
+        "rules": ["wet", "dry", "shallow"],
+        "coast": {"at": [53.72176, 7.1800], "source": "OpenStreetMap natural=coastline way 961680628, between its nodes at 53.7206972, 7.1735670 and 53.7220546, 7.1817576 (interpolated to longitude 7.18); read through the Overpass API on 2026-11-09 (osm_base 2026-11-09T11:56:35Z). The island's south (Wadden) coast is at 53.7012 on this meridian (way 4590501), so the land end is on the island."}
+      },
+      "_why": "Whole-Earth maps rung 1 (2026-11-09). The plan put the camera over the sea at 53.7250 looking north, out to sea and away from the beach (the park only looks north), so it sits over the island instead. The transect is the plan's. A caution for rung 4: OSM's coastline here is the high-water line, and the dune belt behind the beach may itself be steeper than 3 degrees within 300 m inland, so the shallow rule's landward half should be checked against GEDTM30 before this vantage is trusted to go green.",
+      "_red": "Measured 2026-11-09: the plan's two rules, wet and shallow, PASSED, where the plan expected red. The gate was measuring the wrong thing: the 5.5 km grid draws Norderney as a sea-level flat, +0.23 m 1.3 km inland sliding to -1.2 m 360 m out (the steepest slope 0.09 degrees), so the water side is wet and every slope shallow, while the island itself is gone: the ground crosses sea level 836 m south of the real coast and the capture shows shallow water in every direction. Coarse data smears a coast flat, so a shallow coast's own rules pass it. The `dry` rule was added for this and is RED at both depths (13 and 19): all 518 samples more than 15 m inland stand below +0.3 m, 326 of them under the sea, the lowest -0.71 m. Sweeps 20261109-121545 (depth 13, judged again with dry) and -124533 (depth 19)."
+    },
+    {
       "id": "maps-follow-home",
       "desc": "Aboard the UHS Mothership at local noon, then the Maps page opened the way the game opens it: following you.",
       "expect": "The ship's hull fills the middle of the map, lit from above, with Earth's day side behind and below it; the label UHS Mothership, your home, 35,870 km up; the ship's orbit line through it; Following you at the top left. Earth faces the ship with its EQUATOR: open Pacific under the ship with the noon sun glint, Mexico and Baja California at one side of the disc and Colombia and Ecuador further round, never the Arctic ice cap in the middle (BUG-211). The planets' orbit rings run parallel to the ship's own orbit line (the game has no axial tilt, so the ecliptic is the equator's plane).",

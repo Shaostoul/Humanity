@@ -843,6 +843,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         let note = crate::engine::tree_ground::write_report(state);
         log::info!("Showcase: tree_ground -> {note}");
     }
+    // {"shore_probe":"lat,lon;lat,lon","shore_step_m":"2.5"} (whole-Earth maps rung 1,
+    // 2026-11-09): write the ground along that transect (the walk oracle, the drawn patch, the raw
+    // land layer and the coastline data's class at each sample) to debug/shore_probe.json
+    // (engine/shore_probe.rs). The probe rig's `shore_probe` vantage check reads it.
+    if let Some(spec) = grab("shore_probe") {
+        let note = crate::engine::shore_probe::write_report(state, &spec, grab("shore_step_m").as_deref());
+        log::info!("Showcase: shore_probe -> {note}");
+    }
     // {"solo":"1"} / {"solo":"0"} (2026-10-03, ship homes 1b): step out of the shared world
     // and back in, the switch the launcher's offline-home pick and Dev travel flip
     // (`copresence_solo`; lib.rs sends game_leave, then joins again once it clears). The

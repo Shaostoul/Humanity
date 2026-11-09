@@ -9798,12 +9798,10 @@ mod native_app {
                                         rot_d,
                                         rotation,
                                     );
-                                    state.gui_state.osm_regions_drawn = state
-                                        .region_meshes
-                                        .active
-                                        .iter()
-                                        .map(|a| a.name.clone())
-                                        .collect();
+                                    // Only the regions within draw range: `active` keeps every
+                                    // region ever built (whole-Earth maps rung 1).
+                                    state.gui_state.osm_regions_drawn =
+                                        crate::engine::region_meshes::drawn_names(&state.region_meshes, cam_local);
                                     // The water carve just changed the
                                     // elevation formula itself: every
                                     // terrain/water patch cached before
@@ -15505,6 +15503,11 @@ mod native_app {
                                     }
                                 }
 
+                                // The OpenStreetMap credit, on its own layer and after every side
+                                // panel, whenever a region's geometry is drawn: in play, with the HUD
+                                // off, in the construction editor and in the showroom (whole-Earth
+                                // maps rung 1, gui/map_credit.rs).
+                                crate::gui::map_credit::draw(ctx, &state.theme, &state.gui_state);
                                 // Confirmation toasts (v0.861): floats a "Saved" style
                                 // note over everything so actions are never silent.
                                 crate::gui::widgets::draw_toasts(ctx, &state.theme, &mut state.gui_state);

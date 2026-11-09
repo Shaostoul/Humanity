@@ -11,9 +11,11 @@ does not name a surface where its notice is actually shown.
 
 ## OpenStreetMap - the one with real obligations
 
-`data/maps/regions/*.bin` (currently `silverdale`, `seattle-center`, plus their
-`.dem.bin` elevation companions) are built from OpenStreetMap by
-`scripts/fetch-osm-region.mjs`.
+The region files `data/maps/regions/silverdale.bin` and
+`data/maps/regions/seattle-center.bin` are built from OpenStreetMap by
+`scripts/fetch-osm-region.mjs`. (Their `.dem.bin` height companions are NOT
+OpenStreetMap data: they come from a different source by a different script,
+below under "Heights".)
 
 **Map data (c) OpenStreetMap contributors, ODbL 1.0**
 <https://www.openstreetmap.org/copyright>
@@ -27,7 +29,9 @@ believe you are done:
    from `credits::OSM_NOTICE`. A credit that lives only in this file does NOT
    discharge this - which was exactly the state of the in-world view before
    v0.1226, where the notice went to a log line and the debug console and no
-   player ever saw it.
+   player ever saw it. Since 2026-11-09 the in-world line is drawn by its own
+   layer (`src/gui/map_credit.rs`), not inside the HUD, so it also shows in the
+   construction editor, in the showroom and with the HUD turned off.
 2. **The region files are a Derivative Database.** They are an extracted,
    reprojected subset of OSM, so publicly distributing them means offering them
    under ODbL 1.0 as well. They are hereby offered under ODbL 1.0. If you
@@ -39,6 +43,34 @@ once at development time and committed.
 
 This is a plain-language summary written by developers, not lawyers. Where it and
 the ODbL text disagree, the licence governs.
+
+## Heights (NOAA ETOPO 2022, and the region surveys)
+
+- **NOAA ETOPO 2022** - Earth's shipped heights on land and under the sea
+  (`data/planets/earth_heightmap.bin`, built by `examples/build_earth_grid.rs`),
+  the connected-ocean mask derived from them (`earth_ocean_mask.bin`) and the
+  optional 15 arc-second tile tier. NOAA's metadata: "NOAA waives any potential
+  copyright and related rights in these data worldwide through the Creative
+  Commons Zero 1.0 Universal Public Domain Dedication (CC0-1.0)." Nothing is
+  owed; it is credited anyway, in the citation NOAA asks for: NOAA National
+  Centers for Environmental Information. 2022: ETOPO 2022 15 Arc-Second Global
+  Relief Model. DOI: 10.25921/fd45-gt74.
+- **The region surveys**, `data/maps/regions/*.dem.bin` (about 13 m apart under
+  Silverdale and Seattle Center), fetched once by `scripts/fetch-region-dem.mjs`
+  from the AWS Open Data "Terrain Tiles" (Mapzen / Tilezen,
+  <https://registry.opendata.aws/terrain-tiles/>). For these two Puget Sound
+  regions the tiles are United States public-domain data (USGS 3DEP/NED, NASA
+  SRTM and NOAA bathymetry, as the script's header records). The tile set as a
+  whole is a patchwork: its attribution list
+  (<https://github.com/tilezen/joerd/blob/master/docs/attribution.md>) includes
+  two national sources marked "All rights reserved", which is why it is used for
+  these two US regions only and never for the planet. Until 2026-11-09 this file
+  filed the `.dem.bin` files under OpenStreetMap, which they are not (attribution
+  audit 2026-09-06, item 10).
+
+Both are rows in `data/credits.ron` (`noaa_etopo`, `aws_terrain_tiles`); the
+research behind them, quoted and dated, is
+`docs/reference/findings/2026-11-08-whole-earth-map-data.md` (findings 14 and 20).
 
 ## NASA (public domain)
 

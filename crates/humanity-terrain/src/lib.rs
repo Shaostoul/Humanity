@@ -48,6 +48,12 @@ pub mod near_tree_gate;
 /// increment 2). Parser/projection/clipper are relay-safe; only the mesher
 /// is native-gated.
 pub mod osm_region;
+/// Map tiles keyed to the terrain's own quadtree (whole-Earth maps rung 1,
+/// docs/design/whole-earth-maps.md): a tile's id is a `PatchId`; the level
+/// for a depth, the ancestor tile by mask, the tile containing a point, the
+/// nested height lattice, the great-circle clipper with clip-edge flags and
+/// OSM's 10^7-degree codec. Relay-safe, pure std + glam.
+pub mod map_tiles;
 /// Region water polygons pressed into the drawn terrain: rasterized masks
 /// that carve sea inlets to below sea level (the ocean shell fills them) and
 /// lake beds under their surface sheets. The flight-sim vector-water-mask

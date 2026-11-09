@@ -28,6 +28,20 @@ use std::sync::mpsc::{channel, Receiver};
 const BUILD_RANGE_M: f64 = 40_000.0;
 /// Camera-to-origin gate for DRAWING an already-built region (meters).
 const DRAW_RANGE_M: f64 = 60_000.0;
+
+/// Is a built region whose anchor is at `anchor_local` drawn from a camera at `cam_local` (both
+/// planet-unrotated, f64)? The one test step 5 draws by and the map credit shows by.
+fn in_draw_range(anchor_local: DVec3, cam_local: DVec3) -> bool {
+    (anchor_local - cam_local).length() <= DRAW_RANGE_M
+}
+
+/// The names of the regions DRAWN from `cam_local`, for the OpenStreetMap credit
+/// (gui/map_credit.rs). `active` alone also holds every region built earlier and left far
+/// behind (they are never dropped), which put the credit over Dover and Norderney's open sea
+/// on 2026-11-09 after a sweep had visited Silverdale.
+pub(crate) fn drawn_names(rm: &RegionMeshState, cam_local: DVec3) -> Vec<String> {
+    rm.active.iter().filter(|a| in_draw_range(a.anchor_local, cam_local)).map(|a| a.name.clone()).collect()
+}
 /// Elevation grid resolution (cells per axis). 512 over a ~5 km region is
 /// ~10 m cells: finer than the 460 m tile data it samples, coarse enough
 /// that the whole grid is one ~1 MB Vec.
@@ -482,7 +496,7 @@ pub(crate) fn tick(
     //    narrowing; vertices are anchor-relative offsets in the planet's
     //    unrotated frame, so rotation = the planet spin quat).
     for a in &rm.active {
-        if (a.anchor_local - cam_local).length() > DRAW_RANGE_M {
+        if !in_draw_range(a.anchor_local, cam_local) {
             continue;
         }
         let pos_render = render_off + rot_d * a.anchor_local;
@@ -503,4 +517,38 @@ pub(crate) fn tick(
     }
 
     carve_published
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The credit names only regions drawn from where the camera is: two Puget Sound regions
+    /// from between them, none from 8,000 km away. Seen red 2026-11-09 with `drawn_names`
+    /// returning every active region (the old lib.rs mapping): "Dover draws no Puget Sound region".
+    #[test]
+    fn only_regions_in_draw_range_are_named_drawn() {
+        let r = 6_371_000.0;
+        let at = |lat: f64, lon: f64| osm_region::latlon_to_dir_f64(lat, lon) * r;
+        let region = |name: &str, anchor: DVec3| ActiveRegion {
+            region_idx: 0,
+            anchor_local: anchor,
+            meshes: Vec::new(),
+            built_with_tiles: false,
+            name: name.into(),
+        };
+        let mut rm = RegionMeshState::default();
+        rm.active.push(region("Silverdale", at(47.64, -122.675)));
+        rm.active.push(region("Seattle Center", at(47.62, -122.35)));
+        // 300 m up between the two, about 13 km from each: both drawn.
+        let between = osm_region::latlon_to_dir_f64(47.63, -122.5) * (r + 300.0);
+        assert_eq!(drawn_names(&rm, between), vec!["Silverdale".to_string(), "Seattle Center".to_string()]);
+        // Over the Channel off Dover: neither.
+        assert!(drawn_names(&rm, at(51.127, 1.36)).is_empty(), "Dover draws no Puget Sound region");
+        // The draw gate's edge.
+        let s = at(47.64, -122.675);
+        let east = DVec3::Y.cross(s).normalize();
+        assert!(in_draw_range(s, s + east * 59_000.0));
+        assert!(!in_draw_range(s, s + east * 61_000.0));
+    }
 }

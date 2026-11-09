@@ -123,6 +123,31 @@ mod tests {
         }
     }
 
+    /// Each shipped third-party height or map file names its source's row. The attribution audit
+    /// (2026-09-06, item 14) found the largest shipped file, earth_heightmap.bin, with no row at
+    /// all, and LICENSES.md filing the region DEMs under OpenStreetMap (item 10). When rung 2 of
+    /// the whole-Earth maps retires a file, drop its pair here in the same change. Seen red
+    /// 2026-11-09 with the noaa_etopo row removed: "planets/earth_heightmap.bin ships but
+    /// credits.ron has no noaa_etopo row".
+    #[test]
+    fn shipped_heights_and_maps_name_their_sources() {
+        let c = Credits::load(&data_dir());
+        for (file, id) in [
+            ("planets/earth_heightmap.bin", "noaa_etopo"),
+            ("planets/earth_ocean_mask.bin", "noaa_etopo"),
+            ("maps/regions/silverdale.dem.bin", "aws_terrain_tiles"),
+            ("maps/regions/seattle-center.dem.bin", "aws_terrain_tiles"),
+            ("maps/regions/silverdale.bin", "openstreetmap"),
+            ("maps/regions/seattle-center.bin", "openstreetmap"),
+        ] {
+            assert!(
+                data_dir().join(file).exists(),
+                "{file} no longer ships: drop its pair here (and its row, if nothing else uses the source)"
+            );
+            assert!(c.get(id).is_some(), "{file} ships but credits.ron has no {id} row");
+        }
+    }
+
     /// OSM is the one with two distinct obligations, and the rendered-view half
     /// is the one that is easy to forget. Both drawing surfaces must be listed.
     #[test]

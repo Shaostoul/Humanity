@@ -181,6 +181,9 @@ const VANTAGES_FILE = path.resolve(opt("--vantages", path.join(REPO, "tests", "v
 // The ground_probe vantage check (BUG-156): where the near trees and the eye
 // stand against the ground drawn under them, judged from the game's readout.
 const TG = require("./lib/tree-ground-check.js");
+// The shore_probe vantage check (whole-Earth maps rung 1): the drawn ground along a transect
+// across a coast, judged against the coastline data and the raw land layer.
+const SP2 = require("./lib/shore-probe-check.js");
 // The Maps "ship centred" check (Maps increment 1): the vantage's `map_centre`.
 const MC = require("./lib/map-centre-check.js");
 // The Maps overview check (Maps increment 2): the vantage's `map_overview`.
@@ -1317,6 +1320,28 @@ async function main() {
           log(`  ground probe: ${verdict.ok ? "ok" : "FAILED"} ${JSON.stringify(verdict.summary)}`);
           for (const f of verdict.failures) log(`  !! ground probe: ${f}`);
         }
+        // SHORE PROBE (whole-Earth maps rung 1, 2026-11-09, docs/design/whole-earth-maps.md 5.5):
+        // a vantage with `shore_probe` asks the game for the ground along its transect (the walk
+        // oracle, the drawn patch, the raw land layer and the coastline data's class every 2.5 m;
+        // src/engine/shore_probe.rs), keeps the readout beside the PNG as <id>-shore.json, and
+        // judges it (scripts/lib/shore-probe-check.js): a wall, a dry harbour, a lost cliff, a
+        // steep beach or a seam fails the vantage once its picture is saved; ends on the wrong
+        // side of the coast fail it as MISCONFIGURED.
+        if (v.shore_probe) {
+          const spPath = path.join(DEBUG, "shore_probe.json");
+          if (fs.existsSync(spPath)) fs.unlinkSync(spPath);
+          const sp = v.shore_probe;
+          const ends = Array.isArray(sp.along_water) ? sp.along_water : [sp.land, sp.water];
+          req("showcase_request.json", { shore_probe: ends.map((e) => e.join(",")).join(";"), shore_step_m: String(sp.step_m || 2.5) });
+          const readout = await waitFile("shore_probe.json", 30000);
+          if (!readout) throw new Error("shore probe: the game wrote no debug/shore_probe.json");
+          fs.writeFileSync(path.join(OUT, `${v.id}-shore.json`), JSON.stringify(readout, null, 2));
+          const verdict = SP2.judgeShore(readout, sp);
+          rec.shore_probe = { ok: verdict.ok, misconfigured: verdict.misconfigured, failures: verdict.failures, notes: verdict.notes, rules: verdict.rules, coast: verdict.coast };
+          log(`  shore probe: ${SP2.summarize(verdict)}`);
+          for (const f of verdict.failures) log(`  !! shore probe: ${f}`);
+          for (const n of verdict.notes) log(`  .. shore probe: ${n}`);
+        }
         // Capture window closes. Marks rec.contaminated when a foreign
         // instance was up at either end.
         guardEnd(rec, guardPre);
@@ -1371,6 +1396,10 @@ async function main() {
         if (rec.ok && rec.ground_probe && !rec.ground_probe.ok) {
           rec.ok = false;
           rec.error = `GROUND PROBE: ${rec.ground_probe.failures.join(" | ")}`;
+        }
+        if (rec.ok && rec.shore_probe && !rec.shore_probe.ok) {
+          rec.ok = false;
+          rec.error = `SHORE PROBE: ${rec.shore_probe.failures.join(" | ")}`;
         }
         if (rec.ok && rec.map_centre && !rec.map_centre.ok) {
           rec.ok = false;

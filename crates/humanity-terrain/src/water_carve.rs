@@ -103,9 +103,45 @@ const SHORE_MIN_DEPTH_M: f32 = 0.7;
 /// Beach land sits this far above its adjacent water surface.
 const SHORE_LAND_TARGET_M: f32 = 0.75;
 
+// ── Dev switches for the shore gate's red runs (whole-earth-maps.md 5.5) ───
+// The `shore_probe` rig gate (engine/shore_probe.rs, scripts/lib/shore-probe-check.js)
+// has to be seen failing for the reason the operator saw: the v0.1149 sheer
+// wall at the Silverdale waterfront. The taper and the DEM fixed that, so the
+// red is taken with them switched off for one run. Rig-only environment
+// switches, read when a region's mask is built (region load); nothing in the
+// game sets them, and a run with either off says so in run.log.
+
+/// `HUMANITY_SHORE_TAPER=0`: build the masks without the v0.1153 shore taper,
+/// so the sea bed is the v0.1149 constant [`SEA_CARVE_M`] right up to the
+/// polygon edge and shore land is not pulled down.
+pub const SHORE_TAPER_ENV: &str = "HUMANITY_SHORE_TAPER";
+/// `HUMANITY_REGION_DEM=0`: keep the region DEM in the mask (the shore probe
+/// still reads it as the raw land layer) but do not lay it over the ground,
+/// so the drawn ground is the coarse base grid the v0.1149 carve cut into.
+pub const REGION_DEM_ENV: &str = "HUMANITY_REGION_DEM";
+
+/// True when the named switch is set to exactly "0".
+pub fn dev_switch_off(name: &str) -> bool {
+    std::env::var(name).map(|v| v.trim() == "0").unwrap_or(false)
+}
+
+/// What the region masks hold at a point, for the shore probe's coastline
+/// reading: nearest cell, no blending, no carve weight.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WaterClass {
+    Land,
+    Sea,
+    Lake,
+}
+
 /// One region rasterized into cells: water (the terrain carve) AND the
 /// built-over footprint (vegetation suppression), one grid, one lookup.
 pub struct RegionMask {
+    /// The region's name from its file (the shore probe names its source).
+    name: String,
+    /// False when [`REGION_DEM_ENV`] was "0" at build: the DEM is kept for
+    /// reading but not laid over the ground.
+    dem_overlay_on: bool,
     origin_lat: f64,
     origin_lon: f64,
     half_e: f64,
@@ -162,6 +198,29 @@ impl RegionMask {
         region: &OsmRegion,
         lake_surface_rel_sea_m: &dyn Fn(usize) -> f64,
         dem: Option<crate::osm_region::RegionDem>,
+    ) -> Option<Self> {
+        let taper = !dev_switch_off(SHORE_TAPER_ENV);
+        let dem_overlay_on = !dev_switch_off(REGION_DEM_ENV);
+        if !taper || !dem_overlay_on {
+            log::warn!(
+                "[WaterCarve] {}: built with the dev switches {}={} {}={} (the shore gate's red run; never in play)",
+                region.name,
+                SHORE_TAPER_ENV,
+                if taper { "on" } else { "0" },
+                REGION_DEM_ENV,
+                if dem_overlay_on { "on" } else { "0" },
+            );
+        }
+        Self::build(region, lake_surface_rel_sea_m, dem, taper, dem_overlay_on)
+    }
+
+    /// The mask with the two dev switches given rather than read (tests).
+    fn build(
+        region: &OsmRegion,
+        lake_surface_rel_sea_m: &dyn Fn(usize) -> f64,
+        dem: Option<crate::osm_region::RegionDem>,
+        taper: bool,
+        dem_overlay_on: bool,
     ) -> Option<Self> {
         if region.water.is_empty() && region.buildings.is_empty() && region.roads.is_empty() {
             return None;
@@ -224,7 +283,11 @@ impl RegionMask {
         let mut target = vec![0.0f32; GRID_N * GRID_N];
         let mut carve_w = vec![0u8; GRID_N * GRID_N];
         for i in 0..GRID_N * GRID_N {
-            if is_water(kind[i]) {
+            if is_water(kind[i]) && !taper {
+                // The v0.1149 carve: the full bed right up to the edge.
+                target[i] = bed[i];
+                carve_w[i] = 255;
+            } else if is_water(kind[i]) {
                 let surface = surface_of(i);
                 let full_depth = surface - bed[i]; // 5 m sea, 1.5 m lake
                 let d_m = d_land[i] as f64 * cell_m;
@@ -232,7 +295,7 @@ impl RegionMask {
                 let depth = SHORE_MIN_DEPTH_M + (full_depth - SHORE_MIN_DEPTH_M).max(0.0) * t;
                 target[i] = surface - depth;
                 carve_w[i] = 255;
-            } else {
+            } else if taper {
                 let d_m = d_water[i] as f64 * cell_m;
                 if d_m < SHORE_TAPER_LAND_M {
                     let w = 1.0 - smoothstep01((d_m / SHORE_TAPER_LAND_M) as f32);
@@ -250,6 +313,8 @@ impl RegionMask {
         let dlat = half_n / m_per_lat;
         let dlon = half_e / m_per_lon;
         Some(Self {
+            name: region.name.clone(),
+            dem_overlay_on,
             origin_lat: region.origin_lat,
             origin_lon: region.origin_lon,
             half_e,
@@ -269,6 +334,9 @@ impl RegionMask {
     /// DEM's coverage and blending back to `e` over [`DEM_EDGE_BLEND_M`] at
     /// the edge. `e` is normalized; `sea`/`range` map metres to that domain.
     fn dem_overlay(&self, lat: f64, lon: f64, e: f32, sea: f32, range: f32) -> f32 {
+        if !self.dem_overlay_on {
+            return e;
+        }
         let Some(dem) = &self.dem else { return e };
         let Some(raw_m) = dem.sample_m(lat, lon) else { return e };
         let dem_m = raw_m.max(DEM_FLOOR_M);
@@ -835,6 +903,42 @@ pub fn sea_weight_at(masks: &[RegionMask], dir: DVec3) -> f32 {
     0.0
 }
 
+/// The coastline reading at `dir` from the region masks: `Some((class, region
+/// name, cell size in metres))` inside a region's box, `None` outside every
+/// region. Nearest cell; built-over land reads as land. The shore probe's
+/// coastline source where a region holds OSM water (engine/shore_probe.rs).
+pub fn water_class_at(masks: &[RegionMask], dir: DVec3) -> Option<(WaterClass, &str, f64)> {
+    let (lat, lon) = dir_to_latlon_f64(dir);
+    for m in masks {
+        if !m.latlon_hit(lat, lon) {
+            continue;
+        }
+        let (me, mn) = latlon_to_region_meters(m.origin_lat, m.origin_lon, lat, lon);
+        let step_e = (2.0 * m.half_e) / GRID_N as f64;
+        let step_n = (2.0 * m.half_n) / GRID_N as f64;
+        let x = (((me + m.half_e) / step_e).floor() as i64).clamp(0, GRID_N as i64 - 1) as usize;
+        let y = (((mn + m.half_n) / step_n).floor() as i64).clamp(0, GRID_N as i64 - 1) as usize;
+        let class = match m.kind[y * GRID_N + x] {
+            CELL_SEA => WaterClass::Sea,
+            CELL_LAKE => WaterClass::Lake,
+            _ => WaterClass::Land,
+        };
+        return Some((class, m.name.as_str(), (step_e + step_n) * 0.5));
+    }
+    None
+}
+
+/// The raw region DEM at `dir` in metres: no floor, no edge blend, no carve,
+/// and read wherever a DEM covers (its coverage reaches 2 km past its
+/// region's box). `Some((metres, region name))`, `None` where no DEM covers.
+/// The shore probe's "unmodified land layer" (whole-earth-maps.md 5.5).
+pub fn raw_dem_m_at(masks: &[RegionMask], dir: DVec3) -> Option<(f32, &str)> {
+    let (lat, lon) = dir_to_latlon_f64(dir);
+    masks
+        .iter()
+        .find_map(|m| m.dem.as_ref().and_then(|d| d.sample_m(lat, lon)).map(|h| (h, m.name.as_str())))
+}
+
 // ─────────────────────────────────── Tests ──────────────────────────────────
 
 #[cfg(test)]
@@ -902,6 +1006,52 @@ mod tests {
             (e - want).abs() < 1e-4,
             "sea centre carved to {e}, want {want} (2 m below sea)"
         );
+    }
+
+    /// The shore probe's coastline reading (engine/shore_probe.rs): the
+    /// nearest cell's class, the region's own name and cell size, and None
+    /// outside every region. Seen red 2026-11-09 with land cells read as Sea:
+    /// "the island inside the lake is land; left: Some(Sea), right: Some(Land)".
+    #[test]
+    fn water_class_reads_the_polygons() {
+        let r = test_region();
+        let m = masks();
+        let class = |e: f64, n: f64| water_class_at(&m, dir_at(&r, e, n)).map(|c| c.0);
+        assert_eq!(class(-1400.0, 0.0), Some(WaterClass::Sea));
+        assert_eq!(class(900.0, 0.0), Some(WaterClass::Lake));
+        assert_eq!(class(1000.0, 100.0), Some(WaterClass::Land), "the island inside the lake is land");
+        assert_eq!(class(0.0, 0.0), Some(WaterClass::Land));
+        let (_, name, cell_m) = water_class_at(&m, dir_at(&r, 0.0, 0.0)).expect("inside the region");
+        assert_eq!(name, "Carve Test");
+        assert!((cell_m - 4000.0 / GRID_N as f64).abs() < 0.01, "cell size {cell_m} m");
+        assert!(water_class_at(&m, latlon_to_dir_f64(10.0, 10.0)).is_none(), "outside every region");
+    }
+
+    /// The shore gate's red-run switch (`HUMANITY_SHORE_TAPER=0`): without
+    /// the taper the bed is the full constant depth right at the polygon edge
+    /// (the v0.1149 carve) and the shore land is left alone. Seen red
+    /// 2026-11-09 with `build` ignoring its `taper` argument: "12 m inside
+    /// the edge the bed is -0.982143 m with the taper off, want -5 m".
+    #[test]
+    fn taper_off_is_the_constant_depth_carve() {
+        let r = test_region();
+        let on = RegionMask::build(&r, &|_| 50.0, None, true, true).expect("has water");
+        let off = RegionMask::build(&r, &|_| 50.0, None, false, true).expect("has water");
+        let rel_sea_m = |m: &RegionMask, e: f64| {
+            let v = carve_normalized_with(std::slice::from_ref(m), dir_at(&r, e, 0.0), 0.15, MIN_M, MAX_M, SEA_NORM);
+            (v - SEA_NORM) * (MAX_M - MIN_M)
+        };
+        // 12 m inside the sea polygon's east edge (e = -1000).
+        let (bed_on, bed_off) = (rel_sea_m(&on, -1012.0), rel_sea_m(&off, -1012.0));
+        assert!(bed_on > -2.0, "with the taper the bed 12 m from shore is shallow, got {bed_on} m");
+        assert!(
+            (bed_off + SEA_CARVE_M as f32).abs() < 0.05,
+            "12 m inside the edge the bed is {bed_off} m with the taper off, want -{SEA_CARVE_M} m"
+        );
+        // Shore land 20 m east of the edge: pulled toward the waterline only with the taper.
+        let (land_on, land_off) = (rel_sea_m(&on, -980.0), rel_sea_m(&off, -980.0));
+        assert!(land_on < 40.0, "with the taper shore land is pulled down, got {land_on} m");
+        assert!((land_off - 50.0).abs() < 0.05, "without it shore land is untouched, got {land_off} m");
     }
 
     #[test]

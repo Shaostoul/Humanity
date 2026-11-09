@@ -3,8 +3,9 @@
 Written 2026-11-08 from a read of the region pipeline, the terrain quadtree and the history of the
 Silverdale waterfront, together with the dated licence research in
 [`2026-11-08-whole-earth-map-data.md`](../reference/findings/2026-11-08-whole-earth-map-data.md)
-(the finding; every licence statement below is quoted and dated there). **Nothing here is built
-yet.** The rungs in section 13 are the build order; PRIORITIES.md ranks when.
+(the finding; every licence statement below is quoted and dated there). **Rung 1 is built
+(2026-11-09: the coast yardstick, the tile key and the credit; its outcome closes section 13);
+nothing after it is.** The rungs in section 13 are the build order; PRIORITIES.md ranks when.
 
 The operator, verbatim (2026-11-08):
 
@@ -293,6 +294,9 @@ A new probe, `shore_probe`, samples the drawn ground through the same oracle the
 
 - **wet:** every sample more than 15 m on the water side of the coastline is at least 0.3 m below
   sea level;
+- **dry** (added in rung 1, after Norderney passed `wet` and `shallow` with its island drowned):
+  every sample more than 15 m on the land side is at least 0.3 m above sea level. Not for a polder
+  or a depression that is dry below sea level; there the question is whether water is drawn;
 - **no false wall:** within 60 m of the waterline, no 10 m stretch rises more than the unmodified
   land layer's own rise over the same stretch plus 2 m (the probe reads both, the drawn ground and
   the raw source: today the region DEM, later `land_h`);
@@ -335,6 +339,25 @@ indicative; the rung fixes both from the data and the rig's current vantage sche
    "expect": "A broad, nearly flat beach running into shallow water with no step at the waterline; water everywhere seaward."}
 ]
 ```
+
+**As built in rung 1 (2026-11-09; `tests/visual/vantages.json` is the source of truth, the block
+above is the plan as written).** Four things changed against the data:
+- **Cameras.** The camera park only tilts toward north, so a camera north of its coast looks
+  inland. The Silverdale waterfront camera sits over the inlet (47.6405, 60 m up), the old-edge
+  camera south of the line (47.5875), Norderney's over the island (53.7155); Dover's was right.
+- **The seam transect** at longitude -122.665 lay on the inlet's west shore at the box edge (the
+  region's sea begins at -122.66488 there). It moved to -122.658, the middle of the 1.1 km of
+  water the edge crosses; OSM's coastline puts the water's south shore 145 m past its south end.
+- **Where the coast is.** The game's coastline outside a region is the 0.05-degree ocean mask
+  (5.5 km cells), which cannot place a coast to the metre, so a vantage on it must declare the
+  real crossing with its source (`shore_probe.coast`), or it fails as misconfigured. Dover's and
+  Norderney's were read from OSM's `natural=coastline` through the Overpass API on 2026-11-09
+  (51.13502 and 53.72176 on their meridians; the plan's ends straddle both). Where a region's OSM
+  polygons cover the ends, the game's own reading places the coast and a declaration must agree
+  with it to 40 m.
+- **A caution for Norderney:** OSM's coastline there is the high-water line, and the dunes behind
+  the beach may be steeper than 3 degrees within the 300 m `shallow` window; check the landward
+  half against GEDTM30 before rung 4 expects it green.
 
 **Red evidence to record before any fix** (the house rule): `coast-silverdale-old-edge` should fail
 `no_seam` on today's build (the carve ends at the box edge); Dover and Norderney have no region, so
@@ -609,7 +632,8 @@ No backwards compatibility before v1.0, so the regions are rebuilt, not converte
    `just` recipe is developer tooling; its in-app button is logged as CLI debt in
    `docs/design/in-app-ops.md`.
 4. **The downloader:** `data/maps/packs.ron`, Settings > Maps, the privacy question, the hardware
-   notice, fetch from release assets (the operator uploads). Goes green: `coast-dover-cliffs`,
+   notice, fetch from release assets (uploaded by the top-level session under its standing
+   permissions, section 9.2; an agent produces the packs). Goes green: `coast-dover-cliffs`,
    `coast-norderney-beach`.
 5. **The base layer** replaces `earth_heightmap.bin`, the ocean mask and the 15-degree tile tier.
 6. **One map:** the Maps page Planet view draws these tiles as the straight-down view of the same
@@ -661,6 +685,30 @@ Small, measurable, no large downloads, and it makes every later rung provable.
   corrected; `data/credits.ron` rows for ETOPO (owed since the audit).
 - **Proof:** the vantages red where section 5.5 predicts; the module's tests seen red against a
   deliberate mutation each; `just verify`, the relay check, the doc-link check.
+
+### Rung 1 outcome (2026-11-09)
+
+Built: `src/engine/shore_probe.rs` (the verb), `scripts/lib/shore-probe-check.js` (the judge, in
+`just rig-tests`), the four `coast-*` vantages, `crates/humanity-terrain/src/map_tiles.rs` (the tile
+key, each test seen red against a mutation), `src/gui/map_credit.rs` (the credit's own layer, shown
+only while a region is within draw range), LICENSES.md's Heights section and the `noaa_etopo` and
+`aws_terrain_tiles` rows. The readings, measured on two grounds because of BUG-287 (a release draws
+Earth to patch depth 13, the operator's checkout to depth 20); every number is in the vantage's
+`_red` note:
+
+| Vantage | Shipped | Why |
+|---|---|---|
+| `coast-silverdale-waterfront` | green at depths 13 and 20, as predicted | the taper and the DEM hold: the steepest 10 m inland rises 0.70 m (13) or 1.48 m (20) |
+| (taper off) | red at depth 20, green at 13 | the v0.1153 wall, 8.39 m in 10 m at the waterline; a 54 m triangle cannot draw it |
+| (taper and DEM off) | red at depth 13 | the v0.1149 state: the coarse grid at 40 m to the shore, a 45 m face, and wet fails |
+| `coast-silverdale-old-edge` | red, as predicted | the bed stops at the box edge and the ground climbs to +25 m, dry; at depth 20 a 16 m step in 2.5 m |
+| `coast-dover-cliffs` | red (wet, kept_cliff), as predicted | a dry ramp from 28 m to 16 m: no cliff (25 m at most within 150 m) and no sea |
+| `coast-norderney-beach` | **passed the plan's rules**; red on `dry` | the island is a sea-level flat, 836 m of it under water; coarse data smears a coast flat, so `wet` and `shallow` pass it |
+
+What the next rungs should know: the gate measures the walk oracle, so its depth follows the
+camera and the tile folder (the readout records `walk_depth` and `tile_tier`); a vantage outside a
+region must declare its coast (the game's coastline there is the 5.5 km ocean mask); the old box
+edge's seam is a 30 m wall at depth 20, worth a capture in rung 2's before and after.
 
 ## 14. Questions only the operator can answer
 

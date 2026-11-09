@@ -479,27 +479,9 @@ pub fn draw(
             // (The room purpose card is drawn in the bottom-left stack, standing on the chat feed:
             // below, after the feed, BUG-236.)
 
-            // OpenStreetMap credit (bottom-right), shown ONLY while real OSM
-            // geometry is actually on screen.
-            //
-            // This is a licence obligation, not a courtesy. ODbL treats the
-            // drawn view of OSM data as a Produced Work, and the OSM
-            // Foundation asks that the credit appear WITH the map. Until
-            // v0.1226 the in-world view carried the notice only in a log line
-            // and the F12 debug console, so a player walking real Silverdale
-            // streets saw no credit at all. The Maps page footer had it right
-            // all along; this brings the 3D view level with it, using the same
-            // string (credits::OSM_NOTICE) so the two cannot drift.
-            if !state.osm_regions_drawn.is_empty() {
-                text_shadowed(
-                    painter,
-                    Pos2::new(screen.right() - 16.0, screen.bottom() - 96.0),
-                    Align2::RIGHT_BOTTOM,
-                    humanity_core::credits::OSM_NOTICE,
-                    11.0,
-                    theme.text_muted(),
-                );
-            }
+            // (The OpenStreetMap credit is not drawn here: the HUD switches off in the
+            // construction editor and the showroom, and a licence notice must not. It has its
+            // own layer, gui/map_credit.rs, since whole-Earth maps rung 1, 2026-11-09.)
 
             // The build editor's cut-away (engine/editor_storeys.rs `editor_cut_of`): a machine it
             // leaves out is not drawn, so its label is not either (increment 7 follow-ups,
@@ -1583,7 +1565,7 @@ fn draw_vital_row(painter: &egui::Painter, theme: &Theme, y: f32, row: &VitalRow
     y + 14.0
 }
 
-fn text_shadowed(
+pub(crate) fn text_shadowed(
     painter: &egui::Painter,
     pos: Pos2,
     anchor: Align2,
