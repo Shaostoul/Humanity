@@ -8,17 +8,17 @@
 //! every few metres along a great-circle transect between two points:
 //!
 //! * `ground_m`: the ground the player stands on there ([`Ground::radius`], the walk clamp's own
-//!   oracle: the drawn patch surface at the deepest drawn depth, carve and DEM included), minus
+//!   oracle: the drawn patch surface at the deepest drawn depth, the map packs included), minus
 //!   the sea radius. Metres above sea level, as drawn.
 //! * `leaf_depth` / `drawn_m`: the patch actually drawn over that point this frame and its surface
 //!   there (what the eye sees, which can be coarser than the walk oracle far from the camera).
 //! * `raw_m` / `raw_source`: the unmodified land layer, the source the ground is supposed to
-//!   follow: the region's survey DEM where one covers (raw: no floor, no blend, no carve), else the
-//!   same drawn surface with no region carve. The judge compares rises against it (no false wall).
-//! * `class` / `class_source`: what the game's own coastline data says is under the point: the
-//!   region's OSM water polygons where a region covers (about 9 m cells), else the connected-ocean
+//!   follow: a map pack's GEDTM30 lattice where a pack covers (raw: no shore band), else the same
+//!   drawn surface with no pack. The judge compares rises against it (no false wall).
+//! * `class` / `class_source`: what the game's own coastline data says is under the point: a map
+//!   pack's OSM water polygons where a pack covers (exact, "pack:<file>"), else the connected-ocean
 //!   mask (0.05 degree cells, about 5.5 km). The judge needs to know which, because the coarse one
-//!   cannot place a coast to the metre (that gap IS what rung 4 closes).
+//!   cannot place a coast to the metre (that gap IS what rung 4's downloader closes).
 //!
 //! Requested with the showcase verb `{"shore_probe":"lat,lon;lat,lon","shore_step_m":"2.5"}`
 //! (engine/ipc.rs); written to `debug/shore_probe.json`. Judged by
@@ -31,7 +31,8 @@ use crate::engine::state::EngineState;
 use glam::DVec3;
 use humanity_terrain::drawn_surface::{drawn_leaf_containing, DrawnPatchSurface};
 use humanity_terrain::planet_chunks::ElevationSource;
-use humanity_terrain::water_carve::{self, WaterClass};
+use humanity_terrain::map_ground;
+use humanity_terrain::map_pack::WaterRingKind;
 use std::collections::HashMap;
 
 /// Where the readout lands, relative to the working directory like every other dev IPC file.
@@ -91,8 +92,7 @@ pub(crate) fn report(state: &EngineState, ends: [(f64, f64); 2], step_m: f64) ->
     let tiles = (earth && state.terrain_tiles.tier_installed()).then_some(&state.terrain_tiles);
     let ocean = if earth { state.ocean_mask.as_ref() } else { None };
     let src = ElevationSource::Heightmap { hm, detail: &cs.detail, tiles, ocean };
-    let carve = water_carve::snapshot();
-    let masks: &[water_carve::RegionMask] = carve.as_deref().map(Vec::as_slice).unwrap_or(&[]);
+    let map = map_ground::snapshot();
     let max_drawn_depth = cs.last_drawn.iter().map(|p| p.depth).max().unwrap_or(0);
     let sea_r = def.radius * humanity_terrain::planet_surface::displaced_radius_f64_true(def, def.sea_level.clamp(0.0, 1.0) as f64);
 
@@ -102,8 +102,8 @@ pub(crate) fn report(state: &EngineState, ends: [(f64, f64); 2], step_m: f64) ->
     if dirs.len() > MAX_SAMPLES {
         return Err(format!("the transect is {} samples long (over {MAX_SAMPLES}): check the coordinates", dirs.len()));
     }
-    // The same surface with no region carve: the land layer outside any DEM.
-    let mut uncarved = DrawnPatchSurface::new(def, &src, max_drawn_depth.max(1)).with_carve(None);
+    // The same surface with no map pack: the land layer outside every pack.
+    let mut base = DrawnPatchSurface::new(def, &src, max_drawn_depth.max(1)).with_map(None);
     let mut drawn_at: HashMap<u8, DrawnPatchSurface> = HashMap::new();
     let mut samples = Vec::with_capacity(dirs.len());
     let mut sources: HashMap<String, usize> = HashMap::new();
@@ -114,20 +114,20 @@ pub(crate) fn report(state: &EngineState, ends: [(f64, f64); 2], step_m: f64) ->
         let ground_m = ground.radius(d) - sea_r;
         let leaf = drawn_leaf_containing(&cs.last_drawn, d);
         let drawn_m = leaf.map(|l| {
-            drawn_at.entry(l.depth).or_insert_with(|| DrawnPatchSurface::new(def, &src, l.depth).with_carve(carve.clone())).radius_at(d) - sea_r
+            drawn_at.entry(l.depth).or_insert_with(|| DrawnPatchSurface::new(def, &src, l.depth).with_map(map.clone())).radius_at(d) - sea_r
         });
-        let (raw_m, raw_source) = match water_carve::raw_dem_m_at(masks, d) {
-            Some((h, region)) => (h as f64, format!("region_dem:{region}")),
-            None => (uncarved.radius_at(d) - sea_r, "uncarved_ground".to_string()),
+        let (raw_m, raw_source) = match map.as_ref().and_then(|m| m.raw_land_m(d)) {
+            Some((h, pack)) => (h, format!("land_h:{pack}")),
+            None => (base.radius_at(d) - sea_r, "base_ground".to_string()),
         };
-        let (class, class_source) = match water_carve::water_class_at(masks, d) {
-            Some((c, region, cell_m)) => (
+        let (class, class_source) = match map.as_ref().and_then(|m| m.class_at(d)) {
+            Some((c, pack)) => (
                 match c {
-                    WaterClass::Land => "land",
-                    WaterClass::Sea => "sea",
-                    WaterClass::Lake => "lake",
+                    None | Some(WaterRingKind::Island) => "land",
+                    Some(WaterRingKind::Sea) => "sea",
+                    Some(_) => "lake",
                 },
-                format!("region:{region}:{cell_m:.1}m"),
+                format!("pack:{pack}"),
             ),
             None => match ocean {
                 Some(m) => (if m.is_ocean(d.as_vec3()) { "sea" } else { "land" }, "ocean_mask:0.05deg".to_string()),
@@ -159,10 +159,9 @@ pub(crate) fn report(state: &EngineState, ends: [(f64, f64); 2], step_m: f64) ->
         "walk_depth": max_drawn_depth,
         "drawn_patches": cs.last_drawn.len(),
         "tile_tier": tiles.is_some(),
-        "carve_regions": masks.len(),
+        "map_packs": map.as_ref().map(|m| m.packs.len()).unwrap_or(0),
         "dev_switches": {
-            "shore_taper": !water_carve::dev_switch_off(water_carve::SHORE_TAPER_ENV),
-            "region_dem": !water_carve::dev_switch_off(water_carve::REGION_DEM_ENV),
+            "shore_band": std::env::var(map_ground::SHORE_BAND_ENV).map(|v| v.trim() != "0").unwrap_or(true),
         },
         "eye_above_sea_m": eye.length() - sea_r,
         "class_sources": sources,

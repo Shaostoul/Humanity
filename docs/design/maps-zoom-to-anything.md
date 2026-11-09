@@ -125,7 +125,7 @@ CARTO's CDN at run time while the native Planet view reads installed region file
 | Rendering from another camera | `render_view_onto` + `ViewPasses`, the camera's `Projection::Orthographic` (`src/renderer/camera.rs:554`) for plan views |
 | Storeys and rooms | increment 7's `FloorSlab` and `HomeStructure::storeys()`, `detect_rooms`, the `room_types` registry |
 | Places and ways through the ship | `crates/humanity-ship/src/door_points.rs`, `crates/humanity-ship/src/transit.rs`, `crates/humanity-ship/src/ship_space.rs` |
-| Surface maps | `crates/humanity-terrain/src/osm_region.rs`, `data/maps/regions/` (Seattle Center, Silverdale), `src/engine/region_meshes.rs` |
+| Surface maps | `crates/humanity-terrain/src/osm_region.rs`, `crates/humanity-terrain/src/map_ground.rs`, `data/maps/packs/` (the home packs: Silverdale and Seattle Center; whole-Earth maps rung 2), `src/engine/map_meshes.rs` |
 | Stars and the Milky Way | `src/renderer/stars.rs` (HYG catalog, galaxy glow), `data/stars-map.bin` |
 | Labels that never overlap | `src/gui/widgets/label_placer.rs` (+ `web/shared/label-placer.js`) |
 | A marker in the world | `GuiState::target_markers` (drawn by the HUD) |
@@ -223,7 +223,7 @@ The Night Sky stays a separate mode: it is a view outward from a point, not a pl
 
 Every anchor is data (infinite-of-x): bodies from `sol.json`, stations from
 `data/stations/*.ron`, ships from the ship file and `data/fleet.json`, storeys derived
-from floor slabs, rooms from `detect_rooms`, regions from `data/maps/regions/`.
+from floor slabs, rooms from `detect_rooms`, places from the map packs in `data/maps/packs/` (`data/maps/places.ron`).
 
 ## 5. Techniques and what each costs
 
@@ -941,8 +941,8 @@ the far side of the Sun with the world layer on.
   from the Earth band into the world layer's terrain and region meshes; the Planet view
   as the orthographic mode of the same camera; the level picker for OSM buildings and
   below-ground levels; ground translucency inside a rectangle.
-- Files: `scripts/fetch-osm-region.mjs` (level, layer, tunnel tags; a new region format
-  version), `crates/humanity-terrain/src/osm_region.rs`, `src/engine/region_meshes.rs`,
+- Files: `crates/humanity-terrain/src/map_build/` (level, layer, tunnel tags: the packs already
+  carry `layer`, `bridge` and `tunnel` on every way since rung 2), `crates/humanity-terrain/src/osm_region.rs`, `src/engine/map_meshes.rs`,
   `src/gui/pages/maps/planet_view.rs`, the planet chunk shader behind its own switch.
 - Proof: vantages `maps-silverdale-from-ship` (zoom from the ship down to Silverdale in
   one camera) and `maps-under-seattle` (a tunnel shown under translucent ground).

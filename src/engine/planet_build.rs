@@ -1013,7 +1013,7 @@ mod tests {
     /// that same binding to `note_body`; note_body stores what it is given.
     /// A piece is then drawn with the numbers its ground was: the drawn
     /// piece's base and the terrain's own placement of the same planet point
-    /// (`render_off + rot_d * p`, region_meshes' form) agree to the bit.
+    /// (`render_off + rot_d * p`, map_meshes' form) agree to the bit.
     /// Red check, run: note_body computing its own rotation from the spin
     /// again (the old `body_rot(state)`) fails the source assertions.
     #[test]

@@ -63,7 +63,7 @@ impl Credits {
 }
 
 /// The OpenStreetMap notice, for the two surfaces that DRAW OSM data: the Maps
-/// planet view and the in-world region geometry.
+/// planet view and the in-world map (the packs' ground, shore and streets).
 ///
 /// A constant rather than a data lookup because it is on the render path and
 /// must never be absent - if `credits.ron` were missing or malformed, the
@@ -125,8 +125,9 @@ mod tests {
 
     /// Each shipped third-party height or map file names its source's row. The attribution audit
     /// (2026-09-06, item 14) found the largest shipped file, earth_heightmap.bin, with no row at
-    /// all, and LICENSES.md filing the region DEMs under OpenStreetMap (item 10). When rung 2 of
-    /// the whole-Earth maps retires a file, drop its pair here in the same change. Seen red
+    /// all, and LICENSES.md filing the region DEMs under OpenStreetMap (item 10). Rung 2 of the
+    /// whole-Earth maps retired the region files for the map packs, each of which must find all
+    /// five of its sources' rows. Seen red
     /// 2026-11-09 with the noaa_etopo row removed: "planets/earth_heightmap.bin ships but
     /// credits.ron has no noaa_etopo row".
     #[test]
@@ -135,16 +136,20 @@ mod tests {
         for (file, id) in [
             ("planets/earth_heightmap.bin", "noaa_etopo"),
             ("planets/earth_ocean_mask.bin", "noaa_etopo"),
-            ("maps/regions/silverdale.dem.bin", "aws_terrain_tiles"),
-            ("maps/regions/seattle-center.dem.bin", "aws_terrain_tiles"),
-            ("maps/regions/silverdale.bin", "openstreetmap"),
-            ("maps/regions/seattle-center.bin", "openstreetmap"),
         ] {
             assert!(
                 data_dir().join(file).exists(),
                 "{file} no longer ships: drop its pair here (and its row, if nothing else uses the source)"
             );
             assert!(c.get(id).is_some(), "{file} ships but credits.ron has no {id} row");
+        }
+        // Every shipped whole-Earth map pack (rung 2) carries five sources' layers.
+        let packs: Vec<_> = std::fs::read_dir(data_dir().join("maps/packs")).map(|r| r.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "hmpack")).collect()).unwrap_or_default();
+        assert!(!packs.is_empty(), "the home map packs ship in data/maps/packs");
+        for p in &packs {
+            for id in ["openstreetmap", "gedtm30", "copernicus_dem", "esa_worldcover", "noaa_etopo"] {
+                assert!(c.get(id).is_some(), "{} ships but credits.ron has no {id} row", p.display());
+            }
         }
     }
 
@@ -162,7 +167,7 @@ mod tests {
         );
         assert!(
             joined.contains("in-world"),
-            "OSM must credit the in-world region view - a rendered Produced Work \
+            "OSM must credit the in-world map view - a rendered Produced Work \
              needs a visible notice, got {:?}",
             osm.shown_in
         );

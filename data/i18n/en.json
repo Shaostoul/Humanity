@@ -3905,5 +3905,12 @@
   },
   "model_physics": {
     "credit_simready": "Model: NVIDIA SimReady Assets, CC BY 4.0"
+  },
+  "maps_planet": {
+    "no_packs_title": "No map packs installed",
+    "no_packs_body": "The Planet view draws the whole-Earth map packs in data/maps/packs. The app ships with the packs around home (Silverdale and Seattle Center); developers build more from the OpenStreetMap, GEDTM30 and WorldCover sources with:",
+    "no_packs_command": "just map-packs --tiles <pack names, or washington>",
+    "no_packs_plan": "The plan for these maps: docs/design/whole-earth-maps.md.",
+    "place_label": "Place:"
   }
 }

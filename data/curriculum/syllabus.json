@@ -3497,8 +3497,8 @@
         "navigation"
       ],
       "data": [
-        "data/maps/regions/seattle-center.bin",
-        "data/maps/regions/silverdale.bin"
+        "data/maps/packs/f00-320212.hmpack",
+        "data/maps/packs/f00-320230.hmpack"
       ],
       "sources": [
         "dod-technical-manuals",

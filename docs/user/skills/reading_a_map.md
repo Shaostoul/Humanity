@@ -564,10 +564,10 @@ The game has one real map you can read, on the **Maps** page, which
 opens on its Solar System view. Its first tab, **Planet**, draws real
 places on Earth.
 
-- **Two real places.** The game ships two regions, Seattle Center and
-  Silverdale, Washington, built from OpenStreetMap data: roads, the
-  outlines of buildings, and water. The files are in
-  `data/maps/regions/`, and the map credits OpenStreetMap at the bottom,
+- **Two real places.** The game ships the map around two places, Seattle
+  Center and Silverdale, Washington, built from OpenStreetMap data: roads,
+  the outlines of buildings, and water. The map packs are in
+  `data/maps/packs/`, and the map credits OpenStreetMap at the bottom,
   as its licence requires.
 - **North is up.** The view is drawn with north at the top. You can zoom
   with the scroll wheel and drag to move.
@@ -577,14 +577,15 @@ places on Earth.
   screen map shows a bar rather than a ratio. Try measuring a road on
   screen with the edge of a piece of paper and the bar.
 - **Where you are on the planet.** The line at the bottom gives the
-  region's name and the latitude and longitude of the point the region
+  place's name and the latitude and longitude of the point the place
   is drawn around.
 - **Names.** Hold the pointer over a road to see its name. Names of
   water show at the starting zoom, and street names appear as you zoom
   in.
-- **The same places in the world.** The same two regions are also built
-  into the game's 3D Earth, at their real latitude and longitude, once
-  the camera comes within about 40 kilometres of them.
+- **The same places in the world.** The same map is also built into the
+  game's 3D Earth, at its real latitude and longitude: the coast and the
+  ground from the packs everywhere they cover, the streets and buildings
+  once the camera comes within about 15 kilometres.
 
 What the game does not model, so you do not learn it from the game: the
 Planet view is a **planimetric** map in the Army manual's sense. It has
@@ -719,15 +720,15 @@ public domain. Web pages were read on 3 October 2026.
 
 - The Maps page and its Planet view: `src/gui/pages/maps/planet_view.rs`
   (`draw_planet_view`: north up, the round-number scale bar from 10 m to
-  5 km, the footer with the region's origin latitude and longitude and
+  5 km, the footer with the place's centre latitude and longitude and
   the OpenStreetMap notice, road names on hover, water names from zoom
   0.7 and road names from zoom 1.6 against a starting zoom of 1.0, and
   building outlines shaded by height). The Maps page opening
   on the Solar System view: `cosmos_view` in `src/gui/mod.rs`.
-- The two shipped regions, `data/maps/regions/seattle-center.bin` and
-  `data/maps/regions/silverdale.bin`, made by
-  `scripts/fetch-osm-region.mjs`; their 3D build within 40 km
-  (`BUILD_RANGE_M`) in `src/engine/region_meshes.rs`.
+- The two shipped map packs in `data/maps/packs/` (the places in
+  `data/maps/places.ron`), made by `just map-packs`
+  (`crates/humanity-terrain/src/map_build/`); their 3D streets within
+  15 km (`BUILD_RANGE_M`) in `src/engine/map_meshes.rs`.
 - The Paper Map and Compass items (`map_paper_0`, `compass_0` in
   `data/items.csv`) and the compass recipe (`craft_compass` in
   `data/recipes.csv`), which no game code uses yet; the compass strip at

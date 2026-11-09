@@ -9,12 +9,12 @@
 //!
 //! * `drawn_r`: the ground actually DRAWN under the tree this frame (the patch
 //!   of the drawn leaf set that covers it, at that patch's own depth, with the
-//!   region carve and DEM, exactly what `build_patch_mesh` built). The gap to
+//!   map packs' ground, exactly what `build_patch_mesh` built). The gap to
 //!   this is what the eye sees: daylight under the trunk when positive.
 //! * `fine_r`: the finest-detail ground (`frame_lock::ground_radius_m`), where
 //!   the ground converges as the patches under the tree refine.
-//! * `harvest_r` / `harvest_uncarved_r`: the surface the harvest itself
-//!   sampled (the depth it anchored to), with and without the region carve.
+//! * `harvest_r` / `harvest_base_r`: the surface the harvest itself
+//!   sampled (the depth it anchored to), with and without the map packs.
 //!
 //! The same four for the eye, so a capture also says how far above the drawn
 //! ground the player stands.
@@ -46,7 +46,7 @@ fn tree_row(
     view: &ViewBasis,
     drawn_r: Option<(u8, f64)>,
     harvest_r: f64,
-    harvest_uncarved_r: f64,
+    harvest_base_r: f64,
     fine_r: f64,
 ) -> serde_json::Value {
     let (lat, lon) = humanity_terrain::osm_region::dir_to_latlon_f64(t.dir);
@@ -67,7 +67,7 @@ fn tree_row(
         "drawn_r": drawn_r.map(|(_, r)| r),
         "gap_drawn_m": drawn_r.map(|(_, r)| t.r_m - r),
         "harvest_r": harvest_r,
-        "harvest_uncarved_r": harvest_uncarved_r,
+        "harvest_base_r": harvest_base_r,
         "fine_r": fine_r,
         "gap_fine_m": t.r_m - fine_r,
     })
@@ -128,7 +128,7 @@ pub(crate) fn report(state: &EngineState) -> Option<serde_json::Value> {
     let tiles = (earth && state.terrain_tiles.tier_installed()).then_some(&state.terrain_tiles);
     let ocean = if earth { state.ocean_mask.as_ref() } else { None };
     let src = ElevationSource::Heightmap { hm, detail: &cs.detail, tiles, ocean };
-    let carve = humanity_terrain::water_carve::snapshot();
+    let map = humanity_terrain::map_ground::snapshot();
     let eye = v.anchor;
     let up = eye.normalize_or_zero();
     let fwd = (v.rot.inverse() * v.forward.as_dvec3()).normalize_or_zero();
@@ -140,18 +140,18 @@ pub(crate) fn report(state: &EngineState) -> Option<serde_json::Value> {
         tan_half_v: ((state.camera.fov_degrees as f64).to_radians() * 0.5).tan(),
         aspect: state.camera.aspect.max(0.01) as f64,
     };
-    // One surface per depth asked about, carved the way the drawn patches are.
+    // One surface per depth asked about, with the packs the drawn patches have.
     let mut drawn_at: HashMap<u8, DrawnPatchSurface> = HashMap::new();
     let mut drawn_r = |dir: DVec3| -> Option<(u8, f64)> {
         let leaf = drawn_leaf_containing(&cs.last_drawn, dir)?;
         let s = drawn_at
             .entry(leaf.depth)
-            .or_insert_with(|| DrawnPatchSurface::new_single_shot(def, &src, leaf.depth).with_carve(carve.clone()));
+            .or_insert_with(|| DrawnPatchSurface::new_single_shot(def, &src, leaf.depth).with_map(map.clone()));
         Some((leaf.depth, s.radius_at(dir)))
     };
     let harvest_depth = state.near_tree_depth;
-    let mut harvest = DrawnPatchSurface::new(def, &src, harvest_depth.max(1)).with_carve(carve.clone());
-    let mut harvest_uncarved = DrawnPatchSurface::new(def, &src, harvest_depth.max(1)).with_carve(None);
+    let mut harvest = DrawnPatchSurface::new(def, &src, harvest_depth.max(1)).with_map(map.clone());
+    let mut harvest_base = DrawnPatchSurface::new(def, &src, harvest_depth.max(1)).with_map(None);
     let tiles_any = earth.then_some(&state.terrain_tiles);
     let fine_r = |dir: DVec3| crate::engine::frame_lock::ground_radius_m(Some(def), Some(hm), Some(&cs.detail), tiles_any, dir);
 
@@ -167,7 +167,7 @@ pub(crate) fn report(state: &EngineState) -> Option<serde_json::Value> {
             &view,
             d,
             harvest.radius_at(t.dir),
-            harvest_uncarved.radius_at(t.dir),
+            harvest_base.radius_at(t.dir),
             fine,
         );
         let on_screen = row["on_screen"].as_bool() == Some(true);
@@ -209,7 +209,7 @@ pub(crate) fn report(state: &EngineState) -> Option<serde_json::Value> {
             "since_s": since_harvest_s,
             "moved_since_m": (state.near_trees_center - eye).length(),
         },
-        "carve_regions": carve.as_ref().map(|c| c.len()).unwrap_or(0),
+        "map_packs": map.as_ref().map(|m| m.packs.len()).unwrap_or(0),
         "fov_deg": state.camera.fov_degrees,
         "aspect": state.camera.aspect,
         "gap_drawn_all": gap_stats(all_gaps),

@@ -1,23 +1,22 @@
-//! BUG-156: the drawn-ground contract INSIDE A REGION WITH A SURVEY DEM.
+//! BUG-156: the drawn-ground contract INSIDE AN INSTALLED MAP PACK.
 //!
 //! `DrawnPatchSurface` exists so that whatever stands on the ground (a tree's
 //! base, a grass blade, the player's eye) stands on the triangle that is DRAWN,
 //! not on a second opinion about it. Its own gates (the parent module's tests,
 //! the grass twin, `surface_walk`'s eye gate) all run at Fuji, the Amazon, the
-//! Alps: places no OSM region covers. Inside a region the drawn ground is not
-//! the base grid at all. The water carve presses it down under the sea and
-//! lake polygons, and since v0.1153 it REPLACES the elevation with the region's
-//! ~13 m survey DEM. `build_patch_mesh` applied both; this surface applied
-//! neither, so in Silverdale every tree, blade and the player's feet stood on
-//! the ~5.5 km grid plus detail noise, metres from the ground they were drawn
-//! over: the trees the probe rig caught hanging in the air beside the Dyes
-//! Inlet waterfront.
+//! Alps: places no map pack covers. Inside a pack the drawn ground is not the
+//! base grid at all: since whole-Earth maps rung 2 it is GEDTM30 on the pack's
+//! lattice, joined to the seabed by the shore band (until then, the region
+//! carve and its ~13 m survey DEM). BUG-156 was this surface missing that
+//! layer while `build_patch_mesh` applied it, so in Silverdale every tree,
+//! blade and the player's feet stood on the ~5.5 km grid plus detail noise,
+//! metres from the ground they were drawn over.
 //!
 //! Every measurement here is against the REAL BUILT PATCH MESH (ray cast into
-//! `build_patch_mesh`'s triangles, with the region's masks published the way
-//! `engine::region_meshes` publishes them), never against this surface itself.
-//! Each test also proves the region genuinely moves the ground at the place it
-//! measures, so none of them can pass by measuring nowhere in particular.
+//! `build_patch_mesh`'s triangles, with the home packs published the way the
+//! engine publishes them), never against this surface itself. Each test also
+//! proves the pack genuinely moves the ground at the place it measures, so
+//! none of them can pass by measuring nowhere in particular.
 //!
 //! A `#[path]` child of `drawn_surface`, in its own file because the parent is
 //! on the file-size ratchet.
@@ -28,20 +27,20 @@ use crate::planet_chunks::{
     near_tree_instances_on_drawn,
     tree_flare_radius_m, DetailNoise,
 };
-use crate::water_carve::PublishedForTest;
+use crate::map_ground::PublishedForTest;
 use std::collections::HashMap;
 
-/// THE ROOT OF BUG-156: the drawn-surface sampler IS the drawn mesh inside a
-/// DEM region, at the depths a walker sees (17, 3.4 m triangles; 20, 0.4 m).
-/// Red before the fix by the whole DEM-versus-grid difference (metres to tens
-/// of metres on this slope); the uncarved control proves that difference is
-/// really there to catch.
+/// THE ROOT OF BUG-156: the drawn-surface sampler IS the drawn mesh inside an
+/// installed map pack, at the depths a walker sees (17, 3.4 m triangles; 20,
+/// 0.4 m). Red before the fix by the whole pack-versus-grid difference (metres
+/// to tens of metres on this slope); the control without the pack proves that
+/// difference is really there to catch.
 #[test]
-fn the_drawn_surface_is_the_drawn_mesh_inside_a_dem_region() {
+fn the_drawn_surface_is_the_drawn_mesh_inside_a_map_pack() {
     let (hm, om, def) = real_earth();
     let dn = DetailNoise::new(def.terrain_seed);
     let src = ElevationSource::Heightmap { hm: &hm, detail: &dn, tiles: None, ocean: Some(&om) };
-    let _published = PublishedForTest::publish(silverdale_masks());
+    let _published = PublishedForTest::publish(silverdale_map());
     let mut meshes = Meshes { def: &def, src: &src, built: HashMap::new() };
     let (mut worst, mut control, mut n) = (0.0f64, 0.0f64, 0usize);
     for depth in [17u8, 20] {
@@ -49,30 +48,30 @@ fn the_drawn_surface_is_the_drawn_mesh_inside_a_dem_region() {
         // harvests and the walk clamp build them.
         let mut surf = DrawnPatchSurface::new(&def, &src, depth);
         let mut single = DrawnPatchSurface::new_single_shot(&def, &src, depth);
-        let mut uncarved = DrawnPatchSurface::new(&def, &src, depth).with_carve(None);
+        let mut base = DrawnPatchSurface::new(&def, &src, depth).with_map(None);
         for dir in probe_grid().into_iter().step_by(if depth == 20 { 3 } else { 1 }) {
             let Some(mesh_r) = meshes.ground(dir, depth) else { continue };
             worst = worst.max((surf.radius_at(dir) - mesh_r).abs());
             worst = worst.max((single.radius_at(dir) - mesh_r).abs());
-            control = control.max((uncarved.radius_at(dir) - mesh_r).abs());
+            control = control.max((base.radius_at(dir) - mesh_r).abs());
             n += 1;
         }
     }
     println!(
-        "[region ground] Silverdale: {n} probes, worst |drawn surface - mesh| {worst:.4} m, \
-         worst |uncarved formula - mesh| {control:.2} m"
+        "[pack ground] Silverdale: {n} probes, worst |drawn surface - mesh| {worst:.4} m, \
+         worst |formula without the pack - mesh| {control:.2} m"
     );
     assert!(n >= 150, "only {n} probes landed on a built patch");
     assert!(
         control > 2.0,
-        "without the region carve the formula is only {control:.2} m off the mesh here, so this \
-         place no longer tests the region at all: pick a probe area the DEM moves"
+        "without the map pack the formula is only {control:.2} m off the mesh here, so this \
+         place no longer tests the pack at all: pick a probe area the pack moves"
     );
     assert!(
         worst < 0.01,
         "DrawnPatchSurface is {worst:.3} m off the patch mesh it reproduces inside the Silverdale \
-         region: it is not applying the region carve and DEM that build_patch_mesh applies \
-         (water_carve::snapshot through drawn_elevation_at_depth)"
+         pack: it is not applying the map ground that build_patch_mesh applies \
+         (map_ground::snapshot through drawn_elevation_at_depth)"
     );
 }
 
@@ -85,7 +84,7 @@ fn trees_stand_on_the_drawn_ground_beside_the_silverdale_waterfront() {
     let (hm, om, def) = real_earth();
     let dn = DetailNoise::new(def.terrain_seed);
     let src = ElevationSource::Heightmap { hm: &hm, detail: &dn, tiles: None, ocean: Some(&om) };
-    let _published = PublishedForTest::publish(silverdale_masks());
+    let _published = PublishedForTest::publish(silverdale_map());
     let depth = 17u8;
     let trees = near_tree_instances_on_drawn(&def, &src, None, near_stand(0.0, 0.0), 220.0, depth, 600);
     assert!(trees.len() >= 30, "only {} trees harvested around the vantage", trees.len());
@@ -107,7 +106,7 @@ fn trees_stand_on_the_drawn_ground_beside_the_silverdale_waterfront() {
     let floating = offs.iter().filter(|o| **o > 0.15).count();
     let buried = offs.iter().zip(&flares).filter(|(o, f)| **o < -(*f * 0.5)).count();
     println!(
-        "[region trees] Silverdale depth {depth}: n={n} min {:+.3} median {:+.3} max {:+.3} \
+        "[pack trees] Silverdale depth {depth}: n={n} min {:+.3} median {:+.3} max {:+.3} \
          floating>0.15m {floating} buried-past-half-flare {buried}",
         sorted[0],
         sorted[n / 2],

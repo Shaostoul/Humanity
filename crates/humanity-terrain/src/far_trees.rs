@@ -186,12 +186,10 @@ pub fn build_far_tree_sheet(
     if cam_dir.length_squared() < 0.5 {
         return None;
     }
-    // One water-carve snapshot per sheet build (see water_carve docs), with
-    // the disc pre-reject sized to the sheet's outermost band so the
-    // per-candidate gate is free away from any region.
-    let carve_masks = crate::water_carve::snapshot().filter(|cm| {
-        crate::water_carve::any_mask_in_disc(cm, cam_dir, FAR_TREE_FAR_M)
-    });
+    // One map-pack snapshot per sheet build (map_ground), with the disc
+    // pre-reject sized to the sheet's outermost band so the per-candidate
+    // gate is free away from any pack.
+    let map = crate::map_ground::snapshot().filter(|m| m.any_in_disc(cam_dir, FAR_TREE_FAR_M));
     let anchor = cam_dir * radius;
     let cam_lat = cam_dir.y.clamp(-1.0, 1.0).asin();
     let cam_lon = (-cam_dir.z).atan2(cam_dir.x);
@@ -284,17 +282,10 @@ pub fn build_far_tree_sheet(
                     continue;
                 }
                 let e = hm.normalized_at(dir.as_vec3());
-                // Water carve (v0.1149): the far sheet must agree with the
+                // The map packs' ground: the far sheet must agree with the
                 // card bake or the handoff shows trees appearing over water.
-                let e = match &carve_masks {
-                    Some(cm) => crate::water_carve::carve_normalized_with(
-                        cm,
-                        dir,
-                        e,
-                        hm.min_meters(),
-                        hm.max_meters(),
-                        sea,
-                    ),
+                let e = match &map {
+                    Some(m) => crate::map_ground::apply_normalized(m, dir, e, crate::map_ground::GATE_DEPTH, range_m, sea, None),
                     None => e,
                 };
                 let elev_m = (e - sea) * range_m;
@@ -304,13 +295,8 @@ pub fn build_far_tree_sheet(
                 // Built-over gate (v0.1152), same threshold as the near
                 // streams so the ~1200 m handoff never pops trees onto a
                 // road that the near field keeps clear.
-                if let Some(cm) = &carve_masks {
-                    if crate::water_carve::built_weight_at_deg(
-                        cm,
-                        lat.to_degrees(),
-                        lon.to_degrees(),
-                    ) > 0.35
-                    {
+                if let Some(m) = &map {
+                    if m.built_weight_at_deg(lat.to_degrees(), lon.to_degrees()) > 0.35 {
                         continue;
                     }
                 }

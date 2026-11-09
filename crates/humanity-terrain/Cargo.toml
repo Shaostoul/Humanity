@@ -22,6 +22,13 @@ native = ["humanity-core/native"]
 # never compiled into another crate's tests, so a dependent turns this on in its [dev-dependencies]
 # only; no product build carries it.
 test-support = []
+# The offline map pack builder (map_build, whole-Earth maps rung 2): compiled for the
+# `build_map_packs` example only (`just map-packs`), never into the app or the server.
+map-build = []
+
+[[example]]
+name = "build_map_packs"
+required-features = ["map-build"]
 
 [dependencies]
 humanity-core = { path = "../humanity-core", default-features = false }
@@ -30,6 +37,10 @@ log = { workspace = true }
 noise = { workspace = true }
 ron = { workspace = true }
 serde = { workspace = true }
+# Deflate for the whole-Earth map packs (map_pack, rung 2, 2026-11-09): every chunk is a zlib stream,
+# and the offline builder (map_build) inflates the sources' own deflate tiles. Already in the build
+# through image, png and the relay's backup stream: no new crate.
+miniz_oxide = "0.8"
 
 [dev-dependencies]
 # The core's test helpers and fixtures (test_temp, dev_travel::fixtures).

@@ -67,7 +67,7 @@
 10 src/gui/pages/maps/galaxy_view.rs
 1 src/gui/pages/maps/mod.rs
 5 src/gui/pages/maps/night_sky.rs
-6 src/gui/pages/maps/planet_view.rs
+1 src/gui/pages/maps/planet_view.rs
 5 src/gui/pages/maps/stations.rs
 4 src/gui/pages/maps/system_view.rs
 14 src/gui/pages/maps/time_bar.rs

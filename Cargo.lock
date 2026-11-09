@@ -3130,6 +3130,7 @@ dependencies = [
  "glam 0.29.3",
  "humanity-core",
  "log",
+ "miniz_oxide 0.8.9",
  "noise",
  "ron",
  "serde",

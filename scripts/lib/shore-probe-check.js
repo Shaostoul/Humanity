@@ -35,16 +35,16 @@
 //
 // WHERE THE COAST IS, AND WHY A VANTAGE CAN BE MISCONFIGURED. Every vantage first checks its ends
 // against coastline data, so a wrong coordinate can never pass. The game reports, per sample, what
-// its own coastline data says (`class`) and from where (`class_source`): a region's OSM water
-// polygons ("region:<name>:<cell>m", about 9 m cells), or the connected-ocean mask
+// its own coastline data says (`class`) and from where (`class_source`): a map pack's OSM water
+// polygons ("pack:<file>", exact; whole-Earth maps rung 2), or the connected-ocean mask
 // ("ocean_mask:0.05deg", about 5.5 km cells). Only the first can place a coast to the metre.
-// - Both ends on a region's polygons: the land end must read land and the water end water, and the
+// - Both ends on a pack's polygons: the land end must read land and the water end water, and the
 //   coast is the last land-to-water change before the water end.
 // - Either end only on the coarse mask: the game cannot say where this coast is (that gap is what
 //   rung 4's packs close), so the vantage must DECLARE the real coastline crossing, `coast.at`,
 //   with its `source`; the declared point must lie on the transect and between its ends. Where
 //   both exist they must agree. The game's coarse reading is still reported, as a note.
-// - Along the water: each end on region polygons must read water; an end on the coarse mask needs
+// - Along the water: each end on pack polygons must read water; an end on the coarse mask needs
 //   a `water_source` saying why it is water; `crosses_lat`, when given, must be crossed.
 
 const DEFAULTS = Object.freeze({
@@ -64,7 +64,7 @@ const DEFAULTS = Object.freeze({
   seam_max_step_m: 0.5,
   // A declared coast farther than this from every sample is not on the transect.
   coast_max_offset_m: 50,
-  // A declared coast and the game's region coastline must agree this well along the transect.
+  // A declared coast and the game's pack coastline must agree this well along the transect.
   coast_agree_m: 40,
   // The readout's ends must be the spec's ends to within this.
   end_tol_m: 1,
@@ -83,7 +83,7 @@ function distM(a, b) {
   return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-const fine = (src) => typeof src === "string" && src.startsWith("region:");
+const fine = (src) => typeof src === "string" && src.startsWith("pack:");
 const isWater = (c) => c === "sea" || c === "lake";
 const f1 = (x) => (typeof x === "number" ? x.toFixed(1) : String(x));
 const f2 = (x) => (typeof x === "number" ? x.toFixed(2) : String(x));
@@ -159,7 +159,7 @@ function judgeShore(readout, spec, opts) {
       coast.declared_s_m = sDecl;
       coast.declared_source = decl.source;
       if (sCoast !== null && Math.abs(sDecl - sCoast) > o.coast_agree_m) {
-        return bad(`the declared coast (${f1(sDecl)} m along) and the game's region coastline (${f1(sCoast)} m along) disagree by ${f1(Math.abs(sDecl - sCoast))} m`);
+        return bad(`the declared coast (${f1(sDecl)} m along) and the game's pack coastline (${f1(sCoast)} m along) disagree by ${f1(Math.abs(sDecl - sCoast))} m`);
       }
       if (sCoast === null) {
         sCoast = sDecl;

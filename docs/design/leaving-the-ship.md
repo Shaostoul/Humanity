@@ -72,7 +72,7 @@ so: docs/user/skills/floating_and_boats.md:536-539, navigating_without_instrumen
 |---|---|---|
 | The ship's orbit | data/stations/home.ron:33-45 (Synchronous, over longitude -122.3, nadir-pointing); crates/humanity-ship/src/station/orbit.rs:175-209 (closed-form Kepler), driven by the game clock through `sim_seconds` (:67) | where every trip starts; a propagator that already handles ellipses (eccentricity clamped to 0.95 at :183; a transfer ellipse from this orbit is about 0.73, computed) |
 | A descent with no loading screen | src/engine/frame_lock.rs:10 (surface mode below 10 km), :32 (co-rotation below 100 km), :40 (eased to the inertial frame up to 1,000 km); the chunked-LOD Earth; leaving and boarding the ship by its bounds (src/lib.rs:3379-3445) | a camera that already goes from the ship to the grass, flown today by Dev travel and the rigs |
-| Silverdale | data/locales/silverdale_wa/locale.json:16-26 (centre and bounds); data/maps/regions/silverdale.bin and silverdale.dem.bin (real roads, buildings and terrain, built when the camera comes within 40 km, src/engine/region_meshes.rs:28) | the place to land |
+| Silverdale | data/locales/silverdale_wa/locale.json:16-26 (centre and bounds); the home map packs in data/maps/packs (real coast, ground, roads and buildings from OpenStreetMap, GEDTM30 and ETOPO; streets built within 15 km of the camera, src/engine/map_meshes.rs; until 2026-11-09 the region files data/maps/regions/silverdale.bin and silverdale.dem.bin) | the place to land |
 | Life on the ground | src/engine/survival_env.rs:217-256 (outside: the weather's air at the player, wind, rain or snow, shelters), :145-153 (breathable only where the body's air allows it) | rain, cold, wind and shelter, all live once fly mode is off |
 | Building on a planet | src/engine/planet_build.rs; crates/humanity-systems/src/construction/site.rs (a build site pinned to the ground, pieces within 1 km join it, :60); kept in the save (the site round-trip test in src/save_load.rs) | building down there already works; on a planet you build from what you carry (crates/humanity-systems/src/crafting/home_store.rs:13-16) |
 | The home keeps running | src/lib.rs:6629-6638 (every system ticks each frame, wherever the player stands); offline catch-up on the next launch (src/config.rs:649-652) | nothing at home pauses while you are away |
@@ -323,7 +323,7 @@ At the Simplified clock speed a solo player can pick (72x), the coast is 4.4 min
   selected by id, never named in code). So the field is a data row, never a coordinate in src/.
 - **A field, not a pad in a street:** open public ground inside the Silverdale region (bounds
   47.58 to 47.70 N, 122.62 to 122.75 W; locale.json:21-26), chosen by the operator. A test proves it
-  touches no building or road in data/maps/regions/silverdale.bin and stands above the water.
+  touches no building or road in the Silverdale map pack and stands above the water.
 - **The game names the liberty it takes:** a real landing zone is kilometres across and far from
   homes. This one sits at the edge of town so you can walk in. Saying so in the game follows the
   honest label the FTL proposal gives a deliberate fiction ([gravity-and-movement.md](gravity-and-movement.md),
@@ -332,7 +332,7 @@ At the Simplified clock speed a solo player can pick (72x), the coast is 4.4 min
   ellipse (data), so you may have a walk.
 - **The way up** leaves from a pad beside the field (the booster lands back on it).
 - **More places later,** as rows: the Seattle Center region already ships
-  (data/maps/regions/seattle-center.bin).
+  (the Seattle Center place in the home map packs, data/maps/places.ron).
 
 ### 4.8 On the ground, and coming back
 

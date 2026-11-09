@@ -1,5 +1,6 @@
-//! The Maps page's Planet view: a real Earth region from OpenStreetMap
-//! (`data/maps/regions/*.bin`), roads and buildings drawn GPS-map style.
+//! The Maps page's Planet view: a named place on the real Earth, its OpenStreetMap roads,
+//! buildings and water drawn GPS-map style from the installed whole-Earth map packs
+//! (`data/maps/packs/*.hmpack`, whole-Earth maps rung 2; the places are data/maps/places.ron).
 //! Moved out of `gui/pages/cosmos.rs` in Maps increment 0 (2026-10-20).
 
 use egui::{Align2, Color32, Pos2, Rect, RichText, CornerRadius, Stroke, Vec2};
@@ -9,48 +10,49 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::label_placer::{self, LabelPlacer};
 use crate::gui::GuiState;
-// The OSM region reader (HOSMREG1) lives in the terrain module, shared with
-// the in-world 3D extruder. See crates/humanity-terrain/src/osm_region.rs.
-use humanity_terrain::osm_region::{parse_region, triangulate_ring, OsmRegion, OsmRoad, WaterKind};
+use humanity_core::i18n::t;
+// The features around a place, cut from the packs by the terrain crate's conversion, shared
+// with the in-world 3D extruder. See crates/humanity-terrain/src/osm_region.rs.
+use humanity_terrain::osm_region::{triangulate_ring, OsmRegion, OsmRoad, WaterKind};
 
 use super::{allocate_canvas, MapFooter};
 
-// ─────────────────────── Planet view (OSM regions, meters) ──────────────────
+// ─────────────────────── Planet view (map packs, meters) ──────────────────
 
-// The HOSMREG1 parser and the region types used to live here, private to
-// this page. They moved to `humanity_terrain::osm_region` (v0.1148) when the
-// in-world 3D extruder became a second reader of the same files: one parser,
-// one projection contract, no drift. This view is unchanged otherwise; the
-// field names are identical.
+static MAP_PLACES: OnceLock<Vec<OsmRegion>> = OnceLock::new();
 
-static MAP_REGIONS: OnceLock<Vec<OsmRegion>> = OnceLock::new();
-
-/// All installed regions, loaded once (data dir scan). Empty = none
-/// installed; the view shows how to fetch one.
-fn map_regions() -> &'static [OsmRegion] {
-    MAP_REGIONS.get_or_init(|| {
-        let dir = humanity_core::storage::DATA_DIR
-            .get()
-            .cloned()
-            .unwrap_or_else(|| std::path::PathBuf::from("data"))
-            .join("maps/regions");
+/// Every named place the installed packs cover, cut from them once (data dir scan). Empty = no
+/// packs installed; the view says where they come from.
+fn map_places() -> &'static [OsmRegion] {
+    MAP_PLACES.get_or_init(|| {
+        let data = humanity_core::storage::DATA_DIR.get().cloned().unwrap_or_else(|| std::path::PathBuf::from("data"));
+        let packs = humanity_terrain::map_ground::load_packs(&data.join("maps").join("packs"));
+        let (Ok(places), Ok(levels)) = (humanity_terrain::map_levels::MapPlaces::load(&data), humanity_terrain::map_levels::MapLevels::load(&data)) else {
+            return Vec::new();
+        };
         let mut out = Vec::new();
-        if let Ok(entries) = std::fs::read_dir(&dir) {
-            let mut paths: Vec<_> = entries
-                .filter_map(|e| e.ok().map(|e| e.path()))
-                .filter(|p| p.extension().is_some_and(|x| x == "bin"))
-                .collect();
-            paths.sort();
-            for p in paths {
-                if let Some(region) = std::fs::read(&p).ok().and_then(|b| parse_region(&b)) {
-                    log::info!(
-                        "Maps planet view: region \"{}\" loaded ({} roads, {} buildings)",
-                        region.name,
-                        region.roads.len(),
-                        region.buildings.len()
-                    );
-                    out.push(region);
+        for p in &places.places {
+            let (dlat, dlon) = (p.half_north_m / humanity_terrain::osm_region::M_PER_DEG_LAT, p.half_east_m / (humanity_terrain::osm_region::M_PER_DEG_LON_EQUATOR * p.lat.to_radians().cos()));
+            let mut region = OsmRegion { name: p.name.clone(), origin_lat: p.lat, origin_lon: p.lon, half_east_m: p.half_east_m as f32, half_north_m: p.half_north_m as f32, roads: Vec::new(), buildings: Vec::new(), water: Vec::new() };
+            for (pack, _) in &packs {
+                // The level-12 tiles of the place's box that lie in this pack.
+                let mut tiles = Vec::new();
+                for i in 0..=40 {
+                    for j in 0..=40 {
+                        let t = humanity_terrain::map_tiles::tile_containing(p.lat - dlat + 2.0 * dlat * i as f64 / 40.0, p.lon - dlon + 2.0 * dlon * j as f64 / 40.0, levels.finest());
+                        if humanity_terrain::map_tiles::ancestor_at(t, pack.patch().depth) == Some(pack.patch()) && !tiles.contains(&t) {
+                            tiles.push(t);
+                        }
+                    }
                 }
+                let part = humanity_terrain::osm_region::region_from_pack(pack, &tiles, &p.name, p.lat, p.lon, p.half_east_m as f32, p.half_north_m as f32, &|_| None);
+                region.roads.extend(part.roads);
+                region.buildings.extend(part.buildings);
+                region.water.extend(part.water);
+            }
+            if !region.roads.is_empty() || !region.water.is_empty() {
+                log::info!("Maps planet view: place \"{}\" cut from the packs ({} roads, {} buildings)", region.name, region.roads.len(), region.buildings.len());
+                out.push(region);
             }
         }
         out
@@ -81,33 +83,29 @@ thread_local! {
 }
 
 pub(super) fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let regions = map_regions();
+    let regions = map_places();
     if regions.is_empty() {
         ui.add_space(theme.spacing_lg);
         widgets::card(ui, theme, |ui| {
             ui.label(
-                RichText::new("No map regions installed")
+                RichText::new(t("maps_planet.no_packs_title"))
                     .size(theme.font_size_heading)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_xs);
             ui.label(
-                RichText::new(
-                    "Fetch any place on Earth as roads + buildings from OpenStreetMap:",
-                )
+                RichText::new(t("maps_planet.no_packs_body"))
                 .color(theme.text_secondary()),
             );
             ui.label(
-                RichText::new(
-                    "node scripts/fetch-osm-region.mjs --bbox <south,west,north,east> --name \"My Town\" --out data/maps/regions/my-town.bin",
-                )
+                RichText::new(t("maps_planet.no_packs_command"))
                 .size(theme.font_size_small)
                 .color(theme.text_muted())
                 .monospace(),
             );
             ui.add_space(theme.spacing_xs);
             ui.label(
-                RichText::new("The build order for this view: docs/design/maps-ladder.md, rung 3.")
+                RichText::new(t("maps_planet.no_packs_plan"))
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -119,7 +117,7 @@ pub(super) fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     let mut idx = PLANET_REGION_IDX.with(|c| c.get()).min(regions.len() - 1);
     if regions.len() > 1 {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Region:").color(theme.text_secondary()));
+            ui.label(RichText::new(t("maps_planet.place_label")).color(theme.text_secondary()));
             egui::ComboBox::from_id_salt("planet_region")
                 .selected_text(&regions[idx].name)
                 .show_ui(ui, |ui| {

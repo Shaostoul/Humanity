@@ -30,7 +30,7 @@
 //! Operator 2026-05-10: "We at least want our galaxy and solar system
 //! ... see the real stars and real constellations." This page reads
 //! from the existing data files (constellations.json, stars-nearby.json,
-//! stars-catalog.json, sol.json, stars-map.bin, data/maps/regions/).
+//! stars-catalog.json, sol.json, stars-map.bin, data/maps/packs/).
 
 use egui::{Align2, Color32, Frame, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
@@ -110,9 +110,9 @@ fn spectral_color(class: &str) -> Color32 {
 /// View mode — operator selectable via tab bar at the top of the page.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MapView {
-    /// 2D GPS-style map of a real Earth region: OpenStreetMap roads and
-    /// building footprints from data/maps/regions/*.bin (maps ladder rung 3,
-    /// v0.1146; generator scripts/fetch-osm-region.mjs).
+    /// 2D GPS-style map of a named place on the real Earth: OpenStreetMap
+    /// roads, buildings and water from the whole-Earth map packs
+    /// (data/maps/packs, built by `just map-packs`; whole-Earth maps rung 2).
     Planet,
     /// 3D System view of Sol — Sun at origin, planets in their orbits,
     /// moons in real positions relative to their planets. Rotatable

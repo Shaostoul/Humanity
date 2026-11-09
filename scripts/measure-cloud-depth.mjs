@@ -16,8 +16,7 @@
 // blue sky. Run the same script on before/after captures for the honest
 // A/B; the numbers are method-sensitive, the RATIO between builds is not.
 //
-// Zero-dependency PNG reader (8-bit RGB/RGBA, filters 0-4), same recipe as
-// scripts/fetch-region-dem.mjs.
+// Zero-dependency PNG reader (8-bit RGB/RGBA, filters 0-4).
 
 import { readFileSync } from "node:fs";
 import zlib from "node:zlib";

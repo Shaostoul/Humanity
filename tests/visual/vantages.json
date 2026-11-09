@@ -1933,7 +1933,7 @@
     },
     {
       "id": "silverdale-osm-ground",
-      "desc": "Ground level over Silverdale WA: OSM buildings + roads standing on real terrain (v0.1148)",
+      "desc": "250 m over Silverdale WA: OSM buildings + roads standing on real terrain (v0.1148; since whole-Earth maps rung 2 they come from the map packs and stand on the packs' GEDTM30 ground)",
       "camera": {
         "body": "earth",
         "lat": 47.645,
@@ -1944,14 +1944,14 @@
       },
       "hold_altitude": true,
       "settle_s": 30,
-      "expect": "Extruded low-rise buildings and grey road ribbons conforming to the terrain around Dyes Inlet, seen through the procedural forest (which still overruns the town; vegetation suppression is a logged next increment); buildings sit ON the ground, no floating or buried blocks.",
+      "expect": "Extruded low-rise buildings and grey road ribbons conforming to the terrain around Dyes Inlet, with no trees on the roads or in the buildings (the built-over mask, v0.1152, now read from the packs); buildings sit ON the ground, no floating or buried blocks.",
       "regressions": [
         "no z-fighting flicker on road ribbons",
         "no buildings floating above or sunk below the terrain by tens of meters",
-        "panics=0 with the region build running"
+        "panics=0 with the districts building"
       ],
       "perf_floor_fps": 10,
-      "perf_note": "floor is 10 not 15: the dense procedural forest at walk height costs ~100 ms/frame (the known unexplained forest cost, see PRIORITIES); the region itself adds 4 class meshes. Raise the floor when the forest cost item is fixed.",
+      "perf_note": "floor is 10 not 15: the dense procedural forest at walk height costs ~100 ms/frame (the known unexplained forest cost, see PRIORITIES); each district (a level-9 tile near the camera) adds its class meshes. Raise the floor when the forest cost item is fixed.",
       "_wind_why": "The ONLY vantage carrying `wind: 0` (see _wind_note). Its three regressions are road z-fighting, building placement and panics; none of them involve sway, so stilling the wind cannot make any of them unfalsifiable. It also stands in the dense procedural forest that overruns the town, which is exactly what made two boots of one exe incomparable here. Note the pin alone does NOT freeze the canopy - the sway keeps a wind-independent breathe on the animation clock - so a per-pixel identity proof here needs `anim_clock` pinned too, per capture, not in this file.",
       "showcase": {
         "sea": "0.3",
@@ -1972,18 +1972,20 @@
       },
       "hold_altitude": true,
       "settle_s": 14,
-      "expect": "The Silverdale road network (Silverdale Way, Bucklin Hill Rd, the NW grid) with extruded low-rise buildings around the Kitsap Mall area and Old Town at the Dyes Inlet shore; Dyes Inlet itself is REAL SEA WATER (the v0.1149 carve: terrain pressed below sea level under the OSM sea polygons, the ocean shell fills it) reaching the town's shoreline, with ponds/lakes as dark flat sheets.",
+      "expect": "The Silverdale road network (Silverdale Way, Bucklin Hill Rd, the NW grid) with extruded low-rise buildings around the Kitsap Mall area and Old Town at the Dyes Inlet shore; Dyes Inlet itself is REAL SEA WATER (since whole-Earth maps rung 2 the map packs' shore band stands the ground below sea level inside the OSM sea polygons and the ocean shell fills it; the v0.1149 carve did this before) reaching the town's shoreline, with ponds/lakes as dark flat sheets.",
       "regressions": [
-        "no misplaced region (town must sit at the Dyes Inlet shore)",
-        "Dyes Inlet is water, not dry land (the water-carve regression)",
-        "no carved water under the town's streets (sea side-convention)",
+        "no misplaced town (it must sit at the Dyes Inlet shore)",
+        "Dyes Inlet is water, not dry land (the v0.1148 dry-harbour regression)",
+        "no water under the town's streets (the sea polygons' side convention)",
         "panics=0"
       ],
       "perf_floor_fps": 15,
       "showcase": {
         "sea": "0.3",
-        "weather": "clear"
-      }
+        "weather": "clear",
+        "cloud_cover": "0"
+      },
+      "_cloud_why": "cloud_cover pinned to 0 (whole-Earth maps rung 2, 2026-11-09): weather 'clear' alone still drew this 2.5 km camera inside cloud on that day's sweep, so the geometry its regressions judge could not be seen."
     },
     {
       "id": "silverdale-osm-night",
@@ -2012,7 +2014,7 @@
     },
     {
       "id": "seattle-osm-5km",
-      "desc": "5 km overview of the Seattle Center OSM region: the downtown grid + tower cluster (v0.1148)",
+      "desc": "5 km overview of Seattle Center and downtown from the map pack f00-320212 (the OSM region of v0.1148 until whole-Earth maps rung 2): the downtown grid + tower cluster",
       "camera": {
         "body": "earth",
         "lat": 47.6165,
@@ -2023,16 +2025,18 @@
       },
       "hold_altitude": true,
       "settle_s": 14,
-      "expect": "The downtown Seattle street grid as dark ribbons with the extruded building cluster including one ~259 m tower; geometry aligned with the terrain coastline of Elliott Bay, and the waterfront edge wet (the region sea polygons extend the ocean to the piers).",
+      "expect": "The downtown Seattle street grid as dark ribbons with the extruded building cluster including one ~259 m tower; geometry aligned with the terrain coastline of Elliott Bay, and the waterfront edge wet (the pack's sea polygons take the ocean to the piers).",
       "regressions": [
-        "no misplaced region (geometry must sit at the Seattle coastline, not offset)",
+        "no misplaced geometry (it must sit at the Seattle coastline, not offset)",
         "panics=0"
       ],
       "perf_floor_fps": 15,
       "showcase": {
         "sea": "0.3",
-        "weather": "clear"
-      }
+        "weather": "clear",
+        "cloud_cover": "0"
+      },
+      "_cloud_why": "cloud_cover pinned to 0 (whole-Earth maps rung 2, 2026-11-09): weather 'clear' alone still drew this 5 km camera inside cloud on that day's sweep, so the geometry its regressions judge could not be seen."
     },
     {
       "id": "silverdale-flight-2km",
@@ -13954,12 +13958,12 @@
     },
     {
       "id": "coast-silverdale-waterfront",
-      "desc": "60 m over Dyes Inlet at noon, 300 m off the Silverdale waterfront, looking north across the waterline at the shore the operator reported twice: dry in v0.1148 ('the water isn't right ... the south middle side is missing from Dyes Inlet'), a sheer wall in v0.1153 ('the water edge looks like a sheer cliff instead of tapering into the water'). The whole-Earth maps yardstick (docs/design/whole-earth-maps.md 5.5): its shore_probe samples the ground the player stands on every 2.5 m from 140 m inland to 400 m out, against the region's OSM water polygons (the coast at 47.6436 on this meridian) and the region's survey DEM as the raw land layer.",
+      "desc": "60 m over Dyes Inlet at noon, 300 m off the Silverdale waterfront, looking north across the waterline at the shore the operator reported twice: dry in v0.1148 ('the water isn't right ... the south middle side is missing from Dyes Inlet'), a sheer wall in v0.1153 ('the water edge looks like a sheer cliff instead of tapering into the water'). The whole-Earth maps yardstick (docs/design/whole-earth-maps.md 5.5): its shore_probe samples the ground the player stands on every 2.5 m from 150 m inland to 400 m out, against the home map pack's OSM water polygons (f00-320230; the coast at about 47.6436 on this meridian) and the pack's GEDTM30 land layer as the raw land (until rung 2: the Silverdale region's polygons and its survey DEM).",
       "expect": "Water in the inlet right up to the shore; the ground walks down into it at a gentle slope; no wall, no dry flat where water should be; trees and houses stand on the ground.",
       "regressions": [
         "wet: every sample more than 15 m offshore is at least 0.3 m below sea level (no dry harbour, v0.1148)",
         "dry: every sample more than 15 m inland is at least 0.3 m above sea level (no drowned shore)",
-        "no_false_wall: within 60 m of the coast no 10 m stretch rises more than the survey DEM's own rise plus 2 m (no carve wall, v0.1153)",
+        "no_false_wall: within 60 m of the coast no 10 m stretch rises more than the raw land layer's own rise plus 2 m (no carve wall, v0.1153)",
         "panics=0"
       ],
       "camera": {"body": "earth", "lat": 47.6405, "lon": -122.695, "altitude_km": 0.06, "look_offset_deg": 80, "time": 12.0},
@@ -13969,11 +13973,12 @@
       "perf_floor_fps": 5,
       "shore_probe": {"land": [47.6450, -122.6950], "water": [47.6400, -122.6950], "rules": ["wet", "dry", "no_false_wall"]},
       "_why": "Whole-Earth maps rung 1 (2026-11-09). The plan put the camera ON the shore at 47.6445 looking north, which looks inland, away from the water (the camera park only tilts toward north); it sits over the water instead, looking north at the waterfront. The transect is the plan's. Goes green in rung 2 (the shore band in the one formula).",
-      "_red": "Measured 2026-11-09 on this rung's build, rig defaults, two grounds (BUG-287: a release draws Earth to patch depth 13, about 54 m triangles; the operator's checkout, whose data holds an empty earth_tiles folder, to depth 20). AS SHIPPED it is GREEN at both depths, as the plan predicted: the coast at 153 m along (the region's OSM polygons), the ground falls from 5.7 m 140 m inland to -5.0 m 90 m out, the steepest 10 m going inland rises 0.70 m (depth 13) or 1.48 m (depth 20) where the DEM rises 0.02 or 0.37 m, and every sample past 15 m offshore is at -0.84 m (depth 13) or -1.16 m (depth 20) or deeper; the capture shows water to the shore and no wall. THE RED, by the plan's switch: HUMANITY_SHORE_TAPER=0 at depth 20 is RED on no_false_wall, the ground dropping from +3.6 m to -5.0 m within 10 m at the waterline (8.39 m in 10 m where the DEM rises 0.37 m), the v0.1153 sheer wall. At depth 13 the same switch stays GREEN (1.45 m in 10 m): one 54 m triangle spreads the carve's 9 m drop, so the release ground cannot draw that wall. With HUMANITY_SHORE_TAPER=0 and HUMANITY_REGION_DEM=0 (the v0.1149 state) depth 13 is RED twice: the coarse grid stands the town 39 to 41 m up right to the shore and the carve drops it to -5 m inside one triangle (no_false_wall: 7.14 m in 10 m where the DEM rises 0.02 m), and 4 samples 16 to 25 m offshore stay above -0.3 m (wet: 6.49 m at 16 m out). Sweeps in this rung's worktree .probe-rig/sweeps: 20261109-121545 (shipped, depth 13), -124159 (taper off, 13), -124349 (taper and DEM off, 13), -124533 (taper off, 20), -125420 (shipped, 20)."
+      "_red": "Measured 2026-11-09 on this rung's build, rig defaults, two grounds (BUG-287: a release draws Earth to patch depth 13, about 54 m triangles; the operator's checkout, whose data holds an empty earth_tiles folder, to depth 20). AS SHIPPED it is GREEN at both depths, as the plan predicted: the coast at 153 m along (the region's OSM polygons), the ground falls from 5.7 m 140 m inland to -5.0 m 90 m out, the steepest 10 m going inland rises 0.70 m (depth 13) or 1.48 m (depth 20) where the DEM rises 0.02 or 0.37 m, and every sample past 15 m offshore is at -0.84 m (depth 13) or -1.16 m (depth 20) or deeper; the capture shows water to the shore and no wall. THE RED, by the plan's switch: HUMANITY_SHORE_TAPER=0 at depth 20 is RED on no_false_wall, the ground dropping from +3.6 m to -5.0 m within 10 m at the waterline (8.39 m in 10 m where the DEM rises 0.37 m), the v0.1153 sheer wall. At depth 13 the same switch stays GREEN (1.45 m in 10 m): one 54 m triangle spreads the carve's 9 m drop, so the release ground cannot draw that wall. With HUMANITY_SHORE_TAPER=0 and HUMANITY_REGION_DEM=0 (the v0.1149 state) depth 13 is RED twice: the coarse grid stands the town 39 to 41 m up right to the shore and the carve drops it to -5 m inside one triangle (no_false_wall: 7.14 m in 10 m where the DEM rises 0.02 m), and 4 samples 16 to 25 m offshore stay above -0.3 m (wet: 6.49 m at 16 m out). Sweeps in this rung's worktree .probe-rig/sweeps: 20261109-121545 (shipped, depth 13), -124159 (taper off, 13), -124349 (taper and DEM off, 13), -124533 (taper off, 20), -125420 (shipped, 20).",
+      "_green": "Rung 2, measured 2026-11-09 on its build (the map packs f00-320230 and f00-320212 installed, the shore band in the one formula, the carve, the taper and the region DEM retired), rig defaults: GREEN at both grounds, with no switch to turn. Depth 13 is a release (no tile files); depth 20 is the tile tier, measured with one ETOPO tile (N60W135) installed for the run and removed after. The coast is at 150.8 m along (the pack's OSM polygons; rung 1's region file put it at 153 m). Depth 13: the ground falls from +4.84 m 151 m inland through +1.68 m 16 m inland, +0.32 m at the line and -1.26 m 16 m out to -8.25 m from 100 m out (the band's floor at that depth, one 54 m triangle wide); every sample past 15 m offshore stands at -1.26 m or deeper, every sample past 15 m inland at +1.68 m or higher, and the steepest 10 m within 60 m of the coast rises 0.86 m where GEDTM30 rises 0.00 m. Depth 20: +2.21 m 16 m inland, +1.20 m at the line, -0.80 m 16 m out, -2.15 m from 30 m out (the band's edge), deepening to -6.69 m 405 m out as the profile meets ETOPO; the steepest 10 m rises 1.14 m where GEDTM30 rises 0.39 m. The unit test held against the mesher (map_ground_tests) reads the same -1.26/+1.68 and -0.80/+2.21. The captures show water to the shore with a lighter shallow band along it and no wall; at depth 20 trees stand on the land (the depth-13 capture has none in view, as rung 1's had none). Sweeps in rung 2's worktree .probe-rig/sweeps: 20261109-171554 (depth 13) and -172146 (depth 20) on the final build, the same numbers as -162658 and -163606 before the tile-border fix (step 7)."
     },
     {
       "id": "coast-silverdale-old-edge",
-      "desc": "300 m over Dyes Inlet 250 m south of where the old Silverdale rectangle's southern edge (latitude 47.590) crosses open water, looking north along the water across that line. The region's water carve and survey DEM stop at the box edge, so the sea bed steps there (maps-ladder.md, 'the region-boundary water seam'). Its shore_probe lays a transect along the water at longitude -122.658, from 333 m inside the box to 222 m outside it.",
+      "desc": "300 m over Dyes Inlet 250 m south of where the old Silverdale rectangle's southern edge (latitude 47.590) crosses open water, looking north along the water across that line. Until whole-Earth maps rung 2 the region's water carve and survey DEM stopped at the box edge, so the sea bed stepped there (maps-ladder.md, 'the region-boundary water seam'); the map packs cover whole tiles, so the box is gone and this vantage locks that no tile or pack border steps the bed. Its shore_probe lays a transect along the water at longitude -122.658, from 333 m north of the old line to 222 m south of it.",
       "expect": "One continuous sheet of water with an even bed; no step, no shelf, no change of colour at the line.",
       "regressions": [
         "no_seam: no step over 0.5 m between samples anywhere along the transect across the old box edge",
@@ -13988,10 +13993,11 @@
         "along_water": [[47.5930, -122.6580], [47.5880, -122.6580]],
         "rules": ["no_seam"],
         "crosses_lat": 47.59,
-        "water_source": "North end: the Silverdale region's OSM sea polygon (water from 47.6015 south to the box edge on this meridian). South end, outside the region: OpenStreetMap natural=coastline ways 991897493 and 991897494, read through the Overpass API on 2026-11-09 (osm_base 2026-11-09T11:55:35Z): on longitude -122.658 the inlet's water runs south of the box edge to the shore at about 47.5867, 145 m past this end."
+        "water_source": "Since rung 2 both ends lie in the map pack f00-320230, whose OSM sea polygons hold water along the whole transect. Rung 1's sources: north end, the Silverdale region's OSM sea polygon (water from 47.6015 south to the box edge on this meridian); south end, outside the region: OpenStreetMap natural=coastline ways 991897493 and 991897494, read through the Overpass API on 2026-11-09 (osm_base 2026-11-09T11:55:35Z): on longitude -122.658 the inlet's water runs south of the box edge to the shore at about 47.5867, 145 m past this end."
       },
       "_why": "Whole-Earth maps rung 1 (2026-11-09). The plan's transect at longitude -122.665 lay ON the inlet's west shore at the box edge (the region's sea starts at -122.66488 there), so it moved to -122.658, the middle of the 1.1 km of open water the edge crosses (sea from -122.6649 to -122.6512 at 47.5904). The camera moved south of the line because the park only looks north. Goes green in rung 2 (tiles cover the sphere; clip edges are not coastlines).",
-      "_red": "Measured 2026-11-09, RED on no_seam at both depths, as the plan predicted. The carve holds the bed at -5.00 m right up to the box edge at 47.5900; past it the region's carve and DEM stop and the coarse grid stands the ground up to +25.0 m and dry, where the real inlet runs on another 370 m (OSM). At depth 13 the 30 m rise is spread over one 54 m triangle (the worst step 1.24 m between two samples at 47.58977); at depth 20 it is a cliff, 16.04 m between two samples 2.5 m apart at 47.59002 (-3.30 m to +12.74 m). The capture shows it plainly: the inlet ends in a straight, saw-toothed wall of ground along the old box edge. South of the edge the game's own coastline is the ocean mask, which reads land. Sweeps 20261109-121545 (depth 13) and -125420 (depth 20)."
+      "_red": "Measured 2026-11-09, RED on no_seam at both depths, as the plan predicted. The carve holds the bed at -5.00 m right up to the box edge at 47.5900; past it the region's carve and DEM stop and the coarse grid stands the ground up to +25.0 m and dry, where the real inlet runs on another 370 m (OSM). At depth 13 the 30 m rise is spread over one 54 m triangle (the worst step 1.24 m between two samples at 47.58977); at depth 20 it is a cliff, 16.04 m between two samples 2.5 m apart at 47.59002 (-3.30 m to +12.74 m). The capture shows it plainly: the inlet ends in a straight, saw-toothed wall of ground along the old box edge. South of the edge the game's own coastline is the ocean mask, which reads land. Sweeps 20261109-121545 (depth 13) and -125420 (depth 20).",
+      "_green": "Rung 2, measured 2026-11-09 on its build, rig defaults: GREEN at both grounds. Both ends of the transect now read sea from the one pack (f00-320230), and the level-12 tile borders and the pack's shore index carry no clip edge as shore. Depth 13 (a release): the largest step between neighbouring samples is 0.21 m (at 47.58865, -6.29 to -6.08 m); the bed runs from -8.25 to -4.59 m along the whole transect and stands at -8.25 m at the old box edge. The tile tier (one ETOPO tile installed for the run; the readout reports walk depth 18 here, the camera being 330 m up, the same state rung 1's 'depth 20' red was measured in): the largest step is 0.06 m (at 47.59000), the bed -6.83 to -2.15 m, -4.54 m at the old line. The captures show one sheet of water across the old line, no wall, no shelf. Sweeps in rung 2's worktree .probe-rig/sweeps: 20261109-171554 (depth 13) and -172146 (tile tier) on the final build, the same numbers as -162658 and -163606 before the tile-border fix (step 7)."
     },
     {
       "id": "coast-dover-cliffs",

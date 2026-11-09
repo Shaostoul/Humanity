@@ -3,9 +3,10 @@
 Written 2026-11-08 from a read of the region pipeline, the terrain quadtree and the history of the
 Silverdale waterfront, together with the dated licence research in
 [`2026-11-08-whole-earth-map-data.md`](../reference/findings/2026-11-08-whole-earth-map-data.md)
-(the finding; every licence statement below is quoted and dated there). **Rung 1 is built
-(2026-11-09: the coast yardstick, the tile key and the credit; its outcome closes section 13);
-nothing after it is.** The rungs in section 13 are the build order; PRIORITIES.md ranks when.
+(the finding; every licence statement below is quoted and dated there). **Rungs 1 and 2 are built
+(2026-11-09: the coast yardstick, the tile key and the credit; then the home packs, the shore band
+and the nested lattice, without road beds and building pads; their outcomes close section 13);
+nothing after rung 2 is.** The rungs in section 13 are the build order; PRIORITIES.md ranks when.
 
 The operator, verbatim (2026-11-08):
 
@@ -627,6 +628,7 @@ No backwards compatibility before v1.0, so the regions are rebuilt, not converte
    residency riding the patches; the shore band, road beds and building pads in the one formula;
    Silverdale and Seattle Center migrated (section 12).
    Goes green: `coast-silverdale-waterfront`, `coast-silverdale-old-edge`.
+   **Built 2026-11-09 without road beds and building pads (deferred, the outcome says why).**
 3. **The planet build:** the whole planet, Overture buildings, generalization L3 to L12, measured
    time and sizes written back into section 8, incremental updates from daily diffs. The
    `just` recipe is developer tooling; its in-app button is logged as CLI debt in
@@ -709,6 +711,103 @@ What the next rungs should know: the gate measures the walk oracle, so its depth
 camera and the tile folder (the readout records `walk_depth` and `tile_tier`); a vantage outside a
 region must declare its coast (the game's coastline there is the 5.5 km ocean mask); the old box
 edge's seam is a 30 m wall at depth 20, worth a capture in rung 2's before and after.
+
+### Rung 2 outcome (2026-11-09)
+
+Built: the pack format (`crates/humanity-terrain/src/map_pack.rs`, HOSMPAK1), the data files
+(`data/maps/levels.ron`, `data/maps/places.ron`, read by `map_levels.rs`), our own builder
+(`map_build/`: an OSM PBF reader, a tiled GeoTIFF reader, the GEDTM30 window's decode with the SCALE
+trap pinned on Rainier and Adams, the sea closed tile by tile; `just map-packs`), the run time
+(`map_ground.rs`: the shore band inside `drawn_elevation_at_depth`, tile residency, the built-over
+mask), the mesher's nested lattice (`build_patch_mesh`, `DrawnPatchSurface`, `patch_lattice_radius`),
+the OSM districts in the world (`src/engine/map_meshes.rs`) and the Maps Planet view's places from
+the packs. Retired, as section 12 said: `data/maps/regions/` (HOSMREG2 and HOSDEM1),
+`scripts/fetch-osm-region.mjs`, `scripts/fetch-region-dem.mjs`, `water_carve.rs`,
+`region_meshes.rs`, the AWS Terrain Tiles credit; the vantages kept their coordinates.
+
+**The coast, before and after** (the shore probe at both depths a release and a tile-tier install
+draw; every number is in the vantage's `_green` note, rung 1's red readings stay in `_red`):
+
+| Vantage | Rung 1 (the region files) | Rung 2, depth 13 (a release) | Rung 2, tile tier (depth 20; 18 for the old edge) |
+|---|---|---|---|
+| `coast-silverdale-waterfront` | green only through the carve, the DEM and the taper; red with the taper off (8.39 m in 10 m at depth 20) | **green**: -1.26 m 16 m out, +1.68 m 16 m in, the steepest 10 m 0.86 m where GEDTM30 rises 0.00 m | **green**: -0.80 m 16 m out, +2.21 m 16 m in, the steepest 10 m 1.14 m where GEDTM30 rises 0.39 m |
+| `coast-silverdale-old-edge` | red: a 1.24 m step at depth 13, a 16.04 m cliff at the tile tier, the inlet ending in a wall | **green**: the largest step 0.21 m, the bed -8.25 to -4.59 m | **green**: the largest step 0.06 m, the bed -6.83 to -2.15 m |
+| `coast-dover-cliffs`, `coast-norderney-beach` | red (no data there) | red with rung 1's numbers (rung 4 brings their data) | not run |
+
+The switch is gone: `HUMANITY_SHORE_TAPER` retired with the carve, and the slope comes from the
+band. `HUMANITY_SHORE_BAND=0` (land meeting ETOPO raw at the coastline) is the band's red evidence,
+seen in the unit tests that walk the same oracle ("depth 13: a sample more than 15 m offshore
+stands at +0.99 m (a dry harbour)").
+
+**Measured budgets** (section 8.5 and 10 were estimates):
+
+| Budget | Measured |
+|---|---|
+| Local pack size, Puget Sound | f00-320230 (Silverdale, Bremerton, Tacoma's west) 40.2 MB; f00-320212 (north Kitsap, Seattle) 42.4 MB. Inside: land lattices 7.0 MB (levels 6, 9 and 12), seabed 0.16 MB, land cover 0.8 MB, water 0.8 to 0.9 MB, ways 12 to 15 MB, buildings 18 to 19 MB. Within the plan's "10 to 30 MB where people live, 200 MB in the densest cities" once the metro's 0.7 to 0.8 million footprints are counted. |
+| Build time | 17 s to read the 366 MB Washington extract for both packs (22.4 million nodes in their box), 23 and 24 s per pack, 112 s for both built twice and compared (single-threaded per pack, four threads reading the PBF), on the operator's i7-8700K. |
+| Decoded memory | a level-12 land tile is 8.6 KB decoded; the shore field of a pack holds every true shoreline segment (about 0.2 to 0.3 million) in a 200 m grid. |
+| Frame time | measured with `HUMANITY_FRAME_COSTS=1` at rig defaults (the background 30 fps cap) on the final build, over the eight Silverdale and Seattle vantages (sweep 20261109-171554): the main-thread stages the map ground touches read `cpu.patch_build` 1.9 to 3.1 ms, `cpu.chunk_veg_and_draws` 0.9 to 1.4 ms, `cpu.scene` 3.1 to 3.6 ms. The same exe with the packs moved out (sweep -164343, five of those vantages) read 2.0 to 4.1, 1.0 to 2.7 and 3.3 to 4.1 ms: the packs add nothing measurable on the main thread (the procedural forest the built-over mask keeps off the town costs more than the pack ground adds). Patch builds and district builds run on workers, outside these stages: a Silverdale district builds in about 1 s, a dense Seattle one in 3 to 6 s, one at a time, so a 5 km view over Seattle fills over about half a minute. |
+| World entry | the two packs read and published in 25 ms (83 MB read whole); each pack's shore field built on a worker in about 0.3 s. |
+
+**What changed against the plan, and why:**
+- **Levels in a local pack.** A local pack holds levels 6, 9 and 12 for its own tile (one level-6
+  tile, 64 level-9, 4,096 level-12), so every patch depth reads one tile at its own level; region
+  packs (depth 3) are rung 3's. The seabed is stored at levels 6 and 9 only (ETOPO's 460 m needs
+  nothing finer than 215 m); land cover on the level-12 lattice (27 m, not 20 m).
+- **Water per level-12 tile, the shore index per pack.** The rings are cut per level-12 tile with
+  clip edges flagged (section 3.5), but the distance to the true shoreline comes from one index per
+  pack built from all its tiles' real edges, so no margin was needed: a distance across a tile
+  border is exact, and a tile border in the middle of an inlet is invisible to the water (the old
+  box edge's seam is gone; the unit test turns red at +0.90 m when clip edges count as shore).
+- **The band is depth-aware.** Section 5.2's profile alone could not hold the wet guarantee on a
+  coarse patch: a 54 m triangle with one vertex on the shore draws dry ground 15 m out. So within a
+  band the shore is one straight slope through the waterline, from the datum to the wet depth at
+  12 m, and the band is at least one vertex spacing of the patch being drawn wider than that
+  (`band_spacings` in levels.ron): a straight slope survives linear interpolation, so the guarantee
+  holds on the drawn mesh at every depth. Past the band, land returns to GEDTM30 at a 10:1 cap
+  (cliffs stay cliffs) and water to the equilibrium profile blended into ETOPO. The price: under a
+  coarse patch the near-shore water is deeper (about 7 m at the band's edge at depth 13, about 2 m
+  at depth 20), and the depth changes when the patch refines.
+- **The datum** is 1 m: OSM's coastline is the mean high-water springs line (the wiki's own words,
+  quoted in levels.ron) and at Seattle mean higher-high water is 1.44 m above mean sea level (NOAA
+  9447130). The finding's open question 7 is settled.
+- **Lakes** take the median of GEDTM30 along their shore; river areas their lowest shore point (a
+  flat surface per river polygon: a river that falls downstream is still a later rung).
+- **Residency** is per decoded tile in slots, touched by whichever thread reads them and by the
+  last selection's drawn patches every frame, dropped after 600 idle frames; with the reuse switch
+  off a fresh set is published each frame.
+- **A point on a tile border** (every drawn vertex there, the lattice being nested) lies exactly on
+  the edges of the rings cut at that border, whose corners are rounded to OSM's integers, so the
+  water test moves it 5 cm into the tile first. Without that, half of those vertices read land: a
+  ridge from 190 m deep to the surface along every tile border in the Sound, seen in the 5 km
+  capture over Seattle and fixed before this outcome (the test
+  `vertices_on_tile_borders_stand_in_the_water_they_lie_in`).
+- **The OSM geometry** stands in districts, the level-9 tiles near the camera (built within 15 km,
+  drawn within 25 km, given back past 40 km, each measured to the district's nearest ground with the
+  altitude counted, never to its centre), each one mesh per class built on a worker with every
+  vertex on the finest drawn ground. The old regions drew a 9 km box from 60 km away; a district
+  draws from 25 km. Past that a lake shows its bed with no sheet over it (and the sea shell where
+  the 5.5 km ocean mask counts the lake as sea); a lake surface for distant patches belongs with
+  rung 3's lower levels.
+- **The home set is two packs, not one:** the old Silverdale rectangle straddles f00-320230 and
+  f00-320212, which also holds Seattle Center.
+
+**Deferred, plainly:** road beds and building pads (sections 6.1 and 6.2) are not in the formula.
+A road bed needs the road's smoothed profile across tile borders (a margin or the neighbour tile at
+run time) and a grade limit along the whole way; a pad needs each footprint's median ground; both
+must not fight the shore band where streets run along the water. The coast was the operator's
+priority and is green without them; the roads keep their +0.18 m and +0.12 m lift and the
+buildings their 2.5 m buried skirt until then. Also not in this rung: shore types from
+`natural=beach`/`cliff` (only WorldCover's classes pick the profile), the per-patch material mask of
+section 6.3, names as their own layer (they ride on ways and water), building multipolygons (only
+closed ways), rail.
+
+**For rung 3's agent:** the builder's single-pack time is dominated by the level-12 land and cover
+lattices (8.8 million samples each), single-threaded: parallelize per level-12 tile before the
+planet. The washington extract has a few open coastline chains at its edge (the extract boundary);
+the planet assembly has none, but closed chains whose first point lies inside a tile must be joined
+end to start (that bug is fixed and named in `tile_water`). Pack size is mostly buildings and ways;
+Overture's footprints will grow the building layer.
 
 ## 14. Questions only the operator can answer
 

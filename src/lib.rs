@@ -1820,7 +1820,7 @@ mod native_app {
                 terrain_tiles: humanity_terrain::terrain_tiles::TerrainTiles::new(
                     data_dir.join("planets/earth_tiles"),
                 ),
-                region_meshes: Default::default(),
+                map_meshes: Default::default(),
                 // Connected-ocean mask (v0.876): bathymetric terrain + the
                 // water shell need it; absent/corrupt file = the pre-v0.876
                 // clamped sea sphere, never a crash.
@@ -9777,20 +9777,19 @@ mod native_app {
                                             cs.sel_dirty = true;
                                         }
                                     }
-                                    // OSM regions standing in the world
-                                    // (v0.1148, maps ladder rung 3 inc. 2):
-                                    // grid sampling, background mesh builds,
-                                    // and the per-frame class-mesh draws all
-                                    // live in region_meshes::tick.
-                                    // ODbL: publish which regions are actually
-                                    // DRAWN so the HUD can carry the notice. Done
-                                    // here rather than inside tick() because the
-                                    // obligation is about what is ON SCREEN.
-                                    let carve_published = crate::engine::region_meshes::tick(
-                                        &mut state.region_meshes,
+                                    // The whole-Earth map packs (rung 2): the
+                                    // ground published into the one formula,
+                                    // tile residency riding the last drawn
+                                    // patches, and the OSM districts standing
+                                    // in the world, all in map_meshes::tick.
+                                    // ODbL: publish which packs are actually
+                                    // DRAWN so the credit layer carries the
+                                    // notice (the obligation is what is ON SCREEN).
+                                    let map_published = crate::engine::map_meshes::tick(
+                                        &mut state.map_meshes,
                                         d,
                                         hm,
-                                        &state.terrain_tiles,
+                                        state.planet_chunk_states.get(&b.id).map(|cs| &cs.last_drawn),
                                         &mut state.renderer,
                                         &mut celestial_objects,
                                         cam_local,
@@ -9798,21 +9797,18 @@ mod native_app {
                                         rot_d,
                                         rotation,
                                     );
-                                    // Only the regions within draw range: `active` keeps every
-                                    // region ever built (whole-Earth maps rung 1).
-                                    state.gui_state.osm_regions_drawn =
-                                        crate::engine::region_meshes::drawn_names(&state.region_meshes, cam_local);
-                                    // The water carve just changed the
+                                    state.gui_state.osm_packs_drawn =
+                                        crate::engine::map_meshes::drawn_names(&state.map_meshes, cam_local);
+                                    // The map packs just changed the
                                     // elevation formula itself: every
                                     // terrain/water patch cached before
-                                    // this frame is stale (v0.1149). In
-                                    // the normal flow this tick precedes
-                                    // the world's first patch build, so
-                                    // the purge finds empty caches; it is
-                                    // load-bearing for ordering surprises
-                                    // and future mid-session region
-                                    // installs.
-                                    if carve_published {
+                                    // this frame is stale. In the normal
+                                    // flow this tick precedes the world's
+                                    // first patch build, so the purge finds
+                                    // empty caches; it is load-bearing for
+                                    // ordering surprises and future
+                                    // mid-session pack installs.
+                                    if map_published {
                                         let keys: Vec<String> = state
                                             .planet_chunk_states
                                             .keys()
@@ -9848,7 +9844,7 @@ mod native_app {
                                         }
                                         if purged > 0 {
                                             log::info!(
-                                                "[Region] water carve: purged {purged} pre-carve patches"
+                                                "[Map] packs published: purged {purged} patches built before them"
                                             );
                                         }
                                     }

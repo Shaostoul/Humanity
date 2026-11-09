@@ -1,0 +1,50 @@
+// Named places on the whole-Earth map (docs/design/whole-earth-maps.md section 12; rung 2,
+// 2026-11-09). The Maps page's Planet view offers each as a view of the installed packs; the map
+// builder's "home" set is the packs holding the places marked home (they ship with the app: the
+// ship hangs over Silverdale); and each place carries the geography gates the builder checks its
+// pack against (the house rule of both retired fetchers: a known town on land, a known water point
+// wet, local names present). Read by crates/humanity-terrain/src/map_levels.rs.
+(
+    places: [
+        (
+            name: "Silverdale",
+            // The old Silverdale rectangle's centre and half spans (47.59 to 47.69 N,
+            // 122.73 to 122.62 W), kept so the view frames the same town.
+            lat: 47.640,
+            lon: -122.675,
+            half_east_m: 4125.0,
+            half_north_m: 5527.0,
+            home: true,
+            gates: (
+                min_roads: 200,
+                min_buildings: 300,
+                road_named_any: ["Silverdale Way Northwest", "Silverdale Way NW", "Bucklin Hill Road"],
+                water_named_any: ["Island Lake"],
+                // Mid Dyes Inlet's north lobe is sea; central Silverdale (the shore probe's land
+                // end) is land; Island Lake's middle is lake.
+                sea_at: [(47.6230, -122.6870), (47.6400, -122.6950)],
+                land_at: [(47.6450, -122.6950)],
+                lake_at: [],
+            ),
+        ),
+        (
+            name: "Seattle Center",
+            // The old Seattle Center rectangle (47.605 to 47.628 N, 122.356 to 122.328 W).
+            lat: 47.6165,
+            lon: -122.342,
+            half_east_m: 1051.0,
+            half_north_m: 1271.0,
+            home: true,
+            gates: (
+                min_roads: 100,
+                min_buildings: 500,
+                road_named_any: ["Pike Street", "Pine Street"],
+                water_named_any: ["Lake Union"],
+                // Open water off the piers; dry land at Seattle Center itself.
+                sea_at: [(47.6080, -122.3520)],
+                land_at: [(47.6205, -122.3493)],
+                lake_at: [],
+            ),
+        ),
+    ],
+)

@@ -340,15 +340,15 @@ and in more that you cannot.
   (half a step each way; arithmetic). The number comes from the stored
   value 47.6448, -122.6952 in the game's places data.
 - **The map's footer.** On the Maps page, the Planet view's footer names
-  the region and its centre to four decimal places, for example
+  the place and its centre to four decimal places, for example
   "Silverdale (47.6400, -122.6750)".
-- **Metres per degree.** To lay the real map regions out on the ground,
+- **Metres per degree.** To lay a real place out flat around its centre,
   the game counts 110,540 metres to a degree of latitude, and 111,320
   metres times the cosine of the latitude to a degree of longitude: the
   same shrinking-longitude rule as this guide, with fixed numbers close
-  to NOAA's 111 kilometres. The regions are built into the game's 3D
-  Earth at their real latitude and longitude once the camera comes within
-  40 kilometres of them.
+  to NOAA's 111 kilometres. In the 3D Earth the map is kept as latitude
+  and longitude themselves, to about a centimetre, and its streets stand
+  at their real place once the camera comes within 15 kilometres.
 - **Time by longitude.** The game's clock is the time at longitude 0,
   like Greenwich. A place's local sun time is one hour later for every
   15 degrees east of that, as NOAA describes, and the solar panels, grow
@@ -475,10 +475,11 @@ the public domain. Web pages were read on 3 October 2026.
   shown to three decimals by `draw_container` in
   `src/gui/pages/inventory.rs`.
 - The Planet view's footer: `draw_planet_view` in
-  `src/gui/pages/maps/planet_view.rs`; the two regions, `data/maps/regions/`.
+  `src/gui/pages/maps/planet_view.rs`; the map packs, `data/maps/packs/`,
+  and the named places, `data/maps/places.ron`.
 - Metres per degree: `M_PER_DEG_LAT` and `M_PER_DEG_LON_EQUATOR` in
-  `crates/humanity-terrain/src/osm_region.rs`; the regions built into the 3D Earth
-  within 40 kilometres (`BUILD_RANGE_M` in `src/engine/region_meshes.rs`).
+  `crates/humanity-terrain/src/osm_region.rs`; the streets built into the 3D Earth
+  within 15 kilometres (`BUILD_RANGE_M` in `src/engine/map_meshes.rs`).
 - Time by longitude: `local_hour`, `solar_hour_at` and
   `home_longitude_deg` in `crates/humanity-systems/src/time.rs`, used by the solar panels
   (`crates/humanity-systems/src/solar.rs`), the grow lights and the crops; the home's

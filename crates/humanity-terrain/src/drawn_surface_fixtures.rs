@@ -1,20 +1,16 @@
-//! The Silverdale fixtures of the region tests (BUG-156, drawn_surface_region_tests.rs), which the
-//! simulation's walk test uses too (systems::crossing_tests::drawn_surface_region): the shipped
-//! Earth, the Silverdale masks, the probe grid and the built patches the ground is read from. Apart
+//! The Silverdale fixtures of the map pack tests (BUG-156, drawn_surface_pack_tests.rs), which the
+//! simulation's walk test uses too (systems::crossing_tests::drawn_surface_pack): the shipped
+//! Earth, the home map packs, the probe grid and the built patches the ground is read from. Apart
 //! from the tests so that the crate split can put them behind its `test-support` feature (rung 2).
 //! A `#[path]` child of `drawn_surface`, in its own file because the parent is on the file-size
 //! ratchet.
 
 use super::*;
 use crate::ocean_mask::OceanMask;
-use crate::osm_region::{
-    latlon_to_dir_f64, parse_dem, parse_region, region_meters_to_latlon, M_PER_DEG_LAT,
-    M_PER_DEG_LON_EQUATOR,
-};
+use crate::osm_region::{latlon_to_dir_f64, M_PER_DEG_LAT, M_PER_DEG_LON_EQUATOR};
 use crate::planet_chunks::{build_patch_mesh, patch_corners, PatchId, PatchMesh};
 use crate::planet_heightmap::PlanetHeightmap;
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
 /// The shipped Earth grids, ocean mask and the real earth.ron (not the test
 /// fixture, whose surface relief is 3.5x the shipped one), with the loader's
@@ -29,40 +25,10 @@ pub fn real_earth() -> (PlanetHeightmap, OceanMask, PlanetDef) {
     (hm, om, def)
 }
 
-/// The shipped Silverdale region with its survey DEM, rasterised the way
-/// `engine::region_meshes` does it when the region loads (lake levels from the
-/// lowest survey sample on each shore ring). Built once per test binary: a
-/// 1024x1024 rasterisation with two distance transforms is seconds in debug.
-pub fn silverdale_masks() -> Arc<Vec<RegionMask>> {
-    static MASKS: OnceLock<Arc<Vec<RegionMask>>> = OnceLock::new();
-    MASKS
-        .get_or_init(|| {
-            let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/maps/regions");
-            let region = parse_region(&std::fs::read(dir.join("silverdale.bin")).expect("region ships"))
-                .expect("region parses");
-            let dem = parse_dem(&std::fs::read(dir.join("silverdale.dem.bin")).expect("DEM ships"))
-                .expect("DEM parses");
-            let lake_level = |wi: usize| -> f64 {
-                let low = region.water[wi]
-                    .ring
-                    .iter()
-                    .filter_map(|&(e, n)| {
-                        let (lat, lon) =
-                            region_meters_to_latlon(region.origin_lat, region.origin_lon, e as f64, n as f64);
-                        dem.sample_m(lat, lon).map(|m| m as f64)
-                    })
-                    .fold(f64::MAX, f64::min);
-                if low == f64::MAX {
-                    0.5
-                } else {
-                    low.max(0.5)
-                }
-            };
-            let mask = RegionMask::from_region_with_dem(&region, &lake_level, Some(dem.clone()))
-                .expect("Silverdale has water, roads and buildings to mask");
-            Arc::new(vec![mask])
-        })
-        .clone()
+/// The shipped home map packs (data/maps/packs: Silverdale and Seattle Center, whole-Earth maps
+/// rung 2) as the set the engine publishes at world entry. Read once per test binary.
+pub fn silverdale_map() -> Arc<crate::map_ground::MapSet> {
+    crate::map_ground::home_set().expect("the home map packs ship in data/maps/packs")
 }
 
 /// The `silverdale-home-marker` vantage's standing point (tests/visual/

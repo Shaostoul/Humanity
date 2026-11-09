@@ -433,8 +433,19 @@ impl DetailNoise {
     /// carries, so only the sub-500 m octaves apply on top of tiles -
     /// procedural wrinkle strictly BELOW the data floor, never fighting it.
     pub fn sample_m_tile_gated(&self, dir: DVec3, depth: u8) -> f32 {
+        self.sample_m_fine_from(dir, depth, 1)
+    }
+
+    /// The depth-gated fine octaves from index `first` on: inside a whole-Earth map pack only the
+    /// wrinkle finer than its 27 m lattice (wavelength <= `max_wavelength_m`) is procedural.
+    pub fn sample_m_fine_below(&self, dir: DVec3, depth: u8, max_wavelength_m: f64, radius_m: f64) -> f32 {
+        let first = DETAIL_FINE_FREQS.iter().position(|f| radius_m / f <= max_wavelength_m).unwrap_or(DETAIL_FINE_FREQS.len());
+        self.sample_m_fine_from(dir, depth, first)
+    }
+
+    fn sample_m_fine_from(&self, dir: DVec3, depth: u8, first: usize) -> f32 {
         let mut sum = 0.0_f64;
-        for (i, p) in self.fine.iter().enumerate().skip(1) {
+        for (i, p) in self.fine.iter().enumerate().skip(first) {
             if depth >= DETAIL_FINE_MIN_DEPTH[i] {
                 let f = DETAIL_FINE_FREQS[i];
                 sum += DETAIL_FINE_AMPS_M[i] as f64 * p.get([dir.x * f, dir.y * f, dir.z * f]);
@@ -648,17 +659,18 @@ pub fn drawn_elevation_normalized(
     // f64 (v0.1012): f32 unit dirs quantize ground sampling at ~0.4-0.8 m.
     dir: glam::DVec3,
 ) -> f32 {
-    let carve = crate::water_carve::snapshot();
-    drawn_elevation_at_depth(hm, def, detail, tiles, carve.as_deref().map(Vec::as_slice), dir, FINEST_DETAIL_DEPTH)
+    let map = crate::map_ground::snapshot();
+    drawn_elevation_at_depth(hm, def, detail, tiles, map.as_deref(), dir, FINEST_DETAIL_DEPTH)
 }
 
 /// THE DRAWN ELEVATION FORMULA, the one copy of it (BUG-156, 2026-10-05):
 /// the normalized elevation a terrain patch of `depth` puts at the lattice
 /// vertex `dir`. Base (the streamed tile tier at deep LODs, else the shipped
-/// grid), plus the land-masked sub-grid detail gated by `depth`, then the
-/// region water carve, whose first step REPLACES the elevation with the
-/// region's real survey elevation (the ~13 m DEM, v0.1153) inside its
-/// coverage.
+/// grid), plus the land-masked sub-grid detail gated by `depth`; then, inside
+/// an installed whole-Earth map pack (rung 2, `map_ground`), the pack's
+/// ground REPLACES it: GEDTM30 land on the nested lattice, OSM's coastline
+/// deciding land from water, the shore band joining them, ETOPO's seabed,
+/// faded into the base only at an edge whose neighbour pack is missing.
 ///
 /// WHY ONE FUNCTION. Three places wrote this formula out: `build_patch_mesh`
 /// (the ground you see), `drawn_elevation_normalized` (the finest-depth field)
@@ -669,8 +681,8 @@ pub fn drawn_elevation_normalized(
 /// survey: trees hung metres in the air beside the Dyes Inlet waterfront
 /// (BUG-156). Every consumer now calls this, so they cannot part again.
 ///
-/// `carve` is the region mask set the caller snapshotted
-/// (`water_carve::snapshot`), passed in rather than read here so a patch build
+/// `map` is the installed pack set the caller snapshotted
+/// (`map_ground::snapshot`), passed in rather than read here so a patch build
 /// takes one lock per patch, not one per vertex.
 #[allow(clippy::too_many_arguments)]
 pub fn drawn_elevation_at_depth(
@@ -678,7 +690,7 @@ pub fn drawn_elevation_at_depth(
     def: &PlanetDef,
     detail: &DetailNoise,
     tiles: Option<&super::terrain_tiles::TerrainTiles>,
-    carve: Option<&[crate::water_carve::RegionMask]>,
+    map: Option<&crate::map_ground::MapSet>,
     dir: glam::DVec3,
     depth: u8,
 ) -> f32 {
@@ -704,19 +716,8 @@ pub fn drawn_elevation_at_depth(
     } else {
         base
     };
-    // Region water carve (v0.1149) and real elevation (v0.1153): OSM sea and
-    // lake polygons press the ground down, and inside a region's DEM the
-    // ground IS the survey.
-    match carve {
-        Some(cm) => crate::water_carve::carve_normalized_with(
-            cm,
-            dir,
-            e.clamp(0.0, 1.0),
-            hm.min_meters(),
-            hm.max_meters(),
-            sea,
-        )
-        .clamp(0.0, 1.0),
+    match map {
+        Some(m) => crate::map_ground::apply_normalized(m, dir, e, depth, range_m, sea, Some(detail)),
         None => e.clamp(0.0, 1.0),
     }
 }
@@ -1753,47 +1754,45 @@ pub fn build_patch_mesh_at_density(
     let radius_m = def.radius;
     let anchor = (corners[0] + corners[1] + corners[2]).normalize() * radius_m;
     let sea = def.sea_level.clamp(0.0, 1.0);
-    // One registry lock per patch, not per vertex (see water_carve docs).
-    let carve_masks = crate::water_carve::snapshot();
+    // One registry lock per patch, not per vertex (the installed map packs, map_ground).
+    let map = crate::map_ground::snapshot();
     // Stays 0.0 unless the vegetation pass below actually emits cards (this
     // patch is too shallow for trees, or polar). See `PatchMesh::tree_density`.
     let mut card_tree_density = 0.0f32;
 
-    // ── Unique grid samples ──
-    // Directions via integer barycentric weights: both patches sharing an
-    // edge compute the same products and two-term sums (the third weight is
-    // zero on an edge), so border directions are bit-identical across
-    // same-depth neighbors regardless of corner order (f64 +/* are
-    // commutative). That plus the seed-only detail noise makes same-depth
-    // borders crack-free by construction.
+    // ── Unique grid samples: THE NESTED LATTICE (whole-Earth maps rung 2,
+    // docs/design/whole-earth-maps.md 4.2) ──
+    // Four rounds of the tree's own normalized-midpoint subdivision, so this
+    // patch's vertices are exactly the corners of its depth+4 descendants and
+    // a map tile's lattice sample IS a vertex (no interpolation). Until rung 2
+    // they were barycentric blends, normalize(3a + b) a quarter along an edge,
+    // which no deeper patch ever has as a corner (12,276 of 12,288 corners
+    // differed). Border directions stay bit-identical across neighbours, now
+    // across depths too: an edge vertex comes from that edge's two ends alone
+    // and the midpoint is commutative.
     let vert_count = ((n + 1) * (n + 2) / 2) as usize;
+    let lattice = crate::map_tiles::lattice_from_corners(&corners, n).expect("PATCH_TESS is a power of two");
     let mut dirs: Vec<DVec3> = Vec::with_capacity(vert_count);
     let mut elevs: Vec<f32> = Vec::with_capacity(vert_count);
-    for r in 0..=n {
-        for c in 0..=r {
-            let w0 = (n - r) as f64;
-            let w1 = (r - c) as f64;
-            let w2 = c as f64;
-            let dir = (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
-            let e = match source {
-                // The one formula (base, depth-gated detail, then the region
-                // carve and DEM), shared with every sampler that stands
-                // something on this ground. `carve_masks` is the one-per-patch
-                // snapshot taken above.
-                ElevationSource::Heightmap { hm, detail, tiles, ocean: _ } => drawn_elevation_at_depth(
-                    hm,
-                    def,
-                    detail,
-                    *tiles,
-                    carve_masks.as_deref().map(Vec::as_slice),
-                    dir,
-                    id.depth,
-                ),
-                ElevationSource::Noise(s) => s.elevation_at(dir.as_vec3()),
-            };
-            dirs.push(dir);
-            elevs.push(e);
-        }
+    for &dir in &lattice {
+        let e = match source {
+            // The one formula (base, depth-gated detail, then the map
+            // packs' ground), shared with every sampler that stands
+            // something on this ground. `map` is the one-per-patch
+            // snapshot taken above.
+            ElevationSource::Heightmap { hm, detail, tiles, ocean: _ } => drawn_elevation_at_depth(
+                hm,
+                def,
+                detail,
+                *tiles,
+                map.as_deref(),
+                dir,
+                id.depth,
+            ),
+            ElevationSource::Noise(s) => s.elevation_at(dir.as_vec3()),
+        };
+        dirs.push(dir);
+        elevs.push(e);
     }
     // Displaced position in f64 planet-local meters, then the f32 offset
     // from the anchor (the narrowing happens HERE and nowhere earlier).
@@ -2194,25 +2193,16 @@ pub fn build_patch_mesh_at_density(
                             continue;
                         }
                         // Elevation through the SAME sampler as the grid,
-                        // then the water carve (v0.1149): carved seabed and
-                        // lake beds read their true underwater elevation, so
-                        // the 6 m land gate below keeps trees out of Dyes
-                        // Inlet. MUST stay identical in the near-model
-                        // mirror (near_trees) or cards and models disagree.
+                        // then the map packs' ground at the gate depth: the
+                        // shore band's seabed reads below sea level, so the
+                        // 6 m land gate below keeps trees out of Dyes Inlet.
+                        // MUST stay identical in the near-model mirror
+                        // (near_trees) or cards and models disagree.
                         let (e, _tile) = match source {
                             ElevationSource::Heightmap { hm, tiles, .. } => {
                                 let (e, t) = tile_or_base(hm, *tiles, dir, id.depth);
-                                let e = match &carve_masks {
-                                    Some(cm) => {
-                                        crate::water_carve::carve_normalized_with(
-                                            cm,
-                                            dir,
-                                            e,
-                                            hm.min_meters(),
-                                            hm.max_meters(),
-                                            sea,
-                                        )
-                                    }
+                                let e = match &map {
+                                    Some(m) => crate::map_ground::apply_normalized(m, dir, e, crate::map_ground::GATE_DEPTH, range_m, sea, None),
                                     None => e,
                                 };
                                 (e, t)
@@ -2238,13 +2228,8 @@ pub fn build_patch_mesh_at_density(
                         // bilinear weight gives roughly a half-cell (~5 m)
                         // clearance beyond the curb strip. MUST match the
                         // near-model mirror exactly.
-                        if let Some(cm) = &carve_masks {
-                            if crate::water_carve::built_weight_at_deg(
-                                cm,
-                                lat.to_degrees(),
-                                lon.to_degrees(),
-                            ) > 0.35
-                            {
+                        if let Some(m) = &map {
+                            if m.built_weight_at_deg(lat.to_degrees(), lon.to_degrees()) > 0.35 {
                                 continue;
                             }
                         }
@@ -2806,7 +2791,7 @@ impl ChunkState {
 
     /// Drop EVERY cached patch unconditionally, roots included. This is a
     /// CORRECTNESS purge, not an LRU trim: the elevation formula itself
-    /// changed under this state (the region water carve published), so
+    /// changed under this state (the map packs published), so
     /// every cached mesh is stale by construction. Same return contract as
     /// `collect_evictions`; the caller frees the renderer resources.
     pub fn purge_all(
@@ -3080,7 +3065,7 @@ pub(crate) mod tests {
         PlanetHeightmap::from_bytes(&bytes).expect("synthetic heightmap parses")
     }
 
-    fn bumpy_earth() -> PlanetHeightmap {
+    pub(crate) fn bumpy_earth() -> PlanetHeightmap {
         // -11000..6500 like the shipped Earth window; a smooth sinusoidal
         // continent field with everything from deep ocean to high peaks.
         synth_heightmap(64, 32, -11000.0, 6500.0, |x, y| {
@@ -4015,7 +4000,7 @@ pub(crate) mod tests {
         let pm = build_patch_mesh(&def, &src, None, &id);
         // Reference: recompute the grid positions fully in f64.
         let n = PATCH_TESS;
-        let corners = patch_corners(&id);
+        let lattice = crate::map_tiles::lattice_from_corners(&patch_corners(&id), n).expect("power of two");
         let sea = def.sea_level;
         let range_m = hm.max_meters() - hm.min_meters();
         let mut worst = 0.0_f64;
@@ -4037,11 +4022,8 @@ pub(crate) mod tests {
                 let exact: Vec<DVec3> = face
                     .iter()
                     .map(|&(rr, cc)| {
-                        let w0 = (n - rr) as f64;
-                        let w1 = (rr - cc) as f64;
-                        let w2 = cc as f64;
-                        let dir =
-                            (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
+                        // The nested lattice (rung 2), as the builder makes it.
+                        let dir = lattice[grid_idx(rr, cc)];
                         // Same elevation pipeline as the builder.
                         let base = hm.normalized_at(dir.as_vec3());
                         let above = (base - sea) * range_m;

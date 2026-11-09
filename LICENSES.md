@@ -11,11 +11,12 @@ does not name a surface where its notice is actually shown.
 
 ## OpenStreetMap - the one with real obligations
 
-The region files `data/maps/regions/silverdale.bin` and
-`data/maps/regions/seattle-center.bin` are built from OpenStreetMap by
-`scripts/fetch-osm-region.mjs`. (Their `.dem.bin` height companions are NOT
-OpenStreetMap data: they come from a different source by a different script,
-below under "Heights".)
+The whole-Earth map packs, `data/maps/packs/*.hmpack` (HOSMPAK1, built by our own
+builder, `just map-packs`, from Geofabrik's OpenStreetMap extracts), carry
+OpenStreetMap's coastlines, water, roads and building footprints in their
+`osm_water`, `osm_ways` and `osm_buildings` layers. The app ships the packs around
+home (Silverdale and Seattle Center). The packs' other layers are NOT OpenStreetMap
+data and are never edited with it in the file (below under "Heights and land cover").
 
 **Map data (c) OpenStreetMap contributors, ODbL 1.0**
 <https://www.openstreetmap.org/copyright>
@@ -32,45 +33,56 @@ believe you are done:
    player ever saw it. Since 2026-11-09 the in-world line is drawn by its own
    layer (`src/gui/map_credit.rs`), not inside the HUD, so it also shows in the
    construction editor, in the showroom and with the HUD turned off.
-2. **The region files are a Derivative Database.** They are an extracted,
-   reprojected subset of OSM, so publicly distributing them means offering them
-   under ODbL 1.0 as well. They are hereby offered under ODbL 1.0. If you
-   redistribute a release bundle containing `data/maps/regions/`, you carry this
-   obligation forward.
+2. **The packs' OpenStreetMap layers are a Derivative Database.** They are an
+   extracted, re-cut subset of OSM, so publicly distributing them means offering
+   them under ODbL 1.0 as well. They are hereby offered under ODbL 1.0, and every
+   pack says so itself: its manifest names each layer's source, snapshot date and
+   licence, carries the ODbL notice and offer, and names where its format is
+   specified (`crates/humanity-terrain/src/map_pack.rs`), so a pack passed on alone
+   still carries the offer. If you redistribute a release bundle containing
+   `data/maps/packs/`, you carry this obligation forward.
 
-The application NEVER contacts OSM servers at runtime. Region files are fetched
-once at development time and committed.
+The application NEVER contacts OSM servers at runtime. Packs are built at
+development time from downloaded extracts and committed (the home packs) or
+published as release files.
 
 This is a plain-language summary written by developers, not lawyers. Where it and
 the ODbL text disagree, the licence governs.
 
-## Heights (NOAA ETOPO 2022, and the region surveys)
+## Heights and land cover (GEDTM30, NOAA ETOPO 2022, ESA WorldCover)
 
+- **GEDTM30 v1.2** (OpenGeoHub) - the land heights (`land_h`) inside the map
+  packs, 30 m bare earth. CC BY 4.0
+  (<https://creativecommons.org/licenses/by/4.0/>), record
+  <https://zenodo.org/records/18887460>. Credit: Land heights: GEDTM30 v1.2,
+  Global Ensemble Digital Terrain Model (Ho, Hengl, Parente et al., OpenGeoHub,
+  2026), CC BY 4.0. GEDTM30 is built partly from the Copernicus DEM, so until the
+  finding's open question 1 is answered its notice travels too: © DLR e.V.
+  2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under
+  COPERNICUS by the European Union and ESA; all rights reserved. The organisations
+  in charge of the Copernicus programme by law or by delegation do not incur any
+  liability for any use of the Copernicus WorldDEM-30.
 - **NOAA ETOPO 2022** - Earth's shipped heights on land and under the sea
   (`data/planets/earth_heightmap.bin`, built by `examples/build_earth_grid.rs`),
-  the connected-ocean mask derived from them (`earth_ocean_mask.bin`) and the
-  optional 15 arc-second tile tier. NOAA's metadata: "NOAA waives any potential
-  copyright and related rights in these data worldwide through the Creative
-  Commons Zero 1.0 Universal Public Domain Dedication (CC0-1.0)." Nothing is
-  owed; it is credited anyway, in the citation NOAA asks for: NOAA National
-  Centers for Environmental Information. 2022: ETOPO 2022 15 Arc-Second Global
-  Relief Model. DOI: 10.25921/fd45-gt74.
-- **The region surveys**, `data/maps/regions/*.dem.bin` (about 13 m apart under
-  Silverdale and Seattle Center), fetched once by `scripts/fetch-region-dem.mjs`
-  from the AWS Open Data "Terrain Tiles" (Mapzen / Tilezen,
-  <https://registry.opendata.aws/terrain-tiles/>). For these two Puget Sound
-  regions the tiles are United States public-domain data (USGS 3DEP/NED, NASA
-  SRTM and NOAA bathymetry, as the script's header records). The tile set as a
-  whole is a patchwork: its attribution list
-  (<https://github.com/tilezen/joerd/blob/master/docs/attribution.md>) includes
-  two national sources marked "All rights reserved", which is why it is used for
-  these two US regions only and never for the planet. Until 2026-11-09 this file
-  filed the `.dem.bin` files under OpenStreetMap, which they are not (attribution
-  audit 2026-09-06, item 10).
+  the connected-ocean mask derived from them (`earth_ocean_mask.bin`), the
+  optional 15 arc-second tile tier, and the seabed layer (`sea_h`) of the map
+  packs. NOAA's metadata: "NOAA waives any potential copyright and related rights
+  in these data worldwide through the Creative Commons Zero 1.0 Universal Public
+  Domain Dedication (CC0-1.0)." Nothing is owed; it is credited anyway, in the
+  citation NOAA asks for: NOAA National Centers for Environmental Information.
+  2022: ETOPO 2022 15 Arc-Second Global Relief Model. DOI: 10.25921/fd45-gt74.
+- **ESA WorldCover 2021 v200** - the land cover layer (`cover`) of the map packs.
+  CC BY 4.0, with the project's own credit line: © ESA WorldCover project 2021 /
+  Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover
+  consortium.
 
-Both are rows in `data/credits.ron` (`noaa_etopo`, `aws_terrain_tiles`); the
-research behind them, quoted and dated, is
-`docs/reference/findings/2026-11-08-whole-earth-map-data.md` (findings 14 and 20).
+The region surveys (`data/maps/regions/*.dem.bin`, AWS Open Data Terrain Tiles)
+that stood under Silverdale and Seattle Center until whole-Earth maps rung 2
+(2026-11-09) are retired with the region files. All four sources are rows in
+`data/credits.ron` (`gedtm30`, `copernicus_dem`, `noaa_etopo`, `esa_worldcover`);
+the research behind them, quoted and dated, is
+`docs/reference/findings/2026-11-08-whole-earth-map-data.md` (findings 12, 14, 16
+and 21).
 
 ## NASA (public domain)
 

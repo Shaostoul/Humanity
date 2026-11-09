@@ -150,15 +150,10 @@ pub fn build_water_patch_mesh_at(
 
     // Same bit-identical border walk as the terrain builder (commutative
     // f64 midpoint math), so same-depth water neighbors share borders.
-    // Region sea polygons (v0.1149 water carve) extend coverage into inlets
-    // the 5.56 km ocean mask misses entirely: one snapshot per patch.
-    let carve_masks = crate::water_carve::snapshot();
-    let region_sea = |dir: DVec3| -> f32 {
-        match &carve_masks {
-            Some(cm) => crate::water_carve::sea_weight_at(cm, dir),
-            None => 0.0,
-        }
-    };
+    // The map packs' sea (OSM's coastline, map_ground, rung 2) extends
+    // coverage into inlets the 5.56 km ocean mask misses: one snapshot per patch.
+    let map = crate::map_ground::snapshot();
+    let region_sea = |dir: DVec3| -> f32 { map.as_ref().map_or(0.0, |m| m.sea_weight(dir)) };
     let vert_count = ((n + 1) * (n + 2) / 2) as usize;
     let mut dirs: Vec<DVec3> = Vec::with_capacity(vert_count);
     let mut any_ocean = false;
@@ -202,16 +197,14 @@ pub fn build_water_patch_mesh_at(
     // Without a heightmap every vertex reads 30 m (open-deep default).
     let depth_color = |dir: DVec3| -> [f32; 3] {
         // sample_meters is real elevation relative to sea level, so depth
-        // below the surface is simply its negation. Region sea polygons
-        // override upward: the carve pressed that ground to SEA_CARVE_M
-        // below sea level, so the depth bake must agree or the shader's
-        // shoreline feather trims the shell off the very inlet the carve
-        // just made wet (weight-scaled so the feather still ramps ashore).
+        // below the surface is simply its negation. Inside a map pack the
+        // pack's own ground decides (the shore band's seabed, 0 on land), so
+        // the shader's shoreline feather trims the shell exactly where that
+        // ground meets the sea.
         let base_depth = hm
             .map(|h| (-h.sample_meters(dir.as_vec3())).max(0.0))
             .unwrap_or(300.0);
-        let depth_m = base_depth
-            .max(crate::water_carve::SEA_CARVE_M as f32 * region_sea(dir));
+        let depth_m = map.as_ref().and_then(|m| m.sea_depth_m(dir)).unwrap_or(base_depth);
         let dm = (depth_m * 10.0).clamp(0.0, 65535.0) as u32;
         [((dm >> 8) & 255) as f32 / 255.0, (dm & 255) as f32 / 255.0, 0.0]
     };

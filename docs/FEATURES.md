@@ -2127,6 +2127,7 @@ Ladder: docs/design/maps-ladder.md (OSM planet GPS next).
 - Native: src/gui/pages/maps/galaxy_view.rs (map_stars/parse_stars_map/draw_galactic_view)
 
 ### Maps Planet View: OpenStreetMap Regions (v0.1146)
+Since whole-Earth maps rung 2 (2026-11-09) the view draws named places cut from the map packs; the region files below are retired.
 The Maps page's first view is Planet: real Earth regions as GPS-style 2D
 maps. data/maps/regions/*.bin (HOSMREG1: roads by class + building
 footprints with heights, meters east/north of a region origin) are
@@ -2160,6 +2161,7 @@ same chip, from theme variables.
   `#attribution`)
 
 ### OSM Regions Extruded In-World (v0.1148)
+Retired by whole-Earth maps rung 2 (2026-11-09): the mesher stays, fed by `map_meshes` districts from the packs.
 The same HOSMREG1 regions stand up in the 3D world: real roads draped on
 the terrain and real buildings extruded from their footprints, planet-
 fixed (they ride Earth's spin like the trees). crates/humanity-terrain/src/osm_region.rs
@@ -2180,6 +2182,7 @@ silverdale-osm-2km lock it visually.
 - Native: crates/humanity-terrain/src/osm_region.rs, src/engine/region_meshes.rs (lib.rs hook in the earth branch)
 
 ### Region Water: Real Inlets, Lakes, and the Terrain Carve (v0.1149)
+Retired by whole-Earth maps rung 2 (2026-11-09): the shore band in `map_ground` replaced the carve.
 Operator field report: "the water isn't right... Dyes Inlet is missing.
 Lakes are missing too." Root cause: the sea only renders where the coarse
 (460 m) heightmap dips below sea level, so narrow inlets vanish, and
@@ -2221,8 +2224,41 @@ its own layer (src/gui/map_credit.rs), so it shows in the construction editor, t
 the HUD off, and only while a region is within draw range (`region_meshes::drawn_names`; it used to
 stay on anywhere on Earth once a region had been built); LICENSES.md no longer files the region `.dem.bin` files under OSM; data/credits.ron gains
 NOAA ETOPO 2022 and the AWS Terrain Tiles.
-- Native: src/engine/shore_probe.rs, src/engine/ipc.rs (verb), crates/humanity-terrain/src/water_carve.rs (`water_class_at`, `raw_dem_m_at`, the switches), crates/humanity-terrain/src/map_tiles.rs, src/gui/map_credit.rs, src/engine/region_meshes.rs (`drawn_names`)
+- Native: src/engine/shore_probe.rs, src/engine/ipc.rs (verb), crates/humanity-terrain/src/map_tiles.rs, src/gui/map_credit.rs (rung 1's `water_carve.rs` and `region_meshes.rs` were retired by rung 2, below)
 - Rig: scripts/lib/shore-probe-check.js, scripts/probe-sweep.js, tests/visual/vantages.json; tests: scripts/tests/shore-probe-check.test.js, map_tiles_tests.rs, credits.rs `shipped_heights_and_maps_name_their_sources`
+
+### Whole-Earth Maps, Rung 2: Home Packs, the Shore Band, the Nested Lattice (2026-11-09)
+The second rung of docs/design/whole-earth-maps.md. THE PACKS: `data/maps/packs/*.hmpack` (HOSMPAK1,
+crates/humanity-terrain/src/map_pack.rs), one per depth-6 terrain patch (about 110 km), every layer
+cut into the level-6, -9 and -12 tiles by the same PatchId key: GEDTM30 land heights and ETOPO seabed
+as the tiles' 64-segment nested lattices, ESA WorldCover classes, and OpenStreetMap water rings (the
+sea closed tile by tile, clip edges flagged), ways and buildings, each layer with its source,
+snapshot and licence and the ODbL/CC BY/Copernicus notices in the pack's own manifest. The two home
+packs (f00-320230 and f00-320212: Silverdale straddles them, Seattle Center is in the second) ship
+with the app; data/maps/places.ron names the places and their gates, data/maps/levels.ron the levels
+and the shore band's numbers. THE BUILDER: our own Rust tool (crates/humanity-terrain/src/map_build/,
+`just map-packs`): its own OSM PBF reader, tiled GeoTIFF reader and GEDTM30 decode (the SCALE trap
+pinned on Rainier and Adams), each pack built twice and compared byte for byte, every chunk decoded,
+every place's gates passed. THE GROUND: crates/humanity-terrain/src/map_ground.rs, applied inside
+`drawn_elevation_at_depth` (the one formula): land from the lattice (a patch vertex IS a sample),
+OSM's coastline deciding land from water exactly, the distance to the TRUE shoreline shaping a shore
+band (a straight slope through the waterline at least one vertex spacing wide past the wet distance,
+so even a 54 m triangle draws water 12 m out; the equilibrium beach profile into ETOPO's seabed;
+lakes flat at the median of their shore), faded into the base only at an edge whose neighbour pack is
+missing; decoded tiles resident while the selection's patches need them, all of it obeying the Dev
+page's reuse switch; the built-over mask for trees and grass per level-12 tile. THE MESHER: every
+patch's 16-segment vertices are now four rounds of the tree's own midpoint subdivision (the nested
+lattice), and DrawnPatchSurface finds the drawn triangle by the same descent. THE STREETS:
+src/engine/map_meshes.rs builds OSM districts (level-9 tiles whose nearest ground is within 15 km
+of the camera, drawn within 25 km) on a worker, every vertex on the finest drawn ground; the Maps
+Planet view cuts its places from the packs. A drawn vertex on a tile border is judged 5 cm inside
+its tile (the rings' corners are rounded to OSM's integers), so the open sea has no ridges along
+tile borders. Retired:
+data/maps/regions (HOSMREG2, HOSDEM1), scripts/fetch-osm-region.mjs, scripts/fetch-region-dem.mjs,
+water_carve.rs, region_meshes.rs, the AWS Terrain Tiles credit. Red-run switch:
+`HUMANITY_SHORE_BAND=0`. Not built (deferred): road beds and building pads.
+- Native: crates/humanity-terrain/src/{map_pack.rs, map_levels.rs, map_ground.rs, map_build/}, planet_chunks.rs (nested lattice, the formula), drawn_surface.rs, osm_region.rs (`region_from_pack`), src/engine/map_meshes.rs, src/engine/shore_probe.rs, src/gui/pages/maps/planet_view.rs
+- Data: data/maps/packs/, data/maps/levels.ron, data/maps/places.ron; tests: map_ground_tests.rs (the waterfront and the old box edge at depths 13 and 20, tile-border vertices in the open Sound), map_pack_tests.rs, map_build's own, map_tiles_tests.rs `lattice_is_the_meshers_vertices`, drawn_surface_pack_tests.rs
 
 ### The Sharp Converged Sky (v0.1165, phase 8)
 The temporal cloud map is 2048^2 (edge-sharpness ceiling halved to
@@ -2366,6 +2402,7 @@ hunt journaled) and stays open.
 - Native: assets/shaders/particles.wgsl, src/renderer/mod.rs (scene_illum)
 
 ### Real Coastlines and Hills: Region DEM + Shore Taper (v0.1153)
+Retired by whole-Earth maps rung 2 (2026-11-09): GEDTM30 in the packs and the shore band replaced the DEM and the taper.
 Operator field report: the carved water edge was a sheer cliff and the
 heightmap had no coastal gradients. Two-part fix. (1) SHORE TAPER: the
 region mask now builds a distance-field beach profile (two chamfer

@@ -20,17 +20,19 @@
         (
             id: "openstreetmap",
             name: "OpenStreetMap",
-            used_for: "Real roads and building footprints for Earth regions (Silverdale and Seattle Center), drawn both as the Maps planet view and as 3D geometry you can walk through.",
+            used_for: "Real coastlines, water, roads and building footprints on Earth from the whole-Earth map packs (the home packs around Silverdale and Seattle ship with the app), drawn both as the Maps planet view and as the ground, the shore and the 3D streets you can walk through.",
             licence: "ODbL 1.0",
             notice: "Map data (c) OpenStreetMap contributors (ODbL)",
             url: "https://www.openstreetmap.org/copyright",
             attribution_required: true,
             // ODbL treats the RENDERED view and the SHIPPED DATA as two
             // separate obligations. The rendered view is a Produced Work and
-            // needs a visible notice wherever it is displayed; the region
-            // files under data/maps/regions/ are a Derivative Database and
-            // must themselves be offered under ODbL. LICENSES.md covers the
-            // second, these surfaces cover the first. The in-world credit has
+            // needs a visible notice wherever it is displayed; the map packs'
+            // OSM layers (data/maps/packs/*.hmpack, whole-Earth maps rung 2)
+            // are a Derivative Database and must themselves be offered under
+            // ODbL: every pack carries the licence and the offer in its own
+            // manifest, and LICENSES.md says the same. These surfaces cover
+            // the first. The in-world credit has
             // its own layer since whole-Earth maps rung 1 (2026-11-09,
             // gui/map_credit.rs), so the HUD switching off in the construction
             // editor and the showroom no longer takes it away.
@@ -41,7 +43,8 @@
         // (data/planets/earth_heightmap.bin, the 0.05-degree grid built by
         // examples/build_earth_grid.rs from the 15 arc-second tiles), the
         // connected-ocean mask derived from them (earth_ocean_mask.bin), and
-        // the optional 15 arc-second tile tier (terrain_tiles.rs). Licence,
+        // the optional 15 arc-second tile tier (terrain_tiles.rs), and the seabed layer of the
+        // whole-Earth map packs (sea_h, rung 2). Licence,
         // NOAA's metadata read 2026-11-08 (docs/reference/findings/
         // 2026-11-08-whole-earth-map-data.md, finding 14): "NOAA waives any
         // potential copyright and related rights in these data worldwide
@@ -52,34 +55,52 @@
         (
             id: "noaa_etopo",
             name: "NOAA ETOPO 2022",
-            used_for: "Earth's heights on land and under the sea: the shape of the whole planet's ground and seabed, and the map of which water is connected ocean.",
+            used_for: "Earth's heights on land and under the sea: the shape of the whole planet's ground and seabed, the seabed inside the map packs, and the map of which water is connected ocean.",
             licence: "CC0 1.0 (NOAA's public domain dedication)",
             notice: "NOAA National Centers for Environmental Information. 2022: ETOPO 2022 15 Arc-Second Global Relief Model. NOAA National Centers for Environmental Information. DOI: 10.25921/fd45-gt74",
             url: "https://www.ncei.noaa.gov/products/etopo-global-relief-model",
             attribution_required: false,
             shown_in: ["Credits"],
         ),
-        // The two OSM regions' height surveys, data/maps/regions/*.dem.bin,
-        // fetched once by scripts/fetch-region-dem.mjs from the AWS Open Data
-        // "Terrain Tiles" (Mapzen / Tilezen, terrarium encoding). LICENSES.md
-        // used to file them under OpenStreetMap, which they are not
-        // (attribution audit 2026-09-06, item 10). For the two Puget Sound
-        // regions the tiles are United States public-domain data (USGS
-        // 3DEP/NED, NASA SRTM and NOAA bathymetry, as the script's header
-        // records; not re-checked tile by tile). The tile
-        // set's own guidance, read 2026-11-08 (the finding above, item 20),
-        // says "Attribution is required for many terrain tile data providers";
-        // its list for other countries includes two "All rights reserved"
-        // sources, which is why this source is not used for the planet.
+        // GEDTM30 v1.2, the land layer (land_h) of the whole-Earth map packs since rung 2
+        // (2026-11-09), replacing the AWS Terrain Tiles region DEMs. Licence, the Zenodo record read
+        // 2026-11-08 (docs/reference/findings/2026-11-08-whole-earth-map-data.md, finding 16):
+        // CC BY 4.0. Its makers label it "for testing purposes only" (a disclaimer, not a term).
         (
-            id: "aws_terrain_tiles",
-            name: "AWS Open Data Terrain Tiles (Mapzen / Tilezen)",
-            used_for: "Fine ground heights under the two real map regions, Silverdale and Seattle Center (about 13 m apart), so their shores slope the way the real ones do.",
-            licence: "The underlying sources' terms; for these two regions United States public-domain data (USGS 3DEP/NED, NASA SRTM, NOAA)",
-            notice: "Region heights: AWS Open Data Terrain Tiles (Mapzen / Tilezen), from USGS 3DEP, NASA SRTM and NOAA data",
-            url: "https://registry.opendata.aws/terrain-tiles/",
-            attribution_required: false,
-            shown_in: ["Credits"],
+            id: "gedtm30",
+            name: "GEDTM30 (OpenGeoHub)",
+            used_for: "Earth's land heights at 30 m inside the map packs: the bare ground under the trees and buildings, the slope down to every shore.",
+            licence: "CC BY 4.0",
+            notice: "Land heights: GEDTM30 v1.2, Global Ensemble Digital Terrain Model (Ho, Hengl, Parente et al., OpenGeoHub, 2026), CC BY 4.0",
+            url: "https://zenodo.org/records/18887460",
+            attribution_required: true,
+            shown_in: ["Credits", "Every map pack's manifest"],
+        ),
+        // GEDTM30 is built partly from the Copernicus DEM, whose licence binds subsequent users to a
+        // notice and a liability sentence (finding 12). Whether that passes through a fused product
+        // is the finding's open question 1; until it is answered both are shown wherever GEDTM30
+        // is credited (one line, no harm). The words are the licence's own, as the finding quotes.
+        (
+            id: "copernicus_dem",
+            name: "Copernicus DEM (through GEDTM30)",
+            used_for: "One of the sources GEDTM30's land heights were fused from.",
+            licence: "Copernicus DEM licence (free and open, with a notice and a liability sentence)",
+            notice: "GEDTM30 is built partly from the Copernicus DEM: © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved. The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability for any use of the Copernicus WorldDEM-30.",
+            url: "https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM",
+            attribution_required: true,
+            shown_in: ["Credits", "Every map pack's manifest"],
+        ),
+        // ESA WorldCover 2021 v200, the land cover layer (cover) of the map packs (rung 2): read by
+        // the shore band for a beach's kind. CC BY 4.0 with its own credit line (finding 21).
+        (
+            id: "esa_worldcover",
+            name: "ESA WorldCover",
+            used_for: "Land cover inside the map packs: which shores are sand or mud, so the beach under the water slopes the way that kind of shore does.",
+            licence: "CC BY 4.0",
+            notice: "© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium",
+            url: "https://esa-worldcover.org",
+            attribution_required: true,
+            shown_in: ["Credits", "Every map pack's manifest"],
         ),
         (
             id: "nasa_gibs",

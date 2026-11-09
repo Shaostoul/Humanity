@@ -476,6 +476,15 @@ validate-data:
 instrument-packs *args:
     node scripts/instrument-packs.js {{args}}
 
+# Build whole-Earth map packs (docs/design/whole-earth-maps.md 8.2, rung 2): our own Rust builder
+# reads the OSM extract, GEDTM30 and WorldCover on E:\HumanityOS\maps-src and ETOPO from
+# ext_data\etopo2022_15s, and writes data/maps/packs/<tile>.hmpack, each built twice and checked
+# byte for byte, every chunk decoded, every named place's gates passed (data/maps/places.ron).
+# --tiles home (the default: the packs the app ships), washington, or pack names (f00-320230).
+# Developer tooling; its in-app button is CLI debt in docs/design/in-app-ops.md.
+map-packs *args:
+    cargo run --release -p humanity-terrain --features map-build --example build_map_packs -- {{args}}
+
 # NVIDIA SimReady props (docs/design/simready-props.md): extract, bake and pack the starter set from
 # the downloaded originals in E:\HumanityOS\simready-src (fetched once with
 # node scripts/simready/fetch.js --pass 1, then --pass 2, exactly as scripts/simready/starter-set.json

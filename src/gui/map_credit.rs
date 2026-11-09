@@ -5,14 +5,14 @@
 //! OpenStreetMap's ODbL treats a drawn view of its data as a Produced Work: the credit must be in
 //! view wherever the map is drawn. Since v0.1226 the 3D view carried it, but inside `hud::draw`,
 //! which lib.rs skips in the construction editor and the showroom (and when the HUD is turned
-//! off), so the region's streets stood on screen there with no credit (attribution audit item 4,
+//! off), so a region's streets stood on screen there with no credit (attribution audit item 4,
 //! still open on 2026-11-08). It is drawn here instead, on its own painter through
 //! `gui::layers` (the page layer, where the crosshair is: over the world, under every window and
-//! popup), whenever a region's OSM geometry is drawn in the 3D view and no page covers it. The
+//! popup), whenever OSM geometry from a map pack is drawn in the 3D view and no page covers it. The
 //! words are `credits::OSM_NOTICE`, the same string as the Maps page footer and the Credits page,
 //! held to `data/credits.ron` by a test.
 //!
-//! COST: one short text a frame while a region is drawn, nothing otherwise.
+//! COST: one short text a frame while a pack's geometry is drawn, nothing otherwise.
 
 use crate::gui::layers::{self, Layer};
 use crate::gui::theme::Theme;
@@ -26,11 +26,11 @@ const INSET_BOTTOM: f32 = 96.0;
 /// Its size (points; the Font Size setting scales points).
 const SIZE: f32 = 11.0;
 
-/// True while the credit must show: OSM region geometry is drawn in the 3D view and no page covers
+/// True while the credit must show: OSM geometry from a map pack is drawn in the 3D view and no page covers
 /// the view. Nothing about the HUD, the editor or the showroom: a licence notice does not switch
 /// off with them.
 pub fn visible(state: &GuiState) -> bool {
-    state.active_page == GuiPage::None && !state.osm_regions_drawn.is_empty()
+    state.active_page == GuiPage::None && !state.osm_packs_drawn.is_empty()
 }
 
 /// Draw the credit in the bottom right of the area the panels leave free (call it after the
@@ -76,7 +76,7 @@ mod tests {
     }
 
     /// The credit shows whenever OSM geometry is drawn in the world: in play, with the HUD off,
-    /// in the construction editor and in the showroom; and not when no region is drawn or a page
+    /// in the construction editor and in the showroom; and not when no pack is drawn or a page
     /// covers the view. Seen red 2026-11-09 with the HUD's old gate put back into `visible`
     /// (`&& state.show_hud && !state.showroom_active && !state.construction_active`): "turning the
     /// HUD off hides the OpenStreetMap credit".
@@ -84,8 +84,8 @@ mod tests {
     fn the_credit_shows_wherever_osm_is_drawn() {
         let mut state = GuiState::default();
         state.active_page = GuiPage::None;
-        assert!(drawn_texts(&state).is_empty(), "no region drawn: no credit");
-        state.osm_regions_drawn = vec!["Silverdale".into()];
+        assert!(drawn_texts(&state).is_empty(), "no pack drawn: no credit");
+        state.osm_packs_drawn = vec!["f00-320230.hmpack".into()];
         let shows = |s: &GuiState| drawn_texts(s).iter().any(|t| t == humanity_core::credits::OSM_NOTICE);
         assert!(shows(&state), "in play the credit is drawn");
         state.show_hud = false;

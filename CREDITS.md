@@ -72,9 +72,17 @@ listed here for a kindness they did not ask credit for.
   https://codeberg.org/astronexus/athyg
 - **ESA Gaia DR3** - the Ultra 25-million-star catalog and the galaxy glow
   baked from it. ESA/Gaia/DPAC.
-- **OpenStreetMap contributors** - real roads and building footprints for the
-  Earth regions you can walk through, and the Maps planet view. ODbL 1.0.
-  https://www.openstreetmap.org/copyright
+- **OpenStreetMap contributors** - real coastlines, water, roads and building
+  footprints in the whole-Earth map packs you can walk through, and the Maps
+  planet view. ODbL 1.0. https://www.openstreetmap.org/copyright
+- **GEDTM30** (OpenGeoHub) - the 30 m bare-earth land heights inside the map
+  packs. CC BY 4.0. https://zenodo.org/records/18887460 . Built partly from the
+  Copernicus DEM: © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH
+  2014-2018 provided under COPERNICUS by the European Union and ESA; all rights
+  reserved.
+- **ESA WorldCover 2021** - land cover inside the map packs. © ESA WorldCover
+  project 2021 / Contains modified Copernicus Sentinel data (2021) processed by
+  ESA WorldCover consortium. CC BY 4.0.
 - **Solar System Scope textures** (Moon, Mars planetary imagery bakes) -
   CC-BY 4.0, https://www.solarsystemscope.com/textures/ - based on NASA
   elevation and imagery data.

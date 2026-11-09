@@ -6,8 +6,11 @@ Planets as shapes and numbers. It holds the planet's surface and heights (`plane
 `planet_heightmap`, `procedural_heightmap`), the level-of-detail patches and their meshes as plain
 data (`planet_chunks`, `drawn_surface`, `terrain_tiles`), the oceans and water (`ocean_fft`,
 `ocean_waves`, `water_patches`), the plants' and trees' geometry (`plant_mesh`, `tree_registry`,
-`near_trees`, `far_trees`, `grass`), real map regions (`osm_region`), the whole-Earth map tiles'
-key (`map_tiles`), asteroids and the celestial projection. It draws nothing itself: the renderer uploads what it builds and the simulation reads
+`near_trees`, `far_trees`, `grass`), the whole-Earth map: its tile key (`map_tiles`), its pack
+format (`map_pack`), its data files (`map_levels`), the packs drawn into the ground (`map_ground`:
+the shore band, tile residency, the built-over mask), the offline builder (`map_build`, behind the
+`map-build` feature, built only for tests and `just map-packs`) and OSM features around an origin
+with the 3D extrusion mesher (`osm_region`), asteroids and the celestial projection. It draws nothing itself: the renderer uploads what it builds and the simulation reads
 its heights. It was edited twice in the 30 days before the split was planned, so as a crate under
 both it compiles once and stays built.
 
@@ -101,10 +104,15 @@ And 74 more items, 106 references (`node scripts/crate-cards.js --interface huma
   `drawn_leaf_containing`, the lattice against `patch_corners`, crossings bit for bit, clipped
   areas to 1e-9, the codec within 6 mm; each test's comment names the mutation it was seen red
   against).
-- **Coasts:** the four `coast-*` vantages carry a `shore_probe` (engine/shore_probe.rs, judged by
+- **Coasts:** `just test-lib --crate humanity-terrain map_ground` runs the shore rules through the
+  walk oracle on the shipped home packs at depths 13 and 20 (no boot). The four `coast-*` vantages
+  carry a `shore_probe` (engine/shore_probe.rs, judged by
   [shore-probe-check.js](../../scripts/lib/shore-probe-check.js), in `just rig-tests`):
   `just probe-sweep --only coast-silverdale-waterfront,coast-silverdale-old-edge,coast-dover-cliffs,coast-norderney-beach`.
-  Their red results on today's build are in each vantage's `_red` note.
+  Their red and green readings are in each vantage's `_red` and `_green` notes.
+- **The builder:** `just test-lib --crate humanity-terrain map_build` (its readers and the sea's
+  border walk; the GEDTM30 summit test reads the real window on the operator's drive and says so
+  when it is absent); `just map-packs` rebuilds the home packs, twice, compared byte for byte.
 - Rigs boot one game at a time, in the background: [game-boots.md](../ai/game-boots.md).
 
 ## Open work
@@ -112,13 +120,11 @@ And 74 more items, 106 references (`node scripts/crate-cards.js --interface huma
 - **BUG-156's known limits** (the bug is fixed; [BUGS.md](../BUGS.md)): a far tree can sit off its
   own patch by that patch's level-of-detail error (re-grounding each tree on the leaf drawn under it
   would close it); the harvest does not re-run when a terrain tile arrives; inside a height-survey
-  region with no tile tier installed, the ground draws with 54 m triangles while the region's
+  map pack with no tile tier installed, the ground draws with 54 m triangles while the districts'
   buildings and roads stand on the finest ground.
-- **Whole-Earth maps, rung 2** ([whole-earth-maps.md](../design/whole-earth-maps.md), section 13):
-  the mesher onto the nested lattice (`build_patch_mesh` still blends barycentrically, so its
-  vertices are not nested: the lattice test's mutation measured 12,276 of 12,288 corners differ),
-  with the lattice test repeated against the mesher; `data/maps/levels.ron` and its loader (the
-  levels `map_tiles` takes); tile residency riding the patches; the shore band in the one formula.
+- **Whole-Earth maps after rung 2** ([whole-earth-maps.md](../design/whole-earth-maps.md), section
+  13 and the rung 2 outcome): road beds and building pads in the one formula (deferred from rung 2),
+  river surfaces that fall downstream, the planet build (rung 3), the downloader (rung 4).
 - **`planet_chunks.rs` still mixes the height math with building the patch meshes.** The plan had it
   split in two for the line between terrain and the renderer ([crate-split.md](../design/crate-split.md),
   "Split terrain from the renderer?"); rung 0 moved the shared types down instead, so the split is

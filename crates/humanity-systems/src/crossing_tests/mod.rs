@@ -18,4 +18,4 @@ mod machines;
 mod plant_mesh;
 mod starts;
 mod station_orbit;
-mod drawn_surface_region;
+mod drawn_surface_pack;

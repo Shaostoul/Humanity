@@ -2,6 +2,7 @@
 //! (dev tool; the output is the DOWNLOADABLE high-detail terrain tier).
 //!
 //!   cargo run --release --example build_earth_tiles
+//!   cargo run --release --example build_earth_tiles -- N60W135 --src <etopo dir>   (one tile)
 //!
 //! Input:  ext_data/etopo2022_15s/*.tif  (288 tiles, 15x15 deg, 3600x3600 f32)
 //! Output: data/planets/earth_tiles/N45W135.bin etc. (gitignored - ~7.5 GB
@@ -24,8 +25,12 @@ const MIN_M: f32 = -11000.0;
 const MAX_M: f32 = 8900.0;
 
 fn main() {
+    // Optional: `-- N60W135 --src <dir>` converts that one tile only (a worktree measuring the
+    // tile tier needs one, not 7.5 GB), reading the GeoTIFFs from `--src` (default ext_data).
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let only = args.iter().find(|a| !a.starts_with("--") && args.iter().position(|x| x == "--src").map_or(true, |i| args.get(i + 1) != Some(a))).cloned();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let src_dir = root.join("ext_data/etopo2022_15s");
+    let src_dir = args.iter().position(|a| a == "--src").and_then(|i| args.get(i + 1)).map(PathBuf::from).unwrap_or_else(|| root.join("ext_data/etopo2022_15s"));
     let out_dir = root.join("data/planets/earth_tiles");
     fs::create_dir_all(&out_dir).expect("create output dir");
 
@@ -50,6 +55,9 @@ fn main() {
             let dst = out_dir.join(format!("{lat_s}{lon_s}.bin"));
             lon_west += 15;
 
+            if only.as_ref().is_some_and(|o| *o != format!("{lat_s}{lon_s}")) {
+                continue;
+            }
             if dst.exists() {
                 done += 1;
                 continue; // resumable

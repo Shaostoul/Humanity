@@ -156,6 +156,51 @@ fn lattice_is_the_depth_plus_six_corners_bit_for_bit() {
     assert!(tile_lattice(&PatchId::root(0), 48).is_none(), "48 is not a power of two");
 }
 
+/// The lattice IS the mesher's vertices (rung 2, whole-earth-maps.md 4.2): a depth-L patch reads
+/// its 16-segment vertices out of its level-L tile's 64-segment lattice at every 4th sample, depth
+/// L+1 at every 2nd, depth L+2 at every sample, so `build_patch_mesh` must put its vertices exactly
+/// there. Checked on the BUILT mesh (each lattice sample has a mesh vertex along its direction to
+/// within the f32 offset's own precision, about 1e-9) at depth 6, where a barycentric vertex is
+/// decimetres off the nested one. Seen red 2026-11-09 with the mesher's vertex loop put back to the
+/// barycentric blend `normalize(c0*(n-r) + c1*(r-c) + c2*c)`: "depth 6: lattice sample (1, 0) has
+/// no mesh vertex within 1e-8 rad (nearest 7.5e-8 rad, 0.5 m)".
+#[test]
+fn lattice_is_the_meshers_vertices() {
+    use crate::planet_chunks::tests::{bumpy_earth, earth_like};
+    use crate::planet_chunks::{build_patch_mesh, DetailNoise, ElevationSource, PATCH_TESS};
+    let def = earth_like();
+    let hm = bumpy_earth();
+    let detail = DetailNoise::new(def.terrain_seed);
+    let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
+    let tile = tile_containing(SILVERDALE.0, SILVERDALE.1, 6);
+    let lattice = tile_lattice(&tile, 64).expect("64 is a power of two");
+    let n = PATCH_TESS;
+    for patch in [tile, tile.child(3), tile.child(3).child(1)] {
+        // The patch's corners in the tile's lattice, down its path.
+        let mut rc = [(0u32, 0u32), (64, 0), (64, 64)];
+        for level in tile.depth..patch.depth {
+            rc = child_lattice_rc(rc)[((patch.path >> (2 * level as u32)) & 3) as usize];
+        }
+        let pm = build_patch_mesh(&def, &src, None, &patch);
+        let mesh_dirs: Vec<DVec3> = pm.mesh.vertices.iter().map(|v| (pm.anchor + glam::Vec3::from_array(v.position).as_dvec3()).normalize()).collect();
+        for r in 0..=n {
+            for c in 0..=r {
+                let (w0, w1, w2) = (n - r, r - c, c);
+                let at = |k: usize| -> u32 { (w0 * [rc[0].0, rc[0].1][k] + w1 * [rc[1].0, rc[1].1][k] + w2 * [rc[2].0, rc[2].1][k]) / n };
+                let want = lattice[lattice_index(at(0), at(1))];
+                // The chord, not `angle_between`: acos cannot resolve angles under about 1.5e-8.
+                let nearest = mesh_dirs.iter().map(|d| (*d - want).length()).fold(f64::MAX, f64::min);
+                assert!(
+                    nearest < 1e-8,
+                    "depth {}: lattice sample ({r}, {c}) has no mesh vertex within 1e-8 rad (nearest {nearest:.1e} rad, {:.1} m)",
+                    patch.depth,
+                    nearest * def.radius
+                );
+            }
+        }
+    }
+}
+
 /// The tile across edge `k` of `t`, found by a step just outside the edge's midpoint, and checked
 /// to share that edge's two corners exactly.
 fn neighbour(t: &PatchId, k: usize) -> PatchId {

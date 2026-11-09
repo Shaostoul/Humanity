@@ -137,13 +137,29 @@ pub fn lattice_index(r: u32, c: u32) -> usize {
 /// vertices out of the lattice with no interpolation. Indexed by [`lattice_index`]. None when
 /// `segments` is not a power of two (or is over 2^10, a lattice of a million samples).
 pub fn tile_lattice(id: &PatchId, segments: u32) -> Option<Vec<DVec3>> {
+    lattice_from_corners(&patch_corners(id), segments)
+}
+
+/// [`tile_lattice`] for a triangle given by its corners (a patch's own, as the mesher holds
+/// them): the one implementation of the nested lattice, which `planet_chunks::build_patch_mesh`
+/// and `drawn_surface` build every patch's vertices from (rung 2, 2026-11-09).
+pub fn lattice_from_corners(corners: &[DVec3; 3], segments: u32) -> Option<Vec<DVec3>> {
     if !segments.is_power_of_two() || segments > 1 << 10 {
         return None;
     }
     let levels = segments.trailing_zeros();
     let mut out = vec![DVec3::ZERO; lattice_len(segments)];
-    fill_lattice(&mut out, patch_corners(id), [(0, 0), (segments, 0), (segments, segments)], levels);
+    fill_lattice(&mut out, *corners, [(0, 0), (segments, 0), (segments, segments)], levels);
     Some(out)
+}
+
+/// The lattice coordinates of a cell's four children, in `child_corners`' order (0 keeps
+/// corner 0, 1 corner 1, 2 corner 2, 3 is the centre): what a descent through the nested
+/// lattice tracks beside the corners themselves.
+pub fn child_lattice_rc(rc: [(u32, u32); 3]) -> [[(u32, u32); 3]; 4] {
+    let mid = |a: (u32, u32), b: (u32, u32)| ((a.0 + b.0) / 2, (a.1 + b.1) / 2);
+    let (m01, m12, m20) = (mid(rc[0], rc[1]), mid(rc[1], rc[2]), mid(rc[2], rc[0]));
+    [[rc[0], m01, m20], [rc[1], m12, m01], [rc[2], m20, m12], [m01, m12, m20]]
 }
 
 /// Write `c` at its lattice coordinates `rc`, then the same for the four children, `levels` deep.
@@ -156,11 +172,8 @@ fn fill_lattice(out: &mut [DVec3], c: [DVec3; 3], rc: [(u32, u32); 3], levels: u
     if levels == 0 {
         return;
     }
-    let mid = |a: (u32, u32), b: (u32, u32)| ((a.0 + b.0) / 2, (a.1 + b.1) / 2);
-    let (m01, m12, m20) = (mid(rc[0], rc[1]), mid(rc[1], rc[2]), mid(rc[2], rc[0]));
     // The same child layout as `child_corners`: 0 keeps corner 0, 1 corner 1, 2 corner 2, 3 is the centre.
-    let kids_rc = [[rc[0], m01, m20], [rc[1], m12, m01], [rc[2], m20, m12], [m01, m12, m20]];
-    for (kid, krc) in child_corners(&c).into_iter().zip(kids_rc) {
+    for (kid, krc) in child_corners(&c).into_iter().zip(child_lattice_rc(rc)) {
         fill_lattice(out, kid, krc, levels - 1);
     }
 }

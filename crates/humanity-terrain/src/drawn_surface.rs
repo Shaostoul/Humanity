@@ -26,7 +26,7 @@ use super::planet_chunks::{
     child_corners, drawn_elevation_at_depth, root_face_corners, ElevationSource, PATCH_TESS,
 };
 use super::planet_surface::{displaced_radius_f64, displaced_radius_f64_true};
-use super::water_carve::RegionMask;
+use super::map_ground::MapSet;
 
 // ── The DRAWN surface, exactly (v0.1091) ──────────────────────────────────
 //
@@ -137,11 +137,11 @@ pub struct DrawnPatchSurface<'a, 'b> {
     memo: VertexMemo,
     /// Count of elevation samples actually taken (diagnostics + tests).
     pub samples: usize,
-    /// The region water carve and real-elevation overlay this surface applies,
+    /// The installed map packs this surface applies (`map_ground`, rung 2),
     /// the same set `build_patch_mesh` snapshots (BUG-156). Without it, inside
-    /// a region with a DEM (Silverdale) this surface is the coarse grid plus
-    /// detail noise while the drawn ground is the survey, metres apart.
-    carve: Option<Arc<Vec<RegionMask>>>,
+    /// a pack (Silverdale) this surface is the coarse grid plus detail noise
+    /// while the drawn ground is GEDTM30 and the shore band, metres apart.
+    map: Option<Arc<MapSet>>,
 }
 
 impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
@@ -161,9 +161,9 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
             memo: VertexMemo::new(),
             samples: 0,
             // One registry lock per surface, as a patch build takes one per
-            // patch: every query then sees the mask set the patches were
+            // patch: every query then sees the pack set the patches were
             // built with (BUG-156).
-            carve: crate::water_carve::snapshot(),
+            map: crate::map_ground::snapshot(),
         }
     }
 
@@ -192,15 +192,15 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
             base_level: 0,
             memo: VertexMemo::small(),
             samples: 0,
-            carve: crate::water_carve::snapshot(),
+            map: crate::map_ground::snapshot(),
         }
     }
 
-    /// Replace the region carve this surface applies. Both constructors take
+    /// Replace the map packs this surface applies. Both constructors take
     /// the published set, the same one `build_patch_mesh` takes; a test hands
-    /// in its own, and `None` is the uncarved formula (the BUG-156 control).
-    pub fn with_carve(mut self, carve: Option<Arc<Vec<RegionMask>>>) -> Self {
-        self.carve = carve;
+    /// in its own, and `None` is the base formula (the BUG-156 control).
+    pub fn with_map(mut self, map: Option<Arc<MapSet>>) -> Self {
+        self.map = map;
         self
     }
 
@@ -321,7 +321,7 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
     }
 
     /// The elevation formula `build_patch_mesh` uses, at THIS depth: the one
-    /// shared copy, carve included (BUG-156).
+    /// shared copy, map packs included (BUG-156).
     fn mesh_elevation(&self, dir: DVec3) -> f32 {
         match self.source {
             ElevationSource::Heightmap { hm, detail, tiles, .. } => drawn_elevation_at_depth(
@@ -329,7 +329,7 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
                 self.def,
                 detail,
                 *tiles,
-                self.carve.as_deref().map(Vec::as_slice),
+                self.map.as_deref(),
                 dir,
                 self.depth,
             ),
@@ -338,12 +338,10 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
     }
 
     /// Planet-local radius in metres of the mesh vertex at lattice (r, c) of
-    /// the patch whose corners are `c3` and whose identity key is `pkey`.
-    fn vertex(&mut self, pkey: u64, c3: &[DVec3; 3], r: u32, cc: u32) -> (DVec3, f64) {
-        let n = PATCH_TESS;
-        let w0 = (n - r) as f64;
-        let w1 = (r - cc) as f64;
-        let w2 = cc as f64;
+    /// the patch whose identity key is `pkey`; `dir` is that vertex's
+    /// direction, a corner of the nested-lattice cell the caller descended to
+    /// (bit-identical to `build_patch_mesh`'s vertex: the same midpoints).
+    fn vertex(&mut self, pkey: u64, dir: DVec3, r: u32, cc: u32) -> (DVec3, f64) {
         // The key is unique per (patch, lattice node), and non-zero so slot
         // 0 can never be mistaken for a filled entry.
         let key = pkey
@@ -358,9 +356,6 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
                 return (e.1, e.2);
             }
         }
-        // Bit-identical to build_patch_mesh vertex direction: same integer
-        // weights, same product-and-sum order, same normalize.
-        let dir = (c3[0] * w0 + c3[1] * w1 + c3[2] * w2).normalize();
         let e = self.mesh_elevation(dir);
         let r_m = self.def.radius
             * if self.bathymetric {
@@ -453,29 +448,8 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
         // down the first few levels.
         let depth = self.depth as usize;
         for level in start..depth {
-            let m = self.mids[level];
-            let (child, nb): (u8, [f64; 3]) = if b[0] >= 0.5 {
-                (0, [b[0] - b[1] - b[2], 2.0 * b[1] * m[0], 2.0 * b[2] * m[2]])
-            } else if b[1] >= 0.5 {
-                (1, [b[1] - b[2] - b[0], 2.0 * b[2] * m[1], 2.0 * b[0] * m[0]])
-            } else if b[2] >= 0.5 {
-                (2, [b[2] - b[0] - b[1], 2.0 * b[0] * m[2], 2.0 * b[1] * m[1]])
-            } else {
-                (
-                    3,
-                    [
-                        (1.0 - 2.0 * b[2]) * m[0],
-                        (1.0 - 2.0 * b[0]) * m[1],
-                        (1.0 - 2.0 * b[1]) * m[2],
-                    ],
-                )
-            };
-            let s = nb[0] + nb[1] + nb[2];
-            b = if s.abs() < 1e-300 {
-                [1.0, 0.0, 0.0]
-            } else {
-                [nb[0] / s, nb[1] / s, nb[2] / s]
-            };
+            let child;
+            (child, b) = Self::descend(b, self.mids[level]);
             // Extend / repair the cached corner chain. Levels whose child is
             // unchanged keep their corners, midpoint lengths and patch key,
             // which is why a harvest disc metres wide only ever pays for its
@@ -501,29 +475,23 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
         self.corners.truncate(depth + 1);
         self.mids.truncate(depth + 1);
         self.pkeys.truncate(depth + 1);
-        let c3 = self.corners[depth];
         let pkey = self.pkeys[depth];
-        // ── Lattice cell ──
-        // Vertex (r, c) carries integer weights (n-r, r-c, c), so
-        // r = n*(1-b0) and c = n*b2.
-        let n = PATCH_TESS;
-        let nf = n as f64;
-        let v = ((1.0 - b[0]) * nf).clamp(0.0, nf);
-        let u = (b[2] * nf).clamp(0.0, v);
-        let ri = (v.floor() as u32).min(n - 1);
-        let ci = (u.floor() as u32).min(ri);
-        let fv = v - ri as f64;
-        let fu = u - ci as f64;
-        // Upward cell (fu <= fv) or downward cell - the same two triangles
-        // build_patch_mesh emits per lattice square.
-        let tri = if fu <= fv {
-            [(ri, ci), (ri + 1, ci), (ri + 1, ci + 1)]
-        } else {
-            [(ri, ci), (ri + 1, ci + 1), (ri, ci + 1)]
-        };
-        let (d0, r0) = self.vertex(pkey, &c3, tri[0].0, tri[0].1);
-        let (d1, r1) = self.vertex(pkey, &c3, tri[1].0, tri[1].1);
-        let (d2, r2) = self.vertex(pkey, &c3, tri[2].0, tri[2].1);
+        // ── Lattice cell (the nested lattice, whole-Earth maps rung 2) ──
+        // The patch's 16-segment lattice is four rounds of the same midpoint
+        // subdivision, so the drawn triangle holding `d` is the depth+4
+        // descendant holding it: four more steps of the same descent, the
+        // lattice coordinates of its corners tracked beside them. Its corners
+        // ARE the mesh's vertices, bit for bit.
+        let (mut cell, mut rc) = (self.corners[depth], [(0, 0), (PATCH_TESS, 0), (PATCH_TESS, PATCH_TESS)]);
+        for _ in 0..PATCH_TESS.trailing_zeros() {
+            let child;
+            (child, b) = Self::descend(b, Self::mid_lens(&cell));
+            cell = child_corners(&cell)[child as usize];
+            rc = crate::map_tiles::child_lattice_rc(rc)[child as usize];
+        }
+        let (d0, r0) = self.vertex(pkey, cell[0], rc[0].0, rc[0].1);
+        let (d1, r1) = self.vertex(pkey, cell[1], rc[1].0, rc[1].1);
+        let (d2, r2) = self.vertex(pkey, cell[2], rc[2].0, rc[2].1);
         let (p0, p1, p2) = (d0 * r0, d1 * r1, d2 * r2);
         // Where the ray leaves the drawn FACE. Plane intersection rather than
         // a weighted mean of the three radii: the face is what rasterises.
@@ -533,6 +501,25 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
             return (r0 + r1 + r2) / 3.0;
         }
         p0.dot(nrm) / den
+    }
+
+    /// One step of the descent: which child of a triangle holds the point
+    /// whose normalized barycentrics are `b` (`m` the triangle's unnormalized
+    /// midpoint lengths, [`Self::mid_lens`]), and its barycentrics in that
+    /// child. See the note in `radius_at` on why each coefficient is scaled by
+    /// its midpoint's length.
+    fn descend(b: [f64; 3], m: [f64; 3]) -> (u8, [f64; 3]) {
+        let (child, nb): (u8, [f64; 3]) = if b[0] >= 0.5 {
+            (0, [b[0] - b[1] - b[2], 2.0 * b[1] * m[0], 2.0 * b[2] * m[2]])
+        } else if b[1] >= 0.5 {
+            (1, [b[1] - b[2] - b[0], 2.0 * b[2] * m[1], 2.0 * b[0] * m[0]])
+        } else if b[2] >= 0.5 {
+            (2, [b[2] - b[0] - b[1], 2.0 * b[0] * m[2], 2.0 * b[1] * m[1]])
+        } else {
+            (3, [(1.0 - 2.0 * b[2]) * m[0], (1.0 - 2.0 * b[0]) * m[1], (1.0 - 2.0 * b[1]) * m[2]])
+        };
+        let s = nb[0] + nb[1] + nb[2];
+        (child, if s.abs() < 1e-300 { [1.0, 0.0, 0.0] } else { [nb[0] / s, nb[1] / s, nb[2] / s] })
     }
 }
 
@@ -559,26 +546,20 @@ pub fn patch_lattice_radius(
     dir: DVec3,
 ) -> Option<f64> {
     let d = dir.normalize();
-    let b = DrawnPatchSurface::bary(corners, d)?;
-    let n = PATCH_TESS;
-    let nf = n as f64;
-    // Vertex (r, c) carries integer weights (n-r, r-c, c), so r = n*(1-b0)
-    // and c = n*b2 - the inverse of the mesh's own vertex placement.
-    let v = ((1.0 - b[0]) * nf).clamp(0.0, nf);
-    let u = (b[2] * nf).clamp(0.0, v);
-    let ri = (v.floor() as u32).min(n - 1);
-    let ci = (u.floor() as u32).min(ri);
-    let (fv, fu) = (v - ri as f64, u - ci as f64);
-    // Upward cell (fu <= fv) or downward cell: the same two triangles
-    // build_patch_mesh emits per lattice square.
-    let tri = if fu <= fv {
-        [(ri, ci), (ri + 1, ci), (ri + 1, ci + 1)]
-    } else {
-        [(ri, ci), (ri + 1, ci + 1), (ri, ci + 1)]
-    };
+    let mut b = DrawnPatchSurface::bary(corners, d)?;
     let idx = |(r, c): (u32, u32)| -> usize { (r * (r + 1) / 2 + c) as usize };
+    // The nested lattice (rung 2): descend through the patch's own vertices to
+    // the depth+4 cell holding `d`; each cell's corners are lattice vertices,
+    // so their midpoint lengths come straight from `vert_dirs`.
+    let mut rc = [(0, 0), (PATCH_TESS, 0), (PATCH_TESS, PATCH_TESS)];
+    for _ in 0..PATCH_TESS.trailing_zeros() {
+        let c = [*vert_dirs.get(idx(rc[0]))?, *vert_dirs.get(idx(rc[1]))?, *vert_dirs.get(idx(rc[2]))?];
+        let child;
+        (child, b) = DrawnPatchSurface::descend(b, DrawnPatchSurface::mid_lens(&c));
+        rc = crate::map_tiles::child_lattice_rc(rc)[child as usize];
+    }
     let mut p = [DVec3::ZERO; 3];
-    for (i, t) in tri.iter().enumerate() {
+    for (i, t) in rc.iter().enumerate() {
         let k = idx(*t);
         p[i] = *vert_dirs.get(k)? * *vert_radii.get(k)?;
     }
@@ -639,13 +620,13 @@ pub fn drawn_leaf_containing(
     None
 }
 
-/// The same contract inside a region with a survey DEM (BUG-156): a child in
+/// The same contract inside an installed map pack (BUG-156): a child in
 /// its own file, because this one is on the file-size ratchet.
 #[cfg(test)]
-#[path = "drawn_surface_region_tests.rs"]
-mod region_tests;
+#[path = "drawn_surface_pack_tests.rs"]
+mod pack_tests;
 
-/// The region tests' Silverdale fixtures, which the simulation's tests use too: apart from the
+/// The pack tests' Silverdale fixtures, which the simulation's tests use too: apart from the
 /// tests so that the crate split can put them behind its `test-support` feature (rung 2).
 #[cfg(any(test, feature = "test-support"))]
 #[path = "drawn_surface_fixtures.rs"]
@@ -919,17 +900,9 @@ mod tests {
         // The lattice the emitter now interpolates, rebuilt exactly as
         // build_patch_mesh builds it (this IS the contract being tested).
         let corners = patch_corners(&id);
-        let n = PATCH_TESS;
-        let (mut vdirs, mut vradii) = (Vec::new(), Vec::new());
+        let vdirs = crate::map_tiles::lattice_from_corners(&corners, PATCH_TESS).expect("power of two");
         let mut surf = DrawnPatchSurface::new(&def, &src, depth);
-        for r in 0..=n {
-            for c in 0..=r {
-                let (w0, w1, w2) = ((n - r) as f64, (r - c) as f64, c as f64);
-                let d = (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
-                vdirs.push(d);
-                vradii.push(surf.radius_at(d));
-            }
-        }
+        let vradii: Vec<f64> = vdirs.iter().map(|d| surf.radius_at(*d)).collect();
         // A 40 m transect across the patch at tree spacing.
         let east = DVec3::new(-center.z, 0.0, center.x).normalize();
         let (mut worst_interp, mut worst_direct, mut n_probe) = (0.0f64, 0.0f64, 0);

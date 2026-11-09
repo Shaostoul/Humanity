@@ -202,7 +202,9 @@ pub mod storey_probe;
 /// A planet's cloud deck and atmosphere dome, plus the view-dependent order
 /// the two composite in (extracted from lib.rs, v0.1320).
 pub mod frame_shells;
-pub mod region_meshes;
+/// The whole-Earth map packs in the world (rung 2): the ground published into the one formula,
+/// tile residency riding the patches, and the OSM districts standing on it (was region_meshes).
+pub mod map_meshes;
 /// Room GI rung 1 (2026-09-27): the ship's rooms into probe boxes, and the
 /// per-frame hook before the scene pass. The probes live in renderer::room_probes*.
 pub mod room_gi;

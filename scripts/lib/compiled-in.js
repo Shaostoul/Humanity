@@ -278,12 +278,14 @@ function itemEnd(code, from) {
 // crate split's rung 1 (2026-11-01) the test helpers another crate's tests reach,
 // `#[cfg(any(test, feature = "test-support"))]` and `#[cfg(all(any(test, feature = "test-support"), ...))]`:
 // test-support is turned on only by a dependent's [dev-dependencies], so no product build has it.
+// `map-build` (whole-Earth maps rung 2, 2026-11-09) is the same kind: humanity-terrain's offline map
+// pack builder, turned on only for its `build_map_packs` example, never by a product feature.
 // (In the code-only text a string's inside is blanked, so the feature's name is checked on the
 // text with comments removed: `isTestSupport`.)
 // Any OTHER cfg mentioning test (not via `not(`) is reported, never guessed at.
 const TEST_SUPPORT = String.raw`any\s*\(\s*test\s*,\s*feature\s*=\s*"[^"]*"\s*\)`;
 const TEST_ATTR = new RegExp(String.raw`#\[\s*(?:test|cfg\s*\(\s*test\s*\)|cfg\s*\(\s*all\s*\(\s*test\s*,[^\]]*\)\s*\)|cfg\s*\(\s*${TEST_SUPPORT}\s*\)|cfg\s*\(\s*all\s*\(\s*${TEST_SUPPORT}\s*,[^\]]*\)\s*\))\s*\]`, "g");
-const KNOWN_TEST_CFG = new RegExp(String.raw`^#\[\s*(?:cfg\s*\(\s*test\s*\)|cfg\s*\(\s*all\s*\(\s*test\s*,[^\]]*\)\s*\)|cfg\s*\(\s*any\s*\(\s*test\s*,\s*feature\s*=\s*"test-support"\s*\)\s*\)|cfg\s*\(\s*all\s*\(\s*any\s*\(\s*test\s*,\s*feature\s*=\s*"test-support"\s*\)\s*,[^\]]*\)\s*\))\s*\]$`);
+const KNOWN_TEST_CFG = new RegExp(String.raw`^#\[\s*(?:cfg\s*\(\s*test\s*\)|cfg\s*\(\s*all\s*\(\s*test\s*,[^\]]*\)\s*\)|cfg\s*\(\s*any\s*\(\s*test\s*,\s*feature\s*=\s*"(?:test-support|map-build)"\s*\)\s*\)|cfg\s*\(\s*all\s*\(\s*any\s*\(\s*test\s*,\s*feature\s*=\s*"test-support"\s*\)\s*,[^\]]*\)\s*\))\s*\]$`);
 /** Is this attribute (comments removed, strings intact) of the `any(test, feature = ...)` shape? */
 const isTestSupportShape = (t) => /\bany\s*\(\s*test\s*,\s*feature\s*=/.test(t);
 const ANY_TEST_CFG = /#\[\s*cfg\s*\((?![^\]]*\bnot\s*\()[^\]]*\btest\b[^\]]*\]/g;

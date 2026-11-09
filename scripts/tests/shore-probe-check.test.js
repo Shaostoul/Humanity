@@ -27,7 +27,7 @@ const { judgeShore, summarize, distM } = require("../lib/shore-probe-check.js");
 
 /**
  * A readout along a meridian from `from` to `to`, `n + 1` samples. `at(s_m, t)` gives each
- * sample's { ground, raw, cls, src } (src defaults to a region's polygons).
+ * sample's { ground, raw, cls, src } (src defaults to a map pack's polygons).
  */
 function readout(from, to, n, at) {
   const len = distM(from, to);
@@ -44,9 +44,9 @@ function readout(from, to, n, at) {
       leaf_depth: 13,
       drawn_m: v.ground,
       raw_m: v.raw === undefined ? v.ground : v.raw,
-      raw_source: "region_dem:Test",
+      raw_source: "land_h:Test",
       class: v.cls,
-      class_source: v.src || "region:Test:9.0m",
+      class_source: v.src || "pack:Test",
     });
   }
   return { body: "earth", from, to, step_m: len / n, length_m: len, samples };
@@ -154,7 +154,7 @@ test("a coast on the coarse mask alone is misconfigured; declared, it is judged 
   assert.match(noSource.failures[0], /needs `at` \[lat, lon\] and a `source`/);
 });
 
-test("a declared coast that disagrees with the region's coastline is misconfigured", () => {
+test("a declared coast that disagrees with the pack's coastline is misconfigured", () => {
   const far = [LAND[0] + (WATER[0] - LAND[0]) * (300 / distM(LAND, WATER)), LAND[1]];
   const v = judgeShore(readout(LAND, WATER, N, gentle), shore(["wet"], { coast: { at: far, source: "test" } }));
   assert.equal(v.misconfigured, true);
@@ -195,7 +195,7 @@ test("shallow: a flat beach passes, a step or a steep bank fails", () => {
 test("no_seam along the water: a step at the old box edge fails; the ends are checked", () => {
   const A = [47.593, -122.658];
   const B = [47.588, -122.658];
-  const stepAt = (s, t) => ({ ground: t < 0.6 ? -3 : 4, cls: "sea", src: t < 0.6 ? "region:Test:9.0m" : "ocean_mask:0.05deg" });
+  const stepAt = (s, t) => ({ ground: t < 0.6 ? -3 : 4, cls: "sea", src: t < 0.6 ? "pack:Test" : "ocean_mask:0.05deg" });
   const spec = { along_water: [A, B], rules: ["no_seam"], crosses_lat: 47.59, water_source: "test" };
   const v = judgeShore(readout(A, B, 200, stepAt), spec);
   assert.equal(v.ok, false);

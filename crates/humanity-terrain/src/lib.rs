@@ -41,11 +41,11 @@ pub mod plant_mesh;
 /// a planet and so the frame loop's `[NearTree] recompute` log can name
 /// its reason (2026-09-18, the parked-camera log flood).
 pub mod near_tree_gate;
-/// Real OpenStreetMap regions (data/maps/regions/*.bin): the HOSMREG2
-/// reader, the fetcher's projection contract, a polygon ear clipper, and the
+/// OpenStreetMap features around an origin, cut from the whole-Earth map packs
+/// (`region_from_pack`): the local metric frame, a polygon ear clipper, and the
 /// 3D extrusion mesher. Shared by the Maps page's 2D Planet view and the
-/// in-world extruder so the two cannot drift (v0.1148, maps ladder rung 3
-/// increment 2). Parser/projection/clipper are relay-safe; only the mesher
+/// in-world districts so the two cannot drift (v0.1148; packs since whole-Earth
+/// maps rung 2). Conversion/projection/clipper are relay-safe; only the mesher
 /// is native-gated.
 pub mod osm_region;
 /// Map tiles keyed to the terrain's own quadtree (whole-Earth maps rung 1,
@@ -54,11 +54,22 @@ pub mod osm_region;
 /// nested height lattice, the great-circle clipper with clip-edge flags and
 /// OSM's 10^7-degree codec. Relay-safe, pure std + glam.
 pub mod map_tiles;
-/// Region water polygons pressed into the drawn terrain: rasterized masks
-/// that carve sea inlets to below sea level (the ocean shell fills them) and
-/// lake beds under their surface sheets. The flight-sim vector-water-mask
-/// technique (v0.1149, water arc). Relay-safe, pure std + glam.
-pub mod water_carve;
+/// The whole-Earth map pack format, HOSMPAK1 (rung 2): one file per depth-6 patch, every layer
+/// cut into the data levels' tiles by the same key, with each layer's source, date and licence
+/// and the notices the licences ask for. Reader and writer side by side. Relay-safe.
+pub mod map_pack;
+/// The map's data files: `data/maps/levels.ron` (levels, lattice, road classes, the shore band's
+/// numbers) and `data/maps/places.ron` (named places and their gates). Relay-safe.
+pub mod map_levels;
+/// The offline map pack builder (our own: OSM PBF, GEDTM30, WorldCover and ETOPO to packs). Built
+/// only for its tests and for the `build_map_packs` example (`map-build` feature): never in the app.
+#[cfg(any(test, feature = "map-build"))]
+pub mod map_build;
+/// The installed map packs drawn into the one ground formula (whole-Earth maps rung 2): GEDTM30
+/// land on the nested lattice, OSM's coastline deciding land from water, the shore band joining
+/// them to ETOPO's seabed, tile residency riding the patches, and the built-over mask the
+/// vegetation gates read. Replaced the region water carve (v0.1149 to rung 1). Relay-safe.
+pub mod map_ground;
 /// Analytic ocean disaster fields (tsunami, rogue wave, maelstrom,
 /// hurricane) - ABYSSAL adoption arc rung 1 (docs/reference/
 /// abyssal-ocean-weather.md). Pure math, relay-safe; the WGSL twin and the

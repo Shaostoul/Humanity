@@ -25,8 +25,11 @@
 //! through `instrument_packs::samples::SampleBank`, which keeps them between builds); while it is
 //! off, a new score is built from the files read again and every recording decoded again (the bank
 //! keeping nothing) once every phrase, taking over at the next phrase boundary, and the music's
-//! data for the hum and Settings' lists is read again every few seconds. A new reuse that does not
-//! ask is a bug.
+//! data for the hum and Settings' lists is read again every few seconds. The whole-Earth map packs
+//! (2026-11-09, `humanity_terrain::map_ground`, driven by `engine::map_meshes`): the tiles decoded
+//! from them and each pack's shore field are kept while patches need them, tagged by the pack's
+//! build; while the switch is off a fresh set is published every frame, so every tile and shore
+//! field is decoded again. A new reuse that does not ask is a bug.
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

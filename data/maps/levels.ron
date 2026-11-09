@@ -1,0 +1,76 @@
+// The whole-Earth map's data levels and the shore band's numbers (docs/design/whole-earth-maps.md
+// sections 3.1, 4 and 5; rung 2, 2026-11-09). Data, not code: the builder (map_build) cuts packs by
+// these levels, and the game's one ground formula (map_ground, inside drawn_elevation_at_depth)
+// reads the shore band from here. Read by crates/humanity-terrain/src/map_levels.rs.
+(
+    // The data levels a pack holds, ascending. A patch of depth d reads the deepest level not
+    // deeper than d (level 6 serves depths up to 8, level 9 depths 9 to 11, level 12 the rest).
+    levels: [6, 9, 12],
+    // One local pack per patch of this depth (about 110 km across).
+    local_pack_depth: 6,
+    // Height lattice segments per tile edge: 64 makes a level-L tile's samples exactly the
+    // corners of its depth L+6 patches, so the depth L, L+1 and L+2 patches read their own
+    // vertices out of it (section 4.2).
+    lattice_segments: 64,
+    // The seabed (ETOPO 2022, 460 m cells) is stored at these levels only: level 9's 215 m lattice
+    // already oversamples it, and deeper patches interpolate it.
+    sea_levels: [6, 9],
+    // OpenStreetMap highway values to the road class (0 motorway/trunk, 1 primary, 2 secondary,
+    // 3 tertiary/residential, 4 service, 5 footway/path), the class `osm_region` draws by.
+    road_classes: [
+        ("motorway", 0), ("motorway_link", 0), ("trunk", 0), ("trunk_link", 0),
+        ("primary", 1), ("primary_link", 1),
+        ("secondary", 2), ("secondary_link", 2),
+        ("tertiary", 3), ("tertiary_link", 3), ("residential", 3), ("unclassified", 3), ("living_street", 3), ("road", 3),
+        ("service", 4),
+        ("footway", 5), ("path", 5), ("cycleway", 5), ("pedestrian", 5), ("steps", 5), ("track", 5), ("bridleway", 5),
+    ],
+    shore: (
+        // The shoreline's height above mean sea level. OSM's natural=coastline is a high-water
+        // line: the wiki's Tag:natural=coastline page (last edited 2025-12-01, read 2026-11-09)
+        // says it is "used to mark the mean high-water springs (MHWS) line along the coastline at
+        // the edge of the sea". At Seattle (NOAA station 9447130, epoch 1983-2001, read
+        // 2026-11-09) mean higher-high water is 1.44 m above mean sea level (5.882 - 4.443 m), so
+        // 1 m keeps the shore just dry. One number to start; per coast type later.
+        datum_m: 1.0,
+        // A lake shore's height above the lake's own surface.
+        lake_datum_m: 0.3,
+        // The wet guarantee (section 5.2), a little stricter than the shore_probe gate's 15 m and
+        // 0.3 m: every point this far offshore is at least this deep.
+        wet_offshore_m: 12.0,
+        wet_depth_m: 0.4,
+        // Land within this many finest lattice cells of the shore is floored at the datum (low
+        // land never floods, a noisy coastal pixel never digs a moat), then the floor releases at
+        // this grade.
+        floor_cells: 2.0,
+        floor_release_grade: 0.05,
+        // The band where the shore is drawn as one straight slope through the waterline: at least
+        // this wide, and at least this many vertex spacings of the patch being drawn, so a coarse
+        // patch's triangles can draw it (a straight slope survives linear interpolation; the wet
+        // guarantee then holds on the drawn mesh at every depth, not just in the field).
+        min_band_m: 27.0,
+        band_spacings: 1.25,
+        // Past the band the land returns to its own heights this steeply (cliffs stay cliffs).
+        cap_slope: 10.0,
+        // The nearshore profile blends into the seabed over about one bathymetry cell.
+        sea_blend_m: 460.0,
+        // The shore distance is looked up this far; past it only land or water counts.
+        reach_m: 600.0,
+        // The equilibrium beach profile h = datum - A * x^(2/3) (x metres offshore), its A by the
+        // land cover at the nearest shore point (ESA WorldCover classes: 60 bare or sparse, 90
+        // herbaceous wetland, 95 mangroves). Coastal engineering's Dean profile: fine sand about
+        // 0.1, mud flatter.
+        profiles: [
+            (name: "sand", cover: [60], a: 0.10),
+            (name: "mud", cover: [90, 95], a: 0.05),
+        ],
+        default_a: 0.12,
+    ),
+    // Procedural fine relief inside a pack starts at this patch depth (deeper than the level-12
+    // lattice can draw), and stays off within this distance of any shore.
+    detail_first_depth: 15,
+    detail_shore_mask_m: 60.0,
+    // Where a pack's neighbour is not installed, its ground blends into the base heights over
+    // this distance inside its edge (until the downloader brings the neighbour).
+    edge_blend_m: 2000.0,
+)

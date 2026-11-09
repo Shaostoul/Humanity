@@ -44,7 +44,7 @@
 //! where `render_off` and `rot` are the body's centre and orientation in
 //! render space that frame and `p` the piece in the body's frame: the same
 //! transform the terrain patches, the near trees and the OSM buildings use
-//! (`engine::region_meshes`), narrowed to f32 only at the end
+//! (`engine::map_meshes`), narrowed to f32 only at the end
 //! ([`PlanetSite::render_pose`]).
 
 use super::{Construction, Structure};
@@ -94,7 +94,7 @@ impl PlanetSite {
     /// Where a site-local transform draws this frame: its position and
     /// rotation in render space, given the body's centre (`render_off`) and
     /// orientation (`rot`) in render space. f64 until the final narrowing,
-    /// exactly like `region_meshes`' `render_off + rot_d * anchor_local`.
+    /// exactly like `map_meshes`' `render_off + rot_d * anchor_local`.
     pub fn render_pose(&self, tf: &Transform, render_off: DVec3, rot: DQuat) -> (Vec3, Quat) {
         let p = render_off + rot * self.to_body(tf.position);
         let r = (rot * self.basis()).as_quat() * tf.rotation;

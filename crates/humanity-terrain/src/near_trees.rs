@@ -863,10 +863,9 @@ pub fn near_tree_instances_at_density(
     let cos_ang = ang.cos();
     let sea = def.sea_level.clamp(0.0, 1.0);
     // One registry lock per harvest, mirroring the card bake's per-patch
-    // snapshot (see water_carve docs). Disc pre-reject: outside a region
-    // the per-candidate gates cost nothing.
-    let carve_masks = crate::water_carve::snapshot()
-        .filter(|cm| crate::water_carve::any_mask_in_disc(cm, center, radius_m));
+    // snapshot (the installed map packs, map_ground). Disc pre-reject: away
+    // from every pack the per-candidate gates cost nothing.
+    let map = crate::map_ground::snapshot().filter(|m| m.any_in_disc(center, radius_m));
     let range_m = match source {
         ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
         ElevationSource::Noise(_) => 1.0,
@@ -975,20 +974,13 @@ pub fn near_tree_instances_at_density(
                 let (e, _tile) = match source {
                     ElevationSource::Heightmap { hm, tiles, .. } => {
                         // Depth 20 = the deepest bake tier, so the tile-
-                        // gated sampler matches close patches. Then the water
-                        // carve (v0.1149), mirroring the card bake exactly:
-                        // carved seabed reads underwater, so the 6 m gate
-                        // below rejects it in BOTH streams together.
+                        // gated sampler matches close patches. Then the map
+                        // packs' ground, mirroring the card bake exactly: the
+                        // shore band's seabed reads underwater, so the 6 m
+                        // gate below rejects it in BOTH streams together.
                         let (e, t) = tile_or_base(hm, *tiles, dir, 20);
-                        let e = match &carve_masks {
-                            Some(cm) => crate::water_carve::carve_normalized_with(
-                                cm,
-                                dir,
-                                e,
-                                hm.min_meters(),
-                                hm.max_meters(),
-                                sea,
-                            ),
+                        let e = match &map {
+                            Some(m) => crate::map_ground::apply_normalized(m, dir, e, crate::map_ground::GATE_DEPTH, range_m, sea, None),
                             None => e,
                         };
                         (e, t)
@@ -1006,13 +998,8 @@ pub fn near_tree_instances_at_density(
                 // Built-over gate (v0.1152), byte-identical to the card
                 // bake's copy: same query, same 0.35 threshold, or a model
                 // stands where its card refused to (and vice versa).
-                if let Some(cm) = &carve_masks {
-                    if crate::water_carve::built_weight_at_deg(
-                        cm,
-                        lat.to_degrees(),
-                        lon.to_degrees(),
-                    ) > 0.35
-                    {
+                if let Some(m) = &map {
+                    if m.built_weight_at_deg(lat.to_degrees(), lon.to_degrees()) > 0.35 {
                         continue;
                     }
                 }

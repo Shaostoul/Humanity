@@ -198,9 +198,9 @@ pub(crate) struct EngineState {
     /// deep patches + the ground clamp sample it via tile_or_base. An
     /// empty/absent tile dir simply leaves the base grid in charge.
     pub(crate) terrain_tiles: humanity_terrain::terrain_tiles::TerrainTiles,
-    /// OSM region 3D residency (maps ladder rung 3 inc. 2, v0.1148): parsed
-    /// regions, the in-progress elevation grid, and the standing meshes.
-    pub(crate) region_meshes: crate::engine::region_meshes::RegionMeshState,
+    /// The whole-Earth map packs in the world (rung 2): the published ground,
+    /// tile residency, and the OSM districts standing on it.
+    pub(crate) map_meshes: crate::engine::map_meshes::MapMeshState,
     /// Connected-ocean mask for EARTH (v0.876 real-water Stage 1):
     /// flips the chunked terrain to true bathymetry and gates the
     /// water-shell patches. None = the pre-v0.876 clamped sea sphere.
