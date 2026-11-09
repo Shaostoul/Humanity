@@ -474,7 +474,8 @@ ODbL text and offer (rung 1 makes it).
   the star catalogue's and the instrument packs' way: no CI runs, GitHub's CDN serves them, and
   `--latest=false` keeps `releases/latest` on the game. A release holds at most 1,000 files under
   2 GiB each, with no limit on total size or bandwidth (finding 26), so about 27 asset releases.
-  **Uploading is the operator's step**; producing is an agent's (docs/ai/release.md, instrument
+  **Uploading is the top-level session's step** (CLAUDE.md standing permissions, 2026-11-07);
+  producing is an agent's (docs/ai/release.md, instrument
   packs).
 - A data catalog, `data/maps/packs.ron`, lists each pack: its `PatchId`, file, bytes, SHA-256, build
   id, and its sources with their licences and snapshot dates, the `data/music/packs.ron` pattern.
@@ -631,7 +632,7 @@ Small, measurable, no large downloads, and it makes every later rung provable.
    and Esri's machine-found footprints together with OSM's in one theme, under the licence we
    already meet; it is run by a foundation of large companies (we read a snapshot, nothing at run
    time). **Recommendation: Overture.**
-3. **Hosting about 250 GB of packs as GitHub release assets** (about 27 asset releases you upload),
+3. **Hosting about 250 GB of packs as GitHub release assets** (about 27 asset releases, uploaded by the top-level session),
    with the catalog able to name a mirror later? **Recommendation: yes.** GitHub states no limit on
    total size or bandwidth; the alternative, our own servers, costs money the project does not have.
 4. **Privacy when fetching:** fetch as you go (the host sees each 110 km area) or ask, with a
