@@ -508,3 +508,17 @@ what we will say about it.
   Entity List (since 2019, for its part in surveillance of Uighurs), which governs exports to it, not
   using its open model. Recommends GGUF through llama.cpp only, served from the project's own release
   assets, an "AI" label, and settling who the publisher is before it becomes the default.
+- [`2026-11-08-food-data-sources.md`](2026-11-08-food-data-sources.md),
+  which ingredient, nutrition, allergen, additive and food-safety sources may ship, and what a label
+  reader must never claim. USDA FoodData Central and FoodKeeper are CC0, FDA's pages public domain
+  (copies dated and linked). Allergen lists are law and differ: nine in the US (sesame since 1 January
+  2023), fourteen in the EU, Canada's own; "may contain" is voluntary in the US, risk-assessed in the
+  EU, and Codex adopted guidelines on 7 July 2026. Status is not risk: FDA proposed new GRAS oversight
+  on 10 August 2026 and revoked Red No. 3 for food from 15 January 2027 while calling risk claims
+  unsupported. Open Food Facts is ODbL (contents DbCL, photos CC BY-SA, "must not be used for medical
+  purposes", one API call per real scan): runtime and opt-in only, with the same two obligations as
+  OpenStreetMap if anything derived is ever published. EFSA, FAO/Codex and WHO/JECFA are facts only;
+  the Canadian Nutrient File 2026 (OGL-Canada 2.0) and ANSES Ciqual (Licence Ouverte 2.0) are clear.
+  FDA lists gluten-free information apps as not medical devices. OCR: PP-OCRv6 and Tesseract are
+  Apache 2.0; Surya's weights are revenue-capped. The prototype's Yellow 5 line is refuted. The basis
+  for `docs/design/ingredients-and-labels.md`.
