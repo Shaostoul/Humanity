@@ -836,6 +836,12 @@ Overture's footprints will grow the building layer.
 
 ### Answers (operator, 2026-11-09)
 
+- After rung 2 (the same day): "These all sound reasonable. LEt's proceed." to the three questions rung 2 left. The two Silverdale packs
+  (83 MB) are committed and stay unchanged until rung 4 serves packs from release assets, when they
+  leave git. An installed pack unlocks depth 20 inside its tile, after measuring the frame cost.
+  Road beds and building pads become their own rung before rung 3, because the road-profile margin
+  changes the pack format.
+
 - 4, privacy: "Sounds good." Ask the first time; whole-region downloads by default on the Maps page.
 - 5, downloads: "Let's get Washington state! I'd love to see it in all of its glory." Fetched the
   same day onto `E:\HumanityOS\maps-src\`: Geofabrik's Washington extract (365,725,774 bytes,

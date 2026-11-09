@@ -7,6 +7,18 @@ quotations; read the finding before acting on a row.
 
 **I am not a lawyer, and this is not legal advice.**
 
+## The operator's answers (added 2026-11-09)
+
+To every source's question with its recommendation: "These all sound reasonable. LEt's proceed." So Poly Haven and ambientCG are the
+first-choice sources (Poly Haven's `electric_stove` first), each asset checked for brands, signs and
+people and given a credits row; Open Robotics' CC0 and CC BY Fuel models fill the oven, pump,
+shower, sink and valves; Amazon Berkeley Objects' 83 MB listings metadata is fetched to find its
+appliances, picks shipped under generic names; a person reads Kenney's License.txt at the next
+Kenney download; Sketchfab CC0 and CC BY models fill what nothing else covers, one at a time from
+his own account, NoAI and CreatedWithAI models left out; NASA models stay reference-only unless
+clearly NASA-made. Each download is still listed by name, source and size before it is fetched.
+The findings above are left as written.
+
 ## The question
 
 Which of the open sources the scan ranked may HumanityOS use for models, materials and sky photos

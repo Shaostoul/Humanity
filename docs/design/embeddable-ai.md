@@ -718,6 +718,20 @@ Each rung is a slice of the real thing.
     VCTK, Voice-Zero), donated voices for variety only, so a withdrawal never silences a character?
     *Recommendation: yes.*
 
+### Answers (operator, 2026-11-09)
+
+His words, on the eleven questions with their recommendations: "These all sound reasonable. LEt's proceed." So each stands as
+recommended: 1 one separate engine program, yes; 2 processor only during play and Vulkan for the
+helper outside the 3D world, no vendor-only packages, yes; 3 `assets-ai-1` with Gemma split under
+2 GiB, yes; 4 a learned motion model's network inside its optional pack meets the rule, yes; 5 tract
+compiled to WebAssembly for the website's photo reader if the spike chooses tract, brains and voice
+desktop-only, yes; 6 character memory in the local save, visible and erasable, never synced, yes,
+off until the battery shows it stays in character; 7 helper conversations kept until the app closes
+unless Keep, yes; 8 conversational on by default once a brain is installed, written choices always
+shown, yes; 9 bring-your-own model, not before v1.0; 10 a project-trained Pocket TTS voice, yes, as
+rung 11, trained on the project's own hardware (power only, no rented machines: the project has no
+budget for them); 11 default voices from non-donated sets, yes.
+
 ## 16. Alternatives (from the scan; alternatives, not plans)
 
 The starting set stands ("let's just stick with this set to start"). These are recorded so the next

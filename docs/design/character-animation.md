@@ -570,6 +570,8 @@ What rung 1 built, against sections 2 to 10, and what it chose where the plan le
   `figures`), in the vantages `anim-stairs`, `anim-ladder`, `anim-chair`, `anim-crowd-near`,
   `anim-crowd-middle` and their `-boxes` twins; `anim-tp-move` and `anim-tp-gaits` show the player's
   body in third person and the gaits.
+- **Walk speed, decided** (operator, 2026-11-09: "These all sound reasonable. LEt's proceed."): the realistic mode walks at 1.4 m/s
+  and runs at about 4 m/s; the simplified mode keeps today's 5 m/s walk and 9.5 m/s sprint.
 - **Known limits the rigs showed**: the game walks at 5 m/s (`WALK_SPEED_MPS`, a jog) and sprints at
   9.5, so the player's own body plays the run clip (at 1.4 times its speed) when walking, and the
   sprint runs past the clip's 1.6 times limit, so the feet slide; real walking is about 1.4 m/s (a
