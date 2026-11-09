@@ -325,7 +325,13 @@ window.HOS_I18N_EN = {
       "tone_volume_hint": "How loud the tone is."
     },
     "notifications_volume": "Notifications Volume",
-    "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume."
+    "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume.",
+    "walking_pace": "Walking pace",
+    "walking_simplified": "Simplified",
+    "walking_simplified_hint": "A quick walk and a fast sprint, so the ship and the land are quick to cross.",
+    "walking_realistic": "Realistic",
+    "walking_realistic_hint": "Walk and run at the speeds a real person does.",
+    "walking_pace_hint": "How fast you walk and run (hold Shift to run). Realistic: you walk at {rw} metres a second, the pace of someone in no hurry, and run at {rr}. Simplified: you walk at {sw} and sprint at {sr}. Your body's stride follows the speed either way, and other players see you move at the speed you choose."
   },
   "laws": {
     "title": "Laws and rights",
@@ -3188,7 +3194,13 @@ window.HOS_I18N_EN = {
     "none": "None",
     "none_hint": "Wears nothing in this place.",
     "wear_hint": "Wears this here.",
-    "name_in_mirror_hint": "Your game character's name, separate from your chat profile."
+    "name_in_mirror_hint": "Your game character's name, separate from your chat profile.",
+    "body": "Body",
+    "body_hint": "The body your character is drawn with. Everyone you meet sees the one you choose.",
+    "body_female": "Female",
+    "body_female_hint": "Draw your character with the female body.",
+    "body_male": "Male",
+    "body_male_hint": "Draw your character with the male body."
   },
   "devlog": {
     "page_title": "Devlog, HumanityOS",
@@ -3909,5 +3921,12 @@ window.HOS_I18N_EN = {
   },
   "model_physics": {
     "credit_simready": "Model: NVIDIA SimReady Assets, CC BY 4.0"
+  },
+  "maps_planet": {
+    "no_packs_title": "No map packs installed",
+    "no_packs_body": "The Planet view draws the whole-Earth map packs in data/maps/packs. The app ships with the packs around home (Silverdale and Seattle Center); developers build more from the OpenStreetMap, GEDTM30 and WorldCover sources with:",
+    "no_packs_command": "just map-packs --tiles <pack names, or washington>",
+    "no_packs_plan": "The plan for these maps: docs/design/whole-earth-maps.md.",
+    "place_label": "Place:"
   }
 };
