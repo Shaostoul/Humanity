@@ -16,14 +16,12 @@ name: Verify
 #      un-added x.rs simply fails to compile here. Do NOT add working-tree caching that
 #      would defeat this; only the Cargo build cache is restored (Swatinem/rust-cache).
 #
-# Scope note: the NATIVE build + lib tests are NOT run here. `cargo check --features
-# native` pulls alsa-sys/wayland/xkbcommon, whose build scripts need system C dev libs
-# (libasound2-dev, ...) that a bare runner lacks, and the lib tests additionally need to
-# LINK those. Both already run on the dev host (`just verify` / `just check`). CI's
-# unique value is the link-free gates below: the relay build (the deploy feature set),
-# the std-only lints, and doc-links -- exactly the classes the Windows host gates only
-# via opt-in dances. Adding native coverage here would mean apt-installing the C libs;
-# deferred to keep this robust.
+# Scope note: the native lib tests are NOT run here (they run on the dev host, `just verify`).
+# The native BUILD is checked on Linux by the second job, `native-linux` (2026-11-10): the dev
+# host only ever compiles the native app for Windows, so code that names a Windows-only module
+# without a cfg compiled there and failed only at release time, when the macOS and Linux builds
+# of v0.1554.0 stopped on `crate::ai::job` (E0433, src/gui/pages/dev_ai.rs). It needs the two C
+# dev packages the desktop build installs (libasound2-dev, libudev-dev) and nothing more.
 on:
   push:
     branches: [ main ]
@@ -92,3 +90,33 @@ jobs:
 
       - name: BIP39 wordlists in sync (web == native, canonical + round-trip)
         run: node scripts/check-bip39-wordlists.js
+
+  # The native app compiled for Linux on every push (2026-11-10, see the scope note at the top):
+  # a Windows-only name used without a cfg fails here at merge time instead of in the release's
+  # macOS and Linux builds. A check, not a build: it compiles the library and the binary with the
+  # same features the release builds (`--features native`), without linking or optimising.
+  # Seen red on a branch at 89e73aafd (v0.1554.0) with this job dispatched: E0433 at
+  # src/gui/pages/dev_ai.rs; green on abe528e5d.
+  native-linux:
+    name: native build check (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (the version rust-toolchain.toml pins)
+        run: |
+          rustup toolchain install
+          rustc -V
+
+      - name: Install Linux deps (the desktop build's own two)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: native-linux
+
+      - name: cargo check --features native (library and binary)
+        run: cargo check --features native --lib --bins
