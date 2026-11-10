@@ -5114,8 +5114,8 @@ fn snapshot_character_shape() {
             state.showroom_mode = 1;
             state.showroom_return_to_picker = true;
             state.character_name = "Wanderer".into();
-            state.body_choices = choices.clone();
-            state.body_sliders = sliders.clone();
+            state.characters.body_choices = choices.clone();
+            state.characters.body_sliders = sliders.clone();
             state.appearance.body_type = "female".into();
             state.appearance.shape = [("muscle", 0.68), ("weight", 0.38), ("proportions", 0.55), ("african", 0.5), ("asian", 0.2), ("european", 0.3)]
                 .into_iter()

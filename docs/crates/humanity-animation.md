@@ -12,7 +12,12 @@ the motion tracker that reads speed and turn rate from positions, the near and m
 tiers, and the bodies themselves (a female and a male MakeHuman body and the test figure as the
 fallback), each with the shape targets the look drives (height, and since 2026-11-09 the character
 page's sliders: build, proportions and ancestry, each a row of the body file) and a skeleton that
-follows them (`Skeleton::reshaped`), and the stable hash that varies the crew's shapes. It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
+follows them (`Skeleton::reshaped`), and the stable hash that varies the crew's shapes. Since
+2026-11-09 (rung 2a) it also puts the feet on the world (`feet`: contacts labelled on every clip at
+load, the ground asked of the engine through the `Ground` trait, two-bone analytic leg IK on each
+person's reshaped skeleton, the pelvis offset, the foot turned to the slope about a toe pivot, foot
+locking and stair footsteps), and the graph reads crouch, time off the ground, vertical speed and
+time in a state. It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
 reads glTF into `humanity_core::skin_data` and draws the palettes), so every test runs headless, and
 because animation never reaches the server: the relay build never compiles it (the operator,
 2026-11-08: "a new crate, humanity-animation: yes").
@@ -83,6 +88,16 @@ All 9 items shown.
   slider targets do to it. The loader refuses rows that could turn on more targets at once than
   `MAX_ACTIVE_MORPHS`. Source: the operator, 2026-11-09 ("Yeah, let's go for it."); CLAUDE.md,
   Infinite-of-X; character-animation.md section 14, the sliders.
+- **The feet never read the world themselves.** The ground under a foot comes through
+  `feet::Ground`, which the engine implements (`engine::feet_ground`: the footing aboard, the drawn
+  terrain on a planet with positions and directions in f64 to the sampler); the solve works in the
+  body's model space on the person's OWN reshaped skeleton (`Figure.shape`, never the body's
+  unshaped one), and nothing here moves the person (the capsule is the truth). Feet are never
+  aligned across rigs (rung 1's lesson): a sole point is its joint's rest height, turned with the
+  joint. Source: character-animation.md section 4 and section 15.
+- **Every new number of the feet is data**: `characters.ron`'s `feet` (`FeetDef`, each field with
+  its shipped default), so a modder tunes them and the tests read the shipped ones. Source:
+  CLAUDE.md, Infinite-of-X.
 - **A clip's hips travel is an offset from the rest, and its speed is the body's.** Retargeting
   scales a gait's `speed_mps` by the body's leg length against the source's, and the engine divides
   a person's speed by their own stride scale (shape and size) before the graph reads it, so the
@@ -120,6 +135,14 @@ All 9 items shown.
   (`the_body_sliders_drive_their_targets_as_the_body_file_says`), the skeleton follows a build
   slider (`the_skeleton_follows_a_build_slider`), every slider has its words, and a crew is varied
   and stable (`a_crew_is_varied_and_each_keeps_their_shape`).
+- **The feet (rung 2a, 2026-11-09):** the crate's `feet::tests` (the two-bone solve reaches its
+  target and keeps the knee in front) and `tests::the_shipped_graph_crouches_and_jumps`; the
+  engine's `src/engine/animation_feet_tests.rs` walks the real MakeHuman bodies through their real
+  clips over a test floor, stair and slope and measures the DRAWN feet (foot vertices skinned with
+  the GPU's palette, `engine::foot_probe::skinned_feet`), each with a feet-off control that must
+  fail the same bound. In the running game: the vantages `anim-stairs`, `anim-ramp`, `anim-crouch`,
+  `anim-slope-map` with their `foot_probe` check (scripts/lib/foot-probe-check.js) and their
+  `-feet-off` red twins; `anim-crowd-{near,middle}-feet-off` for the cost.
 - **The sliders in the running game:** the vantages `anim-shape-{female,male}-{build,ancestry}` (and
   `-skeleton`, the joints and bones drawn on top: showcase `skeletons`, the Dev page's Show
   skeletons) stand a row of people at the sliders' ends (showcase `lineup`); `anim-crowd-*-plain`
@@ -127,12 +150,17 @@ All 9 items shown.
 
 ## Open work
 
-- **Rung 2** (character-animation.md section 10): foot IK on decks, treads and terrain with foot
-  locking, crouch, interaction anchors with motion warping, two grip sockets (the `sockets` rows of
-  `humanoid.ron` are ready), true first person, and the network's stance, pitch and interaction
-  fields.
-- **Clips for the stances the graph cannot reach yet**: crouch, jump and sit are retargeted
-  (`clips.ron`) but no state plays them until rung 2's stance and interaction inputs.
+- **The rest of rung 2** (character-animation.md section 10; 2a, the feet, crouch, jump and the
+  network's stance, built 2026-11-09, section 15): interaction anchors with motion warping (sit,
+  bed, ladder with hatch, station, door), two grip sockets (the `sockets` rows of `humanoid.ron` are
+  ready), hands on rungs (two-bone arm IK, the same `feet::two_bone`), true first person, and the
+  network's pitch and interaction fields.
+- **Sit** is retargeted (`clips.ron`) but no state plays it until the interaction anchors.
+- **Feet, what 2a left** (section 15, "Known limits"): crouching keeps the standing capsule (no
+  passing under low things yet); other players and the crew on a planet still stand +Y up (only the
+  player's own body takes the local radial); the dev crowd on a planet lives in the home frame;
+  the stair planner moves a foot only along the stair; starting to walk from standing can hold a
+  planted foot until its lock stretches to the break and snaps (a start step is the fix).
 - **Twist joints on the MakeHuman bodies**: MakeHuman's arm and leg twist segments are chained
   (`lowerarm02` is the wrist's parent), not siblings of the driver as `apply_twists` expects, so the
   converter merges them for now; a chained twist (or the converter keeping them as siblings) is the

@@ -34,6 +34,17 @@ pub enum Param {
     Speed,
     /// Radians a second, positive turning left (counter-clockwise seen from above).
     TurnRate,
+    /// 1 while the person crouches, 0 standing (rung 2a: the crouch key, or another player's
+    /// stance as the network carries it).
+    Crouch,
+    /// Seconds off the ground (0 standing on it): a jump or a fall. A step down a stair is no time
+    /// off the ground (the walk follows the floor down a step).
+    Airborne,
+    /// Metres a second upward (negative falling).
+    VerticalSpeed,
+    /// Seconds since the graph entered its current state (a jump's take-off and landing play their
+    /// clips out before the next state).
+    StateTime,
 }
 
 /// What a condition asks of its input.
@@ -187,13 +198,23 @@ pub struct LocomotionInput {
     pub side: f32,
     /// Radians a second, positive turning left.
     pub turn_rate: f32,
+    /// 1 crouching, 0 standing (rung 2a).
+    pub crouch: f32,
+    /// Seconds off the ground, 0 on it.
+    pub airborne: f32,
+    /// Metres a second upward.
+    pub vertical: f32,
 }
 
 impl LocomotionInput {
-    fn get(&self, p: Param) -> f32 {
+    fn get(&self, p: Param, state_time: f32) -> f32 {
         match p {
             Param::Speed => self.speed,
             Param::TurnRate => self.turn_rate,
+            Param::Crouch => self.crouch,
+            Param::Airborne => self.airborne,
+            Param::VerticalSpeed => self.vertical,
+            Param::StateTime => state_time,
         }
     }
 }
@@ -219,6 +240,11 @@ pub struct Animator {
     scratch_a: Pose,
     scratch_b: Pose,
     scratch_c: Pose,
+    /// Seconds in the current state.
+    state_time: f32,
+    /// The feet's contacts in the last pose, left then right (rung 2a): the clips' labels blended
+    /// as their poses were.
+    contacts: [f32; 2],
 }
 
 impl Animator {
@@ -230,6 +256,8 @@ impl Animator {
             scratch_a: Pose::default(),
             scratch_b: Pose::default(),
             scratch_c: Pose::default(),
+            state_time: 0.0,
+            contacts: [1.0, 1.0],
         }
     }
 
@@ -250,6 +278,17 @@ impl Animator {
         self.fading.is_some()
     }
 
+    /// Which feet the last pose has planted, left then right, 0 in the air to 1 planted: each
+    /// clip's labels (`Clip::contacts`) blended by the weights its pose was blended by.
+    pub fn contacts(&self) -> [f32; 2] {
+        self.contacts
+    }
+
+    /// Seconds in the current state.
+    pub fn state_time(&self) -> f32 {
+        self.state_time
+    }
+
     /// One frame: take a transition if one fires, move the playheads on by `dt`, and write the
     /// pose into `out` (twist joints included).
     pub fn update(
@@ -263,13 +302,16 @@ impl Animator {
         out: &mut Pose,
     ) {
         let dt = if dt.is_finite() { dt.clamp(0.0, 0.25) } else { 0.0 };
+        self.state_time += dt;
+        let state_time = self.state_time;
         if let Some(t) = graph.transitions.iter().find(|t| {
             t.to != self.current
                 && t.from.as_ref().map_or(true, |f| f.contains(&self.current))
-                && t.when.iter().all(|c| holds(c, input))
+                && t.when.iter().all(|c| holds(c, input, state_time))
         }) {
             let old = (self.current, self.head);
             self.current = t.to;
+            self.state_time = 0.0;
             self.head = Playhead::default();
             // A sync state entered from a sync state keeps the stride's phase.
             if graph.states[old.0].sync && graph.states[t.to].sync {
@@ -280,6 +322,7 @@ impl Animator {
         advance(&graph.states[self.current], clips, input, dt, &mut self.head);
         let mut cur = std::mem::take(&mut self.scratch_a);
         evaluate(&graph.states[self.current], clips, skel, input, self.head, &mut cur, &mut self.scratch_c);
+        let cur_contacts = contacts_of(&graph.states[self.current], clips, input, self.head);
         match self.fading.as_mut() {
             Some((s, head, elapsed, len)) => {
                 *elapsed += dt;
@@ -287,7 +330,10 @@ impl Animator {
                 advance(&graph.states[*s], clips, input, dt, head);
                 let mut old = std::mem::take(&mut self.scratch_b);
                 evaluate(&graph.states[*s], clips, skel, input, *head, &mut old, &mut self.scratch_c);
-                blend_into(&old, &cur, smoothstep(w), out);
+                let k = smoothstep(w);
+                blend_into(&old, &cur, k, out);
+                let was = contacts_of(&graph.states[*s], clips, input, *head);
+                self.contacts = [was[0] + (cur_contacts[0] - was[0]) * k, was[1] + (cur_contacts[1] - was[1]) * k];
                 self.scratch_b = old;
                 if w >= 1.0 {
                     self.fading = None;
@@ -296,6 +342,7 @@ impl Animator {
             None => {
                 out.joints.clear();
                 out.joints.extend_from_slice(&cur.joints);
+                self.contacts = cur_contacts;
             }
         }
         self.scratch_a = cur;
@@ -303,8 +350,8 @@ impl Animator {
     }
 }
 
-fn holds(c: &Condition, input: &LocomotionInput) -> bool {
-    let v = input.get(c.param);
+fn holds(c: &Condition, input: &LocomotionInput, state_time: f32) -> bool {
+    let v = input.get(c.param, state_time);
     match c.test {
         Test::Above => v > c.value,
         Test::Below => v < c.value,
@@ -337,6 +384,24 @@ fn space_input(s: &State, input: &LocomotionInput) -> f32 {
     match s.param {
         Param::Speed => input.speed.abs(),
         Param::TurnRate => input.turn_rate,
+        Param::Crouch => input.crouch,
+        Param::Airborne => input.airborne,
+        Param::VerticalSpeed => input.vertical,
+        // A blend space does not run along its own clock.
+        Param::StateTime => 0.0,
+    }
+}
+
+/// The feet's contacts of a state at its playhead: its two clips' labels, blended as `evaluate`
+/// blends their poses.
+fn contacts_of(s: &State, clips: &ClipSet, input: &LocomotionInput, head: Playhead) -> [f32; 2] {
+    let (a, b, w) = bracket(&s.samples, space_input(s, input));
+    let (ca, cb) = (clips.get(s.samples[a].1), clips.get(s.samples[b].1));
+    let (x, y) = if s.sync { (ca.contacts_at_phase(head.phase), cb.contacts_at_phase(head.phase)) } else { (ca.contacts_at(head.time), cb.contacts_at(head.time)) };
+    if a == b || w <= 0.0 {
+        x
+    } else {
+        [x[0] + (y[0] - x[0]) * w, x[1] + (y[1] - x[1]) * w]
     }
 }
 

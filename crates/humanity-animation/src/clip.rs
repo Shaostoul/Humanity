@@ -180,9 +180,35 @@ pub struct Clip {
     pub speed_mps: f32,
     pub rotations: Vec<Option<Vec<Quat>>>,
     pub translations: Vec<Option<Vec<Vec3>>>,
+    /// Which feet are planted in each frame, left then right, 1 planted and 0 in the air: labelled
+    /// from the clip's own feet when it is baked onto a body (`feet::label_contacts`, rung 2a,
+    /// 2026-11-09), so foot locking knows when a foot holds still. Empty until labelled (a clip on
+    /// a body without legs), which reads as both feet planted.
+    pub contacts: Vec<[f32; 2]>,
 }
 
 impl Clip {
+    /// The feet's contact at time `t` (left, right; 0 in the air to 1 planted), wrapped or held as
+    /// `sample` does, between frames as a straight blend.
+    pub fn contacts_at(&self, t: f32) -> [f32; 2] {
+        if self.contacts.is_empty() || self.frames == 0 {
+            return [1.0, 1.0];
+        }
+        let t = if self.looped && self.duration > 0.0 { t.rem_euclid(self.duration) } else { t.clamp(0.0, self.duration) };
+        let f = t * self.fps;
+        let last = self.contacts.len() - 1;
+        let f0 = (f.floor() as usize).min(last);
+        let f1 = if f0 == last { if self.looped { 0 } else { last } } else { f0 + 1 };
+        let u = (f - f0 as f32).clamp(0.0, 1.0);
+        let (a, b) = (self.contacts[f0], self.contacts[f1]);
+        [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]
+    }
+
+    /// The feet's contact at a fraction 0 to 1 of the clip.
+    pub fn contacts_at_phase(&self, phase: f32) -> [f32; 2] {
+        self.contacts_at(phase.rem_euclid(1.0) * self.duration)
+    }
+
     /// The pose at time `t`: looped clips wrap, others hold their last frame.
     pub fn sample(&self, skel: &Skeleton, t: f32, out: &mut Pose) {
         out.joints.clear();

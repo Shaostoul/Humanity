@@ -32,6 +32,7 @@
         (action: "Move", keys: "W / A / S / D"),
         (action: "Sprint (fly: descend)", keys: "Shift (hold)"),
         (action: "Jump (fly: ascend)", keys: "Space"),
+        (action: "Crouch", keys: "C (hold)"),
         (action: "Interact / talk / pin info card", keys: "E (look at a target)"),
         (action: "Swing tool / attack", keys: "F"),
         (action: "Inventory", keys: "I"),

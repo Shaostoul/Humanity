@@ -187,6 +187,9 @@ const SP2 = require("./lib/shore-probe-check.js");
 // The bed_probe vantage check (whole-Earth maps, the rung between 2 and 3): a road's cross-section
 // or a building's footing, judged against the mesher's own rules.
 const BP2 = require("./lib/bed-probe-check.js");
+// The foot_probe vantage check (character animation rung 2a): every near body's drawn feet against
+// the ground under them.
+const FP2 = require("./lib/foot-probe-check.js");
 // The Maps "ship centred" check (Maps increment 1): the vantage's `map_centre`.
 const MC = require("./lib/map-centre-check.js");
 // The Maps overview check (Maps increment 2): the vantage's `map_overview`.
@@ -1345,6 +1348,27 @@ async function main() {
           for (const f of verdict.failures) log(`  !! shore probe: ${f}`);
           for (const n of verdict.notes) log(`  .. shore probe: ${n}`);
         }
+        // FOOT PROBE (character animation rung 2a, 2026-11-09, character-animation.md section 4): a
+        // vantage with `foot_probe` asks the game to watch every near body's DRAWN feet against the
+        // ground for `secs` (src/engine/foot_probe.rs), keeps the readout beside the PNG as
+        // <id>-feet.json, and judges it (scripts/lib/foot-probe-check.js): a planted foot in a tread
+        // or hovering over the ground fails the vantage; flat ground under a stair vantage fails it
+        // as MISCONFIGURED.
+        if (v.foot_probe) {
+          const fp = v.foot_probe;
+          const fpPath = path.join(DEBUG, "foot_probe.json");
+          if (fs.existsSync(fpPath)) fs.unlinkSync(fpPath);
+          const secs = typeof fp.secs === "number" ? fp.secs : 1.5;
+          req("showcase_request.json", { foot_probe: String(secs) });
+          const readout = await waitFile("foot_probe.json", 30000 + secs * 1000);
+          if (!readout) throw new Error("foot probe: the game wrote no debug/foot_probe.json");
+          fs.writeFileSync(path.join(OUT, `${v.id}-feet.json`), JSON.stringify(readout, null, 2));
+          const verdict = FP2.judgeFeet(readout, fp);
+          rec.foot_probe = { ok: verdict.ok, misconfigured: verdict.misconfigured, failures: verdict.failures, notes: verdict.notes, rules: verdict.rules };
+          log(`  foot probe: ${FP2.summarize(verdict)}`);
+          for (const f of verdict.failures) log(`  !! foot probe: ${f}`);
+          for (const n of verdict.notes) log(`  .. foot probe: ${n}`);
+        }
         // BED PROBE (whole-Earth maps, the rung between 2 and 3, 2026-11-09, whole-earth-maps.md
         // 6.1 and 6.2): a vantage with `bed_probe` asks the game for a road's cross-section or a
         // building's footing (src/engine/bed_probe.rs), keeps it beside the PNG as <id>-bed.json,
@@ -1424,6 +1448,10 @@ async function main() {
         if (rec.ok && rec.shore_probe && !rec.shore_probe.ok) {
           rec.ok = false;
           rec.error = `SHORE PROBE: ${rec.shore_probe.failures.join(" | ")}`;
+        }
+        if (rec.ok && rec.foot_probe && !rec.foot_probe.ok) {
+          rec.ok = false;
+          rec.error = `FOOT PROBE: ${rec.foot_probe.failures.join(" | ")}`;
         }
         if (rec.ok && rec.bed_probe && !rec.bed_probe.ok) {
           rec.ok = false;

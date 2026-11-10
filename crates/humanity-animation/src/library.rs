@@ -133,6 +133,11 @@ pub struct CharactersDef {
     pub tiers: Tiers,
     /// Defaults by wearer kind ("player", "crew").
     pub wearers: BTreeMap<String, Wearer>,
+    /// The feet's numbers (rung 2a, 2026-11-09: `feet`): how far the pelvis may drop, how fast a
+    /// lock takes hold and lets go, how a clip's contacts are labelled. A file without them takes
+    /// the shipped values.
+    #[serde(default)]
+    pub feet: crate::feet::FeetDef,
 }
 
 /// A body material and its tint.
@@ -342,9 +347,39 @@ pub struct LoadedBody {
     pub slider_blocks: Vec<SliderBlock>,
     /// Each target's movement of each joint (model space), from the file.
     joint_moves: Vec<Vec<Vec3>>,
+    /// The legs and soles of the unshaped skeleton (rung 2a), None for a body without them. A
+    /// person's own come from their reshaped skeleton (`FootRig::new` on it).
+    pub feet: Option<crate::feet::FootRig>,
+    /// Each foot's vertices (primitive, vertex), left then right: those mostly bound to the foot or
+    /// its toes. The foot probe skins them on the CPU to read the drawn sole against the ground.
+    pub foot_vertices: [Vec<(usize, usize)>; 2],
 }
 
 impl LoadedBody {
+    /// How tall this body stands with these shape weights and scale, metres: the top of its mesh
+    /// measured with the targets on (not the linear model `shape_for` stands it by), times the
+    /// scale. The character page shows it (rung 2a: "1.62 m", the sliders' lesson that ancestry
+    /// moves the top of the head).
+    pub fn standing_height_m(&self, weights: &[(usize, f32)], scale: f32) -> f32 {
+        let mut top = f32::MIN;
+        for p in &self.model.primitives {
+            for (i, v) in p.vertices.iter().enumerate() {
+                let mut y = v.position[1];
+                for &(t, w) in weights {
+                    if let Some(m) = p.morphs.get(t) {
+                        y += m.positions[i][1] * w;
+                    }
+                }
+                top = top.max(y);
+            }
+        }
+        if top.is_finite() {
+            top * scale
+        } else {
+            0.0
+        }
+    }
+
     /// The shape targets (index, weight) and the uniform scale that stand this body at a look's
     /// height (1.0 = its own) with the look's slider values (`value` gives a slider's value by its
     /// id, None for one the look does not set): each slider row's targets, then the height targets
@@ -510,6 +545,13 @@ impl CharacterLibrary {
                 ));
             }
             let joint_moves: Vec<Vec<Vec3>> = model.joint_deltas.iter().map(|d| d.iter().map(|v| Vec3::from(*v)).collect()).collect();
+            let feet = crate::feet::FootRig::new(&skeleton, &humanoid);
+            let foot_vertices = feet.as_ref().map_or_else(Default::default, |rig| foot_vertices(&model, rig));
+            // Each foot's reach (heel back, toe tips) from its vertices at rest.
+            let feet = feet.map(|rig| {
+                let at_rest = foot_vertices.clone().map(|v| v.iter().map(|&(p, k)| Vec3::from(model.primitives[p].vertices[k].position)).collect::<Vec<Vec3>>());
+                rig.with_extents(&skeleton, &at_rest)
+            });
             let mut clips = ClipSet::default();
             for cd in &clip_defs {
                 if clips.index(&cd.id).is_some() {
@@ -533,7 +575,13 @@ impl CharacterLibrary {
                     sources.insert(key.clone(), (source, rig));
                 }
                 let (source, rig) = &sources[&key];
-                clips.insert(&cd.id, retarget(source, rig, &skeleton, &humanoid, characters.clip_fps, cd.looped, cd.speed_mps));
+                let mut clip = retarget(source, rig, &skeleton, &humanoid, characters.clip_fps, cd.looped, cd.speed_mps);
+                // Which feet are planted in each frame, read from the clip on this body (rung 2a).
+                // A clip tagged "air" (the jump's air loop) plants no foot.
+                if let Some(f) = &feet {
+                    crate::feet::label_contacts(&mut clip, &skeleton, f, &characters.feet, cd.tags.iter().any(|t| t == "air"));
+                }
+                clips.insert(&cd.id, clip);
             }
             let body = LoadedBody {
                 choice: choice.to_string(),
@@ -548,6 +596,8 @@ impl CharacterLibrary {
                 drivers,
                 slider_blocks,
                 joint_moves,
+                feet,
+                foot_vertices,
             };
             Ok((body, humanoid))
         };
@@ -677,6 +727,27 @@ fn resolve_sliders(rows: &[SliderDef], model: &SkinnedModelData, def: &BodyDef) 
         }
     }
     Ok((drivers, blocks))
+}
+
+/// Each foot's vertices (primitive, vertex), left then right: those whose largest weight is on that
+/// leg's foot or toes joint (the shoe, the sole).
+fn foot_vertices(model: &SkinnedModelData, rig: &crate::feet::FootRig) -> [Vec<(usize, usize)>; 2] {
+    let mut out: [Vec<(usize, usize)>; 2] = Default::default();
+    for (pi, p) in model.primitives.iter().enumerate() {
+        for (vi, v) in p.vertices.iter().enumerate() {
+            let k = (0..4).max_by_key(|&k| v.weights[k]).unwrap_or(0);
+            if v.weights[k] == 0 {
+                continue;
+            }
+            let j = v.joints[k] as usize;
+            for (side, leg) in rig.legs.iter().enumerate() {
+                if j == leg.foot || j == leg.toes {
+                    out[side].push((pi, vi));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// A body's standing height, metres: the highest vertex, with one target at full weight when named.

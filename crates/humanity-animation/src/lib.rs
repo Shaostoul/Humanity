@@ -8,6 +8,11 @@
 //! with the near and middle drawing tiers (`tiers`) and the data files that tie it together
 //! (`library`).
 //!
+//! Rung 2a, 2026-11-09: feet on the world (`feet`): contacts labelled on every clip at load, the
+//! ground under each foot asked of the engine through a trait, two-bone analytic leg IK on each
+//! person's reshaped skeleton, the pelvis lowered by the larger drop, the foot turned to the slope
+//! about a toe pivot, foot locking and stair footsteps; and the graph's crouch and jump inputs.
+//!
 //! WHAT IT IS NOT: no GPU code, no egui, no glTF reader, no network. The engine reads the files
 //! (`assets::skin`) into `humanity_core::skin_data` and draws the palettes this crate writes
 //! (`renderer::skinning`); the relay never compiles this crate, because animation is cosmetic and
@@ -24,6 +29,7 @@
 //! with the reuse switch off, every few seconds (`engine::animation`).
 
 pub mod clip;
+pub mod feet;
 pub mod graph;
 pub mod humanoid;
 pub mod joint_map;
@@ -36,6 +42,7 @@ pub mod skeleton;
 pub mod tiers;
 
 pub use clip::{Clip, ClipSet, SourceClip};
+pub use feet::{FeetDef, FeetReport, FootFrame, FootMode, FootPlacer, FootRig, Ground, GroundHit, StepInfo};
 pub use graph::{Animator, Graph, GraphDef, LocomotionInput};
 pub use humanoid::{HumanoidDef, Tier};
 pub use library::{BodyDef, CharacterLibrary, CharactersDef, ClipDef, LoadedBody, Tint};

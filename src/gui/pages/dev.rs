@@ -29,7 +29,10 @@ fn draw_characters_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     use crate::gui::widgets::with_hint;
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new(t("dev.characters")).size(theme.font_size_body).strong().color(theme.text_primary()));
-        with_hint(ui, "dev.show_skeletons_hint", |ui| widgets::toggle(ui, theme, t("dev.show_skeletons"), &mut state.show_skeletons));
+        with_hint(ui, "dev.show_skeletons_hint", |ui| widgets::toggle(ui, theme, t("dev.show_skeletons"), &mut state.characters.show_skeletons));
+        // Feet on the world (2026-11-09, rung 2a): off draws every body as its clips make it, the
+        // A/B the rigs measure the feet against (showcase `feet`).
+        with_hint(ui, "dev.feet_on_world_hint", |ui| widgets::toggle(ui, theme, t("dev.feet_on_world"), &mut state.characters.feet_on_world));
     });
 }
 

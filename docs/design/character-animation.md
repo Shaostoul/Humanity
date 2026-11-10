@@ -1,8 +1,9 @@
 # Character animation: one body, from the player to a ship of crew
 
 **Status: rungs 0 and 1 BUILT on 2026-11-08 (section 13), with the real bodies (MakeHuman, female
-and male), clips (Quaternius), the walking pace and the body sliders on 2026-11-09 (section 14); rung 2 and on are
-DESIGN. Section 12's questions were all decided on 2026-11-08.** Written after the operator came
+and male), clips (Quaternius), the walking pace and the body sliders on 2026-11-09 (section 14);
+rung 2a, feet on the world with crouch, jump and the network's stance, BUILT on 2026-11-09 (section
+15); the rest of rung 2 and on are DESIGN. Section 12's questions were all decided on 2026-11-08.** Written after the operator came
 across NVIDIA's MotionBricks (https://github.com/NVlabs/motionbricks, SIGGRAPH 2026) on 2026-11-08
 and asked where a technique of that class fits. The licensing question has its own dated finding:
 [`docs/reference/findings/2026-11-08-motionbricks.md`](../reference/findings/2026-11-08-motionbricks.md).
@@ -220,6 +221,9 @@ together "like bricks". The same idea, written as our own data, with no neural n
   inside the turn limits of `turning.rs`.
 - **Full-body IK** (an iterative solver over the whole chain) for reaching and props is a later
   rung; analytic two-bone solves cover rung 2.
+- **Built for the feet on 2026-11-09 (rung 2a)**: section 15 says what was built and what it chose
+  where this section left room (four sole points, the lock on the contact point, footsteps planned
+  in the swing, the pelvis bounded by the legs' reach).
 
 ## 5. First and third person: one body
 
@@ -355,6 +359,32 @@ lookups and a hash a person, and a reshaped skeleton is kept while the shape sta
 should take only each middle body's largest two or three targets (or one shape a group shares, a
 reuse that obeys the switch); near bodies can keep all seven.
 
+**With feet on the world (rung 2a, 2026-11-09)**, the same way: release build, rig defaults,
+2560x1387, a background game held to 30 frames a second, each pair in one boot (the feet against the
+Dev page's Feet on the world off, showcase `feet` 0, which is the pose main drew), vantages
+`anim-crowd-near` and `anim-crowd-middle` and their `-feet-off` twins (section 15). The feet are
+CPU work, so only cpu.animation moves:
+
+| Case | cpu.animation, feet off to on | cpu.skinning | gpu.skinning | gpu.scene | all GPU stages |
+|---|---|---|---|---|---|
+| 50 bodies 6 to 14 m (16 near with the full solve, 34 middle with the pelvis offset), sweep 3, clean | 0.504 to 0.714 ms | 0.182 to 0.188 | 0.083 to 0.082 | 7.47 to 7.47 ms | 13.32 to 13.26 |
+| the same, sweep 1 (before the swing's own ground questions), clean | 0.486 to 0.685 ms | 0.183 to 0.186 | 0.081 to 0.081 | 7.49 to 7.48 | 13.68 to 13.52 |
+| 50 bodies 18 to 26 m (all middle, the pelvis offset), sweep 3, clean | 0.341 to 0.424 ms | 0.032 to 0.033 | none | 7.17 to 7.10 | 12.94 to 12.80 |
+
+So: the full solve costs about 10 to 12 microseconds a near body (0.2 ms for 16: sweep 3's 0.21 ms
+less 34 pelvis offsets is 9.5 microseconds a body), against 8.1's estimate of 1 to 3: each body asks
+the ground 10 to 17 times a frame (two sole samples and two slope samples a foot, the landing
+projection while a foot comes down, and a swinging foot's back of the heel, toe cap and the ground
+ahead of it), each a walk over every zone's slabs and
+pieces in `Footing::floor_rising`, and each leg's solve rebuilds the 56 model matrices three times
+(`feet::set_model_rotation`). Both are levers if the near tier grows: a per-frame list of the pieces
+near each body, and refreshing only a leg's own joints. The pelvis offset costs about 1.7
+microseconds a middle body (0.083 ms for 50). The automatic budget (`full_budget_ms`, 1 ms, section
+15) therefore buys all 16 near bodies here with room to spare. GPU and skinning are unchanged within the run-to-run spread. The single
+bodies of `anim-stairs`, `anim-ramp`, `anim-crouch` and `anim-slope-map` are not cost readings: their
+foot probe (`foot_probe`), CPU skinning of the feet and a ground question per foot vertex, runs inside
+the same cpu.animation stage while the costs are gathered.
+
 **Why 56 joints and not MakeHuman's 163**: the 56 are exactly the bones that move in rung 1 (the role
 map's); the other 107 would only ever sit at rest under their parents until face and twist rungs.
 From the rows above, pose work grows about 0.1 microsecond a joint, so the full rig would cost about
@@ -431,10 +461,18 @@ that obeys the switch, 8.7).
 
 ### 8.6 The dual-mode rule
 
-- **Simplified**: the state machine with blend spaces, foot IK on, no finger animation, a smaller
-  near tier. Works everywhere and is the automatic choice where the budget pie says so.
+- **Simplified**: the state machine with blend spaces, no finger animation, a smaller near tier,
+  and for the feet the **pelvis-only ground offset** (decided at rung 2a, 2026-11-09: every body is
+  raised or lowered as a whole onto the ground under its planted feet, one ground query a foot, no
+  leg IK and no locking), rather than no IK at all, because the offset alone removes the worst of
+  rung 1's sinking and floating (a whole body on a stair line or between treads) for almost no
+  cost. Works everywhere and is the automatic choice where the budget pie says so (for the feet
+  since rung 2a: the full solve's own per-frame budget, `full_budget_ms`, section 15). Settings >
+  Gameplay > Animation chooses it; Realistic is the default (question 5).
 - **Full realism**: motion matching with warping and inertialized transitions, full IK, styles from
-  the body's state, secondary motion, and the learned rung where present.
+  the body's state, secondary motion, and the learned rung where present. For the feet since rung
+  2a: the near tier's full solve (two-bone leg IK, the foot turned to the slope about a toe pivot,
+  foot locking, stair footsteps), the middle tier's pelvis offset (8.4).
 - **Gameplay is identical in both** (the capsule is the truth). A "Reduce motion" comfort option
   stands apart from both (section 5).
 
@@ -494,6 +532,9 @@ world (`just verify-runtime`), plus the rig vantage it adds.
 2. **Feet, hands and things.** Foot IK on decks, treads and terrain with foot locking; crouch;
    interaction anchors as data with motion warping for sit, bed, ladder (with hatch), station and
    door; two grip sockets; true first person; the network's stance, pitch and interaction fields.
+   **2a BUILT 2026-11-09 (section 15)**: the feet on decks, treads, ramps and terrain with foot
+   locking, crouch, jump and the network's stance. The interaction anchors, the grips, hands on
+   rungs, true first person, pitch and the interaction field are 2b.
 3. **Motion matching**, the full-realism core: the database built at load from CMU, ACCAD and
    100STYLE (credited), retargeted; trajectory prediction from the controller; inertialized
    transitions (Bollo, GDC 2018); contact labels; styles from the body's state. The state machine
@@ -631,7 +672,7 @@ What rung 1 built, against sections 2 to 10, and what it chose where the plan le
   gameplay speed question for the operator). The third-person camera has no collision yet: in the
   homestead's narrow hall, three metres behind the body, a door lintel can cut across the view
   (camera-system.md's "pulls forward when blocked" is the fix). Feet sink up to 4.5 cm into the floor
-  over a cycle and float over stair treads: rung 2's foot IK.
+  over a cycle and float over stair treads: rung 2's foot IK (fixed in rung 2a, section 15).
 - **What rung 2 starts from**: the per-figure `Animator` and `MotionTracker` (add stance and the
   interaction inputs), `humanoid.ron`'s sockets and aims, the role-indexed skeleton (two-bone IK
   needs the upper, lower and end joints by role, which `Skeleton::joint_by_role` gives), the
@@ -850,6 +891,251 @@ ancestry, every other player sees the shape you chose, and a crew is no longer o
   Done is pressed, at most once every 10 seconds per player, collapsed to the latest shape, only to
   players who can see the person, and capped by the relay at a few a minute (protection against a
   modified client flooding nearby players, and against flicker harassment). Later, not urgent.
+
+## 15. Built: rung 2a, feet on the world, crouch and jump (2026-11-09)
+
+The operator approved rungs 0 to 2 on 2026-11-08 ("Let's do this so players get a good player
+model and animations.") and on 2026-11-09 asked for MakeHuman's clothes and hair after foot
+placement, so the feet came next. Section 4's design, built for the feet; the rest of rung 2
+(interaction anchors, grips, hands on rungs, true first person) is 2b.
+
+- **The ground under each foot (section 4's first bullet)** comes through one trait,
+  `humanity_animation::Ground` (the crate never reads the world: it stays pure), which the engine
+  answers in `src/engine/feet_ground.rs`. Aboard, `ShipGround` asks `engine::footing` per sole
+  point, with the person's own feet as the height a step up is measured from (so a foot finds the
+  tread a body there could step onto, never the deck over its head): the room's floor, a floor
+  slab, a stair tread, a ramp, a deck, a platform, an elevator car, a finished built piece. On a
+  planet, `PlanetGround` reads the drawn ground the planet walk stands the player on (the patch drawn
+  there this frame, through one single-shot `DrawnPatchSurface` per frame, with the map packs' road
+  beds and building pads in it; the elevation field where no patch is drawn yet), every position
+  AND direction in f64 all the way to the sampler (a render point near the camera becomes
+  `anchor + rot^-1 (p - camera)` in the body's unrotated frame, the ground point comes back the same
+  way), and its slope from two more samples a quarter metre away in the tangent plane. The showroom
+  stands on its podium (a level floor at its height).
+- **Contacts are labelled on every clip at load** (`feet::label_contacts`, on each body's own
+  bake): a foot is planted when its lowest sole point is within 4 cm of the lowest it goes in that
+  clip and no higher than 8 cm over the floor, rising or falling slowly, and sliding backwards under
+  the body at the clip's own speed (a clip played in place moves a planted foot exactly that way),
+  the limits growing with the clip's speed; one-frame plants are dropped; a clip tagged `air` in
+  `clips.ron` (the jump's air loop, whose hanging feet look low only against themselves) plants
+  nothing. Measured on the female body (the male alike): idle both feet 100%, walk 63% and 61% (one
+  foot alone 76% of the time), crouch walk 59% and 64%, jog 10% and 10%, sprint 14% and 10%, the air
+  loop 0%. The runs' short stance is the clips' own (a few frames at 30 a second); the swing rule
+  below keeps every unplanted foot out of the ground anyway. The graph blends the labels as it
+  blends the poses (`Animator::contacts`).
+- **The solve (section 4's second bullet)**, on each person's OWN reshaped skeleton (`Figure.shape`,
+  never `body.skeleton`) in the body's model space, after the graph's pose: each foot has FOUR sole
+  points (the back of the heel and the point under the ankle, turned with the foot; the point under
+  the ball and the toe tips, turned with the toes; each at its joint's rest height, so feet are
+  never aligned across rigs, rung 1's lesson; the heel and toe reach are measured from the mesh at
+  load). A planted foot first turns to the slope about its ankle (the ground's own normal on a
+  planet and on the test grounds; aboard two samples across 8 cm, a riser read as a step, not a
+  slope; at most 35 degrees); then its lowest sole point against the ground (each point against the
+  plane of the ground sampled under the heel or the ball, so a toe tip on a slope reads the slope)
+  is the pivot and is put ON the ground, which removes rung 1's 1 to 5 cm of sinking: on a step's
+  edge the ball rests and the heel hangs (the toe pivot), at a heel strike the back of the heel
+  touches. (A first build turned the foot about the pivot after lifting it, and a foot already
+  heel-down at a heel strike went 11 degrees further into a 20% slope, 3.7 cm deep.) A swinging foot
+  keeps the clip's lift over the real ground under it, eased as the ground changes and never
+  through it: it asks the ground under all four of its sole points (the planes under the heel and
+  the ball miss a riser between them, and swinging over a nosing the toe tips went 15 to 16 cm into
+  the step above in the second rig sweep), the toe tips read where the toe cap's front is at the
+  toes' pitch that frame (`FootRig::toe_ahead`, measured from the mesh at load for every 5 degrees
+  of pitch: the cap's front stands a few centimetres above the sole, so a foot pitched toes-down
+  carries it ahead of the toe tips, and with only the sole points read the homestead stair test
+  still found a front vertex 1.4 cm ahead of them, 9.4 cm into the riser above), the back of the
+  heel read where the heel counter is at the foot's pitch (`FootRig::heel_behind`: walking DOWN
+  the stair, a foot pitched toes-up carried it behind the heel's back point and cut 6.3 cm into the
+  riser of the step it was leaving in the tests' whole round, 12.4 cm in the fourth rig sweep), and, until it
+  starts down onto its landing, the ground 12 cm further ahead (`swing_ahead_m`), so the lift rises
+  before the next step the way a foot clears a stair, instead of popping up at the riser.
+- **The pelvis** is lowered by the larger drop (so the lower foot can reach its ground with the knee
+  still bent) or raised, less far, when both feet stand higher than the root (a remote player's
+  root interpolated between treads, a dev stand-in gliding up a stair line), smoothed over 0.07 s,
+  and never so high that a planted foot is out of its leg's reach (the follow lags a root climbing a
+  stair while the trailing foot stays on a lower tread). Then a **two-bone analytic IK** per leg
+  (`feet::two_bone`, the method of D. Holden's "Simple Two Joint IK": the knee angle from the law of
+  cosines with the hip-to-ankle line held, then the chain swung about the hip onto the target, the
+  bend kept in the plane the clip's knee already bends in once it bends 30 degrees or more; a nearly
+  straight leg is first twisted about the hip-to-ankle line toward the knee over the toes, because
+  the MakeHuman idle's knees, a few degrees bent and splayed with the legs' rest, bowed outward as
+  the solve bent the uphill leg across the planet vantage's slope) puts each ankle exactly on its target;
+  the foot takes the clip's orientation turned to the slope; the twist joints are redone.
+- **Foot locking** keeps a planted foot's CONTACT POINT where it touched down: the heel's sole point
+  at a heel strike, then the ball's as the foot rolls onto it (the lock moves from one to the other
+  where they are, so nothing jumps), never the ankle, which rises and travels forward as a foot
+  rolls over its ball (the first build locked the ankle and the rolling foot slid 5 cm on a flat
+  floor). It holds fully from the frame the foot plants, lets go over 0.15 s when the clip lifts the
+  foot, and breaks at once when the body is 35 cm from it (a teleport, a turn the clip does not
+  follow). The graph's stride scale is unchanged (speed divided by the person's own stride scale);
+  the lock takes up what stride warping leaves.
+- **Footsteps on stairs (section 4's third bullet)**: `Footing::tread_at` gives the stair piece's
+  axis, the tread's middle and its depth from the piece's own size and riser count. While a foot
+  swings down toward a tread, the move that puts the WHOLE flat foot (back of the heel to the toe
+  tips, from its rest length: a foot touches down pitched and then flattens about its locked heel,
+  growing forward) on that tread's middle is worked out and eased in as the foot comes down (none
+  12 cm up, all of it at touchdown), so the foot lands there and the lock keeps it there: no jump at
+  touchdown and no slide after (a first build moved the lock at touchdown and slid the planted foot
+  10 cm). The end of the foot pointing up the stair is kept at least 3.5 cm short of the next riser
+  (`tread_margin_m`), the other end may hang over the nosing behind, as heels do on a narrow tread
+  (a man's 26 cm foot on the homestead's 28 cm tread leaves 1 cm either side, and the projection of
+  a touchdown lands within about 2 cm, so exact centring and a 1.5 cm margin both left toe tips a
+  fraction of a millimetre into the step above). Where it lands is projected when the foot is low and coming down
+  (its speed over the ground halved, as a landing foot slows to rest; refined each frame), the move
+  is worked out exactly from where the foot is each frame (easing the move lagged the sweeping foot;
+  easing the tread's middle lagged the last nosing), a one- or two-frame gap in a clip's contact is
+  closed, and a foot planted again while its lock is still letting go keeps the same spot.
+  On the shipped homestead's own stair through the real footing, both bodies walking the
+  anim-stairs stand-in's path (the root gliding up the line of the nosings, up to a riser under each
+  tread), as a clip at its own pace and through the game's graph at 60 and at 30 frames a second,
+  every planted foot rests on its tread, its lowest drawn vertex between 0.2 cm under and 1.1 cm
+  over the ground under it, sliding at most 1.0 cm (one start from standing aside, under Known
+  limits), and no swinging foot's vertex goes more than 0.1 cm into a step (before the swing read
+  its own sole points and the toe cap, 16.6 cm, then 9.4 cm); over the path's whole round at 30
+  frames a second, up, the turn on the landing, down and the turn at the foot, planted feet 0.1 cm
+  under to 1.3 cm over and swinging feet at most 0.5 cm into a step (6.3 cm before the heel
+  counter was read, 3.7 cm with it read only at the foot's own pitch: a vertex near the ankle is
+  skinned partly to the shin and swings further than the rigid foot, so the toe cap and the heel
+  counter are read for the most either stands out within 15 degrees of the pitch); on a test stair with the planner off,
+  toes stand 18 cm inside the step above; with the feet off, 40 cm in. The rig's own run is under
+  Proof.
+- **Modes and tiers (8.4 and 8.6)**: `FootMode::Full` for near bodies in the Realistic animation
+  mode (Settings > Gameplay > Animation, Realistic by default, question 5), and question 5's
+  "simplified automatically below it" as a budget: each frame the nearest bodies get the full solve,
+  as many as `full_budget_ms` (characters.ron, 1 ms) buys at what a solve has been costing on this
+  machine (every full solve is timed, the cost eased over frames so one slow frame changes nothing),
+  and the rest of the near tier the pelvis offset (`Report::feet_over_budget` counts them; on the
+  operator's machine a solve costs about 12 microseconds, so the budget buys all 16 near bodies with
+  room to spare, and it bites only on a much slower CPU or a larger near tier); `FootMode::Pelvis`, the
+  pelvis offset alone with one ground query a foot and no leg IK or locking, for middle bodies and
+  for everyone in Simplified (where it raises the whole body until no planted foot is in the ground
+  and holds through a run's flight); `FootMode::Off` is rung 1's pose, the Dev page's Feet on the
+  world switch for a same-boot A/B (showcase `feet`).
+- **Crouch** is a key (Settings > Controls > Crouch, C by default, held; `GameAction::Crouch`,
+  data-driven binding, its label in the action table like every other bind): the walk slows to the
+  crouch pace (data/game.csv `crouch_speed_realistic_mps` 0.8 and `crouch_speed_simplified_mps` 1.6,
+  never faster than the walk; Shift does not sprint while crouching), the first-person view lowers
+  0.55 m, eased (`Camera::view_drop`, a VIEW offset: the camera's position, which the walk, the
+  footing, the walls and reach all read, stays the standing eye, so crouching changes what you see
+  and not where the game holds you; a lower capsule that passes under low things is a later step,
+  because the walk's floor and wall rules read one fixed eye height), and the graph plays the crouch
+  idle and crouch walk (locomotion.ron's `crouch_idle` and `crouch_move`).
+- **Jump** (Space, the existing input) plays the take-off, the air loop and the landing: the graph
+  reads the time off the ground (the walk's own grounded flag, `CameraController::airborne`: not on
+  a ladder, not in dev flight; a step down a stair is no time off the ground) and the vertical speed
+  read from where the body went (`MotionTracker`); a body that leaves the ground going up plays the
+  take-off, one in the air 0.3 s without it (a fall) goes straight to the air loop, and touching
+  down plays the landing before standing or walking on. The feet are off while off the ground.
+- **The network carries the stance (8.5)**: `humanity_core::stance` (compiled into the app and the
+  relay): one number, `"stance"`, the stance's code (plan 8.5's list: stand, crouch, sit, climb,
+  swim, fly, zero-g; only stand and crouch are sent today) plus 128 when off the ground, LEFT OUT
+  when standing on the ground so a standing player's message is the same bytes as before, and read
+  by both ends through one clamping reader (anything that is not a whole number from 0 to 255 or not
+  a known code reads as standing). The relay passes it on to the players who have the sender in view
+  only when it is not plain standing. Others' bodies crouch and jump from it (`RemotePlayer::posture`).
+  A few bytes on an update, only while crouching or in the air.
+- **The character page shows the height in metres** ("1.62 m", words by key,
+  `characters.height_metres`) beside the height slider, in place of the bare multiplier: the chosen
+  body measured from its mesh with the look's height, build and ancestry through `shape_for`
+  (`LoadedBody::standing_height_m`; the sliders' lesson that ancestry moves the top of the head is
+  in it), published by `engine::animation` when the look changes (`GuiState::my_height_m`).
+- **Dev tooling**: the Dev page's Feet on the world switch, and with Show skeletons on, a marker
+  where each foot found the ground (joint-coloured while it is locked); showcase verbs `feet`,
+  `animation_mode`, `crowd_crouch`, `foot_probe` and `hold` with `crouch`; the foot probe
+  (`src/engine/foot_probe.rs`): for a set time, each near body's foot vertices skinned on the CPU
+  with the very palette the GPU draws, measured against the ground under them, written to
+  `debug/foot_probe.json` and judged by `scripts/lib/foot-probe-check.js` (the vantages'
+  `foot_probe`: a planted foot more than 1.5 cm in or 2.5 cm over the ground fails; flat ground under
+  a stair vantage, or nobody planted, is MISCONFIGURED).
+- **Web**: the website draws no 3D world and has no game Settings or character page to mirror, so
+  nothing here has a web twin (the dual-UI parity rule's documented "no").
+- **Proof, in the tests** (each seen red; `src/engine/animation_feet_tests.rs` walks the shipped
+  MakeHuman bodies through their shipped clips and measures the DRAWN feet, the foot vertices skinned
+  on the CPU with the palette the GPU would get, against the ground, each walk run again with the
+  feet off as a control that must fail the same bound):
+  - Flat floor, both bodies, idle, walk, jog, sprint, crouch idle and crouch walk: planted feet
+    between 0.2 cm under and 1.1 cm over the floor, sliding at most 1.5 cm; feet off: the sprint
+    5.1 cm (female) and 4.8 cm (male) in, a walk sliding 9 to 10 cm, a crouch walk 17 to 18 cm.
+  - The stair: above. A 20% slope: planted feet 0.1 to 1.0 cm over it (feet off: 6.0 cm in, 4.2 cm
+    over). Walking a quarter faster than the clip's stride: a locked foot slides 0.8 cm, unlocked
+    20 cm.
+  - The contact labels (above), the two-bone solve (and a nearly straight knee bending over the
+    toes), the graph's crouch and jump, the stance's wire
+    form in the core, through the app's message and through a real relay (a real-socket test), the
+    animation mode's save, and the walking pace's words (BUG-289).
+- **Proof, in the running game** (the release build, rig defaults, 2560x1387, a background game held
+  to 30 frames a second; each vantage's foot probe over 1.5 s, every third foot vertex skinned with
+  the frame's own palette and measured against the ground under it; the feet from sweep
+  `20261110-063602` on the tree merged with main, the costs from the clean sweep `20261110-053403`,
+  both in this rung's worktree's `.probe-rig/sweeps/`; every green vantage passes its foot probe and
+  every `-feet-off` red twin, the same boot with the feet off as rung 1 drew them, FAILS it on its
+  depth):
+  - `anim-stairs` (the stand-in walking the homestead's own stair through the game's graph):
+    planted feet 0.2 to 1.0 cm over their treads, 26 and 30 planted frames, 58 frames on a planned
+    tread, every swinging vertex over its ground (0.4 cm the lowest); `anim-stairs-feet-off`: 36.0
+    and 37.8 cm into the steps. On the way there the second sweep read the left foot 17.2 cm into the
+    step above and the swinging toes 15 to 16 cm into the risers, and the fourth and fifth, with
+    every planted foot passing, swinging feet still 8 to 12 cm in (the toe cap and heel counter
+    measured on the body never reached each person's own legs). Captures `anim-stairs.png`,
+    `anim-stairs-feet-off.png`.
+  - `anim-ramp` (the stand-in walking down the ship's ramp): 0.1 to 0.8 cm over it;
+    `anim-ramp-feet-off`: 2.1 and 2.2 cm in.
+  - `anim-crouch` (the player crouched, the C key held, and the stand-in walking crouched, as
+    another player's crouch arrives over the network): 0.1 to 0.5 cm over the floor, both people.
+  - `anim-slope-map` (the player standing across the 21% cross slope of the Silverdale bank, third
+    person): 0.3 and 0.5 cm over the drawn ground with 15 cm between the ground under the two feet,
+    the uphill knee bent over its toed-out foot; `anim-slope-map-feet-off`: the uphill foot 3.9 cm
+    in, the downhill one 10.9 cm in the air. The first two sweeps showed no body there at all (drawn
+    400 km up with the station, Known limits).
+  - `anim-crowd-near` and `anim-crowd-middle` and their `-feet-off` twins: the costs in 8.0.
+- **For the clothes and hair (the next rung), what this one learned**:
+  - A sole point is its joint's rest height over the body's floor (y = 0), so a SHOE with a sole of
+    its own changes it: once garments are meshes, measure each foot's lowest vertex at rest with its
+    shoe on (`FootRig::with_extents` already measures the heel and toe reach from the foot's
+    vertices; the heights want the same treatment), or a shod foot sinks by its sole.
+  - `LoadedBody::foot_vertices` are the vertices whose largest weight is on a foot or toes joint;
+    a shoe bound the same way joins them, so the foot probe measures the shoe, which is right.
+  - Measure what is drawn: the first builds here passed every check of the IK's own targets while
+    the drawn toes stood 18 cm inside the next tread; only the CPU-skinned mesh against the ground
+    showed it. The same goes for a sleeve through a forearm.
+  - Test the path the game takes, not a neighbour of it: every walk in the tests used the body's
+    own rig while the game builds each person's legs on their reshaped skeleton, and the toe cap
+    and heel counter measured from the mesh never reached that copy (`person_rig`,
+    `FootRig::with_measured` now carry them, and a test compares the two). A garment measured at
+    load has the same trap: whatever is measured from the body must reach each person's copy.
+  - A rig's probe window falls wherever the stand-in happens to be: a path walked both ways in the
+    rig must be walked both ways in the tests (the way down found the heel counter).
+  - The engine's test program takes about ten minutes to rebuild in a worktree; keep the logic in
+    the pure crate where its tests take seconds, and put a debug print behind an environment
+    variable (the feet tests' `FT_DEBUG=1`) rather than rebuilding to look.
+- **Known limits, for the rungs after**:
+  - Crouching keeps the standing capsule: the view lowers and the body crouches, but nothing yet
+    lets a crouched body pass under something low (the walk's floor and wall rules read one fixed
+    eye height, `EYE_HEIGHT_M`, in many places; a crouch capsule is its own careful step).
+  - On a planet only the player's own body stands on the local radial; other players and the crew
+    there are still drawn +Y up (their positions' frame on a planet is the planet co-presence work's),
+    and the dev crowd (`crowd`, `figure_path`) lives in the home frame, which lib.rs moves to the
+    station's orbital place before the scene pass (`station_off`), so the planet slope vantage
+    measures the player's own body. That shift also drew the player's own body 400 km up until this
+    rung: the scene list is the home frame, and the body on a planet stands in render space, so it
+    now joins the list after the shift (`draw_people`'s `render_space`, as the planet piece in hand
+    does). Third person's small lift over the shoulder is along the local up there too.
+  - The stair planner moves a foot only along the stair (a foot that lands across the stair's side
+    edge is the full-body or footstep-search rung's), and asks the toe tips and the back of the heel
+    for a tread only low in the swing.
+  - Quaternius's runs plant a foot for 10 to 14% of their cycle; a run's IK holds that long and keeps
+    every other frame out of the ground, which is right for the clips we have; motion matching's
+    captured runs (rung 3) bring their own contacts.
+  - The take-off clip plays once the body has left the ground (its crouch before the leap is late);
+    an anticipation from the jump key is the step if it shows.
+  - Middle bodies get the pelvis offset alone, so a middle body on a stair stands with one foot on
+    its tread and the other a little in the air: 8.4's tier, by design.
+  - Starting to walk from standing, the idle's planted contacts last into the blend to the walk, so
+    a planted foot can be held while the body moves off until its lock stretches to the 35 cm break
+    and the foot snaps to the clip's place (seen once in the tests: the male body, the stand-in's
+    path through the graph at 60 frames a second, a 35 cm slide in one frame). A start step (rung 3's
+    motion matching has captured starts; until then a step taken when a lock stretches past half the
+    break) is the fix; a softer let-go would only trade the snap for a slide.
 
 ## References
 

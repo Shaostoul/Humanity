@@ -58,6 +58,8 @@ pub mod navigation;
 #[cfg(feature = "native")]
 pub mod history;
 pub mod layers;
+/// The characters' bodies and animation as the pages see them (`GuiState::characters`).
+pub mod characters;
 #[cfg(feature = "native")]
 pub use history::How;
 
@@ -2096,18 +2098,9 @@ pub struct GuiState {
     /// The walking pace's speeds as data/game.csv gives them, metres a second: Realistic walk and
     /// run, Simplified walk and sprint (published by engine::walk_pace for Settings' description).
     pub walk_pace_speeds: [f32; 4],
-    /// The bodies a character can be drawn with (data/characters/characters.ron's choice ids,
-    /// "female" and "male"), published by engine::animation when the character data loads; the
-    /// character page's body chooser lists them. Empty until then.
-    pub body_choices: Vec<String>,
-    /// Each body's shape sliders, by its choice id (2026-11-09; the body files' `shape.sliders`,
-    /// published with `body_choices`): the character page draws the chosen body's (build,
-    /// proportions, ancestry) and writes their values into `appearance.shape`.
-    pub body_sliders: std::collections::BTreeMap<String, Vec<humanity_core::player_look::SliderBlock>>,
-    /// The Dev page's Show skeletons (2026-11-09; showcase `skeletons`): every drawn body's joints
-    /// and bones on top of everything (engine::animation), so a reshaped skeleton can be seen to
-    /// follow its body. Off by default; never saved.
-    pub show_skeletons: bool,
+    /// The characters' bodies and animation as the pages see them (body choices and sliders, the
+    /// player's height, Show skeletons, Feet on the world): `gui/characters.rs`.
+    pub characters: characters::CharactersGui,
     /// The equipped cosmetic outfit being edited in the wardrobe (synced to the ECS player
     /// on confirm). slot id -> cosmetic id.
     pub outfit: humanity_core::ecs::components::Outfit,
@@ -3886,9 +3879,7 @@ impl Default for GuiState {
             appearance: humanity_core::ecs::components::Appearance::default(),
             appearance_dirty: false,
             walk_pace_speeds: [1.4, 4.0, 5.0, 9.5],
-            body_choices: Vec::new(),
-            body_sliders: std::collections::BTreeMap::new(),
-            show_skeletons: false,
+            characters: Default::default(),
             outfit: humanity_core::ecs::components::Outfit::default(),
             outfit_dirty: false,
             showroom_mode: 0,
@@ -4585,6 +4576,10 @@ pub struct SettingsState {
     /// a 9.5 m/s sprint), true is Realistic (1.4 and 4 m/s); speeds from data/game.csv. Saved as
     /// AppConfig::walk_realistic.
     pub walk_realistic: bool,
+    /// Animation (2026-11-09, character animation rung 2a): false is Realistic (the default: feet
+    /// on the world with leg IK, foot locking and stair footsteps for the near bodies), true is
+    /// Simplified (the pelvis offset alone). Saved as AppConfig::anim_simplified.
+    pub anim_simplified: bool,
     /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
     /// content's main colour per marker, the default), true is Full (the scheme's whole marker,
     /// main-additional-main). Saved as AppConfig::pipe_marking_full.
@@ -4762,6 +4757,7 @@ impl Default for SettingsState {
             animal_care_realistic: false,
             carry_realistic: false,
             walk_realistic: false,
+            anim_simplified: false,
             pipe_marking_full: false,
             death_realistic: false,
             drone_realistic: false,

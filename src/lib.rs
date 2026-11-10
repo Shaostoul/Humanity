@@ -9171,7 +9171,10 @@ mod native_app {
                     // players, the crew, the showroom figure, the dev crowd); the box figures
                     // below stand in only when the character data did not load, or for the A/B
                     // switch (showcase `figures`: `boxes`).
-                    let bodies_drawn = crate::engine::animation::draw_people(state, &mut all_objects, &mut overlay_objects, showroom, dt);
+                    // On a planet the player's own body is already in render space: it joins the
+                    // scene list AFTER the station shift below, as `planet_ghost` does (rung 2a).
+                    let mut people_render_space: Vec<RenderObject> = Vec::new();
+                    let bodies_drawn = crate::engine::animation::draw_people(state, &mut all_objects, &mut people_render_space, &mut overlay_objects, showroom, dt);
                     if !showroom && !bodies_drawn {
                         if state.remote_avatar.is_none() {
                             // Sized by the constants remote_figure_parts places the parts by
@@ -14951,6 +14954,7 @@ mod native_app {
                                 }
                                 // The piece in hand on a planet: already in render space (engine/planet_build.rs).
                                 all_objects.append(&mut planet_ghost);
+                                all_objects.append(&mut people_render_space);
                                 // `SceneView::Main`: these four are the live frame's
                                 // `gpu.scene` / `gpu.transparent` / `gpu.overlay` /
                                 // `gpu.lines`; a camera screen's re-render of the same

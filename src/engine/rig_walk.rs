@@ -46,6 +46,8 @@ pub(crate) fn parse_keys(spec: &str) -> Option<Vec<GameAction>> {
             "right" => GameAction::MoveRight,
             "jump" => GameAction::Jump,
             "sprint" => GameAction::Sprint,
+            // Character animation rung 2a: the crouch vantages hold it.
+            "crouch" => GameAction::Crouch,
             _ => return None,
         });
     }

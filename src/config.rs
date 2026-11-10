@@ -933,6 +933,14 @@ pub struct AppConfig {
     /// rule for deep systems. Held in GuiState as `settings.walk_realistic`.
     #[serde(default)]
     pub walk_realistic: bool,
+    /// Animation (2026-11-09, character animation rung 2a; engine::animation): false is Realistic
+    /// (the near bodies' feet on the world with leg IK, foot locking and stair footsteps, the middle
+    /// bodies' pelvis offset), true is Simplified (every body gets the pelvis offset alone). Realistic
+    /// by default: the operator's decision of 2026-11-08 (character-animation.md question 5, "full
+    /// realism where the measured budget allows"), and the feet cost microseconds (section 8.0).
+    /// Held in GuiState as `settings.anim_simplified`.
+    #[serde(default)]
+    pub anim_simplified: bool,
     /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
     /// content's main colour per marker), true is Full (the scheme's whole marker: main,
     /// additional, main for ISO 14726). Simplified by default, the house rule for deep systems.
@@ -1740,6 +1748,7 @@ impl AppConfig {
             animal_care_realistic: state.settings.animal_care_realistic,
             carry_realistic: state.settings.carry_realistic,
             walk_realistic: state.settings.walk_realistic,
+            anim_simplified: state.settings.anim_simplified,
             pipe_marking_full: state.settings.pipe_marking_full,
             death_realistic: state.settings.death_realistic,
             drone_realistic: state.settings.drone_realistic,
@@ -2097,6 +2106,7 @@ impl AppConfig {
         state.settings.animal_care_realistic = self.animal_care_realistic;
         state.settings.carry_realistic = self.carry_realistic;
         state.settings.walk_realistic = self.walk_realistic;
+        state.settings.anim_simplified = self.anim_simplified;
         state.settings.pipe_marking_full = self.pipe_marking_full;
         state.settings.death_realistic = self.death_realistic;
         state.settings.drone_realistic = self.drone_realistic;
@@ -2752,6 +2762,28 @@ mod play_mode_tests {
         old.as_object_mut().unwrap().remove("walk_realistic");
         let read: AppConfig = serde_json::from_value(old).expect("a settings file from before the switch reads");
         assert!(!read.walk_realistic, "and walks at the Simplified pace");
+    }
+
+    /// The animation mode (character animation rung 2a, 2026-11-09) starts Realistic (the
+    /// operator's question 5), a chosen Simplified survives a save and a load through the GUI state,
+    /// the JSON and back, and a settings file written before the switch existed reads as Realistic.
+    /// Seen red 2026-11-09 with `apply_to_gui_state` not copying it back: "Simplified animation stays
+    /// chosen after a restart".
+    #[test]
+    fn the_animation_mode_survives_a_save_and_a_load_and_an_old_file_reads() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.anim_simplified, "the animation starts Realistic");
+        state.settings.anim_simplified = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"anim_simplified\":true"), "the animation mode is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.anim_simplified, "Simplified animation stays chosen after a restart");
+        let mut old: serde_json::Value = serde_json::from_str(&json).unwrap();
+        old.as_object_mut().unwrap().remove("anim_simplified");
+        let read: AppConfig = serde_json::from_value(old).expect("a settings file from before the switch reads");
+        assert!(!read.anim_simplified, "and animates Realistic");
     }
 
     /// The Illness mode (BUG-162, 2026-10-05) starts Forgiving and a chosen Realistic survives

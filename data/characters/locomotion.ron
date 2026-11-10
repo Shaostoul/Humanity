@@ -10,6 +10,10 @@
 // Inputs (crates/humanity-animation/src/motion.rs reads them from where the body went):
 //   Speed     metres a second along the way the body faces, negative walking backwards
 //   TurnRate  radians a second, positive turning left (counter-clockwise seen from above)
+//   Crouch    1 crouching, 0 standing (rung 2a: the crouch key; another player's network stance)
+//   Airborne  seconds off the ground, 0 on it (a step down a stair is no time off the ground)
+//   VerticalSpeed  metres a second upward, read from where the body went
+//   StateTime seconds since the graph entered its current state (only in conditions)
 //
 // A state is a 1D blend space: `samples` place clips (ids in data/characters/clips.ron) at points
 // along its input, and the body plays the two around its input, weighted. `sync` plays them on one
@@ -65,8 +69,59 @@
             sync: true,
             stride: Some((min_rate: 0.55, max_rate: 1.6)),
         ),
+        // CROUCH AND JUMP (rung 2a, 2026-11-09): Quaternius's clips, retargeted since rung 1 and
+        // played now that the graph has the inputs. Crouching is the crouch key (Settings >
+        // Controls; another player's stance as the network carries it); a jump is the time off the
+        // ground and the way the body is going (the walk's own jump, Space).
+        (
+            id: "crouch_idle",
+            param: Speed,
+            samples: [(at: 0.0, clip: "crouch_idle")],
+        ),
+        (
+            // Crouched walking: the library's crouch walk (0.72 m/s on its own rig), played at the
+            // body's speed like the walk.
+            id: "crouch_move",
+            param: Speed,
+            samples: [(at: 0.7, clip: "crouch_walk")],
+            sync: true,
+            stride: Some((min_rate: 0.55, max_rate: 1.6)),
+        ),
+        (
+            // The take-off, played once from its start.
+            id: "jump_up",
+            param: Speed,
+            samples: [(at: 0.0, clip: "jump_start")],
+        ),
+        (
+            // In the air, rising or falling: the library's air loop.
+            id: "jump_air",
+            param: Speed,
+            samples: [(at: 0.0, clip: "jump_air")],
+        ),
+        (
+            // Touching down, played once; then standing or walking on.
+            id: "land",
+            param: Speed,
+            samples: [(at: 0.0, clip: "jump_land")],
+        ),
     ],
     transitions: [
+        // Off the ground first: a jump launches upward (the walk's jump leaves at 5 m/s), a body
+        // that has been in the air a while without one is falling.
+        (from: ["idle", "turn", "move", "crouch_idle", "crouch_move", "land"], to: "jump_up", when: [(param: Airborne, test: Above, value: 0.0), (param: VerticalSpeed, test: Above, value: 1.5)], blend_s: 0.08),
+        (from: ["idle", "turn", "move", "crouch_idle", "crouch_move", "land"], to: "jump_air", when: [(param: Airborne, test: Above, value: 0.3)], blend_s: 0.2),
+        (from: ["jump_up"], to: "jump_air", when: [(param: StateTime, test: Above, value: 0.3)], blend_s: 0.15),
+        (from: ["jump_up", "jump_air"], to: "land", when: [(param: Airborne, test: Below, value: 0.001)], blend_s: 0.06),
+        (from: ["land"], to: "move", when: [(param: StateTime, test: Above, value: 0.25), (param: Speed, test: AbsAbove, value: 0.3)], blend_s: 0.2),
+        (from: ["land"], to: "idle", when: [(param: StateTime, test: Above, value: 0.45)], blend_s: 0.25),
+        // Crouching down and standing up, standing still or walking.
+        (from: ["idle", "turn"], to: "crouch_idle", when: [(param: Crouch, test: Above, value: 0.5)], blend_s: 0.25),
+        (from: ["move"], to: "crouch_move", when: [(param: Crouch, test: Above, value: 0.5)], blend_s: 0.25),
+        (from: ["crouch_idle"], to: "crouch_move", when: [(param: Speed, test: AbsAbove, value: 0.25)], blend_s: 0.25),
+        (from: ["crouch_move"], to: "crouch_idle", when: [(param: Speed, test: AbsBelow, value: 0.12)], blend_s: 0.3),
+        (from: ["crouch_idle"], to: "idle", when: [(param: Crouch, test: Below, value: 0.5)], blend_s: 0.3),
+        (from: ["crouch_move"], to: "move", when: [(param: Crouch, test: Below, value: 0.5)], blend_s: 0.3),
         (from: ["idle", "turn"], to: "move", when: [(param: Speed, test: AbsAbove, value: 0.3)], blend_s: 0.25),
         (from: ["move"], to: "idle", when: [(param: Speed, test: AbsBelow, value: 0.15)], blend_s: 0.3),
         (from: ["idle"], to: "turn", when: [(param: TurnRate, test: AbsAbove, value: 0.7)], blend_s: 0.2),

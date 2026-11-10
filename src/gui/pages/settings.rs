@@ -3982,6 +3982,23 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
         });
         widgets::setting_hint(ui, theme, hint, &walking_pace_hint(state.walk_pace_speeds));
+        // Animation (2026-11-09, character animation rung 2a; engine::animation): the dual-mode
+        // house rule for the bodies. Realistic by default (the operator's question 5).
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new(t("settings.animation_mode")).color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            for (simplified, label, tip) in [
+                (false, "settings.animation_realistic", "settings.animation_realistic_hint"),
+                (true, "settings.animation_simplified", "settings.animation_simplified_hint"),
+            ] {
+                let selected = state.settings.anim_simplified == simplified;
+                if ui.radio(selected, RichText::new(t(label)).color(theme.text_primary())).hint(tip).clicked() && !selected {
+                    state.settings.anim_simplified = simplified;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, t("settings.animation_mode_hint"));
         // Carrying weight (BUG-136, systems::encumbrance; the dual-mode house rule).
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Carrying weight").color(theme.text_secondary()));
@@ -5844,6 +5861,19 @@ mod veg_lod_range_tests {
 ///
 /// Seen red before the fix: "the hint no longer says harm comes half as
 /// fast" (the old text was still there).
+/// BUG-289: the walking pace's description fills in each mode's speeds (`i18n::fill` reads
+/// `{{name}}` placeholders; the words had `{rw}`, so Settings showed "you walk at {rw} metres a
+/// second"). Seen red 2026-11-09 with the words as they were: "the speeds are filled in: How fast
+/// you walk and run ... at {rw} metres a second".
+#[cfg(test)]
+mod walking_pace_hint_tests {
+    #[test]
+    fn the_walking_pace_hint_fills_in_the_speeds() {
+        let hint = super::walking_pace_hint([1.4, 4.0, 5.0, 9.5]);
+        assert!(!hint.contains('{') && hint.contains("1.4") && hint.contains("9.5"), "the speeds are filled in: {hint}");
+    }
+}
+
 #[cfg(test)]
 mod body_heat_hint_tests {
     use super::body_heat_hint;

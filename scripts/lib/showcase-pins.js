@@ -57,6 +57,11 @@ const STICKY_PIN_RESETS = Object.freeze({
   shape: "default",
   skeletons: "0",
   varied_shapes: "1",
+  // Feet on the world (2026-11-09, character animation rung 2a): the Dev page's switch (the A/B
+  // against rung 1's pose as the clips made it) and Settings' animation mode, each released to the
+  // default. A `crowd_crouch` lives in the crowd, cleared above.
+  feet: "1",
+  animation_mode: "realistic",
   // How deep, and how near the camera, the terrain refines inside an installed map pack (2026-11-09,
   // whole-Earth maps, the rung between 2 and 3): a vantage pins {"pack_depth":"13"} to see a pack at
   // the planet's depth, or {"pack_within_m":"100"} to bound its reach.

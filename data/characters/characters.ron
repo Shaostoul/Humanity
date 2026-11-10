@@ -24,6 +24,53 @@
     // skinned once a frame by a compute pass; the rest skin in the vertex shader out to middle_m
     // and, until rung 4's baked far tier, beyond it. 40 m is where the crew nameplate retires too.
     tiers: (near_m: 15.0, middle_m: 40.0, near_cap: 16),
+    // FEET ON THE WORLD (rung 2a, 2026-11-09; crates/humanity-animation/src/feet.rs): the near
+    // bodies' feet go onto the ground under them (two-bone leg IK, the pelvis lowered by the larger
+    // drop, the foot turned to the slope about a toe pivot, foot locking, stair footsteps on tread
+    // middles); the middle bodies get the pelvis offset alone. Lengths in metres, times in seconds.
+    feet: (
+        // The furthest the pelvis drops for a foot on lower ground, and rises when both feet stand
+        // higher than the body's root (a remote player interpolated between two treads).
+        max_drop_m: 0.45,
+        max_raise_m: 0.25,
+        // How fast the pelvis and a swinging foot's lift follow (exponential follows; a planted foot
+        // is put on the ground, and held, at once), and how long a lock takes to let go once the
+        // clip lifts the foot.
+        pelvis_follow_s: 0.07,
+        lift_follow_s: 0.06,
+        lock_out_s: 0.15,
+        // A lock breaks at once when the clip's foot is further than this from it.
+        lock_break_m: 0.35,
+        // The most a planted foot turns to a slope.
+        max_tilt_deg: 35.0,
+        // Contact labels, read from each clip at load: a sole within contact_rel_m of the lowest
+        // it goes in the clip, no higher than contact_abs_m over the floor, rising or falling
+        // slower than contact_rise_mps, and sliding backwards under the body at the clip's own speed
+        // (a clip played in place) to within contact_slip_mps plus contact_slip_share of that
+        // speed, is planted.
+        contact_rel_m: 0.04,
+        contact_abs_m: 0.08,
+        contact_rise_mps: 0.5,
+        contact_slip_mps: 0.3,
+        contact_slip_share: 0.35,
+        // How far apart the ground is sampled to read a slope (a step bigger than a slope over
+        // that span is a riser, and the foot stays level).
+        slope_probe_m: 0.08,
+        // Plan footsteps on stairs: a foot planting on a tread is moved along the stair onto the
+        // tread's middle (the stair piece's own riser and tread), so it does not land across a nosing.
+        plan_steps: true,
+        // The least room left between the end of a planted foot that points up the stair and the
+        // next riser (the other end may hang over the nosing behind, as heels do on a narrow tread).
+        tread_margin_m: 0.035,
+        // How far ahead of its toe tips a swinging foot reads the ground, so its lift rises before
+        // the next step instead of popping up at the riser.
+        swing_ahead_m: 0.12,
+        // The most a frame spends on full foot solves (ms): the nearest bodies get the full solve,
+        // as many as this buys at what one has been costing on this machine (about 12 microseconds
+        // on the operator's i7-8700K, so all 16 near bodies), the rest of the near tier the pelvis
+        // offset (question 5: full realism where the budget allows, simplified automatically below).
+        full_budget_ms: 1.0,
+    ),
     // Each kind of wearer's defaults: the bodies a person of this kind is drawn with when their look
     // names none (one each, by a stable hash of who they are, so a crew is women and men), their
     // skin, hair and eyes when they have no look of their own, and each cosmetic slot's colour when

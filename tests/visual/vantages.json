@@ -1135,11 +1135,12 @@
     {
       "id": "anim-stairs",
       "desc": "The ground hall looking west up the house stair, one stand-in walking up it at 0.9 m/s. Rung 1: the skinned, animated body.",
-      "expect": "A person (a woman or a man, MakeHuman's bodies) in an amber top partway up the stair, walking (legs mid-stride), its feet hovering over or sinking into the treads: rung 2 puts each foot on a tread.",
-      "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
+      "expect": "A person (a woman or a man, MakeHuman's bodies) in an amber top partway up the stair, walking (legs mid-stride), each planted foot flat on a tread and on the tread's middle (rung 2a), the other foot swinging over the next.",
+      "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene. Rung 2a (2026-11-09): its foot_probe judges the drawn feet against the treads; its red twin is anim-stairs-feet-off.",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
         "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "foot_probe feet_on_ground: every planted foot on its tread, within 1.5 cm under to 2.5 cm over (rung 1: up to a riser under)",
         "panics=0"
       ],
       "camera": {
@@ -1158,7 +1159,17 @@
           "figure_path": "42.6,0,38.65;41.0,0,38.65;36.5,3.0,38.65;35.5,3.0,38.65;0.9"
         }
       ],
-      "final_settle_s": 3
+      "final_settle_s": 3,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0.15,
+        "who": [
+          "crowd:0"
+        ]
+      }
     },
     {
       "id": "anim-ladder-boxes",
@@ -2034,6 +2045,319 @@
       "final_showcase": [
         {
           "varied_shapes": "0",
+          "crowd": "50,3.5,-1,0,22"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-stairs-feet-off",
+      "desc": "anim-stairs with the feet off: one stand-in walking up the house stair at 0.9 m/s, drawn as its clips make it (rung 1's pose).",
+      "expect": "The person on the stair with feet sinking into the treads or hovering over them: the root glides up the line of the nosings, up to a riser under each tread.",
+      "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. The same scene with the Dev page's Feet on the world off (showcase `feet` 0): every body drawn as its clips make it, exactly as rung 1 (main before this rung) drew it. The red twin of the same boot; its foot_probe is expected to FAIL.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.7,38.7,-1.5708,0.2",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "feet": "0",
+          "figure_path": "42.6,0,38.65;41.0,0,38.65;36.5,3.0,38.65;35.5,3.0,38.65;0.9"
+        }
+      ],
+      "final_settle_s": 3,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0.15,
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-ramp",
+      "desc": "The homestead's ramp up to the train platform (ramp-1, 0.4 m over 6.8 m), looking north up it from its foot, one stand-in walking up it at 0.9 m/s.",
+      "expect": "A person in an amber top walking up the gentle ramp away from the camera, each planted foot flat on the sloping deck (turned to its slope), not toe-down into it.",
+      "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. A ship ramp: footing's Ramp surface under each foot, the foot turned to the slope about its pivot.",
+      "regressions": [
+        "foot_probe feet_on_ground: every planted foot on the ramp, within 1.5 cm under to 2.5 cm over",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "48,1.6,26.5,0,-0.12",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figure_path": "48,0,23.5;48,0,20.8;48,0.4,14.0;48,0.4,12.5;0.9"
+        }
+      ],
+      "final_settle_s": 4,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0.02,
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-ramp-feet-off",
+      "desc": "anim-ramp with the feet off (rung 1's pose).",
+      "expect": "The person on the ramp, feet as the flat-floor clip has them.",
+      "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. The same scene with the Dev page's Feet on the world off (showcase `feet` 0): every body drawn as its clips make it, exactly as rung 1 (main before this rung) drew it. The red twin of the same boot; its foot_probe is expected to FAIL.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "48,1.6,26.5,0,-0.12",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "feet": "0",
+          "figure_path": "48,0,23.5;48,0,20.8;48,0.4,14.0;48,0.4,12.5;0.9"
+        }
+      ],
+      "final_settle_s": 4,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0.02,
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-crouch",
+      "desc": "Third person in the homestead's hall three metres in from the front door, the player's own body crouching (C held) at the Realistic pace, and one stand-in crouch-walking across the hall ahead at 0.8 m/s.",
+      "expect": "From behind, the player's body crouched low (knees bent, hips down) with its feet flat on the floor; ahead, an amber-topped figure walking crouched. The first-person eye is not shown (third person).",
+      "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. Crouch (rung 2a): the crouch key (Settings > Controls, C by default) plays Quaternius's crouch idle and crouch walk through the graph, and the network carries the stance (humanity_core::stance) so others see it; the stand-in crouches as another player's crouch arrives (showcase `crowd_crouch`).",
+      "regressions": [
+        "the player's body is crouched, not standing",
+        "the stand-in walks crouched",
+        "foot_probe feet_on_ground: every planted foot on the floor",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "50,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "walk_pace": "realistic",
+          "figure_path": "46.5,0,39.2;42.5,0,39.2;0.8"
+        },
+        {
+          "crowd_crouch": "1",
+          "hold": "crouch",
+          "hold_s": "8"
+        }
+      ],
+      "final_settle_s": 2,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0,
+        "who": [
+          "me",
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-slope-map",
+      "desc": "Third person on the grassy bank beside the Silverdale street that crosses a side slope (OSM way 5915750, a 21% cross slope rising east; silverdale-road-slope's place), the player's body standing across the slope looking north-north-west along the street.",
+      "expect": "From behind, the player's body standing on the sloping bank, its uphill (right) foot higher than its downhill (left) foot, both soles on the grass, the hips level between them; the street on its bed beyond.",
+      "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. A slope on the map ground: on a planet the ground under each foot is the drawn terrain the walk stands the player on (map packs' road beds and building pads included), every position and direction in f64 to the sampler (src/engine/feet_ground.rs PlanetGround).",
+      "regressions": [
+        "the player's body stands upright on the ground (its up the local vertical)",
+        "foot_probe feet_on_ground: both planted feet on the slope",
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 47.64907,
+        "lon": -122.674189,
+        "altitude_km": 0.06,
+        "look_offset_deg": 70,
+        "time": 12
+      },
+      "showcase": {
+        "sea": "0.3",
+        "weather": "clear",
+        "cloud_cover": "0",
+        "wind": "0"
+      },
+      "final_showcase": [
+        {
+          "stand": "6,2.5,12,330,-8",
+          "stand_at": "47.64907,-122.674189"
+        },
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "body": "female"
+        }
+      ],
+      "final_settle_s": 10,
+      "settle_s": 14,
+      "perf_floor_fps": 5,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0.02,
+        "who": [
+          "me"
+        ]
+      }
+    },
+    {
+      "id": "anim-slope-map-feet-off",
+      "desc": "anim-slope-map with the feet off (rung 1's pose): the player's body on the sloping bank as its idle clip draws it.",
+      "expect": "The body on the slope with both feet at one height: the uphill foot sunk into the bank or the downhill one hovering.",
+      "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. The same scene with the Dev page's Feet on the world off (showcase `feet` 0): every body drawn as its clips make it, exactly as rung 1 (main before this rung) drew it. The red twin of the same boot; its foot_probe is expected to FAIL.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 47.64907,
+        "lon": -122.674189,
+        "altitude_km": 0.06,
+        "look_offset_deg": 70,
+        "time": 12
+      },
+      "showcase": {
+        "sea": "0.3",
+        "weather": "clear",
+        "cloud_cover": "0",
+        "wind": "0"
+      },
+      "final_showcase": [
+        {
+          "stand": "6,2.5,12,330,-8",
+          "stand_at": "47.64907,-122.674189"
+        },
+        {
+          "camera_mode": "third",
+          "walk": "1",
+          "hud": "0",
+          "body": "female",
+          "feet": "0"
+        }
+      ],
+      "final_settle_s": 10,
+      "settle_s": 14,
+      "perf_floor_fps": 5,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0.02,
+        "who": [
+          "me"
+        ]
+      }
+    },
+    {
+      "id": "anim-crowd-near-feet-off",
+      "desc": "anim-crowd-near with the feet off (showcase `feet` 0): fifty stand-ins in the mess hall, 6 to 14 m away (16 near, 34 middle), drawn as their clips make them, as main drew them.",
+      "expect": "Fifty people moving as in anim-crowd-near.",
+      "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. The cost: the same-boot twin of anim-crowd-near, so cpu.animation (the feet are CPU work: two-bone IK and ground queries for the 16 near bodies, the pelvis offset for the 34 middle ones) of the two in one boot measures what the feet cost.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "feet": "0",
+          "crowd": "50,3.5,-1,0,10"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-crowd-middle-feet-off",
+      "desc": "anim-crowd-middle with the feet off: fifty stand-ins 18 to 26 m away (all middle), drawn as their clips make them.",
+      "expect": "Fifty people moving as in anim-crowd-middle.",
+      "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. The cost of the middle tier's pelvis offset: the same-boot twin of anim-crowd-middle.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "feet": "0",
           "crowd": "50,3.5,-1,0,22"
         }
       ],

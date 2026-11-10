@@ -43,6 +43,11 @@ pub enum NetMessage {
         rotation: [f32; 4],
         velocity: [f32; 3],
         timestamp: f64,
+        /// How they stand (character animation rung 2a, 2026-11-09: crouching, off the ground),
+        /// read and clamped by `humanity_core::stance`; standing on the ground when the message
+        /// carries none (an older app's).
+        #[serde(skip)]
+        stance: humanity_core::stance::Posture,
     },
     /// Server spawns a new entity in the world.
     EntitySpawn {

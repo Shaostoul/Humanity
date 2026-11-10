@@ -333,7 +333,13 @@ window.HOS_I18N_EN = {
     "walking_simplified_hint": "A quick walk and a fast sprint, so the ship and the land are quick to cross.",
     "walking_realistic": "Realistic",
     "walking_realistic_hint": "Walk and run at the speeds a real person does.",
-    "walking_pace_hint": "How fast you walk and run (hold Shift to run). Realistic: you walk at {rw} metres a second, the pace of someone in no hurry, and run at {rr}. Simplified: you walk at {sw} and sprint at {sr}. Your body's stride follows the speed either way, and other players see you move at the speed you choose."
+    "walking_pace_hint": "How fast you walk and run (hold Shift to run, C to crouch). Realistic: you walk at {{rw}} metres a second, the pace of someone in no hurry, and run at {{rr}}. Simplified: you walk at {{sw}} and sprint at {{sr}}. Your body's stride follows the speed either way, and other players see you move at the speed you choose.",
+    "animation_mode": "Animation",
+    "animation_realistic": "Realistic",
+    "animation_realistic_hint": "Each foot of the people near you stands on the floor, step or slope under it, and a planted foot does not slide.",
+    "animation_simplified": "Simplified",
+    "animation_simplified_hint": "People are raised or lowered onto the ground as a whole, without bending their legs to it. A little lighter on the computer.",
+    "animation_mode_hint": "How people's bodies meet the ground. Realistic: the people near you put each foot on the floor, stair tread or slope under it, bending the knee to reach it, and a foot holds still while it carries weight; people further away are raised or lowered onto the ground as a whole. Simplified: everyone is raised or lowered as a whole. What you can do, and where the game holds you, is the same either way."
   },
   "laws": {
     "title": "Laws and rights",
@@ -2517,7 +2523,9 @@ window.HOS_I18N_EN = {
       "brain_mismatch": "The installed model does not match the catalog, so it was not loaded: {{detail}}",
       "loaded": "Loaded:",
       "loaded_value": "{{id}} (SHA-256 {{sha}}...), {{threads}} threads, a memory cap of {{cap}} MB"
-    }
+    },
+    "feet_on_world": "Feet on the world",
+    "feet_on_world_hint": "Puts every person's feet on the floor, stair or slope under them (the animation mode in Settings says how). Turn it off to see bodies as their animations alone draw them, feet sinking or floating, to compare. With Show skeletons on, each planted foot's spot on the ground is marked too."
   },
   "dev_journal": {
     "title": "Play journal",
@@ -3297,7 +3305,9 @@ window.HOS_I18N_EN = {
     "shape_european_hint": "How much of the blend takes after people with European ancestry. The three shares always add up to 100%.",
     "shape_share": "{{n}}%",
     "shape_reset": "Reset body shape",
-    "shape_reset_hint": "Puts height, build, proportions and ancestry back to the body as it was made."
+    "shape_reset_hint": "Puts height, build, proportions and ancestry back to the body as it was made.",
+    "height_metres": "{{m}} m",
+    "height_metres_hint": "How tall this body stands, in metres, measured from the body itself with your build and ancestry: the height everyone you meet sees."
   },
   "devlog": {
     "page_title": "Devlog, HumanityOS",

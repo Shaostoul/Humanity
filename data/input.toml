@@ -34,9 +34,9 @@ description = "Jump"
 
 [[bindings]]
 action = "crouch"
-primary = "ControlLeft"
+primary = "KeyC"
 secondary = ""
-description = "Crouch / descend"
+description = "Crouch (hold); Settings > Controls rebinds it (crates/humanity-core/src/input/bindings.rs)"
 
 [[bindings]]
 action = "sprint"

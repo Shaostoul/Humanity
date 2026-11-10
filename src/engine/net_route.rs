@@ -362,6 +362,8 @@ pub(crate) fn position_update_from(v: &serde_json::Value, joined: bool) -> Optio
         rotation,
         velocity,
         timestamp,
+        // Clamped by the shared reader; an older app's message (none) reads as standing.
+        stance: humanity_core::stance::Posture::from_json(v.get("stance")),
     })
 }
 
@@ -622,7 +624,12 @@ pub(crate) fn drive_position_send(state: &mut EngineState, in_world: bool, dt: f
     let position = crate::engine::move_check::body_position(state);
     let yaw = state.camera.yaw;
     let out = state.net_sync.position_to_send(dt, real_dt, in_world, position, yaw, &mut state.game_pos_timer);
-    if let Some(out) = out {
+    if let Some(mut out) = out {
+        // The update on leaving the world view stands still, on the ground; every other carries
+        // how we stand now.
+        if in_world {
+            out.stance = local_posture(state);
+        }
         send_game_position(state, &out);
     }
 }
@@ -650,7 +657,7 @@ pub(crate) fn position_update_json(out: &crate::net::sync::OutgoingPosition) -> 
     // standing update on leaving the world view. The other players' screens
     // keep our figure walking along it when one of these messages is late.
     let v = out.velocity;
-    serde_json::json!({
+    let mut msg = serde_json::json!({
         "type": "game_position_update",
         "position": [p.x, p.y, p.z],
         "rotation": [0.0, qy, 0.0, qw],
@@ -662,7 +669,24 @@ pub(crate) fn position_update_json(out: &crate::net::sync::OutgoingPosition) -> 
         // relay forwards it untouched. 0 would mean "no clock" (an older
         // client), so the clock never reads 0 (src/net/sync.rs PositionSender).
         "timestamp": out.timestamp,
-    })
+    });
+    // How we stand (character animation rung 2a, 2026-11-09): crouching, off the ground. Left out
+    // when standing on the ground, so that message is the same bytes as before (humanity_core::stance).
+    if let Some(stance) = out.stance.to_json() {
+        msg["stance"] = stance;
+    }
+    msg
+}
+
+/// How the local player stands this frame, for the movement message (rung 2a): crouching when the
+/// crouch key is held on foot, off the ground while the walk has them in the air (a jump, a fall;
+/// not on a ladder, not in dev flight).
+pub(crate) fn local_posture(state: &EngineState) -> humanity_core::stance::Posture {
+    let c = &state.controller;
+    humanity_core::stance::Posture {
+        stance: if c.crouching() { humanity_core::stance::Stance::Crouch } else { humanity_core::stance::Stance::Stand },
+        airborne: c.airborne(),
+    }
 }
 
 /// One body's surface def as read and baked with NO GPU and NO engine state:
@@ -1367,7 +1391,7 @@ mod tests {
         let mesh = figure_head_mesh_data(FIGURE_HEAD_MESH_R_M);
         for yaw in [0.0f32, 0.7, 2.0, -2.6] {
             // Our camera's yaw, as it goes out and as the other client reads it.
-            let out = OutgoingPosition { position: Vec3::new(4.0, 1.7, -3.0), yaw, velocity: Vec3::ZERO, timestamp: 1.0 };
+            let out = OutgoingPosition { position: Vec3::new(4.0, 1.7, -3.0), yaw, velocity: Vec3::ZERO, timestamp: 1.0, stance: Default::default() };
             let mut v = position_update_json(&out);
             v["player_id"] = serde_json::json!(9);
             let Some(NetMessage::PositionUpdate { position, rotation, .. }) = position_update_from(&v, true) else {
@@ -1533,24 +1557,37 @@ mod tests {
     /// another player's position"; (2) sending `"timestamp": 0.0` as before
     /// FAILS with "assertion `left == right` failed: the sender's clock goes
     /// out as the timestamp".
+    ///
+    /// THE STANCE (character animation rung 2a, 2026-11-09): a crouch in the air goes out as
+    /// `"stance": 129` and reads back as that; standing on the ground goes out as no field at all
+    /// (the message as before), and an older message without one reads as standing. Seen red
+    /// 2026-11-09 with `position_update_from` leaving the stance at its default: "the crouch comes
+    /// back" (left: Posture { stance: Stand, airborne: false }, right: Crouch, airborne).
     #[test]
     fn our_position_update_carries_our_clock_and_others_are_taken_only_once_joined() {
         use crate::net::protocol::NetMessage;
         use crate::net::sync::OutgoingPosition;
         use glam::Vec3;
+        use humanity_core::stance::{Posture, Stance};
+        let crouched = Posture { stance: Stance::Crouch, airborne: true };
         let out = OutgoingPosition {
             position: Vec3::new(1.0, 1.7, -2.0),
             yaw: 0.5,
             velocity: Vec3::new(5.0, 0.0, 0.0),
             timestamp: 12.345,
+            stance: crouched,
         };
         let mut v = position_update_json(&out);
         assert_eq!(v["type"], "game_position_update");
+        assert_eq!(v["stance"], serde_json::json!(129));
+        let standing = position_update_json(&OutgoingPosition { stance: Posture::default(), ..out });
+        assert!(standing.get("stance").is_none(), "standing on the ground goes out as no field: {standing}");
         // The relay adds who sent it before passing it on.
         v["player_id"] = serde_json::json!(42);
         assert!(position_update_from(&v, false).is_none(), "a chat-only client does not queue another player's position");
         match position_update_from(&v, true) {
-            Some(NetMessage::PositionUpdate { player_id, position, rotation, velocity, timestamp }) => {
+            Some(NetMessage::PositionUpdate { player_id, position, rotation, velocity, timestamp, stance }) => {
+                assert_eq!(stance, crouched, "the crouch comes back");
                 assert_eq!(player_id, 42);
                 assert_eq!(timestamp, 12.345, "the sender's clock goes out as the timestamp");
                 assert_eq!(position, [1.0, 1.7, -2.0]);
@@ -1563,8 +1600,9 @@ mod tests {
         // An older client's message without a timestamp: "no clock".
         let old = serde_json::json!({"type": "game_position_update", "player_id": 7, "position": [0.0, 0.0, 0.0]});
         match position_update_from(&old, true) {
-            Some(NetMessage::PositionUpdate { timestamp, rotation, velocity, .. }) => {
+            Some(NetMessage::PositionUpdate { timestamp, rotation, velocity, stance, .. }) => {
                 assert_eq!((timestamp, rotation, velocity), (0.0, [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0]));
+                assert_eq!(stance, humanity_core::stance::Posture::default(), "an older message reads as standing");
             }
             other => panic!("an older client's update is still read, got {other:?}"),
         }
@@ -1611,6 +1649,7 @@ mod tests {
                 velocity: Vec3::ZERO,
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
+                posture: Default::default(),
                 look: None,
                 key: None,
             },
@@ -1628,6 +1667,7 @@ mod tests {
                 velocity: Vec3::ZERO,
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
+                posture: Default::default(),
                 look: Some(tallest.clone()),
                 key: None,
             },

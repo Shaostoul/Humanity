@@ -3249,7 +3249,7 @@ pub async fn handle_game_position_update(
     let (quest_progress, greeting) = world.quest_step_at(player_id, position);
 
     // Relay to the players who have them in view, and nobody else (increment 4).
-    let update = serde_json::json!({
+    let mut update = serde_json::json!({
         "type": "game_position_update",
         "player_id": player_id,
         "position": position,
@@ -3257,6 +3257,12 @@ pub async fn handle_game_position_update(
         "velocity": velocity,
         "timestamp": timestamp,
     });
+    // How they stand (character animation rung 2a, 2026-11-09: crouching, off the ground), clamped
+    // by the shared reader and passed on only when it is not plain standing, so a standing player's
+    // update is the same bytes as before (humanity_core::stance).
+    if let Some(stance) = humanity_core::stance::Posture::from_json(raw.get("stance")).to_json() {
+        update["stance"] = stance;
+    }
     // Whoever just came into view is sent whole first, so their game draws them before the move.
     // Both go out before the world is let go (increment 4 review, P4): sent after it, another
     // player's move could take this one out of a viewer's view in between, and this update would

@@ -264,10 +264,22 @@ fn the_blend_space_brackets_its_input_and_strides_match_the_bodys_speed() {
 fn marker_clips(skel: &Skeleton, h: &crate::HumanoidDef) -> ClipSet {
     let hips = skel.joint_by_role(h, "hips").unwrap();
     let mut set = ClipSet::default();
-    for (id, deg, speed) in [("idle", 0.0, 0.0), ("walk", 10.0, 1.0), ("jog", 20.0, 5.9), ("sprint", 25.0, 8.9), ("turn_left", 30.0, 0.0), ("turn_right", -30.0, 0.0)] {
+    for (id, deg, speed) in [
+        ("idle", 0.0, 0.0),
+        ("walk", 10.0, 1.0),
+        ("jog", 20.0, 5.9),
+        ("sprint", 25.0, 8.9),
+        ("turn_left", 30.0, 0.0),
+        ("turn_right", -30.0, 0.0),
+        ("crouch_idle", 40.0, 0.0),
+        ("crouch_walk", 45.0, 0.72),
+        ("jump_start", 50.0, 0.0),
+        ("jump_air", 55.0, 0.0),
+        ("jump_land", 60.0, 0.0),
+    ] {
         let mut rotations = vec![None; skel.joint_count()];
         rotations[hips] = Some(vec![Quat::from_rotation_y(f32::to_radians(deg)); 31]);
-        set.insert(id, Clip { name: id.into(), duration: 1.0, fps: 30.0, frames: 31, looped: true, speed_mps: speed, rotations, translations: vec![None; skel.joint_count()] });
+        set.insert(id, Clip { name: id.into(), duration: 1.0, fps: 30.0, frames: 31, looped: true, speed_mps: speed, rotations, translations: vec![None; skel.joint_count()], contacts: Vec::new() });
     }
     set
 }
@@ -318,6 +330,55 @@ fn the_shipped_graph_idles_turns_walks_runs_and_fades_back() {
     run(&mut anim, LocomotionInput::default(), 1.5, &mut pose);
     assert_eq!(graph.state_ids[anim.state()], "idle");
     assert!(hips_yaw_deg(&pose, &skel, &h).abs() < 0.5);
+}
+
+/// THE SHIPPED GRAPH CROUCHES AND JUMPS (rung 2a, 2026-11-09), on marker clips: the crouch input
+/// takes standing to the crouch idle and walking to the crouch walk, and letting go stands up; a
+/// body that leaves the ground going up plays the take-off, then the air loop, then the landing
+/// once it is down, then idles; a body in the air a while without rising (a fall) goes straight to
+/// the air loop.
+/// Seen red 2026-11-09 with crouch_idle left out of the take-off's `from` list in the data: "a
+/// crouched body that jumps plays the take-off" (left: "crouch_idle", right: "jump_up").
+#[test]
+fn the_shipped_graph_crouches_and_jumps() {
+    let h = humanoid();
+    let (joints, map) = body_rig();
+    let skel = Skeleton::from_skin(&joints, &map, &h).unwrap();
+    let clips = marker_clips(&skel, &h);
+    let text = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/characters/locomotion.ron")).unwrap();
+    let graph = Graph::resolve(&Graph::parse(&text).unwrap(), &clips).expect("the shipped graph resolves");
+    let mut anim = Animator::new(&graph);
+    let mut pose = Pose::default();
+    let state = |anim: &Animator| graph.state_ids[anim.state()].clone();
+    let mut run = |anim: &mut Animator, input: LocomotionInput, secs: f32| {
+        for _ in 0..(secs / 0.05) as usize {
+            anim.update(&graph, &clips, &skel, &h, &input, 0.05, &mut pose);
+        }
+    };
+    let crouch = LocomotionInput { crouch: 1.0, ..Default::default() };
+    run(&mut anim, crouch, 1.0);
+    assert_eq!(state(&anim), "crouch_idle");
+    run(&mut anim, LocomotionInput { speed: 0.7, ..crouch }, 1.0);
+    assert_eq!(state(&anim), "crouch_move");
+    run(&mut anim, LocomotionInput { speed: 0.7, ..Default::default() }, 1.0);
+    assert_eq!(state(&anim), "move", "letting go of crouch while walking stands up and walks");
+    run(&mut anim, LocomotionInput::default(), 1.0);
+    assert_eq!(state(&anim), "idle");
+    // A jump from a crouch.
+    run(&mut anim, crouch, 1.0);
+    run(&mut anim, LocomotionInput { airborne: 0.05, vertical: 4.5, ..crouch }, 0.1);
+    assert_eq!(state(&anim), "jump_up", "a crouched body that jumps plays the take-off");
+    run(&mut anim, LocomotionInput { airborne: 0.5, vertical: 0.5, ..Default::default() }, 0.4);
+    assert_eq!(state(&anim), "jump_air");
+    run(&mut anim, LocomotionInput::default(), 0.1);
+    assert_eq!(state(&anim), "land");
+    run(&mut anim, LocomotionInput::default(), 1.0);
+    assert_eq!(state(&anim), "idle");
+    // A fall off an edge: no take-off, straight to the air loop.
+    run(&mut anim, LocomotionInput { airborne: 0.2, vertical: -2.0, ..Default::default() }, 0.1);
+    assert_eq!(state(&anim), "idle", "a moment off the ground is not yet a fall");
+    run(&mut anim, LocomotionInput { airborne: 0.4, vertical: -4.0, ..Default::default() }, 0.1);
+    assert_eq!(state(&anim), "jump_air");
 }
 
 /// Speed along the facing, sideways speed and turn rate, from positions alone; a teleport resets

@@ -99,7 +99,7 @@ pub fn retarget(
     // the hips' travel (2026-11-09: left unscaled, the library's walk played on MakeHuman's female
     // body, whose hips stand 0.83 m to the library's 0.88, slid its planted foot 6%).
     let speed_mps = speed_mps * travel_scale;
-    Clip { name: src.name.clone(), duration: src.duration, fps, frames, looped, speed_mps, rotations, translations }
+    Clip { name: src.name.clone(), duration: src.duration, fps, frames, looped, speed_mps, rotations, translations, contacts: Vec::new() }
 }
 
 /// The rest alignment `C` of each body joint: for a role marked `align` whose joint and aim joint

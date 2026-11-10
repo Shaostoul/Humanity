@@ -1065,8 +1065,8 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // and bones on top of everything.
     if let Some(v) = grab("skeletons") {
         let on = v == "1";
-        if state.gui_state.show_skeletons != on {
-            state.gui_state.show_skeletons = on;
+        if state.gui_state.characters.show_skeletons != on {
+            state.gui_state.characters.show_skeletons = on;
             log::info!("Showcase: skeletons -> {on}");
         }
     }
@@ -1075,6 +1075,50 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(v) = grab("varied_shapes") {
         state.animation.varied_shapes = v != "0";
         log::info!("Showcase: varied_shapes -> {}", state.animation.varied_shapes);
+    }
+    // FEET ON THE WORLD'S VERBS (character animation rung 2a, 2026-11-09). Permanent dev tooling.
+    // {"feet":"0"} / {"feet":"1"}: the Dev page's Feet on the world, the same-boot A/B of the feet
+    // against rung 1's pose as the clips made it.
+    if let Some(v) = grab("feet") {
+        let on = v != "0";
+        if state.gui_state.characters.feet_on_world != on {
+            state.gui_state.characters.feet_on_world = on;
+            log::info!("Showcase: feet -> {on}");
+        }
+    }
+    // {"animation_mode":"simplified"} / {"animation_mode":"realistic"}: Settings' animation mode.
+    if let Some(v) = grab("animation_mode") {
+        match v.as_str() {
+            "realistic" | "simplified" => {
+                let simplified = v == "simplified";
+                if state.gui_state.settings.anim_simplified != simplified {
+                    state.gui_state.settings.anim_simplified = simplified;
+                    state.gui_state.settings_dirty = true;
+                    log::info!("Showcase: animation_mode -> {v}");
+                }
+            }
+            _ => log::warn!("Showcase: animation_mode wants \"realistic\" or \"simplified\", not {v:?}"),
+        }
+    }
+    // {"crowd_crouch":"1"}: every dev stand-in crouches (as another player's crouch arrives), "0"
+    // stands them up.
+    if let Some(v) = grab("crowd_crouch") {
+        let on = v != "0";
+        state.animation.crowd.iter_mut().for_each(|c| c.crouch = on);
+        log::info!("Showcase: crowd_crouch -> {on} ({} stand-ins)", state.animation.crowd.len());
+    }
+    // {"foot_probe":"1.5"}: for that many seconds, measure every near body's DRAWN feet (the foot
+    // vertices skinned with the GPU's own palette) against the ground under them, then write
+    // debug/foot_probe.json (engine/foot_probe.rs) for the vantages' `foot_probe` check.
+    if let Some(v) = grab("foot_probe") {
+        match v.trim().parse::<f32>() {
+            Ok(s) if s.is_finite() && s > 0.0 && s <= 30.0 => {
+                let _ = std::fs::remove_file(crate::engine::foot_probe::REPORT_PATH);
+                state.animation.probe = Some(crate::engine::animation::FootProbe { until: state.animation.clock() + s, ..Default::default() });
+                log::info!("Showcase: foot_probe -> watching for {s} s");
+            }
+            _ => log::warn!("Showcase: foot_probe wants seconds from 0 to 30, not {v:?}"),
+        }
     }
     // {"walk_pace":"realistic"} / {"walk_pace":"simplified"} (2026-11-09): Settings' walking pace
     // (engine/walk_pace.rs), so a rig walks and runs at either mode's speeds.
@@ -4989,6 +5033,7 @@ mod remote_player_recorder_tests {
                 velocity: Vec3::ZERO,
                 interpolation_t: 0.5,
                 last_update_time: 0.0,
+                posture: Default::default(),
             },
             SnapshotBuffer::new(target, Quat::IDENTITY, Vec3::ZERO, 0.0, 1.0),
         ));

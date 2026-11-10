@@ -46,6 +46,9 @@ pub struct RemotePlayer {
     /// When their newest update arrived, seconds on this machine's sync clock
     /// (`NetSyncSystem`'s, not theirs).
     pub last_update_time: f64,
+    /// How they stand, from their newest update (character animation rung 2a, 2026-11-09): their
+    /// body crouches when they crouch and plays a jump when they are off the ground.
+    pub posture: humanity_core::stance::Posture,
 }
 
 /// Component marking an entity as a relay-driven crew NPC (v0.663).
@@ -733,6 +736,9 @@ pub struct OutgoingPosition {
     /// Our steady clock when this position held, seconds: the `timestamp`
     /// field (see `PositionSender`).
     pub timestamp: f64,
+    /// How we stand (character animation rung 2a, 2026-11-09): standing on the ground unless the
+    /// frame says otherwise (`engine::net_route::drive_position_send` sets it from the walk).
+    pub stance: humanity_core::stance::Posture,
 }
 
 /// The sending side (2026-10-02, round two): decides on each frame whether a
@@ -830,7 +836,7 @@ impl PositionSender {
         let measured = self.meter.sample(position, moved);
         self.last_sent = timestamp;
         let velocity = if standing { Vec3::ZERO } else { measured };
-        OutgoingPosition { position, yaw, velocity, timestamp }
+        OutgoingPosition { position, yaw, velocity, timestamp, stance: Default::default() }
     }
 }
 
@@ -996,6 +1002,7 @@ impl System for NetSyncSystem {
                             velocity: Vec3::ZERO,
                             interpolation_t: 1.0,
                             last_update_time: now,
+                            posture: Default::default(),
                         },
                         SnapshotBuffer::new(pos, Quat::IDENTITY, Vec3::ZERO, now, 0.0),
                     ));
@@ -1024,6 +1031,7 @@ impl System for NetSyncSystem {
                     rotation,
                     velocity,
                     timestamp,
+                    stance,
                 } => {
                     // Never track ourselves (the relay echoes our own updates back), nor one the
                     // relay took off our screen and has not brought back (`gone`).
@@ -1060,6 +1068,7 @@ impl System for NetSyncSystem {
                             buffer.push(pos, rot, vel, now, timestamp);
                             remote.velocity = clean_velocity(vel);
                             remote.last_update_time = now;
+                            remote.posture = stance;
                         }
                         continue;
                     }
@@ -1082,6 +1091,7 @@ impl System for NetSyncSystem {
                             velocity: clean_velocity(vel),
                             interpolation_t: 1.0,
                             last_update_time: now,
+                            posture: stance,
                         },
                         SnapshotBuffer::new(pos, rot, vel, now, timestamp),
                     ));
@@ -1322,6 +1332,7 @@ pub(crate) mod tests {
                 rotation: [0.0, 0.0, 0.0, 1.0],
                 velocity: [0.0, 0.0, 0.0],
                 timestamp: 0.0,
+                stance: Default::default(),
             },
         ]);
         sys.tick(&mut world, 0.016, &data);
@@ -1496,6 +1507,7 @@ pub(crate) mod tests {
                     rotation: [0.0, 0.0, 0.0, 1.0],
                     velocity: d.vel.to_array(),
                     timestamp: d.stamp,
+                    stance: Default::default(),
                 });
                 next += 1;
             }
@@ -1871,6 +1883,7 @@ pub(crate) mod tests {
                     rotation: [0.0, 0.0, 0.0, 1.0],
                     velocity: d.vel.to_array(),
                     timestamp: d.stamp,
+                    stance: Default::default(),
                 });
                 next += 1;
             }
@@ -2194,7 +2207,7 @@ pub(crate) mod tests {
         let data = humanity_core::hot_reload::data_store::DataStore::new();
         let mut sys = NetSyncSystem::new();
         let mut world = hecs::World::new();
-        let update = |p: [f32; 3]| NetMessage::PositionUpdate { player_id: 5, position: p, rotation: [0.0, 0.0, 0.0, 1.0], velocity: [0.0, 0.0, 0.0], timestamp: 1.0 };
+        let update = |p: [f32; 3]| NetMessage::PositionUpdate { player_id: 5, position: p, rotation: [0.0, 0.0, 0.0, 1.0], velocity: [0.0, 0.0, 0.0], timestamp: 1.0, stance: Default::default() };
         let npc_update = || NetMessage::NpcUpdate { entity_id: 9, name: "Cook Ana".to_string(), position: [80.0, 1.7, 30.0], activity: "Cooking".to_string(), working: true };
         sys.queue_messages(vec![
             NetMessage::Welcome { player_id: 1, world_snapshot: Vec::new() },
@@ -2219,7 +2232,7 @@ pub(crate) mod tests {
         assert_eq!(crew(&mut world), vec![9], "the crew member back in view");
         // A player never seen before still appears from its first update (join-order
         // independence, `a_late_join_message_fixes_a_lazy_spawned_placeholder_name`).
-        sys.queue_messages(vec![NetMessage::PositionUpdate { player_id: 6, position: [0.0, 1.7, 0.0], rotation: [0.0, 0.0, 0.0, 1.0], velocity: [0.0, 0.0, 0.0], timestamp: 1.0 }]);
+        sys.queue_messages(vec![NetMessage::PositionUpdate { player_id: 6, position: [0.0, 1.7, 0.0], rotation: [0.0, 0.0, 0.0, 1.0], velocity: [0.0, 0.0, 0.0], timestamp: 1.0, stance: Default::default() }]);
         sys.tick(&mut world, 0.016, &data);
         assert!(players(&mut world).iter().any(|(id, _)| *id == 6), "a player never seen before appears from its first update");
     }

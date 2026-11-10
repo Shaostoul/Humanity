@@ -247,6 +247,11 @@ pub struct Camera {
     /// the picker's columns rather than of the window (2026-11-02,
     /// docs/design/top-menu-and-game-pages.md section 5; gui/pages/showroom.rs `stage_shift`).
     pub lens_shift_x: f32,
+    /// How far under `position` the first-person eye is drawn from, metres (character animation
+    /// rung 2a, 2026-11-09: a crouch lowers the view, eased by the controller). A VIEW offset only:
+    /// `position` stays the standing body's eye, which the walk, the footing, the walls and reach
+    /// all read, so crouching changes what you see and not where the game holds you.
+    pub view_drop: f32,
 
     /// Absolute world position in meters (f64 precision).
     /// Updated each frame by accumulating the f32 `position` delta.
@@ -304,6 +309,7 @@ impl Camera {
             far: 1_000_000_000_000.0,
             projection: Projection::Perspective,
             lens_shift_x: 0.0,
+            view_drop: 0.0,
 
             mode: CameraMode::FirstPerson,
 
@@ -432,15 +438,19 @@ impl Camera {
     /// Compute the effective camera position based on current mode.
     pub(crate) fn effective_position(&self) -> Vec3 {
         match self.mode {
-            CameraMode::FirstPerson => self.position,
+            // A crouch lowers the eye we see from along the local up (rung 2a, `view_drop`).
+            CameraMode::FirstPerson => self.position - if self.surface_mode { self.surface_up } else { Vec3::Y } * self.view_drop,
             CameraMode::ThirdPerson => {
                 // Camera sits behind and above the character
                 let back = -self.forward();
                 let right = self.right();
+                // The slight lift is along the local up: on a planet that is the radial, not +Y
+                // (rung 2a, 2026-11-09).
+                let up = if self.surface_mode { self.surface_up } else { Vec3::Y };
                 self.tp_target
                     + back * self.tp_distance
                     + right * self.tp_shoulder_offset
-                    + Vec3::Y * 0.5 // slight height offset
+                    + up * 0.5 // slight height offset
             }
             CameraMode::Orbit => {
                 let back = -self.forward();
@@ -825,7 +835,26 @@ pub struct CameraController {
     /// The elevator's keys pressed since the main loop last took them (`take_lift_press`): +1 for
     /// Space, -1 for Shift, 0 for neither; the newer press wins.
     lift_press: i8,
+    /// The crouch key is held (character animation rung 2a, 2026-11-09; `crouching`).
+    crouch: bool,
+    /// How fast crouching walks as a share of walking: the walking pace's crouch speed over its
+    /// walk (`engine::walk_pace`, data/game.csv), `CROUCH_FACTOR` until applied.
+    pub crouch_factor: f32,
+    /// The planet walk moves the body this frame (the frame lock owns translation), and whether
+    /// its last step stood on the ground (`surface_step`): `airborne` on a planet (rung 2a).
+    on_planet_walk: bool,
+    surface_grounded: bool,
 }
+
+/// How much slower crouching walks than walking until the walking pace applies data/game.csv's
+/// crouch speeds (character animation rung 2a): the Realistic pace's 0.8 m/s over 1.4.
+pub const CROUCH_FACTOR: f32 = 0.57;
+/// How far the eye we see from lowers while crouching, metres (rung 2a): the view only; the body's
+/// height in the world (its floor, its walls, what it can reach) stays the standing one. Measured
+/// from the MakeHuman bodies in Quaternius's crouch idle, the head drops about this much.
+pub const CROUCH_VIEW_DROP_M: f32 = 0.55;
+/// How fast the view eases down and up, seconds (an exponential follow).
+const CROUCH_VIEW_EASE_S: f32 = 0.12;
 
 /// More than this between where the walk left the body and where it starts the next frame,
 /// metres, and something else moved it (`CameraController::body_y`).
@@ -885,6 +914,10 @@ impl CameraController {
             ceiling: None,
             on_lift: false,
             lift_press: 0,
+            crouch: false,
+            crouch_factor: CROUCH_FACTOR,
+            on_planet_walk: false,
+            surface_grounded: true,
         }
     }
 
@@ -919,6 +952,9 @@ impl CameraController {
         // Moved by something other than the walk since last frame (dev travel, a teleport).
         let placed = self.surface_r.is_some_and(|r| (r_before - r).abs() > SURFACE_PLACED_M);
         self.surface_r = Some(r_after);
+        // The planet walk's own "on the ground" (character animation rung 2a): a step the ground
+        // stopped, or stood still on, has a landing.
+        self.surface_grounded = landing.is_some() || flying;
         if flying || placed {
             self.falls.exempt();
         }
@@ -972,8 +1008,28 @@ impl CameraController {
                 }
             }
             A::Interact if self.fly_mode => self.roll_right = pressed,
+            // Held to crouch (character animation rung 2a, 2026-11-09).
+            A::Crouch => self.crouch = pressed,
             _ => {}
         }
+    }
+
+    /// Crouching: the crouch key held, on foot (not in dev flight). The walk then goes at the
+    /// crouch pace, the view lowers, the body plays the crouch and the movement message says so
+    /// (character animation rung 2a, 2026-11-09).
+    pub fn crouching(&self) -> bool {
+        self.crouch && !self.fly_mode
+    }
+
+    /// Off the ground: the walk has the body in the air (a jump, a fall), not on a ladder and not
+    /// in dev flight. The body plays its jump and the movement message says so (rung 2a).
+    pub fn airborne(&self) -> bool {
+        if self.on_planet_walk {
+            // On a planet the frame lock walks the body and `surface_step` says whether the
+            // ground holds it; the aboard walk's flag is not kept there.
+            return !self.surface_grounded && !self.fly_mode;
+        }
+        !self.is_grounded && !self.fly_mode && self.climb_zone.is_none()
     }
 
     /// Clear all held movement keys (v0.773). Called when a modal like the
@@ -990,6 +1046,7 @@ impl CameraController {
         self.roll_left = false;
         self.roll_right = false;
         self.lift_press = 0;
+        self.crouch = false;
     }
 
     /// Process a mouse button event from winit.
@@ -1129,6 +1186,11 @@ impl CameraController {
             // Before, third person's WASD moved only the camera, with no collision and no figure,
             // so the body stood still while the camera roamed (the M1 review's arrangement).
             mode @ (CameraMode::FirstPerson | CameraMode::ThirdPerson) => {
+                // Crouching lowers the eye we see from (character animation rung 2a): the view
+                // only, eased, while the body's height in the world stays the standing one.
+                let want = if self.crouching() { CROUCH_VIEW_DROP_M } else { 0.0 };
+                let k = 1.0 - (-dt.max(0.0) / CROUCH_VIEW_EASE_S).exp();
+                camera.view_drop += (want - camera.view_drop) * k;
                 // Falls (2026-10-20): moved since this walk last left it (driving, a teleport,
                 // the rig's hold) is a placement, not a fall. On a planet the frame lock moves
                 // the body and `surface_step` keeps watch instead.
@@ -1376,8 +1438,10 @@ impl CameraController {
             self.vertical_velocity = 0.0;
             self.is_grounded = false;
             self.fall_top = None; // the planet walk keeps its own watch (surface_step)
+            self.on_planet_walk = true;
             return;
         }
+        self.on_planet_walk = false;
 
         // ── Dev fly mode (v0.791.x) ── free flight: W/S along the full look
         // direction (pitch included, so looking at a planet and holding W goes
@@ -1425,8 +1489,11 @@ impl CameraController {
         // Shift = SPRINT (hold to move faster). `speed_multiplier` carries status-effect
         // modifiers (well_nourished speeds up, thirsty/flu slow down), and
         // `carry_speed_factor` the carried load's (BUG-136, walking only).
-        let sprint = if self.descend { self.sprint_factor } else { 1.0 };
-        let move_speed = self.speed * sprint * self.speed_multiplier * self.carry_speed_factor;
+        // Crouching walks at the crouch pace and never sprints (character animation rung 2a).
+        let crouching = self.crouching();
+        let sprint = if self.descend && !crouching { self.sprint_factor } else { 1.0 };
+        let crouch = if crouching { self.crouch_factor } else { 1.0 };
+        let move_speed = self.speed * sprint * crouch * self.speed_multiplier * self.carry_speed_factor;
         // The way the keys point, unit length; None when they point nowhere.
         let wish = if velocity.length_squared() > 0.0 { Some(velocity.normalize()) } else { None };
 

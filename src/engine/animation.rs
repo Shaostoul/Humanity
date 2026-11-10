@@ -30,8 +30,9 @@ use std::path::{Path, PathBuf};
 
 use glam::{Mat4, Quat, Vec3};
 use humanity_animation::library::Fallback;
-use humanity_animation::{pose, tiers, Animator, CharacterLibrary, DrawTier, MotionTracker, Pose, Tint};
+use humanity_animation::{pose, tiers, Animator, CharacterLibrary, DrawTier, FootMode, MotionTracker, Pose, Tint};
 
+use crate::engine::feet_ground::{PersonGround, PlanetGround, WorldGround};
 use crate::engine::state::EngineState;
 use crate::renderer::RenderObject;
 
@@ -78,6 +79,13 @@ pub(crate) struct Person {
     pub hair: Option<[f32; 3]>,
     pub eyes: Option<[f32; 3]>,
     pub outfit: Option<humanity_core::cosmetics::OutfitColors>,
+    /// The way up where they stand, world (rung 2a): +Y aboard, the local radial on a planet, so a
+    /// body there stands upright on the ground and its feet are measured along it.
+    pub up: Vec3,
+    /// Crouching (the crouch key; another player's network stance).
+    pub crouch: bool,
+    /// Off the ground (a jump, a fall; another player's network stance).
+    pub airborne: bool,
 }
 
 /// Where a person's shape slider values come from (2026-11-09).
@@ -136,6 +144,8 @@ pub(crate) struct CrowdFigure {
     /// A look of its own (the `lineup` verb: a body and slider values), in place of the crew's
     /// varied shape; None for an ordinary stand-in.
     pub look: Option<CrowdLook>,
+    /// Crouching (the `crowd_crouch` verb, rung 2a), as another player's network stance makes them.
+    pub crouch: bool,
 }
 
 /// A stand-in's own body and shape (the `lineup` verb).
@@ -157,6 +167,13 @@ pub(crate) struct Report {
     pub body: String,
     /// People drawn with a shape (morph targets) of their own this frame.
     pub shaped: usize,
+    /// Bodies whose feet got the full solve (leg IK, locking) and the pelvis offset alone, this
+    /// frame (rung 2a), and the ground questions they asked.
+    pub feet_full: usize,
+    pub feet_pelvis: usize,
+    /// Near bodies the feet's budget gave the pelvis offset instead of the full solve this frame.
+    pub feet_over_budget: usize,
+    pub ground_queries: u32,
     pub error: Option<String>,
 }
 
@@ -165,9 +182,46 @@ struct Figure {
     motion: MotionTracker,
     seen: u64,
     /// The person's skeleton reshaped for their shape weights, with the body and weights it was
-    /// made for. Kept from frame to frame while both stay the same (a value keyed by its own
-    /// inputs, so it cannot be stale) and made again every frame with the reuse switch off.
-    shape: Option<(usize, Vec<(usize, f32)>, humanity_animation::Skeleton)>,
+    /// made for, and its legs and soles (rung 2a). Kept from frame to frame while both stay the
+    /// same (a value keyed by its own inputs, so it cannot be stale) and made again every frame
+    /// with the reuse switch off.
+    shape: Option<(usize, Vec<(usize, f32)>, humanity_animation::Skeleton, Option<humanity_animation::FootRig>)>,
+    /// Their feet from frame to frame: the pelvis offset and each foot's lock (rung 2a; state,
+    /// like a position).
+    feet: humanity_animation::FootPlacer,
+    /// Seconds off the ground, while they are (rung 2a; the graph's jump reads it).
+    air_s: f32,
+}
+
+/// THE FOOT PROBE (rung 2a, the proof's judge; showcase `foot_probe`): for a set time, every frame,
+/// each near body's skinned feet (the foot vertices skinned on the CPU with the very palette the GPU
+/// skins with, so it reads the drawn mesh, never the setup code) measured against the ground under
+/// them; written to `debug/foot_probe.json` for scripts/lib/foot-probe-check.js.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct FootProbe {
+    /// The runtime clock when it stops and writes.
+    pub until: f32,
+    /// Per person and foot, the planted frames' clearances (the lowest foot vertex over the ground
+    /// under it, metres; negative is through the ground) and the swing frames' lowest.
+    pub rows: HashMap<FigureKey, ProbeRow>,
+    pub frames: u32,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ProbeRow {
+    pub body: String,
+    pub tier: &'static str,
+    pub mode: &'static str,
+    pub planted: [Vec<f32>; 2],
+    pub swing_low: [f32; 2],
+    /// The ground heights seen under the feet (along up, from the first frame's), for the judge's
+    /// "is this ground actually uneven here" check.
+    pub ground_lo: f32,
+    pub ground_hi: f32,
+    pub ground_ref: Option<Vec3>,
+    pub on_tread: u32,
+    /// Each foot's lowest planted reading and where it was.
+    pub worst: [Option<crate::engine::foot_probe::Clearance>; 2],
 }
 
 pub(crate) struct AnimationRuntime {
@@ -204,6 +258,18 @@ pub(crate) struct AnimationRuntime {
     pose: Pose,
     model: Vec<Mat4>,
     rows: Vec<[f32; 4]>,
+    /// The foot probe while it runs (showcase `foot_probe`).
+    pub(crate) probe: Option<FootProbe>,
+    /// The player's height as last measured for the character page, with the inputs it was
+    /// measured for (body, look height, shape): a value keyed by its own inputs, measured again
+    /// every frame with the reuse switch off.
+    my_height: Option<(usize, f32, std::collections::BTreeMap<String, f32>, f32)>,
+    /// What one body's full foot solve has been costing on this machine, microseconds (eased over
+    /// frames; 0 until the first is timed): the feet's automatic budget (question 5, "simplified
+    /// automatically below it") gives the full solve to as many of the nearest bodies as
+    /// `FeetDef::full_budget_ms` allows and the pelvis offset to the rest. A measurement, not a
+    /// cache: it is taken again every frame.
+    full_solve_us: f32,
 }
 
 impl Default for AnimationRuntime {
@@ -228,6 +294,9 @@ impl Default for AnimationRuntime {
             pose: Pose::default(),
             model: Vec::new(),
             rows: Vec::new(),
+            probe: None,
+            my_height: None,
+            full_solve_us: 0.0,
         }
     }
 }
@@ -317,8 +386,8 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             rt.report.error = None;
             // The character page's body chooser lists the bodies a look can choose, and draws the
             // chosen body's shape sliders.
-            state.gui_state.body_choices = lib.characters.bodies.keys().cloned().collect();
-            state.gui_state.body_sliders = lib.bodies.iter().filter(|b| lib.characters.bodies.contains_key(&b.choice)).map(|b| (b.choice.clone(), b.slider_blocks.clone())).collect();
+            state.gui_state.characters.body_choices = lib.characters.bodies.keys().cloned().collect();
+            state.gui_state.characters.body_sliders = lib.bodies.iter().filter(|b| lib.characters.bodies.contains_key(&b.choice)).map(|b| (b.choice.clone(), b.slider_blocks.clone())).collect();
             rt.lib = Some(lib);
         }
         Err(e) => {
@@ -336,6 +405,24 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
 /// along (sin yaw, 0, -cos yaw), renderer/camera.rs `forward_xz`).
 pub(crate) fn facing_for_camera_yaw(yaw: f32) -> f32 {
     std::f32::consts::PI - yaw
+}
+
+/// The facing angle (turn of +Z about the local up) of a body standing with `up` (world) and looking
+/// along `forward` (rung 2a: on a planet, where up is the local radial): the turn, after +Y is turned
+/// onto `up` the shortest way, that takes the body's front onto `forward` along the ground.
+pub(crate) fn facing_about(up: Vec3, forward: Vec3) -> f32 {
+    let local = body_rotation(up, 0.0).inverse() * forward;
+    if local.x.abs() + local.z.abs() < 1e-6 {
+        0.0
+    } else {
+        local.x.atan2(local.z)
+    }
+}
+
+/// A body's turn in the world: +Y onto its up (the shortest way), then its facing about that up.
+pub(crate) fn body_rotation(up: Vec3, facing: f32) -> Quat {
+    let base = if (up - Vec3::Y).length_squared() < 1e-10 || up == Vec3::ZERO { Quat::IDENTITY } else { Quat::from_rotation_arc(Vec3::Y, up) };
+    base * Quat::from_rotation_y(facing)
 }
 
 /// The facing angle of a transform's rotation that is a pure turn about +Y.
@@ -422,7 +509,7 @@ pub(crate) fn parse_crowd(spec: &str, origin: Vec3) -> Option<Vec<CrowdFigure>> 
                     // Alternate directions, so neighbours pass each other.
                     CrowdMotion::Circle { centre: origin, radius: ring, speed: if i % 2 == 0 { s } else { -s } }
                 };
-                CrowdFigure { motion, phase, born: 0.0, look: None }
+                CrowdFigure { motion, phase, born: 0.0, look: None, crouch: false }
             })
             .collect(),
     )
@@ -469,7 +556,7 @@ pub(crate) fn parse_lineup(spec: &str, feet: Vec3, forward: Vec3) -> Option<Vec<
                 }
             }
             let at = feet + fwd * ahead + right * ((i as f32 - (n - 1.0) * 0.5) * gap);
-            Some(CrowdFigure { motion: CrowdMotion::Turn { at, rate: 0.0 }, phase, born: 0.0, look: Some(CrowdLook { body: body.clone(), shape }) })
+            Some(CrowdFigure { motion: CrowdMotion::Turn { at, rate: 0.0 }, phase, born: 0.0, look: Some(CrowdLook { body: body.clone(), shape }), crouch: false })
         })
         .collect()
 }
@@ -487,7 +574,7 @@ pub(crate) fn parse_path(spec: &str) -> Option<CrowdFigure> {
             (v.len() == 3).then(|| Vec3::new(v[0], v[1], v[2]))
         })
         .collect::<Option<Vec<Vec3>>>()?;
-    (points.len() >= 2 && speed > 0.0).then_some(CrowdFigure { motion: CrowdMotion::Path { points, speed }, phase: 0.0, born: 0.0, look: None })
+    (points.len() >= 2 && speed > 0.0).then_some(CrowdFigure { motion: CrowdMotion::Path { points, speed }, phase: 0.0, born: 0.0, look: None, crouch: false })
 }
 
 /// One region's colour for a person.
@@ -527,7 +614,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
     let varied = state.animation.varied_shapes;
     let no_look = |key: FigureKey| if varied { ShapeValues::Varied(figure_seed(key)) } else { ShapeValues::Look(Default::default()) };
     let mut out = Vec::new();
-    let me = |key: FigureKey, feet: Vec3, facing: f32| {
+    let me = |key: FigureKey, feet: Vec3, facing: f32, up: Vec3, crouch: bool, airborne: bool| {
         let app = &state.gui_state.appearance;
         let outfit = humanity_core::cosmetics::resolve_outfit_colors(&state.gui_state.outfit, &state.cosmetics);
         Person {
@@ -542,14 +629,26 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             hair: Some(app.hair_color),
             eyes: Some(app.eye_color),
             outfit: Some(outfit),
+            up,
+            crouch,
+            airborne,
         }
     };
     if showroom {
-        out.push(me(FigureKey::Showroom, state.avatar_base + Vec3::new(0.0, SHOWROOM_PODIUM_M, 0.0), 0.0));
+        out.push(me(FigureKey::Showroom, state.avatar_base + Vec3::new(0.0, SHOWROOM_PODIUM_M, 0.0), 0.0, Vec3::Y, false, false));
         return out;
     }
     if state.camera.mode == crate::renderer::camera::CameraMode::ThirdPerson && !state.gui_state.construction_active {
-        out.push(me(FigureKey::Me, state.camera.position - Vec3::new(0.0, state.controller.eye_height(), 0.0), facing_for_camera_yaw(state.camera.yaw)));
+        // On a planet the way up is the local radial (rung 2a): the body stands on the ground under
+        // the eye and faces the way the camera looks along the ground.
+        let (up, facing) = if state.camera.surface_mode {
+            let up = state.camera.surface_up.normalize_or_zero();
+            (up, facing_about(up, state.camera.forward()))
+        } else {
+            (Vec3::Y, facing_for_camera_yaw(state.camera.yaw))
+        };
+        let c = &state.controller;
+        out.push(me(FigureKey::Me, state.camera.position - up * c.eye_height(), facing, up, c.crouching(), c.airborne()));
     }
     let world = &state.game_world.world;
     for (_e, (t, r)) in world.query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemotePlayer)>().iter() {
@@ -571,6 +670,10 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             hair: r.look.as_ref().map(|l| l.hair),
             eyes: None,
             outfit: None,
+            up: Vec3::Y,
+            // How they stand, as their newest update said (rung 2a).
+            crouch: r.posture.stance == humanity_core::stance::Stance::Crouch,
+            airborne: r.posture.airborne,
         });
     }
     for (_e, (t, n)) in world.query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemoteNpc)>().iter() {
@@ -586,6 +689,9 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             hair: None,
             eyes: None,
             outfit: None,
+            up: Vec3::Y,
+            crouch: false,
+            airborne: false,
         });
     }
     let clock = state.animation.clock;
@@ -596,7 +702,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             Some(l) => (ShapeValues::Look(l.shape.clone()), Some(l.body.clone())),
             None => (no_look(key), None),
         };
-        out.push(Person { key, feet, facing, height: 1.0, shape, wearer: "crew", body, skin: None, hair: None, eyes: None, outfit: None });
+        out.push(Person { key, feet, facing, height: 1.0, shape, wearer: "crew", body, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: c.crouch, airborne: false });
     }
     out
 }
@@ -646,8 +752,18 @@ fn stagger(key: FigureKey) -> f32 {
     ((figure_seed(key).wrapping_mul(2_654_435_761) % 1000) as f32) / 1000.0
 }
 
-/// Draw every person as a skinned, animated body. Returns false when the bodies are not what the
-/// frame draws (data missing, or the A/B switch on boxes): lib.rs then draws the box figures.
+/// A person's own legs on their reshaped skeleton `skel`, with what the body's mesh measured at load
+/// (a foot's reach, its toe cap and heel counter) taken from the body as made. (Copying the reach
+/// alone left every person in the game with no toe cap or heel counter: the fourth and fifth rig
+/// sweeps read anim-stairs' swinging feet 8 to 12 cm into a step while the tests, which walked the
+/// body's own rig, passed; `a_persons_own_rig_carries_what_the_body_measured` now checks it.)
+pub(crate) fn person_rig(body: &humanity_animation::LoadedBody, skel: &humanity_animation::Skeleton, humanoid: &humanity_animation::HumanoidDef) -> Option<humanity_animation::FootRig> {
+    humanity_animation::FootRig::new(skel, humanoid).map(|r| match &body.feet {
+        Some(b) => r.with_measured(b),
+        None => r,
+    })
+}
+
 /// The skeleton overlay's bone thickness and joint marker size, metres.
 const SKELETON_BONE_M: f32 = 0.012;
 const SKELETON_JOINT_M: f32 = 0.03;
@@ -656,10 +772,17 @@ const SKELETON_JOINT_M: f32 = 0.03;
 /// frame draws (data missing, or the A/B switch on boxes): lib.rs then draws the box figures. With
 /// the Dev page's Show skeletons on, each body's joints and bones go into `overlay` (drawn on top
 /// of everything, as the editor's gizmos are).
-pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderObject>, overlay: &mut Vec<RenderObject>, showroom: bool, dt: f32) -> bool {
+///
+/// `render_space` takes the player's own body when they are not aboard (on a planet): it stands
+/// under the camera, already in render space, while `all_objects` is the HOME frame that lib.rs
+/// moves to the station's orbital place (`station_off`) before the scene pass, which drew the body
+/// 400 km up, out of sight, until rung 2a (2026-11-09). lib.rs appends it after that shift, as it
+/// does the planet piece in hand.
+pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderObject>, render_space: &mut Vec<RenderObject>, overlay: &mut Vec<RenderObject>, showroom: bool, dt: f32) -> bool {
     let _cost = humanity_core::frame_costs::stage("cpu.animation");
     ensure_loaded(state);
-    let show_skeletons = state.gui_state.show_skeletons;
+    publish_my_height(state);
+    let show_skeletons = state.gui_state.characters.show_skeletons;
     let dt = if dt.is_finite() { dt.clamp(0.0, 0.25) } else { 0.0 };
     state.animation.clock += dt;
     if !state.animation.draws_bodies() {
@@ -675,11 +798,70 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
     state.animation.frame += 1;
     let people = gather(state, showroom);
     let cam = state.camera.effective_position();
+    // THE GROUND under everyone's feet this frame (rung 2a, engine::feet_ground): aboard the
+    // footing, on a planet the drawn terrain, in the showroom the podium; nothing in open space.
+    // With the feet off the ground is still read while the foot probe runs, so the A/B's red arm
+    // measures the same drawn feet against the same ground.
+    let feet_on = state.gui_state.characters.feet_on_world;
+    let need_ground = feet_on || state.animation.probe.is_some();
+    let simplified = state.gui_state.settings.anim_simplified;
+    let built = if need_ground && !showroom && state.aboard_station {
+        crate::engine::build_place::built_piece_boxes(&state.game_world.world, state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry"), None)
+    } else {
+        Vec::new()
+    };
+    let planet_body = if need_ground && !showroom && !state.aboard_station && state.surface_walk_band { state.frame_lock_body.clone() } else { None };
+    let planet_rot = planet_body.as_ref().map(|_| crate::engine::planet_build::body_render_rot(state.station_ride, state.station_world_rot, crate::engine::planet_build::frame_body_rot(state)));
+    let earth = planet_body.as_deref() == Some("earth");
+    let planet_parts = planet_body.as_deref().and_then(|b| Some((state.planet_defs.get(b)?, state.planet_chunk_states.get(b)?, state.planet_heightmaps.get(b))));
+    let ocean = if earth { state.ocean_mask.as_ref() } else { None };
+    let source = planet_parts.and_then(|(_, cs, hm)| {
+        hm.map(|hm| humanity_terrain::planet_chunks::ElevationSource::Heightmap { hm: hm.as_ref(), detail: &cs.detail, tiles: earth.then_some(&state.terrain_tiles), ocean })
+    });
+    let ground = if !need_ground {
+        WorldGround::None
+    } else if showroom {
+        WorldGround::Flat(state.avatar_base.y + SHOWROOM_PODIUM_M)
+    } else if state.aboard_station {
+        WorldGround::Ship { rooms: &state.gui_state.room_bounds, ship: state.gui_state.ship_structure.as_ref(), cars: &state.elevator_state, built: &built }
+    } else if let (Some((def, cs, hm)), Some(rot)) = (planet_parts, planet_rot) {
+        let depth = cs.last_drawn.iter().map(|p| p.depth).max().unwrap_or(0);
+        // The walk's own rule (surface_walk::walk_ground_radius): a water world's drawn ground needs
+        // its ocean mask, else the field answers.
+        let drawn = source.as_ref().filter(|_| depth > 0 && !(def.has_water && ocean.is_none())).map(|s| std::cell::RefCell::new(humanity_terrain::drawn_surface::DrawnPatchSurface::new_single_shot(def, s, depth)));
+        WorldGround::Planet(PlanetGround {
+            def,
+            drawn,
+            hm: hm.map(|h| h.as_ref()),
+            detail: &cs.detail,
+            tiles: earth.then_some(&state.terrain_tiles),
+            anchor: state.frame_lock_anchor,
+            camera: state.camera.position,
+            rot,
+        })
+    } else {
+        WorldGround::None
+    };
+    // Off the ship (on a planet) the player's own body stands in render space (`render_space`).
+    let me_in_render_space = !showroom && !state.aboard_station;
     let rt = &mut state.animation;
     let renderer = &mut state.renderer;
     let lib = rt.lib.as_ref().expect("draws_bodies checked it");
     let distances: Vec<f32> = people.iter().map(|p| (p.feet + Vec3::Y - cam).length()).collect();
     let tier = tiers::assign(&distances, &lib.characters.tiers);
+    // THE FEET'S BUDGET (question 5: full realism where the measured budget allows, simplified
+    // automatically below it): the nearest bodies get the full solve, as many as the budget buys at
+    // what a solve has been costing on this machine; the rest of the near tier the pelvis offset.
+    let max_full = if rt.full_solve_us > 0.0 { (lib.characters.feet.full_budget_ms * 1000.0 / rt.full_solve_us).floor().max(1.0) as usize } else { usize::MAX };
+    let mut near_rank = vec![usize::MAX; people.len()];
+    {
+        let mut order: Vec<usize> = (0..people.len()).filter(|&i| tier[i] == DrawTier::Near).collect();
+        order.sort_by(|&a, &b| distances[a].total_cmp(&distances[b]));
+        for (rank, &i) in order.iter().enumerate() {
+            near_rank[i] = rank;
+        }
+    }
+    let (mut full_us, mut full_n) = (0.0_f32, 0usize);
     renderer.skin_begin_frame();
     let vs_ready = renderer.skin_middle_ready();
     let mut report = Report { people: people.len(), body: rt.report.body.clone(), ..Default::default() };
@@ -713,34 +895,110 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
             motion: MotionTracker::default(),
             seen: 0,
             shape: None,
+            feet: humanity_animation::FootPlacer::default(),
+            air_s: 0.0,
         });
         fig.seen = rt.frame;
-        let Figure { animator, motion, shape, .. } = fig;
-        let kept = reuse && shape.as_ref().is_some_and(|(b, w, _)| *b == bi && *w == weights);
+        let Figure { animator, motion, shape, feet, air_s, .. } = fig;
+        let kept = reuse && shape.as_ref().is_some_and(|(b, w, _, _)| *b == bi && *w == weights);
         if !kept {
-            *shape = body.reshaped(&weights).map(|s| (bi, weights.clone(), s));
+            *shape = body.reshaped(&weights).map(|s| {
+                let rig = person_rig(body, &s, &lib.humanoid);
+                (bi, weights.clone(), s, rig)
+            });
         }
-        let skel = shape.as_ref().map_or(&body.skeleton, |(_, _, s)| s);
+        // The person's own skeleton and legs: reshaped for their shape, else the body's as made.
+        let (skel, rig) = match shape.as_ref() {
+            Some((_, _, s, r)) => (s, r.as_ref()),
+            None => (&body.skeleton, body.feet.as_ref()),
+        };
         if shape.is_some() {
             report.shaped += 1;
         }
+        *air_s = if p.airborne { *air_s + dt } else { 0.0 };
         let input = motion.observe(p.feet, p.facing, dt, lib.graph.smoothing_s, lib.graph.teleport_mps);
         // The graph and its stride warping read speed in the body's own size: a body scaled or
         // reshaped longer in the leg covers more ground a stride, so its clips (whose speeds are for
-        // the unshaped body) play slower for the same speed and the feet keep still.
+        // the unshaped body) play slower for the same speed and the feet keep still. Crouching and
+        // time off the ground are its stance (rung 2a).
         let stride = stride_scale(skel, &body.skeleton, &lib.humanoid, scale);
-        let input = humanity_animation::LocomotionInput { speed: input.speed / stride, side: input.side / stride, ..input };
+        let input = humanity_animation::LocomotionInput {
+            speed: input.speed / stride,
+            side: input.side / stride,
+            crouch: if p.crouch { 1.0 } else { 0.0 },
+            airborne: *air_s,
+            ..input
+        };
         animator.update(&lib.graph, &body.clips, skel, &lib.humanoid, &input, dt, &mut rt.pose);
         pose::model_matrices(skel, &rt.pose, &mut rt.model);
+        let rotation = body_rotation(p.up, p.facing);
+        let world = Mat4::from_scale_rotation_translation(Vec3::splat(scale), rotation, p.feet);
+        // FEET ON THE WORLD (rung 2a, humanity_animation::feet): the near bodies in the realistic
+        // animation mode get the full solve (leg IK, the foot turned to the slope about its toe,
+        // foot locking, stair footsteps), every other body the pelvis offset alone.
+        let mode = match rig {
+            Some(_) if feet_on && ground.is_some() => {
+                if !simplified && tier[i] == DrawTier::Near && near_rank[i] < max_full {
+                    FootMode::Full
+                } else {
+                    if !simplified && tier[i] == DrawTier::Near {
+                        report.feet_over_budget += 1;
+                    }
+                    FootMode::Pelvis
+                }
+            }
+            _ => FootMode::Off,
+        };
+        let person_ground = PersonGround { world: &ground, reference: p.feet.y };
+        let feet_report = match rig {
+            Some(rig) => {
+                let frame = humanity_animation::FootFrame { world, contacts: animator.contacts(), airborne: p.airborne, dt };
+                let t0 = (mode == FootMode::Full).then(std::time::Instant::now);
+                let r = feet.place(rig, skel, &lib.humanoid, &mut rt.pose, &mut rt.model, &frame, &person_ground, mode, &lib.characters.feet);
+                if let Some(t0) = t0 {
+                    full_us += t0.elapsed().as_secs_f32() * 1.0e6;
+                    full_n += 1;
+                }
+                r
+            }
+            None => humanity_animation::FeetReport::default(),
+        };
+        match mode {
+            FootMode::Full => report.feet_full += 1,
+            FootMode::Pelvis => report.feet_pelvis += 1,
+            FootMode::Off => {}
+        }
+        report.ground_queries += feet_report.queries;
         rt.rows.clear();
         pose::palette_rows(skel, &rt.model, &mut rt.rows);
-        let rotation = Quat::from_rotation_y(p.facing);
-        let world = Mat4::from_scale_rotation_translation(Vec3::splat(scale), rotation, p.feet);
         let morph = pose::morph_rows(&weights, body.model.vertex_count() as u32);
         let index = renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rt.rows);
+        // The foot probe (showcase `foot_probe`): the drawn feet against the ground, near bodies.
+        if let Some(probe) = rt.probe.as_mut().filter(|_| tier[i] == DrawTier::Near) {
+            let clear = crate::engine::foot_probe::clearances(body, &weights, &rt.rows, &world, p.up, &person_ground);
+            let mode_name = match mode {
+                FootMode::Full => "full",
+                FootMode::Pelvis => "pelvis",
+                FootMode::Off => "off",
+            };
+            crate::engine::foot_probe::record(probe, p.key, body, "near", mode_name, clear, &feet_report, animator.contacts(), p.airborne, p.up);
+        }
         // The skeleton as it is posed this frame: a bone from each joint to its parent, a marker
-        // at each joint, through the same world matrix as the body.
+        // at each joint, through the same world matrix as the body; and where each foot found the
+        // ground (a joint-coloured marker for a foot kept in place, a bone-coloured one otherwise).
         if let Some((unit, bone_mat, joint_mat)) = skeleton_meshes {
+            for f in &feet_report.feet {
+                if let Some(g) = f.ground {
+                    overlay.push(RenderObject {
+                        fade: 0.0,
+                        position: g - Vec3::new(SKELETON_JOINT_M, 0.0, SKELETON_JOINT_M),
+                        rotation: Quat::IDENTITY,
+                        scale: Vec3::new(SKELETON_JOINT_M * 2.0, SKELETON_BONE_M, SKELETON_JOINT_M * 2.0),
+                        mesh: unit,
+                        material: if f.locked { joint_mat } else { bone_mat },
+                    });
+                }
+            }
             let at = |j: usize| world.transform_point3(rt.model[j].w_axis.truncate());
             for j in 0..skel.joint_count() {
                 let here = at(j);
@@ -792,8 +1050,9 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
             }
             let meshes = renderer.skin_near(gpu_body, slots[bi], index);
             slots[bi] += 1;
+            let list = if me_in_render_space && p.key == FigureKey::Me { &mut *render_space } else { &mut *all_objects };
             for (mesh, material) in meshes.into_iter().zip(materials.iter().copied()) {
-                all_objects.push(RenderObject { fade: 0.0, position: p.feet, rotation, scale: Vec3::splat(scale), mesh, material });
+                list.push(RenderObject { fade: 0.0, position: p.feet, rotation, scale: Vec3::splat(scale), mesh, material });
             }
         } else if vs_ready {
             report.middle += 1;
@@ -804,11 +1063,55 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
     }
     let frame = rt.frame;
     rt.figures.retain(|_, f| f.seen == frame);
+    // What a full solve cost this frame, eased (one slow frame does not hand the crowd to the
+    // pelvis offset); measured again every frame, so a faster frame raises the count back.
+    if full_n > 0 {
+        let per = full_us / full_n as f32;
+        rt.full_solve_us = if rt.full_solve_us > 0.0 { rt.full_solve_us + (per - rt.full_solve_us) * 0.1 } else { per };
+    }
     rt.report = report;
+    // The foot probe writes its readout once its time is up.
+    if let Some(probe) = rt.probe.as_mut() {
+        probe.frames += 1;
+        if rt.clock >= probe.until {
+            let note = crate::engine::foot_probe::write(probe);
+            log::info!("Foot probe: {note}");
+            rt.probe = None;
+        }
+    }
     renderer.skin_submit();
     true
+}
+
+/// The player's own height for the character page (rung 2a, "1.62 m"): the chosen body measured
+/// with the look's height, build and ancestry (`LoadedBody::standing_height_m` through `shape_for`,
+/// so the sliders' lesson that ancestry moves the top of the head is in it). Measured again when the
+/// look changes, and every frame with the reuse switch off.
+fn publish_my_height(state: &mut EngineState) {
+    let Some(lib) = state.animation.lib.as_ref() else { return };
+    let app = &state.gui_state.appearance;
+    let bi = lib.body_for(Some(&app.body_type), "player", stagger(FigureKey::Me));
+    let h = app.height_scale.clamp(0.5, 2.0);
+    if humanity_core::reuse::enabled() {
+        if let Some((b, hh, s, m)) = &state.animation.my_height {
+            if *b == bi && *hh == h && *s == app.shape {
+                state.gui_state.characters.my_height_m = Some(*m);
+                return;
+            }
+        }
+    }
+    let body = &lib.bodies[bi];
+    let (weights, scale) = body.shape_for(h, &|id| app.shape.get(id).copied());
+    let m = body.standing_height_m(&weights, scale);
+    let shape = app.shape.clone();
+    state.animation.my_height = Some((bi, h, shape, m));
+    state.gui_state.characters.my_height_m = Some(m);
 }
 
 #[cfg(test)]
 #[path = "animation_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "animation_feet_tests.rs"]
+mod feet_tests;

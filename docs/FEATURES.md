@@ -3318,6 +3318,41 @@ for a same-boot A/B (showcase `figures`).
   `anim-tp-{female,male}-{idle,walk,run}` for the bodies in third person); costs `cpu.animation`,
   `cpu.skinning`, `gpu.skinning`
 
+**Feet on the world, crouch and jump (character animation rung 2a, 2026-11-09;
+`docs/design/character-animation.md` section 15).** Every near body's feet stand on the ground under
+them: the floor, a stair tread, a ramp, a deck or a built piece aboard (the footing, asked per sole
+point), the drawn terrain on a planet (map packs' road beds and building pads included; positions
+and directions in f64 to the sampler). Contacts are labelled on every clip at load; two-bone analytic
+leg IK on each person's reshaped skeleton puts a planted foot's sole on the ground (no more sinking
+in the walk cycle) with the pelvis lowered by the larger drop, the foot turned to a slope about its
+heel or ball, foot locking so a planted foot never slides, and footsteps planned on stairs onto each
+tread's middle (from the stair piece's riser and tread). Middle bodies, near bodies beyond the feet's
+measured per-frame budget (`full_budget_ms`), and everyone in Settings > Gameplay > Animation:
+Simplified, get the pelvis offset alone. **Crouch** is a key (C, Settings >
+Controls): the walk slows to the crouch pace (data/game.csv), the first-person view lowers, the body
+plays the crouch idle and crouch walk, and other players see it; **jump** (Space) plays the
+take-off, air loop and landing. The movement message carries the stance (`humanity_core::stance`,
+one number, left out when standing so a standing player's message is unchanged, clamped by the relay
+and the app alike). The character page shows the height in metres ("1.62 m"), measured from the
+body with the look's build and ancestry.
+- Crate: `crates/humanity-animation/src/feet.rs` (the `Ground` trait, `FootRig`, `label_contacts`,
+  `FootPlacer`, `two_bone`); the graph's `Crouch`, `Airborne`, `VerticalSpeed` and `StateTime`
+  inputs (`graph.rs`); `crates/humanity-core/src/stance.rs`
+- Native: `src/engine/feet_ground.rs` (the ground aboard and on a planet), `src/engine/foot_probe.rs`
+  (the drawn feet measured against the ground), `src/engine/animation.rs` (the feet per person and
+  tier), `Footing::tread_at` (`src/engine/footing.rs`), the controller's crouch (`src/renderer/camera.rs`,
+  `Camera::view_drop`), `GameAction::Crouch` (`crates/humanity-core/src/input/bindings.rs`), the
+  relay passing the stance on (`src/relay/handlers/msg_handlers.rs`)
+- Data: `characters.ron`'s `feet`, `locomotion.ron`'s crouch and jump states, `data/game.csv`'s
+  `crouch_speed_*_mps`
+- Settings: Gameplay > Animation (`settings.anim_simplified`, Realistic by default); Controls > Crouch;
+  the character page's height in metres (`GuiState::my_height_m`)
+- Dev: the Dev page's Feet on the world (Show skeletons also marks where each foot found the
+  ground); showcase verbs `feet`, `animation_mode`, `crowd_crouch`, `foot_probe`, `hold` with
+  `crouch`; vantages `anim-stairs`, `anim-ramp`, `anim-crouch`, `anim-slope-map` with the
+  `foot_probe` check (scripts/lib/foot-probe-check.js) and their `-feet-off` red twins,
+  `anim-crowd-{near,middle}-feet-off` for the cost
+
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`
 column: `item:amount:regrow_seconds`). Starter herd (chickens/goats/sheep) placed by

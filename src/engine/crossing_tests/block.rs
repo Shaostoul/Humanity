@@ -43,6 +43,7 @@ fn a_blocked_players_figure_and_name_are_not_drawn() {
                 velocity: glam::Vec3::ZERO,
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
+                posture: Default::default(),
             },
         ));
     }

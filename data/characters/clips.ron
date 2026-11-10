@@ -13,7 +13,9 @@
 //   looped     plays round and round
 //   speed_mps  metres a second its gait covers at its own speed (0 for clips that stand still): the
 //              blend space plays it faster or slower to match the body's real speed
-//   tags       what it is, for tools and later rungs
+//   tags       what it is, for tools and later rungs; "air" (rung 2a) says no foot is ever planted in
+//              it (the jump's air loop: its hanging feet look low only against themselves), so the
+//              contact labels (crates/humanity-animation/src/feet.rs) leave it unplanted
 //   credit     its id in data/credits.ron
 //
 // THE GAITS AND STANCES are Quaternius's Universal Animation Library [Standard] (CC0, downloaded
@@ -33,7 +35,7 @@
     (id: "crouch_idle", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Crouch_Idle_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.0, tags: ["locomotion", "crouch", "stand"], credit: Some("quaternius_ual")),
     (id: "crouch_walk", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Crouch_Fwd_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.717, tags: ["locomotion", "crouch", "gait"], credit: Some("quaternius_ual")),
     (id: "jump_start", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Jump_Start", role_map: "quaternius_ual", looped: false, speed_mps: 0.0, tags: ["jump"], credit: Some("quaternius_ual")),
-    (id: "jump_air", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Jump_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.0, tags: ["jump", "fall"], credit: Some("quaternius_ual")),
+    (id: "jump_air", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Jump_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.0, tags: ["jump", "fall", "air"], credit: Some("quaternius_ual")),
     (id: "jump_land", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Jump_Land", role_map: "quaternius_ual", looped: false, speed_mps: 0.0, tags: ["jump", "land"], credit: Some("quaternius_ual")),
     (id: "sit_down", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Sitting_Enter", role_map: "quaternius_ual", looped: false, speed_mps: 0.0, tags: ["interaction", "sit"], credit: Some("quaternius_ual")),
     (id: "sit_idle", file: "assets/models/characters/quaternius_ual/quaternius_ual.gltf", animation: "Sitting_Idle_Loop", role_map: "quaternius_ual", looped: true, speed_mps: 0.0, tags: ["interaction", "sit"], credit: Some("quaternius_ual")),

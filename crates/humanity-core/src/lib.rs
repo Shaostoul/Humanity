@@ -67,6 +67,10 @@ pub mod cosmos;
 /// How another player looks in a shared world (2026-09-29): compiled into the
 /// app and the relay alike. See `crates/humanity-core/src/player_look.rs`.
 pub mod player_look;
+/// How another player stands (crouching, off the ground) as the movement message carries it
+/// (character animation rung 2a, 2026-11-09): compiled into the app and the relay alike, so both
+/// read and clamp it the same way. See `crates/humanity-core/src/stance.rs`.
+pub mod stance;
 /// Dev travel math (teleport viewpoints + camera aim for the Dev page's
 /// FTL/teleport tool). Pure glam, ungated like `cosmos` so its unit tests
 /// run under every feature set. See `crates/humanity-core/src/dev_travel.rs`.

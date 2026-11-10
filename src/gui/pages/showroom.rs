@@ -1157,10 +1157,10 @@ fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
     // The body (2026-11-09): one of the bodies data/characters/characters.ron lists (a female and a
     // male MakeHuman body), published by engine::animation; everyone you meet sees the one chosen.
-    if !state.body_choices.is_empty() {
+    if !state.characters.body_choices.is_empty() {
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(t("characters.body")).color(theme.text_secondary())).hint("characters.body_hint");
-            for id in state.body_choices.clone() {
+            for id in state.characters.body_choices.clone() {
                 let selected = state.appearance.body_type == id;
                 let label = humanity_core::i18n::t_dyn(&format!("characters.body_{id}"));
                 if ui.selectable_label(selected, label).hint_dyn(&format!("characters.body_{id}_hint")).clicked() && !selected {
@@ -1170,7 +1170,19 @@ fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         });
     }
-    if widgets::with_hint(ui, "characters.height_hint", |ui| widgets::labeled_slider(ui, theme, t("characters.height"), &mut state.appearance.height_scale, 0.8..=1.2)) {
+    // The height in metres (character animation rung 2a, 2026-11-09): the chosen body's own height
+    // with the look's height, build and ancestry, measured from the body (engine::animation
+    // publishes it), in place of the bare multiplier the slider carries underneath.
+    let metres = state.characters.my_height_m;
+    let mut height_changed = false;
+    widgets::settings_row(ui, theme, t("characters.height"), |ui| {
+        height_changed = widgets::with_hint(ui, "characters.height_hint", |ui| widgets::custom_slider_capped(ui, theme, &mut state.appearance.height_scale, 0.8..=1.2, 64.0));
+        if let Some(m) = metres {
+            let words = humanity_core::i18n::tf("characters.height_metres", &[("m", &format!("{m:.2}"))]);
+            ui.label(RichText::new(words).color(theme.text_muted()).size(theme.font_size_small)).hint("characters.height_metres_hint");
+        }
+    });
+    if height_changed {
         state.appearance_dirty = true;
     }
     draw_body_shape(ui, theme, state);
@@ -1190,7 +1202,7 @@ fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// empties it and puts the height back to the body's own.
 fn draw_body_shape(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     use humanity_core::i18n::{t_dyn, t_marked};
-    let blocks = match state.body_sliders.get(&state.appearance.body_type).or_else(|| state.body_sliders.values().next()) {
+    let blocks = match state.characters.body_sliders.get(&state.appearance.body_type).or_else(|| state.characters.body_sliders.values().next()) {
         Some(b) if !b.is_empty() => b.clone(),
         _ => return,
     };

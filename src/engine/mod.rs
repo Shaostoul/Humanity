@@ -95,6 +95,11 @@ pub mod music;
 /// Characters on screen: every humanoid as one skinned, animated body (character animation rung
 /// 1, 2026-11-08, crates/humanity-animation and renderer/skinning.rs).
 pub mod animation;
+/// The ground under a person's feet for humanity-animation's feet (character animation rung 2a,
+/// 2026-11-09): the footing aboard, the drawn terrain on a planet.
+pub mod feet_ground;
+/// The foot probe: the drawn feet measured against the ground under them (rung 2a's proof).
+pub mod foot_probe;
 /// The game's one-shot sounds on the volume slider each belongs to, and the volumes' push (BUG-265).
 pub mod sfx;
 pub mod home_spawn;

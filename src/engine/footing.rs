@@ -201,6 +201,45 @@ impl<'a> Footing<'a> {
         floor
     }
 
+    /// The stair tread under the floor point (x, z) when the floor found there (`floor`, world Y)
+    /// is a tread of a stair piece (a `Steps` shape): the stair's axis (world, horizontal, unit,
+    /// up the stair), the tread's middle as a distance along that axis, and its depth, all from the
+    /// piece's own size and riser count (character animation rung 2a, 2026-11-09: a footstep is put
+    /// on the tread's middle, docs/design/character-animation.md section 4). None anywhere else.
+    pub fn tread_at(&self, at: Vec3, floor: f32) -> Option<(Vec3, f32, f32)> {
+        let ship = self.ship?;
+        for (zi, zone) in ship.zones.iter().enumerate() {
+            if ship.is_away_home(zi) {
+                continue;
+            }
+            let o = zone.origin;
+            for ps in &zone.body.structures {
+                let Some(ty) = structure::structure_type(&ps.type_id) else { continue };
+                if ty.shape != structure::MeshShape::Steps {
+                    continue;
+                }
+                let wpos = (ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
+                let yaw = ps.rot_deg.to_radians();
+                let Some(top) = structure::walk_surface(ty, wpos, yaw, at.x, at.z) else { continue };
+                if (top - floor).abs() > 0.01 {
+                    continue;
+                }
+                let (_, _, d) = ty.size;
+                let n = ty.steps.max(1);
+                let tread = d / n as f32;
+                let (_, lz) = structure::world_to_local_xz(wpos, yaw, at.x, at.z);
+                let idx = (((lz + d * 0.5) / tread).floor() as i32).clamp(0, n as i32 - 1);
+                let centre_lz = -d * 0.5 + (idx as f32 + 0.5) * tread;
+                // structure_mesh turns local (x, z) to world (x c + z s, -x s + z c): local +z is
+                // world (s, c), the way the treads climb.
+                let axis = Vec3::new(yaw.sin(), 0.0, yaw.cos());
+                let centre = Vec3::new(wpos.0, 0.0, wpos.2).dot(axis) + centre_lz;
+                return Some((axis, centre, tread));
+            }
+        }
+        None
+    }
+
     /// True when `r` is a room UPSTAIRS in a body of the ship: its floor is the top of a slab of
     /// the zone it stands in, above that zone's own floor. Its box is the bounding box of the
     /// cells it was flooded over (`HomeStructure::detect_rooms`), so it takes in any hole in its

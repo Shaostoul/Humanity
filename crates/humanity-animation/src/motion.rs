@@ -5,7 +5,8 @@
 //! The same tracker serves every body: the local player (its camera's position and yaw), another
 //! player (the position the network sync interpolates 15 updates a second into, and the way their
 //! figure faces), a crew member (its interpolated position and the facing it turns as a person
-//! turns, BUG-166). Vertical motion is left out: stairs, ladders and falls are rung 2's.
+//! turns, BUG-166). Vertical speed is read too since rung 2a (a jump's rise, a fall); whether the
+//! body is crouching or off the ground is not motion but stance, and the caller says it.
 
 use glam::Vec3;
 
@@ -29,7 +30,10 @@ impl MotionTracker {
             return self.input;
         }
         let step = Vec3::new(position.x - last_pos.x, 0.0, position.z - last_pos.z);
-        if !step.is_finite() || step.length() / dt > teleport_mps {
+        let rise = position.y - last_pos.y;
+        // Only a sideways jump is a teleport: a body's root steps up a stair tread in one frame
+        // (the walk stands it on each tread), which at a high frame rate is tens of metres a second.
+        if !step.is_finite() || !rise.is_finite() || step.length() / dt > teleport_mps {
             // A teleport: stand still where it landed.
             self.input = LocomotionInput::default();
             return self.input;
@@ -42,6 +46,9 @@ impl MotionTracker {
         self.input.speed += (v.dot(forward) - self.input.speed) * k;
         self.input.side += (v.dot(left) - self.input.side) * k;
         self.input.turn_rate += (turn - self.input.turn_rate) * k;
+        // Up and down (rung 2a): a jump's rise and a fall, read like the speed (the stance says
+        // whether the body is off the ground; this only says which way it is going).
+        self.input.vertical += (rise / dt - self.input.vertical) * k;
         self.input
     }
 

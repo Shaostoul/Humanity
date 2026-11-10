@@ -15,13 +15,15 @@
 //! really moves at (humanity-animation `MotionTracker`) and plays its gaits at that speed.
 
 use crate::engine::state::EngineState;
-use crate::renderer::camera::{SPRINT_FACTOR, WALK_SPEED_MPS};
+use crate::renderer::camera::{CROUCH_FACTOR, SPRINT_FACTOR, WALK_SPEED_MPS};
 
 /// A walking pace: metres a second walking and running.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Pace {
     pub walk_mps: f32,
     pub run_mps: f32,
+    /// Crouched walking (character animation rung 2a, 2026-11-09: hold C), never faster than the walk.
+    pub crouch_mps: f32,
 }
 
 /// The pace of a mode from game.csv's knobs (`knob` reads one by key), the compiled-in pace for any
@@ -33,7 +35,8 @@ pub(crate) fn pace_for(realistic: bool, knob: &mut dyn FnMut(&str) -> Option<f64
     };
     let walk = read(format!("walk_speed_{mode}_mps"), WALK_SPEED_MPS);
     let run = read(format!("run_speed_{mode}_mps"), WALK_SPEED_MPS * SPRINT_FACTOR);
-    Pace { walk_mps: walk, run_mps: run.max(walk) }
+    let crouch = read(format!("crouch_speed_{mode}_mps"), walk * CROUCH_FACTOR);
+    Pace { walk_mps: walk, run_mps: run.max(walk), crouch_mps: crouch.min(walk) }
 }
 
 /// Set the controller's walk speed and sprint factor from the walking pace in Settings.
@@ -46,6 +49,7 @@ pub(crate) fn apply(state: &mut EngineState) {
     let pace = if realistic { r } else { s };
     state.controller.speed = pace.walk_mps;
     state.controller.sprint_factor = pace.run_mps / pace.walk_mps;
+    state.controller.crouch_factor = pace.crouch_mps / pace.walk_mps;
     log::info!(
         "Walking pace: {} ({:.2} m/s walking, {:.2} m/s running)",
         if realistic { "Realistic" } else { "Simplified" },
@@ -83,6 +87,9 @@ mod tests {
         }
         assert_eq!((r.walk_mps, r.run_mps), (1.4, 4.0), "Realistic");
         assert_eq!((s.walk_mps, s.run_mps), (5.0, 9.5), "Simplified");
+        // Crouching (rung 2a): slower than walking in both modes, and the Realistic crouch near
+        // the crouch clip's own pace (0.72 m/s on its rig), so its feet keep still.
+        assert_eq!((r.crouch_mps, s.crouch_mps), (0.8, 1.6), "crouching");
     }
 
     /// A missing or broken row keeps the compiled-in pace, and a run slower than the walk is
@@ -92,7 +99,7 @@ mod tests {
     #[test]
     fn a_missing_or_broken_row_keeps_the_compiled_pace() {
         let none = pace_for(true, &mut |_| None);
-        assert_eq!(none, Pace { walk_mps: WALK_SPEED_MPS, run_mps: WALK_SPEED_MPS * SPRINT_FACTOR });
+        assert_eq!(none, Pace { walk_mps: WALK_SPEED_MPS, run_mps: WALK_SPEED_MPS * SPRINT_FACTOR, crouch_mps: WALK_SPEED_MPS * CROUCH_FACTOR });
         let zero = pace_for(true, &mut |k| if k.starts_with("walk") { Some(0.0) } else { Some(f64::NAN) });
         assert!(zero.walk_mps > 0.0, "walk {}", zero.walk_mps);
         let slow_run = pace_for(true, &mut |k| if k.starts_with("walk") { Some(2.0) } else { Some(1.0) });

@@ -2689,6 +2689,42 @@ mod tests {
         server.abort();
     }
 
+    /// A PLAYER'S STANCE REACHES THE OTHERS, CLAMPED (character animation rung 2a, 2026-11-09;
+    /// humanity_core::stance), on a real relay: a step sent crouching in the air (`"stance": 129`)
+    /// reaches the other player with that stance; a step sent standing (no field, as an older app
+    /// sends it) reaches them with no field at all, the same message as before; and a stance that
+    /// is not one (`999`, a string) is passed on as standing, never as sent.
+    /// Seen red 2026-11-09 with the relay's update built without the stance: "the crouch reaches the
+    /// other player" (left: Null, right: Number(129)).
+    #[tokio::test]
+    async fn a_players_stance_reaches_the_others_clamped() {
+        let path = plots_db("stance");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut a, a_key) = bind_socket(&state, port, [111u8; 32], Some("CrouchA"), 1).await;
+        let (mut b, _) = bind_socket(&state, port, [112u8; 32], Some("WatchB"), 1).await;
+        welcome_after_join(&mut a, "CrouchA").await;
+        welcome_after_join(&mut b, "WatchB").await;
+        let door = relay_position(&state, &a_key).await;
+        let mut at = door;
+        for (sent, seen_as) in [(Some(serde_json::json!(129)), Some(129)), (None, None), (Some(serde_json::json!(999)), None), (Some(serde_json::json!("1")), None), (Some(serde_json::json!(1)), Some(1))] {
+            at[2] += 0.3;
+            let mut msg = serde_json::json!({ "type": "game_position_update", "position": at, "rotation": [0.0, 0.0, 0.0, 1.0], "velocity": [0.0, 0.0, 0.0], "timestamp": 1.0, "correction": 0 });
+            if let Some(s) = &sent {
+                msg["stance"] = s.clone();
+            }
+            send_json(&mut a, msg).await;
+            let seen = next_game_of(&mut b, &["game_position_update"]).await.expect("the other player sees the step");
+            assert_eq!(seen["position"], serde_json::json!(at));
+            match seen_as {
+                Some(n) => assert_eq!(seen["stance"], serde_json::json!(n), "the crouch reaches the other player (sent {sent:?})"),
+                None => assert!(seen.get("stance").is_none(), "standing, or a stance that is not one ({sent:?}), goes as no field: {seen}"),
+            }
+        }
+        a.close(None).await.ok();
+        b.close(None).await.ok();
+        server.abort();
+    }
+
     fn dist_v(v: &Value, p: [f32; 3]) -> f32 {
         let a: Vec<f32> = v.as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).map(|x| x as f32).collect()).unwrap_or_default();
         if a.len() != 3 {
