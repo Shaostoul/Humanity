@@ -11,6 +11,16 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1554.0 (10 November 2026)
+
+- Shape your body on the character page with build, proportions and ancestry sliders; other players see the shape you made.
+- Feet stand on what is under them: ship floors, stair treads, ramps and the slopes of the map, and a planted foot stays put.
+- Hold C to crouch (others see it), and jumping plays a take-off, a moment in the air and a landing.
+- Settings > Gameplay > Animation: Realistic, or Simplified for older computers. The character page shows your height in metres.
+- AI only if you want it: Settings > AI can download a small model, IBM's Granite 4.0 1B (about 1 GB), showing its size, maker and licence first; downloads resume, every file is checked, and Remove deletes it all. Everything works without it.
+- Map roads sit in beds cut into the ground and buildings stand on level pads, with full detail near you.
+- Your own body on a planet now stands where you are, not 400 km up with the station.
+
 ### v0.1553.0 (9 November 2026)
 
 - Real people: you, other players and the crew are now real human bodies, a woman and a man made from MakeHuman's free body data, instead of the plain test figure.
