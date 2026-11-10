@@ -2409,6 +2409,12 @@
       "definition": "An image wrapped onto a 3D surface to give it color and detail, like wallpaper on a shape. Sharper textures look better close up and take more graphics memory.",
       "link": "https://en.wikipedia.org/wiki/Texture_mapping"
     },
+    "block_compression": {
+      "term": "Block compression",
+      "category": "gaming",
+      "definition": "A way of storing a texture that a graphics card reads as it is, in a quarter of the memory or less: the picture is cut into squares of 4 by 4 dots, and each square is kept as a few colours and which of them each dot takes. BC7 is the kind HumanityOS uses for the clothes people wear. Almost every desktop graphics card reads it; one that does not is given the same pictures uncompressed.",
+      "link": "https://learn.microsoft.com/en-us/windows/win32/direct3d11/bc7-format"
+    },
     "particle": {
       "term": "Particle",
       "category": "gaming",

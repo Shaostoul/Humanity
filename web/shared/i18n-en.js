@@ -4594,5 +4594,23 @@ window.HOS_I18N_EN = {
       "mb": "{{n}} MB",
       "gb": "{{n}} GB"
     }
+  },
+  "garment_textures": {
+    "title": "Garment textures",
+    "hint": "How sharp the pictures on the clothes, shoes, hats, hair, brows and lashes of the people near you are drawn. They take video memory, set aside once for everyone near you. Full is the sharpest; Low memory draws each at half size each way, a quarter of the memory, a little softer close up. A change shows at once.",
+    "level": {
+      "full": "Full",
+      "low": "Low memory"
+    },
+    "note": {
+      "full": "Each garment's picture at its sharpest.",
+      "low": "Half size each way: a quarter of the memory, a little softer close up."
+    },
+    "memory": "about {{memory}} of video memory",
+    "memory_unmeasured": "Each level's memory is worked out once the people around you have loaded.",
+    "bc_line": "{{card}} reads [[block compression|block_compression]] (BC7), so the garments' [[textures|texture]] take a quarter of the memory they would uncompressed.",
+    "no_bc_card": "{{card}} does not read [[block compression|block_compression]] (BC7), which the garments' [[textures|texture]] are stored in. They are drawn uncompressed instead: they look the same and take four times the video memory. Low memory takes a quarter of that.",
+    "no_bc": "This graphics card does not read [[block compression|block_compression]] (BC7), which the garments' [[textures|texture]] are stored in. They are drawn uncompressed instead: they look the same and take four times the video memory. Low memory takes a quarter of that.",
+    "level_hint": "Draws the garments of the people near you at this size. The line beside it says what it does and how much video memory it takes."
   }
 };

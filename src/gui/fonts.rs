@@ -37,6 +37,15 @@
 
 use egui::FontFamily;
 
+/// Install every font fallback chain on an egui context (re-exported as `crate::gui::install_fonts`).
+/// Called for the main UI context at boot AND for every in-world screen surface context, so a
+/// screen can never show tofu the main UI does not: the two contexts get identical font stacks by
+/// going through one function. (Moved here from gui/mod.rs on 2026-11-10, a wrapper beside what it
+/// wraps, to make room under that file's line budget.)
+pub fn install_fonts(ctx: &egui::Context) {
+    install_font_fallbacks(ctx);
+}
+
 /// Install every font fallback chain. Call once during init AFTER the egui
 /// `Context` exists but BEFORE the first frame.
 ///

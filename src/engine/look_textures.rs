@@ -1,175 +1,109 @@
-//! THE GARMENTS' TEXTURES (character animation's "the look", 2026-11-09; docs/design/
-//! character-animation.md section 16): each worn garment's MakeHuman textures read once, off the
-//! frame, and packed into one texture the character materials sample (`renderer::materials`
-//! `add_character_material`, the type 25 and 26 branches of 90-fragment-main.wgsl).
+//! THE GARMENTS' TEXTURES (character animation's "the look", 2026-11-09; BC7 and the slot pool
+//! 2026-11-10; docs/design/character-animation.md section 16): each worn garment's texture read off
+//! the frame, ready for a slot of the garment texture pool (`renderer::texture_pool`) the character
+//! materials sample (`renderer::materials` types 25 and 26, `90-fragment-main.wgsl`).
 //!
-//! THE PACKING. A material binds ONE albedo texture at group 3 (the layout every material shares,
-//! sixteen bindings, the v0.1029 rule), so a garment's colour and its normal map share one texture,
-//! side by side: the left half is the diffuse texture (times its ambient occlusion map where it has
-//! one, and with its alpha: the hair's, brows' and lashes' cards), the right half the normal map.
-//! The texture is sRGB, so the normal map is stored sRGB-encoded and comes back as written when
-//! sampled. Each half is mipmapped on its own (no bleeding across the middle): the colour half with
-//! its alpha kept at the same coverage as it shrinks for cards (`billboard_bake::build_mip_chain`,
-//! Castano's method, so lashes and brows do not vanish at a few metres), straight for cloth.
+//! THE FILE. The converter (`scripts/gen-makehuman-look.js`, `scripts/lib/garment-texture.js`)
+//! packs each garment's texture once, at conversion time: the colour (times its ambient occlusion
+//! map, with its alpha for the hair's, brows' and lashes' cards) in the left half and the normal map
+//! (sRGB-encoded, so the sRGB texture hands back the map's own values) in the right, each half
+//! mipmapped on its own down to one block (4 texels), BC7-encoded by our own encoder, in a DDS file
+//! (`garments.ron`'s `texture`). Nothing is packed or encoded here, and nothing is kept across runs:
+//! the file is read each time the garment takes a slot.
 //!
-//! THE SIZE. The sources are 512 to 4096 texels (kept whole on disk: CLAUDE.md, space is not
-//! scarce). A person three metres away covers a few hundred pixels, so each half is drawn at most
-//! `characters.ron`'s `look_texture_px` (1024 by default; section 8.3 has the memory), resampled once
-//! here. A texture that fails to read leaves the garment in its mean colour, and the log says why.
+//! THE SIZE. Each half is `texture_px` texels at level 0 (1024; 512 for brows and lashes, whose
+//! sources are that small). Settings > Graphics > Garment textures caps it (`gui::garment_textures`:
+//! Full 1024, Low memory 512): the file's top levels past the cap are skipped, so Low memory uploads
+//! from the second level, a quarter of the memory.
 //!
-//! Nothing is kept across runs: the pack is made in memory from the source files each run.
+//! THE GPU. Where it offers block compression the BC7 blocks go up as they are (a byte a texel);
+//! elsewhere they are decoded here to RGBA8 (`renderer::bc7`, the format's bit-exact decoder), four
+//! times the memory, and Settings says so (the hardware-notice rule).
 
 use std::path::Path;
 
-/// A garment's packed texture: `levels[0]` is `2 * size` by `size` texels of sRGB RGBA8, each later
-/// level half as wide and high.
+use crate::renderer::texture_pool::SlotClass;
+
+/// The smallest a half gets in a garment's mip chain (one BC7 block), as the converter writes it.
+pub(crate) const MIP_MIN_PX: u32 = 4;
+
+/// A garment's texture read for its slot: the pool shape it fits and its levels, biggest first (BC7
+/// blocks, or RGBA8 decoded from them on a GPU without block compression).
 #[derive(Debug, Clone)]
-pub(crate) struct Packed {
-    pub size: u32,
+pub(crate) struct Loaded {
+    pub class: SlotClass,
     pub levels: Vec<Vec<u8>>,
-    /// The colour half's mean luminance (linear), so hair tinted by a person's hair colour keeps its
-    /// strands' light and dark while its average is the colour chosen.
-    pub mean_luma: f32,
-    /// Whether a normal map was packed (the right half is flat otherwise).
-    pub has_normal: bool,
 }
 
-fn read_rgba(path: &Path, size: u32) -> Result<image::RgbaImage, String> {
+/// The levels a half of `half` texels has, down to `MIP_MIN_PX`.
+fn levels_for(half: u32) -> u32 {
+    (half.max(MIP_MIN_PX) / MIP_MIN_PX).ilog2() + 1
+}
+
+/// The pool shape a garment whose halves are `texture_px` texels takes when each half is drawn at
+/// most `max_px`: twice as wide as high, its levels down to one block a half.
+pub(crate) fn class_for(texture_px: u32, max_px: u32, compressed: bool) -> SlotClass {
+    let half = texture_px.min(max_px.max(MIP_MIN_PX));
+    SlotClass { width: half * 2, height: half, levels: levels_for(half), compressed }
+}
+
+/// Read a garment's DDS for halves of at most `max_px` texels: the file's levels from the first that
+/// fits; `compressed` keeps the BC7 blocks, else they are decoded to RGBA8. Errs on a file that is
+/// not the converter's shape for a garment of `texture_px` (the log says why; the garment is drawn
+/// in its mean colour).
+pub(crate) fn read(path: &Path, texture_px: u32, max_px: u32, compressed: bool) -> Result<Loaded, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let img = image::load_from_memory(&bytes).map_err(|e| format!("{}: {e}", path.display()))?.to_rgba8();
-    Ok(if img.width() == size && img.height() == size { img } else { image::imageops::resize(&img, size, size, image::imageops::FilterType::Triangle) })
-}
-
-fn srgb_to_linear(c: u8) -> f32 {
-    let s = c as f32 / 255.0;
-    if s <= 0.04045 {
-        s / 12.92
-    } else {
-        ((s + 0.055) / 1.055).powf(2.4)
+    let file = crate::renderer::bc7::read_dds(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    if file.width != texture_px * 2 || file.height != texture_px || file.levels.len() as u32 != levels_for(texture_px) {
+        return Err(format!(
+            "{}: {} by {} texels in {} levels, where garments.ron's {} texels a half means {} by {} in {}",
+            path.display(),
+            file.width,
+            file.height,
+            file.levels.len(),
+            texture_px,
+            texture_px * 2,
+            texture_px,
+            levels_for(texture_px)
+        ));
     }
-}
-
-fn linear_to_srgb(v: f32) -> u8 {
-    let v = v.clamp(0.0, 1.0);
-    let s = if v <= 0.003_130_8 { v * 12.92 } else { 1.055 * v.powf(1.0 / 2.4) - 0.055 };
-    (s * 255.0 + 0.5) as u8
-}
-
-/// Read and pack a garment's textures (the module notes). `cards`: it is drawn as alpha cards
-/// (hair, brows, lashes). `max_px` caps each half's size.
-pub(crate) fn pack(diffuse: &Path, normal: Option<&Path>, ao: Option<&Path>, cards: bool, source_px: u32, max_px: u32) -> Result<Packed, String> {
-    let size = source_px.min(max_px.max(16)).next_power_of_two().min(max_px.max(16));
-    let mut colour = read_rgba(diffuse, size)?;
-    if let Some(ao) = ao {
-        // The ambient occlusion map multiplies the colour (in linear light); a map that does not
-        // read is only a little less depth, so the garment is drawn without it.
-        match read_rgba(ao, size) {
-            Ok(ao) => {
-                for (c, a) in colour.pixels_mut().zip(ao.pixels()) {
-                    let occ = a.0[0] as f32 / 255.0;
-                    for k in 0..3 {
-                        c.0[k] = linear_to_srgb(srgb_to_linear(c.0[k]) * occ);
-                    }
-                }
-            }
-            Err(e) => log::warn!("Characters: a garment's ambient occlusion map did not read ({e}); drawn without it"),
+    let class = class_for(texture_px, max_px, compressed);
+    let skip = (texture_px / class.height).ilog2() as usize;
+    let mut levels: Vec<Vec<u8>> = file.levels.into_iter().skip(skip).collect();
+    if !compressed {
+        for (l, level) in levels.iter_mut().enumerate() {
+            let (w, h) = ((class.width >> l).max(1), (class.height >> l).max(1));
+            *level = crate::renderer::bc7::decode_level(level, w, h).map_err(|e| format!("{}: {e}", path.display()))?;
         }
     }
-    if !cards {
-        for p in colour.pixels_mut() {
-            p.0[3] = 255;
-        }
-    }
-    let (has_normal, normals) = match normal.map(|n| read_rgba(n, size)) {
-        Some(Ok(mut n)) => {
-            // Stored sRGB-encoded so the sRGB texture hands back the map's own values.
-            for p in n.pixels_mut() {
-                for k in 0..3 {
-                    p.0[k] = linear_to_srgb(p.0[k] as f32 / 255.0);
-                }
-                p.0[3] = 255;
-            }
-            (true, n)
-        }
-        Some(Err(e)) => {
-            log::warn!("Characters: a garment's normal map did not read ({e}); drawn flat");
-            (false, flat(size))
-        }
-        None => (false, flat(size)),
-    };
-    let mut lum = 0.0f64;
-    let mut n = 0u64;
-    for p in colour.pixels().step_by(7) {
-        if p.0[3] >= 128 {
-            lum += (0.2126 * srgb_to_linear(p.0[0]) + 0.7152 * srgb_to_linear(p.0[1]) + 0.0722 * srgb_to_linear(p.0[2])) as f64;
-            n += 1;
-        }
-    }
-    let mean_luma = if n > 0 { (lum / n as f64) as f32 } else { 0.5 };
-    // Each half's mip chain, then side by side level by level.
-    let left = if cards {
-        crate::renderer::billboard_bake::build_mip_chain(colour.as_raw(), size, CARD_CUTOFF, true)
-    } else {
-        crate::renderer::billboard_bake::build_opaque_mip_chain(colour.as_raw(), size)
-    };
-    let right = crate::renderer::billboard_bake::build_opaque_mip_chain(normals.as_raw(), size);
-    let count = left.len().min(right.len());
-    let levels = (0..count)
-        .map(|l| {
-            let s = (size >> l).max(1) as usize;
-            let mut out = vec![0u8; s * s * 2 * 4];
-            for y in 0..s {
-                out[y * s * 8..y * s * 8 + s * 4].copy_from_slice(&left[l][y * s * 4..(y + 1) * s * 4]);
-                out[y * s * 8 + s * 4..(y + 1) * s * 8].copy_from_slice(&right[l][y * s * 4..(y + 1) * s * 4]);
-            }
-            out
-        })
-        .collect();
-    Ok(Packed { size, levels, mean_luma, has_normal })
-}
-
-/// The alpha a card's texel counts as covered at, for the coverage-keeping mips: the opaque pass's
-/// cut (`renderer::materials::HAIR_CUTOFF`'s neighbourhood; the mips keep the share of texels over it).
-pub(crate) const CARD_CUTOFF: f32 = 0.5;
-
-fn flat(size: u32) -> image::RgbaImage {
-    // (0.5, 0.5, 1.0) in the map's own encoding, sRGB-encoded for the sRGB texture.
-    let half = linear_to_srgb(0.5);
-    image::RgbaImage::from_pixel(size, size, image::Rgba([half, half, 255, 255]))
+    Ok(Loaded { class, levels })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// A garment's pack: twice as wide as high, its levels halving, the left half the colour and
-    /// the right half the normal map handed back as written (sRGB-encoded); a card's alpha kept.
-    /// Seen red 2026-11-09 with the normal half stored as read (not encoded): first it passed (the
-    /// test only asked for z mostly up), so it now compares the half with the map texel by texel,
-    /// which the same mistake fails: "the normal half read back 0.28713197 away from the map".
+    /// A GARMENT'S FILE READS FOR EITHER SIZE AND EITHER GPU: a shipped garment (shoes01, 1024 a
+    /// half) reads at Full as its whole BC7 chain (2048 by 1024, nine levels), at Low memory from its
+    /// second level (1024 by 512, eight: the same pool shape as a 512 brow at Full), and on a GPU
+    /// without block compression as RGBA8 decoded from the same blocks (four bytes a texel, its
+    /// colour half the BC7 half's texels exactly); a brow (512) stays 512 at Low memory.
     #[test]
-    fn a_garment_pack_is_colour_beside_normal() {
+    fn a_garment_file_reads_for_either_size_and_either_gpu() {
         let root = Path::new(env!("HUMANITY_REPO_ROOT")).join("assets/models/characters/makehuman/garments");
-        let p = pack(&root.join("shoes01/shoes01_diffuse.png"), Some(&root.join("shoes01/shoes01_normal.png")), None, false, 1024, 256).expect("shoes01 packs");
-        assert_eq!(p.size, 256);
-        assert_eq!(p.levels[0].len(), 512 * 256 * 4);
-        assert_eq!(p.levels[1].len(), 256 * 128 * 4);
-        assert!(p.has_normal);
-        // The normal half, sampled through sRGB, hands back the map's own values (to a hundredth):
-        // the map read and resized the same way, compared texel by texel along a row.
-        let map = read_rgba(&root.join("shoes01/shoes01_normal.png"), 256).expect("the map reads");
-        let mut worst = 0.0_f32;
-        for x in (0..256).step_by(7) {
-            let px = (100 * 512 + 256 + x) * 4;
-            for k in 0..3 {
-                let back = srgb_to_linear(p.levels[0][px + k]);
-                worst = worst.max((back - map.get_pixel(x as u32, 100).0[k] as f32 / 255.0).abs());
-            }
-        }
-        assert!(worst < 0.01, "the normal half read back {worst} away from the map");
-        let flat_back = srgb_to_linear(flat(4).get_pixel(0, 0).0[0]);
-        assert!((flat_back - 0.5).abs() < 0.01, "a flat normal reads back 0.5, read {flat_back}");
-        let hair = pack(&root.join("eyelashes01/eyelashes01.png"), None, None, true, 512, 128).expect("lashes pack");
-        assert!(hair.levels[0].chunks(4).any(|t| t[3] < 32) && hair.levels[0].chunks(4).any(|t| t[3] > 200), "a card keeps its alpha");
+        let shoes = root.join("shoes01/shoes01.dds");
+        let full = read(&shoes, 1024, 1024, true).expect("shoes01 at Full");
+        assert_eq!(full.class, SlotClass { width: 2048, height: 1024, levels: 9, compressed: true });
+        assert_eq!(full.levels[0].len(), 2048 * 1024, "a byte a texel");
+        let low = read(&shoes, 1024, 512, true).expect("shoes01 at Low memory");
+        assert_eq!(low.class, SlotClass { width: 1024, height: 512, levels: 8, compressed: true });
+        assert_eq!(low.levels[0], full.levels[1], "Low memory is the file's second level");
+        let brow = read(&root.join("eyebrow001/eyebrow001.dds"), 512, 512, true).expect("a brow at Low memory");
+        assert_eq!(brow.class, low.class, "a brow at either size shares Low memory's pool shape");
+        let raw = read(&shoes, 1024, 512, false).expect("shoes01 decoded");
+        assert_eq!(raw.class, SlotClass { compressed: false, ..low.class });
+        assert_eq!(raw.levels[0].len(), 1024 * 512 * 4, "four bytes a texel");
+        assert_eq!(raw.levels[0], crate::renderer::bc7::decode_level(&low.levels[0], 1024, 512).expect("decodes"));
+        assert!(read(&shoes, 512, 512, true).is_err(), "a file that is not garments.ron's size is refused");
     }
 }

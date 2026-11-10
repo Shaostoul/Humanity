@@ -22,6 +22,9 @@ mod instruments_tests;
 /// Settings > Graphics > Furniture (2026-11-09, docs/design/simready-props.md): Furniture detail
 /// with its measured memory and the hardware notice, and the furniture model packs.
 mod furniture;
+/// Settings > Graphics > Garment textures (2026-11-10, docs/design/character-animation.md section
+/// 16): Full or Low memory with each one's video memory, and the block compression notice.
+pub(crate) mod garments;
 /// Settings > Privacy > "Calls and voice rooms" (10p, 2026-10-22): Private, Direct, or Direct
 /// also asking a public service, and who can see the person's address in each.
 mod calls;
@@ -3799,6 +3802,9 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 
         // ── Furniture: detail level and model packs (settings/furniture.rs) ──
         furniture::draw_furniture(ui, theme, state, hint, accent);
+
+        // ── Garment textures: the people's clothes and hair (settings/garments.rs) ──
+        garments::draw_garment_textures(ui, theme, state, hint, accent);
 
         // ── Machine labels and Home view ──
         widgets::subsection_header(ui, theme, accent, "Machine labels and Home view", "");

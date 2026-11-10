@@ -128,7 +128,9 @@ And 17 more items, 17 references (`node scripts/crate-cards.js --interface human
 - **Garments, sliders and dress are data**: `data/characters/details.ron` and `garments.ron` are
   written by `scripts/gen-makehuman-look.js` (never by hand); cosmetics.csv's `model` and `covers`
   name a garment and the cover regions it hides; `characters.ron`'s wearers carry each kind's
-  default `dress` per body. Source: CLAUDE.md, Infinite-of-X.
+  default `dress` per body. A garment's row names its texture as the converter made it (`texture`, a
+  BC7 DDS; `texture_px`, `normal_map`, `luma`, 2026-11-10); the crate reads only the row, the engine
+  reads the file. Source: CLAUDE.md, Infinite-of-X; character-animation.md section 16.
 - **A clip's hips travel is an offset from the rest, and its speed is the body's.** Retargeting
   scales a gait's `speed_mps` by the body's leg length against the source's, and the engine divides
   a person's speed by their own stride scale (shape and size) before the graph reads it, so the
@@ -181,7 +183,10 @@ And 17 more items, 17 references (`node scripts/crate-cards.js --interface human
   range, too many; the look's rate); the engine's `src/engine/animation_look_tests.rs` (a person's own
   mesh is their look; the build's cost and memory; shod feet stand on the floor, red with the soles
   not measured; no skin through the clothes in walk, crouch and sit on the drawn skinned mesh, red
-  with covers off) and `look_textures`' pack test; the relay's `msg_handlers::look_tests` (the cap
+  with covers off) and `look_textures`' read test (either size, either GPU); the renderer's `bc7` tests (the
+  shipped textures decode to their sources; `the_gpu_decodes_bc7_as_we_do`, ignored by default, ties the
+  decoder to the GPU's) and `texture_pool` tests (a slot handed on and the pool allocated once, red with
+  an allocation per garment); `scripts/tests/bc7.test.js` (our encoder); the relay's `msg_handlers::look_tests` (the cap
   and the reader at the relay). In the running game: `anim-look-face-{female,male}` (detail sliders at
   their ends), `anim-look-covers-off` (the red arm, seen), `anim-shoes` and `anim-shoes-soles-off`
   (the shod foot probe, and its red twin that must FAIL), `anim-stairs-soles-off` and

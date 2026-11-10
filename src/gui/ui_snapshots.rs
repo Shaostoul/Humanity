@@ -2229,6 +2229,43 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_garment_textures() {
+    // Settings > Graphics > Garment textures (2026-11-10, the look's textures) on a GPU with block
+    // compression: Full and Low memory with the memory the engine plans for the shipped library's
+    // pools as BC7 (90.7 and 30.7 MB, measured in the rig's log), and the card's line. (The whole
+    // Graphics page's snapshot, `graphics_settings`, stops before Furniture and this section.)
+    render_page_png("garment_textures", 960, 360, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            let plan = crate::gui::garment_textures::Plan { bytes: vec![("full".into(), 95_070_400), ("low".into(), 32_155_840)], compressed: true };
+            let card = crate::renderer::bounced_light_detail::AdapterMemory { name: "NVIDIA GeForce RTX 4070".into(), integrated: false, dedicated_bytes: Some(12 << 30) };
+            let line = crate::gui::garment_textures::compressed_line(Some(&card));
+            let hint = state.settings.hint_display;
+            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), Some(&plan), line.as_deref(), None);
+        });
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_garment_textures_no_bc() {
+    // Settings > Graphics > Garment textures on a GPU without block compression (2026-11-10, the
+    // look's textures): Low memory chosen, each level's memory as the engine plans it uncompressed
+    // (the shipped library's pools at Full and Low memory, four times the BC7 figures), and the
+    // notice in words: what the textures need, what this card has, what works instead.
+    render_page_png("garment_textures_no_bc", 960, 420, |ctx, theme, state| {
+        state.settings.garment_textures = "low".into();
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            let plan = crate::gui::garment_textures::Plan { bytes: vec![("full".into(), 4 * 95_070_400), ("low".into(), 4 * 32_155_840)], compressed: false };
+            let card = crate::renderer::bounced_light_detail::AdapterMemory { name: "Test GPU".into(), integrated: false, dedicated_bytes: Some(4 << 30) };
+            let notice = crate::gui::garment_textures::hardware_notice(Some(false), Some(&card));
+            let hint = state.settings.hint_display;
+            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), Some(&plan), None, notice.as_deref());
+        });
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_cloud_dev() {
     // The F10 Cloud dev panel with its NEEDS TESTING list and per-row TEST
     // tags (v0.1289, data/gui/dev_tests.json). Since 2026-09-05 it is a

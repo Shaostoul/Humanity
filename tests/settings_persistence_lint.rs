@@ -112,6 +112,11 @@ const SETTINGS_FILES: &[&str] = &[
     // (`furniture_detail`), drawn by settings/furniture.rs. Seen red 2026-11-09 with its load leg
     // removed from config.rs: "furniture_detail: never read by apply_to_state".
     "src/gui/pages/settings/furniture.rs",
+    // Settings > Graphics > Garment textures (2026-11-10, docs/design/character-animation.md
+    // section 16): Full or Low memory (`garment_textures`), drawn by settings/garments.rs. Seen red
+    // 2026-11-10 with its load leg removed from config.rs: "garment_textures: never read by
+    // apply_to_state".
+    "src/gui/pages/settings/garments.rs",
     // The profile card's "Your settings for <name>" (2026-11-03, docs/design/per-person-controls.md):
     // what was chosen for each person (`person_controls`), changed on the card, kept in AppConfig.
     // Seen red 2026-11-03 with its load leg removed from config.rs: "person_controls: never read by

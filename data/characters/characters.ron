@@ -80,10 +80,10 @@
     // body). The operator keeps a core of his own, so two by default.
     look: Some("assets/models/characters/makehuman/makehuman_base.bin"),
     look_threads: 2,
-    // Each half of a garment's packed texture (its colour, its normal map) is drawn at most this
-    // many texels each way: 1024 holds a person's cloth sharp to arm's length on a 1440p screen,
-    // and costs 11 MB of video memory a garment with its mips (section 16 has the measurements).
-    look_texture_px: 1024,
+    // A garment's texture size is the converter's and the player's, not this file's: the converter
+    // encodes each at 1024 texels a half, BC7, with every level below it (garments.ron's texture),
+    // and Settings > Graphics > Garment textures chooses Full or Low memory
+    // (data/gui/garment_textures.json).
     // Each kind of wearer's defaults: the bodies a person of this kind is drawn with when their look
     // names none (one each, by a stable hash of who they are, so a crew is women and men), their
     // skin, hair and eyes when they have no look of their own, and each cosmetic slot's colour when

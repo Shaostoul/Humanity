@@ -12,7 +12,11 @@
 //       fitted to the base mesh: every vertex's three base vertices, weights and offset (MakeHuman's
 //       .mhclo binding), its skin weights, its drawn vertices and triangles, and the base vertices
 //       it hides (delete_verts) (the layout at `writeGarment`), beside its textures copied as they
-//       are and its thumbnail
+//       are (the sources, kept whole) and its thumbnail
+//   assets/models/characters/makehuman/garments/<id>/<id>.dds   the texture the game draws: colour
+//       beside normal map, every level, BC7-encoded here at conversion time by our own encoder
+//       (scripts/lib/garment-texture.js and scripts/lib/bc7.js, 2026-11-10; shipped data, not a
+//       cache: CLAUDE.md's no-caches rule forbids encoding on load and keeping it)
 //   data/characters/garments.ron     each of them: kind, files, material (generated)
 //   assets/models/characters/makehuman/LOOK-SOURCE.md   the licence, the inputs and their hashes,
 //       the outputs' hashes
@@ -46,10 +50,14 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const zlib = require('zlib');
+const os = require('os');
 const body = require('./gen-makehuman-body.js');
+const garmentTexture = require('./lib/garment-texture.js');
 
-const ROOT = path.join(__dirname, '..');
+// Where the outputs are written and checked: the repo, or (HUMANITY_LOOK_ROOT, for the converter's
+// own test) a copy of its outputs elsewhere, so a hand-edited file can be checked without touching
+// the repo's.
+const ROOT = process.env.HUMANITY_LOOK_ROOT || path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'assets', 'models', 'characters', 'makehuman');
 const GARMENT_DIR = path.join(OUT, 'garments');
 const DETAILS_RON = path.join(ROOT, 'data', 'characters', 'details.ron');
@@ -142,63 +150,13 @@ function packReader(src) {
   };
 }
 
-// ── PNG: read the size and the mean colour of a diffuse texture ───────────
-/**
- * Decode an 8-bit PNG (grey, grey+alpha, RGB, RGBA) to RGBA. An interlaced (Adam7) one gives only its
- * first pass, every eighth texel each way, which is all a mean colour needs.
- */
-function decodePng(buf) {
-  if (buf.readUInt32BE(0) !== 0x89504e47) fail('not a PNG');
-  let p = 8;
-  let w = 0, h = 0, depth = 0, ct = 0, interlace = 0;
-  const idat = [];
-  while (p < buf.length) {
-    const n = buf.readUInt32BE(p);
-    const type = buf.toString('ascii', p + 4, p + 8);
-    const data = buf.subarray(p + 8, p + 8 + n);
-    if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); depth = data[8]; ct = data[9]; interlace = data[12]; }
-    if (type === 'IDAT') idat.push(data);
-    if (type === 'IEND') break;
-    p += 12 + n;
-  }
-  const channels = { 0: 1, 2: 3, 4: 2, 6: 4 }[ct];
-  if (depth !== 8 || !channels || interlace > 1) fail(`a PNG of depth ${depth}, colour type ${ct}, interlace ${interlace} is not read here`);
-  const raw = zlib.inflateSync(Buffer.concat(idat));
-  // The image's own size, before an interlaced one is cut to its first pass.
-  const size = { w, h };
-  if (interlace === 1) { w = Math.ceil(w / 8); h = Math.ceil(h / 8); }
-  const stride = w * channels;
-  const out = Buffer.alloc(w * h * 4);
-  let prev = Buffer.alloc(stride);
-  for (let y = 0; y < h; y++) {
-    const f = raw[y * (stride + 1)];
-    const line = Buffer.from(raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)));
-    for (let x = 0; x < stride; x++) {
-      const a = x >= channels ? line[x - channels] : 0;
-      const b = prev[x];
-      const c = x >= channels ? prev[x - channels] : 0;
-      let v = line[x];
-      if (f === 1) v += a;
-      else if (f === 2) v += b;
-      else if (f === 3) v += (a + b) >> 1;
-      else if (f === 4) { const pp = a + b - c; const pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
-      line[x] = v & 0xff;
-    }
-    for (let x = 0; x < w; x++) {
-      const s = x * channels;
-      const o = (y * w + x) * 4;
-      if (channels === 1) { out[o] = out[o + 1] = out[o + 2] = line[s]; out[o + 3] = 255; }
-      else if (channels === 2) { out[o] = out[o + 1] = out[o + 2] = line[s]; out[o + 3] = line[s + 1]; }
-      else { out[o] = line[s]; out[o + 1] = line[s + 1]; out[o + 2] = line[s + 2]; out[o + 3] = channels === 4 ? line[s + 3] : 255; }
-    }
-    prev = line;
-  }
-  return { w, h, rgba: out, size };
-}
+// ── PNG: the mean colour of a diffuse texture (decoded whole: garment-texture.js) ──
+const decodePng = garmentTexture.decodePng;
 
 /** The mean linear colour of a texture's covered texels (alpha over a half), sampled on a grid. */
 function meanColour(png) {
-  const { w, h, rgba, size } = decodePng(png);
+  const { w, h, rgba } = decodePng(png);
+  const size = { w, h };
   const lin = (c) => { const s = c / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
   const sum = [0, 0, 0];
   let n = 0;
@@ -209,7 +167,6 @@ function meanColour(png) {
     sum[0] += lin(rgba[o]); sum[1] += lin(rgba[o + 1]); sum[2] += lin(rgba[o + 2]);
     n++;
   }
-  // The texture's own size (an interlaced one was read at an eighth), the size it is packed from.
   return { w: size.w, h: size.h, mean: n ? sum.map((s) => Math.round((s / n) * 1000) / 1000) : [0.5, 0.5, 0.5] };
 }
 
@@ -739,12 +696,11 @@ const fx = (x) => (Number.isInteger(x) ? `${x}.0` : String(x));
 function garmentsRon(garments) {
   const out = [GENERATED, '(', '    garments: ['];
   const dir = (g) => `assets/models/characters/makehuman/garments/${g.id}`;
-  const file = (g, rel) => (rel ? `Some(${ron(`${dir(g)}/${path.posix.basename(rel)}`)})` : 'None');
   for (const g of garments) {
     out.push('        (');
     out.push(`            id: ${ron(g.id)}, kind: ${g.kind[0].toUpperCase() + g.kind.slice(1)}, file: ${ron(`${dir(g)}/${g.id}.bin`)},`);
-    out.push(`            diffuse: ${ron(`${dir(g)}/${path.posix.basename(g.diffuse)}`)}, normal: ${file(g, g.normal)}, ao: ${file(g, g.ao)},`);
-    out.push(`            size: (${g.colour.w}, ${g.colour.h}), colour: (${g.colour.mean.map(fx).join(', ')}), roughness: ${fx(g.roughness)}, alpha: ${g.alpha}, two_sided: ${g.twoSided},`);
+    out.push(`            texture: ${ron(`${dir(g)}/${g.id}.dds`)}, texture_px: ${g.tex.size}, normal_map: ${g.tex.hasNormal}, luma: ${fx(g.tex.meanLuma)},`);
+    out.push(`            colour: (${g.colour.mean.map(fx).join(', ')}), roughness: ${fx(g.roughness)}, alpha: ${g.alpha}, two_sided: ${g.twoSided},`);
     out.push(`            covers: ${ron(g.covers)}, tags: ${ron(g.tags)},`);
     out.push('        ),');
   }
@@ -811,6 +767,9 @@ function noteText(files, inputs, sliders, garments, totals) {
     '',
     `- \`makehuman_details.bin\`: ${inputs.targets} detail targets driven by ${sliders.length} sliders (\`data/characters/details.ron\`).`,
     `- ${garments.length} garments (\`data/characters/garments.ron\`): ${['clothes', 'shoes', 'hat', 'hair', 'brows', 'lashes'].map((k) => `${garments.filter((g) => g.kind === k).length} ${k}`).join(', ')}; ${totals.files} files, ${(totals.bytes / 1048576).toFixed(1)} MB in all.`,
+    `- Each garment's texture as the game draws it (\`<id>.dds\`, ${(totals.dds / 1048576).toFixed(1)} MB for the ${garments.length}): the colour (times its ambient occlusion map) beside the normal map, every level down to 4 texels a half, each half at most ${garmentTexture.TEXTURE_PX} texels, BC7 (sRGB) by our own encoder (\`scripts/lib/bc7.js\`; the scan: \`docs/reference/research/2026-11-10-bc7-encoders/\`). The source PNGs beside them stay whole. Level 0 against the packed source, peak signal-to-noise ratio (dB; higher is closer, about 40 and over is hard to tell apart; a card's colour where its alpha is at least a half, where it shows):`,
+    '',
+    ...garments.map((g) => `  - \`${g.id}\`: colour ${g.tex.psnr.colour}, normal map ${g.tex.hasNormal ? g.tex.psnr.normal : '(flat)'}${g.tex.psnr.alpha === null ? '' : `, alpha ${g.tex.psnr.alpha}`}`),
     '',
     '## Output hashes (SHA-256)',
     '',
@@ -823,7 +782,7 @@ function noteText(files, inputs, sliders, garments, totals) {
   return L.join('\n');
 }
 
-function main() {
+async function main() {
   const check = process.argv.includes('--check');
   const wordsOut = argValue('--words');
   const haveSources = fs.existsSync(path.join(DETAIL_SRC, 'MANIFEST.json')) && fs.existsSync(path.join(PACK_SRC, PACK_ZIP)) && fs.existsSync(path.join(body.DEFAULT_SRC, '3dobjs', 'base.obj'));
@@ -872,9 +831,18 @@ function main() {
   }
   shared.skinOf = (vi) => (vi >= BODY ? nearest.get(vi) : vi);
   const garments = garmentList(pack).map((g) => convertGarment(g, pack, shared));
+  // Each garment's texture, packed and BC7-encoded, on worker threads (each garment on one, in the
+  // garments' order whatever order they finish in, so the output is the same every run). Four
+  // threads at most: the operator keeps a core of his own (CLAUDE.md, his share of his PC).
+  const threads = Math.max(1, Math.min(+(process.env.HUMANITY_LOOK_THREADS || 4), os.cpus().length - 2));
+  const t0 = Date.now();
+  const packed = await garmentTexture.packAll(garments.map((g) => ({ id: g.id, diffuse: pack.read(g.diffuse), normal: g.normal ? pack.read(g.normal) : null, ao: g.ao ? pack.read(g.ao) : null, cards: g.alpha })), threads);
+  console.log(`packed and BC7-encoded ${garments.length} garment textures on ${threads} threads in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   let assetBytes = 0;
   let assetFiles = 0;
-  for (const g of garments) {
+  let ddsBytes = 0;
+  garments.forEach((g, k) => {
+    g.tex = packed[k];
     g.covers = suggestedCovers(g, shared);
     g.words = garmentWords(g);
     const dir = path.join(GARMENT_DIR, g.id);
@@ -882,11 +850,13 @@ function main() {
     add(path.join(dir, `${g.id}.bin`), writeGarment(g));
     for (const rel of g.files) add(path.join(dir, path.posix.basename(rel)), pack.read(rel));
     if (g.thumb) add(path.join(dir, `${g.id}.thumb.png`), pack.read(g.thumb));
-  }
+    add(path.join(dir, `${g.id}.dds`), g.tex.dds);
+    ddsBytes += g.tex.dds.length;
+  });
   files.push([GARMENTS_RON, Buffer.from(garmentsRon(garments))]);
   const detailsBytes = files[0][1].length;
   const inputs = { detailManifest: manifest.sha, targets: targets.size, pack: pack.used() };
-  files.push([NOTE, Buffer.from(noteText(files, inputs, sliders, garments, { files: assetFiles, bytes: assetBytes + detailsBytes }))]);
+  files.push([NOTE, Buffer.from(noteText(files, inputs, sliders, garments, { files: assetFiles, bytes: assetBytes + detailsBytes, dds: ddsBytes }))]);
   for (const [p, bytes] of files) if (bytes.length >= 50 * 1024 * 1024) fail(`${p} is ${bytes.length} bytes, over the 50 MB a file in git may be`);
   if (wordsOut) fs.writeFileSync(wordsOut, JSON.stringify(wordsFragment(sliders, garments), null, 1));
   if (check) {
@@ -911,11 +881,9 @@ function main() {
 }
 
 if (require.main === module) {
-  try {
-    main();
-  } catch (e) {
+  main().catch((e) => {
     console.error(e.message);
     process.exit(1);
-  }
+  });
 }
 module.exports = { parseMhclo, parseObj, decodePng, sliderId };

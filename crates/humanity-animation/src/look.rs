@@ -101,13 +101,17 @@ pub struct GarmentDef {
     pub id: String,
     pub kind: GarmentKind,
     pub file: String,
-    pub diffuse: String,
-    #[serde(default)]
-    pub normal: Option<String>,
-    #[serde(default)]
-    pub ao: Option<String>,
-    /// The diffuse texture's size in texels.
-    pub size: (u32, u32),
+    /// The texture the game draws (2026-11-10): a DDS of BC7 blocks the converter encoded, the colour
+    /// (times its occlusion map) beside the normal map, every level down to 4 texels a half (the
+    /// engine's `look_textures`; the source PNGs beside it are what it was made from).
+    pub texture: String,
+    /// Each half's size at level 0, in texels (1024, or 512 for a source that small: brows, lashes).
+    pub texture_px: u32,
+    /// Whether the right half is a real normal map (flat otherwise).
+    pub normal_map: bool,
+    /// The colour half's mean linear luminance (hair tinted by a person's hair colour keeps its
+    /// strands' light and dark while its average is the colour chosen).
+    pub luma: f32,
     /// The diffuse texture's mean linear colour (a middle body's tint, and the colour a garment is
     /// drawn with until its textures load).
     pub colour: (f32, f32, f32),

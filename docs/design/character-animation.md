@@ -415,10 +415,31 @@ a frame, 2.0 ms. The worst frame's cpu.animation is still 11 ms against the twin
 texture uploads in section 16. **Memory**: about 2 MB of GPU a person (1.34 MB of mesh, 0.65 MB for
 its near place's skinned copy), 80 MB for the crowd of 50 milling around the near line (the 16 near
 and those who left it within 5 s, at most twice `near_cap` kept); the garment textures 10.7 MB each
-at `look_texture_px` 1024 (2.7 MB a brow or lash set), 270 MB for the crowd's outfits and hair, let go
+at 1024 a half uncompressed (2.7 MB a brow or lash set), 270 MB for the crowd's outfits and hair, let go
 30 s after nobody near wears them (kept for the session before that, one sweep reached 304 MB for 42
-garments); 68 MB more RAM (each person's built mesh is kept on the CPU too: the feet and the probe
-read it).
+garments; since the pool and BC7, the next paragraph, 2.67 MB each in pools of 90.7 MB); 68 MB more RAM
+(each person's built mesh is kept on the CPU too: the feet and the probe read it).
+
+**With the garment texture pool and BC7 (2026-11-10)**, the same way, one boot before (main,
+61b16b2b7) and one after (section 16, "the textures without hitches"); the twin is the look-off
+vantage in each boot:
+
+| Case | cpu.animation (worst frame) | cpu.look_build (worst frame) | a texture onto the GPU | all GPU stages | vram.textures |
+|---|---|---|---|---|---|
+| 50 bodies 6 to 14 m, look off (twin), before | 0.824 ms (3.07) | none | none | 13.36 | 234.7 MB |
+| the same, own meshes, before | 0.918 ms (18.85) | 0.062 ms (15.96) | 0.41 to 14.52 ms (median 1.20; 2 of 40 over 5) | 13.46 | 541.3 MB |
+| 50 bodies 6 to 14 m, look off (twin), after | 0.813 ms (3.24) | none | none | 13.30 | 325.3 MB (the pools, from world entry) |
+| the same, own meshes, after | 0.897 ms (3.52) | 0.063 ms (1.48) | 0.21 to 0.42 ms (median 0.37; 41) | 13.44 | 325.3 MB |
+| 50 bodies 18 to 26 m (all middle), before and after | 0.509 and 0.505 ms (1.06 and 1.03) | none | none | 13.02 and 13.00 | 541.3 and 325.3 MB |
+
+So: **the crowd's worst frame of the look went from 16 ms to 1.5**, every texture into its slot
+under half a millisecond, and **the garments take 90.6 MB of video memory instead of 306.6** (30%),
+the GPU unchanged. The pools' one allocation (80.0 MB in 9.85 ms, 10.7 MB in 0.10 ms) is at world
+entry. Low memory: 30.7 MB of pools, a texture in 0.21 to 0.26 ms. With block compression left off
+(`HUMANITY_NO_BC=1`): 362.7 MB of pools, a texture in 0.35 to 1.12 ms. The worst frames left in
+those two runs (cpu.look_build 10.3 and 10.1 ms) were each one own-mesh upload (9.9 and 10.0 ms; one in
+the before run took 11.5): the person meshes' buffers are the same class of hitch, and the next
+lever (a pool of mesh buffers, the textures' way).
 
 **Why 56 joints and not MakeHuman's 163**: the 56 are exactly the bones that move in rung 1 (the role
 map's); the other 107 would only ever sit at rest under their parents until face and twist rungs.
@@ -466,11 +487,12 @@ rung or twist joints are a role-map line and a converter run away.
 - **Each near person's own mesh (measured, the look, 8.0 and section 16)**: about 2 MB of GPU a
   dressed person (21,184 vertices: 1.34 MB of mesh, 0.65 MB for its near place's skinned copy), at
   most three times `near_cap` held (the near tier and twice that many kept for people who just left
-  it): 80 MB measured for a crowd of 50 at the near line. A garment's texture, packed at
-  `look_texture_px` 1024 a half, is 8 MB and 10.7 MB with its mips (a brow or lash set 2.7 MB),
-  shared by everyone wearing it and let go 30 s after nobody near does: 270 MB for that crowd's
-  outfits and hair, uncompressed (BC7 would be a quarter; the engine has no block-compression encoder
-  yet).
+  it): 80 MB measured for a crowd of 50 at the near line. A garment's texture (2026-11-10: BC7, 1024
+  texels a half, its levels down to 4) is 2.67 MB in its slot (a brow or lash set 0.67 MB), shared by
+  everyone wearing it; uncompressed it was 10.7 MB (2.7). The slots live in pools allocated once, sized
+  for the near tier's worst case and never more than the library: 30 large and 16 small slots today,
+  90.7 MB at Full, 30.7 MB at Low memory (every garment at 512 a half), four times both on a GPU
+  without block compression. The crowd's garments took 307 MB uncompressed before the pool (8.0).
 
 ### 8.4 Infinite-of-x: hundreds near, many more far
 
@@ -1287,16 +1309,18 @@ as quick starting points.
   behind and ahead of the middle of the foot, and the person is drawn as much higher as the lowest
   stands below the floor (`PersonMesh::lift`, in the world matrix the feet, the probe and the drawn
   mesh all use), so a shoe's sole, not the foot inside it, stands on the ground.
-- **Rendering (5)**: one texture per garment, packed off the frame on a thread of its own the first
-  time anyone wears it (`engine::look_textures`): the colour (times its ambient occlusion map) in the
-  left half, the normal map in the right, sRGB-encoded so it reads back as written, each half
-  mipmapped on its own, card alpha kept at the same coverage as it shrinks (Castano's method, the
-  tree cards' `build_mip_chain`, so lashes and brows do not vanish at a few metres), each half at most
-  `look_texture_px` (1024) texels: the sources up to 4096 stay whole on disk. One material per garment
-  and colour shares the texture (`add_material_like`). A garment nobody near has worn for 30 s
-  (`GARMENT_KEEP_S`) lets its texture go and reads it again when worn (into the same materials,
-  drawn in its mean colour meanwhile): kept for the session, a rig's sweep reached about 300 MB of
-  garment textures, and the library only grows. **Cloth** (type 25 with a pack): the colour
+- **Rendering (5)**: one texture per garment, packed and BC7-encoded at CONVERSION time (below, "the
+  textures without hitches"): the colour (times its ambient occlusion map) in the left half, the
+  normal map in the right, sRGB-encoded so it reads back as written, each half mipmapped on its own
+  down to one block (4 texels), card alpha kept at the same coverage as it shrinks (Castano's method,
+  the tree cards' `build_mip_chain`, so lashes and brows do not vanish at a few metres), each half at
+  most 1024 texels: the sources up to 4096 stay whole on disk beside it. It is read off the frame on a
+  thread of its own the first time anyone wears it (`engine::look_textures`) and written into a slot
+  of the garment texture pool. One material per garment and colour shares the slot
+  (`add_material_like`). A garment nobody near has worn for 30 s (`GARMENT_KEEP_S`) gives its slot back
+  and is read again when worn (into the same materials, drawn in its mean colour meanwhile): kept for
+  the session, a rig's sweep reached about 300 MB of garment textures, and the library only grows.
+  **Cloth** (type 25 with a pack): the colour
   times the texture, the normal map through a cotangent frame from the screen derivatives (Schueler
   2013; the skinned vertices carry no tangent). **Hair, brows and lashes** (type 26): the engine has
   no MSAA and no temporal anti-aliasing, so alpha-to-coverage is impossible and hashed alpha would
@@ -1308,8 +1332,43 @@ as quick starting points.
   reflection off the cuticle shifted toward the root, the transmission (the glow of backlit hair) and
   the second reflection shifted the other way and tinted by the hair, the strand running along the
   texture's V; coloured by the look's hair colour laid over the strands' light and dark (the texture's
-  mean luminance). No GPU feature here is missing on any hardware the renderer runs on (textures,
-  derivatives and alpha blending are baseline), so no hardware notice is needed.
+  mean luminance). The shading needs nothing past the baseline (textures, derivatives and alpha
+  blending); the textures' BC7 does, and says so (the next point).
+- **The textures without hitches and at a quarter of the memory (2026-11-10)**: the look's garment
+  texture uploads took 0.5 to 2.9 ms, but 2 of 41 took 9.8 and 14.8 ms, each a new GPU allocation, and
+  those were the crowd's worst frame; each texture was uncompressed RGBA8, 10.7 MB with its mips.
+  Three changes, measured below. **A slot pool** (`renderer::texture_pool`): every garment texture of
+  one size has one shape (2048 by 1024 with nine levels, or 1024 by 512 with eight), so each shape's
+  textures live in ONE array texture allocated once, on the first frame that draws bodies (entering
+  the world; and again after the setting changes or the library is read again), a slot a layer, each
+  slot a 2D view bound exactly as any texture (no layout change). Allocated instead when the first
+  garment of its shape arrived, the small pool's allocation took 9.0 ms on that frame (the large
+  one's 0.1 ms; on the next boot the large one's took 9.9 ms: the driver's cost is not the size's),
+  the crowd's one remaining spike, so it moved to world entry. A garment arriving
+  takes a free slot (or the slot of a garment nobody near has worn for a second, `GARMENT_IDLE_S`) and
+  is one write into it; a garment let go gives its slot back. A pool holds the near tier's worst case,
+  its cap and the player each wearing one garment of every kind of that shape (`pool_capacity`), never
+  more than the library has: today 30 slots of the large shape and 16 of the small, every garment.
+  When a pool is full of garments someone near is wearing, the newcomer waits, drawn in its mean colour
+  (the middle tier's tint), never a stall and never an allocation on the frame. A slot is a reuse of
+  memory, not of data: it holds exactly the garment last written into it, written whole; with the
+  reuse switch off the library is read again every few seconds, and every texture and pool with it.
+  **BC7 at
+  conversion time** (`scripts/lib/bc7.js`, our own encoder, chosen in the scan
+  `docs/reference/research/2026-11-10-bc7-encoders/`): the converter packs and encodes each texture
+  (`scripts/lib/garment-texture.js`: the pack the engine used to make on every run) into a DDS beside
+  its source PNGs, a byte a texel, a quarter of RGBA8; its `--check` re-encodes and compares bytes, and
+  `LOOK-SOURCE.md` records each texture's quality (level 0 against the packed source, peak
+  signal-to-noise ratio, about 40 dB and over hard to tell apart: cloth 41 to 53 dB, normal maps 48 to
+  62, hair and lashes where they show 41 to 53, brows 38 to 42, card alpha 41 to 58). Normal maps stay BC7 in the right half: BC5 would need a texture of its
+  own and a seventeenth binding at group 3 (the scan's section 4). A GPU without block compression
+  (wgpu's `TEXTURE_COMPRESSION_BC`) gets RGBA8 decoded from the same files (`renderer::bc7`, checked
+  against the GPU's own decoder), and Settings says so in words (what the textures need, what the card
+  has, what works instead). **Settings > Graphics > Garment textures**: Full (1024 texels a half) or
+  Low memory (512: the file's second level; brows and lashes, 512 already, stay as they are, so
+  every garment shares one pool shape), each with its video memory on this card
+  (`data/gui/garment_textures.json`, `gui::garment_textures`, the furniture detail setting's way); a
+  change lets every texture go, and they come back at the new size as they are worn.
 - **Crouch: Hold or Toggle (6)**: Settings > Controls > Crouch, Hold by default (rung 2a's report:
   someone who cannot hold a key can crouch); a toggle flips on the key's press, never its repeats, and
   leaving Toggle stands the person up.
@@ -1320,7 +1379,11 @@ as quick starting points.
   size and its upload; costs `cpu.look_build` (what the frame pays: the upload, or the whole build
   with the reuse switch off) and `vram.characters`; vantages `anim-look-face-{female,male}`,
   `anim-look-covers-off`, `anim-shoes` and `anim-shoes-soles-off`, `anim-stairs-soles-off`,
-  `anim-crowd-near-look-off`.
+  `anim-crowd-near-look-off`. The textures (2026-11-10): each garment's arrival logged with its slot,
+  its size and format and its time onto the GPU, each pool's one allocation with its size and time;
+  `vram.textures` counts each pool once; `HUMANITY_NO_BC=1` starts the renderer without block
+  compression on a GPU that has it (the fallback's arm, uncompressed textures and the notice); the
+  snapshot `garment_textures_no_bc` shows the notice.
 
 **Measured.**
 
@@ -1351,6 +1414,22 @@ as quick starting points.
   (2048 by 1024 at `look_texture_px` 1024), so a pool of texture slots allocated once and handed from
   garment to garment would remove the allocation (a reuse of memory, not of data: nothing in a slot
   outlives the garment it holds). The textures held: 235 MB with no garment worn, 541 MB at the crowd.
+- **Garment textures in the pool, BC7 (2026-11-10)**, the same crowd pair and the far crowd, one boot
+  each before (main, 61b16b2b7) and after, the same way as 8.0: **each texture into its slot in 0.21
+  to 0.42 ms** (median 0.37; 41 of them, none over 5 ms) against 0.41 to 14.52 ms before (median 1.20,
+  two over 5 ms, each a new allocation); the crowd's worst frame of cpu.look_build **1.48 ms against
+  15.96**, of cpu.animation 3.52 against 18.85 (its look-off twin 3.24); the GPU stages the same (13.44
+  against 13.46 ms). The pools are allocated at world entry (80.0 MB in 9.85 ms and 10.7 MB in 0.10 ms,
+  once). **Memory**: `vram.textures` 325.3 MB at the crowd against 541.3, the garments' share 90.6 MB
+  against 306.6 (30%); the pools are there from world entry, so the look-off twin reads 325.3 too
+  (234.7 before). **Low memory** (512 a half): one pool of 46 slots, 30.7 MB, allocated in 0.19 ms;
+  each texture into its slot in 0.21 to 0.26 ms; `vram.textures` 265.3 MB. **Without block
+  compression** (`HUMANITY_NO_BC=1` on the same card): RGBA8 decoded from the same files on the read
+  thread, 320.0 and 42.7 MB of pools (allocated in 13.36 and 0.60 ms at world entry), each texture
+  into its slot in 0.35 to 1.12 ms, `vram.textures` 597.3 MB, the same to look at from the crowd's
+  distance (as is Low memory). One own-mesh upload
+  in each of those two runs took 9.9 and 10.0 ms (one in the run before took 11.5): the same class of
+  hitch in the person meshes' buffers (`skin_register_body`), the next lever.
 - **No skin through the clothes** (four outfits, walk at two phases, crouch walk, sit): the casual
   outfits and the work overalls 0 vertices through in every pose; the sport top 2 walking, 19
   crouched (up to 2.8 cm) and 9 seated (1.3 cm), at the small of the back; covers off, 215 to 766
@@ -1384,9 +1463,14 @@ several at once can be extreme (MakeHuman's own behaviour); measurement sliders 
 centimetres; the sport top's hem rides over the skin at the small of the back in a crouch or a seat
 (up to 19 vertices, 2.8 cm; the fix is a later rung's: cloth simulation, or the skin there moved with
 the cloth); the character page's height in metres does not yet count the detail sliders (a longer
-neck stands a person a little taller than the height shown); the garment textures are uncompressed
-(BC7 would quarter them) and each upload is a new GPU allocation (two of 41 took 10 to 15 ms, the crowd's worst frame; a pool of
-texture slots of the pack's one size, allocated once, is the lever); a
+neck stands a person a little taller than the height shown); the garment texture pools are sized
+for the near tier's worst case and kept for the session once allocated (today every garment, about
+91 MB as BC7 at Full, held even when nobody is near; a pool that grows in steps ahead of need, or is
+let go after a long while unworn, is the lever if memory matters there), and their encoder writes
+five of BC7's eight modes (the three-subset modes and mode 4 would add a little quality, an edit to
+`scripts/lib/bc7.js`); a person's own mesh still goes to the GPU in buffers of its own (one of about
+38 uploads took 9.9 to 11.5 ms in three of five crowd runs, the textures' old hitch: a pool of mesh
+buffers is the lever); a
 person's build is a whole rebuild (a slider dragged on the character page rebuilds the person about
 every 5 ms on a worker; a build that re-applies only the moved targets is the lever if it shows).
 

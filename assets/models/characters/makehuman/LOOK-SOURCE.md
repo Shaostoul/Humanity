@@ -295,7 +295,55 @@ https://creativecommons.org/publicdomain/zero/1.0/legalcode
 ## What was made
 
 - `makehuman_details.bin`: 589 detail targets driven by 248 sliders (`data/characters/details.ron`).
-- 46 garments (`data/characters/garments.ron`): 12 clothes, 6 shoes, 2 hat, 10 hair, 12 brows, 4 lashes; 164 files, 174.1 MB in all.
+- 46 garments (`data/characters/garments.ron`): 12 clothes, 6 shoes, 2 hat, 10 hair, 12 brows, 4 lashes; 210 files, 264.8 MB in all.
+- Each garment's texture as the game draws it (`<id>.dds`, 90.7 MB for the 46): the colour (times its ambient occlusion map) beside the normal map, every level down to 4 texels a half, each half at most 1024 texels, BC7 (sRGB) by our own encoder (`scripts/lib/bc7.js`; the scan: `docs/reference/research/2026-11-10-bc7-encoders/`). The source PNGs beside them stay whole. Level 0 against the packed source, peak signal-to-noise ratio (dB; higher is closer, about 40 and over is hard to tell apart; a card's colour where its alpha is at least a half, where it shows):
+
+  - `fedora01`: colour 43.86, normal map 50.08
+  - `fedora_cocked`: colour 43.86, normal map 50.08
+  - `female_casualsuit01`: colour 48.84, normal map 48.88
+  - `female_casualsuit02`: colour 41.3, normal map 50.31
+  - `female_elegantsuit01`: colour 43.18, normal map 54.53
+  - `female_sportsuit01`: colour 53.32, normal map 61.73
+  - `male_casualsuit01`: colour 49.41, normal map 48.42
+  - `male_casualsuit02`: colour 47.9, normal map 48.81
+  - `male_casualsuit03`: colour 42.36, normal map 48.06
+  - `male_casualsuit04`: colour 48.99, normal map 48.78
+  - `male_casualsuit05`: colour 47.41, normal map 49.2
+  - `male_casualsuit06`: colour 50.43, normal map 48.91
+  - `male_elegantsuit01`: colour 50.46, normal map (flat)
+  - `male_worksuit01`: colour 44.37, normal map 50.48
+  - `shoes01`: colour 45.99, normal map 48.97
+  - `shoes02`: colour 42.75, normal map (flat)
+  - `shoes03`: colour 49.39, normal map (flat)
+  - `shoes04`: colour 51.55, normal map 48.97
+  - `shoes05`: colour 48.21, normal map (flat)
+  - `shoes06`: colour 44.67, normal map (flat)
+  - `afro01`: colour 40.96, normal map (flat), alpha 41.24
+  - `bob01`: colour 48.03, normal map (flat), alpha 52.27
+  - `bob02`: colour 46.1, normal map (flat), alpha 46.23
+  - `braid01`: colour 52.97, normal map (flat), alpha 89.25
+  - `long01`: colour 49.03, normal map (flat), alpha 49.56
+  - `ponytail01`: colour 46.12, normal map (flat), alpha 46.92
+  - `short01`: colour 48.77, normal map (flat), alpha 46.33
+  - `short02`: colour 47.06, normal map (flat), alpha 51.32
+  - `short03`: colour 49.78, normal map (flat), alpha 51.25
+  - `short04`: colour 49.42, normal map (flat), alpha 48.66
+  - `eyebrow001`: colour 37.75, normal map (flat), alpha 47.91
+  - `eyebrow002`: colour 40.3, normal map (flat), alpha 48.17
+  - `eyebrow003`: colour 42.27, normal map (flat), alpha 49.62
+  - `eyebrow004`: colour 40.71, normal map (flat), alpha 48.31
+  - `eyebrow005`: colour 42.28, normal map (flat), alpha 50.64
+  - `eyebrow006`: colour exact, normal map (flat), alpha 57.87
+  - `eyebrow007`: colour exact, normal map (flat), alpha 57.46
+  - `eyebrow008`: colour 39.08, normal map (flat), alpha 47.21
+  - `eyebrow009`: colour 41.73, normal map (flat), alpha 44.92
+  - `eyebrow010`: colour 40.58, normal map (flat), alpha 48.25
+  - `eyebrow011`: colour 81.26, normal map (flat), alpha 50.24
+  - `eyebrow012`: colour 40.44, normal map (flat), alpha 48.23
+  - `eyelashes01`: colour 52.04, normal map (flat), alpha 45.87
+  - `eyelashes02`: colour 50, normal map (flat), alpha 45.09
+  - `eyelashes03`: colour 49.96, normal map (flat), alpha 45.07
+  - `eyelashes04`: colour 68.14, normal map (flat), alpha 48.02
 
 ## Output hashes (SHA-256)
 
@@ -308,164 +356,210 @@ on the machine.
 - `assets/models/characters/makehuman/garments/fedora01/fedora_diffuse.png` `5bd5e7dbf74f630327f8b3d45cd3e475e85088a8f9cf7f9719872a9fc0b0ae7f`
 - `assets/models/characters/makehuman/garments/fedora01/fedora_normal.png` `b0566987c8a0739e04ee15838d07660570c6d73623b4555fe5adcafb86e655f7`
 - `assets/models/characters/makehuman/garments/fedora01/fedora01.thumb.png` `7ef63f274160042c7ab081358e674b0a8fe415f4654d8113debaebffad35c062`
+- `assets/models/characters/makehuman/garments/fedora01/fedora01.dds` `011b4f8afd531103551faac3b445e8a578acc7453f39243405db4383744e1b38`
 - `assets/models/characters/makehuman/garments/fedora_cocked/fedora_cocked.bin` `efd5ddf5d84676f6097afd703d959a407d4497e9f31db8b74ad1d538febe6bf1`
 - `assets/models/characters/makehuman/garments/fedora_cocked/fedora_diffuse.png` `5bd5e7dbf74f630327f8b3d45cd3e475e85088a8f9cf7f9719872a9fc0b0ae7f`
 - `assets/models/characters/makehuman/garments/fedora_cocked/fedora_normal.png` `b0566987c8a0739e04ee15838d07660570c6d73623b4555fe5adcafb86e655f7`
 - `assets/models/characters/makehuman/garments/fedora_cocked/fedora_cocked.thumb.png` `66a390f3868bcf54de9c26a4b0f0c04ca268277099741edb6961e58ded484b08`
+- `assets/models/characters/makehuman/garments/fedora_cocked/fedora_cocked.dds` `011b4f8afd531103551faac3b445e8a578acc7453f39243405db4383744e1b38`
 - `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01.bin` `fea997b6acb67a7d765245617bd08e3df14586b83d59474f2fd3ceb6a44c9e83`
 - `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01_diffuse.png` `414d46afa55fba09ad0913484d57df2ba6b597dc8193595a13a12436137dc21b`
 - `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01_normal.png` `7bff7afbbc3f068e06f69abcddc8c2c9ce667ec181e0f2a918f8af78eba12610`
 - `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01_ao.png` `f97a31fb02b5f36802a08bfe22bffb1961240d4ecb20059540eec6516d753424`
 - `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01.thumb.png` `138a4bfb756f0cdfc8116d3f0ebcc14e1e20472bb225ead986b0cc3a8b291212`
+- `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01.dds` `de7cd6d5b6188d149e07c05bacfbbf42d0a59f4cd1bed364b63986f7b586dcc4`
 - `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02.bin` `9b9c292222f45b16a468ca5a4b9f5952d988db4007896f2077ed3b5624ee1043`
 - `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02_diffuse.png` `23bd3c8e4df3993fe3bdb849daba7a4dd0476f3a28fd8402cd28abbb26666f49`
 - `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02_normal.png` `37143dabd78647ca37689f0b65d969c958a962d728dffd94e60c9beacf76a3df`
 - `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02_ao.png` `8605b461e6179447908906352f7678bef914d7c48bbdbe2cf92af1791416ada4`
 - `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02.thumb.png` `2a1e6d7c47961d3e8a3471ae7322d920f0265d91a54c2d43d518392414f1ad4c`
+- `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02.dds` `96bd06aac273832d0c5ef03304a6ae0169ab6f070ff536da5b343d6d9a21ef9b`
 - `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01.bin` `e731c8fdaa7e804245b5d61c9eb4ae9ef1de476eb9d5015f4af8df9168097c49`
 - `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01_diffuse.png` `ebe6f2afcbaadbe56d5cee6e00bab45e97ce482f0be0e34491d16ca5f98b38ac`
 - `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01_normal.png` `ae3650bce6678cd67d025ab70e68b22683176aeaabc06d8e5b2129af99c762e9`
 - `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01_ao.png` `0f89546c63ab16e2c1ba0556da7e07264b98b58e6200b043491f92f796b87673`
 - `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01.thumb.png` `ea5a3491d544888a7187ace16da98f093b498a19220b19a8c317f78fbf2697c6`
+- `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01.dds` `76d50185c905d9f1d5fd98fc28d2c0d3901c27ba027f8997a6707567da84ba07`
 - `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01.bin` `781ccb921dc349d0e177e380d4b416da22e4bfd5e7d675b6e900b4338cb99a6a`
 - `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01_diffuse.png` `00910e3e85b3dcf48d1aa827b4c075cdc77689989423ff4f75bc67f2e86cc588`
 - `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01_normal.png` `2bc78509fc4e74b2346dbb54f7f627644125a41573ee458d624246e337f1d28f`
 - `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01_ao.png` `6faffbb99e3d20faeaf87cdddece43fee7d6b7262de3e55817545809f0368524`
 - `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01.thumb.png` `79169157b274530aae1fa0a6bc61c5a60bc92a96ba9070df062923f3857e3d12`
+- `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01.dds` `7308e49090cfbbd24b5d682b370dec1e497e92d4c5d21271da281063bebdbc36`
 - `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01.bin` `3587f1e038bbb2d972e6945a3433a859f89ae79104e9ef0bc6fcc41acc1cb303`
 - `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01_diffuse.png` `3fd0bba5dcbdea0ac427f644a6c7c298938f7369b8f96626621ce1e88989394e`
 - `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01_normal.png` `ff029fc5a3350ebc72813cdf050afcffd23064c7701d99e664572713cfa98a5f`
 - `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01_ao.png` `9402d75d71318ef3ad90ee59f8b8688effefd13b3ec56423330e005bed5cd6c0`
 - `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01.thumb.png` `cd8a8c9461b164542d8660b9beaae17636040c9199020b65755a03559809cfc1`
+- `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01.dds` `764025421a0d9979cec5692ccd44e584036cfdeb5f396a940ea5c118baa03ed8`
 - `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02.bin` `5ca7066d879ffa26e3ed7e58c75618988d94f96194eb8a96ee53c2296179e85f`
 - `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02_diffuse.png` `8e1e63c471a8eb6ea8be48f2d540c15c81d2e7744ff80c8fdac86a6e6fde3179`
 - `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02_normal.png` `1c31a7a5fbbef1ee40176114295038703f370d163a3cf040f55b60c85369d12c`
 - `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02_ao.png` `ef7f75de0868fdbe01c05e3c8ac3ec2a59a35247b501473b3aba79e7901dfbd9`
 - `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02.thumb.png` `e994394780be666443e70349b7f9e55704895e699054a45b4113037fdbab8e68`
+- `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02.dds` `a9b38f304ca258bf0eba8883681108361792c208d6e670b9350594abc9d241c5`
 - `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03.bin` `0f236d28689d5caddf5f6ac42d393645975f0b311832008289bc4ea2efd6a888`
 - `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03_diffuse.png` `d9079ed2e52d23e1ccce53ddc3d4397e48883729f9324c97c2737f4f79af5153`
 - `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03_normal.png` `412c4610d3b2ea1cb04aa3c0715e747a7c9f61d865133b7d69f70eaa738cf99b`
 - `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03_ao.png` `b29aebd42545b874599be527c4ec8f89b851ba76613347b0475fac5188de7aea`
 - `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03.thumb.png` `ea180cea474eeba10ed73b13920adee4e87ea12c84f96a7d58b02caef90caf72`
+- `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03.dds` `4aa5d3804d37fcdeddf2fbccacec2cc0469c203fec0c20d8511a68ff3dedd0b2`
 - `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04.bin` `3c4824f62423bada992d651bc3ea10727beaf67689322ab30be491068401b3c2`
 - `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04_diffuse.png` `eb33337f43b006159773ab2fdff1293f51f72c3d0d24c132c2272b4deff9bcbe`
 - `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04_normal.png` `006c0c0dfecaeda1a749f737ac15bfc228ebb76dbbcbf9871993e267a545ca69`
 - `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04_ao.png` `0776e137bc8f37647c949b12384067d311df5fc7504d15af736e0647713c2754`
 - `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04.thumb.png` `1424bac2dc95c2d6906bc0435b8de77ce71c25a35c97eece9c6c589944a2c683`
+- `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04.dds` `542ced6cc2dde0ee20c052c7acb70c79607af91e0aa42832d206d5cdb6ea4153`
 - `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05.bin` `ecd31959b5131528939cd92dcec54b42bc28d389479f4e8ffc5355b85b6a5cfd`
 - `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05_diffuse.png` `d4345efe9332c23e9302f5a3bca8c895004be841b5ebea593c96189870e3852a`
 - `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05_normal.png` `aec19a8fa1988aa178e7ead9f9c0b290fc441ed62ce47d5c4dd611a0037a796c`
 - `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05_ao.png` `cf22b778ce3d2c92cf0c5e7eef2bcc2a0d9812e578d4c08a4bb428eb33eacc66`
 - `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05.thumb.png` `ad39df902cbf63ce390e00bf3ceec495a6f94c3827875f57f669746cccf51ffb`
+- `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05.dds` `c78ad1aa1b3d1a7ff82a048a05d8d32faf7d0b3ef613bdb62c404922d54f46db`
 - `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06.bin` `56e5bbded45b656f04e12f8555cebc53e9bc3f8358fb731fae397e7134db51d4`
 - `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06_diffuse.png` `e9a581e0d4eb64c7a031886f2faf109a4703a3046a5fcc97ea9ce9112e99a344`
 - `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06_normal.png` `ccdbf48a86eb922f5ccf38a7d3dc9de8828a6460c687eb84dacf8315d079a343`
 - `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06_ao.png` `dc27b02602060a8df4c1117f55bde7dea952342d847003afe2c6e12145301147`
 - `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06.thumb.png` `df34cd082fd23e39f25f78d64fb49c27ad5ed054077b4ea3b101c7a59a93e459`
+- `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06.dds` `c634c24b0942945670fac294842ed87f865ca4fa5c962e8f2f46e9e8f80b9471`
 - `assets/models/characters/makehuman/garments/male_elegantsuit01/male_elegantsuit01.bin` `b20c0ac6bc80f6785e316f652ed76085b03c4810e140e07d85820cd10bec328b`
 - `assets/models/characters/makehuman/garments/male_elegantsuit01/male_elegantsuit01_diffuse.png` `eba3c9b662a35f145f28c8932fe96c01db258080daf1a1c09807def5497e3420`
 - `assets/models/characters/makehuman/garments/male_elegantsuit01/male_elegantsuit01.thumb.png` `8e3d5053b45c8bf55a8d452ce944ef7128c41bf4318e3f4de6752f25aaf972a3`
+- `assets/models/characters/makehuman/garments/male_elegantsuit01/male_elegantsuit01.dds` `fa80bbea153d0f335f4424e7e7569935be36ec918d07f988ad52542f8a1a838b`
 - `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01.bin` `29602b02f518e6fd0222cc19c2e60a4a59f15896fc21673efaaea1e2c55d7c57`
 - `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01_diffuse.png` `4b59b50f7a8a0325c33e86e29f160f59b2385a6f413fccc88287a1c951c39901`
 - `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01_normal.png` `53f51fd31ec6760c26d377b250bfcdde84be46953f4c72821892b76d13055073`
 - `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01_ao.png` `1ed5f23c5efab316b98a295e1be7905009e61603657577eb922b4d1c99c46810`
 - `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01.thumb.png` `fad50094363c841033ae160982bd5570f40140b6381a5a69562a9cbdf0898e7a`
+- `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01.dds` `e6931b35c4c6500907f54445889927988c85e4a383a581b21fcfbbd600d48af9`
 - `assets/models/characters/makehuman/garments/shoes01/shoes01.bin` `7f648bad965b5feb23117eda7f9c2a6a35572f6913b5f4602d76b01afbca42fb`
 - `assets/models/characters/makehuman/garments/shoes01/shoes01_diffuse.png` `50c9a406a7f1cb6aa7b42912348e78f09d0252aa3963c8229cf18dfe8353cdbf`
 - `assets/models/characters/makehuman/garments/shoes01/shoes01_normal.png` `a9bfd7223e98b8f93100e89596135e3a94e6044f9db11b4d23cec625c37a4599`
 - `assets/models/characters/makehuman/garments/shoes01/shoes01.thumb.png` `a118291fe3e83e3c616febf52fdb480186c816e7cd4d77d331adffd457421cbb`
+- `assets/models/characters/makehuman/garments/shoes01/shoes01.dds` `d0c58739cc34c8f054aa40661818c38cb8be7cb05d5892f89b49b68dc5518f0f`
 - `assets/models/characters/makehuman/garments/shoes02/shoes02.bin` `b332879478646861f6c222ed93dbcbb9e1ebad4086e3a557b7000158edc18a7b`
 - `assets/models/characters/makehuman/garments/shoes02/shoes02_diffuse.png` `efef94ea34b0e0c2283095cb47a9e0389b55449c61a4f4972d0ad4d2bf06b4f0`
 - `assets/models/characters/makehuman/garments/shoes02/shoes02.thumb.png` `0e41c095f5ff5a13c0d2b12a6c96d65d907137e1ae3fb120ff14300fc818015d`
+- `assets/models/characters/makehuman/garments/shoes02/shoes02.dds` `9931a4729b29d1e55d70662a0313bcf86700a17930a531e5daf15f4f48708aee`
 - `assets/models/characters/makehuman/garments/shoes03/shoes03.bin` `77c043694912d57deefb3a9c19d8051d95ef541df2611e91c4495585be265520`
 - `assets/models/characters/makehuman/garments/shoes03/shoes03_diffuse.png` `fe8216fbd0c34ecd3ac0e1a01970a4ccf844417be5fd1d72c527c9209256db93`
 - `assets/models/characters/makehuman/garments/shoes03/shoes03.thumb.png` `ac461bf40bb9e125526198c6c827c0f5cfa5538ac86f25dd3efbff7d5aaf5a3c`
+- `assets/models/characters/makehuman/garments/shoes03/shoes03.dds` `df8329365314e6a39388309743077eb5a9fb2044ec599e1e661574e7fcc355d5`
 - `assets/models/characters/makehuman/garments/shoes04/shoes04.bin` `7f648bad965b5feb23117eda7f9c2a6a35572f6913b5f4602d76b01afbca42fb`
 - `assets/models/characters/makehuman/garments/shoes04/shoes04_diffuse.png` `dc3d3c294ba5bf4a47a7840172154ce7ab587ff0737ace0712c4cc310089c232`
 - `assets/models/characters/makehuman/garments/shoes04/shoes04_normal.png` `a9bfd7223e98b8f93100e89596135e3a94e6044f9db11b4d23cec625c37a4599`
 - `assets/models/characters/makehuman/garments/shoes04/shoes04.thumb.png` `f6f6f0d30733ac1491072a453a82d105619c2af99228ec51d251cbf4776b8b7c`
+- `assets/models/characters/makehuman/garments/shoes04/shoes04.dds` `cec86228c44ac93e50dd7a65297baf0907b49b041c029a425f86502fab7d5827`
 - `assets/models/characters/makehuman/garments/shoes05/shoes05.bin` `b332879478646861f6c222ed93dbcbb9e1ebad4086e3a557b7000158edc18a7b`
 - `assets/models/characters/makehuman/garments/shoes05/shoes05_diffuse.png` `7fe5ea2600f6578cdf017da3392ae13aedabea8e8cc1dd6302a8f57e8fb7e5af`
 - `assets/models/characters/makehuman/garments/shoes05/shoes05.thumb.png` `f5d86e0427638e592c787f91a0427ae09df51f0a4d34665a069cfa3fcbc451b8`
+- `assets/models/characters/makehuman/garments/shoes05/shoes05.dds` `2ef3b4141091a2f1a339d129b7ee4522c3501543bb06cf2bca89d2629c3a804f`
 - `assets/models/characters/makehuman/garments/shoes06/shoes06.bin` `b332879478646861f6c222ed93dbcbb9e1ebad4086e3a557b7000158edc18a7b`
 - `assets/models/characters/makehuman/garments/shoes06/shoes06_diffuse.png` `0be0432efcd3be47c8e6f0015acd7f685735190be6bb8533ceca60b56cc269d1`
 - `assets/models/characters/makehuman/garments/shoes06/shoes06.thumb.png` `31b24009786e31ccb0620adff6859fb23b907ffb98209b60f5121aececa8b5b2`
+- `assets/models/characters/makehuman/garments/shoes06/shoes06.dds` `dcda62e79a01dba8040bc83ef13a33795c823a571a11e976fe9ebd7a4655c1bd`
 - `assets/models/characters/makehuman/garments/afro01/afro01.bin` `66d87757305b4080dba9ff61bfb34525e7f09528f2e76b247ea3d737992bf951`
 - `assets/models/characters/makehuman/garments/afro01/afro_diffuse.png` `dc0db7dd8a13802f02303ca7e49844b219e09db134471b7061538a8af8f7c7fb`
 - `assets/models/characters/makehuman/garments/afro01/afro01.thumb.png` `d371c511ce6b4c66ada60c5986d022a2f0113400088da20b532fc950fdf2845e`
+- `assets/models/characters/makehuman/garments/afro01/afro01.dds` `3b8e047c2d65f1c6c84d17ad045d5fb4cedb4387b6277fc9a1828057ddebacb8`
 - `assets/models/characters/makehuman/garments/bob01/bob01.bin` `05fa7f2279281e7d0715d1fa2af304a90ff69ebb13d660bdffa4c611c18b775b`
 - `assets/models/characters/makehuman/garments/bob01/bob01_diffuse.png` `2b38bc7a028e06e8e633accb7fe2dd1b2bacbb9d32463df73f39f82e63ef9009`
 - `assets/models/characters/makehuman/garments/bob01/bob01.thumb.png` `f354364f4fbd0d83982ba77d1e8e63e15a3f73a04bd43538d076237602965336`
+- `assets/models/characters/makehuman/garments/bob01/bob01.dds` `730387a6821c63a7bfba2c18102230fcf331a6fc7da9a15760cb2b62399ac997`
 - `assets/models/characters/makehuman/garments/bob02/bob02.bin` `fc82b2618f5d0b984245c79358611045fc1750b815e4e9351ba6acd9b4b4c308`
 - `assets/models/characters/makehuman/garments/bob02/bob02_diffuse.png` `38c88e6f71631356591f09b1f17a1bb5a99c3bb095b1a29003f1dc3d3e839b0d`
 - `assets/models/characters/makehuman/garments/bob02/bob02.thumb.png` `88bb4a58e5dc55ebb6809bcf99968f8967ba2424b119c10df83ce1afb34bf4e3`
+- `assets/models/characters/makehuman/garments/bob02/bob02.dds` `92157cf8aff23ded176102c3cff0d19db29c32b9a2391abd01209b1cac9af713`
 - `assets/models/characters/makehuman/garments/braid01/braid01.bin` `8a4241aeebee2b278f812d7559ed8e8026c867325b1b2ae6287896ba4ad3dc98`
 - `assets/models/characters/makehuman/garments/braid01/braid01_diffuse.png` `24c0d2a639f04704734c3e38af97d110777c1b203e5a10c66a5c89563643a018`
 - `assets/models/characters/makehuman/garments/braid01/braid01.thumb.png` `b0fc877ff3c45aa0055ea89fde0fc1fc83c228ac22a27c28aeb8816b9b252e64`
+- `assets/models/characters/makehuman/garments/braid01/braid01.dds` `c297c17f814de29d75eed380fe0a9dc2e5dbf32f1ca86fd28928307de55c7ec5`
 - `assets/models/characters/makehuman/garments/long01/long01.bin` `363369a5d9a47bdc434c8918b4525d0ff6dbac9ce3d9411252ccd5eb587d4a32`
 - `assets/models/characters/makehuman/garments/long01/long01_diffuse.png` `e8dc25d90f8f62467e8630420e1240a400d070054fb7c3f1d3f7bf3e457d6c2c`
 - `assets/models/characters/makehuman/garments/long01/long01.thumb.png` `4cb13248134980fc69fdbe298e2bdde58864aec764243cb3c50cb0da7dc0ed98`
+- `assets/models/characters/makehuman/garments/long01/long01.dds` `986b9ddf876176184a790515d98a21282a49b8b2b57a883ae6c67cbe7eecf2c1`
 - `assets/models/characters/makehuman/garments/ponytail01/ponytail01.bin` `f62741f5ed1785e1fbee4a34fada1ccffda99d2554122d2e0fc22ac27497d599`
 - `assets/models/characters/makehuman/garments/ponytail01/ponytail01_diffuse.png` `dcb364300cac06ce8bef91b2f7c0970baf310898bbdd06b0c6b884ee9306eb97`
 - `assets/models/characters/makehuman/garments/ponytail01/ponytail01.thumb.png` `1dd14d9ce1c7bb7368f49757e3299a961190ea374c8dc140ff964b5f437d3383`
+- `assets/models/characters/makehuman/garments/ponytail01/ponytail01.dds` `61bd5d27dc933cdbe8067359f271eaca80d199db7775d4c273f02d0f98074aa4`
 - `assets/models/characters/makehuman/garments/short01/short01.bin` `02f13d68266786b29b9967907f97d3bc4eff5ef5f076cbb9db035759c870aa60`
 - `assets/models/characters/makehuman/garments/short01/short01_diffuse.png` `f34a0957184e3d1e911ed59245f874f8d4843f61ee44ff49f43edb4be0196949`
 - `assets/models/characters/makehuman/garments/short01/short01.thumb.png` `7e942d29322841a07a8a3feaf438fb9efb6b54f5b733909cecc51e79dcaca995`
+- `assets/models/characters/makehuman/garments/short01/short01.dds` `7198d1c2b3c5ddd070b45764a38ee146b19ab3cd32ec9a9355c9c72dc71917d6`
 - `assets/models/characters/makehuman/garments/short02/short02.bin` `611685b290f0138c42fff360f9224014346b31d58bb9941dd953d9e37cd4ea1b`
 - `assets/models/characters/makehuman/garments/short02/short02_diffuse.png` `47fe33831a3929567c733356dd66243116e05df2ace1f884ddca0080b728229f`
 - `assets/models/characters/makehuman/garments/short02/short02.thumb.png` `af21a0e84bfcc294b9840d90a04f1b6655ad909bc09328251886adffbc0727e8`
+- `assets/models/characters/makehuman/garments/short02/short02.dds` `d033bb1a62b80707eb8d11161b4ce64974f1dbbe982d28d22da1fa61b841eafa`
 - `assets/models/characters/makehuman/garments/short03/short03.bin` `261e068620f6ef2016d720c31ebe5686b8a8dcee3bb4a68f9b89a57a5e115b8e`
 - `assets/models/characters/makehuman/garments/short03/short03_diffuse.png` `fe6ed0bb14498a48a2e8fc07e80e2a6f62c8b67686fcd0a7a570d345faec97da`
 - `assets/models/characters/makehuman/garments/short03/short03.thumb.png` `aba276c3ddbcb6b2c5dc29eef595bd2e447bfd8ff530731454319ce301b1b782`
+- `assets/models/characters/makehuman/garments/short03/short03.dds` `d888b8329f331054a02d8cda6a65288f345e4a01a5257241dd3b8fa0a779d95e`
 - `assets/models/characters/makehuman/garments/short04/short04.bin` `fc784b5875384f2ab0658226dab7266516f4b07c70a0053567080c39a794ed75`
 - `assets/models/characters/makehuman/garments/short04/short04_diffuse.png` `0bef7fc0e403db5a40fabb2111ebfa6f7e8158e204c6e56b8da98e9ef527846e`
 - `assets/models/characters/makehuman/garments/short04/short04.thumb.png` `a7db8f3db6e2a53194993de73b875d000f928b66a8ac4d6efab51bfd8e6664fd`
+- `assets/models/characters/makehuman/garments/short04/short04.dds` `05b40f75a8b7415a31343e582aa91c7d79218b2069de2b3a1137ca81c739743d`
 - `assets/models/characters/makehuman/garments/eyebrow001/eyebrow001.bin` `ebcb062feae9c696b6cf16a5553d61eb30f82be1f9fabd78d14bb6a2bb845c59`
 - `assets/models/characters/makehuman/garments/eyebrow001/eyebrow001.png` `9940f7d0b1b223709a19b05156ba6f6e9e4dbdbced02d7574f4d51d72c58967b`
 - `assets/models/characters/makehuman/garments/eyebrow001/eyebrow001.thumb.png` `98b68eccf50977ff00242a33eb1dc6e3eaf4cc262e1f6c4ceca5c1c564f6c745`
+- `assets/models/characters/makehuman/garments/eyebrow001/eyebrow001.dds` `3de4b75ef2c9272f8b920635112ee3f0b7eb6967d76025468569ae8a470b5347`
 - `assets/models/characters/makehuman/garments/eyebrow002/eyebrow002.bin` `edc0d20548af9ae4ebfcd71967a4dbde7d19fef892d0bd0a63783f97da061c8b`
 - `assets/models/characters/makehuman/garments/eyebrow002/eyebrow002.png` `1de4e4cb69b3f4324390219ffbeb17a0b2555104d3211d1ac667655b69b64038`
 - `assets/models/characters/makehuman/garments/eyebrow002/eyebrow002.thumb.png` `4acd972e24cb3dec29a72391d08fb0a88afc1b8ad7ec1dd903e017558c9a1e20`
+- `assets/models/characters/makehuman/garments/eyebrow002/eyebrow002.dds` `d170293726edfdf473878026471489729251bfc80386a8fbce3748112f068261`
 - `assets/models/characters/makehuman/garments/eyebrow003/eyebrow003.bin` `ac64012cd97ff890b6e7270da974c74a65ffb4e267d56af0ecdcd4adeaffaa82`
 - `assets/models/characters/makehuman/garments/eyebrow003/eyebrow003.png` `e98837d77247f2c11a8259f8b265243b9053ba55683bd70223c668110e7dfb62`
 - `assets/models/characters/makehuman/garments/eyebrow003/eyebrow003.thumb.png` `f084be4df91306df1b646cfb02cac2feceaa3a0c70caf68af388385c506b8bbe`
+- `assets/models/characters/makehuman/garments/eyebrow003/eyebrow003.dds` `6b24f319b124374cf01830cf0cf5cb0a283363bce762e1f126e9875e401d96ac`
 - `assets/models/characters/makehuman/garments/eyebrow004/eyebrow004.bin` `b0021be03971c03a5e7c1a28c835f7fb3a888459af4c88c129035c8ec3a6acbf`
 - `assets/models/characters/makehuman/garments/eyebrow004/eyebrow004.png` `899b2ae3d6d46bef093b8da0fa2e2c21f07f7565b5e13c57139d1288a3a8e27e`
 - `assets/models/characters/makehuman/garments/eyebrow004/eyebrow004.thumb.png` `87b1903a5d55759e06956090a1620b236d4da553f61a20b4e30205b4efdf43cc`
+- `assets/models/characters/makehuman/garments/eyebrow004/eyebrow004.dds` `5b91484a4639c566729aa99bcce17e4abd19b8ee8447149320446f3c5b6da761`
 - `assets/models/characters/makehuman/garments/eyebrow005/eyebrow005.bin` `11bac7f850dbff3e9fcd2804750af8641acfaf82ff53862f0a86b878253befdd`
 - `assets/models/characters/makehuman/garments/eyebrow005/eyebrow005.png` `7258dd3cf12413289ac814f81ab6b6afa00827f7cbd5deda80743308dd8c0389`
 - `assets/models/characters/makehuman/garments/eyebrow005/eyebrow005.thumb.png` `dd1e5f13e75743000bfd86913ce44d85f1dcb9971dcd9f117757429f245903dc`
+- `assets/models/characters/makehuman/garments/eyebrow005/eyebrow005.dds` `075e50dc96a93952ced57a29f8f8ce9a4db13a7f2d9fd86f912418b8443b2d07`
 - `assets/models/characters/makehuman/garments/eyebrow006/eyebrow006.bin` `b629772317addc2ef7df7d3651e30460e2cf7735843578c6627144562466946a`
 - `assets/models/characters/makehuman/garments/eyebrow006/eyebrow006.png` `1f6d34d722ef18e73494e62f2c7f1a933ff58ce75d01fd34de21d178d5afe4d8`
 - `assets/models/characters/makehuman/garments/eyebrow006/eyebrow006.thumb.png` `8683104da77c3088a40879f9f5304e7d22e3c9d5d7b11fdfe8024d38bd2b299e`
+- `assets/models/characters/makehuman/garments/eyebrow006/eyebrow006.dds` `2b0a6cc389ef60b53d7d178f5f7598004944e55a73ab7ba89fdf45b1904354b0`
 - `assets/models/characters/makehuman/garments/eyebrow007/eyebrow007.bin` `2296b93472185063b9caa1be80796df763b6504d7be252252501576b0e5f0d77`
 - `assets/models/characters/makehuman/garments/eyebrow007/eyebrow007.png` `1827b24aaa1c928353027c5a86b8db59c1c22f06258b18faa2117d81f5ff9b05`
 - `assets/models/characters/makehuman/garments/eyebrow007/eyebrow007.thumb.png` `f162260f75eb55eca372a23250d99681257538844edacc9c5b6067834951fb1d`
+- `assets/models/characters/makehuman/garments/eyebrow007/eyebrow007.dds` `cfd42acc2a388ca2bb812fc5411312fad83eed52617d084b06f052034cc47b58`
 - `assets/models/characters/makehuman/garments/eyebrow008/eyebrow008.bin` `38d5e415691848846acffc79a8f0e8b5525b81922479b2e79a128f266b830194`
 - `assets/models/characters/makehuman/garments/eyebrow008/eyebrow008.png` `b2243e030ca6e74d402f2ec421262f67773b13e1b9f1930fcca626b5cd8e7d84`
 - `assets/models/characters/makehuman/garments/eyebrow008/eyebrow008.thumb.png` `e042642e862f0e189abe1ab393e14ee853a8565b1c16785ad7bc872ea670abb7`
+- `assets/models/characters/makehuman/garments/eyebrow008/eyebrow008.dds` `987412f402d8f39ead106a2db4cebb38164278bff56a81aeb42e0fc6518b6832`
 - `assets/models/characters/makehuman/garments/eyebrow009/eyebrow009.bin` `c893c67ef02952a5f05e7a5d5a1bf0fd3eb905562cd6e779f956ae41aab66429`
 - `assets/models/characters/makehuman/garments/eyebrow009/eyebrow009.png` `4d33c85718ca5accf44625652daf0ae6e8cc007ed8138280e4d95601717910c3`
 - `assets/models/characters/makehuman/garments/eyebrow009/eyebrow009.thumb.png` `509a9969749e3433e00caf83c63ab6cc2656f332795cd275d0bc93db88be4389`
+- `assets/models/characters/makehuman/garments/eyebrow009/eyebrow009.dds` `00d90a374c97ee616ed36b15a434c01c4cf79d8fac2d8cd12bd9d031669360fa`
 - `assets/models/characters/makehuman/garments/eyebrow010/eyebrow010.bin` `5b8cc26f2b270b74b7bfbb250d55e6e8d4555207870df5cef549eb383988abe0`
 - `assets/models/characters/makehuman/garments/eyebrow010/eyebrow010.png` `d0aca671c7d51008177a2a607dc8eba3d3e84935375c6fcac2f85841563e44f3`
 - `assets/models/characters/makehuman/garments/eyebrow010/eyebrow010.thumb.png` `d0b9381ff6666c6772d824a111b65be853e01daa94cee6dc6212ccdc8232944b`
+- `assets/models/characters/makehuman/garments/eyebrow010/eyebrow010.dds` `d475bb2fff5c9a18b451317780b4a7b09eef44db2c52abe4b0909dc6096c3ee4`
 - `assets/models/characters/makehuman/garments/eyebrow011/eyebrow011.bin` `24695cb9f25ea0b338b174fc40e4a2bae88b03ebeb0b0381937a33ea7d74e7ac`
 - `assets/models/characters/makehuman/garments/eyebrow011/eyebrow011.png` `df767b406c6b04388e3bd4dd3ed627307948f5df3dff4e92d860e6b800a1ad07`
 - `assets/models/characters/makehuman/garments/eyebrow011/eyebrow011.thumb.png` `0bb0d81ff31e6396f3f023d348f7e82627fcc7b4a6faa8109294e17a191b99e5`
+- `assets/models/characters/makehuman/garments/eyebrow011/eyebrow011.dds` `dd5e8886adb0c2a8e76e029013b38c128668c30153baf045630d70951e2aefe4`
 - `assets/models/characters/makehuman/garments/eyebrow012/eyebrow012.bin` `3afbeb6c36f9ad872f8d6fbac559c151ab0640ac26352a9c42ea03719a070ee4`
 - `assets/models/characters/makehuman/garments/eyebrow012/eyebrow012.png` `d352e9b3d6ccb9499be5e6cb5c0d462e8d7341539e1e28a003a29c83e5ca1b0f`
 - `assets/models/characters/makehuman/garments/eyebrow012/eyebrow012.thumb.png` `c920b4f8c394bf658fb9d33c6581b5020afbfb6b46ec79a5b79134e81bc6b3f2`
+- `assets/models/characters/makehuman/garments/eyebrow012/eyebrow012.dds` `ef6ab490c19424652eccd4dcdea4a5a274b36b00365ce9e86ee6188c328e6ed2`
 - `assets/models/characters/makehuman/garments/eyelashes01/eyelashes01.bin` `a913f59d574c4d774d6e6485084c9548118ad499783a810ed14cab8360aa8915`
 - `assets/models/characters/makehuman/garments/eyelashes01/eyelashes01.png` `4b69c0fff2648874460e9caf80c31413c444218a5c50afebc425aeaa65484a35`
 - `assets/models/characters/makehuman/garments/eyelashes01/eyelashes01.thumb.png` `34ab06601745c2b74fcfa6f63a374fcea58cb4501e728a3c6935a3a1ed794aa3`
+- `assets/models/characters/makehuman/garments/eyelashes01/eyelashes01.dds` `69e020511ee95876cdf423a8c68ed81f1c6002b5fe65184220bc4fb35aa87e1b`
 - `assets/models/characters/makehuman/garments/eyelashes02/eyelashes02.bin` `f39ceb6225376b89ca63f22caba20f53c3f75b5aacafbebbafbaa69ff0584092`
 - `assets/models/characters/makehuman/garments/eyelashes02/eyelashes02.png` `6375eb8934d86d49eb2a37589e179614fb557dd92a772ced11e269ad6d72d79d`
 - `assets/models/characters/makehuman/garments/eyelashes02/eyelashes02.thumb.png` `48dae6fa3b3df136e16b52e1e277c0ca4424ecc821553750e5c04ef3341fbd2f`
+- `assets/models/characters/makehuman/garments/eyelashes02/eyelashes02.dds` `5638ab94e20fef4eb6819698d88a1f457f649f342abb287b9f7eebcedd88c874`
 - `assets/models/characters/makehuman/garments/eyelashes03/eyelashes03.bin` `d26900c201fe6db693e888a75a9285a8c0796b949e01d7e16beb13f11e920b17`
 - `assets/models/characters/makehuman/garments/eyelashes03/eyelashes03.png` `3bae1d182039b695d5012b0d463bdc6a7c6e6669c7e0cf2eadef35aec4023ec5`
 - `assets/models/characters/makehuman/garments/eyelashes03/eyelashes03.thumb.png` `5d1cf28861f111770173e7204bea988579d31a17633c5ba76bc36002a311fbb7`
+- `assets/models/characters/makehuman/garments/eyelashes03/eyelashes03.dds` `f9e64537912c9630ce8d383ac7251b2b5f551f1c0d7c0a8a7b88c9e5518bf843`
 - `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.bin` `fdc55b63b75a41c03eb314eafe8dbf3272294865886ff85c0b3c6d2c0464dde3`
 - `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.png` `e08c934091e227b38239f993427062f9006c7cf8f2f62cbef10076bd345dcb4a`
 - `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.thumb.png` `50eaa038e01c24849d17ff9b2d4e7011101c0cf23a4fc5a64763f9414ff06796`
-- `data/characters/garments.ron` `f5d65fa13b176ab14c4118f45595b6aa4171cf67e0659666323fee6d6874dbf1`
+- `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.dds` `76f20a363db7b00c58d36913c50ff6275380749030f3f0c78a06b881b43a2cd6`
+- `data/characters/garments.ron` `493022bb5478e4c779c970f400b2e2bf73ef613878490f6a4a56d1e152feea84`

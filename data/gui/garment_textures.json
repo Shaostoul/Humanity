@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "_comment": "Settings > Graphics > Garment textures (2026-11-10, docs/design/character-animation.md section 16; src/gui/garment_textures.rs). The most texels each half of a garment's texture (its colour, its normal map) is drawn at: the converter encodes each at 1024 a half with every level below it, so a level with max_px 512 draws from the second level (a quarter of the video memory). The Settings page shows each level's video memory for the garment texture pool on this graphics card (BC7 where it offers block compression, four times as much uncompressed where it does not). words and note are i18n keys. 'full' is the default; src/config.rs falls back to it for an id not listed here. Changing this file takes effect at the next start.",
+  "levels": [
+    { "id": "full", "words": "garment_textures.level.full", "note": "garment_textures.note.full", "max_px": 1024 },
+    { "id": "low", "words": "garment_textures.level.low", "note": "garment_textures.note.low", "max_px": 512 }
+  ]
+}

@@ -26,6 +26,7 @@
 //! not by module path.
 
 pub mod atmosphere;
+pub mod bc7;
 pub mod billboard_bake;
 /// Atmosphere LUT generators (Hillaire stage 1: transmittance, CPU-side).
 pub mod atmo_luts;
@@ -138,6 +139,7 @@ pub mod sun_cascades;
 /// two target constructors everything else shares. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
 pub mod surface;
+pub mod texture_pool;
 /// Which depth texture is current, the window's or an off-screen view's.
 /// Extracted from capture.rs on 2026-09-19 - see the file's header for why.
 pub mod view_depth;
@@ -459,6 +461,7 @@ pub struct Renderer {
     /// is the standing lesson: anything expensive reached from the per-frame
     /// near-tree block must be memoized at its own call site, not upstream.)
     bark_materials: std::collections::HashMap<String, usize>,
+    texture_pools: Vec<Option<texture_pool::GpuPool>>, // the garment texture pools by id (None: let go)
     /// 1x1 white fallback bound at group 3 for every material without real
     /// imagery, so the shared pipeline layout is always satisfied and
     /// non-planet draws are unaffected (the shader only samples group 3 on
@@ -1205,8 +1208,8 @@ impl Renderer {
         // increment 1): asking for exactly what the adapter reports can never
         // fail device creation, which is the v0.782 boot-killer class. Without
         // it the Performance page falls back to CPU-side pass timing.
-        let granted_indirect = adapter.features()
-            & (indirect_features | wgpu::Features::TIMESTAMP_QUERY);
+        // ... and block compression for the garment textures (BC7, the same intersection: texture_pool).
+        let granted_indirect = (adapter.features() & (indirect_features | wgpu::Features::TIMESTAMP_QUERY)) | texture_pool::block_compression_feature(adapter.features());
         // Can this backend hand us a compiled-pipeline blob to keep between
         // boots? That is the standard answer to a slow PSO build, and it is
         // the first thing anyone looking at the `[Pipelines]` line will
@@ -2189,6 +2192,7 @@ impl Renderer {
             albedo_sampler,
             bark_sampler,
             bark_materials: std::collections::HashMap::new(),
+            texture_pools: Vec::new(),
             default_texture_bind_group,
             cloud_shape_view,
             cloud_detail_view,

@@ -182,19 +182,10 @@ pub struct CharactersDef {
     /// each time someone came near). The rest wait their turn, drawn as before meanwhile.
     #[serde(default = "default_look_threads")]
     pub look_threads: usize,
-    /// The most texels each half of a garment's packed texture is drawn at (its colour, its normal
-    /// map), each way: the sources run to 4096 and stay whole on disk; a person a few metres away
-    /// covers a few hundred pixels (section 8.3 of the plan has the memory).
-    #[serde(default = "default_look_texture_px")]
-    pub look_texture_px: u32,
 }
 
 fn default_look_threads() -> usize {
     2
-}
-
-fn default_look_texture_px() -> u32 {
-    1024
 }
 
 /// A body material and its tint.

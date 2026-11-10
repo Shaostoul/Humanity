@@ -27,6 +27,8 @@ scripts/vps/* text eol=lf
 # 0x0A byte. Git auto-detects binaries today, but pin it so no future
 # `* text=auto` rule can ever mangle it.
 *.bin       binary
+# BC7 textures in a DDS container (the look's garment textures, scripts/lib/bc7.js, 2026-11-10).
+*.dds       binary
 # Whole-Earth map packs (HOSMPAK1, crates/humanity-terrain/src/map_pack.rs): zlib chunks.
 *.hmpack    binary
 

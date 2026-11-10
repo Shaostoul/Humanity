@@ -50,6 +50,9 @@ pub mod font_size;
 /// Settings > Graphics > Furniture detail's levels, memory and hardware notice (2026-11-09).
 #[cfg(feature = "native")]
 pub mod furniture_detail;
+/// Settings > Graphics > Garment textures' levels, memory and hardware notice (2026-11-10).
+#[cfg(feature = "native")]
+pub mod garment_textures;
 /// The top menu as data (docs/design/navigation.md, rung 1): data/gui/navigation.json, read at
 /// start and when it is saved; the top row is drawn from it (pages/escape_menu.rs).
 #[cfg(feature = "native")]
@@ -63,16 +66,9 @@ pub mod characters;
 #[cfg(feature = "native")]
 pub use history::How;
 
-/// Install every font fallback chain on an egui context. Called for the main
-/// UI context at boot AND for every in-world screen surface context, so a
-/// screen can never show tofu the main UI does not: the two contexts get
-/// identical font stacks by going through one function. The chains
-/// themselves (Hack for arrows and box drawing, the OS CJK and emoji faces)
-/// are documented in `fonts.rs`.
+/// Every font fallback chain on an egui context, the one way in (`fonts::install_fonts`).
 #[cfg(feature = "native")]
-pub fn install_fonts(ctx: &egui::Context) {
-    fonts::install_font_fallbacks(ctx);
-}
+pub use fonts::install_fonts;
 
 /// Location-aware rules ("Laws") data loader (v0.496). See pages/laws.rs.
 pub mod laws;
@@ -4504,6 +4500,8 @@ pub struct SettingsState {
     pub bounced_light_detail: String,
     /// Furniture detail: a level id from data/gui/furniture_detail.json (`gui::furniture_detail`).
     pub furniture_detail: String,
+    /// Garment textures: a level id from data/gui/garment_textures.json (Full, Low memory; live).
+    pub garment_textures: String,
     pub master_volume: f32,
     pub music_volume: f32,
     pub sfx_volume: f32,
@@ -4737,6 +4735,7 @@ impl Default for SettingsState {
             lights_tiled: false,
             bounced_light_detail: crate::renderer::bounced_light_detail::DEFAULT_DETAIL.to_string(),
             furniture_detail: crate::gui::furniture_detail::DEFAULT_LEVEL.to_string(),
+            garment_textures: crate::gui::garment_textures::DEFAULT_LEVEL.to_string(),
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

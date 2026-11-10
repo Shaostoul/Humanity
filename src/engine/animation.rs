@@ -235,24 +235,41 @@ struct OwnBody {
 /// A person's own mesh is released once they have not wanted it for this long (seconds).
 const OWN_KEEP_S: f32 = 5.0;
 
-/// A garment's texture is let go once nobody near has worn it for this long (seconds): the GPU
-/// holds the textures of what people around you wear, not of every garment seen this session
-/// (2026-11-10: kept for the session, a rig's sweep reached 300 MB of garment textures, about 10.7
-/// MB each at `look_texture_px` 1024, and the library only grows).
+/// A garment's texture gives its slot back once nobody near has worn it for this long (seconds):
+/// the pool holds the textures of what people around you wear, not of every garment seen this
+/// session (2026-11-10: kept for the session, a rig's sweep reached 300 MB of garment textures, and
+/// the library only grows).
 const GARMENT_KEEP_S: f32 = 30.0;
 
-/// A worn garment's packed texture (the look; engine::look_textures): read off the frame on a
-/// thread of its own the first time anyone wears it, then made into its template material once.
+/// A garment nobody near has worn for this long (seconds) is idle: when its pool is full, a garment
+/// someone near wants may take its slot before its `GARMENT_KEEP_S` is up.
+const GARMENT_IDLE_S: f32 = 1.0;
+
+/// A worn garment's texture (the look; engine::look_textures, renderer::texture_pool): read off the
+/// frame on a thread of its own the first time anyone wears it, written into a slot of its size's
+/// pool, then drawn through its template material.
 enum GarmentTex {
     /// Being read. `template` is the material it had before it was released (that material and the
-    /// garment's others get the new texture, so their indices stay), None the first time.
-    Loading { rx: std::sync::mpsc::Receiver<Result<crate::engine::look_textures::Packed, String>>, template: Option<usize> },
-    /// On the GPU; `used` is the runtime clock when someone near last wore it.
-    Ready { template: usize, has_normal: bool, mean_luma: f32, used: f32 },
-    /// Let go after `GARMENT_KEEP_S` unworn: its materials remain, without a texture, until it is
-    /// worn again.
+    /// garment's others get the new slot, so their indices stay), None the first time.
+    Loading { rx: std::sync::mpsc::Receiver<Result<crate::engine::look_textures::Loaded, String>>, template: Option<usize> },
+    /// Read, waiting for a slot: its pool is full of garments someone near is wearing (drawn in its
+    /// mean colour meanwhile, the middle tier's tint), or this frame's upload went to another.
+    Waiting { loaded: crate::engine::look_textures::Loaded, template: Option<usize> },
+    /// In a slot of pool `pool` (an index into `AnimationRuntime::pools`, which knows the slot);
+    /// `used` is the runtime clock when someone near last wore it.
+    Ready { template: usize, pool: usize, used: f32 },
+    /// Let go after `GARMENT_KEEP_S` unworn (or its idle slot taken): its materials remain, without
+    /// a texture, until it is worn again.
     Released { template: usize },
     Failed,
+}
+
+/// What the garment textures are loaded at: each half's most texels (Settings > Graphics > Garment
+/// textures) and whether the GPU takes BC7.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TexSize {
+    max_px: u32,
+    compressed: bool,
 }
 
 /// THE FOOT PROBE (rung 2a, the proof's judge; showcase `foot_probe`): for a set time, every frame,
@@ -349,6 +366,12 @@ pub(crate) struct AnimationRuntime {
     /// Materials over the garments' textures, by (garment, colour, pass: 0 cloth or hair core, 1
     /// hair fringe): a GPU allocation keyed by its own value, made once each, like `materials`.
     garment_materials: HashMap<(usize, [u8; 3], u8), usize>,
+    /// The garment texture pools, one per slot shape (renderer::texture_pool), each allocated on
+    /// the GPU once, when a garment of its shape first arrives.
+    pools: Vec<crate::renderer::texture_pool::SlotPool>,
+    /// What the garment textures are loaded at; a change (the setting) lets every one go and the
+    /// pools with them, to be read again at the new size.
+    tex_size: Option<TexSize>,
 }
 
 impl Default for AnimationRuntime {
@@ -382,6 +405,8 @@ impl Default for AnimationRuntime {
             textures_on: true,
             garment_tex: HashMap::new(),
             garment_materials: HashMap::new(),
+            pools: Vec::new(),
+            tex_size: None,
         }
     }
 }
@@ -486,9 +511,15 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
                     }
                 }
             }
-            // Garment indices belong to the library they were read from.
+            // Garment indices belong to the library they were read from: every texture lets its slot
+            // go, and the pools go with them (sized from the old library); the new library's pools
+            // are planned for the Settings page.
+            let_go_of_garment_textures(rt, &mut state.renderer);
             rt.garment_tex.clear();
             rt.garment_materials.clear();
+            if let Some(look) = lib.look.as_ref() {
+                crate::gui::garment_textures::note_plan(pool_plan(look, lib.characters.tiers.near_cap, state.renderer.block_compression()));
+            }
             rt.report.body = lib.bodies.iter().map(|b| b.def.id.as_str()).collect::<Vec<_>>().join(",");
             rt.report.error = None;
             // The character page's body chooser lists the bodies a look can choose, and draws the
@@ -781,35 +812,38 @@ fn tinted_material(materials: &mut HashMap<[u8; 4], usize>, renderer: &mut crate
     *materials.entry(key).or_insert_with(|| renderer.add_material_full([c[0], c[1], c[2], 1.0], 0.0, roughness, crate::renderer::materials::MATERIAL_TYPE_CHARACTER, 0.0))
 }
 
-/// A worn garment's texture (the look; engine::look_textures): its template material (white, the
-/// garment's own type), whether a normal map was packed and its colour's mean luminance, once
-/// ready; None while it loads (it starts loading here, off the frame, the first time) or when it
-/// failed (logged once). `uploads`: how many finished packs this frame may still put on the GPU.
+/// A worn garment's texture (the look; engine::look_textures, renderer::texture_pool): its template
+/// material (white, the garment's own type), whether it has a normal map and its colour's mean
+/// luminance, once it sits in a slot; None while it is read (it starts reading here, off the frame,
+/// the first time), while it waits for a slot, or when it failed (logged once). `uploads`: how many
+/// slots this frame may still write (one: a texture is up to 2.7 MB of BC7 with its levels).
 #[allow(clippy::too_many_arguments)]
 fn garment_texture(
     tex: &mut HashMap<usize, GarmentTex>,
     shared: &HashMap<(usize, [u8; 3], u8), usize>,
+    pools: &mut Vec<crate::renderer::texture_pool::SlotPool>,
     renderer: &mut crate::renderer::Renderer,
     data_dir: &Path,
     look: &humanity_animation::LookLibrary,
+    near_cap: usize,
     g: usize,
-    max_px: u32,
+    size: TexSize,
     clock: f32,
     uploads: &mut usize,
 ) -> Option<(usize, bool, f32)> {
+    use crate::renderer::texture_pool::{SlotPool, Take};
+    let def = &look.garments[g].def;
     let start = |template: Option<usize>| {
-        let def = look.garments[g].def.clone();
-        let diffuse = resolve_model(data_dir, &def.diffuse);
-        let normal = def.normal.as_deref().map(|n| resolve_model(data_dir, n));
-        let ao = def.ao.as_deref().map(|n| resolve_model(data_dir, n));
+        let path = resolve_model(data_dir, &def.texture);
+        let (texture_px, id) = (def.texture_px, def.id.clone());
         let (tx, rx) = std::sync::mpsc::channel();
         let spawned = std::thread::Builder::new().name("garment-texture".into()).spawn(move || {
-            let _ = tx.send(crate::engine::look_textures::pack(&diffuse, normal.as_deref(), ao.as_deref(), def.alpha, def.size.0, max_px));
+            let _ = tx.send(crate::engine::look_textures::read(&path, texture_px, size.max_px, size.compressed));
         });
         match spawned {
             Ok(_) => GarmentTex::Loading { rx, template },
             Err(e) => {
-                log::warn!("Characters: could not start reading garment {}'s textures ({e}); drawn in its colour", def.id);
+                log::warn!("Characters: could not start reading garment {id}'s texture ({e}); drawn in its colour");
                 GarmentTex::Failed
             }
         }
@@ -819,21 +853,80 @@ fn garment_texture(
     if let GarmentTex::Released { template } = *entry {
         *entry = start(Some(template));
     }
-    // A finished pack goes onto the GPU only while this frame's texture upload is free.
-    if let (GarmentTex::Loading { rx, template: before }, true) = (&mut *entry, *uploads > 0) {
+    // A finished read waits for a slot.
+    if let GarmentTex::Loading { rx, template } = entry {
         match rx.try_recv() {
-            Ok(Ok(p)) => {
+            Ok(Ok(loaded)) => *entry = GarmentTex::Waiting { loaded, template: *template },
+            Ok(Err(e)) => {
+                log::warn!("Characters: garment {}'s texture did not read ({e}); drawn in its colour", def.id);
+                *entry = GarmentTex::Failed;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => *entry = GarmentTex::Failed,
+        }
+    }
+    // Into a slot while this frame's upload is free: a free slot, else an idle garment's (nobody
+    // near has worn it for `GARMENT_IDLE_S`), else it waits in its mean colour. Never an allocation
+    // on the frame, but the pool's own, once, the first time a garment of its shape arrives.
+    if *uploads > 0 && matches!(tex.get(&g), Some(GarmentTex::Waiting { .. })) {
+        let idle: Vec<(usize, f32)> = tex
+            .iter()
+            .filter_map(|(&k, t)| match t {
+                GarmentTex::Ready { used, .. } if clock - *used > GARMENT_IDLE_S => Some((k, clock - *used)),
+                _ => None,
+            })
+            .collect();
+        let Some(GarmentTex::Waiting { loaded, template }) = tex.remove(&g) else { return None };
+        let pi = match pools.iter().position(|p| p.class == loaded.class) {
+            Some(i) => i,
+            None => {
+                pools.push(SlotPool::new(loaded.class, pool_capacity(look, near_cap, loaded.class, size.max_px)));
+                pools.len() - 1
+            }
+        };
+        match pools[pi].take(g, |h| idle.iter().find(|(k, _)| *k == h).map(|(_, s)| *s)) {
+            Take::Full => {
+                tex.insert(g, GarmentTex::Waiting { loaded, template });
+            }
+            Take::Slot { layer, evicted } => {
                 *uploads -= 1;
-                // What the frame pays for the look (with the meshes' uploads): the texture onto the GPU.
+                // What the frame pays for the look (with the meshes' uploads): the texture into its slot.
                 let _cost = humanity_core::frame_costs::stage("cpu.look_build");
                 let t0 = std::time::Instant::now();
+                // The idle garment whose slot this is lets it go first.
+                if let Some(e) = evicted {
+                    if let Some(&GarmentTex::Ready { template: et, .. }) = tex.get(&e) {
+                        drop_garment_materials(renderer, shared, e, et);
+                        tex.insert(e, GarmentTex::Released { template: et });
+                    }
+                }
+                let pool = &mut pools[pi];
+                // Allocated when bodies were first drawn (`allocate_pools`); a shape the library did
+                // not plan (none today) is allocated here, once.
+                if pool.needs_texture() {
+                    let ta = std::time::Instant::now();
+                    pool.gpu = Some(renderer.create_texture_pool(pool.class, pool.capacity));
+                    log_pool(pool, ta.elapsed().as_secs_f32() * 1000.0);
+                }
+                // Always set by now (allocated just above when it was not); a pool without its
+                // texture leaves the garment in its mean colour rather than a stale entry.
+                let Some(gpu) = pool.gpu else {
+                    pool.give_back(g);
+                    tex.insert(g, GarmentTex::Failed);
+                    return None;
+                };
+                if let Err(e) = renderer.texture_pool_write(gpu, layer, &loaded.levels) {
+                    log::warn!("Characters: garment {}'s texture did not go into its slot ({e}); drawn in its colour", def.id);
+                    pool.give_back(g);
+                    tex.insert(g, GarmentTex::Failed);
+                    return None;
+                }
                 use crate::renderer::materials::{HAIR_CUTOFF, MATERIAL_TYPE_CHARACTER, MATERIAL_TYPE_HAIR};
-                let def = &look.garments[g].def;
-                let hn = if p.has_normal { 1.0 } else { 0.0 };
-                let (ty, params2) = if def.alpha { (MATERIAL_TYPE_HAIR, [1.0, hn, HAIR_CUTOFF, p.mean_luma]) } else { (MATERIAL_TYPE_CHARACTER, [1.0, hn, 0.0, 0.0]) };
-                let template = match *before {
+                let hn = if def.normal_map { 1.0 } else { 0.0 };
+                let (ty, params2) = if def.alpha { (MATERIAL_TYPE_HAIR, [1.0, hn, HAIR_CUTOFF, def.luma]) } else { (MATERIAL_TYPE_CHARACTER, [1.0, hn, 0.0, 0.0]) };
+                let template = match template {
                     Some(t) => {
-                        renderer.set_character_texture(t, params2, &p.levels, p.size * 2, p.size);
+                        renderer.set_material_pool_slot(t, gpu, layer, params2);
                         for (&(of, _, _), &m) in shared.iter() {
                             if of == g && m != t {
                                 renderer.share_material_texture(m, t);
@@ -841,45 +934,156 @@ fn garment_texture(
                         }
                         t
                     }
-                    None => renderer.add_character_material([1.0; 4], def.roughness, ty, params2, &p.levels, p.size * 2, p.size),
+                    None => renderer.add_character_material_on_slot([1.0; 4], def.roughness, ty, params2, gpu, layer),
                 };
-                let bytes: usize = p.levels.iter().map(Vec::len).sum();
-                log::info!("Characters: garment {} textured, {} by {} texels ({:.1} MB with its mips), onto the GPU in {:.2} ms", def.id, p.size * 2, p.size, bytes as f64 / 1_048_576.0, t0.elapsed().as_secs_f32() * 1000.0);
-                *entry = GarmentTex::Ready { template, has_normal: p.has_normal, mean_luma: p.mean_luma, used: clock };
+                let bytes: usize = loaded.levels.iter().map(Vec::len).sum();
+                log::info!(
+                    "Characters: garment {} textured, {} by {} texels ({:.1} MB with its levels, {}), into slot {} of {} ({} held), onto the GPU in {:.2} ms",
+                    def.id,
+                    loaded.class.width,
+                    loaded.class.height,
+                    bytes as f64 / 1_048_576.0,
+                    if loaded.class.compressed { "BC7" } else { "RGBA8" },
+                    layer,
+                    pool.capacity,
+                    pool.held(),
+                    t0.elapsed().as_secs_f32() * 1000.0
+                );
+                tex.insert(g, GarmentTex::Ready { template, pool: pi, used: clock });
             }
-            Ok(Err(e)) => {
-                log::warn!("Characters: garment {}'s textures did not read ({e}); drawn in its colour", look.garments[g].def.id);
-                *entry = GarmentTex::Failed;
-            }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {}
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => *entry = GarmentTex::Failed,
         }
     }
-    match entry {
-        GarmentTex::Ready { template, has_normal, mean_luma, used } => {
+    match tex.get_mut(&g) {
+        Some(GarmentTex::Ready { template, used, .. }) => {
             *used = clock;
-            Some((*template, *has_normal, *mean_luma))
+            Some((*template, def.normal_map, def.luma))
         }
         _ => None,
     }
 }
 
-/// Let go of the textures of garments nobody near has worn for `GARMENT_KEEP_S` (their template
-/// material and every material sharing its texture: other colours, hair's fringe pass).
-fn release_unworn_garments(tex: &mut HashMap<usize, GarmentTex>, shared: &HashMap<(usize, [u8; 3], u8), usize>, renderer: &mut crate::renderer::Renderer, clock: f32) {
+/// Let a garment's materials go of their slot: its template and every material sharing its texture
+/// (other colours, hair's fringe pass).
+fn drop_garment_materials(renderer: &mut crate::renderer::Renderer, shared: &HashMap<(usize, [u8; 3], u8), usize>, g: usize, template: usize) {
+    for (&(of, _, _), &m) in shared.iter() {
+        if of == g {
+            renderer.drop_material_texture(m);
+        }
+    }
+    renderer.drop_material_texture(template);
+}
+
+/// Let go of the textures of garments nobody near has worn for `GARMENT_KEEP_S`: their materials
+/// let the slot go and the slot goes back to its pool.
+fn release_unworn_garments(tex: &mut HashMap<usize, GarmentTex>, shared: &HashMap<(usize, [u8; 3], u8), usize>, pools: &mut [crate::renderer::texture_pool::SlotPool], renderer: &mut crate::renderer::Renderer, clock: f32) {
     for (&g, entry) in tex.iter_mut() {
-        if let GarmentTex::Ready { template, used, .. } = *entry {
+        if let GarmentTex::Ready { template, pool, used, .. } = *entry {
             if clock - used > GARMENT_KEEP_S {
-                for (&(of, _, _), &m) in shared.iter() {
-                    if of == g {
-                        renderer.drop_material_texture(m);
-                    }
+                drop_garment_materials(renderer, shared, g, template);
+                if let Some(p) = pools.get_mut(pool) {
+                    p.give_back(g);
                 }
-                renderer.drop_material_texture(template);
                 *entry = GarmentTex::Released { template };
             }
         }
     }
+}
+
+/// Let every garment texture go, and the pools with them (the garment texture size changed, or the
+/// library is read again): each garment keeps its template material, textureless, to be read again
+/// into it when worn.
+fn let_go_of_garment_textures(rt: &mut AnimationRuntime, renderer: &mut crate::renderer::Renderer) {
+    for &m in rt.garment_materials.values() {
+        renderer.drop_material_texture(m);
+    }
+    let mut kept = HashMap::new();
+    for (g, t) in rt.garment_tex.drain() {
+        let template = match t {
+            GarmentTex::Ready { template, .. } | GarmentTex::Released { template } => Some(template),
+            GarmentTex::Loading { template, .. } | GarmentTex::Waiting { template, .. } => template,
+            GarmentTex::Failed => None,
+        };
+        if let Some(template) = template {
+            renderer.drop_material_texture(template);
+            kept.insert(g, GarmentTex::Released { template });
+        }
+    }
+    rt.garment_tex = kept;
+    for p in rt.pools.drain(..) {
+        if let Some(gpu) = p.gpu {
+            renderer.release_texture_pool(gpu);
+        }
+    }
+}
+
+/// How many slots a pool of `class` holds: enough for the near tier (its cap and the player) each
+/// wearing one garment of every kind that comes in this shape, and never more than the library has
+/// garments of it. A pool full of garments someone near wears makes a newcomer wait in its mean
+/// colour, so this is the near tier's worst case, not a limit people meet.
+fn pool_capacity(look: &humanity_animation::LookLibrary, near_cap: usize, class: crate::renderer::texture_pool::SlotClass, max_px: u32) -> u32 {
+    let mut kinds: Vec<humanity_animation::GarmentKind> = Vec::new();
+    let mut count = 0usize;
+    for g in &look.garments {
+        if crate::engine::look_textures::class_for(g.def.texture_px, max_px, class.compressed) == class {
+            count += 1;
+            if !kinds.contains(&g.def.kind) {
+                kinds.push(g.def.kind);
+            }
+        }
+    }
+    count.min((near_cap + 1) * kinds.len()).max(1) as u32
+}
+
+/// Make and allocate a pool for every slot shape the library's garments fall in at `size` (each at
+/// its capacity), each logged with its size and the time its allocation took.
+fn allocate_pools(pools: &mut Vec<crate::renderer::texture_pool::SlotPool>, renderer: &mut crate::renderer::Renderer, look: &humanity_animation::LookLibrary, near_cap: usize, size: TexSize) {
+    for g in &look.garments {
+        let class = crate::engine::look_textures::class_for(g.def.texture_px, size.max_px, size.compressed);
+        if pools.iter().any(|p| p.class == class) {
+            continue;
+        }
+        let mut pool = crate::renderer::texture_pool::SlotPool::new(class, pool_capacity(look, near_cap, class, size.max_px));
+        if pool.needs_texture() {
+            let t0 = std::time::Instant::now();
+            pool.gpu = Some(renderer.create_texture_pool(pool.class, pool.capacity));
+            log_pool(&pool, t0.elapsed().as_secs_f32() * 1000.0);
+        }
+        pools.push(pool);
+    }
+}
+
+fn log_pool(pool: &crate::renderer::texture_pool::SlotPool, ms: f32) {
+    log::info!(
+        "Characters: garment texture pool of {} slots of {} by {} texels ({} levels, {}) allocated: {:.1} MB, in {:.2} ms",
+        pool.capacity,
+        pool.class.width,
+        pool.class.height,
+        pool.class.levels,
+        if pool.class.compressed { "BC7" } else { "RGBA8: no block compression" },
+        (pool.class.slot_bytes() * pool.capacity as u64) as f64 / 1_048_576.0,
+        ms
+    );
+}
+
+/// What the pools take at each garment texture level (Settings > Graphics > Garment textures), on a
+/// GPU that does (`compressed`) or does not take BC7: every pool shape the library's garments fall
+/// in at that level, at its capacity.
+fn pool_plan(look: &humanity_animation::LookLibrary, near_cap: usize, compressed: bool) -> crate::gui::garment_textures::Plan {
+    let bytes = crate::gui::garment_textures::levels()
+        .iter()
+        .map(|level| {
+            let mut classes: Vec<crate::renderer::texture_pool::SlotClass> = Vec::new();
+            for g in &look.garments {
+                let c = crate::engine::look_textures::class_for(g.def.texture_px, level.max_px, compressed);
+                if !classes.contains(&c) {
+                    classes.push(c);
+                }
+            }
+            let total = classes.iter().map(|&c| c.slot_bytes() * pool_capacity(look, near_cap, c, level.max_px) as u64).sum();
+            (level.id.clone(), total)
+        })
+        .collect();
+    crate::gui::garment_textures::Plan { bytes, compressed }
 }
 
 /// The outfit slots a worn garment of this kind fills: the body's regions painted as those slots'
@@ -1183,6 +1387,28 @@ pub(crate) fn draw_people(
     let data_dir = state.data_dir.clone();
     let cosmetics = &state.cosmetics;
     let model_of = |id: &str| -> Option<Option<String>> { cosmetics.iter().find(|c| c.id == id).map(|c| c.model.clone()) };
+    // Settings > Graphics > Garment textures (Full or Low memory) and the GPU's block compression:
+    // a change lets every garment texture go, and the pools with them, to be read again at the new
+    // size as people wear them (each drawn in its mean colour for the frames that takes).
+    let tex_size = TexSize { max_px: crate::gui::garment_textures::max_px(&state.gui_state.settings.garment_textures), compressed: state.renderer.block_compression() };
+    if state.animation.tex_size != Some(tex_size) {
+        if state.animation.tex_size.is_some() {
+            log::info!("Characters: garment textures now {} texels a half ({}); every one is read again as it is worn", tex_size.max_px, if tex_size.compressed { "BC7" } else { "uncompressed" });
+            let_go_of_garment_textures(&mut state.animation, &mut state.renderer);
+        }
+        state.animation.tex_size = Some(tex_size);
+    }
+    // The pools, each allocated once, on the first frame that draws bodies (entering the world), and
+    // again after the setting changes or the library is read again: never when a crowd walks in.
+    // Measured 2026-11-10: allocated as the first garment of its shape arrived, the small pool took
+    // 9.0 ms on that frame (the large one 0.1 ms), the crowd's one remaining spike.
+    if state.animation.textures_on && state.animation.pools.is_empty() {
+        if let Some(lib) = state.animation.lib.clone() {
+            if let Some(look) = lib.look.as_ref() {
+                allocate_pools(&mut state.animation.pools, &mut state.renderer, look, lib.characters.tiers.near_cap, tex_size);
+            }
+        }
+    }
     let rt = &mut state.animation;
     let renderer = &mut state.renderer;
     let lib = rt.lib.as_ref().expect("draws_bodies checked it");
@@ -1211,7 +1437,8 @@ pub(crate) fn draw_people(
     // Own meshes building on workers now (at most `look_threads`).
     let mut in_flight = rt.figures.values().filter(|f| f.building.is_some()).count();
     // What a frame puts on the GPU for the look (2026-11-10): one finished own mesh (about 1 ms, its
-    // buffers) and one garment texture (up to 11 MB with its mips); the rest wait a frame each, so
+    // buffers) and one garment texture into its slot (up to 2.7 MB of BC7 with its levels, 10.7 MB
+    // decoded on a GPU without block compression); the rest wait a frame each, so
     // a crowd arriving never piles every upload into one frame (the sweep's worst frame did).
     let mut mesh_uploads = 1usize;
     let mut texture_uploads = 1usize;
@@ -1532,7 +1759,11 @@ pub(crate) fn draw_people(
                         humanity_animation::Part::Garment(g) => {
                             let def = &look.garments[g].def;
                             let c = garment_colour(lib, def, p);
-                            let ready = if rt.textures_on { garment_texture(&mut rt.garment_tex, &rt.garment_materials, renderer, &data_dir, look, g, lib.characters.look_texture_px, rt.clock, &mut texture_uploads) } else { None };
+                            let ready = if rt.textures_on {
+                                garment_texture(&mut rt.garment_tex, &rt.garment_materials, &mut rt.pools, renderer, &data_dir, look, lib.characters.tiers.near_cap, g, tex_size, rt.clock, &mut texture_uploads)
+                            } else {
+                                None
+                            };
                             match ready {
                                 Some((template, has_normal, luma)) if def.alpha => {
                                     use crate::renderer::materials::{HAIR_CUTOFF, MATERIAL_TYPE_HAIR};
@@ -1614,7 +1845,7 @@ pub(crate) fn draw_people(
         }
     }
     // Garments nobody near has worn for a while give their textures back.
-    release_unworn_garments(&mut rt.garment_tex, &rt.garment_materials, renderer, rt.clock);
+    release_unworn_garments(&mut rt.garment_tex, &rt.garment_materials, &mut rt.pools, renderer, rt.clock);
     let frame = rt.frame;
     // Beyond the cap, the own meshes of the people longest out of the near tier go now.
     let mut kept: Vec<(f32, FigureKey)> = rt.figures.iter().filter(|(_, f)| f.own.is_some() && f.away_s > 0.0).map(|(k, f)| (f.away_s, *k)).collect();
