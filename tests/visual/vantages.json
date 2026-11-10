@@ -14638,6 +14638,90 @@
       "_red": "Measured 2026-11-09: the plan's two rules, wet and shallow, PASSED, where the plan expected red. The gate was measuring the wrong thing: the 5.5 km grid draws Norderney as a sea-level flat, +0.23 m 1.3 km inland sliding to -1.2 m 360 m out (the steepest slope 0.09 degrees), so the water side is wet and every slope shallow, while the island itself is gone: the ground crosses sea level 836 m south of the real coast and the capture shows shallow water in every direction. Coarse data smears a coast flat, so a shallow coast's own rules pass it. The `dry` rule was added for this and is RED at both depths (13 and 19): all 518 samples more than 15 m inland stand below +0.3 m, 326 of them under the sea, the lowest -0.71 m. Sweeps 20261109-121545 (depth 13, judged again with dry) and -124533 (depth 19)."
     },
     {
+      "id": "silverdale-road-slope",
+      "desc": "On foot at noon beside a residential street in Silverdale that crosses a side slope (OSM way 5915750, running north and south; the land layer falls 1.37 m across its 6.5 m carriageway, a 21% cross slope, rising to the east), the eye 2.5 m over the ground 6 m east of its centreline (on the uphill side, past its shoulder) and 12 m south, looking north-north-west along it. The whole-Earth maps road-bed lock (the rung between 2 and 3, 2026-11-09, docs/design/whole-earth-maps.md 6.1 and 6.4): until then the street was a ribbon laid 0.18 m over the centreline's ground, so on this slope its uphill (east) edge sank into the hillside and its downhill edge floated over it. Its bed_probe reads the street's cross-section from the game's own numbers.",
+      "expect": "A grey street running away from the camera, lying flat across on a level bed cut into the slope: on its right (east, uphill) side a dirt shoulder and then a grassy bank rising to the hillside, on its left the ground falls away toward the houses; the ribbon's edges meet the ground along their whole length, with no edge sinking into the hill and no gap under it. The houses on the left stand on the ground.",
+      "regressions": [
+        "road_on_bed: across the carriageway the drawn ground spreads by at most 5 cm and the ribbon lies on it, never under it and never more than 8 cm over it (rung 2: the uphill edge buried, the downhill one floating)",
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 47.64907,
+        "lon": -122.674189,
+        "altitude_km": 0.06,
+        "look_offset_deg": 70,
+        "time": 12
+      },
+      "showcase": {
+        "sea": "0.3",
+        "weather": "clear",
+        "cloud_cover": "0",
+        "wind": "0"
+      },
+      "final_showcase": {
+        "stand": "6,2.5,12,330,-8",
+        "stand_at": "47.64907,-122.674189"
+      },
+      "final_settle_s": 10,
+      "settle_s": 14,
+      "perf_floor_fps": 5,
+      "bed_probe": {
+        "road": [
+          47.64907,
+          -122.674189
+        ],
+        "rules": [
+          "road_on_bed"
+        ]
+      },
+      "_why": "Whole-Earth maps, the rung between 2 and 3 (2026-11-09). Chosen by the map_beds tests' own scan of the Silverdale tile: the residential street with the steepest natural cross slope whose cross-section no other bed or pad shares, more than 80 m from the shore. The judge refuses (as misconfigured) a street whose natural ground falls less than 0.3 m across, so a flat street can never pass for proof.",
+      "_red": "Measured 2026-11-09 on this rung's build with HUMANITY_GROUND_BEDS=0 (rung 2's ground, lifts and centre sample), the walk depth 20 (an installed pack refines to 20 since this rung): RED on road_on_bed. Across the carriageway of way 5915750 the land layer rises 1.375 m over 6.5 m and the drawn ground follows it (spread 1.408 m); the ribbon, laid 0.18 m over the centreline's ground and flat across, lies 0.533 m under the ground at its uphill (east) edge and floats 0.875 m over it at its downhill edge. The capture shows the ribbon's right edge running under the hillside's dirt and its near left edge standing proud of the ground. Sweep in this rung's worktree .probe-rig/sweeps: 20261109-232135.",
+      "_green": "Rung 2b, measured 2026-11-09 on its build, rig defaults: GREEN. The drawn ground across the carriageway spreads 0.001 m (a flat bed); the ribbon lies 0.039 m over it at both edges (its 4 cm decal offset), never under it. The capture shows the street flat across, a dirt shoulder on its uphill side and a grassy bank rising from it, the houses on the downhill side standing on the ground. Sweep 20261109-232353."
+    },
+    {
+      "id": "silverdale-building-slope",
+      "desc": "At noon 25 m south of a house on a slope in Silverdale (OSM way 1364377251, a 16 m footprint whose natural ground spreads 3.6 m under its corners), the eye 3 m over the ground, looking north at it. The whole-Earth maps building-pad lock (the rung between 2 and 3, 2026-11-09, docs/design/whole-earth-maps.md 6.2 and 6.4): until then a building stood on the lowest ground under its walls with a 2.5 m skirt buried below, so on a slope its uphill side sank into the hill and its roof stood low there. Its bed_probe reads the footing from the game's own numbers.",
+      "expect": "A house standing on a level pad: the ground is flat around its walls (a 1.5 m apron), cut into the hill on the uphill side and built up on the downhill side by a 1 in 2 bank back to the natural slope; the walls meet the pad all round, none sinking into the hill and none showing daylight under them.",
+      "regressions": [
+        "building_on_pad: at every corner the drawn ground is the floor within 5 cm, no wall bottom stands above the ground, and none reaches more than 5 cm below the lowest ground (rung 2: the floor at the lowest corner, the uphill corners sunk metres into the hill, a 2.5 m buried skirt)",
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 47.647284,
+        "lon": -122.676313,
+        "altitude_km": 0.06,
+        "look_offset_deg": 70,
+        "time": 12
+      },
+      "showcase": {
+        "sea": "0.3",
+        "weather": "clear",
+        "cloud_cover": "0",
+        "wind": "0"
+      },
+      "final_showcase": {
+        "stand": "0,3,25,0,-6",
+        "stand_at": "47.647284,-122.676313"
+      },
+      "final_settle_s": 10,
+      "settle_s": 14,
+      "perf_floor_fps": 5,
+      "bed_probe": {
+        "building": [
+          47.647284,
+          -122.676313
+        ],
+        "rules": [
+          "building_on_pad"
+        ]
+      },
+      "_why": "Whole-Earth maps, the rung between 2 and 3 (2026-11-09). Chosen by the map_beds tests' own scan of the Silverdale tile: a footprint over 8 m across whose corners' natural ground spreads the most while no other pad or bed shares its apron, more than 80 m from the shore (a moderate one of the scan's list; the steepest, 7.9 m under 21 m, is a hillside the plan's 1 in 2 banks turn into earthworks). The judge refuses (as misconfigured) a footprint whose natural ground spreads less than 0.5 m. Keep the camera OUTSIDE every footprint: a stand point inside one stands on that building's pad, and in this rung's camera trials an eye 6 m over a pad lay exactly in its default-height (6 m) roof's plane, drawing that roof edge-on as a beige line across the whole frame (correct geometry, a useless picture).",
+      "_red": "Measured 2026-11-09 on this rung's build with HUMANITY_GROUND_BEDS=0, walk depth 20: RED on building_on_pad. Building 1364377251's corners stand on natural ground spreading 3.607 m; rung 2's rule put its floor at the lowest corner (19.403 m), so its uphill corners stood 3.589 m above the floor (the house sunk into the hill there, its roof 3.6 m lower than it should stand), and its walls reached 2.500 m below the lowest ground (the buried skirt). Sweep 20261109-232135.",
+      "_green": "Rung 2b, measured 2026-11-09 on its build, rig defaults: GREEN. The pad holds every corner at the floor, 20.928 m (the median of the land layer over the footprint), to 0.000 m; the walls reach down to 19.403 m, the lowest natural ground at the corners and no deeper (the plinth, buried under the downhill fill here). The capture shows the house on a level pad, its front wall meeting the ground along a level line. Sweep 20261109-232353."
+    },
+    {
       "id": "maps-follow-home",
       "desc": "Aboard the UHS Mothership at local noon, then the Maps page opened the way the game opens it: following you.",
       "expect": "The ship's hull fills the middle of the map, lit from above, with Earth's day side behind and below it; the label UHS Mothership, your home, 35,870 km up; the ship's orbit line through it; Following you at the top left. Earth faces the ship with its EQUATOR: open Pacific under the ship with the noon sun glint, Mexico and Baja California at one side of the disc and Colombia and Ecuador further round, never the Arctic ice cap in the middle (BUG-211). The planets' orbit rings run parallel to the ship's own orbit line (the game has no axial tilt, so the ecliptic is the equator's plane).",

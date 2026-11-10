@@ -184,6 +184,9 @@ const TG = require("./lib/tree-ground-check.js");
 // The shore_probe vantage check (whole-Earth maps rung 1): the drawn ground along a transect
 // across a coast, judged against the coastline data and the raw land layer.
 const SP2 = require("./lib/shore-probe-check.js");
+// The bed_probe vantage check (whole-Earth maps, the rung between 2 and 3): a road's cross-section
+// or a building's footing, judged against the mesher's own rules.
+const BP2 = require("./lib/bed-probe-check.js");
 // The Maps "ship centred" check (Maps increment 1): the vantage's `map_centre`.
 const MC = require("./lib/map-centre-check.js");
 // The Maps overview check (Maps increment 2): the vantage's `map_overview`.
@@ -1342,6 +1345,27 @@ async function main() {
           for (const f of verdict.failures) log(`  !! shore probe: ${f}`);
           for (const n of verdict.notes) log(`  .. shore probe: ${n}`);
         }
+        // BED PROBE (whole-Earth maps, the rung between 2 and 3, 2026-11-09, whole-earth-maps.md
+        // 6.1 and 6.2): a vantage with `bed_probe` asks the game for a road's cross-section or a
+        // building's footing (src/engine/bed_probe.rs), keeps it beside the PNG as <id>-bed.json,
+        // and judges it (scripts/lib/bed-probe-check.js): a ribbon buried or floating on a side
+        // slope, a house sunk into a hill or standing on a buried skirt fails the vantage; a flat
+        // street or lot fails it as MISCONFIGURED.
+        if (v.bed_probe) {
+          const bpPath = path.join(DEBUG, "bed_probe.json");
+          if (fs.existsSync(bpPath)) fs.unlinkSync(bpPath);
+          const bp = v.bed_probe;
+          const at = bp.road || bp.building;
+          req("showcase_request.json", { bed_probe: `${bp.road ? "road" : "building"};${at.join(",")}` });
+          const readout = await waitFile("bed_probe.json", 30000);
+          if (!readout) throw new Error("bed probe: the game wrote no debug/bed_probe.json");
+          fs.writeFileSync(path.join(OUT, `${v.id}-bed.json`), JSON.stringify(readout, null, 2));
+          const verdict = BP2.judgeBeds(readout, bp);
+          rec.bed_probe = { ok: verdict.ok, misconfigured: verdict.misconfigured, failures: verdict.failures, notes: verdict.notes, rules: verdict.rules };
+          log(`  bed probe: ${BP2.summarize(verdict)}`);
+          for (const f of verdict.failures) log(`  !! bed probe: ${f}`);
+          for (const n of verdict.notes) log(`  .. bed probe: ${n}`);
+        }
         // Capture window closes. Marks rec.contaminated when a foreign
         // instance was up at either end.
         guardEnd(rec, guardPre);
@@ -1400,6 +1424,10 @@ async function main() {
         if (rec.ok && rec.shore_probe && !rec.shore_probe.ok) {
           rec.ok = false;
           rec.error = `SHORE PROBE: ${rec.shore_probe.failures.join(" | ")}`;
+        }
+        if (rec.ok && rec.bed_probe && !rec.bed_probe.ok) {
+          rec.ok = false;
+          rec.error = `BED PROBE: ${rec.bed_probe.failures.join(" | ")}`;
         }
         if (rec.ok && rec.map_centre && !rec.map_centre.ok) {
           rec.ok = false;

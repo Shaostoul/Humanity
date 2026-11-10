@@ -30,6 +30,12 @@ map-build = []
 name = "build_map_packs"
 required-features = ["map-build"]
 
+# How long a patch takes to build inside an installed map pack, by depth (whole-earth-maps.md 13,
+# the rung between 2 and 3): a developer measurement on the shipped fixtures, never in the app.
+[[example]]
+name = "bench_map_patches"
+required-features = ["test-support"]
+
 [dependencies]
 humanity-core = { path = "../humanity-core", default-features = false }
 glam = { workspace = true }

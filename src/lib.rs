@@ -9892,6 +9892,9 @@ mod native_app {
                                     } else {
                                         chunks::MAX_PATCH_DEPTH
                                     },
+                                    // An installed map pack's tile earns the 1 m ladder with or
+                                    // without the tile tier (whole-Earth maps, rung 2b).
+                                    deep: crate::engine::map_meshes::deep_tiles(&b.id),
                                     split_px,
                                     px_per_rad: viewport_h / fov_deg.max(1.0).to_radians(),
                                     max_leaves: patch_budget,

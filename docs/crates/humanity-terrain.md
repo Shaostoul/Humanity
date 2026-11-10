@@ -8,7 +8,8 @@ data (`planet_chunks`, `drawn_surface`, `terrain_tiles`), the oceans and water (
 `ocean_waves`, `water_patches`), the plants' and trees' geometry (`plant_mesh`, `tree_registry`,
 `near_trees`, `far_trees`, `grass`), the whole-Earth map: its tile key (`map_tiles`), its pack
 format (`map_pack`), its data files (`map_levels`), the packs drawn into the ground (`map_ground`:
-the shore band, tile residency, the built-over mask), the offline builder (`map_build`, behind the
+the shore band, tile residency, the built-over mask; its child `map_beds`, the road beds and
+building pads), the offline builder (`map_build`, behind the
 `map-build` feature, built only for tests and `just map-packs`) and OSM features around an origin
 with the 3D extrusion mesher (`osm_region`), asteroids and the celestial projection. It draws nothing itself: the renderer uploads what it builds and the simulation reads
 its heights. It was edited twice in the 30 days before the split was planned, so as a crate under
@@ -84,6 +85,12 @@ And 74 more items, 106 references (`node scripts/crate-cards.js --interface huma
   and fine samples are the same bits. A clip crossing is computed from the ORIGINAL feature edge,
   so neighbouring tiles agree bit for bit. Source:
   [whole-earth-maps.md](../design/whole-earth-maps.md), sections 3 and 4.2.
+- **Nothing derived from the land layer is stored in a pack** (section 3.4: a pack is a Collective
+  Database). Road beds and building pads are computed at run time from the land layer, per road
+  PIECE pinned to the natural ground at both of its ends (where a road crosses a tile border both
+  tiles hold the same end point), so every tile computes the same bed without a margin. They run
+  before the shore band, which wins within its band. Source:
+  [whole-earth-maps.md](../design/whole-earth-maps.md), section 6.4.
 - **What it builds reaches pixels, so prove it there:** a change to patches, water or plants is
   checked by booting and looking, never by a static check alone. Source:
   [renderer.md](../ai/renderer.md), "Verify by booting and entering the world".
@@ -110,6 +117,13 @@ And 74 more items, 106 references (`node scripts/crate-cards.js --interface huma
   [shore-probe-check.js](../../scripts/lib/shore-probe-check.js), in `just rig-tests`):
   `just probe-sweep --only coast-silverdale-waterfront,coast-silverdale-old-edge,coast-dover-cliffs,coast-norderney-beach`.
   Their red and green readings are in each vantage's `_red` and `_green` notes.
+- **Road beds and building pads:** `just test-lib --crate humanity-terrain map_ground::beds` (sloped
+  streets flat across, sloped footprints on their floor, a road across a tile border, coarse patches
+  untouched, grades, the coast owning the waterfront street; each with a beds-off negative control).
+  The vantages `silverdale-road-slope` and `silverdale-building-slope` carry a `bed_probe`
+  (engine/bed_probe.rs, judged by [bed-probe-check.js](../../scripts/lib/bed-probe-check.js)); their red
+  run is `HUMANITY_GROUND_BEDS=0`. A patch build's cost by depth:
+  `cargo run --release -p humanity-terrain --features test-support --example bench_map_patches`.
 - **The builder:** `just test-lib --crate humanity-terrain map_build` (its readers and the sea's
   border walk; the GEDTM30 summit test reads the real window on the operator's drive and says so
   when it is absent); `just map-packs` rebuilds the home packs, twice, compared byte for byte.

@@ -298,6 +298,7 @@ fn drawn_depth_at(
         .into_local(DQuat::IDENTITY, -cam_local);
     let params = pc::ChunkParams {
         occluder_r_m: None,
+        deep: Default::default(),
         radius_m: def.radius,
         band: pc::RadialBand {
             min_r_m: def.radius

@@ -1064,6 +1064,41 @@ pub struct ChunkParams {
     /// field onto a coarse cut in the first place. None = use band.min_r_m
     /// (terrain, unchanged).
     pub occluder_r_m: Option<f64>,
+    /// Where patches may refine past `max_depth` (the installed map packs' tiles).
+    pub deep: DeepTiles,
+}
+
+/// Tiles whose patches may refine to `max_depth` when it is deeper than the selection's own cap
+/// (whole-Earth maps, the rung between 2 and 3, 2026-11-09): an installed map pack holds GEDTM30
+/// on a 27 m nested lattice and the road beds and building pads, so its ground earns the 1 m
+/// ladder (depth 20) whether or not the 460 m tile tier is installed. Every patch at or below a
+/// tile's depth lies wholly inside or outside it, so the test is a path mask; skirts seal the
+/// border where a deep patch meets a capped one, as at every depth step.
+/// The deeper levels are allowed only within `within_m` of the camera (the patch's nearest point):
+/// measured in that rung, full detail across a pack's whole view costs a quarter more GPU time
+/// from 60 to 250 m up, where the street-scale detail cannot be told apart anyway.
+#[derive(Debug, Clone, Default)]
+pub struct DeepTiles {
+    pub tiles: Vec<PatchId>,
+    pub max_depth: u8,
+    pub within_m: f64,
+}
+
+impl ChunkParams {
+    /// The depth cap for one patch whose nearest point is `dist_m` from the camera:
+    /// `deep.max_depth` inside a deep tile within reach, else `max_depth`.
+    pub fn max_depth_for(&self, id: &PatchId, dist_m: f64) -> u8 {
+        if self.deep.max_depth > self.max_depth && dist_m <= self.deep.within_m && self.deep.tiles.iter().any(|t| t == id || t.is_ancestor_of(id)) {
+            self.deep.max_depth
+        } else {
+            self.max_depth
+        }
+    }
+}
+
+/// How far a patch's nearest point is from the camera (0 inside its bounding sphere).
+fn nearest_m(bounds: &PatchBounds, cam_local_m: DVec3) -> f64 {
+    ((bounds.bound_center - cam_local_m).length() - bounds.bound_radius).max(0.0)
 }
 
 /// Selection outcome for one planet this frame. Clone exists for the
@@ -1308,7 +1343,7 @@ pub fn select_patches_sticky(
         } else {
             params.split_px * 1.15
         };
-        let want_split = node.err_px > split_thr && node.id.depth < params.max_depth;
+        let want_split = node.err_px > split_thr && node.id.depth < params.max_depth_for(&node.id, nearest_m(&node.bounds, cam_local_m));
         if want_split {
             // Derive + visibility-check the 4 children. Culled children are
             // simply not needed (that region is invisible); the far side of
@@ -1409,7 +1444,7 @@ pub fn select_patches_sticky(
             // their children built EARLY, so camera motion crosses the
             // threshold into already-resident meshes (no parent-hold pop).
             if node.err_px > params.split_px * 0.55
-                && node.id.depth < params.max_depth
+                && node.id.depth < params.max_depth_for(&node.id, nearest_m(&node.bounds, cam_local_m))
                 && !stats.budget_saturated
                 && prefetches < MAX_PREFETCH_REQUESTS
             {
@@ -2202,7 +2237,7 @@ pub fn build_patch_mesh_at_density(
                             ElevationSource::Heightmap { hm, tiles, .. } => {
                                 let (e, t) = tile_or_base(hm, *tiles, dir, id.depth);
                                 let e = match &map {
-                                    Some(m) => crate::map_ground::apply_normalized(m, dir, e, crate::map_ground::GATE_DEPTH, range_m, sea, None),
+                                    Some(m) => crate::map_ground::apply_normalized_gate(m, dir, e, range_m, sea),
                                     None => e,
                                 };
                                 (e, t)
@@ -3095,6 +3130,7 @@ pub(crate) mod tests {
     fn params_for(def: &PlanetDef) -> ChunkParams {
         ChunkParams {
             occluder_r_m: None,
+            deep: Default::default(),
             radius_m: def.radius,
             band: band_for(def),
             max_depth: MAX_PATCH_DEPTH,
@@ -3307,6 +3343,26 @@ pub(crate) mod tests {
             &params,
         );
         assert!(far.draws.iter().all(|d| d.depth == 0), "distant camera stays at roots");
+    }
+
+    /// An installed pack's tile refines past the planet's cap, and only near the camera (whole-Earth
+    /// maps, the rung between 2 and 3). Seen red 2026-11-09 with the reach test dropped from
+    /// `max_depth_for`: "a patch 500 m away stays at the planet's cap" (left 20, right 13).
+    #[test]
+    fn deep_tiles_refine_only_near_the_camera() {
+        let def = earth_like();
+        let mut p = params_for(&def);
+        let pack = PatchId::root(4).child(1).child(3).child(0).child(2).child(2).child(1);
+        p.deep = DeepTiles { tiles: vec![pack], max_depth: TILE_MAX_PATCH_DEPTH, within_m: 200.0 };
+        let mut inside = pack;
+        for _ in 0..8 {
+            inside = inside.child(3);
+        }
+        assert_eq!(p.max_depth_for(&inside, 50.0), TILE_MAX_PATCH_DEPTH, "a patch in the pack near the camera refines to 20");
+        assert_eq!(p.max_depth_for(&inside, 500.0), MAX_PATCH_DEPTH, "a patch 500 m away stays at the planet's cap");
+        assert_eq!(p.max_depth_for(&PatchId::root(5).child(1), 0.0), MAX_PATCH_DEPTH, "a patch outside every pack stays at the cap");
+        p.max_depth = TILE_MAX_PATCH_DEPTH;
+        assert_eq!(p.max_depth_for(&inside, 500.0), TILE_MAX_PATCH_DEPTH, "the tile tier's own cap is never lowered");
     }
 
     #[test]

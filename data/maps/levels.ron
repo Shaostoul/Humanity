@@ -73,4 +73,59 @@
     // Where a pack's neighbour is not installed, its ground blends into the base heights over
     // this distance inside its edge (until the downloader brings the neighbour).
     edge_blend_m: 2000.0,
+    // Full detail inside an installed pack (the rung between 2 and 3): the terrain may refine to
+    // this patch depth (about 0.4 m triangles) where the planet elsewhere stops at depth 13, but
+    // only within this distance of the camera (a patch's nearest point). Measured in that rung's
+    // outcome (whole-earth-maps.md): across a pack's whole view it cost 16 to 65% more GPU time at
+    // the Silverdale vantages; within 100 m, 2 to 8%, the floor near the ground being the price of
+    // drawing a bed or a pad at all. 200 m bought nothing near the ground and tripled the cost 60 m up.
+    pack_detail: (
+        max_depth: 20,
+        within_m: 100.0,
+    ),
+    // Road beds and building pads (sections 6.1 to 6.3), shaped at run time from the land layer
+    // inside the one ground formula (map_beds); never stored in the packs (section 3.4).
+    beds: (
+        // A road's flat bed is its carriageway (the tagged width, else the class width the ribbon
+        // is drawn at) plus this shoulder on each side; past it, cut or fill slopes back to the
+        // natural ground at this side slope (1 in 2).
+        shoulder_m: 1.0,
+        side_slope: 0.5,
+        // Past this far from a bed or pad the slope steepens to this (a retaining wall, so a road
+        // along a side slope steeper than 1 in 2 still meets its hillside), and nothing reaches
+        // past `reach_m`.
+        wall_after_m: 20.0,
+        wall_slope: 10.0,
+        reach_m: 30.0,
+        // A road's profile is sampled along it about this often.
+        profile_step_m: 2.0,
+        // Each piece of a road is pinned to the natural ground at its two ends (a tile border,
+        // where the neighbouring tile's piece starts at the same point, or the way's own end), so
+        // a profile is the same in every tile that reads it. The pin's correction fades over at
+        // least this distance, and at most adds this grade.
+        pin_blend_m: 30.0,
+        pin_grade: 0.02,
+        // Per road class (0 motorway/trunk .. 5 footway/path): the steepest grade, and the window
+        // the centreline heights are averaged over before the grade limit (the land layer's 27 m
+        // cells smoothed out along the road). The plan's numbers: motorways about 6%, residential
+        // about 15%. A real street steeper than its class limit is cut and filled to the limit.
+        classes: [
+            (class: 0, grade: 0.06, smooth_m: 120.0),
+            (class: 1, grade: 0.08, smooth_m: 80.0),
+            (class: 2, grade: 0.10, smooth_m: 60.0),
+            (class: 3, grade: 0.15, smooth_m: 40.0),
+            (class: 4, grade: 0.18, smooth_m: 24.0),
+            (class: 5, grade: 0.35, smooth_m: 10.0),
+        ],
+        // A building's pad: its floor is the median of the land layer over the footprint (sampled
+        // on this grid), held over the footprint and this apron around it.
+        apron_m: 1.5,
+        pad_sample_m: 3.0,
+        // Section 6.3: a bed or pad changes a patch's mesh only where it is wider than this many
+        // of the patch's vertex spacings, and never on patches shallower than `first_depth`
+        // (13 m triangles: a motorway's bed is the first that can be drawn there). Coarser patches
+        // keep the natural ground; a building there stands on its plinth.
+        geometry_spacings: 1.0,
+        first_depth: 15,
+    ),
 )

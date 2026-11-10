@@ -37,6 +37,12 @@
 //!
 //! f64 throughout (CLAUDE.md, "f32 at planet scale is a defect class"); the shore field's plane is
 //! the pack's own gnomonic projection in metres, where every great-circle edge is straight.
+//!
+//! ROAD BEDS AND BUILDING PADS (the rung between 2 and 3, 2026-11-09, sections 6.1 to 6.3) shape
+//! the land side inside the same formula, before the shore band: `beds` (map_beds.rs) has the
+//! recipe, the identity rule across tile borders and the precedence (the coast wins within its
+//! band). `HUMANITY_GROUND_BEDS=0` turns them off, with the mesher's rung-2 lifts and skirt: the
+//! gate's red run, never in play.
 
 use crate::map_levels::MapLevels;
 use crate::map_pack::{ChunkKind, Pack, WaterRingKind};
@@ -63,6 +69,26 @@ const GRID_M: f64 = 200.0;
 const EDGE_NUDGE_M: f64 = 0.05;
 /// A slot no patch has touched for this many frames is dropped.
 const EVICT_FRAMES: u64 = 600;
+
+/// Road beds and building pads (sections 6.1 to 6.3).
+#[path = "map_beds.rs"]
+pub(crate) mod beds;
+
+/// `HUMANITY_GROUND_BEDS=0` builds the set without road beds and building pads, and the district
+/// mesher goes back to rung 2's road lifts and building skirt: the bed gate's red run.
+pub const GROUND_BEDS_ENV: &str = "HUMANITY_GROUND_BEDS";
+
+/// Are road beds and building pads on (read once; off only for the gate's red run)?
+pub fn beds_enabled() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| {
+        let on = !std::env::var(GROUND_BEDS_ENV).map(|v| v.trim() == "0").unwrap_or(false);
+        if !on {
+            log::warn!("[MapGround] {GROUND_BEDS_ENV}=0: no road beds or building pads, rung 2's lifts and skirt (the bed gate's red run; never in play)");
+        }
+        on
+    })
+}
 
 fn smoothstep(x: f64) -> f64 {
     let t = x.clamp(0.0, 1.0);
@@ -284,6 +310,8 @@ pub struct PackState {
     sea: Vec<Slot<Vec<f32>>>,
     cover: Vec<Slot<Vec<u8>>>,
     built: Vec<Slot<BuiltMask>>,
+    /// Per level-12 tile: the road beds and building pads that can reach it.
+    beds: Vec<Slot<beds::BedTile>>,
     shore: OnceLock<ShoreField>,
 }
 
@@ -315,6 +343,7 @@ impl PackState {
             sea: (0..slots(&levels.sea_levels)).map(|_| Slot::new()).collect(),
             cover: (0..finest_n).map(|_| Slot::new()).collect(),
             built: (0..finest_n).map(|_| Slot::new()).collect(),
+            beds: (0..finest_n).map(|_| Slot::new()).collect(),
             pack,
             name,
             id,
@@ -328,6 +357,16 @@ impl PackState {
     /// Does the pack's tile hold the direction `d`?
     pub fn holds(&self, d: DVec3) -> bool {
         self.normals.iter().all(|n| n.dot(d) >= 0.0)
+    }
+
+    /// The pack's gnomonic plane, about its tile's centre (the shore field and the beds use it).
+    fn plane(&self) -> Plane {
+        Plane::of((self.corners[0] + self.corners[1] + self.corners[2]).normalize())
+    }
+
+    /// The beds and pads that can reach level-12 tile `tile` of this pack, built on first use.
+    fn bed_tile(&self, set: &MapSet, tile: &PatchId) -> Option<Arc<beds::BedTile>> {
+        self.beds.get(self.local(tile))?.get(set.frame(), || Some(beds::BedTile::build(set, self, tile)))
     }
 
     /// The tiles holding `d` at the pack's own depth and every level to `to` (inclusive).
@@ -410,7 +449,7 @@ impl PackState {
     /// shore; a river's, its lowest shore point; never below 0.5 m above the sea).
     fn shore(&self, set: &MapSet) -> &ShoreField {
         self.shore.get_or_init(|| {
-            let plane = Plane::of((self.corners[0] + self.corners[1] + self.corners[2]).normalize());
+            let plane = self.plane();
             let mut bodies = vec![Body { kind: WaterRingKind::Sea, feature: 0, surface_m: 0.0 }];
             let mut body_of: HashMap<u64, u32> = HashMap::new();
             let mut shore_pts: HashMap<u32, Vec<DVec3>> = HashMap::new();
@@ -613,6 +652,34 @@ pub struct MapGround {
     pub water: Option<WaterRingKind>,
 }
 
+/// The road bed nearest a point ([`MapSet::road_near`]).
+#[derive(Clone, Copy, Debug)]
+pub struct RoadNear {
+    pub osm_id: u64,
+    pub class: u8,
+    /// Half the carriageway, and half the bed (the carriageway plus a shoulder).
+    pub half_w_m: f64,
+    pub core_m: f64,
+    /// The nearest centreline point and the unit direction across the road there (on the sphere).
+    pub centre: DVec3,
+    pub across: DVec3,
+    /// The bed's height at the centre, metres above sea level (None: no land data under it).
+    pub bed_m: Option<f64>,
+    /// How far the asked point is from the centreline, metres.
+    pub dist_m: f64,
+}
+
+/// The building pad holding or nearest a point ([`MapSet::pad_near`]).
+#[derive(Clone, Debug)]
+pub struct PadNear {
+    pub osm_id: u64,
+    /// The footprint (open ring) on the sphere.
+    pub ring: Vec<DVec3>,
+    /// The pad's floor, metres above sea level (None: no land data under it).
+    pub floor_m: Option<f64>,
+    pub apron_m: f64,
+}
+
 /// Every installed pack, published for the patch builders and every ground consumer.
 pub struct MapSet {
     pub levels: MapLevels,
@@ -621,6 +688,8 @@ pub struct MapSet {
     /// Rung-2 red-evidence switch (`HUMANITY_SHORE_BAND=0`): the pack's land and seabed meet with
     /// no shore band (land on land, ETOPO under water). Read when the set is made; never in play.
     band_on: bool,
+    /// Road beds and building pads ([`beds_enabled`]; off only for the bed gate's red run).
+    beds_on: bool,
 }
 
 /// `HUMANITY_SHORE_BAND=0` builds the set without the shore band (the shore gate's red run).
@@ -642,7 +711,12 @@ impl MapSet {
                 s.neighbour[k] = ids.contains(&crate::map_tiles::tile_containing_dir(out, s.id.depth));
             }
         }
-        MapSet { levels, packs: states, frame: AtomicU64::new(1), band_on }
+        MapSet { levels, packs: states, frame: AtomicU64::new(1), band_on, beds_on: beds_enabled() }
+    }
+
+    /// The installed packs' tiles (depth 6): where the terrain may refine to full detail.
+    pub fn pack_ids(&self) -> Vec<PatchId> {
+        self.packs.iter().map(|p| p.id).collect()
     }
 
     /// The same packs with nothing decoded: what the engine publishes every frame while the Dev
@@ -696,13 +770,25 @@ impl MapSet {
             for s in &ps.built {
                 dropped += s.evict_if_older(f) as usize;
             }
+            for s in &ps.beds {
+                dropped += s.evict_if_older(f) as usize;
+            }
         }
         dropped
     }
 
-    /// How many tiles are decoded now (land, sea, cover, built), for the Dev page and the log.
+    /// How many tiles are decoded now (land, sea, cover, built, beds), for the Dev page and the log.
     pub fn resident(&self) -> usize {
-        self.packs.iter().map(|p| p.land.iter().filter(|s| s.loaded()).count() + p.sea.iter().filter(|s| s.loaded()).count() + p.cover.iter().filter(|s| s.loaded()).count() + p.built.iter().filter(|s| s.loaded()).count()).sum()
+        self.packs
+            .iter()
+            .map(|p| {
+                p.land.iter().filter(|s| s.loaded()).count()
+                    + p.sea.iter().filter(|s| s.loaded()).count()
+                    + p.cover.iter().filter(|s| s.loaded()).count()
+                    + p.built.iter().filter(|s| s.loaded()).count()
+                    + p.beds.iter().filter(|s| s.loaded()).count()
+            })
+            .sum()
     }
 
     /// Build every pack's shore field now (a worker calls this right after the set is published,
@@ -717,6 +803,13 @@ impl MapSet {
         self.packs.iter().find(|p| p.holds(d))
     }
 
+    /// The land layer at `d` on the level-`level` lattice of whichever pack holds `d` (never a pack
+    /// that does not: its descent would end in a cell that does not hold the point and read one of
+    /// its corners). The beds' profiles and floors sample through this.
+    fn land_at(&self, d: DVec3, level: u8) -> Option<f64> {
+        self.pack_of(d)?.land_h(self, d, level)
+    }
+
     /// Does any pack lie within `radius_m` of `center` (one call per vegetation harvest)?
     pub fn any_in_disc(&self, center: DVec3, radius_m: f64) -> bool {
         let c = center.normalize();
@@ -724,8 +817,29 @@ impl MapSet {
     }
 
     /// THE MAP GROUND at `d` for a patch of `depth` (the shore band, section 5.2), or None outside
-    /// every pack and where the land layer has no data.
+    /// every pack and where the land layer has no data. No fine relief: [`MapSet::ground_with`].
     pub fn ground(&self, d: DVec3, depth: u8) -> Option<MapGround> {
+        self.ground_with(d, depth, None)
+    }
+
+    /// THE MAP GROUND at `d` for a patch of `depth`, with the procedural relief finer than the
+    /// level-12 lattice added on land away from any shore when `detail` is given (patches of
+    /// `detail_first_depth` and deeper). On land the order is: the land layer, the fine relief, the
+    /// road beds and building pads (they hold the ground flat, so the relief does not show through
+    /// them), then the shore band, which wins within its band.
+    pub fn ground_with(&self, d: DVec3, depth: u8, detail: Option<&crate::planet_chunks::DetailNoise>) -> Option<MapGround> {
+        self.ground_opts(d, depth, detail, self.beds_on)
+    }
+
+    /// The map ground with no road beds or building pads, for the questions they cannot change:
+    /// the vegetation gates' land test ([`apply_normalized_gate`]) and the water shell's depth
+    /// (land reads 0 either way). Measured in rung 2b: the far forest's gate samples over Seattle
+    /// built a bed tile per level-12 tile on the main thread, 1.6 s a frame on arrival.
+    pub fn ground_without_beds(&self, d: DVec3, depth: u8) -> Option<MapGround> {
+        self.ground_opts(d, depth, None, false)
+    }
+
+    fn ground_opts(&self, d: DVec3, depth: u8, detail: Option<&crate::planet_chunks::DetailNoise>, beds: bool) -> Option<MapGround> {
         let d = d.normalize();
         let ps = self.pack_of(d)?;
         let weight = ps.edge_weight(d, self.levels.edge_blend_m);
@@ -760,14 +874,31 @@ impl MapSet {
             let v = PackState::lattice_value(t, lv.lattice_segments, d, &|i| s.get(i).copied().unwrap_or(f32::NAN));
             v.is_finite().then_some(v)
         };
+        let spacing = vertex_spacing_m(depth, R);
+        let finest_cell = patch_edge_arc_m(finest, R) / lv.lattice_segments as f64;
+        // The land side's own ground: the fine relief, then the beds and pads (map_beds).
+        let mut land = land;
+        if body.is_none() {
+            if let Some(dn) = detail {
+                if depth >= lv.detail_first_depth {
+                    let mask = smoothstep((shore_m - lv.detail_shore_mask_m) / lv.detail_shore_mask_m.max(1.0));
+                    if mask > 0.0 {
+                        land += dn.sample_m_fine_below(d, depth, finest_cell, R) as f64 * mask;
+                    }
+                }
+            }
+            if beds && depth >= lv.beds.first_depth {
+                if let Some(bt) = ps.bed_tile(self, &path.last()?.0) {
+                    land = bt.apply(self, field.plane.to(d), land, spacing);
+                }
+            }
+        }
         if !self.band_on {
             // The red run: the two sources meet raw at the coastline.
             let h = if body.is_some() { sea_h().unwrap_or(land) } else { land };
             return Some(MapGround { h_m: h, weight, shore_m, water });
         }
-        let spacing = vertex_spacing_m(depth, R);
         let band = sh.min_band_m.max(sh.wet_offshore_m + sh.band_spacings * spacing);
-        let finest_cell = patch_edge_arc_m(finest, R) / lv.lattice_segments as f64;
         let h = match (body, near) {
             // Land beyond the band's reach: the land layer itself.
             (None, None) => land,
@@ -865,7 +996,7 @@ impl MapSet {
     /// The water depth at `d` inside a pack (0 on land), from the finest ground: the water shell's
     /// depth bake, so the shell feathers out exactly where this ground meets the sea.
     pub fn sea_depth_m(&self, d: DVec3) -> Option<f32> {
-        self.ground(d, 24).filter(|g| g.weight > 0.999).map(|g| (-g.h_m).max(0.0) as f32)
+        self.ground_without_beds(d, 24).filter(|g| g.weight > 0.999).map(|g| (-g.h_m).max(0.0) as f32)
     }
 
     /// Built-over weight at (lat, lon): roads, buildings and water, where vegetation must not grow.
@@ -878,6 +1009,42 @@ impl MapSet {
         slot.get(self.frame(), || Some(BuiltMask::build(ps, &field.plane, field, &tile))).map_or(0.0, |m| m.sample(field.plane.to(d)))
     }
 
+    /// The road bed whose centreline passes nearest `d` (the bed probe's question, and the tests'):
+    /// None outside every pack or with no road piece reaching `d`'s level-12 tile.
+    pub fn road_near(&self, d: DVec3) -> Option<RoadNear> {
+        let d = d.normalize();
+        let ps = self.pack_of(d)?;
+        let tile = ps.descend(d, self.levels.finest()).last()?.0;
+        let bt = ps.bed_tile(self, &tile)?;
+        let plane = ps.plane();
+        let (i, k, t, dist) = bt.nearest_road(plane.to(d))?;
+        let r = &bt.roads[i];
+        let (a, b, bed) = bt.road_point(self, i, k, t);
+        let centre = (a * (1.0 - t) + b * t).normalize();
+        let along = (b - a).normalize_or_zero();
+        let across = centre.cross(along).normalize_or_zero();
+        Some(RoadNear { osm_id: r.osm_id, class: r.class, half_w_m: r.half_w, core_m: r.core, centre, across, bed_m: bed, dist_m: dist })
+    }
+
+    /// The building pad holding `d`, or else the nearest to it in `d`'s level-12 tile.
+    pub fn pad_near(&self, d: DVec3) -> Option<PadNear> {
+        let d = d.normalize();
+        let ps = self.pack_of(d)?;
+        let tile = ps.descend(d, self.levels.finest()).last()?.0;
+        let bt = ps.bed_tile(self, &tile)?;
+        let i = bt.nearest_pad(ps.plane().to(d))?;
+        let (ring, floor) = bt.pad_ring(self, i);
+        Some(PadNear { osm_id: bt.pads[i].osm_id, ring, floor_m: floor, apron_m: self.levels.beds.apron_m })
+    }
+
+    /// How many road pieces and pads the bed tile holding `d` weighs (None outside every pack).
+    pub fn beds_counted_at(&self, d: DVec3) -> Option<(usize, usize)> {
+        let d = d.normalize();
+        let ps = self.pack_of(d)?;
+        let tile = ps.descend(d, self.levels.finest()).last()?.0;
+        Some(ps.bed_tile(self, &tile)?.counts())
+    }
+
     /// The packs a camera at `cam_dir` is within `range_m` of: what the map credit names.
     pub fn drawn_names(&self, cam_dir: DVec3, range_m: f64) -> Vec<String> {
         let c = cam_dir.normalize();
@@ -888,22 +1055,22 @@ impl MapSet {
 /// The map ground applied to one NORMALIZED elevation `e` (the base formula's), for a patch of
 /// `depth`: inside a pack the pack's ground replaces it (faded by the edge weight), with the
 /// procedural relief finer than the level-12 lattice added on land away from any shore when
-/// `detail` is given (patches of `detail_first_depth` and deeper). `range_m` maps metres to the
-/// normalized domain and `sea` is the normalized sea level. The tree gates pass no detail.
+/// `detail` is given ([`MapSet::ground_with`], beds and pads included). `range_m` maps metres to
+/// the normalized domain and `sea` is the normalized sea level. The tree gates pass no detail.
 pub fn apply_normalized(set: &MapSet, d: DVec3, e: f32, depth: u8, range_m: f32, sea: f32, detail: Option<&crate::planet_chunks::DetailNoise>) -> f32 {
-    let Some(g) = set.ground(d, depth) else { return e.clamp(0.0, 1.0) };
-    let mut h = g.h_m;
-    if let Some(dn) = detail {
-        let lv = &set.levels;
-        if depth >= lv.detail_first_depth && g.water.is_none() {
-            let mask = smoothstep((g.shore_m - lv.detail_shore_mask_m) / lv.detail_shore_mask_m.max(1.0));
-            if mask > 0.0 {
-                let cell = patch_edge_arc_m(lv.finest(), R) / lv.lattice_segments as f64;
-                h += dn.sample_m_fine_below(d, depth, cell, R) as f64 * mask;
-            }
-        }
-    }
-    let e_pack = sea as f64 + h / range_m as f64;
+    let Some(g) = set.ground_with(d, depth, detail) else { return e.clamp(0.0, 1.0) };
+    let e_pack = sea as f64 + g.h_m / range_m as f64;
+    (e as f64 + (e_pack - e as f64) * g.weight).clamp(0.0, 1.0) as f32
+}
+
+/// The vegetation gates' elevation (the land, treeline and beach tests of the tree cards, the
+/// near-tree models and the far forest, which must agree with one another): the map ground at
+/// [`GATE_DEPTH`] with no beds or pads. A gate decides WHETHER a tree grows (the built-over mask
+/// keeps them off roads and footprints anyway); where it stands comes from the drawn surface, beds
+/// included.
+pub fn apply_normalized_gate(set: &MapSet, d: DVec3, e: f32, range_m: f32, sea: f32) -> f32 {
+    let Some(g) = set.ground_without_beds(d, GATE_DEPTH) else { return e.clamp(0.0, 1.0) };
+    let e_pack = sea as f64 + g.h_m / range_m as f64;
     (e as f64 + (e_pack - e as f64) * g.weight).clamp(0.0, 1.0) as f32
 }
 

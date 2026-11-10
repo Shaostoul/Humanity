@@ -851,6 +851,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         let note = crate::engine::shore_probe::write_report(state, &spec, grab("shore_step_m").as_deref());
         log::info!("Showcase: shore_probe -> {note}");
     }
+    // {"bed_probe":"road;lat,lon"} or {"bed_probe":"building;lat,lon"} (whole-Earth maps, the rung
+    // between 2 and 3, 2026-11-09): write a road's cross-section or a building's footing (the
+    // drawn ground, the walk oracle, the land layer, and where the district mesher put the ribbon
+    // or the walls) to debug/bed_probe.json (engine/bed_probe.rs), for the vantages' `bed_probe`.
+    if let Some(spec) = grab("bed_probe") {
+        let note = crate::engine::bed_probe::write_report(state, &spec);
+        log::info!("Showcase: bed_probe -> {note}");
+    }
     // {"solo":"1"} / {"solo":"0"} (2026-10-03, ship homes 1b): step out of the shared world
     // and back in, the switch the launcher's offline-home pick and Dev travel flip
     // (`copresence_solo`; lib.rs sends game_leave, then joins again once it clears). The
@@ -1875,6 +1883,24 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("lights_tiled") {
         state.gui_state.settings.lights_tiled = t == "1";
         log::info!("Tiled light lists: {}", state.gui_state.settings.lights_tiled);
+    }
+    // "pack_depth":"13".."20" and "pack_within_m":"200" set how deep, and how near the camera,
+    // the terrain refines inside an installed map pack (whole-Earth maps, the rung between 2 and 3;
+    // levels.ron's `pack_detail` by default), live, so a rig measures settings in one boot; "auto"
+    // releases each. The selection is redone at once.
+    let pd = grab("pack_depth");
+    let pw = grab("pack_within_m");
+    if pd.is_some() || pw.is_some() {
+        if let Some(v) = pd {
+            crate::engine::map_meshes::set_pack_max_depth(if v == "auto" { None } else { v.parse::<u8>().ok() });
+        }
+        if let Some(v) = pw {
+            crate::engine::map_meshes::set_pack_within_m(if v == "auto" { None } else { v.parse::<f64>().ok() });
+        }
+        for cs in state.planet_chunk_states.values_mut() {
+            cs.sel_dirty = true;
+        }
+        log::info!("Showcase: pack detail -> {:?}", crate::engine::map_meshes::pack_detail_now());
     }
     // Optional "clouds":"0"/"1" flips the planet cloud layer live - the
     // A/B knob that separates cloud-deck artifacts from water/sky ones

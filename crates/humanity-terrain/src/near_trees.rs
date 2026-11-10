@@ -980,7 +980,7 @@ pub fn near_tree_instances_at_density(
                         // gate below rejects it in BOTH streams together.
                         let (e, t) = tile_or_base(hm, *tiles, dir, 20);
                         let e = match &map {
-                            Some(m) => crate::map_ground::apply_normalized(m, dir, e, crate::map_ground::GATE_DEPTH, range_m, sea, None),
+                            Some(m) => crate::map_ground::apply_normalized_gate(m, dir, e, range_m, sea),
                             None => e,
                         };
                         (e, t)

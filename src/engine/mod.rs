@@ -189,6 +189,9 @@ pub mod tree_ground;
 /// The rig's readout of the ground along a transect across a coast, against the coastline data
 /// and the raw land layer (whole-Earth maps rung 1, 2026-11-09, the `shore_probe` gate).
 pub mod shore_probe;
+/// The rig's readout of a road's cross-section and a building's footing against the mesher's own
+/// rules (whole-Earth maps, the rung between 2 and 3, 2026-11-09, the `bed_probe` gate).
+pub mod bed_probe;
 /// The rig's held movement keys: arriving somewhere on foot the way a player
 /// does, instead of by teleport (BUG-156, 2026-10-05).
 pub mod rig_walk;

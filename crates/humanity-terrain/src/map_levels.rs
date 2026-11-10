@@ -41,6 +41,57 @@ impl ShoreParams {
     }
 }
 
+/// One road class's bed: the steepest grade and the smoothing window along the road.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct BedClass {
+    pub class: u8,
+    pub grade: f64,
+    pub smooth_m: f64,
+}
+
+/// Road beds and building pads (docs/design/whole-earth-maps.md 6.1 to 6.3; every field's why is
+/// in the file).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct BedParams {
+    pub shoulder_m: f64,
+    pub side_slope: f64,
+    pub wall_after_m: f64,
+    pub wall_slope: f64,
+    pub reach_m: f64,
+    pub profile_step_m: f64,
+    pub pin_blend_m: f64,
+    pub pin_grade: f64,
+    pub classes: Vec<BedClass>,
+    pub apron_m: f64,
+    pub pad_sample_m: f64,
+    pub geometry_spacings: f64,
+    pub first_depth: u8,
+}
+
+impl BedParams {
+    /// A class's row; the last row (the most permissive) for a class the file does not list.
+    pub fn class(&self, class: u8) -> Option<&BedClass> {
+        self.classes.iter().find(|c| c.class == class).or(self.classes.last())
+    }
+
+    /// How far from its bed or pad the cut or fill may stand from the natural ground at `x`
+    /// metres out: the side slope, then the wall past `wall_after_m`.
+    pub fn slope_room(&self, x: f64) -> f64 {
+        if x <= self.wall_after_m {
+            self.side_slope * x
+        } else {
+            self.side_slope * self.wall_after_m + self.wall_slope * (x - self.wall_after_m)
+        }
+    }
+}
+
+/// How far an installed pack's terrain refines past the planet's own cap, and how near the camera.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct PackDetail {
+    pub max_depth: u8,
+    pub within_m: f64,
+}
+
 /// `data/maps/levels.ron`.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct MapLevels {
@@ -53,6 +104,8 @@ pub struct MapLevels {
     pub detail_first_depth: u8,
     pub detail_shore_mask_m: f64,
     pub edge_blend_m: f64,
+    pub pack_detail: PackDetail,
+    pub beds: BedParams,
 }
 
 impl MapLevels {
@@ -149,6 +202,9 @@ mod tests {
         assert_eq!(l.road_class("proposed"), None);
         assert_eq!(l.shore.profile_a(60), 0.10);
         assert_eq!(l.shore.profile_a(10), l.shore.default_a, "a tree-covered shore takes the default");
+        assert_eq!((l.pack_detail.max_depth, l.beds.first_depth), (20, 15));
+        assert_eq!(l.beds.class(3).map(|c| c.grade), Some(0.15), "residential streets keep to the plan's 15%");
+        assert_eq!(l.beds.slope_room(10.0), 5.0, "1 in 2 back to the natural ground");
         let p = MapPlaces::load(&data()).unwrap_or_else(|e| panic!("{e}"));
         let home: Vec<&str> = p.places.iter().filter(|p| p.home).map(|p| p.name.as_str()).collect();
         assert_eq!(home, vec!["Silverdale", "Seattle Center"]);

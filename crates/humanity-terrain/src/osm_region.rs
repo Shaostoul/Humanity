@@ -57,6 +57,11 @@ pub struct OsmRoad {
     pub points: Vec<(f32, f32)>,
     /// Precomputed bounds (min_e, min_n, max_e, max_n) for viewport culling.
     pub bounds: (f32, f32, f32, f32),
+    /// The tagged width in metres, 0 when untagged (the class width applies).
+    pub width_m: f32,
+    /// A bridge or tunnel leaves the ground alone (no road bed under it).
+    pub bridge: bool,
+    pub tunnel: bool,
 }
 
 /// One building footprint ring, metres east/north; height 0.0 = UNKNOWN
@@ -143,7 +148,17 @@ pub fn region_from_pack(
                 continue;
             }
             let points: Vec<(f32, f32)> = w.points.iter().map(m).collect();
-            r.roads.push(OsmRoad { class: w.class, name: w.name.map(Into::into), bounds: bounds_of(&points), points });
+            // A way raised over the ground without a bridge tag (`layer` above 0) counts as one,
+            // the rule the road beds use (map_beds), so no ribbon lies on a bed it does not have.
+            r.roads.push(OsmRoad {
+                class: w.class,
+                name: w.name.map(Into::into),
+                bounds: bounds_of(&points),
+                points,
+                width_m: w.width_m,
+                bridge: w.bridge || w.layer > 0,
+                tunnel: w.tunnel,
+            });
         }
         for b in pack.buildings(t.path).unwrap_or_default() {
             let ring: Vec<(f32, f32)> = b.ring.iter().map(m).collect();
@@ -418,12 +433,28 @@ pub fn triangulate_ring(ring: &[(f32, f32)]) -> Option<Vec<u32>> {
 
 // ─────────────────────────── Extrusion mesher ───────────────────────────────
 
-/// Buried skirt under every wall. Terrain LOD and the sampled ground
-/// disagree by a few metres at range, so a wall that started exactly at the
-/// footprint's lowest sampled ground would show daylight underneath on a
-/// coarser patch. Sinking it hides that without changing the visible height.
+/// RUNG 2'S buried skirt under every wall, kept only for the bed gate's red run
+/// (`HUMANITY_GROUND_BEDS=0`). Since the building pads (whole-earth-maps.md
+/// 6.2) the ground under a footprint IS its floor, and a coarse patch that
+/// cannot draw the pad meets the wall's plinth instead, which reaches down to
+/// the natural ground ([`building_levels`]).
 #[cfg(feature = "native")]
 pub const WALL_SKIRT_M: f64 = 2.5;
+
+/// Longest segment of a carriageway's ribbon on its bed before resampling
+/// splits it. The bed's profile bends at vertical curves: a residential bed
+/// (levels.ron: a 15% grade, a 40 m window) turns at most from +15% to -15%
+/// over its window, 0.75% a metre, and a chord of length L sags c L^2 / 8
+/// under it: 3.4 cm at 6 m, inside the 4 cm decal offset (15 m sagged 21 cm).
+/// Primary and secondary beds bend less. Each point costs two ground lookups,
+/// so a longer segment is a cheaper district (whole-earth-maps.md, rung 2b).
+#[cfg(feature = "native")]
+pub const ROAD_BED_SEGMENT_M: f32 = 6.0;
+
+/// A service road's or footway's ribbon on its bed (sharper beds: a service
+/// road's 18% over 24 m sags 3 cm at 4 m).
+#[cfg(feature = "native")]
+pub const FOOT_BED_SEGMENT_M: f32 = 4.0;
 
 /// Height used when OSM gives none (`height_m == 0.0` means UNKNOWN, not
 /// flat). Two storeys is the honest guess for an untagged footprint.
@@ -450,14 +481,107 @@ pub fn road_full_width_m(class: u8) -> f32 {
     }
 }
 
-/// How far a road surface floats above the drawn ground. Class-ordered so
-/// footways never fight vehicular surfaces where they overlap.
+/// RUNG 2'S lift: how far a road surface floated above the drawn ground to
+/// clear the ground's own bumps across it. Kept for the bed gate's red run and
+/// for bridges until their deck mesh (deferred). Class-ordered so footways
+/// never fight vehicular surfaces where they overlap.
 #[cfg(feature = "native")]
 pub fn road_lift_m(class: u8) -> f64 {
     if class >= 5 {
         0.12
     } else {
         0.18
+    }
+}
+
+/// How far a ribbon lies above its road bed: a depth-test separation from the
+/// terrain triangles drawn in the same plane under it (they meet the bed to
+/// the millimetre at the finest patches), never a cover for a ground that
+/// disagrees. Class-ordered like the old lift, so a footway crossing a
+/// carriageway never fights it.
+#[cfg(feature = "native")]
+pub fn road_decal_m(class: u8) -> f64 {
+    if class >= 5 {
+        0.02
+    } else {
+        0.04
+    }
+}
+
+/// Half a road's carriageway: its tagged width, else its class's. The road
+/// bed (map_beds) uses the same rule, so the ribbon is exactly as wide as the
+/// flat bed's carriageway.
+pub fn road_half_width_m(width_m: f32, class: u8) -> f32 {
+    if width_m > 0.0 {
+        width_m * 0.5
+    } else {
+        road_full_width_m(class) * 0.5
+    }
+}
+
+/// The ground the mesher stands geometry on (the caller's oracles) and the
+/// rules it follows.
+#[cfg(feature = "native")]
+pub struct MeshGround<'a> {
+    /// The finest drawn ground as a radius (metres from the body centre), road
+    /// beds and building pads included. THE SEA CLAMP IS THE CALLER'S JOB (see
+    /// [`build_region_meshes`]).
+    pub elev: &'a dyn Fn(DVec3) -> f64,
+    /// The natural ground, no bed or pad (the land layer), as a radius: how
+    /// far down a building's plinth reaches, to meet a patch too coarse to
+    /// draw its pad.
+    pub natural: &'a dyn Fn(DVec3) -> f64,
+    /// Road beds and building pads are in the ground (always, in play). False:
+    /// rung 2's rules (the lifts, the centre sample and the skirt), for the bed
+    /// gate's red run (`HUMANITY_GROUND_BEDS=0`).
+    pub beds: bool,
+}
+
+#[cfg(feature = "native")]
+impl<'a> MeshGround<'a> {
+    /// One oracle for both, beds on (flat test ground).
+    pub fn flat(elev: &'a dyn Fn(DVec3) -> f64) -> Self {
+        MeshGround { elev, natural: elev, beds: true }
+    }
+}
+
+/// THE RIBBON'S RADIUS at one edge point of a road: the rule the mesher draws
+/// by and the bed probe judges. On a bed the ribbon lies on the drawn ground
+/// at that edge (the bed is flat across, so both edges agree, and where the
+/// shore band tilts a waterfront street the ribbon tilts with it) plus the
+/// decal offset. Rung 2 (beds off) and bridges: the centreline's ground plus
+/// the old lift, both edges alike.
+#[cfg(feature = "native")]
+pub fn road_edge_radius(g: &MeshGround, centre: DVec3, edge: DVec3, class: u8, bridge: bool) -> f64 {
+    if g.beds && !bridge {
+        (g.elev)(edge) + road_decal_m(class)
+    } else {
+        (g.elev)(centre) + road_lift_m(class)
+    }
+}
+
+/// THE BUILDING'S LEVELS for a footprint whose corners are `dirs`, `h` metres
+/// tall: (wall bottom, floor, roof) as radii. The rule the mesher draws by and
+/// the bed probe judges. With pads: the floor is the ground at the corners
+/// (their median: the pad holds them all at its floor), and the walls reach
+/// down to the lowest of that and the natural ground, a plinth that meets a
+/// coarse patch drawing no pad. Rung 2 (beds off): the floor was the lowest
+/// corner and the walls carried a 2.5 m buried skirt.
+#[cfg(feature = "native")]
+pub fn building_levels(g: &MeshGround, dirs: &[DVec3], h: f64) -> Option<(f64, f64, f64)> {
+    let elev: Vec<f64> = dirs.iter().map(|d| (g.elev)(*d)).collect();
+    if elev.is_empty() || elev.iter().any(|r| !r.is_finite()) {
+        return None;
+    }
+    let min = elev.iter().copied().fold(f64::MAX, f64::min);
+    if g.beds {
+        let mut s = elev;
+        s.sort_by(f64::total_cmp);
+        let floor = s[s.len() / 2];
+        let natural = dirs.iter().map(|d| (g.natural)(*d)).filter(|r| r.is_finite()).fold(f64::MAX, f64::min);
+        Some((min.min(natural), floor, floor + h))
+    } else {
+        Some((min - WALL_SKIRT_M, min, min + h))
     }
 }
 
@@ -666,20 +790,20 @@ fn miter_left(points: &[(f32, f32)], k: usize) -> (f32, f32) {
 
 /// Raise a whole region into 3D geometry on the drawn planet surface.
 ///
-/// `elev(unit_dir) -> radius_metres` is the caller's drawn-ground oracle: in
-/// the app that is `engine::frame_lock::ground_radius_m` closed over the
-/// heightmap, the detail noise, and any resident 460 m terrain tile, i.e.
-/// exactly the surface the player's walk clamp uses. THE SEA CLAMP IS THE
-/// CALLER'S JOB: waterfront footprints sample Puget Sound bathymetry, so the
-/// closure should clamp its result to at least sea level plus
-/// `ocean_waves::SURFACE_LIFT_M` before returning it. This function does not
-/// know the planet definition and deliberately does not guess.
+/// `ground.elev(unit_dir) -> radius_metres` is the caller's drawn-ground
+/// oracle: in the app, the one ground formula at the finest depth (the map
+/// packs' ground with its road beds and building pads), exactly the surface
+/// the player's walk clamp uses. THE SEA CLAMP IS THE CALLER'S JOB:
+/// waterfront footprints sample Puget Sound bathymetry, so the closure should
+/// clamp its result to at least sea level before returning it. This function
+/// does not know the planet definition and deliberately does not guess.
 ///
-/// Cost is dominated by `elev`: one call per footprint vertex and per
-/// resampled road point (roughly 40k for a downtown district). Run it off the
-/// main thread.
+/// Cost is dominated by `elev`: one call per footprint vertex and per ribbon
+/// edge point (roughly 100k for a downtown district). Run it off the main
+/// thread.
 #[cfg(feature = "native")]
-pub fn build_region_meshes(region: &OsmRegion, elev: &dyn Fn(DVec3) -> f64) -> RegionMeshes {
+pub fn build_region_meshes(region: &OsmRegion, ground: &MeshGround) -> RegionMeshes {
+    let elev = ground.elev;
     let origin_dir = latlon_to_dir_f64(region.origin_lat, region.origin_lon);
     let anchor_local = origin_dir * elev(origin_dir);
 
@@ -701,29 +825,21 @@ pub fn build_region_meshes(region: &OsmRegion, elev: &dyn Fn(DVec3) -> f64) -> R
             continue;
         };
 
-        // Per-vertex direction and drawn radius. The base is the MINIMUM
-        // over the ring: a footprint on a slope must not leave a corner
-        // hanging in the air, and the skirt swallows the extra depth.
+        // Per-vertex direction; the wall bottom, floor and roof by the one
+        // rule the bed probe also judges (`building_levels`).
         dirs.clear();
         dirs.reserve(b.ring.len());
-        let mut base_r = f64::MAX;
         for &(e, n) in &b.ring {
-            let d = to_dir(e, n);
-            let r = elev(d);
-            if r < base_r {
-                base_r = r;
-            }
-            dirs.push(d);
+            dirs.push(to_dir(e, n));
         }
-        if !base_r.is_finite() {
-            skipped_rings += 1;
-            continue;
-        }
-
         let h = if b.height_m.is_finite() && b.height_m > 0.0 {
             b.height_m as f64
         } else {
             DEFAULT_BUILDING_HEIGHT_M
+        };
+        let Some((bottom_r, base_r, top_r)) = building_levels(ground, &dirs, h) else {
+            skipped_rings += 1;
+            continue;
         };
         let kind = if h < 12.0 {
             RegionMeshKind::BuildingLow
@@ -734,9 +850,6 @@ pub fn build_region_meshes(region: &OsmRegion, elev: &dyn Fn(DVec3) -> f64) -> R
         };
         let buf = &mut bufs[kind.slot()];
 
-        let bottom_r = base_r - WALL_SKIRT_M;
-        let top_r = base_r + h;
-
         // Traverse counter-clockwise so cross(edge, up) points OUTWARD
         // (east x north = up in this frame, so a CCW ring's edge normals
         // face away from the interior).
@@ -746,7 +859,7 @@ pub fn build_region_meshes(region: &OsmRegion, elev: &dyn Fn(DVec3) -> f64) -> R
             (0..b.ring.len()).rev().collect()
         };
 
-        let v_top = ((WALL_SKIRT_M + h) / 3.0) as f32;
+        let v_top = ((top_r - bottom_r) / 3.0) as f32;
         let mut u_acc = 0.0f32;
         let m = ccw.len();
         for k in 0..m {
@@ -796,14 +909,28 @@ pub fn build_region_meshes(region: &OsmRegion, elev: &dyn Fn(DVec3) -> f64) -> R
         }
     }
 
-    // ── Roads: draped, mitered ribbons ───────────────────────────────────
+    // ── Roads: mitered ribbons on their beds ─────────────────────────────
     for road in &region.roads {
-        let pts = resample_polyline(&road.points, ROAD_MAX_SEGMENT_M);
+        // A tunnel leaves the ground alone and its road is hidden (the
+        // under-surface view is maps-zoom-to-anything increment 7).
+        if ground.beds && road.tunnel {
+            continue;
+        }
+        let on_bed = ground.beds && !road.bridge;
+        let seg = if !on_bed {
+            ROAD_MAX_SEGMENT_M
+        } else if road.class >= 4 {
+            FOOT_BED_SEGMENT_M
+        } else {
+            ROAD_BED_SEGMENT_M
+        };
+        let pts = resample_polyline(&road.points, seg);
         if pts.len() < 2 {
             continue;
         }
-        let half_w = road_full_width_m(road.class) * 0.5;
-        let lift = road_lift_m(road.class);
+        // Rung 2 drew every road at its class width; the bed's carriageway is
+        // the tagged width where there is one.
+        let half_w = if ground.beds { road_half_width_m(road.width_m, road.class) } else { road_full_width_m(road.class) * 0.5 };
         let kind = if road.class >= 5 { RegionMeshKind::RoadFoot } else { RegionMeshKind::RoadAsphalt };
         let buf = &mut bufs[kind.slot()];
 
@@ -818,15 +945,14 @@ pub fn build_region_meshes(region: &OsmRegion, elev: &dyn Fn(DVec3) -> f64) -> R
             let left = (p.0 + off.0 * half_w, p.1 + off.1 * half_w);
             let right = (p.0 - off.0 * half_w, p.1 - off.1 * half_w);
 
-            // ONE ground sample per centreline point: a carriageway is flat
-            // ACROSS its width in the real world, so both edges ride the
-            // centre's radius. Sampling the edges separately would twist the
-            // ribbon on rough ground for no gain.
+            // Each edge by `road_edge_radius`: on a bed, the drawn ground at
+            // that edge (flat across, so both agree) plus the decal offset;
+            // rung 2 and bridges, the centre's ground plus the old lift.
             let dc = to_dir(p.0, p.1);
-            let r = elev(dc) + lift;
             let u = u_acc / 5.0;
             for (side, v) in [(left, 0.0f32), (right, 1.0f32)] {
                 let d = to_dir(side.0, side.1);
+                let r = road_edge_radius(ground, dc, d, road.class, road.bridge);
                 let pos = (d * r - anchor_local).as_vec3();
                 let nrm = d.as_vec3();
                 buf.vertices.push(Vertex {
@@ -1190,7 +1316,7 @@ mod tests {
         let elev = move |d: DVec3| -> f64 {
             if d.dot(dip_dir) > 0.999_999_999_9 { FLAT_R - 3.0 } else { FLAT_R }
         };
-        let out = build_region_meshes(&region, &elev);
+        let out = build_region_meshes(&region, &MeshGround::flat(&elev));
 
         assert_eq!(out.classes.len(), 1, "sea + island make no geometry, the lake does");
         let c = &out.classes[0];
@@ -1222,7 +1348,7 @@ mod tests {
             vec![building(h, vec![(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)])],
             vec![],
         );
-        let out = build_region_meshes(&region, &|_| FLAT_R);
+        let out = build_region_meshes(&region, &MeshGround::flat(&|_| FLAT_R));
 
         assert_eq!(out.skipped_rings, 0);
         assert_eq!(out.classes.len(), 1, "one building, no roads = one batch");
@@ -1256,7 +1382,8 @@ mod tests {
                 r - FLAT_R
             );
         }
-        // Wall bottoms carry the buried skirt; wall tops match the roof.
+        // Wall bottoms stand on the ground (no buried skirt since the pads); wall tops match the roof.
+        // Seen red 2026-11-09 with rung 2's rule kept: "the wall starts on the ground, -2.50 m off it".
         let mut lowest = f64::MAX;
         let mut highest = f64::MIN;
         for v in &c.vertices[..16] {
@@ -1264,7 +1391,7 @@ mod tests {
             lowest = lowest.min(r);
             highest = highest.max(r);
         }
-        assert!((lowest - (FLAT_R - WALL_SKIRT_M)).abs() < 1e-2, "skirt depth");
+        assert!((lowest - FLAT_R).abs() < 1e-2, "the wall starts on the ground, {} m off it", lowest - FLAT_R);
         assert!((highest - (FLAT_R + h as f64)).abs() < 1e-2, "wall top meets the roof");
 
         // Wall normals are horizontal (perpendicular to the local radial).
@@ -1286,7 +1413,7 @@ mod tests {
             ],
             vec![],
         );
-        let out = build_region_meshes(&region, &|_| FLAT_R);
+        let out = build_region_meshes(&region, &MeshGround::flat(&|_| FLAT_R));
         let kinds: Vec<_> = out.classes.iter().map(|c| c.kind).collect();
         assert_eq!(
             kinds,
@@ -1318,24 +1445,77 @@ mod tests {
             vec![building(10.0, vec![(0.0, 0.0), (5.0, 5.0), (10.0, 10.0)])],
             vec![],
         );
-        let out = build_region_meshes(&region, &|_| FLAT_R);
+        let out = build_region_meshes(&region, &MeshGround::flat(&|_| FLAT_R));
         assert_eq!(out.skipped_rings, 1);
         assert!(out.classes.is_empty(), "nothing drawn for a refused ring");
+    }
+
+    /// A building on a slope (whole-earth-maps.md 6.2): the pad holds every corner at the floor,
+    /// the plinth reaches down to the lowest natural ground, and the roof stands `h` over the
+    /// floor; with the beds off (the red run) it is rung 2's rule, the lowest corner and a 2.5 m
+    /// buried skirt. Seen red 2026-11-09 with `building_levels` keeping rung 2's rule in both
+    /// branches: "the plinth stops at the natural ground: bottom -2.500 m, natural low -0.499 m".
+    #[cfg(feature = "native")]
+    #[test]
+    fn a_building_stands_on_its_pad_with_a_plinth_to_the_natural_ground() {
+        let region = flat_region(vec![building(6.0, vec![(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)])], vec![]);
+        let origin = latlon_to_dir_f64(region.origin_lat, region.origin_lon);
+        let east = DVec3::Y.cross(origin).normalize();
+        // The natural ground falls 1 m in 10 m to the east; the pad (the drawn ground) holds the
+        // footprint at its middle, +0.0 m.
+        let natural = move |d: DVec3| FLAT_R - 0.1 * ((d - origin).dot(east) * FLAT_R - 5.0);
+        let pad = |_: DVec3| FLAT_R;
+        let g = MeshGround { elev: &pad, natural: &natural, beds: true };
+        let dirs: Vec<DVec3> = region.buildings[0].ring.iter().map(|&(e, n)| {
+            let (la, lo) = region_meters_to_latlon(region.origin_lat, region.origin_lon, e as f64, n as f64);
+            latlon_to_dir_f64(la, lo)
+        }).collect();
+        let (bottom, floor, top) = building_levels(&g, &dirs, 6.0).unwrap();
+        assert!((floor - FLAT_R).abs() < 1e-6 && (top - floor - 6.0).abs() < 1e-6, "the floor is the pad and the roof 6 m over it");
+        let low = dirs.iter().map(|d| natural(*d)).fold(f64::MAX, f64::min);
+        assert!((bottom - low).abs() < 1e-3, "the plinth stops at the natural ground: bottom {:.3} m, natural low {:.3} m", bottom - FLAT_R, low - FLAT_R);
+        let red = MeshGround { elev: &natural, natural: &natural, beds: false };
+        let (rb, rf, _) = building_levels(&red, &dirs, 6.0).unwrap();
+        assert!((rf - low).abs() < 1e-3 && (rb - (low - WALL_SKIRT_M)).abs() < 1e-3, "beds off is rung 2's lowest corner and skirt");
+    }
+
+    /// On a bed each ribbon edge lies on the drawn ground at that edge plus the decal offset, so a
+    /// ground that tilts across (the shore band holding a waterfront street) tilts the ribbon with
+    /// it; a bridge keeps rung 2's centre sample and lift (its deck is deferred), and a tunnel is
+    /// hidden. Seen red 2026-11-09 with `road_edge_radius` sampling the centre on beds too: "the
+    /// left edge lies 0.37 m over its own ground, not 0.04".
+    #[cfg(feature = "native")]
+    #[test]
+    fn ribbon_edges_lie_on_their_own_ground() {
+        let origin = latlon_to_dir_f64(47.6, -122.3);
+        let east = DVec3::Y.cross(origin).normalize();
+        let tilt = move |d: DVec3| FLAT_R + 0.1 * (d - origin).dot(east) * FLAT_R;
+        let g = MeshGround { elev: &tilt, natural: &tilt, beds: true };
+        let left = (origin - east * (3.25 / FLAT_R)).normalize();
+        let r = road_edge_radius(&g, origin, left, 3, false);
+        assert!((r - tilt(left) - road_decal_m(3)).abs() < 1e-6, "the left edge lies {:.2} m over its own ground, not {:.2}", r - tilt(left), road_decal_m(3));
+        let rb = road_edge_radius(&g, origin, left, 3, true);
+        assert!((rb - tilt(origin) - road_lift_m(3)).abs() < 1e-6, "a bridge keeps the centre sample and the lift");
+        let points = vec![(0.0f32, 0.0f32), (0.0, 40.0)];
+        let bounds = bounds_of(&points);
+        let tunnel = OsmRoad { class: 3, name: None, points, bounds, width_m: 0.0, bridge: false, tunnel: true };
+        let out = build_region_meshes(&flat_region(vec![], vec![tunnel]), &MeshGround::flat(&|_| FLAT_R));
+        assert!(out.classes.is_empty(), "a tunnel's road is hidden");
     }
 
     #[cfg(feature = "native")]
     #[test]
     fn mesher_drapes_a_road_ribbon() {
-        // 40 m north then 30 m east. Resampling at 15 m gives
-        // 1 + ceil(40/15) + ceil(30/15) = 1 + 3 + 2 = 6 points.
+        // 40 m north then 30 m east. Resampling at a carriageway bed's 6 m gives
+        // 1 + ceil(40/6) + ceil(30/6) = 1 + 7 + 5 = 13 points.
         let points = vec![(0.0f32, 0.0f32), (0.0, 40.0), (30.0, 40.0)];
         let bounds = bounds_of(&points);
-        let road = OsmRoad { class: 3, name: None, points: points.clone(), bounds };
+        let road = OsmRoad { class: 3, name: None, points: points.clone(), bounds, width_m: 0.0, bridge: false, tunnel: false };
         let region = flat_region(vec![], vec![road]);
-        let out = build_region_meshes(&region, &|_| FLAT_R);
+        let out = build_region_meshes(&region, &MeshGround::flat(&|_| FLAT_R));
 
-        let expected_pts = resample_polyline(&points, ROAD_MAX_SEGMENT_M).len();
-        assert_eq!(expected_pts, 6, "resampling is deterministic");
+        let expected_pts = resample_polyline(&points, ROAD_BED_SEGMENT_M).len();
+        assert_eq!(expected_pts, 13, "resampling is deterministic");
 
         assert_eq!(out.classes.len(), 1);
         let c = &out.classes[0];
@@ -1354,14 +1534,14 @@ mod tests {
             road_full_width_m(3)
         );
 
-        // Every road vertex floats exactly one class lift above the ground.
+        // Every road vertex lies one class decal offset over its bed (no lift since the beds).
         for v in &c.vertices {
             let r = vertex_radius(out.anchor_local, v);
             assert!(
-                (r - (FLAT_R + road_lift_m(3))).abs() < 1e-2,
-                "road lift {} m, expected {}",
+                (r - (FLAT_R + road_decal_m(3))).abs() < 1e-2,
+                "road over its bed by {} m, expected {}",
                 r - FLAT_R,
-                road_lift_m(3)
+                road_decal_m(3)
             );
         }
     }
@@ -1372,13 +1552,14 @@ mod tests {
         let mk = |class: u8, e: f32| {
             let points = vec![(e, 0.0f32), (e, 30.0f32)];
             let bounds = bounds_of(&points);
-            OsmRoad { class, name: None, points, bounds }
+            OsmRoad { class, name: None, points, bounds, width_m: 0.0, bridge: false, tunnel: false }
         };
         let region = flat_region(vec![], vec![mk(1, 0.0), mk(5, 50.0)]);
-        let out = build_region_meshes(&region, &|_| FLAT_R);
+        let out = build_region_meshes(&region, &MeshGround::flat(&|_| FLAT_R));
         let kinds: Vec<_> = out.classes.iter().map(|c| c.kind).collect();
         assert_eq!(kinds, vec![RegionMeshKind::RoadAsphalt, RegionMeshKind::RoadFoot]);
         // Footways sit lower so they never fight a road they cross.
+        assert!(road_decal_m(5) < road_decal_m(1));
         assert!(road_lift_m(5) < road_lift_m(1));
     }
 

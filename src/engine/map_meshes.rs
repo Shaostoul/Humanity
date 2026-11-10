@@ -68,6 +68,41 @@ fn district_distance_m(id: &PatchId, cam_local: DVec3, radius: f64) -> f64 {
     (ground * ground + alt * alt).sqrt()
 }
 
+/// Dev overrides of how deep and how near the camera the terrain refines inside an installed
+/// pack's tile (whole-Earth maps, the rung between 2 and 3, 2026-11-09; the values themselves are
+/// `levels.ron`'s `pack_detail`). The showcase keys `pack_depth` and `pack_within_m` set them live
+/// ("auto" releases them), so a rig compares settings in one boot. 0 / NaN: no override.
+static PACK_DEPTH_OVERRIDE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+static PACK_WITHIN_OVERRIDE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0x7ff8_0000_0000_0000);
+
+/// Override the pack depth (the showcase's `pack_depth`); None releases it.
+pub(crate) fn set_pack_max_depth(depth: Option<u8>) {
+    let d = depth.map_or(0, |d| d.clamp(humanity_terrain::planet_chunks::MAX_PATCH_DEPTH, humanity_terrain::planet_chunks::TILE_MAX_PATCH_DEPTH));
+    PACK_DEPTH_OVERRIDE.store(d, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Override the pack detail's reach (the showcase's `pack_within_m`); None releases it.
+pub(crate) fn set_pack_within_m(m: Option<f64>) {
+    PACK_WITHIN_OVERRIDE.store(m.map_or(f64::NAN, |m| m.max(0.0)).to_bits(), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The tiles where `body`'s terrain may refine past its cap: Earth's installed map packs, to
+/// `pack_detail.max_depth` within `pack_detail.within_m` of the camera.
+pub(crate) fn deep_tiles(body: &str) -> humanity_terrain::planet_chunks::DeepTiles {
+    let map = if body == "earth" { map_ground::snapshot() } else { None };
+    let Some(m) = map else { return Default::default() };
+    let pd = &m.levels.pack_detail;
+    let d = PACK_DEPTH_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed);
+    let w = f64::from_bits(PACK_WITHIN_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed));
+    humanity_terrain::planet_chunks::DeepTiles { tiles: m.pack_ids(), max_depth: if d > 0 { d } else { pd.max_depth }, within_m: if w.is_nan() { pd.within_m } else { w } }
+}
+
+/// The depth and reach the terrain refines to inside installed packs now (the bed probe's readout).
+pub(crate) fn pack_detail_now() -> (u8, f64) {
+    let d = deep_tiles("earth");
+    (d.max_depth, d.within_m)
+}
+
 /// One district standing in the world.
 pub(crate) struct District {
     pub id: PatchId,
@@ -83,7 +118,7 @@ pub(crate) struct MapMeshState {
     loaded: bool,
     set: Option<Arc<MapSet>>,
     pub districts: Vec<District>,
-    pending: Option<(PatchId, String, Receiver<RegionMeshes>)>,
+    pending: Option<(PatchId, String, Receiver<(RegionMeshes, f64)>)>,
     /// Renderer mesh indices given back by far districts, reused before adding new ones.
     free_meshes: Vec<usize>,
     materials: Option<[usize; 6]>,
@@ -205,7 +240,7 @@ pub(crate) fn tick(
     // 3a. Drain a finished district build.
     if let Some((id, pack, rx)) = &mm.pending {
         match rx.try_recv() {
-            Ok(built) => {
+            Ok((built, secs)) => {
                 let (id, pack) = (*id, pack.clone());
                 mm.pending = None;
                 let mats = mm.ensure_materials(renderer);
@@ -224,7 +259,7 @@ pub(crate) fn tick(
                     };
                     meshes.push((mi, mats[kind_ordinal(class.kind)]));
                 }
-                log::info!("[Map] district {}/{} standing: {} class meshes, {} rings refused. Map data (c) OpenStreetMap contributors, ODbL 1.0", id.depth, id.path, meshes.len(), built.skipped_rings);
+                log::info!("[Map] district {}/{} standing: {} class meshes, {} rings refused, built in {secs:.2} s on a worker. Map data (c) OpenStreetMap contributors, ODbL 1.0", id.depth, id.path, meshes.len(), built.skipped_rings);
                 mm.districts.push(District { id, anchor_local: built.anchor_local, meshes, pack });
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
@@ -270,7 +305,9 @@ pub(crate) fn tick(
             let (tx, rx) = channel();
             let (def2, hm2, set2) = (def.clone(), hm.clone(), set.clone());
             std::thread::spawn(move || {
-                let _ = tx.send(build_district(&def2, &hm2, &set2, id));
+                let t = std::time::Instant::now();
+                let built = build_district(&def2, &hm2, &set2, id);
+                let _ = tx.send((built, t.elapsed().as_secs_f64()));
             });
             mm.pending = Some((id, pack, rx));
         }
@@ -302,8 +339,7 @@ pub(crate) fn tick(
 pub(crate) fn build_district(def: &humanity_terrain::planet::PlanetDef, hm: &humanity_terrain::planet_heightmap::PlanetHeightmap, set: &MapSet, id: PatchId) -> RegionMeshes {
     let c = centre(&id);
     let (lat, lon) = osm_region::dir_to_latlon_f64(c);
-    let detail = humanity_terrain::planet_chunks::DetailNoise::new(def.terrain_seed);
-    let sea_r = def.radius * humanity_terrain::planet_surface::displaced_radius_f64_true(def, def.sea_level.clamp(0.0, 1.0) as f64);
+    let DistrictGround { detail, sea_r, .. } = DistrictGround::new(def, hm, set);
     let tiles = map_tiles::descendants_at(id, set.levels.finest());
     let mut region = osm_region::OsmRegion { name: String::new(), origin_lat: lat, origin_lon: lon, half_east_m: 7_000.0, half_north_m: 7_000.0, roads: Vec::new(), buildings: Vec::new(), water: Vec::new() };
     for ps in &set.packs {
@@ -316,13 +352,43 @@ pub(crate) fn build_district(def: &humanity_terrain::planet::PlanetDef, hm: &hum
         region.buildings.extend(part.buildings);
         region.water.extend(part.water);
     }
-    // The finest drawn ground (the formula the patches draw at their deepest), with no tile tier:
-    // inside a pack the pack's ground replaces it, so the tier never shows here.
-    let elev = |d: DVec3| -> f64 {
-        let e = humanity_terrain::planet_chunks::drawn_elevation_at_depth(hm, def, &detail, None, Some(set), d, 24);
-        (def.radius * humanity_terrain::planet_surface::displaced_radius_f64_true(def, e as f64)).max(sea_r)
-    };
-    osm_region::build_region_meshes(&region, &elev)
+    let g = DistrictGround { def, hm, set, detail, sea_r };
+    let (elev, natural) = (|d: DVec3| g.elev(d), |d: DVec3| g.natural(d));
+    osm_region::build_region_meshes(&region, &osm_region::MeshGround { elev: &elev, natural: &natural, beds: map_ground::beds_enabled() })
+}
+
+/// The ground a district's geometry stands on, shared by the district builder and the bed probe
+/// (so the probe judges the very heights the meshes were built from).
+pub(crate) struct DistrictGround<'a> {
+    pub def: &'a humanity_terrain::planet::PlanetDef,
+    pub hm: &'a humanity_terrain::planet_heightmap::PlanetHeightmap,
+    pub set: &'a MapSet,
+    pub detail: humanity_terrain::planet_chunks::DetailNoise,
+    pub sea_r: f64,
+}
+
+impl DistrictGround<'_> {
+    pub(crate) fn new<'a>(def: &'a humanity_terrain::planet::PlanetDef, hm: &'a humanity_terrain::planet_heightmap::PlanetHeightmap, set: &'a MapSet) -> DistrictGround<'a> {
+        let sea_r = def.radius * humanity_terrain::planet_surface::displaced_radius_f64_true(def, def.sea_level.clamp(0.0, 1.0) as f64);
+        DistrictGround { def, hm, set, detail: humanity_terrain::planet_chunks::DetailNoise::new(def.terrain_seed), sea_r }
+    }
+
+    /// The finest drawn ground (the formula the patches draw at their deepest, beds and pads
+    /// included), as a radius, never below the sea; no tile tier: inside a pack the pack's ground
+    /// replaces it.
+    pub(crate) fn elev(&self, d: DVec3) -> f64 {
+        let e = humanity_terrain::planet_chunks::drawn_elevation_at_depth(self.hm, self.def, &self.detail, None, Some(self.set), d, 24);
+        (self.def.radius * humanity_terrain::planet_surface::displaced_radius_f64_true(self.def, e as f64)).max(self.sea_r)
+    }
+
+    /// The natural ground (the pack's land layer, no bed or pad), as a radius: where a building's
+    /// plinth must reach. Outside a pack, the drawn ground.
+    pub(crate) fn natural(&self, d: DVec3) -> f64 {
+        match self.set.raw_land_m(d) {
+            Some((h, _)) => (self.sea_r + h).max(self.sea_r),
+            None => self.elev(d),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -3,10 +3,11 @@
 Written 2026-11-08 from a read of the region pipeline, the terrain quadtree and the history of the
 Silverdale waterfront, together with the dated licence research in
 [`2026-11-08-whole-earth-map-data.md`](../reference/findings/2026-11-08-whole-earth-map-data.md)
-(the finding; every licence statement below is quoted and dated there). **Rungs 1 and 2 are built
-(2026-11-09: the coast yardstick, the tile key and the credit; then the home packs, the shore band
-and the nested lattice, without road beds and building pads; their outcomes close section 13);
-nothing after rung 2 is.** The rungs in section 13 are the build order; PRIORITIES.md ranks when.
+(the finding; every licence statement below is quoted and dated there). **Rungs 1 and 2 are built,
+and the rung between 2 and 3 (2026-11-09: the coast yardstick, the tile key and the credit; then the
+home packs, the shore band and the nested lattice; then road beds, building pads and full detail
+inside an installed pack; their outcomes close section 13); nothing after that is.** The rungs in
+section 13 are the build order; PRIORITIES.md ranks when.
 
 The operator, verbatim (2026-11-08):
 
@@ -193,7 +194,9 @@ roofs) with conditions that bind every fork; NASADEM stops at 60° N; the AWS Te
 
 Each tile carries its features clipped to the tile plus a margin (the widest shore band, road
 corridor or building pad, about 150 m at L12), so a modifier near a border is computed identically
-in both tiles. Every edge a clip created is flagged; the shore distance field (section 5) measures
+in both tiles. (As built, no margin was needed: rung 2's shore index and rung 2b's beds read the
+neighbouring tiles at run time, and a road piece is pinned at the border point both tiles share;
+section 6.4.) Every edge a clip created is flagged; the shore distance field (section 5) measures
 distance to **real** shoreline segments only. This flag is what removes the region-boundary water
 seam: a tile border running through an inlet is invisible to the water.
 
@@ -395,6 +398,68 @@ built (a motorway from about depth 15, 13 m spacing; a footpath from about depth
 patches show roads, water edges and land cover through a small per-patch material mask rasterized
 from the same tile when the patch builds, so a town reads correctly from 10 km up with no extra
 triangles. The skirts and the existing LOD crossfade hide the hand-over.
+
+### 6.4 As built (the rung between 2 and 3, 2026-11-09)
+
+`crates/humanity-terrain/src/map_beds.rs`, called from `MapSet::ground_with` for every land point
+of a patch of depth 15 or deeper; its numbers are the `beds` block of `data/maps/levels.ron`.
+
+- **Road beds (6.1).** A road's bed is computed per PIECE (an OSM way clipped to a level-12 tile):
+  the land layer sampled every 2 m along it, averaged over a per-class window (120 m for a motorway
+  down to 10 m for a footway), held to the class's grade (6% motorway, 8% primary, 10% secondary,
+  15% residential, 18% service, 35% footway) as the mean of the lowest graded line above it and the
+  highest below it (so cut and fill balance), and pinned to the natural ground at both ends of the
+  piece. Across: the carriageway (tagged width, else the class width the ribbon is drawn at) plus a
+  1 m shoulder each side is flat at the bed; past it the ground returns to natural at 1 in 2, and
+  past 20 m at 10 in 1 (a retaining wall, so a road on a side slope steeper than 1 in 2 still meets
+  its hillside); nothing reaches past 30 m. Bridges, tunnels and ways with `layer` above 0 leave the
+  ground alone; a tunnel's ribbon is hidden; a bridge keeps rung 2's draped ribbon until its deck
+  (deferred, rung 8).
+- **Why per piece, pinned at its ends: no new pack format.** Where a road crosses a tile border the
+  two tiles already hold two pieces that end and start at the same point (the clip's crossing,
+  section 3.2, written as the same OSM integers on both sides). Pinned there to the same natural
+  ground, the two profiles meet exactly; a profile depends only on its own piece, so every tile that
+  reads it computes the same numbers; and a point near a border reads the neighbouring tiles' pieces
+  and pads too (from the same pack, or from the neighbouring pack where installed), so the ground does
+  not depend on which tile evaluates it. The two options rung 2's outcome named would both have
+  changed the format for less: a stored margin of neighbouring ways per tile duplicates every road
+  near a border (a 300 m margin about doubles the ways layer, 12 to 15 MB of each pack) and still
+  needs a profile whose reach fits the margin, which a true grade limit does not; a profile stored
+  per way writes land-layer heights into the OSM layer (section 3.4: the pack would stop being a
+  Collective Database) and freezes the grade limits into the files. The section 6.1 sentence "pinned
+  to natural ground where it crosses the tile margin, so the profile is identical in both tiles" was
+  not true as written (two tiles pinning at two different margins disagree in the overlap); pinning
+  at the shared border point is. So the packs are unchanged and were not rebuilt.
+- **Building pads (6.2).** A footprint's floor is the median of the land layer at its corners and on
+  a 3 m grid inside it (laid in degrees from its own OSM integers, so every pack that reads it
+  samples the same points); the footprint and a 1.5 m apron are held at the floor; past it, 1 in 2
+  back to natural. The mesher stands the floor on the pad and carries the walls down to the lowest
+  of the drawn and natural ground at the corners: a plinth, buried under the apron's fill near the
+  camera, visible where a coarse patch draws no pad. The 2.5 m buried skirt and the 0.18 m and
+  0.12 m road lifts are gone; a ribbon now lies 4 cm (a footway 2 cm) over its bed, a depth-test
+  separation from the terrain drawn in the same plane, with each edge on its own ground.
+- **How several combine.** Inside one or more road beds the ground is their weighted mean (each
+  weight 1 across the carriageway, fading to 0 across the shoulder), so an intersection warps
+  smoothly; inside a pad and no bed, the pad's floor; a bed crossing a pad's apron fades into it
+  across the shoulder. Outside every core each modifier within reach clamps the ground to its slope
+  room around its target, the nearest applied last, so the ground is continuous at every core's edge.
+  The procedural fine relief is added to the natural ground before the beds, so a bed holds it flat.
+- **Precedence at the water: the coast wins.** The beds and pads shape the land side only, and the
+  shore band runs after them: within its band the band's floor and cap bound every bed and pad, and
+  no water point is ever touched. On the Silverdale waterfront street (Washington Avenue Northwest,
+  10.7 m from Dyes Inlet at its closest) the carriageway lies flat where the cap leaves it alone and
+  tilts with the band in its outer metre (at most 0.1 m). Letting a bed override the cap would stand
+  a street's land-layer height against the waterline again: Tracyton Boulevard NW, 10 m from the
+  water, stands 6 m up in GEDTM30 where the band draws 2 m, which is the false wall section 5.5's
+  rule forbids. Section 14 asks how a mapped seawall should change that.
+- **6.3 as built.** A bed or pad changes a patch's mesh only where it is wider than one vertex
+  spacing of that patch (`geometry_spacings`), and never on patches shallower than depth 15; coarser
+  patches keep the natural ground exactly. The per-patch material mask is still deferred.
+- **Its tests** (crates/humanity-terrain/src/map_beds_tests.rs, each with a negative control on the
+  same packs with the beds off): sloped streets flat across, sloped footprints on their floor, a road
+  meeting itself across a tile border, coarse patches untouched, profiles within their grade, the
+  coast owning the waterfront street. The rig: the `bed_probe` verb and its judge, and the vantages
+  `silverdale-road-slope` and `silverdale-building-slope`. Red run: `HUMANITY_GROUND_BEDS=0`.
 
 ## 7. Generalization per level, continents to doorsteps
 
@@ -629,6 +694,10 @@ No backwards compatibility before v1.0, so the regions are rebuilt, not converte
    Silverdale and Seattle Center migrated (section 12).
    Goes green: `coast-silverdale-waterfront`, `coast-silverdale-old-edge`.
    **Built 2026-11-09 without road beds and building pads (deferred, the outcome says why).**
+2b. **Road beds, building pads, full detail in a pack** (the operator, 2026-11-09, after rung 2:
+   "These all sound reasonable. LEt's proceed."): sections 6.1 to 6.3 in the one formula (as built:
+   section 6.4), and an installed pack's tile refining to depth 20 near the camera once its frame
+   cost was measured. **Built 2026-11-09; its outcome follows rung 2's.**
 3. **The planet build:** the whole planet, Overture buildings, generalization L3 to L12, measured
    time and sizes written back into section 8, incremental updates from daily diffs. The
    `just` recipe is developer tooling; its in-app button is logged as CLI debt in
@@ -809,6 +878,146 @@ the planet assembly has none, but closed chains whose first point lies inside a 
 end to start (that bug is fixed and named in `tile_water`). Pack size is mostly buildings and ways;
 Overture's footprints will grow the building layer.
 
+### Rung 2b outcome (2026-11-09): road beds, building pads, full detail near the camera
+
+Built: `crates/humanity-terrain/src/map_beds.rs` (road beds and building pads inside the one
+formula, section 6.4 says how), the mesher's two shared rules (`osm_region::road_edge_radius`,
+`building_levels`), the per-patch depth cap (`planet_chunks::DeepTiles`, fed with the installed
+packs and `levels.ron`'s `pack_detail`), the `bed_probe` verb and its judge, the vantages
+`silverdale-road-slope` and `silverdale-building-slope`, and a release-mode bench of a patch build
+(`examples/bench_map_patches.rs`). **The pack format did not change** (section 6.4 says why), so the
+two home packs were not rebuilt: still 40.2 MB and 42.4 MB, rung 2's 112 s to build both twice.
+
+**The beds and pads, before and after** (the bed probe, from the game's own numbers; red is this
+build with `HUMANITY_GROUND_BEDS=0`, which restores rung 2's ground, lifts and skirt; both at walk
+depth 20; every number is in the vantage's `_red` and `_green` notes):
+
+| Vantage | Rung 2's rules (red) | Rung 2b (green) |
+|---|---|---|
+| `silverdale-road-slope` (way 5915750, natural ground rising 1.375 m across its 6.5 m carriageway) | the ground across it spreads 1.408 m; the ribbon's uphill edge 0.533 m under the ground, its downhill edge 0.875 m over it | spread 0.001 m; the ribbon 0.039 m over its bed at both edges, never under |
+| `silverdale-building-slope` (way 1364377251, natural ground spreading 3.607 m under its corners) | floor at the lowest corner, the uphill corners 3.589 m above it; walls 2.500 m below the lowest ground | every corner on the floor (20.928 m) to 0.000 m; walls down to the lowest natural ground (19.403 m) and no deeper |
+
+The unit tests (map_beds_tests.rs) say the same over the whole Silverdale tile, each against the
+same packs with the beds off: ten sloped streets with 0.32 to 0.75 m natural cross-falls drawn flat
+to 0.001 m; ten sloped footprints (0.9 to 2.5 m natural spread) on their floors to 0.002 m;
+four roads crossing a tile border pinned to the same natural height on both sides, the two tiles
+agreeing to 1e-6 m, the worst step along them 0.046 m in 0.25 m (an 18% street's own climb); depth
+13 and 14 patches untouched; every long profile within its class's grade plus 2%. **The coast** stays
+green at both depths: `coast-silverdale-waterfront` (wet, dry, no_false_wall) and
+`coast-silverdale-old-edge` (no_seam) passed at pack depth 13 and at 20 in one boot (sweep
+20261109-232657), and rung 2's shore unit tests pass with the beds on at depth 20. On the waterfront
+street (Washington Avenue Northwest) 30 water samples are unchanged by the beds, 126 land samples
+inside the band stay between its floor and cap, and the part of the carriageway the cap leaves alone
+lies flat to 0.021 m (the outer metre tilts with the band, at most 0.1 m).
+
+**Patch build time** (the bench, release, 64 patches under downtown Silverdale, warm; cold builds
+include the first decode of the tiles and the bed tiles), beds on and off:
+
+| Depth | 13 | 15 | 17 | 18 | 19 | 20 |
+|---|---|---|---|---|---|---|
+| Beds on (ms per patch), final build | 0.61 | 2.62 | 1.30 | 1.09 | 1.05 | 0.98 |
+| Beds off | 0.63 | 2.96 | 1.21 | 1.10 | 1.26 | 1.05 |
+
+Within the noise (another session was compiling through both runs) the beds cost a patch nothing
+measurable once a pad skips its polygon tests when its box is out of reach (the first run, without
+that, read 0.3 to 0.5 ms more at depths 17 to 20); depth 15 is dear either way (its tree-card bake).
+**A district's OSM geometry is slower to build:** the waterfront's level-9 district (3,328 road
+pieces, 4,724 footprints) meshes in 2.16 s on its worker against 0.53 s with rung 2's rules: twice the
+ground lookups (each ribbon edge on its own ground, every 6 m on a carriageway and 4 m on a service road
+or footway, where rung 2 sampled the centre every 15 m; a residential bed's sharpest crest sags 3.4 cm
+under a 6 m chord, inside the 4 cm offset) and each lookup carrying the first computation of the
+profiles, floors and bed tiles that the patches then share. In the game (with other compiles running)
+Silverdale's districts took 1.4 to 13 s, median 3.2 s, where rung 2's took about 1 s; a dense Seattle
+view will fill several times slower than rung 2's half a minute. Not frame time (it runs on a worker),
+but worth the next cheap fix: build two or three districts at once, or give the mesher both ribbon
+edges from one bed lookup.
+
+**Full detail (depth 20) in a pack: measured first, and it did not fit.** The same-boot method
+(`HUMANITY_FRAME_COSTS=1`, the showcase key `pack_depth` switched between captures of one vantage,
+rig defaults, the background 30 fps cap; GPU from timestamps):
+
+| Vantage (sweep) | GPU at depth 13 | 15 | 17 | 20 | 20, forest and grass off (13 off) |
+|---|---|---|---|---|---|
+| `silverdale-osm-ground`, 250 m up | 24.1 ms | 36.2 | 39.6 | 40.5 (+68%) | 30.4 (24.1: +26%) |
+| `coast-silverdale-waterfront`, 60 m up | 24.4 | 32.4 | 34.2 | 36.8 (+51%) | 29.6 (23.9: +24%) |
+| `silverdale-osm-2km`, 2.5 km up | 18.2 | 30.7 | 31.2 | 31.5 (+74%) | |
+| `silverdale-home-marker`, on foot | 31.9 | 32.6 | 32.9 | 34.1 (+7%) | 31.4 (30.0: +5%) |
+| `silverdale-road-slope`, 2.5 m up | | | | | 23.1 (21.6: +7%) |
+
+Sweeps 20261109-235009 (the ladder) and 20261110-000552 (forest and grass off, the rig's
+`tree_density` and `grass_density` set to 0 for the run). Two causes, both far over the 5% the brief
+allowed: **the forest**, which every patch of depth 15 or deeper carries (`TREE_MIN_DEPTH`; a release
+at depth 13 draws Silverdale with no tree cards at all, the tile tier with all of them), is the step
+from 13 to 15 (+8 to 12.5 ms, its shadows included); and **finer terrain** itself, +6 ms from 60 to 250 m
+up (gpu.celestial nearly doubles while the patch arena grows a sixth to a quarter: the cost follows the patch
+COUNT, which points at per-patch draw overhead, the renderer's to fix). Patch arena: +48 MB at the
+waterfront, +480 MB over the 2.5 km view.
+
+**The cheap fix: full detail near the camera only** (`pack_detail.within_m`, a patch's nearest point;
+the showcase key `pack_within_m` for the rig), the brief's own words for it:
+
+| Vantage (GPU against depth 13, one boot) | depth 13 | 20 within 100 m | 200 m | 400 m | whole view |
+|---|---|---|---|---|---|
+| `silverdale-osm-ground`, 250 m up | 24.5 ms | +2.1% | +5.1% | +17.0% | +65.1% |
+| `coast-silverdale-waterfront`, 60 m up | 24.1 ms | +8.3% | +23.5% | +32.6% | +51.6% |
+| `silverdale-home-marker`, on foot | 31.6 ms | +5.0% | +5.5% | +7.5% | +7.4% |
+| `silverdale-road-slope`, 2.5 m up | 30.3 ms | +7.8% | +8.0% | +9.1% | +16.1% |
+| `silverdale-building-slope`, 3 m up | 27.1 ms | +5.4% | +5.5% | +11.5% | +17.2% |
+
+Sweep 20261110-002813; other sessions were compiling through it (the rig marked the captures
+CONTAMINATED: read the cpu.* columns as inflated; the gpu.* columns are timestamps and held). **Shipped:
+depth 20 within 100 m** (`levels.ron`). Said plainly, as the brief asked: **it still does not fit
+under 5% at three of the five vantages** (5.0 to 8.3%, 1.4 to 2.4 ms). Near the ground that floor does
+not move with the reach (on foot 5.0% at 100 m, 7.4% across the whole view): it is the price of
+drawing a bed or a pad at all, plus the forest cards the near patches carry. A shallower cap would not
+buy it back: by the geometry a bed needs patches of depth 19 or 20 under it (at depth 18 a 1.7 m cell
+straddles the 1 m shoulder, so the carriageway's edge leaves the bed) and every patch of depth 15 or
+more carries the forest; and at depth 13 the beds and pads are not drawn at all (the bed probes of both
+new vantages fail there by design: the street 2.17 m under a 54 m triangle, daylight 0.48 m under a
+wall). 100 m is the cheapest reach that keeps them drawn where the eye can see them; 200 m bought
+nothing near the ground and tripled the cost 60 m up. Section 14 asks the operator (question 7). The
+bed probes pass at every reach that includes the camera; the coast vantages stayed green.
+
+**Found and fixed while measuring: a 1.6 s main-thread stall over Seattle.** Arriving at
+`seattle-osm-5km` ran at 1 fps with `cpu.chunk_veg_and_draws` at 1,621 ms a frame (rung 2: 0.9 to
+1.4 ms): the vegetation gates (the tree cards', the near models' and the far forest's land and
+treeline tests, at depth 24) went through the full formula, so every far-forest sample over the city
+built a bed tile on the main thread. A gate decides whether a tree grows, which no bed changes (the
+built-over mask keeps trees off roads and footprints; where a tree stands comes from the drawn
+surface, beds included), so the gates and the water shell's depth bake now read the map ground
+without beds (`map_ground::apply_normalized_gate`, `MapSet::ground_without_beds`). After: 29.9 fps on
+arrival, the stage at 1.75 ms (sweep 20261110-011653). The test
+`the_vegetation_gates_build_no_bed_tiles` holds it (red with the full formula: 4 bed tiles built over
+2.2 by 1.5 km of downtown Seattle).
+
+**The final check at the shipped settings** (sweep 20261110-005713, before the stall fix, which
+changes no ground the probes read; the bed vantages again after it, 20261110-011653): both bed
+vantages green; `coast-silverdale-waterfront` and `coast-silverdale-old-edge` green at the shipped
+depth and with `pack_depth` 13; `coast-dover-cliffs` and `coast-norderney-beach` red with rung 1's
+numbers exactly (rung 4 brings their data); the `silverdale-home-marker` ground probe green.
+
+**Deferred, plainly:** bridge decks (a bridge keeps rung 2's draped ribbon over whatever is under it;
+rung 8 builds the deck), the per-patch material mask that would paint roads on patches too coarse for
+a bed (section 6.3), shore types from OSM (`natural=beach`/`cliff`, and the seawall question in
+section 14), rail beds (rail is not in the ways layer yet), and building parts with `min_height`
+(they float by design and get no pad).
+
+**For rung 3's agent:**
+- A road piece pinned at its two ends is all the identity a bed needs: keep clipping ways exactly at
+  tile borders, and the beds stay correct with no margin in the files.
+- Sample the land layer only through the pack that HOLDS the point (`MapSet::land_at`): a pack's
+  descent toward a point outside it ends in a cell that does not hold the point and reads one of its
+  corners (a test of this rung read a 2.9 m cross-fall that was a 0.8 m one). Silverdale straddles
+  two packs, so this is not an edge case.
+- A camera standing inside a footprint stands on its pad: a vantage 6 m over a pad put the eye in a
+  default-height roof's plane and drew it edge-on across the frame. Keep rig cameras outside
+  footprints.
+- `pack_depth` above 14 turns the forest on (`TREE_MIN_DEPTH` 15). Measure a terrain change with the
+  rig's `tree_density` and `grass_density` at 0 as well, or the forest's cost reads as the terrain's.
+- Other sessions' compiles inflate the cpu.* columns of a timing sweep (the rig flags the capture
+  CONTAMINATED); the gpu.* columns, from timestamps, held steady through them. `--wait-builds` waits
+  them out when the CPU side matters.
+
 ## 14. Questions only the operator can answer
 
 1. **Land heights: GEDTM30 or Copernicus GLO-30?** GEDTM30 is bare earth (the ground under the
@@ -862,6 +1071,21 @@ Overture's footprints will grow the building layer.
   the top of the forest; Overture fills the rural houses OSM lacks; packs are release files cut by
   tile, fetched only where a player goes), "Yes." to all three. GEDTM30 for land heights, Overture
   for buildings, packs as GitHub release assets.
+
+### Rung 2b's questions (2026-11-09)
+
+7. **How far full detail reaches in a pack.** Shipped: depth 20 within 100 m of the camera (rung 2b's
+   outcome has the costs: 2 to 8% more GPU time at the Silverdale vantages). Full detail across the whole view costs about a quarter more GPU time 60
+   to 250 m up with the forest off, half again with it, because a deep patch costs the renderer per
+   patch and every patch of depth 15 or more carries the forest. **Recommendation: keep the reach
+   until the renderer batches patch draws (terrain-draw-batching.md) and the forest's own cost item
+   lands, then widen it to the whole view** (one number in `levels.ron`).
+8. **A street on a mapped seawall.** Within the shore band the coast wins, so where GEDTM30 stands a
+   street well above the water close to the line (Tracyton Boulevard NW: 6 m up, 10 m from the water)
+   the band draws it lower and tilted toward the water. **Recommendation: in rung 3 read OSM's
+   `man_made=seawall`, `barrier=retaining_wall` and `man_made=embankment` as a shore type whose band
+   steps at the wall instead of ramping**, so such a street keeps its height and the wall stands in
+   the water.
 
 ## 15. Risks
 

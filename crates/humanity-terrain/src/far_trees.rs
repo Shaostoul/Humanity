@@ -285,7 +285,7 @@ pub fn build_far_tree_sheet(
                 // The map packs' ground: the far sheet must agree with the
                 // card bake or the handoff shows trees appearing over water.
                 let e = match &map {
-                    Some(m) => crate::map_ground::apply_normalized(m, dir, e, crate::map_ground::GATE_DEPTH, range_m, sea, None),
+                    Some(m) => crate::map_ground::apply_normalized_gate(m, dir, e, range_m, sea),
                     None => e,
                 };
                 let elev_m = (e - sea) * range_m;
@@ -632,6 +632,7 @@ mod tests {
         // 13, two levels short of TREE_MIN_DEPTH, so it has no cards ever).
         let params = ChunkParams {
             occluder_r_m: None,
+            deep: Default::default(),
             radius_m: def.radius,
             band: RadialBand {
                 min_r_m: def.radius - 200.0,

@@ -2256,9 +2256,33 @@ its tile (the rings' corners are rounded to OSM's integers), so the open sea has
 tile borders. Retired:
 data/maps/regions (HOSMREG2, HOSDEM1), scripts/fetch-osm-region.mjs, scripts/fetch-region-dem.mjs,
 water_carve.rs, region_meshes.rs, the AWS Terrain Tiles credit. Red-run switch:
-`HUMANITY_SHORE_BAND=0`. Not built (deferred): road beds and building pads.
+`HUMANITY_SHORE_BAND=0`. Road beds and building pads came in rung 2b (below).
 - Native: crates/humanity-terrain/src/{map_pack.rs, map_levels.rs, map_ground.rs, map_build/}, planet_chunks.rs (nested lattice, the formula), drawn_surface.rs, osm_region.rs (`region_from_pack`), src/engine/map_meshes.rs, src/engine/shore_probe.rs, src/gui/pages/maps/planet_view.rs
 - Data: data/maps/packs/, data/maps/levels.ron, data/maps/places.ron; tests: map_ground_tests.rs (the waterfront and the old box edge at depths 13 and 20, tile-border vertices in the open Sound), map_pack_tests.rs, map_build's own, map_tiles_tests.rs `lattice_is_the_meshers_vertices`, drawn_surface_pack_tests.rs
+
+### Whole-Earth Maps, Rung 2b: Road Beds, Building Pads, Full Detail in a Pack (2026-11-09)
+The rung between 2 and 3 of docs/design/whole-earth-maps.md (as built: section 6.4; outcome in
+section 13). ROAD BEDS: inside the one ground formula (crates/humanity-terrain/src/map_beds.rs, a
+child of map_ground, before the shore band), each road piece's centreline profile (the land layer
+every 2 m, averaged per class, held to the class's grade, pinned to the natural ground at both ends)
+with a flat carriageway plus shoulder and 1 in 2 cut or fill back to natural; bridges, tunnels and
+`layer` above 0 leave the ground alone. BUILDING PADS: the floor is the median of the land layer over
+the footprint, held over it and a 1.5 m apron, then 1 in 2 back. Pinning each piece at its ends makes
+a profile identical in every tile that reads it (the clip's crossing is the same point on both sides
+of a tile border), so the pack format is unchanged. The coast wins within the shore band. A modifier
+changes a patch only where wider than one vertex spacing, and never above depth 15. THE MESHER draws
+each ribbon edge on its own ground plus a 4 cm decal offset (2 cm for a footway), every 6 m (4 m on service roads and footways), and
+stands a building's floor on its pad with a plinth down to the natural ground: the 0.18 m and 0.12 m
+lifts and the 2.5 m buried skirt are gone (kept only behind `HUMANITY_GROUND_BEDS=0`, the red run);
+tunnels are hidden, bridges keep the draped ribbon until their deck. FULL DETAIL: an installed pack's
+tile refines to patch depth 20 within 100 m of the camera with or without the tile tier
+(ChunkParams::deep, levels.ron's `pack_detail`; measured: 2 to 8% more GPU time near Silverdale, where
+the whole view cost 16 to 65%; the dev showcase keys `pack_depth` and `pack_within_m` compare settings
+in one boot). THE GATE: src/engine/bed_probe.rs
+(the `bed_probe` verb), scripts/lib/bed-probe-check.js (road_on_bed, building_on_pad), the vantages
+silverdale-road-slope and silverdale-building-slope. Bench: examples/bench_map_patches.rs.
+- Native: crates/humanity-terrain/src/{map_beds.rs, map_beds_tests.rs, map_ground.rs, map_levels.rs, osm_region.rs (`road_edge_radius`, `building_levels`, `MeshGround`), planet_chunks.rs (`DeepTiles`)}, src/engine/{map_meshes.rs (`DistrictGround`, `deep_tiles`), bed_probe.rs, ipc.rs}
+- Data: data/maps/levels.ron's `beds` block; tests: map_beds_tests.rs (sloped streets flat, sloped footprints on their floor, a road across a tile border, coarse patches untouched, grades, the coast owning the waterfront street, each with a beds-off negative control), osm_region's mesher tests, scripts/tests/bed-probe-check.test.js
 
 ### The Sharp Converged Sky (v0.1165, phase 8)
 The temporal cloud map is 2048^2 (edge-sharpness ceiling halved to
