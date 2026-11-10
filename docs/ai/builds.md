@@ -286,6 +286,16 @@ logical processor (twelve here). The dependency crates are not gated by the slot
 2026-10-23 eighty cargo and rustc processes left 690 MB of 32 GB free. `CARGO_BUILD_JOBS`
 overrides it for one command.
 
+## Spawning cargo from a test or a script: the proxy, from the repo root (2026-11-09)
+
+Run `cargo` through rustup's proxy with the repo root as the working folder, never the toolchain's
+own `cargo.exe` (`option_env!("CARGO")`, `rustup which cargo`). The proxy reads
+`rust-toolchain.toml` and passes the pinned toolchain to every compile; the bare `cargo.exe` does
+not, and cargo compiles a registry crate from that crate's own folder outside the repo, where rustup
+falls back to the machine's default toolchain (1.88 here). The dependencies then come out of one
+compiler and our crates out of another: `E0514: found crate serde compiled by an incompatible
+version of rustc`. Seen when the AI client tests built the fake engine that way (src/ai/client_tests.rs).
+
 ## Measured 2026-10-24 (quiet machine, Rust 1.99.1, about 23 GB of RAM free throughout)
 
 - **Debug info (adopted, 41e1e8b3f):** line tables only for our crate, none for the dependencies.
