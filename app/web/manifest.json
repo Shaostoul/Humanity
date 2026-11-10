@@ -1353,9 +1353,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:8f59e2357987f9b55325107e407f123c6adb55d554fbf2a300b61a86070d4f0e",
+      "hash": "sha256:f2cd8626dd70b40fe5ea198fda16558a0ba7b94680cef30e325aab7514fb9ab1",
       "size": 48670,
-      "modified": 1794295241
+      "modified": 1794299070
     },
     {
       "path": "/files.html",
@@ -1461,9 +1461,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:0617776983e0077ec192cc361d1211337cf3ea0e0102c9a9f5a93837132c553b",
+      "hash": "sha256:af2bd325b3d1eaa47d58d5b03a59707060a22757e6871b4c10ef818e24af19e2",
       "size": 24112,
-      "modified": 1794295241
+      "modified": 1794299070
     },
     {
       "path": "/pages/accord-app.js",
@@ -1665,9 +1665,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:4ad5b9e1faf3bf9a905621633e2db14ba520d2ae16a90c3b2c76350b4d3117be",
+      "hash": "sha256:450811b82fd09f604bfc530ad4688d3162990698a13cee6b545d76a1795d8147",
       "size": 126318,
-      "modified": 1794295241
+      "modified": 1794299070
     },
     {
       "path": "/pages/settings-privacy.js",
@@ -2175,9 +2175,9 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:5d4b5ee2d21553251eca1c9758849847eb6274c93773507147f603d011b819ae",
+      "hash": "sha256:be9a9391a745cdfc1b87c3c939aba12abf696850c8311a74a67b7d83b6d11c12",
       "size": 132922,
-      "modified": 1794295241
+      "modified": 1794299070
     },
     {
       "path": "/shared/ship-plan.js",
@@ -2205,9 +2205,9 @@
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:7865911275590875014a7df133cd937620fdbc15884aa02d102743a8de5b69e9",
+      "hash": "sha256:6a5869a97c697a5e07ea45e590917fa8c31fda2adfd47ed8a8591fb177ad4f07",
       "size": 6165,
-      "modified": 1794295241
+      "modified": 1794299070
     },
     {
       "path": "/shared/theme.css",
@@ -2327,7 +2327,7 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1794295253
+      "modified": 1794299084
     }
   ],
   "total_size": 18019168,
