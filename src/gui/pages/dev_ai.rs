@@ -145,7 +145,12 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             Some((in_job, priority)) => {
                 let cap = c.config.memory_cap_mb;
                 row(ui, theme, t("dev.ai.job"), if in_job { tf("dev.ai.in_job", &[("cap", &cap)]) } else { t("dev.ai.not_in_job").to_string() });
+                // `ai::job` is Windows only; elsewhere `containment()` is None and this arm never runs,
+                // but it must still compile there (the v0.1554.0 macOS and Linux builds failed on it).
+                #[cfg(windows)]
                 let below = priority == crate::ai::job::BELOW_NORMAL;
+                #[cfg(not(windows))]
+                let below = false;
                 row(ui, theme, t("dev.ai.priority"), if below { t("dev.ai.below_normal").to_string() } else { tf("dev.ai.priority_other", &[("class", &priority)]) });
                 let (now, peak) = c.memory_mb();
                 let mb = |v: Option<f64>| v.map_or("?".to_string(), |v| format!("{v:.1}"));
