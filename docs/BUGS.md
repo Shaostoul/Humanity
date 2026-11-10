@@ -7680,3 +7680,9 @@ he noticed the "2+ hour task".
 **Found by** the character animation rung 2a agent while adding the crouch to the same description: the words in data/i18n/en.json wrote their placeholders as single-braced names, while the filler that puts each mode's speeds in (`humanity_core::i18n::fill`, through `tf`) reads only double-braced ones, so the four speeds were never filled in and the description showed the names. The only single-braced placeholders in the file.
 - **Fixed**: the description's placeholders are double-braced (and it says C crouches), written with `node scripts/i18n-add.js --replace`.
 - **Held by** `gui::pages::settings::walking_pace_hint_tests::the_walking_pace_hint_fills_in_the_speeds` (no brace left and the speeds present; red against the words as they were).
+
+## BUG-290: the v0.1554.0 macOS and Linux builds fail on a Windows-only name in the Dev > AI page (FIXED 2026-11-10, found 2026-11-10)
+
+**Found by** the release workflow for v0.1554.0: "Build (macos-arm64)", "(macos-x64)" and "(linux-x64)" stopped with `error[E0433]: cannot find `job` in `ai`` at `src/gui/pages/dev_ai.rs:148`, while Windows, the relay and the data bundle built, so the release carried Windows files only and the mirror step was skipped (the website kept offering v0.1553.0). `src/ai/job.rs` (the engine's job object) is `#[cfg(windows)]`, and the Dev page compared the priority class with `crate::ai::job::BELOW_NORMAL` unguarded. Every local gate passed because the dev host only compiles the native app for Windows, and CI compiled only the relay per push.
+- **Fixed** (abe528e5d): the comparison is `cfg(windows)`; elsewhere `containment()` is None and the arm never runs. Released as v0.1554.1 for every platform.
+- **Held by** Verify's new `native-linux` job (9c07a3df6): `cargo check --features native --lib --bins` on Linux on every push. Seen red on a temporary branch at v0.1554.0's tree (the same E0433 at dev_ai.rs:148), green on the fix.

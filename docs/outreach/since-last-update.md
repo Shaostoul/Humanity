@@ -11,6 +11,10 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1554.1 (10 November 2026)
+
+- v0.1554.0 for macOS and Linux, whose builds had stopped on one line meant only for Windows.
+
 ### v0.1554.0 (10 November 2026)
 
 - Shape your body on the character page with build, proportions and ancestry sliders; other players see the shape you made.
