@@ -1180,6 +1180,111 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             _ => log::warn!("Showcase: foot_probe wants seconds from 0 to 30, not {v:?}"),
         }
     }
+    // INTERACTIONS' VERBS (character animation rung 2b, 2026-11-10; engine/interact.rs). Permanent dev
+    // tooling, each released between vantages (scripts/lib/showcase-pins.js).
+    // {"crowd_act":"chair_7[:chair_seat][,hold_s][,body=male]"}: one more stand-in using an anchor of
+    // a placed machine (by its instance id; its first anchor unless one is named), walking in from the
+    // anchor's approach point; it gets up after hold_s seconds when given, and is drawn with the body
+    // named (else one by the crowd's hash: a red twin names the body its clip's seat really misses).
+    // {"act":"chair_7[:chair_seat]"}: the player is granted that anchor from where they stand, as E
+    // at it does; {"act":"leave"} gets up (the exit plays); {"act":"none"} lets go at once.
+    if let Some(spec) = grab("crowd_act").or_else(|| grab("act").map(|s| format!("@me {s}"))) {
+        let (me, spec) = match spec.strip_prefix("@me ") {
+            Some(rest) => (true, rest.to_string()),
+            None => (false, spec),
+        };
+        let lib = state.animation.library();
+        if me && spec == "none" {
+            state.interact.me = None;
+            state.controller.held = None;
+            log::info!("Showcase: act -> none");
+        } else if me && spec == "leave" {
+            if let Some(e) = state.interact.me.as_mut() {
+                e.leave = true;
+            }
+            log::info!("Showcase: act -> leave");
+        } else if let Some(lib) = lib {
+            let mut parts = spec.split(',');
+            let head = parts.next().unwrap_or("").trim();
+            let rest: Vec<&str> = parts.map(str::trim).collect();
+            let hold_s = rest.iter().find_map(|s| s.parse::<f32>().ok()).filter(|s| s.is_finite() && *s > 0.0);
+            let body = rest.iter().find_map(|s| s.strip_prefix("body=")).map(humanity_core::player_look::clean_body_id).filter(|b| !b.is_empty());
+            let (machine, anchor) = match head.split_once(':') {
+                Some((m, a)) => (m.trim(), Some(a.trim())),
+                None => (head, None),
+            };
+            let label = state.gui_state.machine_labels.iter().position(|l| l.machine_id == machine);
+            let placed = label.and_then(|i| crate::engine::interact::machine_anchors(state, &lib, i).into_iter().find(|p| anchor.is_none_or(|a| lib.anchors.anchors[p.anchor].id == a)));
+            match placed {
+                Some(placed) => {
+                    let def = &lib.anchors.anchors[placed.anchor];
+                    if me {
+                        let feet = state.camera.position - Vec3::Y * state.controller.eye_height();
+                        let facing = crate::engine::animation::facing_for_camera_yaw(state.camera.yaw);
+                        crate::engine::interact::grant(state, placed, feet, facing);
+                        log::info!("Showcase: act -> the player at {machine}'s {}", def.id);
+                    } else {
+                        let (approach, facing) = (placed.approach(def), placed.root(def).1);
+                        let now = state.animation.clock();
+                        state.animation.crowd.push(crate::engine::animation::CrowdFigure {
+                            motion: crate::engine::animation::CrowdMotion::Turn { at: approach, rate: 0.0 },
+                            phase: (facing / std::f32::consts::TAU).rem_euclid(1.0),
+                            born: now,
+                            look: body.clone().map(|body| crate::engine::animation::CrowdLook { body, shape: Default::default(), detail: Default::default(), dress: Default::default() }),
+                            crouch: false,
+                            act: Some(crate::engine::animation::CrowdAct { placed, hold_s }),
+                        });
+                        log::info!("Showcase: crowd_act -> a stand-in at {machine}'s {} (hold {hold_s:?})", def.id);
+                    }
+                }
+                None => log::warn!("Showcase: {} wants \"<machine id>[:<anchor id>]\" naming a placed machine with that anchor, not {spec:?}", if me { "act" } else { "crowd_act" }),
+            }
+        }
+    }
+    // {"warp":"0"}: motion warping off (the interaction probe's red twin: every clip plays as made);
+    // {"hand_ik":"0"}: hands and feet left off their contacts (the climb's and the workbench's red
+    // twin); {"fp_head":"0"}: the first-person head drawn round the eye (its red twin); {"rung2b":"0"}:
+    // no interactions, look-at or first-person body, as main drew (the cost twin). "1" puts each back.
+    for (verb, slot) in [("warp", 0usize), ("hand_ik", 1), ("fp_head", 2), ("rung2b", 3)] {
+        if let Some(v) = grab(verb) {
+            let on = v != "0";
+            match slot {
+                0 => state.interact.warp_on = on,
+                1 => state.interact.hand_ik_on = on,
+                2 => state.interact.fp_head_hidden = on,
+                _ => state.interact.rung2b_on = on,
+            }
+            log::info!("Showcase: {verb} -> {on}");
+        }
+    }
+    // {"fp_body":"0"} / {"reduce_motion":"1"}: Settings' "Show my body in first person" and "Reduce
+    // motion" (rung 2b).
+    for (verb, slot) in [("fp_body", 0usize), ("reduce_motion", 1)] {
+        if let Some(v) = grab(verb) {
+            let on = v != "0";
+            let s = &mut state.gui_state.settings;
+            let field = if slot == 0 { &mut s.fp_body } else { &mut s.reduce_motion };
+            if *field != on {
+                *field = on;
+                state.gui_state.settings_dirty = true;
+            }
+            log::info!("Showcase: {verb} -> {on}");
+        }
+    }
+    // {"anchor_probe":"1.5"}: for that many seconds, measure every near person in an interaction (the
+    // hips on the seat, the hands on the rungs or the work surface, the hand at a door's handle) and
+    // the first-person eye, from the DRAWN mesh, then write debug/anchor_probe.json
+    // (engine/anchor_probe.rs) for the vantages' `anchor_probe` check.
+    if let Some(v) = grab("anchor_probe") {
+        match v.trim().parse::<f32>() {
+            Ok(s) if s.is_finite() && s > 0.0 && s <= 30.0 => {
+                let _ = std::fs::remove_file(crate::engine::anchor_probe::REPORT_PATH);
+                state.interact.probe = Some(crate::engine::anchor_probe::AnchorProbe { until: state.animation.clock() + s, ..Default::default() });
+                log::info!("Showcase: anchor_probe -> watching for {s} s");
+            }
+            _ => log::warn!("Showcase: anchor_probe wants seconds from 0 to 30, not {v:?}"),
+        }
+    }
     // {"walk_pace":"realistic"} / {"walk_pace":"simplified"} (2026-11-09): Settings' walking pace
     // (engine/walk_pace.rs), so a rig walks and runs at either mode's speeds.
     if let Some(v) = grab("walk_pace") {
@@ -5094,6 +5199,7 @@ mod remote_player_recorder_tests {
                 interpolation_t: 0.5,
                 last_update_time: 0.0,
                 posture: Default::default(),
+                doing: Default::default(),
             },
             SnapshotBuffer::new(target, Quat::IDENTITY, Vec3::ZERO, 0.0, 1.0),
         ));

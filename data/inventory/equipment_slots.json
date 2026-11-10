@@ -1,11 +1,13 @@
 {
-  "_comment": "Equipment slot definitions for the inventory page. Add or reorder slots here, no code change required. id is the stable storage key; label is the user-visible string.",
+  "_comment": "Equipment slot definitions for the inventory page. Add or reorder slots here, no code change required. id is the stable storage key; label is the user-visible string. Since character animation rung 2b (2026-11-10) the two grip sockets (grip_r, grip_l) hold what is held (tools and weapons; humanoid.ron's grip_r and grip_l sockets); hands is what is worn on them (gloves).",
   "slots": [
     { "id": "head",  "label": "Head" },
     { "id": "chest", "label": "Chest" },
     { "id": "legs",  "label": "Legs" },
     { "id": "feet",  "label": "Feet" },
     { "id": "hands", "label": "Hands" },
+    { "id": "grip_r", "label": "Right hand" },
+    { "id": "grip_l", "label": "Left hand" },
     { "id": "back",  "label": "Back" }
   ]
 }

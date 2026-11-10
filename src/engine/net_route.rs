@@ -371,6 +371,9 @@ pub(crate) fn position_update_from(v: &serde_json::Value, joined: bool) -> Optio
         timestamp,
         // Clamped by the shared reader; an older app's message (none) reads as standing.
         stance: humanity_core::stance::Posture::from_json(v.get("stance")),
+        // Where they look and what they are using (rung 2b), each through its one reader: an
+        // anchor the shipped game does not know, or a phase out of range, reads as using nothing.
+        doing: humanity_core::stance::Doing::from_json(v, humanity_core::stance::AnchorIds::shipped()),
     })
 }
 
@@ -657,6 +660,7 @@ pub(crate) fn drive_position_send(state: &mut EngineState, in_world: bool, dt: f
         // how we stand now.
         if in_world {
             out.stance = local_posture(state);
+            out.doing = crate::engine::interact::local_doing(state);
         }
         send_game_position(state, &out);
     }
@@ -703,6 +707,9 @@ pub(crate) fn position_update_json(out: &crate::net::sync::OutgoingPosition) -> 
     if let Some(stance) = out.stance.to_json() {
         msg["stance"] = stance;
     }
+    // Where we look and what we are using (rung 2b, 2026-11-10): the pitch and the act, each left
+    // out when level or idle, so that message is the same bytes as before too.
+    out.doing.write_json(&mut msg);
     msg
 }
 
@@ -711,9 +718,11 @@ pub(crate) fn position_update_json(out: &crate::net::sync::OutgoingPosition) -> 
 /// not on a ladder, not in dev flight).
 pub(crate) fn local_posture(state: &EngineState) -> humanity_core::stance::Posture {
     let c = &state.controller;
+    // Seated, lying or on a ladder (rung 2b): the act's stance (the act itself says on what).
+    let acting = state.animation.my_act().and_then(|(id, _)| state.animation.library().and_then(|lib| crate::engine::interact::act_stance(&lib, &id)));
     humanity_core::stance::Posture {
-        stance: if c.crouching() { humanity_core::stance::Stance::Crouch } else { humanity_core::stance::Stance::Stand },
-        airborne: c.airborne(),
+        stance: acting.unwrap_or(if c.crouching() { humanity_core::stance::Stance::Crouch } else { humanity_core::stance::Stance::Stand }),
+        airborne: c.airborne() && acting.is_none(),
     }
 }
 
@@ -1419,7 +1428,7 @@ mod tests {
         let mesh = figure_head_mesh_data(FIGURE_HEAD_MESH_R_M);
         for yaw in [0.0f32, 0.7, 2.0, -2.6] {
             // Our camera's yaw, as it goes out and as the other client reads it.
-            let out = OutgoingPosition { position: Vec3::new(4.0, 1.7, -3.0), yaw, velocity: Vec3::ZERO, timestamp: 1.0, stance: Default::default() };
+            let out = OutgoingPosition { position: Vec3::new(4.0, 1.7, -3.0), yaw, velocity: Vec3::ZERO, timestamp: 1.0, stance: Default::default(), doing: Default::default() };
             let mut v = position_update_json(&out);
             v["player_id"] = serde_json::json!(9);
             let Some(NetMessage::PositionUpdate { position, rotation, .. }) = position_update_from(&v, true) else {
@@ -1591,6 +1600,12 @@ mod tests {
     /// (the message as before), and an older message without one reads as standing. Seen red
     /// 2026-11-09 with `position_update_from` leaving the stance at its default: "the crouch comes
     /// back" (left: Posture { stance: Stand, airborne: false }, right: Crouch, airborne).
+    ///
+    /// THE PITCH AND THE ACT (character animation rung 2b, 2026-11-10): looking 30 degrees down while
+    /// seated goes out as `"pitch": -30` and `"act": ["chair_seat", 1]` and reads back as both;
+    /// looking level and using nothing go out as no fields at all. Seen red 2026-11-10 with the
+    /// message built without them (`out.doing.write_json` left out): "the pitch goes out in whole
+    /// degrees" (left: Null, right: Number(-30)).
     #[test]
     fn our_position_update_carries_our_clock_and_others_are_taken_only_once_joined() {
         use crate::net::protocol::NetMessage;
@@ -1604,18 +1619,24 @@ mod tests {
             velocity: Vec3::new(5.0, 0.0, 0.0),
             timestamp: 12.345,
             stance: crouched,
+            doing: humanity_core::stance::Doing { pitch: (-30f32).to_radians(), act: Some(humanity_core::stance::Act { anchor: "chair_seat".into(), phase: 1 }) },
         };
         let mut v = position_update_json(&out);
         assert_eq!(v["type"], "game_position_update");
         assert_eq!(v["stance"], serde_json::json!(129));
-        let standing = position_update_json(&OutgoingPosition { stance: Posture::default(), ..out });
+        assert_eq!(v["pitch"], serde_json::json!(-30), "the pitch goes out in whole degrees");
+        assert_eq!(v["act"], serde_json::json!(["chair_seat", 1]), "the act goes out as its anchor and phase");
+        let standing = position_update_json(&OutgoingPosition { stance: Posture::default(), doing: Default::default(), ..out.clone() });
         assert!(standing.get("stance").is_none(), "standing on the ground goes out as no field: {standing}");
+        assert!(standing.get("pitch").is_none() && standing.get("act").is_none(), "looking level and using nothing go out as no fields: {standing}");
         // The relay adds who sent it before passing it on.
         v["player_id"] = serde_json::json!(42);
         assert!(position_update_from(&v, false).is_none(), "a chat-only client does not queue another player's position");
         match position_update_from(&v, true) {
-            Some(NetMessage::PositionUpdate { player_id, position, rotation, velocity, timestamp, stance }) => {
+            Some(NetMessage::PositionUpdate { player_id, position, rotation, velocity, timestamp, stance, doing }) => {
                 assert_eq!(stance, crouched, "the crouch comes back");
+                assert_eq!(doing.act, out.doing.act, "the act comes back");
+                assert!((doing.pitch - out.doing.pitch).abs() < 1e-4, "the pitch comes back: {}", doing.pitch.to_degrees());
                 assert_eq!(player_id, 42);
                 assert_eq!(timestamp, 12.345, "the sender's clock goes out as the timestamp");
                 assert_eq!(position, [1.0, 1.7, -2.0]);
@@ -1678,6 +1699,7 @@ mod tests {
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
                 posture: Default::default(),
+                doing: Default::default(),
                 look: None,
                 key: None,
             },
@@ -1696,6 +1718,7 @@ mod tests {
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
                 posture: Default::default(),
+                doing: Default::default(),
                 look: Some(tallest.clone()),
                 key: None,
             },

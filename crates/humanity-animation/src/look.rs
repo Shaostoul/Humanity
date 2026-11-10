@@ -271,6 +271,10 @@ pub struct PersonMesh {
     pub lift: f32,
     /// Each foot's vertices (primitive, vertex): the foot probe's sole.
     pub foot_vertices: [Vec<(usize, usize)>; 2],
+    /// The drawn vertices that rest on a seat (the hips and thighs, trousers on) and each hand's
+    /// (rung 2b): the interaction probe and the seat's contact measure them.
+    pub seat_vertices: Vec<(usize, usize)>,
+    pub hand_vertices: [Vec<(usize, usize)>; 2],
     /// The version it was built for (`look_key`).
     pub key: u64,
 }
@@ -584,7 +588,10 @@ pub fn build_person(body: &LoadedBody, base: &BodyBase, look: &LookLibrary, huma
             (Some(rig.with_extents(&skeleton, &at_rest)), lift)
         }
     };
-    PersonMesh { model, parts, skeleton, feet, lift, foot_vertices, key }
+    // 7. What rests on a seat and each hand (rung 2b), drawn vertices only.
+    let seat_vertices = crate::library::vertices_bound_to(&model, &crate::library::seat_joints(&skeleton, humanoid));
+    let hand_vertices = [0, 1].map(|side| crate::library::vertices_bound_to(&model, &crate::library::hand_joints(&skeleton, humanoid, side)));
+    PersonMesh { model, parts, skeleton, feet, lift, foot_vertices, seat_vertices, hand_vertices, key }
 }
 
 /// Where the line through `o` along `d` meets triangle (a, b, c): the signed distance along `d` (a

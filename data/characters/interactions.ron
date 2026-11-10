@@ -1,0 +1,204 @@
+// INTERACTION ANCHORS (character animation rung 2b, 2026-11-10; docs/design/character-animation.md
+// sections 3.3 and 17; read by crates/humanity-animation/src/interact.rs).
+//
+// MotionBricks' "Smart Primitives" place target poses around an object so sitting or climbing snaps
+// together; this is that idea as our own data. Each row is ONE ANCHOR: a place on a kind of object
+// where a person sits, lies, climbs, works or takes hold. Objects name their anchors: a machine
+// definition's `anchors` (data/machines/*.ron: the chair, the couch's three seats, the bed, the
+// workbenches), a structure type's (data/blueprints/structure_types.ron: the ladder), an opening
+// style's (data/blueprints/opening_styles.ron: a swing door's handle). A new chair is a new row and
+// a line in its definition, never code.
+//
+// THE OBJECT'S FRAME: metres, +Y up, the object's own +Z, from the middle of its footprint on the
+// floor (where a placed machine stands: its model is fitted to its height and centred on its
+// footprint, src/assets/mod.rs `fit_for_machine`). A door's frame is its panel's: x from the door's
+// FREE edge back toward its hinge, y up from its sill, z out of the wall (both faces are tried, the
+// one the person stands on wins). A ladder or a workbench is used from whichever side the person is
+// on (the row is written for its -Z side and mirrored).
+//
+//   id          the anchor's name (the network carries it: at most 32 characters, and the relay and
+//               the game drop any id this file does not list; humanity_core::stance::AnchorIds)
+//   kind        Sit, Lie, Climb, Station or Door: what the body shows
+//   root        where the person's root (between the feet, on the floor) stands while it holds; for
+//               lying, the point on the floor under the hips
+//   facing_deg  which way they face while it holds: a turn about up from the object's +Z (a chair
+//               that faces its -Z: 180); for lying, the way the feet point
+//   approach    where they stand before it, and where they get up to
+//   contacts    the targets: Hips (on the seat or the mattress, the HEIGHT of the surface under them),
+//               LeftHand, RightHand, Hands (both, either side of the point), Feet; a hand's grip names
+//               a row of grips.ron
+//   enter, hold, exit
+//               each phase's clip (clips.ron) or target pose (Lie, Climb, Reach: built with IK where
+//               no clip fits), and the longest it may take in seconds
+//   root_driven the interaction moves the person's root (the capsule) from where they stood to the
+//               anchor over its entry and back over its exit, inside the grant (sitting, lying);
+//               false follows the capsule as the walk, the ladder and the doors already move it
+//   reach_m     how far from the approach point a person may be granted it
+//   span_m      (Station) how far either way along the object's x the hands may slide to stay in
+//               front of the person
+//
+// Every seat height below was measured from the drawn model, fitted to its definition's height as the
+// game fits it (a 10 cm grid of the highest up-facing surface, 2026-11-10): the chair's seat 0.47 m
+// (chaircushion.gltf at 0.90 m), the couch's 0.40 m (loungesofa.gltf at 0.80 m), the bed's covers
+// 0.40 m with the pillows 0.42 to 0.45 m toward its +Z head (beddouble.gltf at 0.60 m), the workbench
+// top 0.85 m (its definition's height).
+[
+    // A chair (data/machines: "chair"), facing its -Z, its back toward +Z: the seat from z -0.20 to
+    // about +0.05 at 0.47 m, the back from z +0.10. The Quaternius sit (sit_down, sit_idle, sit_up)
+    // played with its contact frame warped onto THIS seat.
+    (
+        id: "chair_seat",
+        kind: Sit,
+        root: (0.0, 0.0, -0.36),
+        facing_deg: 180.0,
+        approach: (0.0, 0.0, -0.62),
+        contacts: [(part: Hips, at: (0.0, 0.47, -0.04))],
+        enter: (clip: Some("sit_down"), max_s: 1.6),
+        hold: (clip: Some("sit_idle"), max_s: 2.0),
+        exit: (clip: Some("sit_up"), max_s: 1.3),
+        root_driven: true,
+        reach_m: 1.6,
+    ),
+    // The couch's three seats (data/machines: "couch", loungesofa.gltf): a lower seat (0.40 m) from
+    // z -0.45 to +0.15, 1.2 m wide between its arms, the back from z +0.20.
+    (
+        id: "couch_seat_left",
+        kind: Sit,
+        root: (-0.42, 0.0, -0.52),
+        facing_deg: 180.0,
+        approach: (-0.42, 0.0, -0.80),
+        contacts: [(part: Hips, at: (-0.42, 0.40, -0.18))],
+        enter: (clip: Some("sit_down"), max_s: 1.6),
+        hold: (clip: Some("sit_idle"), max_s: 2.0),
+        exit: (clip: Some("sit_up"), max_s: 1.3),
+        root_driven: true,
+        reach_m: 1.4,
+    ),
+    (
+        id: "couch_seat_middle",
+        kind: Sit,
+        root: (0.0, 0.0, -0.52),
+        facing_deg: 180.0,
+        approach: (0.0, 0.0, -0.80),
+        contacts: [(part: Hips, at: (0.0, 0.40, -0.18))],
+        enter: (clip: Some("sit_down"), max_s: 1.6),
+        hold: (clip: Some("sit_idle"), max_s: 2.0),
+        exit: (clip: Some("sit_up"), max_s: 1.3),
+        root_driven: true,
+        reach_m: 1.4,
+    ),
+    (
+        id: "couch_seat_right",
+        kind: Sit,
+        root: (0.42, 0.0, -0.52),
+        facing_deg: 180.0,
+        approach: (0.42, 0.0, -0.80),
+        contacts: [(part: Hips, at: (0.42, 0.40, -0.18))],
+        enter: (clip: Some("sit_down"), max_s: 1.6),
+        hold: (clip: Some("sit_idle"), max_s: 2.0),
+        exit: (clip: Some("sit_up"), max_s: 1.3),
+        root_driven: true,
+        reach_m: 1.4,
+    ),
+    // The bed's edge (data/machines: "bed"): sitting on its +X side, facing out, on the covers at
+    // 0.40 m (the bed's head is +Z).
+    (
+        id: "bed_edge",
+        kind: Sit,
+        root: (1.02, 0.0, -0.20),
+        facing_deg: 90.0,
+        approach: (1.30, 0.0, -0.20),
+        contacts: [(part: Hips, at: (0.62, 0.40, -0.20))],
+        enter: (clip: Some("sit_down"), max_s: 1.6),
+        hold: (clip: Some("sit_idle"), max_s: 2.0),
+        exit: (clip: Some("sit_up"), max_s: 1.3),
+        root_driven: true,
+        reach_m: 1.6,
+    ),
+    // Lying in the bed, on the back, the head on the pillows (+Z), the feet toward -Z. No lie-down clip
+    // is in the free tier of Quaternius's library, so the idle is turned onto its back about the hips
+    // and laid on the covers (a target pose), the root eased from the bedside onto the bed.
+    (
+        id: "bed_lie",
+        kind: Lie,
+        root: (0.0, 0.0, -0.12),
+        facing_deg: 180.0,
+        approach: (1.25, 0.0, -0.12),
+        contacts: [(part: Hips, at: (0.0, 0.40, -0.12))],
+        enter: (pose: Some(Lie), max_s: 1.4),
+        hold: (pose: Some(Lie), max_s: 2.0),
+        exit: (pose: Some(Lie), max_s: 1.2),
+        root_driven: true,
+        reach_m: 1.8,
+    ),
+    // A ladder (data/blueprints/structure_types.ron: "ladder"), climbed from either face: each hand on
+    // a rung and each foot on a rung below, from the piece's own rung spacing (its height over its
+    // rung count), a diagonal gait. The body is drawn 30 cm from the rungs (the root), where the
+    // shortest body's arms reach a rung from its chest to over its head. The ladder's climb (renderer/camera.rs) moves the capsule; this
+    // only shows it (no clip in the free tier: a target pose with IK).
+    (
+        id: "ladder_climb",
+        kind: Climb,
+        root: (0.0, 0.0, -0.30),
+        facing_deg: 0.0,
+        approach: (0.0, 0.0, -0.55),
+        contacts: [(part: Hands, at: (0.0, 0.0, 0.0), grip: Some("rung")), (part: Feet, at: (0.0, 0.0, 0.0))],
+        enter: (pose: Some(Climb), max_s: 0.3),
+        hold: (pose: Some(Climb), max_s: 1.0),
+        exit: (pose: Some(Climb), max_s: 0.3),
+        root_driven: false,
+        reach_m: 1.2,
+    ),
+    // A workbench or a station's work surface (data/machines: "workbench", "electronics_bench", the
+    // 1.8 m table at 0.85 m): standing at it, the feet 8 cm from its edge, both hands on the surface
+    // 8 cm in from the edge, in front of the person along its length (the shortest body's arms reach
+    // that far without leaning; leaning is the full-body IK rung's). Granted while its card is open and
+    // the person stands 3 to 25 cm from its edge.
+    (
+        id: "workbench_front",
+        kind: Station,
+        root: (0.0, 0.0, -0.43),
+        facing_deg: 0.0,
+        approach: (0.0, 0.0, -0.43),
+        contacts: [(part: Hands, at: (0.0, 0.85, -0.27), grip: Some("flat"))],
+        enter: (pose: Some(Reach), max_s: 0.45),
+        hold: (pose: Some(Reach), max_s: 1.0),
+        exit: (pose: Some(Reach), max_s: 0.35),
+        root_driven: false,
+        reach_m: 1.3,
+        span_m: Some(0.65),
+    ),
+    // The one-person home's workbench (data/machines/home_solo.ron: a box 1.2 by 0.9 by 0.6 m): a
+    // higher, shallower top than the home's table, so its own row.
+    (
+        id: "box_bench_front",
+        kind: Station,
+        root: (0.0, 0.0, -0.38),
+        facing_deg: 0.0,
+        approach: (0.0, 0.0, -0.38),
+        contacts: [(part: Hands, at: (0.0, 0.90, -0.22), grip: Some("flat"))],
+        enter: (pose: Some(Reach), max_s: 0.45),
+        hold: (pose: Some(Reach), max_s: 1.0),
+        exit: (pose: Some(Reach), max_s: 0.35),
+        root_driven: false,
+        reach_m: 1.3,
+        span_m: Some(0.35),
+    ),
+    // A swing door's handle (data/blueprints/opening_styles.ron: "swing"): 7 cm from its free edge at
+    // 0.95 m, the nearer hand on it while the door swings open, then let go. The door's slab draws
+    // no handle yet (home_meshes draws a plain panel), so the hand rests flat where it would be, a
+    // palm pushing the door, rather than closing round nothing.
+    (
+        id: "door_swing_handle",
+        kind: Door,
+        root: (-0.40, 0.0, 0.45),
+        facing_deg: 180.0,
+        approach: (-0.40, 0.0, 0.70),
+        contacts: [(part: RightHand, at: (-0.07, 0.95, 0.045), grip: Some("flat"))],
+        enter: (pose: Some(Reach), max_s: 0.35),
+        hold: (pose: Some(Reach), max_s: 1.2),
+        exit: (pose: Some(Reach), max_s: 0.4),
+        root_driven: false,
+        reach_m: 1.0,
+    ),
+]

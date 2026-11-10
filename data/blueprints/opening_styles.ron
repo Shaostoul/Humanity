@@ -1,15 +1,19 @@
 // HumanityOS OPENING STYLES -- door/window animation styles the construction editor offers.
-// The opening stores the chosen string; a later stage animates from it. Add a style by adding
-// a line here (infinite-of-x): the editor lists every entry, and an AI can enumerate them, so
-// this file IS the source of truth for "what opening styles exist". Compile-time embedded
-// (same registry pattern as lock_types.ron); a change here needs a rebuild.
+// The opening stores the chosen id; crates/humanity-systems/src/door_anim.rs animates from it. Add a
+// style by adding a row here (infinite-of-x): the editor lists every entry, and an AI can enumerate
+// them, so this file IS the source of truth for "what opening styles exist". Compile-time embedded
+// (door_anim::opening_styles); a change here needs a rebuild.
+//
+// anchors (character animation rung 2b, 2026-11-10): the interaction anchors a door of this style
+// offers, ids of data/characters/interactions.ron. A swing door's handle: a person going through
+// closes a hand round it while the door swings open.
 [
-    "swing",
-    "slide",
-    "iris",
-    "rotate",
-    "fold",
-    "energy",
-    "nanowall",
-    "fixed",
+    (id: "swing", anchors: ["door_swing_handle"]),
+    (id: "slide"),
+    (id: "iris"),
+    (id: "rotate"),
+    (id: "fold"),
+    (id: "energy"),
+    (id: "nanowall"),
+    (id: "fixed"),
 ]

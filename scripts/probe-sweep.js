@@ -190,6 +190,9 @@ const BP2 = require("./lib/bed-probe-check.js");
 // The foot_probe vantage check (character animation rung 2a): every near body's drawn feet against
 // the ground under them.
 const FP2 = require("./lib/foot-probe-check.js");
+// The anchor_probe vantage check (character animation rung 2b): every near person in an interaction
+// measured from the drawn mesh against what they touch.
+const AP2 = require("./lib/anchor-probe-check.js");
 // The Maps "ship centred" check (Maps increment 1): the vantage's `map_centre`.
 const MC = require("./lib/map-centre-check.js");
 // The Maps overview check (Maps increment 2): the vantage's `map_overview`.
@@ -1369,6 +1372,30 @@ async function main() {
           for (const f of verdict.failures) log(`  !! foot probe: ${f}`);
           for (const n of verdict.notes) log(`  .. foot probe: ${n}`);
         }
+        // ANCHOR PROBE (character animation rung 2b, 2026-11-10, character-animation.md section 17):
+        // a vantage with `anchor_probe` asks the game to watch every near person in an interaction
+        // (and the first-person eye) for `secs` (src/engine/anchor_probe.rs), keeps the readout beside
+        // the PNG as <id>-anchors.json, and judges it (scripts/lib/anchor-probe-check.js): hips off
+        // THIS seat, a hand off its rung or the work surface, the first-person head drawn round the eye
+        // fail the vantage. `armed: true` means the vantage's own final showcase already asked for the
+        // probe (a moment that passes, a door swinging open), so this only waits for the file.
+        if (v.anchor_probe) {
+          const ap = v.anchor_probe;
+          const apPath = path.join(DEBUG, "anchor_probe.json");
+          const secs = typeof ap.secs === "number" ? ap.secs : 1.5;
+          if (!ap.armed) {
+            if (fs.existsSync(apPath)) fs.unlinkSync(apPath);
+            req("showcase_request.json", { anchor_probe: String(secs) });
+          }
+          const readout = await waitFile("anchor_probe.json", 30000 + secs * 1000);
+          if (!readout) throw new Error("anchor probe: the game wrote no debug/anchor_probe.json");
+          fs.writeFileSync(path.join(OUT, `${v.id}-anchors.json`), JSON.stringify(readout, null, 2));
+          const verdict = AP2.judgeAnchors(readout, ap);
+          rec.anchor_probe = { ok: verdict.ok, misconfigured: verdict.misconfigured, failures: verdict.failures, notes: verdict.notes, rules: verdict.rules };
+          log(`  anchor probe: ${AP2.summarize(verdict)}`);
+          for (const f of verdict.failures) log(`  !! anchor probe: ${f}`);
+          for (const n of verdict.notes) log(`  .. anchor probe: ${n}`);
+        }
         // BED PROBE (whole-Earth maps, the rung between 2 and 3, 2026-11-09, whole-earth-maps.md
         // 6.1 and 6.2): a vantage with `bed_probe` asks the game for a road's cross-section or a
         // building's footing (src/engine/bed_probe.rs), keeps it beside the PNG as <id>-bed.json,
@@ -1452,6 +1479,10 @@ async function main() {
         if (rec.ok && rec.foot_probe && !rec.foot_probe.ok) {
           rec.ok = false;
           rec.error = `FOOT PROBE: ${rec.foot_probe.failures.join(" | ")}`;
+        }
+        if (rec.ok && rec.anchor_probe && !rec.anchor_probe.ok) {
+          rec.ok = false;
+          rec.error = `ANCHOR PROBE: ${rec.anchor_probe.failures.join(" | ")}`;
         }
         if (rec.ok && rec.bed_probe && !rec.bed_probe.ok) {
           rec.ok = false;

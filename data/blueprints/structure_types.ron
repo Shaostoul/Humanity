@@ -23,6 +23,8 @@
     (
         id: "ladder", label: "Ladder", category: "Structure",
         kind: Ladder, shape: Ladder, size: (0.6, 3.0, 0.16), color: (0.72, 0.55, 0.2), steps: 10,
+        // Climbed with hands and feet on its rungs (character animation rung 2b, data/characters/interactions.ron).
+        anchors: ["ladder_climb"],
         note: "A vertical ladder. Stand at it and hold Space to climb up (Shift to descend); step off at the top onto a deck. Let go of the keys part way and you hold on; step away from it there and you fall.",
     ),
     (

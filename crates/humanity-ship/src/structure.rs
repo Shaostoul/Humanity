@@ -152,6 +152,12 @@ pub struct StructureType {
     /// A Handrail row's rail (ship homes increment 7).
     #[serde(default)]
     pub handrail: Option<HandrailSpec>,
+    /// The interaction anchors this piece offers (character animation rung 2b, 2026-11-10): ids of
+    /// `data/characters/interactions.ron`'s rows. A ladder names its climb (hands and feet on its
+    /// rungs, from this row's height and `steps`). Stairs and elevators name none yet: walking
+    /// them is the feet's (rung 2a), riding an elevator is standing.
+    #[serde(default)]
+    pub anchors: Vec<String>,
 }
 
 /// The structural-type registry, parsed once + embedded at compile time (same pattern as

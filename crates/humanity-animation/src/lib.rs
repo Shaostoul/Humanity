@@ -13,6 +13,12 @@
 //! person's reshaped skeleton, the pelvis lowered by the larger drop, the foot turned to the slope
 //! about a toe pivot, foot locking and stair footsteps; and the graph's crouch and jump inputs.
 //!
+//! Rung 2b, 2026-11-10: interactions anchored to things (`interact`): sitting, lying, climbing a
+//! ladder, standing at a station and a hand on a door's handle, each an anchor row of
+//! `data/characters/interactions.ron` that objects name, the clips' contact frames warped onto the
+//! real anchor; two-bone arm IK with a grip library blended per finger; look-at; and the
+//! first-person body's hidden head.
+//!
 //! WHAT IT IS NOT: no GPU code, no egui, no glTF reader, no network. The engine reads the files
 //! (`assets::skin`) into `humanity_core::skin_data` and draws the palettes this crate writes
 //! (`renderer::skinning`); the relay never compiles this crate, because animation is cosmetic and
@@ -32,6 +38,7 @@ pub mod clip;
 pub mod feet;
 pub mod graph;
 pub mod humanoid;
+pub mod interact;
 pub mod joint_map;
 pub mod library;
 pub mod look;
@@ -46,6 +53,7 @@ pub use clip::{Clip, ClipSet, SourceClip};
 pub use feet::{FeetDef, FeetReport, FootFrame, FootMode, FootPlacer, FootRig, Ground, GroundHit, StepInfo};
 pub use graph::{Animator, Graph, GraphDef, LocomotionInput};
 pub use humanoid::{HumanoidDef, Tier};
+pub use interact::{AnchorDef, AnchorKind, Anchors, Engagement, Grips, HandRig, HandTarget, Limbs, LookState, Phase};
 pub use library::{BodyDef, CharacterLibrary, CharactersDef, ClipDef, DressChoice, LoadedBody, Tint};
 pub use look::{GarmentKind, LookLibrary, Part, PersonInputs, PersonMesh};
 pub use motion::MotionTracker;

@@ -25,7 +25,11 @@ skeleton made again from the shaped mesh, the feet's soles measured with the sho
 by everything it is built from and rebuilt every frame with the reuse switch off; and the library
 resolves what each person wears (`dress_for`: their look's choices, else their wearer kind's
 defaults) and how large the largest dressed person can be (`largest_own_mesh`, 2026-11-10: the engine
-plans the own-mesh pool, `renderer::mesh_pool`, for it). It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
+plans the own-mesh pool, `renderer::mesh_pool`, for it). Since 2026-11-10 (rung 2b, design section 17) it also
+holds the interactions (`interact`: anchors as rows of `data/characters/interactions.ron` that objects name,
+motion warping of the hips onto THIS seat from the enter clip's contact frame, the lying and climbing
+target poses, two-bone arm IK with a grip library blended per finger, look-at, and the first-person
+head folded away). It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
 reads glTF into `humanity_core::skin_data` and draws the palettes), so every test runs headless, and
 because animation never reaches the server: the relay build never compiles it (the operator,
 2026-11-08: "a new crate, humanity-animation: yes").
@@ -34,14 +38,14 @@ because animation never reaches the server: the relay build never compiles it (t
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-animation/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-animation/src/clip.rs`, `crates/humanity-animation/src/feet.rs`, `crates/humanity-animation/src/graph.rs`, `crates/humanity-animation/src/humanoid.rs`, `crates/humanity-animation/src/joint_map.rs`, `crates/humanity-animation/src/library.rs`, `crates/humanity-animation/src/look.rs`, `crates/humanity-animation/src/motion.rs`, `crates/humanity-animation/src/pose.rs`, `crates/humanity-animation/src/retarget.rs`, `crates/humanity-animation/src/role_map.rs`, `crates/humanity-animation/src/skeleton.rs`, `crates/humanity-animation/src/tiers.rs`
+  - no gate (every build): `crates/humanity-animation/src/clip.rs`, `crates/humanity-animation/src/feet.rs`, `crates/humanity-animation/src/graph.rs`, `crates/humanity-animation/src/humanoid.rs`, `crates/humanity-animation/src/interact.rs`, `crates/humanity-animation/src/joint_map.rs`, `crates/humanity-animation/src/library.rs`, `crates/humanity-animation/src/look.rs`, `crates/humanity-animation/src/motion.rs`, `crates/humanity-animation/src/pose.rs`, `crates/humanity-animation/src/retarget.rs`, `crates/humanity-animation/src/role_map.rs`, `crates/humanity-animation/src/skeleton.rs`, `crates/humanity-animation/src/tiers.rs`
   - test builds only: `crates/humanity-animation/src/fixtures.rs`, `crates/humanity-animation/src/tests.rs`
-- **Size:** 5,079 lines in 16 files, 580 of them in 2 test files.
+- **Size:** 6,232 lines in 17 files, 580 of them in 2 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): none.
-- **May use** (the plan): core. **Uses today** (references in non-test code): core 13.
-- **May be used by** (the plan): engine. **Used today by:** engine 69.
+- **May use** (the plan): core. **Uses today** (references in non-test code): core 21.
+- **May be used by** (the plan): engine. **Used today by:** engine 137.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 17 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 21 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-animation
@@ -51,23 +55,23 @@ just test-lib --crate humanity-animation
 
 | Item | References | From |
 |---|---:|---|
+| `Phase` | 14 | engine 14 |
+| `AnchorKind` | 11 | engine 11 |
 | `GarmentKind` | 8 | engine 8 |
 | `DressChoice` | 7 | engine 7 |
+| `interact::phase_len` | 7 | engine 7 |
 | `LookLibrary` | 5 | engine 5 |
+| `FootRig` | 4 | engine 4 |
+| `LoadedBody` | 4 | engine 4 |
 | `PersonMesh` | 4 | engine 4 |
 | `Skeleton` | 4 | engine 4 |
-| `FootRig` | 3 | engine 3 |
-| `LoadedBody` | 3 | engine 3 |
+| `interact::ContactPart` | 4 | engine 4 |
+| `Limbs` | 3 | engine 3 |
 | `Part` | 3 | engine 3 |
 | `look::build_person` | 3 | engine 3 |
-| `FeetReport` | 2 | engine 2 |
-| `FootPlacer` | 2 | engine 2 |
-| `Ground` | 2 | engine 2 |
-| `HumanoidDef` | 2 | engine 2 |
-| `PersonInputs` | 2 | engine 2 |
-| `look::GarmentDef` | 2 | engine 2 |
+| `AnchorDef` | 2 | engine 2 |
 
-And 17 more items, 17 references (`node scripts/crate-cards.js --interface humanity-animation` lists them all).
+And 39 more items, 54 references (`node scripts/crate-cards.js --interface humanity-animation` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -132,6 +136,19 @@ And 17 more items, 17 references (`node scripts/crate-cards.js --interface human
   default `dress` per body. A garment's row names its texture as the converter made it (`texture`, a
   BC7 DDS; `texture_px`, `normal_map`, `luma`, 2026-11-10); the crate reads only the row, the engine
   reads the file. Source: CLAUDE.md, Infinite-of-X; character-animation.md section 16.
+- **An interaction is an anchor row that objects name, never code** (2026-11-10, rung 2b):
+  `data/characters/interactions.ron` holds each anchor (its place on its object, the approach, the
+  contacts, each phase's clip or target pose, root driven or not, phase limits), `grips.ron` the
+  grips; a machine definition's, a structure type's or an opening style's `anchors` name them. The
+  crate poses an engaged person (`interact::pose`, `apply_limbs`, `look_at`); it never decides who is
+  engaged or moves anyone: the engine's gameplay grants (`engine::interact`) and the capsule stays the
+  truth. The anchor ids also go over the network, so the core compiles the shipped file's ids in
+  (`humanity_core::stance::AnchorIds`) and both ends drop any other. Source: character-animation.md
+  3.3 and section 17; CLAUDE.md, Infinite-of-X.
+- **The seat's contact is measured on the drawn mesh** (2026-11-10): the warp puts the hips joint
+  over the seat by how far the person's own seat flesh (trousers on) stands under it in the anchor's
+  pose, measured on the mesh they are drawn with (`engine::anchor_probe::seat_drop`), never a
+  constant; rung 2a's lesson ("measure what is drawn") again.
 - **A clip's hips travel is an offset from the rest, and its speed is the body's.** Retargeting
   scales a gait's `speed_mps` by the body's leg length against the source's, and the engine divides
   a person's speed by their own stride scale (shape and size) before the graph reads it, so the
@@ -198,6 +215,21 @@ And 17 more items, 17 references (`node scripts/crate-cards.js --interface human
   (the shod foot probe, and its red twin that must FAIL), `anim-stairs-soles-off` and
   `anim-crowd-near-look-off` (the cost twin). The converters:
   `node scripts/gen-makehuman-look.js --check` and `gen-makehuman-body.js --check`.
+- **The interactions (rung 2b, 2026-11-10):** the crate's `interact::tests` (the climb's hands
+  alternate on rungs, red with both hands moving together, and let go past the top, red held on;
+  look-at's limits, red unclamped; the phase weights, red with the exit run forward and again with
+  the enter and exit swapped; the phase codes); the core's `stance::act_tests` (the
+  pitch and act readers, red with any anchor id kept and the pitch unclamped); the engine's
+  `src/engine/animation_interact_tests.rs` on the shipped bodies (the drawn hips on the chair, the
+  couch and the bed's edge with warping on, and failing with it off; lying on the covers; the
+  gripping hands on the rungs up and past the top, red with the hands off and with them held on the
+  top rung; the hands on the workbench; the first-person
+  head folded away, red drawn; every anchor an object names is a row); the relay's
+  `a_players_pitch_and_act_reach_the_others_clamped` (a real socket); `scripts/tests/anchor-probe-check.test.js`
+  (the rig's judge). In the running game: `anim-sit-chair`, `anim-sit-couch`, `anim-lie-bed`,
+  `anim-ladder-climb`, `anim-workbench`, `anim-door-hand`, `anim-fp-legs` with their `anchor_probe`
+  check and the red twins (`-warp-off`, `-hand-ik-off`, `-head-shown`) that must FAIL it;
+  `anim-crowd-{near,middle}-2b-off` for the cost.
 - **The sliders in the running game:** the vantages `anim-shape-{female,male}-{build,ancestry}` (and
   `-skeleton`, the joints and bones drawn on top: showcase `skeletons`, the Dev page's Show
   skeletons) stand a row of people at the sliders' ends (showcase `lineup`); `anim-crowd-*-plain`
@@ -205,12 +237,13 @@ And 17 more items, 17 references (`node scripts/crate-cards.js --interface human
 
 ## Open work
 
-- **The rest of rung 2** (character-animation.md section 10; 2a, the feet, crouch, jump and the
-  network's stance, built 2026-11-09, section 15): interaction anchors with motion warping (sit,
-  bed, ladder with hatch, station, door), two grip sockets (the `sockets` rows of `humanoid.ron` are
-  ready), hands on rungs (two-bone arm IK, the same `feet::two_bone`), true first person, and the
-  network's pitch and interaction fields.
-- **Sit** is retargeted (`clips.ron`) but no state plays it until the interaction anchors.
+- **What rung 2b left** (character-animation.md section 17, "Known limits"): lying, climbing, a
+  bench and a door are target poses with IK (the free clip library has no clip for them); the doors
+  open themselves at 2.6 m, so a hand takes a door already swinging rather than opening it; held
+  things are not drawn (no item has a model), only the hands' grips and the two-handed hold; what
+  each hand holds does not cross the network yet; a crew member's activity names no anchor until the
+  crowd timetable (crowd-simulation.md rung 3); the take-off anticipation from the jump key is still
+  open.
 - **Feet, what 2a left** (section 15, "Known limits"): crouching keeps the standing capsule (no
   passing under low things yet); other players and the crew on a planet still stand +Y up (only the
   player's own body takes the local radial); the dev crowd on a planet lives in the home frame;

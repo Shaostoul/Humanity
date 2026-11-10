@@ -3296,6 +3296,11 @@ pub async fn handle_game_position_update(
     if let Some(stance) = humanity_core::stance::Posture::from_json(raw.get("stance")).to_json() {
         update["stance"] = stance;
     }
+    // Where they look and what they are using (character animation rung 2b, 2026-11-10): the look's
+    // pitch (whole degrees, clamped) and the act (an anchor the shipped game knows and a phase 0 to
+    // 2), each through its one reader and passed on only when it says something, so an idle
+    // player's update is still the same bytes (humanity_core::stance::Doing).
+    humanity_core::stance::Doing::from_json(raw, humanity_core::stance::AnchorIds::shipped()).write_json(&mut update);
     // Whoever just came into view is sent whole first, so their game draws them before the move.
     // Both go out before the world is let go (increment 4 review, P4): sent after it, another
     // player's move could take this one out of a viewer's view in between, and this update would

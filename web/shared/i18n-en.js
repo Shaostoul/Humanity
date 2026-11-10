@@ -345,7 +345,13 @@ window.HOS_I18N_EN = {
     "crouch_hold": "Hold",
     "crouch_hold_hint": "Crouch while the crouch key is held down; let go to stand.",
     "crouch_toggle": "Toggle",
-    "crouch_toggle_hint": "Press the crouch key once to crouch and again to stand."
+    "crouch_toggle_hint": "Press the crouch key once to crouch and again to stand.",
+    "fp_body": "Show my body in first person",
+    "fp_body_hint": "In first person you see your own arms, legs, clothes and what you hold, the way you see yourself looking down. Turn it off for the old view with no body.",
+    "fp_body_note": "Your head is left out of your own view, so you never see the inside of it. Other players always see your whole body either way.",
+    "reduce_motion": "Reduce motion",
+    "reduce_motion_hint": "Keeps your first-person view steady at your standing eye height instead of moving with your body's head as you walk, sit or climb. Helps if moving views make you feel unwell.",
+    "reduce_motion_note": "With it off, your view rides your body's head, smoothed so a step does not shake it. With it on, sitting and lying still lower your view, gently."
   },
   "laws": {
     "title": "Laws and rights",

@@ -83,6 +83,38 @@ pub fn panel_motion(style: &str, open: f32, width: f32, height: f32) -> PanelMot
     }
 }
 
+/// One opening style as `data/blueprints/opening_styles.ron` lists it (v0.931, rows since character
+/// animation rung 2b, 2026-11-10): its id (what an opening stores and `panel_motion` reads) and the
+/// interaction anchors a door of this style offers (ids of `data/characters/interactions.ron`: a
+/// swing door's handle a hand closes round while it opens). Infinite-of-x: a style is a row.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+pub struct OpeningStyle {
+    pub id: String,
+    #[serde(default)]
+    pub anchors: Vec<String>,
+}
+
+/// Every opening style, compiled in (the construction editor lists them; the engine reads a door's
+/// anchors from its style). A broken file falls back to swing and fixed, logged.
+pub fn opening_styles() -> &'static [OpeningStyle] {
+    static REG: std::sync::OnceLock<Vec<OpeningStyle>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/opening_styles.ron"));
+        match ron::from_str::<Vec<OpeningStyle>>(SRC) {
+            Ok(v) if !v.is_empty() => v,
+            Ok(_) | Err(_) => {
+                log::error!("opening_styles.ron missing/invalid; using fallback");
+                ["swing", "fixed"].iter().map(|s| OpeningStyle { id: s.to_string(), anchors: Vec::new() }).collect()
+            }
+        }
+    })
+}
+
+/// The anchors a door of `style` offers (none for a style the file does not list).
+pub fn style_anchors(style: &str) -> &'static [String] {
+    opening_styles().iter().find(|s| s.id == style).map_or(&[], |s| s.anchors.as_slice())
+}
+
 /// Whether a style is an operable door (vs a fixed pane like a window). The renderer/interaction
 /// layer uses this to decide whether an opening animates on approach at all.
 pub fn is_operable(style: &str) -> bool {

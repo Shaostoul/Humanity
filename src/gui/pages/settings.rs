@@ -4005,6 +4005,17 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
         });
         widgets::setting_hint(ui, theme, hint, t("settings.animation_mode_hint"));
+        // Your body in first person and Reduce motion (2026-11-10, character animation rung 2b):
+        // the operator's question 4, "yes, with a Settings switch and a Reduce motion option".
+        ui.add_space(theme.spacing_sm);
+        if crate::gui::widgets::with_hint(ui, "settings.fp_body_hint", |ui| widgets::toggle(ui, theme, t("settings.fp_body"), &mut state.settings.fp_body)) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, t("settings.fp_body_note"));
+        if crate::gui::widgets::with_hint(ui, "settings.reduce_motion_hint", |ui| widgets::toggle(ui, theme, t("settings.reduce_motion"), &mut state.settings.reduce_motion)) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, t("settings.reduce_motion_note"));
         // Carrying weight (BUG-136, systems::encumbrance; the dual-mode house rule).
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Carrying weight").color(theme.text_secondary()));

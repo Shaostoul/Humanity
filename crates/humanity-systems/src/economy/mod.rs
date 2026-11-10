@@ -167,6 +167,10 @@ pub struct EquipmentDef {
     pub stat_modifiers: String,
     #[serde(default)]
     pub description: String,
+    /// How a held thing is held (character animation rung 2b, 2026-11-10): a row of
+    /// data/characters/grips.ron; empty for what is worn.
+    #[serde(default)]
+    pub grip: String,
 }
 
 /// All equipment stats keyed by item id. DataStore: `"equipment_registry"`.

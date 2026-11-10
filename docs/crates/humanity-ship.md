@@ -18,11 +18,11 @@ shared ship's rules are the same on both sides.
 - **Owns** all of `crates/humanity-ship/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
   - no gate (every build): `crates/humanity-ship/src/assembly.rs`, `crates/humanity-ship/src/build_frames.rs`, `crates/humanity-ship/src/conduits.rs`, `crates/humanity-ship/src/pipe_materials.rs`, `crates/humanity-ship/src/run_rules.rs`, `crates/humanity-ship/src/run_fittings.rs`, `crates/humanity-ship/src/run_anchors.rs`, `crates/humanity-ship/src/run_benders.rs`, `crates/humanity-ship/src/pipe_marking.rs`, `crates/humanity-ship/src/door_panels.rs`, `crates/humanity-ship/src/door_points.rs`, `crates/humanity-ship/src/fibonacci.rs`, `crates/humanity-ship/src/home_structure.rs`, `crates/humanity-ship/src/levels.rs`, `crates/humanity-ship/src/lifts.rs`, `crates/humanity-ship/src/hull.rs`, `crates/humanity-ship/src/layout.rs`, `crates/humanity-ship/src/lock_types.rs`, `crates/humanity-ship/src/moves.rs`, `crates/humanity-ship/src/neighbours.rs`, `crates/humanity-ship/src/ship_space.rs`, `crates/humanity-ship/src/transit.rs`, `crates/humanity-ship/src/rooms.rs`, `crates/humanity-ship/src/ship_structure.rs`, `crates/humanity-ship/src/standing.rs`, `crates/humanity-ship/src/storey_edits.rs`, `crates/humanity-ship/src/starts.rs`, `crates/humanity-ship/src/structure.rs`, `crates/humanity-ship/src/sight.rs`, `crates/humanity-ship/src/wall_collision.rs`, `crates/humanity-ship/src/room_types.rs`, `crates/humanity-ship/src/machines.rs` + `crates/humanity-ship/src/machines/`, `crates/humanity-ship/src/station/`
   - test builds only: `crates/humanity-ship/src/homestead_layout_tests.rs`, `crates/humanity-ship/src/crossing_tests.rs`
-- **Size:** 33,195 lines in 41 files, 1,430 of them in 4 test files.
+- **Size:** 33,209 lines in 41 files, 1,430 of them in 4 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-ship/src/levels.rs` 184 of 200.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 5, `native` 3.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 57.
-- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 330, gui 162, relay 39, systems 26.
+- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 331, gui 162, relay 39, systems 26.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 382 tests, and this runs exactly them, checked against every test's name:
 
@@ -40,8 +40,8 @@ just test-lib --crate humanity-ship
 | `lock_types::LockState` | 13 | engine 8, gui 5 |
 | `machines::PlacedMachine` | 12 | engine 12 |
 | `machines::ConduitEnd` | 11 | gui 7, engine 4 |
+| `structure::structure_type` | 11 | engine 6, gui 4, relay 1 |
 | `ship_structure` | 10 | engine 8, gui 1, relay 1 |
-| `structure::structure_type` | 10 | engine 5, gui 4, relay 1 |
 | `door_panels::PanelPlacement` | 9 | engine 9 |
 | `home_structure::HomeStructure` | 9 | engine 8, gui 1 |
 | `machines::MachinePower` | 9 | gui 6, systems 2, engine 1 |

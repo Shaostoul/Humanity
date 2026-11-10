@@ -16,9 +16,9 @@ the relay rather than on top of it.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `net/`
-- **Size:** 31,670 lines in 60 files, 4,038 of them in 14 test files.
+- **Size:** 31,686 lines in 60 files, 4,038 of them in 14 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 47.
-- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 51, protocol 32.
+- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 54, protocol 32.
 - **May be used by** (the plan): gui, engine. **Used today by:** gui 356, engine 101.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 269 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):

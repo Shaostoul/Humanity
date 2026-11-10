@@ -68,6 +68,10 @@ fn the_on_foot_limit_covers_the_fastest_legitimate_walk() {
 /// passed it while the relay corrected every honest player who had it. A buff of a half
 /// again, written as `add`, must raise the fastest walk by half.
 ///
+/// The gear row carries every column of data/equipment.csv, the last (`grip`, character animation
+/// rung 2b) empty: a row a column short is dropped by the loader, which read as the buff not counted
+/// when rung 2b added the column.
+///
 /// Seen red 2026-10-04 on the code before the fix (the bound read `speed:<v>:multiply` from the
 /// text): "an `add` speed buff was not counted: 24.11 m/s with it, 24.11 without".
 #[cfg(feature = "native")]
@@ -79,7 +83,7 @@ fn every_kind_of_speed_buff_counts_toward_the_fastest_walk() {
     let tonic = format!("{}\nsprint_tonic,Sprint Tonic,buff,60,false,1,0,speed:0.5:add,0,none,0,movement,Half again as fast\n", effects.trim_end());
     let with = fastest_walk_mps(&tonic, &equipment);
     assert!(with >= without * 1.49, "an `add` speed buff was not counted: {with:.2} m/s with it, {without:.2} without");
-    let boots = format!("{}\nboots_sprint_0,feet,0.08,0,0,0,0,0,0,,0,speed:0.5:add,Racing spikes\n", equipment.trim_end());
+    let boots = format!("{}\nboots_sprint_0,feet,0.08,0,0,0,0,0,0,,0,speed:0.5:add,Racing spikes,\n", equipment.trim_end());
     let with_gear = fastest_walk_mps(&effects, &boots);
     assert!(with_gear >= without * 1.49, "an `add` speed modifier on gear was not counted: {with_gear:.2} m/s with it, {without:.2} without");
 }

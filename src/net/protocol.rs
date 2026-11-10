@@ -55,6 +55,10 @@ pub enum NetMessage {
         /// carries none (an older app's).
         #[serde(skip)]
         stance: humanity_core::stance::Posture,
+        /// Where they look and what they are using (character animation rung 2b, 2026-11-10: the
+        /// look's pitch and the act), read and clamped by `humanity_core::stance::Doing`.
+        #[serde(skip)]
+        doing: humanity_core::stance::Doing,
     },
     /// Server spawns a new entity in the world.
     EntitySpawn {

@@ -15,11 +15,11 @@ static check cannot see.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `renderer/`, `assets/`
-- **Size:** 69,282 lines in 74 files, 1,395 of them in 3 test files.
+- **Size:** 69,334 lines in 74 files, 1,395 of them in 3 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `renderer/mod.rs` 2,800 of 2,800, `renderer/tree_cards.rs` 450 of 450, `renderer/celestial.rs` 1,948 of 1,950, `renderer/materials.rs` 499 of 500, `renderer/capture.rs` 299 of 300, `renderer/tree_species.rs` 743 of 750, `renderer/tree_allometry.rs` 540 of 560, `renderer/tree_mesh.rs` 5,954 of 6,400, `renderer/scene_draw.rs` 626 of 750, `renderer/overlay_draw.rs` 390 of 550, `renderer/material_bind_groups.rs` 231 of 350, `renderer/view_depth.rs` 135 of 250, `renderer/surface.rs` 237 of 500, `renderer/shadow_cutout.rs` 102 of 250.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 72, `wasm` 3.
 - **May use** (the plan): core, terrain. **Uses today** (references in non-test code): core 71, terrain 33.
-- **May be used by** (the plan): gui, engine. **Used today by:** engine 344, gui 33.
+- **May be used by** (the plan): gui, engine. **Used today by:** engine 345, gui 33.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 520 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
@@ -32,7 +32,7 @@ just test-lib --crate humanity-engine renderer:: assets:: --skip gui::crossing_t
 | Item | References | From |
 |---|---:|---|
 | `renderer::line::push_polyline` | 32 | engine 32 |
-| `renderer::camera::CameraMode` | 29 | engine 29 |
+| `renderer::camera::CameraMode` | 30 | engine 30 |
 | `renderer::mesh::Mesh` | 24 | engine 24 |
 | `renderer::RenderObject` | 17 | engine 17 |
 | `renderer::Renderer` | 14 | engine 13, gui 1 |

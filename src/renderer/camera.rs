@@ -252,6 +252,12 @@ pub struct Camera {
     /// `position` stays the standing body's eye, which the walk, the footing, the walls and reach
     /// all read, so crouching changes what you see and not where the game holds you.
     pub view_drop: f32,
+    /// Where the first-person eye is drawn from relative to `position`, metres (character animation
+    /// rung 2b, 2026-11-10: the camera rides the drawn body's head, the offset low-passed so a step
+    /// does not shake the picture; yaw and pitch stay the player's). A VIEW offset only, like
+    /// `view_drop`: the walk, the footing, the walls and reach read `position`. Zero unless the
+    /// player's body is drawn in first person and Reduce motion is off (engine::animation).
+    pub view_offset: Vec3,
 
     /// Absolute world position in meters (f64 precision).
     /// Updated each frame by accumulating the f32 `position` delta.
@@ -310,6 +316,7 @@ impl Camera {
             projection: Projection::Perspective,
             lens_shift_x: 0.0,
             view_drop: 0.0,
+            view_offset: Vec3::ZERO,
 
             mode: CameraMode::FirstPerson,
 
@@ -439,7 +446,8 @@ impl Camera {
     pub(crate) fn effective_position(&self) -> Vec3 {
         match self.mode {
             // A crouch lowers the eye we see from along the local up (rung 2a, `view_drop`).
-            CameraMode::FirstPerson => self.position - if self.surface_mode { self.surface_up } else { Vec3::Y } * self.view_drop,
+            // Rung 2b: or from the drawn head (`view_offset`).
+            CameraMode::FirstPerson => self.position - if self.surface_mode { self.surface_up } else { Vec3::Y } * self.view_drop + self.view_offset,
             CameraMode::ThirdPerson => {
                 // Camera sits behind and above the character
                 let back = -self.forward();
@@ -462,7 +470,9 @@ impl Camera {
     /// Compute the effective look-at target based on current mode.
     fn effective_target(&self) -> Vec3 {
         match self.mode {
-            CameraMode::FirstPerson => self.position + self.forward(),
+            // From where the eye is drawn (a crouch's drop, the head's ride), so the view keeps its
+            // pitch (it aimed from the standing eye before rung 2b, tilting a crouched view a little).
+            CameraMode::FirstPerson => self.effective_position() + self.forward(),
             // Over the shoulder, looking the way the body's eyes look (character animation rung 1,
             // 2026-11-08): the aim is first person's, from behind and beside the body.
             CameraMode::ThirdPerson => self.effective_position() + self.forward(),
@@ -781,6 +791,18 @@ pub struct CameraController {
     /// set each frame by the main loop. While set AND an up/down input is held, the player moves
     /// vertically (gravity suspended) clamped to the ladder span -- so they climb to an upper deck.
     climb_zone: Option<(f32, f32)>,
+    /// HELD BY AN INTERACTION (character animation rung 2b, 2026-11-10): Some(eye) while a granted
+    /// interaction holds the body (seated, lying): the walk, gravity and falls stop, the eye stays
+    /// where the interaction puts it (`engine::interact` eases it from where the player stood to
+    /// the anchor and back), and only the mouse turns the view. The movement keys ask to get up
+    /// (`wants_move`).
+    pub held: Option<Vec3>,
+    /// How far the view drops while held, metres (the seated or lying eye under the standing one),
+    /// when the view does not ride the head (Reduce motion, or no body drawn).
+    pub held_drop: f32,
+    /// The first-person view rides the drawn head (rung 2b): the crouch's and the hold's own view
+    /// drops are then none, the head carrying both (`Camera::view_offset`).
+    pub view_from_head: bool,
     /// Character-showroom lock (v0.443): when true the orbit camera is FIXED on the avatar
     /// -- only a mouse drag spins it and the wheel zooms; WASD and panning are disabled.
     pub showroom_lock: bool,
@@ -905,6 +927,9 @@ impl CameraController {
             interior_gravity: GRAVITY_FALLBACK,
             ground_y: 1.7,
             climb_zone: None,
+            held: None,
+            held_drop: 0.0,
+            view_from_head: false,
             showroom_lock: false,
             fly_mode: false,
             fly_speed_mult: 1.0,
@@ -1037,6 +1062,12 @@ impl CameraController {
     /// (character animation rung 2a, 2026-11-09).
     pub fn crouching(&self) -> bool {
         self.crouch && !self.fly_mode
+    }
+
+    /// A movement key is held (WASD or jump): held by an interaction, it asks to get up
+    /// (character animation rung 2b).
+    pub fn wants_move(&self) -> bool {
+        self.forward || self.backward || self.left || self.right || self.ascend
     }
 
     /// Crouch held (false, the default) or toggled (true). Leaving Toggle stands the person up
@@ -1215,7 +1246,17 @@ impl CameraController {
             mode @ (CameraMode::FirstPerson | CameraMode::ThirdPerson) => {
                 // Crouching lowers the eye we see from (character animation rung 2a): the view
                 // only, eased, while the body's height in the world stays the standing one.
-                let want = if self.crouching() { CROUCH_VIEW_DROP_M } else { 0.0 };
+                // Held seated or lying (rung 2b), the hold's drop; riding the head, none (the head's
+                // own height carries the crouch and the seat).
+                let want = if self.view_from_head {
+                    0.0
+                } else if self.held.is_some() {
+                    self.held_drop
+                } else if self.crouching() {
+                    CROUCH_VIEW_DROP_M
+                } else {
+                    0.0
+                };
                 let k = 1.0 - (-dt.max(0.0) / CROUCH_VIEW_EASE_S).exp();
                 camera.view_drop += (want - camera.view_drop) * k;
                 // Falls (2026-10-20): moved since this walk last left it (driving, a teleport,
@@ -1452,6 +1493,17 @@ impl CameraController {
             }
             r *= (-(6.0 * dt)).exp();
             camera.roll = if r.abs() < 0.002 { 0.0 } else { r.rem_euclid(std::f32::consts::TAU) };
+        }
+
+        // ── Held by an interaction (character animation rung 2b) ── seated or lying: the eye
+        // stays where the interaction puts it, nothing falls, and only the mouse look above applies.
+        if let Some(eye) = self.held {
+            camera.position = eye;
+            self.vertical_velocity = 0.0;
+            self.is_grounded = true;
+            self.falls.supported();
+            self.fall_top = None;
+            return;
         }
 
         // ── Planetary surface FPS (task #76 increment 1) ── When the main

@@ -407,6 +407,12 @@ pub struct LoadedBody {
     pub foot_vertices: [Vec<(usize, usize)>; 2],
     /// Its base file read (the look), when it has one and the library reads the look.
     pub base: Option<humanity_core::look_data::BodyBase>,
+    /// Its arms, hands and head (rung 2b: arm IK, grips, look-at), None for a body without arms.
+    pub hands: Option<crate::interact::HandRig>,
+    /// The vertices (primitive, vertex) the interaction probe and the seat's contact read: those
+    /// mostly bound to the hips or the upper legs (what rests on a seat), and each hand's.
+    pub seat_vertices: Vec<(usize, usize)>,
+    pub hand_vertices: [Vec<(usize, usize)>; 2],
 }
 
 impl LoadedBody {
@@ -531,6 +537,10 @@ pub struct CharacterLibrary {
     pub warnings: Vec<String>,
     /// The look (detail targets and garments), when `characters.ron` names it and it read.
     pub look: Option<crate::look::LookLibrary>,
+    /// The interaction anchors (rung 2b, `data/characters/interactions.ron`) and the grips
+    /// (`grips.ron`), checked against the clips.
+    pub anchors: crate::interact::Anchors,
+    pub grips: crate::interact::Grips,
 }
 
 impl CharacterLibrary {
@@ -667,6 +677,17 @@ impl CharacterLibrary {
                 }
                 _ => None,
             };
+            let hands = crate::interact::HandRig::new(&skeleton, &humanoid);
+            let seat_vertices = vertices_bound_to(&model, &seat_joints(&skeleton, &humanoid));
+            let hand_vertices = [0, 1].map(|side| vertices_bound_to(&model, &hand_joints(&skeleton, &humanoid, side)));
+            // Each hand's palm-side depth, from its vertices at rest relative to the palm's point.
+            let hands = hands.map(|h| {
+                let rel = [0, 1].map(|side| {
+                    let point = skeleton.rest_position(h.arms[side].hand) + h.arms[side].palm_offset;
+                    hand_vertices[side].iter().map(|&(p, k)| Vec3::from(model.primitives[p].vertices[k].position) - point).collect::<Vec<Vec3>>()
+                });
+                h.with_palm_depth([&rel[0], &rel[1]])
+            });
             let body = LoadedBody {
                 choice: choice.to_string(),
                 def,
@@ -683,6 +704,9 @@ impl CharacterLibrary {
                 feet,
                 foot_vertices,
                 base,
+                hands,
+                seat_vertices,
+                hand_vertices,
             };
             Ok((body, humanoid))
         };
@@ -739,7 +763,12 @@ impl CharacterLibrary {
                 }
             }
         }
-        Ok(CharacterLibrary { characters, humanoid, bodies, graph, warnings, look })
+        // The interaction anchors and the grips (rung 2b), checked against the clips every body
+        // shares (one order, held above).
+        let grips = crate::interact::Grips::parse(&read("grips.ron")?)?;
+        let anchors = crate::interact::Anchors::parse(&read("interactions.ron")?)?;
+        anchors.check(&bodies[0].clips, &grips)?;
+        Ok(CharacterLibrary { characters, humanoid, bodies, graph, warnings, look, anchors, grips })
     }
 
     /// The largest own mesh `look::build_person` can make (2026-11-10, the own-mesh pool): the
@@ -904,6 +933,46 @@ fn resolve_sliders(rows: &[SliderDef], model: &SkinnedModelData, def: &BodyDef) 
 
 /// Each foot's vertices (primitive, vertex), left then right: those whose largest weight is on that
 /// leg's foot or toes joint (the shoe, the sole).
+/// Which DRAWN vertices (primitive, vertex: those a triangle uses, so skin hidden under a garment
+/// is not counted) are mostly bound to one of `joints`: their largest weight is on one of them.
+pub fn vertices_bound_to(model: &SkinnedModelData, joints: &[usize]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    for (pi, p) in model.primitives.iter().enumerate() {
+        let mut drawn = vec![false; p.vertices.len()];
+        for &i in &p.indices {
+            if let Some(d) = drawn.get_mut(i as usize) {
+                *d = true;
+            }
+        }
+        for (vi, v) in p.vertices.iter().enumerate() {
+            if !drawn[vi] {
+                continue;
+            }
+            let k = (0..4).max_by_key(|&k| v.weights[k]).unwrap_or(0);
+            if v.weights[k] > 0 && joints.contains(&(v.joints[k] as usize)) {
+                out.push((pi, vi));
+            }
+        }
+    }
+    out
+}
+
+/// The joints whose flesh rests on a seat: the hips and the upper legs (and their twist joints).
+pub fn seat_joints(skel: &Skeleton, humanoid: &HumanoidDef) -> Vec<usize> {
+    ["hips", "leftUpperLeg", "rightUpperLeg", "leftUpperLegTwist", "rightUpperLegTwist"].iter().filter_map(|r| skel.joint_by_role(humanoid, r)).collect()
+}
+
+/// One hand's joints (0 left, 1 right): the hand and every finger joint on that side.
+pub fn hand_joints(skel: &Skeleton, humanoid: &HumanoidDef, side: usize) -> Vec<usize> {
+    let prefix = if side == 0 { "left" } else { "right" };
+    humanoid
+        .roles
+        .iter()
+        .filter(|r| r.role.starts_with(prefix) && (r.role.ends_with("Hand") || ["Thumb", "Index", "Middle", "Ring", "Little"].iter().any(|f| r.role.contains(f))))
+        .filter_map(|r| skel.joint_by_role(humanoid, &r.role))
+        .collect()
+}
+
 fn foot_vertices(model: &SkinnedModelData, rig: &crate::feet::FootRig) -> [Vec<(usize, usize)>; 2] {
     let mut out: [Vec<(usize, usize)>; 2] = Default::default();
     for (pi, p) in model.primitives.iter().enumerate() {

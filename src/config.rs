@@ -945,6 +945,17 @@ pub struct AppConfig {
     /// Held in GuiState as `settings.anim_simplified`.
     #[serde(default)]
     pub anim_simplified: bool,
+    /// Show my body in first person (2026-11-10, character animation rung 2b): your own body drawn
+    /// for the first-person eye, head and neck folded away (true, the default: the operator's
+    /// question 4 of 2026-11-08, "yes, with a Settings switch"), or the old view with no body. An old
+    /// settings file reads as shown. Held in GuiState as `settings.fp_body`.
+    #[serde(default = "default_true")]
+    pub fp_body: bool,
+    /// Reduce motion (2026-11-10, rung 2b): the first-person eye stays where the walk puts it rather
+    /// than riding the drawn head (a comfort option apart from the animation mode). Off by default.
+    /// Held in GuiState as `settings.reduce_motion`.
+    #[serde(default)]
+    pub reduce_motion: bool,
     /// Crouch (2026-11-09): false is Hold (the crouch key held), true is Toggle (pressed once to
     /// crouch, again to stand), so someone who cannot hold a key can crouch. Hold by default; an old
     /// settings file reads as Hold. Held in GuiState as `settings.crouch_toggle`.
@@ -1760,6 +1771,8 @@ impl AppConfig {
             carry_realistic: state.settings.carry_realistic,
             walk_realistic: state.settings.walk_realistic,
             anim_simplified: state.settings.anim_simplified,
+            fp_body: state.settings.fp_body,
+            reduce_motion: state.settings.reduce_motion,
             crouch_toggle: state.settings.crouch_toggle,
             pipe_marking_full: state.settings.pipe_marking_full,
             death_realistic: state.settings.death_realistic,
@@ -2125,6 +2138,8 @@ impl AppConfig {
         state.settings.carry_realistic = self.carry_realistic;
         state.settings.walk_realistic = self.walk_realistic;
         state.settings.anim_simplified = self.anim_simplified;
+        state.settings.fp_body = self.fp_body;
+        state.settings.reduce_motion = self.reduce_motion;
         state.settings.crouch_toggle = self.crouch_toggle;
         state.settings.pipe_marking_full = self.pipe_marking_full;
         state.settings.death_realistic = self.death_realistic;
@@ -2803,6 +2818,30 @@ mod play_mode_tests {
         old.as_object_mut().unwrap().remove("anim_simplified");
         let read: AppConfig = serde_json::from_value(old).expect("a settings file from before the switch reads");
         assert!(!read.anim_simplified, "and animates Realistic");
+    }
+
+    /// The first-person body and Reduce motion (character animation rung 2b, 2026-11-10): the body
+    /// starts shown and Reduce motion off; a hidden body and Reduce motion on survive a save and a
+    /// load; a settings file from before them reads as shown and off.
+    /// Seen red 2026-11-10 with `fp_body` read with a plain `#[serde(default)]`: "a settings file
+    /// from before the switch shows the body".
+    #[test]
+    fn the_first_person_body_and_reduce_motion_survive_a_save_and_an_old_file_reads() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(state.settings.fp_body && !state.settings.reduce_motion, "the body starts shown, Reduce motion off");
+        state.settings.fp_body = false;
+        state.settings.reduce_motion = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(!fresh.settings.fp_body && fresh.settings.reduce_motion, "both stay chosen after a restart");
+        let mut old: serde_json::Value = serde_json::from_str(&json).unwrap();
+        old.as_object_mut().unwrap().remove("fp_body");
+        old.as_object_mut().unwrap().remove("reduce_motion");
+        let read: AppConfig = serde_json::from_value(old).expect("a settings file from before the switches reads");
+        assert!(read.fp_body, "a settings file from before the switch shows the body");
+        assert!(!read.reduce_motion);
     }
 
     /// The Illness mode (BUG-162, 2026-10-05) starts Forgiving and a chosen Realistic survives

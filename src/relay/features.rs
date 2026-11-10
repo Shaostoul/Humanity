@@ -2725,6 +2725,58 @@ mod tests {
         server.abort();
     }
 
+    /// A PLAYER'S PITCH AND ACT REACH THE OTHERS, CLAMPED (character animation rung 2b, 2026-11-10;
+    /// humanity_core::stance::Doing), on a real relay: a step sent looking down 30 degrees while
+    /// seated (`"act": ["chair_seat", 1]`) reaches the other player with both; a step sent idle (no
+    /// fields, as an older app sends it) reaches them with neither; an anchor the shipped game does
+    /// not know, a phase out of range and a pitch past straight up are dropped or clamped, never
+    /// passed on as sent.
+    /// Seen red 2026-11-10 with the relay's update built without them (the Doing read but not
+    /// written into the update): "the pitch reaches the other player (sent Some(Number(-30)))"
+    /// (left: Null, right: Number(-30)).
+    #[tokio::test]
+    async fn a_players_pitch_and_act_reach_the_others_clamped() {
+        let path = plots_db("doing");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut a, a_key) = bind_socket(&state, port, [113u8; 32], Some("SitA"), 1).await;
+        let (mut b, _) = bind_socket(&state, port, [114u8; 32], Some("WatchB2"), 1).await;
+        welcome_after_join(&mut a, "SitA").await;
+        welcome_after_join(&mut b, "WatchB2").await;
+        let door = relay_position(&state, &a_key).await;
+        let mut at = door;
+        let cases: [(Option<Value>, Option<Value>, Option<i64>, Option<Value>); 5] = [
+            (Some(serde_json::json!(-30)), Some(serde_json::json!(["chair_seat", 1])), Some(-30), Some(serde_json::json!(["chair_seat", 1]))),
+            (None, None, None, None),
+            (Some(serde_json::json!(200)), Some(serde_json::json!(["throne", 1])), Some(89), None),
+            (Some(serde_json::json!("12")), Some(serde_json::json!(["ladder_climb", 7])), None, None),
+            (None, Some(serde_json::json!(["ladder_climb", 0])), None, Some(serde_json::json!(["ladder_climb", 0]))),
+        ];
+        for (pitch, act, pitch_seen, act_seen) in cases {
+            at[2] += 0.3;
+            let mut msg = serde_json::json!({ "type": "game_position_update", "position": at, "rotation": [0.0, 0.0, 0.0, 1.0], "velocity": [0.0, 0.0, 0.0], "timestamp": 1.0, "correction": 0 });
+            if let Some(p) = &pitch {
+                msg["pitch"] = p.clone();
+            }
+            if let Some(x) = &act {
+                msg["act"] = x.clone();
+            }
+            send_json(&mut a, msg).await;
+            let seen = next_game_of(&mut b, &["game_position_update"]).await.expect("the other player sees the step");
+            assert_eq!(seen["position"], serde_json::json!(at));
+            match pitch_seen {
+                Some(n) => assert_eq!(seen["pitch"], serde_json::json!(n), "the pitch reaches the other player (sent {pitch:?})"),
+                None => assert!(seen.get("pitch").is_none(), "level, or a pitch that is not one ({pitch:?}), goes as no field: {seen}"),
+            }
+            match &act_seen {
+                Some(x) => assert_eq!(&seen["act"], x, "the act reaches the other player (sent {act:?})"),
+                None => assert!(seen.get("act").is_none(), "no act, an unknown anchor or a phase out of range ({act:?}) goes as no field: {seen}"),
+            }
+        }
+        a.close(None).await.ok();
+        b.close(None).await.ok();
+        server.abort();
+    }
+
     fn dist_v(v: &Value, p: [f32; 3]) -> f32 {
         let a: Vec<f32> = v.as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).map(|x| x as f32).collect()).unwrap_or_default();
         if a.len() != 3 {

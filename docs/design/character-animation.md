@@ -4,7 +4,10 @@
 and male), clips (Quaternius), the walking pace and the body sliders on 2026-11-09 (section 14);
 rung 2a, feet on the world with crouch, jump and the network's stance, BUILT on 2026-11-09 (section
 15); the look, each person's own face and body feature by feature with MakeHuman's real clothes,
-shoes, hats and hair, BUILT on 2026-11-09 (section 16); the rest of rung 2 and on are DESIGN. Section 12's questions were all decided on 2026-11-08.** Written after the operator came
+shoes, hats and hair, BUILT on 2026-11-09 (section 16); rung 2b, interactions anchored to things
+(sit, lie, the ladder, a station, a door) with motion warping, two grip sockets and a grip library, look-at,
+true first person and the network's pitch and act, BUILT on 2026-11-10 (section 17), which completes
+rung 2; rung 3 and on are DESIGN. Section 12's questions were all decided on 2026-11-08.** Written after the operator came
 across NVIDIA's MotionBricks (https://github.com/NVlabs/motionbricks, SIGGRAPH 2026) on 2026-11-08
 and asked where a technique of that class fits. The licensing question has its own dated finding:
 [`docs/reference/findings/2026-11-08-motionbricks.md`](../reference/findings/2026-11-08-motionbricks.md).
@@ -475,6 +478,28 @@ three people of the crowd were built twice (the first after run, letting the lon
 built four twice; before the pool, with no room limit, nobody was), each drawn with the shared body
 for a few frames when they came back near.
 
+**With interactions, hands, look-at and the first-person body (rung 2b, 2026-11-10)**, the same way:
+release build, rig defaults, 2560x1387, the crowd pair in one boot (the twin, showcase `rung2b` 0: no
+interactions, no look-at, no first-person body, as main drew; then rung 2b on), two boots, each
+clean (the sweep's machine guard waited for builds and other games; `--wait-builds`). The player
+stands in first person at the crowd vantages, so "on" adds their own body drawn for the eye, every
+person's act check (a seat, a ladder, a door opening near them) and the near crew's look-at:
+
+| Case | cpu.animation (worst frame) | cpu.skinning | gpu.skinning | gpu.scene | all GPU stages | vram.characters |
+|---|---|---|---|---|---|---|
+| 50 bodies 6 to 14 m (16 near, 34 middle), twin | 0.975 to 0.994 ms (3.30 to 3.72) | 0.193 | 0.100 | 7.57 | 13.62 to 13.64 | 98.8 MB |
+| the same, rung 2b | 1.040 to 1.193 ms (3.42 to 3.68) | 0.184 to 0.195 | 0.102 to 0.103 | 7.59 to 7.61 | 13.63 to 13.79 | 98.8 MB |
+| 50 bodies 18 to 26 m (all middle), twin | 0.551 ms (1.07 to 1.27) | 0.034 | none | 7.13 | 13.12 to 13.18 | 98.8 MB |
+| the same, rung 2b | 0.607 to 0.614 ms (1.13) | 0.047 to 0.050 | 0.008 | 7.15 | 13.05 to 13.29 | 98.8 MB |
+
+So rung 2b costs **0.05 to 0.2 ms of CPU** at the crowd and **0.06 ms** at the middle crowd, almost
+all of it the player's own body, now drawn in first person (a near body with its feet solved: rung
+1's single body measured 0.06 ms), which also shows as its skinning (0.013 to 0.016 ms of upload,
+0.002 to 0.008 ms of compute); the GPU stages and memory are unchanged within the boots' spread.
+The per-person act check walks the home's door panels, passing at once over a shut one or one more
+than 3 m off (people times doors, a comparison each: 57 panels in the homestead, nearly 3,000 at this crowd), and reads the
+person's own anchor; at section 8.4's hundreds of near people a grid of open doors is the lever.
+
 **Why 56 joints and not MakeHuman's 163**: the 56 are exactly the bones that move in rung 1 (the role
 map's); the other 107 would only ever sit at rest under their parents until face and twist rungs.
 From the rows above, pose work grows about 0.1 microsecond a joint, so the full rig would cost about
@@ -559,6 +584,12 @@ regions in the garments' mean colours; MakeHuman's proxy meshes are not used.
   fly, zero-g), the look pitch in a byte (yaw already goes), and, **only when they change**, the
   interaction (anchor id, object instance id, start time), what each hand holds, and an emote id. A
   few bytes on most updates.
+- **Built (rungs 2a and 2b)**: the stance (2a), and since 2026-11-10 the look's pitch in whole
+  degrees and the act as the anchor's id and its phase (section 17), each left out when it says
+  nothing and read through one clamping reader at both ends; the object instance is not sent (the
+  sender's capsule stands at the anchor's root, and a receiver finds a ladder or a workbench by the
+  anchor's id near them), nor a start time (each end times the phase from when it changes). What
+  each hand holds and an emote id are still to come.
 - **Speed and direction are not sent**: they come from the interpolated positions, which feed the
   same locomotion solver the local player uses.
 - **Crew send nothing per frame**: their activity is derived from the timetable (crowd-simulation.md
@@ -640,8 +671,9 @@ world (`just verify-runtime`), plus the rig vantage it adds.
    interaction anchors as data with motion warping for sit, bed, ladder (with hatch), station and
    door; two grip sockets; true first person; the network's stance, pitch and interaction fields.
    **2a BUILT 2026-11-09 (section 15)**: the feet on decks, treads, ramps and terrain with foot
-   locking, crouch, jump and the network's stance. The interaction anchors, the grips, hands on
-   rungs, true first person, pitch and the interaction field are 2b.
+   locking, crouch, jump and the network's stance. **2b BUILT 2026-11-10 (section 17)**: the
+   interaction anchors with motion warping, the grips, hands on rungs, true first person, pitch and
+   the interaction field.
 3. **Motion matching**, the full-realism core: the database built at load from CMU, ACCAD and
    100STYLE (credited), retargeted; trajectory prediction from the controller; inertialized
    transitions (Bollo, GDC 2018); contact labels; styles from the body's state. The state machine
@@ -1574,6 +1606,257 @@ kind (a cosmetic slot that put two clothes on one person would draw them with th
 until the plan counts slots); a
 person's build is a whole rebuild (a slider dragged on the character page rebuilds the person about
 every 5 ms on a worker; a build that re-applies only the moved targets is the lever if it shows).
+
+### Answers after the look (operator, 2026-11-10)
+
+The coordinator settled the look agents' questions overnight (default outfits per wearer kind, 1024
+px garment textures, our own BC7 encoder, the texture and mesh pools reserved at world entry); the
+operator, the next morning: "These are good for now. We may want to allow higher resolution
+textures but, 1024 is fine for early dev. I'm sure things will evolve as we start getting
+volunteers making content. We may want to add a selector for the textures. 1k, 2k, 4k, 8k,
+whatever. I want to make sure when people change graphics settings they know what they're
+actually changing." The last sentence is a standing rule in CLAUDE.md ("Every graphics setting
+says what it actually changes"). Planned next: Garment textures levels as data up to each
+garment's source size (MakeHuman's sources reach 4096, so 2K and 4K; 4K for every garment is
+GB-scale in BC7, so the levels above 1K come as an optional download pack from a release asset),
+each level showing its download size and video memory; 8K only when art at that size exists,
+never an upscale labelled as more.
+
+## 17. Built: rung 2b, interactions anchored to things, hands, look-at and true first person (2026-11-10)
+
+The operator approved rungs 0 to 2 on 2026-11-08 ("Let's do this so players get a good player model
+and animations."). 2a (the feet, section 15) and the look (section 16) were built first; 2b completes
+rung 2: a body sitting, lying, climbing, working at a bench or opening a door plays what fits the
+object; the player sees their own body in first person; other players see where someone looks and
+what they are using. Section 3.3's design, with analytic solves (full-body IK and motion matching are
+later rungs).
+
+- **Anchors as data (3.3).** `data/characters/interactions.ron`: each row is ONE ANCHOR, a place on a
+  kind of object: its `root` (where the person's root, between the feet, stands while it holds) and
+  `facing_deg` in the object's own frame (metres, from the middle of the object's footprint on its
+  floor, where a placed machine stands since its model is fitted and centred, `fit_for_machine`), the
+  `approach` (where they stand before it and get up to), the `contacts` (Hips on a seat or the covers,
+  LeftHand, RightHand, Hands either side of a point, Feet; a hand's grip), each phase's clip or target
+  pose (`enter`, `hold`, `exit`) with its time limit, `root_driven`, `reach_m`, and a station's
+  `span_m`. **Objects name their anchors**: `MachineDef::anchors` (the chair's seat, the couch's three
+  seats, the bed's mattress and edge, the workbenches; the one-person home's box bench has a row of its
+  own because its top is 0.90 m, not 0.85), `StructureType::anchors` (the ladder; stairs and the
+  elevator name none: walking stairs is the feet's, riding a car is standing), and the opening styles,
+  which became rows with anchors (`data/blueprints/opening_styles.ron`, read by
+  `door_anim::opening_styles`, a swing door's handle). A new chair is a row and a line in its
+  definition. `crates/humanity-animation/src/interact.rs` parses and checks the rows against the clips
+  and grips; the engine places them in the world (`engine::interact`). **Every seat height was
+  measured from the drawn model** fitted to its definition's height as the game fits it (a 10 cm grid
+  of the highest up-facing surface): the chair 0.47 m, the couch 0.40 m, the bed's covers 0.40 m (its
+  pillows 0.42 to 0.45 m at its +Z head), the workbench 0.85 m.
+- **Motion warping.** The hips are moved from where the hold clip puts them (`seated_hips`) to where
+  THIS seat puts them: over the seat's contact by the person's own **seat drop**, how far under the
+  hips joint their drawn seat flesh (the hips' and thighs' vertices, trousers on, `seat_vertices`,
+  within 10 cm across of the hips joint and no more than 3 cm forward of it: the buttocks a seat
+  carries; the first rig sweep, reading 25 cm across, took a skirt's cloth between the knees and a
+  thigh sloping off the front edge for hips 11 to 13 cm into the seat, and the second, reading the
+  thighs forward of the joint, took the underside of a thigh the seated feet solve slopes toward the
+  floor, as a thigh does on a seat higher than the clip's, for hips 2.4 cm in) stands in the anchor's
+  pose, measured on the very mesh they are drawn with
+  (`engine::anchor_probe::seat_drop`; kept while the anchor and their mesh's version stay the same,
+  measured every frame with the reuse switch off), less the shoes' lift (section 16). The offset is
+  eased in from 0 to the enter clip's **contact frame** (`contact_time`: where its hips first come
+  within 1 cm of the seated hips), held while seated, and eased out from the exit clip's **lift-off**
+  (`release_time`: where its hips rise 2 cm off the seat). The root's travel and turn are eased over
+  the same window (`engine::interact::engaged_root`), and a player who pressed E further off first
+  WALKS IN to the approach point at 1.2 m/s (the locomotion graph reads the motion, so the body walks;
+  the act is sent only once the walk-in is done, so another player's screen times the sit from its
+  start). Seated, the feet keep their contacts (the sit clips' labels) with the pelvis held by the seat
+  (`FootFrame::pelvis_fixed`), so a foot under a high seat hangs at its leg's reach rather than
+  pulling the hips off the seat.
+- **What grants an interaction (gameplay never waits for animation).** E at a seat sits the player on
+  the nearest seat of it; E at the bed sleeps the night as before and lies them down. Both are ROOT
+  DRIVEN: the capsule (the camera's eye) is eased onto the anchor's root, held there
+  (`CameraController::held`: no walk, no gravity, no fall), and eased back to the approach point by
+  the exit; a movement key or E gets up. The ladder's own climb (`renderer::camera`) moves the
+  capsule; while the body is on a ladder (off its floor in the climb zone) the climb is shown. A
+  workbench's card open while standing 3 to 25 cm from its edge (where both hands reach its top;
+  `at_station`) puts both hands on it; further off, the hands stay down rather than stretch for it. A
+  swing door that is opening, or swung wider within the last 1.5 s, with its handle ahead of a person and
+  within 95% of their own arm's length from their nearer shoulder (each body's rest bones and palm at
+  the scale it is drawn, `HandRig::reach`) takes that hand (worked out on every screen for everyone
+  drawn, like the door itself, so never sent). The first sweep used a fixed 85 cm from a fixed
+  shoulder height, and the hand hung 30 cm short of a handle beyond the arm. Not root driven: the capsule stays where those systems put it; the drawn
+  body faces the ladder or the bench, and a climber is drawn at the ladder's face.
+- **Each interaction, and what plays it.** The free tier of Quaternius's library (43 clips, read
+  2026-11-10) has the sit (Sitting_Enter, Sitting_Idle_Loop, Sitting_Exit: retargeted since rung 1,
+  now played) and no lie-down, no ladder climb, no lean on a bench and no door push, so those are
+  TARGET POSES WITH ANALYTIC IK, said plainly: **lying** is the idle turned onto its back about its
+  hips, from the REST pelvis (front up, the head to the pillows, the legs laid straight from the rest
+  pose: turned from the idle, its forward foot rose toward the ceiling in the first sweep, and the
+  idle's tipped pelvis raised both straight legs 22 cm off the bed in the second), laid on the covers by the same measured drop, the root
+  eased from the bedside onto the bed over its 1.4 s phase (a lie-down clip, sitting on the edge and
+  swinging the legs up, is wanted); **the ladder** puts each hand on a rung and each foot on a rung
+  below from the piece's own size and rung count (`climb_limbs`: the rung over the root by about the
+  shoulders' height plus 36 cm at the top of each hand's reach (a hand works from its chest to over
+  its head, the body drawn 30 cm off the rungs, within the shortest body's reach), at the root for the feet, each limb on a two-rung
+  cycle and moving for a third of it, each hand with the opposite foot, a diagonal gait; past the
+  top, at the hatch, a hand whose next rung would be past the top holds the top rung until that rung
+  is under its own cycle's lowest grip, then lets go (the clip's hand: held on, it was pulled down to
+  the chest and the waist, 2.5 to 10.5 cm off the rung with the arm folded tight); **a station**
+  puts both palms on the work surface a shoulder width apart, 8 cm in from its edge (the feet 8 cm
+off it: the shortest body reaches no further upright, and leaning is the full-body IK rung's), in front of the
+  person along the bench (`span_m`); **a door**: the nearer hand flat where the handle would be (the
+  slab draws no handle yet, so a palm pushing it rather than a fist closing on nothing).
+- **Hands (section 4).** Two-bone arm IK (`apply_limbs`, the legs' analytic solve, `feet::two_bone`,
+  the elbow bending down and out) to a target with the hand turned so its palm and fingers point as
+  asked, the target measured to the middle of the palm (`Arm::palm_offset`), not the wrist. A small
+  **grip library**, `data/characters/grips.ron` (relaxed, power, rung, pinch, staff, two-handed,
+  flat), curls each finger's three joints about axes worked out from the rest pose (the segment's way
+  across the palm's normal), **blended per finger**: a finger a grip does not name keeps the clip's
+  own pose. **Two grip sockets** replace the single hands slot for held things
+  (`data/inventory/equipment_slots.json`: grip_r and grip_l, the humanoid's sockets; gloves stay worn
+  in hands; `data/equipment.csv` gains `grip`; the swing reads the main hand); a thing whose grip has
+  a second hand (two-handed 0.35 m, staff 0.5 m along the shaft) takes the left hand too and puts both
+  hands on one shaft carried in front (`two_handed_limbs`). The held thing itself is not drawn: no item
+  has a model yet.
+- **Look-at (section 4).** The neck, upper neck and head turn toward a point (shares 0.3, 0.3, 0.4,
+  within 70 degrees of yaw, 40 up and 55 down), then the eyes take what is left (25 and 20 degrees),
+  at a person's turn rate (`turning::LOOK`, 150 degrees a second). The player's head follows the
+  camera's aim, another player's their yaw and the pitch their update carries, and a crew member
+  within 4 m looks at the player when the player is in front of them (a point of interest; the crowd's
+  timetable will give them others). Near bodies and the player only.
+- **True first person (section 5).** The same body is drawn for the eye camera with the neck and
+  everything under it folded to the base of the neck (`collapse_subtree`: their palette matrices
+  scaled to nothing at the neck's joint), the standard way a first-person body hides its head (a bone
+  scaled to zero), so the eye sees its arms, legs, clothes and what it holds and never the inside of
+  its head. The camera rides the drawn head, the eyes' midpoint, through a VIEW offset
+  (`Camera::view_offset`, low-passed over 0.06 s; yaw and pitch stay the player's; the capsule, reach
+  and footing still read the standing eye), which carries the crouch and the seat too. No sinusoidal
+  head bob existed to replace (camera-system.md designed one; it was never built). **Settings >
+  Gameplay: Show my body in first person** (on by default, question 4) and **Reduce motion** (off;
+  the eye stays where the walk puts it, the crouch and a seat lowering it gently as before); words and
+  hints by key. **The simplified mode** is "Show my body" off: the old first-person view, no body.
+  **The shadow**: bodies cast no sun shadow in the scene pass today (the home list has no sun shadow
+  pass; on a planet the body stands in the scene list, which the sun map does not draw), so nothing
+  is lost by drawing the first-person body once with its head folded; when bodies cast shadows (rung
+  4's skinned shadow PSO) the shadow must draw the unfolded pose (a second palette for the player).
+- **The network (8.5).** The movement message carries the look's **pitch** (whole degrees, clamped to
+  89 either way, left out when level) and the **act** (`["chair_seat", 1]`: an anchor id and the phase,
+  0 entering, 1 holding, 2 leaving; left out when using nothing), read through one clamping reader each
+  at the relay and the app (`humanity_core::stance::Doing`): an anchor the shipped game does not know
+  (the core compiles the shipped interactions.ron's ids in, `AnchorIds::shipped`), a phase out of
+  range or anything of the wrong shape is dropped. The stance byte now says Sit (sitting or lying) and
+  Climb. A receiver poses another player's seat from the anchor's own row where they stand (their
+  capsule is at its root), finds a ladder or a workbench by its id near them, and times the phase
+  locally. What each hand holds is not sent yet (8.5 lists it; not this rung's).
+- **Dev tooling.** Showcase verbs `crowd_act` (a stand-in at a machine's anchor: walks in, holds, gets
+  up after a hold when given, drawn with the body named by `body=` so a red twin uses the body that
+  really misses that seat), `act` (the player granted one, `leave`, `none`), `warp`, `hand_ik`,
+  `fp_head` (the red twins), `fp_body` and `reduce_motion` (Settings), `rung2b` (the cost twin: no
+  interactions, look-at or first-person body, as main drew) and `anchor_probe`; the interaction probe
+  (`src/engine/anchor_probe.rs`) and its judge (`scripts/lib/anchor-probe-check.js`, rules
+  `hips_on_seat`, `hands_on_rungs`, `hands_on_surface`, `hand_on_handle`, `head_hidden`); the report's
+  `acting` count.
+- **Web**: the website draws no 3D world and has no game Settings to mirror (the dual-UI parity
+  rule's documented "no", as for 2a).
+
+**Proof, in the tests** (each seen red; `src/engine/animation_interact_tests.rs` poses the shipped
+MakeHuman bodies through their shipped clips at the shipped anchors the way the frame does and
+measures the DRAWN mesh with the interaction probe's own helpers):
+- **Hips on THIS seat at every seat's height** (the buttocks: the seat flesh within 10 cm across of
+  the drawn hips joint and no more than 3 cm forward of it): warped, the lowest of it stands 0.9 cm
+  into the chair (0.47 m) and on the couch and the bed's edge (0.40 m) on the female body, on the
+  chair and 0.4 cm over the couch and the edge on the male (the bound: 2 cm in to 2.5 cm over).
+  **With warping off** (the clip's own seat) the female sits 5.6 cm into the chair and the male 7.1
+  cm over the couch and the edge, and those FAIL; but the female passes the couch and the edge by
+  accident (1.4 cm over: the clip's seat is about their height on her) and the male passes the chair
+  (0.1 cm over).
+  That is rung 2a's and the look's lesson again (a red twin can pass by accident), so the test
+  demands at least two seats fail as made, and the rig's red twins name the body that really fails
+  (`crowd_act`'s `body=`: the female at the chair, the male at the couch). Red: the warp's offset not
+  applied (the female 8.2 cm into the chair, read then 25 cm across); the seat's drop not measured
+  (the male 2.7 cm over the chair).
+- **Lying**: the hips on the covers (0.0 cm, both bodies) and each ankle joint 12.2 cm (female) and
+  11.5 cm (male) over them, the legs along the bed (the bound 15 cm); red with the drop not measured
+  (the hips 6.9 cm over) and laid down from the idle's pelvis (an ankle 22.6 cm over).
+- **Hands on the rungs** (the climb from 0.3 m to 2.05 m, past the top): gripping hands 1.7 cm into
+  to 0.0 cm off their rungs (female), 2.3 cm into to 0.0 cm off (male); with the hands off their
+  contacts, at least 19.7 and 17.6 cm from any rung. Red: the palm 6 cm further off, 4.3 cm off; the
+  hands held on the top rung past the top (no let-go), 10.5 cm off. Two
+  first builds failed for real: the climbing hand was asked past a short body's reach (the female's
+  palm 8 to 11 cm short of its target at chest height with the body 42 cm off the rungs), fixed by
+  drawing the climber 30 cm off and gripping from the chest to 36 cm over the shoulder; and the palm
+  was placed by its bones, so the skin sank 3.9 cm into the rung, fixed by measuring each hand's
+  palm-side depth from its drawn vertices (`HandRig::with_palm_depth`).
+- **Hands on the workbench**: each hand's lowest drawn vertex 0.3 cm (female) and 0.4 cm (male) into
+  the 0.85 m top; hands off, 5.8 to 10.4 cm under it. Red: the palm turned up, 3.3 cm over. The first
+  build stood the person 20 cm from the edge: the female's hands floated 2 to 3 cm (out of reach
+  upright), and the palms measured by their bones dipped 4.4 cm in; now the feet stand 8 cm from the
+  edge and the palm's measured depth rests its skin on the top.
+- **The first-person head folded away**: the nearest drawn vertex 15.9 cm (female) and 16.6 cm
+  (male) from the eyes, 1.43 and 1.55 m of body under them; drawn, 1.3 and 1.5 cm. Red: the fold
+  rooted at the head (the neck's skin 7.5 cm from the eye).
+- **Every anchor an object names is a row** (machines, structure types, opening styles, and the
+  network's compiled-in ids); red with "chair_seat" misspelt.
+- The crate's tests (the climb's alternating hands and the let-go past the top, look-at's limits, the
+  phase weights and codes; the phase weights test caught an engage weight left running backwards, an
+  interaction starting at full weight and fading out before its hold, fixed in step 3),
+  the core's (the pitch and act readers), the app's message round trip (the pitch in whole degrees
+  and the act out and back), the relay's on a real socket (`a_players_pitch_and_act_reach_the_others_clamped`:
+  sent, idle, an unknown anchor, a phase out of range, a pitch past straight up), the settings' save,
+  and the rig's judge (`scripts/tests/anchor-probe-check.test.js`), each seen red.
+
+**Proof, in the running game** (`node scripts/probe-sweep.js --only anim-...`, release build, rig
+defaults; the interaction probe skins each near person's touching vertices on the CPU with the very
+palette the GPU draws and measures them against the thing; every red twin FAILS):
+
+| Vantage | Who | Measured on the drawn mesh | Red twin | Twin measured |
+|---|---|---|---|---|
+| anim-sit-chair (0.47 m) | female stand-in | hips 0.3 cm into the seat | -warp-off (the clip's own seat) | 6.0 cm into: FAIL |
+| anim-sit-couch (0.40 m) | male stand-in | hips 1.9 cm over the seat | -warp-off | 11.5 cm over: FAIL |
+| anim-lie-bed | female stand-in | hips 0.0 cm on the covers | (the headless test's) | |
+| anim-ladder-climb | female stand-in | gripping hands 1.7 to 1.8 cm into their rungs (12 and 21 frames) | -hand-ik-off | 17.4 to 35.3 cm off: FAIL |
+| anim-workbench (0.85 m) | female stand-in | both palms 0.3 cm into the top | -hand-ik-off | 4.7 to 8.8 cm under it: FAIL |
+| anim-door-hand | the player, first person | the hand 1.4 cm from the handle (29 frames) | -hand-ik-off | 16.6 to 18.2 cm: FAIL |
+| anim-fp-legs | the player, first person | nothing drawn within 11.7 cm of the eye, 1.45 m of body under it | -head-shown | 1.5 cm: FAIL |
+
+It took three sweeps and a door pair: the first found the seat read too wide (a skirt's cloth), the
+lying legs raised, the climb held past the top, the door taken out of reach and the hands-off twins
+measuring nothing; the second, the thighs read as seat on a high chair, the rig's door walk flying
+into the floor and the lying pelvis tipped; the third passed; and the door's red twin, run straight
+after its green vantage, found the door still open. Each is fixed in the code or the vantage and
+named in the steps' commits.
+
+**Known limits, for the rungs after**:
+- Lying, climbing, a bench and a door are target poses with IK: the free clip library has none for
+  them. Lying is entered by blending the idle onto its back while the root eases onto the bed, not by
+  sitting on the edge and swinging the legs up; a captured lie-down and ladder climb, retargeted
+  from the free motion-capture sets at rung 3 (CMU, ACCAD, 100STYLE), would replace them.
+- The homestead's swing doors open themselves at 2.6 m (their `open_dist`) and swing a quarter turn
+  in 0.4 s, so the hand cannot open a door: it takes the handle of a door already swinging, toward
+  the person (the vantage) or away from them, once the handle comes within the arm's reach, and lets
+  go when the door stops swinging or the handle falls behind or out of reach. A door opened by the
+  hand (the door starting to swing when the hand reaches it) would need the doors to open at arm's
+  reach, a gameplay change for the operator (question below).
+- Held things are not drawn (no item has a model): the hands close in their grips and a two-handed
+  thing puts both hands on its shaft. What each hand holds does not cross the network (another
+  player's hands stay open).
+- A crew member's activity names no anchor yet: the crowd's timetable (crowd-simulation.md rung 3)
+  gives each activity an anchor, and the same rows then seat them.
+- The climb's hands and feet move on a fixed two-rung cycle from the capsule's height: climbing with
+  the keys held, a hand moves while the capsule rises; standing still on the ladder, the limbs hold
+  their rungs. A climb clip with its own contacts (rung 3) would carry the body's sway.
+- The take-off anticipation from the jump key (section 15) did not fall out of this rung's work and
+  is still open; crouching under low things is its own step (the operator's answer).
+
+**Lessons for rung 3 (motion matching)**:
+- The interface held: every interaction is "the anchor's row, the phase, the time, where it stands",
+  and the solver behind it (a clip sampled and warped, a target pose with IK) is a function of those.
+  Motion matching's interaction search takes the same anchor rows as its goal (the contact frame
+  and the target hips), so nothing around it changes.
+- Measure contacts on the drawn mesh, again: the warp's target is the seat flesh, trousers on, not
+  the hips joint, and the probe reads the same vertices. A database built at load should label each
+  interaction clip's contact frames by the same drawn measure, per body.
+- Time phases where the gameplay is, and send the phase, not the pose: the receiver times the phase
+  itself and poses from the row. Rung 3's captured interactions keep that wire.
+- The free clip tier decided which interactions are clips; the data was written so a clip replaces
+  a target pose in one line of the row (`enter: (clip: ...)`).
 
 ## References
 

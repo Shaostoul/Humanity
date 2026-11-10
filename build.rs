@@ -55,6 +55,10 @@ use std::path::Path;
 ///                        the look's ids (2026-11-10): the one clamping reader of a player's look
 ///                        (humanity_core::player_look::LookIds::shipped) keeps only the sliders,
 ///                        garments and cosmetics its build shipped, at the relay and in the app alike
+///   data/characters/interactions.ron
+///                        the anchors' ids (2026-11-10): the one clamping reader of a movement
+///                        message's act (humanity_core::stance::AnchorIds::shipped) keeps only the
+///                        anchors its build shipped
 ///   data/homes/shipped   the shipped home designs: a neighbour's plot is drawn as its
 ///                        kind's built-in design, never the disk copy, so that read is
 ///                        embedded-only (ship homes increment 2, crates/humanity-ship/src/neighbours.rs,
@@ -111,6 +115,11 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     "data/characters/details.ron",
     "data/characters/garments.ron",
     "data/cosmetics/cosmetics.csv",
+    // The anchors' ids (character animation rung 2b, 2026-11-10): the one clamping reader of a
+    // movement message's act (crates/humanity-core/src/stance.rs, AnchorIds::shipped) is compiled
+    // from this on purpose, so the relay and every app keep exactly the anchors their build shipped;
+    // an id outside them reads as using nothing.
+    "data/characters/interactions.ron",
 ];
 
 fn main() {

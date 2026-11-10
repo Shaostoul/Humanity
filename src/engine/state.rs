@@ -134,6 +134,9 @@ pub(crate) struct EngineState {
     /// The characters: the body library, each figure's state machine, the dev crowd
     /// (engine/animation.rs, docs/design/character-animation.md).
     pub(crate) animation: crate::engine::animation::AnimationRuntime,
+    /// The interactions (character animation rung 2b, engine/interact.rs): the player's granted
+    /// seat or bed, the red twins' switches, the interaction probe.
+    pub(crate) interact: crate::engine::interact::InteractRuntime,
     /// One-shot guard for the tree-card atlas bake (v0.961): a FAILED bake
     /// must log once and stop, not re-parse 12 GLTFs every frame.
     pub(crate) tree_atlas_attempted: bool,

@@ -4570,16 +4570,17 @@ pub struct SettingsState {
     /// Realistic (an overload slows walking and stops jumps, and a load's
     /// mass weighs on every jump). Saved as AppConfig::carry_realistic.
     pub carry_realistic: bool,
-    /// Walking pace (2026-11-09, engine::walk_pace): false is Simplified (the default: a 5 m/s walk,
-    /// a 9.5 m/s sprint), true is Realistic (1.4 and 4 m/s); speeds from data/game.csv. Saved as
-    /// AppConfig::walk_realistic.
+    /// Walking pace (2026-11-09, engine::walk_pace): false Simplified (default: 5 m/s walk, 9.5 sprint),
+    /// true Realistic (1.4 and 4 m/s); speeds from data/game.csv. Saved as AppConfig::walk_realistic.
     pub walk_realistic: bool,
-    /// Animation (2026-11-09, character animation rung 2a): false is Realistic (the default: feet
-    /// on the world with leg IK, foot locking and stair footsteps for the near bodies), true is
-    /// Simplified (the pelvis offset alone). Saved as AppConfig::anim_simplified.
+    /// Animation (2026-11-09, rung 2a): false Realistic (default: the near bodies' feet by leg IK, foot
+    /// locking, stair footsteps), true Simplified (the pelvis offset alone). AppConfig::anim_simplified.
     pub anim_simplified: bool,
-    /// Crouch (2026-11-09): false holds the crouch key to crouch (the default), true presses it once
-    /// to crouch and again to stand. Saved as AppConfig::crouch_toggle.
+    /// Show my body in first person (rung 2b; default true, the old body-less view false). AppConfig::fp_body.
+    pub fp_body: bool,
+    /// Reduce motion (rung 2b): the first-person eye off the drawn head (default false). AppConfig::reduce_motion.
+    pub reduce_motion: bool,
+    /// Crouch (2026-11-09): false holds the key (default), true toggles it. AppConfig::crouch_toggle.
     pub crouch_toggle: bool,
     /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
     /// content's main colour per marker, the default), true is Full (the scheme's whole marker,
@@ -4760,6 +4761,7 @@ impl Default for SettingsState {
             carry_realistic: false,
             walk_realistic: false,
             anim_simplified: false,
+            fp_body: true, reduce_motion: false,
             crouch_toggle: false,
             pipe_marking_full: false,
             death_realistic: false,

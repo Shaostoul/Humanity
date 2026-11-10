@@ -26,20 +26,10 @@ pub use storeys::StoreyEditor;
 const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
 
 /// Door/window animation styles, loaded from `data/blueprints/opening_styles.ron` (v0.931,
-/// infinite-of-x: was a hardcoded array). The opening stores the chosen string; a later stage
-/// animates from it. Same embedded-registry pattern as `lock_types`.
-fn opening_styles() -> &'static [String] {
-    static REG: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-    REG.get_or_init(|| {
-        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/opening_styles.ron"));
-        match ron::from_str::<Vec<String>>(SRC) {
-            Ok(v) if !v.is_empty() => v,
-            Ok(_) | Err(_) => {
-                log::error!("opening_styles.ron missing/invalid; using fallback");
-                vec!["swing".to_string(), "fixed".to_string()]
-            }
-        }
-    })
+/// infinite-of-x: was a hardcoded array; rows since character animation rung 2b, 2026-11-10, read
+/// by `door_anim::opening_styles`). The opening stores the chosen id; door_anim animates from it.
+fn opening_styles() -> impl Iterator<Item = &'static String> {
+    humanity_systems::door_anim::opening_styles().iter().map(|s| &s.id)
 }
 
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
@@ -4048,6 +4038,7 @@ mod multi_select_tests {
             level_gauge: false,
             container_type: None,
             provides: None,
+            anchors: Vec::new(),
             model: None,
             screen: None,
             camera: None,

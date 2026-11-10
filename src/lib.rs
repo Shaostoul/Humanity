@@ -1796,6 +1796,7 @@ mod native_app {
                 audio_volumes_applied: [-1.0; 6],
                 music: Default::default(),
                 animation: Default::default(),
+                interact: Default::default(),
                 tree_atlas_attempted: false,
                 particle_system: {
                     let mut ps = crate::renderer::particles::ParticleSystem::new();
@@ -2774,8 +2775,16 @@ mod native_app {
                                         }
                                     }
                                 }
+                            } else if state.interact.me.is_some() {
+                                // Seated or lying (rung 2b): E gets up, as a movement key does.
+                                crate::engine::interact::press_e(state);
                             } else if crate::engine::built_uses::use_machine(state) {
-                                // The home's bed (its def `provides: "rest"`): E sleeps, as at a built bed.
+                                // The home's bed (its def `provides: "rest"`): E sleeps, as at a built bed,
+                                // and lies the player down in it (character animation rung 2b).
+                                crate::engine::interact::press_e(state);
+                            } else if crate::engine::interact::press_e(state) {
+                                // A seat (a chair, the couch): E sits the player on it (rung 2b,
+                                // engine/interact.rs); a movement key gets up.
                             } else if let Some(t) = state.gui_state.targeted_machine {
                                 // Looking at a machine: toggle its card open/closed.
                                 state.gui_state.selected_machine =
@@ -3641,6 +3650,10 @@ mod native_app {
                     // (zone id, elevator id) (not saved). First person, not build. Every
                     // ZONE's elevators run, at world positions (v0.754). The footing sampler below
                     // reads the updated car height so the rider rides.
+                    // A granted interaction (character animation rung 2b, engine/interact.rs): its
+                    // phase moves on and the capsule is held where it puts the body (seated, lying),
+                    // before the walk runs.
+                    crate::engine::interact::tick(state, dt);
                     let lift_press = state.controller.take_lift_press();
                     // First or third person: both walk the body (character animation rung 1).
                     if state.camera.mode.walks_body()
@@ -9176,6 +9189,8 @@ mod native_app {
                     // scene list AFTER the station shift below, as `planet_ghost` does (rung 2a).
                     let mut people_render_space: Vec<RenderObject> = Vec::new();
                     let bodies_drawn = crate::engine::animation::draw_people(state, &mut all_objects, &mut people_render_space, &mut transparent_objects, &mut overlay_objects, showroom, dt);
+                    // Each door's swing this frame, for the door hand's "is it opening" (rung 2b).
+                    crate::engine::interact::note_doors(state);
                     if !showroom && !bodies_drawn {
                         if state.remote_avatar.is_none() {
                             // Sized by the constants remote_figure_parts places the parts by
@@ -12096,7 +12111,9 @@ mod native_app {
                                 .query::<(&humanity_core::ecs::components::Outfit, &Controllable)>()
                                 .iter()
                                 .next()
-                                .and_then(|(_, (o, _))| o.equipped.get("hands").cloned());
+                                // The main hand's grip socket (character animation rung 2b: what is held goes in
+                                // the two grip sockets; gloves stay worn in "hands").
+                                .and_then(|(_, (o, _))| o.equipped.get("grip_r").cloned());
                             let (weapon_name, damage, range) = hands_item
                                 .as_deref()
                                 .and_then(|id| {
@@ -12506,6 +12523,13 @@ mod native_app {
                                 "equipment_registry",
                             );
                         let items = state.data_store.get::<ItemRegistry>("item_registry");
+                        // The grips that take both hands (data/characters/grips.ron's rows with a
+                        // second hand: two_handed, staff), character animation rung 2b.
+                        let two_hand_grips: Vec<String> = state
+                            .animation
+                            .library()
+                            .map(|l| l.grips.grips.iter().filter(|g| g.second_hand_m.is_some()).map(|g| g.id.clone()).collect())
+                            .unwrap_or_default();
                         if let Some(e) = player {
                             let result: Result<String, String> = (|| {
                                 let mut inv = state
@@ -12538,6 +12562,24 @@ mod native_app {
                                             return Err(
                                                 "No room to take off what you're wearing".into()
                                             );
+                                        }
+                                    }
+                                    // Two hands on one shaft (character animation rung 2b): a held
+                                    // thing whose grip takes the second hand (an axe, a spear) frees
+                                    // the left hand's grip socket into the pack; nothing goes in the
+                                    // left hand while the right holds one.
+                                    let takes_both = |id: &str| equip_reg.and_then(|r| r.get(id)).is_some_and(|d| two_hand_grips.iter().any(|g| *g == d.grip));
+                                    if def.slot == "grip_l" && outfit.equipped.get("grip_r").is_some_and(|h| takes_both(h)) {
+                                        return Err("Both hands are on what you hold".into());
+                                    }
+                                    if def.slot == "grip_r" && takes_both(&item_id) {
+                                        if let Some(prev) = outfit.equipped.get("grip_l").cloned() {
+                                            let max_stack = items.map(|r| r.max_stack_for(&prev)).unwrap_or(99);
+                                            let vol = items.map(|r| r.volume_for(&prev)).unwrap_or(0.0);
+                                            if inv.add_item_volume_gated(&prev, 1, max_stack, vol) > 0 {
+                                                return Err("No room to put down what is in your other hand".into());
+                                            }
+                                            outfit.equipped.remove("grip_l");
                                         }
                                     }
                                     inv.remove_item(&item_id, 1);

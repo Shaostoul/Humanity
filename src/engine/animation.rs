@@ -92,6 +92,36 @@ pub(crate) struct Person {
     /// What their look says they wear (hair, brows, lashes, the outfit's cosmetics); what it does
     /// not say is their wearer kind's default.
     pub dress: humanity_animation::DressChoice,
+    /// What they are using (rung 2b, engine::interact): an anchor and, when gameplay times it (the
+    /// player's grant, a stand-in's), its phase and time; None walks.
+    pub act: Option<ActIn>,
+    /// Where they look, world (rung 2b): the player's aim, another player's pitch and yaw, a crew
+    /// member's point of interest; None looks ahead.
+    pub look: Option<Vec3>,
+    /// The player's own body drawn for the first-person eye (rung 2b): the head and neck folded
+    /// away, the camera riding the head.
+    pub first_person: bool,
+    /// What each hand holds, as the grip it is held in (left, right; an index into the library's
+    /// grips; rung 2b: the two grip sockets), and how far along one shaft the second hand closes
+    /// when the main hand's thing takes both hands.
+    pub held: [Option<usize>; 2],
+    pub second_hand: Option<f32>,
+}
+
+/// What a person is using this frame, as gather found it (rung 2b).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ActIn {
+    /// The anchor (an index into the library's anchors).
+    pub anchor: usize,
+    /// The phase and the seconds into it when gameplay times it (the player's grant, a stand-in's);
+    /// None for one only known to be on (a ladder, a workbench, a door), whose phases the figure times
+    /// (in when it starts, out when it stops), or another player's (their phase from the network,
+    /// timed here).
+    pub phase: Option<humanity_animation::Phase>,
+    pub t: Option<f32>,
+    /// Where it stands in the world, when known (the player's, a stand-in's, a ladder, a workbench, a
+    /// door found near the person); None for another player's seat, posed from the anchor's own row.
+    pub placed: Option<crate::engine::interact::Placed>,
 }
 
 /// Where a person's shape slider values come from (2026-11-09).
@@ -152,6 +182,17 @@ pub(crate) struct CrowdFigure {
     pub look: Option<CrowdLook>,
     /// Crouching (the `crowd_crouch` verb, rung 2a), as another player's network stance makes them.
     pub crouch: bool,
+    /// Using an anchor (the `crowd_act` verb, rung 2b): where it stands, when the stand-in began, and
+    /// when it gets up again (None: stays).
+    pub act: Option<CrowdAct>,
+}
+
+/// A stand-in's interaction (the `crowd_act` verb, rung 2b): it walks in from the approach point,
+/// holds, and gets up after `hold_s` seconds when given.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct CrowdAct {
+    pub placed: crate::engine::interact::Placed,
+    pub hold_s: Option<f32>,
 }
 
 /// A stand-in's own body and shape (the `lineup` verb).
@@ -196,6 +237,9 @@ pub(crate) struct Report {
     pub own_evicted: usize,
     pub own_packed: usize,
     pub own_waiting: usize,
+    /// People in an interaction this frame (rung 2b: seated, lying, climbing, at a station, at a
+    /// door's handle).
+    pub acting: usize,
     pub error: Option<String>,
 }
 
@@ -243,6 +287,88 @@ struct Figure {
     /// with the shared body and not built again until the look or the pool's plan changes (logged
     /// once).
     too_big: Option<u64>,
+    /// Their interaction from frame to frame (rung 2b): the anchor, its phase and time, and where it
+    /// stands; it plays its exit out after the act stops. State, like a position.
+    track: Option<Track>,
+    /// Their head's turn toward what they look at (rung 2b; state, like a position).
+    look: humanity_animation::LookState,
+    /// How far under the hips joint their seat flesh stands in an anchor's pose (the warp's measure),
+    /// with the anchor and the version of their mesh it was measured on (a value keyed by its own
+    /// inputs; measured again every frame with the reuse switch off).
+    seat_drop: Option<(usize, u64, f32)>,
+    /// The first-person view's ride on the head, low-passed (the player's figure only).
+    view_offset: Option<Vec3>,
+}
+
+/// A figure's interaction from frame to frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Track {
+    anchor: usize,
+    phase: humanity_animation::Phase,
+    t: f32,
+    placed: Option<crate::engine::interact::Placed>,
+    /// Timed by gameplay (the player's grant, a stand-in's): it ends when the act does, its exit
+    /// already played.
+    timed: bool,
+}
+
+/// One frame of a figure's interaction track from the person's act: a timed act is copied; one
+/// whose phase comes from the network is timed here within that phase; one only known to be on (a
+/// ladder, a workbench, a door) enters, holds while on, and plays its exit out once off.
+fn update_track(track: &mut Option<Track>, act: Option<&ActIn>, lib: &CharacterLibrary, clips: &humanity_animation::ClipSet, dt: f32) {
+    use humanity_animation::Phase;
+    let len = |anchor: usize, phase: Phase| humanity_animation::interact::phase_len(&lib.anchors.anchors[anchor], phase, clips);
+    match act {
+        Some(a) => {
+            let same = track.as_ref().is_some_and(|t| t.anchor == a.anchor);
+            match (a.phase, a.t) {
+                (Some(phase), Some(t)) => *track = Some(Track { anchor: a.anchor, phase, t, placed: a.placed, timed: true }),
+                (Some(phase), None) => match track.as_mut() {
+                    Some(tr) if same && tr.phase == phase => {
+                        tr.t += dt;
+                        if phase != Phase::Hold {
+                            tr.t = tr.t.min(len(a.anchor, phase));
+                        }
+                        tr.placed = a.placed.or(tr.placed);
+                    }
+                    _ => *track = Some(Track { anchor: a.anchor, phase, t: 0.0, placed: a.placed, timed: false }),
+                },
+                (None, _) => match track.as_mut() {
+                    Some(tr) if same => {
+                        tr.t += dt;
+                        if tr.phase == Phase::Exit {
+                            // On again while leaving: in again from the start of its way in.
+                            tr.phase = Phase::Enter;
+                            tr.t = 0.0;
+                        } else if tr.phase == Phase::Enter && tr.t >= len(a.anchor, Phase::Enter) {
+                            tr.phase = Phase::Hold;
+                            tr.t = 0.0;
+                        }
+                        tr.placed = a.placed.or(tr.placed);
+                    }
+                    _ => *track = Some(Track { anchor: a.anchor, phase: Phase::Enter, t: 0.0, placed: a.placed, timed: false }),
+                },
+            }
+        }
+        None => {
+            let done = match track.as_mut() {
+                None => false,
+                Some(tr) if tr.timed => true,
+                Some(tr) if tr.phase != Phase::Exit => {
+                    tr.phase = Phase::Exit;
+                    tr.t = 0.0;
+                    false
+                }
+                Some(tr) => {
+                    tr.t += dt;
+                    tr.t >= len(tr.anchor, Phase::Exit)
+                }
+            };
+            if done {
+                *track = None;
+            }
+        }
+    }
 }
 
 /// A person's own mesh building on a worker thread: where the finished mesh and what it took
@@ -402,6 +528,11 @@ pub(crate) struct AnimationRuntime {
     /// What the garment textures are loaded at; a change (the setting) lets every one go and the
     /// pools with them, to be read again at the new size.
     tex_size: Option<TexSize>,
+    /// What the player's body shows this frame (rung 2b): the anchor's id and its phase, for the
+    /// movement message.
+    me_act: Option<(String, humanity_animation::Phase)>,
+    pose2: Pose,
+    scratch: Pose,
 }
 
 impl Default for AnimationRuntime {
@@ -437,6 +568,9 @@ impl Default for AnimationRuntime {
             garment_materials: HashMap::new(),
             pools: Vec::new(),
             tex_size: None,
+            me_act: None,
+            pose2: Pose::default(),
+            scratch: Pose::default(),
         }
     }
 }
@@ -450,6 +584,16 @@ impl AnimationRuntime {
     /// The runtime's clock, seconds of frames drawn (the dev crowd walks by it).
     pub(crate) fn clock(&self) -> f32 {
         self.clock
+    }
+
+    /// The character library, when it has been read (rung 2b: the interactions read its anchors).
+    pub(crate) fn library(&self) -> Option<std::sync::Arc<CharacterLibrary>> {
+        self.lib.clone()
+    }
+
+    /// What the player's body shows this frame (rung 2b): the anchor's id and its phase.
+    pub(crate) fn my_act(&self) -> Option<(String, humanity_animation::Phase)> {
+        self.me_act.clone()
     }
 
     /// Are the bodies what the frame draws (the data read, the switch on)?
@@ -718,7 +862,7 @@ pub(crate) fn parse_crowd(spec: &str, origin: Vec3) -> Option<Vec<CrowdFigure>> 
                     // Alternate directions, so neighbours pass each other.
                     CrowdMotion::Circle { centre: origin, radius: ring, speed: if i % 2 == 0 { s } else { -s } }
                 };
-                CrowdFigure { motion, phase, born: 0.0, look: None, crouch: false }
+                CrowdFigure { motion, phase, born: 0.0, look: None, crouch: false, act: None }
             })
             .collect(),
     )
@@ -788,7 +932,7 @@ pub(crate) fn parse_lineup(spec: &str, feet: Vec3, forward: Vec3) -> Option<Vec<
                 }
             }
             let at = feet + fwd * ahead + right * ((i as f32 - (n - 1.0) * 0.5) * gap);
-            Some(CrowdFigure { motion: CrowdMotion::Turn { at, rate: 0.0 }, phase, born: 0.0, look: Some(CrowdLook { body: body.clone(), shape, detail, dress }), crouch: false })
+            Some(CrowdFigure { motion: CrowdMotion::Turn { at, rate: 0.0 }, phase, born: 0.0, look: Some(CrowdLook { body: body.clone(), shape, detail, dress }), crouch: false, act: None })
         })
         .collect()
 }
@@ -806,7 +950,7 @@ pub(crate) fn parse_path(spec: &str) -> Option<CrowdFigure> {
             (v.len() == 3).then(|| Vec3::new(v[0], v[1], v[2]))
         })
         .collect::<Option<Vec<Vec3>>>()?;
-    (points.len() >= 2 && speed > 0.0).then_some(CrowdFigure { motion: CrowdMotion::Path { points, speed }, phase: 0.0, born: 0.0, look: None, crouch: false })
+    (points.len() >= 2 && speed > 0.0).then_some(CrowdFigure { motion: CrowdMotion::Path { points, speed }, phase: 0.0, born: 0.0, look: None, crouch: false, act: None })
 }
 
 /// One region's colour for a person.
@@ -1200,6 +1344,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
     // `varied_shapes` 0) draws them all as the body as made, as before the sliders.
     let varied = state.animation.varied_shapes;
     let no_look = |key: FigureKey| if varied { ShapeValues::Varied(figure_seed(key)) } else { ShapeValues::Look(Default::default()) };
+    let lib = state.animation.lib.clone();
     let mut out = Vec::new();
     let me = |key: FigureKey, feet: Vec3, facing: f32, up: Vec3, crouch: bool, airborne: bool| {
         let app = &state.gui_state.appearance;
@@ -1221,13 +1366,22 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             airborne,
             detail: app.detail.clone(),
             dress: my_dress(app, &state.gui_state.outfit),
+            act: None,
+            look: None,
+            first_person: false,
+            held: [None, None],
+            second_hand: None,
         }
     };
     if showroom {
         out.push(me(FigureKey::Showroom, state.avatar_base + Vec3::new(0.0, SHOWROOM_PODIUM_M, 0.0), 0.0, Vec3::Y, false, false));
         return out;
     }
-    if state.camera.mode == crate::renderer::camera::CameraMode::ThirdPerson && !state.gui_state.construction_active {
+    let third = state.camera.mode == crate::renderer::camera::CameraMode::ThirdPerson;
+    // TRUE FIRST PERSON (rung 2b): the same body for the first-person eye, its head and neck folded
+    // away, unless Settings' "Show my body in first person" is off (the old first-person view).
+    let first = state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson && state.gui_state.settings.fp_body && state.interact.rung2b_on;
+    if (third || first) && !state.gui_state.construction_active {
         // On a planet the way up is the local radial (rung 2a): the body stands on the ground under
         // the eye and faces the way the camera looks along the ground.
         let (up, facing) = if state.camera.surface_mode {
@@ -1237,7 +1391,23 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             (Vec3::Y, facing_for_camera_yaw(state.camera.yaw))
         };
         let c = &state.controller;
-        out.push(me(FigureKey::Me, state.camera.position - up * c.eye_height(), facing, up, c.crouching(), c.airborne()));
+        let mut p = me(FigureKey::Me, state.camera.position - up * c.eye_height(), facing, up, c.crouching(), c.airborne());
+        p.first_person = first;
+        // What they hold (rung 2b: the two grip sockets), each in its grip; a thing that takes both
+        // hands closes the left hand on its shaft too.
+        if let Some(lib) = lib.as_deref() {
+            let equip = state.data_store.get::<humanity_systems::economy::EquipmentRegistry>("equipment_registry");
+            let grip_of = |slot: &str| state.gui_state.outfit.equipped.get(slot).and_then(|id| equip.and_then(|r| r.get(id))).and_then(|d| lib.grips.index(&d.grip));
+            let (r, l) = (grip_of("grip_r"), grip_of("grip_l"));
+            p.second_hand = r.and_then(|g| lib.grips.grips[g].second_hand_m);
+            p.held = [if p.second_hand.is_some() { r } else { l }, r];
+        }
+        // Their head follows the camera's aim (rung 2b): the point a few metres along the view.
+        p.look = Some(state.camera.position + state.camera.forward() * 6.0);
+        if let Some(lib) = lib.as_deref().filter(|_| state.interact.rung2b_on) {
+            p.act = my_act_in(state, lib, &mut p);
+        }
+        out.push(p);
     }
     let world = &state.game_world.world;
     for (_e, (t, r)) in world.query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemotePlayer)>().iter() {
@@ -1245,9 +1415,10 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             continue;
         }
         let yaw = 2.0 * t.rotation.y.atan2(t.rotation.w);
-        out.push(Person {
+        let feet = t.position - Vec3::new(0.0, humanity_core::ecs::components::EYE_HEIGHT_M as f32, 0.0);
+        let mut p = Person {
             key: FigureKey::Player(r.player_id),
-            feet: t.position - Vec3::new(0.0, humanity_core::ecs::components::EYE_HEIGHT_M as f32, 0.0),
+            feet,
             facing: facing_for_camera_yaw(yaw),
             height: r.look.as_ref().map_or(1.0, |l| l.height),
             // The shape they chose, as their look carried it (clamped by PlayerLook); none for an
@@ -1267,13 +1438,31 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             // 2026-11-09; cleaned by PlayerLook's one reader, so only known ids arrive).
             detail: r.look.as_ref().map(|l| l.detail.clone()).unwrap_or_default(),
             dress: r.look.as_ref().map(|l| dress_of_wear(&l.wear)).unwrap_or_default(),
-        });
+            act: None,
+            // Where they look (rung 2b): their yaw and the pitch their update carried.
+            look: Some(t.position + Vec3::new(yaw.sin() * r.doing.pitch.cos(), r.doing.pitch.sin(), -yaw.cos() * r.doing.pitch.cos()) * 6.0),
+            first_person: false,
+            held: [None, None],
+            second_hand: None,
+        };
+        if let Some(lib) = lib.as_deref().filter(|_| state.interact.rung2b_on) {
+            p.act = remote_act_in(state, lib, &mut p, r.doing.act.as_ref());
+        }
+        out.push(p);
     }
+    // A crew member looks at the player when the player is near and in front of them (rung 2b: a
+    // point of interest; the crowd's timetable will give them others).
+    let my_head = state.camera.position;
     for (_e, (t, n)) in world.query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemoteNpc)>().iter() {
-        out.push(Person {
+        let facing = facing_of_turn(t.rotation);
+        let feet = t.position - Vec3::new(0.0, CREW_POSITION_OVER_FEET_M, 0.0);
+        let to_me = my_head - (feet + Vec3::Y * 1.5);
+        let ahead = Vec3::new(facing.sin(), 0.0, facing.cos());
+        let look = (to_me.length() < CREW_LOOK_M && to_me.normalize_or_zero().dot(ahead) > 0.2).then_some(my_head);
+        let mut p = Person {
             key: FigureKey::Crew(n.entity_id),
-            feet: t.position - Vec3::new(0.0, CREW_POSITION_OVER_FEET_M, 0.0),
-            facing: facing_of_turn(t.rotation),
+            feet,
+            facing,
             height: 1.0,
             shape: no_look(FigureKey::Crew(n.entity_id)),
             wearer: "crew",
@@ -1287,7 +1476,16 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             airborne: false,
             detail: Default::default(),
             dress: Default::default(),
-        });
+            act: None,
+            look,
+            first_person: false,
+            held: [None, None],
+            second_hand: None,
+        };
+        if let Some(lib) = lib.as_deref().filter(|_| state.interact.rung2b_on) {
+            p.act = door_act_in(state, lib, &p);
+        }
+        out.push(p);
     }
     let clock = state.animation.clock;
     for (i, c) in state.animation.crowd.iter().enumerate() {
@@ -1297,9 +1495,165 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             Some(l) => (ShapeValues::Look(l.shape.clone()), Some(l.body.clone()), l.detail.clone(), l.dress.clone()),
             None => (no_look(key), None, Default::default(), Default::default()),
         };
-        out.push(Person { key, feet, facing, height: 1.0, shape, wearer: "other", body, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: c.crouch, airborne: false, detail, dress });
+        let mut p = Person { key, feet, facing, height: 1.0, shape, wearer: "other", body, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: c.crouch, airborne: false, detail, dress, act: None, look: None, first_person: false, held: [None, None], second_hand: None };
+        if let Some(lib) = lib.as_deref().filter(|_| state.interact.rung2b_on) {
+            p.act = crowd_act_in(state, lib, c, clock, &mut p);
+        }
+        out.push(p);
     }
     out
+}
+
+/// How near the player must be for a crew member to look at them (metres).
+const CREW_LOOK_M: f32 = 4.0;
+
+/// The player's act this frame (rung 2b), in the order gameplay grants them: their granted seat or
+/// bed (its root and facing put where the grant has eased them, the capsule's place), else the
+/// ladder they are on, else the workbench whose card they have open, else a door opening at their
+/// hand.
+fn my_act_in(state: &EngineState, lib: &CharacterLibrary, p: &mut Person) -> Option<ActIn> {
+    if let Some(e) = state.interact.me.filter(|e| e.placed.anchor < lib.anchors.anchors.len()) {
+        let bi = lib.body_for(p.body.as_deref(), p.wearer, stagger(p.key));
+        let (feet, facing) = crate::engine::interact::engaged_root(lib, &e, bi);
+        p.feet = feet;
+        p.facing = facing;
+        return Some(ActIn { anchor: e.placed.anchor, phase: Some(e.phase), t: Some(e.clip_t()), placed: Some(e.placed) });
+    }
+    if state.aboard_station && state.controller.on_ladder(state.camera.position.y) {
+        if let Some(placed) = crate::engine::interact::ladder_near(state, lib, p.feet) {
+            face_anchor(lib, &placed, p, true);
+            return Some(ActIn { anchor: placed.anchor, phase: None, t: None, placed: Some(placed) });
+        }
+    }
+    if let Some(sel) = state.gui_state.selected_machine {
+        for placed in crate::engine::interact::machine_anchors(state, lib, sel) {
+            let def = &lib.anchors.anchors[placed.anchor];
+            if def.kind != humanity_animation::AnchorKind::Station {
+                continue;
+            }
+            // From whichever side of it they stand.
+            let flip = (Quat::from_rotation_y(-placed.yaw) * (p.feet - placed.origin)).z > 0.0;
+            let placed = crate::engine::interact::Placed { yaw: placed.yaw + if flip { std::f32::consts::PI } else { 0.0 }, ..placed };
+            if crate::engine::interact::at_station(def, &placed, p.feet) {
+                face_anchor(lib, &placed, p, false);
+                return Some(ActIn { anchor: placed.anchor, phase: None, t: None, placed: Some(placed) });
+            }
+        }
+    }
+    door_act_in(state, lib, p)
+}
+
+/// Another player's act (rung 2b), as their update named it: a seat or a bed posed from the
+/// anchor's own row where they stand (their capsule is at its root), a ladder or a workbench found by
+/// its id near them; else a door opening at their hand, worked out here.
+fn remote_act_in(state: &EngineState, lib: &CharacterLibrary, p: &mut Person, act: Option<&humanity_core::stance::Act>) -> Option<ActIn> {
+    let Some(act) = act else { return door_act_in(state, lib, p) };
+    let anchor = lib.anchors.index(&act.anchor)?;
+    let def = &lib.anchors.anchors[anchor];
+    let phase = humanity_animation::Phase::from_code(act.phase)?;
+    let placed = match def.kind {
+        humanity_animation::AnchorKind::Climb => crate::engine::interact::ladder_near(state, lib, p.feet),
+        humanity_animation::AnchorKind::Station => crate::engine::interact::machine_anchor_near(state, lib, anchor, p.feet, def.reach_m),
+        _ => None,
+    };
+    if let Some(pl) = placed.as_ref() {
+        face_anchor(lib, pl, p, def.kind == humanity_animation::AnchorKind::Climb);
+    }
+    Some(ActIn { anchor, phase: Some(phase), t: None, placed })
+}
+
+/// A dev stand-in's act (rung 2b): one the `crowd_act` verb gave it, timed by the runtime's clock
+/// (in from the approach point, held, out after its hold), else the ladder it is on (a `figure_path`
+/// up a ladder), else a door opening at its hand.
+fn crowd_act_in(state: &EngineState, lib: &CharacterLibrary, c: &CrowdFigure, clock: f32, p: &mut Person) -> Option<ActIn> {
+    if let Some(a) = c.act.filter(|a| a.placed.anchor < lib.anchors.anchors.len()) {
+        let def = &lib.anchors.anchors[a.placed.anchor];
+        let bi = lib.body_for(p.body.as_deref(), p.wearer, stagger(p.key));
+        let clips = &lib.bodies[bi.min(lib.bodies.len() - 1)].clips;
+        let enter = humanity_animation::interact::phase_len(def, humanity_animation::Phase::Enter, clips);
+        let exit = humanity_animation::interact::phase_len(def, humanity_animation::Phase::Exit, clips);
+        let t = (clock - c.born).max(0.0);
+        let hold = a.hold_s.unwrap_or(f32::INFINITY);
+        let (phase, pt) = if t < enter {
+            (humanity_animation::Phase::Enter, t)
+        } else if t < enter + hold {
+            (humanity_animation::Phase::Hold, t - enter)
+        } else if t < enter + hold + exit {
+            (humanity_animation::Phase::Exit, t - enter - hold)
+        } else {
+            return None;
+        };
+        let start = (a.placed.approach(def), a.placed.root(def).1);
+        let e = crate::engine::interact::Engaged { placed: a.placed, phase, t: pt, from: start, leave: false, approach_s: 0.0 };
+        if def.root_driven {
+            let (feet, facing) = crate::engine::interact::engaged_root(lib, &e, bi);
+            p.feet = feet;
+            p.facing = facing;
+        } else {
+            face_anchor(lib, &a.placed, p, def.kind == humanity_animation::AnchorKind::Climb);
+        }
+        return Some(ActIn { anchor: a.placed.anchor, phase: Some(phase), t: Some(pt), placed: Some(a.placed) });
+    }
+    // A stand-in walking a path up a ladder is on it once it is off the ladder's floor.
+    if let Some(placed) = crate::engine::interact::ladder_near(state, lib, p.feet) {
+        if p.feet.y > placed.origin.y + 0.25 && matches!(placed.object, crate::engine::interact::ObjectRef::Ladder { height, .. } if p.feet.y < placed.origin.y + height - 0.05) {
+            face_anchor(lib, &placed, p, true);
+            return Some(ActIn { anchor: placed.anchor, phase: None, t: None, placed: Some(placed) });
+        }
+    }
+    door_act_in(state, lib, p)
+}
+
+/// A swing door opening within reach of a person's hand (rung 2b, worked out on every screen): its
+/// handle as their act.
+fn door_act_in(state: &EngineState, lib: &CharacterLibrary, p: &Person) -> Option<ActIn> {
+    if !state.aboard_station {
+        return None;
+    }
+    let shoulder = p.feet + p.up * 1.35;
+    let h = crate::engine::interact::opening_handle_near(state, lib, shoulder, DOOR_REACH_M)?;
+    // Only a door ahead of them (one swinging open beside or behind them is not theirs to hold).
+    let ahead = Vec3::new(p.facing.sin(), 0.0, p.facing.cos());
+    let to = h.at - shoulder;
+    if Vec3::new(to.x, 0.0, to.z).normalize_or_zero().dot(ahead) < 0.1 {
+        return None;
+    }
+    // Within this body's own reach from its nearer shoulder, at the scale it is drawn: the first rig
+    // sweep took a handle 85 cm from a fixed shoulder height, and the hand hung 30 cm short of it,
+    // the arm straight out at a handle it could not reach.
+    let bi = lib.body_for(p.body.as_deref(), p.wearer, stagger(p.key));
+    let body = lib.bodies.get(bi)?;
+    let rig = body.hands.as_ref()?;
+    let (_, scale) = shape_of(lib, body, p);
+    let rotation = body_rotation(p.up, p.facing);
+    let reaches = (0..2).any(|side| {
+        let at = p.feet + rotation * (rig.shoulders[side] * scale);
+        (h.at - at).length() <= rig.reach[side] * scale * DOOR_REACH_SHARE
+    });
+    if !reaches {
+        return None;
+    }
+    let placed = crate::engine::interact::Placed { anchor: h.anchor, origin: h.at, yaw: 0.0, object: crate::engine::interact::ObjectRef::Door(h.door) };
+    Some(ActIn { anchor: h.anchor, phase: None, t: None, placed: Some(placed) })
+}
+
+/// How far from a person's shoulders' height a door's handle may be for it to be looked at further
+/// (metres): more than any arm reaches; each body's own reach then decides (`DOOR_REACH_SHARE`).
+const DOOR_REACH_M: f32 = 0.85;
+/// The share of an arm's full length (shoulder to the palm's middle) a hand reaches for a handle at:
+/// short of the elbow locked straight.
+const DOOR_REACH_SHARE: f32 = 0.95;
+
+/// Turn a person to face an anchor while it holds them (a ladder, a workbench): the drawn body
+/// faces it (the capsule and the camera are untouched); a climber is also drawn at the ladder's face,
+/// at the height their capsule climbs to.
+fn face_anchor(lib: &CharacterLibrary, placed: &crate::engine::interact::Placed, p: &mut Person, at_face: bool) {
+    let def = &lib.anchors.anchors[placed.anchor];
+    let (root, facing) = placed.root(def);
+    p.facing = facing;
+    if at_face {
+        p.feet = Vec3::new(root.x, p.feet.y, root.z);
+    }
 }
 
 /// What another player's look says they wear ("" is the viewer's default for that part).
@@ -1381,6 +1735,193 @@ pub(crate) fn person_rig(body: &humanity_animation::LoadedBody, skel: &humanity_
 /// The skeleton overlay's bone thickness and joint marker size, metres.
 const SKELETON_BONE_M: f32 = 0.012;
 const SKELETON_JOINT_M: f32 = 0.03;
+
+/// The joint the first-person body folds away from the eye (rung 2b): the neck, and so everything
+/// under it (the head, the eyes, the jaw); the upper neck or the head on a rig without a neck.
+pub(crate) fn first_person_fold(h: &humanity_animation::HandRig) -> Option<usize> {
+    h.neck.or(h.upper_neck).or(h.head)
+}
+
+/// How fast the first-person eye follows the drawn head (seconds, an exponential follow): a step's
+/// small jolts are smoothed while a sit, a crouch or a climb is followed at once (rung 2b, the
+/// stabilization; yaw and pitch stay the player's).
+const HEAD_RIDE_FOLLOW_S: f32 = 0.06;
+
+/// A version of a shared-body person's shape (their body and shape weights), for the seat's drop
+/// measured on them (a person's own mesh has its own version, `PersonMesh::key`). FNV-1a.
+fn weights_key(body: usize, weights: &[(usize, f32)]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ 0x5eed;
+    let mut eat = |x: u64| {
+        for b in x.to_le_bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
+    eat(body as u64);
+    for &(t, w) in weights {
+        eat(t as u64);
+        eat(w.to_bits() as u64);
+    }
+    h
+}
+
+/// The hands' (and on a ladder the feet's) targets for an interaction this frame, in the person's
+/// model space (rung 2b): the ladder's rungs from the piece's own size and rung count, a workbench's
+/// surface in front of the person along its length, a door's handle for the nearer hand. Which
+/// climbing hands are on a rung (not moving between rungs) goes in `hands_on`.
+#[allow(clippy::too_many_arguments)]
+fn contact_limbs(
+    lib: &CharacterLibrary,
+    def: &humanity_animation::AnchorDef,
+    placed: Option<&crate::engine::interact::Placed>,
+    to_model: &Mat4,
+    p: &Person,
+    scale: f32,
+    legs: Option<&humanity_animation::FootRig>,
+    hand_rig: Option<&humanity_animation::HandRig>,
+    reach: f32,
+    hands_on: &mut [bool; 2],
+) -> Option<humanity_animation::Limbs> {
+    use humanity_animation::interact::{ClimbInput, ContactPart, HandTarget};
+    use humanity_animation::AnchorKind;
+    let placed = placed?;
+    let grip = |part: ContactPart| def.contact(part).and_then(|c| c.grip.as_deref()).and_then(|g| lib.grips.index(g));
+    let up_m = to_model.transform_vector3(p.up).normalize_or_zero();
+    match def.kind {
+        AnchorKind::Climb => {
+            let crate::engine::interact::ObjectRef::Ladder { height, rungs, width } = placed.object else { return None };
+            let n = rungs.max(2);
+            let s = height / n as f32;
+            // The ladder's foot in model space: its rung line ahead, its middle across, its foot
+            // under the root by the height the capsule has climbed.
+            let foot = to_model.transform_point3(placed.origin);
+            let input = ClimbInput { z: foot.z, x: foot.x, first_rung_y: 0.5 * s / scale, spacing: s / scale, rungs: n as usize, half_width: (width * 0.5 - 0.04) / scale, rung_half_m: RUNG_HALF_M / scale, reach_over_root: reach, palm_depth: hand_rig.map_or([0.012; 2], |h| [h.arms[0].palm_depth / scale, h.arms[1].palm_depth / scale]) };
+            let limbs = humanity_animation::interact::climb_limbs(&input, -foot.y, grip(ContactPart::Hands), legs);
+            for (side, t) in limbs.hands.iter().enumerate() {
+                if let Some(t) = t {
+                    let k = (t.at.y - foot.y - input.first_rung_y) / input.spacing;
+                    hands_on[side] = (k - k.round()).abs() < 0.01 && k.round() >= 0.0 && k.round() < n as f32;
+                }
+            }
+            Some(limbs)
+        }
+        AnchorKind::Station => {
+            let c = def.contact(ContactPart::Hands)?;
+            let span = def.span_m.unwrap_or(0.0);
+            // In front of the person along the bench's length.
+            let local = Quat::from_rotation_y(-placed.yaw) * (p.feet - placed.origin);
+            let slide = local.x.clamp(-span, span);
+            let palm = to_model.transform_vector3(-p.up).normalize_or_zero();
+            let fingers = to_model.transform_vector3(Quat::from_rotation_y(placed.yaw) * Vec3::Z).normalize_or_zero();
+            let mut l = humanity_animation::Limbs { weight: 1.0, ..Default::default() };
+            for side in 0..2 {
+                // The person's left (model +X) is the bench frame's +X when they face its +Z.
+                let across = if side == 0 { STATION_HANDS_APART_M * 0.5 } else { -STATION_HANDS_APART_M * 0.5 };
+                // The palm's point stands its hand's palm-side depth over the top, so the deepest skin
+                // (the thumb's ball, the heel of the hand) rests on it (measured from the drawn hand).
+                let depth = hand_rig.map_or(0.012, |h| h.arms[side].palm_depth);
+                let at = to_model.transform_point3(placed.point([slide + across, c.at[1], c.at[2]])) + up_m * ((depth + 0.002) / scale);
+                l.hands[side] = Some(HandTarget { at, palm, fingers, grip: grip(ContactPart::Hands) });
+            }
+            Some(l)
+        }
+        AnchorKind::Door => {
+            // The handle (a door's placed origin is its handle this frame), for the nearer hand,
+            // the palm toward it, the fingers down its face.
+            let at = to_model.transform_point3(placed.origin);
+            let side = if at.x >= 0.0 { 0 } else { 1 };
+            let part = def.contacts.first().map(|c| c.part).unwrap_or(ContactPart::RightHand);
+            let palm = Vec3::new(at.x * 0.3, 0.0, at.z).normalize_or_zero();
+            let fingers = -up_m;
+            let mut l = humanity_animation::Limbs { weight: 1.0, ..Default::default() };
+            l.hands[side] = Some(HandTarget { at, palm, fingers, grip: grip(part) });
+            Some(l)
+        }
+        _ => None,
+    }
+}
+
+/// A ladder rung's half thickness (metres): the shipped ladder's rungs are 8 cm boxes
+/// (crates/humanity-ship/src/structure.rs, `MeshShape::Ladder`).
+const RUNG_HALF_M: f32 = 0.04;
+/// How far apart a person's hands rest on a work surface (metres): about their shoulders' width.
+const STATION_HANDS_APART_M: f32 = 0.40;
+
+/// Measure one person's drawn contacts for the interaction probe (rung 2b, engine::anchor_probe):
+/// the hips on the seat or the mattress while holding, each climbing hand on its rung while it grips
+/// one, each hand on a work surface, the hand at a door's handle.
+#[allow(clippy::too_many_arguments)]
+fn probe_contacts(
+    probe: &mut crate::engine::anchor_probe::AnchorProbe,
+    p: &Person,
+    body: &humanity_animation::LoadedBody,
+    def: &humanity_animation::AnchorDef,
+    tr: Track,
+    world: &Mat4,
+    model: &humanity_core::skin_data::SkinnedModelData,
+    seat: &[(usize, usize)],
+    hands: &[Vec<(usize, usize)>; 2],
+    weights: &[(usize, f32)],
+    rows: &[[f32; 4]],
+    hands_on: [bool; 2],
+    engage_w: f32,
+    hips_world: Vec3,
+) {
+    use crate::engine::anchor_probe::{hips_clearance, nearest, rung_gap, skinned, surface_clearance};
+    use humanity_animation::interact::ContactPart;
+    use humanity_animation::{AnchorKind, Phase};
+    let kind = format!("{:?}", def.kind);
+    let phase = tr.phase.code();
+    probe.phase(p.key, phase);
+    let note = |probe: &mut crate::engine::anchor_probe::AnchorProbe, name: &'static str, v: Option<f32>| probe.note(p.key, &body.choice, &def.id, &kind, phase, name, v);
+    let holding = tr.phase == Phase::Hold && engage_w > 0.999;
+    match def.kind {
+        AnchorKind::Sit | AnchorKind::Lie if holding => {
+            let Some(c) = def.contact(ContactPart::Hips) else { return };
+            // The seat's contact in the world: on the placed object, or from the anchor's row where
+            // the person stands at its root (another player's seat).
+            let contact = match tr.placed {
+                Some(pl) => pl.point(c.at),
+                None => p.feet + body_rotation(p.up, p.facing) * def.in_person_frame(c.at),
+            };
+            let pts = skinned(model, seat, weights, rows, world, crate::engine::anchor_probe::VERTEX_STRIDE);
+            let forward = (def.kind == AnchorKind::Sit).then(|| body_rotation(p.up, p.facing) * Vec3::Z);
+            note(probe, "hips_m", hips_clearance(&pts, hips_world, contact, p.up, forward));
+        }
+        AnchorKind::Climb if engage_w > 0.999 => {
+            let Some(pl) = tr.placed else { return };
+            let crate::engine::interact::ObjectRef::Ladder { height, rungs, width } = pl.object else { return };
+            let n = rungs.max(2);
+            for side in 0..2 {
+                if !hands_on[side] {
+                    continue;
+                }
+                let pts = skinned(model, &hands[side], weights, rows, world, crate::engine::anchor_probe::VERTEX_STRIDE);
+                let gap = (0..n)
+                    .filter_map(|r| {
+                        let y = (r as f32 + 0.5) * height / n as f32;
+                        rung_gap(&pts, pl.point([-width * 0.5 + 0.04, y, 0.0]), pl.point([width * 0.5 - 0.04, y, 0.0]), RUNG_HALF_M)
+                    })
+                    .reduce(f32::min);
+                note(probe, if side == 0 { "left_hand_m" } else { "right_hand_m" }, gap);
+            }
+        }
+        AnchorKind::Station if holding => {
+            let (Some(c), Some(pl)) = (def.contact(ContactPart::Hands), tr.placed) else { return };
+            let y = pl.point(c.at).y;
+            for side in 0..2 {
+                let pts = skinned(model, &hands[side], weights, rows, world, crate::engine::anchor_probe::VERTEX_STRIDE);
+                note(probe, if side == 0 { "left_hand_m" } else { "right_hand_m" }, surface_clearance(&pts, y));
+            }
+        }
+        AnchorKind::Door if holding => {
+            let Some(pl) = tr.placed else { return };
+            let gap = (0..2).filter_map(|side| nearest(&skinned(model, &hands[side], weights, rows, world, crate::engine::anchor_probe::VERTEX_STRIDE), pl.origin)).reduce(f32::min);
+            note(probe, "handle_m", gap);
+        }
+        _ => {}
+    }
+}
 
 /// Draw every person as a skinned, animated body. Returns false when the bodies are not what the
 /// frame draws (data missing, or the A/B switch on boxes): lib.rs then draws the box figures. With
@@ -1557,6 +2098,11 @@ pub(crate) fn draw_people(
     // has a place in its books for each (`own_pool_plan`), and when its room runs short the longest
     // out gives way sooner.
     let keep_cap = own_keep_cap(lib.characters.tiers.near_cap);
+    // The interactions' switches (rung 2b; the rigs' red twins) and the probe while it runs.
+    let (warp_on, hand_ik_on, fp_head_hidden, rung2b_on) = (state.interact.warp_on, state.interact.hand_ik_on, state.interact.fp_head_hidden, state.interact.rung2b_on);
+    let mut aprobe = state.interact.probe.take();
+    let mut me_act: Option<(String, humanity_animation::Phase)> = None;
+    let mut my_eye: Option<Vec3> = None;
     // The overlay's unit box (base at its origin, one metre each way) and its two bright materials.
     let skeleton_meshes = show_skeletons.then(|| {
         *rt.skeleton_meshes.get_or_insert_with(|| {
@@ -1592,9 +2138,13 @@ pub(crate) fn draw_people(
             building: None,
             pending: None,
             too_big: None,
+            track: None,
+            look: Default::default(),
+            seat_drop: None,
+            view_offset: None,
         });
         fig.seen = rt.frame;
-        let Figure { animator, motion, shape, feet, air_s, own, away_s, building, pending, too_big, .. } = &mut fig;
+        let Figure { animator, motion, shape, feet, air_s, own, away_s, building, pending, too_big, track, look, seat_drop, .. } = &mut fig;
         // THE LOOK (2026-11-09; humanity_animation::look): a near person, the player and the
         // showroom's figure are drawn with their OWN mesh, built once when their look changes (a
         // version made from everything it is built from), on a worker thread off the frame (at most
@@ -1839,14 +2389,82 @@ pub(crate) fn draw_people(
             ..input
         };
         animator.update(&lib.graph, &body.clips, skel, &lib.humanoid, &input, dt, &mut rt.pose);
-        pose::model_matrices(skel, &rt.pose, &mut rt.model);
         let rotation = body_rotation(p.up, p.facing);
         let origin = p.feet + p.up * (lift * scale);
         let world = Mat4::from_scale_rotation_translation(Vec3::splat(scale), rotation, origin);
+        // INTERACTIONS (rung 2b, humanity_animation::interact, engine::interact): the figure's track
+        // follows the person's act; its phase's clip or target pose is blended in from the walk, the
+        // hips warped onto THIS seat (motion warping, from the enter clip's contact frame), and the
+        // hands and feet put on their contacts below, after the feet.
+        // An anchor index from a library read before this one is not this library's (a hot reload).
+        if track.is_some_and(|t| t.anchor >= lib.anchors.anchors.len()) {
+            *track = None;
+        }
+        let act_in = p.act.filter(|a| a.anchor < lib.anchors.anchors.len());
+        update_track(track, act_in.as_ref(), lib, &body.clips, dt);
+        let hand_rig = body.hands.as_ref();
+        let mut engage_w = 0.0_f32;
+        let mut act_contacts: Option<[f32; 2]> = None;
+        let act = track.and_then(|tr| hand_rig.map(|h| (tr, h)));
+        if let Some((tr, h)) = act {
+            let def = &lib.anchors.anchors[tr.anchor];
+            report.acting += 1;
+            let idle = body.clips.index("idle");
+            let contact_s = humanity_animation::interact::contact_time(def, &body.clips, skel, h.hips);
+            let release_s = humanity_animation::interact::release_time(def, &body.clips, skel, h.hips);
+            // THE SEAT'S DROP: how far under the hips joint this person's seat flesh (trousers on)
+            // stands in the anchor's own pose, measured on the mesh they are drawn with, so the warp
+            // rests the flesh, not the joint, on the seat. Measured when the anchor or their mesh
+            // changes, and every frame with the reuse switch off.
+            let hips_c = def.contact(humanity_animation::interact::ContactPart::Hips);
+            let mesh_key = mine.map_or_else(|| weights_key(bi, &weights), |o| o.mesh.key);
+            let drop = match (*seat_drop, hips_c) {
+                (_, None) => 0.0,
+                (Some((a, k, d)), Some(_)) if reuse && a == tr.anchor && k == mesh_key => d,
+                (_, Some(_)) => {
+                    let probe = humanity_animation::Engagement { def, phase: humanity_animation::Phase::Hold, t: 0.0, hips_target: Some(Vec3::new(0.0, 1.0, 0.0)), warp: false, contact_s, release_s };
+                    humanity_animation::interact::pose(&probe, &body.clips, skel, &lib.humanoid, h, idle, &rt.pose, &mut rt.pose2, &mut rt.scratch);
+                    pose::model_matrices(skel, &rt.pose2, &mut rt.model);
+                    rt.rows.clear();
+                    pose::palette_rows(skel, &rt.model, &mut rt.rows);
+                    let hips_at = rt.model[h.hips].w_axis.truncate();
+                    let (model, seat) = mine.map_or((&body.model, &body.seat_vertices), |o| (&o.mesh.model, &o.mesh.seat_vertices));
+                    let forward = (def.kind == humanity_animation::AnchorKind::Sit).then_some(Vec3::Z);
+                    let d = crate::engine::anchor_probe::seat_drop(model, seat, gpu_weights, &rt.rows, hips_at, forward).unwrap_or(humanity_animation::interact::default_back_drop());
+                    *seat_drop = Some((tr.anchor, mesh_key, d));
+                    d
+                }
+            };
+            // Where the hips joint goes (model space, the person standing at the anchor's root): over
+            // the seat's contact by the drop. Model space stands on the shoes' soles (`lift`), so the
+            // seat's height over the floor is that much less in it.
+            let hips_target = hips_c.map(|c| {
+                let local = def.in_person_frame(c.at) / scale;
+                Vec3::new(local.x, local.y - lift + drop, local.z)
+            });
+            let e = humanity_animation::Engagement { def, phase: tr.phase, t: tr.t, hips_target, warp: warp_on, contact_s, release_s };
+            let w = humanity_animation::interact::pose(&e, &body.clips, skel, &lib.humanoid, h, idle, &rt.pose, &mut rt.pose2, &mut rt.scratch);
+            std::mem::swap(&mut rt.pose, &mut rt.pose2);
+            engage_w = w.engage;
+            // The feet's contacts: the phase clip's labels, blended in with the pose.
+            if let Some(ci) = def.phase(tr.phase).clip.as_deref().and_then(|c| body.clips.index(c)) {
+                let c = body.clips.get(ci).contacts_at(tr.t);
+                let a = animator.contacts();
+                act_contacts = Some([a[0] + (c[0] - a[0]) * engage_w, a[1] + (c[1] - a[1]) * engage_w]);
+            }
+            if p.key == FigureKey::Me {
+                me_act = Some((def.id.clone(), tr.phase));
+            }
+        }
+        pose::model_matrices(skel, &rt.pose, &mut rt.model);
+        let act_kind = act.map(|(tr, _)| lib.anchors.anchors[tr.anchor].kind);
         // FEET ON THE WORLD (rung 2a, humanity_animation::feet): the near bodies in the realistic
         // animation mode get the full solve (leg IK, the foot turned to the slope about its toe,
         // foot locking, stair footsteps), every other body the pelvis offset alone.
         let mode = match rig {
+            // Lying, or on a ladder (rung 2b): no ground under the feet; the climb's own limbs put
+            // them on its rungs.
+            Some(_) if matches!(act_kind, Some(humanity_animation::AnchorKind::Lie | humanity_animation::AnchorKind::Climb)) && engage_w > 0.0 => FootMode::Off,
             Some(_) if feet_on && ground.is_some() => {
                 if !simplified && tier[i] == DrawTier::Near && near_rank[i] < max_full {
                     FootMode::Full
@@ -1862,7 +2480,9 @@ pub(crate) fn draw_people(
         let person_ground = PersonGround { world: &ground, reference: p.feet.y };
         let feet_report = match rig {
             Some(rig) => {
-                let frame = humanity_animation::FootFrame { world, contacts: animator.contacts(), airborne: p.airborne, dt };
+                // Seated (rung 2b), the hips are the seat's: the pelvis is not moved for the feet.
+                let pelvis_fixed = act_kind == Some(humanity_animation::AnchorKind::Sit) && engage_w > 0.0;
+                let frame = humanity_animation::FootFrame { world, contacts: act_contacts.unwrap_or_else(|| animator.contacts()), airborne: p.airborne, dt, pelvis_fixed };
                 let t0 = (mode == FootMode::Full).then(std::time::Instant::now);
                 let r = feet.place(rig, skel, &lib.humanoid, &mut rt.pose, &mut rt.model, &frame, &person_ground, mode, &lib.characters.feet);
                 if let Some(t0) = t0 {
@@ -1879,10 +2499,81 @@ pub(crate) fn draw_people(
             FootMode::Off => {}
         }
         report.ground_queries += feet_report.queries;
+        // HANDS AND FEET ON THEIR CONTACTS (rung 2b): the ladder's rungs, a workbench's surface, a
+        // door's handle, by two-bone arm (and, on the ladder, leg) IK with the grips' fingers.
+        let to_model = world.inverse();
+        let mut climb_hands_on: [bool; 2] = [false; 2];
+        // The targets are worked out with the IK off too (the red twin), so the probe still knows
+        // which hands the climb has on a rung and measures them where they hang.
+        if let Some((tr, h)) = act {
+            let def = &lib.anchors.anchors[tr.anchor];
+            let reach = humanity_animation::interact::climb_reach(h, &rt.model);
+            let limbs = contact_limbs(lib, def, tr.placed.as_ref(), &to_model, p, scale, rig, Some(h), reach, &mut climb_hands_on);
+            if let (Some(mut limbs), true) = (limbs, hand_ik_on) {
+                limbs.weight *= engage_w;
+                humanity_animation::interact::apply_limbs(h, rig, skel, &lib.humanoid, &lib.grips, &mut rt.pose, &mut rt.model, &limbs);
+            }
+        }
+        // WHAT THEY HOLD (rung 2b): each held thing's grip on its hand's fingers; a thing that takes both
+        // hands puts both on its shaft, carried in front (the prop itself is not drawn yet).
+        if let (None, Some(h), true) = (act, hand_rig, p.held.iter().any(Option::is_some)) {
+            match p.second_hand {
+                Some(second) if hand_ik_on => {
+                    let limbs = humanity_animation::interact::two_handed_limbs(h, &rt.model, p.held[1], second);
+                    humanity_animation::interact::apply_limbs(h, rig, skel, &lib.humanoid, &lib.grips, &mut rt.pose, &mut rt.model, &limbs);
+                }
+                _ => {
+                    for side in 0..2 {
+                        if let Some(g) = p.held[side].and_then(|g| lib.grips.grips.get(g)) {
+                            humanity_animation::interact::apply_grip(&h.arms[side], skel, &mut rt.pose, g, 1.0);
+                        }
+                    }
+                    pose::model_matrices(skel, &rt.pose, &mut rt.model);
+                }
+            }
+        }
+        // LOOK-AT (rung 2b): the head, then the eyes, toward what they look at, at a person's turn rate
+        // within the head's limits (near bodies and the player).
+        if let (Some(h), true) = (hand_rig, rung2b_on && (tier[i] == DrawTier::Near || p.key == FigureKey::Me)) {
+            let target = p.look.map(|w| to_model.transform_point3(w));
+            humanity_animation::interact::look_at(h, skel, &mut rt.pose, &mut rt.model, look, target, 1.0, dt);
+        }
+        // TRUE FIRST PERSON (rung 2b): the eye rides the drawn head (its eyes' midpoint), low-passed, and
+        // the head and neck are folded away for the eye camera.
+        if p.first_person {
+            if let Some(h) = hand_rig {
+                let eye_model = match h.eyes {
+                    [Some(l), Some(r)] => (rt.model[l].w_axis.truncate() + rt.model[r].w_axis.truncate()) * 0.5,
+                    _ => h.head.map_or(Vec3::new(0.0, 1.6, 0.1), |j| rt.model[j].w_axis.truncate() + Vec3::new(0.0, 0.08, 0.1)),
+                };
+                my_eye = Some(world.transform_point3(eye_model));
+                if fp_head_hidden {
+                    if let Some(neck) = first_person_fold(h) {
+                        humanity_animation::interact::collapse_subtree(skel, &mut rt.model, neck);
+                    }
+                }
+            }
+        }
         rt.rows.clear();
         pose::palette_rows(skel, &rt.model, &mut rt.rows);
         let morph = pose::morph_rows(gpu_weights, body.model.vertex_count() as u32);
         let index = renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rt.rows);
+        // The interaction probe (showcase `anchor_probe`, rung 2b): the drawn body against what it
+        // touches, near bodies in an interaction, and the first-person eye.
+        if let Some(aprobe) = aprobe.as_mut() {
+            let (model, seat_v, hand_v) = mine.map_or((&body.model, &body.seat_vertices, &body.hand_vertices), |o| (&o.mesh.model, &o.mesh.seat_vertices, &o.mesh.hand_vertices));
+            if let (Some((tr, h)), true) = (act, tier[i] == DrawTier::Near) {
+                let def = &lib.anchors.anchors[tr.anchor];
+                let hips_world = world.transform_point3(rt.model[h.hips].w_axis.truncate());
+                probe_contacts(aprobe, p, body, def, tr, &world, model, seat_v, hand_v, gpu_weights, &rt.rows, climb_hands_on, engage_w, hips_world);
+            }
+            if p.first_person {
+                let eye = my_eye.unwrap_or(p.feet + p.up * 1.6);
+                let pts = crate::engine::anchor_probe::skinned_drawn(model, gpu_weights, &rt.rows, &world, 3);
+                aprobe.note(p.key, &body.choice, "first_person", "FirstPerson", 1, "eye_nearest_m", crate::engine::anchor_probe::nearest(&pts, eye));
+                aprobe.note(p.key, &body.choice, "first_person", "FirstPerson", 1, "body_below_m", pts.iter().map(|q| (eye - *q).dot(p.up)).reduce(f32::max));
+            }
+        }
         // The foot probe (showcase `foot_probe`): the drawn feet against the ground, near bodies.
         if let Some(probe) = rt.probe.as_mut().filter(|_| tier[i] == DrawTier::Near) {
             let (model, foot_verts) = mine.map_or((&body.model, &body.foot_vertices), |o| (&o.mesh.model, &o.mesh.foot_vertices));
@@ -2081,6 +2772,38 @@ pub(crate) fn draw_people(
         rt.full_solve_us = if rt.full_solve_us > 0.0 { rt.full_solve_us + (per - rt.full_solve_us) * 0.1 } else { per };
     }
     rt.report = report;
+    rt.me_act = me_act;
+    // The first-person eye rides the drawn head (rung 2b), low-passed so a step does not shake the
+    // picture (yaw and pitch stay the player's); Reduce motion keeps the eye where the walk puts it.
+    let ride = my_eye.filter(|_| !state.gui_state.settings.reduce_motion);
+    let want = ride.map(|eye| eye - state.camera.position);
+    let me_fig = rt.figures.get_mut(&FigureKey::Me);
+    match (want, me_fig) {
+        (Some(w), Some(fig)) => {
+            let k = 1.0 - (-dt / HEAD_RIDE_FOLLOW_S).exp();
+            let now = fig.view_offset.map_or(w, |v| v + (w - v) * k);
+            fig.view_offset = Some(now);
+            state.camera.view_offset = now;
+            state.controller.view_from_head = true;
+        }
+        (_, fig) => {
+            if let Some(fig) = fig {
+                fig.view_offset = None;
+            }
+            state.camera.view_offset = Vec3::ZERO;
+            state.controller.view_from_head = false;
+        }
+    }
+    // The interaction probe writes its readout once its time is up.
+    if let Some(mut probe) = aprobe {
+        probe.frames += 1;
+        if rt.clock >= probe.until {
+            let note = crate::engine::anchor_probe::write(&probe);
+            log::info!("Interaction probe: {note}");
+        } else {
+            state.interact.probe = Some(probe);
+        }
+    }
     // The foot probe writes its readout once its time is up.
     if let Some(probe) = rt.probe.as_mut() {
         probe.frames += 1;
@@ -2130,3 +2853,7 @@ mod feet_tests;
 #[cfg(test)]
 #[path = "animation_look_tests.rs"]
 mod look_tests;
+
+#[cfg(test)]
+#[path = "animation_interact_tests.rs"]
+mod interact_tests;

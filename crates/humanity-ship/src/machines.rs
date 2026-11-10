@@ -289,6 +289,13 @@ pub struct MachineDef {
     /// card. See `engine::built_uses::machine_use`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provides: Option<String>,
+    /// The interaction anchors this machine offers (character animation rung 2b, 2026-11-10): ids of
+    /// `data/characters/interactions.ron`'s rows, each a place on it a person sits, lies or works
+    /// (a chair's seat, a couch's three seats, a bed's edge and its mattress, a workbench's front).
+    /// The rows say where on the machine each is, in its own frame; empty for a machine nobody uses
+    /// with their body. See `engine::interact`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub anchors: Vec<String>,
     /// GLB model path (v0.734, docs/game/model-pipeline.md): rendered instead
     /// of the primitive shape when set. Resolved against the DATA dir first
     /// ("models/x.glb"), then the dev repo root ("assets/models/x.glb").
@@ -3417,6 +3424,7 @@ mod tests {
             level_gauge: false,
             container_type: None,
             provides: None,
+            anchors: Vec::new(),
             model: None,
             screen: None,
             camera: None,

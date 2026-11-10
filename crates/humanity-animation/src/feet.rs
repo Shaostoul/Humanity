@@ -626,6 +626,10 @@ pub struct FootFrame {
     /// Off the ground (a jump, a fall, a ladder): no foot is planted and the pelvis eases back.
     pub airborne: bool,
     pub dt: f32,
+    /// The hips are held by an interaction's contact (rung 2b: seated, the hips on the seat): the
+    /// pelvis is not moved for the feet, and a foot that cannot reach its ground hangs at the end
+    /// of its leg's reach, as feet do under a high seat.
+    pub pelvis_fixed: bool,
 }
 
 impl FootPlacer {
@@ -940,7 +944,7 @@ impl FootPlacer {
             _ => dys[0].min(dys[1]),
         };
         let want = want.clamp(-def.max_drop_m / scale, def.max_raise_m / scale);
-        let want = if frame.airborne { 0.0 } else { want };
+        let want = if frame.airborne || frame.pelvis_fixed { 0.0 } else { want };
         self.pelvis_target = want;
         if !self.started {
             self.pelvis = want;
@@ -951,7 +955,7 @@ impl FootPlacer {
         // And never so high that a planted foot is out of its leg's reach (the follow lags a root
         // climbing a stair while the trailing foot stays planted on a tread below): the hip may be
         // no further from each planted ankle's target than the leg can stretch.
-        if mode == FootMode::Full {
+        if mode == FootMode::Full && !frame.pelvis_fixed {
             for i in 0..2 {
                 let (Some((t, _)), true) = (targets[i], contact(i) > 0.5) else { continue };
                 let leg = rig.legs[i];
@@ -1106,7 +1110,7 @@ fn solve_leg(skel: &Skeleton, pose: &mut Pose, model: &mut Vec<Mat4>, leg: Leg, 
 
 /// Give joint `k` the model-space rotation `r` (its local rotation under its parent's posed one),
 /// and refresh the model matrices.
-fn set_model_rotation(skel: &Skeleton, pose: &mut Pose, model: &mut Vec<Mat4>, k: usize, r: Quat) {
+pub(crate) fn set_model_rotation(skel: &Skeleton, pose: &mut Pose, model: &mut Vec<Mat4>, k: usize, r: Quat) {
     let parent = match skel.parents[k] {
         Some(p) => model[p].to_scale_rotation_translation().1,
         None => skel.outer[k].to_scale_rotation_translation().1,

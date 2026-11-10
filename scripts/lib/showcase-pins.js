@@ -72,6 +72,16 @@ const STICKY_PIN_RESETS = Object.freeze({
   garment_textures: "1",
   look_detail: "-",
   look_wear: "hair=,brows=,lashes=,wear:chest=,wear:feet=,wear:head=",
+  // Interactions (2026-11-10, character animation rung 2b, engine/interact.rs): the player's grant
+  // ({"act":"none"} lets go at once), motion warping, the hands on their contacts and the hidden
+  // first-person head (each a red twin's switch), and Settings' first-person body and Reduce motion.
+  // A `crowd_act` stand-in lives in the crowd, cleared above.
+  act: "none",
+  warp: "1",
+  hand_ik: "1",
+  fp_head: "1",
+  fp_body: "1",
+  reduce_motion: "0",
   // How deep, and how near the camera, the terrain refines inside an installed map pack (2026-11-09,
   // whole-Earth maps, the rung between 2 and 3): a vantage pins {"pack_depth":"13"} to see a pack at
   // the planet's depth, or {"pack_within_m":"100"} to bound its reach.

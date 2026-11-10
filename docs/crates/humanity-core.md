@@ -19,12 +19,12 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
   - `feature = "native"`: `crates/humanity-core/src/play_journal.rs`, `crates/humanity-core/src/raw_frame.rs`, `crates/humanity-core/src/i18n.rs`, `crates/humanity-core/src/mods/`, `crates/humanity-core/src/auto_unlock.rs`
   - `any(test, feature = "test-support")`: `crates/humanity-core/src/test_clock.rs`, `crates/humanity-core/src/test_temp.rs`, `crates/humanity-core/src/test_log.rs`
   - `all(any(test, feature = "test-support"), feature = "native")`: `crates/humanity-core/src/test_gpu.rs`
-- **Size:** 19,009 lines in 64 files, 922 of them in 4 test files.
+- **Size:** 19,173 lines in 64 files, 922 of them in 4 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 39, `test-support` 9, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 649, gui 510, systems 464, renderer 71, ship 57, net 51, relay 32, animation 13, terrain 5.
+- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 663, gui 510, systems 464, renderer 71, ship 57, net 54, relay 34, animation 21, terrain 5.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 216 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 217 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-core
@@ -50,7 +50,7 @@ just test-lib --crate humanity-core
 | `cosmos::find_body` | 32 | engine 26, gui 4, renderer 2 |
 | `embedded_data::load_data_or_embedded` | 32 | systems 13, gui 8, net 6, engine 3, relay 1, ship 1 |
 
-And 259 more items, 958 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
+And 265 more items, 985 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
 <!-- end generated -->
 
 ## Rules

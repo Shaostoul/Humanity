@@ -767,6 +767,9 @@
             color: (0.25, 0.35, 0.3),
             label: "Electronics bench",
             category: "Fabrication",
+            // Where a person sits, lies or works at it (character animation rung 2b,
+            // data/characters/interactions.ron).
+            anchors: ["workbench_front"],
             stats: [
                 (
                     kind: "progress",
@@ -1721,6 +1724,9 @@
             color: (0.42, 0.44, 0.50),
             label: "Bed",
             category: "Furniture",
+            // Where a person sits, lies or works at it (character animation rung 2b,
+            // data/characters/interactions.ron).
+            anchors: ["bed_lie", "bed_edge"],
             stats: [
                 (
                     kind: "storage",
@@ -1783,6 +1789,9 @@
             color: (0.42, 0.44, 0.50),
             label: "Couch",
             category: "Furniture",
+            // Where a person sits, lies or works at it (character animation rung 2b,
+            // data/characters/interactions.ron).
+            anchors: ["couch_seat_left", "couch_seat_middle", "couch_seat_right"],
             stats: [
                 (
                     kind: "storage",
@@ -1803,6 +1812,9 @@
             color: (0.52, 0.38, 0.24),
             label: "Chair",
             category: "Furniture",
+            // Where a person sits, lies or works at it (character animation rung 2b,
+            // data/characters/interactions.ron).
+            anchors: ["chair_seat"],
             stats: [
                 (
                     kind: "storage",
@@ -2893,6 +2905,9 @@
             color: (0.45, 0.35, 0.22),
             label: "Workbench",
             category: "Production",
+            // Where a person sits, lies or works at it (character animation rung 2b,
+            // data/characters/interactions.ron).
+            anchors: ["workbench_front"],
             stats: [
                 (
                     kind: "progress",

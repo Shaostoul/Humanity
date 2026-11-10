@@ -101,7 +101,7 @@ fn walk_path(
             }
         };
         pose::model_matrices(skel, &pose, &mut model);
-        let frame = FootFrame { world, contacts, airborne: false, dt };
+        let frame = FootFrame { world, contacts, airborne: false, dt, pelvis_fixed: false };
         placer.place(rig, skel, &lib.humanoid, &mut pose, &mut model, &frame, ground, mode, def);
         rows.clear();
         pose::palette_rows(skel, &model, &mut rows);

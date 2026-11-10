@@ -100,6 +100,12 @@ pub mod animation;
 pub mod feet_ground;
 /// The foot probe: the drawn feet measured against the ground under them (rung 2a's proof).
 pub mod foot_probe;
+/// Interactions in the world (character animation rung 2b, 2026-11-10): where the anchors stand,
+/// who is granted one (a seat, the bed, a ladder, a station, a door), the capsule moved only inside
+/// the grant.
+pub mod interact;
+/// The interaction probe: the drawn body measured against what it touches (rung 2b's proof).
+pub mod anchor_probe;
 /// The garments' textures read off the frame and packed for the character materials (the look,
 /// 2026-11-09).
 pub mod look_textures;

@@ -2596,6 +2596,586 @@
       "final_settle_s": 4
     },
     {
+      "id": "anim-sit-chair",
+      "desc": "The ground hall, three metres from chair_7 (the homestead chair, its seat 0.47 m), a stand-in with the female body walking in from in front of it and sitting down (Quaternius's sit, its contact frame warped onto this seat; as made, that body's sit puts its hips 7.8 cm into this seat, the red twin).",
+      "expect": "A person seated on the chair, hips and thighs on the cushion, back against its back, feet on the floor in front of it, hands in the lap.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "anchor_probe hips_on_seat: the drawn hips and thighs on THIS seat, within 2 cm into it to 2.5 cm over it",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.5,41.6,-0.61,-0.25",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd_act": "chair_7,body=female"
+        }
+      ],
+      "final_settle_s": 3.5,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hips_on_seat"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-sit-chair-warp-off",
+      "desc": "anim-sit-chair with motion warping off (showcase `warp` 0): the sit clip played as made, its hips where the clip puts them: the female body's 7.8 cm into the chair (the male body's is within a centimetre, so the twin names the body).",
+      "expect": "The person seated, but wherever the clip's own seat is: the probe reads their hips against THIS seat.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "the red twin: anchor_probe hips_on_seat is expected to report the clip's own seat height, and FAILS when it is not this seat's (2.5 cm)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.5,41.6,-0.61,-0.25",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd_act": "chair_7,body=female",
+          "warp": "0"
+        }
+      ],
+      "final_settle_s": 3.5,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hips_on_seat"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-sit-couch",
+      "desc": "The common room, the couch (its seat 0.40 m, 7 cm lower than the chair's), a stand-in with the male body sitting on its middle seat (the same sit clip, warped onto this lower seat; as made, that body's hips hang 6.2 cm over it, the red twin).",
+      "expect": "A person seated on the couch's middle cushion, hips and thighs on it, feet on the floor, knees higher than on the chair.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "anchor_probe hips_on_seat: the drawn hips and thighs on THIS seat, within 2 cm into it to 2.5 cm over it",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "50.6,1.4,43.9,-2.62,-0.3",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd_act": "couch_1:couch_seat_middle,body=male"
+        }
+      ],
+      "final_settle_s": 3.5,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hips_on_seat"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-sit-couch-warp-off",
+      "desc": "anim-sit-couch with motion warping off (showcase `warp` 0): the sit clip as made on a seat 7 cm lower than the chair: the male body's hips 6.2 cm over it (the female body's are within a centimetre, so the twin names the body).",
+      "expect": "The person sitting in the air over the couch, or sunk into it, by the difference between the clip's seat and this one.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "the red twin: anchor_probe hips_on_seat FAILS (the clip's own seat is not this lower one)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "50.6,1.4,43.9,-2.62,-0.3",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd_act": "couch_1:couch_seat_middle,body=male",
+          "warp": "0"
+        }
+      ],
+      "final_settle_s": 3.5,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hips_on_seat"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-lie-bed",
+      "desc": "The upstairs bedroom from beside the bed, a stand-in lying down in it (no lie-down clip in the free tier: the idle turned onto its back about the hips, a target pose, laid on the covers at 0.40 m).",
+      "expect": "A person lying on their back on the bed, head on the pillows, feet toward the foot of the bed, arms at the sides, the body on the covers.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "anchor_probe hips_on_seat: the drawn hips and thighs on THIS seat, within 2 cm into it to 2.5 cm over it",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "37.4,4.5,34.0,-1.5708,-0.45",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd_act": "bed_1:bed_lie"
+        }
+      ],
+      "final_settle_s": 3.5,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hips_on_seat"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-ladder-climb",
+      "desc": "The ground floor south of the ladder into the lobby hatch, a stand-in climbing it at 0.6 m/s, hands and feet on its rungs (rung 2b: a target pose with IK, the free tier has no climb clip).",
+      "expect": "A person on the ladder facing it, each hand closed round a rung, each foot on a rung below, the hands and feet moving up a rung at a time, left hand with right foot.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The ladder's rungs from the piece's own size and rung count (3.0 m, 10 rungs, 0.3 m apart). The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "anchor_probe hands_on_rungs: each gripping hand's drawn vertices within 2 cm of its rung's surface",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "33,1.7,25,3.1416,0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figure_path": "33,0,27.5;33,3,27.5;33,3,28.8;0.6"
+        }
+      ],
+      "final_settle_s": 1.2,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hands_on_rungs"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-ladder-climb-hand-ik-off",
+      "desc": "anim-ladder-climb with the hands and feet left off their contacts (showcase `hand_ik` 0): the idle's arms, as rung 1 drew a climber.",
+      "expect": "A person rising up the ladder with the arms at the sides.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The ladder's rungs from the piece's own size and rung count (3.0 m, 10 rungs, 0.3 m apart). The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "the red twin: anchor_probe hands_on_rungs FAILS (the hands hang at the sides)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "33,1.7,25,3.1416,0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "figure_path": "33,0,27.5;33,3,27.5;33,3,28.8;0.6",
+          "hand_ik": "0"
+        }
+      ],
+      "final_settle_s": 1.2,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hands_on_rungs"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-workbench",
+      "desc": "The workshop, a stand-in at workbench_1 (the 1.8 m table, its top 0.85 m), both hands on the surface in front of them (two-bone arm IK, the flat grip).",
+      "expect": "A person standing at the workbench facing it, both palms on its top a shoulder width apart, the fingers lying flat.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "anchor_probe hands_on_surface: each hand's lowest drawn vertex within 1.5 cm under to 2.5 cm over the top",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "23.8,1.6,30.6,-2.23,-0.3",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd_act": "workbench_1"
+        }
+      ],
+      "final_settle_s": 1.5,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hands_on_surface"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-workbench-hand-ik-off",
+      "desc": "anim-workbench with the hands left off the surface (showcase `hand_ik` 0).",
+      "expect": "A person standing at the workbench with the arms at the sides.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "the red twin: anchor_probe hands_on_surface FAILS (the hands hang under the top)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "23.8,1.6,30.6,-2.23,-0.3",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd_act": "workbench_1",
+          "hand_ik": "0"
+        }
+      ],
+      "final_settle_s": 1.5,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hands_on_surface"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-door-hand",
+      "desc": "First person in the small room south of the ground hall, the player on foot (showcase walk: the rig parks flying, and flying forward at this pitch went into the floor) walking north at the Realistic pace (1.4 m/s, W held 1.85 s, from 3.5 m off the door: beyond the 3.4 m an open door waits for before it shuts, so it is shut when the walk starts and opens at 2.6 m) to its swing door (x 53.0 to 53.9 at z 38, hinged on the west side), a little left of the door's middle, looking down ahead: the door swings open toward them by itself as they come (it opens at 2.6 m), and their right hand takes its handle as it comes within the arm's own reach, and holds it while the door is still swinging.",
+      "expect": "Looking down ahead: the door swung open toward you on your right, your own right arm out and the palm flat on the door near its free edge at about hip height, your legs and shoes below; no head or hair in the view.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. A swing door's handle is an anchor its opening style names; the hand is worked out on every screen for anyone at a door that is opening. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "anchor_probe hand_on_handle: the hand's nearest drawn vertex within 4 cm of the handle while the door opens",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53.25,1.7,34.5,3.1416,-1.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "walk": "1",
+          "walk_pace": "realistic",
+          "hud": "0"
+        },
+        {
+          "anchor_probe": "3.4",
+          "hold": "forward",
+          "hold_s": "1.85"
+        }
+      ],
+      "final_settle_s": 2.5,
+      "anchor_probe": {
+        "secs": 3.4,
+        "armed": true,
+        "rules": [
+          "hand_on_handle"
+        ],
+        "who": [
+          "me"
+        ]
+      }
+    },
+    {
+      "id": "anim-door-hand-hand-ik-off",
+      "desc": "anim-door-hand with the hand left off the handle (showcase hand_ik 0): the door still swings open toward the player, the arm hangs as the walk leaves it.",
+      "expect": "The door swung open toward you on your right, your right arm down at your side, not on the door.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. A swing door's handle is an anchor its opening style names; the hand is worked out on every screen for anyone at a door that is opening. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "anchor_probe hand_on_handle must FAIL: the hanging hand is far off the handle",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "53.25,1.7,34.5,3.1416,-1.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "walk": "1",
+          "walk_pace": "realistic",
+          "hud": "0",
+          "hand_ik": "0"
+        },
+        {
+          "anchor_probe": "3.4",
+          "hold": "forward",
+          "hold_s": "1.85"
+        }
+      ],
+      "final_settle_s": 2.5,
+      "anchor_probe": {
+        "secs": 3.4,
+        "armed": true,
+        "rules": [
+          "hand_on_handle"
+        ],
+        "who": [
+          "me"
+        ]
+      }
+    },
+    {
+      "id": "anim-fp-legs",
+      "desc": "First person in the ground hall looking down at your own body: the male body in a casual outfit and shoes03.",
+      "expect": "Looking down: your own chest and belly in the shirt, your legs in trousers and your shoes on the floor, your hands at your sides; no inside of a head, no hair across the view.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. True first person: the same body drawn for the eye camera with the head and neck folded to the base of the neck (a hidden bone scaled to nothing), the camera riding the head with a low-pass. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "anchor_probe head_hidden: a body drawn under the eye, nothing of it within the camera's near plane (0.1 m)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "50,1.7,40.5,-1.5708,-1.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "body": "male",
+          "look_wear": "hair=short02,wear:chest=mh_male_casualsuit02,wear:feet=mh_shoes03"
+        }
+      ],
+      "final_settle_s": 4,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "head_hidden"
+        ],
+        "who": [
+          "me"
+        ]
+      }
+    },
+    {
+      "id": "anim-fp-legs-head-shown",
+      "desc": "anim-fp-legs with the head drawn for the eye (showcase `fp_head` 0): the red twin.",
+      "expect": "The inside of the head and the hair across the view.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. True first person: the same body drawn for the eye camera with the head and neck folded to the base of the neck (a hidden bone scaled to nothing), the camera riding the head with a low-pass. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
+      "regressions": [
+        "the red twin: anchor_probe head_hidden FAILS (the head is drawn round the eye)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "50,1.7,40.5,-1.5708,-1.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "body": "male",
+          "look_wear": "hair=short02,wear:chest=mh_male_casualsuit02,wear:feet=mh_shoes03",
+          "fp_head": "0"
+        }
+      ],
+      "final_settle_s": 4,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "head_hidden"
+        ],
+        "who": [
+          "me"
+        ]
+      }
+    },
+    {
+      "id": "anim-fp-legs-no-body",
+      "desc": "anim-fp-legs with Settings' \"Show my body in first person\" off (showcase `fp_body` 0): the old first-person view.",
+      "expect": "Looking down at the hall floor with no body.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The simplified first-person view (the dual-mode rule), same boot as anim-fp-legs.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "50,1.7,40.5,-1.5708,-1.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "fp_body": "0"
+        }
+      ],
+      "final_settle_s": 2
+    },
+    {
+      "id": "anim-crowd-near-2b-off",
+      "desc": "anim-crowd-near with rung 2b off (showcase `rung2b` 0: no interactions, no look-at, no door hands, as main drew them).",
+      "expect": "Fifty people moving as in anim-crowd-near.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The cost: the same-boot twin of anim-crowd-near, so cpu.animation and gpu.skinning of the two in one boot measure what rung 2b costs (look-at on the near bodies, every person's interaction track and door check).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "rung2b": "0",
+          "crowd": "50,3.5,-1,0,10"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-crowd-middle-2b-off",
+      "desc": "anim-crowd-middle with rung 2b off (showcase `rung2b` 0: no interactions, no look-at, no door hands, as main drew them).",
+      "expect": "Fifty people moving as in anim-crowd-middle.",
+      "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The cost: the same-boot twin of anim-crowd-middle, so cpu.animation and gpu.skinning of the two in one boot measure what rung 2b costs (look-at on the near bodies, every person's interaction track and door check).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "rung2b": "0",
+          "crowd": "50,3.5,-1,0,22"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
       "id": "mess-hall-counter",
       "desc": "The Commons' mess hall (ship homes increment 6, lane 1A) at eye height from its middle, looking west-north-west at the serving counter at 12:00 station time.",
       "expect": "At the far end of the hall, against its north wall, the serving counter: white cabinets under a wooden top about 3 m long and 0.93 m high, with a sink cut into it (NVIDIA SimReady's fixture_counter_a01 since 2026-11-09, docs/design/simready-props.md; a plain grey box before), with open floor in front of it where the store stands. Between the camera and the counter, along the hall's north (right-hand) wall, dining tables 2 m long with four chairs each, two on each side, in a row with walking room between them; the floor along the hall's middle and south side clear. The hall is lit through the Commons' glass roof and by its lights. Nothing stands in the middle of the floor where the crew walk.",

@@ -3412,6 +3412,53 @@ body and logged. Its memory shows under the garment textures in Settings > Graph
   `cpu.look_build`, `vram.characters`, `vram.textures` (the pools); `HUMANITY_NO_BC=1` starts the renderer
   without block compression (the fallback's arm)
 
+**Interactions anchored to things, hands, look-at and true first person (character animation rung
+2b, 2026-11-10; `docs/design/character-animation.md` section 17).** Sitting, lying, climbing a ladder,
+working at a bench and a hand on a door are ANCHORS, rows of `data/characters/interactions.ron`
+(where on the object, the approach, the contact targets, each phase's clip or target pose, root
+driven or not, time limits) that objects name: a machine definition's `anchors` (the chair, the
+couch's three seats, the bed's mattress and edge, the workbenches), a structure type's (the ladder),
+an opening style's (a swing door's handle). A new chair is a row. **Motion warping** moves the hips
+from where the sit clip puts them to where THIS seat puts them (the seat's height from the drawn
+model, the flesh under the hips measured on each person's drawn mesh), eased in to the enter clip's
+contact frame and out from the exit clip's lift-off; the root's travel and turn are eased over the
+approach (a walk-in first when the player stood further off). E at a seat sits the player (the
+capsule held there, a movement key or E gets up); E at the bed sleeps and lies them down; the
+ladder's own climb shows hands and feet on its rungs (from the piece's rung spacing, a diagonal
+gait; out at the hatch the hands let go); an open workbench card puts both hands on its top; a swing
+door still swinging within a person's own arm's reach takes their palm (the doors still open
+themselves at 2.6 m). Where the free clip library has no clip (lying, climbing, a bench, a door) the
+pose is a target pose with two-bone IK, said so in the design. **Hands**: two-bone arm IK with the
+hand turned as asked and a grip library (`data/characters/grips.ron`: relaxed, power, rung, pinch,
+staff, two-handed, flat) blended per finger; the equipment's single hands slot split into two grip
+sockets for held things (gloves stay worn on the hands). **Look-at**: the head, then the eyes,
+toward the camera's aim (the player), another player's yaw and pitch, or the player for a crew
+member near and facing them, at a person's turn rate within the head's limits. **True first person**:
+the same body drawn for the eye, the head and neck folded to the base of the neck, the camera riding
+the drawn head with a low-pass (Settings > Gameplay: Show my body in first person, Reduce motion).
+The movement message carries the look's pitch and the act (anchor id and phase), each through one
+clamping reader at the relay and the app, left out when idle.
+- Crate: `crates/humanity-animation/src/interact.rs` (anchors, grips, the hand rig, `apply_limbs`,
+  `look_at`, `collapse_subtree`, phases, weights and warping, the lying pose, `climb_limbs`);
+  `FootFrame::pelvis_fixed` (`feet.rs`); `crates/humanity-core/src/stance.rs` (`Doing`, `Act`,
+  `AnchorIds`, the pitch)
+- Native: `src/engine/interact.rs` (anchors placed in the world, the grants, the capsule held,
+  `local_doing`), `src/engine/anchor_probe.rs` (the drawn body against what it touches),
+  `src/engine/animation.rs` (each person's act, track, warp, limbs, look-at, first person),
+  `CameraController::held` and `Camera::view_offset` (`src/renderer/camera.rs`), the relay passing
+  the pitch and act on (`src/relay/handlers/msg_handlers.rs`), Settings' two switches
+  (`src/gui/pages/settings.rs`), `MachineDef::anchors`, `StructureType::anchors`,
+  `door_anim::opening_styles`
+- Data: `data/characters/interactions.ron`, `data/characters/grips.ron`, the furniture's `anchors`
+  in `data/machines/*.ron`, the ladder's in `data/blueprints/structure_types.ron`,
+  `data/blueprints/opening_styles.ron` (rows with anchors), `data/inventory/equipment_slots.json`
+  (two grip sockets), `data/equipment.csv`'s `grip` column
+- Dev: showcase verbs `crowd_act`, `act`, `warp`, `hand_ik`, `fp_head`, `fp_body`,
+  `reduce_motion`, `rung2b`, `anchor_probe`; vantages `anim-sit-chair`, `anim-sit-couch`,
+  `anim-lie-bed`, `anim-ladder-climb`, `anim-workbench`, `anim-door-hand`, `anim-fp-legs`, their
+  red twins, `anim-fp-legs-no-body`, `anim-crowd-{near,middle}-2b-off`; the rig's judge
+  `scripts/lib/anchor-probe-check.js`
+
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`
 column: `item:amount:regrow_seconds`). Starter herd (chickens/goats/sheep) placed by

@@ -1,0 +1,76 @@
+// GRIPS: how a hand closes round what it holds (character animation rung 2b, 2026-11-10;
+// docs/design/character-animation.md sections 2.4, 4 "Hands" and 17; read by
+// crates/humanity-animation/src/interact.rs).
+//
+// Each grip says how far each finger's three joints curl toward the palm, in degrees (the thumb's
+// metacarpal, proximal and distal; each other finger's proximal, intermediate and distal), from the
+// body's rest pose (MakeHuman's hand rests open and flat). A finger a grip does not name keeps the
+// clip's own pose, so grips blend PER FINGER: a pinch closes the thumb and the index and leaves the
+// other three as the clip has them. A held thing, an interaction's contact (a ladder rung, a work
+// surface, a door handle) or an equipped item (data/equipment.csv's `grip`) names one; a new grip is
+// a new row.
+//
+// The angles are a hand's ordinary ranges, not measurements of a capture: a power grip round a
+// 3 to 4 cm handle closes the fingers' first joints about 60 to 80 degrees, the middle joints 80 to
+// 95 and the last about 40 to 50 (more for the little finger, which wraps tighter); a pinch meets the
+// thumb's tip and the index's. Rung 3's captured data brings its own hands.
+[
+    // Hanging at the side: a little closed, the way a relaxed hand rests.
+    (id: "relaxed", fingers: {
+        "thumb": (8.0, 10.0, 6.0),
+        "index": (12.0, 18.0, 10.0),
+        "middle": (16.0, 22.0, 12.0),
+        "ring": (20.0, 24.0, 12.0),
+        "little": (24.0, 26.0, 14.0),
+    }),
+    // Round a handle or a tool's shaft (a hammer, an axe, a door's handle).
+    (id: "power", fingers: {
+        "thumb": (28.0, 32.0, 30.0),
+        "index": (62.0, 82.0, 42.0),
+        "middle": (68.0, 88.0, 45.0),
+        "ring": (74.0, 90.0, 46.0),
+        "little": (80.0, 92.0, 50.0),
+    }),
+    // Round a ladder rung (8 cm across the shipped ladder's rung): a hook more open than a handle,
+    // the thumb round the other side.
+    (id: "rung", fingers: {
+        "thumb": (22.0, 28.0, 24.0),
+        "index": (55.0, 70.0, 38.0),
+        "middle": (58.0, 74.0, 40.0),
+        "ring": (62.0, 76.0, 40.0),
+        "little": (66.0, 78.0, 42.0),
+    }),
+    // A small thing between the thumb and the index (a knife's blade side, a seed): the rest as the
+    // clip has them.
+    (id: "pinch", fingers: {
+        "thumb": (30.0, 26.0, 18.0),
+        "index": (40.0, 38.0, 22.0),
+    }),
+    // A long staff held across the body (the fire props' staff; a spear): a power grip a little
+    // looser, so the staff turns in the hand; the second hand half a metre along it.
+    (id: "staff", second_hand_m: Some(0.5), fingers: {
+        "thumb": (24.0, 28.0, 26.0),
+        "index": (56.0, 76.0, 40.0),
+        "middle": (62.0, 82.0, 42.0),
+        "ring": (68.0, 84.0, 44.0),
+        "little": (74.0, 86.0, 46.0),
+    }),
+    // Both hands on one shaft (an axe, a pickaxe, a shovel): each hand closes as a power grip; the
+    // second hand stands `second_hand_m` further along the shaft than the main hand.
+    (id: "two_handed", second_hand_m: Some(0.35), fingers: {
+        "thumb": (28.0, 32.0, 30.0),
+        "index": (64.0, 84.0, 44.0),
+        "middle": (70.0, 90.0, 46.0),
+        "ring": (76.0, 92.0, 46.0),
+        "little": (82.0, 92.0, 50.0),
+    }),
+    // A palm laid on a surface (a workbench): the fingers all but straight, so the fingertips rest on
+    // the surface with the palm rather than dipping through it.
+    (id: "flat", fingers: {
+        "thumb": (2.0, 3.0, 2.0),
+        "index": (2.0, 3.0, 2.0),
+        "middle": (2.0, 3.0, 2.0),
+        "ring": (3.0, 3.0, 2.0),
+        "little": (4.0, 3.0, 2.0),
+    }),
+]
