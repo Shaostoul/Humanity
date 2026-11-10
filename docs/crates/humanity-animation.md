@@ -24,7 +24,8 @@ lashes placed on the shaped mesh by their bindings and skinned with the bound ve
 skeleton made again from the shaped mesh, the feet's soles measured with the shoes on), versioned
 by everything it is built from and rebuilt every frame with the reuse switch off; and the library
 resolves what each person wears (`dress_for`: their look's choices, else their wearer kind's
-defaults). It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
+defaults) and how large the largest dressed person can be (`largest_own_mesh`, 2026-11-10: the engine
+plans the own-mesh pool, `renderer::mesh_pool`, for it). It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
 reads glTF into `humanity_core::skin_data` and draws the palettes), so every test runs headless, and
 because animation never reaches the server: the relay build never compiles it (the operator,
 2026-11-08: "a new crate, humanity-animation: yes").
@@ -35,10 +36,10 @@ because animation never reaches the server: the relay build never compiles it (t
 - **Owns** all of `crates/humanity-animation/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
   - no gate (every build): `crates/humanity-animation/src/clip.rs`, `crates/humanity-animation/src/feet.rs`, `crates/humanity-animation/src/graph.rs`, `crates/humanity-animation/src/humanoid.rs`, `crates/humanity-animation/src/joint_map.rs`, `crates/humanity-animation/src/library.rs`, `crates/humanity-animation/src/look.rs`, `crates/humanity-animation/src/motion.rs`, `crates/humanity-animation/src/pose.rs`, `crates/humanity-animation/src/retarget.rs`, `crates/humanity-animation/src/role_map.rs`, `crates/humanity-animation/src/skeleton.rs`, `crates/humanity-animation/src/tiers.rs`
   - test builds only: `crates/humanity-animation/src/fixtures.rs`, `crates/humanity-animation/src/tests.rs`
-- **Size:** 5,047 lines in 16 files, 580 of them in 2 test files.
+- **Size:** 5,079 lines in 16 files, 580 of them in 2 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): none.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 13.
-- **May be used by** (the plan): engine. **Used today by:** engine 64.
+- **May be used by** (the plan): engine. **Used today by:** engine 69.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 17 tests, and this runs exactly them, checked against every test's name:
 
@@ -50,19 +51,19 @@ just test-lib --crate humanity-animation
 
 | Item | References | From |
 |---|---:|---|
+| `GarmentKind` | 8 | engine 8 |
 | `DressChoice` | 7 | engine 7 |
-| `GarmentKind` | 7 | engine 7 |
+| `LookLibrary` | 5 | engine 5 |
+| `PersonMesh` | 4 | engine 4 |
 | `Skeleton` | 4 | engine 4 |
 | `FootRig` | 3 | engine 3 |
 | `LoadedBody` | 3 | engine 3 |
 | `Part` | 3 | engine 3 |
-| `PersonMesh` | 3 | engine 3 |
 | `look::build_person` | 3 | engine 3 |
 | `FeetReport` | 2 | engine 2 |
 | `FootPlacer` | 2 | engine 2 |
 | `Ground` | 2 | engine 2 |
 | `HumanoidDef` | 2 | engine 2 |
-| `LookLibrary` | 2 | engine 2 |
 | `PersonInputs` | 2 | engine 2 |
 | `look::GarmentDef` | 2 | engine 2 |
 
@@ -186,7 +187,12 @@ And 17 more items, 17 references (`node scripts/crate-cards.js --interface human
   with covers off) and `look_textures`' read test (either size, either GPU); the renderer's `bc7` tests (the
   shipped textures decode to their sources; `the_gpu_decodes_bc7_as_we_do`, ignored by default, ties the
   decoder to the GPU's) and `texture_pool` tests (a slot handed on and the pool allocated once, red with
-  an allocation per garment); `scripts/tests/bc7.test.js` (our encoder); the relay's `msg_handlers::look_tests` (the cap
+  an allocation per garment); the renderer's `mesh_pool` tests (2026-11-10: room handed from person to
+  person and the own-mesh pool's buffers allocated once, red with an allocation per person; a mesh past
+  the plan refused and taking nothing; the longest kept giving way, then packing until the largest
+  fits) and `the_own_mesh_pool_is_planned_for_the_largest_dressed_person` here in the look tests (the
+  largest dressed person built for real fits `largest_own_mesh`, red with a two-sided garment counted
+  once); `scripts/tests/bc7.test.js` (our encoder); the relay's `msg_handlers::look_tests` (the cap
   and the reader at the relay). In the running game: `anim-look-face-{female,male}` (detail sliders at
   their ends), `anim-look-covers-off` (the red arm, seen), `anim-shoes` and `anim-shoes-soles-off`
   (the shod foot probe, and its red twin that must FAIL), `anim-stairs-soles-off` and

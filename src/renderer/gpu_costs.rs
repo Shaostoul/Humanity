@@ -544,13 +544,28 @@ impl Renderer {
         set_vram("vram.patch_arena", arena_used);
         set_vram("vram.patch_arena_reserved", arena_reserved);
 
-        // Classic meshes (homestead geometry, trees, props, unbatched patches).
-        let mesh_bytes: u64 = self
-            .meshes
-            .iter()
-            .map(|m| m.vertex_buffer.size() + m.index_buffer.size())
-            .sum();
+        // Classic meshes (homestead geometry, trees, props, unbatched patches). Each buffer counted
+        // once (2026-11-10): several mesh ids can draw one buffer (a skinned body's regions all draw
+        // its near place's output, and every region of every person in the own-mesh pool draws the
+        // pool's), and summing per id counted them many times over. The skinned bodies' buffers are
+        // `vram.characters`'s, so they are left out here.
+        let skinned = self.skin_drawn_buffers();
+        let mut seen: std::collections::HashSet<&wgpu::Buffer> = std::collections::HashSet::new();
+        let mut mesh_bytes = 0u64;
+        for m in &self.meshes {
+            if skinned.contains(&m.vertex_buffer) {
+                continue;
+            }
+            for b in [&m.vertex_buffer, &m.index_buffer] {
+                if seen.insert(b) {
+                    mesh_bytes += b.size();
+                }
+            }
+        }
         set_vram("vram.meshes", mesh_bytes);
+        // The skinned bodies (2026-11-10): the shared bodies, their near places and the own-mesh
+        // pool, all of it set aside when the characters load and the world is entered.
+        set_vram("vram.characters", self.skin_vram_bytes());
 
         // Engine-global textures and render targets.
         let targets = self.scene_target_bytes()

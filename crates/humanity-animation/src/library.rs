@@ -742,6 +742,33 @@ impl CharacterLibrary {
         Ok(CharacterLibrary { characters, humanoid, bodies, graph, warnings, look })
     }
 
+    /// The largest own mesh `look::build_person` can make (2026-11-10, the own-mesh pool): the
+    /// largest body that carries the look's base file, whole (covers hide triangles, never add
+    /// any), and the largest garment of every kind, its vertices and its indices each the most any
+    /// garment of that kind has (`Garment::built_size`: a two-sided garment's twice). A person
+    /// wears one garment of a kind (an outfit's slot each, then hair, brows and lashes), so this is
+    /// the largest dressed person; the engine plans the own-mesh pool for it, and a mesh past it
+    /// (two garments of one kind, which nothing offers today) is drawn with the shared body and
+    /// logged. (vertices, indices); None without the look.
+    pub fn largest_own_mesh(&self) -> Option<(u32, u32)> {
+        let look = self.look.as_ref()?;
+        let body = self.bodies.iter().filter(|b| b.base.is_some()).map(|b| (b.model.vertex_count(), b.model.primitives.iter().map(|p| p.indices.len()).sum::<usize>())).fold(None, |m: Option<(usize, usize)>, (v, i)| Some(m.map_or((v, i), |(mv, mi)| (mv.max(v), mi.max(i)))))?;
+        let mut kinds: Vec<(crate::look::GarmentKind, usize, usize)> = Vec::new();
+        for g in &look.garments {
+            let (v, i) = g.built_size();
+            match kinds.iter_mut().find(|(k, _, _)| *k == g.def.kind) {
+                Some(row) => {
+                    row.1 = row.1.max(v);
+                    row.2 = row.2.max(i);
+                }
+                None => kinds.push((g.def.kind, v, i)),
+            }
+        }
+        let v = body.0 + kinds.iter().map(|k| k.1).sum::<usize>();
+        let i = body.1 + kinds.iter().map(|k| k.2).sum::<usize>();
+        Some((u32::try_from(v).ok()?, u32::try_from(i).ok()?))
+    }
+
     /// The garments a person wears (indices into the look's garments): what their look chooses, else
     /// their wearer kind's default on this body, each list's item picked by `seed` (stable per
     /// person). `model_of` gives a cosmetic's garment (its `model` in cosmetics.csv): `None` for a

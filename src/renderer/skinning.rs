@@ -31,9 +31,22 @@
 //! stale. The VS PSO builds on a background thread so it never adds to the boot; until it is ready
 //! (and after a scene-format A/B switch, until it is rebuilt) middle bodies are skinned by compute
 //! like near ones, so a body is never missing.
+//!
+//! EACH NEAR PERSON'S OWN MESH (the look, 2026-11-09) lives in THE OWN-MESH POOL (2026-11-10,
+//! `renderer::mesh_pool`): three buffers allocated once, on the first frame that draws bodies
+//! (`skin_create_own_pool`), the source vertices, their skinned copy and the indices, of which each
+//! person holds a range (`skin_own_place`). Each of the pool's handles is a body here (ids after the
+//! shared bodies) with one near place made with the pool, so a person arriving is two queue writes
+//! and no allocation; their body draws with `base_vertex` and a first index into the pool's buffers
+//! (`Mesh::base_vertex`, `Mesh::first_index`), and the compute pass skins from and into their range
+//! (the parameters' fourth word). The same first frame also makes the shared bodies' near places for
+//! a full near tier and sizes the palette for a crowd, so nothing a crowd arriving needs is
+//! allocated on the frame (measured: one own-mesh upload in about 38 took 9.9 to 11.5 ms when each
+//! had buffers of its own).
 
 use super::*;
 use super::deferred_build::{Deferred, Polled};
+use super::mesh_pool::{MeshClass, MeshPool, Refusal, Side, Step};
 use humanity_core::skin_data::SkinnedModelData;
 use humanity_core::vertex::SkinnedVertex;
 use wgpu::util::DeviceExt;
@@ -51,13 +64,18 @@ const SKINNED_ATTRS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
 
 /// One body uploaded once: its skinned vertices (read as a storage buffer by the compute pass and
 /// as a vertex buffer by the VS path), an index buffer per region, offset into the one vertex
-/// list, and its morph targets' deltas (2026-11-09).
+/// list, and its morph targets' deltas (2026-11-09). A person's own body in the own-mesh pool
+/// (2026-11-10) is a range of the pool's buffers: `base_vertex` is where its vertices start, and
+/// its regions are ranges of the pool's one index buffer.
 pub struct SkinnedBody {
     vertices: wgpu::Buffer,
+    /// Where this body's vertices start in `vertices` and in its near place's output: 0 for a body
+    /// with buffers of its own, the person's range in the own-mesh pool.
+    base_vertex: u32,
     vertex_count: u32,
     joint_count: u32,
-    /// (index buffer, index count) per region, in the model's primitive order.
-    regions: Vec<(wgpu::Buffer, u32)>,
+    /// (index buffer, first index, index count) per region, in the model's primitive order.
+    regions: Vec<(wgpu::Buffer, u32, u32)>,
     /// Every morph target's deltas: for target k and vertex i, two `vec4` at (k * vertex_count + i)
     /// * 2: the position delta then the normal delta (w unused). One zero `vec4` pair for a body
     /// without targets (a storage binding may not be empty). Which targets a body draws with, and
@@ -113,9 +131,49 @@ pub struct Skinning {
     vs_layout: wgpu::BindGroupLayout,
     vs_object: wgpu::Buffer,
     vs_pso: Deferred<SkinnedPso>,
-    /// Body ids released (`skin_release_body`: a person's own body when they leave), to be used
-    /// again by the next `skin_register_body`, so people coming and going never grow the list.
-    free: Vec<usize>,
+    /// The own-mesh pool, once made (`skin_create_own_pool`): its handles are the bodies from
+    /// `OwnPool::first_body` on.
+    own: Option<OwnPool>,
+    /// A few bytes for a mesh id that draws nothing (a region a rebuilt body no longer has, a
+    /// dropped pool's places), so it holds on to no body's memory.
+    empty: wgpu::Buffer,
+}
+
+/// The own-mesh pool's GPU side (`renderer::mesh_pool` holds the books).
+struct OwnPool {
+    book: MeshPool,
+    /// Each pooled vertex as read (`SkinnedVertex`): storage for the compute pass, vertex buffer for
+    /// the VS path.
+    sources: wgpu::Buffer,
+    /// Each pooled vertex skinned this frame (the ordinary `Vertex`): the near places' output.
+    outputs: wgpu::Buffer,
+    /// Every pooled person's indices, relative to their own first vertex (drawn with `base_vertex`).
+    indices: wgpu::Buffer,
+    /// The morph binding of a pooled body (an own mesh has no shape targets: its shape is in its
+    /// vertices); one zero pair, shared.
+    zero_morphs: wgpu::Buffer,
+    /// The body id of handle 0 (handle `h` is body `first_body + h`).
+    first_body: usize,
+    /// The shared bodies' near places made with the pool, and their bytes (the memory figure).
+    shared_place_bytes: u64,
+}
+
+impl OwnPool {
+    fn handle_of(&self, body: usize) -> Option<usize> {
+        body.checked_sub(self.first_body).filter(|&h| h < self.book.handles())
+    }
+}
+
+/// What the own-mesh pool holds, for the log, the Dev page and Settings.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OwnPoolStats {
+    /// The pool's buffers and the shared bodies' near places made with it, bytes.
+    pub reserved_bytes: u64,
+    /// The people in the pool now, bytes.
+    pub used_bytes: u64,
+    pub holders: usize,
+    pub people: u32,
+    pub class: MeshClass,
 }
 
 /// The palette's morph block, in matrix slots: `humanity_animation::pose::MORPH_SLOTS` (this module
@@ -127,15 +185,18 @@ const MORPH_BLOCK_AT: u32 = 1;
 const JOINTS_AT: u32 = 1 + MORPH_SLOTS;
 
 impl Renderer {
-    /// Upload a body (its mesh as read from the glTF) and return its id. The first call builds the
-    /// compute pipeline and starts the VS PSO's background build.
+    /// Upload a shared body (a library body, its mesh as read from the glTF) and return its id. The
+    /// first call builds the compute pipeline and starts the VS PSO's background build. A person's
+    /// own mesh goes to the own-mesh pool instead (`skin_own_place`). The pool's handles come after
+    /// the shared bodies, so registering one lets the pool go (the engine plans it again on the
+    /// next frame that draws bodies; a body is registered only when the library is read).
     pub fn skin_register_body(&mut self, model: &SkinnedModelData) -> usize {
         if self.skinning.is_none() {
             self.skinning = Some(Box::new(Skinning::new(self)));
         }
-        if let Some(id) = self.skinning.as_mut().and_then(|sk| sk.free.pop()) {
-            self.skin_replace_body(id, model);
-            return id;
+        if self.skinning.as_ref().is_some_and(|sk| sk.own.is_some()) {
+            log::info!("Characters: a body registered after the own-mesh pool; the pool is let go and planned again");
+            self.skin_drop_own_pool();
         }
         let body = self.make_skinned_body(model);
         let sk = self.skinning.as_mut().expect("made above");
@@ -144,34 +205,238 @@ impl Renderer {
         sk.bodies.len() - 1
     }
 
-    /// Replace a registered body's mesh in place (2026-11-09, "the look": a person's own body built
-    /// again when their look changes). Its near places are filled again over the new vertices,
-    /// keeping their mesh ids (`replace_mesh`), so rebuilding never grows the mesh registry.
-    pub fn skin_replace_body(&mut self, id: usize, model: &SkinnedModelData) {
-        let body = self.make_skinned_body(model);
-        let places = match self.skinning.as_mut() {
-            Some(sk) if id < sk.bodies.len() => {
-                sk.bodies[id] = body;
-                sk.slots[id].len()
-            }
-            _ => return,
-        };
-        for slot in 0..places {
-            self.fill_near_slot(id, slot);
+    /// Release a person's own body (they left, or stayed out of the near tier long enough, or gave
+    /// way to a newcomer): its range of the own-mesh pool goes back to the pool, its body draws
+    /// nothing until the handle is taken again. Nothing is freed on the GPU: the pool lives on.
+    pub fn skin_release_body(&mut self, id: usize) {
+        let Some(sk) = self.skinning.as_mut() else { return };
+        let Some(own) = sk.own.as_mut() else { return };
+        let Some(h) = own.handle_of(id) else { return };
+        if own.book.release(h).is_none() {
+            return;
+        }
+        let empty = sk.empty.clone();
+        let b = &mut sk.bodies[id];
+        b.vertex_count = 0;
+        b.joint_count = 0;
+        b.regions.clear();
+        let ids = sk.slots[id].first().map(|s| s.meshes.clone()).unwrap_or_default();
+        if let Some(s) = sk.slots[id].first_mut() {
+            s.regions = 0;
+        }
+        for mid in ids {
+            self.replace_mesh(mid, Mesh::nothing(&empty));
         }
     }
 
-    /// Release a body registered for one person (they left, or went out of the near tier long
-    /// enough): its GPU memory is freed now (an empty mesh takes its place, its near places shrink to
-    /// nothing) and its id is used again by the next registration.
-    pub fn skin_release_body(&mut self, id: usize) {
-        if self.skinning.as_ref().map_or(true, |sk| id >= sk.bodies.len() || sk.free.contains(&id)) {
-            return;
+    /// THE OWN-MESH POOL (2026-11-10, `renderer::mesh_pool`): allocate its three buffers for
+    /// `people` of the largest dressed person `class` at once, with `handles` places in its books
+    /// (each a body here, with its near place), on the first frame that draws bodies. The same
+    /// call makes each shared body's near places up to `shared_places` (a full near tier waiting
+    /// for their own builds is drawn with them) and sizes the palette for `palette_bodies`, so a
+    /// crowd arriving allocates nothing on the frame. Returns the milliseconds the allocations took.
+    pub fn skin_create_own_pool(&mut self, class: MeshClass, people: u32, handles: u32, shared_places: usize, palette_bodies: u32) -> Option<f32> {
+        let t0 = std::time::Instant::now();
+        self.skin_drop_own_pool();
+        let sk = self.skinning.as_ref()?;
+        let mut book = MeshPool::new(class, people, handles);
+        if !book.needs_buffers() {
+            return None;
         }
-        self.skin_replace_body(id, &SkinnedModelData::default());
-        if let Some(sk) = self.skinning.as_mut() {
-            sk.free.push(id);
+        let vcap = book.capacity_vertices() as u64;
+        let icap = book.capacity_indices() as u64;
+        let buffer = |label: &str, size: u64, usage: wgpu::BufferUsages| {
+            self.device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size: size.max(16), usage, mapped_at_creation: false })
+        };
+        let sources = buffer("Own Mesh Pool Vertices", vcap * SkinnedVertex::BYTES as u64, wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let outputs = buffer("Own Mesh Pool Skinned", vcap * OUT_VERTEX_BYTES, wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE);
+        let indices = buffer("Own Mesh Pool Indices", icap * 4, wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST);
+        let zero_morphs = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Own Mesh Pool Morphs"),
+            contents: bytemuck::cast_slice(&[[0.0f32; 4]; 2]),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let first_body = sk.bodies.len();
+        let shared = first_body;
+        // The palette, sized for a crowd now rather than grown (an allocation and every bind group
+        // made again) the frame one walks in.
+        self.skin_reserve_palette(palette_bodies);
+        let sk = self.skinning.as_mut().expect("checked above");
+        for _ in 0..book.handles() {
+            let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &zero_morphs);
+            let params = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Own Mesh Skinning Params"),
+                size: 16,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &sources, &outputs, &params, &zero_morphs);
+            sk.bodies.push(SkinnedBody { vertices: sources.clone(), base_vertex: 0, vertex_count: 0, joint_count: 0, regions: Vec::new(), morphs: zero_morphs.clone(), vs_bind });
+            sk.slots.push(vec![NearSlot { params, bind, out: outputs.clone(), meshes: Vec::new(), regions: 0 }]);
         }
+        // The shared bodies' near places for a full near tier.
+        let mut shared_place_bytes = 0u64;
+        for b in 0..shared {
+            while self.skinning.as_ref().is_some_and(|sk| sk.slots[b].len() < shared_places) {
+                let made = self.make_near_slot(b);
+                let sk = self.skinning.as_mut().expect("checked above");
+                sk.slots[b].push(made);
+            }
+            if let Some(sk) = self.skinning.as_ref() {
+                shared_place_bytes += sk.slots[b].iter().map(|s| s.out.size() + s.params.size()).sum::<u64>();
+            }
+        }
+        let sk = self.skinning.as_mut().expect("checked above");
+        sk.own = Some(OwnPool { book, sources, outputs, indices, zero_morphs, first_body, shared_place_bytes });
+        Some(t0.elapsed().as_secs_f32() * 1000.0)
+    }
+
+    /// Let the own-mesh pool go (the library is read again; the engine plans it again). Its bodies
+    /// leave the body list and its places' mesh ids draw nothing, so nothing holds its memory.
+    pub fn skin_drop_own_pool(&mut self) {
+        let Some(sk) = self.skinning.as_mut() else { return };
+        let Some(own) = sk.own.take() else { return };
+        let empty = sk.empty.clone();
+        let ids: Vec<usize> = sk.slots[own.first_body..].iter().flatten().flat_map(|s| s.meshes.iter().copied()).collect();
+        sk.bodies.truncate(own.first_body);
+        sk.slots.truncate(own.first_body);
+        sk.jobs.clear();
+        sk.middle.clear();
+        for mid in ids {
+            self.replace_mesh(mid, Mesh::nothing(&empty));
+        }
+    }
+
+    /// The palette holds at least `bodies` bodies of 64 joints without growing.
+    fn skin_reserve_palette(&mut self, bodies: u32) {
+        let rows = (bodies as u64 * (JOINTS_AT as u64 + 64) * 3).next_power_of_two().max(256);
+        let Some(sk) = self.skinning.as_mut() else { return };
+        if rows > sk.palette_rows {
+            sk.palette = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Pose Palette"),
+                size: rows * ROW_BYTES,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            sk.palette_rows = rows;
+            sk.rebind_palette(&self.device);
+        }
+    }
+
+    /// What to do next to put a person's finished own mesh (`vertices`, `indices`) in the pool
+    /// (`MeshPool::next_step`), in BODY ids: `have` is the body they hold (None: none yet), `kept`
+    /// the (seconds out of the near tier, body) of the meshes kept for people not near, and the ids
+    /// in `Step::Place` and `Step::Evict` are bodies. None while there is no pool.
+    pub fn skin_own_next_step(&self, have: Option<usize>, vertices: u32, indices: u32, kept: &[(f32, usize)]) -> Option<Step> {
+        let own = self.skinning.as_ref()?.own.as_ref()?;
+        // A body that is not one of the pool's (none should be) counts as none held.
+        let have = have.and_then(|b| own.handle_of(b)).filter(|&h| own.book.held(h).is_some());
+        let kept: Vec<(f32, usize)> = kept.iter().filter_map(|&(s, b)| own.handle_of(b).map(|h| (s, h))).collect();
+        Some(match own.book.next_step(have, vertices, indices, &kept) {
+            Step::Place(h) => Step::Place(own.first_body + h),
+            Step::Evict(h) => Step::Evict(own.first_body + h),
+            other => other,
+        })
+    }
+
+    /// Put a person's own mesh in the pool as body `body` (a handle `skin_own_next_step` named):
+    /// its ranges taken (its last mesh's given back), its vertices and indices written there (two
+    /// queue writes: no allocation), its near place's region meshes pointed at them.
+    pub fn skin_own_place(&mut self, body: usize, model: &SkinnedModelData) -> Result<(), Refusal> {
+        let (v, i) = (model.vertex_count() as u32, model.primitives.iter().map(|p| p.indices.len()).sum::<usize>() as u32);
+        let sk = self.skinning.as_mut().ok_or(Refusal::NoHandle)?;
+        let own = sk.own.as_mut().ok_or(Refusal::NoHandle)?;
+        let h = own.handle_of(body).ok_or(Refusal::NoHandle)?;
+        own.book.place(h, v, i)?;
+        self.skin_own_write(body, model);
+        Ok(())
+    }
+
+    /// The body packing `side` would move next (to write its mesh again with `skin_own_pack`).
+    pub fn skin_own_pack_candidate(&self, side: Side) -> Option<usize> {
+        let own = self.skinning.as_ref()?.own.as_ref()?;
+        own.book.pack_candidate(side).map(|(h, _)| own.first_body + h)
+    }
+
+    /// Pack `side` of the pool down by one person, body `body` (`skin_own_pack_candidate`'s), whose
+    /// mesh `model` is written again at its new ranges. False when that body was not the one to move.
+    pub fn skin_own_pack(&mut self, side: Side, body: usize, model: &SkinnedModelData) -> bool {
+        let Some(own) = self.skinning.as_mut().and_then(|sk| sk.own.as_mut()) else { return false };
+        if own.book.pack_candidate(side).map(|(h, _)| own.first_body + h) != Some(body) {
+            return false;
+        }
+        if own.book.pack_step(side).is_none() {
+            return false;
+        }
+        self.skin_own_write(body, model);
+        true
+    }
+
+    /// Write a pooled body's mesh at the ranges its handle holds, and point its body and near place
+    /// at them.
+    fn skin_own_write(&mut self, body: usize, model: &SkinnedModelData) {
+        let Some(sk) = self.skinning.as_mut() else { return };
+        let Some(own) = sk.own.as_ref() else { return };
+        let Some(held) = own.handle_of(body).and_then(|h| own.book.held(h)) else { return };
+        let mut vertices: Vec<SkinnedVertex> = Vec::with_capacity(model.vertex_count());
+        let mut indices: Vec<u32> = Vec::with_capacity(held.ilen as usize);
+        let mut regions = Vec::with_capacity(model.primitives.len());
+        for prim in &model.primitives {
+            let base = vertices.len() as u32;
+            vertices.extend_from_slice(&prim.vertices);
+            let first = indices.len() as u32;
+            indices.extend(prim.indices.iter().map(|i| i + base));
+            regions.push((own.indices.clone(), held.istart + first, prim.indices.len() as u32));
+        }
+        if !vertices.is_empty() {
+            self.queue.write_buffer(&own.sources, held.vstart as u64 * SkinnedVertex::BYTES as u64, bytemuck::cast_slice(&vertices));
+        }
+        if !indices.is_empty() {
+            self.queue.write_buffer(&own.indices, held.istart as u64 * 4, bytemuck::cast_slice(&indices));
+        }
+        let outputs = own.outputs.clone();
+        let b = &mut sk.bodies[body];
+        b.base_vertex = held.vstart;
+        b.vertex_count = vertices.len() as u32;
+        b.joint_count = model.joints.len() as u32;
+        b.regions = regions;
+        self.fill_near_slot_over(body, 0, &outputs);
+    }
+
+    /// What the own-mesh pool holds (None before it is made).
+    pub fn skin_own_pool_stats(&self) -> Option<OwnPoolStats> {
+        let own = self.skinning.as_ref()?.own.as_ref()?;
+        Some(OwnPoolStats {
+            reserved_bytes: own.book.bytes() + own.book.handles() as u64 * 16 + own.shared_place_bytes,
+            used_bytes: own.book.used_bytes(),
+            holders: own.book.holders(),
+            people: own.book.people,
+            class: own.book.class,
+        })
+    }
+
+    /// Every GPU byte the skinned bodies hold: the shared bodies' buffers, their near places, the
+    /// own-mesh pool and its places (`vram.characters`).
+    pub fn skin_vram_bytes(&self) -> u64 {
+        let Some(sk) = self.skinning.as_ref() else { return 0 };
+        let first_pooled = sk.own.as_ref().map_or(sk.bodies.len(), |o| o.first_body);
+        let shared: u64 = sk.bodies[..first_pooled].iter().map(|b| b.vertices.size() + b.morphs.size() + b.regions.iter().map(|(ib, _, _)| ib.size()).sum::<u64>()).sum();
+        let places: u64 = sk.slots[..first_pooled].iter().flatten().map(|s| s.out.size() + s.params.size()).sum();
+        let pooled = sk.own.as_ref().map_or(0, |o| o.sources.size() + o.outputs.size() + o.indices.size() + o.zero_morphs.size() + (sk.slots.len() - o.first_body) as u64 * 16);
+        shared + places + pooled
+    }
+
+    /// The buffers the skinned bodies' near places draw from (their region meshes are in the mesh
+    /// registry, but their memory is `vram.characters`'s, so `vram.meshes` leaves them out).
+    pub fn skin_drawn_buffers(&self) -> std::collections::HashSet<wgpu::Buffer> {
+        let mut out = std::collections::HashSet::new();
+        if let Some(sk) = self.skinning.as_ref() {
+            for s in sk.slots.iter().flatten() {
+                out.insert(s.out.clone());
+            }
+            out.insert(sk.empty.clone());
+        }
+        out
     }
 
     /// A body's GPU buffers from its mesh.
@@ -187,7 +452,7 @@ impl Renderer {
                 contents: bytemuck::cast_slice(&indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
-            regions.push((ib, indices.len() as u32));
+            regions.push((ib, 0, indices.len() as u32));
         }
         // A storage binding may not be empty.
         if vertices.is_empty() {
@@ -206,27 +471,36 @@ impl Renderer {
         });
         let sk = self.skinning.as_ref().expect("made by the caller");
         let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &morphs);
-        SkinnedBody { vertices: vb, vertex_count: vertices.len() as u32, joint_count: model.joints.len() as u32, regions, morphs, vs_bind }
+        SkinnedBody { vertices: vb, base_vertex: 0, vertex_count: vertices.len() as u32, joint_count: model.joints.len() as u32, regions, morphs, vs_bind }
     }
 
-    /// Forget every body and near place (a reload of the character data). The meshes the near
-    /// places registered stay in the mesh registry, unused, as every replaced mesh does.
+    /// Forget every body, near place and the own-mesh pool (a reload of the character data). The
+    /// mesh ids the near places registered stay in the mesh registry drawing nothing, so they hold
+    /// on to no body's memory.
     pub fn skin_clear_bodies(&mut self) {
-        if let Some(sk) = self.skinning.as_mut() {
-            sk.bodies.clear();
-            sk.slots.clear();
-            sk.jobs.clear();
-            sk.middle.clear();
-            sk.free.clear();
+        let Some(sk) = self.skinning.as_mut() else { return };
+        let empty = sk.empty.clone();
+        let ids: Vec<usize> = sk.slots.iter().flatten().flat_map(|s| s.meshes.iter().copied()).collect();
+        sk.bodies.clear();
+        sk.slots.clear();
+        sk.jobs.clear();
+        sk.middle.clear();
+        sk.own = None;
+        for mid in ids {
+            self.replace_mesh(mid, Mesh::nothing(&empty));
         }
     }
 
-    /// GPU bytes a registered body holds (its vertices, indices and morph targets): the Dev page's
-    /// and the rigs' memory figure.
+    /// GPU bytes a registered body holds (its vertices, indices and morph targets; for a person's
+    /// own body, the range of the own-mesh pool it holds): the Dev page's and the rigs' figure.
     pub fn skin_body_bytes(&self, body: usize) -> u64 {
-        self.skinning.as_ref().and_then(|s| s.bodies.get(body)).map_or(0, |b| {
-            b.vertices.size() + b.morphs.size() + b.regions.iter().map(|(ib, _)| ib.size()).sum::<u64>()
-        })
+        let Some(sk) = self.skinning.as_ref() else { return 0 };
+        if let Some(own) = sk.own.as_ref() {
+            if let Some(h) = own.handle_of(body) {
+                return own.book.held(h).map_or(0, |held| held.bytes());
+            }
+        }
+        sk.bodies.get(body).map_or(0, |b| b.vertices.size() + b.morphs.size() + b.regions.iter().map(|(ib, _, _)| ib.size()).sum::<u64>())
     }
 
     /// Start a frame's skinning: nothing queued, the palette empty.
@@ -319,6 +593,8 @@ impl Renderer {
         }
         let rows = sk.staging.len() as u64;
         if rows > sk.palette_rows {
+            // Sized for a crowd when the own-mesh pool is made (`skin_reserve_palette`), so this
+            // grows only past that.
             let grown = rows.next_power_of_two().max(256);
             sk.palette = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Pose Palette"),
@@ -327,25 +603,16 @@ impl Renderer {
                 mapped_at_creation: false,
             });
             sk.palette_rows = grown;
-            // Every bind group naming the old palette is rebuilt over the new one.
-            for b in 0..sk.bodies.len() {
-                let body = &sk.bodies[b];
-                let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &body.morphs);
-                let binds: Vec<wgpu::BindGroup> = sk.slots[b]
-                    .iter()
-                    .map(|slot| Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &body.vertices, &slot.out, &slot.params, &body.morphs))
-                    .collect();
-                sk.bodies[b].vs_bind = vs_bind;
-                for (slot, bind) in sk.slots[b].iter_mut().zip(binds) {
-                    slot.bind = bind;
-                }
-            }
+            log::info!("Skinning: the pose palette grew to {grown} rows ({:.2} MB) on the frame", (grown * ROW_BYTES) as f64 / 1_048_576.0);
+            sk.rebind_palette(&self.device);
         }
         self.queue.write_buffer(&sk.palette, 0, bytemuck::cast_slice(&sk.staging));
         for &(body, slot, model_index) in &sk.jobs {
             let s = &sk.slots[body][slot];
-            let count = sk.bodies[body].vertex_count;
-            self.queue.write_buffer(&s.params, 0, bytemuck::cast_slice(&[count, model_index + JOINTS_AT, model_index + MORPH_BLOCK_AT, 0]));
+            let b = &sk.bodies[body];
+            // The fourth word: where the body's vertices start in its buffers (its range of the
+            // own-mesh pool; 0 for a body with buffers of its own).
+            self.queue.write_buffer(&s.params, 0, bytemuck::cast_slice(&[b.vertex_count, model_index + JOINTS_AT, model_index + MORPH_BLOCK_AT, b.base_vertex]));
         }
         // The dispatches themselves ride the scene pass's own encoder (`encode_skinning`), ahead of
         // its render pass: a submit of their own cost 0.46 ms of CPU a frame for one body (measured
@@ -391,7 +658,7 @@ impl Renderer {
         let mut bound_body = usize::MAX;
         for d in &sk.middle {
             let Some(body) = sk.bodies.get(d.body) else { continue };
-            let Some((ib, count)) = body.regions.get(d.region) else { continue };
+            let Some((ib, first, count)) = body.regions.get(d.region) else { continue };
             let Some(material) = self.materials.get(d.material) else { continue };
             if bound_material != d.material {
                 bound_material = d.material;
@@ -404,7 +671,10 @@ impl Renderer {
                 pass.set_vertex_buffer(0, body.vertices.slice(..));
             }
             pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..*count, 0, d.model_index..d.model_index + 1);
+            // A pooled body's vertices start at `base_vertex` (its range of the own-mesh pool). The
+            // VS path reads its shape targets by vertex index, which `base_vertex` shifts; a pooled
+            // body has none on (an own mesh's shape is in its vertices: its morph block is empty).
+            pass.draw_indexed(*first..*first + *count, body.base_vertex as i32, d.model_index..d.model_index + 1);
         }
     }
 
@@ -431,49 +701,42 @@ impl Renderer {
         let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &b.vertices, &out, &params, &b.morphs);
         // Buffer handles are shared clones (wgpu 24), so the region meshes and this place draw the
         // same GPU memory; collected before the registry is borrowed to add them.
-        let regions: Vec<(wgpu::Buffer, u32)> = b.regions.iter().map(|(ib, n)| (ib.clone(), *n)).collect();
+        let regions: Vec<(wgpu::Buffer, u32, u32)> = b.regions.clone();
+        let base_vertex = b.base_vertex as i32;
         let n = regions.len();
         let meshes = regions
             .into_iter()
-            .map(|(index_buffer, index_count)| self.add_mesh(Mesh { vertex_buffer: out.clone(), index_buffer, index_count }))
+            .map(|(index_buffer, first_index, index_count)| self.add_mesh(Mesh { vertex_buffer: out.clone(), index_buffer, index_count, first_index, base_vertex }))
             .collect();
         NearSlot { params, bind, out, meshes, regions: n }
     }
 
-    /// Fill near place `slot` of `body` again over the body's current vertices (its mesh was
-    /// replaced): a new output buffer and bind group, its region meshes replaced in place, a mesh id
-    /// added only when the body has more regions than the place has ever had.
-    fn fill_near_slot(&mut self, body: usize, slot: usize) {
+    /// Point near place `slot` of `body` at the body's current regions over the output buffer
+    /// `out` it already has (a pooled body written at new ranges): its region meshes replaced in
+    /// place, a mesh id added only when the body has more regions than the place has ever had (a
+    /// registry entry, no GPU memory), spare ids drawing nothing. No allocation.
+    fn fill_near_slot_over(&mut self, body: usize, slot: usize, out: &wgpu::Buffer) {
         let Some(sk) = self.skinning.as_ref() else { return };
         let b = &sk.bodies[body];
-        let out = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Skinned Body Output"),
-            size: (b.vertex_count as u64).max(1) * OUT_VERTEX_BYTES,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
-            mapped_at_creation: false,
-        });
-        let s = &sk.slots[body][slot];
-        let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &b.vertices, &out, &s.params, &b.morphs);
-        let regions: Vec<(wgpu::Buffer, u32)> = b.regions.iter().map(|(ib, n)| (ib.clone(), *n)).collect();
+        let Some(s) = sk.slots[body].get(slot) else { return };
+        let regions: Vec<(wgpu::Buffer, u32, u32)> = b.regions.clone();
+        let base_vertex = b.base_vertex as i32;
+        let empty = sk.empty.clone();
         let mut ids = s.meshes.clone();
         let n = regions.len();
-        for (k, (index_buffer, index_count)) in regions.into_iter().enumerate() {
-            let mesh = Mesh { vertex_buffer: out.clone(), index_buffer, index_count };
+        for (k, (index_buffer, first_index, index_count)) in regions.into_iter().enumerate() {
+            let mesh = Mesh { vertex_buffer: out.clone(), index_buffer, index_count, first_index, base_vertex };
             if k < ids.len() {
                 self.replace_mesh(ids[k], mesh);
             } else {
                 ids.push(self.add_mesh(mesh));
             }
         }
-        // Spare ids no longer drawn give up their buffers (a released body frees its memory now).
         for &id in ids.iter().skip(n) {
-            let tiny = Mesh { vertex_buffer: out.clone(), index_buffer: self.skinning.as_ref().expect("checked").bodies[body].vertices.clone(), index_count: 0 };
-            self.replace_mesh(id, tiny);
+            self.replace_mesh(id, Mesh::nothing(&empty));
         }
         let sk = self.skinning.as_mut().expect("checked above");
         let s = &mut sk.slots[body][slot];
-        s.out = out;
-        s.bind = bind;
         s.meshes = ids;
         s.regions = n;
     }
@@ -574,6 +837,12 @@ impl Skinning {
             usage: wgpu::BufferUsages::UNIFORM,
         });
         let vs_pso = Self::spawn_vs_pso(r, &vs_layout);
+        let empty = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Skinned Nothing"),
+            size: 16,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::INDEX,
+            mapped_at_creation: false,
+        });
         Skinning {
             bodies: Vec::new(),
             compute,
@@ -588,7 +857,24 @@ impl Skinning {
             vs_layout,
             vs_object,
             vs_pso,
-            free: Vec::new(),
+            own: None,
+            empty,
+        }
+    }
+
+    /// Every bind group naming the palette made again over the current one (it was made larger).
+    fn rebind_palette(&mut self, device: &wgpu::Device) {
+        for b in 0..self.bodies.len() {
+            let body = &self.bodies[b];
+            let vs_bind = Skinning::vs_bind_group(device, &self.vs_layout, &self.vs_object, &self.palette, &body.morphs);
+            let binds: Vec<wgpu::BindGroup> = self.slots[b]
+                .iter()
+                .map(|slot| Skinning::compute_bind_group(device, &self.compute_layout, &self.palette, &body.vertices, &slot.out, &slot.params, &body.morphs))
+                .collect();
+            self.bodies[b].vs_bind = vs_bind;
+            for (slot, bind) in self.slots[b].iter_mut().zip(binds) {
+                slot.bind = bind;
+            }
         }
     }
 

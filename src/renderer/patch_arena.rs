@@ -38,8 +38,9 @@ use humanity_core::vertex::Vertex;
 use humanity_terrain::planet_chunks::PatchSlot;
 
 /// First-fit range allocator over `0..cap` with free-list merging on free.
-/// Units are ELEMENTS (vertices or indices), not bytes.
-#[derive(Debug)]
+/// Units are ELEMENTS (vertices or indices), not bytes. Shared with the own-mesh pool
+/// (`renderer::mesh_pool`, 2026-11-10), which also packs ranges down (`alloc_at`).
+#[derive(Debug, Clone)]
 pub struct RangeAlloc {
     cap: u32,
     /// Sorted, non-overlapping, non-adjacent free ranges (start, len).
@@ -73,6 +74,34 @@ impl RangeAlloc {
             self.free[i] = (start + len, flen - len);
         }
         Some(start)
+    }
+
+    /// Allocate exactly `start..start + len`, which must lie inside one free range; false (and
+    /// nothing taken) when it does not. The own-mesh pool packs a person down into the gap below
+    /// them this way (`mesh_pool::MeshPool::pack_step`).
+    pub fn alloc_at(&mut self, start: u32, len: u32) -> bool {
+        if len == 0 {
+            return false;
+        }
+        let Some(i) = self.free.iter().position(|&(s, l)| s <= start && start as u64 + len as u64 <= s as u64 + l as u64) else {
+            return false;
+        };
+        let (s, l) = self.free[i];
+        let before = (s, start - s);
+        let after = (start + len, s + l - start - len);
+        self.free.remove(i);
+        if after.1 > 0 {
+            self.free.insert(i, after);
+        }
+        if before.1 > 0 {
+            self.free.insert(i, before);
+        }
+        true
+    }
+
+    /// The longest free run (what the largest single allocation can be now).
+    pub fn largest_free(&self) -> u32 {
+        self.free.iter().map(|(_, l)| *l).max().unwrap_or(0)
     }
 
     /// Return a range to the free list, merging with neighbors. Freeing a
@@ -372,6 +401,23 @@ mod tests {
         assert_eq!(a.free_total(), 60);
         assert!(a.alloc(50).is_none());
         assert_eq!(a.alloc(40), Some(0));
+    }
+
+    /// `alloc_at` takes exactly the range asked for when it lies inside one free run, splitting the
+    /// run around it, and refuses a range that crosses a held one (the own-mesh pool's packing).
+    #[test]
+    fn alloc_at_takes_exactly_the_range_inside_one_free_run() {
+        let mut a = RangeAlloc::new(100);
+        assert_eq!(a.alloc(10), Some(0));
+        assert!(a.alloc_at(40, 20), "40..60 lies inside the free 10..100");
+        assert_eq!(a.free_total(), 70);
+        assert_eq!(a.largest_free(), 40, "60..100");
+        assert!(!a.alloc_at(5, 10), "5..15 crosses the held 0..10");
+        assert!(!a.alloc_at(50, 5), "50..55 is held");
+        assert_eq!(a.alloc(30), Some(10), "10..40 is still one run");
+        a.free(40, 20);
+        assert!(a.alloc_at(40, 60), "40..100 is one run again after the free merged it");
+        assert_eq!(a.free_total(), 0);
     }
 
     #[test]

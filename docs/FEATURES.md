@@ -3379,14 +3379,22 @@ sized from the near tier's cap; a full pool makes a newcomer wait in its mean co
 allocation on the frame). Settings > Graphics > Garment textures: Full (1024 a half) or Low memory
 (512, from the file's second level), each with its video memory on this card; a GPU without block
 compression draws them uncompressed, decoded from the same files, and the page says so in words.
+**The own-mesh pool (2026-11-10)**: each near person's own mesh lives in a range of three GPU buffers
+(source vertices, their skinned copy, indices) allocated once on entering the world and sized for
+the near tier all in the largest dressed person (the terrain patch arena's first-fit range
+allocator), so a crowd arriving is two queue writes a person and never an allocation on the frame; a
+newcomer takes the room of a person out of the near tier (one whose room alone fits it, else the
+longest out), and when the free room is in
+pieces the people near are packed down one a frame; a mesh past the plan is drawn with the shared
+body and logged. Its memory shows under the garment textures in Settings > Graphics.
 - Crate: `crates/humanity-animation/src/look.rs` (`LookLibrary`, `build_person`, `look_key`,
   `rebuild_due`), `library.rs` (`dress_for`, wearers' `dress`), `feet.rs` (`FootRig::with_soles`)
 - Core: `crates/humanity-core/src/look_data.rs` (the binary readers, `GarmentData::place`),
   `player_look.rs` (`detail`, `wear`, `eyes`, `LookIds`, `clean_detail`, `clean_wear`, `look_due`),
   `cosmetics.rs` (`model`, `covers`), `Appearance::{detail, brows, lashes}`
 - Native: `src/engine/animation.rs` (own meshes built on `look_threads` worker threads, garment
-  materials, their slots in the garment texture pools and their release after 30 s unworn, the fringe pass), `src/engine/look_textures.rs` (a garment's DDS read off the frame, its levels for the setting, decoded where there is no block compression), `src/renderer/texture_pool.rs` (`SlotPool`, `create_texture_pool`, `texture_pool_write`, `set_material_pool_slot`), `src/renderer/bc7.rs` (the DDS reader and the BC7 decoder), `src/gui/garment_textures.rs` and `src/gui/pages/settings/garments.rs` (the setting, its memory and the block compression notice), `src/renderer/skinning.rs`
-  (`skin_replace_body`, `skin_release_body`), `src/renderer/materials.rs` (`add_character_material`,
+  materials, their slots in the garment texture pools and their release after 30 s unworn, the fringe pass), `src/engine/look_textures.rs` (a garment's DDS read off the frame, its levels for the setting, decoded where there is no block compression), `src/renderer/texture_pool.rs` (`SlotPool`, `create_texture_pool`, `texture_pool_write`, `set_material_pool_slot`), `src/renderer/bc7.rs` (the DDS reader and the BC7 decoder), `src/gui/garment_textures.rs` and `src/gui/pages/settings/garments.rs` (the setting, its memory and the block compression notice, and the own-mesh pool's memory), `src/renderer/mesh_pool.rs` (`MeshPool`: the own-mesh pool's books, `next_step`, `pack_step`), `src/renderer/skinning.rs`
+  (`skin_create_own_pool`, `skin_own_next_step`, `skin_own_place`, `skin_own_pack`, `skin_release_body`), `src/renderer/patch_arena.rs` (`RangeAlloc`, shared with the pool), `src/renderer/materials.rs` (`add_character_material`,
   `add_material_like`, types 25 textured and 26 hair), `assets/shaders/pbr/90-fragment-main.wgsl`
   (the pack, the cotangent frame, the hair's two passes and lobes), `src/engine/net_route.rs` (the
   look's send and `game_player_look`), `src/gui/pages/showroom.rs` (details, hair, brows, lashes),

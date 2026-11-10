@@ -22,15 +22,17 @@ fn muted(ui: &mut egui::Ui, theme: &Theme, text: impl Into<String>) {
     ui.label(RichText::new(text.into()).color(theme.text_muted()).size(theme.font_size_small));
 }
 
-/// The subsection, drawn inside Settings > Graphics, with this machine's plan and card line.
+/// The subsection, drawn inside Settings > Graphics, with this machine's plans and card line.
 pub(crate) fn draw_garment_textures(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay, accent: Color32) {
     let (line, notice) = gt::this_machine_line();
-    draw_with(ui, theme, state, hint, accent, gt::plan().as_ref(), line.as_deref(), notice.as_deref());
+    draw_with(ui, theme, state, hint, accent, gt::plan().as_ref(), gt::mesh_plan().as_ref(), line.as_deref(), notice.as_deref());
 }
 
-/// The subsection with the plan and lines given (the page's, or a snapshot's).
+/// The subsection with the plans and lines given (the page's, or a snapshot's). `meshes` is the
+/// own-mesh pool's (2026-11-10): the people's own bodies, clothes and hair, set aside once when the
+/// world is entered as the texture pools are, so its memory is shown with theirs.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn draw_with(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay, accent: Color32, plan: Option<&gt::Plan>, line: Option<&str>, notice: Option<&str>) {
+pub(crate) fn draw_with(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay, accent: Color32, plan: Option<&gt::Plan>, meshes: Option<&gt::MeshPlan>, line: Option<&str>, notice: Option<&str>) {
     widgets::subsection_header(ui, theme, accent, t("garment_textures.title"), "");
     // A grid, so the memory figures line up for comparing.
     egui::Grid::new("garment_texture_levels").num_columns(3).show(ui, |ui| {
@@ -49,6 +51,9 @@ pub(crate) fn draw_with(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
     widgets::setting_hint(ui, theme, hint, t("garment_textures.hint"));
     if plan.is_none() {
         muted(ui, theme, t("garment_textures.memory_unmeasured"));
+    }
+    if let Some(m) = meshes {
+        muted(ui, theme, gt::mesh_memory_words(m));
     }
     if let Some(line) = line {
         widgets::glossary_words(ui, theme, line, theme.font_size_small, theme.text_muted());

@@ -98,11 +98,12 @@ pub mod material_bind_groups;
 pub mod materials;
 pub mod mesh;
 pub mod multi_scale;
-/// Post-passes drawn over a finished frame: orbit lines and particle
-/// billboards, CPU and GPU. Extracted from mod.rs in v0.1319 - see the file's
-/// header for why this cluster.
+/// Post-passes drawn over a finished frame: orbit lines and particle billboards, CPU and GPU.
+/// Extracted from mod.rs in v0.1319 - see the file's header for why this cluster.
 pub mod overlay_draw;
 pub mod patch_arena;
+/// The own-mesh pool's books (2026-11-10): each near person's mesh a range of buffers made once.
+pub mod mesh_pool;
 pub mod tree_mesh;
 pub mod particles;
 pub mod particles_gpu;
@@ -112,9 +113,8 @@ pub mod pipeline;
 pub mod room_probes;
 pub mod room_probes_gpu;
 pub mod bounced_light_detail;
-/// The near-world draw loops: opaque, transparent, overlay, god rays, SSAO,
-/// and the whole-frame wrappers around them. Extracted from mod.rs in
-/// v0.1319 - see the file's header for why this cluster.
+/// The near-world draw loops: opaque, transparent, overlay, god rays, SSAO, and the whole-frame
+/// wrappers around them. Extracted from mod.rs in v0.1319 - see the file's header for why this cluster.
 pub mod scene_draw;
 /// Skinned bodies (character animation rung 1, 2026-11-08): compute skinning for near bodies,
 /// vertex-shader skinning for middle ones, and the pose palette both read.

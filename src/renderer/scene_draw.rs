@@ -264,7 +264,7 @@ impl Renderer {
                 }
                 pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
             }
         }
     }
@@ -447,7 +447,7 @@ impl Renderer {
                 }
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                render_pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
             }
         }
 
@@ -538,7 +538,7 @@ impl Renderer {
                 }
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                render_pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
             }
         }
         self.queue.submit(std::iter::once(encoder.finish()));

@@ -2232,17 +2232,31 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
 fn snapshot_garment_textures() {
     // Settings > Graphics > Garment textures (2026-11-10, the look's textures) on a GPU with block
     // compression: Full and Low memory with the memory the engine plans for the shipped library's
-    // pools as BC7 (90.7 and 30.7 MB, measured in the rig's log), and the card's line. (The whole
-    // Graphics page's snapshot, `graphics_settings`, stops before Furniture and this section.)
-    render_page_png("garment_textures", 960, 360, |ctx, theme, state| {
+    // pools as BC7 (90.7 and 30.7 MB, measured in the rig's log), the own-mesh pool's line under them
+    // (2026-11-10: the shipped library's plan, its buffers for 17 people of the largest dressed
+    // person and the shared bodies' near places, `shipped_mesh_plan`), and the card's line. (The
+    // whole Graphics page's snapshot, `graphics_settings`, stops before Furniture and this section.)
+    render_page_png("garment_textures", 960, 400, |ctx, theme, state| {
         settings_panel(ctx, theme, state, |ui, theme, state| {
             let plan = crate::gui::garment_textures::Plan { bytes: vec![("full".into(), 95_070_400), ("low".into(), 32_155_840)], compressed: true };
+            let meshes = shipped_mesh_plan();
             let card = crate::renderer::bounced_light_detail::AdapterMemory { name: "NVIDIA GeForce RTX 4070".into(), integrated: false, dedicated_bytes: Some(12 << 30) };
             let line = crate::gui::garment_textures::compressed_line(Some(&card));
             let hint = state.settings.hint_display;
-            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), Some(&plan), line.as_deref(), None);
+            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), Some(&plan), Some(&meshes), line.as_deref(), None);
         });
     });
+}
+
+/// The own-mesh pool's plan for the shipped library (2026-11-10): 82.5 MB for the 17 people of the
+/// near tier, as the rig's log measured it. The engine's test
+/// `the_snapshot_shows_the_shipped_own_pool_plan` holds these equal to the plan the engine works out
+/// from the library (`engine::animation::own_pool_plan`), so the picture cannot drift from it (the
+/// GUI's tests may not reach the engine to work it out here: scripts/crate-layers.json).
+pub(crate) const SHIPPED_OWN_POOL: (u64, u32) = (86_463_328, 17);
+
+fn shipped_mesh_plan() -> crate::gui::garment_textures::MeshPlan {
+    crate::gui::garment_textures::MeshPlan { bytes: SHIPPED_OWN_POOL.0, people: SHIPPED_OWN_POOL.1 }
 }
 
 #[test]
@@ -2251,15 +2265,17 @@ fn snapshot_garment_textures_no_bc() {
     // Settings > Graphics > Garment textures on a GPU without block compression (2026-11-10, the
     // look's textures): Low memory chosen, each level's memory as the engine plans it uncompressed
     // (the shipped library's pools at Full and Low memory, four times the BC7 figures), and the
-    // notice in words: what the textures need, what this card has, what works instead.
-    render_page_png("garment_textures_no_bc", 960, 420, |ctx, theme, state| {
+    // notice in words: what the textures need, what this card has, what works instead. The own-mesh
+    // pool's line is the same on any card (its buffers are not textures).
+    render_page_png("garment_textures_no_bc", 960, 460, |ctx, theme, state| {
         state.settings.garment_textures = "low".into();
         settings_panel(ctx, theme, state, |ui, theme, state| {
             let plan = crate::gui::garment_textures::Plan { bytes: vec![("full".into(), 4 * 95_070_400), ("low".into(), 4 * 32_155_840)], compressed: false };
+            let meshes = shipped_mesh_plan();
             let card = crate::renderer::bounced_light_detail::AdapterMemory { name: "Test GPU".into(), integrated: false, dedicated_bytes: Some(4 << 30) };
             let notice = crate::gui::garment_textures::hardware_notice(Some(false), Some(&card));
             let hint = state.settings.hint_display;
-            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), Some(&plan), None, notice.as_deref());
+            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), Some(&plan), Some(&meshes), None, notice.as_deref());
         });
     });
 }

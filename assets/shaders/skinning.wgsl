@@ -20,12 +20,17 @@
 // says how many targets are on and, two to a row after its first, each target's index and weight;
 // each adds its position and normal delta (two vec4 per vertex per target in `morphs`, at
 // (target * vertex count + vertex) * 2) to the vertex before it is skinned.
+//
+// THE OWN-MESH POOL (2026-11-10, src/renderer/mesh_pool.rs): a near person's own mesh is a range of
+// the pool's buffers, so a body's vertices start at `vertex_base` in `source` and its skinned copy
+// at the same place in `skinned` (0 for a body with buffers of its own). The morph targets are read
+// by the body's own vertex number (a pooled body has none on: its shape is in its vertices).
 
 struct SkinParams {
     vertex_count: u32,
     joint_base: u32,
     morph_base: u32,
-    pad1: u32,
+    vertex_base: u32,
 };
 
 @group(0) @binding(0) var<storage, read> palette: array<vec4<f32>>;
@@ -46,7 +51,7 @@ fn cs_skin(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (i >= params.vertex_count) {
         return;
     }
-    let w = i * 12u;
+    let w = (params.vertex_base + i) * 12u;
     var shaped_p = vec3<f32>(bitcast<f32>(source[w]), bitcast<f32>(source[w + 1u]), bitcast<f32>(source[w + 2u]));
     var shaped_n = vec3<f32>(bitcast<f32>(source[w + 3u]), bitcast<f32>(source[w + 4u]), bitcast<f32>(source[w + 5u]));
     let mb = params.morph_base * 3u;
@@ -92,7 +97,7 @@ fn cs_skin(@builtin(global_invocation_id) gid: vec3<u32>) {
     } else {
         n = vec3<f32>(0.0, 1.0, 0.0);
     }
-    let o = i * 8u;
+    let o = (params.vertex_base + i) * 8u;
     skinned[o] = p.x;
     skinned[o + 1u] = p.y;
     skinned[o + 2u] = p.z;

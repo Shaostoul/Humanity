@@ -111,6 +111,37 @@ pub fn plan() -> Option<Plan> {
     PLAN.lock().ok().and_then(|p| p.clone())
 }
 
+/// What the own-mesh pool sets aside (2026-11-10, `renderer::mesh_pool`): each near person's own
+/// body with their clothes and hair lives in it, allocated once when the world is entered, the
+/// same way as the texture pools; Settings shows it under them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MeshPlan {
+    /// The pool's buffers and the shared bodies' near places, bytes.
+    pub bytes: u64,
+    /// How many people near it holds at the largest size at once (the near tier and the player).
+    pub people: u32,
+}
+
+static MESH_PLAN: std::sync::Mutex<Option<MeshPlan>> = std::sync::Mutex::new(None);
+
+/// Recorded by the engine when the characters load.
+pub fn note_mesh_plan(plan: MeshPlan) {
+    log::info!("[Garments] the own-mesh pool takes {:.1} MiB for {} people near", plan.bytes as f64 / 1_048_576.0, plan.people);
+    if let Ok(mut p) = MESH_PLAN.lock() {
+        *p = Some(plan);
+    }
+}
+
+/// The own-mesh pool's plan, once the characters have loaded.
+pub fn mesh_plan() -> Option<MeshPlan> {
+    MESH_PLAN.lock().ok().and_then(|p| *p)
+}
+
+/// The line under the garment texture levels saying what the people's meshes take.
+pub fn mesh_memory_words(plan: &MeshPlan) -> String {
+    humanity_core::i18n::tf("garment_textures.meshes", &[("memory", &mb_words(plan.bytes)), ("people", &plan.people.to_string())])
+}
+
 /// The figure shown beside a level ("about 91 MB") in `plan`.
 pub fn level_memory_words(plan: &Plan, id: &str) -> Option<String> {
     plan.bytes.iter().find(|(l, _)| l == id).map(|(_, b)| mb_words(*b))

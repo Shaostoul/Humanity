@@ -140,6 +140,16 @@ pub struct Garment {
     covers: Vec<u8>,
 }
 
+impl Garment {
+    /// The vertices and indices this garment adds to a person's own mesh as `build_person` makes it:
+    /// its drawn vertices and triangles, and for a two-sided garment the back of every card as well
+    /// (its own vertices with the normal turned round), so twice both.
+    pub fn built_size(&self) -> (usize, usize) {
+        let sides = if self.def.two_sided { 2 } else { 1 };
+        (self.data.drawn.len() * sides, self.data.indices.len() * sides)
+    }
+}
+
 /// Everything the look needs that both bodies share, read with the character library.
 #[derive(Debug, Clone)]
 pub struct LookLibrary {

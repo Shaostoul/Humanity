@@ -123,6 +123,20 @@ just sync    # fetches, git reset --hard, builds ON the VPS, lays out the web ro
   after an update").
 - Deploy `git pull` fails if server has local changes -> `just sync` fixes it
 
+## What a download carries beside the program (one list, 2026-11-10)
+
+The platform bundles (`HumanityOS-<platform>.zip`/`.tar.gz`), the data archive
+(`HumanityOS-data-<tag>.tar.gz`) and the per-file data manifest (`data-manifest-<tag>.json`) are all
+made from ONE list, `scripts/lib/release-files.js`: `data/`, `assets/icons`, `shaders`, `models`,
+`textures` and `audio`, and `LICENSE`, `LICENSES.md`, `CREDITS.md`, less its left-out rules, each
+with its reason in that file. Today it leaves out the audio placeholder folders and the garments'
+full-resolution source PNGs (72 files, 154 MiB: the app reads each garment's `.dds`, and the
+thumbnails ship), so a download is that much smaller. To ship or drop a file, change that list,
+never the workflow's steps: `node scripts/lib/release-files.js --summary` prints what ships and what
+is left out, and `scripts/tests/release-files.test.js` (in `just rig-tests`) fails when a file the
+character data names is left out, a garment thumbnail is left out, a source PNG ships, the manifest's
+list differs from the archive's, or a workflow step stops using the list.
+
 ## The server's copy of each release (the mirror)
 
 united-humanity.us keeps its own copy of each release at <https://united-humanity.us/releases/>

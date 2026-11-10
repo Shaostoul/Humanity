@@ -140,6 +140,57 @@ fn a_persons_own_mesh_is_their_look() {
     }
 }
 
+/// THE OWN-MESH POOL IS PLANNED FOR THE LARGEST DRESSED PERSON (2026-11-10, renderer::mesh_pool):
+/// on each body, a person in the largest garment of every kind (by vertices, then by indices),
+/// covers off so every body triangle stays, is BUILT for real, and their drawn mesh is within the
+/// plan (`CharacterLibrary::largest_own_mesh`), and the plan is no more than a sliver over the
+/// largest built (real brows drop the generated brows region, the one part the plan counts that a
+/// person in brows never wears). Measured 2026-11-10: plan 40,389 vertices and 203,916 indices;
+/// built, the female body in the largest of each kind 40,329 and 203,748.
+/// Seen red 2026-11-10 with `Garment::built_size` counting a two-sided garment once: "female in the
+/// largest of each kind by vertices: 40329 vertices built over the 34048 planned" (the long hair is
+/// two-sided cards: the build makes each card's vertices twice).
+#[test]
+fn the_own_mesh_pool_is_planned_for_the_largest_dressed_person() {
+    let lib = read_library(&repo_data()).unwrap();
+    let look = lib.look.as_ref().expect("the look reads");
+    let (pv, pi) = lib.largest_own_mesh().expect("a plan with the look");
+    let kinds = [GarmentKind::Clothes, GarmentKind::Shoes, GarmentKind::Hat, GarmentKind::Hair, GarmentKind::Brows, GarmentKind::Lashes];
+    let largest_by = |pick: fn((usize, usize)) -> usize| -> Vec<usize> {
+        kinds.iter().filter_map(|k| look.garments.iter().enumerate().filter(|(_, g)| g.def.kind == *k).max_by_key(|(_, g)| pick(g.built_size())).map(|(i, _)| i)).collect()
+    };
+    let mut most = (0u32, 0u32);
+    for choice in ["female", "male"] {
+        let bi = body_index(&lib, choice);
+        for (what, worn) in [("vertices", largest_by(|s| s.0)), ("indices", largest_by(|s| s.1))] {
+            assert_eq!(worn.len(), kinds.len(), "a garment of every kind");
+            let m = build(&lib, bi, &Default::default(), &worn, false, true);
+            let v = m.model.vertex_count() as u32;
+            let i = m.model.primitives.iter().map(|p| p.indices.len()).sum::<usize>() as u32;
+            if debug() {
+                eprintln!("{choice} in the largest of each kind by {what}: {v} vertices, {i} indices (the plan: {pv}, {pi})");
+            }
+            assert!(v <= pv, "{choice} in the largest of each kind by {what}: {v} vertices built over the {pv} planned");
+            assert!(i <= pi, "{choice} in the largest of each kind by {what}: {i} indices built over the {pi} planned");
+            most = (most.0.max(v), most.1.max(i));
+        }
+    }
+    assert!(pv - most.0 <= pv / 50 && pi - most.1 <= pi / 50, "the plan ({pv}, {pi}) is a sliver over the largest built ({}, {})", most.0, most.1);
+}
+
+/// THE SETTINGS SNAPSHOT SHOWS THE SHIPPED OWN-MESH POOL'S PLAN (2026-11-10): the figure the
+/// `garment_textures` snapshots draw (`gui::ui_snapshots::SHIPPED_OWN_POOL`) is the plan the engine
+/// works out from the shipped library (`own_pool_plan`), so a library or plan change that moves the
+/// memory fails here rather than leaving the picture wrong. Seen red 2026-11-10 with the snapshot's
+/// bytes one MB off: "the snapshot shows 87511904 bytes for 17 people; the engine plans 86463328 for 17".
+#[test]
+fn the_snapshot_shows_the_shipped_own_pool_plan() {
+    let lib = read_library(&repo_data()).unwrap();
+    let plan = own_pool_plan(&lib).expect("the shipped library has the look");
+    let (bytes, people) = crate::gui::ui_snapshots::SHIPPED_OWN_POOL;
+    assert!(bytes == plan.bytes(&lib) && people == plan.people, "the snapshot shows {bytes} bytes for {people} people; the engine plans {} for {}", plan.bytes(&lib), plan.people);
+}
+
 /// THE BUILD'S COST AND MEMORY, measured (section 8.3 of the plan): a dressed person, built
 /// several times, and the bytes their mesh asks of the GPU. Printed with LOOK_DEBUG=1; the bound
 /// is generous (a debug build): it catches a build gone quadratic, not a slow machine.

@@ -108,23 +108,19 @@ jobs:
           # not a size trade, it is an oversight. If the download must shrink,
           # the honest place to look is quality tiers and duplicated star
           # catalogues, not the things the game is made of.
-          cp -r data/ dist/HumanityOS/data/
-          cp -r assets/icons/ dist/HumanityOS/assets/icons/
-          cp -r assets/shaders/ dist/HumanityOS/assets/shaders/
-          cp -r assets/models/ dist/HumanityOS/assets/models/
-          cp -r assets/textures/ dist/HumanityOS/assets/textures/
-          # The game's sounds (BUG-268, 2026-11-07): every sound effect, interface click and notice
-          # chime the game plays is a file under assets/audio (about 0.3 MB), and it was never
-          # copied, so a downloaded build played none of them and Settings > Audio > Sound levels
-          # listed nothing. The music's own recordings live under data/music and already shipped.
-          cp -r assets/audio/ dist/HumanityOS/assets/audio/
-          # The licence files travel with every download (2026-11-08, the whole-Earth map
-          # finding): LICENSES.md holds the ODbL offer for the OpenStreetMap region files and the
-          # CC BY-SA offer for the star catalogues, and a download that carries those files must
-          # carry the offer too. It was missing since the 2026-09-06 attribution audit.
-          cp LICENSE LICENSES.md CREDITS.md dist/HumanityOS/
-          # Remove large audio placeholders if they exist
-          rm -rf dist/HumanityOS/data/audio/sfx/* dist/HumanityOS/data/audio/music/* dist/HumanityOS/data/audio/ambient/* 2>/dev/null || true
+          #
+          # ONE LIST (2026-11-10): what ships beside the program is scripts/lib/release-files.js,
+          # the list the data archive below and the per-file data manifest are made from too, so
+          # the three can never disagree (scripts/tests/release-files.test.js checks it against
+          # what the app reads). It carries data/, assets/icons, shaders, models, textures and
+          # audio (the game's sounds, BUG-268: every effect, click and chime is a file there), and
+          # LICENSE, LICENSES.md and CREDITS.md (2026-11-08: LICENSES.md holds the ODbL offer for
+          # the OpenStreetMap region files and the CC BY-SA offer for the star catalogues, and a
+          # download that carries those files must carry the offer too). It leaves out what the
+          # app never reads, each rule with its reason in that file: the audio placeholders, and
+          # the garments' full-resolution source PNGs (about 154 MiB: the app reads each garment's
+          # .dds the converter made from them, and its .thumb.png).
+          node scripts/lib/release-files.js --copy dist/HumanityOS
           # Create the bundle archives (binary + data + assets) for fresh installs.
           # BOTH formats: .zip opens natively on every OS (Windows Explorer, macOS
           # Finder, Linux file managers -- the no-friction choice for regular
@@ -299,21 +295,17 @@ jobs:
           # Models and textures ship here too (fixed 2026-09-19): this archive
           # is what a fresh install unpacks, so leaving them out gave a world
           # of untextured boxes. See the note at the bundle copy above.
+          # The files are scripts/lib/release-files.js's list (2026-11-10), the one the bundle
+          # copy and the manifest below use: the same files in all three, each left-out rule with
+          # its reason in that file. The list goes to tar one path a line, read verbatim.
+          node scripts/lib/release-files.js --list > "$RUNNER_TEMP/release-files.txt"
           tar czf HumanityOS-data-${{ github.ref_name }}.tar.gz \
-            --exclude="data/audio/sfx/*" \
-            --exclude="data/audio/music/*" \
-            --exclude="data/audio/ambient/*" \
-            data/ \
-            assets/icons/ \
-            assets/shaders/ \
-            assets/models/ \
-            assets/textures/ \
-            assets/audio/ \
-            LICENSE LICENSES.md CREDITS.md
+            --verbatim-files-from -T "$RUNNER_TEMP/release-files.txt"
 
       - name: Generate per-file data manifest
         run: node scripts/gen-data-manifest.js ${{ github.ref_name }}
-        # Writes data-manifest-${tag}.json in repo root.
+        # Writes data-manifest-${tag}.json in repo root: exactly the archive's files (the same
+        # list, scripts/lib/release-files.js).
 
       - name: Upload data bundle + manifest to GitHub release
         uses: softprops/action-gh-release@v2

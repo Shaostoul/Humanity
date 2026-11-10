@@ -139,8 +139,13 @@ data tweaks. The layered model ships three tiers per release:
 | 2. Layered packages | `HumanityOS-<platform>.exe` (binary only) + `HumanityOS-data-<version>.tar.gz` (data + assets, no binary) | ~33 MB + ~25 MB | Day-2 updates: pull only the layer that changed |
 | 3. File-level manifest | `data-manifest-<version>.json`, per-file SHA-256 hash + Forgejo per-file URL | ~100 KB | File-level delta sync, fetch only files whose hash differs |
 
-The `data-manifest-<version>.json` lists every file under `data/`,
-`assets/icons/`, and `assets/shaders/` with:
+The `data-manifest-<version>.json` lists exactly the files the data archive
+carries (since 2026-11-10: both are made from one list,
+`scripts/lib/release-files.js`, which also feeds the platform bundles: `data/`,
+`assets/icons/`, `shaders/`, `models/`, `textures/` and `audio/`, and the licence
+files, less its left-out rules, such as the garments' source PNGs the app never
+reads; before that the manifest walked only `data/`, `assets/icons/` and
+`assets/shaders/`, so it named none of the models, textures or sounds), each with:
 
 - relative path (POSIX)
 - byte size

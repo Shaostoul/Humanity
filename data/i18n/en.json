@@ -4607,6 +4607,7 @@
     "bc_line": "{{card}} reads [[block compression|block_compression]] (BC7), so the garments' [[textures|texture]] take a quarter of the memory they would uncompressed.",
     "no_bc_card": "{{card}} does not read [[block compression|block_compression]] (BC7), which the garments' [[textures|texture]] are stored in. They are drawn uncompressed instead: they look the same and take four times the video memory. Low memory takes a quarter of that.",
     "no_bc": "This graphics card does not read [[block compression|block_compression]] (BC7), which the garments' [[textures|texture]] are stored in. They are drawn uncompressed instead: they look the same and take four times the video memory. Low memory takes a quarter of that.",
-    "level_hint": "Draws the garments of the people near you at this size. The line beside it says what it does and how much video memory it takes."
+    "level_hint": "Draws the garments of the people near you at this size. The line beside it says what it does and how much video memory it takes.",
+    "meshes": "The people near you are drawn with their own bodies, clothes and hair, which take about {{memory}} more video memory, set aside once: enough for the {{people}} nearest even in the largest outfits and hair."
   }
 }

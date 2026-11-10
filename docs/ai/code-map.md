@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1392 Rust files (737,268 lines) under `src/` and `crates/*/src/`; 143 JavaScript files (86,016 lines) under `web/`.
+1397 Rust files (739,875 lines) under `src/` and `crates/*/src/`; 143 JavaScript files (86,035 lines) under `web/`.
 
 ## Folders
 
@@ -51,7 +51,7 @@
 - `src/engine/mcp/` (6 files): The dev MCP endpoint (2026-10-22): the running game serves the Model Context Protocol on 127.0.0.1, so an AI session drives and inspects...
 - `src/engine/screens/` (8 files): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a...
 - `src/games/` (15 files): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed g...
-- `src/gui/` (40 files): egui GUI system for the native desktop client.
+- `src/gui/` (41 files): egui GUI system for the native desktop client.
 - `src/gui/bottom_strip/` (2 files): The bottom of every app page: the unfinished-software warning, and later the chat footer above it (docs/design/app-bottom-strip.md, 2026-...
 - `src/gui/crossing_tests/` (15 files): TESTS OF THE CRATES BELOW, TOGETHER WITH THE GUI OR WITH EACH OTHER (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counte...
 - `src/gui/model_view/` (5 files): The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the person presses View in 3D, read on a worker,...
@@ -65,7 +65,7 @@
 - `src/gui/pages/maps/` (28 files): The Maps page: one page, four views (Planet, Solar System, Galaxy, Night Sky), drawn by `draw` from `GuiState::maps` (`gui/state_types/ma...
 - `src/gui/pages/quests/` (1 files): Quests: the SIM quest surface, gameplay only.
 - `src/gui/pages/server_settings/` (8 files): Server and group settings page.
-- `src/gui/pages/settings/` (13 files): Settings panel with sidebar navigation and category content panels.
+- `src/gui/pages/settings/` (14 files): Settings panel with sidebar navigation and category content panels.
 - `src/gui/state_types/` (3 files): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them.
 - `src/gui/widgets/` (46 files): Reusable egui widgets styled by the HumanityOS theme.
 - `src/how_to/` (9 files): How-to: step-by-step procedures for real life, the game and this platform, as data (docs/design/how-to.md; increment 1, 2026-10-23).
@@ -81,7 +81,7 @@
 - `src/relay/handlers/` (53 files): Handler submodules for the relay server.
 - `src/relay/storage/` (78 files): SQLite persistence for relay message history and peers.
 - `src/relay/transport/` (2 files): Transport layer (Phase 7b, LoRa mesh stub).
-- `src/renderer/` (65 files): Renderer, the `Renderer` struct, its construction, and its registries.
+- `src/renderer/` (68 files): Renderer, the `Renderer` struct, its construction, and its registries.
 - `src/renderer/shader_loader/` (1 files): WGSL shader loading with optional hot-reload (native only).
 - `src/software/` (7 files): The readers of the Apps page's "Other programs" (2026-10-19; the operator: "What if we make the tools page like the games page?
 - `src/web_reader/` (5 files): The readable web: fetch a real page over HTTPS and turn it into a document HumanityOS can draw itself, with no browser engine and no Java...
@@ -124,8 +124,8 @@
 - `humanoid.rs` (144): The humanoid skeleton standard: the roles a humanoid body's joints can play, read from `data/characters/skeletons/humanoid.ron` (plan section 2.1). Main items: Tier, Standard, TwistDef, RoleDef, SocketDef, HumanoidDef.
 - `joint_map.rs` (77): A joint map: one rig's joints read straight across onto another's, joint for joint (`data/characters/joint_maps/<from>_to_<to>.ron`). Main items: Source, JointPair, JointMapDef.
 - `lib.rs` (66): humanity-animation: one body and one animation system for the player, the other players and the crew (docs/design/character-animation.md; its card is docs/crates/humanity-animation.md). Main items: parse_ron.
-- `library.rs` (923): The data files that make a character, read and tied together (plan section 9): Main items: Tint, Fallback, Wearer, DressDef, DressChoice, CharactersDef, RegionDef, HeightDriver (+9 more).
-- `look.rs` (654): THE LOOK: each person's own shaped and dressed mesh (character animation, "the look", 2026-11-09; docs/design/character-animation.md section 16). Main items: DetailsDef, DetailSliderDef, GarmentKind, GarmentDef, Garment, LookLibrary, PersonInputs, Part (+5 more).
+- `library.rs` (941): The data files that make a character, read and tied together (plan section 9): Main items: Tint, Fallback, Wearer, DressDef, DressChoice, CharactersDef, RegionDef, HeightDriver (+9 more).
+- `look.rs` (668): THE LOOK: each person's own shaped and dressed mesh (character animation, "the look", 2026-11-09; docs/design/character-animation.md section 16). Main items: DetailsDef, DetailSliderDef, GarmentKind, GarmentDef, Garment, LookLibrary, PersonInputs, Part (+5 more).
 - `motion.rs` (70): Speed and turn rate read from where a body went (plan 8.5: "Speed and direction are not sent: they come from the interpolated positions, which feed the same locomotion solver the local player uses"). Main items: MotionTracker, wrap_angle.
 - `pose.rs` (156): Poses: a transform per joint, blended, carried up the hierarchy into model space, and written as the pose palette the GPU skins with (plan section 2.2). Main items: Trs, Pose, morph_rows, nlerp, blend_into, blend_toward, model_matrices, palette_rows (+5 more).
 - `retarget.rs` (173): Retargeting by role: a clip made on one rig, played on another body (plan section 2.1: "Every motion source is retargeted by role at load: rest poses aligned, the root's travel scaled by the ratio... Main items: retarget, rest_alignment, apply_twists, twist_about.
@@ -532,7 +532,7 @@
 
 ## src/
 
-- `config.rs` (3359): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, SavedServer, AppConfig, DonateAddressConfig, play_mode_allows (+16 more).
+- `config.rs` (3396): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, SavedServer, AppConfig, DonateAddressConfig, play_mode_allows (+16 more).
 - `lib.rs` (16343): HumanityOS Game Engine Main items: drone_dock_visible, run.
 - `main.rs` (242): HumanityOS, One binary to rule them all.
 - `release_update.rs` (384): Signed-release verification + signing (the supply-chain root of trust). Main items: handoff_block_reason, handoff_blocked_now, verify_file_against_sidecar, gen_release_key, sign_manifest_bytes, sign_release, sign_file, NO_HANDOFF_ENV.
@@ -567,7 +567,7 @@
 ## src/engine/
 
 - `account_erase.rs` (131): An erased account, the engine's side (BUG-135): what the app does when a server confirms it erased our account (the relay's `account_erased`, sent after the erase's receipt). Main items: on_active_server, on_parked_server, erase_refusal, ERASED_BY_ADMIN_HUD.
-- `animation.rs` (1696): CHARACTERS ON SCREEN (character animation rung 1, 2026-11-08; docs/design/character-animation.md). Main items: FigureKey, Person, ShapeValues, CrowdMotion, CrowdFigure, CrowdLook, Report, FootProbe (+22 more).
+- `animation.rs` (2133): CHARACTERS ON SCREEN (character animation rung 1, 2026-11-08; docs/design/character-animation.md). Main items: FigureKey, Person, ShapeValues, CrowdMotion, CrowdFigure, CrowdLook, Report, FootProbe (+25 more).
 - `bed_probe.rs` (204): THE BED PROBE: a road's cross-section and a building's footing, read out for the rig (whole-Earth maps, the rung between 2 and 3, 2026-11-09; docs/design/whole-earth-maps.md 6.1 and 6.2). Main items: parse, report, write_report, REPORT_PATH.
 - `bg_connections.rs` (951): Background relay connections pump (multi-connection stage 3). Main items: pump_background_connections, link_frame, redial_due, erased_link, bg_begin_fetch, bg_dm_new, bg_dm_batch.
 - `block.rs` (740): Block (step C of docs/design/blocking-and-safe-mode.md, section 10d, 2026-10-09): the native client's half that touches the app state and the socket. Main items: ensure_block_list, is_blocked, hides_player, screens_dm, screens_dm_parked, own_echo_for_blocked, screens_out, hides_message (+13 more).
@@ -614,7 +614,7 @@
 - `key_cards.rs` (352): Key cards in the desktop app (2026-10-22, docs/design/key-cards.md): signing our own card, asking servers for other people's, checking every one, pinning, and the change notice. Main items: KeyCardsState, sign_own_card, on_identity, ensure_pins, want, want_people, note_listed, on_signed_in (+8 more).
 - `keybind_capture.rs` (166): Keybind CAPTURE step (Settings > Controls, 2026-08-12), extracted from lib.rs's raw winit keyboard arm per the monolith ratchet. Main items: handle_keybind_capture.
 - `launch_focus.rs` (361): Launch-focus policy: does this boot deserve the foreground? Main items: launch_audio, open_audio_on_click, launch_in_background, show_window_behind, show_window_behind.
-- `look_textures.rs` (176): THE GARMENTS' TEXTURES (character animation's "the look", 2026-11-09; docs/design/ character-animation.md section 16): each worn garment's MakeHuman textures read once, off the frame, and packed in... Main items: Packed, pack, CARD_CUTOFF.
+- `look_textures.rs` (110): THE GARMENTS' TEXTURES (character animation's "the look", 2026-11-09; BC7 and the slot pool 2026-11-10; docs/design/character-animation.md section 16): each worn garment's texture read off the fram... Main items: Loaded, class_for, read, MIP_MIN_PX.
 - `low_impact.rs` (456): LOW IMPACT: the game a verification rig boots while the operator is using his PC (2026-10-22). Main items: Spec, parse, spec, on, window, holds_pin, preset_values, overlay_for (+12 more).
 - `mailbox.rs` (128): The sealed-sender mailbox of the server we are on, page by page and live (10n N7 and 10o O1 of docs/design/blocking-and-safe-mode.md, 2026-10-10): the `dm_fetch` that goes out once per connection,... Main items: begin_fetch, on_batch, on_new.
 - `map_cut.rs` (69): THE CUTAWAY for the Maps page (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7): picking a level on the map cuts everything above it away, hull, roof, ceilings and upper storeys, so the... Main items: map_level, map_cuts, map_level_meshes, inside_lists.
@@ -744,8 +744,9 @@
 - `first_minutes.rs` (346): The first five minutes (the ELI5 mandate, docs/PRIORITIES.md TIER 3, 2026-10-22): a short guided tour for a new person, on the desktop app and the website alike, in plain words. Main items: FirstMinutes, Step, Place, steps, step_done, draw.
 - `first_steps.rs` (172): A new player's first steps in the world (first-hour audit 2026-10-04, docs/design/first-hour-audit-2026-10-04.md, Friction 1: nothing teaches the game). Main items: controls_hint.
 - `font_size.rs` (334): The Font Size setting (Settings > Appearance): ONE scale for the whole desktop app (BUG-225). Main items: checked, zoom_for, before_frame, setting_row, DEFAULT_PERCENT, MIN_PERCENT, MAX_PERCENT, KEY_STEP_PERCENT.
-- `fonts.rs` (395): Font fallback chains for the native app. Main items: install_font_fallbacks.
+- `fonts.rs` (404): Font fallback chains for the native app. Main items: install_fonts, install_font_fallbacks.
 - `furniture_detail.rs` (280): FURNITURE DETAIL (2026-11-09): Settings > Graphics > Furniture detail, and the hardware notice beside it (docs/design/simready-props.md, sections 9 and 10). Main items: DetailLevel, levels, is_level, level, texture_divisor, note_model_memory, measured_full_bytes, level_bytes (+7 more).
+- `garment_textures.rs` (213): GARMENT TEXTURES (2026-11-10): Settings > Graphics > Garment textures, and the hardware notice beside it (docs/design/character-animation.md section 16). Main items: TextureLevel, Plan, MeshPlan, levels, is_level, level, max_px, note_plan (+10 more).
 - `glossary.rs` (198): In-app glossary / dictionary (v0.195.0). Main items: GlossaryEntry, Glossary, install, glossary.
 - `history.rs` (492): HISTORY: Back and Forward on the desktop, the way a web browser has them (navigation rung 4, 2026-11-04; docs/design/navigation.md section 10). Main items: How, At, Place, History, close_popup, ask_back, frame, MAX_STEPS.
 - `laws.rs` (321): Location-aware rules ("Laws") loader (v0.496). Main items: Jurisdiction, Rule, Verified, Laws, install.
@@ -753,7 +754,7 @@
 - `loaders.rs` (1610): Every `data/` file the GUI reads, and the shapes it reads them into. Main items: StudioScenePreset, StudioSourcePreset, Place, HomesteadDesign, DesignRoom, Size3, RoomRequirements, DesignTier (+54 more).
 - `map_credit.rs` (104): THE MAP CREDIT, drawn by its own layer (whole-Earth maps rung 1, 2026-11-09; docs/design/whole-earth-maps.md section 11 and the finding docs/reference/findings/2026-11-08-whole-earth-map-data.md, i... Main items: visible, draw.
 - `mine_tasks.rs` (640): Tasks of my own ("Mine", docs/design/tasks.md rung 1, 2026-11-02; fixes BUG-217): the records, the merge, the notes to myself that carry them between my devices, and the encrypted file that keeps t... Main items: Record, OpenProblem, MineTasks, is_id, new_id, wins, is_note, note_texts (+6 more).
-- `mod.rs` (4800): egui GUI system for the native desktop client. Main items: DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState, SettingsCategory (+6 more).
+- `mod.rs` (4799): egui GUI system for the native desktop client. Main items: DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState, SettingsCategory (+5 more).
 - `navigation.rs` (544): The top menu as data (docs/design/navigation.md, section 13; rung 1, 2026-11-03; rung 2, the desktop's two rows, the same day). Main items: Category, Item, Outside, Timings, WebGroup, TodayRow, File, Kind (+11 more).
 - `notice_panel.rs` (267): The header's notices (rung 2, 2026-10-31, docs/design/notifications.md section 3): the bell with the count of notices not opened yet, and the panel of the last 100 it opens, each entry opening its... Main items: draw, open_entry, keep_to_header, BELL_SIZE, BELL_GAP.
 - `ops_registry.rs` (156): Server-owner action registry loader: `data/admin/ops_registry.json`, the data-driven map of EVERY admin/owner/moderator action and where it lives (this app, a /chat-command, a config file, or the V... Main items: OpsAction, OpsPlanned, OpsVpsOnly, OpsRegistry, surface_label, ops_registry, SURFACE_ORDER.
@@ -765,7 +766,7 @@
 - `state_types.rs` (1823): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+47 more).
 - `theme.rs` (1190): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
-- `ui_snapshots.rs` (5909): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked.
+- `ui_snapshots.rs` (5962): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked, SHIPPED_OWN_POOL.
 - `world_entry.rs` (86): Whether the person is in a world, and the world held still and quiet until they are (BUG-253, 2026-11-06).
 - tests: `a11y_tests.rs`, `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`, `history_tests.rs`, `layers_tests.rs`, `mine_tasks_tests.rs`, `navigation_tests.rs`
 
@@ -864,7 +865,7 @@
 - `settings_garden.rs` (59): Settings > Gameplay > Garden updates (2026-10-31, docs/design/farm-clock.md rung 2, `systems::farming::clock`). Main items: draw.
 - `settings_music.rs` (175): Settings > Music (docs/design/music.md, sections 7a, 10, 11 and 15): the game's live music, its style, the tuning, the ship's hum and the optional tones. Main items: style_label, draw.
 - `settings_time.rs` (126): Settings > Gameplay > Time: the one game clock's three settings (2026-09-27, decision-briefs.md Brief 6, `systems::time`). Main items: day_in_real_time, draw.
-- `settings.rs` (5981): Settings panel with sidebar navigation and category content panels. Main items: IdentityOnDevice, GraphicsPreset, draw, build_link_qr_texture, restore_from_phrase, identity_on_device, erase_memory_note, draw_account_content (+28 more).
+- `settings.rs` (5987): Settings panel with sidebar navigation and category content panels. Main items: IdentityOnDevice, GraphicsPreset, draw, build_link_qr_texture, restore_from_phrase, identity_on_device, erase_memory_note, draw_account_content (+28 more).
 - `showroom.rs` (1515): Character showroom panel (v0.441/442). Main items: Drawn, column_widths, drawn, stage_shift, shift_for, draw, rebalance_shares, CONNECTED_SERVER_ID (+2 more).
 - `studio.rs` (1374): Broadcasting Studio page, simplified OBS-like streaming control UI. Main items: draw.
 - `tasks.rs` (1319): Tasks: the not-game surface. Main items: Kind, Chain, ChainStep, load_chains, task_from_server, take_board_list, add_chain_task, draw (+1 more).
@@ -1028,6 +1029,7 @@
 - `calls.rs` (76): Settings > Privacy, "Calls and voice rooms" (docs/design/blocking-and-safe-mode.md 10p, 2026-10-22): how this person's calls connect, and who can see their network address. Main items: draw_calls.
 - `data_folder.rs` (222): Settings > Data > "Data folder" (BUG-163 part 2, 2026-10-12; docs/design/data-folder-updates.md section 6).
 - `furniture.rs` (181): Settings > Graphics > Furniture (2026-11-09; docs/design/simready-props.md, sections 7, 9 and 10). Main items: draw_furniture.
+- `garments.rs` (65): Settings > Graphics > Garment textures (2026-11-10; docs/design/character-animation.md section 16). Main items: draw_garment_textures, draw_with.
 - `instruments.rs` (190): Settings > Audio > Instruments (2026-11-06; docs/design/music.md rung 6). Main items: mb, draw_instruments.
 - `notifications.rs` (473): Settings > Notifications (2026-10-30, docs/design/notifications.md, section 5): the whole set, mirroring the website's Settings > Notifications. Main items: synced_frame, send_synced, until_words, mute_choices, draw, level_words.
 - `recovery_net.rs` (478): The work behind Settings > Account > "Recovery through trusted people" (2026-10-21): every call to the server and every lock and unlock, run on a thread by the section (`recovery.rs`), never on the... Main items: Friend, MySetup, Asking, CodeLookup, Found, LiveAsk, Poll, load_my_setup (+13 more).
@@ -1400,6 +1402,7 @@
 
 - `atmo_luts.rs` (535): Atmosphere LUTs, stage 1 of the Hillaire-2020 sky pipeline (docs/dev/rendering-research-atmosphere-water.md section 1.1; staged plan in the 2026-07-25 journal). Main items: TransLutParams, u_to_mu, v_to_r, transmittance_lut, f32_to_f16_bits, lut_to_f16_bytes, multiple_scattering_lut, sky_view_radiance (+6 more).
 - `atmosphere.rs` (624): Analytic atmosphere scattering: the Rust mirror of the WGSL math. Main items: atmo_exposure, near_haze_scale, shell_packing, erfcx, chapman, od_to_space, rayleigh_phase, hg_phase (+12 more).
+- `bc7.rs` (519): BC7 TEXTURES (2026-11-10, the look's garment textures; docs/design/character-animation.md section 16): the DDS files our converter writes (`scripts/gen-makehuman-look.js` through `scripts/lib/bc7.j... Main items: Bc7File, decode_block, decode_level, level_bytes, read_dds, PARTITIONS2, ANCHORS2.
 - `billboard_bake.rs` (4886): Automated billboard sprite baker (v0.959, operator call 2026-07-25: "bake our own... Main items: BakeMode, BakePart, BakeCpuModel, ClusterSpriteImage, BakeReport, CpuSprite, proc_key, crown_depth_extinction (+15 more).
 - `bloom.rs` (394): Bloom post-process effect. Main items: BloomPass.
 - `bounced_light_detail.rs` (563): BOUNCED LIGHT DETAIL (2026-10-20): Settings > Graphics > Light and sky. Main items: DetailLevel, AdapterMemory, probe_memory_bytes, memory_words, mb_words, atlas_max_probes, parse_detail_levels, detail_levels (+12 more).
@@ -1419,7 +1422,7 @@
 - `env_regions.rs` (607): Environment regions: positioned, sized environmental effects the whole renderer and simulation can agree on. Main items: EnvRegion, RegionKind, RegionKinds, pack_all, influence_of_kind, storage_buffer, push_weather_region, push_auroral_ovals (+3 more).
 - `floating_origin.rs` (37): Floating origin system for large-scale rendering. Main items: FloatingOrigin.
 - `godrays.rs` (363): Crepuscular god rays (v0.895): one additive full-screen pass that marches the DEPTH buffer toward the sun's screen position, so terrain silhouettes (still in depth right after the celestial pass) c... Main items: GodrayPass, segment_sphere_visibility.
-- `gpu_costs.rs` (897): The GPU's side of the frame costs (resource budgets, increment 1; see `docs/design/resource-budgets.md`): the wgpu timestamp ring that times each render and compute pass a frame late, the per-view... Main items: SceneView, GpuTimers, note_view_frame, take_view_frame, publish_cpu_frame, texture_bytes.
+- `gpu_costs.rs` (912): The GPU's side of the frame costs (resource budgets, increment 1; see `docs/design/resource-budgets.md`): the wgpu timestamp ring that times each render and compute pass a frame late, the per-view... Main items: SceneView, GpuTimers, note_view_frame, take_view_frame, publish_cpu_frame, texture_bytes.
 - `ground_textures.rs` (1990): Ground PBR texture array: the close-range surface materials the planet terrain blends between underfoot. Main items: GroundTextures, GroundMaterialDef, GroundMaterialTable, BakedGround, material_table, bake_all, load, upload (+1 more).
 - `hologram.rs` (795): Solar system hologram, miniature display for room-scale rendering. Main items: BodyType, CelestialBodyDef, SolarSystemData, HologramBody, SolarSystemHologram, load_solar_system, generate_hologram_from_data, generate_hologram_from_cosmos (+8 more).
 - `key_lights.rs` (849): The engine's KEY lights, as testable math (extracted from `lib.rs`'s frame loop in v0.1104 alongside the indirect-light work; it is the same subject and it was the only untested part of it). Main items: FillLight, BodyDraw, CameraAir, DiscCandidate, moon_fill, camera_day_factor, sky_body_sun, sky_body_params (+15 more).
@@ -1429,13 +1432,14 @@
 - `line.rs` (252): World-space thin-line renderer (v0.262.20). Main items: LineVertex, push_circle, push_circle_3d, push_polyline, build_line_pipeline.
 - `material_bind_groups.rs` (232): GROUP 3 BIND GROUPS: the entry lists that hand the shader its albedo and the engine-global texture set, and the ONE place a binding may be added.
 - `materials.rs` (499): Material registry: everything that creates, textures or rewrites the `Material` slots the render passes bind at group 2 (uniforms) and group 3 (albedo + the engine-global texture set). Main items: MATERIAL_TYPE_SCREEN, MATERIAL_TYPE_CHARACTER, MATERIAL_TYPE_HAIR, HAIR_CUTOFF.
-- `mesh.rs` (1121): Mesh primitives, vertex/index buffers for renderable geometry. Main items: GrassInstance, Mesh, vertex_layout, instance_layout, triangles_facing_against_their_normals, INSTANCE_STRIDE.
-- `mod.rs` (2797): Renderer, the `Renderer` struct, its construction, and its registries. Main items: PatchDraw, RenderObject, AlbedoBindGroup, Material, Renderer, SUN_SHADOW_MAP_SIZE, SUN_SHADOW_EXTENT_M, WEATHER_MAP_MIPS.
+- `mesh_pool.rs` (506): THE OWN-MESH POOL (2026-11-10, the look's follow-up; docs/design/character-animation.md section 16): each near person's own shaped and dressed mesh lives in ranges of a few GPU buffers allocated ON... Main items: MeshClass, Held, Refusal, Side, Step, MeshPool, VERTEX_BYTES, INDEX_BYTES.
+- `mesh.rs` (1140): Mesh primitives, vertex/index buffers for renderable geometry. Main items: GrassInstance, Mesh, vertex_layout, instance_layout, triangles_facing_against_their_normals, INSTANCE_STRIDE.
+- `mod.rs` (2801): Renderer, the `Renderer` struct, its construction, and its registries. Main items: PatchDraw, RenderObject, AlbedoBindGroup, Material, Renderer, SUN_SHADOW_MAP_SIZE, SUN_SHADOW_EXTENT_M, WEATHER_MAP_MIPS.
 - `multi_scale.rs` (30): Multi-scale rendering, AU, planet, habitat scale transitions. Main items: ScaleLevel, MultiScaleManager.
 - `overlay_draw.rs` (391): POST-PASSES: thin lines and particle billboards drawn ON TOP of a frame that has already been rendered.
 - `particles_gpu.rs` (396): GPU particle simulation (v0.1068). Main items: SimParams, GpuParticles.
 - `particles.rs` (767): GPU particle system with data-driven emitter definitions. Main items: EmitterDef, Emitter, ParticleVertexData, ParticleSystem, build_particle_pipelines.
-- `patch_arena.rs` (430): Terrain patch mega-buffer arena (draw-batching increment 1, v0.1001). Main items: RangeAlloc, PatchInstance, IndirectArgs, PatchArena, MAX_PATCH_DRAWS.
+- `patch_arena.rs` (476): Terrain patch mega-buffer arena (draw-batching increment 1, v0.1001). Main items: RangeAlloc, PatchInstance, IndirectArgs, PatchArena, MAX_PATCH_DRAWS.
 - `pipeline.rs` (3761): Render pipeline management, creates and caches wgpu render pipelines. Main items: ObjectUniforms, MaterialUniforms, Pipeline, RebuiltPipelines, CloudPsos, CloudsReady, ShaderClass, PsoRow (+17 more).
 - `room_probes_gpu.rs` (1431): ROOM GI, RUNG 1, the GPU half (docs/design/room-gi.md; the what and the why are in `room_probes.rs`, whose CPU twin this mirrors). Main items: RoomGi, PassWork, scratch_slots, MAX_UPDATES_PER_FRAME, MAX_SLAB_RUN_ROWS, UPDATE_REACH_M, UPDATE_SHADER.
 - `room_probes.rs` (3312): ROOM GI, RUNG 1: per-room irradiance probes (docs/design/room-gi.md). Main items: ProbeBudget, RoomBox, Lattice, AtlasLayout, Sun, OccluderSlab, Resident, TileMove (+96 more).
@@ -1444,7 +1448,7 @@
 - `scene_target.rs` (534): THE SCENE TARGET and THE PRESENT PASS (HDR scene target; the plan of record is docs/design/hdr-scene-target.md). Main items: SceneTarget, PresentPass, scene_format_for, dither_levels.
 - `shader_loader.rs` (835): WGSL shader loading with optional hot-reload (native only). Main items: ShaderLoader, required_entry_points, assembled_pbr_source, batched_variant_of, assembled_pbr_batch_source, boot_pbr_source, boot_pbr_source, boot_pbr_batch_source (+6 more).
 - `shadow_cutout.rs` (103): WHICH MATERIALS CAN DISCARD IN THE SUN SHADOW PASS (v0.1108).
-- `skinning.rs` (724): SKINNED BODIES ON THE GPU (character animation rung 1, 2026-11-08; docs/design/character-animation.md section 2.2). Main items: SkinnedBody, Skinning, morph_deltas, MORPH_SLOTS.
+- `skinning.rs` (1010): SKINNED BODIES ON THE GPU (character animation rung 1, 2026-11-08; docs/design/character-animation.md section 2.2). Main items: SkinnedBody, Skinning, OwnPoolStats, morph_deltas, MORPH_SLOTS.
 - `sky_ambient.rs` (329): CPU twin of the megashader's INDIRECT-LIGHT terms (v0.1104). Main items: sunlit_white_reference, ambient_lut_scale, hemispheric, ambient_term, shadow_texel_m, AMBIENT_FLOOR, SKY_ZENITH_W, SKY_GROUND_BOUNCE (+4 more).
 - `sky_frame.rs` (406): Where the stars are, and how much of them a person can see (2026-10-04). Main items: SkyFades, TwilightRamps, sun_right_ascension, equatorial_to_world, twilight_fades, fades_with, DRAWN_SKY, NAKED_EYE.
 - `sky_view.rs` (199): Sky-view LUT pass (sky arc stage 3b-2, v0.947): the 200x100 offscreen target holding the full distant-sky radiance for the CURRENT camera altitude + sun elevation, re-rendered each frame the camera... Main items: SkyViewUniform, SkyViewPass, SKY_VIEW_W, SKY_VIEW_H.
@@ -1455,6 +1459,7 @@
 - `sun_disc.rs` (634): THE SUN AS A BODY (2026-10-21): its disc at its true size, its photosphere, its brightness, and the glare a camera sees round it. Main items: aperture_from_setting_mm, angular_radius, disc_angular_radius, mesh_angular_radius, camera_pads, disc_energy_scale, limb_darkening, disc_mean_over_centre (+23 more).
 - `sun_glare.rs` (488): THE SUN'S GLARE, ON THE GPU (2026-10-21): how much of the disc each view can see, and the numbers the present pass adds the glare with. Main items: GlareParams, SunFrame, VisDisc, SunVisPass, glare_for_view.
 - `surface.rs` (238): Surface + render-target LIFECYCLE: everything that creates, reconfigures, acquires or resizes the things a frame is drawn INTO. Main items: vsync_present_mode, pending_mode_change.
+- `texture_pool.rs` (376): THE GARMENT TEXTURE POOL (2026-11-10, the look's textures; docs/design/character-animation.md section 16): garment textures live in SLOTS of a few same-size GPU textures, allocated once per size wh... Main items: SlotClass, Take, SlotPool, GpuPool, note_block_compression, block_compression, block_compression_feature, NO_BC_VAR.
 - `tree_allometry.rs` (541): HOW THICK IS WOOD: the generator's radius and taper model (v0.1103). Main items: stem_butt_slenderness_band, stem_base_radius, generations_for, limb_tip_radius, limb_base_radius_at, fork_child_radius, lateral_branch_radius, TRUNK_FLARE_PEAK (+4 more).
 - `tree_cards.rs` (451): FOLIAGE CARD ARRANGEMENT: how the cards of one tuft sit around a twig.
 - `tree_mesh.rs` (5955): Procedural planet-surface trees (v0.1066). Main items: TreeParts, BarkRun, BarkSeg, TreeBuild, ClusterCards, CrownEnvelope, Junction, LimbShape (+14 more).
@@ -1594,7 +1599,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (4599): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (4618): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).

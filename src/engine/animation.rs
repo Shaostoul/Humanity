@@ -34,6 +34,7 @@ use humanity_animation::{pose, tiers, Animator, CharacterLibrary, DrawTier, Foot
 
 use crate::engine::feet_ground::{PersonGround, PlanetGround, WorldGround};
 use crate::engine::state::EngineState;
+use crate::renderer::mesh_pool::Step;
 use crate::renderer::RenderObject;
 
 /// With the reuse switch off, the character data is read again this often (seconds).
@@ -190,7 +191,26 @@ pub(crate) struct Report {
     pub own_build_ms: f32,
     pub own_build_max_ms: f32,
     pub own_bytes: u64,
+    /// The own-mesh pool this frame (2026-11-10): kept meshes let go to make room, people moved
+    /// down to pack it, and finished meshes left waiting for room.
+    pub own_evicted: usize,
+    pub own_packed: usize,
+    pub own_waiting: usize,
     pub error: Option<String>,
+}
+
+/// What became of a finished own mesh that did not go into the own-mesh pool this frame.
+enum OwnOutcome {
+    /// No pool yet (the frame before it is made): it waits.
+    NoPool,
+    /// The pool refused a placement it had said would fit (not expected): it waits.
+    Refused(crate::renderer::mesh_pool::Refusal),
+    /// This frame's upload packed the pool to make room: it goes next frame.
+    Packing,
+    /// The pool is full of people near: it waits, drawn with the shared body.
+    Waiting,
+    /// Bigger than the pool was planned for: drawn with the shared body (logged).
+    TooBig,
 }
 
 struct Figure {
@@ -214,6 +234,15 @@ struct Figure {
     away_s: f32,
     /// Their own mesh building on a worker thread, off the frame (2026-11-10).
     building: Option<Building>,
+    /// A finished own mesh waiting for room in the own-mesh pool (2026-11-10: its upload went to
+    /// packing the pool, or the pool is full of people near), with what it took and whether it was
+    /// built on a worker; tried again on a later frame, drawn with the shared body (or their last
+    /// own mesh) meanwhile.
+    pending: Option<(humanity_animation::PersonMesh, f32, bool)>,
+    /// The version of their look whose mesh was bigger than the own-mesh pool is planned for: drawn
+    /// with the shared body and not built again until the look or the pool's plan changes (logged
+    /// once).
+    too_big: Option<u64>,
 }
 
 /// A person's own mesh building on a worker thread: where the finished mesh and what it took
@@ -222,13 +251,14 @@ struct Building {
     rx: std::sync::mpsc::Receiver<(humanity_animation::PersonMesh, f32)>,
 }
 
-/// A person's own mesh (`humanity_animation::look::build_person`) and the renderer's id for it.
+/// A person's own mesh (`humanity_animation::look::build_person`) and the renderer's id for it (a
+/// handle of the own-mesh pool, 2026-11-10).
 struct OwnBody {
     mesh: humanity_animation::PersonMesh,
     /// The body (index into the library's bodies) it was built on.
     body: usize,
     gpu: usize,
-    /// Its GPU bytes (vertices and indices), for the report's memory figure.
+    /// Its GPU bytes in the pool (vertices, their skinned copy and indices), for the report.
     bytes: u64,
 }
 
@@ -505,12 +535,17 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             for f in rt.figures.values_mut() {
                 f.shape = None;
                 f.building = None;
+                f.pending = None;
+                f.too_big = None;
                 if let Some(own) = f.own.take() {
                     if same_models {
                         state.renderer.skin_release_body(own.gpu);
                     }
                 }
             }
+            // The own-mesh pool was planned for the old library (its largest dressed person): let
+            // go, and planned again from this one on the next frame that draws bodies.
+            state.renderer.skin_drop_own_pool();
             // Garment indices belong to the library they were read from: every texture lets its slot
             // go, and the pools go with them (sized from the old library); the new library's pools
             // are planned for the Settings page.
@@ -519,6 +554,10 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             rt.garment_materials.clear();
             if let Some(look) = lib.look.as_ref() {
                 crate::gui::garment_textures::note_plan(pool_plan(look, lib.characters.tiers.near_cap, state.renderer.block_compression()));
+            }
+            // What the own-mesh pool will take (Settings shows it beside the garment textures).
+            if let Some(plan) = own_pool_plan(&lib) {
+                crate::gui::garment_textures::note_mesh_plan(crate::gui::garment_textures::MeshPlan { bytes: plan.bytes(&lib), people: plan.people });
             }
             rt.report.body = lib.bodies.iter().map(|b| b.def.id.as_str()).collect::<Vec<_>>().join(",");
             rt.report.error = None;
@@ -1034,6 +1073,50 @@ fn pool_capacity(look: &humanity_animation::LookLibrary, near_cap: usize, class:
     count.min((near_cap + 1) * kinds.len()).max(1) as u32
 }
 
+/// The own-mesh pool's plan (2026-11-10, renderer::mesh_pool): sized for the largest dressed person
+/// the library can make (`CharacterLibrary::largest_own_mesh`), the near tier (its cap and the
+/// player) at that size at once, as the garment texture pools are; a place in its books for every
+/// own mesh the engine keeps (the near tier and `own_keep_cap` people who just left it); and a full
+/// near tier's near places for each shared body (people near waiting for their own builds are drawn
+/// with it), made with the pool.
+pub(crate) struct OwnPoolPlan {
+    pub class: crate::renderer::mesh_pool::MeshClass,
+    pub people: u32,
+    pub handles: u32,
+    pub shared_places: usize,
+}
+
+impl OwnPoolPlan {
+    /// The GPU bytes it sets aside: the pool's buffers, its places' parameters and the shared
+    /// bodies' near places (their skinned copy and parameters), as the renderer makes them.
+    pub fn bytes(&self, lib: &CharacterLibrary) -> u64 {
+        let pool = crate::renderer::mesh_pool::MeshPool::new(self.class, self.people, self.handles);
+        let shared: u64 = lib.bodies.iter().map(|b| (b.model.vertex_count().max(1) as u64 * 32 + 16) * self.shared_places as u64).sum();
+        pool.bytes() + pool.handles() as u64 * 16 + shared
+    }
+}
+
+/// The environment variable that plans the own-mesh pool smaller than the library's largest dressed
+/// person (`own_pool_plan`): the oversized path's arm in a rig.
+pub(crate) const OWN_POOL_VERTICES_VAR: &str = "HUMANITY_OWN_POOL_VERTICES";
+
+/// Own meshes kept for people who left the near tier stay at most this many (the oldest go first).
+fn own_keep_cap(near_cap: usize) -> usize {
+    near_cap * 2
+}
+
+/// The own-mesh pool's plan for this library; None without the look.
+pub(crate) fn own_pool_plan(lib: &CharacterLibrary) -> Option<OwnPoolPlan> {
+    let (vertices, indices) = lib.largest_own_mesh()?;
+    // The oversized arm in the running game (dev tooling, 2026-11-10): `HUMANITY_OWN_POOL_VERTICES=n`
+    // plans the pool for people of at most n vertices, so everyone dressed past it is drawn with the
+    // shared body and logged, the path a garment larger than the plan takes.
+    let vertices = std::env::var(OWN_POOL_VERTICES_VAR).ok().and_then(|v| v.trim().parse::<u32>().ok()).map_or(vertices, |cap| cap.min(vertices));
+    let near_cap = lib.characters.tiers.near_cap;
+    let people = near_cap as u32 + 1;
+    Some(OwnPoolPlan { class: crate::renderer::mesh_pool::MeshClass { vertices, indices }, people, handles: people + own_keep_cap(near_cap) as u32, shared_places: people as usize })
+}
+
 /// Make and allocate a pool for every slot shape the library's garments fall in at `size` (each at
 /// its capacity), each logged with its size and the time its allocation took.
 fn allocate_pools(pools: &mut Vec<crate::renderer::texture_pool::SlotPool>, renderer: &mut crate::renderer::Renderer, look: &humanity_animation::LookLibrary, near_cap: usize, size: TexSize) {
@@ -1409,6 +1492,33 @@ pub(crate) fn draw_people(
             }
         }
     }
+    // The own-mesh pool (2026-11-10, renderer::mesh_pool), the same way: allocated once, on the
+    // first frame that draws bodies, and again after the library is read again; never when a crowd
+    // walks in. Measured before it: one own-mesh upload in about 38 took 9.9 to 11.5 ms, each a new
+    // allocation, in three of five crowd runs.
+    if state.renderer.skin_own_pool_stats().is_none() {
+        if let Some(lib) = state.animation.lib.clone() {
+            if let Some(plan) = own_pool_plan(&lib) {
+                match state.renderer.skin_create_own_pool(plan.class, plan.people, plan.handles, plan.shared_places, COMPUTE_FALLBACK_CAP as u32) {
+                    Some(ms) => {
+                        let stats = state.renderer.skin_own_pool_stats();
+                        log::info!(
+                            "Characters: own-mesh pool for {} people of up to {} vertices and {} indices ({}), {} places, and {} near places for each shared body: {:.1} MB allocated in {:.2} ms",
+                            plan.people,
+                            plan.class.vertices,
+                            plan.class.indices,
+                            if std::env::var_os(OWN_POOL_VERTICES_VAR).is_some() { "planned smaller by HUMANITY_OWN_POOL_VERTICES" } else { "the largest dressed person" },
+                            plan.handles,
+                            plan.shared_places,
+                            stats.map_or(0.0, |s| s.reserved_bytes as f64 / 1_048_576.0),
+                            ms
+                        );
+                    }
+                    None => log::warn!("Characters: the own-mesh pool could not be made (no skinned body registered); people near are drawn with the shared body"),
+                }
+            }
+        }
+    }
     let rt = &mut state.animation;
     let renderer = &mut state.renderer;
     let lib = rt.lib.as_ref().expect("draws_bodies checked it");
@@ -1443,8 +1553,10 @@ pub(crate) fn draw_people(
     let mut mesh_uploads = 1usize;
     let mut texture_uploads = 1usize;
     // Own meshes kept for people who left the near tier stay at most this many (the oldest go
-    // first), so a large crowd milling around the near line holds a bounded set.
-    let keep_cap = lib.characters.tiers.near_cap * 2;
+    // first), so a large crowd milling around the near line holds a bounded set; the own-mesh pool
+    // has a place in its books for each (`own_pool_plan`), and when its room runs short the longest
+    // out gives way sooner.
+    let keep_cap = own_keep_cap(lib.characters.tiers.near_cap);
     // The overlay's unit box (base at its origin, one metre each way) and its two bright materials.
     let skeleton_meshes = show_skeletons.then(|| {
         *rt.skeleton_meshes.get_or_insert_with(|| {
@@ -1466,7 +1578,9 @@ pub(crate) fn draw_people(
         // The look's sliders through the body's shape targets, its height through the height
         // targets, the rest as a scale (a crew member's picked in their wearer kind's ranges).
         let (weights, scale) = shape_of(lib, body, p);
-        let fig = rt.figures.entry(p.key).or_insert_with(|| Figure {
+        // Taken out of the map while they are drawn (and put back at the end of this person), so a
+        // newcomer's mesh can make room in the own-mesh pool by letting another person's kept mesh go.
+        let mut fig = rt.figures.remove(&p.key).unwrap_or_else(|| Figure {
             animator: Animator::with_offset(&lib.graph, hash, hash * 4.0),
             motion: MotionTracker::default(),
             seen: 0,
@@ -1476,9 +1590,11 @@ pub(crate) fn draw_people(
             own: None,
             away_s: 0.0,
             building: None,
+            pending: None,
+            too_big: None,
         });
         fig.seen = rt.frame;
-        let Figure { animator, motion, shape, feet, air_s, own, away_s, building, .. } = fig;
+        let Figure { animator, motion, shape, feet, air_s, own, away_s, building, pending, too_big, .. } = &mut fig;
         // THE LOOK (2026-11-09; humanity_animation::look): a near person, the player and the
         // showroom's figure are drawn with their OWN mesh, built once when their look changes (a
         // version made from everything it is built from), on a worker thread off the frame (at most
@@ -1499,7 +1615,14 @@ pub(crate) fn draw_people(
             // A build that finished on its worker comes onto the GPU (even if their look moved on
             // while it built: it is newer than what they had, and the next one is due at once).
             let mut arrived: Option<(humanity_animation::PersonMesh, f32, bool)> = None;
-            if let (Some(b), true) = (building.as_ref(), mesh_uploads > 0) {
+            // A finished mesh that waited for room in the own-mesh pool goes first.
+            if mesh_uploads > 0 {
+                if let Some(waiting) = pending.take() {
+                    arrived = Some(waiting);
+                    mesh_uploads -= 1;
+                }
+            }
+            if let (None, Some(b), true) = (arrived.as_ref(), building.as_ref(), mesh_uploads > 0) {
                 match b.rx.try_recv() {
                     Ok((mesh, ms)) => {
                         arrived = Some((mesh, ms, true));
@@ -1515,8 +1638,10 @@ pub(crate) fn draw_people(
                     }
                 }
             }
-            let have = arrived.as_ref().map(|(m, _, _)| m.key).or(own.as_ref().map(|o| o.mesh.key));
-            let due = humanity_animation::look::rebuild_due(have, key, reuse);
+            let have = arrived.as_ref().or(pending.as_ref()).map(|(m, _, _)| m.key).or(own.as_ref().map(|o| o.mesh.key));
+            // A look whose mesh was too big for the own-mesh pool is not built again until it
+            // changes (or the pool is planned again); with the reuse switch off, every frame anyway.
+            let due = humanity_animation::look::rebuild_due(have, key, reuse) && !(reuse && *too_big == Some(key));
             if due && !reuse {
                 // The reuse switch off: built again on the frame, every frame, so nothing drawn is
                 // older than this frame's look.
@@ -1553,38 +1678,117 @@ pub(crate) fn draw_people(
                 }
             }
             if let Some((mesh, ms, worker)) = arrived {
-                // What the frame pays for a person's new mesh: its GPU buffers (and, with the reuse
-                // switch off, the build itself, above).
+                // What the frame pays for a person's new mesh: two writes into their range of the
+                // own-mesh pool (and, with the reuse switch off, the build itself, above).
                 let _cost = humanity_core::frame_costs::stage("cpu.look_build");
                 let t0 = std::time::Instant::now();
-                let gpu = match own.take() {
-                    Some(o) => {
-                        renderer.skin_replace_body(o.gpu, &mesh.model);
-                        o.gpu
+                let (nv, ni) = (mesh.model.vertex_count() as u32, mesh.model.primitives.iter().map(|q| q.indices.len()).sum::<usize>() as u32);
+                let mut placed = None;
+                let mut outcome = OwnOutcome::NoPool;
+                // Each round either ends or lets one kept mesh go, so it is bounded by the people.
+                for _ in 0..rt.figures.len() + 2 {
+                    let kept: Vec<(f32, usize)> = rt.figures.values().filter_map(|f| f.own.as_ref().filter(|_| f.away_s > 0.0).map(|o| (f.away_s, o.gpu))).collect();
+                    match renderer.skin_own_next_step(own.as_ref().map(|o| o.gpu), nv, ni, &kept) {
+                        None => break,
+                        Some(Step::Place(b)) => {
+                            match renderer.skin_own_place(b, &mesh.model) {
+                                Ok(()) => placed = Some(b),
+                                Err(e) => outcome = OwnOutcome::Refused(e),
+                            }
+                            break;
+                        }
+                        Some(Step::Evict(b)) => {
+                            // The person out of the near tier longest gives their room up (their mesh
+                            // is built again if they come back).
+                            match rt.figures.iter_mut().find(|(_, f)| f.own.as_ref().is_some_and(|o| o.gpu == b)) {
+                                Some((k, f)) => {
+                                    log::info!("Characters: {k:?}'s kept own mesh (out of the near tier {:.1} s) let go to make room for {:?}", f.away_s, p.key);
+                                    f.own = None;
+                                    renderer.skin_release_body(b);
+                                }
+                                None => renderer.skin_release_body(b),
+                            }
+                            report.own_evicted += 1;
+                        }
+                        Some(Step::Pack(side)) => {
+                            // The free room is in pieces: this frame's upload moves one person down
+                            // (their mesh written again from its CPU copy), and the newcomer tries
+                            // again next frame.
+                            let moved = renderer.skin_own_pack_candidate(side);
+                            let model = moved.and_then(|b| match own.as_ref().filter(|o| o.gpu == b) {
+                                Some(o) => Some(&o.mesh.model),
+                                None => rt.figures.values().find_map(|f| f.own.as_ref().filter(|o| o.gpu == b).map(|o| &o.mesh.model)),
+                            });
+                            if let (Some(b), Some(m)) = (moved, model) {
+                                if renderer.skin_own_pack(side, b, m) {
+                                    report.own_packed += 1;
+                                    log::info!("Characters: the own-mesh pool's {side:?} packed: one person moved down to make room for {:?}", p.key);
+                                }
+                            }
+                            outcome = OwnOutcome::Packing;
+                            break;
+                        }
+                        Some(Step::Wait) => {
+                            outcome = OwnOutcome::Waiting;
+                            break;
+                        }
+                        Some(Step::TooBig) => {
+                            outcome = OwnOutcome::TooBig;
+                            break;
+                        }
                     }
-                    None => renderer.skin_register_body(&mesh.model),
-                };
-                let upload_ms = t0.elapsed().as_secs_f32() * 1000.0;
-                if reuse {
-                    // Rare with reuse on (a look changed, someone came near): each build is logged
-                    // with its cost and size, the measurement section 16 of the plan quotes.
-                    log::info!(
-                        "Characters: built {:?}'s own mesh on {} in {ms:.2} ms {} ({} vertices, {} parts, lift {:.3} m), onto the GPU in {upload_ms:.2} ms",
-                        p.key,
-                        body.choice,
-                        if worker { "on a worker" } else { "on the frame" },
-                        mesh.model.vertex_count(),
-                        mesh.parts.len(),
-                        mesh.lift
-                    );
                 }
+                let upload_ms = t0.elapsed().as_secs_f32() * 1000.0;
                 report.own_built += 1;
                 report.own_build_ms += ms;
                 report.own_build_max_ms = report.own_build_max_ms.max(ms);
-                let bytes = renderer.skin_body_bytes(gpu);
-                // The person's mesh and one near place's skinned copy of it (32 bytes a vertex).
-                humanity_core::frame_costs::set_vram_keyed("vram.characters", gpu as u64, bytes + mesh.model.vertex_count() as u64 * 32);
-                *own = Some(OwnBody { mesh, body: bi, gpu, bytes });
+                match placed {
+                    Some(gpu) => {
+                        if reuse {
+                            // Rare with reuse on (a look changed, someone came near): each build is
+                            // logged with its cost and size, the measurement section 16 quotes.
+                            log::info!(
+                                "Characters: built {:?}'s own mesh on {} in {ms:.2} ms {} ({} vertices, {} indices, {} parts, lift {:.3} m), onto the GPU in {upload_ms:.2} ms (the own-mesh pool: {})",
+                                p.key,
+                                body.choice,
+                                if worker { "on a worker" } else { "on the frame" },
+                                nv,
+                                ni,
+                                mesh.parts.len(),
+                                mesh.lift,
+                                renderer.skin_own_pool_stats().map_or_else(String::new, |s| format!("{} people, {:.1} of {:.1} MB", s.holders, s.used_bytes as f64 / 1_048_576.0, s.reserved_bytes as f64 / 1_048_576.0))
+                            );
+                        }
+                        *too_big = None;
+                        let bytes = renderer.skin_body_bytes(gpu);
+                        *own = Some(OwnBody { mesh, body: bi, gpu, bytes });
+                    }
+                    None => match outcome {
+                        OwnOutcome::TooBig => {
+                            // Bigger than the pool was planned for: the shared body, until the look
+                            // or the pool's plan changes. Logged once a look.
+                            if *too_big != Some(mesh.key) {
+                                log::warn!(
+                                    "Characters: {:?}'s own mesh ({nv} vertices, {ni} indices) is bigger than the own-mesh pool is planned for ({}); drawn with the shared body",
+                                    p.key,
+                                    renderer.skin_own_pool_stats().map_or_else(String::new, |s| format!("up to {} vertices and {} indices", s.class.vertices, s.class.indices))
+                                );
+                            }
+                            *too_big = Some(mesh.key);
+                            if let Some(o) = own.take() {
+                                renderer.skin_release_body(o.gpu);
+                            }
+                        }
+                        OwnOutcome::Refused(e) => {
+                            log::warn!("Characters: {:?}'s own mesh was refused by the own-mesh pool ({e:?}); trying again", p.key);
+                            *pending = Some((mesh, ms, worker));
+                        }
+                        OwnOutcome::NoPool | OwnOutcome::Packing | OwnOutcome::Waiting => {
+                            report.own_waiting += 1;
+                            *pending = Some((mesh, ms, worker));
+                        }
+                    },
+                }
             }
         } else {
             *away_s += dt;
@@ -1843,6 +2047,7 @@ pub(crate) fn draw_people(
                 renderer.skin_middle(gpu_body, region, material, index);
             }
         }
+        rt.figures.insert(p.key, fig);
     }
     // Garments nobody near has worn for a while give their textures back.
     release_unworn_garments(&mut rt.garment_tex, &rt.garment_materials, &mut rt.pools, renderer, rt.clock);
@@ -1857,13 +2062,14 @@ pub(crate) fn draw_people(
             }
         }
     }
-    // People gone from the frame, and own meshes not wanted for a while, give their GPU bodies back.
+    // People gone from the frame, and own meshes not wanted for a while, give their room in the
+    // own-mesh pool back.
     for f in rt.figures.values_mut() {
         if f.seen != frame || f.away_s > OWN_KEEP_S {
             f.building = None;
+            f.pending = None;
             if let Some(own) = f.own.take() {
                 renderer.skin_release_body(own.gpu);
-                humanity_core::frame_costs::set_vram_keyed("vram.characters", own.gpu as u64, 0);
             }
         }
     }

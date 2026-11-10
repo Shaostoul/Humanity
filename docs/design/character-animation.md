@@ -441,6 +441,40 @@ those two runs (cpu.look_build 10.3 and 10.1 ms) were each one own-mesh upload (
 the before run took 11.5): the person meshes' buffers are the same class of hitch, and the next
 lever (a pool of mesh buffers, the textures' way).
 
+**With the own-mesh pool (2026-11-10)**, the same way, FIVE boots before (main, 4f280dd1f, built and
+set aside before the change) and five after (section 16, "the meshes without hitches"), each the
+crowd pair in one boot (the twin, then the own meshes), each clean (the sweep's machine guard waited
+for builds and other games). The rows give the five boots' range; the uploads are every own mesh put
+on the GPU in the five boots, from the build log:
+
+| Case | an own mesh onto the GPU (all five boots) | cpu.look_build (worst frame) | cpu.animation (worst frame) | all GPU stages | vram.characters | vram.meshes | the driver's own figure |
+|---|---|---|---|---|---|---|---|
+| twin (look off), before | none | none | 0.80 to 0.82 ms (2.97 to 3.27) | 13.30 to 13.34 | 0 | 340.6 MB | 3,472 MB |
+| own meshes, before | 0.49 to 1.50 ms (median 0.84; 190, none over 5) | 0.05 to 0.11 ms (1.47 to 2.07) | 0.90 to 0.99 ms (3.77 to 4.73) | 13.39 to 13.45 | 77.6 to 84.3 MB | 668.5 to 696.9 MB | 3,584 to 3,593 MB |
+| twin (look off), after | none | none | 0.84 to 0.87 ms (2.62 to 2.72) | 13.27 to 13.34 | 98.8 MB (the pool, from world entry) | 224.7 MB | 3,549 MB |
+| own meshes, after | 0.23 to 4.60 ms (median 0.59; 205, one over 0.94) | 0.06 to 0.11 ms (1.17 to 1.23; 5.03 in one boot) | 0.95 to 1.01 ms (3.22 to 3.57; 6.53 in one boot) | 13.39 to 13.46 | 98.8 MB | 224.7 MB | 3,556 MB |
+
+So: **every own mesh goes onto the GPU as two writes into its range, a median 0.59 ms against 0.84,
+with no buffer made for it**, and the crowd's worst frame of the look is 1.2 ms in four boots of
+five against 1.5 to 2.1 before; the GPU stages are unchanged. The 9.9 to 11.5 ms uploads the
+textures' run saw did not recur in these five before-boots either (190 uploads, none over 1.5 ms),
+so the spike is now removed by construction rather than shown gone by the numbers: a person
+arriving no longer makes a buffer (about 17 per person before: their vertices, morph binding, an
+index buffer for each of their 13 parts, a skinned copy and its parameters, each its own allocation). The one slow upload left (4.60
+ms, the third person into the empty pool) is wgpu's own: `Queue::write_buffer` stages every write in a
+buffer it makes for it (wgpu-core 24, `queue.rs`, `StagingBuffer::new` per call), as the palette's
+write does every frame; a staging belt of our own, allocated at world entry, is the lever if it shows
+again. The pool takes 1.9 to 3.3 ms to allocate, once, at world entry. **Memory**: the driver's own
+figure at the crowd is 28 to 37 MB lower than before (one pool against a buffer set per person);
+82.5 MB is set aside from world entry, so the twin reads 77 MB more than before. `vram.characters`
+now counts every skinned body (the shared bodies, their near places, the pool), and `vram.meshes`
+each buffer once (before, every person's skinned copy was counted once per region: 328 to 356 MB
+too much at the crowd, and 116 MB at the twin from the shared bodies' places). The pool holds 26 to
+27 people at the crowd (58 of 82.5 MB), so about 13 kept meshes a boot gave way to newcomers and
+three people of the crowd were built twice (the first after run, letting the longest out go in turn,
+built four twice; before the pool, with no room limit, nobody was), each drawn with the shared body
+for a few frames when they came back near.
+
 **Why 56 joints and not MakeHuman's 163**: the 56 are exactly the bones that move in rung 1 (the role
 map's); the other 107 would only ever sit at rest under their parents until face and twist rungs.
 From the rows above, pose work grows about 0.1 microsecond a joint, so the full rig would cost about
@@ -485,9 +519,12 @@ rung or twist joints are a role-map line and a converter run away.
 - A MotionBricks-class model: 380 MB of VRAM at FP16 (758 MB at FP32) plus activations, and the same
   again as a download (the music's core set, for scale, is 6.3 MiB in the app).
 - **Each near person's own mesh (measured, the look, 8.0 and section 16)**: about 2 MB of GPU a
-  dressed person (21,184 vertices: 1.34 MB of mesh, 0.65 MB for its near place's skinned copy), at
-  most three times `near_cap` held (the near tier and twice that many kept for people who just left
-  it): 80 MB measured for a crowd of 50 at the near line. A garment's texture (2026-11-10: BC7, 1024
+  dressed person (21,184 vertices: 1.34 MB of mesh, 0.65 MB for its skinned copy), 3.9 MB for the
+  largest dressed person (40,389 vertices and 203,916 indices). Since 2026-11-10 they live in the
+  own-mesh pool, allocated once at world entry for the near tier (17 people) all at the largest: 65.6
+  MB of buffers, and 16.9 MB more for the shared bodies' near places made with it (82.5 MB in all);
+  typical people fill about half, the rest keeps meshes for people who just left the near tier
+  (before the pool, 80 MB was measured for a crowd of 50 at the near line, made person by person). A garment's texture (2026-11-10: BC7, 1024
   texels a half, its levels down to 4) is 2.67 MB in its slot (a brow or lash set 0.67 MB), shared by
   everyone wearing it; uncompressed it was 10.7 MB (2.7). The slots live in pools allocated once, sized
   for the near tier's worst case and never more than the library: 30 large and 16 small slots today,
@@ -1227,10 +1264,11 @@ as quick starting points.
   on the shaped base mesh and skinned with the bound body vertices' weights; the skeleton made again
   from the shaped mesh (a joint is the mean of its vertices, so a longer neck raises the head joint:
   the skeleton follows every target, not only the fifteen); the feet measured from it (below). The
-  result goes to the GPU as the person's own body (`Renderer::skin_register_body`, replaced in place
-  on a rebuild, `skin_replace_body`, released when they leave or stay out of the near tier for 5 s,
-  `skin_release_body`, so people coming and going never grow the body list or the mesh registry), and
-  is drawn with no morph targets. It is tagged with a version made from everything it is built from
+  result goes to the GPU as the person's own body, a range of the own-mesh pool since 2026-11-10
+  (`Renderer::skin_own_place`, the range taken again on a rebuild, given back when they leave or stay
+  out of the near tier for 5 s, `skin_release_body`, so people coming and going never grow the body
+  list, the mesh registry or the GPU's allocations: below, "the meshes without hitches"), and is
+  drawn with no morph targets. It is tagged with a version made from everything it is built from
   (`look_key`: the body, the shape weights, the detail values, the garments and the two check
   switches) and built again exactly when that changes, and EVERY frame with the reuse switch off
   (`rebuild_due`; `HUMANITY_NO_REUSE=1`, the Dev page's "Turn off all reuse"), CLAUDE.md's refined
@@ -1369,6 +1407,45 @@ as quick starting points.
   every garment shares one pool shape), each with its video memory on this card
   (`data/gui/garment_textures.json`, `gui::garment_textures`, the furniture detail setting's way); a
   change lets every texture go, and they come back at the new size as they are worn.
+- **The meshes without hitches: the own-mesh pool (2026-11-10)**: each near person's own mesh went
+  to the GPU in buffers made for it on the frame it arrived (`skin_register_body`), and the textures'
+  run measured one of those uploads in about 38 at 9.9 to 11.5 ms in three of five crowd runs (the
+  textures' lesson: an allocation's cost is the driver's, not the size's). Now every own mesh lives in
+  a range of THE OWN-MESH POOL (`renderer::mesh_pool`, `renderer::skinning`): three buffers, the
+  source vertices, their skinned copy and the indices, allocated once on the first frame that draws
+  bodies (entering the world, and again after the library is read again), as the texture pools are.
+  Fixed slots were measured out first: a person is 15,479 body vertices plus what they wear, from about
+  21,000 dressed simply to 40,389 in the largest outfit, shoes, hat and longest hair (two-sided cards
+  count twice), so slots sized for the largest would hold about twice what the people near need. The
+  pool is the terrain patch arena's technique instead (`patch_arena::RangeAlloc`, first fit): each
+  person takes exactly their size, and the regions draw with a first index and a base vertex into the
+  shared buffers (`Mesh::first_index`, `Mesh::base_vertex`; the compute pass skins from and into the
+  person's range by its parameters' fourth word). It is planned for the near tier's worst case: its
+  cap and the player, 17 people, all in the largest dressed person
+  (`CharacterLibrary::largest_own_mesh`: the largest body and the largest garment of every kind,
+  checked against a real build of that person, `the_own_mesh_pool_is_planned_for_the_largest_dressed_person`),
+  65.6 MB of buffers; typical people fill about half, and the rest keeps the meshes of people who just
+  left the near tier (at most twice its cap, as before; each a place in the pool's books, 49). A
+  newcomer that finds no room takes that of a person out of the near tier, the one whose room alone
+  makes it fit (else the longest out: the first after runs let kept meshes go in turn while the room
+  stayed in pieces, and four of the crowd were built twice); with only people near holding room and
+  the free room in pieces, one person a frame is packed down into the gap below
+  them, their mesh written again from its CPU copy with that frame's one upload, until the free room
+  is one run (`MeshPool::next_step`, `pack_step`): the near tier's worst case always fits within a few
+  frames, the newcomer drawn with the shared body meanwhile, never a stall and never an allocation on
+  the frame. A mesh bigger than the plan (two garments of one kind, which nothing offers today) is
+  refused, logged once a look, and drawn with the shared body until the pool is planned again;
+  `HUMANITY_OWN_POOL_VERTICES=n` plans it smaller for a rig, the path's red arm in the running game.
+  The same first frame makes each shared body's near places for a full near tier (people near waiting
+  for their own builds are drawn with them: 16.9 MB) and sizes the pose palette for 64 people, so
+  nothing a crowd arriving needs is allocated on the frame; the palette growing past that is logged.
+  At most one upload a frame stays. A range is a reuse of memory, not of data: it holds exactly the
+  mesh last written into it, written whole; with the reuse switch off every mesh is built and written
+  every frame, and the pool is planned again whenever the library is read again. **Memory**: 82.5 MB
+  set aside from world entry (the pool, its places and the shared bodies' near places), shown in
+  Settings > Graphics under the garment textures (`garment_textures.meshes`); `vram.characters` is now
+  everything the skinned bodies hold, and `vram.meshes` counts each buffer once (it counted every
+  person's skinned copy once per region, about 330 MB too much at the crowd).
 - **Crouch: Hold or Toggle (6)**: Settings > Controls > Crouch, Hold by default (rung 2a's report:
   someone who cannot hold a key can crouch); a toggle flips on the key's press, never its repeats, and
   leaving Toggle stands the person up.
@@ -1383,7 +1460,11 @@ as quick starting points.
   its size and format and its time onto the GPU, each pool's one allocation with its size and time;
   `vram.textures` counts each pool once; `HUMANITY_NO_BC=1` starts the renderer without block
   compression on a GPU that has it (the fallback's arm, uncompressed textures and the notice); the
-  snapshot `garment_textures_no_bc` shows the notice.
+  snapshot `garment_textures_no_bc` shows the notice. The own-mesh pool (2026-11-10): its one
+  allocation logged with its plan, size and time; each build's log line with its indices and the
+  pool's people and memory; a pack move, a palette growth and a mesh too big each logged;
+  `HUMANITY_OWN_POOL_VERTICES=n` plans the pool for people of at most n vertices (the oversized
+  path's arm); the report counts kept meshes let go, pack moves and meshes waiting for room.
 
 **Measured.**
 
@@ -1430,6 +1511,15 @@ as quick starting points.
   distance (as is Low memory). One own-mesh upload
   in each of those two runs took 9.9 and 10.0 ms (one in the run before took 11.5): the same class of
   hitch in the person meshes' buffers (`skin_register_body`), the next lever.
+- **Own meshes in the pool (2026-11-10)**, the crowd pair, five boots before and five after (8.0):
+  each own mesh onto the GPU in 0.23 to 0.94 ms (median 0.59; 205, one at 4.60, wgpu's staging of the
+  write) against 0.49 to 1.50 (median 0.84; 190), no buffer made for a person; the pool allocated
+  once at world entry in 1.9 to 3.3 ms, 82.5 MB; the crowd's worst frame of the look 1.2 ms in four
+  boots against 1.5 to 2.1; the GPU unchanged; the driver's own memory figure at the crowd 28 to 37 MB
+  lower. The pool drawn against main at the crowd: the same picture (a mean difference of 0.16 of
+  255 in the crowd, against 0.08 between two boots of main and 11.7 against the look-off twin).
+  Planned smaller (`HUMANITY_OWN_POOL_VERTICES=20000`), 31 of the crowd's meshes were refused as too
+  big, logged, and drawn with the shared body (7 small enough kept theirs).
 - **No skin through the clothes** (four outfits, walk at two phases, crouch walk, sit): the casual
   outfits and the work overalls 0 vertices through in every pose; the sport top 2 walking, 19
   crouched (up to 2.8 cm) and 9 seated (1.3 cm), at the small of the back; covers off, 215 to 766
@@ -1447,7 +1537,16 @@ as quick starting points.
   raises the head joint, a suit and shoes hide the body under them); shod feet stand on the floor in
   idle and walk with each of the six shoes on both bodies (red: the soles of the body as made); no
   skin through the clothes in walk, crouch and sit, the drawn skinned mesh measured (red: covers off,
-  337 to 852 vertices through); the garment pack; crouch held or toggled.
+  337 to 852 vertices through); the garment pack; crouch held or toggled; the own-mesh pool
+  (2026-11-10, `renderer::mesh_pool`): room handed from person to person and its buffers allocated
+  once (red: an allocation per person, "41 people made 41 allocations"), a mesh past the plan refused
+  and taking nothing (red: compared against the whole pool), the longest kept giving way and then
+  packing until the largest fits (red without packing: "after 0 frames: Wait"), a rebuild replacing
+  or keeping its ranges; the largest dressed person built for real fits the plan (red with a
+  two-sided garment counted once: 40,329 vertices built over 34,048 planned); the Settings snapshot's
+  figure is the engine's plan (red with it a MB off). In the running game: the crowd pair five times
+  before and after (8.0), the pool drawing main's picture, and the pool planned smaller, its
+  oversized path drawing the shared body (above, Measured).
 - In the running game: `anim-look-face-{female,male}` (the face as made, a dozen face sliders at
   their high end, the same at their low end), `anim-look-covers-off` (skin through every outfit:
   the red arm, seen), `anim-shoes` and its failing twin, the dressed line-ups and crowds, and the
@@ -1468,9 +1567,11 @@ for the near tier's worst case and kept for the session once allocated (today ev
 91 MB as BC7 at Full, held even when nobody is near; a pool that grows in steps ahead of need, or is
 let go after a long while unworn, is the lever if memory matters there), and their encoder writes
 five of BC7's eight modes (the three-subset modes and mode 4 would add a little quality, an edit to
-`scripts/lib/bc7.js`); a person's own mesh still goes to the GPU in buffers of its own (one of about
-38 uploads took 9.9 to 11.5 ms in three of five crowd runs, the textures' old hitch: a pool of mesh
-buffers is the lever); a
+`scripts/lib/bc7.js`); the own-mesh pool is planned for the near tier in the largest dressed person
+and held from world entry (82.5 MB with the shared bodies' near places, whoever is near; a pool that
+grows in steps ahead of need is the lever if memory matters there), and it counts one garment of a
+kind (a cosmetic slot that put two clothes on one person would draw them with the shared body, logged,
+until the plan counts slots); a
 person's build is a whole rebuild (a slider dragged on the character page rebuilds the person about
 every 5 ms on a worker; a build that re-applies only the moved targets is the lever if it shows).
 

@@ -142,9 +142,26 @@ pub struct Mesh {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub index_count: u32,
+    /// Where its indices start in `index_buffer`, and what is added to each before a vertex is read
+    /// (2026-11-10): 0 and 0 for a mesh with buffers of its own; a region of a person's own body in
+    /// the own-mesh pool (`renderer::mesh_pool`) is a range of the pool's shared buffers. Every
+    /// draw of a registry mesh goes through `indices()` and `base_vertex`.
+    pub first_index: u32,
+    pub base_vertex: i32,
 }
 
 impl Mesh {
+    /// The index range a draw of this mesh reads.
+    pub fn indices(&self) -> std::ops::Range<u32> {
+        self.first_index..self.first_index + self.index_count
+    }
+
+    /// A mesh id that draws nothing, over a few bytes of `buffer` (made with VERTEX and INDEX), so it
+    /// holds on to no other memory.
+    pub fn nothing(buffer: &wgpu::Buffer) -> Self {
+        Mesh { vertex_buffer: buffer.clone(), index_buffer: buffer.clone(), index_count: 0, first_index: 0, base_vertex: 0 }
+    }
+
     /// Build a mesh from raw vertex and index data.
     pub fn from_vertices(device: &wgpu::Device, vertices: &[Vertex], indices: &[u32]) -> Self {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -161,6 +178,8 @@ impl Mesh {
             vertex_buffer,
             index_buffer,
             index_count: indices.len() as u32,
+            first_index: 0,
+            base_vertex: 0,
         }
     }
 

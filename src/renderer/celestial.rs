@@ -816,7 +816,7 @@ impl Renderer {
                     }
                     pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                    pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                    pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
                 }
                 // WATER CASTERS (v0.1057). The wave shell lives in the
                 // TRANSPARENT list, which this pass never walked - so a 10 m
@@ -879,7 +879,7 @@ impl Renderer {
                             mesh.index_buffer.slice(..),
                             wgpu::IndexFormat::Uint32,
                         );
-                        pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                        pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
                     }
                 }
                 // Batched patch casters: same 6 km cull, one bind, one
@@ -1644,7 +1644,7 @@ impl Renderer {
                             gm.index_buffer.slice(..),
                             wgpu::IndexFormat::Uint32,
                         );
-                        render_pass.draw_indexed(0..gm.index_count, 0, 0..self.grass_n);
+                        render_pass.draw_indexed(gm.indices(), gm.base_vertex, 0..self.grass_n);
                     }
                 }
             }
@@ -1829,7 +1829,7 @@ impl Renderer {
                     }
                     render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                    render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                    render_pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
                 }
             }
         }
