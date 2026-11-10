@@ -7,8 +7,9 @@
 use std::collections::VecDeque;
 use std::io::{BufRead, Write};
 use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
-use humanity_ai_protocol::{decode_app, encode_versioned, AppMessage, Counters, EngineMessage, ErrorCode, LoadedModel, ProtocolError, MAX_LINE_BYTES};
+use humanity_ai_protocol::{decode_app, encode_versioned, AppMessage, Backend, Counters, EngineMessage, ErrorCode, LoadedModel, ProtocolError, MAX_LINE_BYTES};
 
 use crate::args::Options;
 use crate::fake;
@@ -74,6 +75,17 @@ pub(crate) struct Engine<W: Write> {
     pub(crate) last_persona: Option<String>,
     /// Models loaded (the fake's: its reserved memory with each).
     pub(crate) loaded: Vec<(LoadedModel, Vec<u8>)>,
+    /// llama.cpp, started at the first `hello` or `load` (never before the app's first message, so
+    /// inside the job object), and the outcome kept (rung 2).
+    #[cfg(feature = "llama")]
+    pub(crate) runtime: Option<Result<crate::llama::Runtime, String>>,
+    /// The real models loaded, each with its working memory.
+    #[cfg(feature = "llama")]
+    pub(crate) brains: Vec<(LoadedModel, crate::llama::Brain)>,
+    /// The model writing a reply now (out of `brains` while it works) and its threads, so a `status`
+    /// asked between its pieces still lists it.
+    #[cfg(feature = "llama")]
+    pub(crate) working: Option<(LoadedModel, u32)>,
     pub(crate) counters: Counters,
     /// Messages that arrived while a reply was being made.
     pub(crate) pending: VecDeque<Incoming>,
@@ -90,7 +102,35 @@ pub(crate) enum Flow {
 
 impl<W: Write> Engine<W> {
     pub(crate) fn new(opts: Options, out: W) -> Self {
-        Engine { opts, out, reuse: true, last_persona: None, loaded: Vec::new(), counters: Counters::default(), pending: VecDeque::new(), input_ended: false }
+        Engine {
+            opts,
+            out,
+            reuse: true,
+            last_persona: None,
+            loaded: Vec::new(),
+            #[cfg(feature = "llama")]
+            runtime: None,
+            #[cfg(feature = "llama")]
+            brains: Vec::new(),
+            #[cfg(feature = "llama")]
+            working: None,
+            counters: Counters::default(),
+            pending: VecDeque::new(),
+            input_ended: false,
+        }
+    }
+
+    /// The backends this engine can run models on: none for the fake (it runs no model), the processor
+    /// when llama.cpp is built in and started (rung 2), none otherwise.
+    fn backends(&mut self) -> Vec<Backend> {
+        if self.opts.fake {
+            return Vec::new();
+        }
+        #[cfg(feature = "llama")]
+        if crate::real::runtime(self).is_ok() {
+            return vec![Backend::Cpu];
+        }
+        Vec::new()
     }
 
     /// Write one message. A closed output means the app is gone; the next read sees the end.
@@ -143,19 +183,28 @@ impl<W: Write> Engine<W> {
         match msg {
             AppMessage::Hello { app_version } => {
                 eprintln!("humanity-ai: hello from HumanityOS {app_version}");
-                let m = EngineMessage::Hello { engine_version: crate::ENGINE_VERSION.to_string(), backends: Vec::new(), cpu_features: Self::cpu_features(), fake: self.opts.fake };
+                let backends = self.backends();
+                let m = EngineMessage::Hello { engine_version: crate::ENGINE_VERSION.to_string(), backends, cpu_features: Self::cpu_features(), fake: self.opts.fake };
                 self.send(&m);
             }
-            AppMessage::Load { id, kind, .. } => {
-                if !self.opts.fake {
-                    self.refuse(None, ErrorCode::NoBackend, format!("this engine has no runtime for {id}"));
-                } else {
+            #[allow(unused_variables)]
+            AppMessage::Load { id, path, kind, context, threads, device, .. } => {
+                if self.opts.fake {
                     fake::load(self, id, kind);
+                } else {
+                    #[cfg(feature = "llama")]
+                    crate::real::load(self, id, path, kind, context, threads, device);
+                    #[cfg(not(feature = "llama"))]
+                    self.refuse(None, ErrorCode::NoBackend, format!("this engine has no runtime for {id}"));
                 }
             }
-            AppMessage::Generate { id, request, persona, turns, max_tokens, .. } => {
+            #[allow(unused_variables)]
+            AppMessage::Generate { id, request, persona, turns, grammar, max_tokens } => {
                 self.counters.requests += 1;
                 if !self.opts.fake {
+                    #[cfg(feature = "llama")]
+                    return crate::real::generate(self, rx, &id, request, &persona, &turns, grammar.as_deref(), max_tokens);
+                    #[cfg(not(feature = "llama"))]
                     self.refuse(Some(request), ErrorCode::NoBackend, "this engine has no brain runtime".into());
                 } else if !self.loaded.iter().any(|(m, _)| m.id == id) {
                     self.refuse(Some(request), ErrorCode::NotLoaded, format!("{id} is not loaded"));
@@ -186,6 +235,11 @@ impl<W: Write> Engine<W> {
                 self.reuse = enabled;
                 if !enabled {
                     self.last_persona = None;
+                    // Nothing read for one request is kept for the next (9.6).
+                    #[cfg(feature = "llama")]
+                    for (_, brain) in self.brains.iter_mut() {
+                        brain.forget();
+                    }
                 }
                 self.send(&EngineMessage::Ok { to: "reuse".into() });
             }
@@ -193,7 +247,15 @@ impl<W: Write> Engine<W> {
             AppMessage::Unload { id } => {
                 let before = self.loaded.len();
                 self.loaded.retain(|(m, _)| m.id != id);
-                if self.loaded.len() == before {
+                #[cfg(feature = "llama")]
+                let before = before + self.brains.len();
+                #[cfg(feature = "llama")]
+                self.brains.retain(|(m, _)| m.id != id);
+                #[cfg(feature = "llama")]
+                let gone = before != self.loaded.len() + self.brains.len();
+                #[cfg(not(feature = "llama"))]
+                let gone = before != self.loaded.len();
+                if !gone {
                     self.refuse(None, ErrorCode::NotLoaded, format!("{id} is not loaded"));
                 } else {
                     self.send(&EngineMessage::Ok { to: "unload".into() });
@@ -207,11 +269,28 @@ impl<W: Write> Engine<W> {
         Flow::Continue
     }
 
+    /// `status`: the engine's committed memory read from the system now (what the job object's cap
+    /// counts, src/memory.rs), the threads its models use, what it holds, its counters.
     pub(crate) fn send_status(&mut self) {
+        #[allow(unused_mut)]
+        let mut loaded: Vec<LoadedModel> = self.loaded.iter().map(|(m, _)| m.clone()).collect();
+        #[allow(unused_mut)]
+        let mut threads = 1;
+        #[cfg(feature = "llama")]
+        {
+            for (m, brain) in &self.brains {
+                loaded.push(m.clone());
+                threads = threads.max(brain.threads);
+            }
+            if let Some((m, t)) = &self.working {
+                loaded.push(m.clone());
+                threads = threads.max(*t);
+            }
+        }
         let m = EngineMessage::Status {
-            memory_mb: None,
-            threads: 1,
-            loaded: self.loaded.iter().map(|(m, _)| m.clone()).collect(),
+            memory_mb: crate::memory::usage().map(|u| u.committed_mb()),
+            threads,
+            loaded,
             counters: self.counters.clone(),
             reuse: self.reuse,
             fake: self.opts.fake,
@@ -239,6 +318,35 @@ impl<W: Write> Engine<W> {
                     }
                 },
             }
+        }
+    }
+}
+
+/// Wait `ms` (0: just look) while a reply is being made, answering a `cancel` of `request` (true: stop
+/// the reply) or a `status` meanwhile; everything else waits in `pending`, the end of the input too:
+/// the reply in hand finishes (its words go nowhere if the app is gone, and the job object ends the
+/// engine with the app anyway), then the loop reads the end. The fake waits its scripted time here;
+/// llama.cpp's replies look between pieces with `ms` 0 (rung 2).
+pub(crate) fn pause<W: Write>(e: &mut Engine<W>, rx: &mpsc::Receiver<Incoming>, request: u64, ms: u64) -> bool {
+    let until = Instant::now() + Duration::from_millis(ms);
+    loop {
+        let left = until.saturating_duration_since(Instant::now());
+        if e.input_ended {
+            std::thread::sleep(left);
+            return false;
+        }
+        match rx.recv_timeout(left) {
+            Ok(Incoming::Line(l)) => match decode_app(&l) {
+                Ok(AppMessage::Cancel { request: r }) if r == request => return true,
+                Ok(AppMessage::Status) => e.send_status(),
+                _ => e.pending.push_back(Incoming::Line(l)),
+            },
+            Ok(Incoming::End) | Err(mpsc::RecvTimeoutError::Disconnected) => {
+                e.input_ended = true;
+                e.pending.push_back(Incoming::End);
+            }
+            Ok(other) => e.pending.push_back(other),
+            Err(mpsc::RecvTimeoutError::Timeout) => return false,
         }
     }
 }

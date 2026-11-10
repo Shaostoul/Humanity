@@ -21,11 +21,26 @@ pub const ENGINE_EXE: &str = if cfg!(windows) { "humanity-ai.exe" } else { "huma
 /// The `ai` folder in the person's own files, or None while they have not chosen where HumanityOS
 /// keeps their files (nothing may be written before that choice, storage.rs).
 pub fn ai_root() -> Option<PathBuf> {
+    #[cfg(test)]
+    if let Some(p) = TEST_ROOT.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+        return Some(p);
+    }
     match storage::mode() {
         StorageMode::Portable => Some(storage::exe_dir().join("ai")),
         StorageMode::Installed | StorageMode::LegacyBesideExe => storage::os_root().map(|r| r.join("ai")),
         StorageMode::Undecided => None,
     }
+}
+
+/// Tests only: an `ai` folder of the test's own in place of the person's (the snapshots of Settings > AI
+/// with a model installed, and the end-to-end test that installs Granite), so no test writes into the
+/// files of the person running it.
+#[cfg(test)]
+static TEST_ROOT: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+
+#[cfg(test)]
+pub(crate) fn set_test_root(root: Option<PathBuf>) {
+    *TEST_ROOT.lock().unwrap_or_else(|e| e.into_inner()) = root;
 }
 
 /// Where the engine of [`ENGINE_VERSION`] sits under an `ai` folder.

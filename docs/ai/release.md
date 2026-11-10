@@ -237,6 +237,32 @@ gh release upload assets-simready-1 --repo Shaostoul/Humanity --clobber E:/Human
 gets `PACK_VERSION` raised in `scripts/simready/pack.js` first. To try a pack before uploading, serve
 its folder on 127.0.0.1 and run the app with `HUMANITY_MODEL_PACKS_URL=http://127.0.0.1:8000/`.
 
+## AI files (release assets; the top-level session uploads)
+
+Settings > AI downloads the AI engine and each AI model a person chooses
+(`docs/design/embeddable-ai.md`, section 6) from GitHub release assets under the non-`v*` tag
+`assets-ai-1`. The app compiles in `data/ai/catalog.ron` with every file's size and SHA-256 and refuses
+a download that does not match, so **the catalog committed and the files uploaded must come from the
+same run**:
+
+1. `just ai-engine package`: builds the engine (llama.cpp, CPU; CMake from Visual Studio's Build
+   Tools) and writes `target/ai-engine/package/humanity-ai-engine-v1-windows-x64.zip` with
+   `engine.json` (its SHA-256 and size).
+2. `just ai-catalog --stage <folder>`: rewrites `data/ai/catalog.ron` from
+   `scripts/ai-catalog-recipe.json` (each model hashed from its source, refused unless it is its
+   publisher's file), fills `<folder>` with exactly the release's files (copied and checked), and
+   writes the exact `gh release create assets-ai-1 ... --latest=false` command to
+   `<folder>-upload-command.txt`. A file of 2 GiB or more is staged as its parts.
+3. Commit the catalog; **the top-level session uploads** with that command (a dispatched agent never
+   does; it hands the command over in its report). Later rebuilds: `gh release upload assets-ai-1
+   --repo Shaostoul/Humanity --clobber <the files>`, with the catalog that names them.
+
+`--latest=false` as for the other asset releases. A new engine gets its version raised in
+`crates/humanity-ai-engine/Cargo.toml` and `src/ai/paths.rs` together (the catalog check refuses a
+mismatch). To try the downloads before uploading: `node scripts/serve-ai-files.js <folder> 8001`,
+`just ai-catalog --print --base-url http://127.0.0.1:8001/ > <scratch>/dev-catalog.ron`, then run the
+app with `HUMANITY_AI_CATALOG=<scratch>/dev-catalog.ron` (a full path).
+
 ## Recipes
 
 ```

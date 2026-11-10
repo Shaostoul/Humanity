@@ -4509,12 +4509,55 @@ fn snapshot_dev_claude() {
 /// means, Your computer (this machine's real memory, cores, AVX2 and free space; the graphics card is
 /// "not reported yet", as in every headless snapshot, which has no renderer), and one card per later AI
 /// choice with what it needs and whether this computer has it.
+///
+/// Rung 2 (2026-11-09): an empty `ai` folder of the test's own, so the Talking characters (Quick) card
+/// shows Granite 4.0 1B's download BEFORE anything downloads: its size with the AI engine's added (the
+/// engine comes with the first model), where it comes from, its licence with the full text opened on
+/// the card, and Get.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_settings_ai() {
-    render_page_png("settings_ai", 1100, 1450, |ctx, theme, state| {
+    let root = humanity_core::test_temp::dir("snap_ai_none");
+    crate::ai::paths::set_test_root(Some(root.join("ai")));
+    crate::gui::pages::settings::ai::reset_for_snapshot();
+    crate::gui::pages::settings::ai::open_licence_for_snapshot("granite-4-0-1b");
+    render_page_png("settings_ai", 1100, 1900, |ctx, theme, state| {
         settings_panel(ctx, theme, state, |ui, theme, state| crate::gui::pages::settings::ai::draw(ui, theme, state, theme.nav_dev()));
     });
+    crate::gui::pages::settings::ai::reset_for_snapshot();
+    crate::ai::paths::set_test_root(None);
+}
+
+/// Settings > AI with Granite 4.0 1B INSTALLED (rung 2, 2026-11-09), in an `ai` folder of the test's own
+/// laid out as the installer leaves it (the engine's program in engine/1.0.0/, Granite's file at its
+/// catalog size with its licence and README in models/granite-4-0-1b/): the top line lists both with
+/// their sizes, the card says Installed with Remove, and Remove all AI shows its confirmation, listing
+/// exactly what goes and that it cannot be undone.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_ai_installed() {
+    let t = humanity_core::test_temp::dir("snap_ai_installed");
+    let root = t.join("ai");
+    let cat = crate::ai::catalog::AiCatalog::parse(crate::ai::catalog::BUILT_IN).expect("the built-in catalog");
+    let engine = crate::ai::install::engine_dir(&root, &cat.engine.version);
+    std::fs::create_dir_all(engine.join("licenses")).unwrap();
+    std::fs::write(engine.join(crate::ai::paths::ENGINE_EXE), vec![0u8; 660_480]).unwrap();
+    std::fs::write(engine.join("llama.dll"), vec![0u8; 2_689_024]).unwrap();
+    let granite = cat.model("granite-4-0-1b").expect("Granite").clone();
+    let dir = crate::ai::install::model_dir(&root, &granite.id);
+    std::fs::create_dir_all(&dir).unwrap();
+    // The catalog's exact size (a file the system extends without writing a gigabyte).
+    std::fs::File::create(dir.join(&granite.file)).unwrap().set_len(granite.bytes).unwrap();
+    std::fs::copy(humanity_core::storage::data_dir().join("ai/licences/apache-2.0.txt"), dir.join("LICENSE.txt")).unwrap();
+    std::fs::write(dir.join("README.md"), b"Granite 4.0 1B (Q4_K_M GGUF) by IBM").unwrap();
+    crate::ai::paths::set_test_root(Some(root));
+    crate::gui::pages::settings::ai::reset_for_snapshot();
+    crate::gui::pages::settings::ai::confirm_remove_all_for_snapshot();
+    render_page_png("settings_ai_installed", 1100, 1900, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, |ui, theme, state| crate::gui::pages::settings::ai::draw(ui, theme, state, theme.nav_dev()));
+    });
+    crate::gui::pages::settings::ai::reset_for_snapshot();
+    crate::ai::paths::set_test_root(None);
 }
 
 /// Settings > AI on a computer pretending to have 1.5 GB free (Dev > AI's "pretend this PC has {n} GB

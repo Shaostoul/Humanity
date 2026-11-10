@@ -1,0 +1,52 @@
+{
+  "_about": "The recipe scripts/ai-catalog.js turns into data/ai/catalog.ron (docs/design/embeddable-ai.md, 6.2; rung 2, 2026-11-09). Edit THIS file, never the catalog: the script measures each file (its size and SHA-256), refuses one that does not match its publisher's hash, splits anything of 2 GiB or more into parts, and writes the catalog the app compiles in. Only what can be downloaded today is listed: Ministral 3 3B, Gemma 4 and Pocket TTS are absent until their rungs bring their files (data/ai/choices.ron still shows what each will need).",
+  "release": "assets-ai-1",
+  "base_url": "https://github.com/Shaostoul/Humanity/releases/download/assets-ai-1/",
+  "_part_bytes": "GitHub's limit is 'Each file included in a release must be under 2 GiB' (the runtime finding, F10): a file of 2 GiB or more goes up as parts of this size, each with its own hash, joined and checked whole after download.",
+  "part_bytes": 2000000000,
+  "engine": {
+    "package": "target/ai-engine/package/engine.json",
+    "licence": "ai.licence.engine",
+    "licence_text": "ai/licences/llama.cpp-mit.txt",
+    "platform": "windows-x64",
+    "credits": [
+      "llama_cpp",
+      "llama_cpp_rs"
+    ],
+    "_credits": "Rows in data/credits.ron (scripts/check-ai-catalog.js refuses a catalog entry without one): llama.cpp and ggml, whose code is inside the engine; and the llama-cpp-rs project, whose crate llama-cpp-sys-2 carries the pinned llama.cpp source the engine builds (none of its own code is compiled in)."
+  },
+  "models": [
+    {
+      "id": "granite-4-0-1b",
+      "choice": "characters-quick",
+      "kind": "brain",
+      "model": "Granite 4.0 1B",
+      "maker": "IBM",
+      "licence": "ai.licence.apache2",
+      "licence_text": "ai/licences/apache-2.0.txt",
+      "finding": "docs/reference/findings/2026-11-08-granite-4-0-1b.md",
+      "credits": [
+        "granite_4_0_1b"
+      ],
+      "upstream": "https://huggingface.co/ibm-granite/granite-4.0-1b-GGUF",
+      "upstream_sha256": "22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f1",
+      "source": "E:\\HumanityOS\\ai-src\\granite-4.0-1b\\granite-4.0-1b-Q4_K_M.gguf",
+      "file": "granite-4.0-1b-Q4_K_M.gguf",
+      "context": 4096,
+      "extras": [
+        {
+          "file": "granite-4.0-1b-LICENSE.txt",
+          "install_as": "LICENSE.txt",
+          "from": "data/ai/licences/apache-2.0.txt",
+          "_why": "Apache 2.0 section 4(a): 'You must give any other recipients of the Work or Derivative Works a copy of this License'. The text is apache.org's (SHA-256 cfc7749b...), which the Granite finding (F1) compared with IBM's LICENSE line by line: the same, IBM's having one leading blank line."
+        },
+        {
+          "file": "granite-4.0-1b-README.md",
+          "install_as": "README.md",
+          "text": "Granite 4.0 1B (Q4_K_M GGUF) by IBM, https://huggingface.co/ibm-granite/granite-4.0-1b-GGUF, Apache License 2.0. Unmodified. Training data disclosure: https://github.com/ibm-granite/granite-4.0-nano-language-models/tree/main/disclosures.\n",
+          "_why": "The credit README exactly as the Granite finding wrote it ('How the project would credit it')."
+        }
+      ]
+    }
+  ]
+}

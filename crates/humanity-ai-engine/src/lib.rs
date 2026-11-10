@@ -7,12 +7,15 @@
 //! (7.2). When the app goes, its standard input closes and the engine exits; the app's job object ends
 //! it too, even if the app crashed.
 //!
-//! RUNG 1 HOLDS NO MODEL AND NO RUNTIME. Two modes:
+//! Two modes:
 //! - `--fake`: scripted lines and timing ([`fake`]), the stand-in every client test, Dev page button
 //!   and rig uses (12.1). It also stands in for the reuse switch (a persona read again only when reuse
 //!   is off) and for running out of memory (`--fake-load-mb`, against the job object's cap).
-//! - without it: `hello` with no backends, and every model request refused in words
-//!   ([`humanity_ai_protocol::ErrorCode::NoBackend`]). Rung 2 adds llama.cpp here.
+//! - without it: the real engine. Built with the `llama` feature (rung 2, 2026-11-09: what `just
+//!   ai-engine` builds and packages), it runs language models on the processor through llama.cpp
+//!   ([`llama`], [`real`]); Granite 4.0 1B is the first. Built without it (the plain `cargo build` the
+//!   app's client tests make), it says hello with no backends and refuses every model request in words
+//!   ([`humanity_ai_protocol::ErrorCode::NoBackend`]), as rung 1 did.
 //!
 //! The engine never prints anything but messages on its standard output; notes for a person go to its
 //! standard error, which the app writes into its own log.
@@ -20,7 +23,13 @@
 pub mod args;
 pub mod fake;
 pub mod folder;
+#[cfg(feature = "llama")]
+pub mod llama;
+pub mod memory;
+#[cfg(feature = "llama")]
+pub(crate) mod real;
 pub mod run;
+pub mod text;
 
 pub use args::Options;
 pub use run::run;

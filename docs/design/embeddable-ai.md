@@ -1,8 +1,9 @@
 # Embeddable AI: talking characters, a helper and a computer voice, on your own computer, never required
 
-**Status: rung 1 built 2026-11-09** (the engine skeleton and the door, with no model: section 14).
-The app contains no AI model and no model runtime, and `tests/no_ai_in_app_lint.rs` holds it so; the
-engine program exists with only its fake mode. This document is the whole plan, with all its bells and whistles, so
+**Status: rungs 1 and 2 built 2026-11-09** (the engine skeleton and the door; then the catalog,
+downloads, checks and removal, with llama.cpp in the engine and Granite 4.0 1B as the first model:
+section 14). The app contains no AI model and no model runtime, and `tests/no_ai_in_app_lint.rs` holds
+it so; the engine and the model are downloads a person chooses in Settings > AI. This document is the whole plan, with all its bells and whistles, so
 the first slice is a rung of the real thing. The runtime decision it rests on is the dated finding
 [`docs/reference/findings/2026-11-09-model-runtime.md`](../reference/findings/2026-11-09-model-runtime.md);
 the model research is the 2026-11-08 scan
@@ -360,7 +361,10 @@ The runtime finding's recommendation, as the design takes it (the operator's que
 ### 7.1 What it is
 
 `humanity-ai.exe`, a small Rust program the project builds, in `%APPDATA%\HumanityOS\ai\engine\<version>\`
-with its libraries and licence files beside it. Inside: llama.cpp (through its C library) for the
+with its libraries and licence files beside it (rung 2: the program, `llama.dll`, `ggml.dll`,
+`ggml-base.dll`, nine `ggml-cpu-<level>.dll` and `licenses/`, 13.8 MB zipped; it reaches llama.cpp
+through its own C file, `crates/humanity-ai-engine/src/llama/shim.c`, not a Rust binding, section 14
+says why). Inside: llama.cpp (through its C library) for the
 brains; audio.cpp (its C library, Pocket TTS only) for the voice; tract, compiled in, for the small
 ONNX models. Portable processor kernels and a Vulkan backend; no CUDA, ROCm or SYCL packages (the
 vendor packages are larger than the models and serve one maker each). Its source lives in the
@@ -541,6 +545,33 @@ the catalog.
 - **Live measurement**: the engine reports prefill and generation times with every reply (7.3); the
   app keeps a running average for the notice, in memory only.
 
+### 9.3a Measured on the operator's PC, rung 2 (2026-11-09)
+
+Granite 4.0 1B (`granite-4.0-1b-Q4_K_M.gguf`, 1.6 billion parameters, 972 MB of weights) in the rung 2
+engine (llama.cpp, the `ggml-cpu-haswell.dll` kernels this i7-8700K chose), with a 4,096-token working
+memory. `just ai-engine measure` (the test program at below-normal priority, as the job object holds
+the engine; no game running), the same numbers again through the app's own client in its job object
+(`granite_through_the_app_end_to_end`):
+
+| What | 4 threads (9.2's choice on 6 cores) | 6 threads |
+|---|---|---|
+| Load (the file already in the system's file cache) | 1.07 s (1.2 s through the app; 1.66 s with another agent's game rig running) | 1.07 s |
+| Committed memory after the load (what the job's cap counts) | 1,191 MB; 1,197 MB after a 104-token reply | 1,198 MB |
+| Working set (Task Manager's figure, the mapped file included) | 1,691 MB after the load, 2,021 MB after a reply | 2,022 MB |
+| Prefill, a 225-token character persona read whole | 110 tokens a second (2.05 s) | 134 a second (1.68 s) |
+| Writing | 24.9 tokens a second (27.8 to 29.7 through the app on short replies) | 26.8 a second |
+| A second question, the persona reused (206 of 217 tokens) | 183 ms for the 11 new tokens | 151 ms |
+
+So against 9.1 and 9.3: Granite commits about 1.2 GB, inside its 1.6 GB planning figure (the job's cap
+for it is 1,640 + 512 = 2,152 MB); writing sits in the 20 to 28 tokens a second planned for it in 4.3,
+and two more threads add only 8% (memory speed, not the processor, is the limit, as 4.2 worked out). With
+the persona already read, a 40-token reply's first words come in about 0.2 s and the whole reply in
+about 1.8 s, inside 9.3's 1 s and 4 s; a cold persona adds about 2 s once per conversation. The check of
+the file before its load (its SHA-256) took 3.8 s in the debug test program; the release app's is
+faster, measured on the floor PC in rung 9. **Not measured: the game's frame cost while the engine
+writes** (9.5): the only release build on this PC was from another tree (the rigs' freshness gate
+refused it), and 12.1's `ai-talk` rig, which measures exactly that, comes with rung 3's talk card.
+
 ### 9.4 The voice's real-time factor
 
 At least 1.5 times faster than real time on 2 threads beside the game on the floor PC (the maker's
@@ -695,6 +726,44 @@ Each rung is a slice of the real thing.
 2. **Catalog, downloads, checks and removal.** `data/ai/catalog.ron` compiled in, the `assets-ai-1`
    release (the top-level session uploads), parts and joining, the licence on the card, Remove and
    Remove all AI; the first real content: the engine with llama.cpp and Granite 4.0 1B, the smallest.
+   **Built 2026-11-09.** The engine's `llama` cargo feature (never a default, so the client tests' plain
+   `cargo build` of the `--fake` engine needs no CMake): llama.cpp on the processor with its portable
+   kernels (`GGML_BACKEND_DL` and `GGML_CPU_ALL_VARIANTS`: nine `ggml-cpu-<level>.dll`, the best chosen
+   at start from the engine's own folder only), `load`, `generate` (pieces of whole characters, cancel
+   between pieces, `max_tokens`, a GBNF grammar for 8.3's fixed shape), `unload`, a `status` with the
+   committed memory read from the system, prompt reuse that obeys the switch; `just ai-engine package`
+   (a stored, sorted, fixed-date zip with every licence; engine.json records its SHA-256 and size;
+   `just ai-engine measure` gives section 9's numbers). **Not through the `llama-cpp-2` crate**: it and
+   the alternative binding (`llama-cpp-4` 0.11.0, which also downloads at build time) generate their
+   bindings with bindgen, which needs libclang, and the operator's PC has no LLVM; so the engine builds
+   the SAME pinned llama.cpp tree that `llama-cpp-sys-2` 0.1.161 carries (pinned with its crates.io
+   checksum in `crates/humanity-ai-engine/llama-src/`) through a small C file of its own (`shim.c`,
+   plain values only, so the C compiler decides every struct layout). The catalog (`just ai-catalog`
+   from `scripts/ai-catalog-recipe.json`; 6.2's shape plus `credits` and `extras`, the licence text and
+   credit README a model downloads with), `scripts/check-ai-catalog.js` in `just preflight`,
+   `HUMANITY_AI_CATALOG` as the dev aid (with `scripts/serve-ai-files.js`, a loopback server with
+   Range). Ministral 3 3B, Gemma 4 and Pocket TTS are absent from the catalog until their rungs bring
+   their files, not listed as "not yet available": the catalog is the list the signed app vouches for
+   byte for byte, and a row with no file would be a hole every check must step around;
+   `data/ai/choices.ron` still shows what each will need. Settings > AI (native): each downloadable
+   card shows its size (the engine's added the first time), source and licence (the full text opens on
+   the card, from `data/ai/licences/`) before anything downloads; Get with progress; Stop keeps what
+   arrived and Get resumes with an HTTP Range request; each file checked as soon as it is whole (a
+   mismatch deleted, 5.2's words); parts joined and checked whole (tested with a three-part model;
+   Granite is one part); the engine unpacked from its checked zip; Remove (the engine with the last
+   model) and Remove all AI (its confirmation lists each part with its size and says it cannot be
+   undone). Dev > AI's "Send a test question", with the fake switched off, goes to the installed
+   engine and Granite: the file checked byte for byte first on a thread (remembered for the run by
+   size and change time, only while the reuse switch allows), the job object's cap raised to the
+   model's need plus 512 MB, 9.2's brain threads, and the answer streamed word by word; a "Loaded" row
+   with the model's hash, threads and cap. Credits rows for llama.cpp, llama-cpp-rs and Granite. The
+   website's AI section needed nothing new (5.5: it already says the features are desktop-only).
+   **Deferred, with why:** Vulkan (needs the Vulkan SDK's shader compiler, not on this PC; the helper,
+   rung 7, is where it is needed); a CI job for the engine (a release step must never publish from it by
+   accident, and its zip would differ from the operator's by a two-byte build-folder stamp in the nine
+   `ggml-cpu-*.dll`); the engine needing the Microsoft Visual C++ runtime that HumanityOS.exe itself
+   needs (the libraries cannot link it in, build.rs says why; a missing runtime is said in words with
+   the fix).
 3. **Talking characters.** The talk card's text box beside the written lines; personas from
    `crew.ron`; the project's prompt; the fixed output shape; the filter; the AI tag; fallbacks;
    Ministral added; local only.

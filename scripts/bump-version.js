@@ -51,7 +51,20 @@ replaceInFile('Cargo.toml', `version = "${oldVersion}"`, `version = "${newVersio
 // fingerprint and made the delivered exe look stale. Set to the new version whatever it held.
 // Every workspace member's entry (2026-11-01, the crate split's rung 1): they all carry the one
 // version in [workspace.package], so a lock entry left behind would change the stamp the same way.
-replaceInFile('Cargo.lock', /(name = "humanity-[a-z-]+"\r?\nversion = ")[^"]*(")/g, `$1${newVersion}$2`);
+// EXCEPT a member with a version of its own (2026-11-09): humanity-ai-protocol is 1.0.0 because the
+// AI engine compiles it too and the app's version would change the engine's bytes every release
+// (crates/humanity-ai-protocol/Cargo.toml). Rewriting its lock entry to the app's version made the
+// lock disagree with its Cargo.toml, so only members that take `version.workspace = true` are set.
+const ownVersioned = new Set();
+for (const dir of fs.readdirSync(path.join(ROOT, 'crates'))) {
+  const toml = path.join(ROOT, 'crates', dir, 'Cargo.toml');
+  if (!fs.existsSync(toml)) continue;
+  const text = fs.readFileSync(toml, 'utf8');
+  const name = (text.match(/^name\s*=\s*"([^"]+)"/m) || [])[1];
+  if (name && /^version\s*=\s*"/m.test(text)) ownVersioned.add(name);
+}
+replaceInFile('Cargo.lock', /(name = "(humanity-[a-z-]+)"\r?\nversion = ")[^"]*(")/g,
+  (whole, head, name, tail) => (ownVersioned.has(name) ? whole : `${head}${newVersion}${tail}`));
 
 // 3. web/shared/sw.js — CACHE_NAME bump
 const swPath = path.join(ROOT, 'web/shared/sw.js');

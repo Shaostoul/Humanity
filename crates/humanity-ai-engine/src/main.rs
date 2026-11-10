@@ -17,9 +17,15 @@ fn main() {
         Command::Run(options) => {
             let restricted = folder::restrict_library_search();
             let own = folder::own_folder().map(|p| p.display().to_string()).unwrap_or_else(|| "?".into());
+            let mode = if options.fake {
+                "fake"
+            } else if cfg!(feature = "llama") {
+                "llama.cpp (processor)"
+            } else {
+                "no-model"
+            };
             eprintln!(
-                "humanity-ai {ENGINE_VERSION}: {} mode, protocol {}; libraries only from {own}{}",
-                if options.fake { "fake" } else { "no-model" },
+                "humanity-ai {ENGINE_VERSION}: {mode} mode, protocol {}; libraries only from {own}{}",
                 options.protocol,
                 if restricted { " and System32" } else { "" }
             );

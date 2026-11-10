@@ -78,7 +78,7 @@ fn running(c: &AiClient) -> bool {
 
 /// Load the fake's model and ask; the request's number.
 fn ask(c: &mut AiClient) -> u64 {
-    c.load("fake", "(fake)", "", ModelKind::Brain);
+    c.load("fake", "(fake)", "", ModelKind::Brain, 4096, 1);
     c.generate("fake", "You are the test persona.", "What is this place?", 64)
 }
 
@@ -150,7 +150,7 @@ fn the_engine_ends_with_the_app() {
 fn the_memory_cap_holds() {
     let mut c = client(&["--fake-load-mb", "300"]);
     c.config.memory_cap_mb = 64;
-    c.load("fake", "(fake)", "", ModelKind::Brain);
+    c.load("fake", "(fake)", "", ModelKind::Brain, 4096, 1);
     until(&mut c, "the refusal", |c| c.last_error.is_some());
     assert_eq!(c.last_error.as_ref().map(|(code, _)| *code), Some(ErrorCode::OutOfMemory));
     assert!(!c.is_loaded("fake"));
@@ -158,7 +158,7 @@ fn the_memory_cap_holds() {
 
     let mut roomy = client(&["--fake-load-mb", "300"]);
     roomy.config.memory_cap_mb = 1024;
-    roomy.load("fake", "(fake)", "", ModelKind::Brain);
+    roomy.load("fake", "(fake)", "", ModelKind::Brain, 4096, 1);
     until(&mut roomy, "the load", |c| c.is_loaded("fake"));
 }
 

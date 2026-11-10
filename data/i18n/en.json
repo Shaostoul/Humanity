@@ -2505,7 +2505,14 @@
       "answer": "Answer:",
       "waiting": "waiting...",
       "word_on": "on",
-      "word_off": "off"
+      "word_off": "off",
+      "brain": "Model:",
+      "brain_none": "No AI model is installed (Settings > AI). The test question needs one, or the fake engine above.",
+      "brain_checking": "Checking the model file against the catalog before it loads...",
+      "brain_ready": "{{model}}, checked against the catalog ({{sha}}...)",
+      "brain_mismatch": "The installed model does not match the catalog, so it was not loaded: {{detail}}",
+      "loaded": "Loaded:",
+      "loaded_value": "{{id}} (SHA-256 {{sha}}...), {{threads}} threads, a memory cap of {{cap}} MB"
     }
   },
   "dev_journal": {
@@ -4020,7 +4027,7 @@
     "none_installed": "No AI is installed. Everything in HumanityOS works without it.",
     "none_meaning": "[[AI]] in HumanityOS is optional. With nothing installed there is no [[AI model]] and no [[AI engine]] on this computer: characters speak their written lines, help comes from the help topics and the Library, the label checker takes typed words or a barcode, and nothing is read aloud.",
     "when_chosen": "When you choose AI here, you will see each part's size, maker and licence before anything downloads. It runs only on this computer, and nothing you say to it leaves your computer.",
-    "not_yet": "Nothing can be installed yet: the downloads come in a later version of HumanityOS. Until then this section shows what each choice will need and what this computer has.",
+    "not_yet": "Only some choices can be downloaded so far; the others come with later versions of HumanityOS, and each card below says which.",
     "engine_only": "The AI engine is installed (version {{version}}), but no AI model is, so nothing uses it yet.",
     "try_again": "Try again",
     "try_again_hint": "Starts the AI engine again and forgets the earlier failures.",
@@ -4104,7 +4111,8 @@
       "code": "(It ended with code {{code}}.)",
       "no_hello": "(It did not answer within {{secs}} seconds.)",
       "start_failed": "(It could not be started: {{detail}})",
-      "unknown": "(No reason was given.)"
+      "unknown": "(No reason was given.)",
+      "no_runtime": "(A part of Windows it needs, the Microsoft Visual C++ runtime, is missing. Installing Microsoft's \"Visual C++ Redistributable (x64)\" puts it back; then press Try again.)"
     },
     "fallback": {
       "crashed": "The AI engine stopped while answering.",
@@ -4130,9 +4138,78 @@
       "nav_hint": "Whether HumanityOS uses AI, and why the website offers none.",
       "optional": "AI is optional in HumanityOS, and everything works without it.",
       "here_title": "On the website",
-      "desktop_only": "The website offers no AI. Talking characters, the helper and the computer voice will be choices in the desktop app's Settings > AI, each a download of 1 to 5 GB that runs on your own computer: too much to load into a browser tab by default.",
+      "desktop_only": "The website offers no AI. Talking characters, the helper and the computer voice are choices in the desktop app's Settings > AI, each a download of 1 to 5 GB that runs on your own computer: too much to load into a browser tab by default. The first, Talking characters (Quick), can be downloaded there now; the others come with later versions.",
       "app_title": "In the desktop app",
-      "app_choose": "Nothing about AI is installed until you choose it there, and nothing you say to it leaves your computer. Its Settings > AI also shows what your computer has and what each choice will need."
+      "app_choose": "Nothing about AI is installed until you choose it there, and nothing you say to it leaves your computer. Its Settings > AI shows what your computer has, what each choice needs, and each download's size, maker and licence before it starts; Remove all AI takes it all away again."
+    },
+    "licence": {
+      "apache2": "Apache License 2.0",
+      "engine": "MIT (llama.cpp and ggml); its Rust parts MIT or Apache 2.0"
+    },
+    "installed_summary": "Installed on this computer: {{list}}.",
+    "installed_engine": "the [[AI engine]] {{version}} ({{size}})",
+    "installed_model": "{{model}} ({{size}})",
+    "catalog_error": "The list of AI downloads built into this app could not be read, so nothing can be downloaded: {{detail}}",
+    "card": {
+      "download_size": "Download: {{size}}.",
+      "download_size_engine": "Download: {{size}}, which includes the [[AI engine]] ({{engine}}), the program that runs it. The engine comes with your first AI model and goes with your last.",
+      "licence": "Licence: {{licence}}.",
+      "read_licence": "Read the licence",
+      "read_licence_hint": "Shows the licence's full text here, before anything downloads.",
+      "hide_licence": "Hide the licence",
+      "hide_licence_hint": "Folds the licence text away again.",
+      "licence_missing": "The licence text could not be read ({{detail}}).",
+      "source": "From the HumanityOS release page; the file is {{maker}}'s own, unchanged, and is checked against its published fingerprint.",
+      "get": "Get",
+      "get_hint": "Downloads this AI model from the HumanityOS release page, checks every byte against what was published, and installs it on this computer. Nothing downloads until you press it.",
+      "installed": "Installed ({{size}} on this computer).",
+      "remove": "Remove",
+      "remove_hint": "Deletes this AI model from this computer. Characters go back to their written lines at once. With the last model the AI engine goes too.",
+      "removed": "Removed.",
+      "remove_failed": "It could not all be deleted: {{detail}}",
+      "partial": "{{size}} of an earlier download is waiting: Get carries on from there.",
+      "busy": "Another download is running; this one can start when it ends.",
+      "not_yet": "Not downloadable yet: it comes with a later version of HumanityOS.",
+      "no_folder": "Downloads wait until you choose where HumanityOS keeps your files."
+    },
+    "download": {
+      "connecting": "Connecting to the HumanityOS release page...",
+      "downloading": "Downloading {{file}}: {{done}} of {{total}}",
+      "resumed": "Carrying on from {{from}} that had already arrived.",
+      "checking": "Checking {{file}} against what was published...",
+      "joining": "Joining the parts of {{file}} and checking the whole file...",
+      "installing": "Installing...",
+      "done": "Installed.",
+      "stop": "Stop",
+      "stop_hint": "Stops the download. What already arrived is kept, so Get carries on from there.",
+      "network": "The download could not finish. What arrived is kept: press Get to carry on.",
+      "damaged": "The download did not match what we published, so it was deleted. Try again later.",
+      "disk": "The file could not be saved on this computer.",
+      "bad_zip": "The AI engine's package could not be unpacked.",
+      "stopped": "Stopped. What arrived is kept: press Get to carry on.",
+      "detail": "Details: {{detail}}"
+    },
+    "remove_all": {
+      "title": "Remove all AI",
+      "intro": "Deletes the AI folder, with every AI model, the AI engine and any unfinished download in it, so no AI is left on this computer.",
+      "button": "Remove all AI",
+      "hint": "Shows exactly what would be deleted first, and deletes nothing until you confirm.",
+      "confirm_title": "This deletes, from this computer:",
+      "item": "{{name}}: {{size}}",
+      "engine_item": "The AI engine {{version}}: {{size}}",
+      "partial_item": "Unfinished downloads: {{size}}",
+      "folder": "The whole folder {{folder}}.",
+      "warning": "This cannot be undone. You can download them again later.",
+      "yes": "Delete it all",
+      "yes_hint": "Deletes the AI folder now. Everything that used AI goes back to its non-AI way at once.",
+      "cancel": "Keep it",
+      "cancel_hint": "Closes this without deleting anything.",
+      "done": "All AI was removed from this computer.",
+      "failed": "Some of it could not be deleted: {{detail}}"
+    },
+    "size": {
+      "mb": "{{n}} MB",
+      "gb": "{{n}} GB"
     }
   }
 }

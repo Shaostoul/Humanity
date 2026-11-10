@@ -346,9 +346,35 @@ impl AiClient {
         }
     }
 
-    /// Load a model the app has checked (rung 2 checks it against the catalog first).
-    pub fn load(&mut self, id: &str, path: &str, sha256: &str, kind: ModelKind) {
-        self.send_when_ready(AppMessage::Load { id: id.into(), path: path.into(), sha256: sha256.into(), kind, context: 4096, threads: 1, device: Device::Cpu });
+    /// Load a model the app has checked against the catalog (src/ai/models.rs), with a working memory of
+    /// `context` tokens and `threads` threads (9.2), on the processor.
+    pub fn load(&mut self, id: &str, path: &str, sha256: &str, kind: ModelKind, context: u32, threads: u32) {
+        self.send_when_ready(AppMessage::Load { id: id.into(), path: path.into(), sha256: sha256.into(), kind, context, threads, device: Device::Cpu });
+    }
+
+    /// Change the job object's memory cap, MB (9.1): raised to a model's need plus a margin BEFORE its
+    /// load, so the load fits; kept for the next start too. Takes effect at once on a running engine.
+    pub fn set_memory_cap(&mut self, mb: u64) {
+        self.config.memory_cap_mb = mb;
+        #[cfg(windows)]
+        if let Some(job) = self.process.as_ref().and_then(|p| p.job.as_ref()) {
+            if let Err(e) = job.set_limits(mb) {
+                log::warn!("[AI] could not change the engine's memory cap to {mb} MB: {e}");
+            }
+        }
+    }
+
+    /// End the engine now and wait for it to be gone (Remove needs its files closed: Windows keeps a
+    /// running program's files and a loaded model's file open). Not a failure; every request it held
+    /// falls back.
+    pub fn shutdown_now(&mut self) {
+        let held: Vec<u64> = std::mem::take(&mut self.in_flight).into_keys().collect();
+        for r in held {
+            self.fall_back(r, Fallback::Cancelled);
+        }
+        self.queued.clear();
+        self.end_process();
+        self.state = if self.engine.is_some() { State::Stopped } else { State::NotFound };
     }
 
     /// Ask a brain for a reply. Returns the request's number; its [`Outcome`] arrives through

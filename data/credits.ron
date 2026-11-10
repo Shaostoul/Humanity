@@ -239,5 +239,54 @@
             attribution_required: false,
             shown_in: ["Credits"],
         ),
+        // The AI engine's runtime (embeddable AI rung 2, 2026-11-09; docs/design/embeddable-ai.md).
+        // NOT inside HumanityOS: it is in the separate AI engine a person downloads only by choosing
+        // AI in Settings > AI (data/ai/catalog.ron names these rows; scripts/check-ai-catalog.js
+        // refuses a catalog entry without its row). MIT's condition is that "the above copyright
+        // notice and this permission notice shall be included in all copies or substantial portions
+        // of the Software": the engine's zip carries llama.cpp's LICENSE in licenses/, and Settings >
+        // AI shows the full text before the download. Finding:
+        // docs/reference/findings/2026-11-09-model-runtime.md (F2).
+        (
+            id: "llama_cpp",
+            name: "llama.cpp and ggml",
+            used_for: "Running the AI models a person chooses (talking characters), on their own computer's processor, inside the separate AI engine HumanityOS builds from pinned source; never inside the app itself.",
+            licence: "MIT",
+            notice: "llama.cpp and ggml, Copyright (c) 2023-2026 The ggml authors, MIT License",
+            url: "https://github.com/ggml-org/llama.cpp",
+            attribution_required: true,
+            shown_in: ["Credits", "Settings > AI (the engine's licence, before the download)", "The AI engine's folder (licenses/llama.cpp-LICENSE.txt)"],
+        ),
+        // Where the engine's llama.cpp source comes from: the crate llama-cpp-sys-2 0.1.161
+        // (crates.io checksum e9bea77f...b39b; utilityai/llama-cpp-rs commit e7af607e), pinned by
+        // crates/humanity-ai-engine/llama-src/Cargo.toml. None of the crate's own code is compiled
+        // into the engine (its bindings need libclang to build; the engine talks to llama.cpp
+        // through its own src/llama/shim.c), so nothing is owed; credited by the house rule.
+        (
+            id: "llama_cpp_rs",
+            name: "llama-cpp-rs (llama-cpp-sys-2)",
+            used_for: "The pinned copy of llama.cpp's source the AI engine is built from (llama-cpp-sys-2 0.1.161, as published on crates.io).",
+            licence: "MIT OR Apache-2.0",
+            notice: "llama.cpp source as packaged by llama-cpp-rs (utilityai, MIT OR Apache-2.0)",
+            url: "https://github.com/utilityai/llama-cpp-rs",
+            attribution_required: false,
+            shown_in: ["Credits"],
+        ),
+        // The first AI model (embeddable AI rung 2, 2026-11-09): IBM's own GGUF, unmodified, served
+        // from the project's `assets-ai-1` release and downloaded only when a person chooses it.
+        // Apache 2.0 section 4(a) asks that recipients get the licence: it travels beside the file
+        // (LICENSE.txt in the model's folder) with the credit README the finding wrote, and Settings
+        // > AI shows the text before the download. No NOTICE file exists upstream (the finding, F5).
+        // Finding: docs/reference/findings/2026-11-08-granite-4-0-1b.md (and its 2026-11-09 addendum).
+        (
+            id: "granite_4_0_1b",
+            name: "Granite 4.0 1B (IBM)",
+            used_for: "The AI model behind talking characters (Quick) for computers with about 8 GB of memory, when a person chooses it in Settings > AI (granite-4.0-1b-Q4_K_M.gguf, IBM's own file, unmodified). IBM publishes the datasets that trained it.",
+            licence: "Apache 2.0",
+            notice: "Granite 4.0 1B by IBM, Apache License 2.0; unmodified. Training data disclosure: github.com/ibm-granite/granite-4.0-nano-language-models",
+            url: "https://huggingface.co/ibm-granite/granite-4.0-1b-GGUF",
+            attribution_required: true,
+            shown_in: ["Credits", "Settings > AI (the model's card, before the download)", "The model's folder (LICENSE.txt and README.md)"],
+        ),
     ],
 )

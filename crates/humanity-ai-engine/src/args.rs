@@ -20,11 +20,14 @@ pub struct Options {
     /// `--fake-exit-on <type>`: exit at once, with code 3, when a message of this type arrives (a
     /// crash, for the client's crash handling).
     pub exit_on: Option<String>,
+    /// `--llama-log`: pass every line llama.cpp logs to standard error (the app's log), not only its
+    /// warnings and errors; for a developer chasing a failure (rung 2).
+    pub llama_log: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { fake: false, ms_prefill: 150, ms_per_token: 25, load_mb: 0, protocol: humanity_ai_protocol::PROTOCOL, exit_on: None }
+        Options { fake: false, ms_prefill: 150, ms_per_token: 25, load_mb: 0, protocol: humanity_ai_protocol::PROTOCOL, exit_on: None, llama_log: false }
     }
 }
 
@@ -54,6 +57,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
             "--fake-load-mb" => o.load_mb = number("--fake-load-mb")?,
             "--fake-protocol" => o.protocol = u32::try_from(number("--fake-protocol")?).map_err(|_| "--fake-protocol is too large".to_string())?,
             "--fake-exit-on" => o.exit_on = Some(it.next().ok_or("--fake-exit-on needs a message type")?),
+            "--llama-log" => o.llama_log = true,
             other => return Err(format!("unknown argument {other:?}")),
         }
     }

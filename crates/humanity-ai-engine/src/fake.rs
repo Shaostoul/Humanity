@@ -14,11 +14,11 @@
 //! The lines are test output, like a model's, and never shown to a person as the app's own words.
 
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use humanity_ai_protocol::{EngineMessage, ErrorCode, LoadedModel, ModelKind};
 
-use crate::run::{Engine, Flow, Incoming};
+use crate::run::{pause, Engine, Flow, Incoming};
 
 /// The scripted replies, one per turn count, round and round.
 pub const LINES: &[&str] = &[
@@ -53,33 +53,6 @@ pub(crate) fn load<W: std::io::Write>(e: &mut Engine<W>, id: String, kind: Model
     e.loaded.retain(|(m, _)| m.id != id);
     e.loaded.push((LoadedModel { id: id.clone(), kind, memory_mb: mb }, block));
     e.send(&EngineMessage::Loaded { id, memory_mb: mb });
-}
-
-/// Sleep `ms`, answering a `cancel` of `request` (true: stop the reply) or a `status` meanwhile; everything else
-/// waits in `pending`, the end of the input too: the reply in hand finishes (its words go nowhere if the
-/// app is gone, and the job object ends the engine with the app anyway), then the loop reads the end.
-fn pause<W: std::io::Write>(e: &mut Engine<W>, rx: &mpsc::Receiver<Incoming>, request: u64, ms: u64) -> bool {
-    let until = Instant::now() + Duration::from_millis(ms);
-    loop {
-        let left = until.saturating_duration_since(Instant::now());
-        if e.input_ended {
-            std::thread::sleep(left);
-            return false;
-        }
-        match rx.recv_timeout(left) {
-            Ok(Incoming::Line(l)) => match humanity_ai_protocol::decode_app(&l) {
-                Ok(humanity_ai_protocol::AppMessage::Cancel { request: r }) if r == request => return true,
-                Ok(humanity_ai_protocol::AppMessage::Status) => e.send_status(),
-                _ => e.pending.push_back(Incoming::Line(l)),
-            },
-            Ok(Incoming::End) | Err(mpsc::RecvTimeoutError::Disconnected) => {
-                e.input_ended = true;
-                e.pending.push_back(Incoming::End);
-            }
-            Ok(other) => e.pending.push_back(other),
-            Err(mpsc::RecvTimeoutError::Timeout) => return false,
-        }
-    }
 }
 
 fn cancelled<W: std::io::Write>(e: &mut Engine<W>, request: u64) -> Flow {

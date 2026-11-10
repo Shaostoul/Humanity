@@ -478,22 +478,25 @@ instrument-packs *args:
 
 # The AI engine, humanity-ai.exe (docs/design/embeddable-ai.md, section 7.1; docs/crates/humanity-ai-engine.md):
 # a program of its own that HumanityOS.exe never depends on, with its own [workspace] and Cargo.lock, so
-# no build of the app (and not `just verify`) ever builds it. Rung 1 (2026-11-09) holds no model and no
-# runtime: `--fake` answers with scripted lines, which Dev > AI and the client tests drive.
-#   just ai-engine           build target/ai-engine/release/humanity-ai.exe (Dev > AI finds it there)
-#   just ai-engine test      run the engine's own tests
-#   just ai-engine check     type-check it, warnings as errors
-# The app's client tests (src/ai/client_tests.rs, in `just test-lib`) build the debug copy themselves.
+# no build of the app (and not `just verify`) ever builds it. Rung 2 (2026-11-09) builds llama.cpp into
+# it (CPU, the `llama` feature) from the pinned source in crates/humanity-ai-engine/llama-src/, with the
+# CMake inside Visual Studio's Build Tools when none is on PATH (scripts/ai-engine.js says how).
+#   just ai-engine           build target/ai-engine/release/humanity-ai.exe, the real engine (Dev > AI finds it)
+#   just ai-engine test      its tests: pure Rust, then llama (a real model if one is on this PC, else SKIPPED)
+#   just ai-engine check     type-check both builds, warnings as errors (budget 0)
+#   just ai-engine package   the zip assets-ai-1 carries, with its licences; SHA-256 and size in target/ai-engine/package/engine.json
+# The app's client tests (src/ai/client_tests.rs, in `just test-lib`) build the pure-Rust debug copy themselves.
 ai-engine mode="build":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    m=(--manifest-path crates/humanity-ai-engine/Cargo.toml --target-dir target/ai-engine)
-    case "{{mode}}" in
-      build) cargo build --release "${m[@]}" && echo "Built target/ai-engine/release/humanity-ai.exe" ;;
-      test) cargo test "${m[@]}" ;;
-      check) out=$(cargo check --all-targets --message-format short "${m[@]}" 2>&1) || { echo "$out"; exit 1; }; echo "$out"; if grep -q "warning:" <<<"$out"; then echo "FAILED: the engine has warnings (budget 0)"; exit 1; fi ;;
-      *) echo "just ai-engine: build, test or check, not '{{mode}}'"; exit 2 ;;
-    esac
+    node scripts/ai-engine.js {{mode}}
+
+# The AI catalog the app compiles in (docs/design/embeddable-ai.md 6.2): data/ai/catalog.ron, written
+# from scripts/ai-catalog-recipe.json with every file's size and SHA-256 (the engine zip from `just
+# ai-engine package`, each model from its source, refused unless it hashes to its publisher's). Never
+# edit the catalog by hand. `just ai-catalog --stage <folder>` also fills <folder> with exactly what the
+# assets-ai-1 release carries and writes the `gh release create` command beside it (the top-level
+# session uploads, never a dispatched agent). scripts/check-ai-catalog.js (in preflight) checks it.
+ai-catalog *args:
+    node scripts/ai-catalog.js {{args}}
 
 # Build whole-Earth map packs (docs/design/whole-earth-maps.md 8.2, rung 2): our own Rust builder
 # reads the OSM extract, GEDTM30 and WorldCover on E:\HumanityOS\maps-src and ETOPO from
@@ -1225,6 +1228,7 @@ preflight:
     node scripts/check-library-render.js
     node scripts/check-library-counts.js
     node scripts/check-schema-paths.js
+    node scripts/check-ai-catalog.js
     node scripts/check-library-quotes.js
     node --test scripts/tests/check-library-quotes.test.js
     node scripts/check-web-sites.js

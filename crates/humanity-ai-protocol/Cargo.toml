@@ -7,7 +7,13 @@
 # never talks to an AI engine and never learns that a person has one (the design, 8.1).
 [package]
 name = "humanity-ai-protocol"
-version.workspace = true
+# A version of its OWN, not the app's (rung 2, 2026-11-09). The AI engine compiles this crate too, and a
+# crate's version feeds the hash in every symbol rustc writes: with `version.workspace = true` each app
+# release changed the engine program's bytes (measured: 0.1553.0 -> 0.1599.0 turned humanity-ai.exe's
+# SHA-256 from d1c00b18... to 6cc2c253...) and the engine's own Cargo.lock, so the published engine zip
+# could not be rebuilt from a later tree byte for byte, and the catalog's hash of it would go stale with
+# every release. The messages' own version is PROTOCOL in src/lib.rs; raise this with it.
+version = "1.0.0"
 edition.workspace = true
 publish = false
 # Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.

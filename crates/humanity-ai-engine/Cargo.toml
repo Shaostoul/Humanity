@@ -6,8 +6,9 @@
 #
 # RUNG 1 (2026-11-09): a skeleton with no model and no runtime. `--fake` answers with scripted lines and
 # timing, so every screen, fallback and notice is tested without any model (12.1); without `--fake` it
-# says hello with no backends and refuses every model request in words. Rung 2 adds llama.cpp, rung 5
-# audio.cpp (Pocket TTS only), rung 8 tract.
+# says hello with no backends and refuses every model request in words. RUNG 2 (2026-11-09) adds
+# llama.cpp behind the `llama` feature below (Granite 4.0 1B is the first model); rung 5 adds audio.cpp
+# (Pocket TTS only), rung 8 tract.
 #
 # NOT A MEMBER OF THE APP'S WORKSPACE, on purpose (the root Cargo.toml lists it in `exclude`; this file
 # has its own [workspace] table and its own Cargo.lock):
@@ -39,6 +40,23 @@ path = "src/main.rs"
 [dependencies]
 humanity-ai-protocol = { path = "../humanity-ai-protocol" }
 serde_json = "1"
+
+# RUNG 2 (2026-11-09): `llama` adds llama.cpp, the brains' runtime (7.1), CPU only in this rung.
+# NOT a default feature, on purpose: the app's client tests (src/ai/client_tests.rs) build this crate's
+# debug copy with plain `cargo build` for its `--fake` mode, and that build must never need CMake or a
+# C++ compiler (rung 1's lesson). `just ai-engine` (build, package) and the second half of `just
+# ai-engine test` turn it on; scripts/ai-engine.js finds the pinned llama.cpp source (llama-src/) and
+# CMake for them.
+[features]
+default = []
+llama = ["dep:cmake", "dep:cc"]
+
+# Only the `llama` feature's build script uses these: CMake builds llama.cpp, cc compiles the engine's
+# small C door into it (src/llama/shim.c). Pinned exactly so a rebuild of the same engine version
+# compiles the same way (7.4). Neither ends up in the program.
+[build-dependencies]
+cmake = { version = "=0.1.58", optional = true }
+cc = { version = "=1.11.1", optional = true }
 
 # Its own workspace: see the top of this file.
 [workspace]

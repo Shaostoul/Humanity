@@ -213,6 +213,46 @@ and its 2026-11-09 addendum.
 
 Neither asks for anything in return; both are credited in Settings > Credits.
 
+## The AI downloads (llama.cpp and Granite 4.0 1B) - never inside the app
+
+AI is optional in HumanityOS (the operator, 2026-11-09: "AI needs to be optional, not
+required"), so none of what follows ships with the app. It is downloaded only when a
+person chooses AI in Settings > AI, from the project's own `assets-ai-1` release, and
+checked against the SHA-256 of each file compiled into the app (`data/ai/catalog.ron`).
+Remove all AI deletes it again. The design: `docs/design/embeddable-ai.md`.
+
+**The AI engine** (`humanity-ai-engine-v1-windows-x64.zip`, unpacked into
+`ai/engine/<version>/`) is built by the project from pinned source and contains
+**llama.cpp and ggml** (<https://github.com/ggml-org/llama.cpp>), **MIT License**,
+"Copyright (c) 2023-2026 The ggml authors". MIT asks that the copyright notice and the
+permission notice travel with every copy: the zip carries llama.cpp's `LICENSE` as
+`licenses/llama.cpp-LICENSE.txt`, and Settings > AI shows the same text
+(`data/ai/licences/llama.cpp-mit.txt`) before the download. The llama.cpp source is the
+`llama.cpp/` folder of the crate **llama-cpp-sys-2** 0.1.161 from the **llama-cpp-rs**
+project (<https://github.com/utilityai/llama-cpp-rs>, MIT OR Apache-2.0; crates.io
+checksum `e9bea77fde41bbc15a278891cd5edd2ba07c5260d162614b41080ba1f100b39b`, commit
+`e7af607e`), pinned by `crates/humanity-ai-engine/llama-src/Cargo.toml`; none of that
+crate's own code is compiled in. The engine's Rust parts (serde, serde_json, itoa,
+memchr, zmij: MIT or Apache 2.0, memchr also Unlicense) carry their licence files in
+the same `licenses/` folder. The research: `docs/reference/findings/2026-11-09-model-runtime.md`.
+
+**Granite 4.0 1B** (`granite-4.0-1b-Q4_K_M.gguf`, installed into
+`ai/models/granite-4-0-1b/`) is **IBM**'s own GGUF
+(<https://huggingface.co/ibm-granite/granite-4.0-1b-GGUF>), unmodified, licensed under
+the **Apache License 2.0** (<https://www.apache.org/licenses/LICENSE-2.0>). Its SHA-256,
+`22ec0f9cc99a90185312de3c882c84e7bd6789bdd050389844380a01a831d7f1`, is IBM's own (the
+Hugging Face storage id), so anyone can compare the project's copy with IBM's. As
+Apache 2.0 section 4(a) asks, the licence text travels beside the file (`LICENSE.txt`,
+apache.org's text) with a short credit `README.md`; IBM publishes no NOTICE file. IBM
+publishes the datasets that trained it:
+<https://github.com/ibm-granite/granite-4.0-nano-language-models/tree/main/disclosures>.
+The research, quoted and dated: `docs/reference/findings/2026-11-08-granite-4-0-1b.md`
+and its 2026-11-09 addendum.
+
+Redistributing these files means keeping their licence texts with them; both licences
+also disclaim every warranty, and the AI tag on every line a model writes (rung 3)
+says that a model, not a person, wrote it.
+
 ## The project's own code
 
 HumanityOS source is licensed as stated in the repository root. These

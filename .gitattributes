@@ -65,3 +65,7 @@ assets/models/LICENSE-nvidia-simready.md -text
 # exact bytes. A line-ending rewrite on a Windows checkout would break all three.
 assets/models/characters/makehuman/** -text
 assets/models/characters/quaternius_ual/** -text
+# The AI licence texts (embeddable AI rung 2, 2026-11-09): data/ai/catalog.ron compiles in the SHA-256 of
+# each licence file a model downloads with (scripts/check-ai-catalog.js compares them), and the
+# Apache 2.0 text must stay apache.org's exact bytes. A line-ending rewrite would break both.
+data/ai/licences/** -text

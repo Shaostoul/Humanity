@@ -17,7 +17,7 @@ same types, and because it is all of AI a person who never chooses AI has in the
 - **Size:** 453 lines in 2 files, 124 of them in 1 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): none.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): ai-engine, gui, engine. **Used today by:** ai-engine 19, gui 14.
+- **May be used by** (the plan): ai-engine, gui, engine. **Used today by:** ai-engine 25, gui 14.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 4 tests, and this runs exactly them, checked against every test's name:
 
@@ -29,20 +29,20 @@ just test-lib --crate humanity-ai-protocol
 
 | Item | References | From |
 |---|---:|---|
-| `AppMessage` | 4 | ai-engine 3, gui 1 |
-| `EngineMessage` | 4 | ai-engine 2, gui 2 |
-| `ErrorCode` | 3 | ai-engine 2, gui 1 |
-| `ModelKind` | 3 | gui 2, ai-engine 1 |
+| `EngineMessage` | 5 | ai-engine 3, gui 2 |
+| `ErrorCode` | 4 | ai-engine 3, gui 1 |
+| `ModelKind` | 4 | ai-engine 2, gui 2 |
+| `LoadedModel` | 3 | ai-engine 3 |
 | `PROTOCOL` | 3 | ai-engine 3 |
-| `LoadedModel` | 2 | ai-engine 2 |
+| `Turn` | 3 | ai-engine 2, gui 1 |
+| `AppMessage` | 2 | ai-engine 1, gui 1 |
+| `Backend` | 2 | ai-engine 1, gui 1 |
+| `Device` | 2 | ai-engine 1, gui 1 |
 | `MAX_LINE_BYTES` | 2 | ai-engine 1, gui 1 |
 | `ProtocolError` | 2 | ai-engine 1, gui 1 |
-| `decode_app` | 2 | ai-engine 2 |
-| `Backend` | 1 | gui 1 |
+| `Role` | 2 | ai-engine 1, gui 1 |
 | `Counters` | 1 | ai-engine 1 |
-| `Device` | 1 | gui 1 |
-| `Role` | 1 | gui 1 |
-| `Turn` | 1 | gui 1 |
+| `decode_app` | 1 | ai-engine 1 |
 | `decode_engine` | 1 | gui 1 |
 
 And 2 more items, 2 references (`node scripts/crate-cards.js --interface humanity-ai-protocol` lists them all).
@@ -78,9 +78,11 @@ And 2 more items, 2 references (`node scripts/crate-cards.js --interface humanit
 
 ## Open work
 
-- **Rung 2** (the design, section 14): `load` raises the job object's memory cap to the model's need
-  from the catalog; the catalog itself (`data/ai/catalog.ron`, compiled in) names the model ids these
-  messages carry.
+- **Rung 2** (built 2026-11-09) needed no change here: the app raises the job object's memory cap
+  (`AiClient::set_memory_cap`) to the model's need plus a margin before it sends `load`; `load`'s
+  `threads` and `context` now carry real values (9.2's brain threads, the catalog's context); `status`'s
+  `memory_mb` is the engine's committed memory read from the system; `generate`'s `grammar` is a GBNF
+  grammar llama.cpp applies. The catalog (`data/ai/catalog.ron`, compiled in) names the model ids.
 - **Rungs 3, 5 and 8** fill `generate` (the fixed output shape in `grammar`), `speak` and
   `read_image` with real runtimes; their shapes are here from rung 1 and may change with `PROTOCOL`.
 

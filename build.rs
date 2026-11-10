@@ -96,6 +96,10 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     // The channels every server makes for itself (src/relay/default_channels.rs, 2026-11-02):
     // built in for the same reason, so a server makes the set its build was made with.
     "data/server/default_channels.json",
+    // The AI catalog (src/ai/catalog.rs, embeddable AI rung 2, 2026-11-09): compiled in on purpose
+    // and never read from the data folder, so the signed release vouches for every hash of the AI
+    // files it may download and a mod cannot point it at another model.
+    "data/ai/catalog.ron",
 ];
 
 fn main() {

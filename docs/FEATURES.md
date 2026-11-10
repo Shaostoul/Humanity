@@ -3022,6 +3022,46 @@ memory so every notice can be seen. No downloads yet (rung 2).
 - Snapshots: `just snapshot settings_ai`, `settings_ai_low_memory`, `dev_ai`
 - Web: Settings > AI in `web/pages/settings.html` says AI is optional and desktop-only, and why
 
+### Embeddable AI, rung 2: the catalog, downloads, checks and removal; llama.cpp and Granite 4.0 1B (2026-11-09)
+AI a person can actually choose, download, use and remove (`docs/design/embeddable-ai.md`, section 14
+item 2). The engine gains llama.cpp behind its `llama` cargo feature (CPU only; one
+`ggml-cpu-<level>.dll` per processor generation, the best chosen at start; built from the pinned
+llama.cpp source of the crate llama-cpp-sys-2 0.1.161 through the engine's own C door, `shim.c`, with
+the CMake inside Visual Studio's Build Tools): load, a reply streamed in whole characters with cancel,
+max_tokens and an optional GBNF grammar, unload, a status with its real committed memory, prompt reuse
+that obeys the reuse switch. `just ai-engine package` makes the stored, licensed zip
+(`humanity-ai-engine-v1-windows-x64.zip`). The app compiles in `data/ai/catalog.ron` (written by
+`just ai-catalog` from its recipe: every file's size and SHA-256, Granite's equal to IBM's own; files of
+2 GiB or more in parts), and Settings > AI shows, before anything downloads, each downloadable model's
+size (the engine's added the first time: it comes with the first model and goes with the last), source
+and licence (its full text opens on the card); Get downloads in the background with progress, Stop
+keeps what arrived and Get carries on with an HTTP Range request, every file is checked (a mismatch is
+deleted and said in plain words), parts are joined and checked whole, the engine is unpacked from its
+checked zip; Remove deletes a model (the engine with the last), Remove all AI lists exactly what goes
+and that it cannot be undone, then deletes the `ai` folder. Dev > AI's "Send a test question" goes to
+the installed engine and Granite (checked byte for byte before its load, the job object's cap raised to
+its need plus 512 MB, 4 threads on a 6-core PC) and streams Granite's answer.
+- Native: `src/ai/` (`catalog.rs`, `install.rs`, `models.rs`, `zip.rs`; `client.rs` gains
+  `set_memory_cap`, `shutdown_now`, a real `load`), `src/gui/pages/settings/ai.rs`, `src/gui/pages/dev_ai.rs`
+- Engine: `crates/humanity-ai-engine/` (`build.rs`, `src/llama/` with `shim.c`, `src/real.rs`,
+  `src/text.rs`, `src/memory.rs`; `llama-src/` pins the llama.cpp source), `scripts/ai-engine.js`
+  (`just ai-engine build|test|check|package|measure`)
+- Data: `data/ai/catalog.ron` (generated), `data/ai/licences/` (apache-2.0.txt, llama.cpp-mit.txt),
+  `data/credits.ron` (llama_cpp, llama_cpp_rs, granite_4_0_1b), `data/i18n/en.json` (`ai.card.*`,
+  `ai.download.*`, `ai.remove_all.*`, `ai.licence.*`, `dev.ai.brain*`, `dev.ai.loaded*`)
+- Scripts: `scripts/ai-catalog.js` + `scripts/ai-catalog-recipe.json` (`just ai-catalog [--stage DIR]`),
+  `scripts/check-ai-catalog.js` (in `just preflight`), `scripts/serve-ai-files.js` (a loopback server
+  with Range, for trying downloads before an upload; with `HUMANITY_AI_CATALOG` and
+  `just ai-catalog --print --base-url http://127.0.0.1:<port>/`)
+- Tests: `src/ai/install_tests.rs` (the built-in catalog; its rules; install, resume with Range,
+  refusal and deletion of a mismatch, parts joined and checked whole, Remove and Remove all leaving
+  nothing, the zip read strictly, brain threads; and the ignored `granite_through_the_app_end_to_end`),
+  the engine's llama tests (`just ai-engine test`), `scripts/check-ai-catalog.js`
+- Snapshots: `just snapshot settings_ai` (Granite not installed, its licence open),
+  `settings_ai_installed` (installed, Remove all AI's confirmation)
+- Release files: the `assets-ai-1` release (the top-level session uploads; `just ai-catalog --stage`
+  prepares exactly its files and the `gh release create ... --latest=false` command)
+
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
 - Native: `crates/humanity-core/src/ecs/systems.rs`, `crates/humanity-core/src/ecs/components.rs`

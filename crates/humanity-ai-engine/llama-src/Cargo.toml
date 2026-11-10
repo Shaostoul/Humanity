@@ -1,0 +1,33 @@
+# The pinned llama.cpp source the AI engine builds (docs/design/embeddable-ai.md, 7.1; rung 2,
+# 2026-11-09). NOTHING BUILDS THIS PACKAGE. It exists so cargo fetches one exact crate,
+# `llama-cpp-sys-2` 0.1.161, and holds its checksum in the Cargo.lock beside this file: that crate
+# carries llama.cpp's own source tree (its `llama.cpp/` folder, with llama.cpp's MIT LICENSE), and
+# `just ai-engine` reads where cargo unpacked it with `cargo metadata` and hands that folder to the
+# engine's build script as HUMANITY_LLAMA_SRC (scripts/ai-engine.js).
+#
+# Why not use the binding crates themselves (`llama-cpp-2` and its `llama-cpp-sys-2`): their build
+# script runs bindgen, which needs libclang (LLVM), and the operator's PC has none (searched on C:,
+# D: and E:, 2026-11-09); installing LLVM is a download beyond crates, which rung 2 did not have. So
+# the engine compiles llama.cpp with CMake and talks to it through a small C file of its own
+# (crates/humanity-ai-engine/src/llama/shim.c) with plain integers and pointers only, so the C
+# compiler, never a hand copy of llama.h's structs, decides every layout. The source is the same
+# pinned tree either way.
+#
+# Its own [workspace] keeps it out of the engine's workspace; the root Cargo.toml excludes
+# crates/humanity-ai-engine, and with it this folder.
+[package]
+name = "humanity-ai-llama-src"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+# Exactly this version: its llama.cpp tree is the engine's llama.cpp. Bump it on purpose, never by
+# accident (7.4: a new engine arrives only with an app release that names it). No feature of it is
+# used, since nothing builds it.
+llama-cpp-sys-2 = { version = "=0.1.161", default-features = false }
+
+[workspace]

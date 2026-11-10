@@ -180,9 +180,23 @@ fn disk_free_mb(folder: &Path) -> Option<u64> {
     Some(free / (1024 * 1024))
 }
 
-#[cfg(not(windows))]
+/// Free space on Linux and macOS (rung 2, with the downloads): `statvfs`, the blocks available to a
+/// person who is not the administrator times their size.
+#[cfg(unix)]
+fn disk_free_mb(folder: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(folder.as_os_str().as_bytes()).ok()?;
+    // SAFETY: statvfs is a plain C struct of integers, for which all zeroes is a valid value.
+    let mut s: libc::statvfs = unsafe { std::mem::zeroed() };
+    // SAFETY: a NUL-terminated path and a zeroed struct the call fills.
+    if unsafe { libc::statvfs(path.as_ptr(), &mut s) } != 0 {
+        return None;
+    }
+    Some((s.f_bavail as u64).saturating_mul(s.f_frsize as u64) / (1024 * 1024))
+}
+
+#[cfg(not(any(windows, unix)))]
 fn disk_free_mb(_folder: &Path) -> Option<u64> {
-    // Rung 2, with the downloads, reads it on the other systems (statvfs); rung 1 only shows it.
     None
 }
 

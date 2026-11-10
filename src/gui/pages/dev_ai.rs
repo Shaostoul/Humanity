@@ -13,8 +13,12 @@
 //! - **"pretend this PC has {n} GB free"**, so Settings > AI shows every memory notice;
 //! - **this session's last questions and answers**, kept in memory only and gone when the app closes.
 //!
-//! Loaded models with their hashes, the voice's real-time factor and the filter's counts come with the
-//! rungs that bring them (2, 5, 3).
+//! Rung 2 (2026-11-09) adds the real line: with the fake engine switched off, "Send a test question"
+//! goes to the INSTALLED engine and model (Settings > AI): the model file checked byte for byte against
+//! the catalog first (on a thread, src/ai/models.rs), the job object's memory cap raised to the model's
+//! need plus a margin, the load with this computer's brain threads (9.2), then the question, whose answer
+//! streams in word by word; and a "Loaded" row naming each model with its hash, threads and cap. The
+//! voice's real-time factor and the filter's counts come with rungs 5 and 3.
 
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -23,8 +27,9 @@ use egui::RichText;
 use humanity_core::i18n::{t, tf};
 use humanity_ai_protocol::{EngineMessage, ModelKind};
 
-use crate::ai::client::{Outcome, State};
-use crate::ai::{hardware, paths, shared};
+use crate::ai::client::{AiClient, Outcome, State};
+use crate::ai::models::{self, Prepared};
+use crate::ai::{catalog, hardware, install, paths, shared};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Button};
 use crate::gui::GuiState;
@@ -38,9 +43,15 @@ struct DevAi {
     pretend_gb: f32,
     /// (request, question, answer or why it fell back), newest last.
     log: VecDeque<(u64, String, String)>,
+    /// A test question waiting for the installed model's check to finish.
+    pending: bool,
+    /// What the real model was loaded with: (id, SHA-256, threads, memory cap MB).
+    loaded: Option<(String, String, u32, u64)>,
+    /// The last words about the installed model (checking, a mismatch, none installed).
+    brain_note: Option<String>,
 }
 
-static DEV: Mutex<DevAi> = Mutex::new(DevAi { pretend_on: false, pretend_gb: 2.0, log: VecDeque::new() });
+static DEV: Mutex<DevAi> = Mutex::new(DevAi { pretend_on: false, pretend_gb: 2.0, log: VecDeque::new(), pending: false, loaded: None, brain_note: None });
 
 /// How many exchanges the part keeps.
 const LOG_LEN: usize = 6;
@@ -157,6 +168,19 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if let Some((code, detail)) = &c.last_error {
             row(ui, theme, t("dev.ai.last_error"), format!("{} ({detail})", humanity_core::i18n::t_dyn(code.words_key())));
         }
+        // The installed model (rung 2): checked, loaded with its hash, threads and cap.
+        if !fake {
+            let (note, loaded) = {
+                let dev = DEV.lock().unwrap_or_else(|p| p.into_inner());
+                (dev.brain_note.clone(), dev.loaded.clone())
+            };
+            if let Some(note) = note {
+                row(ui, theme, t("dev.ai.brain"), note);
+            }
+            if let Some((id, sha, threads, cap)) = loaded.filter(|(id, ..)| c.is_loaded(id)) {
+                row(ui, theme, t("dev.ai.loaded"), tf("dev.ai.loaded_value", &[("id", &id), ("sha", &&sha[..12.min(sha.len())]), ("threads", &threads), ("cap", &cap)]));
+            }
+        }
         if let Some(EngineMessage::Status { counters, reuse, loaded, .. }) = &c.last_status {
             let models = loaded.iter().map(|m| format!("{} {} MB", m.id, m.memory_mb)).collect::<Vec<_>>().join(", ");
             row(ui, theme, t("dev.ai.status_label"), tf("dev.ai.status_value", &[("requests", &counters.requests), ("tokens", &counters.tokens), ("cancelled", &counters.cancelled), ("errors", &counters.errors), ("reuse", &if *reuse { t("dev.ai.word_on") } else { t("dev.ai.word_off") }), ("models", &models)]));
@@ -173,7 +197,7 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 started = true;
             }
             if Button::secondary(t("dev.ai.ask")).hint("dev.ai.ask_hint").disabled(c.engine_path().is_none()).show(ui, theme) {
-                ask_test_question(&mut c);
+                let _ = ask_test_question(&mut c);
                 started = true;
             }
             if Button::secondary(t("dev.ai.status")).hint("dev.ai.status_hint").disabled(!matches!(c.state(), State::Running { .. })).show(ui, theme) {
@@ -203,8 +227,12 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             }
         }
+        let waiting = dev.pending;
         drop(dev);
-        if live || started {
+        if waiting && send_pending(&mut c) {
+            started = true;
+        }
+        if live || started || waiting {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
         }
         drop(c);
@@ -214,20 +242,67 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-/// Send a test question (the button's work, and the snapshot's): load the fake's model if it is not
-/// loaded, ask, and note the exchange in this run's log. A stopped engine is started by the request.
-pub(crate) fn ask_test_question(c: &mut crate::ai::client::AiClient) -> u64 {
-    if !c.is_loaded("fake") {
-        c.load("fake", "(fake)", "", ModelKind::Brain);
-    }
+/// Send a test question (the button's work, and the snapshots'). With the fake engine: load its model
+/// if needed and ask. With the installed one: get the installed model ready (checked against the
+/// catalog; while that runs the question waits and is sent when it passes), raise the job's memory cap,
+/// load it with this computer's brain threads, and ask. A stopped engine is started by the request.
+/// Returns the request's number, or None while the model is being checked or when there is none.
+pub(crate) fn ask_test_question(c: &mut AiClient) -> Option<u64> {
     let question = t("dev.ai.test_question").to_string();
-    let r = c.generate("fake", TEST_PERSONA, &question, 64);
+    let id = if shared::use_dev_fake() {
+        if !c.is_loaded("fake") {
+            c.load("fake", "(fake)", "", ModelKind::Brain, 4096, 1);
+        }
+        "fake".to_string()
+    } else {
+        let mut dev = DEV.lock().unwrap_or_else(|p| p.into_inner());
+        let (Ok(cat), Some(root)) = (catalog::current(), paths::ai_root()) else {
+            dev.brain_note = Some(t("dev.ai.brain_none").to_string());
+            return None;
+        };
+        match models::prepare_brain(&cat, &root) {
+            Prepared::NotInstalled => {
+                dev.brain_note = Some(t("dev.ai.brain_none").to_string());
+                return None;
+            }
+            Prepared::Checking => {
+                dev.pending = true;
+                dev.brain_note = Some(t("dev.ai.brain_checking").to_string());
+                return None;
+            }
+            Prepared::Mismatch(why) => {
+                dev.pending = false;
+                dev.brain_note = Some(tf("dev.ai.brain_mismatch", &[("detail", &why)]));
+                return None;
+            }
+            Prepared::Ready(ready) => {
+                dev.pending = false;
+                dev.brain_note = Some(tf("dev.ai.brain_ready", &[("model", &ready.entry.model), ("sha", &&ready.entry.sha256[..12])]));
+                if !c.is_loaded(&ready.entry.id) {
+                    let hw = hardware::read();
+                    let threads = install::brain_threads(hw.cores, hw.threads);
+                    let cap = models::memory_cap_mb(&ready.entry);
+                    c.set_memory_cap(cap);
+                    c.load(&ready.entry.id, &ready.path.display().to_string(), &ready.entry.sha256, ModelKind::Brain, ready.entry.context, threads);
+                    dev.loaded = Some((ready.entry.id.clone(), ready.entry.sha256.clone(), threads, cap));
+                }
+                ready.entry.id
+            }
+        }
+    };
+    let r = c.generate(&id, TEST_PERSONA, &question, 64);
     let mut dev = DEV.lock().unwrap_or_else(|p| p.into_inner());
     dev.log.push_back((r, question, String::new()));
     while dev.log.len() > LOG_LEN {
         dev.log.pop_front();
     }
-    r
+    Some(r)
+}
+
+/// A question that waited for the model's check: send it once the check is done.
+fn send_pending(c: &mut AiClient) -> bool {
+    let pending = DEV.lock().unwrap_or_else(|p| p.into_inner()).pending;
+    pending && ask_test_question(c).is_some()
 }
 
 /// For the snapshot: the pretend figure as the Dev page shows it.
