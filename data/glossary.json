@@ -2716,6 +2716,12 @@
       "category": "platform",
       "definition": "A member an admin of this server has marked as someone they know, by pressing Verify on the person's card. Verified members can share pictures and files, post more than one link in a line, and read channels kept for verified people. There is no form or test: ask an admin of the server. Each server decides for itself, so being verified on one server says nothing on another."
     },
+    "makehuman": {
+      "term": "MakeHuman",
+      "category": "gaming",
+      "definition": "A free, open-source program for making 3D human bodies. The bodies it ships, and the shapes that change them (height, build, proportions, ancestry), are given away under CC0, free for anyone to use without asking. HumanityOS draws its people with two of its bodies, a woman's and a man's, and the character page's sliders blend its shapes.",
+      "link": "https://github.com/makehumancommunity/makehuman"
+    },
     "ai": {
       "term": "AI",
       "category": "platform",

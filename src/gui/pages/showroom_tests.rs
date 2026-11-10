@@ -588,3 +588,26 @@ fn the_character_stands_in_the_middle_of_the_stage() {
     assert!((at - middle).abs() < 1.0, "the character is drawn at {at} points, the stage's middle is {middle}");
     assert!((middle - w * 0.5).abs() > 100.0, "the stage is off the window's middle at this size: {middle}");
 }
+
+/// THE ANCESTRY SHARES ALWAYS ADD UP TO A WHOLE (2026-11-09, the character page's blend sliders, as
+/// MakeHuman's own: "the three ethnicity values are normalized so they sum to 100%"): moving one
+/// share moves the others in proportion to what they were, all the way to one alone, and from one
+/// alone the others come back evenly.
+/// Seen red 2026-11-09 with the others left as they were: "the shares add up to 1.2666668".
+#[test]
+fn the_ancestry_shares_always_add_up_to_a_whole() {
+    let mut s = vec![1.0 / 3.0; 3];
+    rebalance_shares(&mut s, 0, 0.6);
+    let sum: f32 = s.iter().sum();
+    assert!((sum - 1.0).abs() < 1e-5, "the shares add up to {sum}");
+    assert!((s[0] - 0.6).abs() < 1e-6 && (s[1] - 0.2).abs() < 1e-5 && (s[2] - 0.2).abs() < 1e-5, "{s:?}");
+    let mut s = vec![0.1, 0.3, 0.6];
+    rebalance_shares(&mut s, 2, 0.2);
+    assert!((s[0] - 0.2).abs() < 1e-5 && (s[1] - 0.6).abs() < 1e-5, "in proportion: {s:?}");
+    rebalance_shares(&mut s, 1, 1.0);
+    assert_eq!(s, vec![0.0, 1.0, 0.0]);
+    rebalance_shares(&mut s, 1, 0.4);
+    assert!((s[0] - 0.3).abs() < 1e-6 && (s[2] - 0.3).abs() < 1e-6, "evenly from one alone: {s:?}");
+    rebalance_shares(&mut s, 7, 0.5);
+    assert!((s.iter().sum::<f32>() - 1.0).abs() < 1e-5, "a part that is not there changes nothing");
+}

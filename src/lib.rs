@@ -9171,7 +9171,7 @@ mod native_app {
                     // players, the crew, the showroom figure, the dev crowd); the box figures
                     // below stand in only when the character data did not load, or for the A/B
                     // switch (showcase `figures`: `boxes`).
-                    let bodies_drawn = crate::engine::animation::draw_people(state, &mut all_objects, showroom, dt);
+                    let bodies_drawn = crate::engine::animation::draw_people(state, &mut all_objects, &mut overlay_objects, showroom, dt);
                     if !showroom && !bodies_drawn {
                         if state.remote_avatar.is_none() {
                             // Sized by the constants remote_figure_parts places the parts by

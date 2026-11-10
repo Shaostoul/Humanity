@@ -51,6 +51,12 @@ const STICKY_PIN_RESETS = Object.freeze({
   body: "default",
   look_height: "1",
   walk_pace: "simplified",
+  // The body sliders (2026-11-09): the look's shape ({"shape":"default"}: every slider in its
+  // middle, the body as made), the skeleton overlay, and whether people with no look of their own
+  // (the crew, the dev crowd) take varied shapes. A `lineup` lives in the crowd, cleared above.
+  shape: "default",
+  skeletons: "0",
+  varied_shapes: "1",
 });
 
 // Diagnostic channels, also sticky, reset at the start of every vantage.

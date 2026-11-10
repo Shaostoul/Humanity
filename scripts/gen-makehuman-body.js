@@ -38,7 +38,8 @@
 //     proportions_ideal, proportions_uncommon  its body proportions targets (average build)
 //     muscle_min, muscle_max, weight_min, weight_max            the build's edges
 //     muscle_min_weight_min ... muscle_max_weight_max           the build's corners
-//     african, asian, caucasian               each ancestry's difference from the default third-each
+//     african, asian, european                each ancestry's difference from the default third-each
+//                                              (european is made from MakeHuman's caucasian files)
 //   The build targets are the raw universal targets (each a shape at that corner of the muscle and
 //   weight grid), so a later build slider weights them bilinearly the way the grid reads. Each
 //   target's movement of every joint is written beside it, as an accessor named
@@ -118,7 +119,13 @@ const INPUTS = [
 ];
 
 const GENDERS = ['female', 'male'];
+// MakeHuman's three ancestry target files, by the names its files carry.
 const ANCESTRIES = ['african', 'asian', 'caucasian'];
+// The name each one's shape target takes in our bodies (2026-11-09, the character page's sliders):
+// MakeHuman's own word where the page uses it, and "european" for its "caucasian", the word the page
+// says (docs/design/character-animation.md section 14, the sliders: all three name where a person's
+// ancestors came from, in the same plain way).
+const ANCESTRY_TARGET = { african: 'african', asian: 'asian', caucasian: 'european' };
 const DM = 0.1; // MakeHuman works in decimetres.
 const BODY_VERTS = 13380; // base.obj's "body" group is vertices 0 to 13379.
 // The trousers' waistband, decimetres over the hip joints (MakeHuman's root bone) on the base mesh:
@@ -146,7 +153,7 @@ const TARGETS = [
   { name: 'muscle_min_weight_max', files: ['universal-{g}-young-minmuscle-maxweight'] },
   { name: 'muscle_max_weight_min', files: ['universal-{g}-young-maxmuscle-minweight'] },
   { name: 'muscle_max_weight_max', files: ['universal-{g}-young-maxmuscle-maxweight'] },
-  ...ANCESTRIES.map((a) => ({ name: a, files: [`${a}-{g}-young`], minus: ANCESTRIES.map((b) => `${b}-{g}-young`) })),
+  ...ANCESTRIES.map((a) => ({ name: ANCESTRY_TARGET[a], files: [`${a}-{g}-young`], minus: ANCESTRIES.map((b) => `${b}-{g}-young`) })),
 ];
 
 // Regions: each kept bone's region (the region of a face is its vertices' dominant bones' region,

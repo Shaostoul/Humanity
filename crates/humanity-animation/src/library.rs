@@ -21,6 +21,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use glam::Vec3;
+// The page's view of the sliders, and how a blend reads, live in the core (the character page uses
+// them without this crate).
+use humanity_core::player_look::{blend_shares, SliderBlock, SHAPE_MIDDLE};
 use humanity_core::skin_data::SkinnedModelData;
 use serde::Deserialize;
 
@@ -73,6 +76,45 @@ pub struct Wearer {
     pub eyes: [f32; 3],
     /// Each slot's colour when nothing is equipped in it.
     pub clothes: BTreeMap<String, Fallback>,
+    /// How varied the bodies of this kind are when they have no look of their own (crew, the dev
+    /// crowd; 2026-11-09): each named slider's range (0 to 1), a value picked in it by a stable hash
+    /// of who they are, so each keeps theirs. A blend's parts are drawn this way and then made to add
+    /// up to one. A slider not named takes its middle.
+    #[serde(default)]
+    pub shape: BTreeMap<String, (f32, f32)>,
+    /// The look height range (1.0 = the body's own) picked the same way; None keeps 1.0.
+    #[serde(default)]
+    pub height: Option<(f32, f32)>,
+}
+
+/// A stable value in 0 to 1 for a person (`seed`) and one of their traits (`what`): FNV-1a over the
+/// trait's name from the seed, finished by SplitMix64's mixer, so each trait varies on its own.
+pub fn stable_unit(seed: u64, what: &str) -> f32 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ seed.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    for b in what.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h ^= h >> 30;
+    h = h.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    h ^= h >> 27;
+    h = h.wrapping_mul(0x94d0_49bb_1331_11eb);
+    h ^= h >> 31;
+    (h >> 40) as f32 / (1u64 << 24) as f32
+}
+
+impl Wearer {
+    /// A slider's value for a person of this kind with no look of their own, or None when this kind
+    /// does not vary it.
+    pub fn varied(&self, seed: u64, slider: &str) -> Option<f32> {
+        let &(lo, hi) = self.shape.get(slider)?;
+        Some((lo + (hi - lo) * stable_unit(seed, slider)).clamp(0.0, 1.0))
+    }
+
+    /// The look height of a person of this kind with no look of their own.
+    pub fn varied_height(&self, seed: u64) -> f32 {
+        self.height.map_or(1.0, |(lo, hi)| lo + (hi - lo) * stable_unit(seed, "height"))
+    }
 }
 
 /// `data/characters/characters.ron`.
@@ -112,14 +154,112 @@ pub struct HeightDriver {
     pub above: String,
 }
 
-/// Which of a body's shape targets the look drives (data, not code: a new slider is a new driver).
+/// Which of a body's shape targets the look drives (data, not code: a new slider is a new row).
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 pub struct ShapeDef {
     /// The look's height (1.0 = the body's own) through the body's height targets, so a tall person
     /// is long-legged rather than scaled up head and all. Past what the targets reach, the rest is a
-    /// uniform scale.
+    /// uniform scale. The person's height is what they chose whatever the sliders below do: the
+    /// height targets take up any change the other targets make to it (2026-11-09).
     #[serde(default)]
     pub height: Option<HeightDriver>,
+    /// The character page's sliders, each a row naming the targets it drives (2026-11-09, the
+    /// operator: "Yeah, let's go for it."). A slider's value lives in the look by the slider's id
+    /// (`Appearance::shape`, 0 to 1); a look without one takes the slider's middle (or, in a blend,
+    /// an even share), which is the body as made.
+    #[serde(default)]
+    pub sliders: Vec<SliderDef>,
+}
+
+/// One row of a body's sliders: which look values drive which of its shape targets.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub enum SliderDef {
+    /// One slider with a target at each end and the body as made in the middle: the end it leans
+    /// toward, weighted by how far (0 at the middle, 1 at the end).
+    Line {
+        /// The character page's heading it sits under (`characters.shape_group_<group>`).
+        group: String,
+        slider: String,
+        low: String,
+        high: String,
+    },
+    /// Two sliders that span a square of targets together, the body as made at its centre, a target
+    /// at each edge (one slider at its end, the other in the middle) and each corner (both at an
+    /// end): MakeHuman's muscle and weight grid. The four targets around the two values are weighted
+    /// bilinearly, the way the grid's file names place them.
+    Grid {
+        group: String,
+        x: String,
+        y: String,
+        x_low: String,
+        x_high: String,
+        y_low: String,
+        y_high: String,
+        /// The corners, the x end first: `low_high` is x at its low end and y at its high end.
+        low_low: String,
+        low_high: String,
+        high_low: String,
+        high_high: String,
+    },
+    /// Sliders that always add up to one whole, each with a target that is its part's difference
+    /// from the even mix the body was made with (MakeHuman's three ancestries, made a third each by
+    /// the converter): each target is weighted by its share less the smallest share, which shapes
+    /// the body exactly as shares less an even share would (the parts' targets add up to nothing)
+    /// and leaves one target off.
+    Blend { group: String, parts: Vec<BlendPart> },
+}
+
+/// One part of a blend: the slider's id and the target it drives.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct BlendPart {
+    pub slider: String,
+    pub target: String,
+}
+
+impl SliderDef {
+    fn group(&self) -> &str {
+        match self {
+            SliderDef::Line { group, .. } | SliderDef::Grid { group, .. } | SliderDef::Blend { group, .. } => group,
+        }
+    }
+}
+
+/// A slider's value as a look gives it, or None: finite values are clamped to 0 to 1.
+fn slider_value(value: &dyn Fn(&str) -> Option<f32>, id: &str) -> Option<f32> {
+    value(id).filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0))
+}
+
+/// A line or grid slider's weights on its low end, its middle and its high end (they add up to one).
+fn tent(v: f32) -> [f32; 3] {
+    let d = (v - SHAPE_MIDDLE) * 2.0;
+    [(-d).max(0.0), 1.0 - d.abs(), d.max(0.0)]
+}
+
+/// A body's sliders resolved against its mesh: target indices in place of names.
+#[derive(Debug, Clone, PartialEq)]
+enum Driver {
+    Line { slider: String, low: usize, high: usize },
+    /// `cells[x][y]`, each axis low, middle, high; the centre is the body as made (no target).
+    Grid { x: String, y: String, cells: [[Option<usize>; 3]; 3] },
+    Blend { parts: Vec<(String, usize)> },
+}
+
+impl Driver {
+    /// The most targets this row turns on at once.
+    fn most_on(&self) -> usize {
+        match self {
+            Driver::Line { .. } => 1,
+            // The four cells around a point inside the square, less the centre's when it has none.
+            Driver::Grid { cells, .. } => {
+                if cells[1][1].is_some() {
+                    4
+                } else {
+                    3
+                }
+            }
+            Driver::Blend { parts } => parts.len().saturating_sub(1),
+        }
+    }
 }
 
 /// `data/characters/bodies/<id>.ron`.
@@ -173,6 +313,9 @@ struct HeightShape {
     own_m: f32,
     below_m: f32,
     above_m: f32,
+    /// How much each target, at full weight, raises the top of the body (metres; the African target
+    /// stands the female body about 8 cm taller), so the height targets can take it up.
+    rises: Vec<f32>,
 }
 
 /// One body, read and ready to draw.
@@ -193,24 +336,73 @@ pub struct LoadedBody {
     /// The body's standing height measured from its mesh, metres.
     pub height_m: f32,
     height: Option<HeightShape>,
+    /// The sliders, resolved (empty for a body with none).
+    drivers: Vec<Driver>,
+    /// The sliders as the character page shows them, in the file's order.
+    pub slider_blocks: Vec<SliderBlock>,
     /// Each target's movement of each joint (model space), from the file.
     joint_moves: Vec<Vec<Vec3>>,
 }
 
 impl LoadedBody {
     /// The shape targets (index, weight) and the uniform scale that stand this body at a look's
-    /// height (1.0 = its own): the height targets as far as they reach, the rest by scale. A body
-    /// without a height driver is scaled.
-    pub fn shape_for(&self, look_height: f32) -> (Vec<(usize, f32)>, f32) {
+    /// height (1.0 = its own) with the look's slider values (`value` gives a slider's value by its
+    /// id, None for one the look does not set): each slider row's targets, then the height targets
+    /// as far as they reach (taking up whatever the other targets did to the height, so the person
+    /// stands as tall as they chose), the rest by scale. A body without a height driver is scaled.
+    pub fn shape_for(&self, look_height: f32, value: &dyn Fn(&str) -> Option<f32>) -> (Vec<(usize, f32)>, f32) {
         let look = if look_height.is_finite() && look_height > 0.0 { look_height } else { 1.0 };
-        let Some(h) = &self.height else { return (Vec::new(), look) };
+        let mut weights: Vec<(usize, f32)> = Vec::new();
+        let mut add = |t: usize, w: f32| {
+            if w.abs() <= 1e-4 {
+                return;
+            }
+            match weights.iter_mut().find(|(i, _)| *i == t) {
+                Some(e) => e.1 += w,
+                None => weights.push((t, w)),
+            }
+        };
+        for d in &self.drivers {
+            match d {
+                Driver::Line { slider, low, high } => {
+                    let [l, _, h] = tent(slider_value(value, slider).unwrap_or(SHAPE_MIDDLE));
+                    add(*low, l);
+                    add(*high, h);
+                }
+                Driver::Grid { x, y, cells } => {
+                    let tx = tent(slider_value(value, x).unwrap_or(SHAPE_MIDDLE));
+                    let ty = tent(slider_value(value, y).unwrap_or(SHAPE_MIDDLE));
+                    for (i, wx) in tx.iter().enumerate() {
+                        for (j, wy) in ty.iter().enumerate() {
+                            if let Some(t) = cells[i][j] {
+                                add(t, wx * wy);
+                            }
+                        }
+                    }
+                }
+                Driver::Blend { parts } => {
+                    let raw: Vec<Option<f32>> = parts.iter().map(|(s, _)| slider_value(value, s)).collect();
+                    let shares = blend_shares(&raw);
+                    let least = shares.iter().copied().fold(f32::INFINITY, f32::min);
+                    for ((_, t), s) in parts.iter().zip(&shares) {
+                        add(*t, s - least);
+                    }
+                }
+            }
+        }
+        weights.retain(|(_, w)| w.abs() > 1e-4);
+        let Some(h) = &self.height else { return (weights, look) };
+        // How tall the other targets stand the body, and the height targets' share of the rest.
+        let natural = h.own_m + weights.iter().map(|&(t, w)| h.rises.get(t).copied().unwrap_or(0.0) * w).sum::<f32>();
         let want = h.own_m * look;
-        let (target, reach) = if want >= h.own_m { (h.above, h.above_m) } else { (h.below, h.below_m) };
+        let (target, reach) = if want >= natural { (h.above, h.above_m) } else { (h.below, h.below_m) };
         let span = reach - h.own_m;
-        let w = if span.abs() > 1e-4 { ((want - h.own_m) / span).clamp(0.0, 1.0) } else { 0.0 };
-        let reached = h.own_m + span * w;
+        let w = if span.abs() > 1e-4 { ((want - natural) / span).clamp(0.0, 1.0) } else { 0.0 };
+        let reached = natural + span * w;
         let scale = if reached > 1e-3 { want / reached } else { look };
-        let weights = if w > 1e-4 { vec![(target, w)] } else { Vec::new() };
+        if w > 1e-4 {
+            weights.insert(0, (target, w));
+        }
         (weights, scale)
     }
 
@@ -303,9 +495,20 @@ impl CharacterLibrary {
                 Some(d) => {
                     let idx = |n: &str| model.morph_index(n).ok_or_else(|| format!("body {}: its height driver names target {n}, which {} does not have", def.id, def.model));
                     let (below, above) = (idx(&d.below)?, idx(&d.above)?);
-                    Some(HeightShape { below, above, own_m: height_m, below_m: measured_height(&model, Some(below)), above_m: measured_height(&model, Some(above)) })
+                    let rises = (0..model.morph_names.len()).map(|t| measured_height(&model, Some(t)) - height_m).collect();
+                    Some(HeightShape { below, above, own_m: height_m, below_m: measured_height(&model, Some(below)), above_m: measured_height(&model, Some(above)), rises })
                 }
             };
+            let sliders = def.shape.as_ref().map_or(&[][..], |s| s.sliders.as_slice());
+            let (drivers, slider_blocks) = resolve_sliders(sliders, &model, &def)?;
+            let most_on = drivers.iter().map(Driver::most_on).sum::<usize>() + usize::from(height.is_some());
+            if most_on > crate::pose::MAX_ACTIVE_MORPHS {
+                return Err(format!(
+                    "body {}: its sliders and height can turn on {most_on} shape targets at once, more than the {} the pose palette's morph block holds (pose::MORPH_SLOTS)",
+                    def.id,
+                    crate::pose::MAX_ACTIVE_MORPHS
+                ));
+            }
             let joint_moves: Vec<Vec<Vec3>> = model.joint_deltas.iter().map(|d| d.iter().map(|v| Vec3::from(*v)).collect()).collect();
             let mut clips = ClipSet::default();
             for cd in &clip_defs {
@@ -342,6 +545,8 @@ impl CharacterLibrary {
                 stand_in: false,
                 height_m,
                 height,
+                drivers,
+                slider_blocks,
                 joint_moves,
             };
             Ok((body, humanoid))
@@ -419,6 +624,59 @@ impl CharacterLibrary {
     pub fn wearer(&self, kind: &str) -> Option<&crate::library::Wearer> {
         self.characters.wearers.get(kind).or_else(|| self.characters.wearers.values().next())
     }
+}
+
+/// A body's slider rows resolved against its mesh, and the blocks the character page shows. Every
+/// target named must be one of the mesh's; every slider id must be one a look can carry
+/// (`player_look::clean_shape_id`) and appear once.
+fn resolve_sliders(rows: &[SliderDef], model: &SkinnedModelData, def: &BodyDef) -> Result<(Vec<Driver>, Vec<SliderBlock>), String> {
+    let where_ = format!("data/characters/bodies/{}.ron", def.id);
+    let idx = |n: &str| model.morph_index(n).ok_or_else(|| format!("{where_}: a slider names target {n}, which {} does not have", def.model));
+    let mut seen: Vec<String> = Vec::new();
+    let mut id = |s: &str| -> Result<String, String> {
+        if humanity_core::player_look::clean_shape_id(s) != s {
+            return Err(format!("{where_}: slider id {s:?} is not one a look can carry (a to z, 0 to 9, _ and -, at most {} characters)", humanity_core::player_look::SHAPE_ID_MAX));
+        }
+        if seen.iter().any(|x| x == s) {
+            return Err(format!("{where_}: slider {s} is named twice"));
+        }
+        seen.push(s.to_string());
+        Ok(s.to_string())
+    };
+    let mut drivers = Vec::new();
+    let mut blocks = Vec::new();
+    for row in rows {
+        let group = row.group().to_string();
+        if humanity_core::player_look::clean_shape_id(&group) != group {
+            return Err(format!("{where_}: slider group {group:?} is not a plain id"));
+        }
+        match row {
+            SliderDef::Line { slider, low, high, .. } => {
+                let slider = id(slider)?;
+                drivers.push(Driver::Line { slider: slider.clone(), low: idx(low)?, high: idx(high)? });
+                blocks.push(SliderBlock { group, sliders: vec![slider], shares: false });
+            }
+            SliderDef::Grid { x, y, x_low, x_high, y_low, y_high, low_low, low_high, high_low, high_high, .. } => {
+                let (x, y) = (id(x)?, id(y)?);
+                let cells = [
+                    [Some(idx(low_low)?), Some(idx(x_low)?), Some(idx(low_high)?)],
+                    [Some(idx(y_low)?), None, Some(idx(y_high)?)],
+                    [Some(idx(high_low)?), Some(idx(x_high)?), Some(idx(high_high)?)],
+                ];
+                drivers.push(Driver::Grid { x: x.clone(), y: y.clone(), cells });
+                blocks.push(SliderBlock { group, sliders: vec![x, y], shares: false });
+            }
+            SliderDef::Blend { parts, .. } => {
+                if parts.len() < 2 {
+                    return Err(format!("{where_}: a blend needs two parts or more"));
+                }
+                let parts = parts.iter().map(|p| Ok((id(&p.slider)?, idx(&p.target)?))).collect::<Result<Vec<_>, String>>()?;
+                blocks.push(SliderBlock { group, sliders: parts.iter().map(|(s, _)| s.clone()).collect(), shares: true });
+                drivers.push(Driver::Blend { parts });
+            }
+        }
+    }
+    Ok((drivers, blocks))
 }
 
 /// A body's standing height, metres: the highest vertex, with one target at full weight when named.

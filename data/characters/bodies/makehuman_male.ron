@@ -28,8 +28,30 @@
         (material: "iris", tint: Eyes, roughness: 0.25),
         (material: "pupil", tint: Fixed(0.02, 0.02, 0.02), roughness: 0.2),
     ],
-    // The look's height drives MakeHuman's height targets (see makehuman_female.ron).
+    // The look's height drives MakeHuman's height targets, and the character page's sliders its
+    // build, proportions and ancestry targets (see makehuman_female.ron).
     shape: Some((
         height: Some((below: "height_min", above: "height_max")),
+        sliders: [
+            Grid(
+                group: "build",
+                x: "muscle",
+                y: "weight",
+                x_low: "muscle_min",
+                x_high: "muscle_max",
+                y_low: "weight_min",
+                y_high: "weight_max",
+                low_low: "muscle_min_weight_min",
+                low_high: "muscle_min_weight_max",
+                high_low: "muscle_max_weight_min",
+                high_high: "muscle_max_weight_max",
+            ),
+            Line(group: "build", slider: "proportions", low: "proportions_uncommon", high: "proportions_ideal"),
+            Blend(group: "ancestry", parts: [
+                (slider: "african", target: "african"),
+                (slider: "asian", target: "asian"),
+                (slider: "european", target: "european"),
+            ]),
+        ],
     )),
 )

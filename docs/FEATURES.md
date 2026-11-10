@@ -3209,7 +3209,12 @@ look and the outfit) and the dev crowd. **The bodies are MakeHuman's (CC0), a fe
 shell, brows and eyes as tinted regions), each with 15 shape targets as glTF morph targets: the look's
 height drives the height targets on the GPU (a tall person is long in the leg, not scaled up head and
 all) and the skeleton follows the shaped mesh (`Skeleton::reshaped`). The character page chooses the
-body; crew are women and men. **The clips are Quaternius's Universal Animation Library (CC0)**:
+body and, since 2026-11-09, shapes it: **Body shape** sliders for build (muscle and weight, MakeHuman's
+grid), proportions (shorter to longer legs) and ancestry (African, Asian and European as shares of
+one whole), each a row of the body file (`shape.sliders`), saved in the look (`Appearance::shape`),
+carried to other players clamped (`PlayerLook::shape`), the height holding still while they move and
+the skeleton following, with Reset body shape; crew are women and men of varied build, ancestry and
+height (a stable hash per person in `characters.ron`'s ranges). **The clips are Quaternius's Universal Animation Library (CC0)**:
 idle, walk, jog and sprint play now, crouch, jump and sit are retargeted for rung 2; turning on the
 spot stays our procedural clip. A locomotion state machine with blend spaces plays idle, turning on
 the spot, and walk, jog and sprint stride-matched to the real speed (each clip's speed measured from
@@ -3241,9 +3246,11 @@ for a same-boot A/B (showcase `figures`).
   `assets/models/characters/hos_test_clips/` (made by `scripts/gen-test-figure.js`); the walking
   pace's speeds in `data/game.csv`
 - Settings: Gameplay > Walking pace (`settings.walk_realistic`, `src/engine/walk_pace.rs`); the
-  character page's body chooser (`Appearance::body_type`, carried to other players in the look)
+  character page's body chooser (`Appearance::body_type`, carried to other players in the look) and Body shape
+  sliders (`Appearance::shape`, `PlayerLook::shape`; `draw_body_shape` in `src/gui/pages/showroom.rs`)
 - Dev: showcase verbs `crowd`, `figure_path`, `figures`, `camera_mode`, `body`, `look_height`,
-  `walk_pace` (engine/ipc.rs); vantages `anim-*` (rung 0's box baselines `*-boxes` beside them;
+  `walk_pace`, `shape`, `lineup`, `skeletons`, `varied_shapes` (engine/ipc.rs); the Dev page's Show skeletons
+  (every joint and bone drawn on top); vantages `anim-*` (`anim-shape-*` the sliders at their ends) (rung 0's box baselines `*-boxes` beside them;
   `anim-tp-{female,male}-{idle,walk,run}` for the bodies in third person); costs `cpu.animation`,
   `cpu.skinning`, `gpu.skinning`
 

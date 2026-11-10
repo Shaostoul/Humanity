@@ -1247,6 +1247,31 @@ mod tests {
         let _ = std::fs::remove_dir(&dir);
     }
 
+    /// A SAVE FROM BEFORE THE BODY SLIDERS (2026-11-09) loads with the body as made: its appearance
+    /// has a body, a height and colours but no `shape`, which reads as empty (every slider at its
+    /// middle); a save written now keeps the sliders' values.
+    /// Seen red 2026-11-09 with `#[serde(default)]` taken off `Appearance::shape`: "legacy load
+    /// should succeed: \"Failed to deserialize world save: missing field `shape` at line 1 column
+    /// 358\"".
+    #[test]
+    fn a_save_from_before_the_body_sliders_loads_with_the_body_as_made() {
+        let dir = std::env::temp_dir().join(format!("humanity_test_shape_save_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("before_sliders.json");
+        let before = r#"{"name":"Old","timestamp":1,"game_time":0.0,"player_position":[0.0,0.0,0.0],"player_rotation":[0.0,0.0,0.0,1.0],"player_health":100.0,"inventory":[],"skills":{},"constructions":[],"weather_state":"clear","appearance":{"body_type":"female","height_scale":1.1,"skin_tone":[0.5,0.4,0.3],"hair_style":"short","hair_color":[0.1,0.1,0.1],"eye_color":[0.3,0.4,0.5]}}"#;
+        std::fs::write(&path, before).unwrap();
+        let loaded = load_world(&path).expect("legacy load should succeed");
+        assert_eq!(loaded.appearance.body_type, "female");
+        assert_eq!(loaded.appearance.height_scale, 1.1);
+        assert!(loaded.appearance.shape.is_empty(), "{:?}", loaded.appearance.shape);
+        let mut now = loaded.clone();
+        now.appearance.shape.insert("muscle".into(), 0.8);
+        std::fs::write(&path, serde_json::to_string(&now).unwrap()).unwrap();
+        assert_eq!(load_world(&path).unwrap().appearance.shape.get("muscle").copied(), Some(0.8));
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
     // ── Save snapshots and crash-safe writes (2026-10-03) ──
 
     /// A throwaway tree shaped like the app data dir: `<tmp>/saves/home.json`,

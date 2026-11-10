@@ -2100,6 +2100,14 @@ pub struct GuiState {
     /// "female" and "male"), published by engine::animation when the character data loads; the
     /// character page's body chooser lists them. Empty until then.
     pub body_choices: Vec<String>,
+    /// Each body's shape sliders, by its choice id (2026-11-09; the body files' `shape.sliders`,
+    /// published with `body_choices`): the character page draws the chosen body's (build,
+    /// proportions, ancestry) and writes their values into `appearance.shape`.
+    pub body_sliders: std::collections::BTreeMap<String, Vec<humanity_core::player_look::SliderBlock>>,
+    /// The Dev page's Show skeletons (2026-11-09; showcase `skeletons`): every drawn body's joints
+    /// and bones on top of everything (engine::animation), so a reshaped skeleton can be seen to
+    /// follow its body. Off by default; never saved.
+    pub show_skeletons: bool,
     /// The equipped cosmetic outfit being edited in the wardrobe (synced to the ECS player
     /// on confirm). slot id -> cosmetic id.
     pub outfit: humanity_core::ecs::components::Outfit,
@@ -3879,6 +3887,8 @@ impl Default for GuiState {
             appearance_dirty: false,
             walk_pace_speeds: [1.4, 4.0, 5.0, 9.5],
             body_choices: Vec::new(),
+            body_sliders: std::collections::BTreeMap::new(),
+            show_skeletons: false,
             outfit: humanity_core::ecs::components::Outfit::default(),
             outfit_dirty: false,
             showroom_mode: 0,

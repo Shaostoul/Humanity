@@ -1009,6 +1009,65 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             _ => log::warn!("Showcase: look_height wants a number from 0.5 to 2, not {v:?}"),
         }
     }
+    // THE BODY SLIDERS' VERBS (2026-11-09; docs/design/character-animation.md section 14, the
+    // sliders). Permanent dev tooling, like the character verbs above.
+    // {"shape":"muscle=0.2,weight=0.8"}: the look's shape as the character page's sliders set it
+    // (each id a slider of the body file, each value 0 to 1); {"shape":"default"} empties it, the
+    // body as made (the rigs' release).
+    if let Some(v) = grab("shape") {
+        let mut shape = std::collections::BTreeMap::new();
+        let mut ok = true;
+        if v.trim() != "default" {
+            for kv in v.split(',') {
+                match kv.split_once('=').and_then(|(k, x)| Some((humanity_core::player_look::clean_shape_id(k.trim()), x.trim().parse::<f32>().ok()?))) {
+                    Some((k, x)) if !k.is_empty() && x.is_finite() => {
+                        shape.insert(k, x.clamp(0.0, 1.0));
+                    }
+                    _ => ok = false,
+                }
+            }
+        }
+        if ok {
+            if state.gui_state.appearance.shape != shape {
+                log::info!("Showcase: shape -> {shape:?}");
+                state.gui_state.appearance.shape = shape;
+                state.gui_state.appearance_dirty = true;
+            }
+        } else {
+            log::warn!("Showcase: shape wants \"id=value,...\" (values 0 to 1) or \"default\", not {v:?}");
+        }
+    }
+    // {"lineup":"body,ahead_m,gap_m|spec|spec|..."}: one stand-in per spec in a row across the view,
+    // `ahead_m` in front of the feet under the camera, facing it at idle, each with `body` and the
+    // spec's slider values ("muscle=0,weight=1", or "-" for the body as made). It replaces the dev
+    // crowd ({"crowd":"0"} clears it).
+    if let Some(spec) = grab("lineup") {
+        let feet = state.camera.position - Vec3::new(0.0, state.controller.eye_height(), 0.0);
+        match crate::engine::animation::parse_lineup(&spec, feet, state.camera.forward_xz()) {
+            Some(mut c) => {
+                log::info!("Showcase: lineup -> {} people in a row", c.len());
+                let now = state.animation.clock();
+                c.iter_mut().for_each(|f| f.born = now);
+                state.animation.crowd = c;
+            }
+            None => log::warn!("Showcase: lineup wants \"body[,ahead_m[,gap_m]]|spec|spec...\" (spec \"id=value,...\" or \"-\"), not {spec:?}"),
+        }
+    }
+    // {"skeletons":"1"} / {"skeletons":"0"}: the Dev page's Show skeletons, every drawn body's joints
+    // and bones on top of everything.
+    if let Some(v) = grab("skeletons") {
+        let on = v == "1";
+        if state.gui_state.show_skeletons != on {
+            state.gui_state.show_skeletons = on;
+            log::info!("Showcase: skeletons -> {on}");
+        }
+    }
+    // {"varied_shapes":"0"}: the crew and the dev crowd drawn as the body as made, as before the
+    // sliders (the same-boot A/B of what varied shapes cost); "1" varies them again.
+    if let Some(v) = grab("varied_shapes") {
+        state.animation.varied_shapes = v != "0";
+        log::info!("Showcase: varied_shapes -> {}", state.animation.varied_shapes);
+    }
     // {"walk_pace":"realistic"} / {"walk_pace":"simplified"} (2026-11-09): Settings' walking pace
     // (engine/walk_pace.rs), so a rig walks and runs at either mode's speeds.
     if let Some(v) = grab("walk_pace") {

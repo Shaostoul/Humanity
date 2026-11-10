@@ -63,7 +63,7 @@ reads the data files' formats itself. Finding:
 `node scripts/gen-makehuman-body.js --check` compares the files with these when the sources are
 not on the machine.
 
-- `makehuman_female.gltf` `7f53277c8c12e4c7a7b20f80e9d329ebe4dde4efd109c801e5a6b0be3cdc2e3c`
+- `makehuman_female.gltf` `614a89ea350e52f82598bae29fda823f0ee8e2602c10abb60076c2b2d3e29276`
 - `makehuman_female.bin` `5e63a1883a96b120bb5e291ddc7bc673a3fc17990fac3835b8f73c0cf9520ff0`
-- `makehuman_male.gltf` `489277eb1e179ce6806b9765a3c7c83d3d2cb7cf7d3cd8c6bbca83a557a93857`
+- `makehuman_male.gltf` `f642e2160827a7cd957c0836210ff9e494b002a54e75e1c54d6b636b20bc12f2`
 - `makehuman_male.bin` `995063548f5f244a0bb5cffbe14bf55dd80dced7f5dd998452bf0712672f7fcb`

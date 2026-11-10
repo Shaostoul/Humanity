@@ -952,34 +952,39 @@ fn draw_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             hint(ui, theme, t("characters.orbit_line"));
             ui.add_space(theme.spacing_sm);
 
-            if wardrobe {
-                draw_wardrobe(ui, theme, state);
-            } else {
-                // The GAME character's name (separate from your chat profile).
-                // The picker has its own inline Name field; this one serves the
-                // in-world mirror, where there is no WHO column.
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(t("characters.name")).color(theme.text_secondary()));
-                    ui.text_edit_singleline(&mut state.character_name).hint("characters.name_in_mirror_hint");
-                });
-                ui.add_space(theme.spacing_sm);
-                draw_appearance(ui, theme, state);
-            }
-
-            ui.add_space(theme.spacing_sm);
-            // Backdrop lives here, not in the picker: it is stage dressing for
-            // editing, not part of the launch flow.
-            draw_backdrop(ui, theme, state);
-            ui.add_space(theme.spacing_md);
-
-            if widgets::Button::primary(t("characters.done")).hint("characters.done_hint").show(ui, theme) {
-                if from_picker {
-                    state.showroom_return_to_picker = false;
-                    state.showroom_mode = 0;
+            // Scrolls (2026-11-09): with the body shape sliders the editor is taller than a small
+            // window, and Done must stay reachable.
+            ScrollArea::vertical().id_salt("showroom_editor_scroll").auto_shrink([false, false]).show(ui, |ui| {
+                if wardrobe {
+                    draw_wardrobe(ui, theme, state);
                 } else {
-                    state.showroom_confirm = true;
+                    // The GAME character's name (separate from your chat profile).
+                    // The picker has its own inline Name field; this one serves the
+                    // in-world mirror, where there is no WHO column.
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(t("characters.name")).color(theme.text_secondary()));
+                        ui.text_edit_singleline(&mut state.character_name).hint("characters.name_in_mirror_hint");
+                    });
+                    ui.add_space(theme.spacing_sm);
+                    draw_appearance(ui, theme, state);
                 }
-            }
+
+                ui.add_space(theme.spacing_sm);
+                // Backdrop lives here, not in the picker: it is stage dressing for
+                // editing, not part of the launch flow.
+                draw_backdrop(ui, theme, state);
+                ui.add_space(theme.spacing_md);
+
+                if widgets::Button::primary(t("characters.done")).hint("characters.done_hint").show(ui, theme) {
+                    if from_picker {
+                        state.showroom_return_to_picker = false;
+                        state.showroom_mode = 0;
+                    } else {
+                        state.showroom_confirm = true;
+                    }
+                }
+                ui.add_space(theme.spacing_md);
+            });
         })
         .response
         .rect;
@@ -1168,10 +1173,137 @@ fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if widgets::with_hint(ui, "characters.height_hint", |ui| widgets::labeled_slider(ui, theme, t("characters.height"), &mut state.appearance.height_scale, 0.8..=1.2)) {
         state.appearance_dirty = true;
     }
+    draw_body_shape(ui, theme, state);
     // Reached from the picker there is no bedroom to walk to, so say where
     // outfits actually live.
     if state.showroom_return_to_picker {
         hint(ui, theme, t("characters.outfits_where"));
+    }
+}
+
+/// THE BODY'S SHAPE (2026-11-09; docs/design/character-animation.md section 14, the sliders): the chosen body's
+/// sliders, as its data file lists them (`shape.sliders`, published by engine::animation into
+/// `body_sliders`), each run under its group's heading. A slider from one end to the other (build,
+/// proportions) shows its two ends in words and the body as made in the middle; a blend's sliders
+/// (ancestry) are shares of one whole, so moving one moves the others and each shows its share. The
+/// values go into `appearance.shape` by slider id (and to everyone you meet in your look); Reset
+/// empties it and puts the height back to the body's own.
+fn draw_body_shape(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use humanity_core::i18n::{t_dyn, t_marked};
+    let blocks = match state.body_sliders.get(&state.appearance.body_type).or_else(|| state.body_sliders.values().next()) {
+        Some(b) if !b.is_empty() => b.clone(),
+        _ => return,
+    };
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new(t("characters.shape")).strong().color(theme.text_primary()));
+    widgets::glossary_words(ui, theme, t_marked("characters.shape_note"), theme.font_size_small, theme.text_muted());
+    let mut group: Option<&str> = None;
+    for block in &blocks {
+        if group != Some(block.group.as_str()) {
+            group = Some(block.group.as_str());
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new(t_dyn(&format!("characters.shape_group_{}", block.group))).color(theme.text_secondary()));
+            let note = format!("characters.shape_group_{}_note", block.group);
+            if humanity_core::i18n::has(&note) {
+                hint(ui, theme, t_dyn(&note));
+            }
+        }
+        if block.shares {
+            draw_shape_shares(ui, theme, state, &block.sliders);
+        } else {
+            for id in &block.sliders {
+                draw_shape_range(ui, theme, state, id);
+            }
+        }
+    }
+    ui.add_space(theme.spacing_xs);
+    if ui.button(t("characters.shape_reset")).hint("characters.shape_reset_hint").clicked() {
+        state.appearance.shape.clear();
+        state.appearance.height_scale = 1.0;
+        state.appearance_dirty = true;
+    }
+}
+
+/// One slider from its low end to its high end, the body as made in the middle: its name, then the
+/// two ends in words either side of the track.
+fn draw_shape_range(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, id: &str) {
+    use humanity_core::i18n::t_dyn;
+    let key = format!("characters.shape_{id}");
+    let mut v = state.appearance.shape.get(id).copied().unwrap_or(humanity_core::player_look::SHAPE_MIDDLE);
+    let mut changed = false;
+    widgets::settings_row(ui, theme, t_dyn(&key), |ui| {
+        changed = shape_track(ui, theme, Some(t_dyn(&format!("{key}_low"))), &mut v, &format!("{key}_hint"));
+        ui.add(egui::Label::new(RichText::new(t_dyn(&format!("{key}_high"))).size(theme.font_size_small).color(theme.text_muted())).truncate());
+    });
+    if changed {
+        state.appearance.shape.insert(id.to_string(), v.clamp(0.0, 1.0));
+        state.appearance_dirty = true;
+    }
+}
+
+/// A shape slider's track: a slot for its low end's words (right-aligned against the track; empty for
+/// a share), then the track, leaving a slot as wide for the high end's words (or the share), all
+/// shares of the row's width, so every track in the section starts and ends at the same place
+/// whatever its words, inside the column. Returns whether the value changed.
+fn shape_track(ui: &mut egui::Ui, theme: &Theme, low: Option<&str>, v: &mut f32, hint_key: &str) -> bool {
+    let gap = ui.spacing().item_spacing.x;
+    let avail = ui.available_width();
+    let end = (avail * 0.27).min(theme.settings_label_width * 0.5);
+    let slot = egui::vec2(end, ui.spacing().interact_size.y);
+    ui.allocate_ui_with_layout(slot, egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        ui.set_min_width(slot.x);
+        if let Some(words) = low {
+            ui.add(egui::Label::new(RichText::new(words).size(theme.font_size_small).color(theme.text_muted())).truncate());
+        }
+    });
+    ui.spacing_mut().slider_width = (avail - 2.0 * end - 3.0 * gap).max(40.0);
+    widgets::slider(ui, theme, egui::Slider::new(v, 0.0..=1.0).show_value(false)).hint_dyn(hint_key).changed()
+}
+
+/// A blend's sliders: each part's share of one whole (a look without them is an even mix). Moving
+/// one moves the others in proportion, so they always add up to 100%, as MakeHuman's own do.
+fn draw_shape_shares(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, parts: &[String]) {
+    use humanity_core::i18n::t_dyn;
+    let raw: Vec<Option<f32>> = parts.iter().map(|p| state.appearance.shape.get(p).copied()).collect();
+    let mut shares = humanity_core::player_look::blend_shares(&raw);
+    let mut moved: Option<(usize, f32)> = None;
+    for (k, id) in parts.iter().enumerate() {
+        let key = format!("characters.shape_{id}");
+        let mut v = shares[k];
+        widgets::settings_row(ui, theme, t_dyn(&key), |ui| {
+            if shape_track(ui, theme, None, &mut v, &format!("{key}_hint")) {
+                moved = Some((k, v.clamp(0.0, 1.0)));
+            }
+            let pct = (v * 100.0).round() as i64;
+            ui.label(RichText::new(tf("characters.shape_share", &[("n", &pct)])).size(theme.font_size_small).color(theme.text_muted()));
+        });
+    }
+    if let Some((k, v)) = moved {
+        rebalance_shares(&mut shares, k, v);
+        for (id, s) in parts.iter().zip(&shares) {
+            state.appearance.shape.insert(id.clone(), *s);
+        }
+        state.appearance_dirty = true;
+    }
+}
+
+/// Set share `k` to `v` and scale the others so all still add up to one (in proportion to what they
+/// were; evenly when the others were all nothing).
+pub(crate) fn rebalance_shares(shares: &mut [f32], k: usize, v: f32) {
+    let n = shares.len();
+    if k >= n {
+        return;
+    }
+    let v = v.clamp(0.0, 1.0);
+    let others: f32 = shares.iter().enumerate().filter(|(i, _)| *i != k).map(|(_, s)| *s).sum();
+    for (i, s) in shares.iter_mut().enumerate() {
+        if i == k {
+            *s = v;
+        } else if others > 1e-6 {
+            *s *= (1.0 - v) / others;
+        } else if n > 1 {
+            *s = (1.0 - v) / (n - 1) as f32;
+        }
     }
 }
 

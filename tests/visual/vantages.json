@@ -1740,6 +1740,306 @@
       "final_settle_s": 4
     },
     {
+      "id": "anim-shape-female-build",
+      "desc": "The mess hall's east end, seven of the female body standing in a row facing the camera, left to right: the body as made, weight 0 (thin), weight 1 (heavier), muscle 0 and weight 1 (the heaviest corner), muscle 0 (slight), muscle 1 (muscular), muscle and weight 1 (strong and heavy).",
+      "expect": "Seven woman's bodies in amber tops standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms.",
+      "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.18",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "female,3.6,0.8|-|weight=0|weight=1|muscle=0,weight=1|muscle=0|muscle=1|muscle=1,weight=1",
+          "skeletons": "0"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-shape-female-build-skeleton",
+      "desc": "The mess hall's east end, seven of the female body standing in a row facing the camera, left to right: the body as made, weight 0 (thin), weight 1 (heavier), muscle 0 and weight 1 (the heaviest corner), muscle 0 (slight), muscle 1 (muscular), muscle and weight 1 (strong and heavy), with their skeletons drawn on top.",
+      "expect": "Seven woman's bodies in amber tops standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
+      "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0",
+        "each skeleton stays inside its body: no joint outside the flesh, no bone sticking out of a hand or foot"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.18",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "female,3.6,0.8|-|weight=0|weight=1|muscle=0,weight=1|muscle=0|muscle=1|muscle=1,weight=1",
+          "skeletons": "1"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-shape-female-ancestry",
+      "desc": "The mess hall's east end, six of the female body standing in a row facing the camera, left to right: the body as made (a third each), African 100%, Asian 100%, European 100%, proportions 0 (shorter legs), proportions 1 (longer legs).",
+      "expect": "Six woman's bodies in amber tops standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms.",
+      "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.30",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "female,2.6,0.65|-|african=1,asian=0,european=0|african=0,asian=1,european=0|african=0,asian=0,european=1|proportions=0|proportions=1",
+          "skeletons": "0"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-shape-female-ancestry-skeleton",
+      "desc": "The mess hall's east end, six of the female body standing in a row facing the camera, left to right: the body as made (a third each), African 100%, Asian 100%, European 100%, proportions 0 (shorter legs), proportions 1 (longer legs), with their skeletons drawn on top.",
+      "expect": "Six woman's bodies in amber tops standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
+      "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0",
+        "each skeleton stays inside its body: no joint outside the flesh, no bone sticking out of a hand or foot"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.30",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "female,2.6,0.65|-|african=1,asian=0,european=0|african=0,asian=1,european=0|african=0,asian=0,european=1|proportions=0|proportions=1",
+          "skeletons": "1"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-shape-male-build",
+      "desc": "The mess hall's east end, seven of the male body standing in a row facing the camera, left to right: the body as made, weight 0 (thin), weight 1 (heavier), muscle 0 and weight 1 (the heaviest corner), muscle 0 (slight), muscle 1 (muscular), muscle and weight 1 (strong and heavy).",
+      "expect": "Seven man's bodies in amber tops standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms.",
+      "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.18",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "male,3.6,0.8|-|weight=0|weight=1|muscle=0,weight=1|muscle=0|muscle=1|muscle=1,weight=1",
+          "skeletons": "0"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-shape-male-build-skeleton",
+      "desc": "The mess hall's east end, seven of the male body standing in a row facing the camera, left to right: the body as made, weight 0 (thin), weight 1 (heavier), muscle 0 and weight 1 (the heaviest corner), muscle 0 (slight), muscle 1 (muscular), muscle and weight 1 (strong and heavy), with their skeletons drawn on top.",
+      "expect": "Seven man's bodies in amber tops standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
+      "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0",
+        "each skeleton stays inside its body: no joint outside the flesh, no bone sticking out of a hand or foot"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.18",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "male,3.6,0.8|-|weight=0|weight=1|muscle=0,weight=1|muscle=0|muscle=1|muscle=1,weight=1",
+          "skeletons": "1"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-shape-male-ancestry",
+      "desc": "The mess hall's east end, six of the male body standing in a row facing the camera, left to right: the body as made (a third each), African 100%, Asian 100%, European 100%, proportions 0 (shorter legs), proportions 1 (longer legs).",
+      "expect": "Six man's bodies in amber tops standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms.",
+      "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.30",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "male,2.6,0.65|-|african=1,asian=0,european=0|african=0,asian=1,european=0|african=0,asian=0,european=1|proportions=0|proportions=1",
+          "skeletons": "0"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-shape-male-ancestry-skeleton",
+      "desc": "The mess hall's east end, six of the male body standing in a row facing the camera, left to right: the body as made (a third each), African 100%, Asian 100%, European 100%, proportions 0 (shorter legs), proportions 1 (longer legs), with their skeletons drawn on top.",
+      "expect": "Six man's bodies in amber tops standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
+      "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "no body is missing a region (head, hair, shirt, trousers, shoes, hands)",
+        "panics=0",
+        "each skeleton stays inside its body: no joint outside the flesh, no bone sticking out of a hand or foot"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.30",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "male,2.6,0.65|-|african=1,asian=0,european=0|african=0,asian=1,european=0|african=0,asian=0,european=1|proportions=0|proportions=1",
+          "skeletons": "1"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "anim-crowd-near-plain",
+      "desc": "Fifty stand-ins in the mess hall, 6 to 14 m ahead (16 near, the rest middle), every one the body as made (showcase varied_shapes 0): main's crowd before the sliders, the same-boot twin of anim-crowd-near, whose crowd has varied shapes.",
+      "expect": "Fifty people, women and men, in amber tops, all of each body the same build and height, moving as in anim-crowd-near.",
+      "_why": "Character animation, the body sliders (2026-11-09): what varied shapes cost. A crew member now turns on up to seven shape targets (each two more reads per skinned vertex); this twin turns on none, as main did, so cpu.animation, cpu.skinning, gpu.skinning and gpu.scene of the two in one boot measure the cost.",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "varied_shapes": "0",
+          "crowd": "50,3.5,-1,0,10"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-crowd-middle-plain",
+      "desc": "Fifty stand-ins in the mess hall, 18 to 26 m away (all middle), every one the body as made (showcase varied_shapes 0): main's crowd before the sliders, the same-boot twin of anim-crowd-middle, whose crowd has varied shapes.",
+      "expect": "Fifty people, women and men, in amber tops, all of each body the same build and height, moving as in anim-crowd-middle.",
+      "_why": "Character animation, the body sliders (2026-11-09): what varied shapes cost. A crew member now turns on up to seven shape targets (each two more reads per skinned vertex); this twin turns on none, as main did, so cpu.animation, cpu.skinning, gpu.skinning and gpu.scene of the two in one boot measure the cost.",
+      "regressions": [
+        "every figure is a person's body, never a box or the jointed test figure",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "varied_shapes": "0",
+          "crowd": "50,3.5,-1,0,22"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
       "id": "mess-hall-counter",
       "desc": "The Commons' mess hall (ship homes increment 6, lane 1A) at eye height from its middle, looking west-north-west at the serving counter at 12:00 station time.",
       "expect": "At the far end of the hall, against its north wall, the serving counter: white cabinets under a wooden top about 3 m long and 0.93 m high, with a sink cut into it (NVIDIA SimReady's fixture_counter_a01 since 2026-11-09, docs/design/simready-props.md; a plain grey box before), with open floor in front of it where the store stands. Between the camera and the counter, along the hall's north (right-hand) wall, dining tables 2 m long with four chairs each, two on each side, in a row with walking room between them; the floor along the hall's middle and south side clear. The hall is lit through the Commons' glass roof and by its lights. Nothing stands in the middle of the floor where the crew walk.",

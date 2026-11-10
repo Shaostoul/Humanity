@@ -20,6 +20,19 @@ use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
+/// The Characters card (2026-11-09, docs/design/character-animation.md section 9's Animation tools):
+/// Show skeletons draws every drawn body's joints and bones on top of everything, so a skeleton
+/// reshaped by the body sliders can be seen sitting inside its body (engine::animation; a rig turns
+/// it on with the `skeletons` showcase verb).
+fn draw_characters_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use humanity_core::i18n::t;
+    use crate::gui::widgets::with_hint;
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new(t("dev.characters")).size(theme.font_size_body).strong().color(theme.text_primary()));
+        with_hint(ui, "dev.show_skeletons_hint", |ui| widgets::toggle(ui, theme, t("dev.show_skeletons"), &mut state.show_skeletons));
+    });
+}
+
 /// One spawnable species row, loaded once from creatures.csv for the list.
 struct SpeciesRow {
     id: String,
@@ -122,6 +135,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
             // ── Music (2026-11-06): the danger knob and what the music is doing ──
             crate::gui::pages::dev_music::draw_card(ui, theme, state);
+            ui.add_space(theme.spacing_sm);
+            // ── Characters (2026-11-09): the skeleton overlay ──
+            draw_characters_card(ui, theme, state);
             ui.add_space(theme.spacing_sm);
 
             // Status + cleanup.

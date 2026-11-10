@@ -1,7 +1,7 @@
 # Character animation: one body, from the player to a ship of crew
 
 **Status: rungs 0 and 1 BUILT on 2026-11-08 (section 13), with the real bodies (MakeHuman, female
-and male), clips (Quaternius) and the walking pace on 2026-11-09 (section 14); rung 2 and on are
+and male), clips (Quaternius), the walking pace and the body sliders on 2026-11-09 (section 14); rung 2 and on are
 DESIGN. Section 12's questions were all decided on 2026-11-08.** Written after the operator came
 across NVIDIA's MotionBricks (https://github.com/NVlabs/motionbricks, SIGGRAPH 2026) on 2026-11-08
 and asked where a technique of that class fits. The licensing question has its own dated finding:
@@ -333,6 +333,27 @@ MakeHuman body holds 8.11 MB on the GPU (0.74 MB of vertices, 7.4 MB of shape ta
 the test figure 0.10 MB; a near place's skinned output is 0.50 MB (16 near: 7.9 MB per body that fills
 them); a body's palette is 2.8 KB a frame (its model matrix, the six-row morph block and 56 joints).
 On disk, in git: 4.3 MB a body (8.6 MB for both), most of it the shape targets; the clips 0.7 MB.
+
+**With the body sliders (2026-11-09)**, the same way, each pair in one boot: the crowd with varied
+shapes (every stand-in its own build, proportions, ancestry and height, up to seven shape targets on,
+section 14's sliders) against the same crowd drawn as the body as made (showcase `varied_shapes` 0:
+no target on, which is what main drew), vantages `anim-crowd-near` and `anim-crowd-middle` and their
+`-plain` twins. Two boots were clean of other builds for the near pair, one for the middle pair:
+
+| Case | cpu.animation, plain to varied | cpu.skinning | gpu.skinning | gpu.scene | all GPU stages |
+|---|---|---|---|---|---|
+| 50 bodies 6 to 14 m (16 near, 34 middle), boot 1 | 0.410 to 0.536 ms | 0.185 to 0.213 | 0.023 to 0.083 | 7.30 to 7.92 ms | 13.32 to 14.17 |
+| the same, boot 2 | 0.735 to 0.513 ms | 0.388 to 0.209 | 0.023 to 0.083 | 7.57 to 7.86 ms | 13.79 to 14.37 |
+| 50 bodies 18 to 26 m (all middle), boot 2 | 0.266 to 0.327 ms | 0.036 to 0.036 | none | 7.18 to 7.36 ms | 13.35 to 13.59 |
+
+So: compute skinning of 16 near bodies costs 0.06 ms more with their targets on (about 4 microseconds
+a body, both boots alike); the scene, which skins the middle bodies in the vertex shader, 0.2 to 0.6
+ms more for 34 middle bodies and 0.2 ms more for 50 (the spread between boots is as large); the CPU
+side is inside its own run-to-run spread (the pose work is the same; working out a shape is a few
+lookups and a hash a person, and a reshaped skeleton is kept while the shape stays). At section 8.4's
+500 middle bodies the scene's share would be a few milliseconds, so rung 4's instanced crowd draw
+should take only each middle body's largest two or three targets (or one shape a group shares, a
+reuse that obeys the switch); near bodies can keep all seven.
 
 **Why 56 joints and not MakeHuman's 163**: the 56 are exactly the bones that move in rung 1 (the role
 map's); the other 107 would only ever sit at rest under their parents until face and twist rungs.
@@ -705,6 +726,108 @@ Rung 1's agent left three questions; his answers, verbatim:
    second (`files.makehumancommunity.org`, no robots.txt), once the download itself is approved.
 3. **Build and ancestry sliders on the character page?** "Yeah, let's go for it." The 15 targets
    already ship; the sliders drive them through the look, like height.
+
+### Built after rung 1: the body sliders (2026-11-09)
+
+Answer 3, built: the character page shapes the body with sliders for build, proportions and
+ancestry, every other player sees the shape you chose, and a crew is no longer one body copied.
+
+- **Every slider is a row of the body file** (`data/characters/bodies/makehuman_*.ron`,
+  `shape.sliders`; read by `library.rs`): a `Grid` (two sliders spanning a square of targets: muscle
+  and weight, MakeHuman's grid, a target at each edge and corner, weighted bilinearly), a `Line` (one
+  slider, a target at each end: proportions) and a `Blend` (shares of one whole, each part's target
+  its difference from the even mix: the three ancestries). Each row names its group (the page's
+  heading) and its slider ids, which are both the words' keys (`characters.shape_<id>`) and the
+  look's keys. A new slider is a new row and its words; nothing in code names one. The loader
+  refuses a target the mesh lacks, an id a look could not carry, an id named twice, and a body whose
+  rows could turn on more targets at once than the palette holds.
+- **Values live in the look**: `Appearance::shape`, slider id to a value from 0 to 1, saved with the
+  character (`#[serde(default)]`: a save from before the sliders loads with the body as made). A
+  slider the look does not name sits in its middle, a blend's parts at an even share, which is the
+  body as made, so an empty map costs nothing and Reset simply empties it (and puts the height back
+  to 1.0).
+- **The person's height stays theirs.** MakeHuman's ancestry targets move the top of the head
+  (measured on the female body at full weight: African +7.9 cm, Asian -9.4 cm, Caucasian +1.5 cm;
+  proportions' ideal end +1.0 cm; the build targets 0 to 0.5 cm), so `shape_for` adds up how far the
+  slider targets raise the head (each target's rise measured from the mesh at load) and the height
+  targets take up the difference. A person at look height 1.0 stands at the body's own height
+  whatever their build or ancestry; the test holds it to a centimetre at look heights 0.9, 1.0 and
+  1.15.
+- **The skeleton follows**, as it does for height: the converter wrote each target's movement of
+  every joint beside it, so `Skeleton::reshaped` moves each joint by every active target's movement
+  and remakes the inverse binds. The largest movement a build slider makes is the hips' (the mean
+  of their flesh): 6.3 cm back and up at least muscle and most weight on the female body. Two tests
+  hold it (below), and the rig shows it (Proof).
+- **The palette needs no more slots** (brief item 3): the most a person turns on at once is seven
+  targets, one height target, three around a point of the muscle-weight grid (the centre has none),
+  one end of proportions and two of the three ancestries (each weighted by its share less the
+  smallest share, which shapes the body exactly as shares less a third would because the three
+  targets add up to nothing, and leaves one off). `pose::MAX_ACTIVE_MORPHS` is ten, so
+  `MORPH_SLOTS` stays at two. Each active target costs every skinned vertex two more reads in both
+  skinning shaders; measured at the crowd vantages (section 8.0, "With the body sliders"), 0.06 ms
+  more compute skinning for 16 near bodies and 0.2 to 0.6 ms more scene for 34 to 50 middle ones,
+  CPU inside its spread. Rung 4's crowd draw should give middle bodies only their largest targets.
+- **Over the network**: `PlayerLook::shape` (humanity-core, so the relay reads the same shape and
+  passes it through unchanged in the joined player's `appearance`), each id cleaned like a body id
+  (`clean_shape_id`, at most 24 characters), each value clamped to 0 to 1 and rounded to a thousandth,
+  at most 16 of them; sent as short decimals and left out entirely when empty, so a look without
+  sliders is the same bytes as before. A full set is about 100 bytes, once per join and once per
+  view entry, never per frame (8.5). A look without `shape` (an older app's) reads as the body as
+  made. The look still goes only at join, as before: a change made mid-session reaches others at
+  the next join.
+- **A crew is varied**: `characters.ron`'s `crew` wearer names a range per slider (muscle 0.3 to
+  0.75, weight 0.2 to 0.8, proportions 0.3 to 0.7, each ancestry 0 to 1 then made into shares) and a
+  height range (0.94 to 1.06); each member's values are picked in them by a stable hash of who they
+  are (`library::stable_unit`, FNV-1a over the slider's id from the person's seed, then SplitMix64's
+  finisher), so each keeps theirs every frame and twenty people get twenty shapes. The dev crowd is
+  the same kind, so the crowd vantages now measure varied shapes.
+- **The words, and why these words.** MakeHuman's own data (its CC0 `data/modifiers/` folder at
+  commit a8bc2d54, read 2026-11-09) labels the sliders "Muscle", "Weight", "Proportions",
+  "African", "Asian" and "Caucasian", describes each ancestry as "African ethnicity of the human (the
+  three ethnicity values are normalized so they sum to 100%)." and proportions as "Proportions of the
+  human features, often subjectively referred to as qualities of beauty<br>(min is unusual, center
+  position is average and max is idealistic proportions)." Every macro value runs 0 to 1 with the
+  average in the middle (its targets are named `averagemuscle`, `averageweight`, and the average
+  build's target is empty); the ancestries default to a third each. What the page says:
+  - **Build**: "Muscle" from "less" to "more" and "Weight" from "lighter" to "heavier", MakeHuman's
+    own words for the sliders with the ends in plain words.
+  - **Proportions**, from "shorter legs" to "longer legs": MakeHuman's ends are "unusual" and
+    "idealistic", a judgement of beauty the page does not repeat. Measured, its uncommon end lowers
+    the hips about 1 cm, widens the waist and narrows the shoulders; its ideal end raises the hips 2.2
+    cm and narrows the waist. The words say what each end does, and the hint says real people are
+    found all along it.
+  - **Ancestry**, not MakeHuman's "ethnicity" (the sliders shape a face and body, which follow where
+    a person's ancestors came from; ethnicity also takes in culture, language and belonging, which a
+    body shape cannot show), as shares of one whole
+    showing their percentages, moving together as MakeHuman's do. The parts are "African", "Asian"
+    and "European": MakeHuman's first two words, and a place for the third where MakeHuman says
+    "Caucasian", so all three name where ancestors came from in the same plain way (an attempt to
+    quote a style guide on the word, APA Style's racial and ethnic identity page, could not be read
+    on 2026-11-09: the page came back empty to an automated reader). The converter names that target
+    `european` too (MakeHuman's file names stay as they are in its input list). The note under the
+    heading says skin colour is chosen on its own.
+  - A glossary card for MakeHuman (`data/glossary.json` `makehuman`), marked in the page's note.
+- **Web**: the website has no character page to mirror (`docs/PAGES.md`, `showroom.rs`: "No website
+  page (no game in a browser)"); the shape reaches the web nowhere else, so there is nothing to
+  mirror and no divergence (the dual-UI parity rule's documented "no").
+- **Dev tooling (section 9's Animation tools, begun)**: the Dev page's Characters card, **Show
+  skeletons**, draws every drawn body's joints and bones on top of everything (through the overlay
+  list the editor's gizmos use), so a skeleton can be seen inside its body; showcase verbs `shape`
+  (the look's slider values), `lineup` (a row of people at given slider values, facing the camera),
+  `skeletons` and `varied_shapes` (the A/B above), each released between vantages
+  (`scripts/lib/showcase-pins.js`).
+- **Proof**: the vantages `anim-shape-{female,male}-build` (the body as made, thin, heavier, the
+  heaviest corner, slight, muscular, strong and heavy) and `-ancestry` (as made, each ancestry alone,
+  each end of proportions), each with a `-skeleton` twin. The first sweep stood the row 45 cm under
+  the floor (the camera at 1.25 m, the row on the feet under an eye-height camera): the skeleton
+  overlay showed it at once, the legs running on below the floor line; the camera now stands at eye
+  height. In every capture all seven or six stand at one height, and every joint sits inside its body
+  (hips in the pelvis, knees in the knees, a hand joint in each hand). Tests, each seen red: the
+  sliders drive their targets as the body file says and the height holds
+  (`the_body_sliders_drive_their_targets_as_the_body_file_says`), the skeleton follows a build
+  slider, every slider has its words, a crew is varied and stable, the shares add up to a whole, a
+  look's shape is clamped and an old look reads as the body as made, and a save from before the
+  sliders loads. The character page: `tests/snapshots/character_shape.png`.
 
 ## References
 

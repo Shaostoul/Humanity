@@ -1332,7 +1332,7 @@ pub(crate) mod tests {
             .collect();
         assert_eq!(placeholder, vec!["Player 42".to_string()], "lazy-spawn placeholder");
 
-        let look = humanity_core::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05, body: String::new() };
+        let look = humanity_core::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05, body: String::new(), shape: Default::default() };
         sys.queue_messages(vec![NetMessage::PlayerJoined {
             player_id: 42,
             name: "Test Pilot A".to_string(),

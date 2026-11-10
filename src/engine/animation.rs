@@ -64,8 +64,11 @@ pub(crate) struct Person {
     pub feet: Vec3,
     /// The turn about +Y taking the body's front (+Z) to the way it faces, radians.
     pub facing: f32,
-    /// Look height multiplier (1.0 = the body's own height).
+    /// Look height multiplier (1.0 = the body's own height). A person whose shape is `Varied` takes
+    /// their wearer kind's height range instead.
     pub height: f32,
+    /// Their build, proportions and ancestry (the character page's sliders).
+    pub shape: ShapeValues,
     /// The wearer kind whose defaults fill what the person does not say ("player", "crew").
     pub wearer: &'static str,
     /// The body their look chooses (`Appearance::body_type`: "female", "male"); None or an unknown
@@ -75,6 +78,42 @@ pub(crate) struct Person {
     pub hair: Option<[f32; 3]>,
     pub eyes: Option<[f32; 3]>,
     pub outfit: Option<humanity_core::cosmetics::OutfitColors>,
+}
+
+/// Where a person's shape slider values come from (2026-11-09).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ShapeValues {
+    /// Their look's (`Appearance::shape`, or another player's `PlayerLook::shape`): a slider it does
+    /// not name is at its middle, the body as made.
+    Look(std::collections::BTreeMap<String, f32>),
+    /// A person with no look of their own (crew, the dev crowd): each slider and their height picked
+    /// in their wearer kind's ranges (`characters.ron`) by a stable hash of this seed.
+    Varied(u64),
+}
+
+/// A stable number per figure: what its stagger and its varied shape are hashed from.
+fn figure_seed(key: FigureKey) -> u64 {
+    match key {
+        FigureKey::Me => 0,
+        FigureKey::Showroom => 1,
+        FigureKey::Player(id) => 2 + id as u64,
+        FigureKey::Crew(id) => 7 + id,
+        FigureKey::Crowd(i) => 11 + i as u64,
+    }
+}
+
+/// The shape targets (index, weight) and the uniform scale a person is drawn with on a body: their
+/// look's slider values and height, or, for a person with no look, values and a height picked in
+/// their wearer kind's ranges.
+pub(crate) fn shape_of(lib: &CharacterLibrary, body: &humanity_animation::LoadedBody, p: &Person) -> (Vec<(usize, f32)>, f32) {
+    match &p.shape {
+        ShapeValues::Look(values) => body.shape_for(p.height, &|id| values.get(id).copied()),
+        ShapeValues::Varied(seed) => {
+            let wearer = lib.wearer(p.wearer);
+            let height = wearer.map_or(p.height, |w| w.varied_height(*seed));
+            body.shape_for(height, &|id| wearer.and_then(|w| w.varied(*seed, id)))
+        }
+    }
 }
 
 /// A dev stand-in (the `crowd` and `figure_path` showcase verbs): walks a circle, turns on the spot,
@@ -94,6 +133,16 @@ pub(crate) struct CrowdFigure {
     /// The runtime's clock when it was made, so a rig's capture a known time after the verb finds
     /// it at a known place.
     pub born: f32,
+    /// A look of its own (the `lineup` verb: a body and slider values), in place of the crew's
+    /// varied shape; None for an ordinary stand-in.
+    pub look: Option<CrowdLook>,
+}
+
+/// A stand-in's own body and shape (the `lineup` verb).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CrowdLook {
+    pub body: String,
+    pub shape: std::collections::BTreeMap<String, f32>,
 }
 
 /// What the last frame drew (the Dev page and the rigs read it).
@@ -141,10 +190,17 @@ pub(crate) struct AnimationRuntime {
     /// characters.ron's fallback body (the test figure), for a same-boot comparison of the real
     /// bodies' costs against the rung 1 figure's.
     pub(crate) fallback_only: bool,
+    /// The body sliders' A/B (showcase `varied_shapes`, 2026-11-09): false draws the crew and the
+    /// dev crowd as the body as made (no shape targets), as main did, for a same-boot measure of
+    /// what varied shapes cost.
+    pub(crate) varied_shapes: bool,
     pub(crate) crowd: Vec<CrowdFigure>,
     pub(crate) report: Report,
     /// The box figure's meshes and the crew's amber material, for the dev crowd in the boxes arm.
     box_meshes: Option<(usize, usize, usize)>,
+    /// The skeleton overlay's unit box and its bone and joint materials (made the first time Show
+    /// skeletons is on; a GPU allocation of fixed values, so it cannot be stale).
+    skeleton_meshes: Option<(usize, usize, usize)>,
     pose: Pose,
     model: Vec<Mat4>,
     rows: Vec<[f32; 4]>,
@@ -164,9 +220,11 @@ impl Default for AnimationRuntime {
             clock: 0.0,
             bodies_on: true,
             fallback_only: false,
+            varied_shapes: true,
             crowd: Vec::new(),
             report: Report::default(),
             box_meshes: None,
+            skeleton_meshes: None,
             pose: Pose::default(),
             model: Vec::new(),
             rows: Vec::new(),
@@ -257,8 +315,10 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             }
             rt.report.body = lib.bodies.iter().map(|b| b.def.id.as_str()).collect::<Vec<_>>().join(",");
             rt.report.error = None;
-            // The character page's body chooser lists the bodies a look can choose.
+            // The character page's body chooser lists the bodies a look can choose, and draws the
+            // chosen body's shape sliders.
             state.gui_state.body_choices = lib.characters.bodies.keys().cloned().collect();
+            state.gui_state.body_sliders = lib.bodies.iter().filter(|b| lib.characters.bodies.contains_key(&b.choice)).map(|b| (b.choice.clone(), b.slider_blocks.clone())).collect();
             rt.lib = Some(lib);
         }
         Err(e) => {
@@ -362,10 +422,56 @@ pub(crate) fn parse_crowd(spec: &str, origin: Vec3) -> Option<Vec<CrowdFigure>> 
                     // Alternate directions, so neighbours pass each other.
                     CrowdMotion::Circle { centre: origin, radius: ring, speed: if i % 2 == 0 { s } else { -s } }
                 };
-                CrowdFigure { motion, phase, born: 0.0 }
+                CrowdFigure { motion, phase, born: 0.0, look: None }
             })
             .collect(),
     )
+}
+
+/// The showcase `lineup` verb (2026-11-09, the body sliders' proof): `"body,ahead_m,gap_m|spec|spec|..."`
+/// stands one person per spec in a row across the view, `ahead_m` in front of `feet` along
+/// `forward` (flat), `gap_m` apart, each facing back toward the camera at idle, drawn with `body`
+/// and the spec's slider values: `"muscle=0,weight=1"`, or `"-"` for the body as made. Values are
+/// clamped to 0 to 1 when drawn, as a look's are.
+pub(crate) fn parse_lineup(spec: &str, feet: Vec3, forward: Vec3) -> Option<Vec<CrowdFigure>> {
+    let mut parts = spec.split('|').map(str::trim);
+    let head: Vec<&str> = parts.next()?.split(',').map(str::trim).collect();
+    let body = humanity_core::player_look::clean_body_id(head.first()?);
+    if body.is_empty() {
+        return None;
+    }
+    let ahead: f32 = head.get(1).map_or(Some(3.5), |s| s.parse().ok())?;
+    let gap: f32 = head.get(2).map_or(Some(0.85), |s| s.parse().ok())?;
+    let specs: Vec<&str> = parts.filter(|p| !p.is_empty()).collect();
+    if specs.is_empty() || specs.len() > 64 || !ahead.is_finite() || !gap.is_finite() {
+        return None;
+    }
+    let fwd = Vec3::new(forward.x, 0.0, forward.z).try_normalize()?;
+    let right = fwd.cross(Vec3::Y);
+    // Facing back along the view: the body's front (+Z) turned onto -forward.
+    let facing = (-fwd.x).atan2(-fwd.z);
+    let phase = (facing / std::f32::consts::TAU).rem_euclid(1.0);
+    let n = specs.len() as f32;
+    specs
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let mut shape = std::collections::BTreeMap::new();
+            if *s != "-" {
+                for kv in s.split(',') {
+                    let (k, v) = kv.split_once('=')?;
+                    let id = humanity_core::player_look::clean_shape_id(k.trim());
+                    let v: f32 = v.trim().parse().ok()?;
+                    if id.is_empty() || !v.is_finite() {
+                        return None;
+                    }
+                    shape.insert(id, v);
+                }
+            }
+            let at = feet + fwd * ahead + right * ((i as f32 - (n - 1.0) * 0.5) * gap);
+            Some(CrowdFigure { motion: CrowdMotion::Turn { at, rate: 0.0 }, phase, born: 0.0, look: Some(CrowdLook { body: body.clone(), shape }) })
+        })
+        .collect()
 }
 
 /// The showcase `figure_path` verb: `"x,y,z;x,y,z;...;speed"` one stand-in walking that path back and
@@ -381,7 +487,7 @@ pub(crate) fn parse_path(spec: &str) -> Option<CrowdFigure> {
             (v.len() == 3).then(|| Vec3::new(v[0], v[1], v[2]))
         })
         .collect::<Option<Vec<Vec3>>>()?;
-    (points.len() >= 2 && speed > 0.0).then_some(CrowdFigure { motion: CrowdMotion::Path { points, speed }, phase: 0.0, born: 0.0 })
+    (points.len() >= 2 && speed > 0.0).then_some(CrowdFigure { motion: CrowdMotion::Path { points, speed }, phase: 0.0, born: 0.0, look: None })
 }
 
 /// One region's colour for a person.
@@ -416,6 +522,10 @@ pub(crate) fn region_colour(lib: &CharacterLibrary, tint: &Tint, p: &Person) -> 
 
 /// Everyone to draw this frame.
 fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
+    // People with no look of their own take varied shapes, unless the A/B (showcase
+    // `varied_shapes` 0) draws them all as the body as made, as before the sliders.
+    let varied = state.animation.varied_shapes;
+    let no_look = |key: FigureKey| if varied { ShapeValues::Varied(figure_seed(key)) } else { ShapeValues::Look(Default::default()) };
     let mut out = Vec::new();
     let me = |key: FigureKey, feet: Vec3, facing: f32| {
         let app = &state.gui_state.appearance;
@@ -425,6 +535,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             feet,
             facing,
             height: app.height_scale.clamp(0.5, 2.0),
+            shape: ShapeValues::Look(app.shape.clone()),
             wearer: "player",
             body: Some(app.body_type.clone()),
             skin: Some(app.skin_tone),
@@ -451,6 +562,9 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             feet: t.position - Vec3::new(0.0, humanity_core::ecs::components::EYE_HEIGHT_M as f32, 0.0),
             facing: facing_for_camera_yaw(yaw),
             height: r.look.as_ref().map_or(1.0, |l| l.height),
+            // The shape they chose, as their look carried it (clamped by PlayerLook); none for an
+            // older app's look, which draws the body as made.
+            shape: ShapeValues::Look(r.look.as_ref().map(|l| l.shape.clone()).unwrap_or_default()),
             wearer: "player",
             body: r.look.as_ref().map(|l| l.body.clone()),
             skin: r.look.as_ref().map(|l| l.skin),
@@ -465,6 +579,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             feet: t.position - Vec3::new(0.0, CREW_POSITION_OVER_FEET_M, 0.0),
             facing: facing_of_turn(t.rotation),
             height: 1.0,
+            shape: no_look(FigureKey::Crew(n.entity_id)),
             wearer: "crew",
             body: None,
             skin: None,
@@ -476,7 +591,12 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
     let clock = state.animation.clock;
     for (i, c) in state.animation.crowd.iter().enumerate() {
         let (feet, facing) = crowd_place(c, clock);
-        out.push(Person { key: FigureKey::Crowd(i as u32), feet, facing, height: 1.0, wearer: "crew", body: None, skin: None, hair: None, eyes: None, outfit: None });
+        let key = FigureKey::Crowd(i as u32);
+        let (shape, body) = match &c.look {
+            Some(l) => (ShapeValues::Look(l.shape.clone()), Some(l.body.clone())),
+            None => (no_look(key), None),
+        };
+        out.push(Person { key, feet, facing, height: 1.0, shape, wearer: "crew", body, skin: None, hair: None, eyes: None, outfit: None });
     }
     out
 }
@@ -523,21 +643,23 @@ pub(crate) fn stride_scale(shaped: &humanity_animation::Skeleton, base: &humanit
 
 /// A stable stagger per figure, so a crowd does not step in unison.
 fn stagger(key: FigureKey) -> f32 {
-    let n: u64 = match key {
-        FigureKey::Me => 0,
-        FigureKey::Showroom => 1,
-        FigureKey::Player(id) => 2 + id as u64,
-        FigureKey::Crew(id) => 7 + id,
-        FigureKey::Crowd(i) => 11 + i as u64,
-    };
-    ((n.wrapping_mul(2_654_435_761) % 1000) as f32) / 1000.0
+    ((figure_seed(key).wrapping_mul(2_654_435_761) % 1000) as f32) / 1000.0
 }
 
 /// Draw every person as a skinned, animated body. Returns false when the bodies are not what the
 /// frame draws (data missing, or the A/B switch on boxes): lib.rs then draws the box figures.
-pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderObject>, showroom: bool, dt: f32) -> bool {
+/// The skeleton overlay's bone thickness and joint marker size, metres.
+const SKELETON_BONE_M: f32 = 0.012;
+const SKELETON_JOINT_M: f32 = 0.03;
+
+/// Draw every person as a skinned, animated body. Returns false when the bodies are not what the
+/// frame draws (data missing, or the A/B switch on boxes): lib.rs then draws the box figures. With
+/// the Dev page's Show skeletons on, each body's joints and bones go into `overlay` (drawn on top
+/// of everything, as the editor's gizmos are).
+pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderObject>, overlay: &mut Vec<RenderObject>, showroom: bool, dt: f32) -> bool {
     let _cost = humanity_core::frame_costs::stage("cpu.animation");
     ensure_loaded(state);
+    let show_skeletons = state.gui_state.show_skeletons;
     let dt = if dt.is_finite() { dt.clamp(0.0, 0.25) } else { 0.0 };
     state.animation.clock += dt;
     if !state.animation.draws_bodies() {
@@ -565,6 +687,15 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
     let mut slots = vec![0usize; lib.bodies.len()];
     let mut fallback_used = 0usize;
     let reuse = humanity_core::reuse::enabled();
+    // The overlay's unit box (base at its origin, one metre each way) and its two bright materials.
+    let skeleton_meshes = show_skeletons.then(|| {
+        *rt.skeleton_meshes.get_or_insert_with(|| {
+            let unit = renderer.add_mesh(crate::renderer::mesh::Mesh::box_xyz(&renderer.device, 1.0, 1.0, 1.0));
+            let bone = renderer.add_material_full([1.0, 0.85, 0.15, 1.0], 0.0, 0.5, 0.0, 1.0);
+            let joint = renderer.add_material_full([0.2, 0.9, 1.0, 1.0], 0.0, 0.5, 0.0, 1.0);
+            (unit, bone, joint)
+        })
+    });
     for (i, p) in people.iter().enumerate() {
         let hash = stagger(p.key);
         let bi = if rt.fallback_only {
@@ -574,8 +705,9 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
         };
         let body = &lib.bodies[bi];
         let gpu_body = rt.gpu_bodies[bi];
-        // The look's height through the body's height targets, the rest as a scale.
-        let (weights, scale) = body.shape_for(p.height);
+        // The look's sliders through the body's shape targets, its height through the height
+        // targets, the rest as a scale (a crew member's picked in their wearer kind's ranges).
+        let (weights, scale) = shape_of(lib, body, p);
         let fig = rt.figures.entry(p.key).or_insert_with(|| Figure {
             animator: Animator::with_offset(&lib.graph, hash, hash * 4.0),
             motion: MotionTracker::default(),
@@ -606,6 +738,37 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
         let world = Mat4::from_scale_rotation_translation(Vec3::splat(scale), rotation, p.feet);
         let morph = pose::morph_rows(&weights, body.model.vertex_count() as u32);
         let index = renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rt.rows);
+        // The skeleton as it is posed this frame: a bone from each joint to its parent, a marker
+        // at each joint, through the same world matrix as the body.
+        if let Some((unit, bone_mat, joint_mat)) = skeleton_meshes {
+            let at = |j: usize| world.transform_point3(rt.model[j].w_axis.truncate());
+            for j in 0..skel.joint_count() {
+                let here = at(j);
+                overlay.push(RenderObject {
+                    fade: 0.0,
+                    position: here - Vec3::new(0.0, SKELETON_JOINT_M * 0.5, 0.0),
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3::splat(SKELETON_JOINT_M),
+                    mesh: unit,
+                    material: joint_mat,
+                });
+                if let Some(parent) = skel.parents[j] {
+                    let from = at(parent);
+                    let d = here - from;
+                    let len = d.length();
+                    if len > 1e-4 {
+                        overlay.push(RenderObject {
+                            fade: 0.0,
+                            position: from,
+                            rotation: Quat::from_rotation_arc(Vec3::Y, d / len),
+                            scale: Vec3::new(SKELETON_BONE_M, len, SKELETON_BONE_M),
+                            mesh: unit,
+                            material: bone_mat,
+                        });
+                    }
+                }
+            }
+        }
         let materials: Vec<usize> = body
             .primitive_regions
             .iter()

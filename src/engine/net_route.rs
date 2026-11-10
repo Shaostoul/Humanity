@@ -1253,7 +1253,7 @@ mod tests {
         let floor = 3.0;
         let plain = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
         assert_eq!(plain.iter().map(|p| p.part).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head]);
-        let tall = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2, body: String::new() };
+        let tall = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2, body: String::new(), shape: Default::default() };
         for (look, h) in [(None, 1.0), (Some(&tall), 1.2)] {
             let parts = remote_figure_parts(eye, glam::Quat::IDENTITY, look);
             let get = |part| *parts.iter().find(|p| p.part == part).unwrap();
@@ -1379,7 +1379,7 @@ mod tests {
             let fwd = cam.forward_xz();
             let right = fwd.cross(Vec3::Y);
             for height in [1.0f32, 1.2] {
-                let look = humanity_core::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height, body: String::new() };
+                let look = humanity_core::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height, body: String::new(), shape: Default::default() };
                 let pieces = remote_figure_parts(Vec3::from(position), Quat::from_array(rotation), Some(&look));
                 let head = pieces.iter().find(|p| p.part == FigurePart::Head).unwrap().at;
                 let r = FIGURE_HEAD_MESH_R_M * height;
@@ -1615,7 +1615,7 @@ mod tests {
                 key: None,
             },
         ));
-        let tallest = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: humanity_core::player_look::HEIGHT_MAX, body: String::new() };
+        let tallest = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: humanity_core::player_look::HEIGHT_MAX, body: String::new(), shape: Default::default() };
         world.spawn((
             at(Vec3::new(-5.0, 1.7, 0.0)),
             RemotePlayer {

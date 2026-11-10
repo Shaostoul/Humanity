@@ -1486,6 +1486,13 @@ pub struct Appearance {
     pub hair_style: String,
     pub hair_color: [f32; 3],
     pub eye_color: [f32; 3],
+    /// The body's shape (2026-11-09, the character page's build and ancestry sliders): each slider's
+    /// value by its id, 0 to 1, the ids being the body files' sliders
+    /// (`data/characters/bodies/*.ron`, `shape.sliders`). A slider not here is at its middle (in a
+    /// blend, an even share): the body as made. Empty in a save written before the sliders, which
+    /// therefore loads as the body as made; "Reset" on the page empties it.
+    #[serde(default)]
+    pub shape: std::collections::BTreeMap<String, f32>,
 }
 
 impl Default for Appearance {
@@ -1497,6 +1504,7 @@ impl Default for Appearance {
             hair_style: "short".to_string(),
             hair_color: [0.25, 0.18, 0.10],
             eye_color: [0.30, 0.45, 0.55],
+            shape: std::collections::BTreeMap::new(),
         }
     }
 }

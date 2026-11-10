@@ -10,8 +10,9 @@ clips sampled from imported keys and retargeted onto every body by role, the joi
 MakeHuman's skeleton across onto SOMA's 30 joints, blend spaces and the locomotion state machine,
 the motion tracker that reads speed and turn rate from positions, the near and middle drawing
 tiers, and the bodies themselves (a female and a male MakeHuman body and the test figure as the
-fallback), each with the shape targets the look drives and a skeleton that follows them
-(`Skeleton::reshaped`). It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
+fallback), each with the shape targets the look drives (height, and since 2026-11-09 the character
+page's sliders: build, proportions and ancestry, each a row of the body file) and a skeleton that
+follows them (`Skeleton::reshaped`), and the stable hash that varies the crew's shapes. It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
 reads glTF into `humanity_core::skin_data` and draws the palettes), so every test runs headless, and
 because animation never reaches the server: the relay build never compiles it (the operator,
 2026-11-08: "a new crate, humanity-animation: yes").
@@ -74,6 +75,14 @@ All 9 items shown.
   by `assets/shaders/skinning.wgsl`, `assets/shaders/skinning_vs.wgsl` and written as
   `renderer::skinning::MORPH_SLOTS` (that module compiles in the relay build, which has no animation
   crate; `engine::animation`'s tests hold the two equal). Change all of them together.
+- **A slider is a row of the body file, never code** (2026-11-09): `shape.sliders` names each
+  slider's id, its group and the targets it drives (`Grid`, `Line`, `Blend`); the ids are the
+  look's keys (`Appearance::shape`, `PlayerLook::shape`) and the words' keys
+  (`characters.shape_<id>`), so a new slider is a row and its words. A look without a value is the
+  body as made. The person's height is theirs: `shape_for` lets the height targets take up what the
+  slider targets do to it. The loader refuses rows that could turn on more targets at once than
+  `MAX_ACTIVE_MORPHS`. Source: the operator, 2026-11-09 ("Yeah, let's go for it."); CLAUDE.md,
+  Infinite-of-X; character-animation.md section 14, the sliders.
 - **A clip's hips travel is an offset from the rest, and its speed is the body's.** Retargeting
   scales a gait's `speed_mps` by the body's leg length against the source's, and the engine divides
   a person's speed by their own stride scale (shape and size) before the graph reads it, so the
@@ -106,7 +115,15 @@ All 9 items shown.
 - **The engine's MakeHuman tests** (`src/engine/animation_tests.rs`): both bodies skin to their
   bind mesh at rest and stay whole in every gait and stance; a look's height reshapes the body and
   its skeleton follows (the reshaped mesh skins onto itself at rest); the morph block and morph
-  buffer are laid out as the shaders read them.
+  buffer are laid out as the shaders read them. Since 2026-11-09, the sliders: each row drives its
+  targets as the body file says and the height holds while they move
+  (`the_body_sliders_drive_their_targets_as_the_body_file_says`), the skeleton follows a build
+  slider (`the_skeleton_follows_a_build_slider`), every slider has its words, and a crew is varied
+  and stable (`a_crew_is_varied_and_each_keeps_their_shape`).
+- **The sliders in the running game:** the vantages `anim-shape-{female,male}-{build,ancestry}` (and
+  `-skeleton`, the joints and bones drawn on top: showcase `skeletons`, the Dev page's Show
+  skeletons) stand a row of people at the sliders' ends (showcase `lineup`); `anim-crowd-*-plain`
+  is the crowd with no shapes, the same-boot twin that measures what varied shapes cost.
 
 ## Open work
 
@@ -120,9 +137,16 @@ All 9 items shown.
   (`lowerarm02` is the wrist's parent), not siblings of the driver as `apply_twists` expects, so the
   converter merges them for now; a chained twist (or the converter keeping them as siblings) is the
   skinning-quality step after rung 2.
+- **Garments must follow the sliders** (2.4's second half, with MakeHuman's clothes): a garment
+  needs the same targets transferred to it, or a fitted proxy, so one jacket fits every build.
+- **A look changed mid-session reaches others only at the next join** (the look rides `game_join`);
+  a small look update message is the step when that matters.
 - **Middle bodies cast no sun shadow** (rung 1's vertex-shader path draws only in the scene pass);
   rung 4's instanced crowd skinning adds a skinned shadow PSO.
 - **Middle-tier pose evaluation at 15 Hz with sharing**, and the far tier's baked animation: rung 4.
+  With the body sliders each middle body skins up to seven shape targets in the vertex shader (0.2
+  to 0.6 ms of scene at 34 to 50 bodies, character-animation.md 8.0): rung 4's crowd draw should give
+  middle bodies only their largest two or three.
 
 ## Requests from other crates
 

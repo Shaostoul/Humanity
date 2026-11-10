@@ -35,5 +35,41 @@
     // a taller person is longer in the leg and body rather than scaled up head and all.
     shape: Some((
         height: Some((below: "height_min", above: "height_max")),
+        // THE CHARACTER PAGE'S SLIDERS (2026-11-09; docs/design/character-animation.md section 14, the sliders):
+        // each row is one way the page shapes this body, the slider ids its words' keys
+        // (`characters.shape_<id>`) and the look's values (`Appearance::shape`, 0 to 1). A look
+        // without a value has the slider in its middle (a blend's parts an even share): the body
+        // as made. The person's height stays what they chose: the height targets take up whatever
+        // these do to it (the ancestry targets stand the body up to 9 cm taller or shorter).
+        sliders: [
+            // Build: MakeHuman's muscle and weight grid (its "Muscle" and "Weight", each 0 to 1 with
+            // the average in the middle), a target at each edge and corner.
+            Grid(
+                group: "build",
+                x: "muscle",
+                y: "weight",
+                x_low: "muscle_min",
+                x_high: "muscle_max",
+                y_low: "weight_min",
+                y_high: "weight_max",
+                low_low: "muscle_min_weight_min",
+                low_high: "muscle_min_weight_max",
+                high_low: "muscle_max_weight_min",
+                high_high: "muscle_max_weight_max",
+            ),
+            // MakeHuman's "Proportions": its uncommon end shortens the legs and widens the waist, its
+            // ideal end lengthens the legs and narrows the waist; the words say what each end does.
+            Line(group: "build", slider: "proportions", low: "proportions_uncommon", high: "proportions_ideal"),
+            // Ancestry: MakeHuman's three, as shares that always add up to a whole (MakeHuman: "the
+            // three ethnicity values are normalized so they sum to 100%"); the body is made a third
+            // each. MakeHuman calls the third "Caucasian"; the page says European, and so does its
+            // target (made from MakeHuman's caucasian files by the converter; section 14, the
+            // sliders, says why).
+            Blend(group: "ancestry", parts: [
+                (slider: "african", target: "african"),
+                (slider: "asian", target: "asian"),
+                (slider: "european", target: "european"),
+            ]),
+        ],
     )),
 )

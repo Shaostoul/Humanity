@@ -255,10 +255,10 @@ fn a_finger_bends_against_its_hand_as_the_clip_bends_it() {
 fn a_looks_height_reshapes_the_body_and_its_skeleton_follows() {
     let lib = read_library(&repo_data()).unwrap();
     let b = body(&lib, "female");
-    let (none, one) = b.shape_for(1.0);
+    let (none, one) = b.shape_for(1.0, &|_| None);
     assert!(none.is_empty() && (one - 1.0).abs() < 1e-6, "{none:?} {one}");
     assert!(b.reshaped(&none).is_none());
-    let (weights, scale) = b.shape_for(1.2);
+    let (weights, scale) = b.shape_for(1.2, &|_| None);
     assert_eq!(weights.len(), 1);
     assert_eq!(weights[0].0, b.target("height_max").unwrap());
     assert!(weights[0].1 > 0.2 && weights[0].1 < 1.0, "{weights:?}");
@@ -278,6 +278,225 @@ fn a_looks_height_reshapes_the_body_and_its_skeleton_follows() {
     assert!(skel.rest_position(knee).y > b.skeleton.rest_position(knee).y + 0.02, "the knee rose with the leg");
     // Its stride is longer, so its clips play slower for a given speed.
     assert!(stride_scale(&skel, &b.skeleton, &lib.humanoid, scale) > 1.05);
+}
+
+/// The shaped mesh's vertices (bind pose, no skinning) under these target weights.
+fn shaped_bind(b: &LoadedBody, weights: &[(usize, f32)]) -> Vec<Vec3> {
+    let mut out = Vec::new();
+    for prim in &b.model.primitives {
+        for (i, v) in prim.vertices.iter().enumerate() {
+            let mut p = Vec3::from(v.position);
+            for &(t, w) in weights {
+                p += Vec3::from(prim.morphs[t].positions[i]) * w;
+            }
+            out.push(p);
+        }
+    }
+    out
+}
+
+/// A body's shape for slider values given by name, at a look height.
+fn shape_at(b: &LoadedBody, height: f32, values: &[(&str, f32)]) -> (Vec<(usize, f32)>, f32) {
+    let m: std::collections::BTreeMap<String, f32> = values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+    b.shape_for(height, &|id| m.get(id).copied())
+}
+
+/// The weights without the height targets', sorted by target, to two decimals' tolerance by eye.
+fn heightless(b: &LoadedBody, w: &[(usize, f32)]) -> Vec<(usize, f32)> {
+    let (lo, hi) = (b.target("height_min").unwrap(), b.target("height_max").unwrap());
+    let mut v: Vec<(usize, f32)> = w.iter().copied().filter(|(t, _)| *t != lo && *t != hi).collect();
+    v.sort_by_key(|(t, _)| *t);
+    v
+}
+
+fn near(a: &[(usize, f32)], b: &[(usize, f32)]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.0 == y.0 && (x.1 - y.1).abs() < 1e-4)
+}
+
+/// THE BODY SLIDERS DRIVE THEIR TARGETS AS THE BODY FILE SAYS (2026-11-09, the character page's
+/// build and ancestry sliders; data/characters/bodies/makehuman_*.ron `shape.sliders`), on both
+/// shipped bodies: a look with no values, or every slider in its middle and the ancestry an even
+/// third each, is the body as made (no target on, no scale); muscle and weight weight the grid's
+/// targets bilinearly (an edge, a corner, and between them the four around the point, less the
+/// centre); proportions takes the end it leans toward; the ancestry shares turn on each target by its
+/// share less the smallest, which shapes the body exactly as shares less a third would (the three
+/// targets are differences from the third-each mix, so they add up to nothing); a stranger's value
+/// out of range is clamped; and the person stands as tall as their look says whatever the sliders
+/// do (the African and Asian targets alone move the top of the female body +7.9 and -9.4 cm), the
+/// height targets taking it up. No shape turns on more targets than the palette's morph block holds.
+/// Seen red 2026-11-09 twice: with the grid's low-high and high-low corners swapped in
+/// `resolve_sliders`, "female muscle 0, weight 1: [(10, 1.0)] wanted [(9, 1.0)]"; and with the
+/// height targets not taking up the other targets' change (`natural` left at the body's own
+/// height), "female, African 100% at look height 1: stands 1.675 m, wanted 1.596".
+#[test]
+fn the_body_sliders_drive_their_targets_as_the_body_file_says() {
+    let lib = read_library(&repo_data()).unwrap();
+    for choice in ["female", "male"] {
+        let b = body(&lib, choice);
+        let t = |n: &str| b.target(n).unwrap_or_else(|| panic!("{choice} has no target {n}"));
+        let third = 1.0 / 3.0;
+        assert_eq!(shape_at(b, 1.0, &[]), (Vec::new(), 1.0), "{choice}: the body as made");
+        let middle = shape_at(b, 1.0, &[("muscle", 0.5), ("weight", 0.5), ("proportions", 0.5), ("african", third), ("asian", third), ("european", third)]);
+        assert!(middle.0.is_empty() && (middle.1 - 1.0).abs() < 1e-5, "{choice}: every slider in its middle is the body as made: {middle:?}");
+        // The grid: an edge, a corner, and a point between.
+        let edge = shape_at(b, 1.0, &[("muscle", 1.0)]);
+        assert!(near(&heightless(b, &edge.0), &[(t("muscle_max"), 1.0)]), "{choice} muscle 1: {:?}", edge.0);
+        let corner = shape_at(b, 1.0, &[("muscle", 0.0), ("weight", 1.0)]);
+        assert!(near(&heightless(b, &corner.0), &[(t("muscle_min_weight_max"), 1.0)]), "{choice} muscle 0, weight 1: {:?} wanted {:?}", heightless(b, &corner.0), [(t("muscle_min_weight_max"), 1.0)]);
+        let between = shape_at(b, 1.0, &[("muscle", 0.75), ("weight", 0.25)]);
+        let mut want = vec![(t("muscle_max"), 0.25), (t("weight_min"), 0.25), (t("muscle_max_weight_min"), 0.25)];
+        want.sort_by_key(|(i, _)| *i);
+        assert!(near(&heightless(b, &between.0), &want), "{choice} muscle 0.75, weight 0.25: {:?}", between.0);
+        // The line.
+        assert!(near(&heightless(b, &shape_at(b, 1.0, &[("proportions", 0.0)]).0), &[(t("proportions_uncommon"), 1.0)]));
+        assert!(near(&heightless(b, &shape_at(b, 1.0, &[("proportions", 0.75)]).0), &[(t("proportions_ideal"), 0.5)]));
+        // A stranger's value out of range is the end.
+        assert_eq!(shape_at(b, 1.0, &[("proportions", 9.0)]), shape_at(b, 1.0, &[("proportions", 1.0)]));
+        // The blend: one part alone, then a mix (the part with the least share stays off).
+        let european = shape_at(b, 1.0, &[("african", 0.0), ("asian", 0.0), ("european", 1.0)]);
+        assert!(near(&heightless(b, &european.0), &[(t("european"), 1.0)]), "{choice} European 100%: {:?}", european.0);
+        let mix = [("african", 0.2), ("asian", 0.3), ("european", 0.5)];
+        let mixed = shape_at(b, 1.0, &mix);
+        let mut want = vec![(t("asian"), 0.1), (t("european"), 0.3)];
+        want.sort_by_key(|(i, _)| *i);
+        assert!(near(&heightless(b, &mixed.0), &want), "{choice} 20/30/50: {:?}", mixed.0);
+        let by_least = shaped_bind(b, &heightless(b, &mixed.0));
+        let by_third = shaped_bind(b, &[(t("african"), 0.2 - third), (t("asian"), 0.3 - third), (t("european"), 0.5 - third)]);
+        let off = by_least.iter().zip(&by_third).map(|(a, c)| (*a - *c).length()).fold(0.0_f32, f32::max);
+        assert!(off < 1e-5, "{choice}: the shares less the least shape the body {off} m away from the shares less a third");
+        // The person stands as tall as their look says, whatever the sliders do to the body.
+        for (values, what) in [(&[("african", 1.0), ("asian", 0.0), ("european", 0.0)][..], "African 100%"), (&[("african", 0.0), ("asian", 1.0), ("european", 0.0)][..], "Asian 100%"), (&[("muscle", 0.0), ("weight", 0.0)][..], "muscle 0, weight 0"), (&[("proportions", 1.0)][..], "proportions 1")] {
+            for look in [1.0_f32, 0.9, 1.15] {
+                let (w, scale) = shape_at(b, look, values);
+                let top = shaped_bind(b, &w).iter().map(|v| v.y).fold(f32::MIN, f32::max) * scale;
+                let wanted = b.height_m * look;
+                assert!((top - wanted).abs() < 0.01, "{choice}, {what} at look height {look}: stands {top:.3} m, wanted {wanted:.3}");
+                assert!(w.len() <= humanity_animation::MAX_ACTIVE_MORPHS);
+            }
+        }
+        // The most a shape can turn on: a height target, three around a grid point, a line end and
+        // two of the three ancestries, inside the morph block's ten.
+        let busiest = shape_at(b, 1.1, &[("muscle", 0.7), ("weight", 0.3), ("proportions", 0.2), ("african", 0.5), ("asian", 0.3), ("european", 0.2)]);
+        assert_eq!(busiest.0.len(), 7, "{choice}: {:?}", busiest.0);
+        assert!(busiest.0.len() <= humanity_animation::MAX_ACTIVE_MORPHS);
+    }
+}
+
+/// THE SKELETON FOLLOWS A BUILD SLIDER (2026-11-09): a look at muscle 0 and weight 1, read the way
+/// the frame reads a person (`shape_of`), turns on MakeHuman's least-muscle, most-weight corner, and
+/// the body's skeleton is reshaped with it: every joint stands where the target's own joint
+/// movement puts it (the hips, the mean of its flesh, 6 cm further back and 3 cm higher on the
+/// female body), the reshaped mesh skinned at rest stands exactly on itself (the inverse binds made
+/// again, so the shaped flesh bends about its own joints), and the stride the clips are played at
+/// reads the reshaped hips. Both bodies.
+/// Seen red 2026-11-09 with `LoadedBody::reshaped` handing back the skeleton with no joint moved:
+/// "female: joint root stands 0.0147 m from where the targets put it" (that run also had the grid's
+/// corners swapped, the test above's red, so the corner turned on was another, which moves the hips
+/// 1.5 cm; with the right corner they move 6.3 cm).
+#[test]
+fn the_skeleton_follows_a_build_slider() {
+    let lib = read_library(&repo_data()).unwrap();
+    for choice in ["female", "male"] {
+        let b = body(&lib, choice);
+        let mut p = person("player");
+        p.body = Some(choice.to_string());
+        p.shape = ShapeValues::Look([("muscle".to_string(), 0.0), ("weight".to_string(), 1.0)].into_iter().collect());
+        let (weights, scale) = shape_of(&lib, b, &p);
+        assert!(!heightless(b, &weights).is_empty(), "{choice}: muscle 0 and weight 1 turn on no target");
+        let skel = b.reshaped(&weights).expect("a reshaped skeleton");
+        // Every joint where the targets' joint movements put it.
+        let mut worst: (f32, usize) = (0.0, 0);
+        let mut moved: f32 = 0.0;
+        for j in 0..skel.joint_count() {
+            let mut want = b.skeleton.rest_position(j);
+            for &(t, w) in &weights {
+                want += Vec3::from(b.model.joint_deltas[t][j]) * w;
+            }
+            let off = (skel.rest_position(j) - want).length();
+            if off > worst.0 {
+                worst = (off, j);
+            }
+            moved = moved.max((skel.rest_position(j) - b.skeleton.rest_position(j)).length());
+        }
+        assert!(worst.0 < 1e-4, "{choice}: joint {} stands {:.4} m from where the targets put it", skel.names[worst.1], worst.0);
+        assert!(moved > 0.03, "{choice}: the build moved no joint as much as 3 cm ({moved:.4} m), so this proves little");
+        // At rest the reshaped mesh skins onto itself.
+        let at_rest = skin_cpu(b, &skel, &skel.rest_pose(), &weights);
+        let want = shaped_bind(b, &weights);
+        let off = at_rest.iter().zip(&want).map(|(a, c)| (*a - *c).length()).fold(0.0_f32, f32::max);
+        assert!(off < 1e-4, "{choice}: at rest the reshaped mesh moved {off} m");
+        // The clips' stride reads the reshaped hips.
+        let stride = stride_scale(&skel, &b.skeleton, &lib.humanoid, scale);
+        let hips = skel.hips_height(&lib.humanoid) / b.skeleton.hips_height(&lib.humanoid);
+        assert!((stride - scale * hips).abs() < 1e-5 && (hips - 1.0).abs() > 1e-4, "{choice}: stride {stride}, hips {hips}");
+    }
+}
+
+/// EVERY SLIDER HAS ITS WORDS (2026-11-09): the character page reads a slider's name, hint and (for
+/// one from end to end) its two ends' words by keys built from the body file's slider ids
+/// (`characters.shape_<id>`, `_hint`, `_low`, `_high`) and each group's heading
+/// (`characters.shape_group_<group>`), which no lint can see, so this reads every shipped body's
+/// sliders and asks English for each key.
+/// Seen red 2026-11-09 before the words were added: "female: no words for characters.shape_group_build".
+#[test]
+fn every_body_slider_has_its_words() {
+    let lib = read_library(&repo_data()).unwrap();
+    let mut keys = 0;
+    for b in lib.bodies.iter().filter(|b| lib.characters.bodies.contains_key(&b.choice)) {
+        assert!(!b.slider_blocks.is_empty(), "{}: no sliders", b.choice);
+        for block in &b.slider_blocks {
+            let mut want = vec![format!("characters.shape_group_{}", block.group)];
+            for id in &block.sliders {
+                want.push(format!("characters.shape_{id}"));
+                want.push(format!("characters.shape_{id}_hint"));
+                if !block.shares {
+                    want.push(format!("characters.shape_{id}_low"));
+                    want.push(format!("characters.shape_{id}_high"));
+                }
+            }
+            for k in want {
+                assert!(humanity_core::i18n::has(&k), "{}: no words for {k}", b.choice);
+                keys += 1;
+            }
+        }
+    }
+    assert!(keys >= 20, "{keys} keys");
+}
+
+/// A CREW IS VARIED, AND EACH KEEPS THEIR SHAPE (2026-11-09): people with no look of their own (the
+/// crew, the dev crowd) take build, proportions, ancestry and height picked in their wearer kind's
+/// ranges (characters.ron) by a stable hash of who they are: the same person gets the same shape
+/// every frame, twenty people get twenty shapes, every value sits in its range, and none turns on
+/// more targets than the morph block holds. A player whose look sets no slider is the body as made.
+/// Seen red 2026-11-09 with `figure_seed` the same for every crowd member: "20 crew, 1 shapes".
+#[test]
+fn a_crew_is_varied_and_each_keeps_their_shape() {
+    let lib = read_library(&repo_data()).unwrap();
+    let crew = lib.wearer("crew").unwrap();
+    assert!(!crew.shape.is_empty() && crew.height.is_some(), "characters.ron gives the crew ranges");
+    let mut shapes = std::collections::BTreeSet::new();
+    for i in 0..20u32 {
+        let key = FigureKey::Crowd(i);
+        let mut p = person("crew");
+        p.key = key;
+        p.shape = ShapeValues::Varied(figure_seed(key));
+        let b = &lib.bodies[lib.body_for(None, "crew", stagger(key))];
+        let (w, scale) = shape_of(&lib, b, &p);
+        assert_eq!(shape_of(&lib, b, &p), (w.clone(), scale), "the same person, the same shape");
+        assert!(w.len() <= humanity_animation::MAX_ACTIVE_MORPHS);
+        for (id, &(lo, hi)) in &crew.shape {
+            let v = crew.varied(figure_seed(key), id).unwrap();
+            assert!(v >= lo && v <= hi, "{id} {v} outside {lo} to {hi}");
+        }
+        let (lo, hi) = crew.height.unwrap();
+        let h = crew.varied_height(figure_seed(key));
+        assert!(h >= lo && h <= hi, "height {h}");
+        shapes.insert(w.iter().map(|(t, x)| (*t, (x * 1000.0).round() as i32)).collect::<Vec<_>>());
+    }
+    assert!(shapes.len() >= 18, "20 crew, {} shapes", shapes.len());
+    let mut me = person("player");
+    me.body = Some("male".into());
+    assert_eq!(shape_of(&lib, body(&lib, "male"), &me), (Vec::new(), 1.0), "a look with no sliders set is the body as made");
 }
 
 /// The palette's morph block is laid out the same on both sides of the crate line (the renderer
@@ -314,7 +533,7 @@ fn the_morph_block_and_the_morph_buffer_are_laid_out_as_the_shaders_read_them() 
 }
 
 fn person(wearer: &'static str) -> Person {
-    Person { key: FigureKey::Crowd(0), feet: Vec3::ZERO, facing: 0.0, height: 1.0, wearer, body: None, skin: None, hair: None, eyes: None, outfit: None }
+    Person { key: FigureKey::Crowd(0), feet: Vec3::ZERO, facing: 0.0, height: 1.0, shape: ShapeValues::Look(Default::default()), wearer, body: None, skin: None, hair: None, eyes: None, outfit: None }
 }
 
 /// Region tints: an equipped item's colour, else the wearer kind's default (players' teal top,

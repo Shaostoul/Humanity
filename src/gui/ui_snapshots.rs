@@ -5047,6 +5047,50 @@ fn snapshot_picker_4k() {
     picker_operator_png("picker_4k", 3840, 2160);
 }
 
+/// The character page's appearance editor with the body shape sliders (2026-11-09; docs/design/
+/// character-animation.md section 14, the sliders): Edit look opened from the picker, the female
+/// body chosen, its sliders as the shipped body files list them (written out here as
+/// engine::animation publishes them: the page's crate reads no body file, and the engine's
+/// `every_body_slider_has_its_words` holds the files to their words), a look a little more muscular
+/// and lighter than the body as made, with half African, a fifth Asian and the rest European. At the
+/// operator's 2560 x 1440. The check refuses a picture without the sliders' words.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_character_shape() {
+    use humanity_core::player_look::SliderBlock;
+    let block = |group: &str, sliders: &[&str], shares: bool| SliderBlock { group: group.into(), sliders: sliders.iter().map(|s| s.to_string()).collect(), shares };
+    let blocks = vec![block("build", &["muscle", "weight"], false), block("build", &["proportions"], false), block("ancestry", &["african", "asian", "european"], true)];
+    let sliders: std::collections::BTreeMap<String, Vec<SliderBlock>> = [("female".to_string(), blocks.clone()), ("male".to_string(), blocks)].into_iter().collect();
+    let choices: Vec<String> = vec!["female".into(), "male".into()];
+    render_page_png_checked(
+        "character_shape",
+        2560,
+        1440,
+        crate::gui::font_size::DEFAULT_PERCENT,
+        |ctx, theme, state| {
+            state.showroom_mode = 1;
+            state.showroom_return_to_picker = true;
+            state.character_name = "Wanderer".into();
+            state.body_choices = choices.clone();
+            state.body_sliders = sliders.clone();
+            state.appearance.body_type = "female".into();
+            state.appearance.shape = [("muscle", 0.68), ("weight", 0.38), ("proportions", 0.55), ("african", 0.5), ("asian", 0.2), ("european", 0.3)]
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect();
+            crate::gui::pages::showroom::draw(ctx, theme, state);
+        },
+        |_, out| {
+            for want in ["Body shape", "Build", "Muscle", "heavier", "longer legs", "Ancestry", "European", "50%", "Reset body shape"] {
+                if crate::gui::screen_surface::find_text_in_shapes(&out.shapes, want).is_none() {
+                    return Err(format!("the editor drew no {want:?}"));
+                }
+            }
+            Ok(())
+        },
+    );
+}
+
 /// The Maps page's Planet view (v0.1146): the Seattle Center OSM region
 /// rendered GPS-style (roads by class, building footprints, labels).
 #[test]
