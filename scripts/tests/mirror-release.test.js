@@ -603,7 +603,13 @@ test("--max-minutes stops a run that is taking too long: exit 1, resumable", asy
   w.gh.behaviour[slow] = { trickle: true, trickleConns: 99 };
   const r = await runPuller(w, [...FAST, "--speed-limit", "0", "--speed-time", "10", "--max-minutes", "0.02"]);
   assert.strictEqual(r.code, 1, r.out);
-  assert.match(r.out, /RESULT: failed \(exit 1\): ran out of time \(--max-minutes 0\.02\) fetching data-manifest-v0\.9\.0\.json; the staging folder is kept/);
+  // Which file the deadline names is not fixed (2026-11-10): with --parallel 4 fetching several at
+  // once, a loaded machine can still be on one of the ordinary files when the 1.2 s run out (seen in
+  // one rig-tests run of five: "fetching HumanityOS-linux-x64"). The trickled file only makes sure
+  // the run cannot finish; the deadline's words, exit 1 and nothing published are the claim.
+  const m = /RESULT: failed \(exit 1\): ran out of time \(--max-minutes 0\.02\) fetching ([^;\s]+); the staging folder is kept/.exec(r.out);
+  assert.ok(m, r.out);
+  assert.ok(w.release.mirrored.includes(m[1]), `the file named (${m[1]}) is one the mirror fetches`);
   assert.ok(!fs.existsSync(w.published));
 });
 
