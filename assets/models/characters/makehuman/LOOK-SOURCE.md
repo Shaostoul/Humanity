@@ -345,6 +345,64 @@ https://creativecommons.org/publicdomain/zero/1.0/legalcode
   - `eyelashes03`: colour 49.96, normal map (flat), alpha 45.07
   - `eyelashes04`: colour 68.14, normal map (flat), alpha 48.02
 
+## Source picture sizes (measured 2026-11-10)
+
+Each garment's source maps, in texels a side, read from their PNG headers. The colour map's size is
+the garment's ART size: Settings > Graphics > Garment textures draws a garment at most that large
+(never a picture made bigger than it was made and labelled as more), and offers a level only where
+some garment's art reaches it. A normal or occlusion map smaller than the colour is doubled to it
+(as the shipped files have always done for the fedoras); one larger is halved. The levels above the
+shipped 1024 come as an optional download (`data/characters/garment_packs.ron`, built with `--pack`).
+
+  - `fedora01`: colour 2048, normal map 512, occlusion (none)
+  - `fedora_cocked`: colour 2048, normal map 512, occlusion (none)
+  - `female_casualsuit01`: colour 2048, normal map 4096, occlusion 2048
+  - `female_casualsuit02`: colour 2048, normal map 4096, occlusion 2048
+  - `female_elegantsuit01`: colour 2048, normal map 2048, occlusion 2048
+  - `female_sportsuit01`: colour 2048, normal map 1024, occlusion 2048
+  - `male_casualsuit01`: colour 2048, normal map 2048, occlusion 2048
+  - `male_casualsuit02`: colour 2048, normal map 4096, occlusion 2048
+  - `male_casualsuit03`: colour 2048, normal map 4096, occlusion 2048
+  - `male_casualsuit04`: colour 2048, normal map 4096, occlusion 2048
+  - `male_casualsuit05`: colour 2048, normal map 4096, occlusion 2048
+  - `male_casualsuit06`: colour 2048, normal map 2048, occlusion 2048
+  - `male_elegantsuit01`: colour 2048, normal map (none), occlusion (none)
+  - `male_worksuit01`: colour 2048, normal map 4096, occlusion 2048
+  - `shoes01`: colour 1024, normal map 1024, occlusion (none)
+  - `shoes02`: colour 1024, normal map (none), occlusion (none)
+  - `shoes03`: colour 1024, normal map (none), occlusion (none)
+  - `shoes04`: colour 1024, normal map 1024, occlusion (none)
+  - `shoes05`: colour 1024, normal map (none), occlusion (none)
+  - `shoes06`: colour 1024, normal map (none), occlusion (none)
+  - `afro01`: colour 2048, normal map (none), occlusion (none)
+  - `bob01`: colour 2048, normal map (none), occlusion (none)
+  - `bob02`: colour 2048, normal map (none), occlusion (none)
+  - `braid01`: colour 2048, normal map (none), occlusion (none)
+  - `long01`: colour 2048, normal map (none), occlusion (none)
+  - `ponytail01`: colour 2048, normal map (none), occlusion (none)
+  - `short01`: colour 2048, normal map (none), occlusion (none)
+  - `short02`: colour 2048, normal map (none), occlusion (none)
+  - `short03`: colour 2048, normal map (none), occlusion (none)
+  - `short04`: colour 2048, normal map (none), occlusion (none)
+  - `eyebrow001`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow002`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow003`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow004`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow005`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow006`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow007`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow008`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow009`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow010`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow011`: colour 512, normal map (none), occlusion (none)
+  - `eyebrow012`: colour 512, normal map (none), occlusion (none)
+  - `eyelashes01`: colour 512, normal map (none), occlusion (none)
+  - `eyelashes02`: colour 512, normal map (none), occlusion (none)
+  - `eyelashes03`: colour 512, normal map (none), occlusion (none)
+  - `eyelashes04`: colour 512, normal map (none), occlusion (none)
+
+Art sizes: 24 at 2048, 6 at 1024, 16 at 512. No colour map reaches 4096, so no 4096 level is offered; 7 garments have a normal map larger than their colour (female_casualsuit01, female_casualsuit02, male_casualsuit02, male_casualsuit03, male_casualsuit04, male_casualsuit05, male_worksuit01).
+
 ## Output hashes (SHA-256)
 
 `node scripts/gen-makehuman-look.js --check` compares the files with these when the sources are not
@@ -562,4 +620,4 @@ on the machine.
 - `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.png` `e08c934091e227b38239f993427062f9006c7cf8f2f62cbef10076bd345dcb4a`
 - `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.thumb.png` `50eaa038e01c24849d17ff9b2d4e7011101c0cf23a4fc5a64763f9414ff06796`
 - `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.dds` `76f20a363db7b00c58d36913c50ff6275380749030f3f0c78a06b881b43a2cd6`
-- `data/characters/garments.ron` `493022bb5478e4c779c970f400b2e2bf73ef613878490f6a4a56d1e152feea84`
+- `data/characters/garments.ron` `4fe77b43a447a0cc755dc2ea34bc8e2fb207f165f6a83411af4d0c036ddad826`

@@ -40,6 +40,13 @@
 //                                                      the sources: against LOOK-SOURCE.md's hashes)
 //   node scripts/gen-makehuman-look.js --words FILE    also write the sliders' and garments' words
 //                                                      as an i18n fragment (node scripts/i18n-add.js FILE)
+//   node scripts/gen-makehuman-look.js --pack DIR      also build the optional garment texture packs
+//                                                      (the levels above 1024 in data/gui/garment_textures.json)
+//                                                      into DIR, with data/characters/garment_packs.ron and
+//                                                      DIR-upload-command.txt (2026-11-10)
+//   node scripts/gen-makehuman-look.js --check-pack [--only ID,ID] [--pack-dir DIR]
+//                                                      re-encode the packs' textures (or only those named)
+//                                                      and compare with the catalog's hashes (and DIR's archives)
 //
 // Every input is checked before it is read: the detail targets and the slider list against their
 // git blob SHA-1s in the fetches' MANIFEST.json, the asset pack's files against the CRC-32 the zip's
@@ -70,6 +77,13 @@ const PACK_ZIP = 'makehuman_system_assets_cc0.zip';
 // docs/reference/findings/2026-11-08-character-assets.md, the 2026-11-09 (later) addendum.
 const PACK_SHA256 = 'b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107';
 const MODIFIERS = { rel: 'modifiers/modeling_modifiers.json', sha: '6cff6af98d4e7fa11b007b220d50dc1a627fc654' };
+// The optional garment texture packs (2026-11-10, Settings > Graphics > Garment textures' levels
+// above the shipped files): the levels are read from the app's own file, the catalog the app compiles
+// in is written here, each pack is a release asset under PACK_RELEASE (the model packs' way).
+const LEVELS_JSON = path.join(__dirname, '..', 'data', 'gui', 'garment_textures.json');
+const PACKS_RON = path.join(ROOT, 'data', 'characters', 'garment_packs.ron');
+const PACK_RELEASE = 'assets-garments-1';
+const PACK_VERSION = 1;
 const DM = 0.1; // MakeHuman works in decimetres.
 // A detail delta is stored to a tenth of a millimetre: MakeHuman writes three decimals of a decimetre.
 const DELTA_UNIT_M = 1e-4;
@@ -579,6 +593,12 @@ function convertGarment(g, pack, shared) {
   const files = [diffuse, tex('normalmapTexture'), tex('aomapTexture')].filter(Boolean);
   const thumb = `${g.folder}/${path.posix.basename(g.mhclo, '.mhclo')}.thumb`;
   const colour = meanColour(pack.read(diffuse));
+  // Each source map's size, measured from its PNG header (2026-11-10): the colour map's is the
+  // garment's ART size, the largest it can be drawn at without making a picture bigger than it was
+  // made (Settings > Graphics > Garment textures offers a level only where some garment's art
+  // reaches it). Normal and occlusion maps are recorded too: several outfits' normal maps are 4096
+  // beside a 2048 colour map, which does not make the garment's picture 4096.
+  const pngWidth = (rel) => (rel ? pack.read(rel).readUInt32BE(16) : null);
   const alpha = /true/i.test(mat.transparent || '');
   const twoSided = /false/i.test(mat.backfaceCull || '');
   const shininess = Math.min(1, Math.max(0, +(mat.shininess || 0.2)));
@@ -598,6 +618,8 @@ function convertGarment(g, pack, shared) {
     diffuse,
     normal: tex('normalmapTexture'),
     ao: tex('aomapTexture'),
+    art: colour.w,
+    sizes: { colour: pngWidth(diffuse), normal: pngWidth(tex('normalmapTexture')), ao: pngWidth(tex('aomapTexture')) },
     colour,
     alpha,
     twoSided,
@@ -699,7 +721,7 @@ function garmentsRon(garments) {
   for (const g of garments) {
     out.push('        (');
     out.push(`            id: ${ron(g.id)}, kind: ${g.kind[0].toUpperCase() + g.kind.slice(1)}, file: ${ron(`${dir(g)}/${g.id}.bin`)},`);
-    out.push(`            texture: ${ron(`${dir(g)}/${g.id}.dds`)}, texture_px: ${g.tex.size}, normal_map: ${g.tex.hasNormal}, luma: ${fx(g.tex.meanLuma)},`);
+    out.push(`            texture: ${ron(`${dir(g)}/${g.id}.dds`)}, texture_px: ${g.tex.size}, art_px: ${g.art}, normal_map: ${g.tex.hasNormal}, luma: ${fx(g.tex.meanLuma)},`);
     out.push(`            colour: (${g.colour.mean.map(fx).join(', ')}), roughness: ${fx(g.roughness)}, alpha: ${g.alpha}, two_sided: ${g.twoSided},`);
     out.push(`            covers: ${ron(g.covers)}, tags: ${ron(g.tags)},`);
     out.push('        ),');
@@ -720,6 +742,122 @@ function garmentWords(g) {
   }[base];
   if (!named) fail(`garment ${g.id} has no words`);
   return g.id === 'fedora_cocked' ? named : `${named}${num}`;
+}
+
+// ── The optional texture packs (2026-11-10) ───────────────────────────────
+// Settings > Graphics > Garment textures offers levels as data (data/gui/garment_textures.json): the
+// shipped files carry 1024 a half and every level below it; a level above that (2048 today; 4096
+// would be one more line there) is an optional download, built here. Each pack holds exactly the
+// garments whose colour map reaches its size, at that size, encoded by the same packer and encoder as
+// the shipped files (deterministic: the same sources make the same bytes), in a ustar archive with
+// its pack.ron (the shared pack installer's manifest) and a SOURCE.md (a release asset carries no
+// licence file of its own). A garment whose art stops below a level is drawn from the pack or shipped
+// file of its own largest size, so no garment is in two packs.
+
+const packLabel = (px) => (px % 1024 === 0 ? `${px / 1024}k` : `${px}`);
+
+/** The packs the levels ask for above the shipped files, each with the garments whose art reaches it. */
+function packPlan(garments) {
+  const levels = JSON.parse(fs.readFileSync(LEVELS_JSON, 'utf8')).levels;
+  const sizes = [...new Set(levels.map((l) => l.max_px).filter((px) => px > garmentTexture.TEXTURE_PX))].sort((a, b) => a - b);
+  return sizes
+    .map((px) => ({ px, id: `garments-${packLabel(px)}`, file: `humanity-garments-${packLabel(px)}-v${PACK_VERSION}.tar`, garments: garments.filter((g) => g.art >= px) }))
+    .filter((p) => p.garments.length);
+}
+
+/** One pack's SOURCE.md: where its pictures come from and their licence (CC0), in the archive. */
+function packSourceText(p) {
+  return [
+    `# HumanityOS garment textures, ${packLabel(p.px)} (${p.id}, version ${PACK_VERSION})`,
+    '',
+    `The clothes', shoes', hats' and hair's textures at ${p.px} texels a half, for Settings > Graphics >`,
+    'Garment textures. Made by `scripts/gen-makehuman-look.js --pack` (HumanityOS) from the MakeHuman',
+    `system asset pack (\`${PACK_ZIP}\`, SHA-256 \`${PACK_SHA256}\`): each garment's colour (times its`,
+    'ambient occlusion map) beside its normal map, every level down to 4 texels a half, BC7 (sRGB) by',
+    'HumanityOS\'s own encoder (`scripts/lib/bc7.js`). A garment is in this pack only when its colour map',
+    `is at least ${p.px} texels a side: nothing here was made larger than it was drawn.`,
+    '',
+    'Dedicated to the public domain under CC0 1.0 Universal',
+    '(https://creativecommons.org/publicdomain/zero/1.0/): every clothes, hair and material file of the',
+    'asset pack opens with "This asset was explicitly released as CC0 in september 2020." The full',
+    'record: `assets/models/characters/makehuman/LOOK-SOURCE.md` in the HumanityOS repository.',
+    '',
+    `Garments (${p.garments.length}): ${p.garments.map((g) => g.id).join(', ')}.`,
+    '',
+  ].join('\n');
+}
+
+/** Encode every pack (or only the garments in `only`), on worker threads: each pack's DDS files. */
+async function encodePacks(plan, pack, threads, only) {
+  const jobs = [];
+  for (const p of plan) for (const g of p.garments) {
+    if (only && !only.has(g.id)) continue;
+    jobs.push({ pack: p.id, job: { id: g.id, diffuse: pack.read(g.diffuse), normal: g.normal ? pack.read(g.normal) : null, ao: g.ao ? pack.read(g.ao) : null, cards: g.alpha, px: p.px } });
+  }
+  const t0 = Date.now();
+  const done = await garmentTexture.packAll(jobs.map((j) => j.job), threads);
+  console.log(`packed and BC7-encoded ${jobs.length} garment textures for the packs on ${threads} threads in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  const out = new Map(plan.map((p) => [p.id, []]));
+  jobs.forEach((j, k) => {
+    if (done[k].size !== plan.find((p) => p.id === j.pack).px) fail(`${j.job.id}: packed at ${done[k].size} for the ${j.pack} pack`);
+    out.get(j.pack).push([j.job.id, done[k].dds]);
+  });
+  return out;
+}
+
+/** A whole pack's archive from its encoded files. */
+function packArchive(p, files) {
+  const { tarOf } = require('./lib/ustar.js');
+  const entries = { 'pack.ron': Buffer.from(`(id: "${p.id}", version: ${PACK_VERSION}, instruments: [])\n`), 'SOURCE.md': Buffer.from(packSourceText(p)) };
+  for (const [id, dds] of files) entries[`${id}.dds`] = dds;
+  return tarOf(entries);
+}
+
+/** data/characters/garment_packs.ron, the catalog the app compiles in. */
+function packsRon(packs) {
+  const L = [
+    "// GENERATED by scripts/gen-makehuman-look.js --pack from MakeHuman's CC0 data: never edit by hand, change",
+    '// the converter and run it again. The optional garment texture packs (Settings > Graphics > Garment',
+    '// textures, the levels above the shipped 1024; docs/design/character-animation.md section 16), compiled',
+    '// into the app (src/gui/garment_packs.rs): each pack\'s size and SHA-256 are its archive\'s from the same',
+    "// run, and each garment's SHA-256 is its DDS inside it (`--check-pack --only <id>` re-encodes one and",
+    "// compares). Uploading the archives to the release is the top-level session's step (docs/ai/release.md).",
+    '(',
+    `    release: "${PACK_RELEASE}",`,
+    `    base_url: "https://github.com/Shaostoul/Humanity/releases/download/${PACK_RELEASE}/",`,
+    '    packs: [',
+  ];
+  for (const p of packs) {
+    L.push('        (');
+    L.push(`            id: "${p.id}", version: ${PACK_VERSION}, px: ${p.px},`);
+    L.push(`            file: "${p.file}", bytes: ${p.bytes}, sha256: "${p.sha}",`);
+    L.push('            garments: [');
+    for (const [id, sha] of p.files) L.push(`                (id: "${id}", sha256: "${sha}"),`);
+    L.push('            ],', '        ),');
+  }
+  L.push('    ],', ')', '');
+  return L.join('\n');
+}
+
+/** The committed catalog read back: each pack's id, size, file, bytes, SHA-256 and garments' hashes. */
+function readPacksRon() {
+  if (!fs.existsSync(PACKS_RON)) return null;
+  const text = fs.readFileSync(PACKS_RON, 'utf8').replace(/\r\n/g, '\n');
+  const packs = [];
+  for (const m of text.matchAll(/id: "([^"]+)", version: (\d+), px: (\d+),\n\s+file: "([^"]+)", bytes: (\d+), sha256: "([0-9a-f]{64})",\n\s+garments: \[\n((?:\s+\(id: "[^"]+", sha256: "[0-9a-f]{64}"\),\n)*)/g)) {
+    const files = [...m[7].matchAll(/\(id: "([^"]+)", sha256: "([0-9a-f]{64})"\)/g)].map((x) => [x[1], x[2]]);
+    packs.push({ id: m[1], version: +m[2], px: +m[3], file: m[4], bytes: +m[5], sha: m[6], files });
+  }
+  return packs;
+}
+
+/** Whether the committed catalog lists exactly the packs and garments the levels and art ask for. */
+function catalogProblems(plan) {
+  const have = readPacksRon();
+  if (!have) return [`${path.relative(ROOT, PACKS_RON)} is missing`];
+  const want = plan.map((p) => `${p.id}@${p.px} v${PACK_VERSION}: ${p.garments.map((g) => g.id).join(',')}`);
+  const got = have.map((p) => `${p.id}@${p.px} v${p.version}: ${p.files.map(([id]) => id).join(',')}`);
+  return want.join('\n') === got.join('\n') ? [] : [`${path.relative(ROOT, PACKS_RON)} lists\n  ${got.join('\n  ') || '(no packs)'}\nwhere the levels and the garments' art ask for\n  ${want.join('\n  ') || '(no packs)'}\n(run node scripts/gen-makehuman-look.js --pack <folder>)`];
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────
@@ -771,6 +909,26 @@ function noteText(files, inputs, sliders, garments, totals) {
     '',
     ...garments.map((g) => `  - \`${g.id}\`: colour ${g.tex.psnr.colour}, normal map ${g.tex.hasNormal ? g.tex.psnr.normal : '(flat)'}${g.tex.psnr.alpha === null ? '' : `, alpha ${g.tex.psnr.alpha}`}`),
     '',
+    '## Source picture sizes (measured 2026-11-10)',
+    '',
+    'Each garment\'s source maps, in texels a side, read from their PNG headers. The colour map\'s size is',
+    'the garment\'s ART size: Settings > Graphics > Garment textures draws a garment at most that large',
+    '(never a picture made bigger than it was made and labelled as more), and offers a level only where',
+    'some garment\'s art reaches it. A normal or occlusion map smaller than the colour is doubled to it',
+    '(as the shipped files have always done for the fedoras); one larger is halved. The levels above the',
+    'shipped 1024 come as an optional download (`data/characters/garment_packs.ron`, built with `--pack`).',
+    '',
+    ...garments.map((g) => `  - \`${g.id}\`: colour ${g.sizes.colour}, normal map ${g.sizes.normal || '(none)'}, occlusion ${g.sizes.ao || '(none)'}`),
+    '',
+    ...(() => {
+      const counts = new Map();
+      for (const g of garments) counts.set(g.art, (counts.get(g.art) || 0) + 1);
+      const big = garments.filter((g) => (g.sizes.normal || 0) > g.art);
+      return [
+        `Art sizes: ${[...counts.entries()].sort((a, b) => b[0] - a[0]).map(([px, n]) => `${n} at ${px}`).join(', ')}. No colour map reaches 4096, so no 4096 level is offered; ${big.length} garments have a normal map larger than their colour (${big.map((g) => g.id).join(', ')}).`,
+        '',
+      ];
+    })(),
     '## Output hashes (SHA-256)',
     '',
     '`node scripts/gen-makehuman-look.js --check` compares the files with these when the sources are not',
@@ -787,6 +945,10 @@ async function main() {
   const wordsOut = argValue('--words');
   const haveSources = fs.existsSync(path.join(DETAIL_SRC, 'MANIFEST.json')) && fs.existsSync(path.join(PACK_SRC, PACK_ZIP)) && fs.existsSync(path.join(body.DEFAULT_SRC, '3dobjs', 'base.obj'));
   if (!haveSources) {
+    if (process.argv.includes('--check-pack')) {
+      console.log(`the MakeHuman sources are not on this machine (${DETAIL_SRC}, ${PACK_SRC}): the packs can only be checked by encoding them again, so nothing was checked`);
+      process.exit(3);
+    }
     if (!check) fail(`the MakeHuman sources are not on this machine (${DETAIL_SRC}, ${PACK_SRC}, ${body.DEFAULT_SRC})`);
     const text = fs.existsSync(NOTE) ? fs.readFileSync(NOTE, 'utf8').replace(/\r\n/g, '\n') : '';
     const want = [...text.matchAll(/^- `([^`]+)` `([0-9a-f]{64})`$/gm)];
@@ -835,6 +997,40 @@ async function main() {
   // garments' order whatever order they finish in, so the output is the same every run). Four
   // threads at most: the operator keeps a core of his own (CLAUDE.md, his share of his PC).
   const threads = Math.max(1, Math.min(+(process.env.HUMANITY_LOOK_THREADS || 4), os.cpus().length - 2));
+  // The optional packs, checked against the catalog the app compiles in (2026-11-10): every pack
+  // garment re-encoded (or only those --only names, a quick spot check) and its DDS's SHA-256
+  // compared; for the whole set, each archive's size and SHA-256 too, and, with --pack-dir, the
+  // archive staged there byte for byte.
+  if (process.argv.includes('--check-pack')) {
+    const plan = packPlan(garments);
+    const problems = catalogProblems(plan);
+    const only = argValue('--only') ? new Set(argValue('--only').split(',')) : null;
+    const encoded = await encodePacks(plan, pack, threads, only);
+    const have = readPacksRon() || [];
+    const staged = argValue('--pack-dir');
+    for (const p of plan) {
+      const listed = have.find((h) => h.id === p.id);
+      if (!listed) continue;
+      for (const [id, dds] of encoded.get(p.id)) {
+        const want = (listed.files.find(([g]) => g === id) || [])[1];
+        if (sha256(dds) !== want) problems.push(`${p.id}/${id}.dds: ${sha256(dds)}, ${path.relative(ROOT, PACKS_RON)} records ${want || 'nothing'}`);
+      }
+      if (!only) {
+        const tar = packArchive(p, encoded.get(p.id));
+        if (tar.length !== listed.bytes || sha256(tar) !== listed.sha) problems.push(`${p.file}: ${tar.length} bytes, SHA-256 ${sha256(tar)}; the catalog records ${listed.bytes} bytes, ${listed.sha}`);
+        if (staged) {
+          const at = path.join(staged, p.file);
+          const onDisk = fs.existsSync(at) ? fs.readFileSync(at) : null;
+          if (!onDisk || !onDisk.equals(tar)) problems.push(`${at} differs from what the converter makes`);
+        }
+      }
+    }
+    for (const p of problems) console.error(p);
+    if (problems.length) process.exit(1);
+    const n = [...encoded.values()].reduce((s, f) => s + f.length, 0);
+    console.log(`the garment texture packs match the converter (${n} textures${only ? `: ${[...only].join(', ')}` : ', and every archive'})`);
+    return;
+  }
   const t0 = Date.now();
   const packed = await garmentTexture.packAll(garments.map((g) => ({ id: g.id, diffuse: pack.read(g.diffuse), normal: g.normal ? pack.read(g.normal) : null, ao: g.ao ? pack.read(g.ao) : null, cards: g.alpha })), threads);
   console.log(`packed and BC7-encoded ${garments.length} garment textures on ${threads} threads in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
@@ -859,6 +1055,7 @@ async function main() {
   files.push([NOTE, Buffer.from(noteText(files, inputs, sliders, garments, { files: assetFiles, bytes: assetBytes + detailsBytes, dds: ddsBytes }))]);
   for (const [p, bytes] of files) if (bytes.length >= 50 * 1024 * 1024) fail(`${p} is ${bytes.length} bytes, over the 50 MB a file in git may be`);
   if (wordsOut) fs.writeFileSync(wordsOut, JSON.stringify(wordsFragment(sliders, garments), null, 1));
+  const plan = packPlan(garments);
   if (check) {
     const bad = [];
     for (const [p, bytes] of files) {
@@ -867,13 +1064,38 @@ async function main() {
       if (!have || !have.equals(bytes)) bad.push(path.relative(ROOT, p));
     }
     for (const p of bad) console.error(`${p} differs from what scripts/gen-makehuman-look.js makes`);
-    if (bad.length) process.exit(1);
-    console.log(`the MakeHuman look matches the converter (${files.length} files)`);
+    // The packs' catalog lists what the levels and the garments' art ask for (its hashes: --check-pack).
+    const stale = catalogProblems(plan);
+    for (const p of stale) console.error(p);
+    if (bad.length || stale.length) process.exit(1);
+    console.log(`the MakeHuman look matches the converter (${files.length} files; the packs' catalog lists ${plan.map((p) => `${p.id}, ${p.garments.length} garments`).join('; ') || 'no packs'})`);
     return;
   }
   for (const [p, bytes] of files) {
     fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, bytes);
+  }
+  // The optional packs: built into the staging folder with their catalog (--pack), or the catalog
+  // checked against what the levels and the art now ask for.
+  const packDir = argValue('--pack');
+  if (packDir) {
+    const encoded = await encodePacks(plan, pack, threads, null);
+    fs.mkdirSync(packDir, { recursive: true });
+    const built = plan.map((p) => {
+      const files = encoded.get(p.id);
+      const tar = packArchive(p, files);
+      fs.writeFileSync(path.join(packDir, p.file), tar);
+      fs.writeFileSync(path.join(packDir, `${p.file}.sha256`), `${sha256(tar)}  ${p.file}\n`);
+      console.log(`${p.id}: ${p.garments.length} garments at ${p.px}, ${tar.length} bytes, SHA-256 ${sha256(tar)} -> ${path.join(packDir, p.file)}`);
+      return { ...p, bytes: tar.length, sha: sha256(tar), files: files.map(([id, dds]) => [id, sha256(dds)]) };
+    });
+    fs.writeFileSync(PACKS_RON, packsRon(built));
+    const assets = built.flatMap((p) => [p.file, `${p.file}.sha256`]).map((f) => path.join(packDir, f).replace(/\\/g, '/'));
+    const command = `gh release create ${PACK_RELEASE} --repo Shaostoul/Humanity --latest=false --title "Garment texture packs" --notes "The garments' textures above the shipped 1K (CC0, from MakeHuman's system assets; BC7 by HumanityOS's own encoder) for Settings > Graphics > Garment textures. Built by node scripts/gen-makehuman-look.js --pack; record in assets/models/characters/makehuman/LOOK-SOURCE.md." ${assets.map((a) => `"${a}"`).join(' ')}\n`;
+    fs.writeFileSync(`${packDir.replace(/[\\/]+$/, '')}-upload-command.txt`, command);
+    console.log(`wrote ${path.relative(ROOT, PACKS_RON)} and the upload command: ${packDir.replace(/[\\/]+$/, '')}-upload-command.txt`);
+  } else {
+    for (const p of catalogProblems(plan)) console.warn(`warning: ${p}`);
   }
   const total = files.reduce((s, [, b]) => s + b.length, 0);
   console.log(`wrote ${files.length} files, ${(total / 1048576).toFixed(1)} MB: ${sliders.length} sliders over ${targets.size} targets, ${garments.length} garments`);

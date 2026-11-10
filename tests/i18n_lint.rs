@@ -1042,7 +1042,7 @@ fn every_language_file_is_a_subset_of_english() {
 // under the top menu's rows), `with_hint(..)`, `.tooltip(..)`, or one
 // of egui's `.on_hover_text(..)` family; or when it is bound with `let r =`
 // and `r.on_hover_text(..)` / `r.hint(..)` follows in the same block; or when
-// the very next statement is `setting_hint(..)`, the Settings page's own
+// the very next statement is `setting_hint(..)` (or `graphics_hint(..)`), the Settings page's own
 // description line (which the hint modes show inline, behind a (?), or not at
 // all). `// hint-exempt: <reason>` on the control's line skips it: a helper's
 // inner box whose caller's `with_hint` reaches it, a control that is its own
@@ -1324,7 +1324,9 @@ fn hinted(toks: &[Token], i: usize) -> bool {
     }
     let mut m = n;
     while m < block_end && m < n + 6 {
-        if ident(&toks[m]) == Some("setting_hint") {
+        // `graphics_hint` (2026-11-10) is Settings > Graphics' description line: the hint by key
+        // and the control's cost on this computer (settings/graphics.rs).
+        if ident(&toks[m]) == Some("setting_hint") || ident(&toks[m]) == Some("graphics_hint") {
             return true;
         }
         if punct(&toks[m], '(') {

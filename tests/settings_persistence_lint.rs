@@ -54,6 +54,9 @@ const INTENTIONALLY_TRANSIENT: &[&str] = &[
 /// and must survive a restart the same way, so its file is scanned as well.
 const SETTINGS_FILES: &[&str] = &[
     "src/gui/pages/settings.rs",
+    // Settings > Graphics moved to its own file on 2026-11-10 (every control with its cost on this
+    // computer, docs/design/graphics-settings.md): its settings round-trip as before.
+    "src/gui/pages/settings/graphics.rs",
     "src/gui/pages/safety.rs",
     "src/gui/pages/chat/report_dialog.rs",
     // Settings > Privacy's Files in messages and Settings > Data's Kept files (2026-10-11), and the

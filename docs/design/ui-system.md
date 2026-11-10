@@ -158,7 +158,8 @@ control without a hint and fail when a page has more than its budget, or fewer (
 `I18N_RATCHET_WRITE=1`). The native scanner reads a statement's `.hint(..)` / `with_hint(..)` /
 `.tooltip(..)` / `on_hover_text(..)`, a later `r.hint(..)` or `r.response.hint(..)` on the
 control's binding (a tuple binding too), a `with_hint` closure around it, and the Settings
-description line right after it; the web scanner reads the attributes as written, so write
+description line right after it (`setting_hint`, or on Settings > Graphics `graphics_hint`, which
+adds the control's cost on this computer: `docs/design/graphics-settings.md`, 2026-11-10); the web scanner reads the attributes as written, so write
 `data-i18n-tip` / `data-tip-desc` out in markup rather than through a helper that returns them.
 
 ## The layer rule: every surface takes its place in one order (2026-11-04)

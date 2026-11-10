@@ -568,7 +568,7 @@ pub struct AppConfig {
     #[serde(default = "default_furniture_detail")]
     pub furniture_detail: String,
     /// Settings > Graphics > Garment textures (2026-11-10): a level id from
-    /// data/gui/garment_textures.json. An id the file does not list loads as "full".
+    /// data/gui/garment_textures.json. An id the file does not list loads as "1k".
     #[serde(default = "default_garment_textures")]
     pub garment_textures: String,
     /// Learn-by-doing quest progress, "chain_id:step_id" -> done (v0.1066).
@@ -3285,14 +3285,14 @@ mod saved_servers_tests {
         }
     }
 
-    /// Settings > Graphics > Garment textures through a restart (2026-11-10): Full and Low memory
-    /// each come back as themselves; an id the file does not list, and a config that never held it,
-    /// load as Full. Seen red 2026-11-10 with the save leg writing the default instead of the
+    /// Settings > Graphics > Garment textures through a restart (2026-11-10): every level the file
+    /// lists (512, 1K, 2K, 4K) comes back as itself; an id the file does not list (the retired
+    /// "full"), and a config that never held it, load as 1K. Seen red 2026-11-10 with the save leg writing the default instead of the
     /// setting: "garment textures 'low' did not survive a restart".
     #[test]
     fn every_offered_garment_texture_level_survives_a_restart() {
         let levels = crate::gui::garment_textures::levels();
-        assert!(levels.len() >= 2, "the shipped file offers Full and Low memory");
+        assert!(levels.len() >= 2, "the shipped file offers several levels");
         for level in levels {
             let mut before = crate::gui::GuiState::default();
             before.settings.garment_textures = level.id.clone();
@@ -3302,11 +3302,11 @@ mod saved_servers_tests {
             cfg.apply_to_gui_state(&mut after);
             assert_eq!(after.settings.garment_textures, level.id, "garment textures '{}' did not survive a restart", level.id);
         }
-        for raw in [r#"{"garment_textures":"ultra"}"#, "{}"] {
+        for raw in [r#"{"garment_textures":"full"}"#, "{}"] {
             let cfg: AppConfig = serde_json::from_str(raw).expect("config parses");
             let mut st = crate::gui::GuiState::default();
             cfg.apply_to_gui_state(&mut st);
-            assert_eq!(st.settings.garment_textures, "full", "{raw} loads as Full");
+            assert_eq!(st.settings.garment_textures, "1k", "{raw} loads as 1K");
         }
     }
 

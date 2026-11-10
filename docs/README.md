@@ -34,7 +34,9 @@ You are a **contributor**. You write code, docs, data, or design. Go to
 **[contributor/](contributor/)**, start with
 **[contributor/00-START-HERE.md](contributor/00-START-HERE.md)**. Adding
 content (sounds, models, shaders, data, planets, UI pages)? The step-by-step
-pipeline guides live in **[dev/](dev/)**.
+pipeline guides live in **[dev/](dev/)**. Adding or changing a graphics setting? Every
+one says what you will see differently and what it costs on this computer: the rule,
+the checklist and the audit are in **[design/graphics-settings.md](design/graphics-settings.md)**.
 
 ---
 

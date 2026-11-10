@@ -16083,6 +16083,8 @@ mod native_app {
                             crate::instrument_packs::ui::tick(&mut crate::instrument_packs::ui::shared(), &state.data_dir);
                             // Model packs (2026-11-09, simready-props.md): Settings > Graphics > Furniture models.
                             crate::model_packs::ui::tick(&mut crate::model_packs::ui::shared(), &state.data_dir);
+                            // Garment texture levels and packs (2026-11-10): Settings > Graphics > Garment textures.
+                            crate::engine::look_textures::tick(&state.data_dir);
 
                             // ── Ultra Milky Way glow download/remove (2026-07-11) ── same
                             // mechanics as the star catalog above: background thread, stream

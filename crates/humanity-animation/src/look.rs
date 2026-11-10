@@ -107,6 +107,12 @@ pub struct GarmentDef {
     pub texture: String,
     /// Each half's size at level 0, in texels (1024, or 512 for a source that small: brows, lashes).
     pub texture_px: u32,
+    /// The colour map's own size in texels, measured by the converter from its source (2026-11-10):
+    /// the largest this garment is ever drawn at. Settings > Graphics > Garment textures offers a
+    /// level only where some garment's art reaches it, and draws a garment whose art stops below the
+    /// chosen level at this size, never larger (no picture is made bigger than it was made and
+    /// labelled as more). Above `texture_px` its texture comes from an optional download.
+    pub art_px: u32,
     /// Whether the right half is a real normal map (flat otherwise).
     pub normal_map: bool,
     /// The colour half's mean linear luminance (hair tinted by a person's hair colour keeps its
@@ -129,6 +135,13 @@ pub struct GarmentDef {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct GarmentsFile {
     garments: Vec<GarmentDef>,
+}
+
+/// Read `data/characters/garments.ron`'s rows alone, without the meshes (2026-11-10: Settings >
+/// Graphics > Garment textures plans its levels from the garments' sizes before the world, and the
+/// whole library, are loaded).
+pub fn read_garment_defs(text: &str) -> Result<Vec<GarmentDef>, String> {
+    crate::parse_ron::<GarmentsFile>(text, "data/characters/garments.ron").map(|f| f.garments)
 }
 
 /// A garment, read.

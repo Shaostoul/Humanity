@@ -3,8 +3,10 @@
 //! more guard the catalog's single file did not need: every pack is checked against its published
 //! SHA-256 before anything is unpacked, and a damaged one is refused and deleted.
 //!
-//! On disk, in `<data>/music/packs/`:
-//! - `<id>.download` while the archive arrives (deleted after);
+//! On disk, in `<data>/music/packs/` (and the model and garment texture packs' folders, which use
+//! this same installer):
+//! - `<id>.download` while the archive arrives (deleted after it installs or is refused; kept when
+//!   the connection dropped, so the next download resumes from it: `download_and_install`);
 //! - `<id>.installing/` while it is unpacked (renamed to `<id>/` only once complete);
 //! - `<id>/`, the installed pack: `pack.ron`, `instruments/`, `samples/`.
 //!
@@ -12,7 +14,7 @@
 //! one, or absent.
 
 use std::collections::BTreeMap;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -140,26 +142,135 @@ fn sibling(packs_dir: &Path, id: &str, ext: &str) -> PathBuf {
     packs_dir.join(format!("{id}.{ext}"))
 }
 
+/// Hash a file's first `n` bytes into `hasher` (the part a stopped download left, when it resumes).
+fn hash_prefix(path: &Path, n: u64, hasher: &mut Sha256) -> std::io::Result<()> {
+    let mut f = std::fs::File::open(path)?;
+    let mut left = n;
+    let mut buf = vec![0u8; 1 << 20];
+    while left > 0 {
+        let want = buf.len().min(left as usize);
+        let got = f.read(&mut buf[..want])?;
+        if got == 0 {
+            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "the partial file is shorter than it was"));
+        }
+        hasher.update(&buf[..got]);
+        left -= got as u64;
+    }
+    Ok(())
+}
+
+/// The size of the whole file the server holds, from its answer: a 206's `Content-Range` ("bytes
+/// N-M/TOTAL") or a 200's `Content-Length`. None when it does not say.
+fn server_total(resp: &ureq::Response) -> Option<u64> {
+    if resp.status() == 206 {
+        return resp.header("Content-Range").and_then(|r| r.rsplit('/').next()).and_then(|t| t.trim().parse::<u64>().ok());
+    }
+    resp.header("Content-Length").and_then(|v| v.parse::<u64>().ok())
+}
+
 /// Download `entry` from `url` into `packs_dir` and install it, reporting into `progress`. Ends in
-/// `Stage::Done` or `Stage::Failed`, with nothing left behind but the installed pack (or, after a
-/// failure, whatever was installed before).
+/// `Stage::Done` or `Stage::Failed`.
+///
+/// **Resumable (2026-11-10, the garment texture packs: a 2K set is hundreds of megabytes).** The
+/// archive arrives in `<id>.download`. When the connection drops before the whole file is in, what
+/// arrived is KEPT and the failure is `Network`: the next try asks the server only for the bytes still
+/// missing (an HTTP `Range` request) and goes on hashing from where it stopped, the AI files' way
+/// (`ai::install`); a server that ignores the request sends the whole file, which simply starts over.
+/// What is refused and deleted: a server whose file is not the published size (`Damaged`, nothing to
+/// resume), more bytes than published, and a whole file whose SHA-256 is not the published one. After
+/// a refusal nothing is left but whatever was installed before.
 pub fn download_and_install(url: &str, entry: &PackEntry, packs_dir: &Path, progress: &ProgressHandle) -> Result<(), Failure> {
     let result = (|| {
         if !entry.is_built() {
             return Err(Failure::NotPublished);
         }
         std::fs::create_dir_all(packs_dir).map_err(|e| Failure::Disk(format!("{}: {e}", packs_dir.display())))?;
-        let resp = ureq::get(url)
-            .set("User-Agent", "HumanityOS")
-            .call()
-            .map_err(|e| Failure::Network(e.to_string()))?;
-        let total = resp.header("Content-Length").and_then(|v| v.parse::<u64>().ok()).unwrap_or(entry.bytes);
-        set(progress, |p| {
-            p.total = total;
-            p.stage = Stage::Downloading;
-        });
-        let mut reader = resp.into_reader();
-        install_from_reader(&mut reader, entry, packs_dir, progress)
+        let download = sibling(packs_dir, &entry.id, "download");
+        let discard = || {
+            let _ = std::fs::remove_file(&download);
+        };
+        // What a download that stopped short left, hashed again (a file longer than the pack, or one
+        // that cannot be read, starts over).
+        let mut have = std::fs::metadata(&download).map(|m| m.len()).unwrap_or(0);
+        if have > entry.bytes {
+            discard();
+            have = 0;
+        }
+        let mut hasher = Sha256::new();
+        if have > 0 && hash_prefix(&download, have, &mut hasher).is_err() {
+            discard();
+            have = 0;
+            hasher = Sha256::new();
+        }
+        if have < entry.bytes {
+            let mut req = ureq::get(url).set("User-Agent", "HumanityOS");
+            if have > 0 {
+                req = req.set("Range", &format!("bytes={have}-"));
+            }
+            let resp = req.call().map_err(|e| Failure::Network(e.to_string()))?;
+            if let Some(total) = server_total(&resp) {
+                if total != entry.bytes {
+                    discard();
+                    return Err(Failure::Damaged(format!("the server's file is {total} bytes, the published pack is {} bytes", entry.bytes)));
+                }
+            }
+            let resumed = resp.status() == 206 && resp.header("Content-Range").is_some_and(|r| r.starts_with(&format!("bytes {have}-")));
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(false)
+                .open(&download)
+                .map_err(|e| Failure::Disk(format!("{}: {e}", download.display())))?;
+            if resumed {
+                file.seek(SeekFrom::Start(have)).map_err(|e| Failure::Disk(e.to_string()))?;
+            } else {
+                // The whole file is coming (the server ignored the Range, or there was nothing to resume).
+                file.set_len(0).map_err(|e| Failure::Disk(e.to_string()))?;
+                file.seek(SeekFrom::Start(0)).map_err(|e| Failure::Disk(e.to_string()))?;
+                have = 0;
+                hasher = Sha256::new();
+            }
+            set(progress, |p| {
+                p.total = entry.bytes;
+                p.done = have;
+                p.stage = Stage::Downloading;
+            });
+            let mut reader = resp.into_reader();
+            let mut buf = vec![0u8; 1 << 16];
+            loop {
+                let n = match reader.read(&mut buf) {
+                    Ok(n) => n,
+                    // Dropped: keep what arrived, the next try resumes from it.
+                    Err(e) => return Err(Failure::Network(format!("the download stopped after {have} of {} bytes ({e}); downloading again resumes from there", entry.bytes))),
+                };
+                if n == 0 {
+                    break;
+                }
+                if have + n as u64 > entry.bytes {
+                    drop(file);
+                    discard();
+                    return Err(Failure::Damaged(format!("more than the published {} bytes arrived", entry.bytes)));
+                }
+                hasher.update(&buf[..n]);
+                file.write_all(&buf[..n]).map_err(|e| Failure::Disk(format!("{}: {e}", download.display())))?;
+                have += n as u64;
+                set(progress, |p| p.done = have);
+            }
+            file.flush().map_err(|e| Failure::Disk(e.to_string()))?;
+        }
+        if have != entry.bytes {
+            // Short with the connection closed: kept, the next try resumes.
+            return Err(Failure::Network(format!("{have} of the pack's {} bytes arrived; downloading again resumes from there", entry.bytes)));
+        }
+        set(progress, |p| p.stage = Stage::Checking);
+        let got = hex::encode(hasher.finalize());
+        if !got.eq_ignore_ascii_case(&entry.sha256) {
+            discard();
+            return Err(Failure::Damaged(format!("its SHA-256 is {got}, the published one is {}", entry.sha256)));
+        }
+        let unpacked = unpack_checked(&download, entry, packs_dir, progress);
+        discard();
+        unpacked
     })();
     set(progress, |p| {
         p.stage = match &result {
@@ -170,9 +281,40 @@ pub fn download_and_install(url: &str, entry: &PackEntry, packs_dir: &Path, prog
     result
 }
 
-/// The install itself, from any reader of the archive's bytes: stream it to `<id>.download` while
-/// hashing, refuse a size or SHA-256 that is not the catalog's, unpack into `<id>.installing/`,
-/// check its `pack.ron`, then swap it in for `<id>/`.
+/// Unpack a checked archive into `<id>.installing/`, check its `pack.ron`, then swap it in for
+/// `<id>/`. The side folder is gone afterwards either way.
+fn unpack_checked(archive_path: &Path, entry: &PackEntry, packs_dir: &Path, progress: &ProgressHandle) -> Result<(), Failure> {
+    let installing = sibling(packs_dir, &entry.id, "installing");
+    let result = (|| {
+        set(progress, |p| p.stage = Stage::Installing);
+        let _ = std::fs::remove_dir_all(&installing);
+        std::fs::create_dir_all(&installing).map_err(|e| Failure::Disk(format!("{}: {e}", installing.display())))?;
+        let mut archive = std::io::BufReader::new(std::fs::File::open(archive_path).map_err(|e| Failure::Disk(format!("{}: {e}", archive_path.display())))?);
+        super::tar::extract(&mut archive, &installing).map_err(Failure::NotAPack)?;
+        let m = manifest(&installing).map_err(Failure::NotAPack)?;
+        if m.id != entry.id || m.version != entry.version {
+            return Err(Failure::NotAPack(format!("it says it is {} version {}, the catalog lists {} version {}", m.id, m.version, entry.id, entry.version)));
+        }
+        let target = packs_dir.join(&entry.id);
+        if target.exists() {
+            std::fs::remove_dir_all(&target).map_err(|e| Failure::Disk(format!("{}: {e}", target.display())))?;
+        }
+        std::fs::rename(&installing, &target).map_err(|e| Failure::Disk(format!("{}: {e}", target.display())))?;
+        Ok(())
+    })();
+    let _ = std::fs::remove_dir_all(&installing);
+    result
+}
+
+/// Bytes of a download that stopped short, waiting to be resumed (0 when there is none).
+pub fn partial_bytes(packs_dir: &Path, id: &str) -> u64 {
+    std::fs::metadata(sibling(packs_dir, id, "download")).map(|m| m.len()).unwrap_or(0)
+}
+
+/// The install from an archive already in hand (any reader of its bytes; the tests' in-memory
+/// archives): stream it to `<id>.download` while hashing, refuse a size or SHA-256 that is not the
+/// catalog's, unpack into `<id>.installing/`, check its `pack.ron`, then swap it in for `<id>/`. A
+/// reader cannot be asked for the rest, so nothing is kept to resume: `download_and_install` resumes.
 pub fn install_from_reader(reader: &mut impl Read, entry: &PackEntry, packs_dir: &Path, progress: &ProgressHandle) -> Result<(), Failure> {
     let download = sibling(packs_dir, &entry.id, "download");
     let installing = sibling(packs_dir, &entry.id, "installing");
@@ -208,26 +350,7 @@ pub fn install_from_reader(reader: &mut impl Read, entry: &PackEntry, packs_dir:
         if !got.eq_ignore_ascii_case(&entry.sha256) {
             return Err(Failure::Damaged(format!("its SHA-256 is {got}, the published one is {}", entry.sha256)));
         }
-        set(progress, |p| p.stage = Stage::Installing);
-        let _ = std::fs::remove_dir_all(&installing);
-        std::fs::create_dir_all(&installing).map_err(|e| Failure::Disk(format!("{}: {e}", installing.display())))?;
-        let mut archive = std::io::BufReader::new(
-            std::fs::File::open(&download).map_err(|e| Failure::Disk(format!("{}: {e}", download.display())))?,
-        );
-        super::tar::extract(&mut archive, &installing).map_err(Failure::NotAPack)?;
-        let m = manifest(&installing).map_err(Failure::NotAPack)?;
-        if m.id != entry.id || m.version != entry.version {
-            return Err(Failure::NotAPack(format!(
-                "it says it is {} version {}, the catalog lists {} version {}",
-                m.id, m.version, entry.id, entry.version
-            )));
-        }
-        let target = packs_dir.join(&entry.id);
-        if target.exists() {
-            std::fs::remove_dir_all(&target).map_err(|e| Failure::Disk(format!("{}: {e}", target.display())))?;
-        }
-        std::fs::rename(&installing, &target).map_err(|e| Failure::Disk(format!("{}: {e}", target.display())))?;
-        Ok(())
+        unpack_checked(&download, entry, packs_dir, progress)
     })();
     cleanup();
     result

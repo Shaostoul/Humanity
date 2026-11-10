@@ -134,7 +134,7 @@ And 39 more items, 54 references (`node scripts/crate-cards.js --interface human
   written by `scripts/gen-makehuman-look.js` (never by hand); cosmetics.csv's `model` and `covers`
   name a garment and the cover regions it hides; `characters.ron`'s wearers carry each kind's
   default `dress` per body. A garment's row names its texture as the converter made it (`texture`, a
-  BC7 DDS; `texture_px`, `normal_map`, `luma`, 2026-11-10); the crate reads only the row, the engine
+  BC7 DDS; `texture_px`, `normal_map`, `luma`, 2026-11-10; `art_px`, its colour map's own size, the most it is drawn at, the same day); the crate reads only the row (`look::read_garment_defs` reads the rows alone, `CharactersDef::parse` the characters file alone, for Settings before the world loads), the engine
   reads the file. Source: CLAUDE.md, Infinite-of-X; character-animation.md section 16.
 - **An interaction is an anchor row that objects name, never code** (2026-11-10, rung 2b):
   `data/characters/interactions.ron` holds each anchor (its place on its object, the approach, the

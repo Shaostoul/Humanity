@@ -2221,31 +2221,91 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
     // Planets seen from space / Ground detail / Detail distances / Light and
     // sky / Experimental / Machine labels and Home view), and a 900 px crop
     // showed only the first two. Render the whole section so the subsection
-    // ladder is reviewable in one image.
-    render_page_png("graphics_settings", 960, 3800, |ctx, theme, state| {
-        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_graphics_content);
+    // ladder is reviewable in one image. Taller since 2026-11-10: every control has its cost line
+    // under its description (docs/design/graphics-settings.md); a snapshot has drawn no world frame,
+    // so the measured lines say they are measured in the world.
+    render_page_png("graphics_settings", 960, 6400, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::graphics::draw_graphics_content);
     });
 }
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_garment_textures() {
-    // Settings > Graphics > Garment textures (2026-11-10, the look's textures) on a GPU with block
-    // compression: Full and Low memory with the memory the engine plans for the shipped library's
-    // pools as BC7 (90.7 and 30.7 MB, measured in the rig's log), the own-mesh pool's line under them
+    // Settings > Graphics > Garment textures (2026-11-10, the look's textures; the levels as data) on
+    // a GPU with block compression: 512, 1K and 2K (4K is not offered: no garment's art reaches it),
+    // each with what it shows, the memory the engine plans for the shipped library's pools as BC7
+    // (1K's 90.7 and 512's 30.7 MB were measured in the rig's log) and its download (2K's pack), 1K
+    // chosen, the card's line, the own-mesh pool's line under them
     // (2026-11-10: the shipped library's plan, its buffers for 17 people of the largest dressed
     // person and the shared bodies' near places, `shipped_mesh_plan`), and the card's line. (The
     // whole Graphics page's snapshot, `graphics_settings`, stops before Furniture and this section.)
-    render_page_png("garment_textures", 960, 400, |ctx, theme, state| {
+    render_page_png("garment_textures", 960, 460, |ctx, theme, state| {
         settings_panel(ctx, theme, state, |ui, theme, state| {
-            let plan = crate::gui::garment_textures::Plan { bytes: vec![("full".into(), 95_070_400), ("low".into(), 32_155_840)], compressed: true };
+            let plan = shipped_garment_plan(true);
             let meshes = shipped_mesh_plan();
             let card = crate::renderer::bounced_light_detail::AdapterMemory { name: "NVIDIA GeForce RTX 4070".into(), integrated: false, dedicated_bytes: Some(12 << 30) };
             let line = crate::gui::garment_textures::compressed_line(Some(&card));
             let hint = state.settings.hint_display;
-            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), Some(&plan), Some(&meshes), line.as_deref(), None);
+            let partial = Default::default();
+            let view = crate::gui::pages::settings::garments::View { plan: Some(&plan), meshes: Some(&meshes), line: line.as_deref(), notice: None, card: Some(&card), installed: &[], download: None, partial: &partial, read_error: None, remove_error: None };
+            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), &view);
         });
     });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_garment_textures_2k() {
+    // Settings > Graphics > Garment textures with 2K chosen (2026-11-10, the levels as data): its
+    // pack downloading (40 of its MB here), so 1K is drawn until it installs, and the line saying how
+    // many garments are drawn at their own largest at 2K (their pictures were made smaller).
+    render_page_png("garment_textures_2k", 960, 520, |ctx, theme, state| {
+        state.settings.garment_textures = "2k".into();
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            let plan = shipped_garment_plan(true);
+            let meshes = shipped_mesh_plan();
+            let card = crate::renderer::bounced_light_detail::AdapterMemory { name: "NVIDIA GeForce RTX 4070".into(), integrated: false, dedicated_bytes: Some(12 << 30) };
+            let line = crate::gui::garment_textures::compressed_line(Some(&card));
+            let hint = state.settings.hint_display;
+            let pack = crate::gui::garment_textures::packs::catalog().packs.first().map(|p| (p.id.clone(), p.bytes)).unwrap_or_default();
+            let progress = crate::instrument_packs::install::Progress { done: 40 << 20, total: pack.1, stage: crate::instrument_packs::install::Stage::Downloading };
+            let partial = Default::default();
+            let view = crate::gui::pages::settings::garments::View { plan: Some(&plan), meshes: Some(&meshes), line: line.as_deref(), notice: None, card: Some(&card), installed: &[], download: Some((pack.0, progress)), partial: &partial, read_error: None, remove_error: None };
+            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), &view);
+        });
+    });
+}
+
+/// The shipped library's garments as the plan sees them (2026-11-10): 24 garments made at 2048 (12
+/// outfits, 2 hats, 10 hair styles), 6 shoes at 1024, 16 brows and lashes at 512, the near tier's cap
+/// 16. The engine's test `the_snapshot_shows_the_shipped_garment_plan` holds this equal to what it
+/// reads from the shipped data, so the picture cannot drift from it.
+pub(crate) fn shipped_garment_arts() -> (Vec<crate::gui::garment_textures::GarmentArt>, usize) {
+    let mut out = Vec::new();
+    let mut add = |n: usize, kind: &str, shipped: u32, art: u32| {
+        for k in 0..n {
+            out.push(crate::gui::garment_textures::GarmentArt { id: format!("{kind}{k}"), kind: kind.into(), shipped_px: shipped, art_px: art });
+        }
+    };
+    add(12, "Clothes", 1024, 2048);
+    add(2, "Hat", 1024, 2048);
+    add(10, "Hair", 1024, 2048);
+    add(6, "Shoes", 1024, 1024);
+    add(12, "Brows", 512, 512);
+    add(4, "Lashes", 512, 512);
+    (out, 16)
+}
+
+pub(crate) fn shipped_garment_plan(compressed: bool) -> crate::gui::garment_textures::Plan {
+    let (arts, near_cap) = shipped_garment_arts();
+    // The catalog's packs name the shipped garments' real ids; the snapshot's stand-ins are named by
+    // kind, so the 2K pack is made to hold them for the picture.
+    let mut cat = crate::gui::garment_textures::packs::catalog().clone();
+    for p in &mut cat.packs {
+        p.garments = arts.iter().filter(|a| a.art_px >= p.px).map(|a| crate::gui::garment_textures::packs::PackGarment { id: a.id.clone(), sha256: String::new() }).collect();
+    }
+    crate::gui::garment_textures::plan_for(crate::gui::garment_textures::levels(), &arts, near_cap, compressed, &cat)
 }
 
 /// The own-mesh pool's plan for the shipped library (2026-11-10): 82.5 MB for the 17 people of the
@@ -2262,20 +2322,24 @@ fn shipped_mesh_plan() -> crate::gui::garment_textures::MeshPlan {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_garment_textures_no_bc() {
-    // Settings > Graphics > Garment textures on a GPU without block compression (2026-11-10, the
-    // look's textures): Low memory chosen, each level's memory as the engine plans it uncompressed
-    // (the shipped library's pools at Full and Low memory, four times the BC7 figures), and the
-    // notice in words: what the textures need, what this card has, what works instead. The own-mesh
-    // pool's line is the same on any card (its buffers are not textures).
-    render_page_png("garment_textures_no_bc", 960, 460, |ctx, theme, state| {
-        state.settings.garment_textures = "low".into();
+    // Settings > Graphics > Garment textures on a 4 GB GPU without block compression (2026-11-10, the
+    // look's textures; the levels as data): 2K chosen and installed, each level's memory as the
+    // engine plans it uncompressed (four times the BC7 figures), so 2K's pools pass an eighth of the
+    // card and the memory notice says so in words (what 2K needs, what the card has, the level that
+    // fits), and the block-compression notice (what the textures need, what this card has, what works
+    // instead). The own-mesh pool's line is the same on any card (its buffers are not textures).
+    render_page_png("garment_textures_no_bc", 960, 560, |ctx, theme, state| {
+        state.settings.garment_textures = "2k".into();
         settings_panel(ctx, theme, state, |ui, theme, state| {
-            let plan = crate::gui::garment_textures::Plan { bytes: vec![("full".into(), 4 * 95_070_400), ("low".into(), 4 * 32_155_840)], compressed: false };
+            let plan = shipped_garment_plan(false);
             let meshes = shipped_mesh_plan();
             let card = crate::renderer::bounced_light_detail::AdapterMemory { name: "Test GPU".into(), integrated: false, dedicated_bytes: Some(4 << 30) };
             let notice = crate::gui::garment_textures::hardware_notice(Some(false), Some(&card));
             let hint = state.settings.hint_display;
-            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), Some(&plan), Some(&meshes), None, notice.as_deref());
+            let installed: Vec<String> = crate::gui::garment_textures::packs::catalog().packs.iter().map(|p| p.id.clone()).collect();
+            let partial = Default::default();
+            let view = crate::gui::pages::settings::garments::View { plan: Some(&plan), meshes: Some(&meshes), line: None, notice: notice.as_deref(), card: Some(&card), installed: &installed, download: None, partial: &partial, read_error: None, remove_error: None };
+            crate::gui::pages::settings::garments::draw_with(ui, theme, state, hint, theme.accent(), &view);
         });
     });
 }

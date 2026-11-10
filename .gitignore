@@ -100,6 +100,10 @@ data/galaxy_glow_ultra.png
 # like the star catalog tiers above. The core set (data/music/instruments, samples) and the catalog
 # (data/music/packs.ron) ARE tracked.
 /data/music/packs/
+# Garment texture packs installed from Settings > Graphics > Garment textures (2026-11-10, the
+# levels above the shipped 1K): downloaded data, like the instrument packs. The catalog
+# (data/characters/garment_packs.ron) IS tracked.
+/data/characters/packs/
 wallpapers/
 # DXC shader-compiler DLLs beside the taskbar exe (refreshed by archive-build.js)
 /dxcompiler.dll

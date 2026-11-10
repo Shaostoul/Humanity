@@ -851,6 +851,9 @@ impl StarRenderer {
 pub const GALAXY_GLOW_ULTRA_FILE: &str = "galaxy_glow_ultra.png";
 pub const GALAXY_GLOW_ULTRA_URL: &str =
     "https://github.com/Shaostoul/Humanity/releases/download/assets-glow-1/galaxy_glow_ultra.png";
+/// The ultra bake's download size in bytes, shown on its button: the release asset's own size, read
+/// from GitHub's release record of `assets-glow-1` on 2026-11-10.
+pub const GALAXY_GLOW_ULTRA_BYTES: u64 = 103_902_016;
 /// Exact dimensions of the published ultra bake. The download verifier
 /// rejects anything else (wrong asset / truncation tripwire); update this
 /// alongside the URL if a new bake is ever published.
@@ -1658,12 +1661,16 @@ impl StarCatalogTier {
         }
     }
 
-    /// Approximate download size shown on the button; the real
-    /// Content-Length drives the progress bar once the transfer starts.
-    pub fn size_hint(self) -> &'static str {
+    /// The download's size in bytes, shown on its button: the release assets' own sizes, read from
+    /// GitHub's release record of `assets-stars-1` on 2026-11-10 (stars-athyg.bin 37,412,217 and
+    /// stars-gaia25m.bin 252,662,356; the same as the installed files on the operator's PC). The
+    /// button had said "~350 MB" for Ultra, a guess 109 MB over the real file (the graphics
+    /// settings audit, docs/design/graphics-settings.md). The server's Content-Length drives the
+    /// progress bar once the transfer starts.
+    pub fn download_bytes(self) -> u64 {
         match self {
-            Self::Extended => "36 MB",
-            Self::Ultra => "~350 MB",
+            Self::Extended => 37_412_217,
+            Self::Ultra => 252_662_356,
         }
     }
 

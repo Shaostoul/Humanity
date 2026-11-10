@@ -1,0 +1,126 @@
+// SETTINGS > GRAPHICS, EVERY CONTROL: what you will see differently and what it costs on this computer
+// (2026-11-10; docs/design/graphics-settings.md, where the audit that made this file is written up).
+// The operator, 2026-11-10: "I want to make sure when people change graphics settings they know what
+// they're actually changing." CLAUDE.md: each choice states in words what you will see differently and
+// what it costs (video memory, frame time, download size) on this computer; a bare "Low / Medium /
+// High" with no explanation is a defect.
+//
+// One row per control (or per group of controls that set one thing, like a switch and the slider it
+// reveals). The control's name and its hint are words by key: graphics.<id> and graphics.<id>_hint
+// in data/i18n/en.json. `cost` says how its cost is known, one or more of:
+//   Gpu([ids])      it turns these passes on or off, or scales them: MEASURED live, the graphics card's
+//                   time each frame from its own timers (the Performance page's numbers)
+//   Shares([ids])   it changes work inside these passes, which do other work too: MEASURED live, the
+//                   passes' whole time (this control's share of it is not measured on its own)
+//   Cpu([ids])      it changes these processor stages: MEASURED live
+//   Memory([ids])   it changes these video memory allocations: MEASURED live
+//   Frame           it caps or paces frames: the frame time and rate, MEASURED live
+//   Computed        its own lines work the cost out from the choice and show it beside each choice
+//   Download        it downloads files; their sizes are on its buttons, and nothing downloads until one
+//                   is pressed
+//   Free(key)       nothing measurable; the words (by key) say why
+// The page draws the cost line under each control's hint (src/gui/pages/settings/graphics.rs,
+// `graphics_hint`). The test `every_graphics_control_states_its_cost` fails when a control on the page
+// has no row, a row is drawn by nothing, a row names no cost, a measured id is one the engine never
+// records, or a row's words are missing.
+//
+// `passes` names each measured id in plain words, by key, once.
+(
+    passes: {
+        "gpu.scene": "graphics.pass.scene",
+        "gpu.transparent": "graphics.pass.transparent",
+        "gpu.celestial": "graphics.pass.celestial",
+        "gpu.celestial_t": "graphics.pass.celestial_t",
+        "gpu.sky_view": "graphics.pass.sky_view",
+        "gpu.shadow": "graphics.pass.shadow",
+        "gpu.godrays": "graphics.pass.godrays",
+        "gpu.ssao": "graphics.pass.ssao",
+        "gpu.room_probes": "graphics.pass.room_probes",
+        "gpu.stars": "graphics.pass.stars",
+        "gpu.celestial_lines": "graphics.pass.celestial_lines",
+        "gpu.overlay": "graphics.pass.overlay",
+        "gpu.cloud_light": "graphics.pass.clouds",
+        "gpu.cloud_screen": "graphics.pass.clouds",
+        "gpu.cloud_resolve": "graphics.pass.clouds",
+        "gpu.cloud_composite": "graphics.pass.clouds",
+        "gpu.gpu_particles": "graphics.pass.gpu_particles",
+        "gpu.particles": "graphics.pass.particles",
+        "cpu.light_tiles": "graphics.pass.light_tiles",
+        "cpu.patch_build": "graphics.pass.patch_build",
+        "cpu.patch_upload": "graphics.pass.patch_upload",
+        "cpu.near_tree_harvest": "graphics.pass.near_tree_harvest",
+        "cpu.grass_harvest": "graphics.pass.grass_harvest",
+        "cpu.particles_sim": "graphics.pass.particles_sim",
+        "vram.patch_arena": "graphics.pass.patch_arena",
+        "vram.meshes": "graphics.pass.meshes",
+        "vram.grass": "graphics.pass.grass",
+        "vram.particles": "graphics.pass.particles_memory",
+    },
+    settings: [
+        // ── General ──
+        (id: "window_mode", cost: [Free("graphics.free.window_mode")]),
+        (id: "presets", cost: [Free("graphics.free.presets")]),
+        (id: "vsync", cost: [Frame]),
+        (id: "fps_foreground", cost: [Frame]),
+        (id: "fps_background", cost: [Free("graphics.free.fps_background")]),
+        (id: "fov", cost: [Shares(["gpu.scene", "gpu.celestial"])]),
+        (id: "render_distance", cost: [Shares(["gpu.scene"])]),
+        // ── Planets seen from space ──
+        (id: "planet_detail", cost: [Shares(["gpu.celestial"])]),
+        (id: "planet_lod_px", cost: [Shares(["gpu.celestial"])]),
+        (id: "planet_max_subdiv", cost: [Shares(["gpu.celestial"]), Memory(["vram.meshes"])]),
+        // ── Ground detail ──
+        (id: "planet_chunked", cost: [Shares(["gpu.celestial"]), Memory(["vram.patch_arena"])]),
+        (id: "terrain_lod_fade", cost: [Shares(["gpu.celestial"])]),
+        (id: "terrain_split_px", cost: [Shares(["gpu.celestial"]), Memory(["vram.patch_arena"])]),
+        (id: "terrain_patch_budget", cost: [Memory(["vram.patch_arena"]), Shares(["gpu.celestial"])]),
+        (id: "terrain_detail_distance", cost: [Shares(["gpu.celestial"])]),
+        (id: "terrain_builds_per_frame", cost: [Cpu(["cpu.patch_build", "cpu.patch_upload"])]),
+        // ── Detail distances by item type ──
+        (id: "tree_model_distance", cost: [Shares(["gpu.scene"]), Cpu(["cpu.near_tree_harvest"])]),
+        (id: "near_tree_budget", cost: [Computed, Shares(["gpu.scene"])]),
+        (id: "veg_tree_card_m", cost: [Shares(["gpu.celestial"])]),
+        (id: "tree_density", cost: [Shares(["gpu.celestial", "gpu.scene"])]),
+        (id: "grass_far_m", cost: [Computed, Cpu(["cpu.grass_harvest"]), Memory(["vram.grass"])]),
+        (id: "grass_harvest_cap", cost: [Memory(["vram.grass"]), Cpu(["cpu.grass_harvest"])]),
+        (id: "grass_density", cost: [Shares(["gpu.scene"]), Memory(["vram.grass"])]),
+        (id: "grass_detail", cost: [Shares(["gpu.scene"])]),
+        (id: "water_detail_depth", cost: [Shares(["gpu.celestial_t"])]),
+        // ── Light and sky ──
+        (id: "sun_shadows", cost: [Gpu(["gpu.shadow"])]),
+        (id: "lights_tiled", cost: [Cpu(["cpu.light_tiles"]), Shares(["gpu.scene"])]),
+        (id: "bounced_light_detail", cost: [Computed, Gpu(["gpu.room_probes"])]),
+        (id: "shadow_strength", cost: [Free("graphics.free.shader_number")]),
+        (id: "aerial_strength", cost: [Free("graphics.free.shader_number")]),
+        (id: "godray_intensity", cost: [Gpu(["gpu.godrays"])]),
+        (id: "sun_aperture_mm", cost: [Free("graphics.free.shader_number")]),
+        (id: "ssao_strength", cost: [Gpu(["gpu.ssao"])]),
+        (id: "planet_atmo_scatter", cost: [Shares(["gpu.celestial", "gpu.sky_view"])]),
+        (id: "planet_clouds", cost: [Gpu(["gpu.cloud_light", "gpu.cloud_screen", "gpu.cloud_resolve", "gpu.cloud_composite"])]),
+        (id: "live_weather", cost: [Free("graphics.free.live_weather")]),
+        (id: "cloud_quality", cost: [Gpu(["gpu.cloud_light", "gpu.cloud_screen", "gpu.cloud_resolve", "gpu.cloud_composite"])]),
+        (id: "planet_surface_detail", cost: [Shares(["gpu.celestial", "gpu.celestial_t"])]),
+        (id: "water_clarity", cost: [Free("graphics.free.shader_number")]),
+        // ── Sky and map lines ──
+        (id: "sky_orbit_mode", cost: [Gpu(["gpu.celestial_lines"])]),
+        (id: "sky_constellations", cost: [Gpu(["gpu.celestial_lines"])]),
+        (id: "sky_milkyway_glow", cost: [Shares(["gpu.stars"]), Computed]),
+        (id: "sky_glow_tier", cost: [Computed, Download]),
+        (id: "sky_star_halos", cost: [Shares(["gpu.stars"])]),
+        // ── Star catalog ──
+        (id: "star_catalog_tier", cost: [Shares(["gpu.stars"]), Computed]),
+        (id: "star_catalog_download", cost: [Download, Computed]),
+        // ── Experimental ──
+        (id: "water_fft", cost: [Shares(["gpu.celestial_t"])]),
+        (id: "gpu_particles", cost: [Gpu(["gpu.gpu_particles", "gpu.particles"]), Cpu(["cpu.particles_sim"]), Memory(["vram.particles"])]),
+        (id: "far_tree_sheet", cost: [Shares(["gpu.celestial"])]),
+        // ── Furniture and garments (their own files: settings/furniture.rs, settings/garments.rs) ──
+        (id: "furniture_detail", words: Some("furniture_detail.title"), hint: Some("furniture_detail.hint"), cost: [Computed]),
+        (id: "model_packs", words: Some("model_packs.title"), hint: Some("model_packs.intro"), cost: [Download]),
+        (id: "garment_textures", words: Some("garment_textures.title"), hint: Some("garment_textures.hint"), cost: [Computed, Download]),
+        // ── Machine labels and Home view ──
+        (id: "machine_labels", cost: [Shares(["gpu.overlay"])]),
+        (id: "show_roof", cost: [Shares(["gpu.scene"])]),
+        (id: "show_hull", cost: [Shares(["gpu.scene"])]),
+    ],
+)

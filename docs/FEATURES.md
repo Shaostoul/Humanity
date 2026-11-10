@@ -2651,7 +2651,7 @@ Reading `data/planets/*.ron`, loading or synthesizing each elevation grid, loadi
 ### Room GI: per-room irradiance probes (rung 1, 2026-09-27)
 Indirect light inside the ship. Each detected room gets its own lattice of DDGI irradiance probes (Majercik et al., JCGT 2019), about 1 m apart, updated on the GPU every frame: 64 rotated rays per probe traced against the room's own box, each hit lit by that room's lights with exactly the fragment loop's attenuation, by the sun where it comes in through a glass roof, and by the previous frame's probes for every further bounce. A fragment reads only its own room's probes (DDGI's 8-probe sample with backface weights), so one room's lamp never leaks through a wall into the next. Before this the whole indirect term indoors was a 0.005 floor: at `25b-mushroom-racks` a wall no lamp faced read sRGB 4 beside a floor of 146; it now reads 46 (wall/floor 0.17 before the tone map, where interreflection predicts 0.24 to 0.31 for a 10 x 10 x 3 m room), and the shelf undersides at `25c-oyster-rack-close` go from 2 to 76. Screens and see-through surfaces (panes, tent film) keep the old floor. Cost at `console-face-6` about 0.6 ms (update 0.21, sampling about 0.4). Storage is DDGI's format (8x8 octahedral irradiance plus 16x16 depth moments per probe in one atlas), so rung 2 (tracing each room's contents, with DDGI's visibility test switched on per room) changes only the intersection. Dev switches `showcase {"room_gi":"0"}` (A/B, the old floor) and `{"room_gi_vis":"1"}` (force the visibility test on); GPU timer `gpu.room_probes`.
 - Native: `src/renderer/room_probes.rs` (layout, math, CPU twin + tests), `src/renderer/room_probes_gpu.rs` (atlas, room table, compute update), `src/engine/room_gi.rs` (rooms to probe boxes from `data/blueprints/wall_materials.ron`), `assets/shaders/pbr/85-room-gi.wgsl` (the sample, behind the `HAS_ROOM_GI` feature switch in `frag_tail`), `assets/shaders/room_probes_update.wgsl`
-- **Bounced light detail (2026-10-20):** Settings > Graphics > Light and sky picks how finely the probes are laid out, live, no restart: Low, Medium, High (the default, the design's 1 m and 32,768 probes) and Ultra, each shown with its probe cap and its video memory (the cap x 3,392 bytes, about 27 to 212 MB). The frame's work is the same at every level. The page names the graphics card and its own memory (read from its driver's install record on Windows) and warns when a level would take more than a twentieth of it. The levels are data (`data/gui/bounced_light_detail.json`); the setting persists (`bounced_light_detail` in config.json); dev request `showcase {"bounced_light_detail":"low"}`. Native: `src/renderer/bounced_light_detail.rs` (the levels, their memory and words, the card's memory), `room_probes_gpu.rs` (`RoomGi::set_budget`, the atlas resize), `room_probes.rs` (`ProbeBudget`, `lattice_for`), `engine/room_gi.rs` (applies it each frame), `gui/pages/settings.rs` (`draw_bounced_light_detail`). Design: `docs/design/room-gi.md`.
+- **Bounced light detail (2026-10-20):** Settings > Graphics > Light and sky picks how finely the probes are laid out, live, no restart: Low, Medium, High (the default, the design's 1 m and 32,768 probes) and Ultra, each shown with its probe cap and its video memory (the cap x 3,392 bytes, about 27 to 212 MB). The frame's work is the same at every level. The page names the graphics card and its own memory (read from its driver's install record on Windows) and warns when a level would take more than a twentieth of it. The levels are data (`data/gui/bounced_light_detail.json`); the setting persists (`bounced_light_detail` in config.json); dev request `showcase {"bounced_light_detail":"low"}`. Native: `src/renderer/bounced_light_detail.rs` (the levels, their memory and words, the card's memory), `room_probes_gpu.rs` (`RoomGi::set_budget`, the atlas resize), `room_probes.rs` (`ProbeBudget`, `lattice_for`), `engine/room_gi.rs` (applies it each frame), `gui/pages/settings/graphics.rs` (`draw_bounced_light_detail`). Design: `docs/design/room-gi.md`.
 - Rigs: `node scripts/photograph-home.js --ab room_gi`; vantages `25c-oyster-rack-close` (home) and `console-face-6-room-gi-off` (probe sweep)
 - Design: `docs/design/room-gi.md` (destination, rung 1 as built, measured, limits, next)
 
@@ -2723,6 +2723,24 @@ Permanent dev tooling, the sibling of the in-world screens' `debug/screen_reques
 Settings > Graphics > Presets applies a named preset from data. "Ultra (reference)" is what the probe rig measures and what every performance number in PRIORITIES means by Ultra (cloud march at half resolution, constructed bodies, every surface and lighting feature at its physical strength); "Extreme" is every slider at its limit (full-resolution cloud march, 4x the reference). Unknown keys are logged and skipped so the file can grow ahead of the code.
 - Native: `src/gui/pages/settings.rs` (`graphics_presets`, `apply_graphics_preset`)
 - Data: `data/gui/graphics_presets.json`
+
+### Graphics settings say what they change and what they cost (2026-11-10)
+Every control on Settings > Graphics is followed by its description (what you will see differently,
+by key, glossary marks kept) and a cost line for this computer: the graphics card's time each frame
+in the passes it drives, the processor's, the video memory or the frame time, MEASURED live from the
+engine's own timers and memory counters (the Performance page's numbers); WORKED OUT from the choice
+and shown with it; a DOWNLOAD whose size is on its button (the star catalogues' and the Ultra glow's
+read from their release records); or nothing measurable, with why. It says when it cannot know:
+before the world has drawn a frame, a pass the card cannot time, a pass not running now. One row per
+control in `data/gui/graphics_settings.ron` (compiled in); the test
+`every_graphics_control_states_its_cost` fails on a control without its description and cost, a row
+without a cost, or a measured id the engine never records. The audit that made it, and the checklist
+for a new setting: `docs/design/graphics-settings.md`.
+- Native: `src/gui/pages/settings/graphics.rs` (`graphics_hint`, `cost_line`, `registry`, the page),
+  `src/gui/pages/settings/graphics_tests.rs`, `src/renderer/stars.rs` (`StarCatalogTier::download_bytes`,
+  `GALAXY_GLOW_ULTRA_BYTES`)
+- Data: `data/gui/graphics_settings.ron`; words under `graphics.*` in `data/i18n/en.json`
+- Web: none (the website draws no 3D world).
 ### PBR Shader with Emissive (v0.90.0)
 PBR material pipeline supports emissive strength via params.w.
 - Shaders: `assets/shaders/pbr_simple.wgsl`
@@ -3376,9 +3394,16 @@ texture is packed and BC7-encoded at conversion time by our own encoder (a DDS b
 PNGs, a quarter of the uncompressed memory), and lives in a slot of a GARMENT TEXTURE POOL (one array
 texture per slot shape, allocated once, slots handed from garment to garment as people come and go,
 sized from the near tier's cap; a full pool makes a newcomer wait in its mean colour, never an
-allocation on the frame). Settings > Graphics > Garment textures: Full (1024 a half) or Low memory
-(512, from the file's second level), each with its video memory on this card; a GPU without block
-compression draws them uncompressed, decoded from the same files, and the page says so in words.
+allocation on the frame). Settings > Graphics > Garment textures (levels as data since 2026-11-10,
+`data/gui/garment_textures.json`): 512, 1K and 2K, a garment never drawn larger than its own colour
+map (`art_px`, measured by the converter: 24 garments at 2048, 6 shoes at 1024, 16 brows and lashes
+at 512; no colour map reaches 4096, so 4K is not offered), each level with what it shows, its pools'
+video memory on this card and its download; 512 and 1K ship, 2K is an optional pack (24 garments,
+256 MB (268,460,032 bytes), a release asset under `assets-garments-1`, its size and SHA-256 compiled in from
+`data/characters/garment_packs.ron`) downloaded when 2K is picked, resumable, checked, removable,
+and drawn once installed (1K meanwhile); a level whose pools pass an eighth of the card's own memory
+says so in words; a GPU without block compression draws them uncompressed, decoded from the same
+files, and the page says so in words.
 **The own-mesh pool (2026-11-10)**: each near person's own mesh lives in a range of three GPU buffers
 (source vertices, their skinned copy, indices) allocated once on entering the world and sized for
 the near tier all in the largest dressed person (the terrain patch arena's first-fit range
@@ -3393,7 +3418,7 @@ body and logged. Its memory shows under the garment textures in Settings > Graph
   `player_look.rs` (`detail`, `wear`, `eyes`, `LookIds`, `clean_detail`, `clean_wear`, `look_due`),
   `cosmetics.rs` (`model`, `covers`), `Appearance::{detail, brows, lashes}`
 - Native: `src/engine/animation.rs` (own meshes built on `look_threads` worker threads, garment
-  materials, their slots in the garment texture pools and their release after 30 s unworn, the fringe pass), `src/engine/look_textures.rs` (a garment's DDS read off the frame, its levels for the setting, decoded where there is no block compression), `src/renderer/texture_pool.rs` (`SlotPool`, `create_texture_pool`, `texture_pool_write`, `set_material_pool_slot`), `src/renderer/bc7.rs` (the DDS reader and the BC7 decoder), `src/gui/garment_textures.rs` and `src/gui/pages/settings/garments.rs` (the setting, its memory and the block compression notice, and the own-mesh pool's memory), `src/renderer/mesh_pool.rs` (`MeshPool`: the own-mesh pool's books, `next_step`, `pack_step`), `src/renderer/skinning.rs`
+  materials, their slots in the garment texture pools and their release after 30 s unworn, the fringe pass), `src/engine/look_textures.rs` (a garment's DDS read off the frame, its levels for the setting, decoded where there is no block compression), `src/renderer/texture_pool.rs` (`SlotPool`, `create_texture_pool`, `texture_pool_write`, `set_material_pool_slot`), `src/renderer/bc7.rs` (the DDS reader and the BC7 decoder), `src/gui/garment_textures.rs` (the levels, `plan_for`, `pool_shapes`, `effective`, `source`, the notices, the section's state and `tick`), `src/gui/garment_textures/packs.rs` (the compiled-in pack catalog, `packs_dir`), `src/gui/pages/settings/garments.rs` (the levels with their memory and downloads, Remove, the notices, the own-mesh pool's memory), `src/instrument_packs/install.rs` (the resumable download), `scripts/gen-makehuman-look.js --pack` and `--check-pack` (the 2K pack), `scripts/lib/ustar.js`, `src/renderer/mesh_pool.rs` (`MeshPool`: the own-mesh pool's books, `next_step`, `pack_step`), `src/renderer/skinning.rs`
   (`skin_create_own_pool`, `skin_own_next_step`, `skin_own_place`, `skin_own_pack`, `skin_release_body`), `src/renderer/patch_arena.rs` (`RangeAlloc`, shared with the pool), `src/renderer/materials.rs` (`add_character_material`,
   `add_material_like`, types 25 textured and 26 hair), `assets/shaders/pbr/90-fragment-main.wgsl`
   (the pack, the cotangent frame, the hair's two passes and lobes), `src/engine/net_route.rs` (the

@@ -191,6 +191,103 @@ fn the_snapshot_shows_the_shipped_own_pool_plan() {
     assert!(bytes == plan.bytes(&lib) && people == plan.people, "the snapshot shows {bytes} bytes for {people} people; the engine plans {} for {}", plan.bytes(&lib), plan.people);
 }
 
+/// THE GARMENT TEXTURE LEVELS' PLAN IS THE SHIPPED LIBRARY'S (2026-11-10): the garments' sizes read
+/// from the data folder alone (`read_garment_arts`, what Settings plans from before the world is
+/// entered) are the library's, garment for garment; the plan offers 512, 1K and 2K and leaves 4K
+/// out (no shipped colour map is 4096), its 2K needs the compiled-in 2K pack holding exactly the
+/// garments made at 2048; and the plan the Settings snapshots draw (`ui_snapshots::shipped_garment_plan`)
+/// is this one, so the picture cannot drift from the data. Seen red 2026-11-10 with the snapshot's
+/// stand-ins giving the shoes 2048 art: "the snapshot's plan differs from the shipped data's".
+#[test]
+fn the_snapshot_shows_the_shipped_garment_plan() {
+    use crate::gui::garment_textures as gt;
+    let lib = read_library(&repo_data()).unwrap();
+    let look = lib.look.as_ref().expect("the look reads");
+    let (arts, near_cap) = read_garment_arts(&repo_data()).expect("the garments' sizes read");
+    assert_eq!(arts, garment_arts(look.garments.iter().map(|g| g.def.clone())), "the data folder's sizes are the library's");
+    assert_eq!(near_cap, lib.characters.tiers.near_cap);
+    for g in &arts {
+        assert!(g.art_px >= g.shipped_px, "{}: its art ({}) is smaller than its shipped file ({})", g.id, g.art_px, g.shipped_px);
+    }
+    let plan = gt::plan_for(gt::levels(), &arts, near_cap, true, gt::packs::catalog());
+    assert_eq!(plan.levels.iter().map(|l| l.id.as_str()).collect::<Vec<_>>(), vec!["512", "1k", "2k"], "4K is offered only where some garment's art reaches it");
+    let two = plan.level("2k").unwrap();
+    assert!(two.published, "the compiled-in catalog has the 2K pack");
+    let pack = gt::packs::catalog().pack(&two.packs[0]).unwrap();
+    let mut made_2k: Vec<&str> = arts.iter().filter(|g| g.art_px >= 2048).map(|g| g.id.as_str()).collect();
+    let mut held: Vec<&str> = pack.garments.iter().map(|g| g.id.as_str()).collect();
+    made_2k.sort_unstable();
+    held.sort_unstable();
+    assert_eq!(held, made_2k, "the 2K pack holds exactly the garments made at 2048");
+    let shown = crate::gui::ui_snapshots::shipped_garment_plan(true);
+    let strip = |p: &gt::Plan| p.levels.iter().map(|l| (l.id.clone(), l.px, l.reaching, l.below.clone(), l.bytes, l.download, l.published)).collect::<Vec<_>>();
+    assert_eq!(strip(&shown), strip(&plan), "the snapshot's plan differs from the shipped data's");
+    if debug() {
+        for l in &plan.levels {
+            eprintln!("{}: {} garments reach it, below {:?}, pools {:.1} MB BC7, download {} bytes", l.id, l.reaching, l.below, l.bytes as f64 / 1048576.0, l.download);
+        }
+    }
+}
+
+/// A LEVEL CHANGE PLANS THE POOLS ONCE, AND NO GARMENT ALLOCATES ON THE FRAME (2026-11-10): 80
+/// frames at 1K then 120 at 2K, the frame deciding once each frame (`level_changed`) and one garment
+/// of the shipped library arriving each frame, read as the engine reads it (`garment_read`: the
+/// shipped file at 1K, the 2K pack's file for the garments made at 2048, their own largest for the
+/// rest) and taking a slot of the pool of its shape. The pools are planned twice (entering at 1K, the
+/// change to 2K), allocated once per shape each time (1K: 2 shapes, 2K: 3), and no garment finds its
+/// shape missing. Seen red 2026-11-10 with `level_changed` not remembering the level it planned for
+/// (so the frame re-planned every frame, one garment arriving each): "the pools were planned 200
+/// times over one level change".
+#[test]
+fn a_level_change_plans_the_pools_once() {
+    use crate::renderer::texture_pool::{SlotPool, Take};
+    let data = repo_data();
+    let lib = read_library(&data).unwrap();
+    let look = lib.look.as_ref().expect("the look reads");
+    let (arts, near_cap) = read_garment_arts(&data).unwrap();
+    let k1 = TexSize { level_px: 1024, compressed: true, packs: 0 };
+    let k2 = TexSize { level_px: 2048, compressed: true, packs: 1 };
+    let shapes = |s: TexSize| crate::gui::garment_textures::pool_shapes(&arts, near_cap, s.level_px, s.compressed).len();
+    assert_eq!((shapes(k1), shapes(k2)), (2, 3));
+    let (mut last, mut pools) = (None, Vec::<SlotPool>::new());
+    let (mut replans, mut allocations, mut on_frame) = (0usize, 0usize, Vec::new());
+    for frame in 0..200usize {
+        let size = if frame < 80 { k1 } else { k2 };
+        if level_changed(&mut last, size) {
+            replans += 1;
+            pools.clear();
+            for mut p in plan_pools(&arts, near_cap, size) {
+                if p.needs_texture() {
+                    allocations += 1;
+                    p.gpu = Some(0);
+                }
+                pools.push(p);
+            }
+        }
+        let g = if frame < 80 { frame } else { frame - 80 };
+        if g >= look.garments.len() {
+            continue;
+        }
+        let (path, file_px, max_px) = garment_read(&data, &look.garments[g].def, &arts[g], size);
+        if size == k2 && arts[g].art_px >= 2048 {
+            assert!(path.to_string_lossy().contains("garments-2k"), "{} at 2K reads its pack's file: {}", arts[g].id, path.display());
+        }
+        let class = crate::engine::look_textures::class_for(file_px, max_px, size.compressed);
+        match pools.iter_mut().find(|p| p.class == class) {
+            Some(p) => {
+                assert!(matches!(p.take(g, |_| None), Take::Slot { .. }), "{} found its pool full", arts[g].id);
+                if p.needs_texture() {
+                    on_frame.push(arts[g].id.clone());
+                }
+            }
+            None => on_frame.push(arts[g].id.clone()),
+        }
+    }
+    assert_eq!(replans, 2, "the pools were planned {replans} times over one level change");
+    assert_eq!(allocations, shapes(k1) + shapes(k2), "each level allocates each shape once");
+    assert!(on_frame.is_empty(), "garments allocated a pool on the frame: {on_frame:?}");
+}
+
 /// THE BUILD'S COST AND MEMORY, measured (section 8.3 of the plan): a dressed person, built
 /// several times, and the bytes their mesh asks of the GPU. Printed with LOOK_DEBUG=1; the bound
 /// is generous (a debug build): it catches a build gone quadratic, not a slow machine.

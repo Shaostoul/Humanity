@@ -188,6 +188,14 @@ fn default_look_threads() -> usize {
     2
 }
 
+impl CharactersDef {
+    /// Read `data/characters/characters.ron` alone (2026-11-10: the garment texture levels' plan
+    /// needs the near tier's cap before the whole library is loaded).
+    pub fn parse(text: &str) -> Result<Self, String> {
+        crate::parse_ron(text, "data/characters/characters.ron")
+    }
+}
+
 /// A body material and its tint.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct RegionDef {

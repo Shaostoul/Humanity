@@ -251,6 +251,28 @@ gh release upload assets-simready-1 --repo Shaostoul/Humanity --clobber E:/Human
 gets `PACK_VERSION` raised in `scripts/simready/pack.js` first. To try a pack before uploading, serve
 its folder on 127.0.0.1 and run the app with `HUMANITY_MODEL_PACKS_URL=http://127.0.0.1:8000/`.
 
+## Garment texture packs (release assets; the top-level session uploads)
+
+Settings > Graphics > Garment textures downloads the levels above the shipped 1K (2K today:
+`docs/design/character-animation.md` section 16) from GitHub release assets under the non-`v*` tag
+`assets-garments-1`. The app compiles in `data/characters/garment_packs.ron` with each pack's size and
+SHA-256 (and each garment's DDS hash), and refuses a download that does not match, so **the catalog
+committed and the archive uploaded must come from the same converter run**:
+
+1. `node scripts/gen-makehuman-look.js --pack <folder>` (needs the MakeHuman sources on
+   `E:\HumanityOS\makehuman-src`, recorded in `LOOK-SOURCE.md`; about a minute and a half on four
+   threads): rewrites the shipped look files and `data/characters/garment_packs.ron`, writes each pack
+   as `<folder>/humanity-garments-<size>-v<version>.tar` with its `.sha256`, and the exact
+   `gh release create assets-garments-1 ... --latest=false` command to `<folder>-upload-command.txt`.
+   `--check-pack --pack-dir <folder>` re-encodes and compares the staged archive byte for byte.
+2. Commit the catalog; **the top-level session uploads** with that command (a dispatched agent never
+   does). Later rebuilds: `gh release upload assets-garments-1 --repo Shaostoul/Humanity --clobber
+   <the files>`, with the catalog that names them; a pack whose contents change gets `PACK_VERSION`
+   raised in the converter first, so its file name changes.
+
+`--latest=false` as for the other asset releases. To try a pack before uploading, serve its folder on
+127.0.0.1 and run the app with `HUMANITY_GARMENT_PACKS_URL=http://127.0.0.1:8000/`.
+
 ## AI files (release assets; the top-level session uploads)
 
 Settings > AI downloads the AI engine and each AI model a person chooses

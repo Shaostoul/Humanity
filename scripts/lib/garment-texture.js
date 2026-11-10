@@ -12,9 +12,11 @@
 // build_mip_chain: lashes and brows do not vanish at a few metres), cloth and normals are averaged in
 // linear light (build_opaque_mip_chain's rule).
 //
-// THE SIZE. Each half is at most TEXTURE_PX (1024) texels at level 0: the sources (512 to 4096) stay
-// whole on disk beside it; a person three metres away covers a few hundred pixels. Settings >
-// Graphics > Garment textures' Low memory draws from the level below (512). Sources are halved with a
+// THE SIZE. Each half is at most TEXTURE_PX (1024) texels at level 0 in the shipped files: the sources
+// (512 to 4096) stay whole on disk beside it; a person three metres away covers a few hundred pixels.
+// Settings > Graphics > Garment textures' 512 level draws from the level below. The levels above 1K
+// (2K today) are packed at that size into an optional download (`px`, scripts/gen-makehuman-look.js
+// --pack), each garment only up to its own colour map's size (2026-11-10). Sources are halved with a
 // box filter (alpha-weighted for cards, in linear light for colour, straight for the normal and
 // occlusion maps), so every map must be a power of two; a normal or occlusion map smaller than the
 // pack is doubled bilinearly (the fedoras' 512 normal maps beside their 2048 colour).
@@ -240,11 +242,14 @@ function chain(base, size, kind) {
 
 /**
  * Pack and encode one garment. `diffuse`, `normal`, `ao`: the PNG files' bytes (normal and ao may
- * be null); `cards`: drawn as alpha cards. Returns { size, dds, meanLuma, hasNormal, psnr }.
+ * be null); `cards`: drawn as alpha cards; `px`: the most texels a half may be (TEXTURE_PX for the
+ * shipped files; a garment texture pack's size, such as 2048, for the optional download, 2026-11-10).
+ * A half is never made larger than the colour map it comes from (`toSize` refuses that: no upscale is
+ * labelled as more). Returns { size, dds, meanLuma, hasNormal, psnr }.
  */
-function packAndEncode({ id, diffuse, normal, ao, cards }) {
+function packAndEncode({ id, diffuse, normal, ao, cards, px = TEXTURE_PX }) {
   const d = decodePng(Buffer.from(diffuse));
-  const size = Math.min(d.w, TEXTURE_PX);
+  const size = Math.min(d.w, px);
   let colour = toSize(d, size, cards ? 'cards' : 'colour', `${id} diffuse`);
   colour = Uint8Array.from(colour);
   if (ao) {

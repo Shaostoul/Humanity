@@ -16,6 +16,7 @@
 use egui::{Color32, RichText};
 use humanity_core::i18n::{t, t_dyn, t_marked_dyn, tf};
 
+use super::graphics::graphics_hint;
 use crate::gui::furniture_detail as fd;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Button, Hint};
@@ -59,7 +60,7 @@ fn draw_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: Hin
             ui.end_row();
         }
     });
-    widgets::setting_hint(ui, theme, hint, t("furniture_detail.hint"));
+    graphics_hint(ui, theme, hint, "furniture_detail");
     if fd::measured_full_bytes().is_none() {
         muted(ui, theme, t("furniture_detail.memory_unmeasured"));
     }
@@ -97,7 +98,7 @@ fn licence_line(ui: &mut egui::Ui, theme: &Theme, key: &str) {
 fn draw_packs(ui: &mut egui::Ui, theme: &Theme, hint: HintDisplay, packs: &mut ModelPacksUi) {
     packs.shown = true;
     ui.label(RichText::new(t("model_packs.title")).color(theme.text_secondary()).strong());
-    widgets::setting_hint(ui, theme, hint, t("model_packs.intro"));
+    graphics_hint(ui, theme, hint, "model_packs");
     if let Some(e) = &packs.load_error {
         warn(ui, theme.danger(), theme, tf("model_packs.load_error", &[("detail", e)]));
     }

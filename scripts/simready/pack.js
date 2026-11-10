@@ -629,33 +629,11 @@ function licenceNote(rows) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The pack archive (plain ustar, the instrument packs' reader: src/instrument_packs/tar.rs)
+// The pack archive (plain ustar, the instrument packs' reader: src/instrument_packs/tar.rs), written
+// by scripts/lib/ustar.js (moved there 2026-11-10; the garment texture packs write theirs with it too)
 // ---------------------------------------------------------------------------------------------
 
-function tarOf(files) {
-  const blocks = [];
-  for (const name of Object.keys(files).sort()) {
-    const data = files[name];
-    if (Buffer.byteLength(name) > 100) throw new Error(`tar: name too long: ${name}`);
-    const h = Buffer.alloc(512);
-    h.write(name, 0, 'utf8');
-    h.write('0000644\0', 100);
-    h.write('0000000\0', 108);
-    h.write('0000000\0', 116);
-    h.write(data.length.toString(8).padStart(11, '0') + '\0', 124);
-    h.write('00000000000\0', 136);
-    h.write('        ', 148);
-    h.write('0', 156);
-    h.write('ustar\0', 257);
-    h.write('00', 263);
-    let sum = 0;
-    for (let i = 0; i < 512; i++) sum += h[i];
-    h.write(sum.toString(8).padStart(6, '0') + '\0 ', 148);
-    blocks.push(h, data, Buffer.alloc((512 - (data.length % 512)) % 512));
-  }
-  blocks.push(Buffer.alloc(1024));
-  return Buffer.concat(blocks);
-}
+const { tarOf } = require('../lib/ustar.js');
 
 /** data/models/packs.ron: what ships in the app and the downloadable packs. */
 function packsRon({ homeModels, homeBytes, tarName, tarBytes, tarSha, packModels }) {

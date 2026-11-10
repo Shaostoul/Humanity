@@ -74,6 +74,40 @@ test("a hand-edited BC7 garment texture fails the check", () => {
   }
 });
 
+// THE GARMENT TEXTURE PACKS ARE CHECKED BY ENCODING THEM AGAIN (2026-11-10, the optional 2K
+// download): the catalog the app compiles in (data/characters/garment_packs.ron) records each pack
+// garment's DDS SHA-256, and --check-pack re-encodes and compares. The catalog copied to a scratch
+// root with fedora01's hash changed and fedora_cocked's left alone (the two share one texture), then
+// --check-pack --only both: it must fail naming fedora01 and must not name fedora_cocked, so in one
+// run the untouched entry is proven to pass (the failure is the edit's, not the harness's). Needs
+// the MakeHuman sources (a pack is only checkable by encoding it): skipped where they are not.
+// Seen red 2026-11-10 with the per-garment comparison taken out of --check-pack: "a hand-edited pack
+// hash passes --check-pack".
+test("a hand-edited garment pack hash fails --check-pack", (t) => {
+  const fs = require("fs");
+  const os = require("os");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "look-pack-check-"));
+  try {
+    const rel = path.join("data", "characters", "garment_packs.ron");
+    const text = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    const edited = text.replace(/(\(id: "fedora01", sha256: ")([0-9a-f])/, (_, a, c) => a + (c === "0" ? "1" : "0"));
+    assert.notStrictEqual(edited, text, "the catalog lists fedora01");
+    fs.mkdirSync(path.join(tmp, "data", "characters"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, rel), edited);
+    const env = { ...process.env, HUMANITY_LOOK_ROOT: tmp };
+    const r = spawnSync(process.execPath, [SCRIPT, "--check-pack", "--only", "fedora01,fedora_cocked"], { encoding: "utf8", env });
+    if (r.status === 3) {
+      t.skip("the MakeHuman sources are not on this machine");
+      return;
+    }
+    assert.notStrictEqual(r.status, 0, "a hand-edited pack hash passes --check-pack");
+    assert.match(r.stderr, /garments-2k\/fedora01\.dds/, `the failure names the edited garment: ${r.stderr}`);
+    assert.doesNotMatch(r.stderr, /fedora_cocked/, `the untouched garment passes in the same run: ${r.stderr}`);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test("an .mhclo reads its bindings, keywords anywhere among them, and its hidden runs", () => {
   const { parseMhclo, sliderId } = require(SCRIPT);
   const clo = parseMhclo(["name x", "verts 0", "material x.mhmat", "1 2 3 0.2 0.3 0.5 0.01 0.02 0.03", "7", "delete_verts", "10 - 12 15"].join("\n"));

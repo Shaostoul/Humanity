@@ -36,7 +36,19 @@ pub struct SlotClass {
     pub compressed: bool,
 }
 
+/// The smallest a half gets in a garment's mip chain (one BC7 block), as the converter writes it.
+pub const MIP_MIN_PX: u32 = 4;
+
 impl SlotClass {
+    /// The shape of a garment texture whose halves are `half` texels: twice as wide as high, its
+    /// levels down to one block a half (`MIP_MIN_PX`). One rule for the pools' plan
+    /// (`gui::garment_textures::pool_shapes`) and for a file read into a slot
+    /// (`engine::look_textures`), so a garment always finds the pool planned for it.
+    pub fn for_half(half: u32, compressed: bool) -> SlotClass {
+        let half = half.max(MIP_MIN_PX);
+        SlotClass { width: half * 2, height: half, levels: (half / MIP_MIN_PX).ilog2() + 1, compressed }
+    }
+
     pub fn format(&self) -> wgpu::TextureFormat {
         if self.compressed {
             wgpu::TextureFormat::Bc7RgbaUnormSrgb

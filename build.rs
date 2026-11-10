@@ -120,6 +120,13 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     // from this on purpose, so the relay and every app keep exactly the anchors their build shipped;
     // an id outside them reads as using nothing.
     "data/characters/interactions.ron",
+    // The garment texture packs' catalog (src/gui/garment_textures/packs.rs, 2026-11-10): compiled in
+    // on purpose, the AI catalog's way, so the signed release vouches for each pack's size and
+    // SHA-256 and a mod editing the data folder cannot point the app at other files.
+    "data/characters/garment_packs.ron",
+    // Settings > Graphics' rows (src/gui/pages/settings/graphics.rs, 2026-11-10): each control's
+    // words keys and how its cost is known, compiled in like the Performance page's registry.
+    "data/gui/graphics_settings.ron",
 ];
 
 fn main() {

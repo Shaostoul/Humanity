@@ -4500,7 +4500,7 @@ pub struct SettingsState {
     pub bounced_light_detail: String,
     /// Furniture detail: a level id from data/gui/furniture_detail.json (`gui::furniture_detail`).
     pub furniture_detail: String,
-    /// Garment textures: a level id from data/gui/garment_textures.json (Full, Low memory; live).
+    /// Garment textures: a level id from data/gui/garment_textures.json (512, 1K, 2K; live).
     pub garment_textures: String,
     pub master_volume: f32,
     pub music_volume: f32,

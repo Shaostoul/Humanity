@@ -500,6 +500,26 @@ The per-person act check walks the home's door panels, passing at once over a sh
 than 3 m off (people times doors, a comparison each: 57 panels in the homestead, nearly 3,000 at this crowd), and reads the
 person's own anchor; at section 8.4's hundreds of near people a grid of open doors is the lever.
 
+**With the garment texture levels (2026-11-10)**, the same way: release build, rig defaults,
+2560x1387, the crowd pair in one boot (the twin first), one boot at 1K (the shipped files) and one
+at 2K (the 2K pack installed in the rig's data folder, `garment_textures` set to `2k`), each clean;
+the textures' times are every garment put into its slot in the boot, from the log:
+
+| Case | the pools, allocated once at world entry | a texture into its slot | cpu.look_build (worst frame) | cpu.animation (worst frame) | all GPU stages (twin) | vram.textures |
+|---|---|---|---|---|---|---|
+| 1K | 30 of 2048 by 1024 (80.0 MB, 11.68 ms) and 16 of 1024 by 512 (10.7 MB, 0.06 ms): 90.7 MB | 0.22 to 0.43 ms (median 0.37; 41) | 0.101 ms (1.13) | 1.063 ms (3.11) | 13.45 (13.31) | 325.3 MB |
+| 2K | 24 of 4096 by 2048 (256.0 MB, 9.75 ms), 6 of 2048 by 1024 (the shoes, 16.0 MB, 0.06 ms) and 16 of 1024 by 512 (10.7 MB, 0.07 ms): 282.7 MB | the 20 at 2K 0.89 to 1.27 ms (median 0.90), the shoes 0.37 to 0.39, brows and lashes 0.22 to 0.26 (median 0.39; 41) | 0.125 ms (1.61) | 1.160 ms (4.01) | 13.46 (13.30) | 517.3 MB |
+
+So 2K costs **192 MB more video memory** (282.7 MB of pools against 90.7: on the RTX 4070's 12 GB,
+2.3%), a 2K texture takes **about 0.9 ms** into its slot against 0.37 (four times the bytes, two and
+a half times the time), and the crowd's worst frame of the look is 1.6 ms against 1.1; the GPU's
+work is unchanged (a sampled texel costs the same from a larger texture; at the crowd's distance the
+mip chosen is the same). The driver's own figure: 3,749 MB against 3,557. 4K is not offered (no
+garment's art reaches it); worked out, a 4K slot would be 44.7 MB of BC7 and 24 of them 1,024 MB, four
+times that uncompressed. An earlier 2K boot on the build before `ensure_read` planned the pools at 1K
+on the first frame that drew bodies and again at 2K on the next (the 1K pools' 90.7 MB made and let go
+at world entry); the table's boot plans once.
+
 **Why 56 joints and not MakeHuman's 163**: the 56 are exactly the bones that move in rung 1 (the role
 map's); the other 107 would only ever sit at rest under their parents until face and twist rungs.
 From the rows above, pose work grows about 0.1 microsecond a joint, so the full rig would cost about
@@ -553,8 +573,13 @@ rung or twist joints are a role-map line and a converter run away.
   texels a half, its levels down to 4) is 2.67 MB in its slot (a brow or lash set 0.67 MB), shared by
   everyone wearing it; uncompressed it was 10.7 MB (2.7). The slots live in pools allocated once, sized
   for the near tier's worst case and never more than the library: 30 large and 16 small slots today,
-  90.7 MB at Full, 30.7 MB at Low memory (every garment at 512 a half), four times both on a GPU
-  without block compression. The crowd's garments took 307 MB uncompressed before the pool (8.0).
+  90.7 MB at Full (1K), 30.7 MB at Low memory (512, every garment at 512 a half), four times both on
+  a GPU without block compression. The crowd's garments took 307 MB uncompressed before the pool
+  (8.0). **At 2K (the optional pack, 2026-11-10, measured at the crowd, 8.0)**: 24 slots of 4096 by
+  2048 (11.2 MB each, the outfits, hats and hair made at 2048), 6 of 2048 by 1024 (the shoes, at
+  their own 1024) and 16 of 1024 by 512: 282.7 MB of BC7, 1,131 MB uncompressed; Settings warns where
+  that passes an eighth of the card's own memory (a 2 GB card at 2K BC7, a 4 GB card uncompressed). 4K:
+  not offered (no colour map is 4096); it would be 44.7 MB a slot. The 2K pack is 256 MB to download.
 
 ### 8.4 Infinite-of-x: hundreds near, many more far
 
@@ -1434,7 +1459,7 @@ as quick starting points.
   own and a seventeenth binding at group 3 (the scan's section 4). A GPU without block compression
   (wgpu's `TEXTURE_COMPRESSION_BC`) gets RGBA8 decoded from the same files (`renderer::bc7`, checked
   against the GPU's own decoder), and Settings says so in words (what the textures need, what the card
-  has, what works instead). **Settings > Graphics > Garment textures**: Full (1024 texels a half) or
+  has, what works instead). **Settings > Graphics > Garment textures** (as first built; levels as data since the same day, below): Full (1024 texels a half) or
   Low memory (512: the file's second level; brows and lashes, 512 already, stay as they are, so
   every garment shares one pool shape), each with its video memory on this card
   (`data/gui/garment_textures.json`, `gui::garment_textures`, the furniture detail setting's way); a
@@ -1478,6 +1503,31 @@ as quick starting points.
   Settings > Graphics under the garment textures (`garment_textures.meshes`); `vram.characters` is now
   everything the skinned bodies hold, and `vram.meshes` counts each buffer once (it counted every
   person's skinned copy once per region, about 330 MB too much at the crowd).
+- **The garment texture levels as data, up to each garment's art (2026-11-10, "Answers after the
+  look" below)**: the levels are data (`data/gui/garment_textures.json`: 512, 1K, 2K, 4K, each its
+  size; 1K the default) and a garment is never drawn larger than its own colour map was made. The
+  converter measures every source map from its PNG header (`garments.ron`'s `art_px`, every map's
+  size in `LOOK-SOURCE.md`): 24 garments were made at 2048 (the 12 outfits, 2 hats and 10 hair
+  styles), the 6 shoes at 1024, the 16 brows and lashes at 512; no colour map reaches 4096 (seven
+  outfits have 4096 normal maps beside a 2048 colour, which does not make the picture 4096), so 4K is
+  NOT offered: a level no garment's art reaches is left out, never an upscale labelled as more, and
+  it appears by itself the day a garment's art reaches it. At 2K the 22 garments made smaller are
+  drawn at their own largest and the page says so. 512 and 1K stay in the shipped files; 2K is ONE
+  optional pack built by the converter (`--pack DIR`: the same packer and our BC7 encoder at 2048 a
+  half, deterministic, `--check-pack` re-encodes and compares): 24 garments, 268,460,032 bytes, a
+  release asset under `assets-garments-1` with its size, SHA-256 and each garment's DDS hash
+  compiled into the app (`data/characters/garment_packs.ron`, `gui::garment_textures::packs`).
+  Downloaded only when the person picks 2K (its size and memory are on the row before), resumable
+  (the shared pack installer now keeps what arrived and asks for the rest with an HTTP `Range`),
+  checked, installed into `<data>/characters/packs/garments-2k/`, removable; until it is installed
+  1K is drawn and the page says so (`gui::garment_textures::effective`). ONE plan for the page and
+  the engine (`pool_shapes`, `plan_for`): the engine allocates the pools with exactly the shapes and
+  capacities the page's memory counts, decides a level change once a frame (`level_changed`) and
+  plans the pools once for the new level; each garment then reads its shipped or pack file
+  (`garment_read`) into a pool already there. The garments' sizes are noted from the data folder
+  before the world is entered (`engine::look_textures::tick`), so the page shows every level from the
+  main menu. A level whose pools would pass `warn_share` (an eighth) of the card's own memory says so:
+  what it needs, what the card has, the level that fits (the hardware-notice rule).
 - **Crouch: Hold or Toggle (6)**: Settings > Controls > Crouch, Hold by default (rung 2a's report:
   someone who cannot hold a key can crouch); a toggle flips on the key's press, never its repeats, and
   leaving Toggle stands the person up.
@@ -1552,6 +1602,14 @@ as quick starting points.
   255 in the crowd, against 0.08 between two boots of main and 11.7 against the look-off twin).
   Planned smaller (`HUMANITY_OWN_POOL_VERTICES=20000`), 31 of the crowd's meshes were refused as too
   big, logged, and drawn with the shared body (7 small enough kept theirs).
+- **The garment texture levels (2026-11-10)**, the crowd pair at 1K and at 2K (8.0): at 2K the pools
+  are 282.7 MB (256.0 MB for the 24 garments made at 2048, 16.0 MB for the 6 shoes at their own 1024,
+  10.7 MB for the 16 brows and lashes), allocated once at world entry (the largest in 9.75 ms), against
+  90.7 MB at 1K; each 2K texture into its slot in 0.89 to 1.27 ms (median 0.90; 20 of them) against
+  0.37 at 1K; the crowd's worst frame of the look 1.6 ms against 1.1; the GPU's stages the same
+  (13.46 ms against 13.45). The pack: 24 garments, 268,460,032 bytes (256 MB), BC7 encoded in 48 s on
+  four threads, `--check-pack` matching the staged archive byte for byte. 4K: not offered; worked out,
+  1,024 MB of pools and as much to download, had every 2K garment 4K art.
 - **No skin through the clothes** (four outfits, walk at two phases, crouch walk, sit): the casual
   outfits and the work overalls 0 vertices through in every pose; the sport top 2 walking, 19
   crouched (up to 2.8 cm) and 9 seated (1.3 cm), at the small of the back; covers off, 215 to 766
@@ -1579,6 +1637,21 @@ as quick starting points.
   figure is the engine's plan (red with it a MB off). In the running game: the crowd pair five times
   before and after (8.0), the pool drawing main's picture, and the pool planned smaller, its
   oversized path drawing the shared body (above, Measured).
+- The garment texture levels (2026-11-10, `gui::garment_textures::tests`, the engine's look tests,
+  the converter's test): a level above every garment's art is not offered and no garment is drawn
+  above its art (red with the plan offering every level in the file: "4K is offered though no
+  garment's art reaches it: an upscale labelled as more"); the level drawn waits for its files; the
+  memory is the pools'; a level too big for the card is told so (red: never told); a dropped pack
+  download resumes with a `Range` request and installs checked, against a server on 127.0.0.1 (red
+  with the Range left out: "resumed with a Range request", left [None, None]); a damaged pack is
+  refused, a server file of another size too, and a resumed whole that fails its check is deleted
+  (red without the SHA-256 check: "a changed byte is refused as damaged: Ok(())"); a level change
+  plans the pools once and no garment allocates on the frame, the shipped library's 46 garments read
+  as the engine reads them (red with `level_changed` forgetting the level it planned for: "the pools
+  were planned 200 times over one level change"); the snapshots' plan is the shipped data's (red with
+  the shoes given 2048 art); a hand-edited pack hash fails `--check-pack` (red without the per-garment
+  comparison: "a hand-edited pack hash passes --check-pack"); `--check-pack --pack-dir` on the staged
+  archive: "the garment texture packs match the converter (24 textures, and every archive)".
 - In the running game: `anim-look-face-{female,male}` (the face as made, a dozen face sliders at
   their high end, the same at their low end), `anim-look-covers-off` (skin through every outfit:
   the red arm, seen), `anim-shoes` and its failing twin, the dressed line-ups and crowds, and the
@@ -1596,7 +1669,7 @@ centimetres; the sport top's hem rides over the skin at the small of the back in
 the cloth); the character page's height in metres does not yet count the detail sliders (a longer
 neck stands a person a little taller than the height shown); the garment texture pools are sized
 for the near tier's worst case and kept for the session once allocated (today every garment, about
-91 MB as BC7 at Full, held even when nobody is near; a pool that grows in steps ahead of need, or is
+91 MB as BC7 at 1K and 283 MB at 2K, held even when nobody is near; a pool that grows in steps ahead of need, or is
 let go after a long while unworn, is the lever if memory matters there), and their encoder writes
 five of BC7's eight modes (the three-subset modes and mode 4 would add a little quality, an edit to
 `scripts/lib/bc7.js`); the own-mesh pool is planned for the near tier in the largest dressed person
@@ -1621,6 +1694,13 @@ garment's source size (MakeHuman's sources reach 4096, so 2K and 4K; 4K for ever
 GB-scale in BC7, so the levels above 1K come as an optional download pack from a release asset),
 each level showing its download size and video memory; 8K only when art at that size exists,
 never an upscale labelled as more.
+
+**Built the same day** (section 16's "garment texture levels as data" bullet; the audit of every
+graphics setting against the rule: `docs/design/graphics-settings.md`). Measuring each garment's
+sources changed the plan in one respect: MakeHuman's 4096 images are NORMAL maps (seven outfits);
+every colour map stops at 2048 or below, so a 4K level would be a 2K picture upscaled and is not
+offered (it appears by itself when art that large arrives), and the one pack is the 2K set, 256 MB
+rather than GB-scale.
 
 ## 17. Built: rung 2b, interactions anchored to things, hands, look-at and true first person (2026-11-10)
 

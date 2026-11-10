@@ -1,8 +1,11 @@
 {
-  "version": 1,
-  "_comment": "Settings > Graphics > Garment textures (2026-11-10, docs/design/character-animation.md section 16; src/gui/garment_textures.rs). The most texels each half of a garment's texture (its colour, its normal map) is drawn at: the converter encodes each at 1024 a half with every level below it, so a level with max_px 512 draws from the second level (a quarter of the video memory). The Settings page shows each level's video memory for the garment texture pool on this graphics card (BC7 where it offers block compression, four times as much uncompressed where it does not). words and note are i18n keys. 'full' is the default; src/config.rs falls back to it for an id not listed here. Changing this file takes effect at the next start.",
+  "version": 2,
+  "_comment": "Settings > Graphics > Garment textures (2026-11-10, docs/design/character-animation.md section 16 and docs/design/graphics-settings.md; src/gui/garment_textures.rs). Each level is the most texels each half of a garment's texture (its colour, its normal map) is drawn at. A garment is never drawn larger than its own colour map was made (garments.ron's art_px, measured by scripts/gen-makehuman-look.js): at a level above it, it is drawn at its own largest, and the page says how many garments that is. A level no garment's art reaches is not shown (today 4k: no MakeHuman colour map is 4096). The shipped files carry 1024 a half and every level below it; a level above 1024 needs that size's optional pack (data/characters/garment_packs.ron, built by the converter's --pack and downloaded from Settings when the level is picked). The page shows each level's video memory for the garment texture pools on this graphics card (BC7 where it offers block compression, four times as much uncompressed where it does not) and warns when a level's pools would take more than warn_share of the card's own memory. words and note are i18n keys. '1k' is the default; src/config.rs falls back to it for an id not listed here. Changing this file takes effect at the next start; the converter reads the sizes here to know which packs to build.",
+  "warn_share": 0.125,
   "levels": [
-    { "id": "full", "words": "garment_textures.level.full", "note": "garment_textures.note.full", "max_px": 1024 },
-    { "id": "low", "words": "garment_textures.level.low", "note": "garment_textures.note.low", "max_px": 512 }
+    { "id": "512", "words": "garment_textures.level.512", "note": "garment_textures.note.512", "max_px": 512 },
+    { "id": "1k", "words": "garment_textures.level.1k", "note": "garment_textures.note.1k", "max_px": 1024 },
+    { "id": "2k", "words": "garment_textures.level.2k", "note": "garment_textures.note.2k", "max_px": 2048 },
+    { "id": "4k", "words": "garment_textures.level.4k", "note": "garment_textures.note.4k", "max_px": 4096 }
   ]
 }

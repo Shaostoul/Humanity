@@ -420,12 +420,61 @@ enum GarmentTex {
     Failed,
 }
 
-/// What the garment textures are loaded at: each half's most texels (Settings > Graphics > Garment
-/// textures) and whether the GPU takes BC7.
+/// What the garment textures are loaded at: the level drawn (Settings > Graphics > Garment textures:
+/// the chosen level, or the largest at or below it whose files are on this computer,
+/// `gui::garment_textures::effective`), whether the GPU takes BC7, and how many pack installs and
+/// removals have finished (a pack replaced under the same level is read again).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct TexSize {
-    max_px: u32,
-    compressed: bool,
+pub(crate) struct TexSize {
+    pub level_px: u32,
+    pub compressed: bool,
+    pub packs: u64,
+}
+
+/// THE FRAME'S ONE DECISION ABOUT THE POOLS (2026-11-10, the garment texture levels): true when the
+/// level drawn changed since the pools were planned, or they never were, so every garment texture
+/// lets go and the pools are planned ONCE for the new level (`plan_pools`, allocated by
+/// `allocate_pools` the same frame). Called once a frame with the frame's level, never per garment:
+/// garments re-read at the new size then each take a slot of a pool already there.
+pub(crate) fn level_changed(last: &mut Option<TexSize>, now: TexSize) -> bool {
+    if *last == Some(now) {
+        return false;
+    }
+    *last = Some(now);
+    true
+}
+
+/// The pools for `size`, planned (not yet on the GPU): one per shape the garments fall in at the level,
+/// each at the capacity the Settings page's memory figure counts (`gui::garment_textures::pool_shapes`).
+pub(crate) fn plan_pools(arts: &[crate::gui::garment_textures::GarmentArt], near_cap: usize, size: TexSize) -> Vec<crate::renderer::texture_pool::SlotPool> {
+    crate::gui::garment_textures::pool_shapes(arts, near_cap, size.level_px, size.compressed).into_iter().map(|(c, n)| crate::renderer::texture_pool::SlotPool::new(c, n)).collect()
+}
+
+/// The file a garment's texture is read from at `size` and how it is read: (path, the file's texels a
+/// half, the most a half is drawn at). The shipped file at or below its size; above it, its pack's.
+pub(crate) fn garment_read(data_dir: &Path, def: &humanity_animation::look::GarmentDef, art: &crate::gui::garment_textures::GarmentArt, size: TexSize) -> (PathBuf, u32, u32) {
+    use crate::gui::garment_textures::{packs, source, Source};
+    match source(art, size.level_px, packs::catalog()) {
+        Source::Shipped { max_px } => (resolve_model(data_dir, &def.texture), def.texture_px, max_px),
+        Source::Pack { pack, px } => (packs::garment_file(data_dir, &pack, &def.id), px, px),
+    }
+}
+
+/// The plan's view of the library's garments, in the library's order.
+pub(crate) fn garment_arts(defs: impl Iterator<Item = humanity_animation::look::GarmentDef>) -> Vec<crate::gui::garment_textures::GarmentArt> {
+    defs.map(|d| crate::gui::garment_textures::GarmentArt { kind: format!("{:?}", d.kind), shipped_px: d.texture_px, art_px: d.art_px, id: d.id }).collect()
+}
+
+/// The garments' sizes and the near tier's cap read from the data folder alone (no meshes): Settings
+/// > Graphics > Garment textures plans its levels before the world is entered.
+pub(crate) fn read_garment_arts(data_dir: &Path) -> Result<(Vec<crate::gui::garment_textures::GarmentArt>, usize), String> {
+    let text = |rel: &str| {
+        let p = data_dir.join("characters").join(rel);
+        std::fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))
+    };
+    let defs = humanity_animation::look::read_garment_defs(&text("garments.ron")?)?;
+    let near_cap = humanity_animation::CharactersDef::parse(&text("characters.ron")?)?.tiers.near_cap;
+    Ok((garment_arts(defs.into_iter()), near_cap))
 }
 
 /// THE FOOT PROBE (rung 2a, the proof's judge; showcase `foot_probe`): for a set time, every frame,
@@ -523,8 +572,10 @@ pub(crate) struct AnimationRuntime {
     /// hair fringe): a GPU allocation keyed by its own value, made once each, like `materials`.
     garment_materials: HashMap<(usize, [u8; 3], u8), usize>,
     /// The garment texture pools, one per slot shape (renderer::texture_pool), each allocated on
-    /// the GPU once, when a garment of its shape first arrives.
+    /// the GPU once, on the first frame that draws bodies at the level drawn (`allocate_pools`).
     pools: Vec<crate::renderer::texture_pool::SlotPool>,
+    /// The plan's view of the library's garments, in its order (made when the library is read).
+    garment_arts: Vec<crate::gui::garment_textures::GarmentArt>,
     /// What the garment textures are loaded at; a change (the setting) lets every one go and the
     /// pools with them, to be read again at the new size.
     tex_size: Option<TexSize>,
@@ -567,6 +618,7 @@ impl Default for AnimationRuntime {
             garment_tex: HashMap::new(),
             garment_materials: HashMap::new(),
             pools: Vec::new(),
+            garment_arts: Vec::new(),
             tex_size: None,
             me_act: None,
             pose2: Pose::default(),
@@ -696,9 +748,13 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             let_go_of_garment_textures(rt, &mut state.renderer);
             rt.garment_tex.clear();
             rt.garment_materials.clear();
-            if let Some(look) = lib.look.as_ref() {
-                crate::gui::garment_textures::note_plan(pool_plan(look, lib.characters.tiers.near_cap, state.renderer.block_compression()));
+            // The plan's view of this library's garments (Settings plans the levels from the same).
+            rt.garment_arts = lib.look.as_ref().map(|look| garment_arts(look.garments.iter().map(|g| g.def.clone()))).unwrap_or_default();
+            if lib.look.is_some() {
+                crate::gui::garment_textures::note_garments(Ok((rt.garment_arts.clone(), lib.characters.tiers.near_cap)));
             }
+            // Planned again for this library on the next frame that draws bodies.
+            rt.tex_size = None;
             // What the own-mesh pool will take (Settings shows it beside the garment textures).
             if let Some(plan) = own_pool_plan(&lib) {
                 crate::gui::garment_textures::note_mesh_plan(crate::gui::garment_textures::MeshPlan { bytes: plan.bytes(&lib), people: plan.people });
@@ -1008,6 +1064,7 @@ fn garment_texture(
     renderer: &mut crate::renderer::Renderer,
     data_dir: &Path,
     look: &humanity_animation::LookLibrary,
+    arts: &[crate::gui::garment_textures::GarmentArt],
     near_cap: usize,
     g: usize,
     size: TexSize,
@@ -1017,11 +1074,13 @@ fn garment_texture(
     use crate::renderer::texture_pool::{SlotPool, Take};
     let def = &look.garments[g].def;
     let start = |template: Option<usize>| {
-        let path = resolve_model(data_dir, &def.texture);
-        let (texture_px, id) = (def.texture_px, def.id.clone());
+        // The shipped file, or above its size the level's pack (`garment_read`).
+        let Some(art) = arts.get(g) else { return GarmentTex::Failed };
+        let (path, file_px, max_px) = garment_read(data_dir, def, art, size);
+        let id = def.id.clone();
         let (tx, rx) = std::sync::mpsc::channel();
         let spawned = std::thread::Builder::new().name("garment-texture".into()).spawn(move || {
-            let _ = tx.send(crate::engine::look_textures::read(&path, texture_px, size.max_px, size.compressed));
+            let _ = tx.send(crate::engine::look_textures::read(&path, file_px, max_px, size.compressed));
         });
         match spawned {
             Ok(_) => GarmentTex::Loading { rx, template },
@@ -1063,7 +1122,7 @@ fn garment_texture(
         let pi = match pools.iter().position(|p| p.class == loaded.class) {
             Some(i) => i,
             None => {
-                pools.push(SlotPool::new(loaded.class, pool_capacity(look, near_cap, loaded.class, size.max_px)));
+                pools.push(SlotPool::new(loaded.class, planned_capacity(arts, near_cap, size, loaded.class)));
                 pools.len() - 1
             }
         };
@@ -1199,22 +1258,21 @@ fn let_go_of_garment_textures(rt: &mut AnimationRuntime, renderer: &mut crate::r
     }
 }
 
-/// How many slots a pool of `class` holds: enough for the near tier (its cap and the player) each
-/// wearing one garment of every kind that comes in this shape, and never more than the library has
-/// garments of it. A pool full of garments someone near wears makes a newcomer wait in its mean
-/// colour, so this is the near tier's worst case, not a limit people meet.
-fn pool_capacity(look: &humanity_animation::LookLibrary, near_cap: usize, class: crate::renderer::texture_pool::SlotClass, max_px: u32) -> u32 {
-    let mut kinds: Vec<humanity_animation::GarmentKind> = Vec::new();
-    let mut count = 0usize;
-    for g in &look.garments {
-        if crate::engine::look_textures::class_for(g.def.texture_px, max_px, class.compressed) == class {
-            count += 1;
-            if !kinds.contains(&g.def.kind) {
-                kinds.push(g.def.kind);
-            }
-        }
-    }
-    count.min((near_cap + 1) * kinds.len()).max(1) as u32
+/// The level the frame draws the garment textures at (`TexSize`): the chosen level when its files
+/// are on this computer, else the largest at or below it that is (`gui::garment_textures::effective`;
+/// a level whose pack is downloading is drawn once the download has installed).
+pub(crate) fn frame_tex_size(arts: &[crate::gui::garment_textures::GarmentArt], near_cap: usize, chosen: &str, compressed: bool) -> TexSize {
+    use crate::gui::garment_textures as gt;
+    let plan = gt::plan_for(gt::levels(), arts, near_cap, compressed, gt::packs::catalog());
+    let ui = gt::shared();
+    let level_px = gt::effective(&plan, chosen, |id| ui.is_installed(id)).map_or_else(|| gt::max_px(chosen), |l| l.px);
+    TexSize { level_px, compressed, packs: gt::installed_generation() }
+}
+
+/// The capacity of a pool of `class` at `size` (the plan's; 1 for a shape the plan does not have,
+/// which never happens: the plan and the reads share `SlotClass::for_half`).
+fn planned_capacity(arts: &[crate::gui::garment_textures::GarmentArt], near_cap: usize, size: TexSize, class: crate::renderer::texture_pool::SlotClass) -> u32 {
+    crate::gui::garment_textures::pool_shapes(arts, near_cap, size.level_px, size.compressed).into_iter().find(|(c, _)| *c == class).map_or(1, |(_, n)| n)
 }
 
 /// The own-mesh pool's plan (2026-11-10, renderer::mesh_pool): sized for the largest dressed person
@@ -1261,15 +1319,13 @@ pub(crate) fn own_pool_plan(lib: &CharacterLibrary) -> Option<OwnPoolPlan> {
     Some(OwnPoolPlan { class: crate::renderer::mesh_pool::MeshClass { vertices, indices }, people, handles: people + own_keep_cap(near_cap) as u32, shared_places: people as usize })
 }
 
-/// Make and allocate a pool for every slot shape the library's garments fall in at `size` (each at
-/// its capacity), each logged with its size and the time its allocation took.
-fn allocate_pools(pools: &mut Vec<crate::renderer::texture_pool::SlotPool>, renderer: &mut crate::renderer::Renderer, look: &humanity_animation::LookLibrary, near_cap: usize, size: TexSize) {
-    for g in &look.garments {
-        let class = crate::engine::look_textures::class_for(g.def.texture_px, size.max_px, size.compressed);
-        if pools.iter().any(|p| p.class == class) {
+/// Make and allocate a pool for every slot shape the garments fall in at `size` (each at its
+/// capacity, `plan_pools`), each logged with its size and the time its allocation took.
+fn allocate_pools(pools: &mut Vec<crate::renderer::texture_pool::SlotPool>, renderer: &mut crate::renderer::Renderer, arts: &[crate::gui::garment_textures::GarmentArt], near_cap: usize, size: TexSize) {
+    for mut pool in plan_pools(arts, near_cap, size) {
+        if pools.iter().any(|p| p.class == pool.class) {
             continue;
         }
-        let mut pool = crate::renderer::texture_pool::SlotPool::new(class, pool_capacity(look, near_cap, class, size.max_px));
         if pool.needs_texture() {
             let t0 = std::time::Instant::now();
             pool.gpu = Some(renderer.create_texture_pool(pool.class, pool.capacity));
@@ -1290,27 +1346,6 @@ fn log_pool(pool: &crate::renderer::texture_pool::SlotPool, ms: f32) {
         (pool.class.slot_bytes() * pool.capacity as u64) as f64 / 1_048_576.0,
         ms
     );
-}
-
-/// What the pools take at each garment texture level (Settings > Graphics > Garment textures), on a
-/// GPU that does (`compressed`) or does not take BC7: every pool shape the library's garments fall
-/// in at that level, at its capacity.
-fn pool_plan(look: &humanity_animation::LookLibrary, near_cap: usize, compressed: bool) -> crate::gui::garment_textures::Plan {
-    let bytes = crate::gui::garment_textures::levels()
-        .iter()
-        .map(|level| {
-            let mut classes: Vec<crate::renderer::texture_pool::SlotClass> = Vec::new();
-            for g in &look.garments {
-                let c = crate::engine::look_textures::class_for(g.def.texture_px, level.max_px, compressed);
-                if !classes.contains(&c) {
-                    classes.push(c);
-                }
-            }
-            let total = classes.iter().map(|&c| c.slot_bytes() * pool_capacity(look, near_cap, c, level.max_px) as u64).sum();
-            (level.id.clone(), total)
-        })
-        .collect();
-    crate::gui::garment_textures::Plan { bytes, compressed }
 }
 
 /// The outfit slots a worn garment of this kind fills: the body's regions painted as those slots'
@@ -2011,27 +2046,28 @@ pub(crate) fn draw_people(
     let data_dir = state.data_dir.clone();
     let cosmetics = &state.cosmetics;
     let model_of = |id: &str| -> Option<Option<String>> { cosmetics.iter().find(|c| c.id == id).map(|c| c.model.clone()) };
-    // Settings > Graphics > Garment textures (Full or Low memory) and the GPU's block compression:
-    // a change lets every garment texture go, and the pools with them, to be read again at the new
-    // size as people wear them (each drawn in its mean colour for the frames that takes).
-    let tex_size = TexSize { max_px: crate::gui::garment_textures::max_px(&state.gui_state.settings.garment_textures), compressed: state.renderer.block_compression() };
-    if state.animation.tex_size != Some(tex_size) {
-        if state.animation.tex_size.is_some() {
-            log::info!("Characters: garment textures now {} texels a half ({}); every one is read again as it is worn", tex_size.max_px, if tex_size.compressed { "BC7" } else { "uncompressed" });
-            let_go_of_garment_textures(&mut state.animation, &mut state.renderer);
-        }
-        state.animation.tex_size = Some(tex_size);
+    // Settings > Graphics > Garment textures (the level chosen, drawn once its files are on this
+    // computer: `gui::garment_textures::effective`) and the GPU's block compression: a change lets
+    // every garment texture go, and the pools with them, to be read again at the new size as people
+    // wear them (each drawn in its mean colour for the frames that takes). Decided once a frame.
+    let near_cap = state.animation.lib.as_ref().map_or(0, |l| l.characters.tiers.near_cap);
+    crate::gui::garment_textures::ensure_read(&state.data_dir);
+    let tex_size = frame_tex_size(&state.animation.garment_arts, near_cap, &state.gui_state.settings.garment_textures, state.renderer.block_compression());
+    let had = state.animation.tex_size.is_some();
+    if level_changed(&mut state.animation.tex_size, tex_size) && had {
+        log::info!(
+            "Characters: garment textures now drawn at {} texels a half ({}); the pools are planned again once and every garment is read again as it is worn",
+            tex_size.level_px,
+            if tex_size.compressed { "BC7" } else { "uncompressed" }
+        );
+        let_go_of_garment_textures(&mut state.animation, &mut state.renderer);
     }
     // The pools, each allocated once, on the first frame that draws bodies (entering the world), and
-    // again after the setting changes or the library is read again: never when a crowd walks in.
+    // again after the level changes or the library is read again: never when a crowd walks in.
     // Measured 2026-11-10: allocated as the first garment of its shape arrived, the small pool took
     // 9.0 ms on that frame (the large one 0.1 ms), the crowd's one remaining spike.
-    if state.animation.textures_on && state.animation.pools.is_empty() {
-        if let Some(lib) = state.animation.lib.clone() {
-            if let Some(look) = lib.look.as_ref() {
-                allocate_pools(&mut state.animation.pools, &mut state.renderer, look, lib.characters.tiers.near_cap, tex_size);
-            }
-        }
+    if state.animation.textures_on && state.animation.pools.is_empty() && !state.animation.garment_arts.is_empty() {
+        allocate_pools(&mut state.animation.pools, &mut state.renderer, &state.animation.garment_arts, near_cap, tex_size);
     }
     // The own-mesh pool (2026-11-10, renderer::mesh_pool), the same way: allocated once, on the
     // first frame that draws bodies, and again after the library is read again; never when a crowd
@@ -2655,7 +2691,7 @@ pub(crate) fn draw_people(
                             let def = &look.garments[g].def;
                             let c = garment_colour(lib, def, p);
                             let ready = if rt.textures_on {
-                                garment_texture(&mut rt.garment_tex, &rt.garment_materials, &mut rt.pools, renderer, &data_dir, look, lib.characters.tiers.near_cap, g, tex_size, rt.clock, &mut texture_uploads)
+                                garment_texture(&mut rt.garment_tex, &rt.garment_materials, &mut rt.pools, renderer, &data_dir, look, &rt.garment_arts, lib.characters.tiers.near_cap, g, tex_size, rt.clock, &mut texture_uploads)
                             } else {
                                 None
                             };

@@ -11,10 +11,13 @@
 //! (`garments.ron`'s `texture`). Nothing is packed or encoded here, and nothing is kept across runs:
 //! the file is read each time the garment takes a slot.
 //!
-//! THE SIZE. Each half is `texture_px` texels at level 0 (1024; 512 for brows and lashes, whose
-//! sources are that small). Settings > Graphics > Garment textures caps it (`gui::garment_textures`:
-//! Full 1024, Low memory 512): the file's top levels past the cap are skipped, so Low memory uploads
-//! from the second level, a quarter of the memory.
+//! THE SIZE. Each half is `texture_px` texels at level 0 in the shipped file (1024; 512 for brows
+//! and lashes, whose sources are that small). Settings > Graphics > Garment textures picks the level
+//! (`gui::garment_textures`: 512, 1K, 2K, from data): at or below the shipped size the file's top
+//! levels past the cap are skipped (512 uploads from the second level, a quarter of the memory);
+//! above it the garment's file comes from that size's optional pack (`gui::garment_textures::packs`,
+//! installed under `<data>/characters/packs/`), read here the same way with its own size, and never
+//! larger than the garment's own art (`GarmentDef::art_px`).
 //!
 //! THE GPU. Where it offers block compression the BC7 blocks go up as they are (a byte a texel);
 //! elsewhere they are decoded here to RGBA8 (`renderer::bc7`, the format's bit-exact decoder), four
@@ -22,10 +25,7 @@
 
 use std::path::Path;
 
-use crate::renderer::texture_pool::SlotClass;
-
-/// The smallest a half gets in a garment's mip chain (one BC7 block), as the converter writes it.
-pub(crate) const MIP_MIN_PX: u32 = 4;
+use crate::renderer::texture_pool::{SlotClass, MIP_MIN_PX};
 
 /// A garment's texture read for its slot: the pool shape it fits and its levels, biggest first (BC7
 /// blocks, or RGBA8 decoded from them on a GPU without block compression).
@@ -35,16 +35,26 @@ pub(crate) struct Loaded {
     pub levels: Vec<Vec<u8>>,
 }
 
+/// The frame step for Settings > Graphics > Garment textures (2026-11-10): the garments' sizes noted
+/// for the levels' plan before the world is entered (and again every 2 s with the reuse switch off;
+/// the library notes them too when it is read), then the packs' downloads and removals
+/// (`gui::garment_textures::tick`). Called once a frame by the main loop, beside the model packs'.
+pub(crate) fn tick(data_dir: &Path) {
+    if crate::gui::garment_textures::garments_due() {
+        crate::gui::garment_textures::note_garments(crate::engine::animation::read_garment_arts(data_dir));
+    }
+    crate::gui::garment_textures::tick(data_dir);
+}
+
 /// The levels a half of `half` texels has, down to `MIP_MIN_PX`.
 fn levels_for(half: u32) -> u32 {
     (half.max(MIP_MIN_PX) / MIP_MIN_PX).ilog2() + 1
 }
 
-/// The pool shape a garment whose halves are `texture_px` texels takes when each half is drawn at
-/// most `max_px`: twice as wide as high, its levels down to one block a half.
+/// The pool shape a garment file whose halves are `texture_px` texels takes when each half is drawn
+/// at most `max_px` (`SlotClass::for_half`, the pools' plan's own rule).
 pub(crate) fn class_for(texture_px: u32, max_px: u32, compressed: bool) -> SlotClass {
-    let half = texture_px.min(max_px.max(MIP_MIN_PX));
-    SlotClass { width: half * 2, height: half, levels: levels_for(half), compressed }
+    SlotClass::for_half(texture_px.min(max_px.max(MIP_MIN_PX)), compressed)
 }
 
 /// Read a garment's DDS for halves of at most `max_px` texels: the file's levels from the first that
