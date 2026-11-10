@@ -19,6 +19,15 @@ pub struct Cosmetic {
     /// Linear RGB tint applied to the avatar's slot part.
     pub color: [f32; 3],
     pub description: String,
+    /// The garment drawn for it (2026-11-09, "the look": an id of `data/characters/garments.ron`,
+    /// a MakeHuman garment fitted to each person's own shaped body), or None to tint the body's
+    /// painted region as before.
+    pub model: Option<String>,
+    /// The body's cover regions it hides where its garment lies over them (the regions'
+    /// names, `makehuman_base.bin`; docs/design/character-animation.md 2.4), so skin never pokes
+    /// through. The garment's own row in garments.ron carries the same list; this column says it
+    /// where the catalog is read.
+    pub covers: Vec<String>,
 }
 
 /// Load the cosmetic catalog from `data/cosmetics/cosmetics.csv`. Returns empty on a
@@ -39,12 +48,18 @@ pub fn load_cosmetics(data_dir: &Path) -> Vec<Cosmetic> {
             continue;
         }
         let parse = |s: &str| s.trim().parse::<f32>().unwrap_or(0.5);
+        // `model` and `covers` (2026-11-09): optional trailing columns; `covers` is
+        // semicolon-separated.
+        let model = f.get(7).map(|s| s.trim()).filter(|s| !s.is_empty()).map(str::to_string);
+        let covers = f.get(8).map_or_else(Vec::new, |s| s.split(';').map(str::trim).filter(|s| !s.is_empty()).map(str::to_string).collect());
         out.push(Cosmetic {
             id: f[0].trim().to_string(),
             name: f[1].trim().to_string(),
             slot: f[2].trim().to_string(),
             color: [parse(f[3]), parse(f[4]), parse(f[5])],
             description: f[6].trim().to_string(),
+            model,
+            covers,
         });
     }
     out

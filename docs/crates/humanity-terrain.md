@@ -19,15 +19,16 @@ both it compiles once and stays built.
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-terrain/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-terrain/src/asteroid.rs`, `crates/humanity-terrain/src/heightmap.rs`, `crates/humanity-terrain/src/icosphere.rs`, `crates/humanity-terrain/src/planet.rs`, `crates/humanity-terrain/src/planet_albedo.rs`, `crates/humanity-terrain/src/planet_chunks.rs`, `crates/humanity-terrain/src/grass.rs`, `crates/humanity-terrain/src/drawn_surface.rs`, `crates/humanity-terrain/src/far_trees.rs`, `crates/humanity-terrain/src/tree_registry.rs`, `crates/humanity-terrain/src/plant_mesh.rs`, `crates/humanity-terrain/src/near_tree_gate.rs`, `crates/humanity-terrain/src/osm_region.rs`, `crates/humanity-terrain/src/water_carve.rs`, `crates/humanity-terrain/src/ocean_events.rs`, `crates/humanity-terrain/src/ocean_fft.rs`, `crates/humanity-terrain/src/ocean_mask.rs`, `crates/humanity-terrain/src/ocean_waves.rs`, `crates/humanity-terrain/src/terrain_tiles.rs`, `crates/humanity-terrain/src/planet_heightmap.rs`, `crates/humanity-terrain/src/procedural_heightmap.rs`, `crates/humanity-terrain/src/planet_surface.rs`, `crates/humanity-terrain/src/celestial_projection.rs`
+  - no gate (every build): `crates/humanity-terrain/src/asteroid.rs`, `crates/humanity-terrain/src/heightmap.rs`, `crates/humanity-terrain/src/icosphere.rs`, `crates/humanity-terrain/src/planet.rs`, `crates/humanity-terrain/src/planet_albedo.rs`, `crates/humanity-terrain/src/planet_chunks.rs`, `crates/humanity-terrain/src/grass.rs`, `crates/humanity-terrain/src/drawn_surface.rs`, `crates/humanity-terrain/src/far_trees.rs`, `crates/humanity-terrain/src/tree_registry.rs`, `crates/humanity-terrain/src/plant_mesh.rs`, `crates/humanity-terrain/src/near_tree_gate.rs`, `crates/humanity-terrain/src/osm_region.rs`, `crates/humanity-terrain/src/map_tiles.rs`, `crates/humanity-terrain/src/map_pack.rs`, `crates/humanity-terrain/src/map_levels.rs`, `crates/humanity-terrain/src/map_ground.rs`, `crates/humanity-terrain/src/ocean_events.rs`, `crates/humanity-terrain/src/ocean_fft.rs`, `crates/humanity-terrain/src/ocean_mask.rs`, `crates/humanity-terrain/src/ocean_waves.rs`, `crates/humanity-terrain/src/terrain_tiles.rs`, `crates/humanity-terrain/src/planet_heightmap.rs`, `crates/humanity-terrain/src/procedural_heightmap.rs`, `crates/humanity-terrain/src/planet_surface.rs`, `crates/humanity-terrain/src/celestial_projection.rs`
+  - `any(test, feature = "map-build")`: `crates/humanity-terrain/src/map_build/`
   - test builds only: `crates/humanity-terrain/src/crossing_tests.rs`
-- **Size:** 25,607 lines in 31 files, 298 of them in 2 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-terrain/src/planet_chunks.rs` 4,630 of 4,740, `crates/humanity-terrain/src/grass.rs` 2,564 of 2,640, `crates/humanity-terrain/src/grass_mesh.rs` 948 of 1,000, `crates/humanity-terrain/src/drawn_surface.rs` 1,029 of 1,100, `crates/humanity-terrain/src/water_patches.rs` 323 of 450, `crates/humanity-terrain/src/grass_fields.rs` 238 of 350.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 16, `test-support` 7.
-- **May use** (the plan): core. **Uses today** (references in non-test code): core 4.
-- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 131, renderer 33, gui 25, systems 7.
+- **Size:** 31,143 lines in 45 files, 1,454 of them in 6 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-terrain/src/planet_chunks.rs` 4,668 of 4,740, `crates/humanity-terrain/src/grass.rs` 2,558 of 2,640, `crates/humanity-terrain/src/grass_mesh.rs` 948 of 1,000, `crates/humanity-terrain/src/drawn_surface.rs` 1,002 of 1,100, `crates/humanity-terrain/src/water_patches.rs` 316 of 450, `crates/humanity-terrain/src/grass_fields.rs` 238 of 350.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 23, `test-support` 8, `map-build` 1.
+- **May use** (the plan): core. **Uses today** (references in non-test code): core 5.
+- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 161, gui 33, renderer 33, systems 7.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 255 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 276 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-terrain
@@ -37,23 +38,23 @@ just test-lib --crate humanity-terrain
 
 | Item | References | From |
 |---|---:|---|
-| `planet::PlanetDef` | 12 | engine 8, systems 2, gui 1, renderer 1 |
-| `planet_heightmap::PlanetHeightmap` | 10 | engine 9, systems 1 |
+| `planet::PlanetDef` | 16 | engine 12, systems 2, gui 1, renderer 1 |
+| `planet_heightmap::PlanetHeightmap` | 16 | engine 15, systems 1 |
 | `tree_registry::registry` | 9 | engine 6, renderer 3 |
 | `planet_chunks::DetailNoise` | 8 | engine 8 |
 | `terrain_tiles::TerrainTiles` | 7 | engine 6, systems 1 |
 | `icosphere::Icosphere` | 6 | engine 5, renderer 1 |
 | `ocean_mask::OceanMask` | 6 | engine 5, systems 1 |
-| `ocean_waves::SURFACE_LIFT_M` | 5 | engine 5 |
-| `planet_chunks` | 5 | engine 4, systems 1 |
+| `planet_chunks` | 6 | engine 5, systems 1 |
+| `osm_region::dir_to_latlon_f64` | 4 | engine 4 |
 | `planet_albedo::PlanetAlbedo` | 4 | engine 4 |
 | `planet_chunks::PatchSlot` | 4 | renderer 4 |
 | `planet_surface::SurfaceMeshData` | 4 | engine 2, renderer 2 |
+| `planet_surface::displaced_radius_f64_true` | 4 | engine 4 |
 | `plant_mesh` | 4 | engine 2, renderer 2 |
-| `grass::GRASS_COVER_MAX` | 3 | gui 3 |
-| `grass::GRASS_FAR_M` | 3 | gui 3 |
+| `drawn_surface` | 3 | engine 3 |
 
-And 74 more items, 106 references (`node scripts/crate-cards.js --interface humanity-terrain` lists them all).
+And 86 more items, 133 references (`node scripts/crate-cards.js --interface humanity-terrain` lists them all).
 <!-- end generated -->
 
 ## Rules

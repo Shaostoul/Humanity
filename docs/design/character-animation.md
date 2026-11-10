@@ -3,7 +3,8 @@
 **Status: rungs 0 and 1 BUILT on 2026-11-08 (section 13), with the real bodies (MakeHuman, female
 and male), clips (Quaternius), the walking pace and the body sliders on 2026-11-09 (section 14);
 rung 2a, feet on the world with crouch, jump and the network's stance, BUILT on 2026-11-09 (section
-15); the rest of rung 2 and on are DESIGN. Section 12's questions were all decided on 2026-11-08.** Written after the operator came
+15); the look, each person's own face and body feature by feature with MakeHuman's real clothes,
+shoes, hats and hair, BUILT on 2026-11-09 (section 16); the rest of rung 2 and on are DESIGN. Section 12's questions were all decided on 2026-11-08.** Written after the operator came
 across NVIDIA's MotionBricks (https://github.com/NVlabs/motionbricks, SIGGRAPH 2026) on 2026-11-08
 and asked where a technique of that class fits. The licensing question has its own dated finding:
 [`docs/reference/findings/2026-11-08-motionbricks.md`](../reference/findings/2026-11-08-motionbricks.md).
@@ -156,7 +157,10 @@ be an optional pack is the operator's call (question 1).
   body regions it hides, so the skin under a sleeve is not drawn and never pokes through). The tint
   stays as the garment's base colour, so today's catalog keeps working.
 - Garments follow the body's shape targets (the same targets transferred to the garment, or fitted
-  through a proxy), so one jacket fits every build.
+  through a proxy), so one jacket fits every build. **Built 2026-11-09 (section 16)** the third way:
+  each garment is placed on the person's own shaped mesh by MakeHuman's binding, so every shape and
+  face and body detail target fits it; `covers` hides MakeHuman's `delete_verts` in the regions named
+  plus the skin with the cloth over it within 3 cm.
 - Two **grip sockets** replace the single hands slot for props
   (`data/inventory/equipment_slots.json`); hand poses come from a small grip library (power grip,
   pinch, staff hold, two-handed axe) blended per finger.
@@ -385,6 +389,37 @@ bodies of `anim-stairs`, `anim-ramp`, `anim-crouch` and `anim-slope-map` are not
 foot probe (`foot_probe`), CPU skinning of the feet and a ground question per foot vertex, runs inside
 the same cpu.animation stage while the costs are gathered.
 
+**With the look (2026-11-10)**, the same way: release build, rig defaults, 2560x1387, a background
+game held to 30 frames a second, one boot (the sweep's machine guard found no build or other game
+running; contaminated 0). Each near person and the player drawn with their OWN built mesh (section
+16) against the same crowd in the same boot drawn on the shared body as main drew it (showcase
+`own_mesh` 0, vantage `anim-crowd-near-look-off`). The far crowd is all middle bodies, which keep
+main's path (with their garments' colours), so it has no twin.
+
+| Case | cpu.animation (worst frame) | cpu.look_build (worst frame) | cpu.skinning | gpu.skinning | gpu.scene | gpu.transparent | all GPU stages | vram.characters | vram.textures | RAM resident |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 50 bodies 6 to 14 m (16 near, 34 middle), shared body | 0.821 ms (2.08) | none | 0.189 | 0.083 | 7.48 | 0.629 | 13.27 | 0 | 272 MB | 947 MB |
+| the same, own meshes | 1.023 ms (11.07) | 0.154 ms (2.02) | 0.192 | 0.067 | 7.54 | 0.658 | 13.38 | 80.0 MB | 541 MB | 1,015 MB |
+| 50 bodies 18 to 26 m (all middle) | 0.511 ms (1.03) | none | 0.033 | none | 7.29 | 0.643 | 13.06 | 0 | 541 MB (the near crowd's garments, let go 30 s later) | 944 MB |
+
+So: **the GPU costs about the same.** An own mesh skins with no morph targets (gpu.skinning 0.083 to
+0.067 ms for 16 near), the scene reads 0.07 ms more for twice the vertices, the hair's blended fringe
+0.03 ms more: 0.11 ms of all GPU stages. **The CPU pays about 0.2 ms a frame**, the frame's share of
+the look: one finished mesh and one garment texture onto the GPU a frame. The builds themselves run
+on worker threads: 73 in the final sweep, 2.6 to 15.9 ms each (median 5.1, the machine shared with
+the frame and the operator's own share), each mesh onto the GPU in 0.5 to 2.0 ms (median 0.9). That
+took three passes, each measured: built on the frame, cpu.look_build's worst frame was 13.9 ms (a
+hitch each time someone came near, against an 8.3 ms frame at 120 frames a second); on workers with
+every finished mesh uploaded at once, 14.7 ms (a crowd arriving lands its meshes together); one upload
+a frame, 2.0 ms. The worst frame's cpu.animation is still 11 ms against the twin's 2.1: see the
+texture uploads in section 16. **Memory**: about 2 MB of GPU a person (1.34 MB of mesh, 0.65 MB for
+its near place's skinned copy), 80 MB for the crowd of 50 milling around the near line (the 16 near
+and those who left it within 5 s, at most twice `near_cap` kept); the garment textures 10.7 MB each
+at `look_texture_px` 1024 (2.7 MB a brow or lash set), 270 MB for the crowd's outfits and hair, let go
+30 s after nobody near wears them (kept for the session before that, one sweep reached 304 MB for 42
+garments); 68 MB more RAM (each person's built mesh is kept on the CPU too: the feet and the probe
+read it).
+
 **Why 56 joints and not MakeHuman's 163**: the 56 are exactly the bones that move in rung 1 (the role
 map's); the other 107 would only ever sit at rest under their parents until face and twist rungs.
 From the rows above, pose work grows about 0.1 microsecond a joint, so the full rig would cost about
@@ -428,6 +463,14 @@ rung or twist joints are a role-map line and a converter run away.
   roughly 30 to 100 MB of RAM. Learned motion matching: under 10 MB of networks.
 - A MotionBricks-class model: 380 MB of VRAM at FP16 (758 MB at FP32) plus activations, and the same
   again as a download (the music's core set, for scale, is 6.3 MiB in the app).
+- **Each near person's own mesh (measured, the look, 8.0 and section 16)**: about 2 MB of GPU a
+  dressed person (21,184 vertices: 1.34 MB of mesh, 0.65 MB for its near place's skinned copy), at
+  most three times `near_cap` held (the near tier and twice that many kept for people who just left
+  it): 80 MB measured for a crowd of 50 at the near line. A garment's texture, packed at
+  `look_texture_px` 1024 a half, is 8 MB and 10.7 MB with its mips (a brow or lash set 2.7 MB),
+  shared by everyone wearing it and let go 30 s after nobody near does: 270 MB for that crowd's
+  outfits and hair, uncompressed (BC7 would be a quarter; the engine has no block-compression encoder
+  yet).
 
 ### 8.4 Infinite-of-x: hundreds near, many more far
 
@@ -441,6 +484,11 @@ rung or twist joints are a role-map line and a converter run away.
 The 40 m line is where `CREW_NAME_DIST` already retires the nameplate (crowd-simulation.md), so the
 two culls agree. Crew in the same gait at middle range may share a pose with a phase offset (a reuse
 that obeys the switch, 8.7).
+
+**The look (2026-11-09, decided by measurement, section 16)**: the near tier draws each person's own
+built mesh (their shape and face and body detail in its vertices, their garments and hair fitted to
+it); the middle tier keeps the shared body with its macro shape on the GPU and the clothes as tinted
+regions in the garments' mean colours; MakeHuman's proxy meshes are not used.
 
 ### 8.5 What crosses the network
 
@@ -1136,6 +1184,211 @@ placement, so the feet came next. Section 4's design, built for the feet; the re
     path through the graph at 60 frames a second, a 35 cm slide in one frame). A start step (rung 3's
     motion matching has captured starts; until then a step taken when a lock stretches past half the
     break) is the fix; a softer let-go would only trade the snap for a slide.
+
+## 16. Built: the look (2026-11-09)
+
+Every person's own face and body shaped feature by feature, and real clothes, shoes, hats and hair
+fitted to that shape. Asked for by the operator on 2026-11-09: MakeHuman's clothes and hair ("Yeah,
+might as well include these.", after foot placement) and its face and body detail targets instead of
+more ancestry categories ("Yes."), so anyone can shape their own face; the three ancestry blends stay
+as quick starting points.
+
+- **Each near person's OWN mesh (2.2's next step, 8.3 and 8.4).** Fifteen shape targets could ride
+  the GPU's morph block; hundreds of detail targets and garments that must fit whatever shape results
+  cannot (every active target is two more reads for every skinned vertex every frame). So each near
+  person, the player and the showroom's figure is BUILT ONCE when their look changes
+  (`humanity_animation::look::build_person`, on the CPU): every base-mesh vertex, the body's and
+  MakeHuman's helpers' (which garments, hair and lashes are fitted to), moved by the person's shape
+  and detail targets (`makehuman_<gender>.base.bin`, `makehuman_details.bin`); the body's drawn
+  vertices moved with the base vertices they follow and their normals worked out again from the
+  shaped surface; the body's triangles under each worn garment dropped (below); each garment placed
+  on the shaped base mesh and skinned with the bound body vertices' weights; the skeleton made again
+  from the shaped mesh (a joint is the mean of its vertices, so a longer neck raises the head joint:
+  the skeleton follows every target, not only the fifteen); the feet measured from it (below). The
+  result goes to the GPU as the person's own body (`Renderer::skin_register_body`, replaced in place
+  on a rebuild, `skin_replace_body`, released when they leave or stay out of the near tier for 5 s,
+  `skin_release_body`, so people coming and going never grow the body list or the mesh registry), and
+  is drawn with no morph targets. It is tagged with a version made from everything it is built from
+  (`look_key`: the body, the shape weights, the detail values, the garments and the two check
+  switches) and built again exactly when that changes, and EVERY frame with the reuse switch off
+  (`rebuild_due`; `HUMANITY_NO_REUSE=1`, the Dev page's "Turn off all reuse"), CLAUDE.md's refined
+  no-caches rule. **Builds run off the frame** (2026-11-10), each on a worker thread of its own that
+  holds the library (an `Arc`) while it builds, at most `characters.ron`'s `look_threads` (2: the
+  operator keeps a core of his own) at once, the player first; the frame only puts a finished mesh on
+  the GPU. On the frame a build was a hitch each time someone came near (below: 2 to 15 ms in the
+  release build, against an 8.3 ms frame at 120 frames a second). Anyone waiting for their first
+  build is drawn with the shared body; while a rebuild runs, the last mesh built for that person on
+  that body is drawn (a few frames), so a slider dragged on the character page never flickers to the
+  shared body. With the reuse switch off every build is on the frame, every frame, so nothing drawn
+  is older than the frame's look.
+- **The middle and far tiers, decided by measurement**: the shared body with its macro shape on the
+  GPU (rung 1's path) and the clothes as tinted regions in each garment's mean colour. A person's own
+  mesh is about twice the shared body's vertices with their clothes and costs its GPU bytes for
+  every person (the table below), where the shared body costs nothing more per person; at 15 to 40 m a
+  face's detail is a few pixels. MakeHuman's proxy meshes were not used: a proxy would need the same
+  per-person build or its own targets, for a smaller saving than drawing the shared body. The far
+  tier is still rung 4's.
+- **The detail targets as data (2)**: `scripts/gen-makehuman-look.js` (our own converter, none of
+  MakeHuman's AGPL code) reads the detail targets fetched on 2026-11-09 (1,095 files, each checked
+  against its git blob SHA-1) and MakeHuman's own slider list (`modifiers/modeling_modifiers.json`,
+  the same commit), and writes the 589 targets the sliders drive as sparse deltas in tenths of a
+  millimetre (exact: MakeHuman writes three decimals of a decimetre) and `data/characters/details.ron`:
+  248 sliders, one per target pair or single target, in 21 groups (head, forehead, brows, eyes, nose,
+  cheeks, mouth, chin and jaw, ears, neck, torso, chest, belly, hips, arms, hands, legs, feet,
+  measurements, body shapes, one side). A left and a right target are ONE slider moving both sides
+  together (a person shapes a face, not half of one); the asymmetry targets move one side on purpose.
+  **The measurement targets are sliders** ("Bust, around", "Waist, around", "Forearm length"...): they
+  change the body around the places a tailor measures, which people know; reading the measurement back
+  in centimetres needs MakeHuman's measuring loops and is a later step. The body shapes are MakeHuman's
+  `bodyshapes-elvs-*` targets, each for the body it was made for, under the names their artist gave
+  them. The breasts' size and firmness use MakeHuman's average-build targets of the female body.
+- **The character page (2)**: "Face and body details", one group at a time (each folded until opened,
+  open when a slider in it is moved off the middle, "(2 changed)" in its heading), each slider a row:
+  its name, its low end's word, the track, its high end's word (a single-ended one from "none" to
+  "full"); a reset per group and one for all; the group's hint on every slider in it (one hint a
+  group); words by key, generated from the targets' names by the converter (plain words, no anatomy
+  jargon: "Underbite", "Inner eye fold", "Groove above the lip") through `scripts/i18n-add.js`; the
+  note marks MakeHuman for its glossary card. Choosers for the hair style, brows and lashes ("Default"
+  leaves it to the wearer's defaults, "None" wears none). Values go in `Appearance::detail` (-1 to 1,
+  or 0 to 1, to a hundredth; 0 leaves the map), `hair_style`, `brows`, `lashes`. The website still has
+  no character page to mirror (`docs/PAGES.md`), so nothing diverges (the dual-UI parity rule's "no").
+- **Over the network (3)**: `PlayerLook` carries `detail` (only the nonzero values, to a hundredth, at
+  most 128), `wear` (the hair, brows and lashes by garment id, the outfit's cosmetics by slot, at most
+  8) and `eyes`, each left out when empty, so an older look is the same bytes. ONE reader,
+  `PlayerLook::from_json`, at the relay and in the app: an unknown slider, garment or cosmetic (or one
+  in another slot's place) is dropped, a value is clamped to its slider's range, the counts are capped
+  (`LookIds::shipped()`, the shipped data compiled in). The look goes out when Done is pressed, never
+  per drag (`game_look`), at most once every 10 s (`LOOK_EVERY_S`; a change sooner waits and goes as
+  one, the latest); the relay refuses one sooner (`take_look`, the cap built now: it was small), keeps
+  it on the entity for later joiners' snapshots and passes it only to the players who see the person
+  (`game_player_look`); their bodies are built again from it.
+- **Garments as meshes (4)**: the converter reads each asset's `.mhclo` (its vertices' three base
+  vertices, weights and offset, the offset's three scale references, and `delete_verts`), `.obj`,
+  `.mhmat` and textures (the pack's files checked against the CRC-32 its zip records, the zip against
+  the finding's SHA-256) and writes each garment's binding, skin weights (from the bound vertices'
+  merged weights, or the shoe's own `.mhw`), drawn vertices, triangles and hidden vertices; the
+  textures are copied as they are. 46 garments: 14 outfits, 6 shoes, 2 fedoras, 10 hair styles, 12
+  brows, 4 lashes. `cosmetics.csv` gains `model` (the garment) and `covers` (the cover regions it
+  hides, from `makehuman_base.bin`'s eleven: head, scalp, neck, torso, hips, upper arms, forearms,
+  hands, thighs, shins, feet); the 20 clothes, shoes and hats are wardrobe rows. A garment hides the
+  body vertices MakeHuman's own `delete_verts` list in the regions it covers, plus the skin with its
+  cloth over it (a ray along the skin's normal meeting the cloth within 3 cm, `COVER_REACH_M`:
+  MakeHuman's list keeps a few vertices under tight cloth and under a top's hem, and there a stride,
+  a crouch or a seat parts cloth and skin by a centimetre or more); skin beyond a hem meets no cloth
+  and stays drawn, so a cuff or a collar shows no hole. Cloth fitted to MakeHuman's helpers (the
+  tights) takes the weights of the body vertex nearest each helper vertex, so it bends with the skin
+  under it. A region painted as a slot's clothes takes the skin's colour where a garment fills that
+  slot. Real
+  brows hide the generated ones. Each wearer kind's defaults are data (`characters.ron`'s `dress` per
+  body: players in casual outfits, crew in work overalls, others, the dev crowd and the line-ups, in
+  everything), picked by a stable hash of who they are.
+- **The feet with shoes on (section 15's lesson)**: a person's legs, soles, toe cap and heel counter
+  come from THEIR mesh, shoes on: `FootRig::with_soles` measures each sole from the lowest vertices
+  behind and ahead of the middle of the foot, and the person is drawn as much higher as the lowest
+  stands below the floor (`PersonMesh::lift`, in the world matrix the feet, the probe and the drawn
+  mesh all use), so a shoe's sole, not the foot inside it, stands on the ground.
+- **Rendering (5)**: one texture per garment, packed off the frame on a thread of its own the first
+  time anyone wears it (`engine::look_textures`): the colour (times its ambient occlusion map) in the
+  left half, the normal map in the right, sRGB-encoded so it reads back as written, each half
+  mipmapped on its own, card alpha kept at the same coverage as it shrinks (Castano's method, the
+  tree cards' `build_mip_chain`, so lashes and brows do not vanish at a few metres), each half at most
+  `look_texture_px` (1024) texels: the sources up to 4096 stay whole on disk. One material per garment
+  and colour shares the texture (`add_material_like`). A garment nobody near has worn for 30 s
+  (`GARMENT_KEEP_S`) lets its texture go and reads it again when worn (into the same materials,
+  drawn in its mean colour meanwhile): kept for the session, a rig's sweep reached about 300 MB of
+  garment textures, and the library only grows. **Cloth** (type 25 with a pack): the colour
+  times the texture, the normal map through a cotangent frame from the screen derivatives (Schueler
+  2013; the skinned vertices carry no tangent). **Hair, brows and lashes** (type 26): the engine has
+  no MSAA and no temporal anti-aliasing, so alpha-to-coverage is impossible and hashed alpha would
+  crawl; the fidelity expert's recommendation (2026-11-09) was Scheuermann's two passes (2004): an
+  opaque pass keeping the cards' solid core (alpha 0.8 or more, two-sided cards from the build, a
+  cutout sun shadow, `fs_shadow`'s band and `shadow_cutout`'s kept equal) and a blended pass in the
+  transparent list for the fringe under it (one face of each card, the one toward the eye), shaded
+  after Karis 2016 ("Physically Based Hair Shading in Unreal", Marschner 2003 in closed form): the
+  reflection off the cuticle shifted toward the root, the transmission (the glow of backlit hair) and
+  the second reflection shifted the other way and tinted by the hair, the strand running along the
+  texture's V; coloured by the look's hair colour laid over the strands' light and dark (the texture's
+  mean luminance). No GPU feature here is missing on any hardware the renderer runs on (textures,
+  derivatives and alpha blending are baseline), so no hardware notice is needed.
+- **Crouch: Hold or Toggle (6)**: Settings > Controls > Crouch, Hold by default (rung 2a's report:
+  someone who cannot hold a key can crouch); a toggle flips on the key's press, never its repeats, and
+  leaving Toggle stands the person up.
+- **Dev tooling**: showcase verbs `own_mesh` (the A/B against the shared body), `covers` (the
+  poke-through red arm), `soles` (the shod foot probe's red arm), `garment_textures` (the textures'
+  cost A/B), `look_detail` and `look_wear` (the player's), the `lineup` verb's `d:<slider>=v`,
+  `hair=`, `brows=`, `lashes=`, `wear:<slot>=`; the build logged with its cost, where it ran, its
+  size and its upload; costs `cpu.look_build` (what the frame pays: the upload, or the whole build
+  with the reuse switch off) and `vram.characters`; vantages `anim-look-face-{female,male}`,
+  `anim-look-covers-off`, `anim-shoes` and `anim-shoes-soles-off`, `anim-stairs-soles-off`,
+  `anim-crowd-near-look-off`.
+
+**Measured.**
+
+- **A dressed person's own mesh** (the male body, a casual outfit, shoes, short hair, brows, lashes,
+  four detail sliders; `a_persons_build_is_quick_and_its_memory_known`, LOOK_DEBUG=1): 21,184
+  vertices and 96,066 indices, 1.34 MB of mesh on the GPU and 0.65 MB more for its near place's
+  skinned copy (the shared body: 15,479 vertices, 8.11 MB with its 15 shape targets, shared by
+  everyone), so 16 near people cost about 32 MB. A build took 51 ms in the debug test build, and 2.6
+  to 15.9 ms in the release build (median 5.1; 73 builds in the final sweep, on worker threads,
+  logged), each put on the GPU in 0.5 to 2.0 ms (median 0.9). The per-frame costs and memory at the
+  crowd are in 8.0.
+- **Shoes**: the soles measured from the shod mesh lift a person by 0 to 1.9 cm on the female body
+  (shoes01 and 04 sit no lower than her bare foot; 02, 05, 06 1.1 cm; 03 1.9 cm) and 0.3 to 2.5 cm on
+  the male; standing and walking, every planted shoe's lowest drawn vertex 0.3 cm under to 2.1 cm
+  over the floor (the walk's plants begin and end a little high), against the gate's 1.5 cm under to
+  2.5 cm over. With the soles of the body as made, the shoes sink by their soles: down to 2.7 cm
+  (male, shoes03, walk). In the running game (`anim-shoes`, the player's male body standing in
+  shoes03, the thickest sole): each planted shoe 0.2 cm over the floor, passing; its red twin
+  `anim-shoes-soles-off` 2.3 cm into it, FAILING the probe's 1.5 cm, as it must. The stand-ins of
+  `anim-stairs`, `anim-ramp` and `anim-crouch` (dressed by the "other" wearer's defaults) planted 0.0
+  to 2.4 cm over, passing; `anim-stairs-soles-off` passes too (0.8 cm in at worst), because that
+  stand-in's shoes have thin soles, which is why the shod red twin is the player in shoes03.
+- **Garment textures onto the GPU** (a check run after the final sweep, the crowd pair again, each
+  upload now timed inside cpu.look_build and logged): 0.5 to 0.8 ms a brow or lash set (2.7 MB), 1.0
+  to 2.9 ms an outfit, a hair style or shoes (10.7 MB), one a frame; two of 41 took 9.8 and 14.8 ms
+  (a new allocation the driver had to make room for), and those are the crowd's worst frame
+  (cpu.look_build 16.7 ms, cpu.animation 21.6 against its twin's 3.1). Every pack is the same size
+  (2048 by 1024 at `look_texture_px` 1024), so a pool of texture slots allocated once and handed from
+  garment to garment would remove the allocation (a reuse of memory, not of data: nothing in a slot
+  outlives the garment it holds). The textures held: 235 MB with no garment worn, 541 MB at the crowd.
+- **No skin through the clothes** (four outfits, walk at two phases, crouch walk, sit): the casual
+  outfits and the work overalls 0 vertices through in every pose; the sport top 2 walking, 19
+  crouched (up to 2.8 cm) and 9 seated (1.3 cm), at the small of the back; covers off, 215 to 766
+  through, 3 cm (the ray's reach).
+
+**Proof.**
+
+- In the tests: a .mhclo bound vertex lands where MakeHuman's own fitted .obj put it on the raw base
+  mesh, within 0.1 mm, for the five shipped garments fitted on that mesh (red: two weights swapped,
+  197 mm out); a garment's offset scales with its reference vertices; the look's files read and a cut
+  or corrupt one is refused; the one clamping reader (an unknown slider dropped, an out-of-range value
+  clamped, too many cut to 128; red: unknown ids kept); the relay's cap and cleaning (red: the rate
+  ignored); the version and the reuse switch (red: the switch ignored); a person's own mesh is their
+  look (nothing chosen is the body as made to 10 microns, a nose slider moves the nose, a longer neck
+  raises the head joint, a suit and shoes hide the body under them); shod feet stand on the floor in
+  idle and walk with each of the six shoes on both bodies (red: the soles of the body as made); no
+  skin through the clothes in walk, crouch and sit, the drawn skinned mesh measured (red: covers off,
+  337 to 852 vertices through); the garment pack; crouch held or toggled.
+- In the running game: `anim-look-face-{female,male}` (the face as made, a dozen face sliders at
+  their high end, the same at their low end), `anim-look-covers-off` (skin through every outfit:
+  the red arm, seen), `anim-shoes` and its failing twin, the dressed line-ups and crowds, and the
+  costs in 8.0.
+
+**Known limits, for the rungs after**: middle bodies wear tinted regions, not garments, so a person
+changes look at 15 m; the player's own hair fringe is not blended on a planet (their body stands in
+render space there, which has no transparent list; the solid core is drawn); hair has no
+strand-depth occlusion or deep shadow map (the fidelity expert's next rungs: Yuksel and Keyser 2008,
+then strands); the generated eyes stay (MakeHuman's eye meshes, teeth and tongue are converted
+nowhere yet); a single-ended detail slider such as a head shape adds its whole shape at full, so
+several at once can be extreme (MakeHuman's own behaviour); measurement sliders do not yet read back in
+centimetres; the sport top's hem rides over the skin at the small of the back in a crouch or a seat
+(up to 19 vertices, 2.8 cm; the fix is a later rung's: cloth simulation, or the skin there moved with
+the cloth); the character page's height in metres does not yet count the detail sliders (a longer
+neck stands a person a little taller than the height shown); the garment textures are uncompressed
+(BC7 would quarter them) and each upload is a new GPU allocation (two of 41 took 10 to 15 ms, the crowd's worst frame; a pool of
+texture slots of the pack's one size, allocated once, is the lever); a
+person's build is a whole rebuild (a slider dragged on the character page rebuilds the person about
+every 5 ms on a worker; a build that re-applies only the moved targets is the lever if it shows).
 
 ## References
 

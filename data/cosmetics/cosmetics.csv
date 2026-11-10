@@ -1,4 +1,4 @@
-id,name,slot,r,g,b,description
+id,name,slot,r,g,b,description,model,covers
 work_jacket,Work Jacket,chest,0.45,0.30,0.15,A rugged canvas work jacket
 red_tee,Red Tee,chest,0.70,0.18,0.18,A bright red t-shirt
 blue_tee,Blue Tee,chest,0.20,0.32,0.65,A blue t-shirt
@@ -13,3 +13,23 @@ cap,Cap,head,0.30,0.30,0.35,A simple cap
 hard_hat,Hard Hat,head,0.90,0.75,0.10,A safety hard hat
 work_gloves,Work Gloves,hands,0.35,0.25,0.18,Leather work gloves
 backpack,Backpack,back,0.30,0.35,0.25,A canvas backpack
+mh_fedora01,Fedora 1,head,0.17,0.15,0.15,A hat from MakeHuman (CC0),fedora01,
+mh_fedora_cocked,Tilted fedora,head,0.17,0.15,0.15,A hat from MakeHuman (CC0),fedora_cocked,
+mh_female_casualsuit01,Casual outfit 1 (female),chest,0.28,0.31,0.39,A whole outfit from MakeHuman (CC0); cut for the female body,female_casualsuit01,torso;hips;upper_arms;thighs;shins
+mh_female_casualsuit02,Casual outfit 2 (female),chest,0.32,0.34,0.43,A whole outfit from MakeHuman (CC0); cut for the female body,female_casualsuit02,torso;hips;upper_arms;thighs
+mh_female_elegantsuit01,Dress-up outfit 1 (female),chest,0.07,0.06,0.06,A whole outfit from MakeHuman (CC0); cut for the female body,female_elegantsuit01,neck;torso;hips;upper_arms;forearms;thighs
+mh_female_sportsuit01,Sports outfit 1 (female),chest,0.28,0.29,0.34,A whole outfit from MakeHuman (CC0); cut for the female body,female_sportsuit01,torso;hips;upper_arms;thighs;shins
+mh_male_casualsuit01,Casual outfit 1 (male),chest,0.05,0.07,0.12,A whole outfit from MakeHuman (CC0); cut for the male body,male_casualsuit01,torso;hips;upper_arms;forearms;hands;thighs;shins
+mh_male_casualsuit02,Casual outfit 2 (male),chest,0.05,0.11,0.24,A whole outfit from MakeHuman (CC0); cut for the male body,male_casualsuit02,torso;hips;upper_arms;forearms;thighs;shins
+mh_male_casualsuit03,Casual outfit 3 (male),chest,0.05,0.06,0.08,A whole outfit from MakeHuman (CC0); cut for the male body,male_casualsuit03,torso;hips;upper_arms;forearms;thighs;shins
+mh_male_casualsuit04,Casual outfit 4 (male),chest,0.06,0.12,0.20,A whole outfit from MakeHuman (CC0); cut for the male body,male_casualsuit04,torso;hips;upper_arms;thighs;shins
+mh_male_casualsuit05,Casual outfit 5 (male),chest,0.03,0.04,0.05,A whole outfit from MakeHuman (CC0); cut for the male body,male_casualsuit05,torso;hips;upper_arms;forearms;thighs;shins
+mh_male_casualsuit06,Casual outfit 6 (male),chest,0.47,0.48,0.51,A whole outfit from MakeHuman (CC0); cut for the male body,male_casualsuit06,torso;hips;upper_arms;thighs;shins
+mh_male_elegantsuit01,Suit 1 (male),chest,0.03,0.03,0.03,A whole outfit from MakeHuman (CC0); cut for the male body,male_elegantsuit01,neck;torso;hips;upper_arms;forearms;thighs;shins
+mh_male_worksuit01,Work overalls 1 (male),chest,0.13,0.20,0.36,A whole outfit from MakeHuman (CC0); cut for the male body,male_worksuit01,neck;torso;hips;upper_arms;thighs;shins
+mh_shoes01,Shoes 1,feet,0.18,0.07,0.05,A pair of shoes from MakeHuman (CC0),shoes01,shins;feet
+mh_shoes02,Shoes 2,feet,0.09,0.09,0.08,A pair of shoes from MakeHuman (CC0),shoes02,shins;feet
+mh_shoes03,Shoes 3,feet,0.00,0.00,0.00,A pair of shoes from MakeHuman (CC0),shoes03,shins;feet
+mh_shoes04,Shoes 4,feet,0.03,0.03,0.03,A pair of shoes from MakeHuman (CC0),shoes04,shins;feet
+mh_shoes05,Shoes 5,feet,0.10,0.09,0.09,A pair of shoes from MakeHuman (CC0),shoes05,shins;feet
+mh_shoes06,Shoes 6,feet,0.11,0.10,0.11,A pair of shoes from MakeHuman (CC0),shoes06,shins;feet

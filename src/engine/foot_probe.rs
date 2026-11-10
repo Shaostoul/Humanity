@@ -18,6 +18,7 @@
 
 use glam::{Mat4, Vec3};
 use humanity_animation::{FeetReport, Ground, LoadedBody};
+use humanity_core::skin_data::SkinnedModelData;
 
 use crate::engine::animation::{FigureKey, FootProbe, ProbeRow};
 
@@ -33,8 +34,10 @@ const PLANTED: f32 = 0.9;
 
 /// The clearance of each foot: the lowest of its skinned vertices over the ground under it, metres
 /// along `up`, or None when no ground was found under any of them.
-pub(crate) fn clearances(body: &LoadedBody, weights: &[(usize, f32)], rows: &[[f32; 4]], world: &Mat4, up: Vec3, ground: &dyn Ground) -> [Option<Clearance>; 2] {
-    let feet = skinned_feet(body, weights, rows, world);
+/// `model` and `feet` are what is drawn: the shared body's mesh and foot vertices, or (the look,
+/// 2026-11-09) the person's own mesh, shoes and all.
+pub(crate) fn clearances(model: &SkinnedModelData, feet: &[Vec<(usize, usize)>; 2], weights: &[(usize, f32)], rows: &[[f32; 4]], world: &Mat4, up: Vec3, ground: &dyn Ground) -> [Option<Clearance>; 2] {
+    let feet = skinned_feet(model, feet, weights, rows, world);
     let mut out = [None, None];
     for (side, verts) in feet.iter().enumerate() {
         out[side] = verts
@@ -57,11 +60,11 @@ pub(crate) struct Clearance {
 /// Each foot's vertices (every `VERTEX_STRIDE`-th) as the GPU draws them this frame, world metres:
 /// shaped by the person's shape targets, skinned by the palette rows (the shaders' arithmetic,
 /// `pose::apply_rows`), put in the world by the body's matrix.
-pub(crate) fn skinned_feet(body: &LoadedBody, weights: &[(usize, f32)], rows: &[[f32; 4]], world: &Mat4) -> [Vec<Vec3>; 2] {
+pub(crate) fn skinned_feet(model: &SkinnedModelData, feet: &[Vec<(usize, usize)>; 2], weights: &[(usize, f32)], rows: &[[f32; 4]], world: &Mat4) -> [Vec<Vec3>; 2] {
     let mut out: [Vec<Vec3>; 2] = Default::default();
-    for (side, verts) in body.foot_vertices.iter().enumerate() {
+    for (side, verts) in feet.iter().enumerate() {
         for &(pi, vi) in verts.iter().step_by(VERTEX_STRIDE) {
-            let prim = &body.model.primitives[pi];
+            let prim = &model.primitives[pi];
             let v = &prim.vertices[vi];
             let mut pos = Vec3::from(v.position);
             for &(t, w) in weights {

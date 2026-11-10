@@ -3804,6 +3804,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_game_position_update(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
+                            Some("game_look") => {
+                                // A changed look (2026-11-09, character animation's "the look"):
+                                // read through the one clamping reader, at most once every ten
+                                // seconds a player, passed only to those who see them.
+                                handle_game_look(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
                             Some("game_perceive") => {
                                 handle_game_perceive(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;

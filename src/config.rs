@@ -941,6 +941,11 @@ pub struct AppConfig {
     /// Held in GuiState as `settings.anim_simplified`.
     #[serde(default)]
     pub anim_simplified: bool,
+    /// Crouch (2026-11-09): false is Hold (the crouch key held), true is Toggle (pressed once to
+    /// crouch, again to stand), so someone who cannot hold a key can crouch. Hold by default; an old
+    /// settings file reads as Hold. Held in GuiState as `settings.crouch_toggle`.
+    #[serde(default)]
+    pub crouch_toggle: bool,
     /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
     /// content's main colour per marker), true is Full (the scheme's whole marker: main,
     /// additional, main for ISO 14726). Simplified by default, the house rule for deep systems.
@@ -1749,6 +1754,7 @@ impl AppConfig {
             carry_realistic: state.settings.carry_realistic,
             walk_realistic: state.settings.walk_realistic,
             anim_simplified: state.settings.anim_simplified,
+            crouch_toggle: state.settings.crouch_toggle,
             pipe_marking_full: state.settings.pipe_marking_full,
             death_realistic: state.settings.death_realistic,
             drone_realistic: state.settings.drone_realistic,
@@ -2107,6 +2113,7 @@ impl AppConfig {
         state.settings.carry_realistic = self.carry_realistic;
         state.settings.walk_realistic = self.walk_realistic;
         state.settings.anim_simplified = self.anim_simplified;
+        state.settings.crouch_toggle = self.crouch_toggle;
         state.settings.pipe_marking_full = self.pipe_marking_full;
         state.settings.death_realistic = self.death_realistic;
         state.settings.drone_realistic = self.drone_realistic;

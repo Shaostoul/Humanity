@@ -835,8 +835,14 @@ pub struct CameraController {
     /// The elevator's keys pressed since the main loop last took them (`take_lift_press`): +1 for
     /// Space, -1 for Shift, 0 for neither; the newer press wins.
     lift_press: i8,
-    /// The crouch key is held (character animation rung 2a, 2026-11-09; `crouching`).
+    /// Crouching is on (character animation rung 2a, 2026-11-09; `crouching`): the key held, or,
+    /// with `crouch_toggle`, the last press turned it on.
     crouch: bool,
+    /// Crouch is a toggle (Settings > Controls > Crouch: Toggle, 2026-11-09): each press of the key
+    /// turns it on or off, for someone who cannot hold a key. Hold by default.
+    crouch_toggle: bool,
+    /// The crouch key is down now (a toggle flips on the press, not on the key's repeats).
+    crouch_key: bool,
     /// How fast crouching walks as a share of walking: the walking pace's crouch speed over its
     /// walk (`engine::walk_pace`, data/game.csv), `CROUCH_FACTOR` until applied.
     pub crouch_factor: f32,
@@ -915,6 +921,8 @@ impl CameraController {
             on_lift: false,
             lift_press: 0,
             crouch: false,
+            crouch_toggle: false,
+            crouch_key: false,
             crouch_factor: CROUCH_FACTOR,
             on_planet_walk: false,
             surface_grounded: true,
@@ -1008,8 +1016,18 @@ impl CameraController {
                 }
             }
             A::Interact if self.fly_mode => self.roll_right = pressed,
-            // Held to crouch (character animation rung 2a, 2026-11-09).
-            A::Crouch => self.crouch = pressed,
+            // Held to crouch (character animation rung 2a, 2026-11-09), or with Crouch: Toggle
+            // pressed once to crouch and again to stand (a held key's repeats change nothing).
+            A::Crouch => {
+                if self.crouch_toggle {
+                    if pressed && !self.crouch_key {
+                        self.crouch = !self.crouch;
+                    }
+                } else {
+                    self.crouch = pressed;
+                }
+                self.crouch_key = pressed;
+            }
             _ => {}
         }
     }
@@ -1019,6 +1037,15 @@ impl CameraController {
     /// (character animation rung 2a, 2026-11-09).
     pub fn crouching(&self) -> bool {
         self.crouch && !self.fly_mode
+    }
+
+    /// Crouch held (false, the default) or toggled (true). Leaving Toggle stands the person up
+    /// unless the key is down now, so a switch never leaves them stuck crouching.
+    pub fn set_crouch_toggle(&mut self, toggle: bool) {
+        if self.crouch_toggle && !toggle {
+            self.crouch = self.crouch_key;
+        }
+        self.crouch_toggle = toggle;
     }
 
     /// Off the ground: the walk has the body in the air (a jump, a fall), not on a ladder and not
@@ -1904,6 +1931,40 @@ mod liftoff_tests {
         let (fly_free, fly_loaded) = (travel(1.0, true, 1.0), travel(0.15, true, 1.0));
         assert!(fly_free > 1.0, "dev flight moves ({fly_free:.3} m)");
         assert_eq!(fly_loaded, fly_free, "dev flight ignores the load");
+    }
+}
+
+#[cfg(test)]
+mod crouch_mode_tests {
+    use super::*;
+    use humanity_core::input::bindings::GameAction as A;
+
+    /// CROUCH, HELD OR TOGGLED (2026-11-09; Settings > Controls > Crouch): held, the key crouches
+    /// while it is down; toggled, a press crouches and the next stands, the key's repeats while held
+    /// change nothing; leaving Toggle while crouched stands the person up.
+    /// Seen red 2026-11-09 with the toggle flipping on every `pressed` (no edge): a held key's
+    /// repeats stood the person up again ("a repeat while held changes nothing").
+    #[test]
+    fn crouch_is_held_or_toggled() {
+        let mut c = CameraController::new(5.0, 0.1);
+        c.apply_action(A::Crouch, true);
+        assert!(c.crouching(), "held: down crouches");
+        c.apply_action(A::Crouch, false);
+        assert!(!c.crouching(), "held: up stands");
+        c.set_crouch_toggle(true);
+        c.apply_action(A::Crouch, true);
+        assert!(c.crouching(), "toggled: a press crouches");
+        c.apply_action(A::Crouch, true);
+        assert!(c.crouching(), "a repeat while held changes nothing");
+        c.apply_action(A::Crouch, false);
+        assert!(c.crouching(), "toggled: letting go stays crouched");
+        c.apply_action(A::Crouch, true);
+        c.apply_action(A::Crouch, false);
+        assert!(!c.crouching(), "toggled: the next press stands");
+        c.apply_action(A::Crouch, true);
+        c.apply_action(A::Crouch, false);
+        c.set_crouch_toggle(false);
+        assert!(!c.crouching(), "leaving Toggle stands them up");
     }
 }
 

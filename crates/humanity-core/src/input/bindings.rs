@@ -111,7 +111,7 @@ pub const ACTIONS: &[ActionInfo] = &[
     ActionInfo { action: GameAction::MoveRight, id: "move_right", label: "Move right", category: "Movement", default_primary: "KeyD", default_secondary: "" },
     ActionInfo { action: GameAction::Jump, id: "jump", label: "Jump / fly up", category: "Movement", default_primary: "Space", default_secondary: "" },
     ActionInfo { action: GameAction::Sprint, id: "sprint", label: "Sprint / fly down", category: "Movement", default_primary: "ShiftLeft", default_secondary: "ShiftRight" },
-    ActionInfo { action: GameAction::Crouch, id: "crouch", label: "Crouch (hold)", category: "Movement", default_primary: "KeyC", default_secondary: "" },
+    ActionInfo { action: GameAction::Crouch, id: "crouch", label: "Crouch", category: "Movement", default_primary: "KeyC", default_secondary: "" },
     ActionInfo { action: GameAction::Interact, id: "interact", label: "Interact / talk", category: "Interaction", default_primary: "KeyE", default_secondary: "" },
     ActionInfo { action: GameAction::AttackSwing, id: "attack_swing", label: "Swing tool / attack", category: "Interaction", default_primary: "KeyF", default_secondary: "" },
     ActionInfo { action: GameAction::Inventory, id: "inventory", label: "Inventory", category: "Interaction", default_primary: "KeyI", default_secondary: "" },

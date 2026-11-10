@@ -944,6 +944,18 @@ impl System for NetSyncSystem {
                     }
                 }
 
+                NetMessage::PlayerLook { player_id, look } => {
+                    // Their changed look (the look, 2026-11-09): their body is built again from it.
+                    if look.is_some() {
+                        for (_e, r) in world.query_mut::<&mut RemotePlayer>() {
+                            if r.player_id == player_id {
+                                r.look = look.clone();
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 NetMessage::PlayerJoined { player_id, name, position, look, key } => {
                     // Never spawn a remote avatar for ourselves (the relay echoes our join).
                     if self.local_player_id == Some(player_id) {
@@ -1343,7 +1355,7 @@ pub(crate) mod tests {
             .collect();
         assert_eq!(placeholder, vec!["Player 42".to_string()], "lazy-spawn placeholder");
 
-        let look = humanity_core::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05, body: String::new(), shape: Default::default() };
+        let look = humanity_core::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05, body: String::new(), shape: Default::default(), ..Default::default() };
         sys.queue_messages(vec![NetMessage::PlayerJoined {
             player_id: 42,
             name: "Test Pilot A".to_string(),

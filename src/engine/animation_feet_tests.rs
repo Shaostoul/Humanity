@@ -105,7 +105,7 @@ fn walk_path(
         placer.place(rig, skel, &lib.humanoid, &mut pose, &mut model, &frame, ground, mode, def);
         rows.clear();
         pose::palette_rows(skel, &model, &mut rows);
-        let feet = crate::engine::foot_probe::skinned_feet(b, &[], &rows, &world);
+        let feet = crate::engine::foot_probe::skinned_feet(&b.model, &b.foot_vertices, &[], &rows, &world);
         if t < 0.5 {
             continue;
         }

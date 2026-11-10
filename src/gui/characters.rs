@@ -30,10 +30,32 @@ pub struct CharactersGui {
     /// saying how); off, every body is drawn as its clips make it, as rung 1 did, for a same-boot A/B.
     /// On by default; never saved.
     pub feet_on_world: bool,
+    /// Each body's face and body detail sliders by its choice id, in groups (2026-11-09, the look;
+    /// data/characters/details.ron, published with `body_choices`): the character page draws the
+    /// chosen body's and writes their values into `appearance.detail`.
+    pub detail_sliders: std::collections::BTreeMap<String, Vec<humanity_core::player_look::DetailBlock>>,
+    /// The hair styles, brows and lashes a character can wear (garment ids of
+    /// data/characters/garments.ron), by kind: "hair", "brows", "lashes". Empty until the look loads.
+    pub wearables: std::collections::BTreeMap<String, Vec<String>>,
+    /// Done was pressed on the character page with a look that may have changed: the engine sends
+    /// it to the shared world (`engine::net_route`, at most once every ten seconds, the latest).
+    pub look_send: bool,
+    /// When the last look went out (seconds of the engine's own clock), for that wait.
+    pub look_sent_at: Option<f64>,
 }
 
 impl Default for CharactersGui {
     fn default() -> Self {
-        CharactersGui { body_choices: Vec::new(), body_sliders: Default::default(), my_height_m: None, show_skeletons: false, feet_on_world: true }
+        CharactersGui {
+            body_choices: Vec::new(),
+            body_sliders: Default::default(),
+            my_height_m: None,
+            show_skeletons: false,
+            feet_on_world: true,
+            detail_sliders: Default::default(),
+            wearables: Default::default(),
+            look_send: false,
+            look_sent_at: None,
+        }
     }
 }

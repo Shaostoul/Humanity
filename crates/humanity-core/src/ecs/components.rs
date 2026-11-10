@@ -1493,6 +1493,17 @@ pub struct Appearance {
     /// therefore loads as the body as made; "Reset" on the page empties it.
     #[serde(default)]
     pub shape: std::collections::BTreeMap<String, f32>,
+    /// The face and body detail sliders (2026-11-09, "the look"; docs/design/character-animation.md
+    /// section 16): each slider's value by its id (`data/characters/details.ron`), -1 to 1 for a
+    /// slider with two ends, 0 to 1 for one with one. A slider not here is at 0, the body as made.
+    #[serde(default)]
+    pub detail: std::collections::BTreeMap<String, f32>,
+    /// The brows and lashes worn (garment ids of `data/characters/garments.ron`; "" is the wearer
+    /// kind's default, "none" wears none). `hair_style` is the hair's garment id the same way.
+    #[serde(default)]
+    pub brows: String,
+    #[serde(default)]
+    pub lashes: String,
 }
 
 impl Default for Appearance {
@@ -1505,6 +1516,9 @@ impl Default for Appearance {
             hair_color: [0.25, 0.18, 0.10],
             eye_color: [0.30, 0.45, 0.55],
             shape: std::collections::BTreeMap::new(),
+            detail: std::collections::BTreeMap::new(),
+            brows: String::new(),
+            lashes: String::new(),
         }
     }
 }

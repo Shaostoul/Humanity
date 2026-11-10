@@ -3172,6 +3172,39 @@ pub async fn handle_game_banned_list(state: &Arc<RelayState>, my_key: &str) {
     })).await;
 }
 
+/// The look's rate clock: seconds since the relay first needed it (monotonic, never the wall clock).
+fn look_clock() -> f64 {
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    START.get_or_init(std::time::Instant::now).elapsed().as_secs_f64()
+}
+
+/// A CHANGED LOOK (2026-11-09, character animation's "the look"; docs/design/character-animation.md
+/// section 16): the player's look read through the one clamping reader (`PlayerLook::from_json`:
+/// ranges clamped, unknown sliders, garments and cosmetics dropped, the counts capped), refused when
+/// their last one was accepted under `LOOK_EVERY_S` ago (the app collapses its changes to the latest
+/// and waits; a modified client is held to it here), kept on their entity so a later joiner's
+/// snapshot shows it, and returned with who sees them now. None when refused.
+pub(crate) fn take_look(world: &mut crate::relay::handlers::game_state::GameWorld, key: &str, raw: &serde_json::Value, now: f64) -> Option<(u64, serde_json::Value, std::collections::HashSet<String>)> {
+    let player_id = world.find_player_entity(key)?;
+    if !humanity_core::player_look::look_due(world.look_accepted.get(key).copied(), now) {
+        return None;
+    }
+    let look = raw.get("appearance").and_then(humanity_core::player_look::PlayerLook::from_json)?;
+    world.look_accepted.insert(key.to_string(), now);
+    let wire = look.to_json();
+    if let Some(obj) = world.entities.get_mut(&player_id).and_then(|e| e.components.as_object_mut()) {
+        obj.insert("appearance".to_string(), wire.clone());
+    }
+    Some((player_id, wire, world.viewer_keys(player_id)))
+}
+
+pub async fn handle_game_look(state: &Arc<RelayState>, my_key: &str, raw: &serde_json::Value) {
+    let mut world = state.game_world.write().await;
+    let Some((player_id, appearance, viewers)) = take_look(&mut world, my_key, raw, look_clock()) else { return };
+    let msg = serde_json::json!({ "type": "game_player_look", "player_id": player_id, "appearance": appearance });
+    super::game_interest::send_to(state, viewers, &msg);
+}
+
 /// Handle a position update from a game client.
 /// Validates the update, applies it server-side, and relays to other clients.
 pub async fn handle_game_position_update(
@@ -3950,6 +3983,39 @@ async fn persist_player_progress(state: &Arc<RelayState>, player_key: &str, play
 #[cfg(test)]
 #[path = "msg_handlers_mod_action_tests.rs"]
 mod mod_action_tests;
+
+// THE LOOK AT THE RELAY (2026-11-09, character animation's "the look").
+#[cfg(test)]
+mod look_tests {
+    use super::*;
+    use crate::relay::handlers::game_state::GameWorld;
+
+    /// A CHANGED LOOK IS CAPPED AND CLEANED AT THE RELAY: the first is accepted, kept on the
+    /// player's entity (cleaned by the one reader: an unknown slider dropped, an out-of-range value
+    /// clamped) and returned with who sees them; another under ten seconds later is refused (a
+    /// modified client cannot flood or flicker); one ten seconds on is accepted again.
+    /// Seen red 2026-11-09 with `take_look` not consulting `look_accepted` (the rate ignored): "a
+    /// second look 3 s later is refused" failed.
+    #[test]
+    fn a_changed_look_is_capped_and_cleaned_at_the_relay() {
+        let mut world = GameWorld::new();
+        let a = world.spawn_player("e11e0100", [53.5, 1.7, 40.5]);
+        let b = world.spawn_player("e11e0101", [54.5, 1.7, 40.5]);
+        world.rejudge_view(a);
+        world.rejudge_view(b);
+        let look = |nose: f64| serde_json::json!({ "appearance": { "skin": [0.5, 0.4, 0.3], "hair": [0.1, 0.1, 0.1], "height": 1.0, "body": "female", "detail": { "nose_hump": nose, "../bad": 0.5 } } });
+        let (id, wire, viewers) = take_look(&mut world, "e11e0100", &look(4.0), 100.0).expect("the first look is accepted");
+        assert_eq!(id, a);
+        assert_eq!(wire["detail"], serde_json::json!({ "nose_hump": 1.0 }), "clamped, the unknown slider dropped");
+        assert!(viewers.contains("e11e0101"), "the player beside them sees it: {viewers:?}");
+        assert_eq!(world.entities[&a].components["appearance"], wire, "kept on the entity for later joiners");
+        assert!(take_look(&mut world, "e11e0100", &look(0.2), 103.0).is_none(), "a second look 3 s later is refused");
+        assert_eq!(world.entities[&a].components["appearance"]["detail"]["nose_hump"], serde_json::json!(1.0), "the refused look changed nothing");
+        let (_, wire, _) = take_look(&mut world, "e11e0100", &look(0.2), 110.5).expect("ten seconds on, accepted");
+        assert_eq!(wire["detail"]["nose_hump"], serde_json::json!(0.2));
+        assert!(take_look(&mut world, "e11e09ff", &look(0.2), 200.0).is_none(), "nobody in the world: refused");
+    }
+}
 
 // Sealed-sender DM lifecycle tests (2026-08-23). Same in-module pattern as
 // mod_action_tests: RelayState::new(db) needs only a Storage, so the whole

@@ -1106,6 +1106,238 @@
       "settle_s": 10
     },
     {
+      "id": "anim-look-face-female",
+      "desc": "A close-up of three female faces in the mess hall, left to right: the face as made, a dozen face detail sliders at their high end (a bigger, bumped and longer nose, a jutting wide chin, larger eyes, a wider mouth and fuller upper lip, larger ears, higher cheekbones, a heavier brow and a fuller head), and the same sliders at their low end.",
+      "expect": "Three female heads side by side at eye level, each with MakeHuman's own hair (bob02), brows and lashes: the middle face plainly different from the left one in nose, chin, eyes, mouth, ears and cheekbones (all bigger or fuller), the right one plainly different the other way (all smaller or thinner). Every face whole: no hole, no spike, eyes in their sockets, brows on the brow, lashes on the lids, hair on the head, nothing floating off the face.",
+      "_why": "Character animation, the look (2026-11-09; docs/design/character-animation.md section 16): the face and body detail targets reach each person's own built mesh (humanity_animation::look::build_person), so anyone can shape their own face (the operator: \"Yes.\"). The `lineup` verb's `d:<slider>=v` sets each stand-in's detail sliders; their hair, brows and lashes are the real garments fitted to the shaped head.",
+      "regressions": [
+        "the three faces look the same (the detail sliders did not reach the drawn mesh)",
+        "a face with a hole, a spike or eyes out of their sockets",
+        "hair, brows or lashes floating off the head or sunk into it",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.62,24,-1.5708,-0.06",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "female,1.25,0.6|hair=bob02|hair=bob02,d:nose_hump=1,d:nose_vert=1,d:nose_horiz=1,d:chin_prominent=1,d:chin_width=1,d:eye_scale=1,d:mouth_horiz=1,d:mouth_upperlip_volume=1,d:ear_scale=1,d:cheek_bones=1,d:forehead_nubian=1,d:head_fat=1|hair=bob02,d:nose_hump=-1,d:nose_vert=-1,d:nose_horiz=-1,d:chin_prominent=-1,d:chin_width=-1,d:eye_scale=-1,d:mouth_horiz=-1,d:mouth_upperlip_volume=-1,d:ear_scale=-1,d:cheek_bones=-1,d:forehead_nubian=-1,d:head_fat=-1"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-look-face-male",
+      "desc": "A close-up of three male faces in the mess hall, left to right: the face as made, a dozen face detail sliders at their high end (a bigger, bumped and longer nose, a jutting wide chin, larger eyes, a wider mouth and fuller upper lip, larger ears, higher cheekbones, a heavier brow and a fuller head), and the same sliders at their low end.",
+      "expect": "Three male heads side by side at eye level, each with MakeHuman's own hair (short02), brows and lashes: the middle face plainly different from the left one in nose, chin, eyes, mouth, ears and cheekbones (all bigger or fuller), the right one plainly different the other way (all smaller or thinner). Every face whole: no hole, no spike, eyes in their sockets, brows on the brow, lashes on the lids, hair on the head, nothing floating off the face.",
+      "_why": "Character animation, the look (2026-11-09; docs/design/character-animation.md section 16): the face and body detail targets reach each person's own built mesh (humanity_animation::look::build_person), so anyone can shape their own face (the operator: \"Yes.\"). The `lineup` verb's `d:<slider>=v` sets each stand-in's detail sliders; their hair, brows and lashes are the real garments fitted to the shaped head.",
+      "regressions": [
+        "the three faces look the same (the detail sliders did not reach the drawn mesh)",
+        "a face with a hole, a spike or eyes out of their sockets",
+        "hair, brows or lashes floating off the head or sunk into it",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.62,24,-1.5708,-0.06",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "lineup": "male,1.25,0.6|hair=short02|hair=short02,d:nose_hump=1,d:nose_vert=1,d:nose_horiz=1,d:chin_prominent=1,d:chin_width=1,d:eye_scale=1,d:mouth_horiz=1,d:mouth_upperlip_volume=1,d:ear_scale=1,d:cheek_bones=1,d:forehead_nubian=1,d:head_fat=1|hair=short02,d:nose_hump=-1,d:nose_vert=-1,d:nose_horiz=-1,d:chin_prominent=-1,d:chin_width=-1,d:eye_scale=-1,d:mouth_horiz=-1,d:mouth_upperlip_volume=-1,d:ear_scale=-1,d:cheek_bones=-1,d:forehead_nubian=-1,d:head_fat=-1"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-look-covers-off",
+      "desc": "anim-shape-female-build's row of seven women, clothed, with covers off: every garment hides nothing under it, so the body under the clothes is drawn too.",
+      "expect": "The seven women in their clothes with skin showing through the clothes in places (patches of skin through a sleeve, a trouser leg or the waist), most at the heavier and more muscular bodies.",
+      "_why": "Character animation, the look (2026-11-09): the poke-through check's red arm, seen. With covers on (anim-shape-female-build) a garment hides the body vertices MakeHuman's own delete_verts list under it, in the regions cosmetics.csv's `covers` names; showcase `covers` 0 turns that off. The measured check is src/engine/animation_look_tests.rs `no_skin_pokes_through_the_clothes_in_poses` (the drawn, skinned mesh in walk, crouch and sit).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.7,24,-1.5708,-0.18",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "hud": "0",
+          "covers": "0",
+          "lineup": "female,3.6,0.8|-|weight=0|weight=1|muscle=0,weight=1|muscle=0|muscle=1|muscle=1,weight=1"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-stairs-soles-off",
+      "desc": "anim-stairs with the soles of the body as made: one stand-in in shoes walking up the house stair at 0.9 m/s, its feet placed by soles that ignore the shoes.",
+      "expect": "The person on the stair with each shoe's sole sunk into the tread by its thickness.",
+      "_why": "Character animation, the look (2026-11-09; section 15's lesson for the clothes: \"a SHOE with a sole of its own changes it\"): a person's soles are measured from their own mesh with their shoes on and they are drawn that much higher (PersonMesh::lift). Showcase `soles` 0 measures them as the body as made: the red twin of anim-stairs, whose foot_probe passes with the shoes on; this one's is expected to FAIL on its depth.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.7,38.7,-1.5708,0.2",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "soles": "0",
+          "figure_path": "42.6,0,38.65;41.0,0,38.65;36.5,3.0,38.65;35.5,3.0,38.65;0.9"
+        }
+      ],
+      "final_settle_s": 3,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0.15,
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-crowd-near-look-off",
+      "desc": "anim-crowd-near with every person drawn on the shared body as main drew them (showcase own_mesh 0): the same-boot twin that measures what each near person's own shaped and dressed mesh costs.",
+      "expect": "Fifty people, women and men, some standing, walking or running, drawn as main drew them: tinted regions (painted shirts and trousers), no real clothes or hair.",
+      "_why": "Character animation, the look (2026-11-09): the costs of the per-person build and the garments (cpu.animation with cpu.look_build inside it, cpu.skinning, gpu.skinning, gpu.scene) read against this twin, as section 8.0 of the plan reads every rung.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "own_mesh": "0",
+          "crowd": "50,3.5,-1,0,10"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "anim-shoes",
+      "desc": "Third person in the homestead's hall, the player's male body standing in MakeHuman's shoes03 (the thickest sole of the six, 2.5 cm under the bare foot), its soles measured from its own mesh with the shoes on.",
+      "expect": "The player's body from behind in a casual outfit and dark shoes, each shoe's sole flat ON the floor, neither sunk into it nor floating over it.",
+      "_why": "Character animation, the look (2026-11-09; section 15's lesson for the clothes, \"a SHOE with a sole of its own changes it\"): a person's soles are measured from their own mesh with their shoes on and they are drawn that much higher (PersonMesh::lift). The foot probe measures the drawn shoe against the floor; its red twin is anim-shoes-soles-off.",
+      "regressions": [
+        "foot_probe feet_on_ground: every planted shoe on the floor, within 1.5 cm under to 2.5 cm over",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "50,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "hud": "0",
+          "body": "male",
+          "look_wear": "hair=short02,wear:chest=mh_male_casualsuit02,wear:feet=mh_shoes03"
+        }
+      ],
+      "final_settle_s": 4,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0,
+        "who": [
+          "me"
+        ]
+      }
+    },
+    {
+      "id": "anim-shoes-soles-off",
+      "desc": "anim-shoes with the soles of the body as made (showcase soles 0): the player's male body in third person in MakeHuman's shoes03 (the thickest sole, 2.5 cm), its feet placed by soles that ignore the shoes.",
+      "expect": "The player's body from behind with each shoe's sole sunk into the floor by about 2 cm (the heel and the sole's edge cut by the floor).",
+      "_why": "Character animation, the look (2026-11-09): the red twin of anim-shoes; its foot_probe is expected to FAIL on its depth (the shoe sinks by its sole, measured 2.3 to 2.7 cm in the tests).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "50,1.7,40.5,-1.5708,-0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "third",
+          "hud": "0",
+          "body": "male",
+          "look_wear": "hair=short02,wear:chest=mh_male_casualsuit02,wear:feet=mh_shoes03",
+          "soles": "0"
+        }
+      ],
+      "final_settle_s": 4,
+      "foot_probe": {
+        "secs": 1.5,
+        "rules": [
+          "feet_on_ground"
+        ],
+        "min_spread_m": 0,
+        "who": [
+          "me"
+        ]
+      }
+    },
+    {
       "id": "anim-stairs-boxes",
       "desc": "The ground hall looking west up the house stair, one stand-in walking up it at 0.9 m/s. The rung 0 baseline: the old box figures.",
       "expect": "An amber box figure partway up the stair, its base gliding up the slope between the treads.",
@@ -1135,7 +1367,7 @@
     {
       "id": "anim-stairs",
       "desc": "The ground hall looking west up the house stair, one stand-in walking up it at 0.9 m/s. Rung 1: the skinned, animated body.",
-      "expect": "A person (a woman or a man, MakeHuman's bodies) in an amber top partway up the stair, walking (legs mid-stride), each planted foot flat on a tread and on the tread's middle (rung 2a), the other foot swinging over the next.",
+      "expect": "A person (a woman or a man, MakeHuman's bodies) in MakeHuman's own clothes, shoes and hair (the look, 2026-11-09) partway up the stair, walking (legs mid-stride), each planted foot flat on a tread and on the tread's middle (rung 2a), the other foot swinging over the next.",
       "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene. Rung 2a (2026-11-09): its foot_probe judges the drawn feet against the treads; its red twin is anim-stairs-feet-off.",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1311,7 +1543,7 @@
     {
       "id": "anim-crowd-near",
       "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead of the camera at its east end, standing, walking, jogging and running in circles: the near tier (16 compute-skinned) and the middle tier. Rung 1: the skinned, animated body.",
-      "expect": "Fifty people, women and men, in amber tops: some standing at idle, some walking, some running, each facing the way it goes, none stepping in unison with its neighbours.",
+      "expect": "Fifty people, women and men; those within 15 m in real clothes, shoes and hair (each their own outfit), those further in tinted regions: some standing at idle, some walking, some running, each facing the way it goes, none stepping in unison with its neighbours.",
       "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1427,7 +1659,7 @@
     {
       "id": "anim-tp-gaits",
       "desc": "Third person standing in the Commons' mess hall looking west down it, three stand-ins ahead: one walking at the Realistic walk (1.4 m/s) on the right, one running at the Realistic run (4 m/s) on the left, one turning on the spot (1.6 rad/s) between them.",
-      "expect": "The player's body from behind in a teal top at idle; ahead in the open hall, amber-topped figures: one walking, one running with a forward lean and high knees, one turning on the spot with short steps.",
+      "expect": "The player's body from behind in their own clothes and hair at idle; ahead in the open hall, clothed figures: one walking, one running with a forward lean and high knees, one turning on the spot with short steps.",
       "_why": "Character animation rung 1: walking, running and turning in one frame, in third person. The turn and the two gaits are the state machine's turn and move blend spaces (data/characters/locomotion.ron).",
       "regressions": [
         "the walking, running and turning figures each show their own gait",
@@ -1753,7 +1985,7 @@
     {
       "id": "anim-shape-female-build",
       "desc": "The mess hall's east end, seven of the female body standing in a row facing the camera, left to right: the body as made, weight 0 (thin), weight 1 (heavier), muscle 0 and weight 1 (the heaviest corner), muscle 0 (slight), muscle 1 (muscular), muscle and weight 1 (strong and heavy).",
-      "expect": "Seven woman's bodies in amber tops standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms.",
+      "expect": "Seven woman's bodies, each in MakeHuman's own clothes, shoes and hair (the look, 2026-11-09), standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms.",
       "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1783,7 +2015,7 @@
     {
       "id": "anim-shape-female-build-skeleton",
       "desc": "The mess hall's east end, seven of the female body standing in a row facing the camera, left to right: the body as made, weight 0 (thin), weight 1 (heavier), muscle 0 and weight 1 (the heaviest corner), muscle 0 (slight), muscle 1 (muscular), muscle and weight 1 (strong and heavy), with their skeletons drawn on top.",
-      "expect": "Seven woman's bodies in amber tops standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
+      "expect": "Seven woman's bodies, each in MakeHuman's own clothes, shoes and hair (the look, 2026-11-09), standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
       "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1814,7 +2046,7 @@
     {
       "id": "anim-shape-female-ancestry",
       "desc": "The mess hall's east end, six of the female body standing in a row facing the camera, left to right: the body as made (a third each), African 100%, Asian 100%, European 100%, proportions 0 (shorter legs), proportions 1 (longer legs).",
-      "expect": "Six woman's bodies in amber tops standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms.",
+      "expect": "Six woman's bodies, each in MakeHuman's own clothes, shoes and hair, standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms.",
       "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1844,7 +2076,7 @@
     {
       "id": "anim-shape-female-ancestry-skeleton",
       "desc": "The mess hall's east end, six of the female body standing in a row facing the camera, left to right: the body as made (a third each), African 100%, Asian 100%, European 100%, proportions 0 (shorter legs), proportions 1 (longer legs), with their skeletons drawn on top.",
-      "expect": "Six woman's bodies in amber tops standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
+      "expect": "Six woman's bodies, each in MakeHuman's own clothes, shoes and hair, standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
       "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1875,7 +2107,7 @@
     {
       "id": "anim-shape-male-build",
       "desc": "The mess hall's east end, seven of the male body standing in a row facing the camera, left to right: the body as made, weight 0 (thin), weight 1 (heavier), muscle 0 and weight 1 (the heaviest corner), muscle 0 (slight), muscle 1 (muscular), muscle and weight 1 (strong and heavy).",
-      "expect": "Seven man's bodies in amber tops standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms.",
+      "expect": "Seven man's bodies, each in MakeHuman's own clothes, shoes and hair (the look, 2026-11-09), standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms.",
       "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1905,7 +2137,7 @@
     {
       "id": "anim-shape-male-build-skeleton",
       "desc": "The mess hall's east end, seven of the male body standing in a row facing the camera, left to right: the body as made, weight 0 (thin), weight 1 (heavier), muscle 0 and weight 1 (the heaviest corner), muscle 0 (slight), muscle 1 (muscular), muscle and weight 1 (strong and heavy), with their skeletons drawn on top.",
-      "expect": "Seven man's bodies in amber tops standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
+      "expect": "Seven man's bodies, each in MakeHuman's own clothes, shoes and hair (the look, 2026-11-09), standing at idle in a row in the mess hall, facing the camera, all the same height (the height slider holds still): the first as made; the second thin (narrow waist, thin arms and legs); the third a little heavier; the fourth clearly heavy (a round belly, wide hips, thick arms and legs); the fifth slight; the sixth muscular (broader chest and shoulders, defined arms); the seventh broad and heavy. Every body whole, feet on the floor (none floating, none sunk more than a few centimetres), hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
       "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1936,7 +2168,7 @@
     {
       "id": "anim-shape-male-ancestry",
       "desc": "The mess hall's east end, six of the male body standing in a row facing the camera, left to right: the body as made (a third each), African 100%, Asian 100%, European 100%, proportions 0 (shorter legs), proportions 1 (longer legs).",
-      "expect": "Six man's bodies in amber tops standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms.",
+      "expect": "Six man's bodies, each in MakeHuman's own clothes, shoes and hair, standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms.",
       "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1966,7 +2198,7 @@
     {
       "id": "anim-shape-male-ancestry-skeleton",
       "desc": "The mess hall's east end, six of the male body standing in a row facing the camera, left to right: the body as made (a third each), African 100%, Asian 100%, European 100%, proportions 0 (shorter legs), proportions 1 (longer legs), with their skeletons drawn on top.",
-      "expect": "Six man's bodies in amber tops standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
+      "expect": "Six man's bodies, each in MakeHuman's own clothes, shoes and hair, standing at idle in a row, facing the camera, all the same height (the height targets take up what the ancestry targets do to it): the first as made; the next three with different face and body features (the skin colour is the crew default on all, chosen separately); the fifth with shorter legs and a wider waist; the sixth with longer legs and a narrower waist. Every body whole, feet on the floor, hands at the ends of the arms. Over each body, its skeleton in bright lines through walls and flesh: every joint inside the body where it bends (hips in the pelvis, knees in the knees, the head joint in the neck, a hand joint in each hand), so each skeleton is reshaped with its body: wider-set where the body is, the hips joint further back on the heavy bodies.",
       "_why": "Character animation, the body sliders (2026-11-09; docs/design/character-animation.md section 14, the sliders): every slider at its ends on the real body, its mesh AND its skeleton reshaped (the showcase `lineup` verb stands people in a row facing the camera, each with a look of its own; `skeletons` draws every joint and bone on top, the Dev page's Show skeletons).",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -1997,7 +2229,7 @@
     {
       "id": "anim-crowd-near-plain",
       "desc": "Fifty stand-ins in the mess hall, 6 to 14 m ahead (16 near, the rest middle), every one the body as made (showcase varied_shapes 0): main's crowd before the sliders, the same-boot twin of anim-crowd-near, whose crowd has varied shapes.",
-      "expect": "Fifty people, women and men, in amber tops, all of each body the same build and height, moving as in anim-crowd-near.",
+      "expect": "Fifty people, women and men, all of one shape (the body as made), the near ones in real clothes and hair, all of each body the same build and height, moving as in anim-crowd-near.",
       "_why": "Character animation, the body sliders (2026-11-09): what varied shapes cost. A crew member now turns on up to seven shape targets (each two more reads per skinned vertex); this twin turns on none, as main did, so cpu.animation, cpu.skinning, gpu.skinning and gpu.scene of the two in one boot measure the cost.",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -2025,7 +2257,7 @@
     {
       "id": "anim-crowd-middle-plain",
       "desc": "Fifty stand-ins in the mess hall, 18 to 26 m away (all middle), every one the body as made (showcase varied_shapes 0): main's crowd before the sliders, the same-boot twin of anim-crowd-middle, whose crowd has varied shapes.",
-      "expect": "Fifty people, women and men, in amber tops, all of each body the same build and height, moving as in anim-crowd-middle.",
+      "expect": "Fifty people, women and men, all of one shape (the body as made), the near ones in real clothes and hair, all of each body the same build and height, moving as in anim-crowd-middle.",
       "_why": "Character animation, the body sliders (2026-11-09): what varied shapes cost. A crew member now turns on up to seven shape targets (each two more reads per skinned vertex); this twin turns on none, as main did, so cpu.animation, cpu.skinning, gpu.skinning and gpu.scene of the two in one boot measure the cost.",
       "regressions": [
         "every figure is a person's body, never a box or the jointed test figure",
@@ -2090,7 +2322,7 @@
     {
       "id": "anim-ramp",
       "desc": "The homestead's ramp up to the train platform (ramp-1, 0.4 m over 6.8 m), looking north up it from its foot, one stand-in walking up it at 0.9 m/s.",
-      "expect": "A person in an amber top walking up the gentle ramp away from the camera, each planted foot flat on the sloping deck (turned to its slope), not toe-down into it.",
+      "expect": "A person in real clothes and shoes walking up the gentle ramp away from the camera, each planted foot flat on the sloping deck (turned to its slope), not toe-down into it.",
       "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. A ship ramp: footing's Ramp surface under each foot, the foot turned to the slope about its pivot.",
       "regressions": [
         "foot_probe feet_on_ground: every planted foot on the ramp, within 1.5 cm under to 2.5 cm over",
@@ -2164,7 +2396,7 @@
     {
       "id": "anim-crouch",
       "desc": "Third person in the homestead's hall three metres in from the front door, the player's own body crouching (C held) at the Realistic pace, and one stand-in crouch-walking across the hall ahead at 0.8 m/s.",
-      "expect": "From behind, the player's body crouched low (knees bent, hips down) with its feet flat on the floor; ahead, an amber-topped figure walking crouched. The first-person eye is not shown (third person).",
+      "expect": "From behind, the player's body crouched low (knees bent, hips down) with its feet flat on the floor; ahead, a clothed figure walking crouched. The first-person eye is not shown (third person).",
       "_why": "Character animation rung 2a (2026-11-09, docs/design/character-animation.md section 4): feet on the world. The foot probe (src/engine/foot_probe.rs) skins each near body's foot vertices on the CPU with the very palette the GPU draws and measures them against the ground under them; scripts/lib/foot-probe-check.js judges it. Crouch (rung 2a): the crouch key (Settings > Controls, C by default) plays Quaternius's crouch idle and crouch walk through the graph, and the network carries the stance (humanity_core::stance) so others see it; the stand-in crouches as another player's crouch arrives (showcase `crowd_crouch`).",
       "regressions": [
         "the player's body is crouched, not standing",

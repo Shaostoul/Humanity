@@ -17,7 +17,14 @@ follows them (`Skeleton::reshaped`), and the stable hash that varies the crew's 
 load, the ground asked of the engine through the `Ground` trait, two-bone analytic leg IK on each
 person's reshaped skeleton, the pelvis offset, the foot turned to the slope about a toe pivot, foot
 locking and stair footsteps), and the graph reads crouch, time off the ground, vertical speed and
-time in a state. It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
+time in a state. Since 2026-11-09 ("the look", design section 16) it builds each near person's OWN
+mesh (`look`: the shape and face and body detail targets applied to every base-mesh vertex, the
+body's triangles under a worn garment dropped, MakeHuman's clothes, shoes, hats, hair, brows and
+lashes placed on the shaped mesh by their bindings and skinned with the bound vertices' weights, the
+skeleton made again from the shaped mesh, the feet's soles measured with the shoes on), versioned
+by everything it is built from and rebuilt every frame with the reuse switch off; and the library
+resolves what each person wears (`dress_for`: their look's choices, else their wearer kind's
+defaults). It is a crate of its own because it is pure (no GPU, no egui, no file format reader: the engine
 reads glTF into `humanity_core::skin_data` and draws the palettes), so every test runs headless, and
 because animation never reaches the server: the relay build never compiles it (the operator,
 2026-11-08: "a new crate, humanity-animation: yes").
@@ -26,14 +33,14 @@ because animation never reaches the server: the relay build never compiles it (t
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-animation/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-animation/src/clip.rs`, `crates/humanity-animation/src/graph.rs`, `crates/humanity-animation/src/humanoid.rs`, `crates/humanity-animation/src/joint_map.rs`, `crates/humanity-animation/src/library.rs`, `crates/humanity-animation/src/motion.rs`, `crates/humanity-animation/src/pose.rs`, `crates/humanity-animation/src/retarget.rs`, `crates/humanity-animation/src/role_map.rs`, `crates/humanity-animation/src/skeleton.rs`, `crates/humanity-animation/src/tiers.rs`
+  - no gate (every build): `crates/humanity-animation/src/clip.rs`, `crates/humanity-animation/src/feet.rs`, `crates/humanity-animation/src/graph.rs`, `crates/humanity-animation/src/humanoid.rs`, `crates/humanity-animation/src/joint_map.rs`, `crates/humanity-animation/src/library.rs`, `crates/humanity-animation/src/look.rs`, `crates/humanity-animation/src/motion.rs`, `crates/humanity-animation/src/pose.rs`, `crates/humanity-animation/src/retarget.rs`, `crates/humanity-animation/src/role_map.rs`, `crates/humanity-animation/src/skeleton.rs`, `crates/humanity-animation/src/tiers.rs`
   - test builds only: `crates/humanity-animation/src/fixtures.rs`, `crates/humanity-animation/src/tests.rs`
-- **Size:** 2,238 lines in 14 files, 484 of them in 2 test files.
+- **Size:** 5,047 lines in 16 files, 580 of them in 2 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): none.
-- **May use** (the plan): core. **Uses today** (references in non-test code): core 3.
-- **May be used by** (the plan): engine. **Used today by:** engine 9.
+- **May use** (the plan): core. **Uses today** (references in non-test code): core 13.
+- **May be used by** (the plan): engine. **Used today by:** engine 64.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 12 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 17 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-animation
@@ -43,17 +50,23 @@ just test-lib --crate humanity-animation
 
 | Item | References | From |
 |---|---:|---|
-| `Animator` | 1 | engine 1 |
-| `CharacterLibrary` | 1 | engine 1 |
-| `DrawTier` | 1 | engine 1 |
-| `MotionTracker` | 1 | engine 1 |
-| `Pose` | 1 | engine 1 |
-| `Tint` | 1 | engine 1 |
-| `library::Fallback` | 1 | engine 1 |
-| `pose` | 1 | engine 1 |
-| `tiers` | 1 | engine 1 |
+| `DressChoice` | 7 | engine 7 |
+| `GarmentKind` | 7 | engine 7 |
+| `Skeleton` | 4 | engine 4 |
+| `FootRig` | 3 | engine 3 |
+| `LoadedBody` | 3 | engine 3 |
+| `Part` | 3 | engine 3 |
+| `PersonMesh` | 3 | engine 3 |
+| `look::build_person` | 3 | engine 3 |
+| `FeetReport` | 2 | engine 2 |
+| `FootPlacer` | 2 | engine 2 |
+| `Ground` | 2 | engine 2 |
+| `HumanoidDef` | 2 | engine 2 |
+| `LookLibrary` | 2 | engine 2 |
+| `PersonInputs` | 2 | engine 2 |
+| `look::GarmentDef` | 2 | engine 2 |
 
-All 9 items shown.
+And 17 more items, 17 references (`node scripts/crate-cards.js --interface humanity-animation` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -98,6 +111,24 @@ All 9 items shown.
 - **Every new number of the feet is data**: `characters.ron`'s `feet` (`FeetDef`, each field with
   its shipped default), so a modder tunes them and the tests read the shipped ones. Source:
   CLAUDE.md, Infinite-of-X.
+- **A person's own mesh is built from the look, never kept past it** (2026-11-09): `look_key` hashes
+  everything `build_person` reads (body, shape weights, detail values, garments, the two check
+  switches), `rebuild_due` builds again when the key changes and every frame with the reuse switch
+  off (`humanity_core::reuse`). The engine builds on worker threads (`characters.ron`'s
+  `look_threads`, 2026-11-10; `build_person` is a pure function of the shared library and the inputs,
+  so keep it free of anything a thread cannot hold), drawing the last mesh built for that body while
+  a rebuild runs, and with the switch off builds on the frame, every frame. The shared body with its
+  macro shape on the GPU draws everyone else. Source: CLAUDE.md,
+  the no-caches rule (refined 2026-10-30); character-animation.md section 16.
+- **What is measured from the body is measured from the person's own mesh** (2026-11-09; rung 2a's
+  lesson): a person's legs, soles, toe cap and heel counter come from their built mesh, shoes on
+  (`FootRig::with_soles` before `with_extents`), and a shoe's sole lifts them (`PersonMesh::lift`).
+  Source: character-animation.md section 15, "For the clothes and hair (the next rung), what this
+  one learned".
+- **Garments, sliders and dress are data**: `data/characters/details.ron` and `garments.ron` are
+  written by `scripts/gen-makehuman-look.js` (never by hand); cosmetics.csv's `model` and `covers`
+  name a garment and the cover regions it hides; `characters.ron`'s wearers carry each kind's
+  default `dress` per body. Source: CLAUDE.md, Infinite-of-X.
 - **A clip's hips travel is an offset from the rest, and its speed is the body's.** Retargeting
   scales a gait's `speed_mps` by the body's leg length against the source's, and the engine divides
   a person's speed by their own stride scale (shape and size) before the graph reads it, so the
@@ -143,6 +174,19 @@ All 9 items shown.
   fail the same bound. In the running game: the vantages `anim-stairs`, `anim-ramp`, `anim-crouch`,
   `anim-slope-map` with their `foot_probe` check (scripts/lib/foot-probe-check.js) and their
   `-feet-off` red twins; `anim-crowd-{near,middle}-feet-off` for the cost.
+- **The look (2026-11-09):** the crate's `look::tests` (the version and the reuse switch, red with
+  the switch ignored); the core's `look_data` tests (a .mhclo bound vertex lands where MakeHuman's
+  own fitted .obj put it on the raw base mesh, red with two weights swapped; the files read and a
+  broken one is refused) and `player_look` tests (the one clamping reader: unknown slider, out of
+  range, too many; the look's rate); the engine's `src/engine/animation_look_tests.rs` (a person's own
+  mesh is their look; the build's cost and memory; shod feet stand on the floor, red with the soles
+  not measured; no skin through the clothes in walk, crouch and sit on the drawn skinned mesh, red
+  with covers off) and `look_textures`' pack test; the relay's `msg_handlers::look_tests` (the cap
+  and the reader at the relay). In the running game: `anim-look-face-{female,male}` (detail sliders at
+  their ends), `anim-look-covers-off` (the red arm, seen), `anim-shoes` and `anim-shoes-soles-off`
+  (the shod foot probe, and its red twin that must FAIL), `anim-stairs-soles-off` and
+  `anim-crowd-near-look-off` (the cost twin). The converters:
+  `node scripts/gen-makehuman-look.js --check` and `gen-makehuman-body.js --check`.
 - **The sliders in the running game:** the vantages `anim-shape-{female,male}-{build,ancestry}` (and
   `-skeleton`, the joints and bones drawn on top: showcase `skeletons`, the Dev page's Show
   skeletons) stand a row of people at the sliders' ends (showcase `lineup`); `anim-crowd-*-plain`
@@ -165,10 +209,12 @@ All 9 items shown.
   (`lowerarm02` is the wrist's parent), not siblings of the driver as `apply_twists` expects, so the
   converter merges them for now; a chained twist (or the converter keeping them as siblings) is the
   skinning-quality step after rung 2.
-- **Garments must follow the sliders** (2.4's second half, with MakeHuman's clothes): a garment
-  needs the same targets transferred to it, or a fitted proxy, so one jacket fits every build.
-- **A look changed mid-session reaches others only at the next join** (the look rides `game_join`);
-  a small look update message is the step when that matters.
+- **The look, what 2026-11-09 left** (design section 16, "Known limits"): middle bodies draw the
+  shared body with tinted regions (no garments or hair meshes); the player's own hair fringe is not
+  blended on a planet (the core is); hair has no strand-depth occlusion or self-shadow map yet; the
+  generated eyes stay (MakeHuman's eye meshes and the teeth and tongue are not drawn); MakeHuman's
+  proxy meshes are not used; the sport top's hem rides over the skin at the small of the back in a
+  crouch or a seat (up to 19 vertices, 2.8 cm); measurement sliders do not read back in centimetres.
 - **Middle bodies cast no sun shadow** (rung 1's vertex-shader path draws only in the scene pass);
   rung 4's instanced crowd skinning adds a skinned shadow PSO.
 - **Middle-tier pose evaluation at 15 Hz with sharing**, and the far tier's baked animation: rung 4.

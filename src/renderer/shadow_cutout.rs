@@ -31,8 +31,9 @@
 /// otherwise be inert for every classic caster.
 pub(super) fn type_casts_cutout_shadow(t: f32) -> bool {
     // 12 = planet surface / terrain patch (its sprite tree cards discard on
-    // the atlas alpha), 19 = photoscanned foliage, 21 = baked cluster card.
-    (t >= 11.5 && t < 12.5) || (t >= 18.5 && t < 19.5) || (t >= 20.5 && t < 21.5)
+    // the atlas alpha), 19 = photoscanned foliage, 21 = baked cluster card,
+    // 26 = card hair (the look, 2026-11-09: the opaque core's alpha cut).
+    (t >= 11.5 && t < 12.5) || (t >= 18.5 && t < 19.5) || (t >= 20.5 && t < 21.5) || (t >= 25.5 && t < 26.5)
 }
 
 #[cfg(test)]

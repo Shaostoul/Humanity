@@ -100,6 +100,9 @@ pub mod animation;
 pub mod feet_ground;
 /// The foot probe: the drawn feet measured against the ground under them (rung 2a's proof).
 pub mod foot_probe;
+/// The garments' textures read off the frame and packed for the character materials (the look,
+/// 2026-11-09).
+pub mod look_textures;
 /// The game's one-shot sounds on the volume slider each belongs to, and the volumes' push (BUG-265).
 pub mod sfx;
 pub mod home_spawn;

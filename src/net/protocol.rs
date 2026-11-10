@@ -34,6 +34,13 @@ pub enum NetMessage {
     PlayerLeft {
         player_id: u32,
     },
+    /// A player's look changed (2026-11-09, character animation's "the look": `game_player_look`,
+    /// sent by the relay to the players who see them, at most once every ten seconds).
+    PlayerLook {
+        player_id: u32,
+        #[serde(skip)]
+        look: Option<humanity_core::player_look::PlayerLook>,
+    },
 
     // ── State sync ──
     /// Position/rotation update for a player (sent frequently).

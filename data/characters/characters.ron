@@ -71,6 +71,19 @@
         // offset (question 5: full realism where the budget allows, simplified automatically below).
         full_budget_ms: 1.0,
     ),
+    // THE LOOK (2026-11-09; docs/design/character-animation.md section 16): the base mesh both
+    // MakeHuman bodies share, beside which details.ron (the face and body detail sliders) and
+    // garments.ron (clothes, shoes, hats, hair, brows, lashes) are read. Each near person is built
+    // into their own shaped and dressed mesh when their look changes, off the frame: at most
+    // look_threads builds run at once, each on a worker thread (a build takes 2 to 15 ms; the player
+    // first), the rest waiting their turn, drawn as before meanwhile (their last mesh, or the shared
+    // body). The operator keeps a core of his own, so two by default.
+    look: Some("assets/models/characters/makehuman/makehuman_base.bin"),
+    look_threads: 2,
+    // Each half of a garment's packed texture (its colour, its normal map) is drawn at most this
+    // many texels each way: 1024 holds a person's cloth sharp to arm's length on a 1440p screen,
+    // and costs 11 MB of video memory a garment with its mips (section 16 has the measurements).
+    look_texture_px: 1024,
     // Each kind of wearer's defaults: the bodies a person of this kind is drawn with when their look
     // names none (one each, by a stable hash of who they are, so a crew is women and men), their
     // skin, hair and eyes when they have no look of their own, and each cosmetic slot's colour when
@@ -88,6 +101,29 @@
                 "legs": Rgb(0.20, 0.22, 0.28),
                 "feet": Rgb(0.12, 0.11, 0.10),
                 "hands": Skin,
+            },
+            // What a player wears when their look does not say (2026-11-09, the look): by body, the
+            // hair, brows and lashes (garments.ron ids) and each outfit slot's cosmetic
+            // (cosmetics.csv ids), each list's item picked by a stable hash of who they are.
+            dress: {
+                "female": (
+                    hair: ["bob01", "long01", "ponytail01", "bob02", "braid01"],
+                    brows: ["eyebrow001", "eyebrow002", "eyebrow006", "eyebrow010"],
+                    lashes: ["eyelashes01", "eyelashes02"],
+                    outfit: {
+                        "chest": ["mh_female_casualsuit01", "mh_female_casualsuit02"],
+                        "feet": ["mh_shoes01", "mh_shoes02", "mh_shoes04"],
+                    },
+                ),
+                "male": (
+                    hair: ["short02", "short01", "short03", "short04"],
+                    brows: ["eyebrow003", "eyebrow004", "eyebrow008", "eyebrow011"],
+                    lashes: ["eyelashes03", "eyelashes04"],
+                    outfit: {
+                        "chest": ["mh_male_casualsuit01", "mh_male_casualsuit02", "mh_male_casualsuit04", "mh_male_casualsuit06"],
+                        "feet": ["mh_shoes03", "mh_shoes05", "mh_shoes06"],
+                    },
+                ),
             },
         ),
         "crew": (
@@ -117,6 +153,65 @@
                 "european": (0.0, 1.0),
             },
             height: Some((0.94, 1.06)),
+            // The crew's working clothes: overalls and work shoes for everyone, their own hair.
+            dress: {
+                "female": (
+                    hair: ["ponytail01", "bob02", "braid01", "short03", "afro01"],
+                    brows: ["eyebrow001", "eyebrow005", "eyebrow007", "eyebrow009"],
+                    lashes: ["eyelashes01", "eyelashes02"],
+                    outfit: { "chest": ["mh_male_worksuit01", "mh_female_sportsuit01"], "feet": ["mh_shoes02", "mh_shoes05"] },
+                ),
+                "male": (
+                    hair: ["short02", "short01", "short04", "afro01"],
+                    brows: ["eyebrow003", "eyebrow004", "eyebrow008", "eyebrow012"],
+                    lashes: ["eyelashes03", "eyelashes04"],
+                    outfit: { "chest": ["mh_male_worksuit01"], "feet": ["mh_shoes02", "mh_shoes05"] },
+                ),
+            },
+        ),
+        // Anyone else (the dev crowd and the showcase line-ups today; later visitors who are neither
+        // players nor crew): the crew's variety of shapes, everyday clothes.
+        "other": (
+            bodies: ["female", "male"],
+            skin: (0.66, 0.48, 0.36),
+            hair: (0.12, 0.09, 0.07),
+            eyes: (0.25, 0.18, 0.12),
+            clothes: {
+                "head": Hair,
+                "chest": Rgb(0.88, 0.58, 0.16),
+                "legs": Rgb(0.26, 0.24, 0.22),
+                "feet": Rgb(0.14, 0.12, 0.10),
+                "hands": Skin,
+            },
+            shape: {
+                "muscle": (0.3, 0.75),
+                "weight": (0.2, 0.8),
+                "proportions": (0.3, 0.7),
+                "african": (0.0, 1.0),
+                "asian": (0.0, 1.0),
+                "european": (0.0, 1.0),
+            },
+            height: Some((0.94, 1.06)),
+            dress: {
+                "female": (
+                    hair: ["bob01", "long01", "ponytail01", "bob02", "braid01", "afro01", "short03"],
+                    brows: ["eyebrow001", "eyebrow002", "eyebrow005", "eyebrow006", "eyebrow007", "eyebrow010"],
+                    lashes: ["eyelashes01", "eyelashes02"],
+                    outfit: {
+                        "chest": ["mh_female_casualsuit01", "mh_female_casualsuit02", "mh_female_sportsuit01", "mh_female_elegantsuit01"],
+                        "feet": ["mh_shoes01", "mh_shoes02", "mh_shoes04", "mh_shoes05"],
+                    },
+                ),
+                "male": (
+                    hair: ["short01", "short02", "short03", "short04", "afro01"],
+                    brows: ["eyebrow003", "eyebrow004", "eyebrow008", "eyebrow011", "eyebrow012"],
+                    lashes: ["eyelashes03", "eyelashes04"],
+                    outfit: {
+                        "chest": ["mh_male_casualsuit01", "mh_male_casualsuit02", "mh_male_casualsuit03", "mh_male_casualsuit04", "mh_male_casualsuit05", "mh_male_casualsuit06", "mh_male_elegantsuit01"],
+                        "feet": ["mh_shoes01", "mh_shoes03", "mh_shoes05", "mh_shoes06"],
+                    },
+                ),
+            },
         ),
     },
 )

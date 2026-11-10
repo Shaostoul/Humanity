@@ -10,6 +10,10 @@
     id: "makehuman_male",
     description: "MakeHuman's male body: base mesh with a third of each ancestry, average muscle and weight; dressed by its regions.",
     model: "assets/models/characters/makehuman/makehuman_male.gltf",
+    // Its base file (2026-11-09, the look): every base vertex at this body's shape, its shape targets
+    // over all of them, and the base vertices each drawn vertex follows, so each near person is built
+    // into their own mesh (docs/design/character-animation.md section 16).
+    base: Some("assets/models/characters/makehuman/makehuman_male.base.bin"),
     role_map: "makehuman_default",
     skeleton: "humanoid",
     // Standing height at look height 1.0, as the converter measured it (the loader measures again).

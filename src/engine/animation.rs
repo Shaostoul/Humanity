@@ -86,6 +86,11 @@ pub(crate) struct Person {
     pub crouch: bool,
     /// Off the ground (a jump, a fall; another player's network stance).
     pub airborne: bool,
+    /// Their face and body detail slider values by id (the look, 2026-11-09; none: the body as made).
+    pub detail: std::collections::BTreeMap<String, f32>,
+    /// What their look says they wear (hair, brows, lashes, the outfit's cosmetics); what it does
+    /// not say is their wearer kind's default.
+    pub dress: humanity_animation::DressChoice,
 }
 
 /// Where a person's shape slider values come from (2026-11-09).
@@ -153,6 +158,10 @@ pub(crate) struct CrowdFigure {
 pub(crate) struct CrowdLook {
     pub body: String,
     pub shape: std::collections::BTreeMap<String, f32>,
+    /// Detail slider values (the look, 2026-11-09: a spec's `d:<id>=v`).
+    pub detail: std::collections::BTreeMap<String, f32>,
+    /// What it wears (a spec's `hair=`, `brows=`, `lashes=`, `wear:<slot>=<cosmetic id>`).
+    pub dress: humanity_animation::DressChoice,
 }
 
 /// What the last frame drew (the Dev page and the rigs read it).
@@ -174,6 +183,13 @@ pub(crate) struct Report {
     /// Near bodies the feet's budget gave the pelvis offset instead of the full solve this frame.
     pub feet_over_budget: usize,
     pub ground_queries: u32,
+    /// The look (2026-11-09): people drawn with their own mesh this frame, how many were built, what
+    /// the builds cost (milliseconds, all of them), the slowest one, and the own meshes' GPU bytes.
+    pub own: usize,
+    pub own_built: usize,
+    pub own_build_ms: f32,
+    pub own_build_max_ms: f32,
+    pub own_bytes: u64,
     pub error: Option<String>,
 }
 
@@ -191,6 +207,52 @@ struct Figure {
     feet: humanity_animation::FootPlacer,
     /// Seconds off the ground, while they are (rung 2a; the graph's jump reads it).
     air_s: f32,
+    /// Their own shaped and dressed mesh and its GPU body (the look, 2026-11-09), while they are near
+    /// (and for a few seconds after, so walking the near line does not build them again and again).
+    own: Option<OwnBody>,
+    /// Seconds since they last wanted their own mesh (near, the player, the showroom).
+    away_s: f32,
+    /// Their own mesh building on a worker thread, off the frame (2026-11-10).
+    building: Option<Building>,
+}
+
+/// A person's own mesh building on a worker thread: where the finished mesh and what it took
+/// (milliseconds) arrive.
+struct Building {
+    rx: std::sync::mpsc::Receiver<(humanity_animation::PersonMesh, f32)>,
+}
+
+/// A person's own mesh (`humanity_animation::look::build_person`) and the renderer's id for it.
+struct OwnBody {
+    mesh: humanity_animation::PersonMesh,
+    /// The body (index into the library's bodies) it was built on.
+    body: usize,
+    gpu: usize,
+    /// Its GPU bytes (vertices and indices), for the report's memory figure.
+    bytes: u64,
+}
+
+/// A person's own mesh is released once they have not wanted it for this long (seconds).
+const OWN_KEEP_S: f32 = 5.0;
+
+/// A garment's texture is let go once nobody near has worn it for this long (seconds): the GPU
+/// holds the textures of what people around you wear, not of every garment seen this session
+/// (2026-11-10: kept for the session, a rig's sweep reached 300 MB of garment textures, about 10.7
+/// MB each at `look_texture_px` 1024, and the library only grows).
+const GARMENT_KEEP_S: f32 = 30.0;
+
+/// A worn garment's packed texture (the look; engine::look_textures): read off the frame on a
+/// thread of its own the first time anyone wears it, then made into its template material once.
+enum GarmentTex {
+    /// Being read. `template` is the material it had before it was released (that material and the
+    /// garment's others get the new texture, so their indices stay), None the first time.
+    Loading { rx: std::sync::mpsc::Receiver<Result<crate::engine::look_textures::Packed, String>>, template: Option<usize> },
+    /// On the GPU; `used` is the runtime clock when someone near last wore it.
+    Ready { template: usize, has_normal: bool, mean_luma: f32, used: f32 },
+    /// Let go after `GARMENT_KEEP_S` unworn: its materials remain, without a texture, until it is
+    /// worn again.
+    Released { template: usize },
+    Failed,
 }
 
 /// THE FOOT PROBE (rung 2a, the proof's judge; showcase `foot_probe`): for a set time, every frame,
@@ -225,7 +287,8 @@ pub(crate) struct ProbeRow {
 }
 
 pub(crate) struct AnimationRuntime {
-    lib: Option<CharacterLibrary>,
+    /// Shared with the look's build workers (each holds it while it builds one person).
+    lib: Option<std::sync::Arc<CharacterLibrary>>,
     /// Each library body's GPU id, in the library's body order.
     gpu_bodies: Vec<usize>,
     tried: bool,
@@ -270,6 +333,22 @@ pub(crate) struct AnimationRuntime {
     /// `FeetDef::full_budget_ms` allows and the pelvis offset to the rest. A measurement, not a
     /// cache: it is taken again every frame.
     full_solve_us: f32,
+    /// The look's A/B (showcase `own_mesh`, 2026-11-09): false draws everyone with the shared body
+    /// as main did (shape on the GPU, clothes as tinted regions), for a same-boot measure.
+    pub(crate) look_on: bool,
+    /// The poke-through check's red arm (showcase `covers` 0): garments hide nothing under them.
+    pub(crate) covers_on: bool,
+    /// The foot probe's red arm for shoes (showcase `soles` 0): the soles of the body as made, so a
+    /// shod foot sinks by its sole.
+    pub(crate) soles_on: bool,
+    /// The textures' A/B (showcase `garment_textures` 0): garments drawn in their mean colour, for a
+    /// same-boot measure of what the textured and hair materials cost.
+    pub(crate) textures_on: bool,
+    /// Each worn garment's texture, by garment index (forgotten when the library is read again).
+    garment_tex: HashMap<usize, GarmentTex>,
+    /// Materials over the garments' textures, by (garment, colour, pass: 0 cloth or hair core, 1
+    /// hair fringe): a GPU allocation keyed by its own value, made once each, like `materials`.
+    garment_materials: HashMap<(usize, [u8; 3], u8), usize>,
 }
 
 impl Default for AnimationRuntime {
@@ -297,6 +376,12 @@ impl Default for AnimationRuntime {
             probe: None,
             my_height: None,
             full_solve_us: 0.0,
+            look_on: true,
+            covers_on: true,
+            soles_on: true,
+            textures_on: true,
+            garment_tex: HashMap::new(),
+            garment_materials: HashMap::new(),
         }
     }
 }
@@ -336,7 +421,12 @@ fn resolve_model(data_dir: &Path, rel: &str) -> PathBuf {
 /// Read the character library from a data folder with the glTF skin reader.
 pub(crate) fn read_library(data_dir: &Path) -> Result<CharacterLibrary, String> {
     let mut read = |rel: &str| crate::assets::skin::read_skinned_gltf(&resolve_model(data_dir, rel));
-    CharacterLibrary::load(data_dir, &mut read)
+    // The look's binary files (the base meshes, the detail targets, the garments), read whole.
+    let mut read_bytes = |rel: &str| {
+        let p = resolve_model(data_dir, rel);
+        std::fs::read(&p).map_err(|e| format!("{}: {e}", p.display()))
+    };
+    CharacterLibrary::load(data_dir, &mut read, &mut read_bytes)
 }
 
 /// Read the library if it has not been read, a file changed, or (reuse off) it is due again.
@@ -374,21 +464,51 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
                     log::warn!("Characters: {w}");
                 }
             }
-            // A new graph may have other states: every figure starts again.
+            // A new graph may have other states: every figure starts again (their own meshes' GPU
+            // bodies released first, unless every body was just cleared).
             if rt.lib.as_ref().map_or(true, |old| old.graph != lib.graph) {
+                for f in rt.figures.values_mut() {
+                    if let (Some(own), true) = (f.own.take(), same_models) {
+                        state.renderer.skin_release_body(own.gpu);
+                    }
+                }
                 rt.figures.clear();
             }
-            // A reshaped skeleton belongs to the library it was made from: made again from this one.
+            // A reshaped skeleton and a person's own mesh belong to the library they were made from:
+            // made again from this one (an own mesh's GPU body is released, unless every body was
+            // just cleared with the old models).
             for f in rt.figures.values_mut() {
                 f.shape = None;
+                f.building = None;
+                if let Some(own) = f.own.take() {
+                    if same_models {
+                        state.renderer.skin_release_body(own.gpu);
+                    }
+                }
             }
+            // Garment indices belong to the library they were read from.
+            rt.garment_tex.clear();
+            rt.garment_materials.clear();
             rt.report.body = lib.bodies.iter().map(|b| b.def.id.as_str()).collect::<Vec<_>>().join(",");
             rt.report.error = None;
             // The character page's body chooser lists the bodies a look can choose, and draws the
             // chosen body's shape sliders.
             state.gui_state.characters.body_choices = lib.characters.bodies.keys().cloned().collect();
             state.gui_state.characters.body_sliders = lib.bodies.iter().filter(|b| lib.characters.bodies.contains_key(&b.choice)).map(|b| (b.choice.clone(), b.slider_blocks.clone())).collect();
-            rt.lib = Some(lib);
+            // The look (2026-11-09): each body's detail sliders in the page's groups, and the hair
+            // styles, brows and lashes a character can wear.
+            state.gui_state.characters.detail_sliders = match lib.look.as_ref() {
+                Some(look) => lib.characters.bodies.keys().map(|choice| (choice.clone(), detail_blocks(look, choice))).collect(),
+                None => Default::default(),
+            };
+            state.gui_state.characters.wearables = match lib.look.as_ref() {
+                Some(look) => [("hair", humanity_animation::GarmentKind::Hair), ("brows", humanity_animation::GarmentKind::Brows), ("lashes", humanity_animation::GarmentKind::Lashes)]
+                    .into_iter()
+                    .map(|(name, kind)| (name.to_string(), look.garments.iter().filter(|g| g.def.kind == kind).map(|g| g.def.id.clone()).collect()))
+                    .collect(),
+                None => Default::default(),
+            };
+            rt.lib = Some(std::sync::Arc::new(lib));
         }
         Err(e) => {
             if rt.report.error.as_deref() != Some(e.as_str()) {
@@ -399,6 +519,25 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             rt.gpu_bodies.clear();
         }
     }
+}
+
+/// A body's detail sliders as the character page draws them: in details.ron's group order, each
+/// group's sliders in the file's order, only those for this body.
+pub(crate) fn detail_blocks(look: &humanity_animation::LookLibrary, choice: &str) -> Vec<humanity_core::player_look::DetailBlock> {
+    use humanity_core::player_look::{DetailBlock, DetailSliderView};
+    look.details_def
+        .groups
+        .iter()
+        .map(|g| DetailBlock {
+            group: g.clone(),
+            sliders: look
+                .sliders_for(choice)
+                .filter(|s| &s.group == g)
+                .map(|s| DetailSliderView { id: s.id.clone(), low: s.ends.0.clone(), high: s.ends.1.clone(), single: s.single() })
+                .collect(),
+        })
+        .filter(|b| !b.sliders.is_empty())
+        .collect()
 }
 
 /// The facing angle (turn of +Z about +Y) of a body looking along a camera at `yaw` (which looks
@@ -544,19 +683,42 @@ pub(crate) fn parse_lineup(spec: &str, feet: Vec3, forward: Vec3) -> Option<Vec<
         .enumerate()
         .map(|(i, s)| {
             let mut shape = std::collections::BTreeMap::new();
+            let mut detail = std::collections::BTreeMap::new();
+            let mut dress = humanity_animation::DressChoice::default();
             if *s != "-" {
                 for kv in s.split(',') {
                     let (k, v) = kv.split_once('=')?;
-                    let id = humanity_core::player_look::clean_shape_id(k.trim());
-                    let v: f32 = v.trim().parse().ok()?;
-                    if id.is_empty() || !v.is_finite() {
-                        return None;
+                    let (k, v) = (k.trim(), v.trim());
+                    // The look (2026-11-09): what it wears by id, and its detail sliders.
+                    let plain = |x: &str| humanity_core::player_look::clean_shape_id(x);
+                    match k {
+                        "hair" => dress.hair = Some(plain(v)),
+                        "brows" => dress.brows = Some(plain(v)),
+                        "lashes" => dress.lashes = Some(plain(v)),
+                        _ if k.starts_with("wear:") => {
+                            dress.outfit.insert(plain(&k[5..]), plain(v));
+                        }
+                        _ => {
+                            let (detailed, name) = match k.strip_prefix("d:") {
+                                Some(rest) => (true, rest),
+                                None => (false, k),
+                            };
+                            let id = plain(name);
+                            let v: f32 = v.parse().ok()?;
+                            if id.is_empty() || !v.is_finite() {
+                                return None;
+                            }
+                            if detailed {
+                                detail.insert(id, v);
+                            } else {
+                                shape.insert(id, v);
+                            }
+                        }
                     }
-                    shape.insert(id, v);
                 }
             }
             let at = feet + fwd * ahead + right * ((i as f32 - (n - 1.0) * 0.5) * gap);
-            Some(CrowdFigure { motion: CrowdMotion::Turn { at, rate: 0.0 }, phase, born: 0.0, look: Some(CrowdLook { body: body.clone(), shape }), crouch: false })
+            Some(CrowdFigure { motion: CrowdMotion::Turn { at, rate: 0.0 }, phase, born: 0.0, look: Some(CrowdLook { body: body.clone(), shape, detail, dress }), crouch: false })
         })
         .collect()
 }
@@ -607,6 +769,144 @@ pub(crate) fn region_colour(lib: &CharacterLibrary, tint: &Tint, p: &Person) -> 
     }
 }
 
+/// A colour as a material key (64 steps a channel).
+fn colour_key(c: [f32; 3]) -> [u8; 3] {
+    c.map(|x| (x.clamp(0.0, 1.0) * 63.0).round() as u8)
+}
+
+/// A plain character material of this colour and roughness: made once each, keyed by its value.
+fn tinted_material(materials: &mut HashMap<[u8; 4], usize>, renderer: &mut crate::renderer::Renderer, c: [f32; 3], roughness: f32) -> usize {
+    let q = colour_key(c);
+    let key = [q[0], q[1], q[2], (roughness.clamp(0.0, 1.0) * 63.0).round() as u8];
+    *materials.entry(key).or_insert_with(|| renderer.add_material_full([c[0], c[1], c[2], 1.0], 0.0, roughness, crate::renderer::materials::MATERIAL_TYPE_CHARACTER, 0.0))
+}
+
+/// A worn garment's texture (the look; engine::look_textures): its template material (white, the
+/// garment's own type), whether a normal map was packed and its colour's mean luminance, once
+/// ready; None while it loads (it starts loading here, off the frame, the first time) or when it
+/// failed (logged once). `uploads`: how many finished packs this frame may still put on the GPU.
+#[allow(clippy::too_many_arguments)]
+fn garment_texture(
+    tex: &mut HashMap<usize, GarmentTex>,
+    shared: &HashMap<(usize, [u8; 3], u8), usize>,
+    renderer: &mut crate::renderer::Renderer,
+    data_dir: &Path,
+    look: &humanity_animation::LookLibrary,
+    g: usize,
+    max_px: u32,
+    clock: f32,
+    uploads: &mut usize,
+) -> Option<(usize, bool, f32)> {
+    let start = |template: Option<usize>| {
+        let def = look.garments[g].def.clone();
+        let diffuse = resolve_model(data_dir, &def.diffuse);
+        let normal = def.normal.as_deref().map(|n| resolve_model(data_dir, n));
+        let ao = def.ao.as_deref().map(|n| resolve_model(data_dir, n));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new().name("garment-texture".into()).spawn(move || {
+            let _ = tx.send(crate::engine::look_textures::pack(&diffuse, normal.as_deref(), ao.as_deref(), def.alpha, def.size.0, max_px));
+        });
+        match spawned {
+            Ok(_) => GarmentTex::Loading { rx, template },
+            Err(e) => {
+                log::warn!("Characters: could not start reading garment {}'s textures ({e}); drawn in its colour", def.id);
+                GarmentTex::Failed
+            }
+        }
+    };
+    let entry = tex.entry(g).or_insert_with(|| start(None));
+    // Worn again after it was let go: read it again, into the materials it had.
+    if let GarmentTex::Released { template } = *entry {
+        *entry = start(Some(template));
+    }
+    // A finished pack goes onto the GPU only while this frame's texture upload is free.
+    if let (GarmentTex::Loading { rx, template: before }, true) = (&mut *entry, *uploads > 0) {
+        match rx.try_recv() {
+            Ok(Ok(p)) => {
+                *uploads -= 1;
+                // What the frame pays for the look (with the meshes' uploads): the texture onto the GPU.
+                let _cost = humanity_core::frame_costs::stage("cpu.look_build");
+                let t0 = std::time::Instant::now();
+                use crate::renderer::materials::{HAIR_CUTOFF, MATERIAL_TYPE_CHARACTER, MATERIAL_TYPE_HAIR};
+                let def = &look.garments[g].def;
+                let hn = if p.has_normal { 1.0 } else { 0.0 };
+                let (ty, params2) = if def.alpha { (MATERIAL_TYPE_HAIR, [1.0, hn, HAIR_CUTOFF, p.mean_luma]) } else { (MATERIAL_TYPE_CHARACTER, [1.0, hn, 0.0, 0.0]) };
+                let template = match *before {
+                    Some(t) => {
+                        renderer.set_character_texture(t, params2, &p.levels, p.size * 2, p.size);
+                        for (&(of, _, _), &m) in shared.iter() {
+                            if of == g && m != t {
+                                renderer.share_material_texture(m, t);
+                            }
+                        }
+                        t
+                    }
+                    None => renderer.add_character_material([1.0; 4], def.roughness, ty, params2, &p.levels, p.size * 2, p.size),
+                };
+                let bytes: usize = p.levels.iter().map(Vec::len).sum();
+                log::info!("Characters: garment {} textured, {} by {} texels ({:.1} MB with its mips), onto the GPU in {:.2} ms", def.id, p.size * 2, p.size, bytes as f64 / 1_048_576.0, t0.elapsed().as_secs_f32() * 1000.0);
+                *entry = GarmentTex::Ready { template, has_normal: p.has_normal, mean_luma: p.mean_luma, used: clock };
+            }
+            Ok(Err(e)) => {
+                log::warn!("Characters: garment {}'s textures did not read ({e}); drawn in its colour", look.garments[g].def.id);
+                *entry = GarmentTex::Failed;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => *entry = GarmentTex::Failed,
+        }
+    }
+    match entry {
+        GarmentTex::Ready { template, has_normal, mean_luma, used } => {
+            *used = clock;
+            Some((*template, *has_normal, *mean_luma))
+        }
+        _ => None,
+    }
+}
+
+/// Let go of the textures of garments nobody near has worn for `GARMENT_KEEP_S` (their template
+/// material and every material sharing its texture: other colours, hair's fringe pass).
+fn release_unworn_garments(tex: &mut HashMap<usize, GarmentTex>, shared: &HashMap<(usize, [u8; 3], u8), usize>, renderer: &mut crate::renderer::Renderer, clock: f32) {
+    for (&g, entry) in tex.iter_mut() {
+        if let GarmentTex::Ready { template, used, .. } = *entry {
+            if clock - used > GARMENT_KEEP_S {
+                for (&(of, _, _), &m) in shared.iter() {
+                    if of == g {
+                        renderer.drop_material_texture(m);
+                    }
+                }
+                renderer.drop_material_texture(template);
+                *entry = GarmentTex::Released { template };
+            }
+        }
+    }
+}
+
+/// The outfit slots a worn garment of this kind fills: the body's regions painted as those slots'
+/// clothes are the body under it (the look, 2026-11-09). MakeHuman's clothes are whole outfits, top
+/// and trousers in one.
+pub(crate) fn garment_slots(kind: humanity_animation::GarmentKind) -> &'static [&'static str] {
+    use humanity_animation::GarmentKind as K;
+    match kind {
+        K::Clothes => &["chest", "legs"],
+        K::Shoes => &["feet"],
+        K::Hat => &["head"],
+        K::Hair | K::Brows | K::Lashes => &[],
+    }
+}
+
+/// A garment's colour for a person: hair, brows and lashes in their hair colour (lashes darker, as
+/// lashes read), anything else its texture's mean colour (`garments.ron`).
+pub(crate) fn garment_colour(lib: &CharacterLibrary, def: &humanity_animation::look::GarmentDef, p: &Person) -> [f32; 3] {
+    use humanity_animation::GarmentKind as K;
+    let hair = p.hair.or(lib.wearer(p.wearer).map(|w| w.hair)).unwrap_or([0.2, 0.15, 0.1]);
+    match def.kind {
+        K::Hair | K::Brows => hair,
+        K::Lashes => hair.map(|c| c * 0.35),
+        _ => [def.colour.0, def.colour.1, def.colour.2],
+    }
+}
+
 /// Everyone to draw this frame.
 fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
     // People with no look of their own take varied shapes, unless the A/B (showcase
@@ -632,6 +932,8 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             up,
             crouch,
             airborne,
+            detail: app.detail.clone(),
+            dress: my_dress(app, &state.gui_state.outfit),
         }
     };
     if showroom {
@@ -668,12 +970,16 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             body: r.look.as_ref().map(|l| l.body.clone()),
             skin: r.look.as_ref().map(|l| l.skin),
             hair: r.look.as_ref().map(|l| l.hair),
-            eyes: None,
+            eyes: r.look.as_ref().and_then(|l| l.eyes),
             outfit: None,
             up: Vec3::Y,
             // How they stand, as their newest update said (rung 2a).
             crouch: r.posture.stance == humanity_core::stance::Stance::Crouch,
             airborne: r.posture.airborne,
+            // Their face and body details and what they wear, as their look carried it (the look,
+            // 2026-11-09; cleaned by PlayerLook's one reader, so only known ids arrive).
+            detail: r.look.as_ref().map(|l| l.detail.clone()).unwrap_or_default(),
+            dress: r.look.as_ref().map(|l| dress_of_wear(&l.wear)).unwrap_or_default(),
         });
     }
     for (_e, (t, n)) in world.query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemoteNpc)>().iter() {
@@ -692,19 +998,40 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             up: Vec3::Y,
             crouch: false,
             airborne: false,
+            detail: Default::default(),
+            dress: Default::default(),
         });
     }
     let clock = state.animation.clock;
     for (i, c) in state.animation.crowd.iter().enumerate() {
         let (feet, facing) = crowd_place(c, clock);
         let key = FigureKey::Crowd(i as u32);
-        let (shape, body) = match &c.look {
-            Some(l) => (ShapeValues::Look(l.shape.clone()), Some(l.body.clone())),
-            None => (no_look(key), None),
+        let (shape, body, detail, dress) = match &c.look {
+            Some(l) => (ShapeValues::Look(l.shape.clone()), Some(l.body.clone()), l.detail.clone(), l.dress.clone()),
+            None => (no_look(key), None, Default::default(), Default::default()),
         };
-        out.push(Person { key, feet, facing, height: 1.0, shape, wearer: "crew", body, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: c.crouch, airborne: false });
+        out.push(Person { key, feet, facing, height: 1.0, shape, wearer: "other", body, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: c.crouch, airborne: false, detail, dress });
     }
     out
+}
+
+/// What another player's look says they wear ("" is the viewer's default for that part).
+pub(crate) fn dress_of_wear(w: &humanity_core::player_look::LookWear) -> humanity_animation::DressChoice {
+    let id = |s: &str| (!s.is_empty()).then(|| s.to_string());
+    humanity_animation::DressChoice { hair: id(&w.hair), brows: id(&w.brows), lashes: id(&w.lashes), outfit: w.outfit.clone() }
+}
+
+/// What the player's look says they wear: the hair, brows and lashes chosen on the character page
+/// (an id nothing knows, as the old default "short", reads as the wearer kind's default), and the
+/// wardrobe's cosmetics by slot.
+pub(crate) fn my_dress(app: &humanity_core::ecs::components::Appearance, outfit: &humanity_core::ecs::components::Outfit) -> humanity_animation::DressChoice {
+    let id = |s: &str| (!s.is_empty()).then(|| s.to_string());
+    humanity_animation::DressChoice {
+        hair: id(&app.hair_style),
+        brows: id(&app.brows),
+        lashes: id(&app.lashes),
+        outfit: outfit.equipped.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+    }
 }
 
 /// The dev crowd as the old box figures (the A/B's boxes arm, and when the character data did not
@@ -778,7 +1105,15 @@ const SKELETON_JOINT_M: f32 = 0.03;
 /// moves to the station's orbital place (`station_off`) before the scene pass, which drew the body
 /// 400 km up, out of sight, until rung 2a (2026-11-09). lib.rs appends it after that shift, as it
 /// does the planet piece in hand.
-pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderObject>, render_space: &mut Vec<RenderObject>, overlay: &mut Vec<RenderObject>, showroom: bool, dt: f32) -> bool {
+pub(crate) fn draw_people(
+    state: &mut EngineState,
+    all_objects: &mut Vec<RenderObject>,
+    render_space: &mut Vec<RenderObject>,
+    transparent: &mut Vec<RenderObject>,
+    overlay: &mut Vec<RenderObject>,
+    showroom: bool,
+    dt: f32,
+) -> bool {
     let _cost = humanity_core::frame_costs::stage("cpu.animation");
     ensure_loaded(state);
     publish_my_height(state);
@@ -844,6 +1179,10 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
     };
     // Off the ship (on a planet) the player's own body stands in render space (`render_space`).
     let me_in_render_space = !showroom && !state.aboard_station;
+    // A cosmetic's garment (cosmetics.csv's `model`): None for an id the catalog does not know.
+    let data_dir = state.data_dir.clone();
+    let cosmetics = &state.cosmetics;
+    let model_of = |id: &str| -> Option<Option<String>> { cosmetics.iter().find(|c| c.id == id).map(|c| c.model.clone()) };
     let rt = &mut state.animation;
     let renderer = &mut state.renderer;
     let lib = rt.lib.as_ref().expect("draws_bodies checked it");
@@ -869,6 +1208,16 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
     let mut slots = vec![0usize; lib.bodies.len()];
     let mut fallback_used = 0usize;
     let reuse = humanity_core::reuse::enabled();
+    // Own meshes building on workers now (at most `look_threads`).
+    let mut in_flight = rt.figures.values().filter(|f| f.building.is_some()).count();
+    // What a frame puts on the GPU for the look (2026-11-10): one finished own mesh (about 1 ms, its
+    // buffers) and one garment texture (up to 11 MB with its mips); the rest wait a frame each, so
+    // a crowd arriving never piles every upload into one frame (the sweep's worst frame did).
+    let mut mesh_uploads = 1usize;
+    let mut texture_uploads = 1usize;
+    // Own meshes kept for people who left the near tier stay at most this many (the oldest go
+    // first), so a large crowd milling around the near line holds a bounded set.
+    let keep_cap = lib.characters.tiers.near_cap * 2;
     // The overlay's unit box (base at its origin, one metre each way) and its two bright materials.
     let skeleton_meshes = show_skeletons.then(|| {
         *rt.skeleton_meshes.get_or_insert_with(|| {
@@ -897,24 +1246,153 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
             shape: None,
             feet: humanity_animation::FootPlacer::default(),
             air_s: 0.0,
+            own: None,
+            away_s: 0.0,
+            building: None,
         });
         fig.seen = rt.frame;
-        let Figure { animator, motion, shape, feet, air_s, .. } = fig;
+        let Figure { animator, motion, shape, feet, air_s, own, away_s, building, .. } = fig;
+        // THE LOOK (2026-11-09; humanity_animation::look): a near person, the player and the
+        // showroom's figure are drawn with their OWN mesh, built once when their look changes (a
+        // version made from everything it is built from), on a worker thread off the frame (at most
+        // `look_threads` at once, the player first: they come first in the list), and every frame ON
+        // the frame with the reuse switch off; everyone else, and anyone still waiting for their
+        // first build, with the shared body and its shape on the GPU.
+        let wants_own = rt.look_on
+            && !rt.fallback_only
+            && body.base.is_some()
+            && (tier[i] == DrawTier::Near || matches!(p.key, FigureKey::Me | FigureKey::Showroom));
+        let mut own_key = None;
+        if let (true, Some(look), Some(base)) = (wants_own, lib.look.as_ref(), body.base.as_ref()) {
+            *away_s = 0.0;
+            let garments = lib.dress_for(bi, p.wearer, figure_seed(p.key), &p.dress, &model_of);
+            let inputs = humanity_animation::PersonInputs { shape: &weights, detail: &p.detail, garments: &garments, covers: rt.covers_on, soles: rt.soles_on };
+            let key = humanity_animation::look::look_key(bi, &inputs);
+            own_key = Some(key);
+            // A build that finished on its worker comes onto the GPU (even if their look moved on
+            // while it built: it is newer than what they had, and the next one is due at once).
+            let mut arrived: Option<(humanity_animation::PersonMesh, f32, bool)> = None;
+            if let (Some(b), true) = (building.as_ref(), mesh_uploads > 0) {
+                match b.rx.try_recv() {
+                    Ok((mesh, ms)) => {
+                        arrived = Some((mesh, ms, true));
+                        *building = None;
+                        in_flight = in_flight.saturating_sub(1);
+                        mesh_uploads -= 1;
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        log::warn!("Characters: {:?}'s own mesh build stopped without a mesh; trying again", p.key);
+                        *building = None;
+                        in_flight = in_flight.saturating_sub(1);
+                    }
+                }
+            }
+            let have = arrived.as_ref().map(|(m, _, _)| m.key).or(own.as_ref().map(|o| o.mesh.key));
+            let due = humanity_animation::look::rebuild_due(have, key, reuse);
+            if due && !reuse {
+                // The reuse switch off: built again on the frame, every frame, so nothing drawn is
+                // older than this frame's look.
+                let _cost = humanity_core::frame_costs::stage("cpu.look_build");
+                let t0 = std::time::Instant::now();
+                let mesh = humanity_animation::look::build_person(body, base, look, &lib.humanoid, &inputs, key);
+                arrived = Some((mesh, t0.elapsed().as_secs_f32() * 1000.0, false));
+            } else if due && building.is_none() && in_flight < lib.characters.look_threads.max(1) {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let job_lib = std::sync::Arc::clone(lib);
+                let (job_shape, job_detail, job_garments) = (weights.clone(), p.detail.clone(), garments.clone());
+                let (covers, soles) = (rt.covers_on, rt.soles_on);
+                let spawned = std::thread::Builder::new().name("look-build".into()).spawn(move || {
+                    let body = &job_lib.bodies[bi];
+                    let (Some(look), Some(base)) = (job_lib.look.as_ref(), body.base.as_ref()) else { return };
+                    let inputs = humanity_animation::PersonInputs { shape: &job_shape, detail: &job_detail, garments: &job_garments, covers, soles };
+                    let t0 = std::time::Instant::now();
+                    let mesh = humanity_animation::look::build_person(body, base, look, &job_lib.humanoid, &inputs, key);
+                    let _ = tx.send((mesh, t0.elapsed().as_secs_f32() * 1000.0));
+                });
+                match spawned {
+                    Ok(_) => {
+                        *building = Some(Building { rx });
+                        in_flight += 1;
+                    }
+                    Err(e) => {
+                        // No thread to be had: built on the frame instead, as before workers.
+                        log::warn!("Characters: could not start a build worker ({e}); building {:?} on the frame", p.key);
+                        let _cost = humanity_core::frame_costs::stage("cpu.look_build");
+                        let t0 = std::time::Instant::now();
+                        let mesh = humanity_animation::look::build_person(body, base, look, &lib.humanoid, &inputs, key);
+                        arrived = Some((mesh, t0.elapsed().as_secs_f32() * 1000.0, false));
+                    }
+                }
+            }
+            if let Some((mesh, ms, worker)) = arrived {
+                // What the frame pays for a person's new mesh: its GPU buffers (and, with the reuse
+                // switch off, the build itself, above).
+                let _cost = humanity_core::frame_costs::stage("cpu.look_build");
+                let t0 = std::time::Instant::now();
+                let gpu = match own.take() {
+                    Some(o) => {
+                        renderer.skin_replace_body(o.gpu, &mesh.model);
+                        o.gpu
+                    }
+                    None => renderer.skin_register_body(&mesh.model),
+                };
+                let upload_ms = t0.elapsed().as_secs_f32() * 1000.0;
+                if reuse {
+                    // Rare with reuse on (a look changed, someone came near): each build is logged
+                    // with its cost and size, the measurement section 16 of the plan quotes.
+                    log::info!(
+                        "Characters: built {:?}'s own mesh on {} in {ms:.2} ms {} ({} vertices, {} parts, lift {:.3} m), onto the GPU in {upload_ms:.2} ms",
+                        p.key,
+                        body.choice,
+                        if worker { "on a worker" } else { "on the frame" },
+                        mesh.model.vertex_count(),
+                        mesh.parts.len(),
+                        mesh.lift
+                    );
+                }
+                report.own_built += 1;
+                report.own_build_ms += ms;
+                report.own_build_max_ms = report.own_build_max_ms.max(ms);
+                let bytes = renderer.skin_body_bytes(gpu);
+                // The person's mesh and one near place's skinned copy of it (32 bytes a vertex).
+                humanity_core::frame_costs::set_vram_keyed("vram.characters", gpu as u64, bytes + mesh.model.vertex_count() as u64 * 32);
+                *own = Some(OwnBody { mesh, body: bi, gpu, bytes });
+            }
+        } else {
+            *away_s += dt;
+        }
+        // Their own mesh when it was built for the look they have now; with reuse on, also the last
+        // one built for them on this body while the next builds (a few frames), so a slider dragged
+        // on the character page never flickers to the shared body. With the reuse switch off every
+        // mesh drawn is this frame's.
+        let mine = own.as_ref().filter(|o| own_key == Some(o.mesh.key) || (reuse && own_key.is_some() && o.body == bi));
+        if let Some(o) = mine {
+            report.own += 1;
+            report.own_bytes += o.bytes;
+        }
+        let gpu_body = mine.map_or(gpu_body, |o| o.gpu);
         let kept = reuse && shape.as_ref().is_some_and(|(b, w, _, _)| *b == bi && *w == weights);
-        if !kept {
+        if !kept && mine.is_none() {
             *shape = body.reshaped(&weights).map(|s| {
                 let rig = person_rig(body, &s, &lib.humanoid);
                 (bi, weights.clone(), s, rig)
             });
         }
-        // The person's own skeleton and legs: reshaped for their shape, else the body's as made.
-        let (skel, rig) = match shape.as_ref() {
-            Some((_, _, s, r)) => (s, r.as_ref()),
-            None => (&body.skeleton, body.feet.as_ref()),
+        // The person's own skeleton and legs: from their own mesh, else reshaped for their shape,
+        // else the body's as made.
+        let (skel, rig) = match (mine, shape.as_ref()) {
+            (Some(o), _) => (&o.mesh.skeleton, o.mesh.feet.as_ref()),
+            (None, Some((_, _, s, r))) => (s, r.as_ref()),
+            (None, None) => (&body.skeleton, body.feet.as_ref()),
         };
-        if shape.is_some() {
+        if mine.is_some() || shape.is_some() {
             report.shaped += 1;
         }
+        // A shoe's sole stands the person this much higher (their own mesh's lift, model metres).
+        let lift = mine.map_or(0.0, |o| o.mesh.lift);
+        // The shape targets the GPU adds: none for an own mesh (its shape is in its vertices).
+        let gpu_weights: &[(usize, f32)] = if mine.is_some() { &[] } else { &weights };
         *air_s = if p.airborne { *air_s + dt } else { 0.0 };
         let input = motion.observe(p.feet, p.facing, dt, lib.graph.smoothing_s, lib.graph.teleport_mps);
         // The graph and its stride warping read speed in the body's own size: a body scaled or
@@ -932,7 +1410,8 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
         animator.update(&lib.graph, &body.clips, skel, &lib.humanoid, &input, dt, &mut rt.pose);
         pose::model_matrices(skel, &rt.pose, &mut rt.model);
         let rotation = body_rotation(p.up, p.facing);
-        let world = Mat4::from_scale_rotation_translation(Vec3::splat(scale), rotation, p.feet);
+        let origin = p.feet + p.up * (lift * scale);
+        let world = Mat4::from_scale_rotation_translation(Vec3::splat(scale), rotation, origin);
         // FEET ON THE WORLD (rung 2a, humanity_animation::feet): the near bodies in the realistic
         // animation mode get the full solve (leg IK, the foot turned to the slope about its toe,
         // foot locking, stair footsteps), every other body the pelvis offset alone.
@@ -971,11 +1450,12 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
         report.ground_queries += feet_report.queries;
         rt.rows.clear();
         pose::palette_rows(skel, &rt.model, &mut rt.rows);
-        let morph = pose::morph_rows(&weights, body.model.vertex_count() as u32);
+        let morph = pose::morph_rows(gpu_weights, body.model.vertex_count() as u32);
         let index = renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rt.rows);
         // The foot probe (showcase `foot_probe`): the drawn feet against the ground, near bodies.
         if let Some(probe) = rt.probe.as_mut().filter(|_| tier[i] == DrawTier::Near) {
-            let clear = crate::engine::foot_probe::clearances(body, &weights, &rt.rows, &world, p.up, &person_ground);
+            let (model, foot_verts) = mine.map_or((&body.model, &body.foot_vertices), |o| (&o.mesh.model, &o.mesh.foot_vertices));
+            let clear = crate::engine::foot_probe::clearances(model, foot_verts, gpu_weights, &rt.rows, &world, p.up, &person_ground);
             let mode_name = match mode {
                 FootMode::Full => "full",
                 FootMode::Pelvis => "pelvis",
@@ -1027,19 +1507,76 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
                 }
             }
         }
-        let materials: Vec<usize> = body
-            .primitive_regions
-            .iter()
-            .map(|&r| {
-                let region = &body.def.regions[r];
-                let c = region_colour(lib, &region.tint, p);
-                let q = |x: f32| (x.clamp(0.0, 1.0) * 63.0).round() as u8;
-                let key = [q(c[0]), q(c[1]), q(c[2]), q(region.roughness)];
-                *rt.materials.entry(key).or_insert_with(|| {
-                    renderer.add_material_full([c[0], c[1], c[2], 1.0], 0.0, region.roughness, crate::renderer::materials::MATERIAL_TYPE_CHARACTER, 0.0)
-                })
-            })
-            .collect();
+        // The hair's fringe materials (Scheuermann's second pass), by primitive, for the transparent
+        // list once the near meshes are known.
+        let mut fringes: Vec<(usize, usize)> = Vec::new();
+        let materials: Vec<usize> = match (mine, lib.look.as_ref()) {
+            // Their own mesh: the body's regions (a region painted as the clothes of a slot a worn
+            // garment fills takes the skin's colour: it is the body under the garment, showing only
+            // at its edges), then each garment, textured once its texture has loaded (its mean
+            // colour until then, and with the textures' A/B off).
+            (Some(o), Some(look)) => {
+                let worn: Vec<humanity_animation::GarmentKind> = o.mesh.parts.iter().filter_map(|part| match part {
+                    humanity_animation::Part::Garment(g) => look.garments.get(*g).map(|x| x.def.kind),
+                    _ => None,
+                }).collect();
+                let mut out = Vec::with_capacity(o.mesh.parts.len());
+                for (k, part) in o.mesh.parts.iter().enumerate() {
+                    let m = match *part {
+                        humanity_animation::Part::Region(r) => {
+                            let region = &body.def.regions[r];
+                            let under = matches!(&region.tint, Tint::Slot(s) if worn.iter().any(|kind| garment_slots(*kind).contains(&s.as_str())));
+                            let c = if under { region_colour(lib, &Tint::Skin, p) } else { region_colour(lib, &region.tint, p) };
+                            tinted_material(&mut rt.materials, renderer, c, region.roughness)
+                        }
+                        humanity_animation::Part::Garment(g) => {
+                            let def = &look.garments[g].def;
+                            let c = garment_colour(lib, def, p);
+                            let ready = if rt.textures_on { garment_texture(&mut rt.garment_tex, &rt.garment_materials, renderer, &data_dir, look, g, lib.characters.look_texture_px, rt.clock, &mut texture_uploads) } else { None };
+                            match ready {
+                                Some((template, has_normal, luma)) if def.alpha => {
+                                    use crate::renderer::materials::{HAIR_CUTOFF, MATERIAL_TYPE_HAIR};
+                                    let q = colour_key(c);
+                                    let hn = if has_normal { 1.0 } else { 0.0 };
+                                    let mut like = |pass: u8, cut: f32| {
+                                        *rt.garment_materials.entry((g, q, pass)).or_insert_with(|| {
+                                            renderer.add_material_like(template, [c[0], c[1], c[2], 1.0], def.roughness, MATERIAL_TYPE_HAIR, [1.0, hn, cut, luma]).unwrap_or(template)
+                                        })
+                                    };
+                                    let core = like(0, HAIR_CUTOFF);
+                                    fringes.push((k, like(1, -HAIR_CUTOFF)));
+                                    core
+                                }
+                                Some((template, _, _)) => template,
+                                None => tinted_material(&mut rt.materials, renderer, c, def.roughness),
+                            }
+                        }
+                    };
+                    out.push(m);
+                }
+                out
+            }
+            // The shared body (middle bodies, and anyone waiting for their own mesh): a region painted
+            // as a slot's clothes takes the colour of the garment that fills that slot (its
+            // texture's mean colour), so a person keeps their colours across the near line.
+            _ => {
+                let worn: Vec<&humanity_animation::look::GarmentDef> = match lib.look.as_ref() {
+                    Some(look) if !rt.fallback_only => lib.dress_for(bi, p.wearer, figure_seed(p.key), &p.dress, &model_of).into_iter().filter_map(|g| look.garments.get(g).map(|x| &x.def)).collect(),
+                    _ => Vec::new(),
+                };
+                body.primitive_regions
+                    .iter()
+                    .map(|&r| {
+                        let region = &body.def.regions[r];
+                        let filled = match &region.tint {
+                            Tint::Slot(s) => worn.iter().find(|d| garment_slots(d.kind).contains(&s.as_str())).map(|d| [d.colour.0, d.colour.1, d.colour.2]),
+                            _ => None,
+                        };
+                        tinted_material(&mut rt.materials, renderer, filled.unwrap_or_else(|| region_colour(lib, &region.tint, p)), region.roughness)
+                    })
+                    .collect()
+            }
+        };
         let near = tier[i] == DrawTier::Near || (!vs_ready && fallback_used < COMPUTE_FALLBACK_CAP);
         if near {
             if tier[i] == DrawTier::Near {
@@ -1048,11 +1585,26 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
                 report.fallback += 1;
                 fallback_used += 1;
             }
-            let meshes = renderer.skin_near(gpu_body, slots[bi], index);
-            slots[bi] += 1;
-            let list = if me_in_render_space && p.key == FigureKey::Me { &mut *render_space } else { &mut *all_objects };
-            for (mesh, material) in meshes.into_iter().zip(materials.iter().copied()) {
-                list.push(RenderObject { fade: 0.0, position: p.feet, rotation, scale: Vec3::splat(scale), mesh, material });
+            // Near places are numbered per shared body; a person's own body has its own place.
+            let meshes = if mine.is_some() {
+                renderer.skin_near(gpu_body, 0, index)
+            } else {
+                slots[bi] += 1;
+                renderer.skin_near(gpu_body, slots[bi] - 1, index)
+            };
+            let in_render_space = me_in_render_space && p.key == FigureKey::Me;
+            let list = if in_render_space { &mut *render_space } else { &mut *all_objects };
+            for (mesh, material) in meshes.iter().copied().zip(materials.iter().copied()) {
+                list.push(RenderObject { fade: 0.0, position: origin, rotation, scale: Vec3::splat(scale), mesh, material });
+            }
+            // The hair's soft fringe, blended over the solid core in the transparent list (home
+            // frame only: the player's own body on a planet keeps the core alone, a known limit).
+            if !in_render_space {
+                for &(k, material) in &fringes {
+                    if let Some(&mesh) = meshes.get(k) {
+                        transparent.push(RenderObject { fade: 0.0, position: origin, rotation, scale: Vec3::splat(scale), mesh, material });
+                    }
+                }
             }
         } else if vs_ready {
             report.middle += 1;
@@ -1061,7 +1613,29 @@ pub(crate) fn draw_people(state: &mut EngineState, all_objects: &mut Vec<RenderO
             }
         }
     }
+    // Garments nobody near has worn for a while give their textures back.
+    release_unworn_garments(&mut rt.garment_tex, &rt.garment_materials, renderer, rt.clock);
     let frame = rt.frame;
+    // Beyond the cap, the own meshes of the people longest out of the near tier go now.
+    let mut kept: Vec<(f32, FigureKey)> = rt.figures.iter().filter(|(_, f)| f.own.is_some() && f.away_s > 0.0).map(|(k, f)| (f.away_s, *k)).collect();
+    if kept.len() > keep_cap {
+        kept.sort_by(|a, b| b.0.total_cmp(&a.0));
+        for (_, k) in kept.iter().take(kept.len() - keep_cap) {
+            if let Some(f) = rt.figures.get_mut(k) {
+                f.away_s = OWN_KEEP_S + 1.0;
+            }
+        }
+    }
+    // People gone from the frame, and own meshes not wanted for a while, give their GPU bodies back.
+    for f in rt.figures.values_mut() {
+        if f.seen != frame || f.away_s > OWN_KEEP_S {
+            f.building = None;
+            if let Some(own) = f.own.take() {
+                renderer.skin_release_body(own.gpu);
+                humanity_core::frame_costs::set_vram_keyed("vram.characters", own.gpu as u64, 0);
+            }
+        }
+    }
     rt.figures.retain(|_, f| f.seen == frame);
     // What a full solve cost this frame, eased (one slow frame does not hand the crowd to the
     // pelvis offset); measured again every frame, so a faster frame raises the count back.
@@ -1115,3 +1689,7 @@ mod tests;
 #[cfg(test)]
 #[path = "animation_feet_tests.rs"]
 mod feet_tests;
+
+#[cfg(test)]
+#[path = "animation_look_tests.rs"]
+mod look_tests;

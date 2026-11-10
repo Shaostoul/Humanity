@@ -1,0 +1,471 @@
+# MakeHuman look: where it comes from
+
+Made by `scripts/gen-makehuman-look.js` (HumanityOS, character animation, the look, 2026-11-09) from
+MakeHuman's data files: the face and body detail targets, the slider list, and the system asset
+pack's clothes, shoes, hats, hair, brows and lashes. Do not edit these files by hand: change the
+converter and run it again. The bodies themselves: `SOURCE.md`.
+
+## Licence
+
+Dedicated to the public domain under **CC0 1.0 Universal**
+(https://creativecommons.org/publicdomain/zero/1.0/). MakeHuman's `LICENSE.md`, section C: "These
+assets have been released under CC0 1.0 Universal." Every clothes, hair and material file of the
+asset pack opens with: "This asset was explicitly released as CC0 in september 2020.", and the
+pack's own manifest (`packs/makehuman_system_assets.json`) gives `"license": "CC0"` for all 94
+assets. MakeHuman's source code is AGPL and none of it is used: the converter reads the files'
+formats itself. Finding: `docs/reference/findings/2026-11-08-character-assets.md` (its 2026-11-09
+addenda: the asset pack, and the detail targets).
+
+CC0 1.0 Universal, the operative words of its section 2: "To the greatest extent permitted by, but
+not in contravention of, applicable law, Affirmer hereby overtly, fully, permanently, irrevocably and
+unconditionally waives, abandons, and surrenders all of Affirmer's Copyright and Related Rights and
+associated claims and causes of action, whether now known or unknown (including existing as well as
+future claims and causes of action), in the Work". The full text:
+https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+## Sources
+
+- Detail targets: https://github.com/makehumancommunity/makehuman, commit `a8bc2d54ff0ac92e78ff71431b1023eda42bf482` (2024-06-26), fetched 2026-11-09, approved by the operator ("Yes."); `MANIFEST.json` SHA-256 `fda5a3bde5ca7deb90a69559ac2bce3b9edb462820d2d5f69011c8d22bcd025b`, each target checked against its git blob SHA-1 there (589 targets read).
+- The slider list: `modifiers/modeling_modifiers.json`, git blob `6cff6af98d4e7fa11b007b220d50dc1a627fc654` (the same commit).
+- Asset pack: `makehuman_system_assets_cc0.zip` from https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/, SHA-256 `b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107`, fetched 2026-11-09, approved by the operator ("Let's do it."); each file read checked against the CRC-32 the zip records. The files read, with their SHA-256:
+
+  - `clothes/fedora01/fedora.mhmat` `8d51b0a5d6d6e813d2af195261ad0a53e99bf4a52f91987b74b32941308820c5`
+  - `clothes/fedora01/fedora.obj` `09653260c082e2039f11b41615d6b59a7609d134aae3e2bfcf95da3ed555303c`
+  - `clothes/fedora01/fedora01.mhclo` `c3af725d316d7003d2d00fc3d79750edc431f71af9ef539051217a3d308d3b15`
+  - `clothes/fedora01/fedora01.thumb` `7ef63f274160042c7ab081358e674b0a8fe415f4654d8113debaebffad35c062`
+  - `clothes/fedora01/fedora_diffuse.png` `5bd5e7dbf74f630327f8b3d45cd3e475e85088a8f9cf7f9719872a9fc0b0ae7f`
+  - `clothes/fedora01/fedora_normal.png` `b0566987c8a0739e04ee15838d07660570c6d73623b4555fe5adcafb86e655f7`
+  - `clothes/fedora_cocked/fedora.mhmat` `8d51b0a5d6d6e813d2af195261ad0a53e99bf4a52f91987b74b32941308820c5`
+  - `clothes/fedora_cocked/fedora_cocked.mhclo` `368fcc2013e1f61286958c0e6f65768f1ef7181f39cecc9fc6d24ccb32a2fb41`
+  - `clothes/fedora_cocked/fedora_cocked.obj` `d58e30747086c30d623fc59bcabf58d4c5ce0b6fd8c08554afb4048dfb9c1400`
+  - `clothes/fedora_cocked/fedora_cocked.thumb` `66a390f3868bcf54de9c26a4b0f0c04ca268277099741edb6961e58ded484b08`
+  - `clothes/fedora_cocked/fedora_diffuse.png` `5bd5e7dbf74f630327f8b3d45cd3e475e85088a8f9cf7f9719872a9fc0b0ae7f`
+  - `clothes/fedora_cocked/fedora_normal.png` `b0566987c8a0739e04ee15838d07660570c6d73623b4555fe5adcafb86e655f7`
+  - `clothes/female_casualsuit01/female_casualsuit01.mhclo` `8a17e4edceeb22ef30ce102ed05fb3463ca0eeb61addc7811f4867fde5963fa4`
+  - `clothes/female_casualsuit01/female_casualsuit01.mhmat` `7bef35aade88daf9f4597f3b3c9a45be51cc51caf44012d12ac4e005c8087689`
+  - `clothes/female_casualsuit01/female_casualsuit01.obj` `b6cfaf08b291fe10ea312d37e98d5e328eced5828bdb6f96ecac6bf4ababe652`
+  - `clothes/female_casualsuit01/female_casualsuit01.thumb` `138a4bfb756f0cdfc8116d3f0ebcc14e1e20472bb225ead986b0cc3a8b291212`
+  - `clothes/female_casualsuit01/female_casualsuit01_ao.png` `f97a31fb02b5f36802a08bfe22bffb1961240d4ecb20059540eec6516d753424`
+  - `clothes/female_casualsuit01/female_casualsuit01_diffuse.png` `414d46afa55fba09ad0913484d57df2ba6b597dc8193595a13a12436137dc21b`
+  - `clothes/female_casualsuit01/female_casualsuit01_normal.png` `7bff7afbbc3f068e06f69abcddc8c2c9ce667ec181e0f2a918f8af78eba12610`
+  - `clothes/female_casualsuit02/female_casualsuit02.mhclo` `dbbce782dcb95f2dc9d9b70fe66629c9a177fe0a8d14fd546961ed01eeb556c8`
+  - `clothes/female_casualsuit02/female_casualsuit02.mhmat` `d44cdca8e96ce4f78b79b5a92e15d6c607820ea5c5e8c30fe0104188635cfc9a`
+  - `clothes/female_casualsuit02/female_casualsuit02.obj` `569ce1a79f61c1a213fd813d14da656863e6832badaa41225543fcba93bbe1ce`
+  - `clothes/female_casualsuit02/female_casualsuit02.thumb` `2a1e6d7c47961d3e8a3471ae7322d920f0265d91a54c2d43d518392414f1ad4c`
+  - `clothes/female_casualsuit02/female_casualsuit02_ao.png` `8605b461e6179447908906352f7678bef914d7c48bbdbe2cf92af1791416ada4`
+  - `clothes/female_casualsuit02/female_casualsuit02_diffuse.png` `23bd3c8e4df3993fe3bdb849daba7a4dd0476f3a28fd8402cd28abbb26666f49`
+  - `clothes/female_casualsuit02/female_casualsuit02_normal.png` `37143dabd78647ca37689f0b65d969c958a962d728dffd94e60c9beacf76a3df`
+  - `clothes/female_elegantsuit01/female_elegantsuit01.mhclo` `8ed657dbc49466e6a485993cfdcfd7b6ac30a0f44408dfd38de7a649477d8928`
+  - `clothes/female_elegantsuit01/female_elegantsuit01.mhmat` `a0b1708efbff3c4ad96f8e7d8cc27fb1652719549455ce94b89bcf6294cfbed0`
+  - `clothes/female_elegantsuit01/female_elegantsuit01.obj` `3b46cef6d63968954dc00c39ede649d76c05e5d36fe9f9c677349c88fd424de9`
+  - `clothes/female_elegantsuit01/female_elegantsuit01.thumb` `ea5a3491d544888a7187ace16da98f093b498a19220b19a8c317f78fbf2697c6`
+  - `clothes/female_elegantsuit01/female_elegantsuit01_ao.png` `0f89546c63ab16e2c1ba0556da7e07264b98b58e6200b043491f92f796b87673`
+  - `clothes/female_elegantsuit01/female_elegantsuit01_diffuse.png` `ebe6f2afcbaadbe56d5cee6e00bab45e97ce482f0be0e34491d16ca5f98b38ac`
+  - `clothes/female_elegantsuit01/female_elegantsuit01_normal.png` `ae3650bce6678cd67d025ab70e68b22683176aeaabc06d8e5b2129af99c762e9`
+  - `clothes/female_sportsuit01/female_sportsuit01.mhclo` `6df057d3116db93afbbbb6d692f92cce84aa16db699f47dd14e825d07c6fd42f`
+  - `clothes/female_sportsuit01/female_sportsuit01.mhmat` `1153d5ad8a074f0f02c7102375d6d3ae0b82302b6f3909b5b64609a2d5cfdd6b`
+  - `clothes/female_sportsuit01/female_sportsuit01.obj` `fd529bb8dd6a994c1e9a3fb2fd8b236f52c0cc7cebb1f6fd9328953d9df6d6ff`
+  - `clothes/female_sportsuit01/female_sportsuit01.thumb` `79169157b274530aae1fa0a6bc61c5a60bc92a96ba9070df062923f3857e3d12`
+  - `clothes/female_sportsuit01/female_sportsuit01_ao.png` `6faffbb99e3d20faeaf87cdddece43fee7d6b7262de3e55817545809f0368524`
+  - `clothes/female_sportsuit01/female_sportsuit01_diffuse.png` `00910e3e85b3dcf48d1aa827b4c075cdc77689989423ff4f75bc67f2e86cc588`
+  - `clothes/female_sportsuit01/female_sportsuit01_normal.png` `2bc78509fc4e74b2346dbb54f7f627644125a41573ee458d624246e337f1d28f`
+  - `clothes/male_casualsuit01/male_casualsuit01.mhclo` `78503ed7f56c149843d85e06e1164bc6871ce7319b2ef689237046352cc90de4`
+  - `clothes/male_casualsuit01/male_casualsuit01.mhmat` `043b25cefd398261b893d3dae58c81fc3e9633a25a01eafe66963591f5ad6eb6`
+  - `clothes/male_casualsuit01/male_casualsuit01.obj` `001921d237e408c35103720d046aa37f9c5512db1a179a5ede6a065cd504ba89`
+  - `clothes/male_casualsuit01/male_casualsuit01.thumb` `cd8a8c9461b164542d8660b9beaae17636040c9199020b65755a03559809cfc1`
+  - `clothes/male_casualsuit01/male_casualsuit01_ao.png` `9402d75d71318ef3ad90ee59f8b8688effefd13b3ec56423330e005bed5cd6c0`
+  - `clothes/male_casualsuit01/male_casualsuit01_diffuse.png` `3fd0bba5dcbdea0ac427f644a6c7c298938f7369b8f96626621ce1e88989394e`
+  - `clothes/male_casualsuit01/male_casualsuit01_normal.png` `ff029fc5a3350ebc72813cdf050afcffd23064c7701d99e664572713cfa98a5f`
+  - `clothes/male_casualsuit02/male_casualsuit02.mhclo` `f9e6821704a1508a02d5e416b2360785b705cfe5a130c359021a4b4570dcc43a`
+  - `clothes/male_casualsuit02/male_casualsuit02.mhmat` `20ab695fd8f6986e243427e03f8f9ec5a1c394ce8736eb6359f135a129ffb36a`
+  - `clothes/male_casualsuit02/male_casualsuit02.obj` `e07cbd1a43d21bd700e6598f01f74341a9dd66eac4e035c8be8de2650eac380f`
+  - `clothes/male_casualsuit02/male_casualsuit02.thumb` `e994394780be666443e70349b7f9e55704895e699054a45b4113037fdbab8e68`
+  - `clothes/male_casualsuit02/male_casualsuit02_ao.png` `ef7f75de0868fdbe01c05e3c8ac3ec2a59a35247b501473b3aba79e7901dfbd9`
+  - `clothes/male_casualsuit02/male_casualsuit02_diffuse.png` `8e1e63c471a8eb6ea8be48f2d540c15c81d2e7744ff80c8fdac86a6e6fde3179`
+  - `clothes/male_casualsuit02/male_casualsuit02_normal.png` `1c31a7a5fbbef1ee40176114295038703f370d163a3cf040f55b60c85369d12c`
+  - `clothes/male_casualsuit03/male_casualsuit03.mhclo` `ce796e4cc6ac312e0426d793ccc874d0d94c085e1c06764fe096ec8d59ae94c5`
+  - `clothes/male_casualsuit03/male_casualsuit03.mhmat` `5fbf673d1db072aecb850ced389201ae729794deee851c0668e810e6ad082e5b`
+  - `clothes/male_casualsuit03/male_casualsuit03.obj` `c55e02caa1f04126606eee5ac704637e9d3461bd527f26ade65e01973dc7aabb`
+  - `clothes/male_casualsuit03/male_casualsuit03.thumb` `ea180cea474eeba10ed73b13920adee4e87ea12c84f96a7d58b02caef90caf72`
+  - `clothes/male_casualsuit03/male_casualsuit03_ao.png` `b29aebd42545b874599be527c4ec8f89b851ba76613347b0475fac5188de7aea`
+  - `clothes/male_casualsuit03/male_casualsuit03_diffuse.png` `d9079ed2e52d23e1ccce53ddc3d4397e48883729f9324c97c2737f4f79af5153`
+  - `clothes/male_casualsuit03/male_casualsuit03_normal.png` `412c4610d3b2ea1cb04aa3c0715e747a7c9f61d865133b7d69f70eaa738cf99b`
+  - `clothes/male_casualsuit04/male_casualsuit04.mhclo` `8c1a2d3272cd51ba03f0840d593eddc6325d3d2c4c8529f8203d2c2cad3d0cef`
+  - `clothes/male_casualsuit04/male_casualsuit04.mhmat` `0408dea995c10e078ab79a3b68fa3092bdf18d3241b74fa35d48fe5397b42430`
+  - `clothes/male_casualsuit04/male_casualsuit04.obj` `9a56b7b1cb27589233dc048e8ccf1fd93d03f3a5c01a668f0e8a189ebdea7a34`
+  - `clothes/male_casualsuit04/male_casualsuit04.thumb` `1424bac2dc95c2d6906bc0435b8de77ce71c25a35c97eece9c6c589944a2c683`
+  - `clothes/male_casualsuit04/male_casualsuit04_ao.png` `0776e137bc8f37647c949b12384067d311df5fc7504d15af736e0647713c2754`
+  - `clothes/male_casualsuit04/male_casualsuit04_diffuse.png` `eb33337f43b006159773ab2fdff1293f51f72c3d0d24c132c2272b4deff9bcbe`
+  - `clothes/male_casualsuit04/male_casualsuit04_normal.png` `006c0c0dfecaeda1a749f737ac15bfc228ebb76dbbcbf9871993e267a545ca69`
+  - `clothes/male_casualsuit05/male_casualsuit05.mhclo` `df41c9fba3da054e35b964706ad2f8d189e65cc00a45f4a34f65235946f647f0`
+  - `clothes/male_casualsuit05/male_casualsuit05.mhmat` `e29fdf895bfc03ebf49f1fcb784cd41cfd8cf95beba4a0a54bc95c084b9b9528`
+  - `clothes/male_casualsuit05/male_casualsuit05.obj` `6069dd8b828591c16f74678c235387954775b815b5b77640d24fb7c9541b85c2`
+  - `clothes/male_casualsuit05/male_casualsuit05.thumb` `ad39df902cbf63ce390e00bf3ceec495a6f94c3827875f57f669746cccf51ffb`
+  - `clothes/male_casualsuit05/male_casualsuit05_ao.png` `cf22b778ce3d2c92cf0c5e7eef2bcc2a0d9812e578d4c08a4bb428eb33eacc66`
+  - `clothes/male_casualsuit05/male_casualsuit05_diffuse.png` `d4345efe9332c23e9302f5a3bca8c895004be841b5ebea593c96189870e3852a`
+  - `clothes/male_casualsuit05/male_casualsuit05_normal.png` `aec19a8fa1988aa178e7ead9f9c0b290fc441ed62ce47d5c4dd611a0037a796c`
+  - `clothes/male_casualsuit06/male_casualsuit06.mhclo` `9cebda22a0fa57fc556a1a77723f59b176724dc7e987c01214283677444ddcc5`
+  - `clothes/male_casualsuit06/male_casualsuit06.mhmat` `2210d331d0e319147280363e281a4e98d24b71e678dac243d1250f5d27e9169f`
+  - `clothes/male_casualsuit06/male_casualsuit06.obj` `9a86386435d7557a520320b8db4cd0ffe4755040044d1925c2b5730b864a603e`
+  - `clothes/male_casualsuit06/male_casualsuit06.thumb` `df34cd082fd23e39f25f78d64fb49c27ad5ed054077b4ea3b101c7a59a93e459`
+  - `clothes/male_casualsuit06/male_casualsuit06_ao.png` `dc27b02602060a8df4c1117f55bde7dea952342d847003afe2c6e12145301147`
+  - `clothes/male_casualsuit06/male_casualsuit06_diffuse.png` `e9a581e0d4eb64c7a031886f2faf109a4703a3046a5fcc97ea9ce9112e99a344`
+  - `clothes/male_casualsuit06/male_casualsuit06_normal.png` `ccdbf48a86eb922f5ccf38a7d3dc9de8828a6460c687eb84dacf8315d079a343`
+  - `clothes/male_elegantsuit01/male_elegantsuit01.mhclo` `6e725b0adac1a07173a14e15207d0b0125d5510455ef6dee756b5fa1c51cccef`
+  - `clothes/male_elegantsuit01/male_elegantsuit01.mhmat` `787bc0744174301c9ac0e33da4669bf37df9ac572ce950989f1bc6e71e938adf`
+  - `clothes/male_elegantsuit01/male_elegantsuit01.obj` `3f6dfc8c10de6160b1e23aad6b4b201b7651914bf3ea5bc8a8aba03e0c0298ea`
+  - `clothes/male_elegantsuit01/male_elegantsuit01.thumb` `8e3d5053b45c8bf55a8d452ce944ef7128c41bf4318e3f4de6752f25aaf972a3`
+  - `clothes/male_elegantsuit01/male_elegantsuit01_diffuse.png` `eba3c9b662a35f145f28c8932fe96c01db258080daf1a1c09807def5497e3420`
+  - `clothes/male_worksuit01/male_worksuit01.mhclo` `77561689f0e9eb13537f67e0582ce4e8b93fc7291ea87f57fd86b38b9114d4e1`
+  - `clothes/male_worksuit01/male_worksuit01.mhmat` `9af03afa0f8cf2d24b4fceb0bd0e3c400ae0975b402e0ea491a33fa32c3b560b`
+  - `clothes/male_worksuit01/male_worksuit01.obj` `d8ef4bf71aa6bd386958921c17e0eed263ef63abc8b50a2c8be6d482f6e1d3f7`
+  - `clothes/male_worksuit01/male_worksuit01.thumb` `fad50094363c841033ae160982bd5570f40140b6381a5a69562a9cbdf0898e7a`
+  - `clothes/male_worksuit01/male_worksuit01_ao.png` `1ed5f23c5efab316b98a295e1be7905009e61603657577eb922b4d1c99c46810`
+  - `clothes/male_worksuit01/male_worksuit01_diffuse.png` `4b59b50f7a8a0325c33e86e29f160f59b2385a6f413fccc88287a1c951c39901`
+  - `clothes/male_worksuit01/male_worksuit01_normal.png` `53f51fd31ec6760c26d377b250bfcdde84be46953f4c72821892b76d13055073`
+  - `clothes/shoes01/shoes01.mhclo` `7994e38f7cdcee0bd5f55101660badcce0162fcdfc7f432218dd1eb301626252`
+  - `clothes/shoes01/shoes01.mhmat` `db1711e2dfea4dd8c24459643603a190d9a9da603fd26da5542002a73d740be8`
+  - `clothes/shoes01/shoes01.mhw` `b377d91e6d0264521f672c3990c366b2631103accba4921fc3965c2ed5ce395b`
+  - `clothes/shoes01/shoes01.obj` `eac355a842a8eb8ae2f09fac8dd18a877a24ef2521ed2d6bf38559b42ce4b49a`
+  - `clothes/shoes01/shoes01.thumb` `a118291fe3e83e3c616febf52fdb480186c816e7cd4d77d331adffd457421cbb`
+  - `clothes/shoes01/shoes01_diffuse.png` `50c9a406a7f1cb6aa7b42912348e78f09d0252aa3963c8229cf18dfe8353cdbf`
+  - `clothes/shoes01/shoes01_normal.png` `a9bfd7223e98b8f93100e89596135e3a94e6044f9db11b4d23cec625c37a4599`
+  - `clothes/shoes02/shoes02.mhclo` `0d447fd6b7415d6b2603e91697336ee51ac2f00ef85878d6667e9acfb45a20fe`
+  - `clothes/shoes02/shoes02.mhmat` `7f2cb19506784fbe22ba3f766f94bb13d1eee1712dd29ed10b926c5905bab924`
+  - `clothes/shoes02/shoes02.mhw` `dba34894b93f102ea64d7ad21968894a9788c7a0770c066584a66a536a3e92b6`
+  - `clothes/shoes02/shoes02.obj` `5726aabac42ff489998d0a769545dea013961bbb71b9c6024d75170181a98818`
+  - `clothes/shoes02/shoes02.thumb` `0e41c095f5ff5a13c0d2b12a6c96d65d907137e1ae3fb120ff14300fc818015d`
+  - `clothes/shoes02/shoes02_diffuse.png` `efef94ea34b0e0c2283095cb47a9e0389b55449c61a4f4972d0ad4d2bf06b4f0`
+  - `clothes/shoes03/shoes03.mhclo` `5a388e18e6759db99bcc8c7d062a2b3bed02eecd32705731ba90063a6e35265b`
+  - `clothes/shoes03/shoes03.mhmat` `0104a8ecf68aa81bca878c12f909aca45a59e265f8b49cf4e4d5e2667773776e`
+  - `clothes/shoes03/shoes03.mhw` `5ea7e817c2db05da540a0d4a71c3fadb422b3560857b8b73873df39ad3e49b5f`
+  - `clothes/shoes03/shoes03.obj` `b03f46c0b5cdc38e4472e4747ba267f101e1e8ae88656180b1334986646108b2`
+  - `clothes/shoes03/shoes03.thumb` `ac461bf40bb9e125526198c6c827c0f5cfa5538ac86f25dd3efbff7d5aaf5a3c`
+  - `clothes/shoes03/shoes03_diffuse.png` `fe8216fbd0c34ecd3ac0e1a01970a4ccf844417be5fd1d72c527c9209256db93`
+  - `clothes/shoes04/shoes04.mhclo` `88223bf0c6168e85fd118015e4ca61612c6b35f42a79d7ce5df1864f1a6f715e`
+  - `clothes/shoes04/shoes04.mhmat` `dafb73d722453798f4d501f2bf2d668ba41c34fc252cd76d0716ea23baef8753`
+  - `clothes/shoes04/shoes04.mhw` `02ef7fcd42d6063f3a8b4d22a79bceb02ab9a67e23ee9f2252a63ec3e53e0f27`
+  - `clothes/shoes04/shoes04.obj` `eac355a842a8eb8ae2f09fac8dd18a877a24ef2521ed2d6bf38559b42ce4b49a`
+  - `clothes/shoes04/shoes04.thumb` `f6f6f0d30733ac1491072a453a82d105619c2af99228ec51d251cbf4776b8b7c`
+  - `clothes/shoes04/shoes04_diffuse.png` `dc3d3c294ba5bf4a47a7840172154ce7ab587ff0737ace0712c4cc310089c232`
+  - `clothes/shoes04/shoes04_normal.png` `a9bfd7223e98b8f93100e89596135e3a94e6044f9db11b4d23cec625c37a4599`
+  - `clothes/shoes05/shoes05.mhclo` `75fc467264b085d7a05ce0c9b5628bb364b246392c59524c556fa09f92b6cb16`
+  - `clothes/shoes05/shoes05.mhmat` `e59a9cc4d4c9a56cf9025beb26ca549986c97065cdb675d4f59bd9c5a27dbe8d`
+  - `clothes/shoes05/shoes05.mhw` `7963030c66988b4164003b3b02e4ef42a83069fa32fe09362e0c14ae2b730e25`
+  - `clothes/shoes05/shoes05.obj` `5726aabac42ff489998d0a769545dea013961bbb71b9c6024d75170181a98818`
+  - `clothes/shoes05/shoes05.thumb` `f5d86e0427638e592c787f91a0427ae09df51f0a4d34665a069cfa3fcbc451b8`
+  - `clothes/shoes05/shoes05_diffuse.png` `7fe5ea2600f6578cdf017da3392ae13aedabea8e8cc1dd6302a8f57e8fb7e5af`
+  - `clothes/shoes06/shoes06.mhclo` `c39144d8d9073474fb00a098954e6c4d8cc68c95ff6404eb3a984dd7870be3fd`
+  - `clothes/shoes06/shoes06.mhmat` `964f6279aa28cbb4da83d84e71328f31cf50c2831eaffa11c6c2077f96278611`
+  - `clothes/shoes06/shoes06.mhw` `4dddd303436b344bc2ee8142cde9b2f40d4086ea373e2330092a3af055368c5f`
+  - `clothes/shoes06/shoes06.obj` `5726aabac42ff489998d0a769545dea013961bbb71b9c6024d75170181a98818`
+  - `clothes/shoes06/shoes06.thumb` `31b24009786e31ccb0620adff6859fb23b907ffb98209b60f5121aececa8b5b2`
+  - `clothes/shoes06/shoes06_diffuse.png` `0be0432efcd3be47c8e6f0015acd7f685735190be6bb8533ceca60b56cc269d1`
+  - `eyebrows/eyebrow001/eyebrow001.mhclo` `54c8892c2ba577f4152d779ce1f20f7cd323beb8cbd9cb701796165c221b4f5b`
+  - `eyebrows/eyebrow001/eyebrow001.mhmat` `976e5f4f1d3922d7a11c6e2db233f8b4584b068d00619d5749687e81c92d61fc`
+  - `eyebrows/eyebrow001/eyebrow001.obj` `88b13146395133f3901715e11706cdfd293e5d6087ad7c5e01efe1485a26b513`
+  - `eyebrows/eyebrow001/eyebrow001.png` `9940f7d0b1b223709a19b05156ba6f6e9e4dbdbced02d7574f4d51d72c58967b`
+  - `eyebrows/eyebrow001/eyebrow001.thumb` `98b68eccf50977ff00242a33eb1dc6e3eaf4cc262e1f6c4ceca5c1c564f6c745`
+  - `eyebrows/eyebrow002/eyebrow002.mhclo` `550781113f5c3971e7e200450d7d94e2290d43e9449a42667d2bf972c1eb0593`
+  - `eyebrows/eyebrow002/eyebrow002.mhmat` `57fc4d1f089be90b2ab4774bdc7c077b5a519f33a293e57ee74762c7714a3b34`
+  - `eyebrows/eyebrow002/eyebrow002.obj` `7fe4e036311c41802bd6889acb02d1b06184a0dd759ac72e1d9fba1037243667`
+  - `eyebrows/eyebrow002/eyebrow002.png` `1de4e4cb69b3f4324390219ffbeb17a0b2555104d3211d1ac667655b69b64038`
+  - `eyebrows/eyebrow002/eyebrow002.thumb` `4acd972e24cb3dec29a72391d08fb0a88afc1b8ad7ec1dd903e017558c9a1e20`
+  - `eyebrows/eyebrow003/eyebrow003.mhclo` `43028df55838152be8568eaa9a736746a2581ca327129a443d8d214554448632`
+  - `eyebrows/eyebrow003/eyebrow003.mhmat` `91d53fb4fad2927ae412b38aaa8785bb26c6e886be049d5889a276ad3a875ea2`
+  - `eyebrows/eyebrow003/eyebrow003.obj` `dda3828f484f877f011fb8c52b75be0d7870561111739ff4cc5c83fb5ac6acd7`
+  - `eyebrows/eyebrow003/eyebrow003.png` `e98837d77247f2c11a8259f8b265243b9053ba55683bd70223c668110e7dfb62`
+  - `eyebrows/eyebrow003/eyebrow003.thumb` `f084be4df91306df1b646cfb02cac2feceaa3a0c70caf68af388385c506b8bbe`
+  - `eyebrows/eyebrow004/eyebrow004.mhclo` `c0d0c3a0e457ecf6a6a969bb57d1ddd42909845ad612d7ca3b129d265dd6c157`
+  - `eyebrows/eyebrow004/eyebrow004.mhmat` `e84a531d1a5cf4229e5c1985c97be0e515c7d5119ed98438a8850f05002d3e00`
+  - `eyebrows/eyebrow004/eyebrow004.obj` `f46d623621f28bbad757465721bcc7bbe816f0958d7a4b0f925b0e27733944e1`
+  - `eyebrows/eyebrow004/eyebrow004.png` `899b2ae3d6d46bef093b8da0fa2e2c21f07f7565b5e13c57139d1288a3a8e27e`
+  - `eyebrows/eyebrow004/eyebrow004.thumb` `87b1903a5d55759e06956090a1620b236d4da553f61a20b4e30205b4efdf43cc`
+  - `eyebrows/eyebrow005/eyebrow005.mhclo` `84e8aa146f1c7a2985d024bb741f43323c65c2970b4bb86491d8e6a7b0daaeef`
+  - `eyebrows/eyebrow005/eyebrow005.mhmat` `28ecdda0aefc150974d30867e7ef3cfc8e720d2daaf52c33493138af5df4322a`
+  - `eyebrows/eyebrow005/eyebrow005.obj` `c89d4d0b6f89a6bdf5a33c5e3ed22414046d2465e37ba9ecd2d75613dcb74e63`
+  - `eyebrows/eyebrow005/eyebrow005.png` `7258dd3cf12413289ac814f81ab6b6afa00827f7cbd5deda80743308dd8c0389`
+  - `eyebrows/eyebrow005/eyebrow005.thumb` `dd1e5f13e75743000bfd86913ce44d85f1dcb9971dcd9f117757429f245903dc`
+  - `eyebrows/eyebrow006/eyebrow006.mhclo` `3f14073a558605d78deb25b195c6db8c4ef1310ec5f3f230094b01f8cabd01ad`
+  - `eyebrows/eyebrow006/eyebrow006.mhmat` `0df50e6595ffdfcd485ba1f3d00f26b341dddb2c8e0df2c31fb72dd141b0df40`
+  - `eyebrows/eyebrow006/eyebrow006.obj` `7e3963bde6bc23a629eb78a9f83d050e247a5b1d370885afa0a92dede192cdb1`
+  - `eyebrows/eyebrow006/eyebrow006.png` `1f6d34d722ef18e73494e62f2c7f1a933ff58ce75d01fd34de21d178d5afe4d8`
+  - `eyebrows/eyebrow006/eyebrow006.thumb` `8683104da77c3088a40879f9f5304e7d22e3c9d5d7b11fdfe8024d38bd2b299e`
+  - `eyebrows/eyebrow007/eyebrow007.mhclo` `1c70518b0b4ed9cce46b5728e8b2ea1012466b54718f6ee82c03896546adb4ab`
+  - `eyebrows/eyebrow007/eyebrow007.mhmat` `f025cb04f2fc8e7443ff8aaede885042ef36659e2ad8eba75a576d865174a34d`
+  - `eyebrows/eyebrow007/eyebrow007.obj` `63326994bc56e0b0a29822d813daf96d48ba638e19523d9e21e9184e2f70e71f`
+  - `eyebrows/eyebrow007/eyebrow007.png` `1827b24aaa1c928353027c5a86b8db59c1c22f06258b18faa2117d81f5ff9b05`
+  - `eyebrows/eyebrow007/eyebrow007.thumb` `f162260f75eb55eca372a23250d99681257538844edacc9c5b6067834951fb1d`
+  - `eyebrows/eyebrow008/eyebrow008.mhclo` `2b9de3129344240abbbf19fbcb88c5f29f34ce1b9883229516c7e60f51bed226`
+  - `eyebrows/eyebrow008/eyebrow008.mhmat` `02ce64d7fd998268e3b0632d80c455551752a3eef09eba1fca99104eb89e6bdf`
+  - `eyebrows/eyebrow008/eyebrow008.obj` `096453e23c6a626ec79045e3c157fc726b678d7d7d957ddc56673aa59c6d34ea`
+  - `eyebrows/eyebrow008/eyebrow008.png` `b2243e030ca6e74d402f2ec421262f67773b13e1b9f1930fcca626b5cd8e7d84`
+  - `eyebrows/eyebrow008/eyebrow008.thumb` `e042642e862f0e189abe1ab393e14ee853a8565b1c16785ad7bc872ea670abb7`
+  - `eyebrows/eyebrow009/eyebrow009.mhclo` `14819547ba73a98baac1f6eb445e19c22010d2ea30b8a15ee0ca8767c0f3e509`
+  - `eyebrows/eyebrow009/eyebrow009.mhmat` `53eca588d5de9378b60f22153d212485e1c76ea907ffc8f5f97b6ca824fe55b0`
+  - `eyebrows/eyebrow009/eyebrow009.obj` `037a2edb3252e1fe4a57e63dcb1598916609fd0339f2b453b2f71e9c4cbd481c`
+  - `eyebrows/eyebrow009/eyebrow009.png` `4d33c85718ca5accf44625652daf0ae6e8cc007ed8138280e4d95601717910c3`
+  - `eyebrows/eyebrow009/eyebrow009.thumb` `509a9969749e3433e00caf83c63ab6cc2656f332795cd275d0bc93db88be4389`
+  - `eyebrows/eyebrow010/eyebrow010.mhclo` `f007d2739463323d1398f20e6c77afd683da997956527ce5bc7cf9e56160e81e`
+  - `eyebrows/eyebrow010/eyebrow010.mhmat` `5af8c410d415fc33bbb726245350cfd0ac7d6baec4a16ab07a2696c90539bfbb`
+  - `eyebrows/eyebrow010/eyebrow010.obj` `db7a9747ffdc534b10de584f2d140f2006cc528ffffb6eff5071fef2ed94dce9`
+  - `eyebrows/eyebrow010/eyebrow010.png` `d0aca671c7d51008177a2a607dc8eba3d3e84935375c6fcac2f85841563e44f3`
+  - `eyebrows/eyebrow010/eyebrow010.thumb` `d0b9381ff6666c6772d824a111b65be853e01daa94cee6dc6212ccdc8232944b`
+  - `eyebrows/eyebrow011/eyebrow011.mhclo` `7491fb45352a747bd702fe35f28246bc81bc3ef78e6224e9dcc839ef9d2c52c0`
+  - `eyebrows/eyebrow011/eyebrow011.mhmat` `be87ebee9b48d39ded7b3163b2d4b7b4b5f6da65c1e8884f425f5ff2e9c01a01`
+  - `eyebrows/eyebrow011/eyebrow011.obj` `cc1154d366466f402e30df8a0e54b679701b3b77850eab72a61727feba86394f`
+  - `eyebrows/eyebrow011/eyebrow011.png` `df767b406c6b04388e3bd4dd3ed627307948f5df3dff4e92d860e6b800a1ad07`
+  - `eyebrows/eyebrow011/eyebrow011.thumb` `0bb0d81ff31e6396f3f023d348f7e82627fcc7b4a6faa8109294e17a191b99e5`
+  - `eyebrows/eyebrow012/eyebrow012.mhclo` `780fa7314eb3775f09b0f804dbc9fa5be7ee5bc8960f5e27d0211b7827c3d8fa`
+  - `eyebrows/eyebrow012/eyebrow012.mhmat` `8c5c7d8893d0a23606525b767c427647ded3b8d2ccd849f782b6c8cfdcedf711`
+  - `eyebrows/eyebrow012/eyebrow012.obj` `0a8d119c47f2d037e0ace7d2121f756084d9c614a5aec24459b4aa3385c0811a`
+  - `eyebrows/eyebrow012/eyebrow012.png` `d352e9b3d6ccb9499be5e6cb5c0d462e8d7341539e1e28a003a29c83e5ca1b0f`
+  - `eyebrows/eyebrow012/eyebrow012.thumb` `c920b4f8c394bf658fb9d33c6581b5020afbfb6b46ec79a5b79134e81bc6b3f2`
+  - `eyelashes/eyelashes01/eyelashes01.mhclo` `5a86b29c15649273d723084954b7fa7bf199112571d4f58539b46734d397ee6b`
+  - `eyelashes/eyelashes01/eyelashes01.mhmat` `8029c99d94f3d87a1e81825fad6b90eec773ae6955a5b2592222ef237377e190`
+  - `eyelashes/eyelashes01/eyelashes01.obj` `f78f5b93fea1946fcae103d32c4f082dd9612a1ec2e7e2f90b03ebe59b0baf20`
+  - `eyelashes/eyelashes01/eyelashes01.png` `4b69c0fff2648874460e9caf80c31413c444218a5c50afebc425aeaa65484a35`
+  - `eyelashes/eyelashes01/eyelashes01.thumb` `34ab06601745c2b74fcfa6f63a374fcea58cb4501e728a3c6935a3a1ed794aa3`
+  - `eyelashes/eyelashes02/eyelashes02.mhclo` `51b858de6005bf9476035a739a695726b2227b853daf60cbf0f6b5eb9f70628e`
+  - `eyelashes/eyelashes02/eyelashes02.mhmat` `b4866317918a984e4a20a1ce67b56e7186da6dc5d5436fe0c36f1f058d7dcc6f`
+  - `eyelashes/eyelashes02/eyelashes02.obj` `331595b4e19a179be1fe603edc58ba6d088ab7898007b7e8321428efcbaf2eba`
+  - `eyelashes/eyelashes02/eyelashes02.png` `6375eb8934d86d49eb2a37589e179614fb557dd92a772ced11e269ad6d72d79d`
+  - `eyelashes/eyelashes02/eyelashes02.thumb` `48dae6fa3b3df136e16b52e1e277c0ca4424ecc821553750e5c04ef3341fbd2f`
+  - `eyelashes/eyelashes03/eyelashes03.mhclo` `d98e0c9b8c7df400fe850952fd7c8471eceeb5814ded4fece8bcceac8e55b2ec`
+  - `eyelashes/eyelashes03/eyelashes03.mhmat` `43a571e0a7587c3af38947164f668ff5a43a1396abbeb2da4af4e5262fceeaf6`
+  - `eyelashes/eyelashes03/eyelashes03.obj` `d1073c69e962e3b2524158d4b5e7026c85e4d181206d4d331dfbe2d2d16ac160`
+  - `eyelashes/eyelashes03/eyelashes03.png` `3bae1d182039b695d5012b0d463bdc6a7c6e6669c7e0cf2eadef35aec4023ec5`
+  - `eyelashes/eyelashes03/eyelashes03.thumb` `5d1cf28861f111770173e7204bea988579d31a17633c5ba76bc36002a311fbb7`
+  - `eyelashes/eyelashes04/eyelashes04.mhclo` `d63a2449072ce96a5d074ed8490970cd1476d4f4773b47c4523ae0c6a00a4aeb`
+  - `eyelashes/eyelashes04/eyelashes04.mhmat` `5948de950f129d79891a20f579fa6d2ec31b0278566cf0e63b49b0383a63d3f3`
+  - `eyelashes/eyelashes04/eyelashes04.obj` `2a9737362e993cf027be88fffbbf531dab42699682c571cda3e7e6f914be17da`
+  - `eyelashes/eyelashes04/eyelashes04.png` `e08c934091e227b38239f993427062f9006c7cf8f2f62cbef10076bd345dcb4a`
+  - `eyelashes/eyelashes04/eyelashes04.thumb` `50eaa038e01c24849d17ff9b2d4e7011101c0cf23a4fc5a64763f9414ff06796`
+  - `hair/afro01/afro01.mhclo` `9977bd4507e2dd1408504b7a39a6f585ffa2d3ba3aa40ad4bdc2844884bbebb5`
+  - `hair/afro01/afro01.mhmat` `6da1c6778df2450b135009274ed0145dc2dffbc5d8e287fc1d4c69ba539b483c`
+  - `hair/afro01/afro01.obj` `8344fffef15120a05a89219f31184ca2958537223fa885c885137ad1e97edcb8`
+  - `hair/afro01/afro01.thumb` `d371c511ce6b4c66ada60c5986d022a2f0113400088da20b532fc950fdf2845e`
+  - `hair/afro01/afro_diffuse.png` `dc0db7dd8a13802f02303ca7e49844b219e09db134471b7061538a8af8f7c7fb`
+  - `hair/bob01/bob01.mhclo` `a295b11ab6c7808afa1e01d0c79fb595bbbd7885f65252766486c9fcf6d158c5`
+  - `hair/bob01/bob01.mhmat` `9c3015044a832fb9a72a5d2f28218914ebfbdf6725cfd237cc53a3d95f054e3b`
+  - `hair/bob01/bob01.obj` `d7fb73806f47ee37ba3c37bcfadff40a91ba99635d08c3e02d94b4acbf97c231`
+  - `hair/bob01/bob01.thumb` `f354364f4fbd0d83982ba77d1e8e63e15a3f73a04bd43538d076237602965336`
+  - `hair/bob01/bob01_diffuse.png` `2b38bc7a028e06e8e633accb7fe2dd1b2bacbb9d32463df73f39f82e63ef9009`
+  - `hair/bob02/bob02.mhclo` `a48dcf87c6a618f9c6e90fcb00eed07cd59ab024d8d994606fa1b070da515b96`
+  - `hair/bob02/bob02.mhmat` `32c1712308159f4f5b3775a633352070245bf1ea8b6f837ab4f4ba82b5e9fccd`
+  - `hair/bob02/bob02.obj` `30d44038836d786364eb4134a9259cf93ca0c707f883861b0135ebfb149caa08`
+  - `hair/bob02/bob02.thumb` `88bb4a58e5dc55ebb6809bcf99968f8967ba2424b119c10df83ce1afb34bf4e3`
+  - `hair/bob02/bob02_diffuse.png` `38c88e6f71631356591f09b1f17a1bb5a99c3bb095b1a29003f1dc3d3e839b0d`
+  - `hair/braid01/braid01.mhclo` `e350614dab32230c47d67e7747079b89859d36e62a890ca47890f068eca4f7a9`
+  - `hair/braid01/braid01.mhmat` `c8fdc8452c94715e9bf8fc194c82dc1e53124475b0665058d31b142bf0f3f762`
+  - `hair/braid01/braid01.obj` `ad0b449c80244452bc8d437f5d59c25ec2ac17b2eb35e1ae2d9531fc00b73b0a`
+  - `hair/braid01/braid01.thumb` `b0fc877ff3c45aa0055ea89fde0fc1fc83c228ac22a27c28aeb8816b9b252e64`
+  - `hair/braid01/braid01_diffuse.png` `24c0d2a639f04704734c3e38af97d110777c1b203e5a10c66a5c89563643a018`
+  - `hair/long01/long01.mhclo` `94ecbebfd834da2cbee2ce90b730972590eb22a252ecd9592038ea736e063646`
+  - `hair/long01/long01.mhmat` `74ec88267e679d316f8037a074511ffc887b27e198ea381d0ae4a3f180f96760`
+  - `hair/long01/long01.obj` `7f1d6dadbdf9e96435251955d6657e77ea5433c9bc7c85a5c5f5e4eae0cb9a8c`
+  - `hair/long01/long01.thumb` `4cb13248134980fc69fdbe298e2bdde58864aec764243cb3c50cb0da7dc0ed98`
+  - `hair/long01/long01_diffuse.png` `e8dc25d90f8f62467e8630420e1240a400d070054fb7c3f1d3f7bf3e457d6c2c`
+  - `hair/ponytail01/ponytail01.mhclo` `97fc50b12bcb3b1c7b33edddd8d427a2604ffb06fe79b31132bf47f82d7afbac`
+  - `hair/ponytail01/ponytail01.mhmat` `b145f5a7c9606859ad523f5113482a1cf989cf0e26dccc2ea95c377cb1c2557f`
+  - `hair/ponytail01/ponytail01.obj` `d9f5fe96fbedbc8006220d87aad0e4a33d15286eb6b21f5929661cdc490ebf5a`
+  - `hair/ponytail01/ponytail01.thumb` `1dd14d9ce1c7bb7368f49757e3299a961190ea374c8dc140ff964b5f437d3383`
+  - `hair/ponytail01/ponytail01_diffuse.png` `dcb364300cac06ce8bef91b2f7c0970baf310898bbdd06b0c6b884ee9306eb97`
+  - `hair/short01/short01.mhclo` `ae1ffaa98da5753b803b3a173bede4895d2215e6bb94763f3765a71f0e984f35`
+  - `hair/short01/short01.mhmat` `01e2e12ce3f3d3c859225456660acadcdd27d4f4b4d888bcbd6f11998cadd975`
+  - `hair/short01/short01.obj` `d998d8416f9b5d5591f1d756f4d292288d000a6951bc0f4d2e8e72727bbc44fa`
+  - `hair/short01/short01.thumb` `7e942d29322841a07a8a3feaf438fb9efb6b54f5b733909cecc51e79dcaca995`
+  - `hair/short01/short01_diffuse.png` `f34a0957184e3d1e911ed59245f874f8d4843f61ee44ff49f43edb4be0196949`
+  - `hair/short02/short02.mhclo` `625736cdb73e6d094df6e5a2df18f371781f1d2cd37b0ae15795c5d7051c3ec2`
+  - `hair/short02/short02.mhmat` `2ed04c8aad9c1a35d858ca72091525d32b1da3b61b5a031634dd528fd8530f6d`
+  - `hair/short02/short02.obj` `48f979114adfa712165a69cc55c45a70831af1fb3cba8e2a89120f0c87407b64`
+  - `hair/short02/short02.thumb` `af21a0e84bfcc294b9840d90a04f1b6655ad909bc09328251886adffbc0727e8`
+  - `hair/short02/short02_diffuse.png` `47fe33831a3929567c733356dd66243116e05df2ace1f884ddca0080b728229f`
+  - `hair/short03/short03.mhclo` `d80bbb8fd9b06721c481756fb3e1d6dce04fcfc9ca8a379edd4ea3c0d81ed17f`
+  - `hair/short03/short03.mhmat` `8dcf42b677301ab6a66f96ff41751ecf88fba6c6cd7c564e6953f9c78e40a8fd`
+  - `hair/short03/short03.obj` `4a9fc385718f2c46fb328ab99d33e3a946cecdb717987c8b324cf2466b59bd9c`
+  - `hair/short03/short03.thumb` `aba276c3ddbcb6b2c5dc29eef595bd2e447bfd8ff530731454319ce301b1b782`
+  - `hair/short03/short03_diffuse.png` `fe6ed0bb14498a48a2e8fc07e80e2a6f62c8b67686fcd0a7a570d345faec97da`
+  - `hair/short04/short04.mhclo` `d60640aa4c4ffce1aa269647ba436b6ee0bb21bb948f927b84e27a48d2107157`
+  - `hair/short04/short04.mhmat` `7a3ac74db8478aa0afdb8a596c6fe3997d1a8a09d12211d70e8f1e9f0b7e0e97`
+  - `hair/short04/short04.obj` `676964a133ee35ffcea1195382bf75542da7a298931e4001bc7b0d7b707225de`
+  - `hair/short04/short04.thumb` `a7db8f3db6e2a53194993de73b875d000f928b66a8ac4d6efab51bfd8e6664fd`
+  - `hair/short04/short04_diffuse.png` `0bef7fc0e403db5a40fabb2111ebfa6f7e8158e204c6e56b8da98e9ef527846e`
+
+## What was made
+
+- `makehuman_details.bin`: 589 detail targets driven by 248 sliders (`data/characters/details.ron`).
+- 46 garments (`data/characters/garments.ron`): 12 clothes, 6 shoes, 2 hat, 10 hair, 12 brows, 4 lashes; 164 files, 174.1 MB in all.
+
+## Output hashes (SHA-256)
+
+`node scripts/gen-makehuman-look.js --check` compares the files with these when the sources are not
+on the machine.
+
+- `assets/models/characters/makehuman/makehuman_details.bin` `910f739bee99cbda4f9ad710d84cef16d4986dfd9befca50a6985490ac3dccf5`
+- `data/characters/details.ron` `83d262dd1962f6f1c517a179ea01ba155e03e807d536a36602d3b7d660644c1e`
+- `assets/models/characters/makehuman/garments/fedora01/fedora01.bin` `d2ecb554e91c76af6b6d8079a3a826c54843c535082c686f4998707cf5c409d8`
+- `assets/models/characters/makehuman/garments/fedora01/fedora_diffuse.png` `5bd5e7dbf74f630327f8b3d45cd3e475e85088a8f9cf7f9719872a9fc0b0ae7f`
+- `assets/models/characters/makehuman/garments/fedora01/fedora_normal.png` `b0566987c8a0739e04ee15838d07660570c6d73623b4555fe5adcafb86e655f7`
+- `assets/models/characters/makehuman/garments/fedora01/fedora01.thumb.png` `7ef63f274160042c7ab081358e674b0a8fe415f4654d8113debaebffad35c062`
+- `assets/models/characters/makehuman/garments/fedora_cocked/fedora_cocked.bin` `efd5ddf5d84676f6097afd703d959a407d4497e9f31db8b74ad1d538febe6bf1`
+- `assets/models/characters/makehuman/garments/fedora_cocked/fedora_diffuse.png` `5bd5e7dbf74f630327f8b3d45cd3e475e85088a8f9cf7f9719872a9fc0b0ae7f`
+- `assets/models/characters/makehuman/garments/fedora_cocked/fedora_normal.png` `b0566987c8a0739e04ee15838d07660570c6d73623b4555fe5adcafb86e655f7`
+- `assets/models/characters/makehuman/garments/fedora_cocked/fedora_cocked.thumb.png` `66a390f3868bcf54de9c26a4b0f0c04ca268277099741edb6961e58ded484b08`
+- `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01.bin` `fea997b6acb67a7d765245617bd08e3df14586b83d59474f2fd3ceb6a44c9e83`
+- `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01_diffuse.png` `414d46afa55fba09ad0913484d57df2ba6b597dc8193595a13a12436137dc21b`
+- `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01_normal.png` `7bff7afbbc3f068e06f69abcddc8c2c9ce667ec181e0f2a918f8af78eba12610`
+- `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01_ao.png` `f97a31fb02b5f36802a08bfe22bffb1961240d4ecb20059540eec6516d753424`
+- `assets/models/characters/makehuman/garments/female_casualsuit01/female_casualsuit01.thumb.png` `138a4bfb756f0cdfc8116d3f0ebcc14e1e20472bb225ead986b0cc3a8b291212`
+- `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02.bin` `9b9c292222f45b16a468ca5a4b9f5952d988db4007896f2077ed3b5624ee1043`
+- `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02_diffuse.png` `23bd3c8e4df3993fe3bdb849daba7a4dd0476f3a28fd8402cd28abbb26666f49`
+- `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02_normal.png` `37143dabd78647ca37689f0b65d969c958a962d728dffd94e60c9beacf76a3df`
+- `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02_ao.png` `8605b461e6179447908906352f7678bef914d7c48bbdbe2cf92af1791416ada4`
+- `assets/models/characters/makehuman/garments/female_casualsuit02/female_casualsuit02.thumb.png` `2a1e6d7c47961d3e8a3471ae7322d920f0265d91a54c2d43d518392414f1ad4c`
+- `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01.bin` `e731c8fdaa7e804245b5d61c9eb4ae9ef1de476eb9d5015f4af8df9168097c49`
+- `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01_diffuse.png` `ebe6f2afcbaadbe56d5cee6e00bab45e97ce482f0be0e34491d16ca5f98b38ac`
+- `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01_normal.png` `ae3650bce6678cd67d025ab70e68b22683176aeaabc06d8e5b2129af99c762e9`
+- `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01_ao.png` `0f89546c63ab16e2c1ba0556da7e07264b98b58e6200b043491f92f796b87673`
+- `assets/models/characters/makehuman/garments/female_elegantsuit01/female_elegantsuit01.thumb.png` `ea5a3491d544888a7187ace16da98f093b498a19220b19a8c317f78fbf2697c6`
+- `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01.bin` `781ccb921dc349d0e177e380d4b416da22e4bfd5e7d675b6e900b4338cb99a6a`
+- `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01_diffuse.png` `00910e3e85b3dcf48d1aa827b4c075cdc77689989423ff4f75bc67f2e86cc588`
+- `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01_normal.png` `2bc78509fc4e74b2346dbb54f7f627644125a41573ee458d624246e337f1d28f`
+- `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01_ao.png` `6faffbb99e3d20faeaf87cdddece43fee7d6b7262de3e55817545809f0368524`
+- `assets/models/characters/makehuman/garments/female_sportsuit01/female_sportsuit01.thumb.png` `79169157b274530aae1fa0a6bc61c5a60bc92a96ba9070df062923f3857e3d12`
+- `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01.bin` `3587f1e038bbb2d972e6945a3433a859f89ae79104e9ef0bc6fcc41acc1cb303`
+- `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01_diffuse.png` `3fd0bba5dcbdea0ac427f644a6c7c298938f7369b8f96626621ce1e88989394e`
+- `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01_normal.png` `ff029fc5a3350ebc72813cdf050afcffd23064c7701d99e664572713cfa98a5f`
+- `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01_ao.png` `9402d75d71318ef3ad90ee59f8b8688effefd13b3ec56423330e005bed5cd6c0`
+- `assets/models/characters/makehuman/garments/male_casualsuit01/male_casualsuit01.thumb.png` `cd8a8c9461b164542d8660b9beaae17636040c9199020b65755a03559809cfc1`
+- `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02.bin` `5ca7066d879ffa26e3ed7e58c75618988d94f96194eb8a96ee53c2296179e85f`
+- `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02_diffuse.png` `8e1e63c471a8eb6ea8be48f2d540c15c81d2e7744ff80c8fdac86a6e6fde3179`
+- `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02_normal.png` `1c31a7a5fbbef1ee40176114295038703f370d163a3cf040f55b60c85369d12c`
+- `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02_ao.png` `ef7f75de0868fdbe01c05e3c8ac3ec2a59a35247b501473b3aba79e7901dfbd9`
+- `assets/models/characters/makehuman/garments/male_casualsuit02/male_casualsuit02.thumb.png` `e994394780be666443e70349b7f9e55704895e699054a45b4113037fdbab8e68`
+- `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03.bin` `0f236d28689d5caddf5f6ac42d393645975f0b311832008289bc4ea2efd6a888`
+- `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03_diffuse.png` `d9079ed2e52d23e1ccce53ddc3d4397e48883729f9324c97c2737f4f79af5153`
+- `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03_normal.png` `412c4610d3b2ea1cb04aa3c0715e747a7c9f61d865133b7d69f70eaa738cf99b`
+- `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03_ao.png` `b29aebd42545b874599be527c4ec8f89b851ba76613347b0475fac5188de7aea`
+- `assets/models/characters/makehuman/garments/male_casualsuit03/male_casualsuit03.thumb.png` `ea180cea474eeba10ed73b13920adee4e87ea12c84f96a7d58b02caef90caf72`
+- `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04.bin` `3c4824f62423bada992d651bc3ea10727beaf67689322ab30be491068401b3c2`
+- `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04_diffuse.png` `eb33337f43b006159773ab2fdff1293f51f72c3d0d24c132c2272b4deff9bcbe`
+- `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04_normal.png` `006c0c0dfecaeda1a749f737ac15bfc228ebb76dbbcbf9871993e267a545ca69`
+- `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04_ao.png` `0776e137bc8f37647c949b12384067d311df5fc7504d15af736e0647713c2754`
+- `assets/models/characters/makehuman/garments/male_casualsuit04/male_casualsuit04.thumb.png` `1424bac2dc95c2d6906bc0435b8de77ce71c25a35c97eece9c6c589944a2c683`
+- `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05.bin` `ecd31959b5131528939cd92dcec54b42bc28d389479f4e8ffc5355b85b6a5cfd`
+- `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05_diffuse.png` `d4345efe9332c23e9302f5a3bca8c895004be841b5ebea593c96189870e3852a`
+- `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05_normal.png` `aec19a8fa1988aa178e7ead9f9c0b290fc441ed62ce47d5c4dd611a0037a796c`
+- `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05_ao.png` `cf22b778ce3d2c92cf0c5e7eef2bcc2a0d9812e578d4c08a4bb428eb33eacc66`
+- `assets/models/characters/makehuman/garments/male_casualsuit05/male_casualsuit05.thumb.png` `ad39df902cbf63ce390e00bf3ceec495a6f94c3827875f57f669746cccf51ffb`
+- `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06.bin` `56e5bbded45b656f04e12f8555cebc53e9bc3f8358fb731fae397e7134db51d4`
+- `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06_diffuse.png` `e9a581e0d4eb64c7a031886f2faf109a4703a3046a5fcc97ea9ce9112e99a344`
+- `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06_normal.png` `ccdbf48a86eb922f5ccf38a7d3dc9de8828a6460c687eb84dacf8315d079a343`
+- `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06_ao.png` `dc27b02602060a8df4c1117f55bde7dea952342d847003afe2c6e12145301147`
+- `assets/models/characters/makehuman/garments/male_casualsuit06/male_casualsuit06.thumb.png` `df34cd082fd23e39f25f78d64fb49c27ad5ed054077b4ea3b101c7a59a93e459`
+- `assets/models/characters/makehuman/garments/male_elegantsuit01/male_elegantsuit01.bin` `b20c0ac6bc80f6785e316f652ed76085b03c4810e140e07d85820cd10bec328b`
+- `assets/models/characters/makehuman/garments/male_elegantsuit01/male_elegantsuit01_diffuse.png` `eba3c9b662a35f145f28c8932fe96c01db258080daf1a1c09807def5497e3420`
+- `assets/models/characters/makehuman/garments/male_elegantsuit01/male_elegantsuit01.thumb.png` `8e3d5053b45c8bf55a8d452ce944ef7128c41bf4318e3f4de6752f25aaf972a3`
+- `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01.bin` `29602b02f518e6fd0222cc19c2e60a4a59f15896fc21673efaaea1e2c55d7c57`
+- `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01_diffuse.png` `4b59b50f7a8a0325c33e86e29f160f59b2385a6f413fccc88287a1c951c39901`
+- `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01_normal.png` `53f51fd31ec6760c26d377b250bfcdde84be46953f4c72821892b76d13055073`
+- `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01_ao.png` `1ed5f23c5efab316b98a295e1be7905009e61603657577eb922b4d1c99c46810`
+- `assets/models/characters/makehuman/garments/male_worksuit01/male_worksuit01.thumb.png` `fad50094363c841033ae160982bd5570f40140b6381a5a69562a9cbdf0898e7a`
+- `assets/models/characters/makehuman/garments/shoes01/shoes01.bin` `7f648bad965b5feb23117eda7f9c2a6a35572f6913b5f4602d76b01afbca42fb`
+- `assets/models/characters/makehuman/garments/shoes01/shoes01_diffuse.png` `50c9a406a7f1cb6aa7b42912348e78f09d0252aa3963c8229cf18dfe8353cdbf`
+- `assets/models/characters/makehuman/garments/shoes01/shoes01_normal.png` `a9bfd7223e98b8f93100e89596135e3a94e6044f9db11b4d23cec625c37a4599`
+- `assets/models/characters/makehuman/garments/shoes01/shoes01.thumb.png` `a118291fe3e83e3c616febf52fdb480186c816e7cd4d77d331adffd457421cbb`
+- `assets/models/characters/makehuman/garments/shoes02/shoes02.bin` `b332879478646861f6c222ed93dbcbb9e1ebad4086e3a557b7000158edc18a7b`
+- `assets/models/characters/makehuman/garments/shoes02/shoes02_diffuse.png` `efef94ea34b0e0c2283095cb47a9e0389b55449c61a4f4972d0ad4d2bf06b4f0`
+- `assets/models/characters/makehuman/garments/shoes02/shoes02.thumb.png` `0e41c095f5ff5a13c0d2b12a6c96d65d907137e1ae3fb120ff14300fc818015d`
+- `assets/models/characters/makehuman/garments/shoes03/shoes03.bin` `77c043694912d57deefb3a9c19d8051d95ef541df2611e91c4495585be265520`
+- `assets/models/characters/makehuman/garments/shoes03/shoes03_diffuse.png` `fe8216fbd0c34ecd3ac0e1a01970a4ccf844417be5fd1d72c527c9209256db93`
+- `assets/models/characters/makehuman/garments/shoes03/shoes03.thumb.png` `ac461bf40bb9e125526198c6c827c0f5cfa5538ac86f25dd3efbff7d5aaf5a3c`
+- `assets/models/characters/makehuman/garments/shoes04/shoes04.bin` `7f648bad965b5feb23117eda7f9c2a6a35572f6913b5f4602d76b01afbca42fb`
+- `assets/models/characters/makehuman/garments/shoes04/shoes04_diffuse.png` `dc3d3c294ba5bf4a47a7840172154ce7ab587ff0737ace0712c4cc310089c232`
+- `assets/models/characters/makehuman/garments/shoes04/shoes04_normal.png` `a9bfd7223e98b8f93100e89596135e3a94e6044f9db11b4d23cec625c37a4599`
+- `assets/models/characters/makehuman/garments/shoes04/shoes04.thumb.png` `f6f6f0d30733ac1491072a453a82d105619c2af99228ec51d251cbf4776b8b7c`
+- `assets/models/characters/makehuman/garments/shoes05/shoes05.bin` `b332879478646861f6c222ed93dbcbb9e1ebad4086e3a557b7000158edc18a7b`
+- `assets/models/characters/makehuman/garments/shoes05/shoes05_diffuse.png` `7fe5ea2600f6578cdf017da3392ae13aedabea8e8cc1dd6302a8f57e8fb7e5af`
+- `assets/models/characters/makehuman/garments/shoes05/shoes05.thumb.png` `f5d86e0427638e592c787f91a0427ae09df51f0a4d34665a069cfa3fcbc451b8`
+- `assets/models/characters/makehuman/garments/shoes06/shoes06.bin` `b332879478646861f6c222ed93dbcbb9e1ebad4086e3a557b7000158edc18a7b`
+- `assets/models/characters/makehuman/garments/shoes06/shoes06_diffuse.png` `0be0432efcd3be47c8e6f0015acd7f685735190be6bb8533ceca60b56cc269d1`
+- `assets/models/characters/makehuman/garments/shoes06/shoes06.thumb.png` `31b24009786e31ccb0620adff6859fb23b907ffb98209b60f5121aececa8b5b2`
+- `assets/models/characters/makehuman/garments/afro01/afro01.bin` `66d87757305b4080dba9ff61bfb34525e7f09528f2e76b247ea3d737992bf951`
+- `assets/models/characters/makehuman/garments/afro01/afro_diffuse.png` `dc0db7dd8a13802f02303ca7e49844b219e09db134471b7061538a8af8f7c7fb`
+- `assets/models/characters/makehuman/garments/afro01/afro01.thumb.png` `d371c511ce6b4c66ada60c5986d022a2f0113400088da20b532fc950fdf2845e`
+- `assets/models/characters/makehuman/garments/bob01/bob01.bin` `05fa7f2279281e7d0715d1fa2af304a90ff69ebb13d660bdffa4c611c18b775b`
+- `assets/models/characters/makehuman/garments/bob01/bob01_diffuse.png` `2b38bc7a028e06e8e633accb7fe2dd1b2bacbb9d32463df73f39f82e63ef9009`
+- `assets/models/characters/makehuman/garments/bob01/bob01.thumb.png` `f354364f4fbd0d83982ba77d1e8e63e15a3f73a04bd43538d076237602965336`
+- `assets/models/characters/makehuman/garments/bob02/bob02.bin` `fc82b2618f5d0b984245c79358611045fc1750b815e4e9351ba6acd9b4b4c308`
+- `assets/models/characters/makehuman/garments/bob02/bob02_diffuse.png` `38c88e6f71631356591f09b1f17a1bb5a99c3bb095b1a29003f1dc3d3e839b0d`
+- `assets/models/characters/makehuman/garments/bob02/bob02.thumb.png` `88bb4a58e5dc55ebb6809bcf99968f8967ba2424b119c10df83ce1afb34bf4e3`
+- `assets/models/characters/makehuman/garments/braid01/braid01.bin` `8a4241aeebee2b278f812d7559ed8e8026c867325b1b2ae6287896ba4ad3dc98`
+- `assets/models/characters/makehuman/garments/braid01/braid01_diffuse.png` `24c0d2a639f04704734c3e38af97d110777c1b203e5a10c66a5c89563643a018`
+- `assets/models/characters/makehuman/garments/braid01/braid01.thumb.png` `b0fc877ff3c45aa0055ea89fde0fc1fc83c228ac22a27c28aeb8816b9b252e64`
+- `assets/models/characters/makehuman/garments/long01/long01.bin` `363369a5d9a47bdc434c8918b4525d0ff6dbac9ce3d9411252ccd5eb587d4a32`
+- `assets/models/characters/makehuman/garments/long01/long01_diffuse.png` `e8dc25d90f8f62467e8630420e1240a400d070054fb7c3f1d3f7bf3e457d6c2c`
+- `assets/models/characters/makehuman/garments/long01/long01.thumb.png` `4cb13248134980fc69fdbe298e2bdde58864aec764243cb3c50cb0da7dc0ed98`
+- `assets/models/characters/makehuman/garments/ponytail01/ponytail01.bin` `f62741f5ed1785e1fbee4a34fada1ccffda99d2554122d2e0fc22ac27497d599`
+- `assets/models/characters/makehuman/garments/ponytail01/ponytail01_diffuse.png` `dcb364300cac06ce8bef91b2f7c0970baf310898bbdd06b0c6b884ee9306eb97`
+- `assets/models/characters/makehuman/garments/ponytail01/ponytail01.thumb.png` `1dd14d9ce1c7bb7368f49757e3299a961190ea374c8dc140ff964b5f437d3383`
+- `assets/models/characters/makehuman/garments/short01/short01.bin` `02f13d68266786b29b9967907f97d3bc4eff5ef5f076cbb9db035759c870aa60`
+- `assets/models/characters/makehuman/garments/short01/short01_diffuse.png` `f34a0957184e3d1e911ed59245f874f8d4843f61ee44ff49f43edb4be0196949`
+- `assets/models/characters/makehuman/garments/short01/short01.thumb.png` `7e942d29322841a07a8a3feaf438fb9efb6b54f5b733909cecc51e79dcaca995`
+- `assets/models/characters/makehuman/garments/short02/short02.bin` `611685b290f0138c42fff360f9224014346b31d58bb9941dd953d9e37cd4ea1b`
+- `assets/models/characters/makehuman/garments/short02/short02_diffuse.png` `47fe33831a3929567c733356dd66243116e05df2ace1f884ddca0080b728229f`
+- `assets/models/characters/makehuman/garments/short02/short02.thumb.png` `af21a0e84bfcc294b9840d90a04f1b6655ad909bc09328251886adffbc0727e8`
+- `assets/models/characters/makehuman/garments/short03/short03.bin` `261e068620f6ef2016d720c31ebe5686b8a8dcee3bb4a68f9b89a57a5e115b8e`
+- `assets/models/characters/makehuman/garments/short03/short03_diffuse.png` `fe6ed0bb14498a48a2e8fc07e80e2a6f62c8b67686fcd0a7a570d345faec97da`
+- `assets/models/characters/makehuman/garments/short03/short03.thumb.png` `aba276c3ddbcb6b2c5dc29eef595bd2e447bfd8ff530731454319ce301b1b782`
+- `assets/models/characters/makehuman/garments/short04/short04.bin` `fc784b5875384f2ab0658226dab7266516f4b07c70a0053567080c39a794ed75`
+- `assets/models/characters/makehuman/garments/short04/short04_diffuse.png` `0bef7fc0e403db5a40fabb2111ebfa6f7e8158e204c6e56b8da98e9ef527846e`
+- `assets/models/characters/makehuman/garments/short04/short04.thumb.png` `a7db8f3db6e2a53194993de73b875d000f928b66a8ac4d6efab51bfd8e6664fd`
+- `assets/models/characters/makehuman/garments/eyebrow001/eyebrow001.bin` `ebcb062feae9c696b6cf16a5553d61eb30f82be1f9fabd78d14bb6a2bb845c59`
+- `assets/models/characters/makehuman/garments/eyebrow001/eyebrow001.png` `9940f7d0b1b223709a19b05156ba6f6e9e4dbdbced02d7574f4d51d72c58967b`
+- `assets/models/characters/makehuman/garments/eyebrow001/eyebrow001.thumb.png` `98b68eccf50977ff00242a33eb1dc6e3eaf4cc262e1f6c4ceca5c1c564f6c745`
+- `assets/models/characters/makehuman/garments/eyebrow002/eyebrow002.bin` `edc0d20548af9ae4ebfcd71967a4dbde7d19fef892d0bd0a63783f97da061c8b`
+- `assets/models/characters/makehuman/garments/eyebrow002/eyebrow002.png` `1de4e4cb69b3f4324390219ffbeb17a0b2555104d3211d1ac667655b69b64038`
+- `assets/models/characters/makehuman/garments/eyebrow002/eyebrow002.thumb.png` `4acd972e24cb3dec29a72391d08fb0a88afc1b8ad7ec1dd903e017558c9a1e20`
+- `assets/models/characters/makehuman/garments/eyebrow003/eyebrow003.bin` `ac64012cd97ff890b6e7270da974c74a65ffb4e267d56af0ecdcd4adeaffaa82`
+- `assets/models/characters/makehuman/garments/eyebrow003/eyebrow003.png` `e98837d77247f2c11a8259f8b265243b9053ba55683bd70223c668110e7dfb62`
+- `assets/models/characters/makehuman/garments/eyebrow003/eyebrow003.thumb.png` `f084be4df91306df1b646cfb02cac2feceaa3a0c70caf68af388385c506b8bbe`
+- `assets/models/characters/makehuman/garments/eyebrow004/eyebrow004.bin` `b0021be03971c03a5e7c1a28c835f7fb3a888459af4c88c129035c8ec3a6acbf`
+- `assets/models/characters/makehuman/garments/eyebrow004/eyebrow004.png` `899b2ae3d6d46bef093b8da0fa2e2c21f07f7565b5e13c57139d1288a3a8e27e`
+- `assets/models/characters/makehuman/garments/eyebrow004/eyebrow004.thumb.png` `87b1903a5d55759e06956090a1620b236d4da553f61a20b4e30205b4efdf43cc`
+- `assets/models/characters/makehuman/garments/eyebrow005/eyebrow005.bin` `11bac7f850dbff3e9fcd2804750af8641acfaf82ff53862f0a86b878253befdd`
+- `assets/models/characters/makehuman/garments/eyebrow005/eyebrow005.png` `7258dd3cf12413289ac814f81ab6b6afa00827f7cbd5deda80743308dd8c0389`
+- `assets/models/characters/makehuman/garments/eyebrow005/eyebrow005.thumb.png` `dd1e5f13e75743000bfd86913ce44d85f1dcb9971dcd9f117757429f245903dc`
+- `assets/models/characters/makehuman/garments/eyebrow006/eyebrow006.bin` `b629772317addc2ef7df7d3651e30460e2cf7735843578c6627144562466946a`
+- `assets/models/characters/makehuman/garments/eyebrow006/eyebrow006.png` `1f6d34d722ef18e73494e62f2c7f1a933ff58ce75d01fd34de21d178d5afe4d8`
+- `assets/models/characters/makehuman/garments/eyebrow006/eyebrow006.thumb.png` `8683104da77c3088a40879f9f5304e7d22e3c9d5d7b11fdfe8024d38bd2b299e`
+- `assets/models/characters/makehuman/garments/eyebrow007/eyebrow007.bin` `2296b93472185063b9caa1be80796df763b6504d7be252252501576b0e5f0d77`
+- `assets/models/characters/makehuman/garments/eyebrow007/eyebrow007.png` `1827b24aaa1c928353027c5a86b8db59c1c22f06258b18faa2117d81f5ff9b05`
+- `assets/models/characters/makehuman/garments/eyebrow007/eyebrow007.thumb.png` `f162260f75eb55eca372a23250d99681257538844edacc9c5b6067834951fb1d`
+- `assets/models/characters/makehuman/garments/eyebrow008/eyebrow008.bin` `38d5e415691848846acffc79a8f0e8b5525b81922479b2e79a128f266b830194`
+- `assets/models/characters/makehuman/garments/eyebrow008/eyebrow008.png` `b2243e030ca6e74d402f2ec421262f67773b13e1b9f1930fcca626b5cd8e7d84`
+- `assets/models/characters/makehuman/garments/eyebrow008/eyebrow008.thumb.png` `e042642e862f0e189abe1ab393e14ee853a8565b1c16785ad7bc872ea670abb7`
+- `assets/models/characters/makehuman/garments/eyebrow009/eyebrow009.bin` `c893c67ef02952a5f05e7a5d5a1bf0fd3eb905562cd6e779f956ae41aab66429`
+- `assets/models/characters/makehuman/garments/eyebrow009/eyebrow009.png` `4d33c85718ca5accf44625652daf0ae6e8cc007ed8138280e4d95601717910c3`
+- `assets/models/characters/makehuman/garments/eyebrow009/eyebrow009.thumb.png` `509a9969749e3433e00caf83c63ab6cc2656f332795cd275d0bc93db88be4389`
+- `assets/models/characters/makehuman/garments/eyebrow010/eyebrow010.bin` `5b8cc26f2b270b74b7bfbb250d55e6e8d4555207870df5cef549eb383988abe0`
+- `assets/models/characters/makehuman/garments/eyebrow010/eyebrow010.png` `d0aca671c7d51008177a2a607dc8eba3d3e84935375c6fcac2f85841563e44f3`
+- `assets/models/characters/makehuman/garments/eyebrow010/eyebrow010.thumb.png` `d0b9381ff6666c6772d824a111b65be853e01daa94cee6dc6212ccdc8232944b`
+- `assets/models/characters/makehuman/garments/eyebrow011/eyebrow011.bin` `24695cb9f25ea0b338b174fc40e4a2bae88b03ebeb0b0381937a33ea7d74e7ac`
+- `assets/models/characters/makehuman/garments/eyebrow011/eyebrow011.png` `df767b406c6b04388e3bd4dd3ed627307948f5df3dff4e92d860e6b800a1ad07`
+- `assets/models/characters/makehuman/garments/eyebrow011/eyebrow011.thumb.png` `0bb0d81ff31e6396f3f023d348f7e82627fcc7b4a6faa8109294e17a191b99e5`
+- `assets/models/characters/makehuman/garments/eyebrow012/eyebrow012.bin` `3afbeb6c36f9ad872f8d6fbac559c151ab0640ac26352a9c42ea03719a070ee4`
+- `assets/models/characters/makehuman/garments/eyebrow012/eyebrow012.png` `d352e9b3d6ccb9499be5e6cb5c0d462e8d7341539e1e28a003a29c83e5ca1b0f`
+- `assets/models/characters/makehuman/garments/eyebrow012/eyebrow012.thumb.png` `c920b4f8c394bf658fb9d33c6581b5020afbfb6b46ec79a5b79134e81bc6b3f2`
+- `assets/models/characters/makehuman/garments/eyelashes01/eyelashes01.bin` `a913f59d574c4d774d6e6485084c9548118ad499783a810ed14cab8360aa8915`
+- `assets/models/characters/makehuman/garments/eyelashes01/eyelashes01.png` `4b69c0fff2648874460e9caf80c31413c444218a5c50afebc425aeaa65484a35`
+- `assets/models/characters/makehuman/garments/eyelashes01/eyelashes01.thumb.png` `34ab06601745c2b74fcfa6f63a374fcea58cb4501e728a3c6935a3a1ed794aa3`
+- `assets/models/characters/makehuman/garments/eyelashes02/eyelashes02.bin` `f39ceb6225376b89ca63f22caba20f53c3f75b5aacafbebbafbaa69ff0584092`
+- `assets/models/characters/makehuman/garments/eyelashes02/eyelashes02.png` `6375eb8934d86d49eb2a37589e179614fb557dd92a772ced11e269ad6d72d79d`
+- `assets/models/characters/makehuman/garments/eyelashes02/eyelashes02.thumb.png` `48dae6fa3b3df136e16b52e1e277c0ca4424ecc821553750e5c04ef3341fbd2f`
+- `assets/models/characters/makehuman/garments/eyelashes03/eyelashes03.bin` `d26900c201fe6db693e888a75a9285a8c0796b949e01d7e16beb13f11e920b17`
+- `assets/models/characters/makehuman/garments/eyelashes03/eyelashes03.png` `3bae1d182039b695d5012b0d463bdc6a7c6e6669c7e0cf2eadef35aec4023ec5`
+- `assets/models/characters/makehuman/garments/eyelashes03/eyelashes03.thumb.png` `5d1cf28861f111770173e7204bea988579d31a17633c5ba76bc36002a311fbb7`
+- `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.bin` `fdc55b63b75a41c03eb314eafe8dbf3272294865886ff85c0b3c6d2c0464dde3`
+- `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.png` `e08c934091e227b38239f993427062f9006c7cf8f2f62cbef10076bd345dcb4a`
+- `assets/models/characters/makehuman/garments/eyelashes04/eyelashes04.thumb.png` `50eaa038e01c24849d17ff9b2d4e7011101c0cf23a4fc5a64763f9414ff06796`
+- `data/characters/garments.ron` `f5d65fa13b176ab14c4118f45595b6aa4171cf67e0659666323fee6d6874dbf1`

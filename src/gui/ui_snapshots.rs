@@ -5134,6 +5134,58 @@ fn snapshot_character_shape() {
     );
 }
 
+/// THE LOOK ON THE CHARACTER PAGE (2026-11-09; docs/design/character-animation.md section 16): the
+/// hair style, brows and lashes choosers and the face and body detail sliders as the engine
+/// publishes them (a few of the shipped groups and garments, by their shipped ids and words), with
+/// a nose and a chin moved so their groups open.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_character_look() {
+    use humanity_core::player_look::{DetailBlock, DetailSliderView};
+    let pair = |id: &str, low: &str, high: &str| DetailSliderView { id: id.into(), low: low.into(), high: high.into(), single: false };
+    let blocks = vec![
+        DetailBlock { group: "head".into(), sliders: vec![pair("head_age", "decr", "incr"), DetailSliderView { id: "head_oval".into(), low: "none".into(), high: "full".into(), single: true }] },
+        DetailBlock { group: "nose".into(), sliders: vec![pair("nose_trans_up", "down", "up"), pair("nose_hump", "decr", "incr"), pair("nose_curve", "concave", "convex")] },
+        DetailBlock { group: "chin".into(), sliders: vec![pair("chin_width", "decr", "incr"), pair("chin_prognathism", "decr", "incr")] },
+        DetailBlock { group: "measure".into(), sliders: vec![pair("m_waist_circ", "decr", "incr")] },
+    ];
+    let details: std::collections::BTreeMap<String, Vec<DetailBlock>> = [("female".to_string(), blocks.clone()), ("male".to_string(), blocks)].into_iter().collect();
+    let ids = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+    let wearables: std::collections::BTreeMap<String, Vec<String>> = [
+        ("hair".to_string(), ids(&["bob01", "bob02", "long01", "ponytail01", "short02"])),
+        ("brows".to_string(), ids(&["eyebrow001", "eyebrow002", "eyebrow003"])),
+        ("lashes".to_string(), ids(&["eyelashes01", "eyelashes02"])),
+    ]
+    .into_iter()
+    .collect();
+    render_page_png_checked(
+        "character_look",
+        2560,
+        1440,
+        crate::gui::font_size::DEFAULT_PERCENT,
+        |ctx, theme, state| {
+            state.showroom_mode = 1;
+            state.showroom_return_to_picker = true;
+            state.character_name = "Wanderer".into();
+            state.characters.body_choices = vec!["female".into(), "male".into()];
+            state.characters.detail_sliders = details.clone();
+            state.characters.wearables = wearables.clone();
+            state.appearance.body_type = "female".into();
+            state.appearance.hair_style = "bob01".into();
+            state.appearance.detail = [("nose_hump", 0.6), ("chin_width", -0.4)].into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+            crate::gui::pages::showroom::draw(ctx, theme, state);
+        },
+        |_, out| {
+            for want in ["Hair style", "Bob 1", "Brows", "Lashes", "Face and body details", "Nose (1 changed)", "Nose bump", "Chin and jaw (1 changed)", "Reset this group", "Reset all details"] {
+                if crate::gui::screen_surface::find_text_in_shapes(&out.shapes, want).is_none() {
+                    return Err(format!("the page drew no {want:?}"));
+                }
+            }
+            Ok(())
+        },
+    );
+}
+
 /// The Maps page's Planet view (v0.1146): the Seattle Center OSM region
 /// rendered GPS-style (roads by class, building footprints, labels).
 #[test]

@@ -47,6 +47,20 @@
 //   its mesh (the engine's `Skeleton::reshaped`). MakeHuman's ground helper does not move under any
 //   of these targets (checked here), so the feet stay on the floor at every shape.
 //
+// THE BASE FILES (2026-11-09, "the look": each person's own shaped mesh, docs/design/
+// character-animation.md section 16). Beside each glTF, `makehuman_<gender>.base.bin` holds what a
+// per-person build needs that the glTF does not: every base-mesh vertex (the body AND MakeHuman's
+// helpers, which garments, hair and lashes are fitted to) at the body's own shape, unsmoothed;
+// each of the 15 shape targets' movement of every one of them; and, for each glTF vertex in
+// primitive order, the base vertices it follows (one for a body vertex, three with barycentric
+// weights for the generated brows and eyes), so a face and body detail target written against the
+// base mesh reaches the drawn vertices. `makehuman_base.bin`, shared by both bodies, holds the raw
+// base mesh (the shape MakeHuman's garments were fitted on, so a test can place one and compare
+// with MakeHuman's own fitted .obj) and each kept joint's vertex list (a joint is the mean of its
+// vertices, so a shaped body's skeleton follows every target, not only the 15). Little-endian; the
+// layouts are written out at `writeBase` and `writeShared` and read by
+// `humanity_core::look_data`.
+//
 //   node scripts/gen-makehuman-body.js                 write the files (needs the sources)
 //   node scripts/gen-makehuman-body.js --check         exit 1 if the committed files differ
 //   node scripts/gen-makehuman-body.js --preview DIR   also render front, side and back views of
@@ -363,7 +377,45 @@ function build(src) {
     });
     bodies[g] = makeBody(g, { obj, skel, shape, deltas, groundY, groupVerts, joints, jointIndex, keptParent, skinOf, bodyFaces, faceRegion, quadTris });
   }
-  return bodies;
+  // What both bodies share (see THE BASE FILES in the header): the raw base mesh in metres with
+  // the feet on the ground helper, and each kept joint's vertex list.
+  // Each body vertex's cover region (the names garments' `covers` use, docs/design/
+  // character-animation.md 2.4): by its dominant kept bone, the scalp by place; helpers have none.
+  const regionIndex = (vi) => {
+    if (vi >= BODY_VERTS || !perVertex.has(vi)) return 255;
+    const b = dominant(vi);
+    if (/^(head|neck)/.test(b) && hairAt(base[vi])) return COVER_REGIONS.indexOf('scalp');
+    return COVER_REGIONS.indexOf(coverRegionOfBone(b));
+  };
+  const shared = {
+    raw: base.map((p) => [p[0] * DM, (p[1] - groundY) * DM, p[2] * DM]),
+    jointVerts: joints.map((b) => skel.joints[skel.bones[b].head].slice()),
+    joints: joints.slice(),
+    regions: base.map((_, vi) => regionIndex(vi)),
+    // For scripts/gen-makehuman-look.js (garments): the decimetre-to-metre frame, and each base
+    // vertex's weights merged into the kept joints (joint index to weight).
+    groundY,
+    jointIndex,
+    keptOf,
+    perVertex,
+  };
+  return { bodies, shared };
+}
+
+/** The cover regions, in the order `makehuman_base.bin` numbers them. */
+const COVER_REGIONS = ['head', 'scalp', 'neck', 'torso', 'hips', 'upper_arms', 'forearms', 'hands', 'thighs', 'shins', 'feet'];
+function coverRegionOfBone(b) {
+  if (/^(head|jaw|eye)/.test(b)) return 'head';
+  if (/^neck/.test(b)) return 'neck';
+  if (/^(spine|clavicle)/.test(b)) return 'torso';
+  if (/^root/.test(b)) return 'hips';
+  if (/^upperarm/.test(b)) return 'upper_arms';
+  if (/^lowerarm/.test(b)) return 'forearms';
+  if (/^(wrist|finger)/.test(b)) return 'hands';
+  if (/^upperleg/.test(b)) return 'thighs';
+  if (/^lowerleg/.test(b)) return 'shins';
+  if (/^(foot|toe)/.test(b)) return 'feet';
+  throw new Error(`bone ${b} has no cover region`);
 }
 
 function mean(points, ids) {
@@ -420,7 +472,7 @@ function browStrip(eye, side, hit) {
     for (const y of [mid + half, mid - half]) {
       const h = hit([x, y, eye[2] + 0.2]);
       if (!h) throw new Error(`no skin in front of the ${side} brow at u ${u}`);
-      verts.push({ p: add(h.p, mul(h.n, 0.0008)), n: h.n, deltas: h.deltas });
+      verts.push({ p: add(h.p, mul(h.n, 0.0008)), n: h.n, deltas: h.deltas, follow: h.follow });
     }
   }
   const tris = [];
@@ -462,7 +514,36 @@ function skinInFront(from, tris, P, N, D) {
   const { a, b, c, u, v } = best;
   const w = 1 - u - v;
   const blend = (arr) => add(add(mul(arr[a], w), mul(arr[b], u)), mul(arr[c], v));
-  return { p: blend(P), n: norm(blend(N)), deltas: D.map((d) => blend(d)) };
+  return { p: blend(P), n: norm(blend(N)), deltas: D.map((d) => blend(d)), follow: [[a, w], [b, u], [c, v]] };
+}
+
+/**
+ * The triangle of `tris` (over `P`) a ray from `origin` along `dir` meets first, as the three
+ * vertices and their barycentric weights (the base vertices a generated vertex follows), or null.
+ */
+function rayFollow(origin, dir, tris, P) {
+  let best = null;
+  for (const [a, b, c] of tris) {
+    const e1 = sub(P[b], P[a]);
+    const e2 = sub(P[c], P[a]);
+    const h = cross(dir, e2);
+    const det = dot(e1, h);
+    if (Math.abs(det) < 1e-14) continue;
+    const s = sub(origin, P[a]);
+    const u = dot(s, h) / det;
+    if (u < -1e-6 || u > 1 + 1e-6) continue;
+    const q = cross(s, e1);
+    const v = dot(dir, q) / det;
+    if (v < -1e-6 || u + v > 1 + 1e-6) continue;
+    const t = dot(e2, q) / det;
+    if (t <= 0 || (best && t >= best.t)) continue;
+    best = { t, a, b, c, u, v };
+  }
+  if (!best) return null;
+  const { a, b, c } = best;
+  const u = Math.min(1, Math.max(0, best.u));
+  const v = Math.min(1 - u, Math.max(0, best.v));
+  return [[a, 1 - u - v], [b, u], [c, v]];
 }
 
 /** Four (joint, weight) pairs as unorm16 summing to exactly 65535 (the reader's own rule). */
@@ -496,6 +577,8 @@ function makeBody(gender, ctx) {
   const toM = (p) => [p[0] * DM, (p[1] - groundY) * DM, p[2] * DM];
   const P = shape.map(toM);
   const D = deltas.map((d) => d.map((v) => mul(v, DM)));
+  // Every base vertex at the body's own shape, before the shirt is smoothed (the base file).
+  const P0 = P.map((p) => p.slice());
 
   // Joint positions (metres) and their movement under each target.
   const jointPos = joints.map((b) => mean(P, skel.joints[skel.bones[b].head]));
@@ -566,6 +649,7 @@ function makeBody(gender, ctx) {
     pr.uv.push(ti != null && obj.vt[ti] ? [obj.vt[ti][0], 1 - obj.vt[ti][1]] : [0, 0]);
     pr.skin.push(skinOf(vi));
     pr.morph.push(D.map((d, k) => ({ p: d[vi], n: ND[k][vi] })));
+    pr.follow.push([[vi, 1]]);
     keyOf.set(key, idx);
     return idx;
   };
@@ -598,6 +682,7 @@ function makeBody(gender, ctx) {
       pr.uv.push([0, 0]);
       pr.skin.push({ joints: [headBone, 0, 0, 0], weights: [65535, 0, 0, 0] });
       pr.morph.push(v.deltas.map((d) => ({ p: d, n: [0, 0, 0] })));
+      pr.follow.push(v.follow);
     }
     for (const t of strip.tris) pr.idx.push(...t.map((k) => base0 + k));
   }
@@ -611,6 +696,10 @@ function makeBody(gender, ctx) {
     r /= ids.length;
     const bone = jointIndex.get(`eye.${side.toUpperCase()}`);
     const move = D.map((d) => mean(d, ids));
+    // The helper eye's own triangles: each generated vertex follows the point of the helper its
+    // direction from the centre meets (so a detail target that moves or sizes the eye moves it).
+    const helperTris = [];
+    for (const f of obj.faces) if (f.group === `helper-${side}-eye`) for (const t of quadTris(f)) helperTris.push(t.map((k) => f.v[k]));
     const ringIdx = [];
     EYE_RINGS.forEach(([deg, region], ri) => {
       const th = (deg * Math.PI) / 180;
@@ -629,6 +718,9 @@ function makeBody(gender, ctx) {
           pr.uv.push([s / EYE_SEGMENTS, deg / 180]);
           pr.skin.push({ joints: [bone, 0, 0, 0], weights: [65535, 0, 0, 0] });
           pr.morph.push(move.map((m) => ({ p: m, n: [0, 0, 0] })));
+          const fol = rayFollow(centre, dir, helperTris, P);
+          if (!fol) throw new Error(`the ${side} eye's helper is not met along a generated vertex's direction`);
+          pr.follow.push(fol);
         }
       }
       ringIdx.push(row);
@@ -659,11 +751,89 @@ function makeBody(gender, ctx) {
   }));
   let top = -Infinity;
   for (let i = 0; i < BODY_VERTS; i++) top = Math.max(top, P[i][1]);
-  return { gender, prims: MATERIALS.map((m) => prims[m]).filter((p) => p.idx.length), rig, jointDeltas, height: top, triangles: allTris.length };
+  return { gender, prims: MATERIALS.map((m) => prims[m]).filter((p) => p.idx.length), rig, jointDeltas, height: top, triangles: allTris.length, base: { P0, D } };
 }
 
 function newPrim(material) {
-  return { material, pos: [], nrm: [], uv: [], skin: [], morph: [], idx: [] };
+  return { material, pos: [], nrm: [], uv: [], skin: [], morph: [], idx: [], follow: [] };
+}
+
+// ── The base files (see THE BASE FILES in the header) ─────────────────────
+/** Little-endian binary built from parts. */
+class Bin {
+  constructor() { this.parts = []; }
+  u32(x) { const b = Buffer.alloc(4); b.writeUInt32LE(x >>> 0); this.parts.push(b); }
+  f32s(arr) { const b = Buffer.alloc(arr.length * 4); arr.forEach((x, i) => b.writeFloatLE(x, i * 4)); this.parts.push(b); }
+  tag(s) { this.parts.push(Buffer.from(s, 'ascii')); }
+  bytes() { return Buffer.concat(this.parts); }
+}
+
+/**
+ * `makehuman_<gender>.base.bin`:
+ *   "HOSMHB01"; u32 base vertices Nb; u32 targets T; u32 glTF vertices Ng;
+ *   f32 x 3 x Nb: every base vertex at the body's own shape (metres, unsmoothed);
+ *   T times: u32 n, then n x (u32 base vertex, f32 dx, dy, dz): that target's movement (sparse,
+ *     in the glTF's target order);
+ *   Ng times (the glTF's vertices, primitive after primitive): 3 x (u32 base vertex, f32 weight),
+ *     the base vertices it follows (unused pairs are 0, 0).
+ */
+function writeBase(body) {
+  const { P0, D } = body.base;
+  const b = new Bin();
+  const ng = body.prims.reduce((s, p) => s + p.pos.length, 0);
+  b.tag('HOSMHB01');
+  b.u32(P0.length);
+  b.u32(D.length);
+  b.u32(ng);
+  b.f32s(P0.flat());
+  for (const d of D) {
+    const moved = [];
+    d.forEach((v, i) => { if (Math.abs(v[0]) > 1e-9 || Math.abs(v[1]) > 1e-9 || Math.abs(v[2]) > 1e-9) moved.push(i); });
+    b.u32(moved.length);
+    const rec = Buffer.alloc(moved.length * 16);
+    moved.forEach((i, k) => { rec.writeUInt32LE(i, k * 16); rec.writeFloatLE(d[i][0], k * 16 + 4); rec.writeFloatLE(d[i][1], k * 16 + 8); rec.writeFloatLE(d[i][2], k * 16 + 12); });
+    b.parts.push(rec);
+  }
+  for (const p of body.prims) {
+    for (const f of p.follow) {
+      const rec = Buffer.alloc(24);
+      for (let k = 0; k < 3; k++) {
+        const [vi, w] = f[k] || [0, 0];
+        rec.writeUInt32LE(vi, k * 8);
+        rec.writeFloatLE(w, k * 8 + 4);
+      }
+      b.parts.push(rec);
+    }
+  }
+  return b.bytes();
+}
+
+/**
+ * `makehuman_base.bin` (both bodies):
+ *   "HOSMHS01"; u32 base vertices Nb; f32 x 3 x Nb: the raw base mesh (metres, feet on the ground
+ *   helper); u32 joints J; J times: u32 n, then n x u32: the base vertices whose mean is that joint
+ *   (the glTF skin's joint order); u32 regions R; R times: u32 length, then the name's bytes (the
+ *   cover regions a garment's `covers` names); Nb x u8: each base vertex's region (255 for a helper).
+ */
+function writeShared(shared) {
+  const b = new Bin();
+  b.tag('HOSMHS01');
+  b.u32(shared.raw.length);
+  b.f32s(shared.raw.flat());
+  b.u32(shared.jointVerts.length);
+  for (const list of shared.jointVerts) {
+    b.u32(list.length);
+    const rec = Buffer.alloc(list.length * 4);
+    list.forEach((vi, k) => rec.writeUInt32LE(vi, k * 4));
+    b.parts.push(rec);
+  }
+  b.u32(COVER_REGIONS.length);
+  for (const name of COVER_REGIONS) {
+    b.u32(name.length);
+    b.tag(name);
+  }
+  b.parts.push(Buffer.from(shared.regions));
+  return b.bytes();
 }
 
 // ── Writing ──────────────────────────────────────────────────────────────
@@ -757,6 +927,9 @@ function sourceNote(files, bodies) {
     '',
     'Made by `scripts/gen-makehuman-body.js` (HumanityOS, character animation rung 1, 2026-11-09) from',
     'MakeHuman\'s data files. Do not edit these files by hand: change the converter and run it again.',
+    'The face and body detail targets and the clothes, shoes, hats, hair, brows and lashes beside',
+    'them (2026-11-09, the look) have their own record: `LOOK-SOURCE.md`, with the CC0 text and every',
+    'input\'s hash.',
     '',
     '## Licence',
     '',
@@ -779,6 +952,7 @@ function sourceNote(files, bodies) {
     '## What was made',
     '',
     ...bodies.map((b) => `- \`makehuman_${b.gender}\`: ${b.prims.reduce((s, p) => s + p.pos.length, 0)} vertices, ${b.prims.reduce((s, p) => s + p.idx.length / 3, 0)} triangles, ${b.rig.length} joints, ${TARGETS.length} shape targets, ${b.height.toFixed(3)} m tall`),
+    `- \`makehuman_<gender>.base.bin\` (2026-11-09, the look): each body's ${bodies[0].base.P0.length} base-mesh vertices (body and helpers) at its own shape, its shape targets over all of them, and the base vertices each glTF vertex follows; \`makehuman_base.bin\`: the raw base mesh and each joint's vertex list (the header of the converter gives the layouts)`,
     '',
     '## Output hashes (SHA-256)',
     '',
@@ -896,13 +1070,16 @@ function main() {
     console.log(`the MakeHuman sources are not on this machine (${src}): checked the ${want.length} committed files against SOURCE.md's hashes only`);
     return;
   }
-  const bodies = Object.values(build(src));
+  const built = build(src);
+  const bodies = Object.values(built.bodies);
   const files = [];
   for (const b of bodies) {
     const made = writeBody(b);
     files.push([path.join(OUT, `makehuman_${b.gender}.gltf`), Buffer.from(made.json)]);
     files.push([path.join(OUT, `makehuman_${b.gender}.bin`), made.bin]);
+    files.push([path.join(OUT, `makehuman_${b.gender}.base.bin`), writeBase(b)]);
   }
+  files.push([path.join(OUT, 'makehuman_base.bin'), writeShared(built.shared)]);
   files.push([note, Buffer.from(sourceNote(files, bodies))]);
   if (previewDir) preview(bodies, previewDir);
   if (check) {
@@ -921,4 +1098,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { build, TARGETS, MATERIALS, regionOfBone, unorm16 };
+module.exports = { build, TARGETS, MATERIALS, regionOfBone, unorm16, COVER_REGIONS, DEFAULT_SRC, readSourcesChecked: readSources, gitBlobSha1, Bin };

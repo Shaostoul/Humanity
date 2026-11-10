@@ -4242,6 +4242,21 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 state.settings_dirty = true;
             }
             widgets::setting_hint(ui, theme, hint, t("settings.screen_aim_cone_hint"));
+            // Crouch: held or toggled (2026-11-09, the look's small step from rung 2a's report), so
+            // someone who cannot hold a key can still crouch. Hold is the default.
+            use crate::gui::widgets::Hint;
+            ui.add_space(theme.spacing_sm);
+            ui.label(RichText::new(t("settings.crouch_mode")).color(theme.text_secondary()));
+            ui.horizontal(|ui| {
+                for (toggle, label, tip) in [(false, "settings.crouch_hold", "settings.crouch_hold_hint"), (true, "settings.crouch_toggle", "settings.crouch_toggle_hint")] {
+                    let selected = state.settings.crouch_toggle == toggle;
+                    if ui.radio(selected, RichText::new(t(label)).color(theme.text_primary())).hint(tip).clicked() && !selected {
+                        state.settings.crouch_toggle = toggle;
+                        state.settings_dirty = true;
+                    }
+                }
+            });
+            widgets::setting_hint(ui, theme, hint, t("settings.crouch_mode_hint"));
         }
 
         ui.add_space(theme.spacing_md);

@@ -1100,6 +1100,66 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             _ => log::warn!("Showcase: animation_mode wants \"realistic\" or \"simplified\", not {v:?}"),
         }
     }
+    // THE LOOK'S VERBS (2026-11-09; docs/design/character-animation.md section 16). Permanent dev
+    // tooling, each a same-boot A/B, released between vantages (scripts/lib/showcase-pins.js).
+    // {"own_mesh":"0"}: everyone drawn with the shared body as main did (shape on the GPU, clothes
+    // as tinted regions); "1" builds each near person's own shaped and dressed mesh again.
+    // {"covers":"0"}: garments hide nothing under them (the poke-through check's red arm).
+    // {"soles":"0"}: a shod person's soles measured as the body as made (the foot probe's red arm).
+    // {"garment_textures":"0"}: garments in their mean colour (the textures' cost A/B).
+    for (verb, slot) in [("own_mesh", 0usize), ("covers", 1), ("soles", 2), ("garment_textures", 3)] {
+        if let Some(v) = grab(verb) {
+            let on = v != "0";
+            let rt = &mut state.animation;
+            match slot {
+                0 => rt.look_on = on,
+                1 => rt.covers_on = on,
+                2 => rt.soles_on = on,
+                _ => rt.textures_on = on,
+            }
+            log::info!("Showcase: {verb} -> {on}");
+        }
+    }
+    // {"look_detail":"nose_hump=1,chin_width=-0.5"} (or "-" for none): the player's own detail
+    // sliders, as the character page sets them; {"look_wear":"hair=bob01,brows=eyebrow002,
+    // wear:chest=mh_female_casualsuit01"}: what the player wears (each part optional).
+    if let Some(v) = grab("look_detail") {
+        let mut detail = std::collections::BTreeMap::new();
+        for kv in v.split(',').filter(|s| !s.trim().is_empty() && s.trim() != "-") {
+            if let Some((k, x)) = kv.split_once('=') {
+                if let Ok(x) = x.trim().parse::<f32>() {
+                    detail.insert(humanity_core::player_look::clean_shape_id(k.trim()), x.clamp(-1.0, 1.0));
+                }
+            }
+        }
+        detail.remove("");
+        state.gui_state.appearance.detail = detail;
+        state.gui_state.appearance_dirty = true;
+        log::info!("Showcase: look_detail -> {} sliders", state.gui_state.appearance.detail.len());
+    }
+    if let Some(v) = grab("look_wear") {
+        for kv in v.split(',') {
+            let Some((k, x)) = kv.split_once('=') else { continue };
+            let x = humanity_core::player_look::clean_shape_id(x.trim());
+            match k.trim() {
+                "hair" => state.gui_state.appearance.hair_style = x,
+                "brows" => state.gui_state.appearance.brows = x,
+                "lashes" => state.gui_state.appearance.lashes = x,
+                k if k.starts_with("wear:") => {
+                    let slot = k[5..].to_string();
+                    if x.is_empty() {
+                        state.gui_state.outfit.equipped.remove(&slot);
+                    } else {
+                        state.gui_state.outfit.equipped.insert(slot, x);
+                    }
+                    state.gui_state.outfit_dirty = true;
+                }
+                _ => {}
+            }
+        }
+        state.gui_state.appearance_dirty = true;
+        log::info!("Showcase: look_wear -> {v}");
+    }
     // {"crowd_crouch":"1"}: every dev stand-in crouches (as another player's crouch arrives), "0"
     // stands them up.
     if let Some(v) = grab("crowd_crouch") {

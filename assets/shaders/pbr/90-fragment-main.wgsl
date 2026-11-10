@@ -1035,6 +1035,96 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
         roughness = 1.0;
         screen_emitter = true;
     }
+    if (material_type >= 24.5 && material_type < 26.5 && material.params2.x > 0.5) {
+        // Types 25 and 26 with a CHARACTER PACK (2026-11-09, character animation's "the look";
+        // engine/look_textures.rs, renderer/materials.rs): one texture with the garment's colour
+        // (and alpha) in its left half and its normal map in its right, mipmapped half by half.
+        // textureSampleGrad with the prologue's gradients (taken in uniform control flow), halved
+        // in u for the half-width halves.
+        let ch_dx = vec2<f32>(uv_dx.x * 0.5, uv_dx.y);
+        let ch_dy = vec2<f32>(uv_dy.x * 0.5, uv_dy.y);
+        let ch_uv = vec2<f32>(clamp(fract(in.uv.x), 0.002, 0.998) * 0.5, in.uv.y);
+        let ch_col = textureSampleGrad(albedo_texture, albedo_sampler, ch_uv, ch_dx, ch_dy);
+        // The cotangent frame from the screen derivatives (Schueler 2013, "Normal Mapping Without
+        // Precomputed Tangents"): the skinned vertices carry no tangent.
+        let ch_p1 = cross(wp_dy, normal);
+        let ch_p2 = cross(normal, wp_dx);
+        let ch_t = ch_p1 * uv_dx.x + ch_p2 * uv_dy.x;
+        let ch_b = ch_p1 * uv_dx.y + ch_p2 * uv_dy.y;
+        let ch_inv = inverseSqrt(max(max(dot(ch_t, ch_t), dot(ch_b, ch_b)), 1.0e-24));
+        if (material.params2.y > 0.5) {
+            let ch_nm = textureSampleGrad(albedo_texture, albedo_sampler, ch_uv + vec2<f32>(0.5, 0.0), ch_dx, ch_dy).xyz * 2.0 - 1.0;
+            // The texture's v runs down the image (the converter's flip of the .obj's v), so the
+            // map's +y (up the image) is minus the frame's v direction.
+            normal = normalize(ch_t * ch_inv * ch_nm.x - ch_b * ch_inv * ch_nm.y + normal * ch_nm.z);
+        }
+        if (material_type < 25.5) {
+            // Type 25: cloth, shoes, hats. The colour times the texture (base_color white).
+            albedo = albedo * ch_col.rgb;
+            metallic = 0.0;
+        } else {
+            // Type 26: CARD HAIR, brows and lashes (renderer/materials.rs MATERIAL_TYPE_HAIR).
+            // Scheuermann's two passes: params2.z > 0 is the opaque core (alpha at or over the cut),
+            // < 0 the blended fringe in the transparent list (only the alpha under the cut, and only
+            // the card face toward the eye: the build gave every card both faces and the transparent
+            // pipeline culls neither).
+            let ch_cut = material.params2.z;
+            if (ch_cut >= 0.0) {
+                if (ch_col.a < ch_cut) {
+                    discard;
+                }
+                out_alpha = 1.0;
+            } else {
+                if (ch_col.a >= -ch_cut || ch_col.a < 0.03 || dot(normal, view_dir) < 0.0) {
+                    discard;
+                }
+                out_alpha = ch_col.a;
+            }
+            // The person's hair colour laid over the strands' light and dark (params2.w is the
+            // texture's mean luminance, so the average is the colour chosen).
+            let ch_luma = dot(ch_col.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+            albedo = material.base_color.rgb * clamp(ch_luma / max(material.params2.w, 0.02), 0.0, 3.0);
+            metallic = 0.0;
+            // The plain PBR's highlight off (a rough surface); the strand's own lobes below.
+            roughness = 0.95;
+            // KARIS 2016, "Physically Based Hair Shading in Unreal" (Marschner 2003 in closed
+            // form): the reflection R off the cuticle, shifted toward the root by the scales' tilt;
+            // the transmission TT through the strand (the glow of backlit hair); the second
+            // reflection TRT, shifted the other way and tinted by the hair. The strand runs along
+            // the texture's V (MakeHuman's cards run their strands down the texture).
+            let ch_det = uv_dx.x * uv_dy.y - uv_dx.y * uv_dy.x;
+            var ch_strand = (wp_dy * uv_dx.x - wp_dx * uv_dy.x) * sign(ch_det);
+            ch_strand = ch_strand - normal * dot(normal, ch_strand);
+            let ch_sl = dot(ch_strand, ch_strand);
+            if (ch_sl > 1.0e-20) {
+                let ch_T = ch_strand * inverseSqrt(ch_sl);
+                let ch_L = normalize(camera.sun_direction.xyz);
+                let ch_sin_i = clamp(dot(ch_L, ch_T), -1.0, 1.0);
+                let ch_sin_o = clamp(dot(view_dir, ch_T), -1.0, 1.0);
+                let ch_th = 0.5 * (asin(ch_sin_i) + asin(ch_sin_o));
+                let ch_shift = 0.06; // about 3.5 degrees: the cuticle scales' tilt
+                let ch_beta = 0.18; // the lobes' width (radians) at a typical strand roughness
+                let ch_m = (vec3<f32>(ch_th, ch_th, ch_th) - vec3<f32>(-ch_shift, 0.5 * ch_shift, 1.5 * ch_shift))
+                    / vec3<f32>(ch_beta, 0.5 * ch_beta, 2.0 * ch_beta);
+                let ch_M = exp(-0.5 * ch_m * ch_m) / (vec3<f32>(ch_beta, 0.5 * ch_beta, 2.0 * ch_beta) * 2.5066);
+                // The azimuth between the light and the eye across the strand.
+                let ch_lp = ch_L - ch_T * ch_sin_i;
+                let ch_vp = view_dir - ch_T * ch_sin_o;
+                let ch_cos_phi = dot(ch_lp, ch_vp) * inverseSqrt(max(dot(ch_lp, ch_lp) * dot(ch_vp, ch_vp), 1.0e-12));
+                let ch_cos_half = sqrt(clamp(0.5 + 0.5 * ch_cos_phi, 0.0, 1.0));
+                let ch_fresnel = 0.0465 + 0.9535 * pow(1.0 - clamp(sqrt(clamp(0.5 + 0.5 * dot(ch_L, view_dir), 0.0, 1.0)), 0.0, 1.0), 5.0);
+                let ch_NR = 0.25 * ch_cos_half * ch_fresnel;
+                let ch_NTT = exp(-3.65 * ch_cos_phi - 3.98);
+                let ch_NTRT = exp(17.0 * ch_cos_phi - 16.78);
+                let ch_tint = albedo;
+                let ch_spec = vec3<f32>(ch_M.x * ch_NR) + ch_M.y * ch_NTT * ch_tint + ch_M.z * ch_NTRT * ch_tint * ch_tint;
+                let ch_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+                let ch_shadow = sun_shadow(in.world_position, max(abs(dot(normal, ch_L)), 0.05));
+                let ch_cos_i = sqrt(max(1.0 - ch_sin_i * ch_sin_i, 0.0));
+                proc_emissive = proc_emissive + ch_spec * camera.sun_color.rgb * ch_cos_i * ch_day * ch_shadow;
+            }
+        }
+    }
     if (material_type >= 17.5 && material_type < 18.5) {
         // Type 18: GAS GIANT bands (v0.905). Latitude-ramp palettes warped
         // by noise, hardcoded per giant (params.w = 0 jupiter, 1 saturn,
@@ -2396,6 +2486,18 @@ fn fs_shadow(in: VertexOutput) {
         let mesh_tex = textureSampleGrad(
             albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);
         if (mesh_tex.a < 0.35) {
+            discard;
+        }
+    }
+    // Type 26, card hair (the look, 2026-11-09): the opaque core's cut, from the character pack's
+    // colour half (fs_surface's type 26 branch). The fringe materials are never shadow casters (the
+    // transparent list casts no sun shadow), so only the core's cut is mirrored here.
+    if (material_type >= 25.5 && material_type < 26.5) {
+        let hair_uv = vec2<f32>(clamp(fract(in.uv.x), 0.002, 0.998) * 0.5, in.uv.y);
+        let hair_tex = textureSampleGrad(
+            albedo_texture, albedo_sampler, hair_uv,
+            vec2<f32>(uv_dx.x * 0.5, uv_dx.y), vec2<f32>(uv_dy.x * 0.5, uv_dy.y));
+        if (hair_tex.a < max(material.params2.z, 0.0)) {
             discard;
         }
     }

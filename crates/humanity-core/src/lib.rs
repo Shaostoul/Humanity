@@ -24,6 +24,9 @@ pub mod vertex;
 /// Skinned models and animation clips as plain imported data: the glTF reader fills it, the
 /// animation crate builds skeletons and clips from it (docs/design/character-animation.md).
 pub mod skin_data;
+/// The look's binary data as plain data (2026-11-09, docs/design/character-animation.md section 16):
+/// the MakeHuman base mesh, a body's base file, the face and body detail targets, the garments.
+pub mod look_data;
 /// What a frame cost: the store every system records into (its GPU half is `renderer::gpu_costs`).
 pub mod frame_costs;
 /// The play journal (2026-10-24, docs/design/play-journal.md): what happened while the game ran, in

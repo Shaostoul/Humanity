@@ -15,16 +15,16 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-core/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-core/src/ecs/`, `crates/humanity-core/src/physics/`, `crates/humanity-core/src/audio/`, `crates/humanity-core/src/input/`, `crates/humanity-core/src/data_parse.rs`, `crates/humanity-core/src/vertex.rs`, `crates/humanity-core/src/skin_data.rs`, `crates/humanity-core/src/frame_costs.rs`, `crates/humanity-core/src/build_permission.rs`, `crates/humanity-core/src/atomic_write.rs`, `crates/humanity-core/src/weather_map.rs`, `crates/humanity-core/src/civil_date.rs`, `crates/humanity-core/src/embedded_data.rs`, `crates/humanity-core/src/platform.rs` + `crates/humanity-core/src/platform/`, `crates/humanity-core/src/showroom.rs`, `crates/humanity-core/src/utilities.rs`, `crates/humanity-core/src/run_materials.rs`, `crates/humanity-core/src/row_source.rs`, `crates/humanity-core/src/cosmetics.rs`, `crates/humanity-core/src/cosmos.rs`, `crates/humanity-core/src/player_look.rs`, `crates/humanity-core/src/dev_travel.rs`, `crates/humanity-core/src/credits.rs`, `crates/humanity-core/src/camera_angles.rs`, `crates/humanity-core/src/turning.rs`, `crates/humanity-core/src/scenic_views.rs`, `crates/humanity-core/src/reactions.rs`, `crates/humanity-core/src/lod_registry.rs`, `crates/humanity-core/src/boot_timing.rs`, `crates/humanity-core/src/reuse.rs`, `crates/humanity-core/src/hot_reload/`, `crates/humanity-core/src/storage.rs` + `crates/humanity-core/src/storage/`, `crates/humanity-core/src/debug.rs`
+  - no gate (every build): `crates/humanity-core/src/ecs/`, `crates/humanity-core/src/physics/`, `crates/humanity-core/src/audio/`, `crates/humanity-core/src/input/`, `crates/humanity-core/src/data_parse.rs`, `crates/humanity-core/src/vertex.rs`, `crates/humanity-core/src/skin_data.rs`, `crates/humanity-core/src/look_data.rs`, `crates/humanity-core/src/frame_costs.rs`, `crates/humanity-core/src/build_permission.rs`, `crates/humanity-core/src/atomic_write.rs`, `crates/humanity-core/src/weather_map.rs`, `crates/humanity-core/src/civil_date.rs`, `crates/humanity-core/src/embedded_data.rs`, `crates/humanity-core/src/platform.rs` + `crates/humanity-core/src/platform/`, `crates/humanity-core/src/showroom.rs`, `crates/humanity-core/src/utilities.rs`, `crates/humanity-core/src/run_materials.rs`, `crates/humanity-core/src/row_source.rs`, `crates/humanity-core/src/cosmetics.rs`, `crates/humanity-core/src/cosmos.rs`, `crates/humanity-core/src/player_look.rs`, `crates/humanity-core/src/stance.rs`, `crates/humanity-core/src/dev_travel.rs`, `crates/humanity-core/src/credits.rs`, `crates/humanity-core/src/camera_angles.rs`, `crates/humanity-core/src/turning.rs`, `crates/humanity-core/src/scenic_views.rs`, `crates/humanity-core/src/reactions.rs`, `crates/humanity-core/src/lod_registry.rs`, `crates/humanity-core/src/boot_timing.rs`, `crates/humanity-core/src/reuse.rs`, `crates/humanity-core/src/hot_reload/`, `crates/humanity-core/src/storage.rs` + `crates/humanity-core/src/storage/`, `crates/humanity-core/src/debug.rs`
   - `feature = "native"`: `crates/humanity-core/src/play_journal.rs`, `crates/humanity-core/src/raw_frame.rs`, `crates/humanity-core/src/i18n.rs`, `crates/humanity-core/src/mods/`, `crates/humanity-core/src/auto_unlock.rs`
   - `any(test, feature = "test-support")`: `crates/humanity-core/src/test_clock.rs`, `crates/humanity-core/src/test_temp.rs`, `crates/humanity-core/src/test_log.rs`
   - `all(any(test, feature = "test-support"), feature = "native")`: `crates/humanity-core/src/test_gpu.rs`
-- **Size:** 17,891 lines in 62 files, 922 of them in 4 test files.
+- **Size:** 19,009 lines in 64 files, 922 of them in 4 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 39, `test-support` 9, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 623, gui 471, systems 464, renderer 65, ship 57, net 47, relay 29, terrain 4, animation 3.
+- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 651, gui 505, systems 464, renderer 68, ship 57, net 51, relay 32, animation 13, terrain 5.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 207 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 216 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-core
@@ -35,22 +35,22 @@ just test-lib --crate humanity-core
 | Item | References | From |
 |---|---:|---|
 | `hot_reload::data_store::DataStore` | 122 | systems 81, engine 39, net 1, ship 1 |
-| `debug::push_debug` | 83 | gui 42, net 23, engine 18 |
+| `debug::push_debug` | 82 | gui 42, net 23, engine 17 |
 | `ecs::components` | 77 | systems 58, engine 18, ship 1 |
-| `storage::data_dir` | 74 | gui 38, systems 21, engine 7, ship 5, relay 2, net 1 |
-| `i18n::t` | 68 | gui 62, engine 5, systems 1 |
+| `storage::data_dir` | 76 | gui 40, systems 21, engine 7, ship 5, relay 2, net 1 |
+| `i18n::t` | 73 | gui 66, engine 6, systems 1 |
 | `embedded_data::note_builtin_copy` | 60 | ship 15, systems 14, relay 13, gui 9, renderer 6, engine 1, net 1, terrain 1 |
 | `ecs::components::Transform` | 59 | engine 40, systems 15, gui 1, net 1, relay 1, ship 1 |
-| `i18n` | 50 | gui 50 |
+| `i18n` | 56 | gui 56 |
+| `frame_costs::stage` | 51 | engine 30, systems 16, gui 4, renderer 1 |
 | `frame_costs::span` | 49 | engine 49 |
-| `frame_costs::stage` | 47 | engine 26, systems 16, gui 4, renderer 1 |
 | `ecs::components::Controllable` | 46 | systems 26, engine 19, gui 1 |
 | `ecs::systems::System` | 43 | systems 41, engine 1, net 1 |
 | `vertex::Vertex` | 34 | engine 15, renderer 9, ship 7, terrain 3 |
 | `cosmos::find_body` | 32 | engine 26, gui 4, renderer 2 |
 | `embedded_data::load_data_or_embedded` | 32 | systems 13, gui 8, net 6, engine 3, relay 1, ship 1 |
 
-And 243 more items, 887 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
+And 259 more items, 954 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
 <!-- end generated -->
 
 ## Rules

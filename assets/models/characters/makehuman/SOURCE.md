@@ -2,6 +2,9 @@
 
 Made by `scripts/gen-makehuman-body.js` (HumanityOS, character animation rung 1, 2026-11-09) from
 MakeHuman's data files. Do not edit these files by hand: change the converter and run it again.
+The face and body detail targets and the clothes, shoes, hats, hair, brows and lashes beside
+them (2026-11-09, the look) have their own record: `LOOK-SOURCE.md`, with the CC0 text and every
+input's hash.
 
 ## Licence
 
@@ -57,6 +60,7 @@ reads the data files' formats itself. Finding:
 
 - `makehuman_female`: 15479 vertices, 27860 triangles, 56 joints, 15 shape targets, 1.590 m tall
 - `makehuman_male`: 15479 vertices, 27860 triangles, 56 joints, 15 shape targets, 1.730 m tall
+- `makehuman_<gender>.base.bin` (2026-11-09, the look): each body's 19158 base-mesh vertices (body and helpers) at its own shape, its shape targets over all of them, and the base vertices each glTF vertex follows; `makehuman_base.bin`: the raw base mesh and each joint's vertex list (the header of the converter gives the layouts)
 
 ## Output hashes (SHA-256)
 
@@ -65,5 +69,8 @@ not on the machine.
 
 - `makehuman_female.gltf` `614a89ea350e52f82598bae29fda823f0ee8e2602c10abb60076c2b2d3e29276`
 - `makehuman_female.bin` `5e63a1883a96b120bb5e291ddc7bc673a3fc17990fac3835b8f73c0cf9520ff0`
+- `makehuman_female.base.bin` `f0fde90c024955c83bc00b6c6745b13d9002ad31f237a0bee34b06df9de506e8`
 - `makehuman_male.gltf` `f642e2160827a7cd957c0836210ff9e494b002a54e75e1c54d6b636b20bc12f2`
 - `makehuman_male.bin` `995063548f5f244a0bb5cffbe14bf55dd80dced7f5dd998452bf0712672f7fcb`
+- `makehuman_male.base.bin` `3d0ac43c7db8f4d0827ba6ee9e8117e71c4a35c12f2e3d9ad4ca1d195155269f`
+- `makehuman_base.bin` `e54ed678e7d4cc27132aeafe18b9837d05a2820c0f166dca3bb32bf4dd9bd887`

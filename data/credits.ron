@@ -215,9 +215,9 @@
         (
             id: "makehuman",
             name: "MakeHuman",
-            used_for: "The female and male bodies every person is drawn with (the player, other players and the crew): the base mesh, the default skeleton and its weights, and the young-adult shape targets the look's height drives (commit a8bc2d54, fetched 2026-11-09), converted by HumanityOS.",
+            used_for: "The female and male bodies every person is drawn with (the player, other players and the crew): the base mesh, the default skeleton and its weights, and the young-adult shape targets the look's height drives (commit a8bc2d54, fetched 2026-11-09), converted by HumanityOS. Since the look (2026-11-09, scripts/gen-makehuman-look.js, sources and hashes in assets/models/characters/makehuman/LOOK-SOURCE.md): the face and body detail targets (the same commit) and the system asset pack's clothes, shoes, hats, hair, brows and lashes with their textures (makehuman_system_assets_cc0.zip, SHA-256 b542127a...0107).",
             licence: "CC0 1.0",
-            notice: "Bodies made from MakeHuman's assets (CC0 1.0, makehumancommunity.org), converted by HumanityOS",
+            notice: "Bodies, clothes and hair made from MakeHuman's assets (CC0 1.0, makehumancommunity.org), converted by HumanityOS",
             url: "https://github.com/makehumancommunity/makehuman",
             attribution_required: false,
             shown_in: ["Credits"],

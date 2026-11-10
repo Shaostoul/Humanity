@@ -51,6 +51,10 @@ use std::path::Path;
 ///                                         are verified against
 ///   docs/accord/humanity_accord.md        the Accord the Humanity page shows
 ///   data/server/default_channels.json     the channels every server makes (2026-11-02)
+///   data/characters/details.ron, data/characters/garments.ron, data/cosmetics/cosmetics.csv
+///                        the look's ids (2026-11-10): the one clamping reader of a player's look
+///                        (humanity_core::player_look::LookIds::shipped) keeps only the sliders,
+///                        garments and cosmetics its build shipped, at the relay and in the app alike
 ///   data/homes/shipped   the shipped home designs: a neighbour's plot is drawn as its
 ///                        kind's built-in design, never the disk copy, so that read is
 ///                        embedded-only (ship homes increment 2, crates/humanity-ship/src/neighbours.rs,
@@ -100,6 +104,13 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     // and never read from the data folder, so the signed release vouches for every hash of the AI
     // files it may download and a mod cannot point it at another model.
     "data/ai/catalog.ron",
+    // The look's ids (the look, 2026-11-10): the one clamping reader of a player's look
+    // (crates/humanity-core/src/player_look.rs, LookIds::shipped) is compiled from these on purpose,
+    // so the relay and every app keep exactly the sliders, garments and cosmetics their build
+    // shipped, never a disk edit; an id outside them reads as the default.
+    "data/characters/details.ron",
+    "data/characters/garments.ron",
+    "data/cosmetics/cosmetics.csv",
 ];
 
 fn main() {

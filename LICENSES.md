@@ -201,6 +201,15 @@ CC BY 4.0 a failure to credit ends the licence until it is put right (section 6)
 MakeHuman's source code is AGPL and none of it is used. `SOURCE.md` in that folder
 lists every input with its git blob hash.
 
+Beside them (2026-11-09, "the look"), `makehuman_details.bin` and `garments/` (clothes,
+shoes, hats, hair, brows and lashes, each with its MakeHuman textures copied unchanged) are
+made by `scripts/gen-makehuman-look.js` from MakeHuman's face and body detail targets (the
+same commit) and its system asset pack (`makehuman_system_assets_cc0.zip`, SHA-256
+`b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107`), also **CC0 1.0**: every
+clothes, hair and material file in the pack opens with "This asset was explicitly released as
+CC0 in september 2020.", and the pack's own manifest gives `"license": "CC0"` for all 94
+assets. `LOOK-SOURCE.md` in that folder lists every input with its hash and the CC0 text.
+
 `assets/models/characters/quaternius_ual/` (the walk, jog, sprint, idle, crouch, jump
 and sit clips) is trimmed by `scripts/gen-quaternius-clips.js` out of **Quaternius**'s
 Universal Animation Library [Standard], downloaded 2026-11-09 (zip SHA-256

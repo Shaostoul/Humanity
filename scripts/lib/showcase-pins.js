@@ -62,6 +62,16 @@ const STICKY_PIN_RESETS = Object.freeze({
   // default. A `crowd_crouch` lives in the crowd, cleared above.
   feet: "1",
   animation_mode: "realistic",
+  // The look (2026-11-09, docs/design/character-animation.md section 16): each near person's own
+  // mesh, garments hiding the body under them, soles measured with the shoes on, the garments'
+  // textures (each a same-boot A/B), and the player's detail sliders and what they wear ("-": none;
+  // the look_wear default puts back the wearer kind's defaults).
+  own_mesh: "1",
+  covers: "1",
+  soles: "1",
+  garment_textures: "1",
+  look_detail: "-",
+  look_wear: "hair=,brows=,lashes=,wear:chest=,wear:feet=,wear:head=",
   // How deep, and how near the camera, the terrain refines inside an installed map pack (2026-11-09,
   // whole-Earth maps, the rung between 2 and 3): a vantage pins {"pack_depth":"13"} to see a pack at
   // the planet's depth, or {"pack_within_m":"100"} to bound its reach.

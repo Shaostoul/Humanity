@@ -453,7 +453,19 @@
         locked: false,
         base_frac: 0.15,
         color: "info",
-        note: "Planet imagery and baked bark uploaded as material textures.",
+        note: "Planet imagery, baked bark and the garments' textures uploaded as material textures.",
+    ),
+    (
+        // The look (2026-11-09, engine/animation.rs): each near person's own shaped and dressed mesh
+        // and one near place's skinned copy of it, keyed by their body id, released when they leave.
+        id: "vram_characters",
+        display: "People",
+        category: "vram",
+        sources: ["vram.characters"],
+        locked: false,
+        base_frac: 0.03,
+        color: "accent",
+        note: "Each near person's own body with their clothes and hair, built when their look changes.",
     ),
     (
         id: "vram_targets",

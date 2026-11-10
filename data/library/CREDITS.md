@@ -107,7 +107,10 @@ listed here for a kindness they did not ask credit for.
   male bodies every person is drawn with: its CC0 base mesh, default skeleton and
   weights and young-adult shape targets (commit a8bc2d54, fetched 2026-11-09),
   converted by HumanityOS (`scripts/gen-makehuman-body.js`; the sources and hashes in
-  `assets/models/characters/makehuman/SOURCE.md`).
+  `assets/models/characters/makehuman/SOURCE.md`); and since 2026-11-09 its face and body
+  detail targets and its system asset pack's clothes, shoes, hats, hair, brows and lashes
+  with their textures, CC0 too, converted by `scripts/gen-makehuman-look.js` (the sources and
+  hashes in `assets/models/characters/makehuman/LOOK-SOURCE.md`).
 - **Quaternius** (https://quaternius.com) - the Universal Animation Library's CC0
   clips people walk, jog, sprint, stand, crouch, jump and sit with (downloaded
   2026-11-09, zip SHA-256 `cc73fc4e495b82958207316596317a3f40b9fa38065bde1027937452da537724`),
@@ -141,3 +144,19 @@ The letters you are reading right now, in the app and on this site.
 Rust, wgpu, egui, hecs, rapier3d, kira, axum, SQLite, and the whole
 open-source ecosystem this project stands on. Every crate author in
 Cargo.toml is part of this.
+
+## AI, for those who choose it
+
+None of this ships with the app: it downloads only when a person chooses AI in
+Settings > AI, and Remove all AI takes it away again (`LICENSES.md` has the terms).
+
+- **llama.cpp and ggml** (https://github.com/ggml-org/llama.cpp) - the ggml authors'
+  MIT-licensed runtime inside the separate AI engine HumanityOS builds, which runs the
+  model a person chooses on their own computer's processor.
+- **llama-cpp-rs** (https://github.com/utilityai/llama-cpp-rs) - its crate
+  llama-cpp-sys-2 0.1.161 is where the engine's pinned copy of llama.cpp's source
+  comes from.
+- **Granite 4.0 1B by IBM** (https://huggingface.co/ibm-granite/granite-4.0-1b-GGUF) -
+  the first AI model, for talking characters on computers with about 8 GB of memory:
+  Apache License 2.0, IBM's own file, unmodified. Thank you for publishing the
+  datasets that trained it.

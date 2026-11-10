@@ -576,6 +576,13 @@ mod tests {
     /// fails `every_recorded_id_is_a_row_or_a_listed_remainder`.
     const REMAINDER_IDS: &[(&str, &str)] = &[
         (
+            "cpu.look_build",
+            "what the frame pays for near people's own meshes when their look changes (the look, \
+             2026-11-09; engine/animation.rs): a finished mesh and a garment texture onto the GPU \
+             (the builds run on worker threads), or the whole build with the reuse switch off; run \
+             INSIDE cpu.animation, the Characters row; a row of its own would count it twice",
+        ),
+        (
             "cpu.skinning",
             "the pose palette's upload (renderer/skinning.rs), run INSIDE cpu.animation (engine/\
              animation.rs), which is the Characters row; a row of its own would count it twice",

@@ -369,6 +369,35 @@ impl FootRig {
         self
     }
 
+    /// This rig with each foot's sole heights measured from its vertices at rest (model space), and
+    /// how far the lowest of them stands below the body's floor (y = 0), metres: the LIFT (2026-11-09,
+    /// "the look"; rung 2a's lesson for the clothes: "a SHOE with a sole of its own changes it"). The
+    /// heel's sole is the lowest vertex behind the middle of the foot, the ball's the lowest ahead of
+    /// it, each measured from where the person is drawn: `lift` higher, so a shoe's sole, not the foot
+    /// inside it, stands on the floor. A bare foot's soles come out at its own lowest vertices (a few
+    /// millimetres from its joint heights). Measure before `with_extents`, which reads the soles.
+    pub fn with_soles(mut self, skel: &Skeleton, feet: &[Vec<Vec3>; 2]) -> (Self, f32) {
+        let low = feet.iter().flatten().map(|v| v.y).fold(f32::INFINITY, f32::min);
+        if !low.is_finite() {
+            return (self, 0.0);
+        }
+        let lift = (-low).max(0.0);
+        for (i, verts) in feet.iter().enumerate() {
+            let ankle = skel.rest_position(self.legs[i].foot);
+            let ball = skel.rest_position(self.legs[i].toes);
+            let mid = 0.5 * (ankle.z + ball.z);
+            let lowest = |behind: bool| verts.iter().filter(|v| (v.z <= mid) == behind).map(|v| v.y).fold(f32::INFINITY, f32::min);
+            let (heel, front) = (lowest(true), lowest(false));
+            if heel.is_finite() {
+                self.heel_h[i] = (ankle.y - heel).max(0.0);
+            }
+            if front.is_finite() {
+                self.ball_h[i] = (ball.y - front).max(0.0);
+            }
+        }
+        (self, lift)
+    }
+
     /// This rig (a person's own, on their reshaped skeleton) with what `with_extents` measured from
     /// the body's mesh copied from `body`'s rig: the feet's reach, toe cap and heel counter. Every
     /// field measured from the mesh is copied here, so a new one cannot be forgotten at a call site

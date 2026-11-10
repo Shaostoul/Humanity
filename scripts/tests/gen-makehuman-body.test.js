@@ -26,7 +26,8 @@ test("the committed MakeHuman bodies match the converter", () => {
 test("without the sources the committed bodies still match the hashes SOURCE.md records", () => {
   const r = spawnSync(process.execPath, [SCRIPT, "--check", "--src", path.join(ROOT, "no-such-folder")], { encoding: "utf8" });
   assert.strictEqual(r.status, 0, `${r.stdout}\n${r.stderr}`);
-  assert.match(r.stdout, /checked the 4 committed files against SOURCE\.md's hashes only/);
+  // The two bodies' glTF and .bin, their base files and the shared base file (the look, 2026-11-09).
+  assert.match(r.stdout, /checked the 7 committed files against SOURCE\.md's hashes only/);
 });
 
 test("weights are four unorm16 shares summing to exactly 65535", () => {

@@ -85,7 +85,41 @@ pub struct Wearer {
     /// The look height range (1.0 = the body's own) picked the same way; None keeps 1.0.
     #[serde(default)]
     pub height: Option<(f32, f32)>,
+    /// What a wearer of this kind wears when their look does not say (2026-11-09, "the look"), by
+    /// body choice id ("female", "male"): each list's item picked by a stable hash of who they are.
+    #[serde(default)]
+    pub dress: BTreeMap<String, DressDef>,
 }
+
+/// A wearer kind's default dress on one body: garment ids for the hair, brows and lashes
+/// (`data/characters/garments.ron`), and cosmetic ids per outfit slot
+/// (`data/cosmetics/cosmetics.csv`, whose `model` names the garment drawn). An empty list wears
+/// nothing there.
+#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
+pub struct DressDef {
+    #[serde(default)]
+    pub hair: Vec<String>,
+    #[serde(default)]
+    pub brows: Vec<String>,
+    #[serde(default)]
+    pub lashes: Vec<String>,
+    #[serde(default)]
+    pub outfit: BTreeMap<String, Vec<String>>,
+}
+
+/// What a person's look says they wear, by id (None: their wearer kind's default; the id
+/// `"none"` wears nothing there).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DressChoice {
+    pub hair: Option<String>,
+    pub brows: Option<String>,
+    pub lashes: Option<String>,
+    /// Outfit slot to cosmetic id.
+    pub outfit: BTreeMap<String, String>,
+}
+
+/// The id a choice says wears nothing.
+pub const WEAR_NONE: &str = "none";
 
 /// A stable value in 0 to 1 for a person (`seed`) and one of their traits (`what`): FNV-1a over the
 /// trait's name from the seed, finished by SplitMix64's mixer, so each trait varies on its own.
@@ -138,6 +172,29 @@ pub struct CharactersDef {
     /// the shipped values.
     #[serde(default)]
     pub feet: crate::feet::FeetDef,
+    /// The look (2026-11-09): the base mesh both MakeHuman bodies share (`makehuman_base.bin`),
+    /// beside which `details.ron` and `garments.ron` are read. None draws every body as made, with
+    /// its shape on the GPU and its clothes as tinted regions.
+    #[serde(default)]
+    pub look: Option<String>,
+    /// How many people's own meshes may be building at once, each on a worker thread of its own,
+    /// off the frame (2026-11-10: a build is 2 to 15 ms, measured, which on the frame was a hitch
+    /// each time someone came near). The rest wait their turn, drawn as before meanwhile.
+    #[serde(default = "default_look_threads")]
+    pub look_threads: usize,
+    /// The most texels each half of a garment's packed texture is drawn at (its colour, its normal
+    /// map), each way: the sources run to 4096 and stay whole on disk; a person a few metres away
+    /// covers a few hundred pixels (section 8.3 of the plan has the memory).
+    #[serde(default = "default_look_texture_px")]
+    pub look_texture_px: u32,
+}
+
+fn default_look_threads() -> usize {
+    2
+}
+
+fn default_look_texture_px() -> u32 {
+    1024
 }
 
 /// A body material and its tint.
@@ -287,6 +344,10 @@ pub struct BodyDef {
     pub regions: Vec<RegionDef>,
     #[serde(default)]
     pub shape: Option<ShapeDef>,
+    /// The body's base file (2026-11-09, "the look": `makehuman_<gender>.base.bin`, written by the
+    /// body converter): what a person's own mesh is built from. None draws the body as made.
+    #[serde(default)]
+    pub base: Option<String>,
 }
 
 /// One row of `data/characters/clips.ron`.
@@ -353,6 +414,8 @@ pub struct LoadedBody {
     /// Each foot's vertices (primitive, vertex), left then right: those mostly bound to the foot or
     /// its toes. The foot probe skins them on the CPU to read the drawn sole against the ground.
     pub foot_vertices: [Vec<(usize, usize)>; 2],
+    /// Its base file read (the look), when it has one and the library reads the look.
+    pub base: Option<humanity_core::look_data::BodyBase>,
 }
 
 impl LoadedBody {
@@ -475,12 +538,14 @@ pub struct CharacterLibrary {
     pub graph: Graph,
     /// Bodies that did not load and had the fallback drawn in their place, with why.
     pub warnings: Vec<String>,
+    /// The look (detail targets and garments), when `characters.ron` names it and it read.
+    pub look: Option<crate::look::LookLibrary>,
 }
 
 impl CharacterLibrary {
     /// Read and tie together every file, retargeting each clip onto each body. `read_model` reads a
     /// skinned glTF by its data-relative path.
-    pub fn load(data_dir: &Path, read_model: &mut dyn FnMut(&str) -> Result<SkinnedModelData, String>) -> Result<Self, String> {
+    pub fn load(data_dir: &Path, read_model: &mut dyn FnMut(&str) -> Result<SkinnedModelData, String>, read_bytes: &mut dyn FnMut(&str) -> Result<Vec<u8>, String>) -> Result<Self, String> {
         let dir = data_dir.join("characters");
         let read = |rel: &str| -> Result<String, String> {
             let p = dir.join(rel);
@@ -496,8 +561,25 @@ impl CharacterLibrary {
         let mut files: HashMap<String, SkinnedModelData> = HashMap::new();
         let mut sources: HashMap<String, (SourceClip, Skeleton)> = HashMap::new();
 
+        // The look's shared data first: a body's base file is checked against it.
+        let mut warnings = Vec::new();
+        let look = match &characters.look {
+            None => None,
+            Some(shared) => match crate::look::LookLibrary::load(data_dir, shared, read_bytes) {
+                Ok(l) => Some(l),
+                Err(e) => {
+                    warnings.push(format!("the look did not load, so every body is drawn as made: {e}"));
+                    None
+                }
+            },
+        };
+        let look_ref = look.as_ref();
         // One body: its file, its skeleton, its regions, its shape, and every clip retargeted.
-        let mut load_body = |choice: &str, file_id: &str, read_model: &mut dyn FnMut(&str) -> Result<SkinnedModelData, String>| -> Result<(LoadedBody, HumanoidDef), String> {
+        let mut load_body = |choice: &str,
+                             file_id: &str,
+                             read_model: &mut dyn FnMut(&str) -> Result<SkinnedModelData, String>,
+                             read_bytes: &mut dyn FnMut(&str) -> Result<Vec<u8>, String>|
+         -> Result<(LoadedBody, HumanoidDef), String> {
             let def: BodyDef = crate::parse_ron(&read(&format!("bodies/{file_id}.ron"))?, &format!("data/characters/bodies/{file_id}.ron"))?;
             if !humanoids.contains_key(&def.skeleton) {
                 humanoids.insert(def.skeleton.clone(), HumanoidDef::parse(&read(&format!("skeletons/{}.ron", def.skeleton))?)?);
@@ -583,6 +665,17 @@ impl CharacterLibrary {
                 }
                 clips.insert(&cd.id, clip);
             }
+            // Its base file, checked against the mesh it maps and the shared base mesh (the look).
+            let base = match (&def.base, look_ref) {
+                (Some(rel), Some(l)) => {
+                    let b = humanity_core::look_data::BodyBase::parse(&read_bytes(rel)?).map_err(|e| format!("body {}: {e}", def.id))?;
+                    if b.positions.len() != l.shared.raw.len() || b.follow.len() != model.vertex_count() || b.targets.len() != model.morph_names.len() {
+                        return Err(format!("body {}: its base file {rel} does not match its mesh or the shared base mesh", def.id));
+                    }
+                    Some(b)
+                }
+                _ => None,
+            };
             let body = LoadedBody {
                 choice: choice.to_string(),
                 def,
@@ -598,17 +691,17 @@ impl CharacterLibrary {
                 joint_moves,
                 feet,
                 foot_vertices,
+                base,
             };
             Ok((body, humanoid))
         };
 
         let mut bodies = Vec::new();
-        let mut warnings = Vec::new();
         let mut humanoid = None;
-        let (fallback, fallback_humanoid) = load_body(&characters.fallback, &characters.fallback, read_model)
+        let (fallback, fallback_humanoid) = load_body(&characters.fallback, &characters.fallback, read_model, read_bytes)
             .map_err(|e| format!("the fallback body {} did not load: {e}", characters.fallback))?;
         for (choice, file_id) in &characters.bodies {
-            match load_body(choice, file_id, read_model) {
+            match load_body(choice, file_id, read_model, read_bytes) {
                 Ok((b, h)) => {
                     humanoid.get_or_insert(h);
                     bodies.push(b);
@@ -646,7 +739,69 @@ impl CharacterLibrary {
                 }
             }
         }
-        Ok(CharacterLibrary { characters, humanoid, bodies, graph, warnings })
+        for (kind, w) in &characters.wearers {
+            for (choice, d) in &w.dress {
+                for id in d.hair.iter().chain(&d.brows).chain(&d.lashes) {
+                    if look.as_ref().is_some_and(|l| l.garment(id).is_none()) {
+                        return Err(format!("data/characters/characters.ron: wearer {kind}'s dress on {choice} names garment {id}, which garments.ron does not list"));
+                    }
+                }
+            }
+        }
+        Ok(CharacterLibrary { characters, humanoid, bodies, graph, warnings, look })
+    }
+
+    /// The garments a person wears (indices into the look's garments): what their look chooses, else
+    /// their wearer kind's default on this body, each list's item picked by `seed` (stable per
+    /// person). `model_of` gives a cosmetic's garment (its `model` in cosmetics.csv): `None` for a
+    /// cosmetic nothing knows (which reads as the default), `Some(None)` for one without a model
+    /// (it wears no garment: it tints the body's painted region instead, and no default is put over
+    /// it). The outfit's slots in order, then hair, brows and lashes.
+    pub fn dress_for(&self, body: usize, wearer: &str, seed: u64, choice: &DressChoice, model_of: &dyn Fn(&str) -> Option<Option<String>>) -> Vec<usize> {
+        let Some(look) = self.look.as_ref() else { return Vec::new() };
+        let choice_id = self.bodies.get(body).map_or("", |b| b.choice.as_str());
+        let empty = DressDef::default();
+        let def = self.wearer(wearer).and_then(|w| w.dress.get(choice_id)).unwrap_or(&empty);
+        let pick = |list: &[String], what: &str| -> Option<String> {
+            if list.is_empty() {
+                return None;
+            }
+            let k = ((stable_unit(seed, what) * list.len() as f32) as usize).min(list.len() - 1);
+            Some(list[k].clone())
+        };
+        let mut out = Vec::new();
+        let mut push = |id: Option<String>| {
+            if let Some(i) = id.as_deref().and_then(|id| look.garment(id)) {
+                if !out.contains(&i) {
+                    out.push(i);
+                }
+            }
+        };
+        let mut slots: Vec<&String> = def.outfit.keys().chain(choice.outfit.keys()).collect();
+        slots.sort();
+        slots.dedup();
+        for slot in slots {
+            // The look names this slot: its cosmetic's garment, or none when it has no model (or
+            // reads "none"); an id nothing knows falls through to the default.
+            let named = choice.outfit.get(slot).and_then(|id| if id == WEAR_NONE { Some(None) } else { model_of(id) });
+            let garment = match named {
+                Some(g) => g,
+                None => pick(def.outfit.get(slot).map_or(&[][..], |v| v.as_slice()), &format!("outfit_{slot}")).and_then(|c| model_of(&c).flatten()),
+            };
+            push(garment);
+        }
+        let mut one = |chosen: &Option<String>, list: &[String], what: &str| {
+            let id = match chosen.as_deref() {
+                Some(WEAR_NONE) => None,
+                Some(id) if look.garment(id).is_some() => Some(id.to_string()),
+                _ => pick(list, what),
+            };
+            push(id);
+        };
+        one(&choice.hair, &def.hair, "hair");
+        one(&choice.brows, &def.brows, "brows");
+        one(&choice.lashes, &def.lashes, "lashes");
+        out
     }
 
     /// A body by the id a look chooses it with.

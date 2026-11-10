@@ -6824,8 +6824,9 @@ mod native_app {
                                         "type": "game_join",
                                         "player_name": name,
                                         "character_mode": "local",
-                                        // How this player looks to the others (2026-09-29).
-                                        "appearance": humanity_core::player_look::PlayerLook::from_appearance(&state.gui_state.appearance).to_json(),
+                                        // How this player looks to the others (2026-09-29), with what
+                                        // they wear (2026-11-09, the look).
+                                        "appearance": humanity_core::player_look::PlayerLook::from_appearance_wearing(&state.gui_state.appearance, &state.gui_state.outfit.equipped).to_json(),
                                     });
                                     // Our ship and our own door, for the plot (increment 1b).
                                     // Never a join without a ship (round 4).
@@ -9174,7 +9175,7 @@ mod native_app {
                     // On a planet the player's own body is already in render space: it joins the
                     // scene list AFTER the station shift below, as `planet_ghost` does (rung 2a).
                     let mut people_render_space: Vec<RenderObject> = Vec::new();
-                    let bodies_drawn = crate::engine::animation::draw_people(state, &mut all_objects, &mut people_render_space, &mut overlay_objects, showroom, dt);
+                    let bodies_drawn = crate::engine::animation::draw_people(state, &mut all_objects, &mut people_render_space, &mut transparent_objects, &mut overlay_objects, showroom, dt);
                     if !showroom && !bodies_drawn {
                         if state.remote_avatar.is_none() {
                             // Sized by the constants remote_figure_parts places the parts by
@@ -16233,6 +16234,8 @@ mod native_app {
                                 // invert toggle used to be decorative).
                                 state.controller.mouse_sensitivity = state.gui_state.settings.mouse_sensitivity;
                                 state.controller.invert_y = state.gui_state.settings.invert_y;
+                                // Crouch: held or toggled (2026-11-09).
+                                state.controller.set_crouch_toggle(state.gui_state.settings.crouch_toggle);
 
                                 // The walking pace (2026-11-09): Realistic or Simplified speeds
                                 // from data/game.csv. This block also runs on the boot frame.

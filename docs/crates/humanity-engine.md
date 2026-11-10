@@ -18,13 +18,13 @@ edit re-checks the least.
   - the crate root: `lib.rs`
   - the binary: `main.rs`
   - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`, `save_load_farm_tests.rs`
-- **Size:** 98,922 lines in 143 files, 14,347 of them in 52 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_shells.rs` 1,289 of 1,300, `lib.rs` 16,317 of 16,700, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 716 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,644 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 31, `relay` 5, `wasm` 1.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation. **Uses today** (references in non-test code): core 623, gui 577, systems 557, ship 326, renderer 313, terrain 131, net 101, music 13, protocol 13, relay 11, animation 9.
+- **Size:** 102,806 lines in 152 files, 15,565 of them in 54 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_shells.rs` 1,289 of 1,300, `lib.rs` 16,342 of 16,700, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 718 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,644 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 33, `relay` 5, `wasm` 1.
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation; through those, also ai-protocol. **Uses today** (references in non-test code): core 651, gui 585, systems 558, ship 330, renderer 327, terrain 161, net 101, animation 64, music 13, protocol 13, relay 11.
 - **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 730 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 755 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine engine:: save_load:: wasm_entry:: --skip engine::block:: --skip engine::choice:: --skip engine::dm:: --skip engine::file_transfer:: --skip engine::friend_code:: --skip engine::group_report:: --skip engine::household:: --skip engine::key_cards:: --skip engine::low_impact:: --skip engine::mine_tasks:: --skip engine::protected:: --skip engine::put_answer:: --skip engine::quiet_allow:: --skip engine::reach:: --skip engine::report:: --skip engine::warnings::

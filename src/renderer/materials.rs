@@ -65,6 +65,24 @@ pub const MATERIAL_TYPE_SCREEN: f32 = 24.0;
 /// in the shadow pass: a body is an opaque caster.
 pub const MATERIAL_TYPE_CHARACTER: f32 = 25.0;
 
+/// Material type 26: CARD HAIR, brows and lashes (2026-11-09, character animation's "the look";
+/// docs/design/character-animation.md section 16). The technique, for an engine with no MSAA and no
+/// temporal anti-aliasing (so no alpha-to-coverage and no hashed alpha): Scheuermann's two passes
+/// (2004), an opaque pass that keeps only the cards' solid core (alpha at or over the cut, writing
+/// depth, casting a cutout shadow) and a blended pass in the transparent list for the soft fringe
+/// under it; and Karis's hair shading (2016, Marschner's reflection, transmission and second
+/// reflection lobes along the strand, the second tinted by the hair), the strand direction taken
+/// from the texture's V direction on screen. Its texture is a character pack
+/// (`engine::look_textures`): colour (and alpha) left, normal map right. `params2`: x 1 (packed),
+/// y 1 when the right half is a real normal map, z the alpha cut (positive: the opaque core pass;
+/// negative: the blended fringe pass, which draws only the alpha under it), w the colour half's
+/// mean luminance (the hair colour is laid over the strands' light and dark by it).
+pub const MATERIAL_TYPE_HAIR: f32 = 26.0;
+
+/// The alpha the opaque hair pass keeps at or over (Scheuermann's core; the fringe pass blends the
+/// rest). High, so the solid core is only the cards' dense middle and the edges stay soft.
+pub const HAIR_CUTOFF: f32 = 0.8;
+
 impl Renderer {
     /// Register a material and return its handle (index).
     /// Uses material_type = 0.0 (default panel grid).
@@ -328,6 +346,67 @@ impl Renderer {
             t0.elapsed().as_secs_f32() * 1000.0
         );
         idx
+    }
+
+    /// A CHARACTER material with a packed texture (2026-11-09, the look): type 25 (cloth, shoes,
+    /// hats: colour times the texture, the normal map from its right half) or 26 (hair cards, see
+    /// `MATERIAL_TYPE_HAIR`), with its whole mip chain (`levels`, biggest first, `width` by `height`
+    /// at level 0) and its `params2` (the type's notes). The texture is the material's own; a garment's
+    /// materials are made once a session and shared by everyone wearing it in that colour.
+    pub fn add_character_material(&mut self, base_color: [f32; 4], roughness: f32, material_type: f32, params2: [f32; 4], levels: &[Vec<u8>], width: u32, height: u32) -> usize {
+        let refs: Vec<&[u8]> = levels.iter().map(|l| l.as_slice()).collect();
+        let bg = self.build_material_texture_bind_group(&refs, width, height, &self.albedo_sampler);
+        let idx = self.add_material_full(base_color, 0.0, roughness, material_type, 0.0);
+        self.materials[idx].albedo_bind_group = Some(bg);
+        self.update_material_params2(idx, params2);
+        humanity_core::frame_costs::set_vram_keyed("vram.textures", idx as u64, levels.iter().map(|l| l.len() as u64).sum());
+        idx
+    }
+
+    /// Another material over the SAME texture as material `src` (shared, not copied): a garment's
+    /// pack worn in another colour, or hair's fringe pass beside its core. None when `src` has no
+    /// texture of its own.
+    pub fn add_material_like(&mut self, src: usize, base_color: [f32; 4], roughness: f32, material_type: f32, params2: [f32; 4]) -> Option<usize> {
+        let groups = self.materials.get(src)?.albedo_bind_group.as_ref().map(|g| super::AlbedoBindGroup { colour: g.colour.clone(), shadow: g.shadow.clone() })?;
+        let idx = self.add_material_full(base_color, 0.0, roughness, material_type, 0.0);
+        self.materials[idx].albedo_bind_group = Some(groups);
+        self.update_material_params2(idx, params2);
+        Some(idx)
+    }
+
+    /// Let go of material `idx`'s texture (2026-11-10, the look: a garment nobody near has worn for a
+    /// while): its bind group is dropped, so the texture is freed once no other material shares it,
+    /// and its memory figure goes to 0. The material itself stays, its index valid, until
+    /// `set_character_texture` gives it a texture again. No-op if idx is out of range.
+    pub fn drop_material_texture(&mut self, idx: usize) {
+        if let Some(mat) = self.materials.get_mut(idx) {
+            mat.albedo_bind_group = None;
+            mat.albedo_texture = None;
+            humanity_core::frame_costs::set_vram_keyed("vram.textures", idx as u64, 0);
+        }
+    }
+
+    /// Give material `idx` a packed character texture again (its whole mip chain, as
+    /// `add_character_material`), in place: a released garment worn again keeps its material
+    /// indices. No-op if idx is out of range.
+    pub fn set_character_texture(&mut self, idx: usize, params2: [f32; 4], levels: &[Vec<u8>], width: u32, height: u32) {
+        if idx >= self.materials.len() {
+            return;
+        }
+        let refs: Vec<&[u8]> = levels.iter().map(|l| l.as_slice()).collect();
+        let bg = self.build_material_texture_bind_group(&refs, width, height, &self.albedo_sampler);
+        self.materials[idx].albedo_bind_group = Some(bg);
+        self.update_material_params2(idx, params2);
+        humanity_core::frame_costs::set_vram_keyed("vram.textures", idx as u64, levels.iter().map(|l| l.len() as u64).sum());
+    }
+
+    /// Point material `dst` at the texture material `src` holds (shared, as `add_material_like`):
+    /// a released garment's other colours and its fringe pass, once its texture is read again.
+    pub fn share_material_texture(&mut self, dst: usize, src: usize) {
+        let groups = self.materials.get(src).and_then(|m| m.albedo_bind_group.as_ref()).map(|g| super::AlbedoBindGroup { colour: g.colour.clone(), shadow: g.shadow.clone() });
+        if let (Some(groups), Some(mat)) = (groups, self.materials.get_mut(dst)) {
+            mat.albedo_bind_group = Some(groups);
+        }
     }
 
     /// Replace the albedo texture of an existing material IN PLACE (v0.811):

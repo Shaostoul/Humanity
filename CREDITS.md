@@ -107,7 +107,10 @@ listed here for a kindness they did not ask credit for.
   male bodies every person is drawn with: its CC0 base mesh, default skeleton and
   weights and young-adult shape targets (commit a8bc2d54, fetched 2026-11-09),
   converted by HumanityOS (`scripts/gen-makehuman-body.js`; the sources and hashes in
-  `assets/models/characters/makehuman/SOURCE.md`).
+  `assets/models/characters/makehuman/SOURCE.md`); and since 2026-11-09 its face and body
+  detail targets and its system asset pack's clothes, shoes, hats, hair, brows and lashes
+  with their textures, CC0 too, converted by `scripts/gen-makehuman-look.js` (the sources and
+  hashes in `assets/models/characters/makehuman/LOOK-SOURCE.md`).
 - **Quaternius** (https://quaternius.com) - the Universal Animation Library's CC0
   clips people walk, jog, sprint, stand, crouch, jump and sit with (downloaded
   2026-11-09, zip SHA-256 `cc73fc4e495b82958207316596317a3f40b9fa38065bde1027937452da537724`),

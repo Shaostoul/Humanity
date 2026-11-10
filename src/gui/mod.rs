@@ -4580,6 +4580,9 @@ pub struct SettingsState {
     /// on the world with leg IK, foot locking and stair footsteps for the near bodies), true is
     /// Simplified (the pelvis offset alone). Saved as AppConfig::anim_simplified.
     pub anim_simplified: bool,
+    /// Crouch (2026-11-09): false holds the crouch key to crouch (the default), true presses it once
+    /// to crouch and again to stand. Saved as AppConfig::crouch_toggle.
+    pub crouch_toggle: bool,
     /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
     /// content's main colour per marker, the default), true is Full (the scheme's whole marker,
     /// main-additional-main). Saved as AppConfig::pipe_marking_full.
@@ -4758,6 +4761,7 @@ impl Default for SettingsState {
             carry_realistic: false,
             walk_realistic: false,
             anim_simplified: false,
+            crouch_toggle: false,
             pipe_marking_full: false,
             death_realistic: false,
             drone_realistic: false,

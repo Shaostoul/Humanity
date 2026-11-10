@@ -68,12 +68,15 @@ pub struct SkinnedBody {
 }
 
 /// A near place: one body's compute-skinned vertices for this frame, and its regions registered as
-/// ordinary meshes over them.
+/// ordinary meshes over them. `meshes` may hold more ids than the body has regions (a person's own
+/// body rebuilt with fewer garments keeps its spare mesh ids for the next rebuild); the first
+/// `regions` are this body's.
 struct NearSlot {
     params: wgpu::Buffer,
     bind: wgpu::BindGroup,
     out: wgpu::Buffer,
     meshes: Vec<usize>,
+    regions: usize,
 }
 
 /// A middle body's region to draw this frame.
@@ -110,6 +113,9 @@ pub struct Skinning {
     vs_layout: wgpu::BindGroupLayout,
     vs_object: wgpu::Buffer,
     vs_pso: Deferred<SkinnedPso>,
+    /// Body ids released (`skin_release_body`: a person's own body when they leave), to be used
+    /// again by the next `skin_register_body`, so people coming and going never grow the list.
+    free: Vec<usize>,
 }
 
 /// The palette's morph block, in matrix slots: `humanity_animation::pose::MORPH_SLOTS` (this module
@@ -127,6 +133,49 @@ impl Renderer {
         if self.skinning.is_none() {
             self.skinning = Some(Box::new(Skinning::new(self)));
         }
+        if let Some(id) = self.skinning.as_mut().and_then(|sk| sk.free.pop()) {
+            self.skin_replace_body(id, model);
+            return id;
+        }
+        let body = self.make_skinned_body(model);
+        let sk = self.skinning.as_mut().expect("made above");
+        sk.bodies.push(body);
+        sk.slots.push(Vec::new());
+        sk.bodies.len() - 1
+    }
+
+    /// Replace a registered body's mesh in place (2026-11-09, "the look": a person's own body built
+    /// again when their look changes). Its near places are filled again over the new vertices,
+    /// keeping their mesh ids (`replace_mesh`), so rebuilding never grows the mesh registry.
+    pub fn skin_replace_body(&mut self, id: usize, model: &SkinnedModelData) {
+        let body = self.make_skinned_body(model);
+        let places = match self.skinning.as_mut() {
+            Some(sk) if id < sk.bodies.len() => {
+                sk.bodies[id] = body;
+                sk.slots[id].len()
+            }
+            _ => return,
+        };
+        for slot in 0..places {
+            self.fill_near_slot(id, slot);
+        }
+    }
+
+    /// Release a body registered for one person (they left, or went out of the near tier long
+    /// enough): its GPU memory is freed now (an empty mesh takes its place, its near places shrink to
+    /// nothing) and its id is used again by the next registration.
+    pub fn skin_release_body(&mut self, id: usize) {
+        if self.skinning.as_ref().map_or(true, |sk| id >= sk.bodies.len() || sk.free.contains(&id)) {
+            return;
+        }
+        self.skin_replace_body(id, &SkinnedModelData::default());
+        if let Some(sk) = self.skinning.as_mut() {
+            sk.free.push(id);
+        }
+    }
+
+    /// A body's GPU buffers from its mesh.
+    fn make_skinned_body(&mut self, model: &SkinnedModelData) -> SkinnedBody {
         let mut vertices: Vec<SkinnedVertex> = Vec::with_capacity(model.vertex_count());
         let mut regions = Vec::with_capacity(model.primitives.len());
         for prim in &model.primitives {
@@ -155,18 +204,9 @@ impl Renderer {
             contents: bytemuck::cast_slice(&deltas),
             usage: wgpu::BufferUsages::STORAGE,
         });
-        let sk = self.skinning.as_mut().expect("made above");
+        let sk = self.skinning.as_ref().expect("made by the caller");
         let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &morphs);
-        sk.bodies.push(SkinnedBody {
-            vertices: vb,
-            vertex_count: vertices.len() as u32,
-            joint_count: model.joints.len() as u32,
-            regions,
-            morphs,
-            vs_bind,
-        });
-        sk.slots.push(Vec::new());
-        sk.bodies.len() - 1
+        SkinnedBody { vertices: vb, vertex_count: vertices.len() as u32, joint_count: model.joints.len() as u32, regions, morphs, vs_bind }
     }
 
     /// Forget every body and near place (a reload of the character data). The meshes the near
@@ -177,6 +217,7 @@ impl Renderer {
             sk.slots.clear();
             sk.jobs.clear();
             sk.middle.clear();
+            sk.free.clear();
         }
     }
 
@@ -234,7 +275,8 @@ impl Renderer {
         }
         let sk = self.skinning.as_mut().expect("checked above");
         sk.jobs.push((body, slot, model_index));
-        sk.slots[body][slot].meshes.clone()
+        let s = &sk.slots[body][slot];
+        s.meshes[..s.regions].to_vec()
     }
 
     /// Draw a middle body's region this frame with the VS PSO, or, while that PSO is not ready,
@@ -390,11 +432,50 @@ impl Renderer {
         // Buffer handles are shared clones (wgpu 24), so the region meshes and this place draw the
         // same GPU memory; collected before the registry is borrowed to add them.
         let regions: Vec<(wgpu::Buffer, u32)> = b.regions.iter().map(|(ib, n)| (ib.clone(), *n)).collect();
+        let n = regions.len();
         let meshes = regions
             .into_iter()
             .map(|(index_buffer, index_count)| self.add_mesh(Mesh { vertex_buffer: out.clone(), index_buffer, index_count }))
             .collect();
-        NearSlot { params, bind, out, meshes }
+        NearSlot { params, bind, out, meshes, regions: n }
+    }
+
+    /// Fill near place `slot` of `body` again over the body's current vertices (its mesh was
+    /// replaced): a new output buffer and bind group, its region meshes replaced in place, a mesh id
+    /// added only when the body has more regions than the place has ever had.
+    fn fill_near_slot(&mut self, body: usize, slot: usize) {
+        let Some(sk) = self.skinning.as_ref() else { return };
+        let b = &sk.bodies[body];
+        let out = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Skinned Body Output"),
+            size: (b.vertex_count as u64).max(1) * OUT_VERTEX_BYTES,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
+        });
+        let s = &sk.slots[body][slot];
+        let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &b.vertices, &out, &s.params, &b.morphs);
+        let regions: Vec<(wgpu::Buffer, u32)> = b.regions.iter().map(|(ib, n)| (ib.clone(), *n)).collect();
+        let mut ids = s.meshes.clone();
+        let n = regions.len();
+        for (k, (index_buffer, index_count)) in regions.into_iter().enumerate() {
+            let mesh = Mesh { vertex_buffer: out.clone(), index_buffer, index_count };
+            if k < ids.len() {
+                self.replace_mesh(ids[k], mesh);
+            } else {
+                ids.push(self.add_mesh(mesh));
+            }
+        }
+        // Spare ids no longer drawn give up their buffers (a released body frees its memory now).
+        for &id in ids.iter().skip(n) {
+            let tiny = Mesh { vertex_buffer: out.clone(), index_buffer: self.skinning.as_ref().expect("checked").bodies[body].vertices.clone(), index_count: 0 };
+            self.replace_mesh(id, tiny);
+        }
+        let sk = self.skinning.as_mut().expect("checked above");
+        let s = &mut sk.slots[body][slot];
+        s.out = out;
+        s.bind = bind;
+        s.meshes = ids;
+        s.regions = n;
     }
 }
 
@@ -507,6 +588,7 @@ impl Skinning {
             vs_layout,
             vs_object,
             vs_pso,
+            free: Vec::new(),
         }
     }
 

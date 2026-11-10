@@ -82,6 +82,13 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         Some("game_in_view") | Some("game_out_of_view") => state.net_sync.queue_messages(view_change_messages(&v)),
         // The relay put us back where it holds us: a move faster than anyone can go (increment 4).
         Some("game_position_correction") => crate::engine::move_check::apply_correction(state, &v),
+        // A player we see changed their look (the look, 2026-11-09), read through the one reader.
+        Some("game_player_look") => {
+            if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
+                let look = v.get("appearance").and_then(humanity_core::player_look::PlayerLook::from_json);
+                state.net_sync.queue_messages(vec![NetMessage::PlayerLook { player_id: id as u32, look }]);
+            }
+        }
         Some("game_player_joined") => {
             if let (Some(id), Some(pos)) = (
                 v.get("player_id").and_then(|x| x.as_u64()),
@@ -612,12 +619,33 @@ const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.15;
 /// standing-still update on the frame we leave it for a page or the
 /// showroom (2026-10-02, round two: before that, our figure walked on
 /// 1.25 m on everyone else's screen and stood there until we came back).
+/// A CHANGED LOOK GOES OUT (2026-11-09, character animation's "the look"): when Done is pressed on
+/// the character page (`characters.look_send`), the whole look as it is now, never per drag; at most
+/// once every `LOOK_EVERY_S` seconds, so changes made sooner wait and go out as one, the latest (the
+/// relay refuses sooner ones too, and passes it only to the players who can see us).
+fn drive_look_send(state: &mut EngineState) {
+    if !state.gui_state.characters.look_send {
+        return;
+    }
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    let now = START.get_or_init(std::time::Instant::now).elapsed().as_secs_f64();
+    if !humanity_core::player_look::look_due(state.gui_state.characters.look_sent_at, now) {
+        return;
+    }
+    let Some(ws) = state.gui_state.ws_client.as_ref() else { return };
+    let look = humanity_core::player_look::PlayerLook::from_appearance_wearing(&state.gui_state.appearance, &state.gui_state.outfit.equipped);
+    ws.send(&serde_json::json!({ "type": "game_look", "appearance": look.to_json() }).to_string());
+    state.gui_state.characters.look_send = false;
+    state.gui_state.characters.look_sent_at = Some(now);
+}
+
 pub(crate) fn drive_position_send(state: &mut EngineState, in_world: bool, dt: f32, real_dt: f32) {
     // Nothing goes out before the welcome has put our home on our plot (increment 1b): until
     // then our camera stands at the default plot, which may be someone else's home.
     if !state.game_welcomed {
         return;
     }
+    drive_look_send(state);
     // The rig's scripted walk (the showcase `walk_to` verb), and where the body stands while the
     // follow cam watches a vehicle (ship homes increment 4, engine/move_check.rs).
     crate::engine::move_check::walk_tick(state, dt);
@@ -1277,7 +1305,7 @@ mod tests {
         let floor = 3.0;
         let plain = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
         assert_eq!(plain.iter().map(|p| p.part).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head]);
-        let tall = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2, body: String::new(), shape: Default::default() };
+        let tall = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2, body: String::new(), shape: Default::default(), ..Default::default() };
         for (look, h) in [(None, 1.0), (Some(&tall), 1.2)] {
             let parts = remote_figure_parts(eye, glam::Quat::IDENTITY, look);
             let get = |part| *parts.iter().find(|p| p.part == part).unwrap();
@@ -1403,7 +1431,7 @@ mod tests {
             let fwd = cam.forward_xz();
             let right = fwd.cross(Vec3::Y);
             for height in [1.0f32, 1.2] {
-                let look = humanity_core::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height, body: String::new(), shape: Default::default() };
+                let look = humanity_core::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height, body: String::new(), shape: Default::default(), ..Default::default() };
                 let pieces = remote_figure_parts(Vec3::from(position), Quat::from_array(rotation), Some(&look));
                 let head = pieces.iter().find(|p| p.part == FigurePart::Head).unwrap().at;
                 let r = FIGURE_HEAD_MESH_R_M * height;
@@ -1654,7 +1682,7 @@ mod tests {
                 key: None,
             },
         ));
-        let tallest = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: humanity_core::player_look::HEIGHT_MAX, body: String::new(), shape: Default::default() };
+        let tallest = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: humanity_core::player_look::HEIGHT_MAX, body: String::new(), shape: Default::default(), ..Default::default() };
         world.spawn((
             at(Vec3::new(-5.0, 1.7, 0.0)),
             RemotePlayer {

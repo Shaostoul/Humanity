@@ -363,6 +363,11 @@ pub struct GameWorld {
     /// not on the player's entity, so stepping out of the world and back in does not reset it;
     /// not saved with the world (a restart forgets it, and the next meal is simply allowed).
     pub player_next_meal: HashMap<String, f64>,
+    /// When each PERSON (by key) last had a changed look accepted (2026-11-09, the look; seconds of
+    /// the relay's own clock, `look_clock`): at most one every `player_look::LOOK_EVERY_S`, so a
+    /// modified client cannot flood the people near it or flicker its body at them. By key, not on
+    /// the entity, for the same reason as the meals; not saved.
+    pub look_accepted: HashMap<String, f64>,
     /// Which mode the fleet's stores run in (the server setting `fleet_supply_mode`, set by
     /// `RelayState::new` and by an admin's change, ship_stores.rs `FleetSupply`): unlimited
     /// unless an admin picked stocked.
@@ -573,6 +578,7 @@ impl GameWorld {
             chores: Vec::new(),
             provisions: super::ship_stores::Provisions::load(),
             player_next_meal: HashMap::new(),
+            look_accepted: HashMap::new(),
             fleet_supply: Default::default(),
             fleet_ledger: super::fleet_ledger::LedgerData::load(),
             fleet_power_last: HashMap::new(),

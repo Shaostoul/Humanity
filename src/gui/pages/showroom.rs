@@ -976,6 +976,9 @@ fn draw_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_md);
 
                 if widgets::Button::primary(t("characters.done")).hint("characters.done_hint").show(ui, theme) {
+                    // The look goes to the shared world now (the look, 2026-11-09): once, when
+                    // Done is pressed, never while a slider is dragged.
+                    state.characters.look_send = true;
                     if from_picker {
                         state.showroom_return_to_picker = false;
                         state.showroom_mode = 0;
@@ -1186,6 +1189,8 @@ fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         state.appearance_dirty = true;
     }
     draw_body_shape(ui, theme, state);
+    draw_wearables(ui, theme, state);
+    draw_details(ui, theme, state);
     // Reached from the picker there is no bedroom to walk to, so say where
     // outfits actually live.
     if state.showroom_return_to_picker {
@@ -1232,6 +1237,130 @@ fn draw_body_shape(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if ui.button(t("characters.shape_reset")).hint("characters.shape_reset_hint").clicked() {
         state.appearance.shape.clear();
         state.appearance.height_scale = 1.0;
+        state.appearance_dirty = true;
+    }
+}
+
+/// The id a look uses for "wears none" (humanity_animation::library::WEAR_NONE's value; a data id,
+/// not words).
+const WEAR_NONE: &str = "none";
+
+/// THE HAIR, BROWS AND LASHES (2026-11-09, the look; docs/design/character-animation.md section 16):
+/// MakeHuman's own, fitted to the body whatever its shape, chosen by id (data/characters/garments.ron)
+/// and coloured by the hair colour above. "Default" leaves the choice to the wearer's defaults,
+/// "None" wears none. Everyone you meet sees what you choose.
+fn draw_wearables(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use humanity_core::i18n::t_dyn;
+    let lists = state.characters.wearables.clone();
+    if lists.is_empty() {
+        return;
+    }
+    for (kind, ids) in &lists {
+        let current = match kind.as_str() {
+            "hair" => state.appearance.hair_style.clone(),
+            "brows" => state.appearance.brows.clone(),
+            "lashes" => state.appearance.lashes.clone(),
+            _ => continue,
+        };
+        let mut chosen: Option<String> = None;
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new(t_dyn(&format!("characters.wear_{kind}"))).color(theme.text_secondary())).hint_dyn(&format!("characters.wear_{kind}_hint"));
+        ui.horizontal_wrapped(|ui| {
+            let known = ids.iter().any(|id| *id == current) || current == WEAR_NONE;
+            if ui.selectable_label(!known, t("characters.wear_default")).hint("characters.wear_default_hint").clicked() {
+                chosen = Some(String::new());
+            }
+            if ui.selectable_label(current == WEAR_NONE, t("characters.none")).hint("characters.none_hint").clicked() {
+                chosen = Some(WEAR_NONE.into());
+            }
+            for id in ids {
+                if ui.selectable_label(current == *id, t_dyn(&format!("characters.garment_{id}"))).hint("characters.wear_hint").clicked() {
+                    chosen = Some(id.clone());
+                }
+            }
+        });
+        if let Some(c) = chosen.filter(|c| *c != current) {
+            match kind.as_str() {
+                "hair" => state.appearance.hair_style = c,
+                "brows" => state.appearance.brows = c,
+                _ => state.appearance.lashes = c,
+            }
+            state.appearance_dirty = true;
+        }
+    }
+}
+
+/// THE FACE AND BODY, FEATURE BY FEATURE (2026-11-09, the look; docs/design/character-animation.md
+/// section 16): the chosen body's detail sliders (data/characters/details.ron, MakeHuman's detail
+/// targets), one group at a time, each folded until opened (open when a slider in it is moved off the
+/// middle, with how many in its heading). A slider with two ends runs from one to
+/// the other with the body as made in the middle; one with a single end from none to full. The
+/// values go into `appearance.detail` by slider id (and to everyone you meet in your look, when Done
+/// is pressed); each group has its own reset, and one resets them all.
+fn draw_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use humanity_core::i18n::{t_dyn, t_marked};
+    let blocks = match state.characters.detail_sliders.get(&state.appearance.body_type).or_else(|| state.characters.detail_sliders.values().next()) {
+        Some(b) if !b.is_empty() => b.clone(),
+        _ => return,
+    };
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new(t("characters.detail")).strong().color(theme.text_primary()));
+    widgets::glossary_words(ui, theme, t_marked("characters.detail_note"), theme.font_size_small, theme.text_muted());
+    for block in &blocks {
+        let hint_key = format!("characters.detail_group_{}_hint", block.group);
+        let set = block.sliders.iter().filter(|s| state.appearance.detail.get(&s.id).is_some_and(|v| *v != 0.0)).count();
+        let mut title = t_dyn(&format!("characters.detail_group_{}", block.group)).to_string();
+        if set > 0 {
+            title = tf("characters.detail_group_set", &[("group", &title), ("n", &set)]);
+        }
+        let r = egui::CollapsingHeader::new(title).id_salt(("detail_group", &block.group)).default_open(set > 0).show(ui, |ui| {
+            for s in &block.sliders {
+                draw_detail_slider(ui, theme, state, s, &hint_key);
+            }
+            if ui.button(t("characters.detail_reset_group")).hint("characters.detail_reset_group_hint").clicked() {
+                for s in &block.sliders {
+                    state.appearance.detail.remove(&s.id);
+                }
+                state.appearance_dirty = true;
+            }
+        });
+        r.header_response.hint_dyn(&hint_key);
+    }
+    ui.add_space(theme.spacing_xs);
+    if !state.appearance.detail.is_empty() && ui.button(t("characters.detail_reset_all")).hint("characters.detail_reset_all_hint").clicked() {
+        state.appearance.detail.clear();
+        state.appearance_dirty = true;
+    }
+}
+
+/// One detail slider: its name, its low end's words, the track, its high end's words. The group's
+/// hint explains it (one hint a group, the brief's "a hint per group").
+fn draw_detail_slider(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, s: &humanity_core::player_look::DetailSliderView, hint_key: &str) {
+    use humanity_core::i18n::t_dyn;
+    let range = if s.single { 0.0..=1.0 } else { -1.0..=1.0 };
+    let mut v = state.appearance.detail.get(&s.id).copied().unwrap_or(0.0);
+    let mut changed = false;
+    widgets::settings_row(ui, theme, t_dyn(&format!("characters.detail_{}", s.id)), |ui| {
+        let gap = ui.spacing().item_spacing.x;
+        let avail = ui.available_width();
+        let end = (avail * 0.22).min(theme.settings_label_width * 0.45);
+        let slot = egui::vec2(end, ui.spacing().interact_size.y);
+        ui.allocate_ui_with_layout(slot, egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.set_min_width(slot.x);
+            ui.add(egui::Label::new(RichText::new(t_dyn(&format!("characters.detail_end_{}", s.low))).size(theme.font_size_small).color(theme.text_muted())).truncate());
+        });
+        ui.spacing_mut().slider_width = (avail - 2.0 * end - 3.0 * gap).max(40.0);
+        changed = widgets::slider(ui, theme, egui::Slider::new(&mut v, range).show_value(false)).hint_dyn(hint_key).changed();
+        ui.add(egui::Label::new(RichText::new(t_dyn(&format!("characters.detail_end_{}", s.high))).size(theme.font_size_small).color(theme.text_muted())).truncate());
+    });
+    if changed {
+        // To a hundredth, as the look carries it; 0 is the body as made and leaves the look.
+        let q = (v * 100.0).round() / 100.0;
+        if q == 0.0 {
+            state.appearance.detail.remove(&s.id);
+        } else {
+            state.appearance.detail.insert(s.id.clone(), q);
+        }
         state.appearance_dirty = true;
     }
 }
