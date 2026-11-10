@@ -12,6 +12,10 @@
   "recent_decisions": [
     {
       "date": "2026-11-10",
+      "decision": "v0.1554.1 built on every platform and mirrored by the --parallel 4 puller in its first real run: \"RESULT: ok: published 14 files (5.3 GB; 14 fetched now) in 6m38s; manifest rebuilt\" (v0.1553.0 timed out at 50 min on one connection). united-humanity.us/releases/manifest.json lists v0.1554.1 with 14 files. BUG-288 closed in practice."
+    },
+    {
+      "date": "2026-11-10",
       "decision": "v0.1554.0's macOS and Linux builds failed (BUG-290: dev_ai.rs named the Windows-only ai::job); fixed abe528e5d and released v0.1554.1 for every platform (verify-runtime PASS 3/3). Verify gained a native-linux job (cargo check --features native on Linux every push), red on v0.1554.0's tree via a temporary branch (deleted), green on main. v0.1554.1 is the second release of Nov 10 Pacific: no more releases until Nov 11.",
       "why": "The dev host compiles native only for Windows, so a Windows-only name passed every local gate; the release was the first non-Windows compile."
     },
@@ -1182,7 +1186,7 @@
     "Renderer: finer terrain costs about +6 ms per patch drawn and every depth-15+ patch carries the forest (maps 2b measurements, whole-earth-maps.md 6.4); batching patch draws would let the full-detail reach widen past 100 m."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-10T08:38:02.688Z",
+  "last_updated": "2026-11-10T09:09:18.271Z",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
