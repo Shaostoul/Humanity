@@ -223,3 +223,22 @@ in the pack with the licence column "CC0" and links two mirrors, `primaryFilesUr
 statement inside each file. The converter of rung 1 can fit them the way it builds the body (our own
 code; MakeHuman's AGPL fitting code is not copied), after foot placement. The skins are photographic
 textures; using them is a separate choice from the painted regions, worth a look at the same time.
+
+## Addendum, 2026-11-09 (evening): MakeHuman's face and body detail targets
+
+Asked for after the body sliders, when the operator asked which "races" the ancestry sliders consider
+and what about Native Americans and others not on MakeHuman's list of three; approved the same
+evening ("Yes."). Fetched from the same commit as the bodies, `a8bc2d54ff0ac92e78ff71431b1023eda42bf482`,
+every group under `makehuman/data/targets/` except `macrodetails` (rung 1 took its young-adult files),
+`expression` and `genitals`: **1,095 files, 17,742,966 bytes**, each checked against the git blob hash in
+GitHub's tree listing, through raw.githubusercontent.com (no robots.txt there, 404, 2026-11-09). Kept at
+`E:\HumanityOS\makehuman-src\detail-targets-a8bc2d54\` with `MANIFEST.json` (every path, size and
+hash) and the fetch script beside it. By group: armslegs 210, asym 62, bodyshapes 45, breast 236,
+buttocks 3, cheek 24, chin 22, ears 66, eyebrows 9, eyes 102, forehead 12, head 44, hip 21, measure 40,
+mouth 67, neck 24, nose 63, pelvis 6, stomach 12, torso 27. CC0 under the same LICENSE.md section C
+quoted in finding 1 (targets are among the assets it names).
+
+**What it means now:** faces and bodies can be shaped feature by feature (nose, eyes, cheeks, jaw,
+chin, mouth, ears, brow, head shape, neck, torso, limbs), so a person can make any face rather than
+choose among fixed ancestry categories. Using them is character-animation.md's work after foot
+placement, beside the clothes and hair.

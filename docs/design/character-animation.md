@@ -829,6 +829,28 @@ ancestry, every other player sees the shape you chose, and a crew is no longer o
   look's shape is clamped and an old look reads as the body as made, and a save from before the
   sliders loads. The character page: `tests/snapshots/character_shape.png`.
 
+### Answers after the body sliders (operator, 2026-11-09)
+
+- **Ancestry words.** He asked why "European" instead of MakeHuman's "Caucasian". The coordinator's
+  answer: "Caucasian" is Blumenbach's 1795 race-classification term named after the Caucasus, not a
+  place a person's ancestors come from the way "African" and "Asian" are, while its old scope (North
+  Africa, the Middle East, South Asia) is wider than "European", so the word may be narrower than
+  MakeHuman's shape. Kept as built for now; a one-word change if he decides otherwise.
+- **Which "races", and the people MakeHuman leaves out.** He asked: "What are the 'races' to
+  consider? What about Native Americans and other races not on the list? Is that a tuning of
+  MakeHuman?" MakeHuman sculpted exactly three ancestry shapes; we use them unchanged. Human
+  variation is continuous, so any fixed list leaves people out. Instead of more categories, the
+  coordinator recommended MakeHuman's face and body detail targets, so anyone can shape their own
+  face; he answered "Yes." (fetched the same evening: 1,095 files, 17.7 MB, the character assets
+  finding's evening addendum). The three ancestry blends stay as quick starting points. Built after
+  foot placement, beside clothes and hair; with hundreds of targets, each person's face is built once
+  when their look changes (versioned by the look, obeying the reuse switch) rather than blended on
+  the GPU every frame.
+- **A changed look reaching others mid-session.** He asked what rate limit it would take: sent when
+  Done is pressed, at most once every 10 seconds per player, collapsed to the latest shape, only to
+  players who can see the person, and capped by the relay at a few a minute (protection against a
+  modified client flooding nearby players, and against flicker harassment). Later, not urgent.
+
 ## References
 
 - MotionBricks: README, model cards and ONNX guide, https://github.com/NVlabs/motionbricks; the

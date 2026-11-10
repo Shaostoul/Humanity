@@ -5,12 +5,15 @@
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
   "current_focus": "After v0.1552.0: no agents running. Waiting on the operator for the open questions (walk speed; embeddable AI 11; asset sources). Next candidates when he answers or as established work: character rung 2 from the downloaded MakeHuman + Quaternius UAL sources; maps rung 2 from the Washington sources on E:; SimReady close-view GPU perf pass.",
   "open_questions_for_human": [
-    "MakeHuman face and body detail targets (about 1,100 files, about 18 MB, CC0, github.com/makehumancommunity/makehuman at a8bc2d54) so anyone can shape their own face instead of more ancestry categories (operator asked about Native Americans and others): asked 2026-11-09 evening, awaiting yes.",
     "Ancestry slider words African / Asian / European (MakeHuman says Caucasian), and proportions \"shorter legs / longer legs\" (MakeHuman: unusual / idealistic): rec keep as built.",
     "Map full-detail reach inside a pack: rec keep 100 m until the renderer batches patch draws and the forest cost item lands.",
     "Streets on mapped seawalls (Tracyton Blvd NW): rec rung 3 reads OSM seawalls / retaining walls / embankments as a stepped shore type."
   ],
   "recent_decisions": [
+    {
+      "date": "2026-11-09",
+      "decision": "MakeHuman face and body detail targets fetched (approved: 1,095 files, 17,742,966 bytes, every git blob hash matched; E:/HumanityOS/makehuman-src/detail-targets-a8bc2d54). Next character work after foot IK: clothes and hair (system asset pack) plus face and body detail sliders, each face built once per look change."
+    },
     {
       "date": "2026-11-09",
       "decision": "Granite 4.0 1B GGUF fetched (approved, verified against IBM hash, E:/HumanityOS/ai-src/granite-4.0-1b); dispatched embeddable AI rung 2 (wk-ai2.txt: llama.cpp engine behind a feature, catalog compiled in, downloads with hash check, Remove, staging folder for assets-ai-1 which the orchestrator uploads). Seawalls approved for maps rung 3."
