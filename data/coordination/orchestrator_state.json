@@ -11,6 +11,10 @@
   ],
   "recent_decisions": [
     {
+      "date": "2026-11-10",
+      "decision": "v0.1554.0 released (AI rungs 1 and 2 with Settings > AI downloads from assets-ai-1, body sliders, character rung 2a, maps 2b, the mirror fetching four files at once). verify-runtime PASS 3/3 panics 0 on the release exe; lints and rig-tests green; lib tests passed on the tree before the bump. The flaky rig test was the orchestrator's own: mirror-release's --max-minutes test expected one file name, which --parallel made nondeterministic (fixed 58efda09a)."
+    },
+    {
       "date": "2026-11-09",
       "decision": "Character rung 2a merged (3e4e6e691): feet on decks, treads, ramps and map terrain with locking and stair footsteps, crouch (hold C) and jump, the stance over the network (clamped), Settings > Gameplay > Animation (Realistic default, Simplified pelvis-only), height in metres, the player body on a planet drawn where it stands, BUG-289. Planted feet 0.1 to 1.0 cm over the ground in the running game; 50 bodies cost +0.21 ms cpu.animation. The agent's three questions settled without the operator: crouch gets a Hold/Toggle choice (hold default) for people who cannot hold a key, built by the look agent; crawling under low things waits for rung 2b's anchors; the start-from-standing snap waits for rung 3 unless seen in play. Dispatched \"the look\" agent (wk-look.txt): per-person shaped mesh built once per look change (versioned, reuse switch), detail sliders, the look over the network clamped, MakeHuman clothes, shoes, hats and hair fitted to the shaped body, textured hair rendering, the crouch toggle. rig-tests showed 2 failures once under load, 1679/0 on the rerun (unidentified flake).",
       "why": "Operator 2026-11-09: clothes and hair after foot placement (\"Yeah, might as well include these.\"), the detail targets (\"Yes.\"). The three questions are technical or accessibility calls with an obvious answer, none a taste decision."
@@ -1143,7 +1147,7 @@
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming.",
     "2026-11-06 (orchestrator session 1c730720): src/relay push routes, push_send.rs, web_push.rs, src/relay/handlers/utils.rs fetch_link_preview (SSRF agent); chat video upload/poster paths in both apps and the relay uploads (poster agent)."
   ],
-  "version_state": "v0.1113.0 local; deploying. VPS live on fresh Debian 12, fully provisioned + backed up + logging.",
+  "version_state": "v0.1554.0 released 2026-11-10 (read Cargo.toml for the current version; never trust this line over it).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
@@ -1173,7 +1177,7 @@
     "Renderer: finer terrain costs about +6 ms per patch drawn and every depth-15+ patch carries the forest (maps 2b measurements, whole-earth-maps.md 6.4); batching patch draws would let the full-detail reach widen past 100 m."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-10T07:14:40.341Z",
+  "last_updated": "2026-11-10T08:01:14.670Z",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
