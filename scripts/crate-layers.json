@@ -58,6 +58,22 @@
       ]
     },
     {
+      "name": "humanity-ai-protocol",
+      "why": "The messages the app and its AI engine speak over the engine's standard input and output (docs/design/embeddable-ai.md, section 7.3; rung 1, 2026-11-09): serde types only, every message carrying the protocol version. A crate of its own so the app and the engine (a separate program) compile the very same types, and so the app's side of AI holds nothing a model could run with. Desktop only: the server never talks to an AI engine.",
+      "dir": "crates/humanity-ai-protocol",
+      "uses": []
+    },
+    {
+      "name": "humanity-ai-engine",
+      "why": "The AI engine, humanity-ai.exe (docs/design/embeddable-ai.md, section 7.1; rung 1, 2026-11-09: the skeleton and the --fake mode): the one separate program that will run every AI model a person chooses. NOT a member of the app's workspace (\"workspace\": \"own\": its own [workspace] and Cargo.lock, listed in the root Cargo.toml's exclude, built only by `just ai-engine`), so no build of HumanityOS.exe can pull a model runtime in, and the C++ runtimes it will link never slow the app's build. Nothing may use it.",
+      "dir": "crates/humanity-ai-engine",
+      "workspace": "own",
+      "tests": "just ai-engine test",
+      "uses": [
+        "humanity-ai-protocol"
+      ]
+    },
+    {
       "name": "humanity-relay",
       "why": "The server. The VPS build is this crate and what it uses, with no GPU code in it.",
       "paths": [
@@ -96,7 +112,7 @@
     },
     {
       "name": "humanity-gui",
-      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the instrument packs that Settings > Audio > Instruments installs and GuiState holds (2026-11-06), the model packs that Settings > Graphics > Furniture models installs (2026-11-09), the updater that Settings > Updates drives and GuiState holds, and release_update, the binary's release-signing commands and the launcher's check of a local exe: the GUI's since 2026-10-31; the pure signature check both use moved down to humanity-protocol's release_signature on 2026-11-02, so the server can check a signed release too), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
+      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the instrument packs that Settings > Audio > Instruments installs and GuiState holds (2026-11-06), the model packs that Settings > Graphics > Furniture models installs (2026-11-09), the AI client that Settings > AI and Dev > AI drive (2026-11-09: it starts the separate AI engine, and holds no model), the updater that Settings > Updates drives and GuiState holds, and release_update, the binary's release-signing commands and the launcher's check of a local exe: the GUI's since 2026-10-31; the pure signature check both use moved down to humanity-protocol's release_signature on 2026-11-02, so the server can check a signed release too), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
       "paths": [
         "gui",
         "config",
@@ -107,6 +123,7 @@
         "web_reader",
         "instrument_packs",
         "model_packs",
+        "ai",
         "updater",
         "release_update",
         "engine/protected",
@@ -135,7 +152,8 @@
         "humanity-relay",
         "humanity-net",
         "humanity-renderer",
-        "humanity-music"
+        "humanity-music",
+        "humanity-ai-protocol"
       ]
     },
     {

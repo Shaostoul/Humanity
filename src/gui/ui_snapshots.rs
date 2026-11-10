@@ -4505,6 +4505,60 @@ fn snapshot_dev_claude() {
     });
 }
 
+/// Settings > AI (2026-11-09, docs/design/embeddable-ai.md rung 1): "No AI is installed", what that
+/// means, Your computer (this machine's real memory, cores, AVX2 and free space; the graphics card is
+/// "not reported yet", as in every headless snapshot, which has no renderer), and one card per later AI
+/// choice with what it needs and whether this computer has it.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_ai() {
+    render_page_png("settings_ai", 1100, 1450, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, |ui, theme, state| crate::gui::pages::settings::ai::draw(ui, theme, state, theme.nav_dev()));
+    });
+}
+
+/// Settings > AI on a computer pretending to have 1.5 GB free (Dev > AI's "pretend this PC has {n} GB
+/// free"): every brain and helper card shows 4.7's memory notice, the lighter choice and the non-AI way.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_ai_low_memory() {
+    crate::ai::hardware::set_pretend_free_mb(Some(1536));
+    render_page_png("settings_ai_low_memory", 1100, 1600, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, |ui, theme, state| crate::gui::pages::settings::ai::draw(ui, theme, state, theme.nav_dev()));
+    });
+    crate::ai::hardware::set_pretend_free_mb(None);
+}
+
+/// Dev > AI (2026-11-09, docs/design/embeddable-ai.md 12.1) with the REAL fake engine running: started
+/// by a test question as a feature would start it, in its job object at below-normal priority, its
+/// answer in this session's log, the counters and timing, and the pretend free memory set to 1.5 GB.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_dev_ai() {
+    let _ = crate::ai::client_tests::fake_engine();
+    crate::ai::shared::set_use_dev_fake(true);
+    crate::gui::pages::dev_ai::pretend_for_snapshot(Some(1.5));
+    {
+        let mut c = crate::ai::shared::client();
+        crate::gui::pages::dev_ai::ask_test_question(&mut c);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while c.counters.answered == 0 && std::time::Instant::now() < deadline {
+            c.poll();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert_eq!(c.counters.answered, 1, "the fake engine answered before the render: {:?}", c.state());
+        c.ask_status();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    render_page_png("dev_ai", 1280, 800, |ctx, theme, state| {
+        state.active_dev_section = "ai".into();
+        crate::gui::pages::dev_tab::draw(ctx, theme, state);
+    });
+    crate::ai::shared::client().stop();
+    crate::gui::pages::dev_ai::pretend_for_snapshot(None);
+    crate::ai::shared::set_use_dev_fake(false);
+}
+
 /// Settings > Account > Recovery through trusted people (2026-10-20, was the Platform tab's
 /// Recovery page): what it is, "Not finished yet", the two lookups, your account ID.
 #[test]

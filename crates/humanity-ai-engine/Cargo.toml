@@ -1,0 +1,44 @@
+# humanity-ai-engine (docs/crates/humanity-ai-engine.md): the AI engine, `humanity-ai.exe`, the one
+# separate program that will run every AI model the person chooses (docs/design/embeddable-ai.md,
+# section 7; the runtime finding docs/reference/findings/2026-11-09-model-runtime.md). The app starts it
+# only while an AI feature is in use and talks to it through its standard input and output in the
+# messages of crates/humanity-ai-protocol/, one JSON object per line: no socket, no listener, no network.
+#
+# RUNG 1 (2026-11-09): a skeleton with no model and no runtime. `--fake` answers with scripted lines and
+# timing, so every screen, fallback and notice is tested without any model (12.1); without `--fake` it
+# says hello with no backends and refuses every model request in words. Rung 2 adds llama.cpp, rung 5
+# audio.cpp (Pocket TTS only), rung 8 tract.
+#
+# NOT A MEMBER OF THE APP'S WORKSPACE, on purpose (the root Cargo.toml lists it in `exclude`; this file
+# has its own [workspace] table and its own Cargo.lock):
+# - HumanityOS.exe must never depend on it (CLAUDE.md, "AI is optional, never required": the model
+#   runtime is a separate download), and a crate outside the workspace cannot be pulled in by a stray
+#   `--workspace` build or a feature unified across members;
+# - the runtimes it will link need CMake and a C++ compiler (7.1: "it builds only through its own recipe
+#   and CI job, never in `just verify`'s ordinary build");
+# - so the app's Cargo.lock can never name llama.cpp, audio.cpp, tract or ONNX Runtime, which is what
+#   tests/no_ai_in_app_lint.rs reads.
+# Build it with `just ai-engine` (target/ai-engine/release/humanity-ai.exe); `just ai-engine test` runs
+# its tests. The app's client tests build its debug copy themselves when it is missing.
+[package]
+name = "humanity-ai-engine"
+# The engine's own version, not the app's: the app names the engine version it expects (src/ai, and the
+# catalog from rung 2), and a new engine arrives only with an app release that names it (7.4).
+version = "1.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "humanity_ai_engine"
+path = "src/lib.rs"
+
+[[bin]]
+name = "humanity-ai"
+path = "src/main.rs"
+
+[dependencies]
+humanity-ai-protocol = { path = "../humanity-ai-protocol" }
+serde_json = "1"
+
+# Its own workspace: see the top of this file.
+[workspace]

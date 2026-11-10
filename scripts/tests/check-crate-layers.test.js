@@ -305,6 +305,7 @@ test('the plan must agree with the workspace: members, dirs and the dependencies
   const root = '[workspace]\nmembers = [".", "crates/x-low",\n  "crates/x-mid"]\n\n[package]\nname = "x-top"\n\n[dependencies]\nx-low = { path = "crates/x-low" }\nrav1d = { path = "vendor/rav1d" }\n\n[dev-dependencies]\nx-mid = { path = "crates/x-mid", features = ["test-support"] }\n';
   assert.deepStrictEqual(manifestDeps(root), {
     members: ['.', 'crates/x-low', 'crates/x-mid'],
+    exclude: null,
     deps: [
       { table: 'dependencies', name: 'x-low', path: 'crates/x-low' },
       { table: 'dependencies', name: 'rav1d', path: 'vendor/rav1d' },
@@ -343,4 +344,45 @@ test('the plan must agree with the workspace: members, dirs and the dependencies
   // Red: a cut crate that still lists paths under src/.
   const stale = { crates: plan.crates.map((c) => (c.name === 'x-low' ? { ...c, paths: ['low'] } : c)) };
   assert.deepStrictEqual(boundaryProblems(stale, root, read, 'x-top'), ['x-low is cut (dir crates/x-low) but still lists paths under src/: its files are in its dir now']);
+});
+
+// A crate with a workspace of its own (2026-11-09, the AI engine, docs/design/embeddable-ai.md 7.1):
+// excluded from the root workspace, a [workspace] of its own, and nothing may depend on it. Seen red
+// 2026-11-09 against the check as it was: the real plan failed with "humanity-ai-engine's dir,
+// crates/humanity-ai-engine, is not a member of the root Cargo.toml's [workspace]", and this test
+// failed at its first line ("actual: undefined, expected: [ 'vendor', 'crates/x-prog' ]": the reader
+// never read `exclude`).
+test('a crate with a workspace of its own is excluded, has its own [workspace], and nothing depends on it', () => {
+  const root = '[workspace]\nmembers = [".", "crates/x-low"]\nexclude = ["vendor",\n  "crates/x-prog"]\n\n[package]\nname = "x-top"\n\n[dependencies]\nx-low = { path = "crates/x-low" }\n';
+  assert.deepStrictEqual(manifestDeps(root).exclude, ['vendor', 'crates/x-prog']);
+  const plan = { crates: [
+    { name: 'x-low', dir: 'crates/x-low', uses: [] },
+    { name: 'x-prog', dir: 'crates/x-prog', workspace: 'own', uses: ['x-low'] },
+    { name: 'x-top', paths: ['top', 'lib.rs'], uses: ['x-low'] },
+  ] };
+  const tomls = {
+    'crates/x-low': '[package]\nname = "x-low"\n',
+    'crates/x-prog': '[package]\nname = "x-prog"\n\n[dependencies]\nx-low = { path = "../x-low" }\n\n# its own\n[workspace]\n',
+  };
+  const read = (d) => (d in tomls ? tomls[d] : null);
+  assert.deepStrictEqual(boundaryProblems(plan, root, read, 'x-top'), []);
+  // Red: made a member, and dropped from exclude.
+  const member = root.replace('"crates/x-low"]', '"crates/x-low", "crates/x-prog"]').replace(',\n  "crates/x-prog"]', ']');
+  assert.deepStrictEqual(boundaryProblems(plan, member, read, 'x-top'), [
+    'x-prog has a workspace of its own ("workspace": "own") but is a member of the root Cargo.toml\'s [workspace]',
+    'x-prog has a workspace of its own but the root Cargo.toml\'s [workspace] exclude does not list crates/x-prog',
+  ]);
+  // Red: its Cargo.toml without a [workspace] table.
+  const noTable = { ...tomls, 'crates/x-prog': '[package]\nname = "x-prog"\n' };
+  assert.deepStrictEqual(boundaryProblems(plan, root, (d) => (d in noTable ? noTable[d] : null), 'x-top'), [
+    'crates/x-prog/Cargo.toml has no [workspace] table of its own, which a crate with "workspace": "own" needs',
+  ]);
+  // Red: the app's plan entry allowed to use it, and the app's Cargo.toml depending on it.
+  const uses = { crates: plan.crates.map((c) => (c.name === 'x-top' ? { ...c, uses: ['x-low', 'x-prog'] } : c)) };
+  assert.deepStrictEqual(boundaryProblems(uses, root, read, 'x-top'), ['x-top may use x-prog in the plan, but x-prog has a workspace of its own: nothing may depend on it']);
+  const depends = root + 'x-prog = { path = "crates/x-prog" }\n';
+  assert.deepStrictEqual(boundaryProblems(plan, depends, read, 'x-top'), ["x-top's Cargo.toml depends on x-prog ([dependencies]), which the plan does not let x-top use"]);
+  // Red: a misspelt value.
+  const typo = { crates: plan.crates.map((c) => (c.name === 'x-prog' ? { ...c, workspace: 'separate' } : c)) };
+  assert.ok(boundaryProblems(typo, root, read, 'x-top').includes('x-prog\'s "workspace" is "separate": the only value is "own"'));
 });

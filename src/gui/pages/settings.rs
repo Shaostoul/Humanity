@@ -9,6 +9,9 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::updater::{UpdateChannel, UpdateState};
 
+/// Settings > AI (2026-11-09, docs/design/embeddable-ai.md rung 1): "No AI is installed", Your
+/// computer, and what each later AI choice will need.
+pub(crate) mod ai;
 /// Settings > Data > "Data folder": what the last update refreshed and kept (BUG-163 part 2).
 mod data_folder;
 /// Settings > Audio > Instruments (2026-11-06, docs/design/music.md rung 6): the instrument packs
@@ -148,6 +151,7 @@ pub const SECTIONS: &[(&str, SettingsCategory)] = &[
     ("Privacy", SettingsCategory::Privacy),
     ("Safety", SettingsCategory::Safety),
     ("Media", SettingsCategory::Media),
+    ("AI", SettingsCategory::Ai),
     ("Data", SettingsCategory::Data),
     ("Updates", SettingsCategory::Updates),
     ("Credits", SettingsCategory::Credits),
@@ -239,6 +243,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                         SettingsCategory::Privacy,
                         SettingsCategory::Safety,
                         SettingsCategory::Media,
+                        SettingsCategory::Ai,
                         SettingsCategory::Data,
                         SettingsCategory::Updates,
                     ];
@@ -264,6 +269,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                             SettingsCategory::Privacy => "Privacy",
                             SettingsCategory::Safety => "Safety",
                             SettingsCategory::Media => "Media",
+                            SettingsCategory::Ai => "AI",
                             SettingsCategory::Data => "Data",
                             SettingsCategory::Credits => "Credits",
                             SettingsCategory::Updates => "Updates",
@@ -309,6 +315,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                                     SettingsCategory::Privacy => draw_privacy_content(ui, theme, state),
                                     SettingsCategory::Safety => crate::gui::pages::safety::draw_safety_content(ui, theme, state, accent),
                                     SettingsCategory::Media => draw_media_content(ui, theme, state),
+                                    SettingsCategory::Ai => ai::draw(ui, theme, state, accent),
                                     SettingsCategory::Data => draw_data_content(ui, theme, state),
                                     SettingsCategory::Updates => draw_updates_content(ui, theme, state),
                                     SettingsCategory::Credits => draw_credits_content(ui, theme, state),
@@ -479,6 +486,7 @@ fn section_accent(cat: SettingsCategory, theme: &Theme) -> Color32 {
         SettingsCategory::Privacy => theme.warning(),
         SettingsCategory::Safety => theme.info(),
         SettingsCategory::Media => theme.nav_sim(),
+        SettingsCategory::Ai => theme.nav_dev(),
         SettingsCategory::Data => theme.nav_settings(),
         SettingsCategory::Updates => theme.accent(),
         SettingsCategory::Credits => theme.info(),

@@ -1,0 +1,24 @@
+# humanity-ai-protocol (docs/crates/humanity-ai-protocol.md): the messages the app and its AI engine
+# speak to each other over the engine's standard input and output, one JSON object per line
+# (docs/design/embeddable-ai.md, section 7.3; rung 1, 2026-11-09). Serde types only: no model, no
+# runtime, no network, no files. The app (HumanityOS.exe) depends on it under its `native` feature; the
+# AI engine (crates/humanity-ai-engine/, its own program, never a dependency of the app) depends on it
+# too, so both sides read and write the very same types. The server build never compiles it: the relay
+# never talks to an AI engine and never learns that a person has one (the design, 8.1).
+[package]
+name = "humanity-ai-protocol"
+version.workspace = true
+edition.workspace = true
+publish = false
+# Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
+build = "../repo_root.rs"
+
+[features]
+# Nothing behind it: the crate is the same everywhere. It exists because `just test-lib --crate
+# humanity-ai-protocol` (scripts/lib-tests.js) builds the named members with `--features native`, which
+# cargo refuses for a package without the feature (the animation crate found it, 2026-11-09).
+native = []
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -1,8 +1,8 @@
 # Embeddable AI: talking characters, a helper and a computer voice, on your own computer, never required
 
-**Status: plan (rung 0), written 2026-11-09.** Nothing here is built. The app contains no AI model
-and no model runtime today (checked 2026-11-09: no llama.cpp, ONNX, GGUF, tract or similar in
-`src/`, `crates/` or `web/`). This document is the whole plan, with all its bells and whistles, so
+**Status: rung 1 built 2026-11-09** (the engine skeleton and the door, with no model: section 14).
+The app contains no AI model and no model runtime, and `tests/no_ai_in_app_lint.rs` holds it so; the
+engine program exists with only its fake mode. This document is the whole plan, with all its bells and whistles, so
 the first slice is a rung of the real thing. The runtime decision it rests on is the dated finding
 [`docs/reference/findings/2026-11-09-model-runtime.md`](../reference/findings/2026-11-09-model-runtime.md);
 the model research is the 2026-11-08 scan
@@ -364,11 +364,25 @@ with its libraries and licence files beside it. Inside: llama.cpp (through its C
 brains; audio.cpp (its C library, Pocket TTS only) for the voice; tract, compiled in, for the small
 ONNX models. Portable processor kernels and a Vulkan backend; no CUDA, ROCm or SYCL packages (the
 vendor packages are larger than the models and serve one maker each). Its source lives in the
-workspace as its own binary crate (`crates/humanity-ai-engine/`), with the message types in a tiny
+repository as its own binary crate (`crates/humanity-ai-engine/`), with the message types in a tiny
 shared crate (`crates/humanity-ai-protocol/`, serde types only); `HumanityOS.exe` depends on the
 protocol crate and never on the engine crate (a lint holds this, 12.3). Each gets its crate card in
 `docs/crates/`. The engine needs CMake and a C++ compiler for llama.cpp and audio.cpp, so it builds
 only through its own recipe and CI job, never in `just verify`'s ordinary build.
+
+**Decided in rung 1 (2026-11-09): the engine has a workspace of its own.** It is NOT a member of the
+app's workspace: its `Cargo.toml` holds its own `[workspace]` table and its own `Cargo.lock`, and the
+root `Cargo.toml` lists it in `exclude` (`"workspace": "own"` in `scripts/crate-layers.json`, which
+`node scripts/check-crate-layers.js` holds: not a member, excluded, its own table, nothing may use it).
+Why: as a member it would be compiled by any `--workspace` build and by `just test-lib` (which builds
+every member), its runtimes' C++ would then need feature discipline to stay out of `just verify`, and
+its llama.cpp and ONNX crates would sit in the app's `Cargo.lock`. Outside, none of that can happen by
+construction, and the app's `Cargo.lock` lists every crate any build of the app can compile, so the
+no-AI lint reads it for runtimes, transitive ones included. `just ai-engine` builds it into
+`target/ai-engine/release/`, `just ai-engine test` runs its tests, and the app's client tests build its
+debug copy into `target/ai-engine/debug/` themselves (a nested `cargo build`: a check of under a
+second once built, longer the first time in a checkout, while serde compiles). The protocol crate IS a member (the app uses it), compiled only under the
+app's `native` feature: the relay never talks to an engine (8.1).
 
 ### 7.2 How the app runs it
 
@@ -572,7 +586,9 @@ speaking (12.1). If it costs more, threads drop first, then the brain tier.
   that draws it; every control with a plain hint by key.
 - Glossary cards (`data/glossary.json`): `[[AI]]` ("A computer program that writes or speaks by
   predicting what comes next, learned from a great deal of text or speech. In HumanityOS it runs only
-  on your computer, and only if you choose it."), `[[AI engine]]`, `[[computer voice]]`, `[[model]]`.
+  on your computer, and only if you choose it."), `[[AI engine]]`, `[[computer voice]]`, `[[AI model]]`
+  (rung 1 named it so, since "model" alone also means a 3D model in this app), and `[[AVX2]]` for 4.7's
+  notice.
 - The account words rule holds in prompts and filtered output (8.3).
 
 ## 12. Dev tooling (permanent)
@@ -606,10 +622,13 @@ side.
 
 ### 12.3 Lints and checks
 
-- **`tests/no_ai_in_app_lint.rs`** (in `just lints`): fails if `HumanityOS.exe`'s own dependency tree
-  (the root package's `Cargo.toml`, followed through workspace members) names llama.cpp, audio.cpp,
-  tract, ONNX Runtime, candle or burn, or if `data/` or `assets/` holds a `.gguf`, `.onnx` or
-  `.safetensors` file. Seen red first by adding a dependency in a scratch branch.
+- **`tests/no_ai_in_app_lint.rs`** (in `just lints`; built in rung 1): fails if `HumanityOS.exe`'s own
+  dependency tree (the root package's `Cargo.toml` and every workspace member's, and the root
+  `Cargo.lock`, which lists every crate any build of the workspace compiles, transitive ones included)
+  names llama.cpp, ggml, audio.cpp, tract, ONNX Runtime or its `ort` binding, candle or burn, or the
+  engine; if the engine is a workspace member; or if `data/` or `assets/` holds a `.gguf`, `.onnx`,
+  `.safetensors` or `.ggml` file. Seen red first with a scratch `llama-cpp-2` dependency in the root
+  `Cargo.toml` and a scratch `data/ai/scratch.gguf` (the evidence is in its header).
 - **`scripts/check-ai-catalog.js`** (in `just preflight`): every catalog entry has a hash, a size, a
   licence key, a credit row in `data/credits.ron`, a finding that exists, and a part list summing to
   the whole; every voice in `data/ai/voices.ron` has a source, a set and a licence, and none comes from
@@ -655,6 +674,24 @@ Each rung is a slice of the real thing.
    fake mode; the app's client (start, pipes, job object, priority, restart and fallback); Settings >
    AI with "No AI is installed", "Your computer" and the hardware checks; the no-AI-in-app lint; the
    Dev page section; words by key. Proves the plumbing and the no-AI path before any download exists.
+   **Built 2026-11-09:** `crates/humanity-ai-protocol/` (every message of 7.3, `v` on each, a mismatch
+   refused with words) and `crates/humanity-ai-engine/` (`humanity-ai.exe`, a workspace of its own,
+   `--fake` with scripted lines and timing, prompt reuse, cancel, a memory reservation, silent speech
+   and a fixed label; without `--fake`, every model request refused in words); `src/ai/` (the client:
+   on demand, full path, pipes, no console window, below-normal priority, a job object with a memory
+   cap, kill on close and a quiet crash; idle stop after 5 minutes; fallback at once, Try again, two
+   failures stopping automatic restarts; the reuse switch passed on; the hardware readings and 4.7's
+   notices; `data/ai/choices.ron` with each later choice's needs); Settings > AI (native) and its words
+   on the website's Settings (5.5); Dev > AI (12.1: engine state, job, priority, memory against the
+   cap, counters, timing, the reuse switch's effect, start, stop, stop as a crash, Try again, a test
+   question streamed word by word, status, "pretend this PC has {n} GB free", this session's questions
+   and answers); `tests/no_ai_in_app_lint.rs`; the glossary cards `[[AI]]`, `[[AI engine]]`,
+   `[[AI model]]` (11's `[[model]]`, named so it is not read as a 3D model), `[[computer voice]]` and
+   `[[AVX2]]`. Not in rung 1, for the rungs that bring them: loaded models with their hashes, the
+   voice's real-time factor and filter counts on the Dev page (rungs 2, 5, 3); the `game_ai_status` MCP
+   tool and the `ai-talk` rig (with rung 3's talk card, which they need); "Remove all AI" (rung 2, with
+   something to remove); free disk space on Linux and macOS, and a job object's equivalent there (rung
+   2 and rung 9).
 2. **Catalog, downloads, checks and removal.** `data/ai/catalog.ron` compiled in, the `assets-ai-1`
    release (the top-level session uploads), parts and joining, the licence on the card, Remove and
    Remove all AI; the first real content: the engine with llama.cpp and Granite 4.0 1B, the smallest.

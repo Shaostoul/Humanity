@@ -1,13 +1,16 @@
 # The crate cards
 
-One page for each of the ten crates the crate split plans (`docs/design/crate-split.md`), so an
-agent working inside one crate reads one page instead of catching up on the whole repo. The
-operator, 2026-10-30: "Sounds like something we gotta do."
+One page for each of the crates the crate split plans (`docs/design/crate-split.md`), and the ones
+cut since, so an agent working inside one crate reads one page instead of catching up on the whole
+repo. The operator, 2026-10-30: "Sounds like something we gotta do."
 
-Five of them are Cargo packages of their own, members of the workspace the root `Cargo.toml`
-declares: `crates/humanity-core/` and `crates/humanity-protocol/` since rung 1 of the split
-(2026-11-01), `crates/humanity-ship/`, `crates/humanity-terrain/` and `crates/humanity-systems/`
-since rung 2 (2026-11-02). The other five are still parts of the root package, `src/`, and
+Some are Cargo packages of their own, members of the workspace the root `Cargo.toml` declares:
+`crates/humanity-core/` and `crates/humanity-protocol/` since rung 1 of the split (2026-11-01),
+`crates/humanity-ship/`, `crates/humanity-terrain/` and `crates/humanity-systems/` since rung 2
+(2026-11-02), and the music, animation and AI-protocol crates since (the root's `[workspace]
+members` is the list). One, `crates/humanity-ai-engine/` (2026-11-09, the AI engine program), has a
+workspace of its own on purpose (`"workspace": "own"` in the plan): the app never depends on it, and
+it builds only through `just ai-engine`. The rest are still parts of the root package, `src/`, and
 `scripts/crate-layers.json` says which crate each part will go to (a cut crate gives its `dir`
 there instead). These cards are documents, and they live here, in `docs/crates/`, whatever
 happens to the code.
@@ -17,18 +20,20 @@ happens to the code.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 | Card | Lines | May use | What it is for | Requests |
 |---|---:|---|---|---:|
-| [humanity-core](humanity-core.md) | 17,891 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
+| [humanity-core](humanity-core.md) | 17,988 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
 | [humanity-protocol](humanity-protocol.md) | 13,882 | core | What the app and the server must agree on, byte for byte. | 0 |
-| [humanity-ship](humanity-ship.md) | 33,192 | core | The home and the ship as places a person stands in. | 0 |
-| [humanity-terrain](humanity-terrain.md) | 25,607 | core | Planets as shapes and numbers. | 0 |
-| [humanity-systems](humanity-systems.md) | 79,786 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
+| [humanity-ship](humanity-ship.md) | 33,195 | core | The home and the ship as places a person stands in. | 0 |
+| [humanity-terrain](humanity-terrain.md) | 29,721 | core | Planets as shapes and numbers. | 0 |
+| [humanity-systems](humanity-systems.md) | 79,787 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
 | [humanity-music](humanity-music.md) | 7,020 | core | The game's own music, composed live, and the ship's hum (docs/design/music.md). | 0 |
-| [humanity-animation](humanity-animation.md) | 2,238 | core | Character animation, as plain Rust (docs/design/character-animation.md; rungs 0 and 1 built 2026-11-08). | 0 |
+| [humanity-animation](humanity-animation.md) | 2,551 | core | Character animation, as plain Rust (docs/design/character-animation.md; rungs 0 and 1 built 2026-11-08, the real bodies and clips 2026-11-09). | 0 |
+| [humanity-ai-protocol](humanity-ai-protocol.md) | 453 | nothing | The messages HumanityOS and its AI engine speak to each other. | 0 |
+| [humanity-ai-engine](humanity-ai-engine.md) | 767 | ai-protocol | The AI engine, `humanity-ai.exe`: the one separate program that will run every AI model a person chooses, never part of the app. | 0 |
 | [humanity-relay](humanity-relay.md) | 119,755 | core, protocol, ship, systems | The server: the relay the VPS runs as `HumanityOS --headless`. | 0 |
 | [humanity-net](humanity-net.md) | 31,633 | core, protocol | The app's side of the network: the WebSocket client to a server (`ws_client`, `client`), the shared world's state as it arrives (`sync`, `protocol`), sealed direct messages and their history on this device (`dm_pq`, `dm_store`), P2P groups (`group_e2ee`), voice and calls (`voice`, `webrtc`, `call_relay`), device-to-device files (`file_link`, `file_offer`, `file_transfer`), the live stream and the live weather, and the recovery-phrase identity (`identity`). | 0 |
-| [humanity-renderer](humanity-renderer.md) | 66,867 | core, terrain | The GPU side: everything that uploads and draws. | 0 |
-| [humanity-gui](humanity-gui.md) | 217,841 | core, protocol, ship, terrain, systems, relay, net, renderer, music | Everything a person sees and touches in the desktop app's pages: every page and widget (`gui/`, with `GuiState`, the state every page reads, in `gui/mod.rs`), the settings that save them (`config`, which also holds the identity vault), notifications, and the pages' backends: the Games and Apps readers (`games`, `software`), the media player (`media`), the readable web (`web_reader`) and the updater that Settings > Updates drives, with `release_update`, the binary's release-signing commands and the launcher's check of a local exe against its signature file (the pure signature check the updater verifies every download by moved down to the protocol's `release_signature` on 2026-11-02, so the server can check a signed release too: docs/design/front-door.md, 3.1). | 0 |
-| [humanity-engine](humanity-engine.md) | 98,922 | core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation | THE FRAME: the main loop, and everything that wires the other crates into one running app. | 0 |
+| [humanity-renderer](humanity-renderer.md) | 67,221 | core, terrain | The GPU side: everything that uploads and draws. | 0 |
+| [humanity-gui](humanity-gui.md) | 221,349 | core, protocol, ship, terrain, systems, relay, net, renderer, music, ai-protocol | Everything a person sees and touches in the desktop app's pages: every page and widget (`gui/`, with `GuiState`, the state every page reads, in `gui/mod.rs`), the settings that save them (`config`, which also holds the identity vault), notifications, and the pages' backends: the Games and Apps readers (`games`, `software`), the media player (`media`), the readable web (`web_reader`) and the updater that Settings > Updates drives, with `release_update`, the binary's release-signing commands and the launcher's check of a local exe against its signature file (the pure signature check the updater verifies every download by moved down to the protocol's `release_signature` on 2026-11-02, so the server can check a signed release too: docs/design/front-door.md, 3.1). | 0 |
+| [humanity-engine](humanity-engine.md) | 99,582 | core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation | THE FRAME: the main loop, and everything that wires the other crates into one running app. | 0 |
 <!-- end generated -->
 
 Crates are named short inside the cards: `core` is `humanity-core`, `gui` is `humanity-gui`.

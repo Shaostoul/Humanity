@@ -723,6 +723,7 @@
     <div class="s-nav" data-sec="audiovideo" onclick="showSection('audiovideo')"><span class="s-ico" data-icon="mic"></span> Audio &amp; Video</div>
     <div class="s-nav" data-sec="security" onclick="showSection('security')"><span class="s-ico" data-icon="shield"></span> Security</div>
     <div class="s-nav" data-sec="storage" onclick="showSection('storage')"><span class="s-ico" data-icon="save"></span> Storage</div>
+    <div class="s-nav" data-sec="ai" role="button" tabindex="0" onclick="showSection('ai')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showSection('ai');}" data-i18n-tip="ai.web.nav_hint" data-tip-desc="Whether HumanityOS uses AI, and why the website offers none."><span class="s-ico" data-icon="dev"></span> <span data-i18n="ai.title">AI</span></div>
     <div class="s-nav" data-sec="wallet" onclick="showSection('wallet')"><span class="s-ico" data-icon="key"></span> Wallet</div>
     <div class="s-nav" data-sec="vault" onclick="showSection('vault')"><span class="s-ico" data-icon="key"></span> Vault</div>
     <div class="s-nav" data-sec="server-info" onclick="showSection('server-info')"><span class="s-ico" data-icon="monitor"></span> Server Info</div>
@@ -1938,6 +1939,23 @@
           </div>
           <button class="btn-danger" onclick="clearModule('hos_calendar_v1','calendar')">Clear</button>
         </div>
+      </div>
+    </section>
+
+    <!-- AI (2026-11-09, docs/design/embeddable-ai.md 5.5, rung 1): the desktop app's Settings > AI, as words
+         only. The website offers no AI (no brain or voice: downloads of 1 to 5 GB are not a fair default
+         in a browser tab) and says so, the Dual-UI parity rule's mirror of the desktop section. -->
+    <section class="settings-section" id="sec-ai">
+      <h1 data-i18n="ai.title">AI</h1>
+      <p class="section-desc" data-i18n="ai.web.optional">AI is optional in HumanityOS, and everything works without it.</p>
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="ai.web.here_title">On the website</div>
+        <p style="padding:var(--space-md) var(--space-xl);margin:0;" data-i18n="ai.web.desktop_only">The website offers no AI. Talking characters, the helper and the computer voice will be choices in the desktop app's Settings &gt; AI, each a download of 1 to 5 GB that runs on your own computer: too much to load into a browser tab by default.</p>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="ai.web.app_title">In the desktop app</div>
+        <p style="padding:var(--space-md) var(--space-xl) 0;margin:0;" data-i18n="ai.none_meaning"><span data-term="AI">AI</span> in HumanityOS is optional. With nothing installed there is no <span data-term="AI model">AI model</span> and no <span data-term="AI engine">AI engine</span> on this computer: characters speak their written lines, help comes from the help topics and the Library, the label checker takes typed words or a barcode, and nothing is read aloud.</p>
+        <p style="padding:var(--space-md) var(--space-xl);margin:0;" data-i18n="ai.web.app_choose">Nothing about AI is installed until you choose it there, and nothing you say to it leaves your computer. Its Settings &gt; AI also shows what your computer has and what each choice will need.</p>
       </div>
     </section>
 

@@ -2715,6 +2715,33 @@
       "term": "Verified (chat)",
       "category": "platform",
       "definition": "A member an admin of this server has marked as someone they know, by pressing Verify on the person's card. Verified members can share pictures and files, post more than one link in a line, and read channels kept for verified people. There is no form or test: ask an admin of the server. Each server decides for itself, so being verified on one server says nothing on another."
+    },
+    "ai": {
+      "term": "AI",
+      "category": "platform",
+      "definition": "A computer program that writes or speaks by predicting what comes next, learned from a great deal of text or speech. In HumanityOS it runs only on your computer, and only if you choose it in Settings > AI; everything works without it.",
+      "link": "https://en.wikipedia.org/wiki/Artificial_intelligence"
+    },
+    "ai engine": {
+      "term": "AI engine",
+      "category": "platform",
+      "definition": "The one separate program that runs every AI model you choose (humanity-ai.exe). HumanityOS starts it only while an AI feature is in use, talks to it only through its own input and output (no network), keeps it inside a memory limit on Windows, and ends it when the app closes. It is a download of its own: with no AI chosen, it is not on your computer."
+    },
+    "ai model": {
+      "term": "AI model",
+      "category": "platform",
+      "definition": "The file an AI runs from: the patterns it learned, stored as numbers. A model for talking characters is one to three gigabytes. HumanityOS downloads a model only when you choose it, checks that it is exactly the file the project published, and can remove it again."
+    },
+    "computer voice": {
+      "term": "Computer voice",
+      "category": "platform",
+      "definition": "A voice made by the computer, from a recording someone allowed the project to use, to read words aloud. Wherever it speaks, HumanityOS says it is a computer voice. It can never copy the voice of someone who did not agree."
+    },
+    "avx2": {
+      "term": "AVX2",
+      "category": "gaming",
+      "definition": "A set of instructions most desktop and laptop processors made since about 2015 have, which lets them do many sums at once. AI runs much faster with it; without it AI still works, only slowly.",
+      "link": "https://en.wikipedia.org/wiki/Advanced_Vector_Extensions"
     }
   }
 }

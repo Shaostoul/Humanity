@@ -2962,6 +2962,42 @@ drawn from its corner), and a model read decodes only the picture it draws.
   `crossing_tests::assets::every_modelled_machine_in_the_home_is_drawn_centred_on_its_placement`
 - Web: none (the website draws no 3D home); the Files page's 3D viewer opens the GLBs
 
+### Embeddable AI, rung 1: the engine skeleton and the door, with no model (2026-11-09)
+AI is optional, never required (the operator, 2026-11-09; `docs/design/embeddable-ai.md`, section 14
+item 1). The app holds NO model and NO runtime: what will run a model is the AI engine,
+`humanity-ai.exe`, a separate program in `crates/humanity-ai-engine/` with a workspace of its own
+(never a member of the app's, never a dependency; `just ai-engine` builds it). Rung 1's engine has no
+runtime: `--fake` answers with scripted lines and timing (prompt reuse, cancel, memory, speech and a
+label photo all stood in), and without `--fake` it refuses every model request in words. The two talk
+over the engine's standard input and output, one JSON message a line, every message carrying the
+protocol version (`crates/humanity-ai-protocol/`); a mismatched engine is refused with words. The
+app's client starts the engine on demand by its full path, with pipes (no socket, no listener), no
+console window, at below-normal priority, inside a Windows job object that caps its memory, ends it
+with the app (even a crashed one) and keeps a crash quiet; it stops it after five idle minutes; a crash
+falls back at once, the next request restarts it, and two failures in a row stop automatic restarts
+until Try again; the Dev page's reuse switch reaches it. Settings > AI says "No AI is installed.
+Everything in HumanityOS works without it.", what that means, this computer's memory, cores, AVX2,
+graphics card and free space in plain words, and one card per later AI choice (talking characters Rich
+and Quick, the helper on strong and mid computers, the computer voice and its small model) with what
+it needs, whether this computer has it, and what works instead. Dev > AI drives the fake engine
+(start, stop, stop as a crash, Try again, a test question streamed word by word, status, the job and
+priority and memory against the cap, counters, the reuse switch's effect) and pretends less free
+memory so every notice can be seen. No downloads yet (rung 2).
+- Native: `src/ai/` (`client.rs`, `job.rs`, `hardware.rs`, `choices.rs`, `paths.rs`, `shared.rs`),
+  `src/gui/pages/settings/ai.rs`, `src/gui/pages/dev_ai.rs`
+- Crates: `crates/humanity-ai-protocol/` (serde types, in the app under `native` only),
+  `crates/humanity-ai-engine/` (the engine program; its own `Cargo.lock`)
+- Data: `data/ai/choices.ron` (the choices and their needs), `data/i18n/en.json` (`ai.*`, `dev.ai.*`),
+  `data/glossary.json` (AI, AI engine, AI model, computer voice, AVX2), `data/gui/navigation.json` (Dev > AI)
+- Tests: `tests/no_ai_in_app_lint.rs` (in `just lints`: no model runtime in the app's manifests or
+  Cargo.lock, no model file in data/ or assets/), `src/ai/client_tests.rs` (the real fake engine over
+  pipes: on demand, in its job at below-normal priority, ended with the job, the memory cap, crash and
+  the two-failure rule, another protocol refused, idle stop, the reuse switch), `src/ai/hardware_tests.rs`,
+  the protocol's lib tests, `just ai-engine test`, `scripts/tests/check-crate-layers.test.js` (a crate
+  with a workspace of its own)
+- Snapshots: `just snapshot settings_ai`, `settings_ai_low_memory`, `dev_ai`
+- Web: Settings > AI in `web/pages/settings.html` says AI is optional and desktop-only, and why
+
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
 - Native: `crates/humanity-core/src/ecs/systems.rs`, `crates/humanity-core/src/ecs/components.rs`

@@ -29,6 +29,13 @@
 // (`humanity_core::storage::data_dir()`) are read like `crate::` paths into it (crate-graph.js), and
 // a cut crate in whose folder nothing was read fails the check (a reading of nothing).
 //
+// A CRATE WITH A WORKSPACE OF ITS OWN (2026-11-09, the AI engine: docs/design/embeddable-ai.md, 7.1).
+// A plan entry with `"workspace": "own"` is a program the app must never depend on, built only by its
+// own recipe: so it must NOT be a member of the root workspace, the root's [workspace] `exclude` must
+// list its dir (or cargo would refuse it as a stray package inside the workspace), its Cargo.toml must
+// hold a [workspace] table of its own, and no crate of the plan may list it in `uses`. Its own
+// dependencies on the plan's crates are held to the plan like any member's.
+//
 //   node scripts/check-crate-layers.js            the check (in `just lints`)
 //   node scripts/check-crate-layers.js --write    set every budget, code and tests, to today's count
 
@@ -62,14 +69,15 @@ function flatByFile(byFile) {
   return out;
 }
 
-/** A manifest's dependency tables (pure, tested): { members: [..] or null, deps: [{ table, name, path }] }:
- * `members` from [workspace], and each dependency given by `path = "..."` in [dependencies],
+/** A manifest's dependency tables (pure, tested): { members: [..] or null, exclude: [..] or null, deps: [{ table, name, path }] }:
+ * `members` and `exclude` from [workspace], and each dependency given by `path = "..."` in [dependencies],
  * [dev-dependencies], [build-dependencies] and their `target.'...'.` forms (the only way one member
  * names another), in an inline table or in its own `[dependencies.x]` table. */
 function manifestDeps(toml) {
   const lines = String(toml).replace(/\r\n/g, '\n').split('\n');
   let table = '';
   let members = null;
+  let exclude = null;
   const deps = [];
   const tables = new Map();
   for (let i = 0; i < lines.length; i++) {
@@ -77,11 +85,13 @@ function manifestDeps(toml) {
     const h = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/.exec(l);
     if (h) { table = h[1].trim(); continue; }
     if (table === 'workspace') {
-      const m = /^\s*members\s*=\s*\[(.*)$/.exec(l);
+      const m = /^\s*(members|exclude)\s*=\s*\[(.*)$/.exec(l);
       if (m) {
-        let body = m[1];
+        let body = m[2];
         while (!body.includes(']') && i + 1 < lines.length) body += lines[++i];
-        members = [...body.slice(0, body.indexOf(']')).matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+        const list = [...body.slice(0, body.indexOf(']')).matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+        if (m[1] === 'members') members = list;
+        else exclude = list;
       }
       continue;
     }
@@ -105,7 +115,7 @@ function manifestDeps(toml) {
     if (p) deps.push({ table: kind[1], name: pkg ? pkg[1] : d[1], path: p[1] });
   }
   for (const e of tables.values()) if (e.path) deps.push(e);
-  return { members, deps };
+  return { members, exclude, deps };
 }
 
 /** The plan against the workspace on disk (pure over its inputs, tested): the problems, as lines.
@@ -113,17 +123,31 @@ function manifestDeps(toml) {
  * Cargo.toml text (null if missing); `rootCrate`: the plan crate at the top of the root package. */
 function boundaryProblems(plan, rootToml, readToml, rootCrate = 'humanity-engine') {
   const out = [];
-  const { members, deps: rootDeps } = manifestDeps(rootToml);
+  const { members, exclude, deps: rootDeps } = manifestDeps(rootToml);
   const cut = plan.crates.filter((c) => c.dir);
+  const own = (c) => c.workspace === 'own';
   const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
   for (const c of plan.crates) if (c.dir && c.paths && c.paths.length) out.push(`${c.name} is cut (dir ${c.dir}) but still lists paths under src/: its files are in its dir now`);
+  for (const c of plan.crates) if (c.workspace !== undefined && !own(c)) out.push(`${c.name}'s "workspace" is ${JSON.stringify(c.workspace)}: the only value is "own"`);
   if (!members) {
     if (cut.length) out.push(`the plan has cut crates (${cut.map((c) => c.name).join(', ')}) but the root Cargo.toml has no [workspace] members`);
     return out;
   }
   const memberDirs = members.map(norm).filter((m) => m !== '.' && m !== '');
-  for (const c of cut) if (!memberDirs.includes(norm(c.dir))) out.push(`${c.name}'s dir, ${c.dir}, is not a member of the root Cargo.toml's [workspace]`);
+  const excluded = (exclude || []).map(norm);
+  for (const c of cut) {
+    if (own(c)) {
+      if (memberDirs.includes(norm(c.dir))) out.push(`${c.name} has a workspace of its own ("workspace": "own") but is a member of the root Cargo.toml's [workspace]`);
+      if (!excluded.includes(norm(c.dir))) out.push(`${c.name} has a workspace of its own but the root Cargo.toml's [workspace] exclude does not list ${c.dir}`);
+    } else if (!memberDirs.includes(norm(c.dir))) {
+      out.push(`${c.name}'s dir, ${c.dir}, is not a member of the root Cargo.toml's [workspace]`);
+    }
+  }
   for (const m of memberDirs) if (!cut.some((c) => norm(c.dir) === m)) out.push(`the workspace member ${m} is not a crate the plan cut (give its plan entry "dir": "${m}")`);
+  // Nothing may depend on a crate with a workspace of its own (the AI engine: the app never depends on it).
+  for (const c of cut.filter(own)) {
+    for (const x of plan.crates) if (x.uses.includes(c.name)) out.push(`${x.name} may use ${c.name} in the plan, but ${c.name} has a workspace of its own: nothing may depend on it`);
+  }
   // Who may depend on whom: the plan's `uses` and what they use (a crate may reach through).
   const direct = new Map(plan.crates.map((x) => [x.name, x.uses]));
   const reach = (n, seen = new Set()) => { for (const u of direct.get(n) || []) if (!seen.has(u)) { seen.add(u); reach(u, seen); } return seen; };
@@ -140,6 +164,7 @@ function boundaryProblems(plan, rootToml, readToml, rootCrate = 'humanity-engine
     if (text == null) { out.push(`${c.name}: no Cargo.toml in ${c.dir}`); continue; }
     const name = /^\s*name\s*=\s*"([^"]+)"/m.exec(String(text));
     if (!name || name[1] !== c.name) out.push(`${c.dir}/Cargo.toml names its package "${name ? name[1] : '?'}", the plan "${c.name}"`);
+    if (own(c) && !/^\s*\[workspace\]\s*(?:#.*)?$/m.test(String(text))) out.push(`${c.dir}/Cargo.toml has no [workspace] table of its own, which a crate with "workspace": "own" needs`);
     check(c.name, manifestDeps(text).deps);
   }
   return out;

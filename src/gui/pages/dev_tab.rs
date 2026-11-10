@@ -23,6 +23,8 @@
 //!   computer's files (dev_agents/).
 //! - Journal (2026-10-24): the play journal, what the game recorded and the F8 marks
 //!   (dev_journal.rs, docs/design/play-journal.md).
+//! - AI (2026-11-09): the AI engine, started and stopped against the fake engine, and the pretend
+//!   free memory that shows every notice of Settings > AI (dev_ai.rs, docs/design/embeddable-ai.md).
 //!
 //! The web mirror is the Dev Workbench (web/pages/dev.html), which carries the
 //! same list, linking the ones the website has (its Claude tab shows what a
@@ -30,7 +32,7 @@
 
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
-use super::{dev, dev_agents, dev_journal, performance, planet_tuner};
+use super::{dev, dev_agents, dev_ai, dev_journal, performance, planet_tuner};
 
 /// The Dev page's parts: (id, what it is). The id is what `GuiState::active_dev_section` holds and
 /// what a Dev row item's `section` names in data/gui/navigation.json (gui/navigation.rs refuses a
@@ -41,6 +43,7 @@ pub const SECTIONS: &[(&str, &str)] = &[
     ("planet_tuner", "Planet Tuner"),
     ("claude", "Claude"),
     ("journal", "Journal"),
+    ("ai", "AI"),
 ];
 
 /// The part the Dev button opens: the developer's tools.
@@ -56,6 +59,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         "claude" => dev_agents::draw(ctx, theme, state),
         // The play journal (2026-10-24): what the game recorded, and the F8 marks.
         "journal" => dev_journal::draw(ctx, theme, state),
+        // The AI engine (2026-11-09, docs/design/embeddable-ai.md 12.1): its state, the fake engine,
+        // the pretend free memory.
+        "ai" => dev_ai::draw(ctx, theme, state),
         _ => dev::draw(ctx, theme, state),
     }
 }

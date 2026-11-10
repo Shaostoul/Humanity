@@ -1,0 +1,86 @@
+// The AI choices Settings > AI will offer, and what each needs (docs/design/embeddable-ai.md, sections
+// 4.1, 4.7, 9.1 and 10; rung 1, 2026-11-09). Read by src/ai/choices.rs; one row per feature and per
+// choice, never code (Infinite-of-X). Nothing here is downloadable yet: rung 2's catalog
+// (data/ai/catalog.ron, compiled into the app with each file's SHA-256) brings the files under the same
+// ids. Words are keys in data/i18n/en.json; model and maker names are the makers' own.
+//
+// UNITS: every *_mb is binary megabytes (MiB, 1,048,576 bytes), the unit this computer's memory and
+// free space are read in (src/ai/hardware.rs), so a need compares with a reading directly; the page
+// shows them as GB of 1,024 MB, as Windows does. Each figure is the design's GB times 1,024, rounded
+// up, so the card says what the design says ("about 2.9 GB").
+//
+// THE NUMBERS ARE THE DESIGN'S PLANNING FIGURES, not measurements (rung 4 measures them on the
+// operator's PC and a floor-class PC, rung 5 the voice):
+// - memory_mb: memory while running with a 4,096-token conversation (4.1's column: the file, the
+//   key-value cache worked out in 4.2 and 4.3, and a few hundred MB of buffers). Pocket TTS's is the
+//   design's "a few hundred MB (measured in rung 5)", written as a planning figure.
+// - cores: 4 for a brain, so the game keeps two (9.2: a brain takes physical cores minus two, at most
+//   four); 4 for the full voice ("Any PC with 4 or more cores"; it uses 2), 2 for the small voice.
+// - disk_mb: the maker's file (4.1's sizes) rounded up.
+// - vram_mb: the helper's graphics-card route outside the 3D world (4.4); no route during play (9.2).
+AiChoices(
+    features: [
+        (id: "characters", name: "ai.feature.characters.name", about: "ai.feature.characters.about", without: "ai.feature.characters.without"),
+        (id: "helper", name: "ai.feature.helper.name", about: "ai.feature.helper.about", without: "ai.feature.helper.without"),
+        (id: "voice", name: "ai.feature.voice.name", about: "ai.feature.voice.about", without: "ai.feature.voice.without"),
+    ],
+    choices: [
+        (
+            id: "characters-rich",
+            feature: "characters",
+            words: "ai.choice.characters_rich",
+            model: "Ministral 3 3B",
+            maker: "Mistral AI",
+            needs: (memory_mb: 2970, cores: 4, disk_mb: 2260, avx2: true),
+            fallback: Some("characters-quick"),
+            rung: 3,
+        ),
+        (
+            id: "characters-quick",
+            feature: "characters",
+            words: "ai.choice.characters_quick",
+            model: "Granite 4.0 1B",
+            maker: "IBM",
+            needs: (memory_mb: 1640, cores: 4, disk_mb: 1050, avx2: true),
+            rung: 2,
+        ),
+        (
+            id: "helper-e4b",
+            feature: "helper",
+            words: "ai.choice.helper_e4b",
+            model: "Gemma 4 E4B",
+            maker: "Google",
+            needs: (memory_mb: 5840, cores: 4, disk_mb: 5280, avx2: true, vram_mb: Some(5840)),
+            fallback: Some("helper-e2b"),
+            rung: 7,
+        ),
+        (
+            id: "helper-e2b",
+            feature: "helper",
+            words: "ai.choice.helper_e2b",
+            model: "Gemma 4 E2B",
+            maker: "Google",
+            needs: (memory_mb: 3900, cores: 4, disk_mb: 3390, avx2: true, vram_mb: Some(3900)),
+            rung: 7,
+        ),
+        (
+            id: "voice",
+            feature: "voice",
+            words: "ai.choice.voice",
+            model: "Pocket TTS",
+            maker: "Kyutai",
+            needs: (memory_mb: 400, cores: 4, disk_mb: 150, avx2: false),
+            fallback: Some("voice-small"),
+            rung: 5,
+        ),
+        (
+            id: "voice-small",
+            feature: "voice",
+            words: "ai.choice.voice_small",
+            model: "Pocket TTS (18M)",
+            maker: "Kyutai",
+            needs: (memory_mb: 250, cores: 2, disk_mb: 120, avx2: false),
+            rung: 5,
+        ),
+    ],
+)

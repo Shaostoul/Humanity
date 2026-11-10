@@ -122,5 +122,8 @@ pub mod dev_tab;
 pub mod dev_agents;
 // Dev > Journal: the play journal in the app (2026-10-24, docs/design/play-journal.md rung 2).
 pub mod dev_journal;
+// Dev > AI: the AI engine's state, started and stopped against the fake engine, and the pretend free
+// memory for Settings > AI's notices (2026-11-09, docs/design/embeddable-ai.md 12.1, rung 1).
+pub mod dev_ai;
 // v0.699.0: category_overview + settings_pages modules removed with the dead
 // two-tier-nav category-browse subsystem (5 Overview* + 12 Settings* pages).

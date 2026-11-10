@@ -96,7 +96,7 @@ fn every_page_in_the_rows_exists() {
         ("own_life", vec!["profile", "tasks", "maps", "wallet", "market", "trade"]),
         ("apps", vec!["notes", "calendar", "calculator", "browser"]),
         ("library", vec!["how_to"]),
-        ("dev", vec!["bugs", "testing", "performance", "planet_tuner", "claude", "journal"]),
+        ("dev", vec!["bugs", "testing", "performance", "planet_tuner", "claude", "journal", "ai"]),
         ("settings", vec!["server_settings"]),
     ];
     assert_eq!(drawn, want, "the two rows as drawn (docs/design/navigation.md, rung 2)");

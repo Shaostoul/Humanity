@@ -116,7 +116,9 @@ window.HOS_I18N_EN = {
     "server_settings_hint": "The settings of a server you are on: a member's, a moderator's and an admin's.",
     "onboarding_hint": "Getting started by doing: short chains of steps toward clean water, food and power.",
     "display_mode_hint": "How the top row's buttons show: icon and words, icon only, or words only.",
-    "display_mode": "Button style"
+    "display_mode": "Button style",
+    "ai": "AI",
+    "ai_hint": "The AI engine: its state, start and stop it against the fake engine, and pretend less memory to see every notice."
   },
   "common": {
     "save": "Save",
@@ -2446,6 +2448,65 @@ window.HOS_I18N_EN = {
       "build": "Build:",
       "pieces": "pieces",
       "duck": "duck"
+    },
+    "ai": {
+      "title": "AI",
+      "about": "The AI engine as a developer sees it: which engine, its state, its job object and memory, and buttons to start, stop and crash it. With no model installed, use the fake engine, which answers with scripted lines and timing.",
+      "engine": "AI engine",
+      "use_fake": "Use the developer's fake engine",
+      "use_fake_hint": "For this run, drive the fake engine built in this checkout (just ai-engine) or named by HUMANITY_AI_ENGINE, instead of an installed one.",
+      "path": "Engine:",
+      "no_fake": "no fake engine built: run just ai-engine, or set HUMANITY_AI_ENGINE to an engine's full path",
+      "state": "State:",
+      "running": "running as process {{pid}}, engine {{version}} ({{mode}}), for {{secs}} s",
+      "mode_fake": "fake",
+      "mode_real": "real",
+      "backends": "Backends:",
+      "no_backends": "none (no AI runtime in this engine)",
+      "cpu_features": "Processor features it sees:",
+      "job": "Job object:",
+      "in_job": "inside it: ends with the app, memory capped at {{cap}} MB",
+      "not_in_job": "NOT inside it",
+      "no_jobs_here": "this system has none: the engine ends when the app closes its input",
+      "priority": "Priority:",
+      "below_normal": "below normal",
+      "priority_other": "class {{class}}, NOT below normal",
+      "memory": "Memory:",
+      "memory_value": "{{now}} MB now, {{peak}} MB at most, of {{cap}} MB",
+      "counters": "This session:",
+      "counters_value": "starts {{starts}}, requests {{requests}}, answered {{answered}}, pieces {{tokens}}, fallbacks {{fallbacks}}, failures {{crashes}} ({{failures}} in a row)",
+      "timing": "Last reply:",
+      "timing_value": "prefill {{prefill}} ms, writing {{generate}} ms, {{rate}} pieces a second",
+      "last_error": "Last refusal:",
+      "status_label": "Engine's status:",
+      "status_value": "requests {{requests}}, pieces {{tokens}}, cancelled {{cancelled}}, refusals {{errors}}, reuse {{reuse}}, models: {{models}}",
+      "reuse_on": "Reuse is on (Dev > Performance): a persona read once is reused, so a second reply with the same persona has a short prefill.",
+      "reuse_off": "Reuse is off: the engine reads every persona again, so every prefill takes the full time.",
+      "start": "Start",
+      "start_hint": "Starts the AI engine now, in its job object, at below-normal priority.",
+      "ask": "Send a test question",
+      "ask_hint": "Asks the engine a fixed question, starting it first if it is not running, as a feature will.",
+      "status": "Ask for status",
+      "status_hint": "Asks the running engine what it holds and its counts.",
+      "stop": "Stop",
+      "stop_hint": "Asks the engine to finish and exit. It is ended if it has not gone in two seconds.",
+      "kill": "Stop as a crash",
+      "kill_hint": "Ends the engine at once, the way a crash would, to see the fallback and the two-failure rule.",
+      "test_question": "What is this place?",
+      "fell_back": "fell back: {{why}}",
+      "pretend_title": "Pretend less memory",
+      "pretend": "Pretend this computer has this much free memory",
+      "pretend_hint": "Settings > AI then shows every notice as it would on such a computer. For this run only.",
+      "pretend_gb": "Free memory (GB)",
+      "pretend_gb_hint": "How much free memory to pretend this computer has.",
+      "installed_at": "An installed engine would be at {{path}}",
+      "log_title": "This session's questions and answers (kept in memory only, gone when the app closes)",
+      "log_empty": "Nothing asked yet.",
+      "asked": "Asked:",
+      "answer": "Answer:",
+      "waiting": "waiting...",
+      "word_on": "on",
+      "word_off": "off"
     }
   },
   "dev_journal": {
@@ -3928,5 +3989,125 @@ window.HOS_I18N_EN = {
     "no_packs_command": "just map-packs --tiles <pack names, or washington>",
     "no_packs_plan": "The plan for these maps: docs/design/whole-earth-maps.md.",
     "place_label": "Place:"
+  },
+  "ai": {
+    "title": "AI",
+    "none_installed": "No AI is installed. Everything in HumanityOS works without it.",
+    "none_meaning": "[[AI]] in HumanityOS is optional. With nothing installed there is no [[AI model]] and no [[AI engine]] on this computer: characters speak their written lines, help comes from the help topics and the Library, the label checker takes typed words or a barcode, and nothing is read aloud.",
+    "when_chosen": "When you choose AI here, you will see each part's size, maker and licence before anything downloads. It runs only on this computer, and nothing you say to it leaves your computer.",
+    "not_yet": "Nothing can be installed yet: the downloads come in a later version of HumanityOS. Until then this section shows what each choice will need and what this computer has.",
+    "engine_only": "The AI engine is installed (version {{version}}), but no AI model is, so nothing uses it yet.",
+    "try_again": "Try again",
+    "try_again_hint": "Starts the AI engine again and forgets the earlier failures.",
+    "your_computer": {
+      "title": "Your computer",
+      "intro": "What HumanityOS reads about this computer to say plainly what it can run. It is read here, on this computer, and never sent anywhere."
+    },
+    "hw": {
+      "memory": "Memory: {{free}} GB free of {{total}} GB",
+      "memory_unknown": "Memory: this computer did not say how much it has.",
+      "pretend": "Pretending this computer has {{free}} GB of memory free (set on the Dev page, to see the notices).",
+      "cores": "Processor: {{cores}} cores ({{threads}} threads)",
+      "cores_unknown": "Processor: {{threads}} threads (the number of cores was not reported)",
+      "avx2_yes": "It has [[AVX2]], the processor feature that makes AI fast.",
+      "avx2_no": "It does not have [[AVX2]], the processor feature that makes AI fast: AI would work, but slowly.",
+      "avx2_other": "This kind of processor has its own fast instructions instead of [[AVX2]], which AI runtimes use.",
+      "gpu": "Graphics card: {{name}}, {{vram}} GB of its own memory",
+      "gpu_shared": "Graphics card: {{name}}, which shares the computer's main memory",
+      "gpu_no_size": "Graphics card: {{name}} (it did not report its memory)",
+      "gpu_unknown": "Graphics card: not reported yet (it is read when the 3D view starts).",
+      "disk": "Free space: {{free}} GB, where AI files would go ({{folder}})",
+      "disk_unread": "Free space: not read on this system yet ({{folder}})",
+      "disk_unknown": "Free space: not known until you choose where HumanityOS keeps your files."
+    },
+    "choices": {
+      "title": "What each choice will need",
+      "intro": "Each AI choice, the model it uses, what it needs while you play, and whether this computer has it. The numbers are estimates until they are measured on real computers.",
+      "load_error": "The list of AI choices could not be read: {{detail}}",
+      "without": "Without AI: {{words}}",
+      "model": "{{model}}, by {{maker}}",
+      "needs": "Needs about {{memory}} GB of free memory while you play, {{cores}} processor cores and {{disk}} GB of free space.",
+      "needs_gpu": "Outside the 3D world it can use a graphics card with about {{vram}} GB of its own memory.",
+      "instead_choice": "Instead: {{name}} needs about {{memory}} GB."
+    },
+    "need": {
+      "fits": "This computer has what it needs.",
+      "memory": "{{name}} needs about {{need}} GB of free memory while you play. This computer has {{free}} GB free of {{total}} GB.",
+      "memory_no_total": "{{name}} needs about {{need}} GB of free memory while you play. This computer has {{free}} GB free.",
+      "cores": "{{name}} needs a computer with at least {{need}} processor cores. This one has {{have}}, so it would slow the game.",
+      "avx2": "This processor is missing a feature (AVX2) that makes AI fast. {{name}} would work, but slowly.",
+      "disk": "This needs {{need}} GB of free space in {{folder}}. There is {{free}} GB.",
+      "gpu_can": "{{name}} can use your graphics card when you are not in the 3D world. Yours ({{adapter}}, {{vram}} GB) can hold it.",
+      "gpu_cannot": "{{name}} can use a graphics card when you are not in the 3D world, but yours ({{adapter}}, {{vram}} GB) cannot hold it, so it would use the processor, more slowly."
+    },
+    "feature": {
+      "characters": {
+        "name": "Talking characters",
+        "about": "Characters in the game answer whatever you ask them, in their own voice and knowledge, with a small AI tag on every line the AI wrote.",
+        "without": "characters speak their written lines."
+      },
+      "helper": {
+        "name": "Helper",
+        "about": "Answers questions about HumanityOS from its own help pages, the Library and the glossary, and links each page it used.",
+        "without": "help comes from the help topics, the Library and search."
+      },
+      "voice": {
+        "name": "Computer voice",
+        "about": "Reads a character's line, the helper's answer or a page aloud in a [[computer voice]] made from a recording someone allowed us to use.",
+        "without": "subtitles only, or your computer's own voice."
+      }
+    },
+    "choice": {
+      "characters_rich": "Talking characters (Rich)",
+      "characters_quick": "Talking characters (Quick)",
+      "helper_e4b": "Helper (strong computers)",
+      "helper_e2b": "Helper",
+      "voice": "Computer voice",
+      "voice_small": "Computer voice (small)"
+    },
+    "state": {
+      "not_found": "No AI engine is installed.",
+      "stopped": "Not running.",
+      "starting": "Starting.",
+      "running": "Running.",
+      "stopping": "Stopping.",
+      "crashed": "The AI engine stopped unexpectedly. It will start again the next time it is needed.",
+      "halted": "The AI engine stopped unexpectedly twice in a row, so HumanityOS stopped starting it on its own. Everything that would use it is using its non-AI way instead.",
+      "refused": "The AI engine speaks a different version of its protocol than this app, so it was not used."
+    },
+    "exit": {
+      "code": "(It ended with code {{code}}.)",
+      "no_hello": "(It did not answer within {{secs}} seconds.)",
+      "start_failed": "(It could not be started: {{detail}})",
+      "unknown": "(No reason was given.)"
+    },
+    "fallback": {
+      "crashed": "The AI engine stopped while answering.",
+      "refused": "The AI engine on this computer is not one this app can use.",
+      "cancelled": "The answer was cancelled."
+    },
+    "error": {
+      "version": "The AI engine speaks a different version of its protocol than this app, so it was not used.",
+      "bad_message": "The AI engine could not read a message from the app.",
+      "no_backend": "This AI engine cannot run models yet: it holds no AI runtime.",
+      "not_loaded": "That AI model is not loaded.",
+      "out_of_memory": "There was not enough memory for the AI model, so it was not loaded. Everything that would use it is using its non-AI way instead.",
+      "load_failed": "The AI model's file could not be read.",
+      "internal": "The AI engine could not do that."
+    },
+    "protocol": {
+      "version_mismatch": "The AI engine on this computer speaks version {{theirs}} of its protocol, and this app speaks version {{ours}}, so it was not used. The matching engine comes with the next HumanityOS update.",
+      "no_version": "The AI engine sent a message without a protocol version, so it was not used.",
+      "not_json": "The AI engine sent something that is not a message ({{detail}}), so it was not used.",
+      "shape": "The AI engine sent a message this app does not know ({{detail}}), so it was not used."
+    },
+    "web": {
+      "nav_hint": "Whether HumanityOS uses AI, and why the website offers none.",
+      "optional": "AI is optional in HumanityOS, and everything works without it.",
+      "here_title": "On the website",
+      "desktop_only": "The website offers no AI. Talking characters, the helper and the computer voice will be choices in the desktop app's Settings > AI, each a download of 1 to 5 GB that runs on your own computer: too much to load into a browser tab by default.",
+      "app_title": "In the desktop app",
+      "app_choose": "Nothing about AI is installed until you choose it there, and nothing you say to it leaves your computer. Its Settings > AI also shows what your computer has and what each choice will need."
+    }
   }
 };

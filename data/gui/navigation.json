@@ -98,6 +98,7 @@
         { "id": "planet_tuner", "label": "nav.planet_tuner", "hint": "nav.planet_tuner_hint", "icon": "weather", "page": "dev", "section": "planet_tuner", "web": null, "desktop_only": true },
         { "id": "claude", "label": "nav.claude", "hint": "nav.claude_hint", "icon": "dev", "page": "dev", "section": "claude", "web": "/dev#claude" },
         { "id": "journal", "label": "nav.journal", "hint": "nav.journal_hint", "icon": "pin", "page": "dev", "section": "journal", "web": null, "desktop_only": true },
+        { "id": "ai", "label": "nav.ai", "hint": "nav.ai_hint", "icon": "dev", "page": "dev", "section": "ai", "web": null, "desktop_only": true },
         { "id": "ops", "label": "nav.ops", "hint": "nav.ops_hint", "icon": "ops", "page": null, "web": "/ops", "web_only": true,
           "_note": "Its desktop twin is the Servers page's Yours part (section 9)." },
         { "id": "widgets", "label": "nav.widgets", "hint": "nav.widgets_hint", "icon": "cube", "page": null, "web": "/widgets", "web_only": true,

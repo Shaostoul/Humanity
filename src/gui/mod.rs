@@ -4235,6 +4235,9 @@ pub enum SettingsCategory {
     /// file (2026-09-18). Named in the screen's own error text ("set its
     /// path in Settings > Media"), so the section must exist by this name.
     Media,
+    /// Optional AI (2026-11-09, docs/design/embeddable-ai.md rung 1): "No AI is installed", this
+    /// computer's hardware in plain words, and what each later AI choice will need.
+    Ai,
     Data,
     Updates,
     Credits,

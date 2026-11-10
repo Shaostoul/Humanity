@@ -476,6 +476,25 @@ validate-data:
 instrument-packs *args:
     node scripts/instrument-packs.js {{args}}
 
+# The AI engine, humanity-ai.exe (docs/design/embeddable-ai.md, section 7.1; docs/crates/humanity-ai-engine.md):
+# a program of its own that HumanityOS.exe never depends on, with its own [workspace] and Cargo.lock, so
+# no build of the app (and not `just verify`) ever builds it. Rung 1 (2026-11-09) holds no model and no
+# runtime: `--fake` answers with scripted lines, which Dev > AI and the client tests drive.
+#   just ai-engine           build target/ai-engine/release/humanity-ai.exe (Dev > AI finds it there)
+#   just ai-engine test      run the engine's own tests
+#   just ai-engine check     type-check it, warnings as errors
+# The app's client tests (src/ai/client_tests.rs, in `just test-lib`) build the debug copy themselves.
+ai-engine mode="build":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    m=(--manifest-path crates/humanity-ai-engine/Cargo.toml --target-dir target/ai-engine)
+    case "{{mode}}" in
+      build) cargo build --release "${m[@]}" && echo "Built target/ai-engine/release/humanity-ai.exe" ;;
+      test) cargo test "${m[@]}" ;;
+      check) out=$(cargo check --all-targets --message-format short "${m[@]}" 2>&1) || { echo "$out"; exit 1; }; echo "$out"; if grep -q "warning:" <<<"$out"; then echo "FAILED: the engine has warnings (budget 0)"; exit 1; fi ;;
+      *) echo "just ai-engine: build, test or check, not '{{mode}}'"; exit 2 ;;
+    esac
+
 # Build whole-Earth map packs (docs/design/whole-earth-maps.md 8.2, rung 2): our own Rust builder
 # reads the OSM extract, GEDTM30 and WorldCover on E:\HumanityOS\maps-src and ETOPO from
 # ext_data\etopo2022_15s, and writes data/maps/packs/<tile>.hmpack, each built twice and checked
@@ -754,7 +773,7 @@ lints:
     # the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm after (measured 2026-10-23).
     # ONE line holds every lint (2026-10-30): two sessions had each added a lint by copying the whole
     # line, so the other 19 ran twice in every `just lints`. Add a lint to the end of this line.
-    node scripts/run-lints.js emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage i18n_lint gpu_test_gate_lint repo_root_lint settings_used_lint page_change_lint layer_lint simready_lint
+    node scripts/run-lints.js emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage i18n_lint gpu_test_gate_lint repo_root_lint settings_used_lint page_change_lint layer_lint simready_lint no_ai_in_app_lint
     @node scripts/check-encoding.js --all > /dev/null && echo ">> lint ok: check-encoding --all" || { echo "LINT FAILED: check-encoding --all"; node scripts/check-encoding.js --all; exit 1; }
     # The How-to data (docs/design/how-to.md): every how-to through the checker, every gate seen red
     # on its fixture (tests/fixtures/how_to/broken.json), the index current. A second of node, no compile.

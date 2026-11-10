@@ -73,6 +73,11 @@ pub mod instrument_packs;
 /// SimReady models, from Settings > Graphics > Furniture models, the instrument packs' way.
 #[cfg(feature = "native")]
 pub mod model_packs;
+/// Embeddable AI, rung 1 (2026-11-09, docs/design/embeddable-ai.md): the door with no model. Finding and
+/// starting the separate AI engine on pipes, in a job object; the hardware checks Settings > AI shows;
+/// what each later AI choice will need. No model and no runtime are ever in this app.
+#[cfg(feature = "native")]
+pub mod ai;
 // The readable web (2026-09-16): HTTPS fetch + html5ever parse, no JS. Native-only. docs/design/readable-web.md.
 #[cfg(feature = "native")]
 pub mod web_reader;

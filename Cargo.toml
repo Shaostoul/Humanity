@@ -2,9 +2,12 @@
 # humanity-engine (the app, the server mode and the binary), and the crates cut out of it so far, each in
 # crates/<name>/ with a one-page card in docs/crates/. The plan for all ten is scripts/crate-layers.json.
 [workspace]
-members = [".", "crates/humanity-core", "crates/humanity-protocol", "crates/humanity-ship", "crates/humanity-terrain", "crates/humanity-systems", "crates/humanity-music", "crates/humanity-animation"]
-# vendor/rav1d is a patched dependency ([patch.crates-io] below), not one of ours.
-exclude = ["vendor"]
+members = [".", "crates/humanity-core", "crates/humanity-protocol", "crates/humanity-ship", "crates/humanity-terrain", "crates/humanity-systems", "crates/humanity-music", "crates/humanity-animation", "crates/humanity-ai-protocol"]
+# vendor/rav1d is a patched dependency ([patch.crates-io] below), not one of ours. crates/humanity-ai-engine
+# is the AI engine, humanity-ai.exe (docs/design/embeddable-ai.md, section 7.1): a program of its own that
+# HumanityOS.exe never depends on, with its own [workspace] and Cargo.lock, built only by `just ai-engine`,
+# so no build of the app (a `--workspace` one included) can pull a model runtime in (tests/no_ai_in_app_lint.rs).
+exclude = ["vendor", "crates/humanity-ai-engine"]
 resolver = "2"
 
 # The one version every member carries, the app's: `just bump` and the release scripts read and write
@@ -72,7 +75,7 @@ ml-dsa = { version = "=0.1.1" }
 ml-kem = { version = "=0.3.3", features = ["getrandom"] }
 argon2 = { version = "0.6.0-rc.8" }
 blahaj = { version = "0.7" }
-windows = { version = "0.62", features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Time", "Win32_System_Variant", "Win32_UI_Shell", "UI_Notifications", "Data_Xml_Dom", "Win32_UI_Notifications"] }
+windows = { version = "0.62", features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Time", "Win32_System_Variant", "Win32_UI_Shell", "UI_Notifications", "Data_Xml_Dom", "Win32_UI_Notifications", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_SystemInformation", "Win32_System_ProcessStatus"] }
 
 [package]
 name = "humanity-engine"
@@ -91,7 +94,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:humanity-animation", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
+native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:humanity-animation", "dep:humanity-ai-protocol", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
 relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:p256", "dep:hkdf", "dep:sha2_11", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -116,6 +119,11 @@ humanity-music = { path = "crates/humanity-music", optional = true }
 # standard, clips retargeted by role, the locomotion state machine and the pose palette, as pure Rust.
 # Desktop only (`native`): animation never reaches the server, so the relay build never compiles it.
 humanity-animation = { path = "crates/humanity-animation", optional = true }
+# The messages the app and its AI engine speak over the engine's standard input and output
+# (docs/design/embeddable-ai.md, section 7.3; rung 1, 2026-11-09): serde types only, no model and no
+# runtime (those live in the separate engine program, never here). Desktop only (`native`): the server
+# never talks to an AI engine and never learns that a person has one (the design, 8.1).
+humanity-ai-protocol = { path = "crates/humanity-ai-protocol", optional = true }
 # Data parallelism (v0.1067). The particle update + vertex-collect loop is
 # embarrassingly parallel and was MEASURED at 17-20 ns per particle per frame
 # on one core, which put the practical ceiling near 50k particles at 120 fps.
@@ -403,6 +411,10 @@ serialport = { version = "4.9", optional = true }
 # Win32_System_Time (2026-10-24): this computer's offset from UTC for a given date, daylight
 # saving included, through Windows' own SystemTimeToTzSpecificLocalTime, so the app shows times
 # in local time as the website does (src/gui/pages/chat/timestamps.rs). No time library.
+# Win32_Security, Win32_System_JobObjects, Win32_System_Threading, Win32_System_SystemInformation and
+# Win32_System_ProcessStatus (2026-11-09, docs/design/embeddable-ai.md rung 1): the AI engine runs in a job
+# object that ends it with the app and caps its memory, at below-normal priority (src/ai/job.rs), and
+# Settings > AI reads this computer's memory and processor cores for its plain notices (src/ai/hardware.rs).
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, optional = true }
 # UI_Notifications + Data_Xml_Dom (2026-10-30): the operating system's notice for a DM or a mention

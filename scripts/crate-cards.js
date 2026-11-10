@@ -232,7 +232,12 @@ function testLine(c, a, names) {
   // A cut crate (2026-11-01, rung 1) has a test program of its own: the line is exact by construction.
   if (c.dir) {
     const own = names.filter(([, k]) => k === c.name).length;
-    return { line: `just test-lib --crate ${c.name}`, tests: own, extra: [], missed: [], empty: false, skips: 0 };
+    // A crate with a workspace of its own (2026-11-09, the AI engine) is not a member, so `just test-lib`
+    // cannot reach it: its plan entry names its own recipe (`tests`), else cargo on its manifest.
+    const line = c.workspace === 'own'
+      ? (c.tests || `cargo test --manifest-path ${c.dir}/Cargo.toml --target-dir target/${c.name}`)
+      : `just test-lib --crate ${c.name}`;
+    return { line, tests: own, extra: [], missed: [], empty: false, skips: 0 };
   }
   // The rest are crates of the root package: its program only, and only its tests' names.
   names = names.filter(([, k]) => !a.cut.some((x) => x.name === k));
@@ -378,7 +383,9 @@ function facts(plan, a) {
 /** The generated block of one card, as lines. */
 function cardBlock(f) {
   const L = [];
-  L.push(f.cut
+  L.push(f.crate.workspace === 'own'
+    ? `- **Owns** all of \`${f.cut}/\`, a program with a workspace of its own (\`scripts/crate-layers.json\` gives its \`dir\` and \`"workspace": "own"\`: not a member of the app's workspace, built only by its own recipe, and nothing may depend on it); the modules its \`lib.rs\` declares, by the gate each compiles under:`
+    : f.cut
     ? `- **Owns** all of \`${f.cut}/\`, a crate of its own since the crate split cut it (\`scripts/crate-layers.json\` gives its \`dir\`; the rung is in \`docs/design/crate-split.md\`); the modules its \`lib.rs\` declares, by the gate each compiles under:`
     : '- **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:');
   const groups = new Map();

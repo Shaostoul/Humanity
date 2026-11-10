@@ -49,7 +49,7 @@ fn drawn(size: egui::Vec2, mut draw: impl FnMut(&egui::Context, &mut Theme)) -> 
 }
 
 /// THE DEV ROW LISTS THE DEVELOPER TOOLS, AND ONLY THEM: on the Dev page, the top menu's second
-/// row holds Bugs, Testing, Performance, Planet Tuner, Claude and Journal, in that order, and none
+/// row holds Bugs, Testing, Performance, Planet Tuner, Claude, Journal and AI (2026-11-09), in that order, and none
 /// of what the Platform tab also held (Recovery is in Settings now; Calculator, Notes, Calendar and
 /// Browser are on the Apps page); and the Dev page itself has no side list any more, opening on the
 /// developer's tools.
@@ -73,7 +73,7 @@ fn the_dev_row_lists_the_developer_tools() {
     let mut row: Vec<(&str, f32)> = t.iter().filter(|(_, r)| r.center().y > top && r.center().y < bottom).map(|(s, r)| (s.as_str(), r.left())).collect();
     row.sort_by(|a, b| a.1.total_cmp(&b.1));
     let names: Vec<&str> = row.iter().map(|(s, _)| *s).collect();
-    assert_eq!(names, ["Bugs", "Testing", "Performance", "Planet Tuner", "Claude", "Journal"], "the Dev row");
+    assert_eq!(names, ["Bugs", "Testing", "Performance", "Planet Tuner", "Claude", "Journal", "AI"], "the Dev row");
     for gone in ["Platform", "Recovery", "Calculator", "Notes", "Calendar", "Browser"] {
         assert!(!names.contains(&gone), "{gone} is not in the Dev row: {names:?}");
     }
