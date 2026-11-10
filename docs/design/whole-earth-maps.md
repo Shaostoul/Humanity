@@ -1086,6 +1086,8 @@ section 14), rail beds (rail is not in the ways layer yet), and building parts w
    `man_made=seawall`, `barrier=retaining_wall` and `man_made=embankment` as a shore type whose band
    steps at the wall instead of ramping**, so such a street keeps its height and the wall stands in
    the water.
+   **Answer (operator, 2026-11-09):** "Okay. If we need to adjust we can." Rung 3 reads them as a
+   stepped shore type.
 
 ## 15. Risks
 
