@@ -11,6 +11,13 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1556.0 (11 November 2026)
+
+- People, furniture and the home cast shadows from the room lamps and the sun; before, nothing near you did.
+- Play is the game's hub: your world with Enter the world, and a card for each game page. Play no longer starts the game when held.
+- Gameplay settings can be turned Off (body heat, illness, carrying weight, death and more), and each choice says what it changes.
+- The music starts when HumanityOS opens, and the Inventory is tighter, in coloured sections.
+
 ### v0.1555.0 (11 November 2026)
 
 - Shape your own face and body with 248 sliders (nose, eyes, jaw, ears and more), and wear real clothes, shoes, hats and hair fitted to your shape; others see your look.
