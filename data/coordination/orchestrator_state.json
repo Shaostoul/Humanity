@@ -12,6 +12,10 @@
   "recent_decisions": [
     {
       "date": "2026-11-10",
+      "decision": "Shadows agent paused cleanly with WIP commits in worktree-agent-ac879d22d61b7822e (c86f962c5 step 1 measurements, c2781f99c rung 1 WIP, committed --no-verify because of the pause: final commits must pass the hooks). CORRECTION: on main NOTHING near the player casts any shadow, sun included (homes, furniture and bodies are never drawn into the sun shadow map; FEATURES.md was wrong, the agent corrected it); the operator's two screenshots (images 16/17) were the agent's own rig window during its off/on comparison, so the second one showed rung 1, not main. Rung 1 measured: storage room shadows from racks and a body (sun through the glass roof and the room lamp), a long soft body shadow in the Sahara, first-person shadow keeps its head; GPU about 0.6 ms for room-light shadows, CPU 4.7 ms (too high; the last two cuts are uncompiled). Next on resume: release build, its sh-run-all.sh comparisons, main before-captures, cut CPU under about 1 ms, section 10 of the design, gates. It added Dune (DuneSandbox-Win64-Shipping.exe) to scripts/lib/operator-apps.json in the WIP."
+    },
+    {
+      "date": "2026-11-10",
       "decision": "Operator paused work (~18:45 Pacific) to play video games with his family. Loop stopped; the shadows agent told to commit its work in progress and stop (resume it with its WIP commit when he says go); no release tonight until he resumes. Merged and waiting for the next release: the look, its texture and mesh pools, rung 2b and its follow-up, the texture levels and Graphics audit."
     },
     {
@@ -1237,7 +1241,7 @@
     "Renderer: finer terrain costs about +6 ms per patch drawn and every depth-15+ patch carries the forest (maps 2b measurements, whole-earth-maps.md 6.4); batching patch draws would let the full-detail reach widen past 100 m."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-11T02:44:18.476Z",
+  "last_updated": "2026-11-11T02:46:28.018Z",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
