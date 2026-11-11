@@ -3,13 +3,17 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
-  "current_focus": "2026-11-11 morning: the Play hub and shadows rung 1 merged; no agent running. Usage about 92% of the week (reset 2026-11-13 03:00 UTC). Next release tonight after midnight is the 2nd of Nov 11? NO: v0.1555.0 was Nov 11 04:26, so one more release is allowed today (the Play hub and shadows). Next agents after the reset or as usage allows: shadows 1b, the renderer gap plan, the fruiting tent fix, gameplay levels follow-up.",
+  "current_focus": "2026-11-11: v0.1556.0 out; no agent running; holding new work until the weekly reset (2026-11-13 03:00 UTC, about 7 PM Pacific Nov 12). After the reset, in order: shadows rung 1b (Off truly free first), the renderer gap plan, the fruiting tent fix, gameplay levels follow-up (garden and ship modes), AI rung 3 (needs the operator's answer on the Ministral download). Open question to the operator: music at start on pages for the whole session or only until the first world entry.",
   "open_questions_for_human": [
     "Ancestry slider words African / Asian / European (MakeHuman says Caucasian), and proportions \"shorter legs / longer legs\" (MakeHuman: unusual / idealistic): rec keep as built.",
     "Map full-detail reach inside a pack: rec keep 100 m until the renderer batches patch draws and the forest cost item lands.",
     "Streets on mapped seawalls (Tracyton Blvd NW): rec rung 3 reads OSM seawalls / retaining walls / embankments as a stepped shore type."
   ],
   "recent_decisions": [
+    {
+      "date": "2026-11-11",
+      "decision": "v0.1556.0 released (shadows rung 1, the Play hub, gameplay levels with Off, music at start, the Inventory in tint sections). verify-runtime PASS 3/3. The Linux build first failed on a GitHub/Azure DNS outage (apt could not resolve azure.archive.ubuntu.com, also failing Verify's native-linux job); macOS compiled the non-Windows code; re-run after 30 min passed and the mirror published 14 files (22m00s). No more releases today (two on Nov 11). Usage 93%: nothing new until the weekly reset (2026-11-13 03:00 UTC)."
+    },
     {
       "date": "2026-11-11",
       "decision": "Shadows rung 1 merged: shadow atlas for the 8 most important room lights (Simplified 4) and a near sun tile; casters include structure, furniture, bodies, card hair and the first-person twin. Pixel-measured shadows on every vantage; Full costs CPU 1.0 to 2.2 ms and GPU scene +1.2 to 2.2 ms on the RTX 4070. Defect found and queued FIRST: Off still costs 0.2 to 1.0 ms of scene pass (the lookup compiled in), and the Settings cost line does not show it; rung 1b (a) rebuilds pipelines without the atlas at Off. Also queued: home-shadow-metrics --gate stale criteria, 1b (b) deferred mask, 1b (c) clip-distance draws."
@@ -1226,7 +1230,7 @@
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming.",
     "2026-11-06 (orchestrator session 1c730720): src/relay push routes, push_send.rs, web_push.rs, src/relay/handlers/utils.rs fetch_link_preview (SSRF agent); chat video upload/poster paths in both apps and the relay uploads (poster agent)."
   ],
-  "version_state": "v0.1555.0 released 2026-11-11 (read Cargo.toml for the current version; never trust this line over it).",
+  "version_state": "v0.1556.0 released 2026-11-11 (read Cargo.toml for the current version; never trust this line over it).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
@@ -1260,7 +1264,7 @@
     "Renderer: finer terrain costs about +6 ms per patch drawn and every depth-15+ patch carries the forest (maps 2b measurements, whole-earth-maps.md 6.4); batching patch draws would let the full-detail reach widen past 100 m."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-11T15:55:26.438Z",
+  "last_updated": "2026-11-11T17:56:02.658Z",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
